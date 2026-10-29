@@ -3,7 +3,7 @@
  * Every rule here is mirrored by RLS / RPC in supabase/migrations.
  * Deliberately absent: any way to delete a document (no method, no UI, no policy) - Admin included.
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
-import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT,
+import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, isViewOnly,
   isProcessor, isStaff, isClient, isAgent, sideOf } from './constants.js';
 import { buildSeed, DEAL_FOLDERS } from './seed.js';
 import { dealsAndAuth } from './mock-part-deals.js';
@@ -16,7 +16,7 @@ import { libraryFolders } from './mock-part-library.js';
 import { closingSchedule } from './mock-part-schedule.js';
 import { notificationsPart } from './mock-part-notify.js';
 
-const KEY = 'cla-portal-new:data:v2';
+const KEY = 'cla-portal-new:data:v3';   // v3: 'Admin' role (old saved demo data is re-seeded)
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();
@@ -39,7 +39,7 @@ export function createMockAdapter({ storage, sessionStorage } = {}) {
   const needProcessor = () => { const u = needUser(); if (!isProcessor(u.role)) fail('Only a Sales Processor can do this.'); return u; };
   const needAdmin = () => { const u = needUser(); if (!u.isAdmin) fail('Only an Admin can do this.'); return u; };
   const isManager = (u) => isProcessor(u.role) || u.role === 'Transaction Coordinator';   // runs the workflow on deals they can access
-  const notViewOnly = (u) => { if (u.role === 'Sales Person' || u.role === 'Sales Team') fail('This account is view-only for order work.'); };
+  const notViewOnly = (u) => { if (isViewOnly(u.role)) fail('This account is view-only for order work.'); };
   const contactOf = (profileId) => load().contacts.find((c) => c.profileId === profileId);
   const seesAll = (u) => u.isAdmin || isProcessor(u.role) || u.role === 'Sales Team';
   // TC access = TEAMS. Agents on any team where this TC is a coordinator. Removing either person from the team removes access immediately.
@@ -110,7 +110,7 @@ export function createMockAdapter({ storage, sessionStorage } = {}) {
   const ctx = { api, DEAL_FOLDERS, store, sess, SESSION_KEY, KEY, load, save, nid, me, needUser, needProcessor, needAdmin, isManager, notViewOnly, contactOf, seesAll, teamAgentIds, dealsFor, dealOr404, log, prof, nameOf, roleOf, fullName,
     folderOf, docVisible, threadVisible, unreadIn, participantsOf, ownerOf, taskVisible, formDataVisible, notify, dealProfileIds, dealView, clone, now, fail, str, emailOk, money, zipOk,
     reset() { store.removeItem(KEY); db = null; load(); },
-    C: { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf } };
+    C: { ROLES, DEAL_ROLES, ADMIN_ROLE, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf } };
   Object.assign(api, devAuth(ctx), dealsAndAuth(ctx), contactsTasksDocs(ctx), tasksAndForms(ctx), messagesActivity(ctx), adminUsersTeams(ctx), libraryFolders(ctx), closingSchedule(ctx), notificationsPart(ctx));
   return api;
 }

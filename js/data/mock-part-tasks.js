@@ -52,7 +52,7 @@ export function tasksAndForms(x) {
     },
     async createTask(dealId, input) {
       const u = needUser(); dealOr404(u, dealId); if (!isManager(u)) fail('Only the processor or transaction coordinator can add tasks.');
-      const role = C.ROLES.includes(input.assignedRole) ? input.assignedRole : 'Sales Processor';
+      const role = C.DEAL_ROLES.includes(input.assignedRole) ? input.assignedRole : 'Sales Processor';
       const t = { id: nid('t'), dealId, participantId: null, templateId: null, templateCode: null, templateVersion: null, kind: 'simple', title: str(input.title, 200) || fail('Task title is required.'),
         description: str(input.description, 1000), assignedRole: role, status: 'todo', dueDate: str(input.dueDate, 10) || null, formData: {}, savedAt: null, completedAt: null, completedBy: null, createdBy: u.id, createdAt: now() };
       load().tasks.push(t); log(dealId, u.id, 'task.created', 'task', t.id, `Task added: ${t.title}`);
@@ -67,7 +67,7 @@ export function tasksAndForms(x) {
       if (patch.title != null) t.title = str(patch.title, 200) || fail('Task title is required.');
       if (patch.description != null) t.description = str(patch.description, 1000);
       if (patch.dueDate !== undefined) t.dueDate = str(patch.dueDate, 10) || null;
-      if (patch.assignedRole != null && patch.assignedRole !== t.assignedRole) { if (t.participantId) fail('A participant task stays with that participant.'); if (!C.ROLES.includes(patch.assignedRole)) fail('Unknown role.'); t.assignedRole = patch.assignedRole; }
+      if (patch.assignedRole != null && patch.assignedRole !== t.assignedRole) { if (t.participantId) fail('A participant task stays with that participant.'); if (!C.DEAL_ROLES.includes(patch.assignedRole)) fail('Unknown role.'); t.assignedRole = patch.assignedRole; }
       if (patch.status != null && patch.status !== t.status) {
         if (!C.TASK_STATUSES.includes(patch.status)) fail('Unknown task status.');
         if (t.kind === 'form' && patch.status === 'done') { const tp = tpl(t.templateId); const r = validateForm(tp.fields, t.formData, true); if (r.errors.length) fail('The form is not complete yet: ' + r.errors[0].msg); }

@@ -130,3 +130,5 @@ tr.chosen td { background: #eef7dd; } .ok-text { color: var(--green-ink); font-w
 .ghost.danger { border-color: #e7b2a0; color: var(--red); } .ghost.danger:hover { background: #fdf0eb; }
 .team-card h3 { margin: 0; }
 .team-list .card { max-width: 900px; } .card-grid > .card { min-width: 0; overflow-x: auto; }
+/* role shown next to the signed-in name (e.g. "Admin") */
+.user-btn .role-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 9px; background: rgba(255,255,255,.18); font-size: 11px; font-weight: 600; letter-spacing: .02em; }

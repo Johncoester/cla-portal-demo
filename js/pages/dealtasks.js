@@ -1,7 +1,7 @@
 // Tasks tab. Intake forms are per-participant copies of a versioned template (open them to fill in). Simple tasks are ticked.
 // Processor + transaction coordinator manage tasks and queue reminders (outbox only, never sent). Tasks are cancelled, never deleted.
 import { html, $, $$, guard, formData, modal, closeModal, options, fmtDate, pill, toast } from '../ui.js';
-import { ROLES, isProcessor } from '../data/constants.js';
+import { DEAL_ROLES as ROLES, isProcessor } from '../data/constants.js';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
 export const LABEL = { todo: 'to do', in_progress: 'started', done: 'done', blocked: 'blocked', cancelled: 'cancelled' };

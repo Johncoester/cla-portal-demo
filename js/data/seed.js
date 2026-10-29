@@ -14,7 +14,7 @@ export function buildSeed() {
     P('u-lagent', 'Larry', 'Listing-Agent', 'Listing Agent', 6),
     P('u-buyer', 'Ben', 'Buyer', 'Client-Buyer', 7),
     P('u-seller', 'Sally', 'Seller', 'Client-Seller', 8),
-    P('u-admin', 'King John', 'Admin', 'Sales Team', 9, { isAdmin: true }),   // Admin = a flag on the account, separate from role
+    P('u-admin', 'King John', 'Admin', 'Admin', 9, { isAdmin: true }),   // role 'Admin' (always isAdmin; isAdmin is the permission check)
     P('u-gone', 'Gary', 'Gone', 'Buyer Agent', 10, { status: 'removed', removedAt: '2026-10-20T15:00:00Z', removedBy: 'u-admin' }),   // deleted by Admin; history kept
   ];
   const contacts = profiles.map((p) => ({ id: 'c-' + p.id.slice(2), profileId: p.id, firstName: p.firstName, lastName: p.lastName, email: p.email, phone: p.phone,

@@ -1,7 +1,7 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { getAdapter } from './data/adapter.js';
 import { html, raw, toText, esc, $, $$, toast, closeModal } from './ui.js';
-import { isProcessor, isStaff, isClient, isAgent } from './data/constants.js';
+import { isProcessor, isStaff, isClient, isAgent, roleLabel } from './data/constants.js';
 
 const pages = {
   login: () => import('./pages/entry.js'),
@@ -63,7 +63,7 @@ async function layout(u, view, route) {
     <div class="topbar-right">${topButtons}
       <div class="notif-wrap"><button class="bell" data-bell title="${unread} unread notification(s)" aria-label="Notifications"><img src="assets/img/bell_new.png" alt=""><span class="notification-num">${unread}</span></button>
         <div class="notif-dd" hidden><div class="notif-head"><strong>Notifications</strong><button class="linkish" data-readall>Mark all read</button></div><ul class="notif-list"><li class="muted">Loading&hellip;</li></ul></div></div>
-      <div class="user-menu"><button class="user-btn" data-usermenu>${u.firstName} ${u.lastName} &#9662;</button>
+      <div class="user-menu"><button class="user-btn" data-usermenu>${u.firstName} ${u.lastName} <span class="role-tag" data-role-tag>${roleLabel(u)}</span> &#9662;</button>
         <ul class="user-dd" hidden><li><a href="#/profile">Profile Setting</a></li><li><a href="#" data-signout>Logout</a></li></ul></div>
     </div></div></div>
   <div class="wrapper-main">

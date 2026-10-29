@@ -1,8 +1,13 @@
-/* mock adapter: Admin only (the isAdmin flag on an account, separate from role). Users: add, edit, disable, DELETE. Teams: create, rename, add/remove members.
+/* mock adapter: Admin only (isAdmin = the permission check; role 'Admin' always has it, and other roles may carry the flag as in the old portal). Users: add, edit, disable, DELETE. Teams: create, rename, add/remove members.
  * "Delete user" = status 'removed': they can never sign in again and drop off teams and pickers, but the row stays so their documents, messages,
  * task answers and audit history keep an author shown as "Name (removed)". Documents are never deleted, by anyone. */
 export function adminUsersTeams(x) {
   const { load, save, nid, needUser, needAdmin, contactOf, prof, nameOf, log, clone, now, fail, str, emailOk, C } = x;
+  // role 'Admin' <=> isAdmin; leaving the Admin role clears isAdmin unless the same edit sets it; never leave the portal without an active Admin
+  const lastAdminGuard = (p, next) => {
+    if (p.isAdmin && p.status === 'active' && !(next.isAdmin && next.status === 'active')
+      && !load().profiles.some((q) => q.id !== p.id && q.isAdmin && q.status === 'active')) fail('There must always be at least one Admin.');
+  };
   const teamOut = (t) => { const d = load(); return { ...t, members: d.teamMembers.filter((m) => m.teamId === t.id).map((m) => ({ ...m, name: nameOf(m.profileId), role: (prof(m.profileId) || {}).role })) }; };
   return {
     // ---------- Users ----------
@@ -14,19 +19,27 @@ export function adminUsersTeams(x) {
       if (d.profiles.some((p) => p.email === email && p.status !== 'removed')) fail('A user with this email already exists.');
       if (!C.ROLES.includes(input.role)) fail('Pick a role.');
       const firstName = str(input.firstName, 80) || fail('First name is required.');
-      const p = { id: nid('u'), email, firstName, lastName: str(input.lastName, 80), phone: str(input.phone, 40), role: input.role, isAdmin: input.isAdmin === true || input.isAdmin === 'on',
+      const p = { id: nid('u'), email, firstName, lastName: str(input.lastName, 80), phone: str(input.phone, 40), role: input.role, isAdmin: input.role === C.ADMIN_ROLE || input.isAdmin === true || input.isAdmin === 'on',
         status: 'active', createdAt: now() };
       d.profiles.push(p);
       const existing = d.contacts.find((c) => c.email === email && !(c.profileId && (prof(c.profileId) || {}).status === 'removed'));   // reuse a contact so earlier order links carry over
       if (existing) existing.profileId = p.id;
-      else d.contacts.push({ id: nid('c'), profileId: p.id, firstName: p.firstName, lastName: p.lastName, email, phone: p.phone, company: '', createdBy: u.id, createdAt: now() });
+      else if (p.role !== C.ADMIN_ROLE) d.contacts.push({ id: nid('c'), profileId: p.id, firstName: p.firstName, lastName: p.lastName, email, phone: p.phone, company: '', createdBy: u.id, createdAt: now() });
       log(null, u.id, 'user.created', 'user', p.id, `Created user ${p.firstName} ${p.lastName} (${p.role}${p.isAdmin ? ', Admin' : ''})`); save(); return clone(p);
     },
     async adminUpdateUser(id, patch) {
       const u = needAdmin(); const p = prof(id) || fail('User not found.'); if (p.status === 'removed') fail('This user was removed.');
-      if (patch.role != null && patch.role !== p.role) { if (!C.ROLES.includes(patch.role)) fail('Unknown role.'); p.role = patch.role; }
-      if (patch.isAdmin != null) { const v = patch.isAdmin === true || patch.isAdmin === 'on' || patch.isAdmin === 'true'; if (p.id === u.id && !v) fail('You cannot remove your own Admin access.'); p.isAdmin = v; }
-      if (patch.status != null) { if (!['active', 'disabled'].includes(patch.status)) fail('Unknown status.'); if (p.id === u.id && patch.status !== 'active') fail('You cannot disable yourself.'); p.status = patch.status; }
+      const next = { role: p.role, isAdmin: !!p.isAdmin, status: p.status };
+      if (patch.role != null && patch.role !== p.role) { if (!C.ROLES.includes(patch.role)) fail('Unknown role.'); next.role = patch.role; }
+      if (patch.isAdmin != null) next.isAdmin = patch.isAdmin === true || patch.isAdmin === 'on' || patch.isAdmin === 'true';
+      if (patch.status != null) { if (!['active', 'disabled'].includes(patch.status)) fail('Unknown status.'); next.status = patch.status; }
+      if (p.id === u.id && p.isAdmin && !next.isAdmin) fail('You cannot remove your own Admin access.');
+      if (next.role === C.ADMIN_ROLE) { if (p.role === C.ADMIN_ROLE && patch.isAdmin != null && !next.isAdmin) fail('An Admin-role user keeps Admin access; change the role first.'); next.isAdmin = true; }
+      else if (p.role === C.ADMIN_ROLE && patch.isAdmin == null) next.isAdmin = false;
+      if (p.id === u.id && p.isAdmin && !next.isAdmin) fail('You cannot remove your own Admin access.');
+      if (p.id === u.id && next.status !== 'active') fail('You cannot disable yourself.');
+      lastAdminGuard(p, next);
+      Object.assign(p, next);
       ['firstName', 'lastName', 'phone'].forEach((k) => { if (patch[k] != null) p[k] = str(patch[k], 80); });
       if (!p.firstName) fail('First name is required.');
       const c = contactOf(p.id); if (c) { c.firstName = p.firstName; c.lastName = p.lastName; c.phone = p.phone; }
@@ -35,6 +48,7 @@ export function adminUsersTeams(x) {
     async adminDeleteUser(id) {
       const u = needAdmin(); const d = load(); const p = prof(id) || fail('User not found.');
       if (p.id === u.id) fail('You cannot delete your own account.'); if (p.status === 'removed') fail('This user was already removed.');
+      lastAdminGuard(p, { isAdmin: false, status: 'removed' });
       p.status = 'removed'; p.isAdmin = false; p.removedAt = now(); p.removedBy = u.id;
       d.teamMembers = d.teamMembers.filter((m) => m.profileId !== id);   // access through teams ends now
       log(null, u.id, 'user.removed', 'user', id, `Removed user ${p.firstName} ${p.lastName} (documents, messages and history kept)`); save(); return true;

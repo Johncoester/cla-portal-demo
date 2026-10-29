@@ -1,8 +1,9 @@
 // Inbox tab: conversations on this file (only people on the thread see it). Replies, new conversation, unread counts.
 import { html, $, $$, guard, formData, modal, closeModal, fmtDateTime, pill, toast } from '../ui.js';
+import { isViewOnly } from '../data/constants.js';
 
 export async function render(ctx) {
-  const { api, user, deal, refresh, params } = ctx; const notViewOnly = !['Sales Person', 'Sales Team'].includes(user.role);
+  const { api, user, deal, refresh, params } = ctx; const notViewOnly = !isViewOnly(user.role);
   if (params.sub) return thread(ctx);
   const threads = await api.listThreads(deal.id);
   const rows = threads.map((t, i) => html`<tr class="${t.unread ? 'unread' : ''}"><td>${i + 1}</td><td><a href="#/deals/${deal.id}/inbox/${t.id}">${t.subject}</a>${t.unread ? html` ${pill(t.unread + ' new', 'info')}` : ''}<br><span class="muted small">${t.lastBody.slice(0, 90)}</span></td>
@@ -23,7 +24,7 @@ export async function render(ctx) {
 }
 
 async function thread({ api, user, deal, refresh, params }) {
-  const t = await api.getThread(params.sub); await api.markThreadRead(t.id); const canPost = !['Sales Person', 'Sales Team'].includes(user.role) && t.participantIds.includes(user.id);
+  const t = await api.getThread(params.sub); await api.markThreadRead(t.id); const canPost = !isViewOnly(user.role) && t.participantIds.includes(user.id);
   const msgs = t.messages.map((m) => html`<div class="bubble ${m.mine ? 'mine' : ''}"><div class="who"><strong>${m.authorName}</strong> <span class="muted small">${fmtDateTime(m.createdAt)}</span></div><div class="text">${m.body}</div></div>`);
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>${t.subject}</h2><a class="ghost right" href="#/deals/${deal.id}/inbox">All conversations</a></div>
     <p class="muted">With: ${t.participants.map((p) => `${p.name} (${p.role})`).join(', ')}</p><div class="thread">${msgs}</div>

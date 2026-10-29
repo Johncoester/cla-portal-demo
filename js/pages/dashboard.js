@@ -81,7 +81,7 @@ async function admin({ api, user, deals }) {
   const count = (st) => users.filter((u) => u.status === st).length;
   const rows = log.items.slice(0, 8).map((a) => html`<tr><td class="nowrap">${fmtDateTime(a.createdAt)}</td><td>${a.actorName}</td><td>${a.detail}</td></tr>`);
   return { title: 'Admin', body: html`
-    <div class="page-head"><div><div class="eyebrow">ADMIN &middot; ${user.role.toUpperCase()}</div><h2 class="page-title">Admin overview</h2><div class="muted">Admin is a flag on the account, separate from role. Admins manage users and teams and can see every order and file.</div></div>
+    <div class="page-head"><div><div class="eyebrow">${user.role === 'Admin' ? 'ADMIN' : html`ADMIN &middot; ${user.role.toUpperCase()}`}</div><h2 class="page-title">Admin overview</h2><div class="muted">Admins (role Admin, or the Admin flag on another role) manage users and teams and can see every order and file.</div></div>
       <div><a class="ghost" href="#/teams">Teams</a> <a class="m-btn" href="#/users/new">+ Create user</a></div></div>
     <div class="stat-row">${stat('Active users', count('active'), users.length + ' accounts')}${stat('Disabled', count('disabled'), 'cannot sign in', count('disabled') ? 'warn' : '')}
       ${stat('Removed', count('removed'), 'history kept')}${stat('Teams', teams.length, 'coordinator access')}${stat('Orders', deals.length, 'all visible to Admin')}</div>
