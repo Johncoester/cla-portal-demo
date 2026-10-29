@@ -9,8 +9,9 @@ export const toText = (v) => part(v);
 
 export const fmtDate = (d) => { if (!d) return ''; const m = String(d).slice(0, 10).split('-'); return m.length === 3 ? `${m[1]}/${m[2]}/${m[0]}` : String(d); };
 export const fmtDateTime = (iso) => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); };
-export const fmtMoney = (n) => (n == null || n === '' ? '' : '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 }));
-export const fmtSize = (n) => (n > 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' KB');
+export const fmtMoney = (n) => { if (n == null || n === '') return ''; const v = Number(n); const cents = Math.round(v * 100) % 100 !== 0;   // show cents only when there are any
+  return '$' + v.toLocaleString('en-US', { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: cents ? 2 : 0 }); };
+export const fmtSize = (n) => (n > 1e6 ? (n / 1e6).toFixed(1) + ' MB' : !n ? '0 KB' : Math.max(1, Math.round(n / 1e3)) + ' KB');
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 export const formData = (form) => Object.fromEntries(new FormData(form).entries());

@@ -2,6 +2,7 @@
  * Publishing a new version never changes existing copies. Mirrored in SQL table public.task_templates (fields as jsonb).
  * Intake forms follow the old portal's task pages (Tasks.php): ID upload, personal info, title vesting, lender, HOA, outstanding mortgage, home warranty, commissions.
  * Deliberately NOT collected: SSNs (the old portal asked for them; that needs a separate secure decision). */
+import { isRealDate } from './constants.js';
 const yn = ['Yes', 'No'];
 const F = (k, label, type, req = false, extra = {}) => ({ k, label, type, req, ...extra });
 const none = (label) => F('none', label, 'checkbox');
@@ -38,7 +39,7 @@ export const TEMPLATE_DEFS = [
 ];
 
 const CHECK = {
-  email: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), phone: (v) => /^[0-9()+\-.\s]{7,20}$/.test(v), date: (v) => /^\d{4}-\d{2}-\d{2}$/.test(v),
+  email: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), phone: (v) => /^[0-9()+\-.\s]{7,20}$/.test(v), date: (v) => isRealDate(v),
   money: (v) => isFinite(Number(String(v).replace(/[$,]/g, ''))) && Number(String(v).replace(/[$,]/g, '')) >= 0, digits4: (v) => /^\d{4}$/.test(v),
 };
 const MSG = { email: 'must be a valid email', phone: 'must be a phone number', date: 'must be a date', money: 'must be a positive amount', digits4: 'must be exactly 4 digits' };

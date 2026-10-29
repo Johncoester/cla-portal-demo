@@ -1,7 +1,7 @@
 // Role dashboards: Sales Processor = Work Queue; Sales Person / Sales Team = Team Dashboard (view-only);
 // Transaction Coordinator = Dashboard; Buyer/Listing Agent = Transactions; clients = My Closing.
 import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js';
-import { STAGES, isProcessor, isClient, isAgent } from '../data/constants.js';
+import { STAGES, isProcessor, isClient, isAgent, localDate } from '../data/constants.js';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>`;
 const stat = (label, value, sub, cls = '') => html`<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value ${cls}">${value}</div><div class="stat-sub">${sub}</div></div>`;
@@ -12,7 +12,7 @@ export async function render(ctx) {
   const deals = await api.listDeals({ status: 'All' });
   const tasksByDeal = {}; for (const d of deals) tasksByDeal[d.id] = await api.listTasks(d.id);
   const all = Object.entries(tasksByDeal).flatMap(([id, ts]) => ts.map((t) => ({ ...t, deal: deals.find((d) => d.id === id) })));
-  const open = deals.filter((d) => d.status === 'Open'); const today = new Date().toISOString().slice(0, 10);
+  const open = deals.filter((d) => d.status === 'Open'); const today = localDate();
   const pick = user.isAdmin ? admin : isProcessor(user.role) ? processor : user.role === 'Transaction Coordinator' ? coordinator : isAgent(user.role) ? agent : isClient(user.role) ? client : team;
   const v = await pick({ ...ctx, deals, open, all, today });
   return { title: v.title, crumbs: [[v.title]], body: v.body, mount: v.mount };
@@ -41,7 +41,7 @@ async function team({ user, open, all, deals, today }) {
   return { title: 'Team dashboard', body: html`
     <div class="page-head"><div><div class="eyebrow">CLA TEAM &middot; ${user.role.toUpperCase()}</div><h2 class="page-title">Team dashboard</h2><div class="muted">View-only. Your processor updates files and tasks.</div></div></div>
     <div class="stat-row">${stat('Open files', open.length, 'right now')}${stat('Closed', deals.filter((d) => d.status === 'Closed').length, 'all time')}
-      ${stat('Overdue tasks', overdue, 'on open files', overdue ? 'bad' : '')}${stat('Closing in 21 days', open.filter((d) => d.closingDate && d.closingDate <= new Date(Date.now() + 21 * 864e5).toISOString().slice(0, 10)).length, 'files')}</div>
+      ${stat('Overdue tasks', overdue, 'on open files', overdue ? 'bad' : '')}${stat('Closing in 21 days', open.filter((d) => d.closingDate && d.closingDate >= today && d.closingDate <= localDate(21)).length, 'files')}</div>
     <div class="card"><h3>Open files</h3><table class="tbl"><thead><tr><th>Order</th><th>Property</th><th>Processor</th><th>Stage</th><th>Closing</th><th>Open tasks</th></tr></thead><tbody>${rows}</tbody></table></div>` };
 }
 

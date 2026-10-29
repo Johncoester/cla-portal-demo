@@ -37,7 +37,7 @@ export async function render({ api, deal, params, refresh, go }) {
       try {
         for (const fi of $$('input[data-file]', form)) { const file = fi.files[0]; if (!file) continue;
           if (file.size > MAX_UPLOAD_BYTES) throw new Error('File is too large for this demo.');
-          const up = await api.uploadForTask(t.id, { name: file.name, mimeType: file.type, size: file.size, dataUrl: await readFile(file) }); form.elements[fi.dataset.file].value = up.id; }
+          const up = await api.uploadForTask(t.id, { name: file.name, mimeType: file.type, size: file.size, dataUrl: await readFile(file) }); form.elements[fi.dataset.file].value = up.id; fi.value = ''; }   // stored once: a retry after a form error must not upload it again
         const data = {}; new FormData(form).forEach((val, k) => { if (typeof val === 'string') data[k] = val; });
         await api.saveTaskForm(t.id, data, { complete: mode === 'complete' });
         toast(mode === 'complete' ? 'Task complete. Thank you!' : 'Progress saved'); mode === 'complete' ? go(`/deals/${deal.id}/tasks`) : refresh();

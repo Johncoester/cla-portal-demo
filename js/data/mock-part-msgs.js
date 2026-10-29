@@ -1,6 +1,6 @@
 /* mock adapter: messages (with notifications) and the activity log (with filters). User admin lives in mock-part-admin.js (Admin flag only). */
 export function messagesActivity(x) {
-  const { load, save, nid, needUser, notViewOnly, dealOr404, dealsFor, log, nameOf, roleOf, threadVisible, unreadIn, participantsOf, notify, clone, now, fail, str, C } = x;
+  const { load, save, nid, needUser, notViewOnly, dealOr404, dealsFor, log, nameOf, roleOf, threadVisible, unreadIn, participantsOf, notify, clone, now, fail, str, docVisible, taskVisible, localDayOf, C } = x;
   const withPeople = (t) => ({ ...t, participants: t.participantIds.map((id) => ({ id, name: nameOf(id), role: roleOf(id) })) });
   const api = {
     async listMessageRecipients(dealId) {
@@ -49,10 +49,18 @@ export function messagesActivity(x) {
       if (dealId) { dealOr404(u, dealId); ids = new Set([dealId]); }
       else { if (!(C.isProcessor(u.role) || u.isAdmin)) fail('The full activity log is for the processor and Admin.'); ids = null; }
       const d = load(); const deals = new Map(d.deals.map((q) => [q.id, q]));
-      const base = d.activity.filter((a) => (ids ? ids.has(a.dealId) : (u.isAdmin || a.dealId !== null || a.actorId === u.id)));
+      // Entries about things this viewer cannot open (staff-only / other-side documents, conversations they are not in, hidden tasks) are left out,
+      // otherwise the log leaks file names and subjects. Processor and Admin see everything.
+      const full = C.isProcessor(u.role) || u.isAdmin;
+      const canSee = (a) => { if (full) return true;
+        if (a.entity === 'document') { const z = d.documents.find((q) => q.id === a.entityId); return !z || docVisible(u, z); }
+        if (a.entity === 'thread') { const t = d.threads.find((q) => q.id === a.entityId); return !t || threadVisible(u, t); }
+        if (a.entity === 'task') { const t = d.tasks.find((q) => q.id === a.entityId); return !t || taskVisible(u, t); }
+        return true; };
+      const base = d.activity.filter((a) => (ids ? ids.has(a.dealId) : (u.isAdmin || a.dealId !== null || a.actorId === u.id)) && canSee(a));
       const q = str(f.q, 100).toLowerCase();
       const items = base.filter((a) => (!f.type || a.action.split('.')[0] === f.type) && (!f.actorId || a.actorId === f.actorId)
-        && (!f.from || a.createdAt.slice(0, 10) >= f.from) && (!f.to || a.createdAt.slice(0, 10) <= f.to) && (!q || a.detail.toLowerCase().includes(q)))
+        && (!f.from || localDayOf(a.createdAt) >= f.from) && (!f.to || localDayOf(a.createdAt) <= f.to) && (!q || a.detail.toLowerCase().includes(q)))
         .map((a) => ({ ...a, actorName: nameOf(a.actorId), actorRole: roleOf(a.actorId), fileNumber: a.dealId ? (deals.get(a.dealId) || {}).fileNumber : '' }))
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       return clone({ items: items.slice(0, 300), total: items.length,

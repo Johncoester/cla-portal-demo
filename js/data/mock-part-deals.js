@@ -1,6 +1,6 @@
 /* mock adapter, part 1: auth, profile, dashboard, deals. See mock-adapter.js. */
 export function dealsAndAuth(x) {
-  const { load, save, nid, me, needUser, needProcessor, contactOf, dealsFor, dealOr404, log, nameOf, dealView, taskVisible, clone, now, fail, str, emailOk, money, zipOk, C } = x;
+  const { load, save, nid, me, needUser, needProcessor, contactOf, dealsFor, dealOr404, log, nameOf, dealView, taskVisible, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
   return {
     // ---------- Profile ----------
@@ -17,7 +17,7 @@ export function dealsAndAuth(x) {
     async getWorkQueue() {
       const u = needUser(); const d = load(); const deals = dealsFor(u).filter((q) => q.status === 'Open');
       const tasks = d.tasks.filter((t) => deals.some((q) => q.id === t.dealId) && OPEN.includes(t.status) && taskVisible(u, t));
-      const today = now().slice(0, 10); const soon = new Date(Date.now() + 21 * 864e5).toISOString().slice(0, 10);
+      const today = localDate(); const soon = localDate(21);
       const clientWait = (t) => ['todo', 'in_progress'].includes(t.status) && /^Client/.test(t.assignedRole);
       const attention = deals.map((q) => ({ deal: dealView(u, q), overdue: tasks.filter((t) => t.dealId === q.id && t.dueDate && t.dueDate < today).length,
         blocked: tasks.filter((t) => t.dealId === q.id && t.status === 'blocked').length, waitingOnClients: tasks.filter((t) => t.dealId === q.id && clientWait(t)).length }))
@@ -40,12 +40,12 @@ export function dealsAndAuth(x) {
       const u = needProcessor(); const d = load();
       const street = str(input.street, 200) || fail('Street address is required.');
       const city = str(input.city, 100) || fail('City is required.');
-      const state = str(input.state, 2).toUpperCase() || fail('State is required.');
+      const state = stateCode(input.state);
       const zip = str(input.zip, 10); if (!zipOk(zip)) fail('ZIP must be 5 digits (or ZIP+4).');
       const transactionType = C.TX_TYPES.includes(input.transactionType) ? input.transactionType : 'Purchase';
       const nextNum = Math.max(97000, ...d.deals.map((q) => Number(q.fileNumber.split('-')[2]) || 0)) + 1;
       const deal = { id: nid('deal'), fileNumber: `MD-26-${nextNum}`, street, city, state, zip, transactionType, stage: 0, status: 'Open',
-        openDate: now().slice(0, 10), closingDate: str(input.closingDate, 10) || null, purchasePrice: money(input.purchasePrice, 'Purchase price'), loanAmount: money(input.loanAmount, 'Loan amount'),
+        openDate: localDate(), closingDate: dateOrNull(input.closingDate, 'Closing date'), purchasePrice: money(input.purchasePrice, 'Purchase price'), loanAmount: money(input.loanAmount, 'Loan amount'),
         lenderName: '', lenderContact: '', lenderEmail: '', lenderPhone: '', notes: str(input.notes, 2000), processorId: u.id, salesPersonId: input.salesPersonId || null, createdBy: u.id, createdAt: now() };
       d.deals.push(deal);
       const pc = contactOf(u.id); if (pc) d.participants.push({ id: nid('dp'), dealId: deal.id, contactId: pc.id, role: 'Sales Processor', createdAt: now() });
@@ -58,11 +58,12 @@ export function dealsAndAuth(x) {
     },
     async updateDeal(id, patch) {
       const u = needProcessor(); const q = load().deals.find((y) => y.id === id) || fail('Order not found.');
+      if (patch.state != null) patch = { ...patch, state: stateCode(patch.state) };
       ['street', 'city', 'state', 'zip', 'lenderName', 'lenderContact', 'lenderEmail', 'lenderPhone', 'notes'].forEach((k) => { if (patch[k] != null) q[k] = str(patch[k], k === 'notes' ? 2000 : 200); });
       if (q.lenderEmail && !emailOk(q.lenderEmail)) fail('Lender email is not valid.');
       if (!zipOk(q.zip)) fail('ZIP must be 5 digits (or ZIP+4).');
       if (!q.street || !q.city || !q.state) fail('Street, city and state are required.');
-      if (patch.closingDate !== undefined) q.closingDate = str(patch.closingDate, 10) || null;
+      if (patch.closingDate !== undefined) q.closingDate = dateOrNull(patch.closingDate, 'Closing date');
       if (patch.purchasePrice !== undefined) q.purchasePrice = money(patch.purchasePrice, 'Purchase price');
       if (patch.loanAmount !== undefined) q.loanAmount = money(patch.loanAmount, 'Loan amount');
       if (patch.salesPersonId !== undefined) q.salesPersonId = patch.salesPersonId || null;

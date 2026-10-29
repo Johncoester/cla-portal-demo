@@ -2,10 +2,10 @@
  * Intake forms: save partial work, validate, mark complete. Reminders are QUEUED in an outbox only and never sent. Tasks are cancelled, never deleted. */
 import { validateForm, fieldActive } from './templates.js';
 export function tasksAndForms(x) {
-  const { load, save, nid, needUser, needAdmin, isManager, dealOr404, dealsFor, log, prof, nameOf, ownerOf, taskVisible, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, C } = x;
+  const { load, save, nid, needUser, needAdmin, isManager, dealOr404, dealsFor, log, prof, nameOf, ownerOf, taskVisible, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, dateOrNull, localDate, localDayOf, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
   const tpl = (id) => load().taskTemplates.find((t) => t.id === id);
-  const addDays = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  const addDays = (n) => localDate(n);
   const taskOr404 = (u, id) => { const t = load().tasks.find((z) => z.id === id) || fail('Task not found.'); dealOr404(u, t.dealId); if (!taskVisible(u, t)) fail('Task not found.'); return t; };
   const canFill = (u, t) => t.kind === 'form' && t.status !== 'cancelled' && (ownerOf(t) === u.id || isManager(u));
   const out = (u, t) => { const o = clone(t); o.ownerId = ownerOf(t); o.ownerName = o.ownerId ? nameOf(o.ownerId) : ''; o.mine = o.ownerId === u.id || (!t.participantId && t.assignedRole === u.role);
@@ -23,12 +23,12 @@ export function tasksAndForms(x) {
     return n;
   };
   function queueReminder(u, t) {
-    const d = load(); const deal = d.deals.find((z) => z.id === t.dealId); const today = now().slice(0, 10);
+    const d = load(); const deal = d.deals.find((z) => z.id === t.dealId); const today = localDate();
     let to = t.participantId ? [ownerOf(t)] : dealProfileIds(t.dealId).filter((pid) => (prof(pid) || {}).role === t.assignedRole);
     to = to.filter((pid) => pid && prof(pid) && prof(pid).status === 'active');
     let n = 0;
     to.forEach((pid) => {
-      if (d.outbox.some((o) => o.taskId === t.id && o.toProfileId === pid && o.createdAt.slice(0, 10) === today)) return;   // one per task/person/day
+      if (d.outbox.some((o) => o.taskId === t.id && o.toProfileId === pid && localDayOf(o.createdAt) === today)) return;   // one per task/person/day
       const p = prof(pid);
       d.outbox.push({ id: nid('ob'), channel: 'email', status: 'queued', toProfileId: pid, toEmail: p.email, subject: `Reminder: ${t.title} (${deal.fileNumber})`,
         body: `Hi ${p.firstName}, this is a reminder about "${t.title}" for ${deal.street}, ${deal.city}.${t.dueDate ? ' Due ' + t.dueDate + '.' : ''} Please sign in to the portal to finish it.`,
@@ -54,7 +54,7 @@ export function tasksAndForms(x) {
       const u = needUser(); dealOr404(u, dealId); if (!isManager(u)) fail('Only the processor or transaction coordinator can add tasks.');
       const role = C.DEAL_ROLES.includes(input.assignedRole) ? input.assignedRole : 'Sales Processor';
       const t = { id: nid('t'), dealId, participantId: null, templateId: null, templateCode: null, templateVersion: null, kind: 'simple', title: str(input.title, 200) || fail('Task title is required.'),
-        description: str(input.description, 1000), assignedRole: role, status: 'todo', dueDate: str(input.dueDate, 10) || null, formData: {}, savedAt: null, completedAt: null, completedBy: null, createdBy: u.id, createdAt: now() };
+        description: str(input.description, 1000), assignedRole: role, status: 'todo', dueDate: dateOrNull(input.dueDate, 'Due date'), formData: {}, savedAt: null, completedAt: null, completedBy: null, createdBy: u.id, createdAt: now() };
       load().tasks.push(t); log(dealId, u.id, 'task.created', 'task', t.id, `Task added: ${t.title}`);
       notify(dealProfileIds(dealId).filter((pid) => (prof(pid) || {}).role === role), { kind: 'task', dealId, title: `New task: ${t.title}`, link: `#/deals/${dealId}/tasks` }, u.id);
       save(); return clone(t);
@@ -66,7 +66,7 @@ export function tasksAndForms(x) {
       }
       if (patch.title != null) t.title = str(patch.title, 200) || fail('Task title is required.');
       if (patch.description != null) t.description = str(patch.description, 1000);
-      if (patch.dueDate !== undefined) t.dueDate = str(patch.dueDate, 10) || null;
+      if (patch.dueDate !== undefined) t.dueDate = dateOrNull(patch.dueDate, 'Due date');
       if (patch.assignedRole != null && patch.assignedRole !== t.assignedRole) { if (t.participantId) fail('A participant task stays with that participant.'); if (!C.DEAL_ROLES.includes(patch.assignedRole)) fail('Unknown role.'); t.assignedRole = patch.assignedRole; }
       if (patch.status != null && patch.status !== t.status) {
         if (!C.TASK_STATUSES.includes(patch.status)) fail('Unknown task status.');
@@ -118,7 +118,7 @@ export function tasksAndForms(x) {
     },
     async queueOverdueReminders() {
       const u = needUser(); if (!isManager(u)) fail('Only the processor or coordinator can queue reminders.');
-      const today = now().slice(0, 10); const ids = new Set(dealsFor(u).filter((q) => q.status === 'Open').map((q) => q.id)); let n = 0;
+      const today = localDate(); const ids = new Set(dealsFor(u).filter((q) => q.status === 'Open').map((q) => q.id)); let n = 0;
       load().tasks.filter((t) => ids.has(t.dealId) && OPEN.includes(t.status) && t.dueDate && t.dueDate < today).forEach((t) => { n += queueReminder(u, t); });
       save(); return { queued: n };
     },

@@ -65,7 +65,8 @@ export function adminUsersTeams(x) {
       const t = { id: nid('team'), name: n, createdBy: u.id, createdAt: now() }; d.teams.push(t); log(null, u.id, 'team.created', 'team', t.id, `Created team ${n}`); save(); return clone(teamOut(t));
     },
     async renameTeam(teamId, name) {
-      const u = needAdmin(); const t = load().teams.find((z) => z.id === teamId) || fail('Team not found.'); t.name = str(name, 120) || fail('Team name is required.');
+      const u = needAdmin(); const t = load().teams.find((z) => z.id === teamId) || fail('Team not found.'); const n = str(name, 120) || fail('Team name is required.');
+      if (load().teams.some((z) => z.id !== t.id && z.name.toLowerCase() === n.toLowerCase())) fail('A team with this name already exists.'); t.name = n;
       log(null, u.id, 'team.renamed', 'team', teamId, `Renamed team to ${t.name}`); save(); return clone(teamOut(t));
     },
     async addTeamMember(teamId, profileId, memberRole) {

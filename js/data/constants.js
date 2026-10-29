@@ -37,4 +37,11 @@ export const DOC_VISIBILITY = ['all', 'buyer', 'seller', 'staff'];
 // Participant roles on a deal = the 8 order roles plus non-login parties (never 'Admin')
 export const PARTICIPANT_ROLES = [...DEAL_ROLES, 'Lender', 'HOA', 'Other'];
 export const MAX_UPLOAD_BYTES = 1_500_000;   // demo limit only (mock stores files in localStorage)
+// Calendar dates are LOCAL (the office's day), not UTC: after 8 PM Eastern, toISOString() is already tomorrow.
+const pad2 = (n) => String(n).padStart(2, '0');
+export const ymd = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+export const localDate = (offsetDays = 0) => { const d = new Date(); d.setDate(d.getDate() + offsetDays); return ymd(d); };
+export const localDayOf = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : ymd(d); };
+// A real calendar date in YYYY-MM-DD form (rejects 2026-02-30, 2026-13-01, "next week").
+export const isRealDate = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v)); if (!m) return false; const d = new Date(+m[1], +m[2] - 1, +m[3]); return d.getFullYear() === +m[1] && d.getMonth() === +m[2] - 1 && d.getDate() === +m[3]; };
 export const ALLOWED_UPLOAD_EXT = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'png', 'jpg', 'jpeg'];

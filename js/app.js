@@ -90,7 +90,9 @@ export async function render() {
   try { view = await mod.render({ api, user: u, params: route.params, refresh: render, go }); }
   catch (e) { view = { crumbs: [['Not available']], body: html`<div class="box-title"><h2>Not available</h2></div><p class="err-text">${e.message}</p><p><a class="back-btn" href="#${homeFor(u)}">Back</a></p>` }; }
   if (my !== rendering) return;
-  if (PUBLIC.has(route.page)) { root.innerHTML = toText(view.body); } else { root.innerHTML = toText(await layout(u, view, route)); wireChrome(u); }
+  if (PUBLIC.has(route.page)) { root.innerHTML = toText(view.body); }
+  else { let shell; try { shell = await layout(u, view, route); } catch (e) { if (/sign in/i.test(e.message || '')) { location.hash = '#/login'; return; } throw e; }   // session ended mid-render
+    if (my !== rendering) return; root.innerHTML = toText(shell); wireChrome(u); }
   document.title = (view.title ? view.title + ' | ' : '') + 'CLA Title & Escrow Portal';
   if (view.mount) view.mount($('#view') || root, { api, user: u, refresh: render, go });
 }

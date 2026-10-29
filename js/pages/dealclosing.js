@@ -1,6 +1,6 @@
 // Closing Date tab: the processor sends time options; each side answers through its own link; the processor confirms; a request can be reopened.
 // Links are shown here to copy. Nothing is emailed from this build.
-import { html, $, $$, guard, formData, modal, closeModal, toast, fmtDateTime, pill } from '../ui.js';
+import { html, $, $$, guard, formData, modal, closeModal, toast, fmtDate, fmtDateTime, pill } from '../ui.js';
 import { isProcessor, isClient } from '../data/constants.js';
 export const slotText = (s) => new Date(s).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 const STATUS = { open: ['waiting for answers', 'info'], confirmed: ['confirmed', 'ok'] };
@@ -25,7 +25,7 @@ export async function render({ api, user, deal, refresh }) {
       ${s.history.length ? html`<details><summary class="muted small">Earlier rounds (${s.history.length})</summary><ul class="plain">${s.history.map((h) => html`<li>Round ${h.round}: ${h.slots.map(slotText).join(' / ')}${h.confirmedSlot != null ? html` &mdash; confirmed ${slotText(h.slots[h.confirmedSlot])}` : ''}</li>`)}</ul></details>` : ''}</div>`;
   };
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>Closing Date</h2>${proc && !anyOpen ? html`<button class="m-btn right" id="newreq">+ New closing date request</button>` : ''}</div>
-    <p class="muted">Current settlement date: <strong>${deal.closingDate || 'not set'}</strong></p>
+    <p class="muted">Current settlement date: <strong>${fmtDate(deal.closingDate) || 'not set'}</strong></p>
     ${list.length ? list.map(block) : html`<p class="muted">No closing date request yet.${proc ? ' Send one with a few time options; each side answers through its own link.' : ''}</p>`}`;
   return { title: 'Closing Date', crumbs: [['Closing Date']], body, mount(root) {
     const nb = $('#newreq', root); if (nb) nb.addEventListener('click', () => slotsModal('New closing date request', async (f) => { await api.createSettlementRequest(deal.id, f); toast('Request created. Copy the links to send them.'); }, true));

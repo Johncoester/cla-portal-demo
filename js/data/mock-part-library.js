@@ -28,7 +28,8 @@ export function libraryFolders(x) {
     async renameFolder(id, name) {
       const u = needUser(); const f = folderOf(id) || fail('Folder not found.');
       if (f.scope === 'library') { if (!libManager(u)) fail('Only the processor or Admin can manage the Library.'); } else { dealOr404(u, f.dealId); if (!isManager(u)) fail('Only the processor or coordinator can rename folders.'); }
-      f.name = str(name, 120) || fail('Folder name is required.'); log(f.dealId, u.id, 'folder.renamed', 'folder', id, `Renamed folder to ${f.name}`); save(); return clone(f);
+      const n = str(name, 120) || fail('Folder name is required.');
+      if (load().folders.some((z) => z.id !== f.id && z.scope === f.scope && z.dealId === f.dealId && z.name.toLowerCase() === n.toLowerCase())) fail('A folder with this name already exists here.'); f.name = n; log(f.dealId, u.id, 'folder.renamed', 'folder', id, `Renamed folder to ${f.name}`); save(); return clone(f);
     },
     async addLibraryDocument(folderId, file) {
       const u = needUser(); if (!libManager(u)) fail('Only the processor or Admin can add Library files.');

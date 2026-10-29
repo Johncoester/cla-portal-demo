@@ -11,7 +11,7 @@ export function closingSchedule(x) {
   const byToken = (t) => { const tok = str(t, 100); const s = tok && load().settlements.find((z) => SIDES.some((sd) => z.tokens[sd] === tok)); if (!s) fail('This scheduling link is not valid.'); return [s, SIDES.find((sd) => s.tokens[sd] === tok)]; };
   const cleanSlots = (slots) => { const list = (Array.isArray(slots) ? slots : []).map((v) => str(v, 16)).filter(Boolean);
     if (!list.length || list.length > 5) fail('Offer between 1 and 5 time options.');
-    list.forEach((v) => { if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v) || isNaN(Date.parse(v))) fail('Each option needs a date and time.'); if (v.slice(0, 10) < now().slice(0, 10)) fail('Time options must be in the future.'); });
+    list.forEach((v) => { if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v) || isNaN(Date.parse(v))) fail('Each option needs a date and time.'); if (Date.parse(v) < Date.now()) fail('Time options must be in the future.'); });
     if (new Set(list).size !== list.length) fail('Time options must be different.'); return list.sort(); };
   const responsesOf = (s, round) => load().settlementResponses.filter((r) => r.settlementId === s.id && r.round === round);
   return {

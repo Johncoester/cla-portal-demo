@@ -3,7 +3,7 @@
  * Every rule here is mirrored by RLS / RPC in supabase/migrations.
  * Deliberately absent: any way to delete a document (no method, no UI, no policy) - Admin included.
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
-import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, isViewOnly,
+import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, isViewOnly, localDate, localDayOf, isRealDate,
   isProcessor, isStaff, isClient, isAgent, sideOf } from './constants.js';
 import { buildSeed, DEAL_FOLDERS } from './seed.js';
 import { dealsAndAuth } from './mock-part-deals.js';
@@ -25,6 +25,9 @@ const str = (v, max = 500) => String(v == null ? '' : v).trim().slice(0, max);
 const emailOk = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 const money = (v, label) => { if (v === '' || v == null) return null; const n = Number(String(v).replace(/[$,]/g, '')); if (!isFinite(n) || n < 0) fail(`${label} must be a positive number.`); return n; };
 const zipOk = (z) => !z || /^\d{5}(-\d{4})?$/.test(z);
+const stateCode = (v) => { const s = str(v, 50).toUpperCase(); if (!s) fail('State is required.'); if (!/^[A-Z]{2}$/.test(s)) fail('State must be a 2-letter code (e.g. MD).'); return s; };
+const dateOrNull = (v, label) => { const s = str(v, 20); if (!s) return null; if (!isRealDate(s)) fail(`${label} must be a real date (YYYY-MM-DD).`); return s; };
+const isQuota = (e) => e && (e.name === 'QuotaExceededError' || /quota/i.test(e.message || ''));
 
 export function createMockAdapter({ storage, sessionStorage } = {}) {
   const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null) || fail('no storage');
@@ -108,9 +111,14 @@ export function createMockAdapter({ storage, sessionStorage } = {}) {
 
   const api = { mode: 'mock' };
   const ctx = { api, DEAL_FOLDERS, store, sess, SESSION_KEY, KEY, load, save, nid, me, needUser, needProcessor, needAdmin, isManager, notViewOnly, contactOf, seesAll, teamAgentIds, dealsFor, dealOr404, log, prof, nameOf, roleOf, fullName,
-    folderOf, docVisible, threadVisible, unreadIn, participantsOf, ownerOf, taskVisible, formDataVisible, notify, dealProfileIds, dealView, clone, now, fail, str, emailOk, money, zipOk,
+    folderOf, docVisible, threadVisible, unreadIn, participantsOf, ownerOf, taskVisible, formDataVisible, notify, dealProfileIds, dealView, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, localDayOf,
     reset() { store.removeItem(KEY); db = null; load(); },
     C: { ROLES, DEAL_ROLES, ADMIN_ROLE, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf } };
   Object.assign(api, devAuth(ctx), dealsAndAuth(ctx), contactsTasksDocs(ctx), tasksAndForms(ctx), messagesActivity(ctx), adminUsersTeams(ctx), libraryFolders(ctx), closingSchedule(ctx), notificationsPart(ctx));
+  // Every call is all-or-nothing: if it throws (validation error, or browser storage full), drop the in-memory copy so the next call
+  // reloads the last SAVED state. Without this a half-applied edit (e.g. a rejected lender email) stayed in memory and broke later saves.
+  for (const [k, fn] of Object.entries(api)) if (typeof fn === 'function') api[k] = async function (...a) {
+    try { return await fn.apply(this, a); } catch (e) { db = null;
+      if (isQuota(e)) throw new Error('Browser storage for this demo is full, so that was not saved. Use "reset demo data" or upload smaller files.'); throw e; } };
   return api;
 }

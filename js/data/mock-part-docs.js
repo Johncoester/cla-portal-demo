@@ -21,7 +21,8 @@ export function contactsTasksDocs(x) {
       needProcessor(); const c = load().contacts.find((z) => z.id === id) || fail('Contact not found.');
       ['firstName', 'lastName', 'phone', 'company'].forEach((k) => { if (patch[k] != null) c[k] = str(patch[k], 120); });
       if (!c.firstName) fail('First name is required.');
-      if (patch.email != null) { const e = str(patch.email, 200).toLowerCase(); if (e && !emailOk(e)) fail('Email is not valid.'); c.email = e; }
+      if (patch.email != null) { const e = str(patch.email, 200).toLowerCase(); if (e && !emailOk(e)) fail('Email is not valid.');
+        if (e && e !== c.email && load().contacts.some((z) => z.id !== c.id && z.email === e)) fail('A contact with this email already exists.'); c.email = e; }
       const p = c.profileId && prof(c.profileId); if (p) { p.firstName = c.firstName; p.lastName = c.lastName; p.phone = c.phone; }
       save(); return clone(c);
     },
@@ -75,8 +76,11 @@ export function contactsTasksDocs(x) {
   };
   // shared by deal uploads, task ID uploads and the Library
   x.newDoc = (u, { name, description, mimeType, size, dataUrl, visibility }) => {
-    const n = str(name, 200).replace(/[\\/]/g, '_'); if (!n) fail('A file name is required.');
-    const ext = (n.split('.').pop() || '').toLowerCase(); if (!C.ALLOWED_UPLOAD_EXT.includes(ext)) fail(`.${ext} files are not allowed. Allowed: ${C.ALLOWED_UPLOAD_EXT.join(', ')}.`);
+    const full = String(name == null ? '' : name).trim().replace(/[\\/]/g, '_'); if (!full) fail('A file name is required.');
+    const dot = full.lastIndexOf('.'); const ext = dot > 0 ? full.slice(dot + 1).toLowerCase() : '';
+    if (!ext) fail(`Files without an extension are not allowed. Allowed: ${C.ALLOWED_UPLOAD_EXT.join(', ')}.`);
+    if (!C.ALLOWED_UPLOAD_EXT.includes(ext)) fail(`.${ext} files are not allowed. Allowed: ${C.ALLOWED_UPLOAD_EXT.join(', ')}.`);
+    const n = full.length > 200 ? full.slice(0, 199 - ext.length) + '.' + ext : full;   // long names are cut but keep their extension
     if (!(size >= 0) || size > C.MAX_UPLOAD_BYTES) fail(`File is too large (demo limit ${Math.round(C.MAX_UPLOAD_BYTES / 1e5) / 10} MB).`);
     const vis = C.DOC_VISIBILITY.includes(visibility) ? visibility : 'all';
     if (C.isClient(u.role) && vis === 'staff') fail('Clients cannot make staff-only documents.');
