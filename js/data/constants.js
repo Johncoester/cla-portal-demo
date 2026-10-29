@@ -6,12 +6,20 @@ export const DEAL_ROLES = [
 ];
 // 'Admin' is a real login role (shown as "Admin"). Picking it always grants Admin access (isAdmin), which stays THE permission check.
 export const ADMIN_ROLE = 'Admin';
-export const ROLES = [...DEAL_ROLES, ADMIN_ROLE];   // roles a login can have (user admin role picker)
+// PER-FILE ROLES (migration 10): a login is either STAFF (one fixed role) or an OUTSIDE USER. An outside user has no fixed role:
+// on each order they act as whatever deal_participants says (Buyer Agent on one file, Client-Buyer on another). One email = one login.
+export const OUTSIDE = 'Outside user';
+export const OUTSIDE_FILE_ROLES = ['Buyer Agent', 'Listing Agent', 'Client-Buyer', 'Client-Seller'];   // roles an outside user can hold on a file
+export const STAFF_ACCOUNT_ROLES = ['Sales Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', ADMIN_ROLE];
+export const ROLES = [...STAFF_ACCOUNT_ROLES, OUTSIDE];   // account types a login can have (user admin picker)
+export const isOutside = (role) => role === OUTSIDE;
 export const STAFF_ROLES = ['Sales Processor', 'Sales Person', 'Sales Team', ADMIN_ROLE];
 export const VIEW_ONLY_ROLES = ['Sales Person', 'Sales Team', ADMIN_ROLE];   // no order edits/uploads/messages (Admin powers come from isAdmin)
 export const isViewOnly = (role) => VIEW_ONLY_ROLES.includes(role);
 // Label for pickers and lists: the role, plus "+ Admin" when a non-Admin role also has the Admin flag.
 export const roleLabel = (u) => (u.role === ADMIN_ROLE || !u.isAdmin ? u.role : `${u.role} + Admin`);
+// Dashboard / login-picker label for an outside user: the roles they hold across their files.
+export const fileRolesLabel = (roles) => (roles && roles.length ? roles.join(' + ') : 'not on any file yet');
 // Back-office user who runs the deal workflow. NOT an admin: user/team admin = isAdmin (role 'Admin', or the flag on another role as in the old portal).
 // Sales Person / Sales Team are view-only, as in the old portal.
 export const PROCESSOR = 'Sales Processor';

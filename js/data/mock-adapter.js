@@ -4,8 +4,9 @@
  * Deliberately absent: any way to delete a document (no method, no UI, no policy) - Admin included.
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
 import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, isViewOnly, localDate, localDayOf, isRealDate,
-  isProcessor, isStaff, isClient, isAgent, sideOf } from './constants.js';
+  isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside } from './constants.js';
 import { buildSeed, DEAL_FOLDERS } from './seed.js';
+import { delegationLocked } from './templates.js';
 import { dealsAndAuth } from './mock-part-deals.js';
 import { devAuth } from './mock-part-auth.js';
 import { contactsTasksDocs } from './mock-part-docs.js';
@@ -16,7 +17,7 @@ import { libraryFolders } from './mock-part-library.js';
 import { closingSchedule } from './mock-part-schedule.js';
 import { notificationsPart } from './mock-part-notify.js';
 
-const KEY = 'cla-portal-new:data:v3';   // v3: 'Admin' role (old saved demo data is re-seeded)
+const KEY = 'cla-portal-new:data:v5';   // v5: per-file roles for outside users (v4: agent delegation flags + home warranty v2). Old saved demo data is re-seeded.
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();
@@ -64,6 +65,21 @@ export function createMockAdapter({ storage, sessionStorage } = {}) {
     return d.deals.filter((x) => ids.has(x.id));
   }
   const dealOr404 = (u, id) => dealsFor(u).find((x) => x.id === id) || fail('Order not found.');
+  // PER-FILE ROLES. Staff keep their account role everywhere. An OUTSIDE USER's role on an order is their deal_participants role there
+  // (Buyer Agent / Listing Agent / Client-Buyer / Client-Seller); on a file where they hold none of those they are a plain 'Outside user'
+  // (no side, no tasks). Mirrored by private.deal_role(deal) in SQL.
+  function fileRole(profileId, dealId) {
+    const p = load().profiles.find((x) => x.id === profileId); if (!p) return undefined;
+    if (!isOutside(p.role)) return p.role;
+    const c = contactOf(p.id); if (!c || !dealId) return OUTSIDE;
+    const mine = load().participants.filter((z) => z.dealId === dealId && z.contactId === c.id).map((z) => z.role);
+    return OUTSIDE_FILE_ROLES.find((r) => mine.includes(r)) || OUTSIDE;
+  }
+  // The signed-in user as they act on ONE order (all deal-scoped rules take this, never the bare session user).
+  const scopeTo = (u, dealId) => (u && isOutside(u.role) ? { ...u, role: fileRole(u.id, dealId), accountRole: u.role } : u);
+  const onDeal = (u, id) => { dealOr404(u, id); return scopeTo(u, id); };
+  // Roles an outside user holds across their files (for the dashboard groups and the login picker)
+  const fileRolesOf = (u) => [...new Set(dealsFor(u).map((x) => fileRole(u.id, x.id)).filter((r) => r && r !== OUTSIDE))].sort((a, b) => OUTSIDE_FILE_ROLES.indexOf(a) - OUTSIDE_FILE_ROLES.indexOf(b));
   const log = (dealId, actorId, action, entity, entityId, detail) => { load().activity.push({ id: nid('a'), dealId, actorId, action, entity, entityId, detail: str(detail, 300), createdAt: now() }); };
   const prof = (id) => load().profiles.find((x) => x.id === id);
   const nameOf = (id) => { if (typeof id === 'string' && id.startsWith('link:')) return `Scheduling link (${id.slice(5)} side)`; const p = prof(id); return p ? `${p.firstName} ${p.lastName}`.trim() + (p.status === 'removed' ? ' (removed)' : '') : 'Unknown'; };
@@ -92,7 +108,15 @@ export function createMockAdapter({ storage, sessionStorage } = {}) {
     if (t.participantId) return ownerOf(t) === u.id || (isAgent(u.role) && sideOf(t.assignedRole) === sideOf(u.role));
     return t.assignedRole === u.role || (isAgent(u.role) && sideOf(t.assignedRole) === sideOf(u.role));
   };
-  const formDataVisible = (u, t) => u.isAdmin || isManager(u) || ownerOf(t) === u.id;
+  // DELEGATION: an agent may fill a CLIENT's intake copy for them when the template allows that agent role, the template is not a
+  // personal (client-only) item, the client is on the agent's own side, and the agent is on that order in that role. Mirrored by private.agent_can_fill (SQL).
+  const agentCanFill = (u, t) => {
+    if (!u || !isAgent(u.role) || !t || t.kind !== 'form' || t.status === 'cancelled' || !t.participantId || !isClient(t.assignedRole) || sideOf(t.assignedRole) !== sideOf(u.role)) return false;
+    const d = load(); const tp = d.taskTemplates.find((z) => z.id === t.templateId);
+    if (!tp || delegationLocked(tp) || !(tp.agentRoles || []).includes(u.role)) return false;
+    const c = contactOf(u.id); return !!c && d.participants.some((p) => p.dealId === t.dealId && p.contactId === c.id && p.role === u.role);
+  };
+  const formDataVisible = (u, t) => u.isAdmin || isManager(u) || ownerOf(t) === u.id || agentCanFill(u, t);
   function notify(profileIds, n, exceptId) {
     const d = load(); new Set(profileIds).forEach((pid) => { const p = prof(pid); if (!pid || pid === exceptId || !p || p.status !== 'active') return;
       d.notifications.push({ id: nid('n'), profileId: pid, kind: n.kind, dealId: n.dealId || null, title: str(n.title, 200), link: n.link || '', createdAt: now(), readAt: null }); });
@@ -101,8 +125,8 @@ export function createMockAdapter({ storage, sessionStorage } = {}) {
     const ids = d.participants.filter((p) => p.dealId === dealId).map((p) => (d.contacts.find((c) => c.id === p.contactId) || {}).profileId).filter(Boolean);
     return [...new Set([...ids, deal && deal.processorId].filter(Boolean))]; };
   function dealView(u, x) {
-    const d = load(); const tasks = d.tasks.filter((t) => t.dealId === x.id && taskVisible(u, t)); const mine = d.threads.filter((t) => t.dealId === x.id && threadVisible(u, t));
-    return { ...clone(x), address: `${x.street}, ${x.city}, ${x.state} ${x.zip}`, stageName: STAGES[x.stage],
+    u = scopeTo(u, x.id); const d = load(); const tasks = d.tasks.filter((t) => t.dealId === x.id && taskVisible(u, t)); const mine = d.threads.filter((t) => t.dealId === x.id && threadVisible(u, t));
+    return { ...clone(x), myRole: u.role, address: `${x.street}, ${x.city}, ${x.state} ${x.zip}`, stageName: STAGES[x.stage],
       openTasks: tasks.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status)).length,
       myOpenTasks: tasks.filter((t) => ['todo', 'in_progress'].includes(t.status) && (ownerOf(t) === u.id || (!t.participantId && t.assignedRole === u.role))).length,
       unread: mine.reduce((n, t) => n + unreadIn(u, t), 0),
@@ -110,10 +134,10 @@ export function createMockAdapter({ storage, sessionStorage } = {}) {
   }
 
   const api = { mode: 'mock' };
-  const ctx = { api, DEAL_FOLDERS, store, sess, SESSION_KEY, KEY, load, save, nid, me, needUser, needProcessor, needAdmin, isManager, notViewOnly, contactOf, seesAll, teamAgentIds, dealsFor, dealOr404, log, prof, nameOf, roleOf, fullName,
-    folderOf, docVisible, threadVisible, unreadIn, participantsOf, ownerOf, taskVisible, formDataVisible, notify, dealProfileIds, dealView, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, localDayOf,
+  const ctx = { api, DEAL_FOLDERS, store, sess, SESSION_KEY, KEY, load, save, nid, me, needUser, needProcessor, needAdmin, isManager, notViewOnly, contactOf, seesAll, teamAgentIds, dealsFor, dealOr404, fileRole, scopeTo, onDeal, fileRolesOf, log, prof, nameOf, roleOf, fullName,
+    folderOf, docVisible, threadVisible, unreadIn, participantsOf, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, dealView, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, localDayOf,
     reset() { store.removeItem(KEY); db = null; load(); },
-    C: { ROLES, DEAL_ROLES, ADMIN_ROLE, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf } };
+    C: { ROLES, DEAL_ROLES, ADMIN_ROLE, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside } };
   Object.assign(api, devAuth(ctx), dealsAndAuth(ctx), contactsTasksDocs(ctx), tasksAndForms(ctx), messagesActivity(ctx), adminUsersTeams(ctx), libraryFolders(ctx), closingSchedule(ctx), notificationsPart(ctx));
   // Every call is all-or-nothing: if it throws (validation error, or browser storage full), drop the in-memory copy so the next call
   // reloads the last SAVED state. Without this a half-applied edit (e.g. a rejected lender email) stayed in memory and broke later saves.

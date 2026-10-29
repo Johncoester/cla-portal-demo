@@ -12,12 +12,16 @@ export function adminUsersTeams(x) {
   return {
     // ---------- Users ----------
     async adminListUsers() { needAdmin(); const d = load();
-      return clone(d.profiles.map((p) => ({ ...p, teams: d.teamMembers.filter((m) => m.profileId === p.id).map((m) => (d.teams.find((t) => t.id === m.teamId) || {}).name) }))); },
+      return clone(d.profiles.map((p) => { const c = contactOf(p.id);
+        // outside users: their role comes from each order (deal_participants), shown here read-only
+        const files = C.isOutside(p.role) && c ? d.participants.filter((z) => z.contactId === c.id && C.OUTSIDE_FILE_ROLES.includes(z.role)).map((z) => ({ dealId: z.dealId, fileNumber: (d.deals.find((q) => q.id === z.dealId) || {}).fileNumber, role: z.role })) : [];
+        return { ...p, files, teams: d.teamMembers.filter((m) => m.profileId === p.id).map((m) => (d.teams.find((t) => t.id === m.teamId) || {}).name) }; })); },
     async adminCreateUser(input) {
       const u = needAdmin(); const d = load(); const email = str(input.email, 200).toLowerCase();
       if (!emailOk(email)) fail('A valid email is required.');
       if (d.profiles.some((p) => p.email === email && p.status !== 'removed')) fail('A user with this email already exists.');
-      if (!C.ROLES.includes(input.role)) fail('Pick a role.');
+      if (C.OUTSIDE_FILE_ROLES.includes(input.role)) fail('Agents and clients are outside users: pick "Outside user". Their role is set on each order they are added to.');
+      if (!C.ROLES.includes(input.role)) fail('Pick a role (account type).');
       const firstName = str(input.firstName, 80) || fail('First name is required.');
       const p = { id: nid('u'), email, firstName, lastName: str(input.lastName, 80), phone: str(input.phone, 40), role: input.role, isAdmin: input.role === C.ADMIN_ROLE || input.isAdmin === true || input.isAdmin === 'on',
         status: 'active', createdAt: now() };
@@ -30,7 +34,7 @@ export function adminUsersTeams(x) {
     async adminUpdateUser(id, patch) {
       const u = needAdmin(); const p = prof(id) || fail('User not found.'); if (p.status === 'removed') fail('This user was removed.');
       const next = { role: p.role, isAdmin: !!p.isAdmin, status: p.status };
-      if (patch.role != null && patch.role !== p.role) { if (!C.ROLES.includes(patch.role)) fail('Unknown role.'); next.role = patch.role; }
+      if (patch.role != null && patch.role !== p.role) { if (C.OUTSIDE_FILE_ROLES.includes(patch.role)) fail('Agents and clients are outside users: pick "Outside user". Their role is set on each order.'); if (!C.ROLES.includes(patch.role)) fail('Unknown role.'); next.role = patch.role; }
       if (patch.isAdmin != null) next.isAdmin = patch.isAdmin === true || patch.isAdmin === 'on' || patch.isAdmin === 'true';
       if (patch.status != null) { if (!['active', 'disabled'].includes(patch.status)) fail('Unknown status.'); next.status = patch.status; }
       if (p.id === u.id && p.isAdmin && !next.isAdmin) fail('You cannot remove your own Admin access.');
@@ -74,7 +78,7 @@ export function adminUsersTeams(x) {
       if (p.status !== 'active') fail('Only active users can join a team.');
       const want = memberRole || (p.role === 'Transaction Coordinator' ? 'coordinator' : 'agent');
       if (want === 'coordinator' && p.role !== 'Transaction Coordinator') fail('Only a transaction coordinator can be a team coordinator.');
-      if (want === 'agent' && !C.isAgent(p.role)) fail('Only buyer or listing agents can be team agents.');
+      if (want === 'agent' && !C.isOutside(p.role)) fail('Only outside users (agents) can be team agents.');   // the coordinator then sees the files where they are an AGENT
       if (d.teamMembers.some((m) => m.teamId === teamId && m.profileId === profileId)) fail('Already on this team.');
       d.teamMembers.push({ teamId, profileId, memberRole: want, addedAt: now() }); log(null, u.id, 'team.member_added', 'team', teamId, `${nameOf(profileId)} added to ${t.name} as ${want}`); save(); return true;
     },

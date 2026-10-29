@@ -13,11 +13,11 @@ export async function render({ api, user, deal, refresh }) {
       <td class="center">${t.canTick ? html`<input type="checkbox" data-tick="${t.id}" ${t.status === 'done' ? html`checked` : ''} aria-label="Done">` : ''}</td>
       <td><strong>${t.kind === 'form' ? html`<a href="#/deals/${deal.id}/tasks/${t.id}">${t.title}</a>` : t.title}</strong>${t.description ? html`<br><span class="muted">${t.description}</span>` : ''}
         ${t.kind === 'form' ? html`<br><span class="muted small">Form &middot; template v${t.templateVersion}</span>` : ''}</td>
-      <td>${t.ownerName || t.assignedRole}${t.ownerName ? html`<br><span class="muted small">${t.assignedRole}</span>` : ''}${t.mine ? html` ${pill('you', 'info')}` : ''}</td>
-      <td class="${open(t) && t.dueDate && t.dueDate < today ? 'bad-text' : ''}">${fmtDate(t.dueDate)}</td><td>${pill(LABEL[t.status], CLS[t.status])}</td>
-      <td class="nowrap">${t.kind === 'form' && t.canFill ? html`<a class="ghost" href="#/deals/${deal.id}/tasks/${t.id}">${t.status === 'done' ? 'View' : t.mine ? 'Fill in' : 'Open'}</a>` : ''}
+      <td>${t.ownerName || t.assignedRole}${t.ownerName ? html`<br><span class="muted small">${t.assignedRole}</span>` : ''}${t.mine ? html` ${pill('you', 'info')}` : ''}${t.forClient && open(t) ? html` ${pill('you can complete this for your client', 'warn')}` : ''}</td>
+      <td class="${open(t) && t.dueDate && t.dueDate < today ? 'bad-text' : ''}">${fmtDate(t.dueDate)}</td><td>${pill(LABEL[t.status], CLS[t.status])}${t.completedByLabel ? html`<br><span class="muted small done-by">${t.completedByLabel}</span>` : ''}</td>
+      <td class="nowrap">${t.kind === 'form' && t.canFill ? html`<a class="ghost" href="#/deals/${deal.id}/tasks/${t.id}">${t.status === 'done' ? 'View' : t.mine ? 'Fill in' : t.forClient ? 'Fill in for client' : 'Open'}</a>` : ''}
         ${manage ? html`<button class="ghost" data-edit="${t.id}">Edit</button>` : ''}${manage && open(t) ? html` <button class="ghost" data-remind="${t.id}" title="Queues an email in the outbox. Nothing is sent from this build.">Remind</button>` : ''}</td></tr>`;
-  const mineFirst = [...tasks].sort((a, b) => (b.mine && open(b)) - (a.mine && open(a)));
+  const mineFirst = [...tasks].sort((a, b) => ((b.mine || b.forClient) && open(b)) - ((a.mine || a.forClient) && open(a)));
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>All Tasks</h2>${manage ? html`<button class="m-btn right" id="addtask">+ Add task</button>` : ''}</div>
     ${tasks.length ? html`<table class="tbl striped"><thead><tr><th></th><th>Task</th><th>Assigned to</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>${mineFirst.map(row)}</tbody></table>` : html`<p class="muted">No tasks yet.</p>`}
     <p class="muted small">Tasks are never deleted; use Edit &rarr; Cancelled to retire one. Reminders are queued in the outbox only and never sent from this build.</p>`;

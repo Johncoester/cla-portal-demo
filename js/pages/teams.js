@@ -4,7 +4,7 @@ import { html, $, $$, guard, formData, options, pill, toast } from '../ui.js';
 
 export async function render({ api, user, refresh }) {
   const teams = await api.listTeams(); const admin = user.isAdmin;
-  const people = admin ? (await api.adminListUsers()).filter((u) => u.status === 'active' && ['Transaction Coordinator', 'Buyer Agent', 'Listing Agent'].includes(u.role)) : [];
+  const people = admin ? (await api.adminListUsers()).filter((u) => u.status === 'active' && ['Transaction Coordinator', 'Outside user'].includes(u.role)) : [];
   const card = (t) => html`<div class="card team-card"><div class="deal-card-head"><h3>${t.name}</h3>${admin ? html`<button class="ghost" data-rename="${t.id}" data-name="${t.name}">Rename</button>` : ''}</div>
     <table class="tbl"><thead><tr><th>Member</th><th>Role</th><th>On team as</th><th></th></tr></thead><tbody>
     ${t.members.length ? t.members.map((m) => html`<tr><td>${m.name}</td><td>${m.role}</td><td>${pill(m.memberRole, m.memberRole === 'coordinator' ? 'info' : '')}</td>

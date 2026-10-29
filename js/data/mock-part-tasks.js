@@ -1,15 +1,22 @@
 /* mock adapter: tasks. Templates (versioned definitions) are separate from each participant's task COPY; a copy records templateId + templateVersion.
  * Intake forms: save partial work, validate, mark complete. Reminders are QUEUED in an outbox only and never sent. Tasks are cancelled, never deleted. */
-import { validateForm, fieldActive } from './templates.js';
+import { validateForm, fieldActive, delegationLocked, AGENT_ROLES } from './templates.js';
 export function tasksAndForms(x) {
-  const { load, save, nid, needUser, needAdmin, isManager, dealOr404, dealsFor, log, prof, nameOf, ownerOf, taskVisible, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, dateOrNull, localDate, localDayOf, C } = x;
+  const { load, save, nid, needUser, needAdmin, isManager, dealOr404, onDeal, fileRole, dealsFor, log, prof, nameOf, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, dateOrNull, localDate, localDayOf, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
   const tpl = (id) => load().taskTemplates.find((t) => t.id === id);
   const addDays = (n) => localDate(n);
-  const taskOr404 = (u, id) => { const t = load().tasks.find((z) => z.id === id) || fail('Task not found.'); dealOr404(u, t.dealId); if (!taskVisible(u, t)) fail('Task not found.'); return t; };
-  const canFill = (u, t) => t.kind === 'form' && t.status !== 'cancelled' && (ownerOf(t) === u.id || isManager(u));
+  const taskOr404 = (u, id) => { const t = load().tasks.find((z) => z.id === id) || fail('Task not found.'); u = onDeal(u, t.dealId); if (!taskVisible(u, t)) fail('Task not found.'); return t; };
+  const canFill = (u, t) => t.kind === 'form' && t.status !== 'cancelled' && (ownerOf(t) === u.id || isManager(u) || agentCanFill(u, t));
+  const who = (id, dealId) => id ? `${nameOf(id)} (${fileRole(id, dealId) || 'unknown role'})` : '';   // role = what they are ON THIS FILE
+  // "Completed by Bianca Buyer-Agent (Buyer Agent) on behalf of Ben Buyer" - shown on the task, in the log and to staff.
+  const byLine = (byId, ownerId, dealId) => `${who(byId, dealId)}${ownerId && byId && byId !== ownerId ? ` on behalf of ${nameOf(ownerId)}` : ''}`;
   const out = (u, t) => { const o = clone(t); o.ownerId = ownerOf(t); o.ownerName = o.ownerId ? nameOf(o.ownerId) : ''; o.mine = o.ownerId === u.id || (!t.participantId && t.assignedRole === u.role);
     o.canFill = canFill(u, t); o.canTick = t.kind === 'simple' && t.status !== 'cancelled' && (isManager(u) || (!t.participantId && t.assignedRole === u.role && ['todo', 'done'].includes(t.status)));
+    o.forClient = !o.mine && agentCanFill(u, t);   // "a task you can complete for your client"
+    const tp = t.templateId ? tpl(t.templateId) : null; o.agentRoles = tp && !delegationLocked(tp) ? (tp.agentRoles || []) : [];
+    o.completedByLabel = t.status === 'done' && t.completedBy ? `Completed by ${byLine(t.completedBy, o.ownerId, t.dealId)}` : '';
+    o.savedByLabel = t.savedBy ? `Last saved by ${byLine(t.savedBy, o.ownerId, t.dealId)}` : '';
     if (!formDataVisible(u, t)) { o.formData = {}; o.formHidden = true; } return o; };
   // Copy the CURRENT version of every template that applies to this participant's role. Never duplicates an open copy.
   x.makeCopies = (dealId, p, actorId) => {
@@ -17,14 +24,14 @@ export function tasksAndForms(x) {
     d.taskTemplates.filter((t) => t.active && t.roles.includes(p.role)).forEach((t) => {
       if (d.tasks.some((z) => z.participantId === p.id && z.templateCode === t.code && z.status !== 'cancelled')) return;
       d.tasks.push({ id: nid('t'), dealId, participantId: p.id, templateId: t.id, templateCode: t.code, templateVersion: t.version, kind: 'form', title: t.title, description: t.description,
-        assignedRole: p.role, status: 'todo', dueDate: addDays(t.dueDays || 7), formData: {}, savedAt: null, completedAt: null, completedBy: null, createdBy: actorId, createdAt: now() }); n++;
+        assignedRole: p.role, status: 'todo', dueDate: addDays(t.dueDays || 7), formData: {}, savedAt: null, savedBy: null, completedAt: null, completedBy: null, createdBy: actorId, createdAt: now() }); n++;
     });
     if (n) { const c = d.contacts.find((z) => z.id === p.contactId); if (c && c.profileId) notify([c.profileId], { kind: 'task', dealId, title: `${n} new task(s) for you on this order`, link: `#/deals/${dealId}/tasks` }, actorId); }
     return n;
   };
   function queueReminder(u, t) {
     const d = load(); const deal = d.deals.find((z) => z.id === t.dealId); const today = localDate();
-    let to = t.participantId ? [ownerOf(t)] : dealProfileIds(t.dealId).filter((pid) => (prof(pid) || {}).role === t.assignedRole);
+    let to = t.participantId ? [ownerOf(t)] : dealProfileIds(t.dealId).filter((pid) => fileRole(pid, t.dealId) === t.assignedRole);
     to = to.filter((pid) => pid && prof(pid) && prof(pid).status === 'active');
     let n = 0;
     to.forEach((pid) => {
@@ -40,27 +47,27 @@ export function tasksAndForms(x) {
   }
   return {
     async listTasks(dealId) {
-      const u = needUser(); dealOr404(u, dealId);
+      let u = needUser(); u = onDeal(u, dealId);
       return load().tasks.filter((t) => t.dealId === dealId && taskVisible(u, t)).map((t) => out(u, t))
         .sort((a, b) => ((a.status === 'done' || a.status === 'cancelled') - (b.status === 'done' || b.status === 'cancelled')) || (a.dueDate || '9').localeCompare(b.dueDate || '9'));
     },
     async getTask(id) {
-      const u = needUser(); const t = taskOr404(u, id); const o = out(u, t); const tp = t.templateId ? tpl(t.templateId) : null;
+      let u = needUser(); const t = taskOr404(u, id); u = onDeal(u, t.dealId); const o = out(u, t); const tp = t.templateId ? tpl(t.templateId) : null;
       o.fields = tp ? clone(tp.fields) : []; o.template = tp ? { id: tp.id, code: tp.code, version: tp.version, title: tp.title } : null;
       if (!o.formHidden) { o.documents = load().documents.filter((z) => z.dealId === t.dealId && o.fields.some((f) => f.type === 'doc' && t.formData[f.k] === z.id)).map((z) => ({ id: z.id, name: z.name })); }
       return o;
     },
     async createTask(dealId, input) {
-      const u = needUser(); dealOr404(u, dealId); if (!isManager(u)) fail('Only the processor or transaction coordinator can add tasks.');
+      let u = needUser(); u = onDeal(u, dealId); if (!isManager(u)) fail('Only the processor or transaction coordinator can add tasks.');
       const role = C.DEAL_ROLES.includes(input.assignedRole) ? input.assignedRole : 'Sales Processor';
       const t = { id: nid('t'), dealId, participantId: null, templateId: null, templateCode: null, templateVersion: null, kind: 'simple', title: str(input.title, 200) || fail('Task title is required.'),
         description: str(input.description, 1000), assignedRole: role, status: 'todo', dueDate: dateOrNull(input.dueDate, 'Due date'), formData: {}, savedAt: null, completedAt: null, completedBy: null, createdBy: u.id, createdAt: now() };
       load().tasks.push(t); log(dealId, u.id, 'task.created', 'task', t.id, `Task added: ${t.title}`);
-      notify(dealProfileIds(dealId).filter((pid) => (prof(pid) || {}).role === role), { kind: 'task', dealId, title: `New task: ${t.title}`, link: `#/deals/${dealId}/tasks` }, u.id);
+      notify(dealProfileIds(dealId).filter((pid) => fileRole(pid, dealId) === role), { kind: 'task', dealId, title: `New task: ${t.title}`, link: `#/deals/${dealId}/tasks` }, u.id);
       save(); return clone(t);
     },
     async updateTask(id, patch) {
-      const u = needUser(); const t = taskOr404(u, id);
+      let u = needUser(); const t = taskOr404(u, id); u = onDeal(u, t.dealId);
       if (!isManager(u)) {   // everyone else may only tick/untick a simple task assigned to their own role; intake forms are completed with saveTaskForm
         if (t.kind !== 'simple' || t.participantId || Object.keys(patch).some((k) => k !== 'status') || t.assignedRole !== u.role || !['todo', 'done'].includes(patch.status)) fail('You can only complete tasks assigned to you.');
       }
@@ -78,31 +85,46 @@ export function tasksAndForms(x) {
     },
     // Intake forms. complete=false saves partial work (only filled values are checked). complete=true validates required fields and marks the task done.
     async saveTaskForm(id, input, { complete = false } = {}) {
-      const u = needUser(); const t = taskOr404(u, id); if (!canFill(u, t)) fail('You cannot fill in this task.');
+      let u = needUser(); const t = taskOr404(u, id); u = onDeal(u, t.dealId); if (!canFill(u, t)) fail('You cannot fill in this task.');
       const tp = tpl(t.templateId) || fail('Task template missing.');
       const r = validateForm(tp.fields, input || {}, complete);
       for (const f of tp.fields.filter((z) => z.type === 'doc' && r.data[z.k] && fieldActive(z, r.data))) {
         const doc = load().documents.find((z) => z.id === r.data[f.k]); if (!doc || doc.dealId !== t.dealId) r.errors.push({ k: f.k, msg: `${f.label}: upload the file again.` });
       }
       if (r.errors.length) { const e = new Error(r.errors.map((z) => z.msg).join(' ')); e.fieldErrors = r.errors; throw e; }
-      t.formData = r.data; t.savedAt = now();
-      if (complete) { t.status = 'done'; t.completedAt = now(); t.completedBy = u.id; log(t.dealId, u.id, 'task.completed', 'task', t.id, `${t.title}: completed`);
-        const deal = load().deals.find((z) => z.id === t.dealId); notify([deal.processorId], { kind: 'task', dealId: t.dealId, title: `${nameOf(u.id)} completed ${t.title}`, link: `#/deals/${t.dealId}/tasks/${t.id}` }, u.id); }
-      else { if (t.status !== 'blocked') t.status = 'in_progress'; t.completedAt = null; t.completedBy = null; log(t.dealId, u.id, 'task.saved', 'task', t.id, `${t.title}: progress saved`); }
+      const owner = ownerOf(t); const prevBy = t.savedBy || t.completedBy; const forClient = !!owner && owner !== u.id && agentCanFill(u, t);
+      t.formData = r.data; t.savedAt = now(); t.savedBy = u.id;
+      // who did it: agent on behalf of the client, or the client correcting answers an agent entered
+      const note = forClient ? ` by ${byLine(u.id, owner, t.dealId)}` : owner === u.id && prevBy && prevBy !== u.id && C.isAgent(fileRole(prevBy, t.dealId)) ? ` by ${nameOf(u.id)} (changed answers entered by ${who(prevBy, t.dealId)})` : owner && owner !== u.id ? ` by ${who(u.id, t.dealId)}` : '';
+      const link = `#/deals/${t.dealId}/tasks/${t.id}`;
+      if (complete) { t.status = 'done'; t.completedAt = now(); t.completedBy = u.id; log(t.dealId, u.id, 'task.completed', 'task', t.id, `${t.title}: completed${note}`);
+        const deal = load().deals.find((z) => z.id === t.dealId); notify([deal.processorId], { kind: 'task', dealId: t.dealId, title: `${nameOf(u.id)} completed ${t.title}${forClient ? ` for ${nameOf(owner)}` : ''}`, link }, u.id); }
+      else { if (t.status !== 'blocked') t.status = 'in_progress'; t.completedAt = null; t.completedBy = null; log(t.dealId, u.id, 'task.saved', 'task', t.id, `${t.title}: progress saved${note}`); }
+      if (forClient) notify([owner], { kind: 'task', dealId: t.dealId, title: `${nameOf(u.id)} ${complete ? 'completed' : 'started'} ${t.title} for you - please check the answers`, link }, u.id);
       save(); return clone(out(u, t));
     },
     // Upload a file for a form field (e.g. photo ID). Filed under "IDs & personal", visible to the owner's side only.
     async uploadForTask(id, file) {
-      const u = needUser(); const t = taskOr404(u, id); if (!canFill(u, t)) fail('You cannot fill in this task.');
+      let u = needUser(); const t = taskOr404(u, id); u = onDeal(u, t.dealId); if (!canFill(u, t)) fail('You cannot fill in this task.');
       const side = C.sideOf(t.assignedRole); const doc = x.newDoc(u, { ...file, visibility: side || 'staff' }); doc.dealId = t.dealId;
       const f = load().folders.find((z) => z.dealId === t.dealId && z.name === 'IDs & personal'); doc.folderId = f ? f.id : null;
       load().documents.push(doc); log(t.dealId, u.id, 'document.uploaded', 'document', doc.id, `Uploaded ${doc.name} for ${t.title}`); save(); return { id: doc.id, name: doc.name };
     },
     // ---------- Templates ----------
     async listTaskTemplates() {
-      const u = needUser(); if (!(u.isAdmin || isManager(u))) fail('Task templates are for staff.');
-      const d = load(); return clone(d.taskTemplates.map((t) => ({ ...t, copies: d.tasks.filter((z) => z.templateId === t.id).length, publishedByName: nameOf(t.publishedBy) }))
+      let u = needUser(); if (!(u.isAdmin || isManager(u))) fail('Task templates are for staff.');
+      const d = load(); return clone(d.taskTemplates.map((t) => ({ ...t, agentRoles: t.agentRoles || [], locked: delegationLocked(t), copies: d.tasks.filter((z) => z.templateId === t.id).length, publishedByName: nameOf(t.publishedBy) }))
         .sort((a, b) => a.code.localeCompare(b.code) || b.version - a.version));
+    },
+    // Which agent roles may complete a CLIENT's copy for them. Admin or Sales Processor. Applies to every version of the template (it is a policy, not form content).
+    async setTemplateAgentRoles(code, roles) {
+      let u = needUser(); if (!(u.isAdmin || C.isProcessor(u.role))) fail('Only an Admin or the processor can change who may complete a task.');
+      const d = load(); const vs = d.taskTemplates.filter((t) => t.code === code); if (!vs.length) fail('Template not found.');
+      const list = [...new Set(Array.isArray(roles) ? roles : [])]; if (list.some((r) => !AGENT_ROLES.includes(r))) fail('Only Buyer Agent or Listing Agent can be allowed.');
+      if (list.length && !vs.some((t) => t.roles.some((r) => C.isClient(r)))) fail('Only client tasks can be completed by an agent.');
+      if (list.length && vs.some((t) => delegationLocked(t))) fail('This is a personal item (ID, identity, signatures, banking or SSN). Only the client can complete it.');
+      vs.forEach((t) => { t.agentRoles = list; });
+      log(null, u.id, 'template.delegation', 'template', vs[0].id, `${vs[0].title}: agents who may complete it for their client: ${list.join(', ') || 'none'}`); save(); return { code, agentRoles: list };
     },
     async publishTemplateVersion(code, patch) {   // Admin: new version; existing copies keep the version they were made from
       const u = needAdmin(); const d = load(); const cur = d.taskTemplates.filter((t) => t.code === code).sort((a, b) => b.version - a.version)[0] || fail('Template not found.');
@@ -113,17 +135,17 @@ export function tasksAndForms(x) {
     },
     // ---------- Reminders: QUEUED ONLY. Nothing is ever sent from this build. ----------
     async sendTaskReminder(id) {
-      const u = needUser(); const t = taskOr404(u, id); if (!isManager(u)) fail('Only the processor or coordinator can queue reminders.');
+      let u = needUser(); const t = taskOr404(u, id); u = onDeal(u, t.dealId); if (!isManager(u)) fail('Only the processor or coordinator can queue reminders.');
       if (!OPEN.includes(t.status)) fail('Only open tasks get reminders.'); const n = queueReminder(u, t); save(); return { queued: n };
     },
     async queueOverdueReminders() {
-      const u = needUser(); if (!isManager(u)) fail('Only the processor or coordinator can queue reminders.');
+      let u = needUser(); if (!isManager(u)) fail('Only the processor or coordinator can queue reminders.');
       const today = localDate(); const ids = new Set(dealsFor(u).filter((q) => q.status === 'Open').map((q) => q.id)); let n = 0;
       load().tasks.filter((t) => ids.has(t.dealId) && OPEN.includes(t.status) && t.dueDate && t.dueDate < today).forEach((t) => { n += queueReminder(u, t); });
       save(); return { queued: n };
     },
     async listOutbox() {
-      const u = needUser(); if (!(u.isAdmin || isManager(u))) fail('The outbox is for staff.');
+      let u = needUser(); if (!(u.isAdmin || isManager(u))) fail('The outbox is for staff.');
       const ids = new Set(dealsFor(u).map((q) => q.id));
       return clone(load().outbox.filter((o) => u.isAdmin || ids.has(o.dealId)).map((o) => ({ ...o, toName: nameOf(o.toProfileId), fileNumber: (load().deals.find((q) => q.id === o.dealId) || {}).fileNumber })).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
     },

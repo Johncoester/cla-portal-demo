@@ -1,7 +1,7 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { getAdapter } from './data/adapter.js';
 import { html, raw, toText, esc, $, $$, toast, closeModal } from './ui.js';
-import { isProcessor, isStaff, isClient, isAgent, roleLabel } from './data/constants.js';
+import { isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel } from './data/constants.js';
 
 const pages = {
   login: () => import('./pages/entry.js'),
@@ -32,7 +32,7 @@ function parse() {
 }
 export const go = (path) => { if (location.hash === '#' + path) render(); else location.hash = path; };
 export const homeFor = () => '/dashboard';
-export const dashLabel = (u) => u.isAdmin ? 'Admin' : ({ 'Sales Processor': 'Work Queue', 'Sales Person': 'Team Dashboard', 'Sales Team': 'Team Dashboard', 'Transaction Coordinator': 'Dashboard', 'Buyer Agent': 'Transactions', 'Listing Agent': 'Transactions', 'Client-Buyer': 'My Closing', 'Client-Seller': 'My Closing' }[u.role]);
+export const dashLabel = (u) => u.isAdmin ? 'Admin' : ({ 'Sales Processor': 'Work Queue', 'Sales Person': 'Team Dashboard', 'Sales Team': 'Team Dashboard', 'Transaction Coordinator': 'Dashboard', 'Buyer Agent': 'Transactions', 'Listing Agent': 'Transactions', 'Client-Buyer': 'My Closing', 'Client-Seller': 'My Closing', 'Outside user': 'My Files' }[u.role]);
 
 export function navFor(u, dealId, unread) {
   const items = [];
@@ -53,7 +53,7 @@ async function layout(u, view, route) {
   const cur = route.page + (route.page === 'users' && route.params.mode === 'new' ? '/new' : '');
   const core = navFor(u).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}">${n.label}</a></li>`);
   const t = route.params.tab; const link = (tab, label, cls) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}">${label}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : ''}</a></li>`;
-  const dealNav = deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${link('inbox', 'Inbox', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${isClient(u.role) ? '' : link('activity', 'Activity', 'activity')}` : '';
+  const dealNav = deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${link('inbox', 'Inbox', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${isClient(deal.myRole) || isOutside(deal.myRole) ? '' : link('activity', 'Activity', 'activity')}` : '';
   const contact = isStaff(u.role) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us">Contact Us</a></li>`;
   const sidebarHead = deal ? html`<a class="logo-home-link" href="#/deals/${deal.id}"><div class="order-heading-left"><span>${deal.fileNumber}</span></div><div class="map-div"><img class="map-pin" src="assets/img/map-icon-new.png" alt=""><p>${deal.street}<br>${deal.city}, ${deal.state}, ${deal.zip}</p></div></a>` : '';
   const topButtons = isProcessor(u.role) ? html`<a class="green-btn" href="#/orders/new">Place Order</a>` : '';
@@ -63,7 +63,7 @@ async function layout(u, view, route) {
     <div class="topbar-right">${topButtons}
       <div class="notif-wrap"><button class="bell" data-bell title="${unread} unread notification(s)" aria-label="Notifications"><img src="assets/img/bell_new.png" alt=""><span class="notification-num">${unread}</span></button>
         <div class="notif-dd" hidden><div class="notif-head"><strong>Notifications</strong><button class="linkish" data-readall>Mark all read</button></div><ul class="notif-list"><li class="muted">Loading&hellip;</li></ul></div></div>
-      <div class="user-menu"><button class="user-btn" data-usermenu>${u.firstName} ${u.lastName} <span class="role-tag" data-role-tag>${roleLabel(u)}</span> &#9662;</button>
+      <div class="user-menu"><button class="user-btn" data-usermenu>${u.firstName} ${u.lastName} <span class="role-tag" data-role-tag>${isOutside(u.role) ? (deal ? `${deal.myRole} on this file` : fileRolesLabel(u.fileRoles)) : roleLabel(u)}</span> &#9662;</button>
         <ul class="user-dd" hidden><li><a href="#/profile">Profile Setting</a></li><li><a href="#" data-signout>Logout</a></li></ul></div>
     </div></div></div>
   <div class="wrapper-main">

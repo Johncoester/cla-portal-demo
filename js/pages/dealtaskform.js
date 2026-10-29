@@ -22,6 +22,9 @@ export async function render({ api, deal, params, refresh, go }) {
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>${t.title}</h2><a class="ghost right" href="#/deals/${deal.id}/tasks">All tasks</a></div>
     <div class="card"><p>${t.description}</p><p class="muted small">For <strong>${t.ownerName || t.assignedRole}</strong> (${t.assignedRole}) &middot; due ${fmtDate(t.dueDate) || 'n/a'} &middot; ${pill(LABEL[t.status], CLS[t.status])}
       &middot; template ${t.template ? html`${t.template.code} v${t.template.version}` : 'n/a'}${t.savedAt ? html` &middot; last saved ${fmtDateTime(t.savedAt)}` : ''}</p>
+    ${t.completedByLabel ? html`<p class="done-by"><strong>${t.completedByLabel}</strong> on ${fmtDateTime(t.completedAt)}.</p>` : t.savedByLabel ? html`<p class="muted small done-by">${t.savedByLabel} on ${fmtDateTime(t.savedAt)}.</p>` : ''}
+    ${t.forClient && t.canFill ? html`<p class="note-box">You are completing this <strong>on behalf of ${t.ownerName}</strong>. ${t.ownerName} will be told, can see your answers and can correct them. Every save is recorded with your name.</p>` : ''}
+    ${t.mine && t.savedBy && t.savedBy !== t.ownerId ? html`<p class="note-box">Your agent filled this in for you. Please check the answers and correct anything that is wrong.</p>` : ''}
     ${t.formHidden ? html`<p class="muted">Only ${t.ownerName || 'the client'}, the processor and the coordinator can see the answers.</p>`
       : t.canFill ? html`<form id="tform" class="form-grid" novalidate>${t.fields.map(input)}
         <div class="span2"><button class="ghost" type="submit" data-mode="save">Save progress</button> <button class="m-btn" type="submit" data-mode="complete">${t.status === 'done' ? 'Save and keep complete' : 'Mark complete'}</button></div>

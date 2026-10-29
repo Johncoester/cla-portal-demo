@@ -1,7 +1,7 @@
 // Role dashboards: Sales Processor = Work Queue; Sales Person / Sales Team = Team Dashboard (view-only);
 // Transaction Coordinator = Dashboard; Buyer/Listing Agent = Transactions; clients = My Closing.
 import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js';
-import { STAGES, isProcessor, isClient, isAgent, localDate } from '../data/constants.js';
+import { STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>`;
 const stat = (label, value, sub, cls = '') => html`<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value ${cls}">${value}</div><div class="stat-sub">${sub}</div></div>`;
@@ -13,7 +13,7 @@ export async function render(ctx) {
   const tasksByDeal = {}; for (const d of deals) tasksByDeal[d.id] = await api.listTasks(d.id);
   const all = Object.entries(tasksByDeal).flatMap(([id, ts]) => ts.map((t) => ({ ...t, deal: deals.find((d) => d.id === id) })));
   const open = deals.filter((d) => d.status === 'Open'); const today = localDate();
-  const pick = user.isAdmin ? admin : isProcessor(user.role) ? processor : user.role === 'Transaction Coordinator' ? coordinator : isAgent(user.role) ? agent : isClient(user.role) ? client : team;
+  const pick = user.isAdmin ? admin : isProcessor(user.role) ? processor : user.role === 'Transaction Coordinator' ? coordinator : isAgent(user.role) ? agent : isClient(user.role) ? client : isOutside(user.role) ? outside : team;
   const v = await pick({ ...ctx, deals, open, all, today });
   return { title: v.title, crumbs: [[v.title]], body: v.body, mount: v.mount };
 }
@@ -56,23 +56,25 @@ async function coordinator({ user, open, all, today }) {
       <div class="card"><h3>My files</h3><table class="tbl"><thead><tr><th>Order</th><th>Property</th><th>Stage</th><th>Closing</th><th></th></tr></thead><tbody>${files}</tbody></table></div></div>` };
 }
 
-async function agent({ user, deals, all }) {
-  const side = user.role === 'Buyer Agent' ? 'Buyer' : 'Listing';
-  const cards = deals.map((d) => { const mine = all.filter((t) => t.deal.id === d.id && t.mine && ['todo', 'in_progress'].includes(t.status));
+const agentCards = (deals, all, role) => deals.map((d) => { const side = (role || d.myRole) === 'Buyer Agent' ? 'Buyer' : 'Listing'; const mine = all.filter((t) => t.deal.id === d.id && t.mine && ['todo', 'in_progress'].includes(t.status));
+    const forClient = all.filter((t) => t.deal.id === d.id && t.forClient && ['todo', 'in_progress', 'blocked'].includes(t.status));
     return html`<div class="card deal-card"><div class="deal-card-head">${dealLink(d)} ${pill(d.status, d.status === 'Open' ? 'ok' : '')}</div><div><strong>${d.address}</strong></div>
       <div class="muted">${d.transactionType} &middot; ${side} side &middot; closing ${fmtDate(d.closingDate) || 'TBD'} &middot; ${fmtMoney(d.purchasePrice)}</div>${bar(d)}<div class="muted">${d.stageName}</div>
-      <div class="deal-card-foot">${mine.length ? pill(mine.length + ' task(s) for you', 'warn') : pill('Nothing needed from you', '')} ${d.unread ? pill(d.unread + ' new message(s)', 'info') : ''}
+      <div class="deal-card-foot">${mine.length ? pill(mine.length + ' task(s) for you', 'warn') : pill('Nothing needed from you', '')} ${forClient.length ? html`<a href="#/deals/${d.id}/tasks">${pill(forClient.length + ' task(s) you can complete for your client', 'info')}</a>` : ''} ${d.unread ? pill(d.unread + ' new message(s)', 'info') : ''}
       <span class="spacer"></span><a class="ghost" href="#/deals/${d.id}">Open</a> <a class="ghost" href="#/deals/${d.id}/documents">Documents</a></div></div>`; });
+async function agent({ user, deals, all }) {
+  const cards = agentCards(deals, all, user.role);
   return { title: 'Transactions', body: html`<div class="page-head"><div><div class="eyebrow">${user.role.toUpperCase()}</div><h2 class="page-title">My transactions</h2><div class="muted">${deals.length} file(s) you are on</div></div></div>
     <div class="card-grid">${cards.length ? cards : html`<p class="muted">You are not on any files yet.</p>`}</div>` };
 }
 
-async function client({ user, deals, all }) {
-  const blocks = deals.filter((d) => d.status === 'Open').map((d) => { const todo = all.filter((t) => t.deal.id === d.id && t.mine && ['todo', 'in_progress', 'blocked'].includes(t.status)); const done = all.filter((t) => t.deal.id === d.id && t.mine && t.status === 'done');
+const clientBlocks = (deals, all) => deals.filter((d) => d.status === 'Open').map((d) => { const todo = all.filter((t) => t.deal.id === d.id && t.mine && ['todo', 'in_progress', 'blocked'].includes(t.status)); const done = all.filter((t) => t.deal.id === d.id && t.mine && t.status === 'done');
     const items = todo.map((t) => html`<li><a href="#/deals/${d.id}/tasks${t.kind === 'form' ? '/' + t.id : ''}">${t.title}</a> ${t.status === 'in_progress' ? pill('started', 'info') : ''} <span class="muted">${t.dueDate ? 'due ' + fmtDate(t.dueDate) : ''}</span></li>`);
     return html`<div class="card"><div class="deal-card-head">${dealLink(d)} <strong>${d.address}</strong></div><div class="muted">Closing ${fmtDate(d.closingDate) || 'to be scheduled'} &middot; ${d.stageName}</div>${bar(d)}
       <h4>What we need from you</h4>${items.length ? html`<ul class="plain">${items}</ul>` : html`<p class="muted">Nothing right now. Thank you!</p>`}<p class="muted">${done.length} item(s) already done.</p>
       <a class="ghost" href="#/deals/${d.id}/inbox">Message your closing team ${d.unread ? html`(${d.unread} new)` : ''}</a></div>`; });
+async function client({ user, deals, all }) {
+  const blocks = clientBlocks(deals, all);
   return { title: 'My closing', body: html`<div class="page-head"><div><div class="eyebrow">${user.role === 'Client-Buyer' ? 'BUYER' : 'SELLER'}</div><h2 class="page-title">My closing</h2></div></div>${blocks.length ? blocks : html`<p class="muted">You have no open closings.</p>`}` };
 }
 
@@ -87,4 +89,19 @@ async function admin({ api, user, deals }) {
       ${stat('Removed', count('removed'), 'history kept')}${stat('Teams', teams.length, 'coordinator access')}${stat('Orders', deals.length, 'all visible to Admin')}</div>
     <div class="two-col"><div class="card"><h3>Recent user changes</h3>${rows.length ? html`<table class="tbl"><tbody>${rows}</tbody></table>` : html`<p class="muted">None yet.</p>`}<a class="ghost" href="#/activity?type=user">Full log</a></div>
       <div class="card"><h3>Teams</h3><ul class="plain">${teams.map((t) => html`<li><strong>${t.name}</strong><br><span class="muted">${t.members.map((m) => `${m.name} (${m.memberRole})`).join(', ') || 'No members'}</span></li>`)}</ul></div></div>` };
+}
+
+// OUTSIDE USER (per-file roles): one login, files grouped by the role they hold on each file. Each group uses that role's view
+// (agent cards with "tasks you can complete for your client", or the client's "what we need from you"), so counts stay per file.
+const GROUPS = [['Buyer Agent', "Files I'm the buyer's agent on"], ['Listing Agent', "Files I'm the listing agent on"], ['Client-Buyer', 'My purchases'], ['Client-Seller', 'My sales'], ['Outside user', 'Other files I can see']];
+async function outside({ deals, all }) {
+  const mineOpen = (d) => all.filter((t) => t.deal.id === d.id && t.mine && ['todo', 'in_progress', 'blocked'].includes(t.status)).length;
+  const sections = GROUPS.map(([role, label]) => { const list = deals.filter((d) => d.myRole === role); if (!list.length) return '';
+    const isC = isClient(role); const shown = isC ? list.filter((d) => d.status === 'Open') : list;
+    const todo = list.filter((d) => d.status === 'Open').reduce((n, d) => n + mineOpen(d), 0);
+    const forClient = all.filter((t) => list.some((d) => d.id === t.deal.id) && t.forClient && ['todo', 'in_progress', 'blocked'].includes(t.status)).length;
+    return html`<section class="role-group" data-group="${role}"><h3 class="group-title">${label} <span class="muted small" data-count>${list.length} file(s)${isC && shown.length !== list.length ? ` (${shown.length} open)` : ''} &middot; ${todo} task(s) for you${isAgent(role) ? ` · ${forClient} you can complete for your client` : ''}</span></h3>
+      ${isC ? (shown.length ? clientBlocks(list, all) : html`<p class="muted">No open files.</p>`) : html`<div class="card-grid">${isAgent(role) ? agentCards(list, all, role) : list.map((d) => html`<div class="card">${dealLink(d)} <strong>${d.address}</strong></div>`)}</div>`}</section>`; });
+  return { title: 'My files', body: html`<div class="page-head"><div><div class="eyebrow">MY FILES</div><h2 class="page-title">My files</h2><div class="muted">${deals.length} file(s). What you can see and do on each file depends on your role on that file.</div></div></div>
+    ${deals.length ? sections : html`<p class="muted">You are not on any files yet.</p>`}` };
 }

@@ -2,7 +2,7 @@
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned; vendor locally before go-live
-const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at';
+const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
 
 export async function createSupabaseAdapter(cfg) {
@@ -11,9 +11,14 @@ export async function createSupabaseAdapter(cfg) {
   const ok = (r) => { if (r.error) throw new Error(r.error.message); return r.data; };
   const camel = (o) => Array.isArray(o) ? o.map(camel) : o && typeof o === 'object'
     ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), camel(v)])) : o;
+  // per-file roles (migration 10): my role on each order I can see; outside users get the list of roles they hold across files
+  const fileRoles = async () => new Map((ok(await sb.rpc('my_file_roles')) || []).map((r) => [r.deal_id, r.role]));
+  const ORDER = ['Buyer Agent', 'Listing Agent', 'Client-Buyer', 'Client-Seller'];
   const me = async () => {
     const { data: { user } } = await sb.auth.getUser(); if (!user) return null;
-    return camel(ok(await sb.from('profiles').select('*').eq('id', user.id).single()));
+    const p = camel(ok(await sb.from('profiles').select('*').eq('id', user.id).single()));
+    p.fileRoles = p.role === 'Outside user' ? [...new Set((await fileRoles()).values())].filter((r) => ORDER.includes(r)).sort((x, y) => ORDER.indexOf(x) - ORDER.indexOf(y)) : [];
+    return p;
   };
   const a = {
     // ---- auth (real logins at go-live; the dev picker is mock-only) ----
@@ -24,8 +29,8 @@ export async function createSupabaseAdapter(cfg) {
     async resetDemoData() {},
     async getMyProfile() { return me(); },
     // ---- examples of the pattern ----
-    async listDeals() { return camel(ok(await sb.from('deals').select('*').order('created_at', { ascending: false }))); },
-    async getDeal(id) { return camel(ok(await sb.from('deals').select('*, deal_participants(*, contacts(*))').eq('id', id).single())); },
+    async listDeals() { const roles = await fileRoles(); return camel(ok(await sb.from('deals').select('*').order('created_at', { ascending: false }))).map((d) => ({ ...d, myRole: roles.get(d.id) })); },
+    async getDeal(id) { const roles = await fileRoles(); const d = camel(ok(await sb.from('deals').select('*, deal_participants(*, contacts(*))').eq('id', id).single())); return { ...d, myRole: roles.get(d.id) }; },
     // tasks.form_data is NOT selectable (column grant); answers come from get_task_form for the owner / processor / coordinator / Admin only
     async listTasks(dealId) { return camel(ok(await sb.from('tasks').select(TASK_COLS).eq('deal_id', dealId).order('created_at'))); },
     async getTask(id) {
@@ -37,6 +42,7 @@ export async function createSupabaseAdapter(cfg) {
     // ---- round 2 RPCs (same names as SQL) ----
     async adminDeleteUser(id) { ok(await sb.rpc('admin_delete_user', { p_user: id })); },
     async publishTemplateVersion(code, patch) { return ok(await sb.rpc('publish_template_version', { p_code: code, p_title: patch.title, p_description: patch.description, p_due_days: patch.dueDays })); },
+    async setTemplateAgentRoles(code, roles) { return { code, agentRoles: ok(await sb.rpc('set_template_agent_roles', { p_code: code, p_roles: roles })) }; },   // migration 9
     async sendTaskReminder(id) { return { queued: ok(await sb.rpc('queue_task_reminder', { p_task: id })) }; },
     async queueOverdueReminders() { return { queued: ok(await sb.rpc('queue_overdue_reminders')) }; },
     async listOutbox() { return camel(ok(await sb.from('outbox').select('*').order('created_at', { ascending: false }))); },

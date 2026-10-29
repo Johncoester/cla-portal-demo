@@ -4,7 +4,7 @@ export function dealsAndAuth(x) {
   const OPEN = ['todo', 'in_progress', 'blocked'];
   return {
     // ---------- Profile ----------
-    async getMyProfile() { return clone(needUser()); },
+    async getMyProfile() { const u = needUser(); return clone({ ...u, fileRoles: C.isOutside(u.role) ? x.fileRolesOf(u) : [] }); },
     async updateMyProfile(patch) {
       const u = needUser(); const p = load().profiles.find((q) => q.id === u.id);
       if (patch.firstName != null) p.firstName = str(patch.firstName, 80) || fail('First name is required.');
@@ -16,7 +16,7 @@ export function dealsAndAuth(x) {
     // ---------- Dashboard ----------
     async getWorkQueue() {
       const u = needUser(); const d = load(); const deals = dealsFor(u).filter((q) => q.status === 'Open');
-      const tasks = d.tasks.filter((t) => deals.some((q) => q.id === t.dealId) && OPEN.includes(t.status) && taskVisible(u, t));
+      const tasks = d.tasks.filter((t) => deals.some((q) => q.id === t.dealId) && OPEN.includes(t.status) && taskVisible(x.scopeTo(u, t.dealId), t));
       const today = localDate(); const soon = localDate(21);
       const clientWait = (t) => ['todo', 'in_progress'].includes(t.status) && /^Client/.test(t.assignedRole);
       const attention = deals.map((q) => ({ deal: dealView(u, q), overdue: tasks.filter((t) => t.dealId === q.id && t.dueDate && t.dueDate < today).length,
@@ -35,7 +35,7 @@ export function dealsAndAuth(x) {
       return dealsFor(u).filter((q) => !status || status === 'All' || q.status === status).map((q) => dealView(u, q))
         .sort((a, b) => (b.openDate || '').localeCompare(a.openDate || '') || b.fileNumber.localeCompare(a.fileNumber));
     },
-    async getDeal(id) { const u = needUser(); const q = dealOr404(u, id); return { ...dealView(u, q), participants: x.participantsOf(id, u) }; },
+    async getDeal(id) { const u0 = needUser(); const q = dealOr404(u0, id); const u = x.scopeTo(u0, id); return { ...dealView(u, q), participants: x.participantsOf(id, u) }; },
     async createDeal(input) {
       const u = needProcessor(); const d = load();
       const street = str(input.street, 200) || fail('Street address is required.');

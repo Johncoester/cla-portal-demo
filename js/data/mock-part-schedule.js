@@ -2,7 +2,7 @@
  * link (#/schedule/<token>, works without signing in, like the old portal's hashed scheduler links); the processor confirms one time; a request can be reopened.
  * Nothing is emailed from this build: links are shown to staff to copy, and in-app notifications are created. */
 export function closingSchedule(x) {
-  const { load, save, nid, me, needUser, needProcessor, dealOr404, log, nameOf, notify, dealProfileIds, prof, contactOf, clone, now, fail, str, C } = x;
+  const { load, save, nid, me, needUser, needProcessor, dealOr404, onDeal, fileRole, log, nameOf, notify, dealProfileIds, prof, contactOf, clone, now, fail, str, C } = x;
   const SIDES = ['buyer', 'seller'];
   const token = (side) => { const a = new Uint8Array(16); (globalThis.crypto || {}).getRandomValues ? globalThis.crypto.getRandomValues(a) : a.forEach((_, i) => { a[i] = Math.floor(Math.random() * 256); });
     return side + '-' + [...a].map((b) => b.toString(16).padStart(2, '0')).join(''); };
@@ -16,7 +16,7 @@ export function closingSchedule(x) {
   const responsesOf = (s, round) => load().settlementResponses.filter((r) => r.settlementId === s.id && r.round === round);
   return {
     async listSettlements(dealId) {
-      const u = needUser(); dealOr404(u, dealId); const mySide = C.sideOf(u.role); const staff = C.isProcessor(u.role) || u.isAdmin;
+      let u = needUser(); u = onDeal(u, dealId); const mySide = C.sideOf(u.role); const staff = C.isProcessor(u.role) || u.isAdmin;
       return clone(load().settlements.filter((s) => s.dealId === dealId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((s) => ({
         ...s, tokens: staff ? s.tokens : undefined, myLink: !staff && mySide && s.status === 'open' ? `#/schedule/${s.tokens[mySide]}` : null, mySide,
         responses: responsesOf(s, s.round).filter((r) => !C.isClient(u.role) || r.side === mySide), createdByName: nameOf(s.createdBy) })));

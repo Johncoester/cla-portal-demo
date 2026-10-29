@@ -5,8 +5,10 @@ import { STAGES, DEAL_STATUSES, isProcessor } from '../data/constants.js';
 const TABS = { tasks: './dealtasks.js', inbox: './dealmsgs.js', documents: './dealdocs.js', contacts: './dealcontacts.js', activity: './dealactivity.js', closing: './dealclosing.js' };
 
 export async function render(ctx) {
-  const { api, user, params } = ctx; const tab = params.tab;
+  const { api, params } = ctx; const tab = params.tab;
   const deal = await api.getDeal(params.id);
+  // per-file roles: on this order an outside user acts as their role HERE (deal.myRole), e.g. Buyer Agent here, Client-Buyer elsewhere
+  const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
   if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');

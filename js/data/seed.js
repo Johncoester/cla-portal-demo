@@ -10,22 +10,26 @@ export function buildSeed() {
     P('u-sp', 'Sam', 'Salesperson', 'Sales Person', 2),
     P('u-team', 'Tina', 'Salesteam', 'Sales Team', 3),
     P('u-tc', 'Terry', 'Coordinator', 'Transaction Coordinator', 4),
-    P('u-bagent', 'Bianca', 'Buyer-Agent', 'Buyer Agent', 5),
-    P('u-lagent', 'Larry', 'Listing-Agent', 'Listing Agent', 6),
-    P('u-buyer', 'Ben', 'Buyer', 'Client-Buyer', 7),
-    P('u-seller', 'Sally', 'Seller', 'Client-Seller', 8),
+    // Outside users (agents, clients): no fixed role. What they can do on each order comes from their role ON THAT ORDER (participants below).
+    P('u-bagent', 'Bianca', 'Buyer-Agent', 'Outside user', 5, { co: 'Harbor Realty (fake)' }),
+    P('u-lagent', 'Larry', 'Listing-Agent', 'Outside user', 6, { co: 'Oak Street Realty (fake)' }),
+    P('u-buyer', 'Ben', 'Buyer', 'Outside user', 7, { co: '' }),
+    P('u-seller', 'Sally', 'Seller', 'Outside user', 8, { co: '' }),
+    P('u-multi', 'Morgan', 'Multi-Role', 'Outside user', 11, { co: 'Harbor Realty (fake)' }),   // one login, two hats: buyer's agent on MD-26-97183, a buyer on MD-26-97201
     P('u-admin', 'King John', 'Admin', 'Admin', 9, { isAdmin: true }),   // role 'Admin' (always isAdmin; isAdmin is the permission check)
-    P('u-gone', 'Gary', 'Gone', 'Buyer Agent', 10, { status: 'removed', removedAt: '2026-10-20T15:00:00Z', removedBy: 'u-admin' }),   // deleted by Admin; history kept
+    P('u-gone', 'Gary', 'Gone', 'Outside user', 10, { co: 'Harbor Realty (fake)', status: 'removed', removedAt: '2026-10-20T15:00:00Z', removedBy: 'u-admin' }),   // deleted by Admin; history kept
   ];
   const contacts = profiles.map((p) => ({ id: 'c-' + p.id.slice(2), profileId: p.id, firstName: p.firstName, lastName: p.lastName, email: p.email, phone: p.phone,
-    company: ({ 'Buyer Agent': 'Harbor Realty (fake)', 'Listing Agent': 'Oak Street Realty (fake)' })[p.role] || (p.role.startsWith('Client') ? '' : 'CLA Title & Escrow'), createdBy: 'u-proc', createdAt: p.createdAt }));
+    company: p.co != null ? p.co : 'CLA Title & Escrow', createdBy: 'u-proc', createdAt: p.createdAt }));
+  profiles.forEach((p) => { delete p.co; });
   contacts.push(
     { id: 'c-lender1', profileId: null, firstName: 'Linda', lastName: 'Lender', email: 'linda.lender@example.test', phone: '410-555-0111', company: 'Example Home Loans (fake)', createdBy: 'u-proc', createdAt: '2026-09-01T12:00:00Z' },
     { id: 'c-hoa1', profileId: null, firstName: 'Hank', lastName: 'Hoa-Manager', email: 'hank.hoa@example.test', phone: '410-555-0122', company: 'Maple Ridge HOA (fake)', createdBy: 'u-proc', createdAt: '2026-09-01T12:00:00Z' });
   // TC access comes from TEAMS: a coordinator sees the deals of the agents on their team(s).
   const teams = [{ id: 'team-harbor', name: 'Harbor Realty team', createdBy: 'u-admin', createdAt: '2026-09-01T12:00:00Z' }, { id: 'team-oak', name: 'Oak Street team', createdBy: 'u-admin', createdAt: '2026-09-01T12:00:00Z' }];
   const teamMembers = [{ teamId: 'team-harbor', profileId: 'u-tc', memberRole: 'coordinator', addedAt: '2026-09-01T12:00:00Z' }, { teamId: 'team-harbor', profileId: 'u-bagent', memberRole: 'agent', addedAt: '2026-09-01T12:00:00Z' },
-    { teamId: 'team-oak', profileId: 'u-lagent', memberRole: 'agent', addedAt: '2026-09-01T12:00:00Z' }];
+    { teamId: 'team-oak', profileId: 'u-lagent', memberRole: 'agent', addedAt: '2026-09-01T12:00:00Z' },
+    { teamId: 'team-harbor', profileId: 'u-multi', memberRole: 'agent', addedAt: '2026-09-01T12:00:00Z' }];   // TC sees Morgan's files only where she is an AGENT
   const deals = [
     { id: 'deal-1', fileNumber: 'MD-26-97183', street: '145 Main Street', city: 'Rockville', state: 'MD', zip: '20850', transactionType: 'Purchase', stage: 3, status: 'Open',
       openDate: '2026-09-28', closingDate: null, purchasePrice: 485000, loanAmount: 388000, lenderName: 'Example Home Loans (fake)', lenderContact: 'Linda Lender', lenderEmail: 'linda.lender@example.test', lenderPhone: '410-555-0111',
@@ -42,21 +46,23 @@ export function buildSeed() {
   [1, 2].forEach((n) => { link(n, 'c-proc', 'Sales Processor'); link(n, 'c-sp', 'Sales Person'); link(n, 'c-team', 'Sales Team'); link(n, 'c-tc', 'Transaction Coordinator');
     link(n, 'c-bagent', 'Buyer Agent'); link(n, 'c-lagent', 'Listing Agent'); link(n, 'c-buyer', 'Client-Buyer'); link(n, 'c-seller', 'Client-Seller'); });
   link(1, 'c-lender1', 'Lender'); link(1, 'c-hoa1', 'HOA');
+  link(1, 'c-multi', 'Buyer Agent');    // Morgan: co-buyer's agent with Bianca on deal 1 ...
+  link(2, 'c-multi', 'Client-Buyer');   // ... and a co-buyer (her own purchase) on deal 2
   link(3, 'c-proc', 'Sales Processor'); link(3, 'c-sp', 'Sales Person'); link(3, 'c-gone', 'Buyer Agent'); link(3, 'c-lagent', 'Listing Agent');
   link(3, 'c-buyer', 'Client-Buyer'); link(3, 'c-seller', 'Client-Seller'); link(3, 'c-lender1', 'Lender');
 
   const taskTemplates = TEMPLATE_DEFS.map((t) => ({ id: `tt-${t.code}-v${t.version}`, ...JSON.parse(JSON.stringify(t)),
     active: !TEMPLATE_DEFS.some((o) => o.code === t.code && o.version > t.version), publishedBy: 'u-admin', publishedAt: t.version > 1 ? '2026-09-20T12:00:00Z' : '2026-08-01T12:00:00Z' }));
   const tasks = [];
-  const copy = (n, code, version, role, status, formData = {}) => {
-    const t = taskTemplates.find((z) => z.code === code && z.version === version); const p = participants.find((z) => z.dealId === `deal-${n}` && z.role === role);
+  const copy = (n, code, version, role, status, formData = {}, cid = null) => {
+    const t = taskTemplates.find((z) => z.code === code && z.version === version); const p = participants.find((z) => z.dealId === `deal-${n}` && z.role === role && (!cid || z.contactId === cid));
     const done = status === 'done';
     tasks.push({ id: `t-${n}-${code}-${p.contactId.slice(2)}`, dealId: `deal-${n}`, participantId: p.id, templateId: t.id, templateCode: code, templateVersion: version, kind: 'form',
-      title: t.title, description: t.description, assignedRole: role, status, dueDate: addDays(deals[n - 1].openDate, t.dueDays), formData, savedAt: Object.keys(formData).length ? '2026-10-05T15:00:00Z' : null,
+      title: t.title, description: t.description, assignedRole: role, status, dueDate: addDays(deals[n - 1].openDate, t.dueDays), formData, savedAt: Object.keys(formData).length ? '2026-10-05T15:00:00Z' : null, savedBy: Object.keys(formData).length ? p.contactId.replace('c-', 'u-') : null,
       completedAt: done ? '2026-10-06T15:00:00Z' : null, completedBy: done ? (participants.find((z) => z.id === p.id).contactId.replace('c-', 'u-')) : null, createdBy: 'u-proc', createdAt: deals[n - 1].createdAt });
   };
   const adhoc = (id, n, title, role, status, due, desc = '') => tasks.push({ id, dealId: `deal-${n}`, participantId: null, templateId: null, templateCode: null, templateVersion: null, kind: 'simple',
-    title, description: desc, assignedRole: role, status, dueDate: due, formData: {}, savedAt: null, completedAt: status === 'done' ? '2026-10-10T15:00:00Z' : null, completedBy: status === 'done' ? 'u-proc' : null, createdBy: 'u-proc', createdAt: deals[n - 1].createdAt });
+    title, description: desc, assignedRole: role, status, dueDate: due, formData: {}, savedAt: null, savedBy: null, completedAt: status === 'done' ? '2026-10-10T15:00:00Z' : null, completedBy: status === 'done' ? 'u-proc' : null, createdBy: 'u-proc', createdAt: deals[n - 1].createdAt });
   const benInfo = { full_name: 'Ben Buyer', email: 'ben.buyer@example.test', cell_phone: '301-555-0107', current_address: '1 Sample Road, Gaithersburg, MD 20878', marital_status: 'Single', attending_closing: 'Yes', settlement_type: 'In person' };
   const sallyInfo = { full_name: 'Sally Seller', email: 'sally.seller@example.test', cell_phone: '301-555-0108', current_address: '145 Main Street, Rockville, MD 20850', marital_status: 'Married', attending_closing: 'Yes', settlement_type: 'Online' };
   // deal 1: a mix of states
@@ -64,12 +70,14 @@ export function buildSeed() {
   copy(1, 'title_vesting', 1, 'Client-Buyer', 'todo'); copy(1, 'lender_info', 1, 'Client-Buyer', 'done', { company: 'Example Home Loans (fake)', officer_name: 'Linda Lender', officer_email: 'linda.lender@example.test', officer_phone: '410-555-0111', loan_type: 'Conventional' });
   copy(1, 'home_warranty', 1, 'Client-Buyer', 'todo'); copy(1, 'id_upload', 1, 'Client-Seller', 'todo'); copy(1, 'personal_info', 2, 'Client-Seller', 'done', sallyInfo);
   copy(1, 'hoa_info', 1, 'Client-Seller', 'done', { association_name: 'Maple Ridge HOA (fake)', assoc_type: 'HOA', contact_name: 'Hank Hoa-Manager', contact_email: 'hank.hoa@example.test', dues_amount: '85', payment_schedule: 'Monthly' });
-  copy(1, 'mortgage_info', 1, 'Client-Seller', 'in_progress', { lender_name: 'Sample Savings Bank (fake)' }); copy(1, 'commissions', 1, 'Buyer Agent', 'todo');
+  copy(1, 'mortgage_info', 1, 'Client-Seller', 'in_progress', { lender_name: 'Sample Savings Bank (fake)' }); copy(1, 'home_warranty', 2, 'Client-Seller', 'todo'); copy(1, 'commissions', 1, 'Buyer Agent', 'todo');
   copy(1, 'commissions', 1, 'Listing Agent', 'done', { brokerage: 'Oak Street Realty (fake)', license_id: 'FAKE-0606', commission_amount: '14550', paid_by: 'Seller' });
   adhoc('t-1-hoa-cert', 1, 'Order HOA resale certificate', 'Sales Processor', 'done', '2026-10-10'); adhoc('t-1-sched', 1, 'Confirm closing appointment', 'Transaction Coordinator', 'todo', '2026-11-10');
   // deal 2: brand new
   ['id_upload', 'title_vesting', 'lender_info', 'home_warranty'].forEach((c) => copy(2, c, 1, 'Client-Buyer', 'todo')); copy(2, 'personal_info', 2, 'Client-Buyer', 'todo');
   ['id_upload', 'hoa_info', 'mortgage_info'].forEach((c) => copy(2, c, 1, 'Client-Seller', 'todo')); copy(2, 'personal_info', 2, 'Client-Seller', 'todo');
+  copy(2, 'home_warranty', 2, 'Client-Seller', 'todo');
+  ['id_upload', 'title_vesting', 'lender_info', 'home_warranty'].forEach((c) => copy(2, c, 1, 'Client-Buyer', 'todo', {}, 'c-multi')); copy(2, 'personal_info', 2, 'Client-Buyer', 'todo', {}, 'c-multi');
   copy(2, 'commissions', 1, 'Buyer Agent', 'todo'); copy(2, 'commissions', 1, 'Listing Agent', 'todo');
   adhoc('t-2-contract', 2, 'Collect executed contract', 'Sales Processor', 'todo', '2026-10-30'); adhoc('t-2-emd', 2, 'Earnest money deposit receipt', 'Client-Buyer', 'todo', '2026-10-24', 'Upload the EMD receipt.');
   // deal 3: closed; personal info used the OLDER template version 1
