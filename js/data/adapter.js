@@ -7,12 +7,23 @@
  *
  * AUTH CONTRACT (the swappable layer):
  *   mode                     "mock" | "supabase"
- *   listDevUsers()           -> [{id, firstName, lastName, role}]  mock only; supabase returns [] (dev picker hidden)
+ *   listDevUsers()           -> [{id, firstName, lastName, role, isAdmin}]  mock only; supabase returns [] (dev picker hidden)
  *   signInDev(userId)        mock only: dev/fake login, pick a fake user, no password
  *   signIn(email, password)  supabase only (go-live: real users, real logins)
  *   signOut(); getSession() -> profile | null; getMyProfile(); updateMyProfile(patch)
- * Everything else (deals, contacts, tasks, documents, messages, activity, admin) is identical in both: see mock-adapter.js.
- * There is intentionally NO deleteDocument in either adapter.
+ * DATA CONTRACT (same names in both; see the mock-part-*.js files):
+ *   deals:      getWorkQueue, listDeals, getDeal, createDeal, updateDeal, setStage, setDealStatus, listSalesStaff, unreadCount
+ *   people:     listContacts, createContact, updateContact, addParticipant (copies current task templates), removeParticipant
+ *   tasks:      listTasks, getTask, createTask, updateTask, saveTaskForm(id, data, {complete}), uploadForTask,
+ *               listTaskTemplates, publishTemplateVersion (Admin), sendTaskReminder, queueOverdueReminders, listOutbox (queued only, never sent)
+ *   documents:  listDocuments, addDocument, moveDocument, updateDocumentMeta, getDocumentContent, listDealFolders, createFolder, renameFolder,
+ *               listLibrary, addLibraryDocument
+ *   messages:   listMessageRecipients, listThreads, getThread, createThread, postMessage, markThreadRead
+ *   closing:    listSettlements, createSettlementRequest, getSchedulingLink(token), respondSettlement(token, ...), confirmSettlement, reopenSettlement
+ *   other:      listActivity(dealId|null, filters), listNotifications, notificationCount, markNotificationRead, markAllNotificationsRead
+ *   Admin only (isAdmin flag, NOT the Sales Processor): adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser (marks removed; history kept),
+ *               listTeams (TCs see their own), createTeam, renameTeam, addTeamMember, removeTeamMember
+ * There is intentionally NO deleteDocument (or folder delete) in either adapter, for anyone.
  */
 let cached = null;
 export async function getAdapter() {

@@ -1,11 +1,12 @@
-// Place Order (Sales Processor only): creates a deal, default tasks, and links the chosen people.
+// Place Order (Sales Processor only): creates a deal and links the chosen people (their intake tasks are copied from the current task templates).
 import { html, $, guard, formData, options, toast } from '../ui.js';
 import { TX_TYPES } from '../data/constants.js';
 
 const PEOPLE = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer agent'], ['Listing Agent', 'Listing agent'], ['Transaction Coordinator', 'Transaction coordinator'], ['Sales Team', 'Sales team member']];
 
 export async function render({ api, user, go }) {
-  const contacts = await api.listContacts(); const staff = (await api.adminListUsers()).filter((u) => ['Sales Person', 'Sales Team'].includes(u.role));
+  if (user.role !== 'Sales Processor') throw new Error('Only a Sales Processor can place orders.');
+  const contacts = await api.listContacts(); const staff = await api.listSalesStaff();
   const pickers = PEOPLE.map(([role, label]) => html`<label>${label}<select name="p:${role}"><option value="">(none yet)</option>${options(contacts, '', (c) => `${c.firstName} ${c.lastName}${c.company ? ' \u2014 ' + c.company : ''}`, (c) => c.id)}</select></label>`);
   const body = html`
     <div class="box-title"><h2><span class="h-ico"></span>Place Order</h2></div>

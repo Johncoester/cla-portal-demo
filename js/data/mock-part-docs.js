@@ -1,12 +1,12 @@
-/* mock adapter, part 2: contacts, participants, tasks, documents. NOTE: there is no delete for documents. */
+/* mock adapter: contacts, participants, documents (deal files). NOTE: there is no delete for documents, for anyone (Admin included). */
 export function contactsTasksDocs(x) {
-  const { load, save, nid, needUser, needProcessor, notViewOnly, dealsFor, dealOr404, log, nameOf, roleOf, fullName, docVisible, participantsOf, contactOf, clone, now, fail, str, emailOk, C } = x;
-  const manager = (u) => C.isProcessor(u.role) || u.role === 'Transaction Coordinator';
-  return {
+  const { load, save, nid, needUser, needProcessor, isManager, notViewOnly, seesAll, dealsFor, dealOr404, log, prof, nameOf, roleOf, fullName, folderOf, docVisible, participantsOf, notify, dealProfileIds, clone, now, fail, str, emailOk, C } = x;
+  const docOut = (z) => ({ ...z, dataUrl: undefined, hasContent: !!z.dataUrl, uploadedByName: nameOf(z.uploadedBy), uploadedByRole: roleOf(z.uploadedBy), folderName: (folderOf(z.folderId) || {}).name || '' });
+  const api = {
     // ---------- Contacts & participants ----------
     async listContacts(search = '') {
       const u = needUser(); const d = load(); const q = search.toLowerCase(); let list = d.contacts;
-      if (!C.isProcessor(u.role)) { const ids = new Set(); dealsFor(u).forEach((z) => participantsOf(z.id, u).forEach((p) => ids.add(p.contactId))); list = list.filter((c) => ids.has(c.id)); }
+      if (!(C.isProcessor(u.role) || u.isAdmin)) { const ids = new Set(); dealsFor(u).forEach((z) => participantsOf(z.id, u).forEach((p) => ids.add(p.contactId))); list = list.filter((c) => ids.has(c.id)); }
       return clone(list.filter((c) => !q || `${fullName(c)} ${c.email} ${c.company}`.toLowerCase().includes(q)).sort((a, b) => fullName(a).localeCompare(fullName(b))));
     },
     async createContact(input) {
@@ -22,79 +22,67 @@ export function contactsTasksDocs(x) {
       ['firstName', 'lastName', 'phone', 'company'].forEach((k) => { if (patch[k] != null) c[k] = str(patch[k], 120); });
       if (!c.firstName) fail('First name is required.');
       if (patch.email != null) { const e = str(patch.email, 200).toLowerCase(); if (e && !emailOk(e)) fail('Email is not valid.'); c.email = e; }
-      const p = c.profileId && load().profiles.find((z) => z.id === c.profileId); if (p) { p.firstName = c.firstName; p.lastName = c.lastName; p.phone = c.phone; }
+      const p = c.profileId && prof(c.profileId); if (p) { p.firstName = c.firstName; p.lastName = c.lastName; p.phone = c.phone; }
       save(); return clone(c);
     },
     async addParticipant(dealId, contactId, role) {
       const u = needProcessor(); const d = load(); d.deals.find((z) => z.id === dealId) || fail('Order not found.');
       if (!C.PARTICIPANT_ROLES.includes(role)) fail('Unknown role.'); const c = d.contacts.find((z) => z.id === contactId) || fail('Contact not found.');
       if (d.participants.some((p) => p.dealId === dealId && p.contactId === contactId && p.role === role)) fail('That person already has this role on the order.');
-      d.participants.push({ id: nid('dp'), dealId, contactId, role, createdAt: now() }); log(dealId, u.id, 'participant.added', 'contact', contactId, `${fullName(c)} added as ${role}`); save(); return true;
+      const p = { id: nid('dp'), dealId, contactId, role, createdAt: now() }; d.participants.push(p);
+      log(dealId, u.id, 'participant.added', 'contact', contactId, `${fullName(c)} added as ${role}`);
+      const n = x.makeCopies(dealId, p, u.id); save(); return { ok: true, tasksCreated: n };
     },
-    async removeParticipant(dealId, participantId) {   // removes the link to this order only; the contact, their documents and messages stay
+    async removeParticipant(dealId, participantId) {   // removes the link to this order only; the contact, their documents and messages stay; their open task copies are cancelled
       const u = needProcessor(); const d = load(); const i = d.participants.findIndex((p) => p.id === participantId && p.dealId === dealId); if (i < 0) fail('Participant not found.');
       const c = d.contacts.find((z) => z.id === d.participants[i].contactId); const role = d.participants[i].role; d.participants.splice(i, 1);
+      d.tasks.filter((t) => t.participantId === participantId && ['todo', 'in_progress', 'blocked'].includes(t.status)).forEach((t) => { t.status = 'cancelled'; });
       log(dealId, u.id, 'participant.removed', 'contact', c && c.id, `${c ? fullName(c) : 'Contact'} removed from role ${role}`); save(); return true;
     },
-    // ---------- Tasks (cancel, never delete) ----------
-    async listTasks(dealId) {
+    // ---------- Documents: list / add / move / edit details / open. There is NO delete, by design. ----------
+    async listDocuments(dealId, { folderId } = {}) {
       const u = needUser(); dealOr404(u, dealId);
-      return clone(load().tasks.filter((t) => t.dealId === dealId).sort((a, b) => ((a.status === 'done') - (b.status === 'done')) || (a.dueDate || '9').localeCompare(b.dueDate || '9')));
+      return clone(load().documents.filter((z) => z.dealId === dealId && docVisible(u, z) && (folderId === undefined || (folderId === '' ? !z.folderId : z.folderId === folderId)))
+        .map(docOut).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
     },
-    async createTask(dealId, input) {
-      const u = needUser(); dealOr404(u, dealId); if (!manager(u)) fail('Only the processor or transaction coordinator can add tasks.');
-      const role = C.ROLES.includes(input.assignedRole) ? input.assignedRole : 'Sales Processor';
-      const t = { id: nid('t'), dealId, title: str(input.title, 200) || fail('Task title is required.'), description: str(input.description, 1000), assignedRole: role, status: 'todo',
-        dueDate: str(input.dueDate, 10) || null, completedAt: null, completedBy: null, createdBy: u.id, createdAt: now() };
-      load().tasks.push(t); log(dealId, u.id, 'task.created', 'task', t.id, `Task added: ${t.title}`); save(); return clone(t);
-    },
-    async updateTask(id, patch) {
-      const u = needUser(); const t = load().tasks.find((z) => z.id === id) || fail('Task not found.'); dealOr404(u, t.dealId);
-      if (!manager(u)) {   // everyone else may only tick/untick a task assigned to their own role
-        if (Object.keys(patch).some((k) => k !== 'status') || t.assignedRole !== u.role || !['todo', 'done'].includes(patch.status)) fail('You can only complete tasks assigned to you.');
-      }
-      if (patch.title != null) t.title = str(patch.title, 200) || fail('Task title is required.');
-      if (patch.description != null) t.description = str(patch.description, 1000);
-      if (patch.dueDate !== undefined) t.dueDate = str(patch.dueDate, 10) || null;
-      if (patch.assignedRole != null) { if (!C.ROLES.includes(patch.assignedRole)) fail('Unknown role.'); t.assignedRole = patch.assignedRole; }
-      if (patch.status != null) {
-        if (!C.TASK_STATUSES.includes(patch.status)) fail('Unknown task status.');
-        if (patch.status !== t.status) {
-          t.status = patch.status; t.completedAt = patch.status === 'done' ? now() : null; t.completedBy = patch.status === 'done' ? u.id : null;
-          log(t.dealId, u.id, 'task.status', 'task', t.id, `${t.title}: ${patch.status}`);
-        }
-      }
-      save(); return clone(t);
-    },
-    // ---------- Documents: list / add / edit details / open. There is NO delete, by design. ----------
-    async listDocuments(dealId) {
-      const u = needUser(); dealOr404(u, dealId);
-      return clone(load().documents.filter((z) => z.dealId === dealId && docVisible(u, z))
-        .map((z) => ({ ...z, dataUrl: undefined, hasContent: !!z.dataUrl, uploadedByName: nameOf(z.uploadedBy), uploadedByRole: roleOf(z.uploadedBy) }))
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
-    },
-    async addDocument(dealId, { name, description, mimeType, size, dataUrl, visibility }) {
+    async addDocument(dealId, { name, description, mimeType, size, dataUrl, visibility, folderId }) {
       const u = needUser(); dealOr404(u, dealId); notViewOnly(u);
-      const n = str(name, 200).replace(/[\\/]/g, '_'); if (!n) fail('A file name is required.');
-      const ext = (n.split('.').pop() || '').toLowerCase(); if (!C.ALLOWED_UPLOAD_EXT.includes(ext)) fail(`.${ext} files are not allowed. Allowed: ${C.ALLOWED_UPLOAD_EXT.join(', ')}.`);
-      if (!(size >= 0) || size > C.MAX_UPLOAD_BYTES) fail(`File is too large (demo limit ${Math.round(C.MAX_UPLOAD_BYTES / 1e5) / 10} MB).`);
-      const vis = C.DOC_VISIBILITY.includes(visibility) ? visibility : 'all';
-      if (C.isClient(u.role) && vis === 'staff') fail('Clients cannot make staff-only documents.');
-      const doc = { id: nid('doc'), dealId, name: n, description: str(description, 500), mimeType: str(mimeType, 100) || 'application/octet-stream', size: Number(size) || 0,
-        dataUrl: dataUrl || null, uploadedBy: u.id, visibility: vis, createdAt: now() };
-      load().documents.push(doc); log(dealId, u.id, 'document.uploaded', 'document', doc.id, `Uploaded ${doc.name}`); save(); return clone({ ...doc, dataUrl: undefined });
+      const doc = x.newDoc(u, { name, description, mimeType, size, dataUrl, visibility }); doc.dealId = dealId;
+      if (folderId) { const f = folderOf(folderId); if (!f || f.dealId !== dealId) fail('That folder is not part of this order.'); doc.folderId = f.id; } else doc.folderId = null;
+      load().documents.push(doc); log(dealId, u.id, 'document.uploaded', 'document', doc.id, `Uploaded ${doc.name}`);
+      notify(dealProfileIds(dealId).filter((pid) => docVisible(prof(pid), doc)), { kind: 'document', dealId, title: `${nameOf(u.id)} uploaded ${doc.name}`, link: `#/deals/${dealId}/documents` }, u.id);
+      save(); return clone(docOut(doc));
+    },
+    async moveDocument(id, folderId) {   // file a document into another folder of the same order (processor / coordinator)
+      const u = needUser(); const z = load().documents.find((q) => q.id === id) || fail('Document not found.'); if (!z.dealId) fail('Use the Library to manage library files.');
+      dealOr404(u, z.dealId); if (!isManager(u)) fail('Only the processor or coordinator can move documents.');
+      if (folderId) { const f = folderOf(folderId); if (!f || f.dealId !== z.dealId) fail('That folder is not part of this order.'); }
+      z.folderId = folderId || null; log(z.dealId, u.id, 'document.moved', 'document', id, `Moved ${z.name} to ${folderId ? folderOf(folderId).name : 'Unfiled'}`); save(); return true;
     },
     async updateDocumentMeta(id, patch) {   // description / visibility only. Files are never replaced or removed.
-      const u = needUser(); const z = load().documents.find((q) => q.id === id) || fail('Document not found.'); dealOr404(u, z.dealId);
+      const u = needUser(); const z = load().documents.find((q) => q.id === id) || fail('Document not found.'); if (z.dealId) dealOr404(u, z.dealId); else if (!docVisible(u, z)) fail('Document not found.');
       if (!(C.isProcessor(u.role) || z.uploadedBy === u.id)) fail('Only the uploader or a processor can edit this document.');
       if (patch.description != null) z.description = str(patch.description, 500);
       if (patch.visibility != null) { if (!C.DOC_VISIBILITY.includes(patch.visibility)) fail('Unknown visibility.'); if (C.isClient(u.role) && patch.visibility === 'staff') fail('Clients cannot make staff-only documents.'); z.visibility = patch.visibility; }
       log(z.dealId, u.id, 'document.updated', 'document', id, `Updated details of ${z.name}`); save(); return true;
     },
     async getDocumentContent(id) {
-      const u = needUser(); const z = load().documents.find((q) => q.id === id) || fail('Document not found.'); dealOr404(u, z.dealId); if (!docVisible(u, z)) fail('Document not found.');
+      const u = needUser(); const z = load().documents.find((q) => q.id === id) || fail('Document not found.');
+      if (z.dealId) dealOr404(u, z.dealId); if (!docVisible(u, z)) fail('Document not found.');
       log(z.dealId, u.id, 'document.viewed', 'document', id, `Opened ${z.name}`); save();
       return { name: z.name, mimeType: z.mimeType, dataUrl: z.dataUrl || ('data:text/plain;charset=utf-8,' + encodeURIComponent(`FAKE DEMO FILE\n${z.name}\n(Seed documents have no real content.)\n`)) };
     },
   };
+  // shared by deal uploads, task ID uploads and the Library
+  x.newDoc = (u, { name, description, mimeType, size, dataUrl, visibility }) => {
+    const n = str(name, 200).replace(/[\\/]/g, '_'); if (!n) fail('A file name is required.');
+    const ext = (n.split('.').pop() || '').toLowerCase(); if (!C.ALLOWED_UPLOAD_EXT.includes(ext)) fail(`.${ext} files are not allowed. Allowed: ${C.ALLOWED_UPLOAD_EXT.join(', ')}.`);
+    if (!(size >= 0) || size > C.MAX_UPLOAD_BYTES) fail(`File is too large (demo limit ${Math.round(C.MAX_UPLOAD_BYTES / 1e5) / 10} MB).`);
+    const vis = C.DOC_VISIBILITY.includes(visibility) ? visibility : 'all';
+    if (C.isClient(u.role) && vis === 'staff') fail('Clients cannot make staff-only documents.');
+    return { id: nid('doc'), dealId: null, folderId: null, name: n, description: str(description, 500), mimeType: str(mimeType, 100) || 'application/octet-stream', size: Number(size) || 0,
+      dataUrl: dataUrl || null, uploadedBy: u.id, visibility: vis, createdAt: now() };
+  };
+  x.docOut = docOut;
+  return api;
 }

@@ -4,7 +4,8 @@ export const ROLES = [
   'Buyer Agent', 'Listing Agent', 'Client-Buyer', 'Client-Seller',
 ];
 export const STAFF_ROLES = ['Sales Processor', 'Sales Person', 'Sales Team'];
-// Back-office users who may run the deal workflow and administer users. (Sales Person / Sales Team are view-only, as in the old portal.)
+// Back-office user who runs the deal workflow. NOT an admin: user/team admin is the separate isAdmin flag on an account (as in the old portal).
+// Sales Person / Sales Team are view-only, as in the old portal.
 export const PROCESSOR = 'Sales Processor';
 export const isProcessor = (role) => role === PROCESSOR;
 export const isStaff = (role) => STAFF_ROLES.includes(role);
@@ -19,7 +20,10 @@ export const STAGES = [
   'Processing', 'Buyer Final Doc Review', 'Closing Date', 'Funding auth', 'Disbursed Funds',
 ];
 export const DEAL_STATUSES = ['Open', 'Closed', 'On Hold', 'Cancelled'];
-export const TASK_STATUSES = ['todo', 'done', 'blocked', 'cancelled'];   // note: tasks are cancelled, never deleted
+export const TASK_STATUSES = ['todo', 'in_progress', 'done', 'blocked', 'cancelled'];   // note: tasks are cancelled, never deleted
+export const PROFILE_STATUSES = ['active', 'disabled', 'removed'];   // removed = deleted by an Admin; the row stays so documents/messages/history keep their author
+export const TEAM_MEMBER_ROLES = ['coordinator', 'agent'];
+export const isAdmin = (u) => !!(u && u.isAdmin);
 export const TX_TYPES = ['Purchase', 'Refinance'];
 export const DOC_VISIBILITY = ['all', 'buyer', 'seller', 'staff'];
 // Participant roles on a deal = the 8 portal roles plus non-login parties

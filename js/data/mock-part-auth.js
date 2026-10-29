@@ -3,7 +3,7 @@
 export function devAuth(x) {
   const { load, me, clone, fail } = x;
   return {
-    async listDevUsers() { return clone(load().profiles.filter((p) => p.status === 'active').map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role }))); },
+    async listDevUsers() { return clone(load().profiles.filter((p) => p.status === 'active').map(({ id, firstName, lastName, role, isAdmin }) => ({ id, firstName, lastName, role, isAdmin: !!isAdmin }))); },
     async signInDev(userId) {
       const p = load().profiles.find((q) => q.id === userId);
       if (!p) fail('Unknown fake user.');

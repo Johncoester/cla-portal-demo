@@ -2,18 +2,18 @@
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js';
 import { STAGES, DEAL_STATUSES, isProcessor } from '../data/constants.js';
 
-const TABS = { tasks: './dealtasks.js', inbox: './dealmsgs.js', documents: './dealdocs.js', contacts: './dealcontacts.js', activity: './dealactivity.js' };
+const TABS = { tasks: './dealtasks.js', inbox: './dealmsgs.js', documents: './dealdocs.js', contacts: './dealcontacts.js', activity: './dealactivity.js', closing: './dealclosing.js' };
 
 export async function render(ctx) {
   const { api, user, params } = ctx; const tab = params.tab;
   const deal = await api.getDeal(params.id);
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   return overview(ctx, deal, here);
 }
 
-const person = (p) => (p ? html`<div class="person"><strong>${p.contact.firstName} ${p.contact.lastName}</strong><br><span class="muted">${p.contact.email}</span><br><span class="muted">${p.contact.phone}</span>${p.contact.company ? html`<br><span class="muted">${p.contact.company}</span>` : ''}</div>` : html`<div class="muted">Not specified</div>`);
+const person = (p) => (p ? html`<div class="person"><strong>${p.contact.firstName} ${p.contact.lastName}${p.removed ? ' (removed)' : ''}</strong><br><span class="muted">${p.contact.email}</span><br><span class="muted">${p.contact.phone}</span>${p.contact.company ? html`<br><span class="muted">${p.contact.company}</span>` : ''}</div>` : html`<div class="muted">Not specified</div>`);
 const card = (title, inner) => html`<fieldset class="sum-card"><legend>${title}</legend>${inner}</fieldset>`;
 
 function overview({ api, user, refresh }, d, crumbs) {
@@ -35,7 +35,7 @@ function overview({ api, user, refresh }, d, crumbs) {
       ${card('Lender Information', lender)}${card('CLA Title Information', html`<div>Processor: <strong>${d.processorName}</strong><br>Sales person: ${d.salesPersonName || 'Not specified'}<br>${team.filter((p) => p.role === 'Transaction Coordinator').map((p) => html`Transaction coordinator: ${p.contact.firstName} ${p.contact.lastName}<br>`)}</div>`)}</div>
     ${d.notes ? html`<div class="card"><h3>Notes</h3><p>${d.notes}</p></div>` : ''}
     <div class="box-title"><h2><span class="h-ico"></span>Order Contacts</h2><a class="ghost right" href="#/deals/${d.id}/contacts">All contacts</a></div>
-    <table class="tbl striped"><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th></tr></thead><tbody>${d.participants.map((p) => html`<tr><td>${p.contact.firstName} ${p.contact.lastName}</td><td>${p.role}</td><td>${p.contact.phone}</td><td>${p.contact.email}</td></tr>`)}</tbody></table>`;
+    <table class="tbl striped"><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th></tr></thead><tbody>${d.participants.map((p) => html`<tr><td>${p.contact.firstName} ${p.contact.lastName}${p.removed ? html` ${pill('removed', 'bad')}` : ''}</td><td>${p.role}</td><td>${p.contact.phone}</td><td>${p.contact.email}</td></tr>`)}</tbody></table>`;
   return { title: d.fileNumber, crumbs: [...crumbs, ['Order Details']], body, mount(root) {
     $$('.step', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.setStage(d.id, b.dataset.stage); toast('Stage updated'); refresh(); })));
     const ss = $('#statussel', root); if (ss) ss.addEventListener('change', guard(async () => { await api.setDealStatus(d.id, ss.value); toast('Status updated'); refresh(); }));

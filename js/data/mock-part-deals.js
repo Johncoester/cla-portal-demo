@@ -1,6 +1,7 @@
 /* mock adapter, part 1: auth, profile, dashboard, deals. See mock-adapter.js. */
 export function dealsAndAuth(x) {
-  const { load, save, nid, me, needUser, needProcessor, contactOf, dealsFor, dealOr404, log, nameOf, dealView, clone, now, fail, str, emailOk, money, zipOk, C } = x;
+  const { load, save, nid, me, needUser, needProcessor, contactOf, dealsFor, dealOr404, log, nameOf, dealView, taskVisible, clone, now, fail, str, emailOk, money, zipOk, C } = x;
+  const OPEN = ['todo', 'in_progress', 'blocked'];
   return {
     // ---------- Profile ----------
     async getMyProfile() { return clone(needUser()); },
@@ -15,9 +16,9 @@ export function dealsAndAuth(x) {
     // ---------- Dashboard ----------
     async getWorkQueue() {
       const u = needUser(); const d = load(); const deals = dealsFor(u).filter((q) => q.status === 'Open');
-      const tasks = d.tasks.filter((t) => deals.some((q) => q.id === t.dealId) && (t.status === 'todo' || t.status === 'blocked'));
+      const tasks = d.tasks.filter((t) => deals.some((q) => q.id === t.dealId) && OPEN.includes(t.status) && taskVisible(u, t));
       const today = now().slice(0, 10); const soon = new Date(Date.now() + 21 * 864e5).toISOString().slice(0, 10);
-      const clientWait = (t) => t.status === 'todo' && /^Client/.test(t.assignedRole);
+      const clientWait = (t) => ['todo', 'in_progress'].includes(t.status) && /^Client/.test(t.assignedRole);
       const attention = deals.map((q) => ({ deal: dealView(u, q), overdue: tasks.filter((t) => t.dealId === q.id && t.dueDate && t.dueDate < today).length,
         blocked: tasks.filter((t) => t.dealId === q.id && t.status === 'blocked').length, waitingOnClients: tasks.filter((t) => t.dealId === q.id && clientWait(t)).length }))
         .filter((r) => r.overdue || r.blocked || r.waitingOnClients);
@@ -26,6 +27,7 @@ export function dealsAndAuth(x) {
         closingSoon: deals.filter((q) => q.closingDate && q.closingDate >= today && q.closingDate <= soon).map((q) => dealView(u, q)).sort((a, b) => a.closingDate.localeCompare(b.closingDate)),
         needsAttention: attention, unreadMessages: deals.reduce((n, q) => n + dealView(u, q).unread, 0) };
     },
+    async listSalesStaff() { needUser(); return clone(load().profiles.filter((p) => p.status === 'active' && ['Sales Person', 'Sales Team'].includes(p.role)).map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role }))); },
     async unreadCount() { const u = needUser(); return dealsFor(u).reduce((n, q) => n + dealView(u, q).unread, 0); },
     // ---------- Deals ----------
     async listDeals({ status } = {}) {
@@ -47,8 +49,10 @@ export function dealsAndAuth(x) {
         lenderName: '', lenderContact: '', lenderEmail: '', lenderPhone: '', notes: str(input.notes, 2000), processorId: u.id, salesPersonId: input.salesPersonId || null, createdBy: u.id, createdAt: now() };
       d.deals.push(deal);
       const pc = contactOf(u.id); if (pc) d.participants.push({ id: nid('dp'), dealId: deal.id, contactId: pc.id, role: 'Sales Processor', createdAt: now() });
-      [['Personal information form', 'Client-Buyer'], ['Upload photo ID', 'Client-Buyer'], ['Title vesting details', 'Client-Buyer'], ['Confirm lender information', 'Buyer Agent'], ['Collect executed contract', 'Sales Processor']]
-        .forEach(([title, role]) => d.tasks.push({ id: nid('t'), dealId: deal.id, title, description: '', assignedRole: role, status: 'todo', dueDate: null, completedAt: null, completedBy: null, createdBy: u.id, createdAt: now() }));
+      x.DEAL_FOLDERS.forEach((name) => d.folders.push({ id: nid('f'), scope: 'deal', dealId: deal.id, name, staffOnly: false, createdBy: u.id, createdAt: now() }));
+      // Staff task; participants' intake tasks are copied from the current task templates when each person is added (addParticipant).
+      d.tasks.push({ id: nid('t'), dealId: deal.id, participantId: null, templateId: null, templateCode: null, templateVersion: null, kind: 'simple', title: 'Collect executed contract', description: '',
+        assignedRole: 'Sales Processor', status: 'todo', dueDate: null, formData: {}, savedAt: null, completedAt: null, completedBy: null, createdBy: u.id, createdAt: now() });
       log(deal.id, u.id, 'deal.created', 'deal', deal.id, `Order ${deal.fileNumber} opened`);
       save(); return clone(dealView(u, deal));
     },
