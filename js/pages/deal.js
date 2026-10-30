@@ -8,7 +8,7 @@ export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
   const deal = await api.getDeal(params.id);
   // per-file roles: on this order an outside user acts as their role HERE (deal.myRole), e.g. Buyer Agent here, Client-Buyer elsewhere
-  const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
+  const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
   if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
@@ -24,8 +24,10 @@ function overview({ api, user, refresh }, d, crumbs) {
   const team = d.participants.filter((p) => ['Sales Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(p.role));
   const lender = d.lenderName || d.lenderContact ? html`<div><strong>${d.lenderName}</strong><br>${d.lenderContact}<br><span class="muted">${d.lenderEmail} ${d.lenderPhone}</span></div>` : html`<div class="muted">Not specified</div>`;
   const body = html`
-    <div class="deal-head"><img class="home-flag" src="assets/img/order-new-icon.png" alt=""><h2>${d.street} ${d.city} ${d.state} ${d.zip}</h2><span class="order-no">Order # ${d.fileNumber}</span>
+    <div class="deal-head"><img class="home-flag" src="assets/img/order-new-icon.png" alt=""><h2>${d.street} ${d.city} ${d.state} ${d.zip}</h2><span class="order-no">Order # ${d.fileNumber}</span>${d.agentParties && d.agentParties.length ? html` <span class="pill warn agent-party">Agent is a party</span>` : ''}
       <span class="spacer"></span>${edit ? html`<select id="statussel" aria-label="Order status">${options(DEAL_STATUSES, d.status)}</select>` : pill(d.status, d.status === 'Open' ? 'ok' : '')}</div>
+    ${d.agentParties && d.agentParties.length ? html`<div class="notice warn" data-agent-party><strong>Agent is a party.</strong> ${d.agentParties.map((p) => `${p.name} is the ${p.label}`).join('; ')} on this file (a licensee buying or selling for themselves). Make sure the licensee disclosure is on file.</div>` : ''}
+    ${d.selfRep ? html`<div class="notice info" data-self-rep>You are the <strong>${d.myRoleLabel}</strong> on this file. Your tasks as the client and as the agent are in one list; the history records which capacity you acted in.</div>` : ''}
     <div class="box-title"><h2><span class="h-ico"></span>Overview</h2>${d.unread ? html`<a class="new-msg" href="#/deals/${d.id}/inbox">${d.unread} new message(s)</a>` : ''}</div>
     <ol class="tracker">${tracker}</ol>${edit ? html`<p class="muted small">Click a step to set the stage. The last step closes the order.</p>` : ''}
     <div class="keybar"><div><strong>${fmtDate(d.openDate)}</strong><span>Open Date</span></div><div><strong>${fmtMoney(d.purchasePrice) || '\u2014'}</strong><span>Purchase Price</span></div>

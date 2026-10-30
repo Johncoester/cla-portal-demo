@@ -70,8 +70,9 @@ async function agent({ user, deals, all }) {
 
 const clientBlocks = (deals, all) => deals.filter((d) => d.status === 'Open').map((d) => { const todo = all.filter((t) => t.deal.id === d.id && t.mine && ['todo', 'in_progress', 'blocked'].includes(t.status)); const done = all.filter((t) => t.deal.id === d.id && t.mine && t.status === 'done');
     const items = todo.map((t) => html`<li><a href="#/deals/${d.id}/tasks${t.kind === 'form' ? '/' + t.id : ''}">${t.title}</a> ${t.status === 'in_progress' ? pill('started', 'info') : ''} <span class="muted">${t.dueDate ? 'due ' + fmtDate(t.dueDate) : ''}</span></li>`);
-    return html`<div class="card"><div class="deal-card-head">${dealLink(d)} <strong>${d.address}</strong></div><div class="muted">Closing ${fmtDate(d.closingDate) || 'to be scheduled'} &middot; ${d.stageName}</div>${bar(d)}
-      <h4>What we need from you</h4>${items.length ? html`<ul class="plain">${items}</ul>` : html`<p class="muted">Nothing right now. Thank you!</p>`}<p class="muted">${done.length} item(s) already done.</p>
+    const forClient = d.selfRep ? all.filter((t) => t.deal.id === d.id && t.forClient && ['todo', 'in_progress', 'blocked'].includes(t.status)).length : 0;
+    return html`<div class="card"${d.selfRep ? raw(' data-self-rep') : ''}><div class="deal-card-head">${dealLink(d)} <strong>${d.address}</strong>${d.selfRep ? html` <span class="pill self-rep">${d.myRoleLabel} &middot; you are also the ${d.myRole === 'Buyer Agent' ? "buyer's agent" : 'listing agent'}</span>` : ''}</div><div class="muted">Closing ${fmtDate(d.closingDate) || 'to be scheduled'} &middot; ${d.stageName}</div>${bar(d)}
+      <h4>What we need from you</h4>${items.length ? html`<ul class="plain">${items}</ul>` : html`<p class="muted">Nothing right now. Thank you!</p>`}<p class="muted">${done.length} item(s) already done.${forClient ? ` ${forClient} task(s) you can complete for another client on your side.` : ''}</p>
       <a class="ghost" href="#/deals/${d.id}/inbox">Message your closing team ${d.unread ? html`(${d.unread} new)` : ''}</a></div>`; });
 async function client({ user, deals, all }) {
   const blocks = clientBlocks(deals, all);
@@ -94,13 +95,15 @@ async function admin({ api, user, deals }) {
 // OUTSIDE USER (per-file roles): one login, files grouped by the role they hold on each file. Each group uses that role's view
 // (agent cards with "tasks you can complete for your client", or the client's "what we need from you"), so counts stay per file.
 const GROUPS = [['Buyer Agent', "Files I'm the buyer's agent on"], ['Listing Agent', "Files I'm the listing agent on"], ['Client-Buyer', 'My purchases'], ['Client-Seller', 'My sales'], ['Outside user', 'Other files I can see']];
+// a self-represented file (client + own agent) is listed ONCE, under the client group (My purchases / My sales), with an agent badge
+const groupOf = (d) => (d.selfRep ? (d.myRoles || []).find((r) => isClient(r)) : d.myRole);
 async function outside({ deals, all }) {
   const mineOpen = (d) => all.filter((t) => t.deal.id === d.id && t.mine && ['todo', 'in_progress', 'blocked'].includes(t.status)).length;
-  const sections = GROUPS.map(([role, label]) => { const list = deals.filter((d) => d.myRole === role); if (!list.length) return '';
+  const sections = GROUPS.map(([role, label]) => { const list = deals.filter((d) => groupOf(d) === role); if (!list.length) return '';
     const isC = isClient(role); const shown = isC ? list.filter((d) => d.status === 'Open') : list;
     const todo = list.filter((d) => d.status === 'Open').reduce((n, d) => n + mineOpen(d), 0);
     const forClient = all.filter((t) => list.some((d) => d.id === t.deal.id) && t.forClient && ['todo', 'in_progress', 'blocked'].includes(t.status)).length;
-    return html`<section class="role-group" data-group="${role}"><h3 class="group-title">${label} <span class="muted small" data-count>${list.length} file(s)${isC && shown.length !== list.length ? ` (${shown.length} open)` : ''} &middot; ${todo} task(s) for you${isAgent(role) ? ` · ${forClient} you can complete for your client` : ''}</span></h3>
+    return html`<section class="role-group" data-group="${role}"><h3 class="group-title">${label} <span class="muted small" data-count>${list.length} file(s)${isC && shown.length !== list.length ? ` (${shown.length} open)` : ''} &middot; ${todo} task(s) for you${isAgent(role) || (forClient && list.some((d) => d.selfRep)) ? ` · ${forClient} you can complete for your client` : ''}${list.some((d) => d.selfRep) ? ` · ${list.filter((d) => d.selfRep).length} as your own agent` : ''}</span></h3>
       ${isC ? (shown.length ? clientBlocks(list, all) : html`<p class="muted">No open files.</p>`) : html`<div class="card-grid">${isAgent(role) ? agentCards(list, all, role) : list.map((d) => html`<div class="card">${dealLink(d)} <strong>${d.address}</strong></div>`)}</div>`}</section>`; });
   return { title: 'My files', body: html`<div class="page-head"><div><div class="eyebrow">MY FILES</div><h2 class="page-title">My files</h2><div class="muted">${deals.length} file(s). What you can see and do on each file depends on your role on that file.</div></div></div>
     ${deals.length ? sections : html`<p class="muted">You are not on any files yet.</p>`}` };

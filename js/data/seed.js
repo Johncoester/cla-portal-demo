@@ -16,6 +16,7 @@ export function buildSeed() {
     P('u-buyer', 'Ben', 'Buyer', 'Outside user', 7, { co: '' }),
     P('u-seller', 'Sally', 'Seller', 'Outside user', 8, { co: '' }),
     P('u-multi', 'Morgan', 'Multi-Role', 'Outside user', 11, { co: 'Harbor Realty (fake)' }),   // one login, two hats: buyer's agent on MD-26-97183, a buyer on MD-26-97201
+    P('u-selfrep', 'Alex', 'Agent-Buyer', 'Outside user', 12, { co: 'Harbor Realty (fake)' }),   // a licensed agent buying for himself: Client-Buyer AND Buyer Agent on MD-26-97240
     P('u-admin', 'King John', 'Admin', 'Admin', 9, { isAdmin: true }),   // role 'Admin' (always isAdmin; isAdmin is the permission check)
     P('u-gone', 'Gary', 'Gone', 'Outside user', 10, { co: 'Harbor Realty (fake)', status: 'removed', removedAt: '2026-10-20T15:00:00Z', removedBy: 'u-admin' }),   // deleted by Admin; history kept
   ];
@@ -23,6 +24,8 @@ export function buildSeed() {
     company: p.co != null ? p.co : 'CLA Title & Escrow', createdBy: 'u-proc', createdAt: p.createdAt }));
   profiles.forEach((p) => { delete p.co; });
   contacts.push(
+    { id: 'c-cora', profileId: null, firstName: 'Cora', lastName: 'Seller', email: 'cora.seller@example.test', phone: '410-555-0133', company: '', createdBy: 'u-proc', createdAt: '2026-10-01T12:00:00Z' },
+    { id: 'c-lena', profileId: null, firstName: 'Lena', lastName: 'Listing', email: 'lena.listing@example.test', phone: '410-555-0144', company: 'Bayview Realty (fake)', createdBy: 'u-proc', createdAt: '2026-10-01T12:00:00Z' },
     { id: 'c-lender1', profileId: null, firstName: 'Linda', lastName: 'Lender', email: 'linda.lender@example.test', phone: '410-555-0111', company: 'Example Home Loans (fake)', createdBy: 'u-proc', createdAt: '2026-09-01T12:00:00Z' },
     { id: 'c-hoa1', profileId: null, firstName: 'Hank', lastName: 'Hoa-Manager', email: 'hank.hoa@example.test', phone: '410-555-0122', company: 'Maple Ridge HOA (fake)', createdBy: 'u-proc', createdAt: '2026-09-01T12:00:00Z' });
   // TC access comes from TEAMS: a coordinator sees the deals of the agents on their team(s).
@@ -40,15 +43,21 @@ export function buildSeed() {
     { id: 'deal-3', fileNumber: 'MD-26-96877', street: '9 Harbor Lane', city: 'Annapolis', state: 'MD', zip: '21401', transactionType: 'Purchase', stage: 9, status: 'Closed',
       openDate: '2026-08-10', closingDate: '2026-10-15', purchasePrice: 610000, loanAmount: 450000, lenderName: 'Example Home Loans (fake)', lenderContact: 'Linda Lender', lenderEmail: 'linda.lender@example.test', lenderPhone: '410-555-0111',
       notes: 'Fake file. Closed and funded. Buyer agent (Gary Gone) was later removed by Admin; his file history is kept.', processorId: 'u-proc', salesPersonId: 'u-sp', createdBy: 'u-proc', createdAt: '2026-08-10T14:00:00Z' },
+    { id: 'deal-4', fileNumber: 'MD-26-97240', street: '7 Cedar Way', city: 'Silver Spring', state: 'MD', zip: '20901', transactionType: 'Purchase', stage: 1, status: 'Open',
+      openDate: '2026-10-01', closingDate: '2026-12-10', purchasePrice: 455000, loanAmount: 364000, lenderName: '', lenderContact: '', lenderEmail: '', lenderPhone: '',
+      notes: 'Fake file. The buyer (Alex Agent-Buyer) is a licensed agent representing himself: licensee disclosure required.', processorId: 'u-proc', salesPersonId: 'u-team', createdBy: 'u-proc', createdAt: '2026-10-01T14:00:00Z' },
   ];
   const participants = [];
-  const link = (n, cid, role) => participants.push({ id: `dp-${n}-${cid.slice(2)}`, dealId: `deal-${n}`, contactId: cid, role, createdAt: deals[n - 1].createdAt });
+  const link = (n, cid, role) => participants.push({ id: participants.some((z) => z.id === `dp-${n}-${cid.slice(2)}`) ? `dp-${n}-${cid.slice(2)}-${role.toLowerCase().replace(/[^a-z]/g, '')}` : `dp-${n}-${cid.slice(2)}`, dealId: `deal-${n}`, contactId: cid, role, createdAt: deals[n - 1].createdAt });
   [1, 2].forEach((n) => { link(n, 'c-proc', 'Sales Processor'); link(n, 'c-sp', 'Sales Person'); link(n, 'c-team', 'Sales Team'); link(n, 'c-tc', 'Transaction Coordinator');
     link(n, 'c-bagent', 'Buyer Agent'); link(n, 'c-lagent', 'Listing Agent'); link(n, 'c-buyer', 'Client-Buyer'); link(n, 'c-seller', 'Client-Seller'); });
   link(1, 'c-lender1', 'Lender'); link(1, 'c-hoa1', 'HOA');
   link(1, 'c-multi', 'Buyer Agent');    // Morgan: co-buyer's agent with Bianca on deal 1 ...
   link(2, 'c-multi', 'Client-Buyer');   // ... and a co-buyer (her own purchase) on deal 2
   link(3, 'c-proc', 'Sales Processor'); link(3, 'c-sp', 'Sales Person'); link(3, 'c-gone', 'Buyer Agent'); link(3, 'c-lagent', 'Listing Agent');
+  // deal 4: Alex is BOTH the buyer and the buyer's agent (self-represented). Seller side has no portal logins.
+  link(4, 'c-proc', 'Sales Processor'); link(4, 'c-team', 'Sales Team'); link(4, 'c-selfrep', 'Client-Buyer'); link(4, 'c-selfrep', 'Buyer Agent');
+  link(4, 'c-cora', 'Client-Seller'); link(4, 'c-lena', 'Listing Agent');
   link(3, 'c-buyer', 'Client-Buyer'); link(3, 'c-seller', 'Client-Seller'); link(3, 'c-lender1', 'Lender');
 
   const taskTemplates = TEMPLATE_DEFS.map((t) => ({ id: `tt-${t.code}-v${t.version}`, ...JSON.parse(JSON.stringify(t)),
@@ -80,6 +89,11 @@ export function buildSeed() {
   ['id_upload', 'title_vesting', 'lender_info', 'home_warranty'].forEach((c) => copy(2, c, 1, 'Client-Buyer', 'todo', {}, 'c-multi')); copy(2, 'personal_info', 2, 'Client-Buyer', 'todo', {}, 'c-multi');
   copy(2, 'commissions', 1, 'Buyer Agent', 'todo'); copy(2, 'commissions', 1, 'Listing Agent', 'todo');
   adhoc('t-2-contract', 2, 'Collect executed contract', 'Sales Processor', 'todo', '2026-10-30'); adhoc('t-2-emd', 2, 'Earnest money deposit receipt', 'Client-Buyer', 'todo', '2026-10-24', 'Upload the EMD receipt.');
+  // deal 4: Alex's client copies + his agent copy, one list on one file
+  ['id_upload', 'title_vesting', 'home_warranty'].forEach((c) => copy(4, c, 1, 'Client-Buyer', 'todo')); copy(4, 'personal_info', 2, 'Client-Buyer', 'todo');
+  copy(4, 'lender_info', 1, 'Client-Buyer', 'in_progress', { company: 'Example Home Loans (fake)' }); copy(4, 'commissions', 1, 'Buyer Agent', 'todo');
+  ['id_upload', 'hoa_info', 'mortgage_info'].forEach((c) => copy(4, c, 1, 'Client-Seller', 'todo')); copy(4, 'personal_info', 2, 'Client-Seller', 'todo');
+  adhoc('t-4-emd', 4, 'Earnest money deposit receipt', 'Client-Buyer', 'todo', '2026-11-05', 'Upload the EMD receipt.');
   // deal 3: closed; personal info used the OLDER template version 1
   copy(3, 'personal_info', 1, 'Client-Buyer', 'done', { ...benInfo, settlement_type: undefined }); copy(3, 'personal_info', 1, 'Client-Seller', 'done', { ...sallyInfo, settlement_type: undefined });
   copy(3, 'commissions', 1, 'Buyer Agent', 'done', { brokerage: 'Harbor Realty (fake)', license_id: 'FAKE-1010', commission_amount: '15250', paid_by: 'Seller' });

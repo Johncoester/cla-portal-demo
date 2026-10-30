@@ -1,7 +1,7 @@
 /* mock adapter: contacts, participants, documents (deal files). NOTE: there is no delete for documents, for anyone (Admin included). */
 export function contactsTasksDocs(x) {
   const { load, save, nid, needUser, needProcessor, isManager, notViewOnly, seesAll, dealsFor, dealOr404, onDeal, fileRole, log, prof, nameOf, roleOf, fullName, folderOf, docVisible, participantsOf, notify, dealProfileIds, clone, now, fail, str, emailOk, C } = x;
-  const docOut = (z) => ({ ...z, dataUrl: undefined, hasContent: !!z.dataUrl, uploadedByName: nameOf(z.uploadedBy), uploadedByRole: fileRole(z.uploadedBy, z.dealId), folderName: (folderOf(z.folderId) || {}).name || '' });
+  const docOut = (z) => ({ ...z, dataUrl: undefined, hasContent: !!z.dataUrl, uploadedByName: nameOf(z.uploadedBy), uploadedByRole: x.fileRoleText(z.uploadedBy, z.dealId), folderName: (folderOf(z.folderId) || {}).name || '' });
   const api = {
     // ---------- Contacts & participants ----------
     async listContacts(search = '') {
@@ -34,8 +34,10 @@ export function contactsTasksDocs(x) {
       const login = c.profileId && prof(c.profileId);
       if (login && login.status !== 'removed' && C.isOutside(login.role)) {
         if (C.DEAL_ROLES.includes(role) && !C.OUTSIDE_FILE_ROLES.includes(role)) fail('An outside user cannot be added as CLA staff. Pick Buyer Agent, Listing Agent, Client-Buyer or Client-Seller.');
-        const has = d.participants.find((p) => p.dealId === dealId && p.contactId === contactId && C.OUTSIDE_FILE_ROLES.includes(p.role));
-        if (has && C.OUTSIDE_FILE_ROLES.includes(role)) fail(`This person is already the ${has.role} on this order. One person has one role per order; remove that role first.`);
+        // one agent/client role per order, EXCEPT an agent buying or selling for themselves: Client-Buyer + Buyer Agent, or Client-Seller + Listing Agent
+        const has = d.participants.filter((p) => p.dealId === dealId && p.contactId === contactId && C.OUTSIDE_FILE_ROLES.includes(p.role));
+        if (has.length && C.OUTSIDE_FILE_ROLES.includes(role) && !(has.length === 1 && C.pairAllowed(has[0].role, role)))
+          fail(`This person is already the ${has.map((h) => h.role).join(' and ')} on this order. Only an agent buying or selling for themselves can hold two roles (Client-Buyer + Buyer Agent, or Client-Seller + Listing Agent); remove that role first.`);
       } else if (login && login.status !== 'removed' && C.OUTSIDE_FILE_ROLES.includes(role)) fail('This is a CLA staff login, so it keeps its staff role on every order. Agents and clients need an outside-user login.');
       const p = { id: nid('dp'), dealId, contactId, role, createdAt: now() }; d.participants.push(p);
       log(dealId, u.id, 'participant.added', 'contact', contactId, `${fullName(c)} added as ${role}`);
@@ -71,7 +73,7 @@ export function contactsTasksDocs(x) {
       let u = needUser(); const z = load().documents.find((q) => q.id === id) || fail('Document not found.'); if (z.dealId) u = onDeal(u, z.dealId); else if (!docVisible(u, z)) fail('Document not found.');
       if (!(C.isProcessor(u.role) || z.uploadedBy === u.id)) fail('Only the uploader or a processor can edit this document.');
       if (patch.description != null) z.description = str(patch.description, 500);
-      if (patch.visibility != null) { if (!C.DOC_VISIBILITY.includes(patch.visibility)) fail('Unknown visibility.'); if (C.isClient(u.role) && patch.visibility === 'staff') fail('Clients cannot make staff-only documents.'); z.visibility = patch.visibility; }
+      if (patch.visibility != null) { if (!C.DOC_VISIBILITY.includes(patch.visibility)) fail('Unknown visibility.'); visCheck(u, patch.visibility); z.visibility = patch.visibility; }
       log(z.dealId, u.id, 'document.updated', 'document', id, `Updated details of ${z.name}`); save(); return true;
     },
     async getDocumentContent(id) {
@@ -81,6 +83,10 @@ export function contactsTasksDocs(x) {
       return { name: z.name, mimeType: z.mimeType, dataUrl: z.dataUrl || ('data:text/plain;charset=utf-8,' + encodeURIComponent(`FAKE DEMO FILE\n${z.name}\n(Seed documents have no real content.)\n`)) };
     },
   };
+  // u = the deal-scoped user. Outside users: 'all' or their own side only (never staff-only, never the other side).
+  const visCheck = (u, vis) => { if (C.visibilityChoices(u.role, u.isAdmin).includes(vis)) return;
+    if (vis === 'staff') fail(C.isClient(u.role) ? 'Clients cannot make staff-only documents.' : 'Only CLA staff can make staff-only documents.');
+    fail(`You can share a file with everyone on the order${C.sideOf(u.role) ? ` or your own side (${C.sideOf(u.role)} side)` : ''} only.`); };
   // shared by deal uploads, task ID uploads and the Library
   x.newDoc = (u, { name, description, mimeType, size, dataUrl, visibility }) => {
     const full = String(name == null ? '' : name).trim().replace(/[\\/]/g, '_'); if (!full) fail('A file name is required.');
@@ -90,7 +96,7 @@ export function contactsTasksDocs(x) {
     const n = full.length > 200 ? full.slice(0, 199 - ext.length) + '.' + ext : full;   // long names are cut but keep their extension
     if (!(size >= 0) || size > C.MAX_UPLOAD_BYTES) fail(`File is too large (demo limit ${Math.round(C.MAX_UPLOAD_BYTES / 1e5) / 10} MB).`);
     const vis = C.DOC_VISIBILITY.includes(visibility) ? visibility : 'all';
-    if (C.isClient(u.role) && vis === 'staff') fail('Clients cannot make staff-only documents.');
+    visCheck(u, vis);
     return { id: nid('doc'), dealId: null, folderId: null, name: n, description: str(description, 500), mimeType: str(mimeType, 100) || 'application/octet-stream', size: Number(size) || 0,
       dataUrl: dataUrl || null, uploadedBy: u.id, visibility: vis, createdAt: now() };
   };

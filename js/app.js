@@ -63,7 +63,7 @@ async function layout(u, view, route) {
     <div class="topbar-right">${topButtons}
       <div class="notif-wrap"><button class="bell" data-bell title="${unread} unread notification(s)" aria-label="Notifications"><img src="assets/img/bell_new.png" alt=""><span class="notification-num">${unread}</span></button>
         <div class="notif-dd" hidden><div class="notif-head"><strong>Notifications</strong><button class="linkish" data-readall>Mark all read</button></div><ul class="notif-list"><li class="muted">Loading&hellip;</li></ul></div></div>
-      <div class="user-menu"><button class="user-btn" data-usermenu>${u.firstName} ${u.lastName} <span class="role-tag" data-role-tag>${isOutside(u.role) ? (deal ? `${deal.myRole} on this file` : fileRolesLabel(u.fileRoles)) : roleLabel(u)}</span> &#9662;</button>
+      <div class="user-menu"><button class="user-btn" data-usermenu>${u.firstName} ${u.lastName} <span class="role-tag" data-role-tag>${isOutside(u.role) ? (deal ? `${deal.myRoleLabel || deal.myRole} on this file` : fileRolesLabel(u.fileLabels || u.fileRoles)) : roleLabel(u)}</span> &#9662;</button>
         <ul class="user-dd" hidden><li><a href="#/profile">Profile Setting</a></li><li><a href="#" data-signout>Logout</a></li></ul></div>
     </div></div></div>
   <div class="wrapper-main">
@@ -102,7 +102,7 @@ function wireChrome(u) {
   document.addEventListener('click', () => { if (dd) dd.hidden = true; }, { once: true });
   wireBell();
   const so = $('[data-signout]'); if (so) so.addEventListener('click', async (e) => { e.preventDefault(); const api = await getAdapter(); await api.signOut(); location.hash = '#/login'; });
-  const rs = $('[data-reset]'); if (rs) rs.addEventListener('click', async (e) => { e.preventDefault(); if (!confirm('Reset all demo data back to the 3 fake deals?')) return; const api = await getAdapter(); await api.resetDemoData(); toast('Demo data reset'); render(); });
+  const rs = $('[data-reset]'); if (rs) rs.addEventListener('click', async (e) => { e.preventDefault(); if (!confirm('Reset all demo data back to the 4 fake deals?')) return; const api = await getAdapter(); await api.resetDemoData(); toast('Demo data reset'); render(); });
 }
 function wireBell() {
   const b = $('[data-bell]'); const dd = $('.notif-dd'); if (!b) return;

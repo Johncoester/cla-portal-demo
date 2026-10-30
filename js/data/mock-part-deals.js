@@ -4,7 +4,7 @@ export function dealsAndAuth(x) {
   const OPEN = ['todo', 'in_progress', 'blocked'];
   return {
     // ---------- Profile ----------
-    async getMyProfile() { const u = needUser(); return clone({ ...u, fileRoles: C.isOutside(u.role) ? x.fileRolesOf(u) : [] }); },
+    async getMyProfile() { const u = needUser(); return clone({ ...u, fileRoles: C.isOutside(u.role) ? x.fileRolesOf(u) : [], fileLabels: C.isOutside(u.role) ? x.fileLabelsOf(u) : [] }); },
     async updateMyProfile(patch) {
       const u = needUser(); const p = load().profiles.find((q) => q.id === u.id);
       if (patch.firstName != null) p.firstName = str(patch.firstName, 80) || fail('First name is required.');

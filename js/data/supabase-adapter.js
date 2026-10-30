@@ -11,13 +11,19 @@ export async function createSupabaseAdapter(cfg) {
   const ok = (r) => { if (r.error) throw new Error(r.error.message); return r.data; };
   const camel = (o) => Array.isArray(o) ? o.map(camel) : o && typeof o === 'object'
     ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), camel(v)])) : o;
-  // per-file roles (migration 10): my role on each order I can see; outside users get the list of roles they hold across files
-  const fileRoles = async () => new Map((ok(await sb.rpc('my_file_roles')) || []).map((r) => [r.deal_id, r.role]));
-  const ORDER = ['Buyer Agent', 'Listing Agent', 'Client-Buyer', 'Client-Seller'];
+  // per-file roles (migration 10) + self-representation (migration 11): my role(s) on each order I can see. role = primary (agent first),
+  // roles = all I hold there, label = 'Buyer + Buyer's Agent' for an agent buying for themselves. Outside users get the roles/labels across files.
+  const fileRoles = async () => new Map((ok(await sb.rpc('my_file_roles_full')) || []).map((r) => [r.deal_id, r]));
+  const ORDER = ['Buyer Agent', 'Listing Agent', "Buyer + Buyer's Agent", 'Seller + Listing Agent', 'Client-Buyer', 'Client-Seller'];
+  const sorted = (xs) => [...new Set(xs)].filter((r) => ORDER.includes(r)).sort((x, y) => ORDER.indexOf(x) - ORDER.indexOf(y));
+  // staff only (RPC returns nothing to outside users): "Agent is a party" badge = a client who is also their side's agent on the order
+  const parties = async () => { const m = new Map(); (ok(await sb.rpc('agent_parties')) || []).forEach((r) => { if (!m.has(r.deal_id)) m.set(r.deal_id, []); m.get(r.deal_id).push({ contactId: r.contact_id, name: r.name, label: r.label }); }); return m; };
+  const withRole = (d, r, pm) => ({ ...d, myRole: r && r.role, myRoles: (r && r.roles) || [], myRoleLabel: r && r.label, selfRep: !!(r && r.self_rep), agentParties: pm.get(d.id) || [] });
   const me = async () => {
     const { data: { user } } = await sb.auth.getUser(); if (!user) return null;
     const p = camel(ok(await sb.from('profiles').select('*').eq('id', user.id).single()));
-    p.fileRoles = p.role === 'Outside user' ? [...new Set((await fileRoles()).values())].filter((r) => ORDER.includes(r)).sort((x, y) => ORDER.indexOf(x) - ORDER.indexOf(y)) : [];
+    const rs = p.role === 'Outside user' ? [...(await fileRoles()).values()] : [];
+    p.fileRoles = sorted(rs.flatMap((r) => r.roles || [])); p.fileLabels = sorted(rs.map((r) => r.label));
     return p;
   };
   const a = {
@@ -29,8 +35,10 @@ export async function createSupabaseAdapter(cfg) {
     async resetDemoData() {},
     async getMyProfile() { return me(); },
     // ---- examples of the pattern ----
-    async listDeals() { const roles = await fileRoles(); return camel(ok(await sb.from('deals').select('*').order('created_at', { ascending: false }))).map((d) => ({ ...d, myRole: roles.get(d.id) })); },
-    async getDeal(id) { const roles = await fileRoles(); const d = camel(ok(await sb.from('deals').select('*, deal_participants(*, contacts(*))').eq('id', id).single())); return { ...d, myRole: roles.get(d.id) }; },
+    // status tabs (Open / Closed / On Hold / Cancelled / All): filter server-side, same contract as the mock (status missing or 'All' = every order)
+    async listDeals({ status } = {}) { const [roles, pm] = [await fileRoles(), await parties()]; let q = sb.from('deals').select('*'); if (status && status !== 'All') q = q.eq('status', status);
+      return camel(ok(await q.order('open_date', { ascending: false }).order('file_number', { ascending: false }))).map((d) => withRole(d, roles.get(d.id), pm)); },
+    async getDeal(id) { const [roles, pm] = [await fileRoles(), await parties()]; const d = camel(ok(await sb.from('deals').select('*, deal_participants(*, contacts(*))').eq('id', id).single())); return withRole(d, roles.get(d.id), pm); },
     // tasks.form_data is NOT selectable (column grant); answers come from get_task_form for the owner / processor / coordinator / Admin only
     async listTasks(dealId) { return camel(ok(await sb.from('tasks').select(TASK_COLS).eq('deal_id', dealId).order('created_at'))); },
     async getTask(id) {

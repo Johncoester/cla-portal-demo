@@ -1,13 +1,13 @@
 /* mock adapter: messages (with notifications) and the activity log (with filters). User admin lives in mock-part-admin.js (Admin flag only). */
 export function messagesActivity(x) {
   const { load, save, nid, needUser, notViewOnly, dealOr404, onDeal, fileRole, dealsFor, log, nameOf, roleOf, threadVisible, unreadIn, participantsOf, notify, clone, now, fail, str, docVisible, taskVisible, localDayOf, C } = x;
-  const withPeople = (t) => ({ ...t, participants: t.participantIds.map((id) => ({ id, name: nameOf(id), role: fileRole(id, t.dealId) })) });
+  const withPeople = (t) => ({ ...t, participants: t.participantIds.map((id) => ({ id, name: nameOf(id), role: x.fileRoleText(id, t.dealId) })) });
   const api = {
     async listMessageRecipients(dealId) {
       let u = needUser(); u = onDeal(u, dealId); const ids = new Set(participantsOf(dealId, u).map((p) => p.contact.profileId).filter(Boolean));
       ids.add(load().deals.find((z) => z.id === dealId).processorId);
       if (u.role === 'Transaction Coordinator') ids.add(u.id);
-      return clone(load().profiles.filter((p) => ids.has(p.id) && p.id !== u.id && p.status === 'active').map(({ id, firstName, lastName }) => ({ id, firstName, lastName, role: fileRole(id, dealId) })));
+      return clone(load().profiles.filter((p) => ids.has(p.id) && p.id !== u.id && p.status === 'active').map(({ id, firstName, lastName }) => ({ id, firstName, lastName, role: x.fileRoleText(id, dealId) })));
     },
     async listThreads(dealId) {
       let u = needUser(); u = onDeal(u, dealId); const d = load();
@@ -61,7 +61,7 @@ export function messagesActivity(x) {
       const q = str(f.q, 100).toLowerCase();
       const items = base.filter((a) => (!f.type || a.action.split('.')[0] === f.type) && (!f.actorId || a.actorId === f.actorId)
         && (!f.from || localDayOf(a.createdAt) >= f.from) && (!f.to || localDayOf(a.createdAt) <= f.to) && (!q || a.detail.toLowerCase().includes(q)))
-        .map((a) => ({ ...a, actorName: nameOf(a.actorId), actorRole: fileRole(a.actorId, a.dealId), fileNumber: a.dealId ? (deals.get(a.dealId) || {}).fileNumber : '' }))
+        .map((a) => ({ ...a, actorName: nameOf(a.actorId), actorRole: x.fileRoleText(a.actorId, a.dealId), fileNumber: a.dealId ? (deals.get(a.dealId) || {}).fileNumber : '' }))
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       return clone({ items: items.slice(0, 300), total: items.length,
         types: [...new Set(base.map((a) => a.action.split('.')[0]))].sort(),

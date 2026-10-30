@@ -13,6 +13,15 @@ export const OUTSIDE_FILE_ROLES = ['Buyer Agent', 'Listing Agent', 'Client-Buyer
 export const STAFF_ACCOUNT_ROLES = ['Sales Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', ADMIN_ROLE];
 export const ROLES = [...STAFF_ACCOUNT_ROLES, OUTSIDE];   // account types a login can have (user admin picker)
 export const isOutside = (role) => role === OUTSIDE;
+// SELF-REPRESENTATION (migration 11): an outside user may hold a client role AND their own side's agent role on the same order
+// (an agent buying or selling for themselves). These are the only two allowed pairs; cross-side pairs and both agent roles are refused.
+export const SELF_REP_PAIRS = [['Client-Buyer', 'Buyer Agent'], ['Client-Seller', 'Listing Agent']];
+export const pairAllowed = (a, b) => SELF_REP_PAIRS.some(([c, g]) => (a === c && b === g) || (a === g && b === c));
+// 'Buyer + Buyer's Agent' / 'Seller + Listing Agent' for a self-represented person, else their single role on the file
+export const fileRoleLabel = (roles, role) => { const r = roles && roles.length ? roles : role ? [role] : [];
+  if (r.includes('Client-Buyer') && r.includes('Buyer Agent')) return "Buyer + Buyer's Agent";
+  if (r.includes('Client-Seller') && r.includes('Listing Agent')) return 'Seller + Listing Agent';
+  return r[0] || OUTSIDE; };
 export const STAFF_ROLES = ['Sales Processor', 'Sales Person', 'Sales Team', ADMIN_ROLE];
 export const VIEW_ONLY_ROLES = ['Sales Person', 'Sales Team', ADMIN_ROLE];   // no order edits/uploads/messages (Admin powers come from isAdmin)
 export const isViewOnly = (role) => VIEW_ONLY_ROLES.includes(role);
@@ -42,6 +51,14 @@ export const TEAM_MEMBER_ROLES = ['coordinator', 'agent'];
 export const isAdmin = (u) => !!(u && u.isAdmin);
 export const TX_TYPES = ['Purchase', 'Refinance'];
 export const DOC_VISIBILITY = ['all', 'buyer', 'seller', 'staff'];
+// 'Who can see it' choices for someone acting in `role` ON THIS FILE (deal-scoped role; Admin passes isAdmin):
+// staff, TC and Admin: every option. Agents and clients (outside users): 'Everyone on the file' + their OWN side only - never
+// 'CLA staff only' and never the other side's private option. An outside user with no side on the file: 'all' only.
+// Mirrored by private.visibility_allowed(deal, visibility) in SQL (migration 12).
+export const visibilityChoices = (role, isAdmin = false) => {
+  if (isAdmin || ['Sales Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin'].includes(role)) return [...DOC_VISIBILITY];
+  const side = ({ 'Buyer Agent': 'buyer', 'Client-Buyer': 'buyer', 'Listing Agent': 'seller', 'Client-Seller': 'seller' })[role];
+  return side ? ['all', side] : ['all']; };
 // Participant roles on a deal = the 8 order roles plus non-login parties (never 'Admin')
 export const PARTICIPANT_ROLES = [...DEAL_ROLES, 'Lender', 'HOA', 'Other'];
 export const MAX_UPLOAD_BYTES = 1_500_000;   // demo limit only (mock stores files in localStorage)

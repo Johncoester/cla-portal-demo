@@ -1,6 +1,6 @@
 // Documents tab with folders. Upload, open/download, file into folders, edit description/visibility. There is NO delete: documents are kept permanently.
 import { html, $, $$, guard, formData, modal, closeModal, options, fmtDateTime, fmtSize, pill, toast } from '../ui.js';
-import { DOC_VISIBILITY, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isClient, isViewOnly } from '../data/constants.js';
+import { DOC_VISIBILITY, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isViewOnly, visibilityChoices } from '../data/constants.js';
 
 const VIS = { all: 'Everyone on the file', buyer: 'Buyer side only', seller: 'Seller side only', staff: 'CLA staff only' };
 const icon = (n) => (/\.pdf$/i.test(n) ? 'pdf_icon.png' : /\.docx?$/i.test(n) ? 'word_icon.png' : /\.(xlsx?|csv)$/i.test(n) ? 'excel_icon.png' : 'image_icon.png');
@@ -12,7 +12,7 @@ export async function render({ api, user, deal, refresh }) {
   const manage = isProcessor(user.role) || user.role === 'Transaction Coordinator'; const realFolders = folders.filter((f) => !f.virtual);
   const href = (t, f) => `#/deals/${deal.id}/documents?t=${t}${f === null ? '' : '&f=' + encodeURIComponent(f)}`;
   const shown = docs.filter((d) => tab === 'all' || (tab === 'sent') === (d.uploadedBy === user.id));
-  const canUpload = !isViewOnly(user.role); const visOpts = DOC_VISIBILITY.filter((v) => !(isClient(user.role) && v === 'staff'));
+  const canUpload = !isViewOnly(user.role); const visOpts = visibilityChoices(user.role, user.isAdmin);   // user.role = the role on THIS file (deal.js scopes it)
   const rows = shown.map((d) => html`<tr><td class="center"><img class="fileico" src="assets/img/${icon(d.name)}" alt=""></td>
     <td><a href="#" data-open="${d.id}" class="doc-link">${d.name}</a><br><span class="muted small">${fmtSize(d.size)}${d.hasContent ? '' : ' \u00b7 sample file'}</span></td>
     <td>${d.folderName || html`<span class="muted">Unfiled</span>`}</td><td>${fmtDateTime(d.createdAt)}</td><td>${d.uploadedByName}<br><span class="muted small">${d.uploadedByRole}</span></td><td>${d.description}</td><td>${pill(VIS[d.visibility], d.visibility === 'all' ? '' : 'info')}</td>

@@ -2,21 +2,25 @@
  * Intake forms: save partial work, validate, mark complete. Reminders are QUEUED in an outbox only and never sent. Tasks are cancelled, never deleted. */
 import { validateForm, fieldActive, delegationLocked, AGENT_ROLES } from './templates.js';
 export function tasksAndForms(x) {
-  const { load, save, nid, needUser, needAdmin, isManager, dealOr404, onDeal, fileRole, dealsFor, log, prof, nameOf, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, dateOrNull, localDate, localDayOf, C } = x;
+  const { load, save, nid, needUser, needAdmin, isManager, dealOr404, onDeal, fileRole, fileRoles, holds, dealsFor, log, prof, nameOf, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, dateOrNull, localDate, localDayOf, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
   const tpl = (id) => load().taskTemplates.find((t) => t.id === id);
   const addDays = (n) => localDate(n);
   const taskOr404 = (u, id) => { const t = load().tasks.find((z) => z.id === id) || fail('Task not found.'); u = onDeal(u, t.dealId); if (!taskVisible(u, t)) fail('Task not found.'); return t; };
   const canFill = (u, t) => t.kind === 'form' && t.status !== 'cancelled' && (ownerOf(t) === u.id || isManager(u) || agentCanFill(u, t));
-  const who = (id, dealId) => id ? `${nameOf(id)} (${fileRole(id, dealId) || 'unknown role'})` : '';   // role = what they are ON THIS FILE
+  // role = what they are ON THIS FILE. A self-represented person (client + their side's agent) is shown in the CAPACITY they acted in:
+  // their own copy -> as the client; anything else -> as the agent, e.g. "Alex Agent-Buyer (as Client-Buyer; also Buyer Agent on this file)".
+  const who = (id, dealId, cap) => { if (!id) return ''; const rs = fileRoles(id, dealId); const as = cap && rs.includes(cap) ? cap : rs[0] || 'unknown role';
+    const other = rs.length > 1 ? rs.filter((r) => r !== as) : []; return `${nameOf(id)} (${other.length ? `as ${as}; also ${other.join(', ')} on this file` : as})`; };
+  const capOf = (byId, ownerId, t) => (byId && byId === ownerId ? t.assignedRole : undefined);   // acting on your own copy = as that copy's role
   // "Completed by Bianca Buyer-Agent (Buyer Agent) on behalf of Ben Buyer" - shown on the task, in the log and to staff.
-  const byLine = (byId, ownerId, dealId) => `${who(byId, dealId)}${ownerId && byId && byId !== ownerId ? ` on behalf of ${nameOf(ownerId)}` : ''}`;
-  const out = (u, t) => { const o = clone(t); o.ownerId = ownerOf(t); o.ownerName = o.ownerId ? nameOf(o.ownerId) : ''; o.mine = o.ownerId === u.id || (!t.participantId && t.assignedRole === u.role);
-    o.canFill = canFill(u, t); o.canTick = t.kind === 'simple' && t.status !== 'cancelled' && (isManager(u) || (!t.participantId && t.assignedRole === u.role && ['todo', 'done'].includes(t.status)));
+  const byLine = (byId, ownerId, dealId, t) => `${who(byId, dealId, t && capOf(byId, ownerId, t))}${ownerId && byId && byId !== ownerId ? ` on behalf of ${nameOf(ownerId)}` : ''}`;
+  const out = (u, t) => { const o = clone(t); o.ownerId = ownerOf(t); o.ownerName = o.ownerId ? nameOf(o.ownerId) : ''; o.mine = o.ownerId === u.id || (!t.participantId && holds(u, t.assignedRole));
+    o.canFill = canFill(u, t); o.canTick = t.kind === 'simple' && t.status !== 'cancelled' && (isManager(u) || (!t.participantId && holds(u, t.assignedRole) && ['todo', 'done'].includes(t.status)));
     o.forClient = !o.mine && agentCanFill(u, t);   // "a task you can complete for your client"
     const tp = t.templateId ? tpl(t.templateId) : null; o.agentRoles = tp && !delegationLocked(tp) ? (tp.agentRoles || []) : [];
-    o.completedByLabel = t.status === 'done' && t.completedBy ? `Completed by ${byLine(t.completedBy, o.ownerId, t.dealId)}` : '';
-    o.savedByLabel = t.savedBy ? `Last saved by ${byLine(t.savedBy, o.ownerId, t.dealId)}` : '';
+    o.completedByLabel = t.status === 'done' && t.completedBy ? `Completed by ${byLine(t.completedBy, o.ownerId, t.dealId, t)}` : '';
+    o.savedByLabel = t.savedBy ? `Last saved by ${byLine(t.savedBy, o.ownerId, t.dealId, t)}` : '';
     if (!formDataVisible(u, t)) { o.formData = {}; o.formHidden = true; } return o; };
   // Copy the CURRENT version of every template that applies to this participant's role. Never duplicates an open copy.
   x.makeCopies = (dealId, p, actorId) => {
@@ -31,7 +35,7 @@ export function tasksAndForms(x) {
   };
   function queueReminder(u, t) {
     const d = load(); const deal = d.deals.find((z) => z.id === t.dealId); const today = localDate();
-    let to = t.participantId ? [ownerOf(t)] : dealProfileIds(t.dealId).filter((pid) => fileRole(pid, t.dealId) === t.assignedRole);
+    let to = t.participantId ? [ownerOf(t)] : dealProfileIds(t.dealId).filter((pid) => fileRoles(pid, t.dealId).includes(t.assignedRole));
     to = to.filter((pid) => pid && prof(pid) && prof(pid).status === 'active');
     let n = 0;
     to.forEach((pid) => {
@@ -63,13 +67,13 @@ export function tasksAndForms(x) {
       const t = { id: nid('t'), dealId, participantId: null, templateId: null, templateCode: null, templateVersion: null, kind: 'simple', title: str(input.title, 200) || fail('Task title is required.'),
         description: str(input.description, 1000), assignedRole: role, status: 'todo', dueDate: dateOrNull(input.dueDate, 'Due date'), formData: {}, savedAt: null, completedAt: null, completedBy: null, createdBy: u.id, createdAt: now() };
       load().tasks.push(t); log(dealId, u.id, 'task.created', 'task', t.id, `Task added: ${t.title}`);
-      notify(dealProfileIds(dealId).filter((pid) => fileRole(pid, dealId) === role), { kind: 'task', dealId, title: `New task: ${t.title}`, link: `#/deals/${dealId}/tasks` }, u.id);
+      notify(dealProfileIds(dealId).filter((pid) => fileRoles(pid, dealId).includes(role)), { kind: 'task', dealId, title: `New task: ${t.title}`, link: `#/deals/${dealId}/tasks` }, u.id);
       save(); return clone(t);
     },
     async updateTask(id, patch) {
       let u = needUser(); const t = taskOr404(u, id); u = onDeal(u, t.dealId);
       if (!isManager(u)) {   // everyone else may only tick/untick a simple task assigned to their own role; intake forms are completed with saveTaskForm
-        if (t.kind !== 'simple' || t.participantId || Object.keys(patch).some((k) => k !== 'status') || t.assignedRole !== u.role || !['todo', 'done'].includes(patch.status)) fail('You can only complete tasks assigned to you.');
+        if (t.kind !== 'simple' || t.participantId || Object.keys(patch).some((k) => k !== 'status') || !holds(u, t.assignedRole) || !['todo', 'done'].includes(patch.status)) fail('You can only complete tasks assigned to you.');
       }
       if (patch.title != null) t.title = str(patch.title, 200) || fail('Task title is required.');
       if (patch.description != null) t.description = str(patch.description, 1000);
@@ -79,7 +83,7 @@ export function tasksAndForms(x) {
         if (!C.TASK_STATUSES.includes(patch.status)) fail('Unknown task status.');
         if (t.kind === 'form' && patch.status === 'done') { const tp = tpl(t.templateId); const r = validateForm(tp.fields, t.formData, true); if (r.errors.length) fail('The form is not complete yet: ' + r.errors[0].msg); }
         t.status = patch.status; t.completedAt = patch.status === 'done' ? now() : null; t.completedBy = patch.status === 'done' ? u.id : null;
-        log(t.dealId, u.id, 'task.status', 'task', t.id, `${t.title}: ${patch.status}`);
+        log(t.dealId, u.id, 'task.status', 'task', t.id, `${t.title}: ${patch.status}${!isManager(u) && (u.roles || []).length > 1 ? ` by ${who(u.id, t.dealId, t.assignedRole)}` : ''}`);
       }
       save(); return clone(t);
     },
@@ -95,7 +99,9 @@ export function tasksAndForms(x) {
       const owner = ownerOf(t); const prevBy = t.savedBy || t.completedBy; const forClient = !!owner && owner !== u.id && agentCanFill(u, t);
       t.formData = r.data; t.savedAt = now(); t.savedBy = u.id;
       // who did it: agent on behalf of the client, or the client correcting answers an agent entered
-      const note = forClient ? ` by ${byLine(u.id, owner, t.dealId)}` : owner === u.id && prevBy && prevBy !== u.id && C.isAgent(fileRole(prevBy, t.dealId)) ? ` by ${nameOf(u.id)} (changed answers entered by ${who(prevBy, t.dealId)})` : owner && owner !== u.id ? ` by ${who(u.id, t.dealId)}` : '';
+      const selfRep = fileRoles(u.id, t.dealId).length > 1;   // self-represented: always record the capacity, even on their own copy
+      const note = forClient ? ` by ${byLine(u.id, owner, t.dealId, t)}` : owner === u.id && prevBy && prevBy !== u.id && C.isAgent(fileRole(prevBy, t.dealId)) ? ` by ${selfRep ? who(u.id, t.dealId, t.assignedRole) : nameOf(u.id)} (changed answers entered by ${who(prevBy, t.dealId)})`
+        : owner && owner !== u.id ? ` by ${who(u.id, t.dealId)}` : selfRep ? ` by ${who(u.id, t.dealId, owner === u.id ? t.assignedRole : undefined)}` : '';
       const link = `#/deals/${t.dealId}/tasks/${t.id}`;
       if (complete) { t.status = 'done'; t.completedAt = now(); t.completedBy = u.id; log(t.dealId, u.id, 'task.completed', 'task', t.id, `${t.title}: completed${note}`);
         const deal = load().deals.find((z) => z.id === t.dealId); notify([deal.processorId], { kind: 'task', dealId: t.dealId, title: `${nameOf(u.id)} completed ${t.title}${forClient ? ` for ${nameOf(owner)}` : ''}`, link }, u.id); }

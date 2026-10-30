@@ -140,3 +140,9 @@ p.done-by { background: #eef6ef; border-radius: 6px; padding: 6px 10px; }
 /* per-file roles: outside user's dashboard groups */
 .role-group { margin: 0 0 22px; }
 .role-group .group-title { font-size: 17px; margin: 8px 0 10px; border-bottom: 1px solid #e3e6ea; padding-bottom: 6px; }
+/* self-representation (agent buying/selling for themselves) */
+.notice { border-radius: 6px; padding: 10px 14px; margin: 10px 0; font-size: 14px; }
+.notice.warn { background: #FFF4E5; border: 1px solid #F5C58A; color: #7a4a00; }
+.notice.info { background: #E3EBFB; border: 1px solid #b9cbf3; color: #1e3a8a; }
+.pill.agent-party { background: #FFF4E5; color: #7a4a00; border: 1px solid #F5C58A; margin-left: 4px; }
+.pill.self-rep { background: #EDE7FB; color: #4c1d95; }
