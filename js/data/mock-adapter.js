@@ -4,8 +4,10 @@
  * Deliberately absent: any way to delete a document (no method, no UI, no policy) - Admin included.
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
 import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, isViewOnly, localDate, localDayOf, isRealDate,
-  isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices } from './constants.js';
+  isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
+  phoneOk, fmtPhone, PHONE_MSG, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS } from './constants.js';
 import { buildSeed, DEAL_FOLDERS } from './seed.js';
+import { indexedDbFileStore } from './file-store.js';
 import { delegationLocked } from './templates.js';
 import { dealsAndAuth } from './mock-part-deals.js';
 import { devAuth } from './mock-part-auth.js';
@@ -16,8 +18,9 @@ import { adminUsersTeams } from './mock-part-admin.js';
 import { libraryFolders } from './mock-part-library.js';
 import { closingSchedule } from './mock-part-schedule.js';
 import { notificationsPart } from './mock-part-notify.js';
+import { mattP2 } from './mock-part-matt.js';
 
-const KEY = 'cla-portal-new:data:v6';   // v6: agent buying/selling for themselves (v5: per-file roles; v4: agent delegation flags + home warranty v2). Old saved demo data is re-seeded.
+const KEY = 'cla-portal-new:data:v8';   // v8: Matt's Oct 31 priority 2 (seller questions, agreements, e-sign, closing proposals, phone format). v7: IndexedDB file store (ID upload fix). v6: agent buying/selling for themselves (v5: per-file roles; v4: agent delegation flags + home warranty v2). Old saved demo data is re-seeded.
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();
@@ -28,14 +31,20 @@ const money = (v, label) => { if (v === '' || v == null) return null; const n = 
 const zipOk = (z) => !z || /^\d{5}(-\d{4})?$/.test(z);
 const stateCode = (v) => { const s = str(v, 50).toUpperCase(); if (!s) fail('State is required.'); if (!/^[A-Z]{2}$/.test(s)) fail('State must be a 2-letter code (e.g. MD).'); return s; };
 const dateOrNull = (v, label) => { const s = str(v, 20); if (!s) return null; if (!isRealDate(s)) fail(`${label} must be a real date (YYYY-MM-DD).`); return s; };
+// xxx-xxx-xxxx (Matt, Oct 31). Empty stays empty; anything else must be 10 digits.
+const phone = (v, label = 'Phone') => { const s = str(v, 40); if (!s) return ''; if (!phoneOk(s)) fail(`${label} ${PHONE_MSG}.`); return fmtPhone(s); };
 const isQuota = (e) => e && (e.name === 'QuotaExceededError' || /quota/i.test(e.message || ''));
 
-export function createMockAdapter({ storage, sessionStorage } = {}) {
+export function createMockAdapter({ storage, sessionStorage, fileStore } = {}) {
   const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null) || fail('no storage');
+  // File CONTENTS live in IndexedDB in the browser (see file-store.js: the ID-upload bug). Tests pass a memory store, or none (= old inline behaviour).
+  const files = fileStore !== undefined ? fileStore : (!storage && typeof indexedDB !== 'undefined' ? indexedDbFileStore() : null);
   const sess = sessionStorage || (typeof window !== 'undefined' ? window.sessionStorage : store);
   let db = null;
   function save() { store.setItem(KEY, JSON.stringify(db)); }
-  function load() { if (db) return db; const raw = store.getItem(KEY); db = raw ? JSON.parse(raw) : buildSeed(); if (!raw) save(); return db; }
+  // Older demo-data versions (v1..v6) are never read again; drop them so they stop using up this browser's ~5 MB localStorage (part of the ID-upload bug).
+  const dropStale = () => { try { for (let i = store.length - 1; i >= 0; i--) { const k = store.key(i); if (k && /^cla-portal-new:data:v\d+$/.test(k) && k !== KEY) store.removeItem(k); } } catch (e) { /* plain Map storage in tests */ } };
+  function load() { if (db) return db; const raw = store.getItem(KEY); db = raw ? JSON.parse(raw) : buildSeed(); if (!raw) { if (typeof store.key === 'function') dropStale(); save(); } return db; }
   const nid = (p) => { const d = load(); d.seq += 1; return `${p}-${d.seq}`; };
 
   const me = () => { const id = sess.getItem(SESSION_KEY); return (id && load().profiles.find((p) => p.id === id && p.status === 'active')) || null; };
@@ -106,10 +115,26 @@ export function createMockAdapter({ storage, sessionStorage } = {}) {
   };
   const threadVisible = (u, t) => isProcessor(u.role) || u.isAdmin || t.participantIds.includes(u.id);
   const unreadIn = (u, t) => { const d = load(); const r = d.reads.find((x) => x.threadId === t.id && x.profileId === u.id); const last = r ? r.at : ''; return d.messages.filter((m) => m.threadId === t.id && m.authorId !== u.id && m.createdAt > last).length; };
+  // CLA staff (any staff login, incl. TC and Admin) vs an outside user acting on this order (agent / client / plain outside user)
+  const isStaffView = (u) => !!u && (u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator') && !isOutside(u.accountRole || u.role);
+  // Which side a person is on, ON THIS ORDER: 'staff' (CLA staff login), 'buyer' / 'seller' (their agent/client role here), or null (outside user with no side here).
+  // Mirrored by private.person_side(pid, deal) in SQL (migration 13).
+  const personSide = (profileId, dealId) => { const p = prof(profileId); if (!p) return null; if (!isOutside(p.role)) return 'staff';
+    const sides = [...new Set(fileRoles(profileId, dealId).map(sideOf).filter(Boolean))]; return sides.length === 1 ? sides[0] : null; };
+  // NO CROSS-SIDE MESSAGING (Matt, Oct 31): an outside user may message CLA staff and people on their OWN side of the order only.
+  const canMessage = (u, targetId, dealId) => { if (isStaffView(u)) return true; const t = personSide(targetId, dealId); if (t === 'staff') return true;
+    const mine = sideOf(u.role); return !!mine && t === mine; };
+  // A conversation never mixes the two sides: its outside users are all on one side (a side-less outside user only talks to staff).
+  const mixedSides = (ids, dealId) => { const outside = ids.map((id) => personSide(id, dealId)).filter((sd) => sd !== 'staff');
+    return outside.includes(null) ? outside.length > 1 : new Set(outside).size > 1; };
+  // NO OPPOSING CONTACT INFO (Matt, Oct 31): outside users do not get the phone / email of the OTHER side's agent or client (names stay, for context).
+  // Staff see everything. A client also does not see the other side's client at all (unchanged). Mirrored by public.deal_contacts() in SQL (migration 13).
+  const hideContact = (c) => ({ ...c, email: '', phone: '', contactHidden: true });
   function participantsOf(dealId, viewer) {
-    const d = load();
+    const d = load(); const staff = isStaffView(viewer); const mySide = sideOf(viewer.role);
     let rows = d.participants.filter((p) => p.dealId === dealId).map((p) => { const c = d.contacts.find((z) => z.id === p.contactId); const pr = c && c.profileId && prof(c.profileId);
-      return { ...p, contact: clone(c), removed: !!(pr && pr.status === 'removed') }; });
+      const opposing = !staff && !!sideOf(p.role) && sideOf(p.role) !== mySide && !(c && c.profileId === viewer.id);
+      return { ...p, contact: c ? (opposing ? hideContact(clone(c)) : clone(c)) : c, removed: !!(pr && pr.status === 'removed') }; });
     if (isClient(viewer.role)) rows = rows.filter((p) => !(isClient(p.role) && p.role !== viewer.role));   // a client does not see the OTHER side's client
     return rows;
   }
@@ -150,10 +175,15 @@ export function createMockAdapter({ storage, sessionStorage } = {}) {
 
   const api = { mode: 'mock' };
   const ctx = { api, DEAL_FOLDERS, store, sess, SESSION_KEY, KEY, load, save, nid, me, needUser, needProcessor, needAdmin, isManager, notViewOnly, contactOf, seesAll, teamAgentIds, dealsFor, dealOr404, fileRole, fileRoles, fileRoleText, holds, scopeTo, onDeal, fileRolesOf, fileLabelsOf, log, prof, nameOf, roleOf, fullName,
-    folderOf, docVisible, threadVisible, unreadIn, participantsOf, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, dealView, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, localDayOf,
-    reset() { store.removeItem(KEY); db = null; load(); },
-    C: { ROLES, DEAL_ROLES, ADMIN_ROLE, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices } };
-  Object.assign(api, devAuth(ctx), dealsAndAuth(ctx), contactsTasksDocs(ctx), tasksAndForms(ctx), messagesActivity(ctx), adminUsersTeams(ctx), libraryFolders(ctx), closingSchedule(ctx), notificationsPart(ctx));
+    folderOf, docVisible, threadVisible, unreadIn, participantsOf, isStaffView, personSide, canMessage, mixedSides, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, dealView, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, localDayOf, phone,
+    reset() { store.removeItem(KEY); db = null; if (files) files.clearAll().catch(() => {}); load(); },
+    files,
+    // move an upload's bytes out of the record into the file store BEFORE the record is saved (so a failed save never lists a file without content)
+    async keepFile(doc) { if (!files || !doc.dataUrl) return doc; try { await files.put(doc.id, doc.dataUrl); } catch (e) { throw new Error('This browser could not store the file (private browsing or storage full). Try a smaller file or another browser.'); }
+      doc.dataUrl = null; doc.hasFile = true; return doc; },
+    async fileContent(z) { if (z.dataUrl) return z.dataUrl; if (z.hasFile && files) return (await files.get(z.id)) || null; return null; },
+    C: { ROLES, DEAL_ROLES, ADMIN_ROLE, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS } };
+  Object.assign(api, devAuth(ctx), dealsAndAuth(ctx), contactsTasksDocs(ctx), tasksAndForms(ctx), messagesActivity(ctx), adminUsersTeams(ctx), libraryFolders(ctx), closingSchedule(ctx), notificationsPart(ctx), mattP2(ctx));
   // Every call is all-or-nothing: if it throws (validation error, or browser storage full), drop the in-memory copy so the next call
   // reloads the last SAVED state. Without this a half-applied edit (e.g. a rejected lender email) stayed in memory and broke later saves.
   for (const [k, fn] of Object.entries(api)) if (typeof fn === 'function') api[k] = async function (...a) {

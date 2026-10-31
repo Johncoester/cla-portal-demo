@@ -4,7 +4,7 @@
  * Deliberately NOT collected: SSNs (the old portal asked for them; that needs a separate secure decision).
  * DELEGATION: agentRoles = which agent roles may fill a CLIENT's copy for them (only the agent on the client's own side, on that order).
  * Admin / processor change it on the Task Templates page (setTemplateAgentRoles). Personal items can never be delegated: see delegationLocked(). */
-import { isRealDate } from './constants.js';
+import { isRealDate, phoneOk, fmtPhone, PHONE_MSG, routingOk, accountOk } from './constants.js';
 const yn = ['Yes', 'No'];
 const F = (k, label, type, req = false, extra = {}) => ({ k, label, type, req, ...extra });
 const none = (label) => F('none', label, 'checkbox');
@@ -44,6 +44,23 @@ export const TEMPLATE_DEFS = [
   { code: 'commissions', version: 1, title: 'Commission information', roles: ['Buyer Agent', 'Listing Agent'], dueDays: 10, agentRoles: [], description: 'Confirm your commission for the settlement statement.',
     fields: [F('brokerage', 'Brokerage', 'text', true), F('license_id', 'License ID', 'text', true), F('commission_amount', 'Commission ($)', 'money', true),
       F('paid_by', 'Paid by', 'select', true, { opts: ['Seller', 'Buyer', 'Split'] }), F('notes', 'Notes', 'textarea')] },
+  // ---- Matt, Oct 31 (migration 14): seller forwarding address + how the seller gets their proceeds ----
+  { code: 'forwarding_address', version: 1, title: 'Forwarding address', roles: ['Client-Seller'], dueDays: 10, agentRoles: [], migration: 14,
+    description: 'Where should we send your mail after closing (the recorded deed, any escrow refund, your 1099-S and other closing papers)?',
+    fields: [F('street', 'Forwarding street address', 'text', true), F('unit', 'Apt / unit', 'text'), F('city', 'City', 'text', true), F('state', 'State', 'state', true),
+      F('zip', 'ZIP', 'zip', true), F('effective', 'Mail should go there from (date)', 'date'), F('phone_after', 'Best phone after closing', 'phone')] },
+  { code: 'seller_proceeds', version: 1, title: 'How you want your proceeds', roles: ['Client-Seller'], dueDays: 10, clientOnly: true, agentRoles: [], migration: 14,
+    description: 'How you want to receive the money from your sale. Bank details are seen only by you and the CLA processor (others see the last 4 digits).',
+    fields: [F('method', 'How do you want to receive your proceeds?', 'select', true, { opts: ['Wire transfer', 'Check sent by FedEx', 'Check at settlement'] }),
+      F('bank_name', 'Bank name', 'text', true, { when: ['method', 'Wire transfer'] }), F('routing', 'Routing number (9 digits)', 'routing', true, { when: ['method', 'Wire transfer'] }),
+      F('account', 'Account number', 'account', true, { when: ['method', 'Wire transfer'], mask: true }), F('account_name', 'Name on the account', 'text', true, { when: ['method', 'Wire transfer'] }),
+      F('mail_street', 'Mail the check to: street address', 'text', true, { when: ['method', 'Check sent by FedEx'] }), F('mail_unit', 'Apt / unit', 'text', false, { when: ['method', 'Check sent by FedEx'] }),
+      F('mail_city', 'City', 'text', true, { when: ['method', 'Check sent by FedEx'] }), F('mail_state', 'State', 'state', true, { when: ['method', 'Check sent by FedEx'] }),
+      F('mail_zip', 'ZIP', 'zip', true, { when: ['method', 'Check sent by FedEx'] }),
+      F('settlement_conditions', 'Conditions for a check at settlement', 'info', false, { when: ['method', 'Check at settlement'],
+        text: 'PLACEHOLDER - CLA Title to supply the real conditions before go-live. Example only: the check is made out to the seller(s) on title, is handed over only after the buyer\'s funds are confirmed, and you must show photo ID to receive it.' }),
+      F('settlement_ack', 'I understand the conditions for receiving a check at settlement', 'checkbox', true, { when: ['method', 'Check at settlement'] }),
+      F('notes', 'Anything else we should know?', 'textarea')] },
 ];
 
 // Personal items stay client-only whatever the setting says: ID / identity, signatures, banking / wire / payment-account details, SSN.
@@ -53,10 +70,11 @@ export const delegationLocked = (tp) => !!(tp && (tp.clientOnly || (tp.fields ||
 export const AGENT_ROLES = ['Buyer Agent', 'Listing Agent'];
 
 const CHECK = {
-  email: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), phone: (v) => /^[0-9()+\-.\s]{7,20}$/.test(v), date: (v) => isRealDate(v),
+  email: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), phone: phoneOk, date: (v) => isRealDate(v), routing: routingOk, account: accountOk,
+  state: (v) => /^[A-Z]{2}$/.test(v), zip: (v) => /^\d{5}(-\d{4})?$/.test(v),
   money: (v) => isFinite(Number(String(v).replace(/[$,]/g, ''))) && Number(String(v).replace(/[$,]/g, '')) >= 0, digits4: (v) => /^\d{4}$/.test(v),
 };
-const MSG = { email: 'must be a valid email', phone: 'must be a phone number', date: 'must be a date', money: 'must be a positive amount', digits4: 'must be exactly 4 digits' };
+const MSG = { email: 'must be a valid email', phone: PHONE_MSG, routing: 'must be a valid 9-digit routing number', account: 'must be 4 to 17 digits', state: 'must be a 2-letter code (e.g. MD)', zip: 'must be a 5-digit ZIP', date: 'must be a date', money: 'must be a positive amount', digits4: 'must be exactly 4 digits' };
 export const fieldActive = (f, data) => !(f.k !== 'none' && data.none) && (!f.when || data[f.when[0]] === f.when[1]);
 /* Clean + validate a form. complete=false (save partial work): only checks values that are filled in. complete=true: required fields must be filled.
  * Returns { data, errors: [{k, msg}] }. Unknown keys are dropped. */
@@ -65,12 +83,18 @@ export function validateForm(fields, input, complete) {
   for (const f of fields) {
     let v = input[f.k];
     if (f.type === 'checkbox') { if (v === true || v === 'on' || v === 'true') data[f.k] = true; continue; }
+    if (f.type === 'info') continue;   // text shown on the form, never an answer
     v = v == null ? '' : String(v).trim().slice(0, f.type === 'textarea' ? 2000 : 300);
     if (v === '') continue;
+    if (f.type === 'phone' && phoneOk(v)) v = fmtPhone(v);   // stored as xxx-xxx-xxxx
+    if (f.type === 'state') v = v.toUpperCase();
+    if (f.type === 'routing' || f.type === 'account') v = v.replace(/[\s-]/g, '');
     data[f.k] = v;
   }
   for (const f of fields) {
-    if (f.type === 'checkbox' || !fieldActive(f, data)) { if (f.type !== 'checkbox' && !fieldActive(f, data)) delete data[f.k]; continue; }
+    if (f.type === 'checkbox') { if (!fieldActive(f, data)) delete data[f.k]; else if (complete && f.req && !data[f.k]) errors.push({ k: f.k, msg: `Please tick: ${f.label}.` }); continue; }
+    if (f.type === 'info') continue;
+    if (!fieldActive(f, data)) { delete data[f.k]; continue; }
     const v = data[f.k];
     if (v === undefined) { if (complete && f.req) errors.push({ k: f.k, msg: `${f.label} is required.` }); continue; }
     if (f.type === 'select' && !f.opts.includes(v)) errors.push({ k: f.k, msg: `${f.label}: pick one of the options.` });
@@ -78,3 +102,6 @@ export function validateForm(fields, input, complete) {
   }
   return { data, errors };
 }
+
+// fields whose answer only the owner and the processor see in full (bank account numbers); everyone else gets the last 4 digits
+export const maskedFields = (tp) => (tp && tp.fields ? tp.fields.filter((f) => f.mask).map((f) => f.k) : []);

@@ -98,6 +98,9 @@ export function buildSeed() {
   copy(3, 'personal_info', 1, 'Client-Buyer', 'done', { ...benInfo, settlement_type: undefined }); copy(3, 'personal_info', 1, 'Client-Seller', 'done', { ...sallyInfo, settlement_type: undefined });
   copy(3, 'commissions', 1, 'Buyer Agent', 'done', { brokerage: 'Harbor Realty (fake)', license_id: 'FAKE-1010', commission_amount: '15250', paid_by: 'Seller' });
   adhoc('t-3-deed', 3, 'Record deed', 'Sales Processor', 'done', '2026-10-16'); adhoc('t-3-disburse', 3, 'Disburse funds', 'Sales Processor', 'done', '2026-10-15');
+  // Matt, Oct 31: seller forwarding address + proceeds questions (migration 14)
+  [1, 2].forEach((n) => { copy(n, 'forwarding_address', 1, 'Client-Seller', 'todo'); copy(n, 'seller_proceeds', 1, 'Client-Seller', 'todo'); });
+  copy(4, 'forwarding_address', 1, 'Client-Seller', 'todo'); copy(4, 'seller_proceeds', 1, 'Client-Seller', 'todo');
   tasks.forEach((t) => Object.keys(t.formData).forEach((k) => t.formData[k] === undefined && delete t.formData[k]));
   return { version: 2, seq: 100, profiles, contacts, teams, teamMembers, deals, participants, taskTemplates, tasks, ...more(deals) };
 }
@@ -172,5 +175,8 @@ function more(deals) {
     { id: 'sr-2', settlementId: 's-2', round: 1, side: 'buyer', picks: [0], note: '', respondedBy: 'u-buyer', responderName: 'Ben Buyer', at: '2026-10-03T09:00:00Z' },
     { id: 'sr-3', settlementId: 's-2', round: 1, side: 'seller', picks: [0, 1], note: '', respondedBy: 'u-seller', responderName: 'Sally Seller', at: '2026-10-04T09:00:00Z' },
   ];
-  return { folders, documents, threads, messages, reads, activity, notifications, settlements, settlementResponses, outbox: [] };
+  // Matt, Oct 31 (priority 2): agreement acknowledgements, closing proposals, e-sign requests. FAKE.
+  const agreementAcks = [{ id: 'ack-1', dealId: 'deal-1', code: 'wire_fraud', version: 1, profileId: 'u-buyer', roleLabel: 'Client-Buyer', at: '2026-10-06T14:00:00Z' }];
+  const closingProposals = [{ id: 'cp-1', dealId: 'deal-1', side: 'seller', proposedBy: 'u-lagent', roleLabel: 'Listing Agent', at: '2026-11-19T11:00', location: 'CLA Title office', note: 'Sally prefers late morning.', status: 'proposed', createdAt: '2026-10-23T14:00:00Z' }];
+  return { folders, documents, threads, messages, reads, activity, notifications, settlements, settlementResponses, outbox: [], agreementAcks, closingProposals, signatureRequests: [] };
 }

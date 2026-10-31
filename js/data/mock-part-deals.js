@@ -9,7 +9,7 @@ export function dealsAndAuth(x) {
       const u = needUser(); const p = load().profiles.find((q) => q.id === u.id);
       if (patch.firstName != null) p.firstName = str(patch.firstName, 80) || fail('First name is required.');
       if (patch.lastName != null) p.lastName = str(patch.lastName, 80);
-      if (patch.phone != null) p.phone = str(patch.phone, 40);
+      if (patch.phone != null) p.phone = x.phone(patch.phone);
       const c = contactOf(u.id); if (c) { c.firstName = p.firstName; c.lastName = p.lastName; c.phone = p.phone; }
       save(); return clone(p);
     },
@@ -61,6 +61,7 @@ export function dealsAndAuth(x) {
       if (patch.state != null) patch = { ...patch, state: stateCode(patch.state) };
       ['street', 'city', 'state', 'zip', 'lenderName', 'lenderContact', 'lenderEmail', 'lenderPhone', 'notes'].forEach((k) => { if (patch[k] != null) q[k] = str(patch[k], k === 'notes' ? 2000 : 200); });
       if (q.lenderEmail && !emailOk(q.lenderEmail)) fail('Lender email is not valid.');
+      if (patch.lenderPhone != null) q.lenderPhone = x.phone(patch.lenderPhone, 'Lender phone');
       if (!zipOk(q.zip)) fail('ZIP must be 5 digits (or ZIP+4).');
       if (!q.street || !q.city || !q.state) fail('Street, city and state are required.');
       if (patch.closingDate !== undefined) q.closingDate = dateOrNull(patch.closingDate, 'Closing date');

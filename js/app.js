@@ -1,7 +1,10 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { getAdapter } from './data/adapter.js';
 import { html, raw, toText, esc, $, $$, toast, closeModal } from './ui.js';
-import { isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel } from './data/constants.js';
+import { isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js';
+// PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
+document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
+  const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
 
 const pages = {
   login: () => import('./pages/entry.js'),
@@ -53,7 +56,7 @@ async function layout(u, view, route) {
   const cur = route.page + (route.page === 'users' && route.params.mode === 'new' ? '/new' : '');
   const core = navFor(u).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}">${n.label}</a></li>`);
   const t = route.params.tab; const link = (tab, label, cls) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}">${label}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : ''}</a></li>`;
-  const dealNav = deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${link('inbox', 'Inbox', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${isClient(deal.myRole) || isOutside(deal.myRole) ? '' : link('activity', 'Activity', 'activity')}` : '';
+  const dealNav = deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${link('inbox', 'Inbox', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${isClient(deal.myRole) || isAgent(deal.myRole) || isOutside(deal.myRole) || isOutside(u.role) ? '' : link('activity', 'Activity', 'activity')}` : '';
   const contact = isStaff(u.role) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us">Contact Us</a></li>`;
   const sidebarHead = deal ? html`<a class="logo-home-link" href="#/deals/${deal.id}"><div class="order-heading-left"><span>${deal.fileNumber}</span></div><div class="map-div"><img class="map-pin" src="assets/img/map-icon-new.png" alt=""><p>${deal.street}<br>${deal.city}, ${deal.state}, ${deal.zip}</p></div></a>` : '';
   const topButtons = isProcessor(u.role) ? html`<a class="green-btn" href="#/orders/new">Place Order</a>` : '';

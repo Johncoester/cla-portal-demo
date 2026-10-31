@@ -35,7 +35,7 @@ export function libraryFolders(x) {
       let u = needUser(); if (!libManager(u)) fail('Only the processor or Admin can add Library files.');
       const f = folderOf(folderId); if (!f || f.scope !== 'library') fail('Pick a Library folder.');
       const doc = x.newDoc(u, { ...file, visibility: f.staffOnly ? 'staff' : 'all' }); doc.folderId = f.id;
-      load().documents.push(doc); log(null, u.id, 'document.uploaded', 'document', doc.id, `Added ${doc.name} to the Library`); save(); return clone(x.docOut(doc));
+      await x.keepFile(doc); load().documents.push(doc); log(null, u.id, 'document.uploaded', 'document', doc.id, `Added ${doc.name} to the Library`); save(); return clone(x.docOut(doc));
     },
   };
 }

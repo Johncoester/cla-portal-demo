@@ -23,7 +23,7 @@ export function adminUsersTeams(x) {
       if (C.OUTSIDE_FILE_ROLES.includes(input.role)) fail('Agents and clients are outside users: pick "Outside user". Their role is set on each order they are added to.');
       if (!C.ROLES.includes(input.role)) fail('Pick a role (account type).');
       const firstName = str(input.firstName, 80) || fail('First name is required.');
-      const p = { id: nid('u'), email, firstName, lastName: str(input.lastName, 80), phone: str(input.phone, 40), role: input.role, isAdmin: input.role === C.ADMIN_ROLE || input.isAdmin === true || input.isAdmin === 'on',
+      const p = { id: nid('u'), email, firstName, lastName: str(input.lastName, 80), phone: x.phone(input.phone), role: input.role, isAdmin: input.role === C.ADMIN_ROLE || input.isAdmin === true || input.isAdmin === 'on',
         status: 'active', createdAt: now() };
       d.profiles.push(p);
       const existing = d.contacts.find((c) => c.email === email && !(c.profileId && (prof(c.profileId) || {}).status === 'removed'));   // reuse a contact so earlier order links carry over
@@ -44,7 +44,7 @@ export function adminUsersTeams(x) {
       if (p.id === u.id && next.status !== 'active') fail('You cannot disable yourself.');
       lastAdminGuard(p, next);
       Object.assign(p, next);
-      ['firstName', 'lastName', 'phone'].forEach((k) => { if (patch[k] != null) p[k] = str(patch[k], 80); });
+      ['firstName', 'lastName'].forEach((k) => { if (patch[k] != null) p[k] = str(patch[k], 80); }); if (patch.phone != null) p.phone = x.phone(patch.phone);
       if (!p.firstName) fail('First name is required.');
       const c = contactOf(p.id); if (c) { c.firstName = p.firstName; c.lastName = p.lastName; c.phone = p.phone; }
       log(null, u.id, 'user.updated', 'user', p.id, `Updated user ${p.firstName} ${p.lastName}`); save(); return clone(p);

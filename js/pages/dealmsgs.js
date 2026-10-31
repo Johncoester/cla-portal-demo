@@ -14,6 +14,7 @@ export async function render(ctx) {
     const nb = $('#newthread', root); if (nb) nb.addEventListener('click', guard(async () => {
       const people = await api.listMessageRecipients(deal.id);
       const m = modal('Start a conversation', html`<form id="ntf" class="form-grid"><label class="span2">Subject<input name="subject" maxlength="150" required></label>
+        <p class="span2 muted small">${user.role === 'Sales Processor' || user.isAdmin || user.role === 'Transaction Coordinator' || user.role === 'Sales Person' || user.role === 'Sales Team' ? 'A conversation can include CLA Title staff and one side of the order (buyer side or seller side), not both.' : 'You can message CLA Title staff and people on your own side of this order.'}</p>
         <fieldset class="span2 checks"><legend>To</legend>${people.map((p) => html`<label><input type="checkbox" name="to" value="${p.id}"> ${p.firstName} ${p.lastName} <span class="muted">(${p.role})</span></label>`)}</fieldset>
         <label class="span2">Message<textarea name="body" rows="4" maxlength="4000" required></textarea></label>
         <div class="span2"><button class="m-btn" type="submit">Send</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);

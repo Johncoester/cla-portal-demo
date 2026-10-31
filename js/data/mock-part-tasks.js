@@ -1,13 +1,17 @@
 /* mock adapter: tasks. Templates (versioned definitions) are separate from each participant's task COPY; a copy records templateId + templateVersion.
  * Intake forms: save partial work, validate, mark complete. Reminders are QUEUED in an outbox only and never sent. Tasks are cancelled, never deleted. */
-import { validateForm, fieldActive, delegationLocked, AGENT_ROLES } from './templates.js';
+import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields } from './templates.js';
+import { maskAccount } from './constants.js';
 export function tasksAndForms(x) {
   const { load, save, nid, needUser, needAdmin, isManager, dealOr404, onDeal, fileRole, fileRoles, holds, dealsFor, log, prof, nameOf, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, dateOrNull, localDate, localDayOf, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
   const tpl = (id) => load().taskTemplates.find((t) => t.id === id);
   const addDays = (n) => localDate(n);
   const taskOr404 = (u, id) => { const t = load().tasks.find((z) => z.id === id) || fail('Task not found.'); u = onDeal(u, t.dealId); if (!taskVisible(u, t)) fail('Task not found.'); return t; };
-  const canFill = (u, t) => t.kind === 'form' && t.status !== 'cancelled' && (ownerOf(t) === u.id || isManager(u) || agentCanFill(u, t));
+  // Bank details (seller proceeds): only the owner and the PROCESSOR see them in full or change them; the coordinator / Admin see the last 4 digits.
+  const masked = (t) => (t.templateId ? maskedFields(tpl(t.templateId)) : []);
+  const fullView = (u, t) => ownerOf(t) === u.id || C.isProcessor(u.role);
+  const canFill = (u, t) => t.kind === 'form' && t.status !== 'cancelled' && (ownerOf(t) === u.id || (isManager(u) && (!masked(t).length || C.isProcessor(u.role))) || agentCanFill(u, t));
   // role = what they are ON THIS FILE. A self-represented person (client + their side's agent) is shown in the CAPACITY they acted in:
   // their own copy -> as the client; anything else -> as the agent, e.g. "Alex Agent-Buyer (as Client-Buyer; also Buyer Agent on this file)".
   const who = (id, dealId, cap) => { if (!id) return ''; const rs = fileRoles(id, dealId); const as = cap && rs.includes(cap) ? cap : rs[0] || 'unknown role';
@@ -21,7 +25,8 @@ export function tasksAndForms(x) {
     const tp = t.templateId ? tpl(t.templateId) : null; o.agentRoles = tp && !delegationLocked(tp) ? (tp.agentRoles || []) : [];
     o.completedByLabel = t.status === 'done' && t.completedBy ? `Completed by ${byLine(t.completedBy, o.ownerId, t.dealId, t)}` : '';
     o.savedByLabel = t.savedBy ? `Last saved by ${byLine(t.savedBy, o.ownerId, t.dealId, t)}` : '';
-    if (!formDataVisible(u, t)) { o.formData = {}; o.formHidden = true; } return o; };
+    if (!formDataVisible(u, t)) { o.formData = {}; o.formHidden = true; } else if (!fullView(u, t)) masked(t).forEach((k) => { if (o.formData[k]) { o.formData[k] = maskAccount(o.formData[k]); o.maskedAnswers = true; } });
+    return o; };
   // Copy the CURRENT version of every template that applies to this participant's role. Never duplicates an open copy.
   x.makeCopies = (dealId, p, actorId) => {
     const d = load(); let n = 0;
@@ -58,6 +63,7 @@ export function tasksAndForms(x) {
     async getTask(id) {
       let u = needUser(); const t = taskOr404(u, id); u = onDeal(u, t.dealId); const o = out(u, t); const tp = t.templateId ? tpl(t.templateId) : null;
       o.fields = tp ? clone(tp.fields) : []; o.template = tp ? { id: tp.id, code: tp.code, version: tp.version, title: tp.title } : null;
+      if (t.kind === 'sign') o.signature = x.signInfo(u, t);
       if (!o.formHidden) { o.documents = load().documents.filter((z) => z.dealId === t.dealId && o.fields.some((f) => f.type === 'doc' && t.formData[f.k] === z.id)).map((z) => ({ id: z.id, name: z.name })); }
       return o;
     },
@@ -81,6 +87,7 @@ export function tasksAndForms(x) {
       if (patch.assignedRole != null && patch.assignedRole !== t.assignedRole) { if (t.participantId) fail('A participant task stays with that participant.'); if (!C.DEAL_ROLES.includes(patch.assignedRole)) fail('Unknown role.'); t.assignedRole = patch.assignedRole; }
       if (patch.status != null && patch.status !== t.status) {
         if (!C.TASK_STATUSES.includes(patch.status)) fail('Unknown task status.');
+        if (t.kind === 'sign' && patch.status !== 'cancelled') fail('A signature task is completed by the signer signing it (or cancel the request).');
         if (t.kind === 'form' && patch.status === 'done') { const tp = tpl(t.templateId); const r = validateForm(tp.fields, t.formData, true); if (r.errors.length) fail('The form is not complete yet: ' + r.errors[0].msg); }
         t.status = patch.status; t.completedAt = patch.status === 'done' ? now() : null; t.completedBy = patch.status === 'done' ? u.id : null;
         log(t.dealId, u.id, 'task.status', 'task', t.id, `${t.title}: ${patch.status}${!isManager(u) && (u.roles || []).length > 1 ? ` by ${who(u.id, t.dealId, t.assignedRole)}` : ''}`);
@@ -112,9 +119,9 @@ export function tasksAndForms(x) {
     // Upload a file for a form field (e.g. photo ID). Filed under "IDs & personal", visible to the owner's side only.
     async uploadForTask(id, file) {
       let u = needUser(); const t = taskOr404(u, id); u = onDeal(u, t.dealId); if (!canFill(u, t)) fail('You cannot fill in this task.');
-      const side = C.sideOf(t.assignedRole); const doc = x.newDoc(u, { ...file, visibility: side || 'staff' }); doc.dealId = t.dealId;
+      const side = C.sideOf(t.assignedRole); const doc = x.newDoc(u, { ...file, visibility: side || 'staff' }); doc.dealId = t.dealId; if (t.templateCode === 'id_upload') doc.docType = 'Photo ID';
       const f = load().folders.find((z) => z.dealId === t.dealId && z.name === 'IDs & personal'); doc.folderId = f ? f.id : null;
-      load().documents.push(doc); log(t.dealId, u.id, 'document.uploaded', 'document', doc.id, `Uploaded ${doc.name} for ${t.title}`); save(); return { id: doc.id, name: doc.name };
+      await x.keepFile(doc); load().documents.push(doc); log(t.dealId, u.id, 'document.uploaded', 'document', doc.id, `Uploaded ${doc.name} for ${t.title}`); save(); return { id: doc.id, name: doc.name };
     },
     // ---------- Templates ----------
     async listTaskTemplates() {

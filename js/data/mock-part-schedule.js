@@ -53,6 +53,7 @@ export function closingSchedule(x) {
       const u = needProcessor(); const d = load(); const s = d.settlements.find((z) => z.id === id) || fail('Request not found.'); if (s.status !== 'open') fail('Only an open request can be confirmed.');
       const i = Number(slotIndex); if (!Number.isInteger(i) || i < 0 || i >= s.slots.length) fail('Pick one of the offered times.');
       s.status = 'confirmed'; s.confirmedSlot = i; s.confirmedAt = now(); const deal = d.deals.find((z) => z.id === s.dealId); deal.closingDate = s.slots[i].slice(0, 10);
+      deal.scheduledClosing = { at: s.slots[i], location: s.location, note: '', confirmedBy: u.id, confirmedAt: now(), proposalId: null, settlementId: s.id };   // shown to everyone on the file
       log(s.dealId, u.id, 'settlement.confirmed', 'settlement', s.id, `Closing confirmed for ${s.slots[i].replace('T', ' ')}`);
       notify(dealProfileIds(s.dealId), { kind: 'settlement', dealId: s.dealId, title: `Closing confirmed: ${s.slots[i].replace('T', ' ')} - ${deal.street}`, link: `#/deals/${s.dealId}/closing` }, u.id);
       save(); return clone(s);

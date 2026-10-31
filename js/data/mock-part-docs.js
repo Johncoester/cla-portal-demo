@@ -1,25 +1,27 @@
 /* mock adapter: contacts, participants, documents (deal files). NOTE: there is no delete for documents, for anyone (Admin included). */
 export function contactsTasksDocs(x) {
   const { load, save, nid, needUser, needProcessor, isManager, notViewOnly, seesAll, dealsFor, dealOr404, onDeal, fileRole, log, prof, nameOf, roleOf, fullName, folderOf, docVisible, participantsOf, notify, dealProfileIds, clone, now, fail, str, emailOk, C } = x;
-  const docOut = (z) => ({ ...z, dataUrl: undefined, hasContent: !!z.dataUrl, uploadedByName: nameOf(z.uploadedBy), uploadedByRole: x.fileRoleText(z.uploadedBy, z.dealId), folderName: (folderOf(z.folderId) || {}).name || '' });
+  const docOut = (z) => ({ ...z, dataUrl: undefined, hasContent: !!(z.dataUrl || z.hasFile), uploadedByName: nameOf(z.uploadedBy), uploadedByRole: x.fileRoleText(z.uploadedBy, z.dealId), folderName: (folderOf(z.folderId) || {}).name || '' });
   const api = {
     // ---------- Contacts & participants ----------
     async listContacts(search = '') {
       let u = needUser(); const d = load(); const q = search.toLowerCase(); let list = d.contacts;
-      if (!(C.isProcessor(u.role) || u.isAdmin)) { const ids = new Set(); dealsFor(u).forEach((z) => participantsOf(z.id, x.scopeTo(u, z.id)).forEach((p) => ids.add(p.contactId))); list = list.filter((c) => ids.has(c.id)); }
+      if (!(C.isProcessor(u.role) || u.isAdmin)) {   // the contacts this person can see on their orders, with the same contact-info rule as the order (opposing side: no phone/email)
+        const seen = new Map(); dealsFor(u).forEach((z) => participantsOf(z.id, x.scopeTo(u, z.id)).forEach((p) => { if (p.contact && (!seen.has(p.contactId) || seen.get(p.contactId).contactHidden)) seen.set(p.contactId, p.contact); }));
+        list = [...seen.values()]; }
       return clone(list.filter((c) => !q || `${fullName(c)} ${c.email} ${c.company}`.toLowerCase().includes(q)).sort((a, b) => fullName(a).localeCompare(fullName(b))));
     },
     async createContact(input) {
       const u = needProcessor(); const d = load();
       const c = { id: nid('c'), profileId: null, firstName: str(input.firstName, 80) || fail('First name is required.'), lastName: str(input.lastName, 80),
-        email: str(input.email, 200).toLowerCase(), phone: str(input.phone, 40), company: str(input.company, 120), createdBy: u.id, createdAt: now() };
+        email: str(input.email, 200).toLowerCase(), phone: x.phone(input.phone), company: str(input.company, 120), createdBy: u.id, createdAt: now() };
       if (c.email && !emailOk(c.email)) fail('Email is not valid.');
       if (c.email && d.contacts.some((z) => z.email === c.email)) fail('A contact with this email already exists.');
       d.contacts.push(c); save(); return clone(c);
     },
     async updateContact(id, patch) {
       needProcessor(); const c = load().contacts.find((z) => z.id === id) || fail('Contact not found.');
-      ['firstName', 'lastName', 'phone', 'company'].forEach((k) => { if (patch[k] != null) c[k] = str(patch[k], 120); });
+      ['firstName', 'lastName', 'company'].forEach((k) => { if (patch[k] != null) c[k] = str(patch[k], 120); }); if (patch.phone != null) c.phone = x.phone(patch.phone);
       if (!c.firstName) fail('First name is required.');
       if (patch.email != null) { const e = str(patch.email, 200).toLowerCase(); if (e && !emailOk(e)) fail('Email is not valid.');
         if (e && e !== c.email && load().contacts.some((z) => z.id !== c.id && z.email === e)) fail('A contact with this email already exists.'); c.email = e; }
@@ -55,11 +57,11 @@ export function contactsTasksDocs(x) {
       return clone(load().documents.filter((z) => z.dealId === dealId && docVisible(u, z) && (folderId === undefined || (folderId === '' ? !z.folderId : z.folderId === folderId)))
         .map(docOut).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
     },
-    async addDocument(dealId, { name, description, mimeType, size, dataUrl, visibility, folderId }) {
+    async addDocument(dealId, { name, description, mimeType, size, dataUrl, visibility, folderId, docType }) {
       let u = needUser(); u = onDeal(u, dealId); notViewOnly(u);
-      const doc = x.newDoc(u, { name, description, mimeType, size, dataUrl, visibility }); doc.dealId = dealId;
+      const doc = x.newDoc(u, { name, description, mimeType, size, dataUrl, visibility, docType }); doc.dealId = dealId;
       if (folderId) { const f = folderOf(folderId); if (!f || f.dealId !== dealId) fail('That folder is not part of this order.'); doc.folderId = f.id; } else doc.folderId = null;
-      load().documents.push(doc); log(dealId, u.id, 'document.uploaded', 'document', doc.id, `Uploaded ${doc.name}`);
+      await x.keepFile(doc); load().documents.push(doc); log(dealId, u.id, 'document.uploaded', 'document', doc.id, `Uploaded ${doc.name}`);
       notify(dealProfileIds(dealId).filter((pid) => docVisible(prof(pid), doc)), { kind: 'document', dealId, title: `${nameOf(u.id)} uploaded ${doc.name}`, link: `#/deals/${dealId}/documents` }, u.id);
       save(); return clone(docOut(doc));
     },
@@ -73,32 +75,37 @@ export function contactsTasksDocs(x) {
       let u = needUser(); const z = load().documents.find((q) => q.id === id) || fail('Document not found.'); if (z.dealId) u = onDeal(u, z.dealId); else if (!docVisible(u, z)) fail('Document not found.');
       if (!(C.isProcessor(u.role) || z.uploadedBy === u.id)) fail('Only the uploader or a processor can edit this document.');
       if (patch.description != null) z.description = str(patch.description, 500);
+      if (patch.docType != null) z.docType = docTypeOf(u, patch.docType);
       if (patch.visibility != null) { if (!C.DOC_VISIBILITY.includes(patch.visibility)) fail('Unknown visibility.'); visCheck(u, patch.visibility); z.visibility = patch.visibility; }
       log(z.dealId, u.id, 'document.updated', 'document', id, `Updated details of ${z.name}`); save(); return true;
     },
     async getDocumentContent(id) {
       let u = needUser(); const z = load().documents.find((q) => q.id === id) || fail('Document not found.');
       if (z.dealId) u = onDeal(u, z.dealId); if (!docVisible(u, z)) fail('Document not found.');
-      log(z.dealId, u.id, 'document.viewed', 'document', id, `Opened ${z.name}`); save();
-      return { name: z.name, mimeType: z.mimeType, dataUrl: z.dataUrl || ('data:text/plain;charset=utf-8,' + encodeURIComponent(`FAKE DEMO FILE\n${z.name}\n(Seed documents have no real content.)\n`)) };
+      log(z.dealId, u.id, 'document.viewed', 'document', id, `Opened ${z.name}`); save(); const content = await x.fileContent(z);
+      return { name: z.name, mimeType: z.mimeType, dataUrl: content || ('data:text/plain;charset=utf-8,' + encodeURIComponent(`FAKE DEMO FILE\n${z.name}\n(Seed documents have no real content.)\n`)) };
     },
   };
   // u = the deal-scoped user. Outside users: 'all' or their own side only (never staff-only, never the other side).
   const visCheck = (u, vis) => { if (C.visibilityChoices(u.role, u.isAdmin).includes(vis)) return;
     if (vis === 'staff') fail(C.isClient(u.role) ? 'Clients cannot make staff-only documents.' : 'Only CLA staff can make staff-only documents.');
+    if (C.isClient(u.role)) fail('Clients share files with CLA Title (and their own agent) only.');
     fail(`You can share a file with everyone on the order${C.sideOf(u.role) ? ` or your own side (${C.sideOf(u.role)} side)` : ''} only.`); };
   // shared by deal uploads, task ID uploads and the Library
-  x.newDoc = (u, { name, description, mimeType, size, dataUrl, visibility }) => {
+  // DOCUMENT TYPE (Matt, Oct 31): optional; sellers choose from the seller list (payoff statement, HOA docs, deed ...), the buyer side from the general list, staff from all.
+  const docTypeOf = (u, v) => { const s = str(v, 60); if (!s) return ''; const ok = x.isStaffView(u) ? C.DOC_TYPES : C.docTypeChoices(u.role); if (!ok.includes(s)) fail('Pick a document type from the list.'); return s; };
+  x.docTypeOf = docTypeOf;
+  x.newDoc = (u, { name, description, mimeType, size, dataUrl, visibility, docType }) => {
     const full = String(name == null ? '' : name).trim().replace(/[\\/]/g, '_'); if (!full) fail('A file name is required.');
     const dot = full.lastIndexOf('.'); const ext = dot > 0 ? full.slice(dot + 1).toLowerCase() : '';
     if (!ext) fail(`Files without an extension are not allowed. Allowed: ${C.ALLOWED_UPLOAD_EXT.join(', ')}.`);
     if (!C.ALLOWED_UPLOAD_EXT.includes(ext)) fail(`.${ext} files are not allowed. Allowed: ${C.ALLOWED_UPLOAD_EXT.join(', ')}.`);
     const n = full.length > 200 ? full.slice(0, 199 - ext.length) + '.' + ext : full;   // long names are cut but keep their extension
     if (!(size >= 0) || size > C.MAX_UPLOAD_BYTES) fail(`File is too large (demo limit ${Math.round(C.MAX_UPLOAD_BYTES / 1e5) / 10} MB).`);
-    const vis = C.DOC_VISIBILITY.includes(visibility) ? visibility : 'all';
+    const vis = C.DOC_VISIBILITY.includes(visibility) ? visibility : C.visibilityChoices(u.role, u.isAdmin)[0];   // default: 'all' for staff/agents, own side for clients
     visCheck(u, vis);
     return { id: nid('doc'), dealId: null, folderId: null, name: n, description: str(description, 500), mimeType: str(mimeType, 100) || 'application/octet-stream', size: Number(size) || 0,
-      dataUrl: dataUrl || null, uploadedBy: u.id, visibility: vis, createdAt: now() };
+      dataUrl: dataUrl || null, uploadedBy: u.id, visibility: vis, docType: docTypeOf(u, docType), createdAt: now() };
   };
   x.docOut = docOut;
   return api;

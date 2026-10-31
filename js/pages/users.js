@@ -9,7 +9,7 @@ export async function render({ api, user, params, refresh, go }) {
   if (params.mode === 'new') {
     const body = html`<div class="box-title"><h2><span class="h-ico"></span>Create User</h2></div>
       <form id="cuf" class="card form-grid"><label>First name *<input name="firstName" required maxlength="80"></label><label>Last name<input name="lastName" maxlength="80"></label>
-        <label>Email *<input name="email" type="email" required></label><label>Phone<input name="phone" maxlength="40"></label>
+        <label>Email *<input name="email" type="email" required></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone maxlength="40"></label>
         <label>Account type *<select name="role" required><option value="">Choose&hellip;</option>${options(ROLES, '', acct)}</select></label>
         <p class="muted span2">Agents and clients are <strong>outside users</strong>: they have no fixed role. When the processor adds them to an order, the role picked there (Buyer Agent, Listing Agent, Client-Buyer or Client-Seller) decides what they can see and do <em>on that order</em>. One email = one login, even for someone who is an agent on one file and a buyer on another.</p>
         <label class="check"><input type="checkbox" name="isAdmin"> Also give Admin access (role "Admin" always has it)</label>
