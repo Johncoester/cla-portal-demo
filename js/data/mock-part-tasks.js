@@ -69,7 +69,7 @@ export function tasksAndForms(x) {
     },
     async createTask(dealId, input) {
       let u = needUser(); u = onDeal(u, dealId); if (!isManager(u)) fail('Only the processor or transaction coordinator can add tasks.');
-      const role = C.DEAL_ROLES.includes(input.assignedRole) ? input.assignedRole : 'Sales Processor';
+      const role = C.DEAL_ROLES.includes(input.assignedRole) ? input.assignedRole : 'Processor';
       const t = { id: nid('t'), dealId, participantId: null, templateId: null, templateCode: null, templateVersion: null, kind: 'simple', title: str(input.title, 200) || fail('Task title is required.'),
         description: str(input.description, 1000), assignedRole: role, status: 'todo', dueDate: dateOrNull(input.dueDate, 'Due date'), formData: {}, savedAt: null, completedAt: null, completedBy: null, createdBy: u.id, createdAt: now() };
       load().tasks.push(t); log(dealId, u.id, 'task.created', 'task', t.id, `Task added: ${t.title}`);
@@ -129,7 +129,7 @@ export function tasksAndForms(x) {
       const d = load(); return clone(d.taskTemplates.map((t) => ({ ...t, agentRoles: t.agentRoles || [], locked: delegationLocked(t), copies: d.tasks.filter((z) => z.templateId === t.id).length, publishedByName: nameOf(t.publishedBy) }))
         .sort((a, b) => a.code.localeCompare(b.code) || b.version - a.version));
     },
-    // Which agent roles may complete a CLIENT's copy for them. Admin or Sales Processor. Applies to every version of the template (it is a policy, not form content).
+    // Which agent roles may complete a CLIENT's copy for them. Admin or Processor. Applies to every version of the template (it is a policy, not form content).
     async setTemplateAgentRoles(code, roles) {
       let u = needUser(); if (!(u.isAdmin || C.isProcessor(u.role))) fail('Only an Admin or the processor can change who may complete a task.');
       const d = load(); const vs = d.taskTemplates.filter((t) => t.code === code); if (!vs.length) fail('Template not found.');

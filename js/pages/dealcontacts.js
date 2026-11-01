@@ -2,7 +2,7 @@
 import { html, $, $$, guard, formData, modal, closeModal, options, toast, pill } from '../ui.js';
 import { PARTICIPANT_ROLES, isProcessor, fmtPhone } from '../data/constants.js';
 
-const GROUPS = [['ALL', null], ['BUYER', ['Client-Buyer', 'Buyer Agent']], ['SELLER', ['Client-Seller', 'Listing Agent']], ['REALTOR', ['Buyer Agent', 'Listing Agent']], ['CLIENT', ['Client-Buyer', 'Client-Seller']], ['CLA TEAM', ['Sales Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator']]];
+const GROUPS = [['ALL', null], ['BUYER', ['Client-Buyer', 'Buyer Agent']], ['SELLER', ['Client-Seller', 'Listing Agent']], ['REALTOR', ['Buyer Agent', 'Listing Agent']], ['CLIENT', ['Client-Buyer', 'Client-Seller']], ['CLA TEAM', ['Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator']]];
 
 export async function render({ api, user, deal, refresh }) {
   const edit = isProcessor(user.role); const g = new URLSearchParams(location.hash.split('?')[1] || '').get('g') || 'ALL'; const grp = (GROUPS.find((x) => x[0] === g) || GROUPS[0])[1];

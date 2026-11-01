@@ -1,4 +1,4 @@
-// User List + Create User: ADMIN only (isAdmin; role 'Admin' always has it; the Sales Processor is not an admin). The adapter enforces it too.
+// User List + Create User: ADMIN only (isAdmin; role 'Admin' always has it; the Processor is not an admin). The adapter enforces it too.
 // Delete = the account is removed (cannot sign in, leaves teams), but their documents, messages and history stay and show "(removed)".
 import { html, $, $$, guard, formData, options, pill, toast, fmtDate } from '../ui.js';
 import { ROLES, ADMIN_ROLE, OUTSIDE } from '../data/constants.js';

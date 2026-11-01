@@ -1,4 +1,4 @@
-// Role dashboards: Sales Processor = Work Queue; Sales Person / Sales Team = Team Dashboard (view-only);
+// Role dashboards: Processor = Work Queue; Sales Person / Sales Team = Team Dashboard (view-only);
 // Transaction Coordinator = Dashboard; Buyer/Listing Agent = Transactions; clients = My Closing.
 import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js';
 import { STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js';
@@ -25,7 +25,7 @@ async function processor({ api, open, deals }) {
     <td><a class="ghost" href="#/deals/${r.deal.id}/tasks">Tasks</a></td></tr>`);
   const soon = wq.closingSoon.map((d) => html`<li>${dealLink(d)} <span class="muted">${d.address}</span><br><strong>${fmtDate(d.closingDate)}</strong></li>`);
   return { title: 'Work queue', body: html`
-    <div class="page-head"><div><div class="eyebrow">SALES PROCESSOR</div><h2 class="page-title">Work queue</h2><div class="muted">${wq.assigned} open &middot; ${wq.totalAssigned} total assigned</div></div>
+    <div class="page-head"><div><div class="eyebrow">PROCESSOR</div><h2 class="page-title">Work queue</h2><div class="muted">${wq.assigned} open &middot; ${wq.totalAssigned} total assigned</div></div>
       <div><button class="ghost" id="remind">Queue reminders for overdue tasks</button> <a class="ghost" href="#/outbox">Outbox</a> <a class="m-btn" href="#/orders/new">+ New order</a></div></div>
     <div class="stat-row">${stat('Open orders', wq.assigned, wq.totalAssigned + ' total')}${stat('Waiting on clients', wq.blockedOnClients, 'client tasks open', 'warn')}
       ${stat('Overdue tasks', wq.overdueTasks, 'past due date', wq.overdueTasks ? 'bad' : '')}${stat('Unread messages', wq.unreadMessages, 'across open orders')}</div>

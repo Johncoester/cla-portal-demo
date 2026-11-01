@@ -28,7 +28,7 @@ function overview({ api, user, refresh }, d, crumbs, ag) {
   const sc = d.scheduledClosing;
   const by = (role) => d.participants.find((p) => p.role === role); const edit = isProcessor(user.role);
   const tracker = STAGES.map((s, i) => html`<li class="${i < d.stage ? 'done' : i === d.stage ? 'current' : ''}"><button type="button" class="step" ${edit ? '' : raw('disabled')} data-stage="${i}" title="${edit ? 'Set stage' : s}"></button><span>${s}</span></li>`);
-  const team = d.participants.filter((p) => ['Sales Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(p.role));
+  const team = d.participants.filter((p) => ['Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(p.role));
   const lender = d.lenderName || d.lenderContact ? html`<div><strong>${d.lenderName}</strong><br>${d.lenderContact}<br><span class="muted">${d.lenderEmail} ${fmtPhone(d.lenderPhone)}</span></div>` : html`<div class="muted">Not specified</div>`;
   const body = html`
     <div class="deal-head"><img class="home-flag" src="assets/img/order-new-icon.png" alt=""><h2>${d.street} ${d.city} ${d.state} ${d.zip}</h2><span class="order-no">Order # ${d.fileNumber}</span>${d.agentParties && d.agentParties.length ? html` <span class="pill warn agent-party">Agent is a party</span>` : ''}

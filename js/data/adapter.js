@@ -21,7 +21,7 @@
  *   messages:   listMessageRecipients, listThreads, getThread, createThread, postMessage, markThreadRead
  *   closing:    listSettlements, createSettlementRequest, getSchedulingLink(token), respondSettlement(token, ...), confirmSettlement, reopenSettlement
  *   other:      listActivity(dealId|null, filters), listNotifications, notificationCount, markNotificationRead, markAllNotificationsRead
- *   Admin only (isAdmin flag, NOT the Sales Processor): adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser (marks removed; history kept),
+ *   Admin only (isAdmin flag, NOT the Processor): adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser (marks removed; history kept),
  *               listTeams (TCs see their own), createTeam, renameTeam, addTeamMember, removeTeamMember
  * There is intentionally NO deleteDocument (or folder delete) in either adapter, for anyone.
  */

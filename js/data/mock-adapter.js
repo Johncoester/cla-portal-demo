@@ -20,7 +20,7 @@ import { closingSchedule } from './mock-part-schedule.js';
 import { notificationsPart } from './mock-part-notify.js';
 import { mattP2 } from './mock-part-matt.js';
 
-const KEY = 'cla-portal-new:data:v8';   // v8: Matt's Oct 31 priority 2 (seller questions, agreements, e-sign, closing proposals, phone format). v7: IndexedDB file store (ID upload fix). v6: agent buying/selling for themselves (v5: per-file roles; v4: agent delegation flags + home warranty v2). Old saved demo data is re-seeded.
+const KEY = 'cla-portal-new:data:v9';   // v9: role 'Sales Processor' renamed 'Processor'. v8: Matt's Oct 31 priority 2 (seller questions, agreements, e-sign, closing proposals, phone format). v7: IndexedDB file store (ID upload fix). v6: agent buying/selling for themselves (v5: per-file roles; v4: agent delegation flags + home warranty v2). Old saved demo data is re-seeded.
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();
@@ -49,7 +49,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore } = {}) {
 
   const me = () => { const id = sess.getItem(SESSION_KEY); return (id && load().profiles.find((p) => p.id === id && p.status === 'active')) || null; };
   const needUser = () => me() || fail('Please sign in.');
-  const needProcessor = () => { const u = needUser(); if (!isProcessor(u.role)) fail('Only a Sales Processor can do this.'); return u; };
+  const needProcessor = () => { const u = needUser(); if (!isProcessor(u.role)) fail('Only a Processor can do this.'); return u; };
   const needAdmin = () => { const u = needUser(); if (!u.isAdmin) fail('Only an Admin can do this.'); return u; };
   const isManager = (u) => isProcessor(u.role) || u.role === 'Transaction Coordinator';   // runs the workflow on deals they can access
   const notViewOnly = (u) => { if (isViewOnly(u.role)) fail('This account is view-only for order work.'); };

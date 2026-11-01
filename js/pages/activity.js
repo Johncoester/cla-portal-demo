@@ -1,4 +1,4 @@
-// Whole-portal activity log (Sales Processor and Admin), with filters.
+// Whole-portal activity log (Processor and Admin), with filters.
 import { html } from '../ui.js';
 import { activityView } from './activityview.js';
 export async function render({ api }) {

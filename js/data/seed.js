@@ -6,7 +6,7 @@ export function buildSeed() {
   const P = (id, first, last, role, n, extra = {}) => ({ id, email: `${first}.${last}`.toLowerCase().replace(/[^a-z.]/g, '') + '@example.test', firstName: first, lastName: last,
     phone: `301-555-01${String(n).padStart(2, '0')}`, role, isAdmin: false, status: 'active', createdAt: '2026-09-01T12:00:00Z', ...extra });
   const profiles = [
-    P('u-proc', 'Paula', 'Processor', 'Sales Processor', 1),
+    P('u-proc', 'Paula', 'Processor', 'Processor', 1),
     P('u-sp', 'Sam', 'Salesperson', 'Sales Person', 2),
     P('u-team', 'Tina', 'Salesteam', 'Sales Team', 3),
     P('u-tc', 'Terry', 'Coordinator', 'Transaction Coordinator', 4),
@@ -49,14 +49,14 @@ export function buildSeed() {
   ];
   const participants = [];
   const link = (n, cid, role) => participants.push({ id: participants.some((z) => z.id === `dp-${n}-${cid.slice(2)}`) ? `dp-${n}-${cid.slice(2)}-${role.toLowerCase().replace(/[^a-z]/g, '')}` : `dp-${n}-${cid.slice(2)}`, dealId: `deal-${n}`, contactId: cid, role, createdAt: deals[n - 1].createdAt });
-  [1, 2].forEach((n) => { link(n, 'c-proc', 'Sales Processor'); link(n, 'c-sp', 'Sales Person'); link(n, 'c-team', 'Sales Team'); link(n, 'c-tc', 'Transaction Coordinator');
+  [1, 2].forEach((n) => { link(n, 'c-proc', 'Processor'); link(n, 'c-sp', 'Sales Person'); link(n, 'c-team', 'Sales Team'); link(n, 'c-tc', 'Transaction Coordinator');
     link(n, 'c-bagent', 'Buyer Agent'); link(n, 'c-lagent', 'Listing Agent'); link(n, 'c-buyer', 'Client-Buyer'); link(n, 'c-seller', 'Client-Seller'); });
   link(1, 'c-lender1', 'Lender'); link(1, 'c-hoa1', 'HOA');
   link(1, 'c-multi', 'Buyer Agent');    // Morgan: co-buyer's agent with Bianca on deal 1 ...
   link(2, 'c-multi', 'Client-Buyer');   // ... and a co-buyer (her own purchase) on deal 2
-  link(3, 'c-proc', 'Sales Processor'); link(3, 'c-sp', 'Sales Person'); link(3, 'c-gone', 'Buyer Agent'); link(3, 'c-lagent', 'Listing Agent');
+  link(3, 'c-proc', 'Processor'); link(3, 'c-sp', 'Sales Person'); link(3, 'c-gone', 'Buyer Agent'); link(3, 'c-lagent', 'Listing Agent');
   // deal 4: Alex is BOTH the buyer and the buyer's agent (self-represented). Seller side has no portal logins.
-  link(4, 'c-proc', 'Sales Processor'); link(4, 'c-team', 'Sales Team'); link(4, 'c-selfrep', 'Client-Buyer'); link(4, 'c-selfrep', 'Buyer Agent');
+  link(4, 'c-proc', 'Processor'); link(4, 'c-team', 'Sales Team'); link(4, 'c-selfrep', 'Client-Buyer'); link(4, 'c-selfrep', 'Buyer Agent');
   link(4, 'c-cora', 'Client-Seller'); link(4, 'c-lena', 'Listing Agent');
   link(3, 'c-buyer', 'Client-Buyer'); link(3, 'c-seller', 'Client-Seller'); link(3, 'c-lender1', 'Lender');
 
@@ -81,14 +81,14 @@ export function buildSeed() {
   copy(1, 'hoa_info', 1, 'Client-Seller', 'done', { association_name: 'Maple Ridge HOA (fake)', assoc_type: 'HOA', contact_name: 'Hank Hoa-Manager', contact_email: 'hank.hoa@example.test', dues_amount: '85', payment_schedule: 'Monthly' });
   copy(1, 'mortgage_info', 1, 'Client-Seller', 'in_progress', { lender_name: 'Sample Savings Bank (fake)' }); copy(1, 'home_warranty', 2, 'Client-Seller', 'todo'); copy(1, 'commissions', 1, 'Buyer Agent', 'todo');
   copy(1, 'commissions', 1, 'Listing Agent', 'done', { brokerage: 'Oak Street Realty (fake)', license_id: 'FAKE-0606', commission_amount: '14550', paid_by: 'Seller' });
-  adhoc('t-1-hoa-cert', 1, 'Order HOA resale certificate', 'Sales Processor', 'done', '2026-10-10'); adhoc('t-1-sched', 1, 'Confirm closing appointment', 'Transaction Coordinator', 'todo', '2026-11-10');
+  adhoc('t-1-hoa-cert', 1, 'Order HOA resale certificate', 'Processor', 'done', '2026-10-10'); adhoc('t-1-sched', 1, 'Confirm closing appointment', 'Transaction Coordinator', 'todo', '2026-11-10');
   // deal 2: brand new
   ['id_upload', 'title_vesting', 'lender_info', 'home_warranty'].forEach((c) => copy(2, c, 1, 'Client-Buyer', 'todo')); copy(2, 'personal_info', 2, 'Client-Buyer', 'todo');
   ['id_upload', 'hoa_info', 'mortgage_info'].forEach((c) => copy(2, c, 1, 'Client-Seller', 'todo')); copy(2, 'personal_info', 2, 'Client-Seller', 'todo');
   copy(2, 'home_warranty', 2, 'Client-Seller', 'todo');
   ['id_upload', 'title_vesting', 'lender_info', 'home_warranty'].forEach((c) => copy(2, c, 1, 'Client-Buyer', 'todo', {}, 'c-multi')); copy(2, 'personal_info', 2, 'Client-Buyer', 'todo', {}, 'c-multi');
   copy(2, 'commissions', 1, 'Buyer Agent', 'todo'); copy(2, 'commissions', 1, 'Listing Agent', 'todo');
-  adhoc('t-2-contract', 2, 'Collect executed contract', 'Sales Processor', 'todo', '2026-10-30'); adhoc('t-2-emd', 2, 'Earnest money deposit receipt', 'Client-Buyer', 'todo', '2026-10-24', 'Upload the EMD receipt.');
+  adhoc('t-2-contract', 2, 'Collect executed contract', 'Processor', 'todo', '2026-10-30'); adhoc('t-2-emd', 2, 'Earnest money deposit receipt', 'Client-Buyer', 'todo', '2026-10-24', 'Upload the EMD receipt.');
   // deal 4: Alex's client copies + his agent copy, one list on one file
   ['id_upload', 'title_vesting', 'home_warranty'].forEach((c) => copy(4, c, 1, 'Client-Buyer', 'todo')); copy(4, 'personal_info', 2, 'Client-Buyer', 'todo');
   copy(4, 'lender_info', 1, 'Client-Buyer', 'in_progress', { company: 'Example Home Loans (fake)' }); copy(4, 'commissions', 1, 'Buyer Agent', 'todo');
@@ -97,7 +97,7 @@ export function buildSeed() {
   // deal 3: closed; personal info used the OLDER template version 1
   copy(3, 'personal_info', 1, 'Client-Buyer', 'done', { ...benInfo, settlement_type: undefined }); copy(3, 'personal_info', 1, 'Client-Seller', 'done', { ...sallyInfo, settlement_type: undefined });
   copy(3, 'commissions', 1, 'Buyer Agent', 'done', { brokerage: 'Harbor Realty (fake)', license_id: 'FAKE-1010', commission_amount: '15250', paid_by: 'Seller' });
-  adhoc('t-3-deed', 3, 'Record deed', 'Sales Processor', 'done', '2026-10-16'); adhoc('t-3-disburse', 3, 'Disburse funds', 'Sales Processor', 'done', '2026-10-15');
+  adhoc('t-3-deed', 3, 'Record deed', 'Processor', 'done', '2026-10-16'); adhoc('t-3-disburse', 3, 'Disburse funds', 'Processor', 'done', '2026-10-15');
   // Matt, Oct 31: seller forwarding address + proceeds questions (migration 14)
   [1, 2].forEach((n) => { copy(n, 'forwarding_address', 1, 'Client-Seller', 'todo'); copy(n, 'seller_proceeds', 1, 'Client-Seller', 'todo'); });
   copy(4, 'forwarding_address', 1, 'Client-Seller', 'todo'); copy(4, 'seller_proceeds', 1, 'Client-Seller', 'todo');

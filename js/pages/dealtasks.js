@@ -31,7 +31,7 @@ export async function render({ api, user, deal, refresh }) {
   function form(t) {
     const m = modal(t ? 'Edit task' : 'Add task', html`<form id="tf" class="form-grid"><label class="span2">Title *<input name="title" required maxlength="200" value="${t ? t.title : ''}"></label>
       <label class="span2">Details<textarea name="description" rows="2" maxlength="1000">${t ? t.description : ''}</textarea></label>
-      ${t && t.participantId ? html`<p class="span2 muted">Assigned to ${t.ownerName} (${t.assignedRole}). Template v${t.templateVersion}.</p>` : html`<label>Assigned to<select name="assignedRole">${options(ROLES, t ? t.assignedRole : 'Sales Processor')}</select></label>`}
+      ${t && t.participantId ? html`<p class="span2 muted">Assigned to ${t.ownerName} (${t.assignedRole}). Template v${t.templateVersion}.</p>` : html`<label>Assigned to<select name="assignedRole">${options(ROLES, t ? t.assignedRole : 'Processor')}</select></label>`}
       <label>Due date<input type="date" name="dueDate" value="${t && t.dueDate ? t.dueDate : ''}"></label>
       ${t ? html`<label>Status<select name="status">${options(['todo', 'in_progress', 'done', 'blocked', 'cancelled'], t.status, (s) => LABEL[s])}</select></label>` : ''}
       <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);

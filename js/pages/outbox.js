@@ -1,7 +1,7 @@
 // Reminder outbox: reminders are QUEUED here only. This build never sends email or SMS.
 import { html, $, guard, toast, fmtDateTime, pill } from '../ui.js';
 export async function render({ api, user, refresh }) {
-  const list = await api.listOutbox(); const canQueue = user.role === 'Sales Processor' || user.role === 'Transaction Coordinator';
+  const list = await api.listOutbox(); const canQueue = user.role === 'Processor' || user.role === 'Transaction Coordinator';
   const rows = list.map((o) => html`<tr><td class="nowrap">${fmtDateTime(o.createdAt)}</td><td>${o.toName}<br><span class="muted small">${o.toEmail}</span></td>
     <td><a href="#/deals/${o.dealId}/tasks">${o.fileNumber}</a></td><td><strong>${o.subject}</strong><br><span class="muted small">${o.body}</span></td><td>${pill('queued - not sent', 'warn')}</td></tr>`);
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>Reminder Outbox</h2>${canQueue ? html`<button class="m-btn right" id="q">Queue reminders for overdue tasks</button>` : ''}</div>
