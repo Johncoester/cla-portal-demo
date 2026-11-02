@@ -115,7 +115,12 @@ export function buildSeed() {
   // John, Nov 2: clients linked to salespeople (many-to-many). Ben -> Sam; Sally -> Sam + Tina. The link does not change who can see which file.
   const clientSalesReps = [{ clientId: 'u-buyer', salesId: 'u-sp', createdBy: 'u-admin', createdAt: '2026-10-01T12:00:00Z' },
     { clientId: 'u-seller', salesId: 'u-sp', createdBy: 'u-admin', createdAt: '2026-10-01T12:00:00Z' }, { clientId: 'u-seller', salesId: 'u-team', createdBy: 'u-admin', createdAt: '2026-10-01T12:00:00Z' }];
-  return { version: 2, seq: 100, profiles, contacts, teams, teamMembers, deals, participants, taskTemplates, tasks, clientSalesReps, ...more(deals) };
+  // John, Nov 2 (migration 19): a file can have several salespeople (deal_sales_people). The old single salesPersonId moves into the join list;
+  // MD-26-97183 also gets Tina (Sales Team) so the demo shows two names.
+  const dealSalesPeople = deals.filter((q) => q.salesPersonId).map((q) => ({ dealId: q.id, salesId: q.salesPersonId, addedBy: 'u-proc', addedAt: q.createdAt }));
+  dealSalesPeople.push({ dealId: 'deal-1', salesId: 'u-team', addedBy: 'u-proc', addedAt: '2026-09-28T14:05:00Z' });
+  deals.forEach((q) => { delete q.salesPersonId; });
+  return { version: 2, seq: 100, profiles, contacts, teams, teamMembers, deals, participants, taskTemplates, tasks, clientSalesReps, dealSalesPeople, ...more(deals) };
 }
 
 function more(deals) {

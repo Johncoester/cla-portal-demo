@@ -30,6 +30,10 @@
  *               adminUpdateUser accepts salesIds. adminListUsers rows carry files, isClient, salesReps, clients, teams.
  *               Super admin (role 'Super admin'): only a Super admin grants/removes it or deletes/suspends/changes a Super admin.
  *               Nov 2: anyone with Admin access does full order work on ANY file, like the Processor (runsOrders in constants.js).
+ *   John Nov 2 (migration 19): several salespeople per order. Deals carry salesPeople [{id, name, role, addedAt}], salesPersonIds, and
+ *               salesPersonName (all names, ', '-joined). createDeal({..., processorId, salesIds}) — processorId required when an Admin places it
+ *               (a Processor defaults to themselves). Processor / Admin: listProcessors, addDealSalesPerson(dealId, salesId),
+ *               removeDealSalesPerson(dealId, salesId), setDealSalesPeople(dealId, salesIds); updateDeal accepts processorId and salesIds.
  * There is intentionally NO deleteDocument (or folder delete) in either adapter, for anyone.
  */
 let cached = null;

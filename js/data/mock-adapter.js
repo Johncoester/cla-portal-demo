@@ -21,7 +21,7 @@ import { notificationsPart } from './mock-part-notify.js';
 import { mattP2 } from './mock-part-matt.js';
 import { mattNov2 } from './mock-part-nov2.js';
 
-const KEY = 'cla-portal-new:data:v11';   // v11: client <-> salesperson links (John, Nov 2). v10: Matt's Nov 2 notes (more Transaction Coordinator test tasks). v9: role 'Sales Processor' renamed 'Processor'. v8: Matt's Oct 31 priority 2 (seller questions, agreements, e-sign, closing proposals, phone format). v7: IndexedDB file store (ID upload fix). v6: agent buying/selling for themselves (v5: per-file roles; v4: agent delegation flags + home warranty v2). Old saved demo data is re-seeded.
+const KEY = 'cla-portal-new:data:v12';   // v12: several salespeople per file (deal_sales_people). v11: client <-> salesperson links (John, Nov 2). v10: Matt's Nov 2 notes (more Transaction Coordinator test tasks). v9: role 'Sales Processor' renamed 'Processor'. v8: Matt's Oct 31 priority 2 (seller questions, agreements, e-sign, closing proposals, phone format). v7: IndexedDB file store (ID upload fix). v6: agent buying/selling for themselves (v5: per-file roles; v4: agent delegation flags + home warranty v2). Old saved demo data is re-seeded.
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();
@@ -54,6 +54,8 @@ export function createMockAdapter({ storage, sessionStorage, fileStore } = {}) {
   const needAdmin = () => { const u = needUser(); if (!u.isAdmin) fail('Only an Admin can do this.'); return u; };
   const isManager = (u) => runsOrders(u) || u.role === 'Transaction Coordinator';   // runs the workflow on deals they can access
   const notViewOnly = (u) => { if (viewOnly(u)) fail('This account is view-only for order work.'); };
+  const C_SALES = ['Sales Person', 'Sales Team'];
+  const salesOf = (dealId) => (load().dealSalesPeople || []).filter((s) => s.dealId === dealId);
   const contactOf = (profileId) => load().contacts.find((c) => c.profileId === profileId);
   const seesAll = (u) => u.isAdmin || runsOrders(u) || u.role === 'Sales Team';
   // TC access = TEAMS. Agents on any team where this TC is a coordinator. Removing either person from the team removes access immediately.
@@ -71,7 +73,8 @@ export function createMockAdapter({ storage, sessionStorage, fileStore } = {}) {
     }
     const c = contactOf(u.id);
     const ids = new Set(c ? d.participants.filter((p) => p.contactId === c.id).map((p) => p.dealId) : []);
-    d.deals.forEach((x) => { if (x.salesPersonId === u.id) ids.add(x.id); });
+    // every salesperson linked to the file (John, Nov 2: several per file) sees it, as the single sales person did before
+    if (C_SALES.includes(u.role)) (d.dealSalesPeople || []).forEach((s) => { if (s.salesId === u.id) ids.add(s.dealId); });
     return d.deals.filter((x) => ids.has(x.id));
   }
   const dealOr404 = (u, id) => dealsFor(u).find((x) => x.id === id) || fail('Order not found.');
@@ -174,11 +177,14 @@ export function createMockAdapter({ storage, sessionStorage, fileStore } = {}) {
       // Matt, Nov 2: order-list filters. Overdue = open tasks this person can see that are past due; partyNames = the names this person may see on the file (search)
       overdueTasks: tasks.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status) && t.dueDate && t.dueDate < localDate()).length,
       partyNames: [...new Set(participantsOf(x.id, u).map((p) => (p.contact ? fullName(p.contact) : '')).filter(Boolean))],
-      processorName: nameOf(x.processorId), salesPersonName: x.salesPersonId ? nameOf(x.salesPersonId) : '' };
+      processorName: nameOf(x.processorId),
+      // John, Nov 2: several salespeople per file. salesPersonName stays as the joined names (older callers).
+      salesPeople: salesOf(x.id).map((s) => ({ id: s.salesId, name: nameOf(s.salesId), role: (prof(s.salesId) || {}).role, addedAt: s.addedAt })),
+      salesPersonIds: salesOf(x.id).map((s) => s.salesId), salesPersonName: salesOf(x.id).map((s) => nameOf(s.salesId)).join(', ') };
   }
 
   const api = { mode: 'mock' };
-  const ctx = { api, DEAL_FOLDERS, store, sess, SESSION_KEY, KEY, load, save, nid, me, needUser, needProcessor, needAdmin, isManager, notViewOnly, contactOf, seesAll, teamAgentIds, dealsFor, dealOr404, fileRole, fileRoles, fileRoleText, holds, scopeTo, onDeal, fileRolesOf, fileLabelsOf, log, prof, nameOf, roleOf, fullName,
+  const ctx = { api, DEAL_FOLDERS, store, sess, SESSION_KEY, KEY, load, save, nid, me, needUser, needProcessor, needAdmin, isManager, notViewOnly, contactOf, salesOf, seesAll, teamAgentIds, dealsFor, dealOr404, fileRole, fileRoles, fileRoleText, holds, scopeTo, onDeal, fileRolesOf, fileLabelsOf, log, prof, nameOf, roleOf, fullName,
     folderOf, docVisible, threadVisible, unreadIn, participantsOf, isStaffView, personSide, canMessage, mixedSides, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, dealView, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, localDayOf, phone,
     reset() { store.removeItem(KEY); db = null; if (files) files.clearAll().catch(() => {}); load(); },
     files,

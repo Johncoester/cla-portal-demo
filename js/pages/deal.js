@@ -14,7 +14,8 @@ export async function render(ctx) {
   if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
-  return overview(ctx, deal, here, ag);
+  const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
+  return overview(ctx, deal, here, ag, salesStaff);
 }
 
 // opposing side (outside viewers): the adapter sends no phone/email; say where to go instead
@@ -22,7 +23,7 @@ export const HIDDEN_CONTACT = 'Contact through CLA Title';
 const person = (p) => (p ? html`<div class="person"><strong>${p.contact.firstName} ${p.contact.lastName}${p.removed ? ' (removed)' : ''}</strong>${p.contact.contactHidden ? html`<br><span class="muted contact-hidden">${HIDDEN_CONTACT}</span>` : html`<br><span class="muted">${p.contact.email}</span><br><span class="muted">${fmtPhone(p.contact.phone)}</span>`}${p.contact.company ? html`<br><span class="muted">${p.contact.company}</span>` : ''}</div>` : html`<div class="muted">Not specified</div>`);
 const card = (title, inner) => html`<fieldset class="sum-card"><legend>${title}</legend>${inner}</fieldset>`;
 
-function overview({ api, user, refresh }, d, crumbs, ag) {
+function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = []) {
   const staffView = !user.accountRole && user.role !== 'Outside user';
   const canWire = staffView || (user.roles || [user.role]).includes('Client-Buyer');   // Matt, Oct 31: buyer only (plus CLA staff)
   const sc = d.scheduledClosing;
@@ -45,7 +46,7 @@ function overview({ api, user, refresh }, d, crumbs, ag) {
     <div class="box-title"><h2><span class="h-ico"></span>Summary</h2></div>
     <div class="sum-grid">${card('Buyer Information', person(by('Client-Buyer')))}${card('Seller Information', person(by('Client-Seller')))}
       ${card('Buyer Agent Representation', person(by('Buyer Agent')))}${card('Listing Agent Representation', person(by('Listing Agent')))}
-      ${card('Lender Information', lender)}${card('CLA Title Information', html`<div>Processor: <strong>${d.processorName}</strong><br>Sales person: ${d.salesPersonName || 'Not specified'}<br>${team.filter((p) => p.role === 'Transaction Coordinator').map((p) => html`Transaction coordinator: ${p.contact.firstName} ${p.contact.lastName}<br>`)}</div>`)}</div>
+      ${card('Lender Information', lender)}${card('CLA Title Information', html`<div>Processor: <strong>${d.processorName}</strong><br>Salespeople: ${(d.salesPeople || []).length ? (d.salesPeople || []).map((s, i) => html`${i ? ', ' : ''}<span class="nowrap" data-sales-person="${s.id}">${s.name}${edit ? html` <button class="ghost" data-rm-sales="${s.id}" title="Remove from this order" aria-label="Remove ${s.name}">&times;</button>` : ''}</span>`) : 'Not specified'}${edit && salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)).length ? html`<br><select id="addsales" aria-label="Add a salesperson"><option value="">+ Add salesperson&hellip;</option>${options(salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)), '', (s) => `${s.firstName} ${s.lastName} (${s.role})`, (s) => s.id)}</select>` : ''}<br>${team.filter((p) => p.role === 'Transaction Coordinator').map((p) => html`Transaction coordinator: ${p.contact.firstName} ${p.contact.lastName}<br>`)}</div>`)}</div>
     ${d.notes ? html`<div class="card"><h3>Notes</h3><p>${d.notes}</p></div>` : ''}
     <div class="box-title"><h2><span class="h-ico"></span>Order Contacts</h2><a class="ghost right" href="#/deals/${d.id}/contacts">All contacts</a></div>
     <table class="tbl striped"><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th></tr></thead><tbody>${d.participants.map((p) => html`<tr><td>${p.contact.firstName} ${p.contact.lastName}${p.removed ? html` ${pill('removed', 'bad')}` : ''}</td><td>${p.role}</td>${p.contact.contactHidden ? html`<td colspan="2" class="muted contact-hidden">${HIDDEN_CONTACT}</td>` : html`<td>${fmtPhone(p.contact.phone)}</td><td>${p.contact.email}</td>`}</tr>`)}</tbody></table>`;
@@ -53,6 +54,8 @@ function overview({ api, user, refresh }, d, crumbs, ag) {
     $$('.step', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.setStage(d.id, b.dataset.stage); toast('Stage updated'); refresh(); })));
     const ss = $('#statussel', root); if (ss) ss.addEventListener('change', guard(async () => { await api.setDealStatus(d.id, ss.value); toast('Status updated'); refresh(); }));
     const eb = $('#editdeal', root); if (eb) eb.addEventListener('click', () => editModal(api, d, refresh));
+    const as = $('#addsales', root); if (as) as.addEventListener('change', guard(async () => { if (!as.value) return; await api.addDealSalesPerson(d.id, as.value); toast('Salesperson added'); refresh(); }));
+    $$('[data-rm-sales]', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.removeDealSalesPerson(d.id, b.dataset.rmSales); toast('Salesperson removed'); refresh(); })));
     const wb = $('#wirebtn', root); if (wb) wb.addEventListener('click', guard(() => wireModal(api, d)));
   } };
 }

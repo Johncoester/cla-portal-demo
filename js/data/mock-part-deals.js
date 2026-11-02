@@ -2,6 +2,16 @@
 export function dealsAndAuth(x) {
   const { load, save, nid, me, needUser, needProcessor, contactOf, dealsFor, dealOr404, log, nameOf, dealView, taskVisible, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
+  // John, Nov 2: several salespeople per file; each must be an ACTIVE Sales Person or Sales Team user. The file's Processor must be an active Processor.
+  const checkSales = (id) => { const p = x.prof(id) || fail('Salesperson not found.'); if (!['Sales Person', 'Sales Team'].includes(p.role)) fail('Only a Sales Person or Sales Team user can be a salesperson on an order.');
+    if (p.status !== 'active') fail('Only an active salesperson can be added to an order.'); return p; };
+  const checkProcessor = (id) => { const p = x.prof(id) || fail('Processor not found.'); if (!C.isProcessor(p.role) || p.status !== 'active') fail('The Processor on an order must be an active Processor.'); return p; };
+  const salesList = (inp) => { const v = inp.salesIds !== undefined ? inp.salesIds : inp.salesPersonId; return [...new Set((v == null ? [] : Array.isArray(v) ? v : String(v).split(',')).map((z) => String(z).trim()).filter(Boolean))]; };
+  function setSales(u, dealId, ids) { const d = load(); d.dealSalesPeople ||= []; const cur = x.salesOf(dealId).map((s) => s.salesId);
+    const add = ids.filter((sid) => !cur.includes(sid)); const drop = cur.filter((sid) => !ids.includes(sid));
+    d.dealSalesPeople = d.dealSalesPeople.filter((s) => !(s.dealId === dealId && drop.includes(s.salesId)));
+    add.forEach((sid) => { d.dealSalesPeople.push({ dealId, salesId: sid, addedBy: u.id, addedAt: now() }); log(dealId, u.id, 'deal.sales_added', 'deal', dealId, `Salesperson added: ${nameOf(sid)}`); });
+    drop.forEach((sid) => log(dealId, u.id, 'deal.sales_removed', 'deal', dealId, `Salesperson removed: ${nameOf(sid)}`)); }
   return {
     // ---------- Profile ----------
     async getMyProfile() { const u = needUser(); return clone({ ...u, fileRoles: C.isOutside(u.role) ? x.fileRolesOf(u) : [], fileLabels: C.isOutside(u.role) ? x.fileLabelsOf(u) : [] }); },
@@ -27,6 +37,9 @@ export function dealsAndAuth(x) {
         closingSoon: deals.filter((q) => q.closingDate && q.closingDate >= today && q.closingDate <= soon).map((q) => dealView(u, q)).sort((a, b) => a.closingDate.localeCompare(b.closingDate)),
         needsAttention: attention, unreadMessages: deals.reduce((n, q) => n + dealView(u, q).unread, 0) };
     },
+    // Place Order: who can be the file's Processor (John, Nov 2: an Admin placing an order must pick one)
+    async listProcessors() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
+      return clone(load().profiles.filter((p) => p.status === 'active' && C.isProcessor(p.role)).map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role }))); },
     async listSalesStaff() { needUser(); return clone(load().profiles.filter((p) => p.status === 'active' && ['Sales Person', 'Sales Team'].includes(p.role)).map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role }))); },
     async unreadCount() { const u = needUser(); return dealsFor(u).reduce((n, q) => n + dealView(u, q).unread, 0); },
     // ---------- Deals ----------
@@ -38,6 +51,10 @@ export function dealsAndAuth(x) {
     async getDeal(id) { const u0 = needUser(); const q = dealOr404(u0, id); const u = x.scopeTo(u0, id); return { ...dealView(u, q), participants: x.participantsOf(id, u) }; },
     async createDeal(input) {
       const u = needProcessor(); const d = load();
+      // the file's Processor: a Processor placing an order is the Processor unless they pick another; an Admin / Super admin must pick one
+      const procId = input.processorId || (C.isProcessor(u.role) ? u.id : fail('Pick the Processor for this order.'));
+      checkProcessor(procId);
+      const salesIds = salesList(input); salesIds.forEach(checkSales);
       const street = str(input.street, 200) || fail('Street address is required.');
       const city = str(input.city, 100) || fail('City is required.');
       const state = stateCode(input.state);
@@ -46,14 +63,15 @@ export function dealsAndAuth(x) {
       const nextNum = Math.max(97000, ...d.deals.map((q) => Number(q.fileNumber.split('-')[2]) || 0)) + 1;
       const deal = { id: nid('deal'), fileNumber: `MD-26-${nextNum}`, street, city, state, zip, transactionType, stage: 0, status: 'Open',
         openDate: localDate(), closingDate: dateOrNull(input.closingDate, 'Closing date'), purchasePrice: money(input.purchasePrice, 'Purchase price'), loanAmount: money(input.loanAmount, 'Loan amount'),
-        lenderName: '', lenderContact: '', lenderEmail: '', lenderPhone: '', notes: str(input.notes, 2000), processorId: u.id, salesPersonId: input.salesPersonId || null, createdBy: u.id, createdAt: now() };
+        lenderName: '', lenderContact: '', lenderEmail: '', lenderPhone: '', notes: str(input.notes, 2000), processorId: procId, createdBy: u.id, createdAt: now() };
       d.deals.push(deal);
-      const pc = contactOf(u.id); if (pc) d.participants.push({ id: nid('dp'), dealId: deal.id, contactId: pc.id, role: 'Processor', createdAt: now() });
+      const pc = contactOf(procId); if (pc) d.participants.push({ id: nid('dp'), dealId: deal.id, contactId: pc.id, role: 'Processor', createdAt: now() });
       x.DEAL_FOLDERS.forEach((name) => d.folders.push({ id: nid('f'), scope: 'deal', dealId: deal.id, name, staffOnly: false, createdBy: u.id, createdAt: now() }));
       // Staff task; participants' intake tasks are copied from the current task templates when each person is added (addParticipant).
       d.tasks.push({ id: nid('t'), dealId: deal.id, participantId: null, templateId: null, templateCode: null, templateVersion: null, kind: 'simple', title: 'Collect executed contract', description: '',
         assignedRole: 'Processor', status: 'todo', dueDate: null, formData: {}, savedAt: null, completedAt: null, completedBy: null, createdBy: u.id, createdAt: now() });
-      log(deal.id, u.id, 'deal.created', 'deal', deal.id, `Order ${deal.fileNumber} opened`);
+      log(deal.id, u.id, 'deal.created', 'deal', deal.id, `Order ${deal.fileNumber} opened${procId !== u.id ? ` (Processor: ${nameOf(procId)})` : ''}`);
+      setSales(u, deal.id, salesIds);
       save(); return clone(dealView(u, deal));
     },
     async updateDeal(id, patch) {
@@ -67,9 +85,20 @@ export function dealsAndAuth(x) {
       if (patch.closingDate !== undefined) q.closingDate = dateOrNull(patch.closingDate, 'Closing date');
       if (patch.purchasePrice !== undefined) q.purchasePrice = money(patch.purchasePrice, 'Purchase price');
       if (patch.loanAmount !== undefined) q.loanAmount = money(patch.loanAmount, 'Loan amount');
-      if (patch.salesPersonId !== undefined) q.salesPersonId = patch.salesPersonId || null;
+      if (patch.processorId) { checkProcessor(patch.processorId); if (patch.processorId !== q.processorId) { q.processorId = patch.processorId; log(id, u.id, 'deal.processor', 'deal', id, `Processor set to ${nameOf(q.processorId)}`); } }
+      if (patch.salesIds !== undefined || patch.salesPersonId !== undefined) { const ids = salesList(patch); ids.forEach((sid) => { if (!x.salesOf(id).some((s) => s.salesId === sid)) checkSales(sid); }); setSales(u, id, ids); }
       log(id, u.id, 'deal.updated', 'deal', id, 'Order details updated'); save(); return clone(dealView(u, q));
     },
+    // ---------- salespeople on a file (John, Nov 2; mirrors public.deal_sales_people, migration 19): Processor and Admins only ----------
+    async addDealSalesPerson(dealId, salesId) { const u = needProcessor(); dealOr404(u, dealId);
+      if (x.salesOf(dealId).some((s) => s.salesId === salesId)) fail('Already on this order.'); checkSales(salesId);
+      setSales(u, dealId, [...x.salesOf(dealId).map((s) => s.salesId), salesId]); save(); return clone(dealView(u, load().deals.find((q) => q.id === dealId)).salesPeople); },
+    async removeDealSalesPerson(dealId, salesId) { const u = needProcessor(); dealOr404(u, dealId);
+      if (!x.salesOf(dealId).some((s) => s.salesId === salesId)) fail('Not on this order.');
+      setSales(u, dealId, x.salesOf(dealId).map((s) => s.salesId).filter((sid) => sid !== salesId)); save(); return clone(dealView(u, load().deals.find((q) => q.id === dealId)).salesPeople); },
+    async setDealSalesPeople(dealId, salesIds) { const u = needProcessor(); dealOr404(u, dealId); const ids = salesList({ salesIds });
+      ids.forEach((sid) => { if (!x.salesOf(dealId).some((s) => s.salesId === sid)) checkSales(sid); }); setSales(u, dealId, ids); save();
+      return clone(dealView(u, load().deals.find((q) => q.id === dealId)).salesPeople); },
     async setStage(id, stage) {
       const u = needProcessor(); const q = load().deals.find((y) => y.id === id) || fail('Order not found.');
       const s = Number(stage); if (!Number.isInteger(s) || s < 0 || s >= C.STAGES.length) fail('Unknown stage.');

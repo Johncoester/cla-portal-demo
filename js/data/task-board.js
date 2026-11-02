@@ -55,7 +55,7 @@ export const groupTasks = (tasks, groups = TASK_GROUPS) => groups.map(([key, lab
 
 /* Order-list filters (the status tab is applied by listDeals). f = { closingFrom, closingTo, noClosing: bool, role: '' | a role on the file
  *   (outside users: their role there; staff: 'agent-party' = an agent is a party), overdue: bool (has overdue tasks), txType, q } */
-export const dealSearchText = (d) => lc([d.fileNumber, d.address, d.street, d.city, d.zip, d.transactionType, ...(d.partyNames || [])].join(' '));
+export const dealSearchText = (d) => lc([d.fileNumber, d.address, d.street, d.city, d.zip, d.transactionType, ...(d.partyNames || []), ...(d.salesPeople || []).map((s) => s.name)].join(' '));
 export function filterDeals(deals, f = {}) {
   const q = lc(f.q).trim();
   return deals.filter((d) => {
