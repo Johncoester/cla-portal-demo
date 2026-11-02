@@ -3,7 +3,7 @@
  * Every rule here is mirrored by RLS / RPC in supabase/migrations.
  * Deliberately absent: any way to delete a document (no method, no UI, no policy) - Admin included.
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
-import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, isViewOnly, localDate, localDayOf, isRealDate,
+import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, localDate, localDayOf, isRealDate,
   isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
   phoneOk, fmtPhone, PHONE_MSG, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS } from './constants.js';
 import { buildSeed, DEAL_FOLDERS } from './seed.js';
@@ -21,7 +21,7 @@ import { notificationsPart } from './mock-part-notify.js';
 import { mattP2 } from './mock-part-matt.js';
 import { mattNov2 } from './mock-part-nov2.js';
 
-const KEY = 'cla-portal-new:data:v10';   // v10: Matt's Nov 2 notes (more Transaction Coordinator test tasks). v9: role 'Sales Processor' renamed 'Processor'. v8: Matt's Oct 31 priority 2 (seller questions, agreements, e-sign, closing proposals, phone format). v7: IndexedDB file store (ID upload fix). v6: agent buying/selling for themselves (v5: per-file roles; v4: agent delegation flags + home warranty v2). Old saved demo data is re-seeded.
+const KEY = 'cla-portal-new:data:v11';   // v11: client <-> salesperson links (John, Nov 2). v10: Matt's Nov 2 notes (more Transaction Coordinator test tasks). v9: role 'Sales Processor' renamed 'Processor'. v8: Matt's Oct 31 priority 2 (seller questions, agreements, e-sign, closing proposals, phone format). v7: IndexedDB file store (ID upload fix). v6: agent buying/selling for themselves (v5: per-file roles; v4: agent delegation flags + home warranty v2). Old saved demo data is re-seeded.
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();
@@ -50,12 +50,12 @@ export function createMockAdapter({ storage, sessionStorage, fileStore } = {}) {
 
   const me = () => { const id = sess.getItem(SESSION_KEY); return (id && load().profiles.find((p) => p.id === id && p.status === 'active')) || null; };
   const needUser = () => me() || fail('Please sign in.');
-  const needProcessor = () => { const u = needUser(); if (!isProcessor(u.role)) fail('Only a Processor can do this.'); return u; };
+  const needProcessor = () => { const u = needUser(); if (!runsOrders(u)) fail('Only a Processor or Admin can do this.'); return u; };
   const needAdmin = () => { const u = needUser(); if (!u.isAdmin) fail('Only an Admin can do this.'); return u; };
-  const isManager = (u) => isProcessor(u.role) || u.role === 'Transaction Coordinator';   // runs the workflow on deals they can access
-  const notViewOnly = (u) => { if (isViewOnly(u.role)) fail('This account is view-only for order work.'); };
+  const isManager = (u) => runsOrders(u) || u.role === 'Transaction Coordinator';   // runs the workflow on deals they can access
+  const notViewOnly = (u) => { if (viewOnly(u)) fail('This account is view-only for order work.'); };
   const contactOf = (profileId) => load().contacts.find((c) => c.profileId === profileId);
-  const seesAll = (u) => u.isAdmin || isProcessor(u.role) || u.role === 'Sales Team';
+  const seesAll = (u) => u.isAdmin || runsOrders(u) || u.role === 'Sales Team';
   // TC access = TEAMS. Agents on any team where this TC is a coordinator. Removing either person from the team removes access immediately.
   function teamAgentIds(u) {
     const d = load(); const teamIds = new Set(d.teamMembers.filter((m) => m.profileId === u.id && m.memberRole === 'coordinator').map((m) => m.teamId));
@@ -114,7 +114,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore } = {}) {
     if (doc.visibility === 'staff') return false;
     return doc.visibility === sideOf(u.role);
   };
-  const threadVisible = (u, t) => isProcessor(u.role) || u.isAdmin || t.participantIds.includes(u.id);
+  const threadVisible = (u, t) => runsOrders(u) || u.isAdmin || t.participantIds.includes(u.id);
   const unreadIn = (u, t) => { const d = load(); const r = d.reads.find((x) => x.threadId === t.id && x.profileId === u.id); const last = r ? r.at : ''; return d.messages.filter((m) => m.threadId === t.id && m.authorId !== u.id && m.createdAt > last).length; };
   // CLA staff (any staff login, incl. TC and Admin) vs an outside user acting on this order (agent / client / plain outside user)
   const isStaffView = (u) => !!u && (u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator') && !isOutside(u.accountRole || u.role);
@@ -186,7 +186,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore } = {}) {
     async keepFile(doc) { if (!files || !doc.dataUrl) return doc; try { await files.put(doc.id, doc.dataUrl); } catch (e) { throw new Error('This browser could not store the file (private browsing or storage full). Try a smaller file or another browser.'); }
       doc.dataUrl = null; doc.hasFile = true; return doc; },
     async fileContent(z) { if (z.dataUrl) return z.dataUrl; if (z.hasFile && files) return (await files.get(z.id)) || null; return null; },
-    C: { ROLES, DEAL_ROLES, ADMIN_ROLE, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS } };
+    C: { ROLES, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS } };
   Object.assign(api, devAuth(ctx), dealsAndAuth(ctx), contactsTasksDocs(ctx), tasksAndForms(ctx), messagesActivity(ctx), adminUsersTeams(ctx), libraryFolders(ctx), closingSchedule(ctx), notificationsPart(ctx), mattP2(ctx), mattNov2(ctx));
   // Every call is all-or-nothing: if it throws (validation error, or browser storage full), drop the in-memory copy so the next call
   // reloads the last SAVED state. Without this a half-applied edit (e.g. a rejected lender email) stayed in memory and broke later saves.

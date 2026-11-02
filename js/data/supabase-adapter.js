@@ -69,6 +69,11 @@ export async function createSupabaseAdapter(cfg) {
     async saveTaskForm(id, data, { complete = false } = {}) { return ok(await sb.rpc('save_task_form', { p_task: id, p_data: data, p_complete: complete })); },
     // ---- round 2 RPCs (same names as SQL) ----
     async adminDeleteUser(id) { ok(await sb.rpc('admin_delete_user', { p_user: id })); },
+    // ---- John, Nov 2 (migration 17): clients <-> salespeople. Writes go through Admin RPCs; the table is readable by Admin / Processor (all) and Sales (own links) ----
+    async listClientSalesReps() { return camel(ok(await sb.from('client_sales_reps').select('client_id, sales_id, created_at').order('created_at'))); },
+    async adminLinkSalesRep(clientId, salesId) { ok(await sb.rpc('admin_link_sales_rep', { p_client: clientId, p_sales: salesId })); return this.listClientSalesReps().then((r) => r.filter((l) => l.clientId === clientId)); },
+    async adminUnlinkSalesRep(clientId, salesId) { ok(await sb.rpc('admin_unlink_sales_rep', { p_client: clientId, p_sales: salesId })); return this.listClientSalesReps().then((r) => r.filter((l) => l.clientId === clientId)); },
+    async adminSetSalesReps(clientId, salesIds) { ok(await sb.rpc('admin_set_sales_reps', { p_client: clientId, p_sales: salesIds || [] })); return this.listClientSalesReps().then((r) => r.filter((l) => l.clientId === clientId)); },
     async publishTemplateVersion(code, patch) { return ok(await sb.rpc('publish_template_version', { p_code: code, p_title: patch.title, p_description: patch.description, p_due_days: patch.dueDays })); },
     async setTemplateAgentRoles(code, roles) { return { code, agentRoles: ok(await sb.rpc('set_template_agent_roles', { p_code: code, p_roles: roles })) }; },   // migration 9
     async sendTaskReminder(id) { return { queued: ok(await sb.rpc('queue_task_reminder', { p_task: id })) }; },
@@ -120,7 +125,7 @@ export async function createSupabaseAdapter(cfg) {
   };
   for (const n of ['pickPerson', 'signInDev', 'updateMyProfile', 'getWorkQueue', 'unreadCount', 'createDeal', 'updateDeal', 'setStage', 'setDealStatus',
     'createContact', 'updateContact', 'addParticipant', 'removeParticipant', 'createTask', 'addDocument', 'updateDocumentMeta', 'getDocumentContent',
-    'listThreads', 'getThread', 'markThreadRead', 'adminListUsers', 'adminUpdateUser', 'adminCreateUser',
+    'listThreads', 'getThread', 'markThreadRead', 'adminListUsers', 'adminGetUser', 'adminUpdateUser', 'adminCreateUser',
     // round 2 still to wire (tables/RPCs exist in migrations 4-6; adminCreateUser needs an Edge Function with the service role)
     'listSalesStaff', 'moveDocument', 'uploadForTask', 'listTaskTemplates', 'listTeams', 'createTeam', 'renameTeam', 'addTeamMember', 'removeTeamMember',
     'listLibrary', 'listDealFolders', 'createFolder', 'renameFolder', 'addLibraryDocument', 'listSettlements',

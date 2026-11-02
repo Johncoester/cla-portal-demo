@@ -1,7 +1,7 @@
 // Role dashboards: Processor = Work Queue; Sales Person / Sales Team = Team Dashboard (view-only);
 // Transaction Coordinator = Dashboard; Buyer/Listing Agent = Transactions; clients = My Closing.
 import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js';
-import { STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js';
+import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js';
 import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>`;
@@ -14,7 +14,7 @@ export async function render(ctx) {
   const tasksByDeal = {}; for (const d of deals) tasksByDeal[d.id] = await api.listTasks(d.id);
   const all = Object.entries(tasksByDeal).flatMap(([id, ts]) => ts.map((t) => ({ ...t, deal: deals.find((d) => d.id === id) })));
   const open = deals.filter((d) => d.status === 'Open'); const today = localDate();
-  const pick = user.isAdmin ? admin : isProcessor(user.role) ? processor : user.role === 'Transaction Coordinator' ? coordinator : isAgent(user.role) ? agent : isClient(user.role) ? client : isOutside(user.role) ? outside : team;
+  const pick = user.isAdmin ? admin : runsOrders(user) ? processor : user.role === 'Transaction Coordinator' ? coordinator : isAgent(user.role) ? agent : isClient(user.role) ? client : isOutside(user.role) ? outside : team;
   const v = await pick({ ...ctx, deals, open, all, today });
   return { title: v.title, crumbs: [[v.title]], body: v.body, mount: v.mount };
 }

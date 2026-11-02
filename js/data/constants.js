@@ -6,11 +6,18 @@ export const DEAL_ROLES = [
 ];
 // 'Admin' is a real login role (shown as "Admin"). Picking it always grants Admin access (isAdmin), which stays THE permission check.
 export const ADMIN_ROLE = 'Admin';
+// SUPER ADMIN (John, Nov 2; migration 18): the top role. Same powers as Admin, plus: only a Super admin can grant or remove the Super admin
+// role, and only a Super admin can delete, suspend or change the role of a Super admin. There must always be at least one active Super admin.
+// BOTH elevated roles now do full order work on ANY file (like a Processor: tasks, uploads, messages, settings). Documents stay undeletable.
+export const SUPER_ADMIN_ROLE = 'Super admin';
+export const ADMIN_ROLES = [SUPER_ADMIN_ROLE, ADMIN_ROLE];
+export const isAdminRole = (role) => ADMIN_ROLES.includes(role);
+export const isSuperAdmin = (u) => !!(u && u.role === SUPER_ADMIN_ROLE && u.isAdmin && (u.status || 'active') === 'active');
 // PER-FILE ROLES (migration 10): a login is either STAFF (one fixed role) or an OUTSIDE USER. An outside user has no fixed role:
 // on each order they act as whatever deal_participants says (Buyer Agent on one file, Client-Buyer on another). One email = one login.
 export const OUTSIDE = 'Outside user';
 export const OUTSIDE_FILE_ROLES = ['Buyer Agent', 'Listing Agent', 'Client-Buyer', 'Client-Seller'];   // roles an outside user can hold on a file
-export const STAFF_ACCOUNT_ROLES = ['Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', ADMIN_ROLE];
+export const STAFF_ACCOUNT_ROLES = ['Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', ADMIN_ROLE, SUPER_ADMIN_ROLE];
 export const ROLES = [...STAFF_ACCOUNT_ROLES, OUTSIDE];   // account types a login can have (user admin picker)
 export const isOutside = (role) => role === OUTSIDE;
 // SELF-REPRESENTATION (migration 11): an outside user may hold a client role AND their own side's agent role on the same order
@@ -22,18 +29,26 @@ export const fileRoleLabel = (roles, role) => { const r = roles && roles.length 
   if (r.includes('Client-Buyer') && r.includes('Buyer Agent')) return "Buyer + Buyer's Agent";
   if (r.includes('Client-Seller') && r.includes('Listing Agent')) return 'Seller + Listing Agent';
   return r[0] || OUTSIDE; };
-export const STAFF_ROLES = ['Processor', 'Sales Person', 'Sales Team', ADMIN_ROLE];
-export const VIEW_ONLY_ROLES = ['Sales Person', 'Sales Team', ADMIN_ROLE];   // no order edits/uploads/messages (Admin powers come from isAdmin)
+export const STAFF_ROLES = ['Processor', 'Sales Person', 'Sales Team', ADMIN_ROLE, SUPER_ADMIN_ROLE];
+export const VIEW_ONLY_ROLES = ['Sales Person', 'Sales Team'];   // no order edits/uploads/messages. Nov 2: Admin / Super admin are no longer view-only
 export const isViewOnly = (role) => VIEW_ONLY_ROLES.includes(role);
 // Label for pickers and lists: the role, plus "+ Admin" when a non-Admin role also has the Admin flag.
-export const roleLabel = (u) => (u.role === ADMIN_ROLE || !u.isAdmin ? u.role : `${u.role} + Admin`);
+export const roleLabel = (u) => (isAdminRole(u.role) || !u.isAdmin ? u.role : `${u.role} + Admin`);
 // Dashboard / login-picker label for an outside user: the roles they hold across their files.
 export const fileRolesLabel = (roles) => (roles && roles.length ? roles.join(' + ') : 'not on any file yet');
 // Back-office user who runs the deal workflow. NOT an admin: user/team admin = isAdmin (role 'Admin', or the flag on another role as in the old portal).
 // Sales Person / Sales Team are view-only, as in the old portal.
 export const PROCESSOR = 'Processor';
 export const isProcessor = (role) => role === PROCESSOR;
+// Runs order work on ANY file: the Processor, and (Nov 2) anyone with Admin access. Use this (not isProcessor) for order-work permission checks.
+export const runsOrders = (u) => !!u && (isProcessor(u.role) || !!u.isAdmin);
+// View-only for order work: Sales Person / Sales Team, unless they also carry Admin access.
+export const viewOnly = (u) => !!u && !u.isAdmin && isViewOnly(u.role);
 export const isStaff = (role) => STAFF_ROLES.includes(role);
+// CLIENT <-> SALESPERSON LINKS (John, Nov 2; migration 17): an outside user who is (or will be) a client may be linked to any number of
+// salespeople (Sales Person or Sales Team logins), and a salesperson to any number of clients. The link does NOT change file access.
+export const SALES_ROLES = ['Sales Person', 'Sales Team'];
+export const isSalesRole = (role) => SALES_ROLES.includes(role);
 export const isClient = (role) => role === 'Client-Buyer' || role === 'Client-Seller';
 export const isAgent = (role) => role === 'Buyer Agent' || role === 'Listing Agent';
 // Which side of the deal a role sits on ('buyer' | 'seller' | null = neutral/staff)
@@ -56,7 +71,7 @@ export const DOC_VISIBILITY = ['all', 'buyer', 'seller', 'staff'];
 // 'CLA staff only' and never the other side's private option. An outside user with no side on the file: 'all' only.
 // Mirrored by private.visibility_allowed(deal, visibility) in SQL (migration 12).
 export const visibilityChoices = (role, isAdmin = false) => {
-  if (isAdmin || ['Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin'].includes(role)) return [...DOC_VISIBILITY];
+  if (isAdmin || ['Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin'].includes(role)) return [...DOC_VISIBILITY];
   const side = ({ 'Buyer Agent': 'buyer', 'Client-Buyer': 'buyer', 'Listing Agent': 'seller', 'Client-Seller': 'seller' })[role];
   // CLIENTS (Matt, Oct 31): one choice, 'Share with CLA Title' = CLA staff + their own side (their agent), never the other side.
   // (A self-represented agent acts as the agent here, so keeps the agent choices.) Migration 13 refuses 'all' from a client.

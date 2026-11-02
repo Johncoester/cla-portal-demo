@@ -10,8 +10,8 @@ export function tasksAndForms(x) {
   const taskOr404 = (u, id) => { const t = load().tasks.find((z) => z.id === id) || fail('Task not found.'); u = onDeal(u, t.dealId); if (!taskVisible(u, t)) fail('Task not found.'); return t; };
   // Bank details (seller proceeds): only the owner and the PROCESSOR see them in full or change them; the coordinator / Admin see the last 4 digits.
   const masked = (t) => (t.templateId ? maskedFields(tpl(t.templateId)) : []);
-  const fullView = (u, t) => ownerOf(t) === u.id || C.isProcessor(u.role);
-  const canFill = (u, t) => t.kind === 'form' && t.status !== 'cancelled' && (ownerOf(t) === u.id || (isManager(u) && (!masked(t).length || C.isProcessor(u.role))) || agentCanFill(u, t));
+  const fullView = (u, t) => ownerOf(t) === u.id || C.runsOrders(u);
+  const canFill = (u, t) => t.kind === 'form' && t.status !== 'cancelled' && (ownerOf(t) === u.id || (isManager(u) && (!masked(t).length || C.runsOrders(u))) || agentCanFill(u, t));
   // role = what they are ON THIS FILE. A self-represented person (client + their side's agent) is shown in the CAPACITY they acted in:
   // their own copy -> as the client; anything else -> as the agent, e.g. "Alex Agent-Buyer (as Client-Buyer; also Buyer Agent on this file)".
   const who = (id, dealId, cap) => { if (!id) return ''; const rs = fileRoles(id, dealId); const as = cap && rs.includes(cap) ? cap : rs[0] || 'unknown role';
@@ -132,7 +132,7 @@ export function tasksAndForms(x) {
     },
     // Which agent roles may complete a CLIENT's copy for them. Admin or Processor. Applies to every version of the template (it is a policy, not form content).
     async setTemplateAgentRoles(code, roles) {
-      let u = needUser(); if (!(u.isAdmin || C.isProcessor(u.role))) fail('Only an Admin or the processor can change who may complete a task.');
+      let u = needUser(); if (!(u.isAdmin || C.runsOrders(u))) fail('Only an Admin or the processor can change who may complete a task.');
       const d = load(); const vs = d.taskTemplates.filter((t) => t.code === code); if (!vs.length) fail('Template not found.');
       const list = [...new Set(Array.isArray(roles) ? roles : [])]; if (list.some((r) => !AGENT_ROLES.includes(r))) fail('Only Buyer Agent or Listing Agent can be allowed.');
       if (list.length && !vs.some((t) => t.roles.some((r) => C.isClient(r)))) fail('Only client tasks can be completed by an agent.');

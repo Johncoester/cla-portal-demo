@@ -22,7 +22,7 @@ export function mattNov2(x) {
     async listAllTasks({ fileStatus = 'All' } = {}) { const u = needUser(); return allTasks(u, { fileStatus }).rows; },
     // Processor (and Admin) only. fileStatus 'Open' (default) or 'All' / a deal status.
     async getTaskGrid({ fileStatus = 'Open' } = {}) {
-      const u = needUser(); if (!(u.isAdmin || C.isProcessor(u.role))) fail('Only a Processor or Admin can open the task grid.');
+      const u = needUser(); if (!(u.isAdmin || C.runsOrders(u))) fail('Only a Processor or Admin can open the task grid.');
       const { deals, rows } = allTasks(u, { fileStatus }); return buildTaskGrid(rows, deals.map(fileOf), localDate());
     },
   };

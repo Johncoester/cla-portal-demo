@@ -2,7 +2,7 @@
  * Folders are renamed, never deleted. Library documents follow the same never-delete rule as order documents. */
 export function libraryFolders(x) {
   const { load, save, nid, needUser, isManager, dealOr404, onDeal, fileRole, log, folderOf, docVisible, clone, now, fail, str, C } = x;
-  const libManager = (u) => C.isProcessor(u.role) || u.isAdmin;
+  const libManager = (u) => C.runsOrders(u) || u.isAdmin;
   const staffish = (u) => u.isAdmin || C.isStaff(u.role) || u.role === 'Transaction Coordinator';
   return {
     async listLibrary() {

@@ -1,11 +1,11 @@
 // Contacts tab: everyone on this file. Processor can add people (existing or new), edit them, and unlink them from the order.
 import { html, $, $$, guard, formData, modal, closeModal, options, toast, pill } from '../ui.js';
-import { PARTICIPANT_ROLES, isProcessor, fmtPhone } from '../data/constants.js';
+import { runsOrders, PARTICIPANT_ROLES, isProcessor, fmtPhone } from '../data/constants.js';
 
 const GROUPS = [['ALL', null], ['BUYER', ['Client-Buyer', 'Buyer Agent']], ['SELLER', ['Client-Seller', 'Listing Agent']], ['REALTOR', ['Buyer Agent', 'Listing Agent']], ['CLIENT', ['Client-Buyer', 'Client-Seller']], ['CLA TEAM', ['Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator']]];
 
 export async function render({ api, user, deal, refresh }) {
-  const edit = isProcessor(user.role); const g = new URLSearchParams(location.hash.split('?')[1] || '').get('g') || 'ALL'; const grp = (GROUPS.find((x) => x[0] === g) || GROUPS[0])[1];
+  const edit = runsOrders(user); const g = new URLSearchParams(location.hash.split('?')[1] || '').get('g') || 'ALL'; const grp = (GROUPS.find((x) => x[0] === g) || GROUPS[0])[1];
   const list = deal.participants.filter((p) => !grp || grp.includes(p.role));
   const party = new Set((deal.agentParties || []).map((p) => p.contactId));
   const rows = list.map((p) => html`<tr><td>${p.contact.firstName} ${p.contact.lastName}${p.removed ? html` ${pill('removed', 'bad')}` : ''}${party.has(p.contactId) ? html` <span class="pill warn agent-party" title="Client and their own agent on this file">Agent is a party</span>` : ''}${p.contact.profileId ? '' : html` <span class="muted small">(no portal login)</span>`}</td><td>${p.role}</td><td>${p.contact.company}</td>${p.contact.contactHidden ? html`<td colspan="2" class="muted contact-hidden">Contact through CLA Title</td>` : html`<td>${fmtPhone(p.contact.phone)}</td><td>${p.contact.email}</td>`}

@@ -6,7 +6,7 @@ export function contactsTasksDocs(x) {
     // ---------- Contacts & participants ----------
     async listContacts(search = '') {
       let u = needUser(); const d = load(); const q = search.toLowerCase(); let list = d.contacts;
-      if (!(C.isProcessor(u.role) || u.isAdmin)) {   // the contacts this person can see on their orders, with the same contact-info rule as the order (opposing side: no phone/email)
+      if (!(C.runsOrders(u) || u.isAdmin)) {   // the contacts this person can see on their orders, with the same contact-info rule as the order (opposing side: no phone/email)
         const seen = new Map(); dealsFor(u).forEach((z) => participantsOf(z.id, x.scopeTo(u, z.id)).forEach((p) => { if (p.contact && (!seen.has(p.contactId) || seen.get(p.contactId).contactHidden)) seen.set(p.contactId, p.contact); }));
         list = [...seen.values()]; }
       return clone(list.filter((c) => !q || `${fullName(c)} ${c.email} ${c.company}`.toLowerCase().includes(q)).sort((a, b) => fullName(a).localeCompare(fullName(b))));
@@ -73,7 +73,7 @@ export function contactsTasksDocs(x) {
     },
     async updateDocumentMeta(id, patch) {   // description / visibility only. Files are never replaced or removed.
       let u = needUser(); const z = load().documents.find((q) => q.id === id) || fail('Document not found.'); if (z.dealId) u = onDeal(u, z.dealId); else if (!docVisible(u, z)) fail('Document not found.');
-      if (!(C.isProcessor(u.role) || z.uploadedBy === u.id)) fail('Only the uploader or a processor can edit this document.');
+      if (!(C.runsOrders(u) || z.uploadedBy === u.id)) fail('Only the uploader or a processor can edit this document.');
       if (patch.description != null) z.description = str(patch.description, 500);
       if (patch.docType != null) z.docType = docTypeOf(u, patch.docType);
       if (patch.visibility != null) { if (!C.DOC_VISIBILITY.includes(patch.visibility)) fail('Unknown visibility.'); visCheck(u, patch.visibility); z.visibility = patch.visibility; }

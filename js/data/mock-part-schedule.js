@@ -16,7 +16,7 @@ export function closingSchedule(x) {
   const responsesOf = (s, round) => load().settlementResponses.filter((r) => r.settlementId === s.id && r.round === round);
   return {
     async listSettlements(dealId) {
-      let u = needUser(); u = onDeal(u, dealId); const mySide = C.sideOf(u.role); const staff = C.isProcessor(u.role) || u.isAdmin;
+      let u = needUser(); u = onDeal(u, dealId); const mySide = C.sideOf(u.role); const staff = C.runsOrders(u) || u.isAdmin;
       return clone(load().settlements.filter((s) => s.dealId === dealId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((s) => ({
         ...s, tokens: staff ? s.tokens : undefined, myLink: !staff && mySide && s.status === 'open' ? `#/schedule/${s.tokens[mySide]}` : null, mySide,
         responses: responsesOf(s, s.round).filter((r) => !C.isClient(u.role) || r.side === mySide), createdByName: nameOf(s.createdBy) })));

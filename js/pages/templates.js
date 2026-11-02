@@ -1,11 +1,11 @@
 // Task templates (definitions with versions). Each participant gets a COPY that records the version it was made from.
 // Admin publishes a new version (title / description / due days); existing copies keep their version. Processor and TC can view.
 import { html, $$, guard, toast, fmtDate, pill } from '../ui.js';
-import { isProcessor } from '../data/constants.js';
+import { runsOrders, isProcessor } from '../data/constants.js';
 const DELEG = [['', 'No - client only'], ['Buyer Agent', 'Buyer Agent (for the buyer)'], ['Listing Agent', 'Listing Agent (for the seller)'], ['Buyer Agent,Listing Agent', 'Each side\'s agent for their own client']];
 
 export async function render({ api, user, refresh }) {
-  const list = await api.listTaskTemplates(); const canSet = user.isAdmin || isProcessor(user.role); const codes = [...new Set(list.map((t) => t.code))];
+  const list = await api.listTaskTemplates(); const canSet = user.isAdmin || runsOrders(user); const codes = [...new Set(list.map((t) => t.code))];
   const block = (code) => { const vs = list.filter((t) => t.code === code); const cur = vs.find((t) => t.active) || vs[0];
     return html`<div class="card"><div class="deal-card-head"><h3>${cur.title}</h3><span class="muted small">${code}</span><span class="spacer"></span>
       ${user.isAdmin ? html`<button class="ghost" data-publish="${code}" data-title="${cur.title}">Publish new version</button>` : ''}</div>

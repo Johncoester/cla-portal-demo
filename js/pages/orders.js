@@ -1,6 +1,6 @@
 // Orders list: tabs Open / Close / On Hold / Cancelled / All, search box. Same columns as the old portal.
 import { html, fmtDate, pill, $, $$, raw, options } from '../ui.js';
-import { isClient, isAgent, isProcessor, isOutside, TX_TYPES } from '../data/constants.js';
+import { runsOrders, isClient, isAgent, isProcessor, isOutside, TX_TYPES } from '../data/constants.js';
 import { filterDeals, sortDeals, DEAL_SORTS } from '../data/task-board.js';
 
 const TABS = [['Open', 'Open'], ['Closed', 'Close'], ['On Hold', 'On Hold'], ['Cancelled', 'Cancelled'], ['All', 'All Orders']];
@@ -23,7 +23,7 @@ export async function render({ api, user }) {
     <td>${d.transactionType}</td><td>${d.stageName}${d.status !== 'Open' ? html`<br>${pill(d.status)}` : ''}<br><a class="view-btn" href="#/deals/${d.id}">View Order</a></td></tr>`);
   const body = html`
     <div class="box-title"><h2 data-tab-title><span class="h-ico"></span>${user.role === 'Transaction Coordinator' && tab === 'Open' ? 'Orders' : HEAD[tab]}</h2>
-      ${isProcessor(user.role) ? html`<a class="m-btn right" href="#/orders/new">+ Place Order</a>` : ''}</div>
+      ${runsOrders(user) ? html`<a class="m-btn right" href="#/orders/new">+ Place Order</a>` : ''}</div>
     <ul class="nav-tabs">${TABS.map(([k, label]) => html`<li><a class="${k === tab ? 'active' : ''}" href="#/orders?s=${encodeURIComponent(k)}" data-tab="${k}" ${k === tab ? raw('aria-current="page"') : ''}>${label}</a></li>`)}</ul>
     <div class="table-tools"><span class="muted" data-tab-count>${deals.length} ${NOUN[tab] ? NOUN[tab] + ' ' : ''}order(s)</span><span class="muted" data-filter-count></span></div>
     <form class="filter-bar" id="ofilters">

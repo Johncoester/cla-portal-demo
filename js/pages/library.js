@@ -1,11 +1,11 @@
 // Library: firm-wide files in folders (wire-safety notice, checklists, staff procedures). Everyone reads; the processor and Admin add folders and files.
 // Library files are never deleted, like order documents.
 import { html, $, $$, guard, formData, modal, closeModal, options, toast, fmtDate, fmtSize, pill } from '../ui.js';
-import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor } from '../data/constants.js';
+import { runsOrders, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor } from '../data/constants.js';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 export async function render({ api, user, refresh }) {
-  const folders = await api.listLibrary(); const manage = isProcessor(user.role) || user.isAdmin;
+  const folders = await api.listLibrary(); const manage = runsOrders(user) || user.isAdmin;
   const card = (f) => html`<div class="card"><div class="deal-card-head"><h3>&#128193; ${f.name}</h3>${f.staffOnly ? pill('staff only', 'warn') : ''}<span class="spacer"></span>
       ${manage ? html`<button class="ghost" data-rename="${f.id}" data-name="${f.name}">Rename</button>` : ''}</div>
     ${f.documents.length ? html`<table class="tbl"><tbody>${f.documents.map((d) => html`<tr><td><a href="#" data-open="${d.id}">${d.name}</a><br><span class="muted small">${d.description}</span></td><td>${fmtSize(d.size)}</td><td>${fmtDate(d.createdAt)}</td></tr>`)}</tbody></table>` : html`<p class="muted">Empty folder.</p>`}</div>`;

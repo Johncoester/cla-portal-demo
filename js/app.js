@@ -1,7 +1,7 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { getAdapter } from './data/adapter.js';
 import { html, raw, toText, esc, $, $$, toast, closeModal } from './ui.js';
-import { isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js';
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
@@ -31,7 +31,7 @@ function parse() {
   if (!seg.length || seg[0] === 'work-queue') return { page: 'dashboard', params: {} };
   if (seg[0] === 'deals' && seg[1]) return { page: 'deal', params: { id: seg[1], tab: seg[2] || 'overview', sub: seg[3] } };
   if (seg[0] === 'orders' && seg[1] === 'new') return { page: 'orders/new', params: {} };
-  if (seg[0] === 'users') return { page: 'users', params: { mode: seg[1] || 'list' } };
+  if (seg[0] === 'users') return { page: 'users', params: { mode: seg[1] || 'list', id: seg[2] } };
   if (seg[0] === 'schedule') return { page: 'schedule', params: { token: seg[1] || '' } };
   return { page: seg[0], params: {} };
 }
@@ -45,11 +45,11 @@ export function navFor(u, dealId, unread) {
   add('dashboard', dashLabel(u), '#/dashboard', 'orders');
   add('orders', u.role === 'Transaction Coordinator' ? 'Orders' : 'Open Orders', '#/orders', 'orders');
   if (u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator') add('tasks', 'All Tasks', '#/tasks', 'task');
-  if (u.isAdmin || isProcessor(u.role)) add('task-grid', 'Task Grid', '#/task-grid', 'task');
+  if (u.isAdmin || runsOrders(u)) add('task-grid', 'Task Grid', '#/task-grid', 'task');
   if (u.isAdmin) { add('users/new', 'Create User', '#/users/new', 'documents'); add('users', 'User List', '#/users', 'documents'); add('teams', 'Teams', '#/teams', 'contact-us'); }
   add('library', 'Library', '#/library', 'documents');
-  if (isProcessor(u.role) || u.isAdmin) add('activity', 'Activity Log', '#/activity', 'activity');
-  if (isProcessor(u.role) || u.isAdmin || u.role === 'Transaction Coordinator') { add('templates', 'Task Templates', '#/templates', 'task'); add('outbox', 'Reminder Outbox', '#/outbox', 'inbox'); }
+  if (runsOrders(u) || u.isAdmin) add('activity', 'Activity Log', '#/activity', 'activity');
+  if (runsOrders(u) || u.isAdmin || u.role === 'Transaction Coordinator') { add('templates', 'Task Templates', '#/templates', 'task'); add('outbox', 'Reminder Outbox', '#/outbox', 'inbox'); }
   return items;
 }
 
@@ -63,7 +63,7 @@ async function layout(u, view, route) {
   const dealNav = deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${link('inbox', 'Inbox', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${isClient(deal.myRole) || isAgent(deal.myRole) || isOutside(deal.myRole) || isOutside(u.role) ? '' : link('activity', 'Activity', 'activity')}` : '';
   const contact = isStaff(u.role) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us">Contact Us</a></li>`;
   const sidebarHead = deal ? html`<a class="logo-home-link" href="#/deals/${deal.id}"><div class="order-heading-left"><span>${deal.fileNumber}</span></div><div class="map-div"><img class="map-pin" src="assets/img/map-icon-new.png" alt=""><p>${deal.street}<br>${deal.city}, ${deal.state}, ${deal.zip}</p></div></a>` : '';
-  const topButtons = isProcessor(u.role) ? html`<a class="green-btn" href="#/orders/new">Place Order</a>` : '';
+  const topButtons = runsOrders(u) ? html`<a class="green-btn" href="#/orders/new">Place Order</a>` : '';
   return html`
   <div class="topbar-main"><div class="topbar-inner">
     <a class="brand" href="#${homeFor(u)}"><img src="assets/img/logo-white.png" alt="CLA Title &amp; Escrow"></a>

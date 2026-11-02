@@ -1,15 +1,15 @@
 // Closing Date tab: the processor sends time options; each side answers through its own link; the processor confirms; a request can be reopened.
 // Links are shown here to copy. Nothing is emailed from this build.
 import { html, $, $$, guard, formData, modal, closeModal, toast, fmtDate, fmtDateTime, pill } from '../ui.js';
-import { isProcessor, isClient, sideOf, isViewOnly, CLOSING_LOCATIONS } from '../data/constants.js';
+import { runsOrders, viewOnly, isProcessor, isClient, sideOf, isViewOnly, CLOSING_LOCATIONS } from '../data/constants.js';
 export const slotText = (s) => new Date(s).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 const STATUS = { open: ['waiting for answers', 'info'], confirmed: ['confirmed', 'ok'] };
 
 export async function render({ api, user, deal, refresh }) {
-  const list = await api.listSettlements(deal.id); const proc = isProcessor(user.role); const anyOpen = list.some((s) => s.status === 'open');
+  const list = await api.listSettlements(deal.id); const proc = runsOrders(user); const anyOpen = list.some((s) => s.status === 'open');
   // Matt, Oct 31: agents / clients PROPOSE a closing time + where; the processor or coordinator CONFIRMS it; everyone on the file sees the scheduled closing.
   const proposals = await api.listClosingProposals(deal.id); const manager = proc || user.role === 'Transaction Coordinator'; const staffView = !user.accountRole && user.role !== 'Outside user';
-  const canPropose = !staffView && !!sideOf(user.role) && !isViewOnly(user.role); const sc = deal.scheduledClosing;
+  const canPropose = !staffView && !!sideOf(user.role) && !viewOnly(user); const sc = deal.scheduledClosing;
   const sideName = (sd) => (sd === 'buyer' ? 'Buyer side' : 'Seller side');
   const scheduled = html`<div class="card" id="scheduled"><h3>Scheduled closing</h3>${sc ? html`<p><strong>${slotText(sc.at)}</strong> &middot; ${sc.location}${sc.note ? html` &middot; ${sc.note}` : ''}</p><p class="muted small">Confirmed by CLA Title ${fmtDateTime(sc.confirmedAt)}</p>`
       : html`<p class="muted">Not scheduled yet.${canPropose ? ' Propose a date, time and place below; CLA Title confirms it.' : ''}</p>`}

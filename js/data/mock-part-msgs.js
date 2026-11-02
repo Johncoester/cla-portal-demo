@@ -51,14 +51,14 @@ export function messagesActivity(x) {
     async listActivity(dealId, f = {}) {
       let u = needUser(); let ids;
       if (dealId) { u = onDeal(u, dealId); ids = new Set([dealId]); }   // outside users: their role ON THIS FILE decides (a client on this file cannot)
-      else { if (!(C.isProcessor(u.role) || u.isAdmin)) fail('The full activity log is for the processor and Admin.'); ids = null; }
+      else { if (!(C.runsOrders(u) || u.isAdmin)) fail('The full activity log is for the processor and Admin.'); ids = null; }
       // ACTIVITY LOG = CLA staff only (Matt, Oct 31): processor + Admin see everything; TC / Sales Person / Sales Team keep their order log (filtered below).
       // Every outside user (buyers, sellers, agents; self-represented too) is refused, in the UI and here. Mirrored by RLS activity_select (migration 13).
       if (!x.isStaffView(u)) fail('The activity log is for CLA Title staff only.');
       const d = load(); const deals = new Map(d.deals.map((q) => [q.id, q]));
       // Entries about things this viewer cannot open (staff-only / other-side documents, conversations they are not in, hidden tasks) are left out,
       // otherwise the log leaks file names and subjects. Processor and Admin see everything.
-      const full = C.isProcessor(u.role) || u.isAdmin;
+      const full = C.runsOrders(u) || u.isAdmin;
       const canSee = (a) => { if (full) return true;
         if (a.entity === 'document') { const z = d.documents.find((q) => q.id === a.entityId); return !z || docVisible(u, z); }
         if (a.entity === 'thread') { const t = d.threads.find((q) => q.id === a.entityId); return !t || threadVisible(u, t); }

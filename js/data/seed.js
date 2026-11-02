@@ -17,7 +17,8 @@ export function buildSeed() {
     P('u-seller', 'Sally', 'Seller', 'Outside user', 8, { co: '' }),
     P('u-multi', 'Morgan', 'Multi-Role', 'Outside user', 11, { co: 'Harbor Realty (fake)' }),   // one login, two hats: buyer's agent on MD-26-97183, a buyer on MD-26-97201
     P('u-selfrep', 'Alex', 'Agent-Buyer', 'Outside user', 12, { co: 'Harbor Realty (fake)' }),   // a licensed agent buying for himself: Client-Buyer AND Buyer Agent on MD-26-97240
-    P('u-admin', 'King John', 'Admin', 'Admin', 9, { isAdmin: true }),   // role 'Admin' (always isAdmin; isAdmin is the permission check)
+    P('u-admin', 'King John', 'Admin', 'Super admin', 9, { isAdmin: true }),   // Nov 2: role 'Super admin' (always isAdmin; isAdmin is the permission check)
+    P('u-adam', 'Adam', 'Admin', 'Admin', 13, { isAdmin: true }),   // Nov 2: a plain Admin (cannot delete/suspend/demote a Super admin or grant Super admin)
     P('u-gone', 'Gary', 'Gone', 'Outside user', 10, { co: 'Harbor Realty (fake)', status: 'removed', removedAt: '2026-10-20T15:00:00Z', removedBy: 'u-admin' }),   // deleted by Admin; history kept
   ];
   const contacts = profiles.map((p) => ({ id: 'c-' + p.id.slice(2), profileId: p.id, firstName: p.firstName, lastName: p.lastName, email: p.email, phone: p.phone,
@@ -111,7 +112,10 @@ export function buildSeed() {
   adhoc('t-2-ba-addendum', 2, 'Upload financing addendum', 'Buyer Agent', 'todo', '2026-10-31', 'Signed financing contingency addendum.');
   adhoc('t-1-la-repairs', 1, 'Upload repair addendum', 'Listing Agent', 'done', '2026-10-20');
   tasks.forEach((t) => Object.keys(t.formData).forEach((k) => t.formData[k] === undefined && delete t.formData[k]));
-  return { version: 2, seq: 100, profiles, contacts, teams, teamMembers, deals, participants, taskTemplates, tasks, ...more(deals) };
+  // John, Nov 2: clients linked to salespeople (many-to-many). Ben -> Sam; Sally -> Sam + Tina. The link does not change who can see which file.
+  const clientSalesReps = [{ clientId: 'u-buyer', salesId: 'u-sp', createdBy: 'u-admin', createdAt: '2026-10-01T12:00:00Z' },
+    { clientId: 'u-seller', salesId: 'u-sp', createdBy: 'u-admin', createdAt: '2026-10-01T12:00:00Z' }, { clientId: 'u-seller', salesId: 'u-team', createdBy: 'u-admin', createdAt: '2026-10-01T12:00:00Z' }];
+  return { version: 2, seq: 100, profiles, contacts, teams, teamMembers, deals, participants, taskTemplates, tasks, clientSalesReps, ...more(deals) };
 }
 
 function more(deals) {

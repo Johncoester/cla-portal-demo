@@ -1,6 +1,6 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js';
-import { STAGES, DEAL_STATUSES, isProcessor, fmtPhone } from '../data/constants.js';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone } from '../data/constants.js';
 import { slotText } from './dealclosing.js';
 
 const TABS = { tasks: './dealtasks.js', inbox: './dealmsgs.js', documents: './dealdocs.js', contacts: './dealcontacts.js', activity: './dealactivity.js', closing: './dealclosing.js', agreements: './dealagreements.js' };
@@ -26,7 +26,7 @@ function overview({ api, user, refresh }, d, crumbs, ag) {
   const staffView = !user.accountRole && user.role !== 'Outside user';
   const canWire = staffView || (user.roles || [user.role]).includes('Client-Buyer');   // Matt, Oct 31: buyer only (plus CLA staff)
   const sc = d.scheduledClosing;
-  const by = (role) => d.participants.find((p) => p.role === role); const edit = isProcessor(user.role);
+  const by = (role) => d.participants.find((p) => p.role === role); const edit = runsOrders(user);
   const tracker = STAGES.map((s, i) => html`<li class="${i < d.stage ? 'done' : i === d.stage ? 'current' : ''}"><button type="button" class="step" ${edit ? '' : raw('disabled')} data-stage="${i}" title="${edit ? 'Set stage' : s}"></button><span>${s}</span></li>`);
   const team = d.participants.filter((p) => ['Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(p.role));
   const lender = d.lenderName || d.lenderContact ? html`<div><strong>${d.lenderName}</strong><br>${d.lenderContact}<br><span class="muted">${d.lenderEmail} ${fmtPhone(d.lenderPhone)}</span></div>` : html`<div class="muted">Not specified</div>`;

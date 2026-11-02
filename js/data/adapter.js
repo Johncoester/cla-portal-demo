@@ -23,8 +23,13 @@
  *   other:      listActivity(dealId|null, filters), listNotifications (each with fileNumber + address), notificationCount, markNotificationRead, markAllNotificationsRead
  *   Matt Nov 2: listAllTasks({fileStatus}) (every task you may see, across files, each with its file), getTaskGrid({fileStatus}) (Processor / Admin only).
  *               listDeals rows also carry partyNames + overdueTasks. Filtering / sorting / grouping / the grid layout: task-board.js (shared, pure).
- *   Admin only (isAdmin flag, NOT the Processor): adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser (marks removed; history kept),
+ *   Admin only (isAdmin flag; roles Admin and Super admin; NOT the Processor): adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser (marks removed; history kept),
  *               listTeams (TCs see their own), createTeam, renameTeam, addTeamMember, removeTeamMember
+ *   John Nov 2: adminGetUser(id); clients <-> salespeople (many-to-many): adminLinkSalesRep(clientId, salesId), adminUnlinkSalesRep, adminSetSalesReps(clientId, [salesIds]),
+ *               listClientSalesReps() (Admin / Processor: all; Sales Person / Sales Team: their own). adminCreateUser accepts isClient + salesIds;
+ *               adminUpdateUser accepts salesIds. adminListUsers rows carry files, isClient, salesReps, clients, teams.
+ *               Super admin (role 'Super admin'): only a Super admin grants/removes it or deletes/suspends/changes a Super admin.
+ *               Nov 2: anyone with Admin access does full order work on ANY file, like the Processor (runsOrders in constants.js).
  * There is intentionally NO deleteDocument (or folder delete) in either adapter, for anyone.
  */
 let cached = null;
