@@ -32,7 +32,9 @@
  *               Nov 2: anyone with Admin access does full order work on ANY file, like the Processor (runsOrders in constants.js).
  *   John Nov 2 (migration 19): several salespeople per order. Deals carry salesPeople [{id, name, role, addedAt}], salesPersonIds, and
  *               salesPersonName (all names, ', '-joined). createDeal({..., processorId, salesIds}) — processorId required when an Admin places it
- *               (a Processor defaults to themselves). Processor / Admin: listProcessors, addDealSalesPerson(dealId, salesId),
+ *               (a Processor defaults to themselves). Processor / Admin: listProcessors, listCoordinators (John, Nov 2: active 'Transaction Coordinator'
+ *               accounts with their contactId; addParticipant refuses anyone else as a file's TC), createDeal/updateDeal also take openDate (no future),
+ *               any US state, emdAmount (>= 0) and emdDueDate (migration 20), addDealSalesPerson(dealId, salesId),
  *               removeDealSalesPerson(dealId, salesId), setDealSalesPeople(dealId, salesIds); updateDeal accepts processorId and salesIds.
  * There is intentionally NO deleteDocument (or folder delete) in either adapter, for anyone.
  */
@@ -40,7 +42,7 @@ let cached = null;
 export async function getAdapter() {
   if (cached) return cached;
   const cfg = (typeof window !== 'undefined' && window.CLA_PORTAL_CONFIG) || { mode: 'mock' };
-  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js'); cached = await m.createSupabaseAdapter(cfg); }
-  else { const m = await import('./mock-adapter.js'); cached = m.createMockAdapter(); }
+  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611021559'); cached = await m.createSupabaseAdapter(cfg); }
+  else { const m = await import('./mock-adapter.js?v=202611021559'); cached = m.createMockAdapter(); }
   return cached;
 }

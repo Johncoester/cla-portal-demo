@@ -5,23 +5,23 @@
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
 import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, localDate, localDayOf, isRealDate,
   isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
-  phoneOk, fmtPhone, PHONE_MSG, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS } from './constants.js';
-import { buildSeed, DEAL_FOLDERS } from './seed.js';
-import { indexedDbFileStore } from './file-store.js';
-import { delegationLocked } from './templates.js';
-import { dealsAndAuth } from './mock-part-deals.js';
-import { devAuth } from './mock-part-auth.js';
-import { contactsTasksDocs } from './mock-part-docs.js';
-import { tasksAndForms } from './mock-part-tasks.js';
-import { messagesActivity } from './mock-part-msgs.js';
-import { adminUsersTeams } from './mock-part-admin.js';
-import { libraryFolders } from './mock-part-library.js';
-import { closingSchedule } from './mock-part-schedule.js';
-import { notificationsPart } from './mock-part-notify.js';
-import { mattP2 } from './mock-part-matt.js';
-import { mattNov2 } from './mock-part-nov2.js';
+  phoneOk, fmtPhone, PHONE_MSG, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES } from './constants.js?v=202611021559';
+import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611021559';
+import { indexedDbFileStore } from './file-store.js?v=202611021559';
+import { delegationLocked } from './templates.js?v=202611021559';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611021559';
+import { devAuth } from './mock-part-auth.js?v=202611021559';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611021559';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611021559';
+import { messagesActivity } from './mock-part-msgs.js?v=202611021559';
+import { adminUsersTeams } from './mock-part-admin.js?v=202611021559';
+import { libraryFolders } from './mock-part-library.js?v=202611021559';
+import { closingSchedule } from './mock-part-schedule.js?v=202611021559';
+import { notificationsPart } from './mock-part-notify.js?v=202611021559';
+import { mattP2 } from './mock-part-matt.js?v=202611021559';
+import { mattNov2 } from './mock-part-nov2.js?v=202611021559';
 
-const KEY = 'cla-portal-new:data:v12';   // v12: several salespeople per file (deal_sales_people). v11: client <-> salesperson links (John, Nov 2). v10: Matt's Nov 2 notes (more Transaction Coordinator test tasks). v9: role 'Sales Processor' renamed 'Processor'. v8: Matt's Oct 31 priority 2 (seller questions, agreements, e-sign, closing proposals, phone format). v7: IndexedDB file store (ID upload fix). v6: agent buying/selling for themselves (v5: per-file roles; v4: agent delegation flags + home warranty v2). Old saved demo data is re-seeded.
+const KEY = 'cla-portal-new:data:v13';   // v13: EMD amount + due date on orders, Place Order documents, TC = Transaction Coordinator accounts only (John, Nov 2). v12: several salespeople per file (deal_sales_people). v11: client <-> salesperson links (John, Nov 2). v10: Matt's Nov 2 notes (more Transaction Coordinator test tasks). v9: role 'Sales Processor' renamed 'Processor'. v8: Matt's Oct 31 priority 2 (seller questions, agreements, e-sign, closing proposals, phone format). v7: IndexedDB file store (ID upload fix). v6: agent buying/selling for themselves (v5: per-file roles; v4: agent delegation flags + home warranty v2). Old saved demo data is re-seeded.
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();
@@ -192,7 +192,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore } = {}) {
     async keepFile(doc) { if (!files || !doc.dataUrl) return doc; try { await files.put(doc.id, doc.dataUrl); } catch (e) { throw new Error('This browser could not store the file (private browsing or storage full). Try a smaller file or another browser.'); }
       doc.dataUrl = null; doc.hasFile = true; return doc; },
     async fileContent(z) { if (z.dataUrl) return z.dataUrl; if (z.hasFile && files) return (await files.get(z.id)) || null; return null; },
-    C: { ROLES, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS } };
+    C: { ROLES, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES } };
   Object.assign(api, devAuth(ctx), dealsAndAuth(ctx), contactsTasksDocs(ctx), tasksAndForms(ctx), messagesActivity(ctx), adminUsersTeams(ctx), libraryFolders(ctx), closingSchedule(ctx), notificationsPart(ctx), mattP2(ctx), mattNov2(ctx));
   // Every call is all-or-nothing: if it throws (validation error, or browser storage full), drop the in-memory copy so the next call
   // reloads the last SAVED state. Without this a half-applied edit (e.g. a rejected lender email) stayed in memory and broke later saves.

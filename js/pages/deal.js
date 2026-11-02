@@ -1,9 +1,9 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone } from '../data/constants.js';
-import { slotText } from './dealclosing.js';
+import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611021559';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES } from '../data/constants.js?v=202611021559';
+import { slotText } from './dealclosing.js?v=202611021559';
 
-const TABS = { tasks: './dealtasks.js', inbox: './dealmsgs.js', documents: './dealdocs.js', contacts: './dealcontacts.js', activity: './dealactivity.js', closing: './dealclosing.js', agreements: './dealagreements.js' };
+const TABS = { tasks: './dealtasks.js?v=202611021559', inbox: './dealmsgs.js?v=202611021559', documents: './dealdocs.js?v=202611021559', contacts: './dealcontacts.js?v=202611021559', activity: './dealactivity.js?v=202611021559', closing: './dealclosing.js?v=202611021559', agreements: './dealagreements.js?v=202611021559' };
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -11,7 +11,7 @@ export async function render(ctx) {
   // per-file roles: on this order an outside user acts as their role HERE (deal.myRole), e.g. Buyer Agent here, Client-Buyer elsewhere
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611021559' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
@@ -42,6 +42,7 @@ function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = []) {
     <ol class="tracker">${tracker}</ol>${edit ? html`<p class="muted small">Click a step to set the stage. The last step closes the order.</p>` : ''}
     <div class="keybar"><div><strong>${fmtDate(d.openDate)}</strong><span>Open Date</span></div><div><strong>${fmtMoney(d.purchasePrice) || '\u2014'}</strong><span>Purchase Price</span></div>
       <div><strong>${fmtMoney(d.loanAmount) || '\u2014'}</strong><span>Loan Amount</span></div><div><strong>${fmtDate(d.closingDate) || '\u2014'}</strong><span>Settlement Date</span></div>
+      <div data-emd-amount><strong>${d.emdAmount == null || d.emdAmount === '' ? '\u2014' : fmtMoney(d.emdAmount)}</strong><span>EMD Amount</span></div><div data-emd-due><strong>${fmtDate(d.emdDueDate) || '\u2014'}</strong><span>EMD Due Date</span></div>
       ${edit ? html`<button class="icon-edit" id="editdeal" title="Edit order details">&#9998;</button>` : ''}</div>
     <div class="box-title"><h2><span class="h-ico"></span>Summary</h2></div>
     <div class="sum-grid">${card('Buyer Information', person(by('Client-Buyer')))}${card('Seller Information', person(by('Client-Seller')))}
@@ -75,9 +76,10 @@ function editModal(api, d, refresh) {
   const v = (k) => d[k] == null ? '' : d[k];
   const m = modal('Edit order details', html`<form id="edf" class="form-grid">
     <label class="span2">Street<input name="street" required value="${v('street')}"></label><label>City<input name="city" required value="${v('city')}"></label>
-    <label>State<input name="state" required maxlength="2" value="${v('state')}"></label><label>ZIP<input name="zip" value="${v('zip')}"></label>
-    <label>Closing date<input type="date" name="closingDate" value="${v('closingDate')}"></label>
+    <label>State<select name="state" required><option value="">Select state</option>${US_STATE_NAMES.map(([c, n]) => html`<option value="${c}" ${c === d.state ? raw('selected') : ''}>${n} (${c})</option>`)}${d.state && !US_STATES.includes(d.state) ? html`<option value="${d.state}" selected>${d.state}</option>` : ''}</select></label><label>ZIP<input name="zip" value="${v('zip')}"></label>
+    <label>Open date<input type="date" name="openDate" required value="${v('openDate')}" max="${localDate()}"></label>    <label>Closing date<input type="date" name="closingDate" value="${v('closingDate')}"></label>
     <label>Purchase price<input name="purchasePrice" value="${v('purchasePrice')}"></label><label>Loan amount<input name="loanAmount" value="${v('loanAmount')}"></label>
+    <label>EMD amount<input name="emdAmount" inputmode="decimal" value="${v('emdAmount')}"></label><label>EMD due date<input type="date" name="emdDueDate" value="${v('emdDueDate')}"></label>
     <h4 class="span2">Lender</h4><label>Company<input name="lenderName" value="${v('lenderName')}"></label><label>Contact<input name="lenderContact" value="${v('lenderContact')}"></label>
     <label>Email<input name="lenderEmail" value="${v('lenderEmail')}"></label><label>Phone<input name="lenderPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${v('lenderPhone')}"></label>
     <label class="span2">Notes<textarea name="notes" rows="3">${v('notes')}</textarea></label>

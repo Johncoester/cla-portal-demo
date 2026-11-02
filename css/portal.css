@@ -146,3 +146,6 @@ p.done-by { background: #eef6ef; border-radius: 6px; padding: 6px 10px; }
 .notice.info { background: #E3EBFB; border: 1px solid #b9cbf3; color: #1e3a8a; }
 .pill.agent-party { background: #FFF4E5; color: #7a4a00; border: 1px solid #F5C58A; margin-left: 4px; }
 .pill.self-rep { background: #EDE7FB; color: #4c1d95; }
+/* type-to-search person picker (John, Nov 2): functional minimum only */
+.picker { position: relative; } .picker-list { position: absolute; z-index: 20; left: 0; right: 0; margin: 2px 0 0; padding: 0; list-style: none; background: #fff; border: 1px solid #ccc; max-height: 280px; overflow: auto; }
+.picker-list li { padding: 4px 8px; cursor: pointer; } .picker-list li.active { background: #e6f2ec; }

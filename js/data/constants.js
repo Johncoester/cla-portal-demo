@@ -65,6 +65,14 @@ export const PROFILE_STATUSES = ['active', 'disabled', 'removed'];   // removed 
 export const TEAM_MEMBER_ROLES = ['coordinator', 'agent'];
 export const isAdmin = (u) => !!(u && u.isAdmin);
 export const TX_TYPES = ['Purchase', 'Refinance'];
+// John, Nov 2: the order's State is picked from every US state + DC (alphabetical by name), no default. Any of these codes is valid on an order.
+export const US_STATE_NAMES = [['AL', 'Alabama'], ['AK', 'Alaska'], ['AZ', 'Arizona'], ['AR', 'Arkansas'], ['CA', 'California'], ['CO', 'Colorado'], ['CT', 'Connecticut'], ['DE', 'Delaware'],
+  ['DC', 'District of Columbia'], ['FL', 'Florida'], ['GA', 'Georgia'], ['HI', 'Hawaii'], ['ID', 'Idaho'], ['IL', 'Illinois'], ['IN', 'Indiana'], ['IA', 'Iowa'], ['KS', 'Kansas'], ['KY', 'Kentucky'],
+  ['LA', 'Louisiana'], ['ME', 'Maine'], ['MD', 'Maryland'], ['MA', 'Massachusetts'], ['MI', 'Michigan'], ['MN', 'Minnesota'], ['MS', 'Mississippi'], ['MO', 'Missouri'], ['MT', 'Montana'],
+  ['NE', 'Nebraska'], ['NV', 'Nevada'], ['NH', 'New Hampshire'], ['NJ', 'New Jersey'], ['NM', 'New Mexico'], ['NY', 'New York'], ['NC', 'North Carolina'], ['ND', 'North Dakota'], ['OH', 'Ohio'],
+  ['OK', 'Oklahoma'], ['OR', 'Oregon'], ['PA', 'Pennsylvania'], ['RI', 'Rhode Island'], ['SC', 'South Carolina'], ['SD', 'South Dakota'], ['TN', 'Tennessee'], ['TX', 'Texas'], ['UT', 'Utah'],
+  ['VT', 'Vermont'], ['VA', 'Virginia'], ['WA', 'Washington'], ['WV', 'West Virginia'], ['WI', 'Wisconsin'], ['WY', 'Wyoming']];
+export const US_STATES = US_STATE_NAMES.map(([c]) => c);
 export const DOC_VISIBILITY = ['all', 'buyer', 'seller', 'staff'];
 // 'Who can see it' choices for someone acting in `role` ON THIS FILE (deal-scoped role; Admin passes isAdmin):
 // staff, TC and Admin: every option. Agents and clients (outside users): 'Everyone on the file' + their OWN side only - never

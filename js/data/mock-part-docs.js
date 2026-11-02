@@ -17,6 +17,7 @@ export function contactsTasksDocs(x) {
         email: str(input.email, 200).toLowerCase(), phone: x.phone(input.phone), company: str(input.company, 120), createdBy: u.id, createdAt: now() };
       if (c.email && !emailOk(c.email)) fail('Email is not valid.');
       if (c.email && d.contacts.some((z) => z.email === c.email)) fail('A contact with this email already exists.');
+      if (c.email && d.profiles.some((z) => z.email === c.email && z.status !== 'removed')) fail('A user with this email already exists.');
       d.contacts.push(c); save(); return clone(c);
     },
     async updateContact(id, patch) {
@@ -41,6 +42,9 @@ export function contactsTasksDocs(x) {
         if (has.length && C.OUTSIDE_FILE_ROLES.includes(role) && !(has.length === 1 && C.pairAllowed(has[0].role, role)))
           fail(`This person is already the ${has.map((h) => h.role).join(' and ')} on this order. Only an agent buying or selling for themselves can hold two roles (Client-Buyer + Buyer Agent, or Client-Seller + Listing Agent); remove that role first.`);
       } else if (login && login.status !== 'removed' && C.OUTSIDE_FILE_ROLES.includes(role)) fail('This is a CLA staff login, so it keeps its staff role on every order. Agents and clients need an outside-user login.');
+      // John, Nov 2: a file's Transaction Coordinator must be an ACTIVE user whose account role is exactly 'Transaction Coordinator' (not a Processor, salesperson, agent or a contact without a login)
+      if (role === 'Transaction Coordinator' && !(login && login.status === 'active' && login.role === 'Transaction Coordinator'))
+        fail('Only an active user with the Transaction Coordinator role can be the Transaction Coordinator on an order.');
       const p = { id: nid('dp'), dealId, contactId, role, createdAt: now() }; d.participants.push(p);
       log(dealId, u.id, 'participant.added', 'contact', contactId, `${fullName(c)} added as ${role}`);
       const n = x.makeCopies(dealId, p, u.id); save(); return { ok: true, tasksCreated: n };

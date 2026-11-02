@@ -1,28 +1,28 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js';
-import { html, raw, toText, esc, $, $$, toast, closeModal } from './ui.js';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js';
+import { getAdapter } from './data/adapter.js?v=202611021559';
+import { html, raw, toText, esc, $, $$, toast, closeModal } from './ui.js?v=202611021559';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611021559';
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
 
 const pages = {
-  login: () => import('./pages/entry.js'),
-  dashboard: () => import('./pages/dashboard.js'),
-  orders: () => import('./pages/orders.js'),
-  'orders/new': () => import('./pages/ordernew.js'),
-  deal: () => import('./pages/deal.js'),
-  users: () => import('./pages/users.js'),
-  profile: () => import('./pages/profile.js'),
-  'contact-us': () => import('./pages/contact.js'),
-  teams: () => import('./pages/teams.js'),
-  templates: () => import('./pages/templates.js'),
-  library: () => import('./pages/library.js'),
-  activity: () => import('./pages/activity.js'),
-  outbox: () => import('./pages/outbox.js'),
-  tasks: () => import('./pages/tasks.js'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
-  schedule: () => import('./pages/schedule.js'),   // public closing-time link (no sign-in needed)
+  login: () => import('./pages/entry.js?v=202611021559'),
+  dashboard: () => import('./pages/dashboard.js?v=202611021559'),
+  orders: () => import('./pages/orders.js?v=202611021559'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611021559'),
+  deal: () => import('./pages/deal.js?v=202611021559'),
+  users: () => import('./pages/users.js?v=202611021559'),
+  profile: () => import('./pages/profile.js?v=202611021559'),
+  'contact-us': () => import('./pages/contact.js?v=202611021559'),
+  teams: () => import('./pages/teams.js?v=202611021559'),
+  templates: () => import('./pages/templates.js?v=202611021559'),
+  library: () => import('./pages/library.js?v=202611021559'),
+  activity: () => import('./pages/activity.js?v=202611021559'),
+  outbox: () => import('./pages/outbox.js?v=202611021559'),
+  tasks: () => import('./pages/tasks.js?v=202611021559'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611021559'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  schedule: () => import('./pages/schedule.js?v=202611021559'),   // public closing-time link (no sign-in needed)
 };
 const PUBLIC = new Set(['login', 'schedule']);
 
