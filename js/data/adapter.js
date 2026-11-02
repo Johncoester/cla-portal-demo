@@ -14,6 +14,9 @@
  * DATA CONTRACT (same names in both; see the mock-part-*.js files):
  *   deals:      getWorkQueue, listDeals, getDeal, createDeal, updateDeal, setStage, setDealStatus, listSalesStaff, unreadCount
  *   people:     listContacts, createContact, updateContact, addParticipant (copies current task templates), removeParticipant
+ *               Contacts carry contactType: null | 'realtor' | 'lender' | 'buyer_seller' (person-level, for reporting; separate from the
+ *               per-file role; CLA staff never have one). createContact / updateContact accept it; adminCreateUser / adminUpdateUser
+ *               accept it for outside users; adminListUsers rows carry it.
  *   tasks:      listTasks, getTask, createTask, updateTask, saveTaskForm(id, data, {complete}), uploadForTask,
  *               listTaskTemplates, publishTemplateVersion (Admin), sendTaskReminder, queueOverdueReminders, listOutbox (queued only, never sent)
  *   documents:  listDocuments, addDocument, moveDocument, updateDocumentMeta, getDocumentContent, listDealFolders, createFolder, renameFolder,
@@ -36,13 +39,18 @@
  *               accounts with their contactId; addParticipant refuses anyone else as a file's TC), createDeal/updateDeal also take openDate (no future),
  *               any US state, emdAmount (>= 0) and emdDueDate (migration 20), addDealSalesPerson(dealId, salesId),
  *               removeDealSalesPerson(dealId, salesId), setDealSalesPeople(dealId, salesIds); updateDeal accepts processorId and salesIds.
+ * John Nov 2 (migration 22): the CRM, behind the `crm` FEATURE FLAG (features.js; api.features.crm). Off = every method below refuses.
+ *               crmMe, listCrmOwners, listCrmLeads / getCrmLead / createCrmLead / updateCrmLead / convertCrmLead(id, {accountId|newAccountName, accountKind, opportunityName, linkExisting}),
+ *               listCrmContacts / getCrmContact (orders + totals + salesReps + activities) / createCrmContact / updateCrmContact (CRM fields only),
+ *               listCrmAccounts / getCrmAccount / createCrmAccount / updateCrmAccount, listCrmOpportunities / createCrmOpportunity / updateCrmOpportunity / moveCrmOpportunity,
+ *               archiveCrmRecord(entity, id, archived) (no CRM deletes), listCrmActivities / logCrmActivity / updateCrmActivity, listCrmFollowUps({ownerId, status}), crmReport({from, to}).
  * There is intentionally NO deleteDocument (or folder delete) in either adapter, for anyone.
  */
 let cached = null;
 export async function getAdapter() {
   if (cached) return cached;
   const cfg = (typeof window !== 'undefined' && window.CLA_PORTAL_CONFIG) || { mode: 'mock' };
-  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611021559'); cached = await m.createSupabaseAdapter(cfg); }
-  else { const m = await import('./mock-adapter.js?v=202611021559'); cached = m.createMockAdapter(); }
+  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611021647'); cached = await m.createSupabaseAdapter(cfg); }
+  else { const m = await import('./mock-adapter.js?v=202611021647'); cached = m.createMockAdapter(); }
   return cached;
 }

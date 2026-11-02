@@ -1,11 +1,11 @@
 // Place Order (Processor, Admin, Super admin; John Nov 2): creates a deal and links the chosen people (their intake tasks are copied from the current task templates).
 // John, Nov 2 (later): Open Date (backdating allowed, never future), every US state (no default), EMD amount + due date, documents attached at placement,
 // type-to-search pickers for Buyer / Seller / Buyer Agent / Listing Agent, one "Add new user" place, and Transaction Coordinator = TC accounts only.
-import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText } from '../ui.js?v=202611021559';
-import { TX_TYPES, runsOrders, isProcessor, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel } from '../data/constants.js?v=202611021559';
-import { pickerHtml, mountPicker, personLabel } from './person-picker.js?v=202611021559';
+import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText } from '../ui.js?v=202611021647';
+import { TX_TYPES, runsOrders, isProcessor, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole } from '../data/constants.js?v=202611021647';
+import { pickerHtml, mountPicker, personLabel } from './person-picker.js?v=202611021647';
 
-const SEARCH = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer agent'], ['Listing Agent', 'Listing agent']];
+const SEARCH = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer agent'], ['Listing Agent', 'Listing agent'], ['Lender', 'Lender']];   // Lender slot: John, Nov 2 (contact type)
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 export async function render({ api, user, go }) {
@@ -14,7 +14,7 @@ export async function render({ api, user, go }) {
   // the file's Processor: a Processor defaults to themselves; an Admin / Super admin is not a valid Processor, so they must choose one
   const meProc = isProcessor(user.role); const today = localDate();
   // "Add new user" roles. Salesperson creates a staff login, which is Admin-only (John's earlier decision), so only Admins / Super admins see it.
-  const NEW_ROLES = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer Agent'], ['Listing Agent', 'Listing Agent'], ...(user.isAdmin ? [['Sales Person', 'Salesperson']] : [])];
+  const NEW_ROLES = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer Agent'], ['Listing Agent', 'Listing Agent'], ['Lender', 'Lender'], ...(user.isAdmin ? [['Sales Person', 'Salesperson']] : [])];
   const visOpts = visibilityChoices(user.role, user.isAdmin);
   const salesBox = (s, checked = false) => html`<label class="check"><input type="checkbox" name="salesIds" value="${s.id}" ${checked ? raw('checked') : ''}> ${s.firstName} ${s.lastName} <span class="muted small">(${s.role})</span></label>`;
   const body = html`
@@ -41,7 +41,8 @@ export async function render({ api, user, go }) {
           <div class="span2 form-grid" id="an-fields" hidden>
             <label>First name *<input id="an-first" maxlength="80"></label><label>Last name<input id="an-last" maxlength="80"></label>
             <label>Email<span id="an-email-req" hidden> *</span><input id="an-email" type="email" maxlength="200"></label><label>Phone<input id="an-phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone></label>
-            <label class="span2" id="an-company-l" hidden>Brokerage / company<input id="an-company" maxlength="120"></label>
+            <label class="span2" id="an-company-l" hidden><span id="an-company-t">Brokerage / company</span><input id="an-company" maxlength="120"></label>
+            <label class="span2" id="an-ctype-l" hidden>Contact type <span class="muted small">(for reporting; set from the role, you can change it)</span><select id="an-ctype" aria-label="Contact type"><option value="">(not set)</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select></label>
             <p class="span2 muted small" id="an-note"></p>
             <div class="span2" id="an-dup" hidden></div>
             <div class="span2"><button type="button" class="m-btn" id="an-create">Create and add to this order</button></div>
@@ -68,11 +69,12 @@ export async function render({ api, user, go }) {
     // ---------- one "Add new user" place ----------
     const anForm = $('#an-form', root); const anRole = $('#an-role', root); const anFields = $('#an-fields', root); const dup = $('#an-dup', root);
     const val = (id) => $('#' + id, root).value.trim();
-    const reset = () => { ['an-first', 'an-last', 'an-email', 'an-phone', 'an-company'].forEach((id) => { $('#' + id, root).value = ''; }); anRole.value = ''; anFields.hidden = true; dup.hidden = true; dup.innerHTML = ''; };
+    const reset = () => { ['an-first', 'an-last', 'an-email', 'an-phone', 'an-company', 'an-ctype'].forEach((id) => { $('#' + id, root).value = ''; }); anRole.value = ''; anFields.hidden = true; dup.hidden = true; dup.innerHTML = ''; };
     $('#an-open', root).addEventListener('click', () => { anForm.hidden = false; anRole.focus(); });
     $('#an-cancel', root).addEventListener('click', () => { reset(); anForm.hidden = true; });
     anRole.addEventListener('change', () => { const r = anRole.value; anFields.hidden = !r; dup.hidden = true;
-      $('#an-company-l', root).hidden = !(r === 'Buyer Agent' || r === 'Listing Agent'); $('#an-email-req', root).hidden = r !== 'Sales Person';
+      $('#an-company-l', root).hidden = !(r === 'Buyer Agent' || r === 'Listing Agent' || r === 'Lender'); $('#an-company-t', root).textContent = r === 'Lender' ? 'Company (lender)' : 'Brokerage / company';
+      $('#an-ctype-l', root).hidden = !r || r === 'Sales Person'; $('#an-ctype', root).value = contactTypeForRole(r); $('#an-email-req', root).hidden = r !== 'Sales Person';
       $('#an-note', root).textContent = r === 'Sales Person' ? 'Creates an active CLA staff login (role Sales Person) and checks them under Salespeople. No email or invite is sent.'
         : r ? `Adds a contact (no portal login, no email or invite is sent) and puts them in the ${NEW_ROLES.find((x) => x[0] === r)[1]} slot of this order.` : ''; });
     $('#addnew', root).addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') e.preventDefault(); });   // Enter here must not submit the order
@@ -94,7 +96,7 @@ export async function render({ api, user, go }) {
           return; } }
       if (role === 'Sales Person') { const p = await api.adminCreateUser({ role: 'Sales Person', firstName: first, lastName: val('an-last'), email, phone: val('an-phone') });
         staff.push(p); place(role, { ...p, profileId: p.id }); return; }
-      const c = await api.createContact({ firstName: first, lastName: val('an-last'), email, phone: val('an-phone'), company: (role === 'Buyer Agent' || role === 'Listing Agent') ? val('an-company') : '' });
+      const c = await api.createContact({ firstName: first, lastName: val('an-last'), email, phone: val('an-phone'), company: ['Buyer Agent', 'Listing Agent', 'Lender'].includes(role) ? val('an-company') : '', contactType: $('#an-ctype', root).value });
       people.push(c); place(role, c); }));
     // ---------- submit ----------
     form.addEventListener('submit', guard(async (e) => {

@@ -2,6 +2,9 @@
 export function contactsTasksDocs(x) {
   const { load, save, nid, needUser, needProcessor, isManager, notViewOnly, seesAll, dealsFor, dealOr404, onDeal, fileRole, log, prof, nameOf, roleOf, fullName, folderOf, docVisible, participantsOf, notify, dealProfileIds, clone, now, fail, str, emailOk, C } = x;
   const docOut = (z) => ({ ...z, dataUrl: undefined, hasContent: !!(z.dataUrl || z.hasFile), uploadedByName: nameOf(z.uploadedBy), uploadedByRole: x.fileRoleText(z.uploadedBy, z.dealId), folderName: (folderOf(z.folderId) || {}).name || '' });
+  // CONTACT TYPE (John, Nov 2): '' / null = not set; otherwise one of the fixed codes. A contact with a CLA staff login has none.
+  const ctype = (v, login) => { const s = str(v, 20); if (!s) return null; if (!C.CONTACT_TYPE_CODES.includes(s)) fail('Pick a contact type from the list (Realtor, Lender or Buyer/Seller).');
+    if (login && login.status !== 'removed' && !C.isOutside(login.role)) fail('CLA staff have no contact type.'); return s; };
   const api = {
     // ---------- Contacts & participants ----------
     async listContacts(search = '') {
@@ -14,7 +17,7 @@ export function contactsTasksDocs(x) {
     async createContact(input) {
       const u = needProcessor(); const d = load();
       const c = { id: nid('c'), profileId: null, firstName: str(input.firstName, 80) || fail('First name is required.'), lastName: str(input.lastName, 80),
-        email: str(input.email, 200).toLowerCase(), phone: x.phone(input.phone), company: str(input.company, 120), createdBy: u.id, createdAt: now() };
+        email: str(input.email, 200).toLowerCase(), phone: x.phone(input.phone), company: str(input.company, 120), contactType: ctype(input.contactType), createdBy: u.id, createdAt: now() };
       if (c.email && !emailOk(c.email)) fail('Email is not valid.');
       if (c.email && d.contacts.some((z) => z.email === c.email)) fail('A contact with this email already exists.');
       if (c.email && d.profiles.some((z) => z.email === c.email && z.status !== 'removed')) fail('A user with this email already exists.');
@@ -26,6 +29,7 @@ export function contactsTasksDocs(x) {
       if (!c.firstName) fail('First name is required.');
       if (patch.email != null) { const e = str(patch.email, 200).toLowerCase(); if (e && !emailOk(e)) fail('Email is not valid.');
         if (e && e !== c.email && load().contacts.some((z) => z.id !== c.id && z.email === e)) fail('A contact with this email already exists.'); c.email = e; }
+      if (patch.contactType !== undefined) { const t = ctype(patch.contactType, c.profileId && prof(c.profileId)); if (t !== (c.contactType || null)) log(null, needUser().id, 'contact.type', 'contact', c.id, `Contact type of ${fullName(c)} set to ${C.contactTypeLabel(t) || 'not set'}`); c.contactType = t; }
       const p = c.profileId && prof(c.profileId); if (p) { p.firstName = c.firstName; p.lastName = c.lastName; p.phone = c.phone; }
       save(); return clone(c);
     },

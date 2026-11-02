@@ -1,5 +1,5 @@
 // FAKE DATA ONLY. Fictional people, example.test addresses, 555 phone numbers. No real clients, no credentials.
-import { TEMPLATE_DEFS } from './templates.js?v=202611021559';
+import { TEMPLATE_DEFS } from './templates.js?v=202611021647';
 export const DEAL_FOLDERS = ['Contract & addenda', 'IDs & personal', 'Lender & payoff', 'HOA', 'Closing'];
 const addDays = (iso, n) => new Date(Date.parse(iso.slice(0, 10) + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 export function buildSeed() {
@@ -24,11 +24,14 @@ export function buildSeed() {
   const contacts = profiles.map((p) => ({ id: 'c-' + p.id.slice(2), profileId: p.id, firstName: p.firstName, lastName: p.lastName, email: p.email, phone: p.phone,
     company: p.co != null ? p.co : 'CLA Title & Escrow', createdBy: 'u-proc', createdAt: p.createdAt }));
   profiles.forEach((p) => { delete p.co; });
+  // CONTACT TYPE (John, Nov 2): agents -> realtor, clients -> buyer_seller; staff have none (set below for the extra contacts too)
+  const CT = { 'u-bagent': 'realtor', 'u-lagent': 'realtor', 'u-multi': 'realtor', 'u-selfrep': 'realtor', 'u-gone': 'realtor', 'u-buyer': 'buyer_seller', 'u-seller': 'buyer_seller' };
+  contacts.forEach((c) => { c.contactType = CT[c.profileId] || null; });
   contacts.push(
-    { id: 'c-cora', profileId: null, firstName: 'Cora', lastName: 'Seller', email: 'cora.seller@example.test', phone: '410-555-0133', company: '', createdBy: 'u-proc', createdAt: '2026-10-01T12:00:00Z' },
-    { id: 'c-lena', profileId: null, firstName: 'Lena', lastName: 'Listing', email: 'lena.listing@example.test', phone: '410-555-0144', company: 'Bayview Realty (fake)', createdBy: 'u-proc', createdAt: '2026-10-01T12:00:00Z' },
-    { id: 'c-lender1', profileId: null, firstName: 'Linda', lastName: 'Lender', email: 'linda.lender@example.test', phone: '410-555-0111', company: 'Example Home Loans (fake)', createdBy: 'u-proc', createdAt: '2026-09-01T12:00:00Z' },
-    { id: 'c-hoa1', profileId: null, firstName: 'Hank', lastName: 'Hoa-Manager', email: 'hank.hoa@example.test', phone: '410-555-0122', company: 'Maple Ridge HOA (fake)', createdBy: 'u-proc', createdAt: '2026-09-01T12:00:00Z' });
+    { id: 'c-cora', profileId: null, contactType: 'buyer_seller', firstName: 'Cora', lastName: 'Seller', email: 'cora.seller@example.test', phone: '410-555-0133', company: '', createdBy: 'u-proc', createdAt: '2026-10-01T12:00:00Z' },
+    { id: 'c-lena', profileId: null, contactType: 'realtor', firstName: 'Lena', lastName: 'Listing', email: 'lena.listing@example.test', phone: '410-555-0144', company: 'Bayview Realty (fake)', createdBy: 'u-proc', createdAt: '2026-10-01T12:00:00Z' },
+    { id: 'c-lender1', profileId: null, contactType: 'lender', firstName: 'Linda', lastName: 'Lender', email: 'linda.lender@example.test', phone: '410-555-0111', company: 'Example Home Loans (fake)', createdBy: 'u-proc', createdAt: '2026-09-01T12:00:00Z' },
+    { id: 'c-hoa1', profileId: null, contactType: null, firstName: 'Hank', lastName: 'Hoa-Manager', email: 'hank.hoa@example.test', phone: '410-555-0122', company: 'Maple Ridge HOA (fake)', createdBy: 'u-proc', createdAt: '2026-09-01T12:00:00Z' });
   // TC access comes from TEAMS: a coordinator sees the deals of the agents on their team(s).
   const teams = [{ id: 'team-harbor', name: 'Harbor Realty team', createdBy: 'u-admin', createdAt: '2026-09-01T12:00:00Z' }, { id: 'team-oak', name: 'Oak Street team', createdBy: 'u-admin', createdAt: '2026-09-01T12:00:00Z' }];
   const teamMembers = [{ teamId: 'team-harbor', profileId: 'u-tc', memberRole: 'coordinator', addedAt: '2026-09-01T12:00:00Z' }, { teamId: 'team-harbor', profileId: 'u-bagent', memberRole: 'agent', addedAt: '2026-09-01T12:00:00Z' },
@@ -120,7 +123,7 @@ export function buildSeed() {
   const dealSalesPeople = deals.filter((q) => q.salesPersonId).map((q) => ({ dealId: q.id, salesId: q.salesPersonId, addedBy: 'u-proc', addedAt: q.createdAt }));
   dealSalesPeople.push({ dealId: 'deal-1', salesId: 'u-team', addedBy: 'u-proc', addedAt: '2026-09-28T14:05:00Z' });
   deals.forEach((q) => { delete q.salesPersonId; });
-  return { version: 2, seq: 100, profiles, contacts, teams, teamMembers, deals, participants, taskTemplates, tasks, clientSalesReps, dealSalesPeople, ...more(deals) };
+  return { version: 2, seq: 100, profiles, contacts, teams, teamMembers, deals, participants, taskTemplates, tasks, clientSalesReps, dealSalesPeople, ...crm(contacts), ...more(deals) };
 }
 
 function more(deals) {
@@ -200,4 +203,58 @@ function more(deals) {
   const agreementAcks = [{ id: 'ack-1', dealId: 'deal-1', code: 'wire_fraud', version: 1, profileId: 'u-buyer', roleLabel: 'Client-Buyer', at: '2026-10-06T14:00:00Z' }];
   const closingProposals = [{ id: 'cp-1', dealId: 'deal-1', side: 'seller', proposedBy: 'u-lagent', roleLabel: 'Listing Agent', at: '2026-11-19T11:00', location: 'CLA Title office', note: 'Sally prefers late morning.', status: 'proposed', createdAt: '2026-10-23T14:00:00Z' }];
   return { folders, documents, threads, messages, reads, activity, notifications, settlements, settlementResponses, outbox: [], agreementAcks, closingProposals, signatureRequests: [] };
+}
+
+// CRM (John, Nov 2). FAKE DATA ONLY: fictional brokerages / lenders / leads, example.test emails, 555 phones. Adds CRM fields to the portal's
+// own contacts (no parallel people table) and returns the CRM-only tables. Owners are the fake salespeople Sam (u-sp) and Tina (u-team).
+function crm(contacts) {
+  const T = '2026-10-01T12:00:00Z';
+  const crmAccounts = [
+    { id: 'acc-harbor', name: 'Harbor Realty (fake)', kind: 'brokerage', phone: '301-555-0170', website: 'harbor-realty.example.test', city: 'Rockville', state: 'MD', ownerId: 'u-sp', notes: 'Biggest referral source. Fake.', archivedAt: null, createdBy: 'u-admin', createdAt: T },
+    { id: 'acc-oak', name: 'Oak Street Realty (fake)', kind: 'brokerage', phone: '301-555-0171', website: '', city: 'Bethesda', state: 'MD', ownerId: 'u-team', notes: '', archivedAt: null, createdBy: 'u-admin', createdAt: T },
+    { id: 'acc-bayview', name: 'Bayview Realty (fake)', kind: 'brokerage', phone: '410-555-0172', website: '', city: 'Annapolis', state: 'MD', ownerId: 'u-sp', notes: '', archivedAt: null, createdBy: 'u-admin', createdAt: T },
+    { id: 'acc-ehl', name: 'Example Home Loans (fake)', kind: 'lender', phone: '410-555-0173', website: 'example-home-loans.example.test', city: 'Baltimore', state: 'MD', ownerId: 'u-team', notes: '', archivedAt: null, createdBy: 'u-admin', createdAt: T },
+    { id: 'acc-summit', name: 'Summit Mortgage (fake)', kind: 'lender', phone: '', website: '', city: 'Columbia', state: 'MD', ownerId: 'u-sp', notes: 'Prospect lender.', archivedAt: null, createdBy: 'u-admin', createdAt: T },
+    { id: 'acc-old', name: 'Old Town Brokers (fake)', kind: 'brokerage', phone: '', website: '', city: 'Frederick', state: 'MD', ownerId: 'u-team', notes: 'Closed their office. Archived, never deleted.', archivedAt: '2026-10-20T12:00:00Z', createdBy: 'u-admin', createdAt: T },
+  ];
+  const F = { // contact id: [owner, account, stage, last contacted, tags]
+    'c-bagent': ['u-sp', 'acc-harbor', 'active_partner', '2026-10-28', ['top producer']], 'c-multi': ['u-sp', 'acc-harbor', 'prospect', '2026-10-12', []],
+    'c-selfrep': [null, 'acc-harbor', 'prospect', null, []], 'c-gone': [null, 'acc-harbor', 'inactive', '2026-08-30', []],
+    'c-lagent': ['u-team', 'acc-oak', 'active_partner', '2026-10-15', ['listing specialist']], 'c-lena': ['u-sp', 'acc-bayview', 'prospect', null, ['new agent']],
+    'c-lender1': ['u-team', 'acc-ehl', 'active_partner', '2026-10-21', ['preferred lender']], 'c-buyer': ['u-sp', null, 'active_partner', '2026-10-28', ['past client']],
+    'c-seller': [null, null, 'prospect', null, []], 'c-cora': [null, null, 'prospect', null, []], 'c-hoa1': [null, null, null, null, []] };
+  contacts.forEach((c) => { const v = F[c.id] || [null, null, null, null, []];
+    Object.assign(c, { crmOwnerId: v[0], accountId: v[1], crmStage: v[2], lastContactedOn: v[3], tags: v[4], crmNotes: '', crmLeadId: null, crmArchivedAt: null }); });
+  const L = (id, first, last, company, ct, source, status, ownerId, createdAt, notes = '') => ({ id, firstName: first, lastName: last, company, email: `${first}.${last}`.toLowerCase().replace(/[^a-z.]/g, '') + '@example.test',
+    phone: '', contactType: ct, source, status, ownerId, notes, convertedAt: null, convertedContactId: null, convertedAccountId: null, archivedAt: null, createdBy: ownerId || 'u-admin', createdAt });
+  const crmLeads = [
+    L('lead-1', 'Rachel', 'Realtor-Lead', 'Coastal Homes (fake)', 'realtor', 'Referral', 'New', 'u-sp', '2026-10-25T14:00:00Z', 'Referred by Bianca. Does ~20 deals a year (fake).'),
+    L('lead-2', 'Marco', 'Mortgage-Lead', 'Summit Mortgage (fake)', 'lender', 'Event', 'Contacted', 'u-sp', '2026-10-10T14:00:00Z'),
+    L('lead-3', 'Nina', 'Newagent', 'Bayview Realty (fake)', 'realtor', 'Website', 'Qualified', 'u-team', '2026-10-05T14:00:00Z'),
+    L('lead-4', 'Victor', 'Vendor', '', 'buyer_seller', 'Cold call', 'Unqualified', 'u-team', '2026-09-15T14:00:00Z'),
+    L('lead-5', 'Olivia', 'Openhouse', 'Harbor Realty (fake)', 'realtor', 'Open house', 'New', null, '2026-10-30T14:00:00Z', 'Not assigned yet.'),
+    L('lead-6', 'Paul', 'Pastclient', '', 'buyer_seller', 'Past client', 'Contacted', 'u-sp', '2026-09-20T14:00:00Z'),
+  ];
+  crmLeads[1].phone = '410-555-0180';
+  const O = (id, name, stage, contactId, accountId, ownerId, estVolume, expectedClose) => ({ id, name, stage, contactId, accountId, ownerId, estVolume, expectedClose, notes: '', archivedAt: null, createdBy: 'u-admin', createdAt: T });
+  const crmOpportunities = [
+    O('opp-1', 'Harbor Realty: monthly referrals', 'Won', 'c-bagent', 'acc-harbor', 'u-sp', 2400000, '2026-09-30'),
+    O('opp-2', 'Bayview Realty: onboard Lena', 'Meeting set', 'c-lena', 'acc-bayview', 'u-sp', 900000, '2026-11-30'),
+    O('opp-3', 'Summit Mortgage partnership', 'Proposal', null, 'acc-summit', 'u-sp', 1500000, '2026-12-15'),
+    O('opp-4', 'Oak Street: listing referrals', 'New', 'c-lagent', 'acc-oak', 'u-team', 1200000, '2027-01-15'),
+    O('opp-5', 'Example Home Loans co-marketing', 'Lost', 'c-lender1', 'acc-ehl', 'u-team', 600000, '2026-10-15'),
+  ];
+  const A = (id, entity, entityId, kind, subject, ownerId, extra = {}) => ({ id, entity, entityId, kind, subject, body: '', status: kind === 'task' ? 'open' : 'done', dueDate: null, occurredOn: kind === 'task' ? null : '2026-10-28',
+    ownerId, system: false, createdBy: ownerId || 'u-admin', createdAt: '2026-10-28T15:00:00Z', doneAt: kind === 'task' ? null : '2026-10-28T15:00:00Z', ...extra });
+  const crmActivities = [
+    A('ca-1', 'contact', 'c-bagent', 'call', 'Quarterly check-in call', 'u-sp', { body: 'Two new buyers coming in November (fake).' }),
+    A('ca-2', 'contact', 'c-bagent', 'task', 'Send November rate sheet', 'u-sp', { dueDate: '2026-10-30' }),   // overdue
+    A('ca-3', 'lead', 'lead-1', 'task', 'Intro call with Rachel', 'u-sp', { dueDate: '2026-11-20' }),
+    A('ca-4', 'lead', 'lead-2', 'email', 'Sent intro email (logged only, nothing sent)', 'u-sp', { occurredOn: '2026-10-11', createdAt: '2026-10-11T15:00:00Z' }),
+    A('ca-5', 'account', 'acc-oak', 'meeting', 'Office meeting: title process lunch-and-learn', 'u-team', { occurredOn: '2026-10-15', createdAt: '2026-10-15T15:00:00Z' }),
+    A('ca-6', 'contact', 'c-lender1', 'task', 'Follow up on co-marketing', 'u-team', { dueDate: '2026-10-25' }),   // overdue
+    A('ca-7', 'opportunity', 'opp-2', 'note', 'Lena wants a demo of the portal', 'u-sp'),
+    A('ca-8', 'contact', 'c-lagent', 'task', 'Thank-you card after closing', 'u-team', { dueDate: '2026-10-16', status: 'done', doneAt: '2026-10-16T15:00:00Z' }),
+  ];
+  return { crmAccounts, crmLeads, crmOpportunities, crmActivities };
 }

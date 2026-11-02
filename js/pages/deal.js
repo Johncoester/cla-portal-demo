@@ -1,9 +1,9 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611021559';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES } from '../data/constants.js?v=202611021559';
-import { slotText } from './dealclosing.js?v=202611021559';
+import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611021647';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES } from '../data/constants.js?v=202611021647';
+import { slotText } from './dealclosing.js?v=202611021647';
 
-const TABS = { tasks: './dealtasks.js?v=202611021559', inbox: './dealmsgs.js?v=202611021559', documents: './dealdocs.js?v=202611021559', contacts: './dealcontacts.js?v=202611021559', activity: './dealactivity.js?v=202611021559', closing: './dealclosing.js?v=202611021559', agreements: './dealagreements.js?v=202611021559' };
+const TABS = { tasks: './dealtasks.js?v=202611021647', inbox: './dealmsgs.js?v=202611021647', documents: './dealdocs.js?v=202611021647', contacts: './dealcontacts.js?v=202611021647', activity: './dealactivity.js?v=202611021647', closing: './dealclosing.js?v=202611021647', agreements: './dealagreements.js?v=202611021647' };
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -11,7 +11,7 @@ export async function render(ctx) {
   // per-file roles: on this order an outside user acts as their role HERE (deal.myRole), e.g. Buyer Agent here, Client-Buyer elsewhere
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611021559' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611021647' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
@@ -30,7 +30,8 @@ function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = []) {
   const by = (role) => d.participants.find((p) => p.role === role); const edit = runsOrders(user);
   const tracker = STAGES.map((s, i) => html`<li class="${i < d.stage ? 'done' : i === d.stage ? 'current' : ''}"><button type="button" class="step" ${edit ? '' : raw('disabled')} data-stage="${i}" title="${edit ? 'Set stage' : s}"></button><span>${s}</span></li>`);
   const team = d.participants.filter((p) => ['Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(p.role));
-  const lender = d.lenderName || d.lenderContact ? html`<div><strong>${d.lenderName}</strong><br>${d.lenderContact}<br><span class="muted">${d.lenderEmail} ${fmtPhone(d.lenderPhone)}</span></div>` : html`<div class="muted">Not specified</div>`;
+  // John, Nov 2: when the lender fields are empty, show the order's Lender contact (e.g. added through Place Order's Add new user)
+  const lender = d.lenderName || d.lenderContact ? html`<div><strong>${d.lenderName}</strong><br>${d.lenderContact}<br><span class="muted">${d.lenderEmail} ${fmtPhone(d.lenderPhone)}</span></div>` : by('Lender') ? person(by('Lender')) : html`<div class="muted">Not specified</div>`;
   const body = html`
     <div class="deal-head"><img class="home-flag" src="assets/img/order-new-icon.png" alt=""><h2>${d.street} ${d.city} ${d.state} ${d.zip}</h2><span class="order-no">Order # ${d.fileNumber}</span>${d.agentParties && d.agentParties.length ? html` <span class="pill warn agent-party">Agent is a party</span>` : ''}
       <span class="spacer"></span>${edit ? html`<select id="statussel" aria-label="Order status">${options(DEAL_STATUSES, d.status)}</select>` : pill(d.status, d.status === 'Open' ? 'ok' : '')}</div>

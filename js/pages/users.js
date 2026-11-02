@@ -3,9 +3,11 @@
 // Delete = the account is removed (cannot sign in, leaves teams and salesperson links), but their documents, messages and history stay.
 // Nov 2 (John): filter/search, staff role vs per-file roles for outside users, clients linked to salespeople (many-to-many),
 // Super admin (only a Super admin grants/removes it or deletes/suspends/changes a Super admin).
-import { html, raw, $, $$, guard, formData, pill, toast, fmtDate, options } from '../ui.js?v=202611021559';
-import { ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, OUTSIDE, isAdminRole, isSuperAdmin, isSalesRole, roleLabel } from '../data/constants.js?v=202611021559';
-import { USER_ROLE_FILTERS, USER_STATUS_FILTERS, filterUsers } from '../data/user-filter.js?v=202611021559';
+import { html, raw, $, $$, guard, formData, pill, toast, fmtDate, options } from '../ui.js?v=202611021647';
+import { ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, OUTSIDE, isAdminRole, isSuperAdmin, isSalesRole, roleLabel, CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611021647';
+// contact type (John, Nov 2): outside users only (agents, clients, lenders); staff have none
+const ctypeSel = (sel, dis = '') => html`<label data-ctype-field>Contact type <span class="muted small">(outside users; for reporting)</span><select name="contactType" ${dis}><option value="">(not set)</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}" ${v === sel ? raw('selected') : ''}>${l}</option>`)}</select></label>`;
+import { USER_ROLE_FILTERS, USER_STATUS_FILTERS, filterUsers } from '../data/user-filter.js?v=202611021647';
 const acct = (r) => (r === OUTSIDE ? 'Outside user (role set per order)' : r);
 const fullName = (u) => `${u.firstName} ${u.lastName}`.trim();
 // account-type options; a plain Admin sees "Super admin" but cannot pick it
@@ -26,7 +28,7 @@ export async function render({ api, user, params, refresh, go }) {
     const body = html`<div class="box-title"><h2><span class="h-ico"></span>Create User</h2></div>
       <form id="cuf" class="card form-grid"><label>First name *<input name="firstName" required maxlength="80"></label><label>Last name<input name="lastName" maxlength="80"></label>
         <label>Email *<input name="email" type="email" required></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone maxlength="40"></label>
-        <label>Account type *<select name="role" required><option value="">Choose&hellip;</option>${roleOptions(user, '')}</select></label>
+        <label>Account type *<select name="role" required><option value="">Choose&hellip;</option>${roleOptions(user, '')}</select></label>${ctypeSel('')}
         <p class="muted span2">Agents and clients are <strong>outside users</strong>: they have no fixed role. When the processor adds them to an order, the role picked there (Buyer Agent, Listing Agent, Client-Buyer or Client-Seller) decides what they can see and do <em>on that order</em>. One email = one login, even for someone who is an agent on one file and a buyer on another.</p>
         <label class="check"><input type="checkbox" name="isAdmin"> Also give Admin access (roles "Admin" and "Super admin" always have it)</label>
         <label class="check"><input type="checkbox" name="isClient" data-isclient> This person is a client (buyer or seller): link them to salespeople</label>
@@ -35,7 +37,9 @@ export async function render({ api, user, params, refresh, go }) {
         <div class="span2"><button class="m-btn" type="submit">Create user</button> <a class="ghost" href="#/users">Cancel</a></div></form>`;
     return { title: 'Create User', crumbs: [['User List', '#/users'], ['Create User']], body, mount(root) {
       const f = $('#cuf', root); const role = $('[name=role]', f);
-      $('[data-isclient]', f).addEventListener('change', (e) => { if (e.target.checked && !role.value) role.value = OUTSIDE; });
+      $('[data-isclient]', f).addEventListener('change', (e) => { if (e.target.checked && !role.value) role.value = OUTSIDE; showCt(); });
+      const ct = $('[name=contactType]', f); const showCt = () => { const out = role.value === OUTSIDE; $('[data-ctype-field]', f).hidden = !out; if (!out) ct.value = ''; };
+      role.addEventListener('change', showCt); showCt();
       f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const fd = formData(e.target); fd.salesIds = new FormData(e.target).getAll('salesIds');
         await api.adminCreateUser(fd); toast('User created'); go('/users'); }));
     } };
@@ -51,6 +55,7 @@ export async function render({ api, user, params, refresh, go }) {
         <label>First name *<input name="firstName" required maxlength="80" value="${u.firstName}" ${gone ? raw('disabled') : ''}></label><label>Last name<input name="lastName" maxlength="80" value="${u.lastName}" ${gone ? raw('disabled') : ''}></label>
         <label>Email<input value="${u.email}" disabled title="Changed by the sign-in provider only"></label><label>Phone<input name="phone" type="tel" inputmode="tel" data-phone maxlength="40" value="${u.phone || ''}" ${gone ? raw('disabled') : ''}></label>
         <label>Account type<select name="role" ${dis}>${roleOptions(user, u.role)}</select></label>
+        ${u.role === OUTSIDE ? ctypeSel(u.contactType || '', gone ? raw('disabled') : '') : ''}
         <label>Status<select name="status" ${dis}>${options(['active', 'disabled'], u.status === 'removed' ? 'disabled' : u.status, (s) => (s === 'active' ? 'Active' : 'Disabled (suspended)'))}</select></label>
         <label class="check"><input type="checkbox" name="isAdmin" ${u.isAdmin ? raw('checked') : ''} ${gone || locked || self || isAdminRole(u.role) ? raw('disabled') : ''}> Admin access${isAdminRole(u.role) ? ` (role ${u.role} always has it)` : ''}</label>
         ${lockNote ? html`<p class="muted span2" data-lock-note>${lockNote}</p>` : ''}
@@ -61,7 +66,7 @@ export async function render({ api, user, params, refresh, go }) {
         <div class="span2">${gone ? '' : html`<button class="m-btn" type="submit">Save</button> `}<a class="ghost" href="#/users">Back to User List</a></div></form>`;
     return { title: 'Edit User', crumbs: [['User List', '#/users'], [fullName(u)]], body, mount(root) {
       const f = $('#euf', root); if (gone) return;
-      f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const fd = formData(e.target); const patch = { firstName: fd.firstName, lastName: fd.lastName, phone: fd.phone };
+      f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const fd = formData(e.target); const patch = { firstName: fd.firstName, lastName: fd.lastName, phone: fd.phone }; if ('contactType' in fd) patch.contactType = fd.contactType;
         if (!dis) { patch.role = fd.role; patch.status = fd.status; }
         const adm = $('[name=isAdmin]', f); if (!adm.disabled) patch.isAdmin = adm.checked;
         if ($('[data-sales-picker]', f)) patch.salesIds = new FormData(e.target).getAll('salesIds');
@@ -72,7 +77,7 @@ export async function render({ api, user, params, refresh, go }) {
   const rows = users.sort((a, b) => order[a.status] - order[b.status] || a.lastName.localeCompare(b.lastName)).map((u) => { const self = u.id === user.id; const gone = u.status === 'removed'; const locked = lockedFor(user, u);
     const links = u.role === OUTSIDE ? ((u.salesReps || []).length ? html`<div data-sales="${u.id}">${u.salesReps.map((s) => html`<span class="nowrap">${s.name}${gone ? '' : html` <button class="ghost" data-unlink="${u.id}" data-sales-id="${s.id}" title="Remove this link" aria-label="Remove link to ${s.name}">&times;</button>`}</span> `)}</div>` : html`<span class="muted small">${u.isClient ? 'no salesperson yet' : ''}</span>`)
       : isSalesRole(u.role) ? html`<div class="muted small" data-clients="${u.id}">${(u.clients || []).length ? 'Clients: ' + u.clients.map((c) => c.name).join(', ') : 'no clients linked'}</div>` : '';
-    return html`<tr class="${u.status !== 'active' ? 'is-done' : ''}" data-user-row="${u.id}"><td><a href="#/users/edit/${u.id}">${fullName(u)}</a>${gone ? html` ${pill('removed', 'bad')}` : ''}${u.isClient ? html` ${pill('client')}` : ''}</td><td>${u.email}</td>
+    return html`<tr class="${u.status !== 'active' ? 'is-done' : ''}" data-user-row="${u.id}"><td><a href="#/users/edit/${u.id}">${fullName(u)}</a>${gone ? html` ${pill('removed', 'bad')}` : ''}${u.isClient ? html` ${pill('client')}` : ''}${u.contactType ? html`<div class="muted small" data-user-ctype="${u.contactType}">${contactTypeLabel(u.contactType)}</div>` : ''}</td><td>${u.email}</td>
     <td>${gone ? u.role : html`<select data-role="${u.id}" aria-label="Role" ${self ? raw('disabled title="You cannot change your own role"') : locked ? raw('disabled title="Only a Super admin can change a Super admin"') : ''}>${roleOptions(user, u.role)}</select>`}${fileRoles(u)}</td>
     <td>${links}</td>
     <td class="center">${gone ? '' : html`<input type="checkbox" data-admin="${u.id}" ${u.isAdmin ? raw('checked') : ''} ${self || isAdminRole(u.role) ? html`disabled title="${self ? 'This is you' : `Role ${u.role} always has Admin access`}"` : ''} aria-label="Admin">`}</td>
@@ -84,12 +89,13 @@ export async function render({ api, user, params, refresh, go }) {
     <form class="filter-bar" id="ufilters">
       <label>Search<input id="usearch" name="q" type="search" placeholder="Name, email, file no, salesperson"></label>
       <label>Role<select name="role"><option value="">Any role</option>${options(USER_ROLE_FILTERS, '', (o) => o[1], (o) => o[0])}</select></label>
-      <label>Status<select name="status">${options(USER_STATUS_FILTERS, '', (o) => o[1], (o) => o[0])}</select></label></form>
+      <label>Status<select name="status">${options(USER_STATUS_FILTERS, '', (o) => o[1], (o) => o[0])}</select></label>
+      <label>Contact type<select name="contactType"><option value="">Any</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}<option value="none">Not set</option></select></label></form>
     <table class="tbl striped"><thead><tr><th>Name</th><th>Email</th><th>Account type / roles on files</th><th>Salespeople / clients</th><th>Admin</th><th>Teams</th><th>Status</th><th></th></tr></thead><tbody>${rows}<tr data-nomatch hidden><td colspan="8" class="muted center">No users match your filters.</td></tr></tbody></table>
     <p class="muted small">Admins only. Staff have one fixed role; outside users (agents, clients) have a role on each file, shown under their account type. Picking role Admin or Super admin gives Admin access; moving someone off it takes it away. There is always at least one Admin and at least one Super admin. Only a Super admin can grant or remove Super admin, or suspend, delete or change the role of a Super admin. Deleting a user stops their sign-in and takes them off teams and salesperson links; their documents, messages, task answers and audit history are kept and shown as "(removed)". Documents are never deleted.</p>`;
   return { title: 'User List', crumbs: [['User List']], body, mount(root) {
     const form = $('#ufilters', root);
-    const apply = () => { const f = new FormData(form); const vis = new Set(filterUsers(users, { q: f.get('q'), role: f.get('role'), status: f.get('status') }).map((u) => u.id));
+    const apply = () => { const f = new FormData(form); const vis = new Set(filterUsers(users, { q: f.get('q'), role: f.get('role'), status: f.get('status'), contactType: f.get('contactType') }).map((u) => u.id));
       $$('[data-user-row]', root).forEach((tr) => { tr.hidden = !vis.has(tr.dataset.userRow); }); $('[data-nomatch]', root).hidden = vis.size > 0;
       $('[data-filter-count]', root).textContent = vis.size === users.length ? '' : ` · ${vis.size} shown`; };
     form.addEventListener('submit', (e) => e.preventDefault()); form.addEventListener('input', apply); form.addEventListener('change', apply);

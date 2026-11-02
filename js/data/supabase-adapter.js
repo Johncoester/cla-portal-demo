@@ -1,8 +1,10 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611021559';
-import { localDate } from './constants.js?v=202611021559';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611021647';
+import { localDate } from './constants.js?v=202611021647';
+import { featureFlags } from './features.js?v=202611021647';
+import { crmSupabase } from './supabase-crm.js?v=202611021647';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned; vendor locally before go-live
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -27,6 +29,7 @@ export async function createSupabaseAdapter(cfg) {
   const salesMap = async (dealId) => { const m = new Map(); (ok(await sb.rpc('deal_sales_list', dealId ? { p_deal: dealId } : {})) || []).forEach((r) => {
     if (!m.has(r.deal_id)) m.set(r.deal_id, []); m.get(r.deal_id).push({ id: r.sales_id, name: r.name, role: r.role, addedAt: r.added_at }); }); return m; };
   const salesFields = (xs = []) => ({ salesPeople: xs, salesPersonIds: xs.map((x) => x.id), salesPersonName: xs.map((x) => x.name).join(', ') });
+  const types = async (ids) => new Map(ids.length ? (ok(await sb.rpc('contact_types', { p_ids: [...new Set(ids)] })) || []).map((r) => [r.contact_id, r.contact_type]) : []);
   const withRole = (d, r, pm) => ({ ...d, myRole: r && r.role, myRoles: (r && r.roles) || [], myRoleLabel: r && r.label, selfRep: !!(r && r.self_rep), agentParties: pm.get(d.id) || [] });
   const me = async () => {
     const { data: { user } } = await sb.auth.getUser(); if (!user) return null;
@@ -54,6 +57,7 @@ export async function createSupabaseAdapter(cfg) {
     async getDeal(id) { const [roles, pm] = [await fileRoles(), await parties()]; const d = camel(ok(await sb.from('deals').select('*').eq('id', id).single()));
       d.participants = (ok(await sb.rpc('deal_contacts', { p_deal: id })) || []).map((r) => ({ id: r.participant_id, dealId: r.deal_id, contactId: r.contact_id, role: r.role,
         contact: { id: r.contact_id, profileId: r.profile_id, firstName: r.first_name, lastName: r.last_name, company: r.company, email: r.email, phone: r.phone, contactHidden: r.contact_hidden } }));
+      const ct = await types(d.participants.map((p) => p.contactId)); d.participants.forEach((p) => { p.contact.contactType = ct.get(p.contactId) || null; });
       Object.assign(d, salesFields((await salesMap(id)).get(id))); return withRole(d, roles.get(d.id), pm); },
     // John, Nov 2 (migration 19): several salespeople per order; the Processor and Admins add/remove them (RPCs check the role + file access)
     async listProcessors() { return camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status').eq('role', 'Processor').eq('status', 'active').order('first_name')))
@@ -78,14 +82,18 @@ export async function createSupabaseAdapter(cfg) {
       return a.getDeal(id); },
     // contacts: unique email (contacts_email_uq); a new contact has no login and no invite is sent
     async createContact(input) { return camel(ok(await sb.from('contacts').insert({ first_name: input.firstName, last_name: input.lastName || '', email: String(input.email || '').toLowerCase(),
-      phone: input.phone || '', company: input.company || '' }).select().single())); },
+      phone: input.phone || '', company: input.company || '', contact_type: input.contactType || null }).select().single())); },
+    async updateContact(id, patch) { const row = {}; for (const [k, col] of [['firstName', 'first_name'], ['lastName', 'last_name'], ['email', 'email'], ['phone', 'phone'], ['company', 'company'], ['contactType', 'contact_type']])
+      if (patch[k] !== undefined) row[col] = k === 'contactType' ? (patch[k] || null) : k === 'email' ? String(patch[k] || '').toLowerCase() : patch[k];
+      return camel(ok(await sb.from('contacts').update(row).eq('id', id).select().single())); },
     // participants: the triggers (migrations 10, 11, 20) enforce outside-user roles, self-representation pairs and "TC = Transaction Coordinator accounts only"
     async addParticipant(dealId, contactId, role) { ok(await sb.from('deal_participants').insert({ deal_id: dealId, contact_id: contactId, role })); return { ok: true }; },
     async listCoordinators() { return ok(await sb.rpc('coordinator_choices')).map((r) => camel(r)); },
     async addDealSalesPerson(dealId, salesId) { ok(await sb.rpc('add_deal_sales_person', { p_deal: dealId, p_sales: salesId })); return (await a.getDeal(dealId)).salesPeople; },
     async removeDealSalesPerson(dealId, salesId) { ok(await sb.rpc('remove_deal_sales_person', { p_deal: dealId, p_sales: salesId })); return (await a.getDeal(dealId)).salesPeople; },
     async setDealSalesPeople(dealId, salesIds) { ok(await sb.rpc('set_deal_sales_people', { p_deal: dealId, p_sales: salesIds })); return (await a.getDeal(dealId)).salesPeople; },
-    async listContacts(search = '') { return camel(ok(await sb.rpc('contact_directory', { p_search: search }))); },
+    // contact type (migration 21): contact_directory() / deal_contacts() keep their shape; types come from contact_types(ids)
+    async listContacts(search = '') { const cs = camel(ok(await sb.rpc('contact_directory', { p_search: search }))); const t = await types(cs.map((c) => c.id)); return cs.map((c) => ({ ...c, contactType: t.get(c.id) || null })); },
     // messaging (migration 13): recipients = CLA staff + own side for outside users; a conversation never mixes the two sides
     async listMessageRecipients(dealId) { return camel(ok(await sb.rpc('message_recipients', { p_deal: dealId }))); },
     async createThread(dealId, { subject, participantIds, body }) { return { id: ok(await sb.rpc('create_thread', { p_deal: dealId, p_subject: subject, p_participants: participantIds, p_body: body })) }; },
@@ -158,11 +166,14 @@ export async function createSupabaseAdapter(cfg) {
     async cancelSignatureRequest(id) { ok(await sb.rpc('cancel_signature_request', { p_request: id })); return true; },
   };
   for (const n of ['pickPerson', 'signInDev', 'updateMyProfile', 'getWorkQueue', 'unreadCount', 'setStage', 'setDealStatus',
-    'updateContact', 'removeParticipant', 'createTask', 'addDocument', 'updateDocumentMeta', 'getDocumentContent',
+    'removeParticipant', 'createTask', 'addDocument', 'updateDocumentMeta', 'getDocumentContent',
     'listThreads', 'getThread', 'markThreadRead', 'adminListUsers', 'adminGetUser', 'adminUpdateUser', 'adminCreateUser',
     // round 2 still to wire (tables/RPCs exist in migrations 4-6; adminCreateUser needs an Edge Function with the service role)
     'listSalesStaff', 'moveDocument', 'uploadForTask', 'listTaskTemplates', 'listTeams', 'createTeam', 'renameTeam', 'addTeamMember', 'removeTeamMember',
     'listLibrary', 'listDealFolders', 'createFolder', 'renameFolder', 'addLibraryDocument', 'listSettlements',
     'listSignatureCandidates']) a[n] = todo(n);   // migration 14: candidates = deal_contacts() + document visibility (to wire)
+  // CRM (John, Nov 2; migration 22): only when the `crm` flag is on (default OFF in supabase mode; features.js). The database has its own switch too.
+  a.features = featureFlags(cfg);
+  Object.assign(a, crmSupabase({ sb, ok, camel, me, flags: a.features }));
   return a;
 }

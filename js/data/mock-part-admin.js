@@ -39,7 +39,7 @@ export function adminUsersTeams(x) {
   const usersOut = () => { const d = load(); return d.profiles.map((p) => { const c = contactOf(p.id);
         // outside users: their role comes from each order (deal_participants), shown here read-only
         const files = C.isOutside(p.role) && c ? d.participants.filter((z) => z.contactId === c.id && C.OUTSIDE_FILE_ROLES.includes(z.role)).map((z) => ({ dealId: z.dealId, fileNumber: (d.deals.find((q) => q.id === z.dealId) || {}).fileNumber, role: z.role })) : [];
-        return { ...p, files, isClient: C.isOutside(p.role) && isClientUser(p), salesReps: linksOf(p.id),
+        return { ...p, contactType: (c && c.contactType) || null, files, isClient: C.isOutside(p.role) && isClientUser(p), salesReps: linksOf(p.id),
           clients: links().filter((l) => l.salesId === p.id).map((l) => personOut(l.clientId)),
           teams: d.teamMembers.filter((m) => m.profileId === p.id).map((m) => (d.teams.find((t) => t.id === m.teamId) || {}).name) }; }); };
   return {
@@ -62,8 +62,10 @@ export function adminUsersTeams(x) {
         status: 'active', createdAt: now() };
       d.profiles.push(p);
       const existing = d.contacts.find((c) => c.email === email && !(c.profileId && (prof(c.profileId) || {}).status === 'removed'));   // reuse a contact so earlier order links carry over
-      if (existing) existing.profileId = p.id;
-      else if (!C.isAdminRole(p.role)) d.contacts.push({ id: nid('c'), profileId: p.id, firstName: p.firstName, lastName: p.lastName, email, phone: p.phone, company: '', createdBy: u.id, createdAt: now() });
+      // contact type (John, Nov 2): outside users only; staff have none
+      const ct = str(input.contactType, 20) || null; if (ct && !C.CONTACT_TYPE_CODES.includes(ct)) fail('Pick a contact type from the list (Realtor, Lender or Buyer/Seller).'); if (ct && !C.isOutside(role)) fail('CLA staff have no contact type.');
+      if (existing) { existing.profileId = p.id; existing.contactType = C.isOutside(role) ? (ct || existing.contactType || null) : null; }
+      else if (!C.isAdminRole(p.role)) d.contacts.push({ id: nid('c'), profileId: p.id, firstName: p.firstName, lastName: p.lastName, email, phone: p.phone, company: '', contactType: ct, createdBy: u.id, createdAt: now() });
       log(null, u.id, 'user.created', 'user', p.id, `Created user ${p.firstName} ${p.lastName} (${p.role}${p.isAdmin && !C.isAdminRole(p.role) ? ', Admin' : ''})`);
       if (salesIds.length) setLinks(u, p.id, salesIds);
       save(); return clone({ ...p, salesReps: linksOf(p.id) });
@@ -97,7 +99,11 @@ export function adminUsersTeams(x) {
       Object.assign(p, next);
       ['firstName', 'lastName'].forEach((k) => { if (patch[k] != null) p[k] = str(patch[k], 80); }); if (patch.phone != null) p.phone = x.phone(patch.phone);
       if (!p.firstName) fail('First name is required.');
-      const c = contactOf(p.id); if (c) { c.firstName = p.firstName; c.lastName = p.lastName; c.phone = p.phone; }
+      const c = contactOf(p.id); if (c) { c.firstName = p.firstName; c.lastName = p.lastName; c.phone = p.phone;
+        // contact type (John, Nov 2): outside users only; becoming staff clears it
+        if (patch.contactType !== undefined) { const ct = str(patch.contactType, 20) || null; if (ct && !C.CONTACT_TYPE_CODES.includes(ct)) fail('Pick a contact type from the list (Realtor, Lender or Buyer/Seller).');
+          if (ct && !C.isOutside(p.role)) fail('CLA staff have no contact type.'); c.contactType = ct; }
+        if (!C.isOutside(p.role)) c.contactType = null; }
       if (salesIds) setLinks(u, p.id, salesIds);
       log(null, u.id, 'user.updated', 'user', p.id, `Updated user ${p.firstName} ${p.lastName}`); save(); return clone({ ...p, salesReps: linksOf(p.id) });
     },

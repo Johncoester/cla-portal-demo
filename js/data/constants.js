@@ -65,6 +65,13 @@ export const PROFILE_STATUSES = ['active', 'disabled', 'removed'];   // removed 
 export const TEAM_MEMBER_ROLES = ['coordinator', 'agent'];
 export const isAdmin = (u) => !!(u && u.isAdmin);
 export const TX_TYPES = ['Purchase', 'Refinance'];
+// CONTACT TYPE (John, Nov 2): a person-level reporting attribute that will flow into the CRM. Fixed list, stored as stable codes.
+// Separate from per-file roles: a Realtor stays a Realtor even when buying a home on one file. CLA staff have none.
+export const CONTACT_TYPES = [['realtor', 'Realtor'], ['lender', 'Lender'], ['buyer_seller', 'Buyer/Seller']];
+export const CONTACT_TYPE_CODES = CONTACT_TYPES.map(([c]) => c);
+export const contactTypeLabel = (code) => (CONTACT_TYPES.find(([c]) => c === code) || [null, ''])[1];
+// default contact type for a per-file role (Add new user, Contacts tab): agents -> realtor, clients -> buyer_seller, lender -> lender
+export const contactTypeForRole = (role) => ({ 'Buyer Agent': 'realtor', 'Listing Agent': 'realtor', 'Client-Buyer': 'buyer_seller', 'Client-Seller': 'buyer_seller', Lender: 'lender' })[role] || '';
 // John, Nov 2: the order's State is picked from every US state + DC (alphabetical by name), no default. Any of these codes is valid on an order.
 export const US_STATE_NAMES = [['AL', 'Alabama'], ['AK', 'Alaska'], ['AZ', 'Arizona'], ['AR', 'Arkansas'], ['CA', 'California'], ['CO', 'Colorado'], ['CT', 'Connecticut'], ['DE', 'Delaware'],
   ['DC', 'District of Columbia'], ['FL', 'Florida'], ['GA', 'Georgia'], ['HI', 'Hawaii'], ['ID', 'Idaho'], ['IL', 'Illinois'], ['IN', 'Indiana'], ['IA', 'Iowa'], ['KS', 'Kansas'], ['KY', 'Kentucky'],

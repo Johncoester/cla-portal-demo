@@ -1,13 +1,13 @@
 // Type-to-search person picker (John, Nov 2): replaces the long contact dropdowns for Buyer, Seller, Buyer Agent and Listing Agent.
 // Searches name, email, phone (digits) and company / brokerage as you type; arrow keys + Enter or a click select; Escape closes.
 // Only the first MAX matches are drawn, so it stays fast with thousands of contacts. The chosen contact id goes into a hidden input (name = the field).
-import { html, toText, $ } from '../ui.js?v=202611021559';
-import { fmtPhone } from '../data/constants.js?v=202611021559';
+import { html, toText, $ } from '../ui.js?v=202611021647';
+import { fmtPhone, contactTypeLabel } from '../data/constants.js?v=202611021647';
 
 const MAX = 25;
 const digits = (s) => String(s || '').replace(/\D/g, '');
 export const personLabel = (c) => `${c.firstName} ${c.lastName}`.trim();
-const detail = (c) => [c.email, fmtPhone(c.phone), c.company].filter(Boolean).join(' \u00b7 ');
+const detail = (c) => [contactTypeLabel(c.contactType), c.email, fmtPhone(c.phone), c.company].filter(Boolean).join(' \u00b7 ');
 // every word typed must match somewhere (name, email, company), or a 3+ digit run must be in the phone number
 export function matchPeople(list, q) {
   const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean); if (!words.length) return list;

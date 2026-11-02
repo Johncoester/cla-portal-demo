@@ -1,29 +1,33 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611021559';
-import { html, raw, toText, esc, $, $$, toast, closeModal } from './ui.js?v=202611021559';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611021559';
+import { getAdapter } from './data/adapter.js?v=202611021647';
+import { html, raw, toText, esc, $, $$, toast, closeModal } from './ui.js?v=202611021647';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611021647';
+import { canUseCrm } from './data/crm.js?v=202611021647';
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611021559'),
-  dashboard: () => import('./pages/dashboard.js?v=202611021559'),
-  orders: () => import('./pages/orders.js?v=202611021559'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611021559'),
-  deal: () => import('./pages/deal.js?v=202611021559'),
-  users: () => import('./pages/users.js?v=202611021559'),
-  profile: () => import('./pages/profile.js?v=202611021559'),
-  'contact-us': () => import('./pages/contact.js?v=202611021559'),
-  teams: () => import('./pages/teams.js?v=202611021559'),
-  templates: () => import('./pages/templates.js?v=202611021559'),
-  library: () => import('./pages/library.js?v=202611021559'),
-  activity: () => import('./pages/activity.js?v=202611021559'),
-  outbox: () => import('./pages/outbox.js?v=202611021559'),
-  tasks: () => import('./pages/tasks.js?v=202611021559'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611021559'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
-  schedule: () => import('./pages/schedule.js?v=202611021559'),   // public closing-time link (no sign-in needed)
+  login: () => import('./pages/entry.js?v=202611021647'),
+  dashboard: () => import('./pages/dashboard.js?v=202611021647'),
+  orders: () => import('./pages/orders.js?v=202611021647'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611021647'),
+  deal: () => import('./pages/deal.js?v=202611021647'),
+  users: () => import('./pages/users.js?v=202611021647'),
+  profile: () => import('./pages/profile.js?v=202611021647'),
+  'contact-us': () => import('./pages/contact.js?v=202611021647'),
+  teams: () => import('./pages/teams.js?v=202611021647'),
+  templates: () => import('./pages/templates.js?v=202611021647'),
+  library: () => import('./pages/library.js?v=202611021647'),
+  activity: () => import('./pages/activity.js?v=202611021647'),
+  outbox: () => import('./pages/outbox.js?v=202611021647'),
+  tasks: () => import('./pages/tasks.js?v=202611021647'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611021647'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  schedule: () => import('./pages/schedule.js?v=202611021647'),   // public closing-time link (no sign-in needed)
+  crm: () => import('./pages/crm.js?v=202611021647'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
 };
+// pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
+const FLAGGED = { crm: 'crm' };
 const PUBLIC = new Set(['login', 'schedule']);
 
 function parse() {
@@ -32,6 +36,7 @@ function parse() {
   if (seg[0] === 'deals' && seg[1]) return { page: 'deal', params: { id: seg[1], tab: seg[2] || 'overview', sub: seg[3] } };
   if (seg[0] === 'orders' && seg[1] === 'new') return { page: 'orders/new', params: {} };
   if (seg[0] === 'users') return { page: 'users', params: { mode: seg[1] || 'list', id: seg[2] } };
+  if (seg[0] === 'crm') return { page: 'crm', params: { section: seg[1] || 'leads', id: seg[2] || '' } };
   if (seg[0] === 'schedule') return { page: 'schedule', params: { token: seg[1] || '' } };
   return { page: seg[0], params: {} };
 }
@@ -39,7 +44,7 @@ export const go = (path) => { if (location.hash === '#' + path) render(); else l
 export const homeFor = () => '/dashboard';
 export const dashLabel = (u) => u.isAdmin ? 'Admin' : ({ 'Processor': 'Work Queue', 'Sales Person': 'Team Dashboard', 'Sales Team': 'Team Dashboard', 'Transaction Coordinator': 'Dashboard', 'Buyer Agent': 'Transactions', 'Listing Agent': 'Transactions', 'Client-Buyer': 'My Closing', 'Client-Seller': 'My Closing', 'Outside user': 'My Files' }[u.role]);
 
-export function navFor(u, dealId, unread) {
+export function navFor(u, dealId, unread, features = {}) {
   const items = [];
   const add = (id, label, href, cls) => items.push({ id, label, href, cls });
   add('dashboard', dashLabel(u), '#/dashboard', 'orders');
@@ -47,6 +52,7 @@ export function navFor(u, dealId, unread) {
   if (u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator') add('tasks', 'All Tasks', '#/tasks', 'task');
   if (u.isAdmin || runsOrders(u)) add('task-grid', 'Task Grid', '#/task-grid', 'task');
   if (u.isAdmin) { add('users/new', 'Create User', '#/users/new', 'documents'); add('users', 'User List', '#/users', 'documents'); add('teams', 'Teams', '#/teams', 'contact-us'); }
+  if (features.crm && canUseCrm(u)) add('crm', 'CRM', '#/crm', 'contact-us');   // feature flag + CLA staff only (not TCs, not outside users)
   add('library', 'Library', '#/library', 'documents');
   if (runsOrders(u) || u.isAdmin) add('activity', 'Activity Log', '#/activity', 'activity');
   if (runsOrders(u) || u.isAdmin || u.role === 'Transaction Coordinator') { add('templates', 'Task Templates', '#/templates', 'task'); add('outbox', 'Reminder Outbox', '#/outbox', 'inbox'); }
@@ -58,7 +64,7 @@ async function layout(u, view, route) {
   const dealId = route.page === 'deal' ? route.params.id : null; let deal = null;
   if (dealId) { try { deal = await api.getDeal(dealId); } catch (e) { deal = null; } }
   const cur = route.page + (route.page === 'users' && route.params.mode === 'new' ? '/new' : '');
-  const core = navFor(u).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}">${n.label}</a></li>`);
+  const core = navFor(u, null, 0, api.features || {}).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}">${n.label}</a></li>`);
   const t = route.params.tab; const link = (tab, label, cls) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}">${label}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : ''}</a></li>`;
   const dealNav = deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${link('inbox', 'Inbox', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${isClient(deal.myRole) || isAgent(deal.myRole) || isOutside(deal.myRole) || isOutside(u.role) ? '' : link('activity', 'Activity', 'activity')}` : '';
   const contact = isStaff(u.role) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us">Contact Us</a></li>`;
@@ -91,7 +97,7 @@ export async function render() {
   let u = await api.getSession();
   if (!u && !PUBLIC.has(route.page)) { location.hash = '#/login'; return; }
   if (u && route.page === 'login') { location.hash = '#' + homeFor(u); return; }
-  const loader = pages[route.page];
+  const loader = FLAGGED[route.page] && !(api.features || {})[FLAGGED[route.page]] ? null : pages[route.page];
   if (!loader) { root.innerHTML = toText(await layout(u, { body: html`<div class="box-title"><h2>Page not found</h2></div><p>That page does not exist.</p>` }, route)); wireChrome(u); return; }
   const mod = await loader(); let view;
   try { view = await mod.render({ api, user: u, params: route.params, refresh: render, go }); }

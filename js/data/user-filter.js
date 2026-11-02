@@ -1,7 +1,7 @@
 // User List filter/search (Admin users page, John Nov 2). Pure functions so they are unit-tested (test/test-mock-admin-nov2.js).
 // Input rows come from adminListUsers(): { firstName, lastName, email, phone, role, isAdmin, status, files: [{ role, fileNumber }],
 // salesReps: [{ name }], clients: [{ name }], teams: [name], isClient }.
-import { STAFF_ACCOUNT_ROLES, OUTSIDE, OUTSIDE_FILE_ROLES } from './constants.js?v=202611021559';
+import { STAFF_ACCOUNT_ROLES, OUTSIDE, OUTSIDE_FILE_ROLES } from './constants.js?v=202611021647';
 
 // [value, label] for the Role filter: staff account roles, any outside user, each per-file role, clients, Admin access
 export const USER_ROLE_FILTERS = [
@@ -35,5 +35,7 @@ export function matchesSearch(u, q) {
   return t.split(/\s+/).every((w) => hay.includes(w));
 }
 
-export const filterUsers = (users, { q = '', role = '', status = '' } = {}) =>
-  users.filter((u) => matchesSearch(u, q) && matchesRole(u, role) && (!status || u.status === status));
+// contact type (John, Nov 2): '' = any, 'none' = not set, else the code
+export const matchesContactType = (u, t) => !t || (t === 'none' ? !u.contactType : u.contactType === t);
+export const filterUsers = (users, { q = '', role = '', status = '', contactType = '' } = {}) =>
+  users.filter((u) => matchesSearch(u, q) && matchesRole(u, role) && (!status || u.status === status) && matchesContactType(u, contactType));
