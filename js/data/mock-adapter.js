@@ -19,8 +19,9 @@ import { libraryFolders } from './mock-part-library.js';
 import { closingSchedule } from './mock-part-schedule.js';
 import { notificationsPart } from './mock-part-notify.js';
 import { mattP2 } from './mock-part-matt.js';
+import { mattNov2 } from './mock-part-nov2.js';
 
-const KEY = 'cla-portal-new:data:v9';   // v9: role 'Sales Processor' renamed 'Processor'. v8: Matt's Oct 31 priority 2 (seller questions, agreements, e-sign, closing proposals, phone format). v7: IndexedDB file store (ID upload fix). v6: agent buying/selling for themselves (v5: per-file roles; v4: agent delegation flags + home warranty v2). Old saved demo data is re-seeded.
+const KEY = 'cla-portal-new:data:v10';   // v10: Matt's Nov 2 notes (more Transaction Coordinator test tasks). v9: role 'Sales Processor' renamed 'Processor'. v8: Matt's Oct 31 priority 2 (seller questions, agreements, e-sign, closing proposals, phone format). v7: IndexedDB file store (ID upload fix). v6: agent buying/selling for themselves (v5: per-file roles; v4: agent delegation flags + home warranty v2). Old saved demo data is re-seeded.
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();
@@ -170,6 +171,9 @@ export function createMockAdapter({ storage, sessionStorage, fileStore } = {}) {
       openTasks: tasks.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status)).length,
       myOpenTasks: tasks.filter((t) => ['todo', 'in_progress'].includes(t.status) && (ownerOf(t) === u.id || (!t.participantId && holds(u, t.assignedRole)))).length,
       unread: mine.reduce((n, t) => n + unreadIn(u, t), 0),
+      // Matt, Nov 2: order-list filters. Overdue = open tasks this person can see that are past due; partyNames = the names this person may see on the file (search)
+      overdueTasks: tasks.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status) && t.dueDate && t.dueDate < localDate()).length,
+      partyNames: [...new Set(participantsOf(x.id, u).map((p) => (p.contact ? fullName(p.contact) : '')).filter(Boolean))],
       processorName: nameOf(x.processorId), salesPersonName: x.salesPersonId ? nameOf(x.salesPersonId) : '' };
   }
 
@@ -183,7 +187,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore } = {}) {
       doc.dataUrl = null; doc.hasFile = true; return doc; },
     async fileContent(z) { if (z.dataUrl) return z.dataUrl; if (z.hasFile && files) return (await files.get(z.id)) || null; return null; },
     C: { ROLES, DEAL_ROLES, ADMIN_ROLE, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS } };
-  Object.assign(api, devAuth(ctx), dealsAndAuth(ctx), contactsTasksDocs(ctx), tasksAndForms(ctx), messagesActivity(ctx), adminUsersTeams(ctx), libraryFolders(ctx), closingSchedule(ctx), notificationsPart(ctx), mattP2(ctx));
+  Object.assign(api, devAuth(ctx), dealsAndAuth(ctx), contactsTasksDocs(ctx), tasksAndForms(ctx), messagesActivity(ctx), adminUsersTeams(ctx), libraryFolders(ctx), closingSchedule(ctx), notificationsPart(ctx), mattP2(ctx), mattNov2(ctx));
   // Every call is all-or-nothing: if it throws (validation error, or browser storage full), drop the in-memory copy so the next call
   // reloads the last SAVED state. Without this a half-applied edit (e.g. a rejected lender email) stayed in memory and broke later saves.
   for (const [k, fn] of Object.entries(api)) if (typeof fn === 'function') api[k] = async function (...a) {

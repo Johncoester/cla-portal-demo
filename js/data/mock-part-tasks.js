@@ -27,6 +27,7 @@ export function tasksAndForms(x) {
     o.savedByLabel = t.savedBy ? `Last saved by ${byLine(t.savedBy, o.ownerId, t.dealId, t)}` : '';
     if (!formDataVisible(u, t)) { o.formData = {}; o.formHidden = true; } else if (!fullView(u, t)) masked(t).forEach((k) => { if (o.formData[k]) { o.formData[k] = maskAccount(o.formData[k]); o.maskedAnswers = true; } });
     return o; };
+  x.taskOut = out;   // cross-file task list (mock-part-nov2.js) uses the same per-viewer shape as listTasks
   // Copy the CURRENT version of every template that applies to this participant's role. Never duplicates an open copy.
   x.makeCopies = (dealId, p, actorId) => {
     const d = load(); let n = 0;

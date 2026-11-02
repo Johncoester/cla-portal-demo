@@ -2,6 +2,7 @@
 // Transaction Coordinator = Dashboard; Buyer/Listing Agent = Transactions; clients = My Closing.
 import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js';
 import { STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js';
+import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>`;
 const stat = (label, value, sub, cls = '') => html`<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value ${cls}">${value}</div><div class="stat-sub">${sub}</div></div>`;
@@ -18,8 +19,9 @@ export async function render(ctx) {
   return { title: v.title, crumbs: [[v.title]], body: v.body, mount: v.mount };
 }
 
-async function processor({ api, open, deals }) {
+async function processor({ api, open, deals, today }) {
   const wq = await api.getWorkQueue();
+  const tasks = await api.listAllTasks({ fileStatus: 'All' });   // Matt, Nov 2: default view = incomplete tasks grouped by Buyer / Seller / Agent
   const rows = wq.needsAttention.map((r) => html`<tr><td>${dealLink(r.deal)} &middot; ${r.deal.stageName}</td><td>${r.deal.address}</td>
     <td>${r.overdue ? pill(r.overdue + ' overdue', 'bad') : ''} ${r.blocked ? pill(r.blocked + ' blocked', 'warn') : ''} ${r.waitingOnClients ? pill(r.waitingOnClients + ' waiting on clients', 'info') : ''}</td>
     <td><a class="ghost" href="#/deals/${r.deal.id}/tasks">Tasks</a></td></tr>`);
@@ -31,8 +33,11 @@ async function processor({ api, open, deals }) {
       ${stat('Overdue tasks', wq.overdueTasks, 'past due date', wq.overdueTasks ? 'bad' : '')}${stat('Unread messages', wq.unreadMessages, 'across open orders')}</div>
     <div class="two-col"><div class="card"><h3>Needs attention</h3>
       ${rows.length ? html`<table class="tbl"><thead><tr><th>Order</th><th>Property</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : html`<p class="muted">Nothing needs attention.</p>`}</div>
-      <div class="card"><h3>Closing in the next 3 weeks</h3>${soon.length ? html`<ul class="plain">${soon}</ul>` : html`<p class="muted">No closings scheduled soon.</p>`}</div></div>`,
-    mount(root) { $('#remind', root).addEventListener('click', guard(async () => { const r = await api.queueOverdueReminders(); toast(`${r.queued} reminder(s) queued in the outbox (nothing is sent)`); })); } };
+      <div class="card"><h3>Closing in the next 3 weeks</h3>${soon.length ? html`<ul class="plain">${soon}</ul>` : html`<p class="muted">No closings scheduled soon.</p>`}</div></div>
+    <div class="card" data-wq-tasks><h3>Incomplete tasks by Buyer, Seller and Agent</h3><p class="muted small">Every incomplete task on open files. Filter, sort or regroup below; <a href="#/tasks">All Tasks</a> has the same list on its own page, <a href="#/task-grid">Task Grid</a> shows it file by file.</p>
+      ${boardForm(BOARD_DEFAULTS, 'wqboard')}<div data-board-results>${boardResults(tasks, BOARD_DEFAULTS, today)}</div></div>`,
+    mount(root) { $('#remind', root).addEventListener('click', guard(async () => { const r = await api.queueOverdueReminders(); toast(`${r.queued} reminder(s) queued in the outbox (nothing is sent)`); }));
+      mountBoard($('[data-wq-tasks]', root), tasks, today); } };
 }
 
 async function team({ user, open, all, deals, today }) {

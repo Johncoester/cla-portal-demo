@@ -20,7 +20,9 @@
  *               listLibrary, addLibraryDocument
  *   messages:   listMessageRecipients, listThreads, getThread, createThread, postMessage, markThreadRead
  *   closing:    listSettlements, createSettlementRequest, getSchedulingLink(token), respondSettlement(token, ...), confirmSettlement, reopenSettlement
- *   other:      listActivity(dealId|null, filters), listNotifications, notificationCount, markNotificationRead, markAllNotificationsRead
+ *   other:      listActivity(dealId|null, filters), listNotifications (each with fileNumber + address), notificationCount, markNotificationRead, markAllNotificationsRead
+ *   Matt Nov 2: listAllTasks({fileStatus}) (every task you may see, across files, each with its file), getTaskGrid({fileStatus}) (Processor / Admin only).
+ *               listDeals rows also carry partyNames + overdueTasks. Filtering / sorting / grouping / the grid layout: task-board.js (shared, pure).
  *   Admin only (isAdmin flag, NOT the Processor): adminListUsers, adminCreateUser, adminUpdateUser, adminDeleteUser (marks removed; history kept),
  *               listTeams (TCs see their own), createTeam, renameTeam, addTeamMember, removeTeamMember
  * There is intentionally NO deleteDocument (or folder delete) in either adapter, for anyone.

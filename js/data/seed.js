@@ -101,6 +101,15 @@ export function buildSeed() {
   // Matt, Oct 31: seller forwarding address + proceeds questions (migration 14)
   [1, 2].forEach((n) => { copy(n, 'forwarding_address', 1, 'Client-Seller', 'todo'); copy(n, 'seller_proceeds', 1, 'Client-Seller', 'todo'); });
   copy(4, 'forwarding_address', 1, 'Client-Seller', 'todo'); copy(4, 'seller_proceeds', 1, 'Client-Seller', 'todo');
+  // Matt, Nov 2: the 7 Cedar Way seller side (no portal logins yet) was only just engaged, so their items are not due yet (shows 'not yet due' on the task grid)
+  tasks.filter((t) => t.dealId === 'deal-4' && t.assignedRole === 'Client-Seller').forEach((t) => { t.dueDate = '2026-11-20'; });
+  // Matt, Nov 2: more for Terry Coordinator (TC) to work on. He sees deal-1 and deal-2 through the Harbor Realty team (Bianca / Morgan are buyer's agents there).
+  adhoc('t-1-tc-id', 1, 'Chase buyer photo ID', 'Transaction Coordinator', 'todo', '2026-10-30', 'Ben still needs to finish the photo ID upload.');
+  adhoc('t-1-tc-loan', 1, 'Confirm loan commitment with lender', 'Transaction Coordinator', 'in_progress', '2026-11-12', 'Fake lender: Example Home Loans.');
+  adhoc('t-2-tc-contract', 2, 'Get fully executed contract to CLA', 'Transaction Coordinator', 'done', '2026-10-05');
+  adhoc('t-2-tc-hoa', 2, 'Request HOA documents from listing agent', 'Transaction Coordinator', 'todo', '2026-11-20');
+  adhoc('t-2-ba-addendum', 2, 'Upload financing addendum', 'Buyer Agent', 'todo', '2026-10-31', 'Signed financing contingency addendum.');
+  adhoc('t-1-la-repairs', 1, 'Upload repair addendum', 'Listing Agent', 'done', '2026-10-20');
   tasks.forEach((t) => Object.keys(t.formData).forEach((k) => t.formData[k] === undefined && delete t.formData[k]));
   return { version: 2, seq: 100, profiles, contacts, teams, teamMembers, deals, participants, taskTemplates, tasks, ...more(deals) };
 }
@@ -163,6 +172,9 @@ function more(deals) {
     N('n-4', 'u-buyer', 'task', 'deal-1', 'Task waiting for you: Title vesting', '#/deals/deal-1/tasks', '2026-09-28T16:00:00Z'),
     N('n-5', 'u-seller', 'settlement', 'deal-1', 'Please pick a closing time for 145 Main Street', '#/deals/deal-1/closing', '2026-10-21T14:00:00Z'),
     N('n-6', 'u-bagent', 'settlement', 'deal-1', 'Closing date request sent for 145 Main Street', '#/deals/deal-1/closing', '2026-10-21T14:00:00Z'),
+    N('n-7', 'u-tc', 'task', 'deal-1', 'New task: Chase buyer photo ID', '#/deals/deal-1/tasks', '2026-10-27T13:00:00Z'),
+    N('n-8', 'u-tc', 'message', 'deal-1', 'New message from Ben Buyer: Welcome - 145 Main Street', '#/deals/deal-1/inbox', '2026-10-28T10:15:00Z'),
+    N('n-9', 'u-tc', 'task', 'deal-2', 'New task: Request HOA documents from listing agent', '#/deals/deal-2/tasks', '2026-10-29T13:00:00Z'),
   ];
   const settlements = [
     { id: 's-1', dealId: 'deal-1', status: 'open', round: 1, slots: ['2026-11-17T10:00', '2026-11-18T14:00', '2026-11-19T11:00'], location: 'CLA Title office, Rockville (fake)', note: 'Please pick every time that works for your side.',

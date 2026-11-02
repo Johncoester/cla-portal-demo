@@ -1,6 +1,8 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
+import { buildTaskGrid, groupOfRole } from './task-board.js';
+import { localDate } from './constants.js';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned; vendor locally before go-live
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -18,6 +20,9 @@ export async function createSupabaseAdapter(cfg) {
   const sorted = (xs) => [...new Set(xs)].filter((r) => ORDER.includes(r)).sort((x, y) => ORDER.indexOf(x) - ORDER.indexOf(y));
   // staff only (RPC returns nothing to outside users): "Agent is a party" badge = a client who is also their side's agent on the order
   const parties = async () => { const m = new Map(); (ok(await sb.rpc('agent_parties')) || []).forEach((r) => { if (!m.has(r.deal_id)) m.set(r.deal_id, []); m.get(r.deal_id).push({ contactId: r.contact_id, name: r.name, label: r.label }); }); return m; };
+  // task_board / task_grid rows -> the same shape the mock's listAllTasks returns (task + its file)
+  const boardRows = (rows) => camel(rows || []).map((t) => ({ ...t, ownerId: t.ownerProfileId, ownerName: t.ownerName || '', personName: t.ownerName || '', group: groupOfRole(t.assignedRole),
+    deal: { id: t.dealId, fileNumber: t.fileNumber, street: t.street, city: t.city, state: t.state, zip: t.zip, address: `${t.street}, ${t.city}, ${t.state} ${t.zip}`, closingDate: t.closingDate, status: t.dealStatus } }));
   const withRole = (d, r, pm) => ({ ...d, myRole: r && r.role, myRoles: (r && r.roles) || [], myRoleLabel: r && r.label, selfRep: !!(r && r.self_rep), agentParties: pm.get(d.id) || [] });
   const me = async () => {
     const { data: { user } } = await sb.auth.getUser(); if (!user) return null;
@@ -36,8 +41,11 @@ export async function createSupabaseAdapter(cfg) {
     async getMyProfile() { return me(); },
     // ---- examples of the pattern ----
     // status tabs (Open / Closed / On Hold / Cancelled / All): filter server-side, same contract as the mock (status missing or 'All' = every order)
+    // Matt, Nov 2: + partyNames (search by name) and overdueTasks (filter) from deal_list_extras() (migration 16; RLS-scoped like the rest)
     async listDeals({ status } = {}) { const [roles, pm] = [await fileRoles(), await parties()]; let q = sb.from('deals').select('*'); if (status && status !== 'All') q = q.eq('status', status);
-      return camel(ok(await q.order('open_date', { ascending: false }).order('file_number', { ascending: false }))).map((d) => withRole(d, roles.get(d.id), pm)); },
+      const ex = new Map((ok(await sb.rpc('deal_list_extras')) || []).map((r) => [r.deal_id, r]));
+      return camel(ok(await q.order('open_date', { ascending: false }).order('file_number', { ascending: false }))).map((d) => ({ ...withRole(d, roles.get(d.id), pm),
+        address: `${d.street}, ${d.city}, ${d.state} ${d.zip}`, partyNames: (ex.get(d.id) || {}).party_names || [], overdueTasks: (ex.get(d.id) || {}).overdue_tasks || 0 })); },
     // participants come from deal_contacts() (migration 13): the other side's agent/client keep their names but phone/email are blank for outside users
     async getDeal(id) { const [roles, pm] = [await fileRoles(), await parties()]; const d = camel(ok(await sb.from('deals').select('*').eq('id', id).single()));
       d.participants = (ok(await sb.rpc('deal_contacts', { p_deal: id })) || []).map((r) => ({ id: r.participant_id, dealId: r.deal_id, contactId: r.contact_id, role: r.role,
@@ -66,7 +74,8 @@ export async function createSupabaseAdapter(cfg) {
     async sendTaskReminder(id) { return { queued: ok(await sb.rpc('queue_task_reminder', { p_task: id })) }; },
     async queueOverdueReminders() { return { queued: ok(await sb.rpc('queue_overdue_reminders')) }; },
     async listOutbox() { return camel(ok(await sb.from('outbox').select('*').order('created_at', { ascending: false }))); },
-    async listNotifications({ limit = 20 } = {}) { return camel(ok(await sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(limit))); },
+    // Matt, Nov 2: my_notifications() adds the order's file number + address (blank once the person can no longer open that order)
+    async listNotifications({ limit = 20 } = {}) { return camel(ok(await sb.rpc('my_notifications', { p_limit: limit }))); },
     async notificationCount() { const r = await sb.from('notifications').select('id', { count: 'exact', head: true }).is('read_at', null); if (r.error) throw new Error(r.error.message); return r.count || 0; },
     async markNotificationRead(id) { ok(await sb.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id)); },
     async markAllNotificationsRead() { ok(await sb.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null)); },
@@ -78,6 +87,13 @@ export async function createSupabaseAdapter(cfg) {
     async respondSettlement(tok, { picks, note, name }) { ok(await sb.rpc('scheduling_respond', { p_token: tok, p_picks: picks.map((i) => i + 1), p_name: name, p_note: note || '' })); },
     async updateTask(id, patch) { return ok(await sb.rpc('set_task_status', { p_task: id, p_status: patch.status })); },
     async listDocuments(dealId) { return camel(ok(await sb.from('documents').select('*').eq('deal_id', dealId))); },
+    // ---- Matt, Nov 2 (migration 16): cross-file task list + Processor / Admin task grid. task_board / task_grid are SECURITY INVOKER (RLS decides). ----
+    async listAllTasks({ fileStatus = 'All' } = {}) { return boardRows(ok(await sb.rpc('task_board', { p_file_status: fileStatus }))); },
+    async getTaskGrid({ fileStatus = 'Open' } = {}) {
+      const rows = boardRows(ok(await sb.rpc('task_grid', { p_file_status: fileStatus })));   // raises for anyone but a Processor / Admin
+      let q = sb.from('deals').select('id, file_number, street, city, state, zip, closing_date, status'); if (fileStatus !== 'All') q = q.eq('status', fileStatus);
+      const deals = camel(ok(await q)).map((d) => ({ ...d, address: `${d.street}, ${d.city}, ${d.state} ${d.zip}` }));
+      return buildTaskGrid(rows, deals, localDate()); },
     // NOTE: there is intentionally no deleteDocument anywhere.
     // ---- Matt, Oct 31, priority 2 (migration 14) ----
     async listAgreements(dealId) {

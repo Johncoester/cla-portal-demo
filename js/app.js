@@ -20,6 +20,8 @@ const pages = {
   library: () => import('./pages/library.js'),
   activity: () => import('./pages/activity.js'),
   outbox: () => import('./pages/outbox.js'),
+  tasks: () => import('./pages/tasks.js'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js'),   // public closing-time link (no sign-in needed)
 };
 const PUBLIC = new Set(['login', 'schedule']);
@@ -42,6 +44,8 @@ export function navFor(u, dealId, unread) {
   const add = (id, label, href, cls) => items.push({ id, label, href, cls });
   add('dashboard', dashLabel(u), '#/dashboard', 'orders');
   add('orders', u.role === 'Transaction Coordinator' ? 'Orders' : 'Open Orders', '#/orders', 'orders');
+  if (u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator') add('tasks', 'All Tasks', '#/tasks', 'task');
+  if (u.isAdmin || isProcessor(u.role)) add('task-grid', 'Task Grid', '#/task-grid', 'task');
   if (u.isAdmin) { add('users/new', 'Create User', '#/users/new', 'documents'); add('users', 'User List', '#/users', 'documents'); add('teams', 'Teams', '#/teams', 'contact-us'); }
   add('library', 'Library', '#/library', 'documents');
   if (isProcessor(u.role) || u.isAdmin) add('activity', 'Activity Log', '#/activity', 'activity');
@@ -110,7 +114,7 @@ function wireChrome(u) {
 function wireBell() {
   const b = $('[data-bell]'); const dd = $('.notif-dd'); if (!b) return;
   const fill = async () => { const api = await getAdapter(); const list = await api.listNotifications({ limit: 12 });
-    $('.notif-list', dd).innerHTML = toText(list.length ? list.map((n) => html`<li class="${n.readAt ? '' : 'unread'}"><a href="${n.link || '#/dashboard'}" data-nid="${n.id}">${n.title}<br><span class="muted small">${new Date(n.createdAt).toLocaleString('en-US')}</span></a></li>`) : html`<li class="muted">No notifications.</li>`);
+    $('.notif-list', dd).innerHTML = toText(list.length ? list.map((n) => html`<li class="${n.readAt ? '' : 'unread'}"><a href="${n.link || '#/dashboard'}" data-nid="${n.id}">${n.fileNumber ? html`<strong data-notif-file>${n.fileNumber}</strong> <span class="muted small" data-notif-address>${n.address}</span><br>` : ''}${n.title}<br><span class="muted small">${new Date(n.createdAt).toLocaleString('en-US')}</span></a></li>`) : html`<li class="muted">No notifications.</li>`);
     $$('[data-nid]', dd).forEach((a) => a.addEventListener('click', async () => { const api2 = await getAdapter(); await api2.markNotificationRead(a.dataset.nid); })); };
   b.addEventListener('click', async (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; if (!dd.hidden) await fill(); });
   dd.addEventListener('click', (e) => e.stopPropagation());
