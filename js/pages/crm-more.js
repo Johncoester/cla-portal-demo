@@ -1,22 +1,29 @@
 // crm-more.js : CRM pipeline (Kanban + list) and Reports (John, Nov 2; follow-ups moved to CRM Home tasks). Function only, minimal styling.
-import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611022114';
-import { localDate } from '../data/constants.js?v=202611022114';
-import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort } from '../data/crm.js?v=202611022114';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv } from './crm-kit.js?v=202611022114';
+import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611022207';
+import { localDate } from '../data/constants.js?v=202611022207';
+import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort } from '../data/crm.js?v=202611022207';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv } from './crm-kit.js?v=202611022207';
+import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611022207';
+import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611022207';
 
 const crumbs = (label) => [['CRM', '#/crm'], [label]];
 const q = () => new URLSearchParams(location.hash.split('?')[1] || '');
 
 // ---------------- PIPELINE: opportunities (referral partners being won) or partners (clients by Relationship Status); board or list ----------------
-export async function pipelinePage({ api, me, owners, refresh, go }) {
+export async function pipelinePage({ api, me, owners, refresh, go, cfg }) {
   const p = q(); const board = p.get('board') === 'partners' ? 'partners' : 'opps'; const view = p.get('view') === 'list' ? 'list' : 'board'; const owner = p.get('owner') || '';
-  const stages = board === 'opps' ? OPP_STAGES.map((s) => [s, s]) : [...RELATIONSHIP_STATUSES.map((s) => [s, s]), ['', 'Not set']];
+  // columns = the configured list in its order (CRM Settings). A retired stage / status keeps its column while records still use it; values no longer in the list get one too.
   let items = board === 'opps' ? await api.listCrmOpportunities() : (await api.listCrmContacts()).map((c) => ({ ...c, stage: c.relationshipStatus || '' }));
   items = items.filter((i) => !i.archived && (!owner || (owner === 'none' ? !i.ownerId : i.ownerId === owner)));
+  const listKey = board === 'opps' ? 'oppStage' : 'relationshipStatus';
+  const used = new Set(items.map((i) => i.stage || ''));
+  const stages = [...optionsOf(cfg, listKey).filter((o) => !o.retired || used.has(o.value)).map((o) => [o.value, o.retired ? `${o.label} (retired)` : o.label, o.retired]),
+    ...[...used].filter((v) => v && !optionsOf(cfg, listKey).some((o) => o.value === v)).map((v) => [v, v, true]), ...(board === 'opps' ? [] : [['', 'Not set', true]])];
   const contacts = board === 'opps' && me.canEdit ? (await api.listCrmContacts()).filter((c) => !c.archived) : []; const accounts = board === 'opps' && me.canEdit ? (await api.listCrmAccounts()).filter((a) => !a.archived) : [];
   const url = (o) => { const n = new URLSearchParams({ board, view, owner, ...o }); [...n.keys()].forEach((k) => { if (!n.get(k)) n.delete(k); }); return '#/crm/pipeline?' + n; };
-  const mover = (i) => (me.canEdit ? html`<label class="small">Move to <select data-move="${i.id}">${stages.filter(([v]) => v || i.stage === '').map(([v, l]) => html`<option value="${v}" ${v === i.stage ? raw('selected') : ''}>${l}</option>`)}</select></label>` : '');
-  const sub = (i) => (board === 'opps' ? html`${i.accountName || ''}${i.contactName ? html`${i.accountName ? ' · ' : ''}${i.contactName}` : ''}${i.estVolume ? html`<br>Est. ${fmtMoney(i.estVolume)}/yr` : ''}${i.expectedClose ? html` · by ${fmtDate(i.expectedClose)}` : ''}`
+  const mover = (i) => (me.canEdit ? html`<label class="small">Move to <select data-move="${i.id}">${stages.filter(([v, , ret]) => (v && !ret) || v === (i.stage || '')).map(([v, l]) => html`<option value="${v}" ${v === (i.stage || '') ? raw('selected') : ''}>${l}</option>`)}</select></label>` : '');
+  const cfs = board === 'opps' ? activeFields(cfg, 'opportunity') : [];
+  const sub = (i) => (board === 'opps' ? html`${i.accountName || ''}${i.contactName ? html`${i.accountName ? ' · ' : ''}${i.contactName}` : ''}${i.estVolume ? html`<br>Est. ${fmtMoney(i.estVolume)}/yr` : ''}${i.expectedClose ? html` · by ${fmtDate(i.expectedClose)}` : ''}${cfs.filter((f) => (i.custom || {})[f.id] != null && (i.custom || {})[f.id] !== '').map((f) => html`<br><span data-cf-val="${f.id}">${f.label}: ${cfValue(f, i.custom[f.id])}</span>`)}`
     : html`${ctype(i.contactType)}${i.accountName ? html` · ${i.accountName}` : ''}<br>${i.orders} order(s), ${money(i.volume)}`);
   const title = (i) => (board === 'opps' ? html`<strong>${i.name}</strong>` : html`<a href="#/crm/contacts/${i.id}"><strong>${i.name}</strong></a>`);
   const total = (list) => (board === 'opps' ? fmtMoney(list.reduce((n, i) => n + (Number(i.estVolume) || 0), 0)) : `${list.reduce((n, i) => n + i.orders, 0)} orders`);
@@ -38,10 +45,12 @@ export async function pipelinePage({ api, me, owners, refresh, go }) {
     const nb = $('[data-new-opp]', root); if (nb) nb.addEventListener('click', () => {
       const m = modal('New opportunity', html`<form id="opp-form" class="form-grid"><label class="span2">Name *<input name="name" required maxlength="160" placeholder="e.g. Harbor Realty: monthly referrals"></label>
         <label>Client${sel('contactId', contacts.map((c) => [c.id, c.name]), '', '(none)')}</label><label>Company${sel('accountId', accounts.map((a) => [a.id, a.name]), '', '(none)')}</label>
-        <label>Stage${sel('stage', pairs(OPP_STAGES), 'New')}</label><label>Owner${ownerSel(owners, me.isAdmin ? '' : me.id)}</label>
+        <label>Stage${optSel(cfg, 'oppStage', 'stage', defaultOption(cfg, 'oppStage', 'New'), null)}</label><label>Owner${ownerSel(owners, me.isAdmin ? '' : me.id)}</label>
         <label>Estimated yearly volume ($)<input name="estVolume" inputmode="decimal"></label><label>Expected close<input name="expectedClose" type="date"></label>
+        ${cfInputs(cfg, 'opportunity', 'info', {})}<p class="err-text span2" data-form-err></p>
         <div class="span2"><button class="m-btn" type="submit">Create opportunity</button> <button class="ghost" type="button" data-close>Cancel</button></div></form>`, { wide: true });
-      $('#opp-form', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.createCrmOpportunity(formData(e.target)); closeModal(); toast('Opportunity created'); refresh(); }));
+      $('#opp-form', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const er = $('[data-form-err]', m); er.textContent = '';
+        try { await api.createCrmOpportunity(formData(e.target)); } catch (err) { er.textContent = err.message; throw err; } closeModal(); toast('Opportunity created'); refresh(); }));
     }); } };
 }
 

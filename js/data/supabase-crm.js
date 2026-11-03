@@ -1,10 +1,11 @@
-/* [SUPABASE] CRM methods for supabase-adapter.js (John, Nov 2; Zoho-style update with migration 24). Same names / shapes as mock-part-crm.js.
+/* [SUPABASE] CRM methods for supabase-adapter.js (John, Nov 2; Zoho-style update with migration 24; CRM Settings + custom fields with migration 25). Same names / shapes as mock-part-crm.js.
  * NOT run against a hosted project (best effort; the mock adapter is the tested one). Two switches must both be on: the browser flag
  * (features.js, CLA_PORTAL_CONFIG.features.crm, OFF in supabase mode) and the database switch (private.features 'crm', migration 22).
  * With the browser flag off every method refuses before calling the database. Meetings never send invitations; nothing is emailed. */
-import { CRM_OFF } from './features.js?v=202611022114';
-import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611022114';
-import { localDate } from './constants.js?v=202611022114';
+import { CRM_OFF } from './features.js?v=202611022207';
+import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611022207';
+import { localDate } from './constants.js?v=202611022207';
+import { ensureSettings, activeFields, cleanCustomValue, cleanLabel } from './crm-config.js?v=202611022207';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };
@@ -63,35 +64,72 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     if (v.participants !== undefined) o.participants = (Array.isArray(v.participants) ? v.participants : String(v.participants || '').split(',')).map((x) => String(x).trim()).filter(Boolean);
     return o; };
   const one = async (q) => ok(await q.select('*').single());
+  // ---------- CRM Settings (migration 25) ----------
+  const settingsRaw = async () => ensureSettings(await rpc('crm_settings'));
+  // custom values from a form ({custom: {...}} and / or 'cf.<id>' keys), cleaned like the mock; the database checks them again
+  const customIn = async (entity, v) => { const given = { ...(v.custom && typeof v.custom === 'object' ? v.custom : {}) };
+    Object.keys(v).forEach((k) => { if (k.startsWith('cf.')) given[k.slice(3)] = v[k]; }); if (!Object.keys(given).length) return null;
+    const out = {}; activeFields(await settingsRaw(), entity).forEach((f) => { if (Object.prototype.hasOwnProperty.call(given, f.id)) out[f.id] = cleanCustomValue(f, given[f.id]); }); return out; };
+  const withCustom = async (entity, o, v) => { const c = await customIn(entity, v); if (c) o.custom = c; return o; };
+  const noCf = (v) => { const o = {}; Object.entries(v).forEach(([k, x]) => { if (!k.startsWith('cf.')) o[k] = x; }); return o; };
+  const opts = async (key) => ok(await sb.from('crm_picklist_options').select('*').eq('list_key', key).order('position')) || [];   // a list key or 'cf:<field id>'
+  const optOut = (o) => ({ value: o.value, label: o.label, retired: !!o.retired });
+  const swap = async (table, rows, i, j, match) => { if (i < 0 || j < 0 || j >= rows.length) return;
+    const a = rows[i].position; let b = rows[j].position; if (a === b) b += 1;
+    ok(await match(sb.from(table).update({ position: b }), rows[i])); ok(await match(sb.from(table).update({ position: a }), rows[j])); };
+  const fieldRow = (f) => ({ id: f.id, entity: f.entity, label: f.label, type: f.type, required: f.required, section: f.section, position: f.position, showInList: f.show_in_list, archivedAt: f.archived_at });
   return {
+    async getCrmSettings() { return settingsRaw(); },
+    async addCrmOption(key, label) { on(); const l = cleanLabel(label, 'The option'); const list = await opts(key);
+      const same = list.find((o) => o.label.toLowerCase() === l.toLowerCase());
+      if (same) { if (!same.retired) throw new Error(`"${same.label}" is already in the list.`); return optOut(await one(sb.from('crm_picklist_options').update({ retired: false }).eq('list_key', key).eq('value', same.value))); }
+      let value = l; let n = 2; while (list.some((o) => o.value === value)) value = `${l} #${n++}`;
+      return optOut(await one(sb.from('crm_picklist_options').insert({ list_key: key, value, label: l }))); },
+    async renameCrmOption(key, value, label) { on(); return optOut(await one(sb.from('crm_picklist_options').update({ label: cleanLabel(label, 'The option') }).eq('list_key', key).eq('value', value))); },
+    async retireCrmOption(key, value, retired = true) { on(); return optOut(await one(sb.from('crm_picklist_options').update({ retired: !!retired }).eq('list_key', key).eq('value', value))); },
+    async moveCrmOption(key, value, to) { on(); const list = await opts(key); const i = list.findIndex((o) => o.value === value);
+      await swap('crm_picklist_options', list, i, to === 'up' ? i - 1 : i + 1, (q, r) => q.eq('list_key', key).eq('value', r.value)); return (await opts(key)).map(optOut); },
+    async createCrmField(v = {}) { const options = Array.isArray(v.options) ? v.options : String(v.options || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+      const id = await rpc('crm_create_field', { p: { entity: v.entity, label: v.label, type: v.type, required: v.required === true || v.required === 'on' || v.required === '1', section: v.section || '',
+        showInList: v.showInList === undefined ? true : v.showInList === true || v.showInList === 'on' || v.showInList === '1', options } });
+      return fieldRow(ok(await sb.from('crm_custom_fields').select('*').eq('id', id).single())); },
+    async updateCrmField(id, v = {}) { on(); const o = {}; if (v.label !== undefined) o.label = cleanLabel(v.label, 'The field'); if (v.required !== undefined) o.required = v.required === true || v.required === 'on' || v.required === '1';
+      if (v.section !== undefined) o.section = v.section; if (v.showInList !== undefined) o.show_in_list = v.showInList === true || v.showInList === 'on' || v.showInList === '1';
+      if (v.type !== undefined) o.type = v.type; return fieldRow(await one(sb.from('crm_custom_fields').update(o).eq('id', id))); },
+    async archiveCrmField(id, archived = true) { on(); return fieldRow(await one(sb.from('crm_custom_fields').update({ archived_at: archived ? new Date().toISOString() : null }).eq('id', id))); },
+    async moveCrmField(id, to) { on(); const f = ok(await sb.from('crm_custom_fields').select('*').eq('id', id).single());
+      const list = ok(await sb.from('crm_custom_fields').select('*').eq('entity', f.entity).is('archived_at', null).order('position')) || []; const i = list.findIndex((z) => z.id === id);
+      await swap('crm_custom_fields', list, i, to === 'up' ? i - 1 : i + 1, (q, r) => q.eq('id', r.id)); return fieldRow(f); },
+    async setCrmBuiltinField(scope, key, v = {}) { on(); const o = {}; if (v.hidden !== undefined) o.hidden = !!v.hidden && v.hidden !== '0'; if (v.required !== undefined) o.required = !!v.required && v.required !== '0';
+      const r = await one(sb.from('crm_field_settings').update(o).eq('scope', scope).eq('key', key)); return { hidden: r.hidden, required: r.required }; },
     async crmMe() { on(); const u = await me(); if (!canUseCrm(u)) throw new Error('The CRM is for CLA staff only.');
-      return { canEdit: !crmReadOnly(u), role: u.role, isAdmin: !!u.isAdmin, id: u.id, name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim(), scope: u.isAdmin || u.role === 'Processor' ? 'all' : u.role === 'Sales Team' ? 'team' : 'own' }; },
+      return { canEdit: !crmReadOnly(u), canConfigure: !!u.isAdmin, role: u.role, isAdmin: !!u.isAdmin, id: u.id, name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim(), scope: u.isAdmin || u.role === 'Processor' ? 'all' : u.role === 'Sales Team' ? 'team' : 'own' }; },
     async listCrmOwners() { on(); return owners(); },
     async listCrmAssignees() { on(); return staff(); },
     async listCrmUsers() { on(); return staff(); },   // participants: the CLA staff the caller can pick (other users can be added by an Admin later)
     async listCrmLeads() { on(); const os = await owners(); return (ok(await sb.from('crm_leads').select('*')) || []).map((l) => leadRow(l, os)); },
     async getCrmLead(id) { on(); const os = await owners(); const l = ok(await sb.from('crm_leads').select('*').eq('id', id).maybeSingle()); if (!l) throw new Error('Lead not found.');
       return { ...leadRow(l, os), activities: await acts([['lead', id]]), invitedMeetings: await invited('lead', id), attachments: await files([['lead', id]]) }; },
-    async createCrmLead(v) { on(); const os = await owners(); return leadRow(await one(sb.from('crm_leads').insert(leadIn(v))), os); },
-    async updateCrmLead(id, v) { on(); const os = await owners(); return leadRow(await one(sb.from('crm_leads').update(leadIn(v)).eq('id', id)), os); },
+    async createCrmLead(v) { on(); const os = await owners(); return leadRow(await one(sb.from('crm_leads').insert(await withCustom('lead', leadIn(v), v))), os); },
+    async updateCrmLead(id, v) { on(); const os = await owners(); return leadRow(await one(sb.from('crm_leads').update(await withCustom('lead', leadIn(v), v)).eq('id', id)), os); },
     async convertCrmLead(id, opts = {}) { return camel(await rpc('crm_convert_lead', { p_lead: id, p: opts })); },
     async listCrmContacts() { return (await rpc('crm_contact_list')).map(contactRow); },
     async getCrmContact(id) { const c = contactRow(await rpc('crm_contact_detail', { p_id: id })); const pairs = [['contact', id]]; if (c.fromLeadId) pairs.push(['lead', c.fromLeadId]);
       const account = c.accountId ? (await rpc('crm_account_list')).find((a) => a.id === c.accountId) || null : null;
       const opportunities = camel(ok(await sb.from('crm_opportunities').select('*').eq('contact_id', id)) || []);
       return { ...c, account: account && camel(account), totals: orderTotals(c.orders), activities: await acts(pairs), opportunities, invitedMeetings: await invited('contact', id), attachments: await files(pairs) }; },
-    async createCrmContact(v) { const id = await rpc('crm_create_contact', { p: contactIn(v) }); return contactRow(await rpc('crm_contact_detail', { p_id: id })); },
-    async updateCrmContact(id, v) { await rpc('crm_update_contact', { p_id: id, p: contactIn(v) }); return contactRow(await rpc('crm_contact_detail', { p_id: id })); },
+    async createCrmContact(v) { const id = await rpc('crm_create_contact', { p: await withCustom('contact', contactIn(noCf(v)), v) }); return contactRow(await rpc('crm_contact_detail', { p_id: id })); },
+    async updateCrmContact(id, v) { await rpc('crm_update_contact', { p_id: id, p: await withCustom('contact', contactIn(noCf(v)), v) }); return contactRow(await rpc('crm_contact_detail', { p_id: id })); },
     async listCrmAccounts() { return camel(await rpc('crm_account_list')); },
     async getCrmAccount(id) { const a = camel((await rpc('crm_account_list')).find((x) => x.id === id)); if (!a) throw new Error('Company not found.'); const d = await rpc('crm_account_detail', { p_id: id });
       return { ...a, contactList: d.contactList.map(contactRow), orders: d.orders, totals: orderTotals(d.orders), activities: await acts([['account', id]]), invitedMeetings: [], attachments: await files([['account', id]]),
         opportunities: camel(ok(await sb.from('crm_opportunities').select('*').eq('account_id', id)) || []) }; },
-    async createCrmAccount(v) { on(); return camel(await one(sb.from('crm_accounts').insert(accIn(v)))); },
-    async updateCrmAccount(id, v) { on(); return camel(await one(sb.from('crm_accounts').update(accIn(v)).eq('id', id))); },
+    async createCrmAccount(v) { on(); return camel(await one(sb.from('crm_accounts').insert(await withCustom('account', accIn(v), v)))); },
+    async updateCrmAccount(id, v) { on(); return camel(await one(sb.from('crm_accounts').update(await withCustom('account', accIn(v), v)).eq('id', id))); },
     async listCrmOpportunities() { on(); const os = await owners(); return camel(ok(await sb.from('crm_opportunities').select('*, contact:contacts(first_name, last_name), account:crm_accounts(name)')) || [])
       .map((o) => ({ ...o, ownerName: nameOf(os, o.ownerId), contactName: o.contact ? `${o.contact.firstName} ${o.contact.lastName}`.trim() : '', accountName: o.account ? o.account.name : '', archived: !!o.archivedAt })); },
-    async createCrmOpportunity(v) { on(); return camel(await one(sb.from('crm_opportunities').insert(oppIn(v)))); },
-    async updateCrmOpportunity(id, v) { on(); return camel(await one(sb.from('crm_opportunities').update(oppIn(v)).eq('id', id))); },
+    async createCrmOpportunity(v) { on(); return camel(await one(sb.from('crm_opportunities').insert(await withCustom('opportunity', oppIn(v), v)))); },
+    async updateCrmOpportunity(id, v) { on(); return camel(await one(sb.from('crm_opportunities').update(await withCustom('opportunity', oppIn(v), v)).eq('id', id))); },
     async moveCrmOpportunity(id, stage) { on(); return camel(await one(sb.from('crm_opportunities').update({ stage }).eq('id', id))); },
     async archiveCrmRecord(entity, id, archived = true) { return { ok: true, archived: await rpc('crm_archive', { p_entity: entity, p_id: id, p_archived: archived }) }; },
     async listCrmActivities(entity, id) { on(); return acts([[entity, id]]); },

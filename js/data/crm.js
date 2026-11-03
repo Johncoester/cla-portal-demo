@@ -94,9 +94,11 @@ export function homeTaskFilter(tasks, filter, meId, today) {
   return tasks.filter(f);
 }
 // sort for the widget columns (dueDate, subject, relatedTo, contactName, status, priority); blanks last; ties by due date then subject
-export function sortTasks(rows, key = 'dueDate', dir = 'asc') {
-  const m = dir === 'desc' ? -1 : 1;
-  const val = (r) => (key === 'priority' ? priorityRank(r.priority) : key === 'status' ? TASK_STATUSES.indexOf(r.status) : r[key] == null || r[key] === '' ? null : String(r[key]));
+// order = { priority: [...values], status: [...values] } from CRM Settings (defaults: the built-in lists)
+export function sortTasks(rows, key = 'dueDate', dir = 'asc', order = {}) {
+  const m = dir === 'desc' ? -1 : 1; const pr = order.priority || TASK_PRIORITIES, st = order.status || TASK_STATUSES;
+  const rank = (list, v) => { const i = list.indexOf(v); return i < 0 ? 99 : i; };
+  const val = (r) => (key === 'priority' ? rank(pr, r.priority) : key === 'status' ? rank(st, r.status) : r[key] == null || r[key] === '' ? null : String(r[key]));
   return [...rows].sort((a, b) => { const x = val(a), y = val(b);
     if (x === null && y !== null) return 1; if (y === null && x !== null) return -1;
     const c = x === null ? 0 : typeof x === 'number' ? x - y : x.localeCompare(y, 'en', { numeric: true, sensitivity: 'base' });
@@ -113,8 +115,10 @@ export function relatedLists(acts, invited = [], nowStamp = localStamp()) {
     invited: invited.filter((m) => m.kind === 'meeting').sort((a, b) => String(b.startsAt).localeCompare(String(a.startsAt))) };
 }
 // Amount by Stage (Home): estimated volume of the open pipeline per stage (archived opportunities left out)
-export function amountByStage(opps) {
-  return OPP_STAGES.map((stage) => { const l = opps.filter((o) => o.stage === stage && !o.archived); return { stage, count: l.length, amount: l.reduce((n, o) => n + (Number(o.estVolume) || 0), 0) }; });
+// stages = the Pipeline Stage values in order (CRM Settings); a retired stage still shows while open opportunities use it
+export function amountByStage(opps, stages = OPP_STAGES, retired = []) {
+  const list = stages.filter((s) => !retired.includes(s) || opps.some((o) => o.stage === s && !o.archived));
+  return list.map((stage) => { const l = opps.filter((o) => o.stage === stage && !o.archived); return { stage, count: l.length, amount: l.reduce((n, o) => n + (Number(o.estVolume) || 0), 0) }; });
 }
 // v16 -> v17 (mock data) and the fresh seed: old picklist values -> Zoho values, follow-up tasks -> Zoho tasks, logged meetings -> meetings.
 // Idempotent (a row already in the new shape is left alone). Never removes a record.
@@ -165,6 +169,8 @@ export function crmFilter(rows, f = {}, fields = ['name', 'email', 'company', 'p
     if (['ownerId', 'contactType', 'stage', 'status', 'source', 'kind', 'roleInCompany', 'relationshipStatus', 'leadSource', 'state'].some((k) => !eq(f[k], r[k]))) return false;
     if (f.county && (f.county === 'none' ? !!r.county : String(r.county || '').toLowerCase() !== String(f.county).toLowerCase())) return false;
     if (f.tag && !(r.tags || []).includes(String(f.tag).toLowerCase())) return false;
+    // custom fields (CRM Settings): filter names cf_<id>; 'none' = blank
+    if (Object.keys(f).some((k) => k.startsWith('cf_') && f[k] && (f[k] === 'none' ? !(r[k] == null || r[k] === '') : String(r[k] ?? '') !== String(f[k])))) return false;
     const arch = f.archived || ''; if (arch === '' && r.archived) return false; if (arch === 'only' && !r.archived) return false;
     if ('converted' in r || f.converted) { const cv = f.converted || ''; if (cv === '' && r.converted) return false; if (cv === 'only' && !r.converted) return false; }
     return true;

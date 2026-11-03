@@ -1,6 +1,6 @@
 // FAKE DATA ONLY. Fictional people, example.test addresses, 555 phone numbers. No real clients, no credentials.
-import { TEMPLATE_DEFS } from './templates.js?v=202611022114';
-import { crmZohoUpgrade } from './crm.js?v=202611022114';
+import { TEMPLATE_DEFS } from './templates.js?v=202611022207';
+import { crmZohoUpgrade } from './crm.js?v=202611022207';
 export const DEAL_FOLDERS = ['Contract & addenda', 'IDs & personal', 'Lender & payoff', 'HOA', 'Closing'];
 const addDays = (iso, n) => new Date(Date.parse(iso.slice(0, 10) + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 export function buildSeed() {

@@ -1,10 +1,10 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611022114';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES } from '../data/constants.js?v=202611022114';
-import { slotText } from './dealclosing.js?v=202611022114';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611022114';
+import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611022207';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES } from '../data/constants.js?v=202611022207';
+import { slotText } from './dealclosing.js?v=202611022207';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611022207';
 
-const TABS = { tasks: './dealtasks.js?v=202611022114', inbox: './dealmsgs.js?v=202611022114', documents: './dealdocs.js?v=202611022114', contacts: './dealcontacts.js?v=202611022114', activity: './dealactivity.js?v=202611022114', closing: './dealclosing.js?v=202611022114', agreements: './dealagreements.js?v=202611022114' };
+const TABS = { tasks: './dealtasks.js?v=202611022207', inbox: './dealmsgs.js?v=202611022207', documents: './dealdocs.js?v=202611022207', contacts: './dealcontacts.js?v=202611022207', activity: './dealactivity.js?v=202611022207', closing: './dealclosing.js?v=202611022207', agreements: './dealagreements.js?v=202611022207' };
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -12,7 +12,7 @@ export async function render(ctx) {
   // per-file roles: on this order an outside user acts as their role HERE (deal.myRole), e.g. Buyer Agent here, Client-Buyer elsewhere
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611022114' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611022207' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)

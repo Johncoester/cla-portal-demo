@@ -1,10 +1,14 @@
 // crm-home.js : CRM Home (Zoho Classic View: task list widget, Today's Leads, Amount by Stage) and the Task / Meeting detail pages (John, Nov 2).
 // Function first, minimal styling. Reminders show in the portal only; nothing is emailed; meetings are never sent as invitations.
-import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611022114';
-import { localDate } from '../data/constants.js?v=202611022114';
-import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY } from '../data/crm.js?v=202611022114';
-import { tabs, head } from './crm-kit.js?v=202611022114';
-import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611022114';
+import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611022207';
+import { localDate } from '../data/constants.js?v=202611022207';
+import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY } from '../data/crm.js?v=202611022207';
+import { tabs, head } from './crm-kit.js?v=202611022207';
+import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611022207';
+import { optionsOf, optLabel } from '../data/crm-config.js?v=202611022207';
+import { lbl } from './crm-custom.js?v=202611022207';
+const subj = (cfg, s) => optLabel(cfg, 'taskSubject', s, { mark: false });   // Task Subject is free text; a subject that is a list option shows its current name
+const orderOf = (cfg) => ({ priority: optionsOf(cfg, 'taskPriority').map((o) => o.value), status: optionsOf(cfg, 'taskStatus').map((o) => o.value) });
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
 const SS = (k, v) => { try { if (v === undefined) return sessionStorage.getItem('crm-home:' + k); sessionStorage.setItem('crm-home:' + k, v); } catch (e) { return null; } return null; };
@@ -12,14 +16,14 @@ const TASK_COLS = [['dueDate', 'Due Date'], ['subject', 'Subject'], ['relatedTo'
 const LEADS_PER_PAGE = 5;
 
 // ---------------- HOME ----------------
-export async function homePage({ api, me, params }) {
+export async function homePage({ api, me, params, cfg }) {
   const [tasks, leads, opps] = await Promise.all([api.listCrmTasks(), api.listCrmLeads(), api.listCrmOpportunities()]);
   const today = localDate(); const todayLeads = leads.filter((l) => !l.archived && localDay(l.createdAt) === today).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-  const stages = amountByStage(opps); const max = Math.max(1, ...stages.map((s) => s.amount));
+  const so = optionsOf(cfg, 'oppStage'); const stages = amountByStage(opps, so.map((o) => o.value), so.filter((o) => o.retired).map((o) => o.value)); const max = Math.max(1, ...stages.map((s) => s.amount));
   const reminders = tasks.filter((t) => t.reminderDue && (t.ownerId === me.id));
   const body = html`${head('CRM: Home', me)}${tabs('home')}
     ${params.section === 'followups' ? html`<p class="muted small" data-followups-moved>My follow-ups are now the tasks on CRM Home ("My Open Tasks").</p>` : ''}
-    ${reminders.length ? html`<p class="card" data-reminders>${pill('Reminder', 'warn')} ${reminders.length} task reminder(s) due: ${reminders.map((t, i) => html`${i ? ', ' : ''}<a href="#/crm/tasks/${t.id}">${t.subject}</a>`)} <span class="muted small">(shown in the portal only; never emailed)</span></p>` : ''}
+    ${reminders.length ? html`<p class="card" data-reminders>${pill('Reminder', 'warn')} ${reminders.length} task reminder(s) due: ${reminders.map((t, i) => html`${i ? ', ' : ''}<a href="#/crm/tasks/${t.id}">${subj(cfg, t.subject)}</a>`)} <span class="muted small">(shown in the portal only; never emailed)</span></p>` : ''}
     <div class="card" data-home-tasks><h3><select data-task-filter aria-label="Task view">${HOME_TASK_FILTERS.map((f) => html`<option value="${f}">${f}</option>`)}</select> <span class="muted small" data-task-count></span></h3>
       <table class="tbl" id="home-tasks"><thead><tr>${TASK_COLS.map(([k, l]) => html`<th><a href="#" data-sort="${k}">${l}</a> <span class="muted small" data-sort-mark="${k}"></span></th>`)}</tr></thead><tbody></tbody></table></div>
     <div class="card" data-home-leads><h3>Today's Leads <a class="right small" href="#/crm/leads" data-view-all>View All</a></h3>
@@ -27,19 +31,19 @@ export async function homePage({ api, me, params }) {
       <p><button class="ghost" data-leads-prev>&lsaquo; Prev</button> <span class="muted small" data-leads-page></span> <button class="ghost" data-leads-next>Next &rsaquo;</button></p></div>
     <div class="card" data-home-stages><h3>Amount by Stage</h3>
       <table class="tbl" id="home-stages"><thead><tr><th>Stage</th><th>Opportunities</th><th>Amount (est. yearly volume)</th><th style="width:40%"></th></tr></thead><tbody>
-      ${stages.map((s) => html`<tr data-stage-row="${s.stage}"><td>${s.stage}</td><td>${s.count}</td><td data-amount>${fmtMoney(s.amount)}</td><td><div class="bar" style="background:#7FB539;height:12px;width:${Math.round((s.amount / max) * 100)}%"></div></td></tr>`)}</tbody></table>
+      ${stages.map((s) => html`<tr data-stage-row="${s.stage}"><td>${lbl(cfg, 'oppStage', s.stage)}</td><td>${s.count}</td><td data-amount>${fmtMoney(s.amount)}</td><td><div class="bar" style="background:#7FB539;height:12px;width:${Math.round((s.amount / max) * 100)}%"></div></td></tr>`)}</tbody></table>
       <p class="muted small">From the referral-partner pipeline (open the <a href="#/crm/pipeline">Pipeline</a>). Archived opportunities are left out.</p></div>`;
   return { title: 'CRM Home', crumbs: crumbs('Home'), body, mount(root) {
     const fsel = $('[data-task-filter]', root); fsel.value = HOME_TASK_FILTERS.includes(SS('filter')) ? SS('filter') : HOME_TASK_DEFAULT;
     let [sk, sd] = (SS('sort') || 'dueDate:asc').split(':');
     const draw = () => { SS('filter', fsel.value); SS('sort', `${sk}:${sd}`);
-      const list = sortTasks(homeTaskFilter(tasks, fsel.value, me.id, today), sk, sd); SS('order', JSON.stringify(list.map((t) => t.id)));
+      const list = sortTasks(homeTaskFilter(tasks, fsel.value, me.id, today), sk, sd, orderOf(cfg)); SS('order', JSON.stringify(list.map((t) => t.id)));
       $('#home-tasks tbody', root).innerHTML = toText(list.length ? list.map((t) => html`<tr data-task="${t.id}" class="${t.overdue ? 'overdue' : ''}">
         <td data-col="dueDate">${fmtDate(t.dueDate)}${t.overdue ? html` ${pill('Overdue', 'bad')}` : ''}</td>
-        <td data-col="subject"><a href="#/crm/tasks/${t.id}" data-task-subject>${t.subject}</a>${t.reminderDue ? html` ${pill('Reminder', 'warn')}` : ''}</td>
+        <td data-col="subject"><a href="#/crm/tasks/${t.id}" data-task-subject>${subj(cfg, t.subject)}</a>${t.reminderDue ? html` ${pill('Reminder', 'warn')}` : ''}</td>
         <td data-col="relatedTo">${t.relatedLink ? html`<a href="${t.relatedLink}">${t.relatedTo}</a>` : t.relatedTo || ''}</td>
         <td data-col="contactName">${t.contactLink && t.contactName ? html`<a href="${t.contactLink}">${t.contactName}</a>` : t.contactName || ''}</td>
-        <td data-col="status">${t.status}</td><td data-col="priority">${t.priority}</td></tr>`) : html`<tr><td colspan="6" class="muted">No tasks in this view.</td></tr>`);
+        <td data-col="status">${lbl(cfg, 'taskStatus', t.status)}</td><td data-col="priority">${lbl(cfg, 'taskPriority', t.priority)}</td></tr>`) : html`<tr><td colspan="6" class="muted">No tasks in this view.</td></tr>`);
       $('[data-task-count]', root).textContent = `${list.length} task(s)`;
       $$('[data-sort-mark]', root).forEach((s) => { s.innerHTML = s.dataset.sortMark === sk ? (sd === 'asc' ? '&uarr;' : '&darr;') : ''; }); };
     fsel.addEventListener('change', draw);
@@ -57,20 +61,20 @@ export async function homePage({ api, me, params }) {
 const localDay = (iso) => { const d = new Date(iso); if (isNaN(d)) return ''; const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
 
 // ---------------- TASK detail (Zoho: Edit, Close Task, prev / next) ----------------
-export async function taskPage({ api, me, assignees, params, refresh, go }) {
+export async function taskPage({ api, me, assignees, params, refresh, go, cfg }) {
   const t = await api.getCrmTask(params.id);
   let order = []; try { order = JSON.parse(SS('order') || '[]'); } catch (e) { order = []; }
-  if (!order.includes(t.id)) order = sortTasks(await api.listCrmTasks(), 'dueDate').map((x) => x.id);
+  if (!order.includes(t.id)) order = sortTasks(await api.listCrmTasks(), 'dueDate', 'asc', orderOf(cfg)).map((x) => x.id);
   const i = order.indexOf(t.id); const prev = i > 0 ? order[i - 1] : null; const next = i >= 0 && i < order.length - 1 ? order[i + 1] : null;
   const rep = t.repeatEvery ? `${(REPEAT_EVERY.find(([k]) => k === t.repeatEvery) || [, t.repeatEvery])[1]}${t.repeatUntil ? ', until ' + fmtDate(t.repeatUntil) : ''}` : 'No';
-  const body = html`${head(`Task: ${t.subject}`, me)}${tabs('home')}
+  const body = html`${head(`Task: ${subj(cfg, t.subject)}`, me)}${tabs('home')}
     <div class="card" data-task-detail="${t.id}">
       <p>${me.canEdit && !t.system ? html`<button class="ghost" data-edit-task>Edit</button> ${t.open ? html`<button class="m-btn" data-close-task>Close Task</button> ` : ''}` : ''}
         ${prev ? html`<a class="ghost" href="#/crm/tasks/${prev}" data-prev>&lsaquo; Previous</a>` : html`<span class="muted" data-prev-none>&lsaquo; Previous</span>`}
         ${next ? html`<a class="ghost" href="#/crm/tasks/${next}" data-next>Next &rsaquo;</a>` : html`<span class="muted" data-next-none>Next &rsaquo;</span>`} <a class="ghost" href="#/crm">Back to Home</a></p>
       <dl class="kv" data-task-fields>
         <dt>Task Owner</dt><dd data-f="owner">${t.ownerName}</dd><dt>Due Date</dt><dd data-f="dueDate">${fmtDate(t.dueDate)}${t.overdue ? html` ${pill('Overdue', 'bad')}` : ''}</dd>
-        <dt>Subject</dt><dd data-f="subject">${t.subject}</dd><dt>Priority</dt><dd data-f="priority">${t.priority}</dd><dt>Status</dt><dd data-f="status">${t.status}${t.cancelled ? ' (cancelled)' : ''}</dd>
+        <dt>Subject</dt><dd data-f="subject">${subj(cfg, t.subject)}</dd><dt>Priority</dt><dd data-f="priority">${lbl(cfg, 'taskPriority', t.priority)}</dd><dt>Status</dt><dd data-f="status">${lbl(cfg, 'taskStatus', t.status)}${t.cancelled ? ' (cancelled)' : ''}</dd>
         <dt>Related To</dt><dd data-f="relatedTo">${t.relatedLink ? html`<a href="${t.relatedLink}">${t.relatedTo}</a>` : t.relatedTo || '—'}</dd>
         <dt>Contact Name</dt><dd data-f="contactName">${t.contactName ? html`<a href="${t.contactLink}">${t.contactName}</a>` : '—'} <span class="muted small">(${entityLabel(t.entity)})</span></dd>
         <dt>Created By</dt><dd>${t.createdByName}, ${fmtDateTime(t.createdAt)}</dd><dt>Modified By</dt><dd data-f="modifiedBy">${t.modifiedByName || t.createdByName}, ${fmtDateTime(t.modifiedAt || t.createdAt)}</dd>
@@ -78,18 +82,18 @@ export async function taskPage({ api, me, assignees, params, refresh, go }) {
         <dt>Reminder</dt><dd data-f="reminder">${t.reminder ? html`${fmtWhen(t.reminderAt)}${t.reminderDue ? html` ${pill('Due', 'warn')}` : ''} <span class="muted small">(in the portal only; never emailed)</span>` : 'None'}</dd>
         <dt>Repeat</dt><dd data-f="repeat">${rep}</dd><dt>Description</dt><dd data-f="description">${t.body || '—'}</dd></dl></div>`;
   return { title: 'Task ' + t.subject, crumbs: crumbs('Home', ['#/crm', t.subject]), body, mount(root) {
-    const e = $('[data-edit-task]', root); if (e) e.addEventListener('click', () => taskModal(api, { entity: t.entity, entityId: t.entityId, parentName: t.parentName, me, assignees }, t, () => refresh()));
+    const e = $('[data-edit-task]', root); if (e) e.addEventListener('click', () => taskModal(api, { entity: t.entity, entityId: t.entityId, parentName: t.parentName, me, assignees, cfg }, t, () => refresh()));
     const c = $('[data-close-task]', root); if (c) c.addEventListener('click', guard(async () => { const r = await api.closeCrmTask(t.id); toast(r.nextTaskId ? 'Task closed; next occurrence created' : 'Task closed'); refresh(); })); } };
 }
 
 // ---------------- MEETING detail ----------------
-export async function meetingPage({ api, me, assignees, params, refresh }) {
+export async function meetingPage({ api, me, assignees, params, refresh, cfg }) {
   const m = await api.getCrmMeeting(params.id);
   const body = html`${head(`Meeting: ${m.subject}`, me)}${tabs('home')}
     <div class="card" data-meeting-detail="${m.id}">
       <p>${me.canEdit ? html`<button class="ghost" data-edit-meeting>Edit</button> ` : ''}<a class="ghost" href="${m.parentLink}">Back to ${m.parentName}</a></p>
       <dl class="kv" data-meeting-fields>
-        <dt>Title</dt><dd data-f="title">${m.subject}</dd><dt>Type</dt><dd data-f="type">${m.meetingType || '—'}</dd><dt>Location</dt><dd>${m.location || '—'}</dd>
+        <dt>Title</dt><dd data-f="title">${m.subject}</dd><dt>Type</dt><dd data-f="type">${lbl(cfg, 'meetingType', m.meetingType) || '—'}</dd><dt>Location</dt><dd>${m.location || '—'}</dd>
         <dt>From</dt><dd data-f="from">${fmtWhen(m.startsAt)}</dd><dt>To</dt><dd data-f="to">${fmtWhen(m.endsAt)}</dd><dt>All Day</dt><dd>${m.allDay ? 'Yes' : 'No'}</dd>
         <dt>Host</dt><dd data-f="host">${m.hostName}</dd>
         <dt>Participants</dt><dd data-f="participants">${m.participants.length ? m.participants.map((p, k) => html`${k ? ', ' : ''}${p.link ? html`<a href="${p.link}">${p.name}</a>` : p.name} <span class="muted small">(${p.label})</span>`) : '—'}</dd>
@@ -99,5 +103,5 @@ export async function meetingPage({ api, me, assignees, params, refresh }) {
         <dt>Description</dt><dd>${m.body || '—'}</dd></dl>
       <p class="muted small">Recorded in the portal only: no invitations were sent and nothing was added to any calendar.</p></div>`;
   return { title: 'Meeting ' + m.subject, crumbs: crumbs('Home', ['#/crm', m.subject]), body, mount(root) {
-    const e = $('[data-edit-meeting]', root); if (e) e.addEventListener('click', guard(() => meetingModal(api, { entity: m.entity, entityId: m.entityId, parentName: m.parentName, me, assignees }, m, () => refresh()))); } };
+    const e = $('[data-edit-meeting]', root); if (e) e.addEventListener('click', guard(() => meetingModal(api, { entity: m.entity, entityId: m.entityId, parentName: m.parentName, me, assignees, cfg }, m, () => refresh()))); } };
 }
