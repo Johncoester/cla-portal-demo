@@ -5,13 +5,13 @@
  * sync, no invitations, nothing is ever emailed) on a lead, contact (= "Client" on screen), account (= "Company") or opportunity. Attachments on records.
  * NOTHING is deleted: leads, contacts, accounts and opportunities are archived; tasks are closed; attachments and notes stay.
  * Access (mirrored by private.crm_* in migration 22): see crm.js. */
-import { CRM_OFF } from './features.js?v=202611031118';
+import { CRM_OFF } from './features.js?v=202611031316';
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, OPP_STAGES, ACCOUNT_KIND_CODES, CRM_ENTITIES, accountKindForType, entityLabel,
   TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, LINK_KEYS, LINK_FIELDS, cleanUrl, nextDue, addDaysTo, taskOpen, meetingOpen, localStamp,
-  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals } from './crm.js?v=202611031118';
-import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired } from './crm-config.js?v=202611031118';
-import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611031118';
-import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611031118';
+  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals } from './crm.js?v=202611031316';
+import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired } from './crm-config.js?v=202611031316';
+import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611031316';
+import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611031316';
 
 export function crmPart(x, flags) {
   const { load, save, nid, needUser, dealsFor, prof, nameOf, fullName, clone, now, fail, str, emailOk, localDate, C } = x;

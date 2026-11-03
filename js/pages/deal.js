@@ -1,10 +1,11 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611031118';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES } from '../data/constants.js?v=202611031118';
-import { slotText } from './dealclosing.js?v=202611031118';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611031118';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611031316';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES } from '../data/constants.js?v=202611031316';
+import { slotText } from './dealclosing.js?v=202611031316';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611031316';
+import { composeModal } from './compose.js?v=202611031316';
 
-const TABS = { tasks: './dealtasks.js?v=202611031118', inbox: './dealmsgs.js?v=202611031118', documents: './dealdocs.js?v=202611031118', contacts: './dealcontacts.js?v=202611031118', activity: './dealactivity.js?v=202611031118', closing: './dealclosing.js?v=202611031118', agreements: './dealagreements.js?v=202611031118' };
+const TABS = { tasks: './dealtasks.js?v=202611031316', inbox: './dealmsgs.js?v=202611031316', documents: './dealdocs.js?v=202611031316', contacts: './dealcontacts.js?v=202611031316', activity: './dealactivity.js?v=202611031316', closing: './dealclosing.js?v=202611031316', agreements: './dealagreements.js?v=202611031316' };
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -12,11 +13,15 @@ export async function render(ctx) {
   // per-file roles: on this order an outside user acts as their role HERE (deal.myRole), e.g. Buyer Agent here, Client-Buyer elsewhere
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611031118' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611031316' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
-  return overview(ctx, deal, here, ag, salesStaff);
+  // Francis, Nov 3 (Qualia Connect agent portal): outstanding-task alert, 4-step progress, Order Details, Parties, Activity, Conversations,
+  // Request Update / Share Access (agents) and, for staff, the update requests to answer + shared access + the portal invite email
+  const ov = await ctx.api.getOrderOverview(deal.id); const ur = await ctx.api.listUpdateRequests(deal.id); const inv = await ctx.api.listSharedAccess(deal.id);
+  const v = overview(ctx, deal, here, ag, salesStaff); const extra = agentPanels(ctx, deal, ov, ur, inv);
+  return { ...v, body: html`${extra.top}${v.body}`, mount(root) { v.mount(root); extra.mount(root); } };
 }
 
 // opposing side (outside viewers): the adapter sends no phone/email; say where to go instead
@@ -102,4 +107,54 @@ async function addPartyModal(api, d, role, refresh) {
   const pk = mountPicker($('[data-picker=contactId]', m), () => all.filter((c) => !on.has(c.id)));
   $('#apty', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); if (!pk.value) throw new Error('Pick a person from the list.');
     await api.addParticipant(d.id, pk.value, role); closeModal(); toast(`${label[0].toUpperCase() + label.slice(1)} added`); refresh(); }));
+}
+
+// ---------------- Francis, Nov 3: the Qualia-style overview panels ----------------
+function agentPanels(ctx, d, ov, ur, inv) {
+  const { api, user, refresh, go } = ctx; const staffView = !user.accountRole && user.role !== 'Outside user'; const od = ov.orderDetails;
+  const steps = html`<ol class="phase-tracker" data-phase-tracker aria-label="Closing progress">${ov.progress.steps.map((st) => html`<li class="${st.state}" data-phase="${st.name}" data-state="${st.state}">${st.name}</li>`)}</ol>`;
+  const party = (p) => html`<div class="person" data-party="${p.label}"><span class="muted small">${p.label}</span><br><strong>${p.name}</strong>${p.company ? html`<br><span class="muted small">${p.company}</span>` : ''}
+    ${p.contactHidden ? html`<br><span class="muted small contact-hidden">${HIDDEN_CONTACT}</span>` : p.email ? html`<br><span class="muted small">${p.email}</span>` : ''}
+    <div>${p.canMessage ? html`<button type="button" class="ghost" data-message-to="${p.profileId}">Message</button>` : ''} ${p.phone && !p.contactHidden ? html`<a class="ghost" href="tel:${p.phone.replace(/[^0-9+]/g, '')}" data-call>Call ${fmtPhone(p.phone)}</a>` : ''}</div></div>`;
+  const urRow = (r) => html`<tr data-ur="${r.id}" data-ur-status="${r.status}"><td>${fmtDate(r.createdAt)}</td><td><strong>${r.topic}</strong>${r.note ? html`<br><span class="muted small">${r.note}</span>` : ''}${staffView ? html`<br><span class="muted small">from ${r.requestedByName} (${r.requestedRole})</span>` : ''}</td>
+    <td>${r.status === 'answered' ? html`${pill('answered', 'ok')}<br>${r.response}<br><span class="muted small">${r.respondedByName}, ${fmtDate(r.respondedAt)}</span>` : ov.canAnswerUpdates ? html`<form class="inline-form" data-answer="${r.id}"><textarea name="response" rows="2" maxlength="2000" placeholder="Write the update" aria-label="Update for ${r.topic}"></textarea> <button class="m-btn" type="submit">Send update</button></form>` : pill('waiting for CLA Title', 'warn')}</td></tr>`;
+  const top = html`<div class="agent-overview" data-agent-overview>
+    ${ov.outstanding ? html`<div class="notice warn" data-outstanding>You have <strong>${ov.outstanding}</strong> outstanding task${ov.outstanding === 1 ? '' : 's'}. <a class="m-btn" href="#/deals/${d.id}/tasks" data-view-tasks>View Tasks</a></div>` : html`<div class="notice info" data-outstanding="0">No outstanding tasks for you on this order.</div>`}
+    <div class="box-title"><h2><span class="h-ico"></span>Closing progress</h2>${ov.canShareAccess ? html`<button class="m-btn right" id="shareaccess">Share Access</button>` : ''}</div>
+    ${steps}<p class="muted small">Current step: <strong data-progress-step>${ov.progress.phaseName}</strong> (order stage: ${ov.progress.stageName}${ov.progress.status !== 'Open' ? `, status ${ov.progress.status}` : ''}). The badge at the top comes from the same stage, so they always agree.</p>
+    ${ov.canRequestUpdate ? html`<form id="requpdate" class="filter-bar" data-request-update><label>Request Update<select name="topic" required><option value="">Choose&hellip;</option>${options(ov.updateTopics, '')}</select></label>
+      <label>Note (optional)<input name="note" maxlength="1000"></label><button class="m-btn" type="submit">Submit Request</button></form>` : ''}
+    <div class="ap-grid sum-grid-ap"><fieldset class="sum-card" data-order-details><legend>Order Details</legend><dl class="answers">
+      <dt>Property Address</dt><dd>${od.propertyAddress}</dd><dt>Order ID</dt><dd>${od.orderId}</dd><dt>Order Type</dt><dd>${od.orderType}</dd>
+      <dt>Purchase Price</dt><dd>${fmtMoney(od.purchasePrice) || '\u2014'}</dd><dt>Loan Amount</dt><dd>${fmtMoney(od.loanAmount) || '\u2014'}</dd><dt>File Number</dt><dd>${od.fileNumber}</dd>
+      <dt>Agency License ID</dt><dd data-license>${od.agencyLicenseId || html`<span class="muted">not given yet${staffView ? '' : ' (Confirm Your Transaction Information)'}</span>`}</dd></dl></fieldset>
+    <fieldset class="sum-card" data-parties><legend>Parties</legend>${ov.parties.map(party)}</fieldset></div>
+    <div class="ap-grid sum-grid-ap"><fieldset class="sum-card" data-activity-panel><legend>Activity</legend>${ov.recentActivity.length ? html`<ul class="plain">${ov.recentActivity.map((a) => html`<li><span class="muted small">${fmtDate(a.createdAt)}</span> ${a.actorName}: ${a.detail}</li>`)}</ul>` : html`<p class="muted">Nothing yet.</p>`}<a href="#/deals/${d.id}/activity">All activity</a></fieldset>
+      <fieldset class="sum-card" data-conversations-panel><legend>Conversations</legend>${ov.conversations.length ? html`<ul class="plain">${ov.conversations.map((t) => html`<li><a href="#/deals/${d.id}/inbox/${t.id}">${t.subject}</a>${t.unread ? html` ${pill(t.unread + ' new', 'info')}` : ''}<br><span class="muted small">${t.lastFrom} &middot; ${fmtDate(t.lastAt)}</span></li>`)}</ul>` : html`<p class="muted">No conversations yet.</p>`}<a href="#/deals/${d.id}/inbox">Inbox</a></fieldset></div>
+    ${ur.length || ov.canAnswerUpdates ? html`<div class="box-title"><h2><span class="h-ico"></span>${staffView ? 'Update requests from agents and clients' : 'Your update requests'}</h2></div>
+      ${ur.length ? html`<table class="tbl striped" id="update-requests"><thead><tr><th>Asked</th><th>Request</th><th>Answer</th></tr></thead><tbody>${ur.map(urRow)}</tbody></table>` : html`<p class="muted">No update requests on this order.</p>`}` : ''}
+    ${inv.length ? html`<div class="box-title"><h2><span class="h-ico"></span>Shared access</h2></div><table class="tbl striped" id="shared-access"><thead><tr><th>Name</th><th>Email</th><th>Access</th><th>Shared by</th><th>Status</th></tr></thead><tbody>${inv.map((i) => html`<tr><td>${i.firstName} ${i.lastName}</td><td>${i.email}</td><td>${i.permission}</td><td>${i.invitedByName}<br><span class="muted small">${fmtDate(i.createdAt)}</span></td><td>${pill('recorded - no email sent', 'warn')}</td></tr>`)}</tbody></table>` : ''}
+    ${ov.canAnswerUpdates ? html`<p><button class="ghost" id="invitepreview">Portal invite email ("Complete Requests Now")&hellip;</button></p>` : ''}</div>`;
+  function mount(root) {
+    const rq = $('#requpdate', root); if (rq) rq.addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); if (!f.topic) throw new Error('Pick what you want an update on.');
+      await api.requestUpdate(d.id, f); toast('Update requested. CLA Title will answer here.'); refresh(); }));
+    $$('[data-answer]', root).forEach((f) => f.addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.respondUpdateRequest(f.dataset.answer, formData(f)); toast('Update sent'); refresh(); })));
+    $$('[data-message-to]', root).forEach((b) => b.addEventListener('click', guard(() => composeModal({ api, deal: d, go }, { title: 'New Conversation', to: b.dataset.messageTo, withFiles: true }))));
+    const sa = $('#shareaccess', root); if (sa) sa.addEventListener('click', () => { const m = modal('Share Access', html`<form id="saf" class="form-grid" novalidate>
+      <label>First Name<input name="firstName" required maxlength="80"></label><label>Last Name<input name="lastName" required maxlength="80"></label>
+      <label class="span2">Email<input name="email" type="email" required maxlength="200"></label>
+      <label class="span2">Organization Permissions<select name="permission" required><option value="">Choose&hellip;</option>${options(ov.permissions, '')}</select></label>
+      <p class="muted small span2">Demo build: the share is recorded on this order and shown to CLA Title. No email is sent and no login is created.</p>
+      <div class="span2"><button type="button" class="ghost" data-close>Cancel</button> <button class="m-btn" type="submit">Share</button></div></form>`);
+      $('#saf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.shareAccess(d.id, formData(e.target)); closeModal(); toast('Access shared (recorded; no email sent)'); refresh(); })); });
+    const ip = $('#invitepreview', root); if (ip) ip.addEventListener('click', guard(async () => {
+      const outside = d.participants.filter((p) => p.contact && p.contact.profileId && ['Buyer Agent', 'Listing Agent', 'Client-Buyer', 'Client-Seller'].includes(p.role));
+      const m = modal('Portal invite email', html`<form id="ipf" class="form-grid"><label class="span2">Invite<select name="pid">${outside.map((p) => html`<option value="${p.contact.profileId}">${p.contact.firstName} ${p.contact.lastName} (${p.role})</option>`)}</select></label>
+        <div class="span2" id="ip-preview"></div><div class="span2"><button class="m-btn" type="submit">Queue in the outbox (not sent)</button> <button type="button" class="ghost" data-close>Close</button></div></form>`, { wide: true });
+      const show = async () => { const e = await api.getPortalWelcomeEmail(d.id, $('[name=pid]', m).value);
+        $('#ip-preview', m).innerHTML = toText(html`<div class="card" data-invite-preview><p><strong>To:</strong> ${e.toName} &lt;${e.to}&gt;<br><strong>Subject:</strong> ${e.subject}</p><p>${e.body}</p><p><a class="m-btn" href="${e.link}" data-complete-requests>${e.buttonLabel}</a></p><p class="muted small">The button opens ${e.link} (sign-in first if needed, then straight to this order's tasks).</p></div>`); };
+      $('[name=pid]', m).addEventListener('change', guard(show)); await show();
+      $('#ipf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.queuePortalWelcomeEmail(d.id, $('[name=pid]', m).value); closeModal(); toast('Invite queued in the outbox (not sent)'); })); }));
+  }
+  return { top, mount };
 }

@@ -179,3 +179,8 @@ a.active-link { font-weight: 700; text-decoration: underline; } tr.overdue td { 
 .tb-block:hover .tb-ctl, .tb-block.selected .tb-ctl { display: flex; } .tb-handle { cursor: move; font-size: 12px; padding: 2px 6px; } .tb-edit { outline: none; min-height: 18px; }
 .tb-settings { border-left: 1px solid #ddd; padding-left: 10px; } .tb-settings .form-grid { grid-template-columns: 1fr; } .tb-float { position: absolute; z-index: 1500; background: #fff; border: 1px solid #999; border-radius: 4px; padding: 2px; display: flex; gap: 2px; }
 .tb-float[hidden] { display: none; } .tpl-frame { height: 520px; border: 1px solid #ccc; background: #fff; display: block; margin: 0 auto; }
+/* Francis Nov 3 (function only): rich-text box, drop zone, phase tracker, tab badges */
+.rte-box { min-height: 90px; border: 1px solid #ccc; padding: 6px; background: #fff; } .dropzone { border: 1px dashed #999; padding: 8px; } .dropzone.over { background: #eef; }
+.phase-tracker { display: flex; gap: 8px; list-style: none; padding: 0; } .phase-tracker li { flex: 1; border-top: 4px solid #ccc; padding-top: 4px; } .phase-tracker li.done, .phase-tracker li.current { border-color: #3a8f3a; } .phase-tracker li.current { font-weight: bold; }
+.tab-count { margin-left: 4px; font-size: 11px; background: #ddd; border-radius: 8px; padding: 0 5px; }
+.ap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; margin-bottom: 14px; }

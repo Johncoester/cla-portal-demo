@@ -15,7 +15,7 @@ export function messagesActivity(x) {
       let u = needUser(); u = onDeal(u, dealId); const d = load();
       return clone(d.threads.filter((t) => t.dealId === dealId && threadVisible(u, t)).map((t) => {
         const ms = d.messages.filter((m) => m.threadId === t.id); const last = ms[ms.length - 1];
-        return { ...withPeople(t), count: ms.length, lastAt: last ? last.createdAt : t.createdAt, lastBody: last ? last.body : '', unread: unreadIn(u, t) };
+        return { ...withPeople(t), count: ms.length, lastAt: last ? last.createdAt : t.createdAt, lastBody: last ? last.body : '', lastFrom: last ? nameOf(last.authorId) : '', hasFiles: ms.some((m) => (m.attachmentIds || []).length > 0), taskId: t.taskId || null, unread: unreadIn(u, t) };
       }).sort((a, b) => b.lastAt.localeCompare(a.lastAt)));
     },
     async getThread(id) {

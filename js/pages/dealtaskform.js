@@ -1,11 +1,13 @@
 // One intake task (form). Save partial work, validate, mark complete. ID-type fields upload a file into the order's "IDs & personal" folder.
-import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611031118';
-import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611031118';
-import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611031118';
-import { CLS, LABEL } from './dealtasks.js?v=202611031118';
+import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611031316';
+import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611031316';
+import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611031316';
+import { CLS, LABEL } from './dealtasks.js?v=202611031316';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
-export async function render({ api, deal, params, refresh, go }) {
+export async function render(c0) {
+  { const t0 = await ctx0(c0); if (t0) return t0; }
+  const { api, deal, params, refresh, go } = c0;
   const t = await api.getTask(params.sub); const v = t.formData || {};
   t.fields = fieldsForRole(t.fields, t.assignedRole);   // Matt, Nov 3: role-only fields (settlement type = sellers only); the data layer filters too
   const docName = (id) => ((t.documents || []).find((z) => z.id === id) || {}).name || '';
@@ -87,3 +89,6 @@ function signView({ api, deal, t, refresh, go }) {
       await api.signDocument(s.id, { typedName: fd.get('typedName'), adopt: fd.get('adopt') === 'on' }); toast('Signed. Thank you!'); go(`/deals/${deal.id}/tasks`); } catch (err) { toast(err.message, 'err'); } });
   } };
 }
+
+// Francis, Nov 3: agent tasks (kind 'agent') have their own page
+async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611031316'); return m.render(c); }

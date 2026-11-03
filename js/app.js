@@ -1,30 +1,31 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611031118';
-import { html, raw, toText, esc, $, $$, toast, closeModal } from './ui.js?v=202611031118';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611031118';
-import { canUseCrm } from './data/crm.js?v=202611031118';
+import { getAdapter } from './data/adapter.js?v=202611031316';
+import { html, raw, toText, esc, $, $$, toast, closeModal } from './ui.js?v=202611031316';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611031316';
+import { canUseCrm } from './data/crm.js?v=202611031316';
+import { phaseOf } from './data/agent-portal.js?v=202611031316';
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611031118'),
-  dashboard: () => import('./pages/dashboard.js?v=202611031118'),
-  orders: () => import('./pages/orders.js?v=202611031118'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611031118'),
-  deal: () => import('./pages/deal.js?v=202611031118'),
-  users: () => import('./pages/users.js?v=202611031118'),
-  profile: () => import('./pages/profile.js?v=202611031118'),
-  'contact-us': () => import('./pages/contact.js?v=202611031118'),
-  teams: () => import('./pages/teams.js?v=202611031118'),
-  templates: () => import('./pages/templates.js?v=202611031118'),
-  library: () => import('./pages/library.js?v=202611031118'),
-  activity: () => import('./pages/activity.js?v=202611031118'),
-  outbox: () => import('./pages/outbox.js?v=202611031118'),
-  tasks: () => import('./pages/tasks.js?v=202611031118'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611031118'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
-  schedule: () => import('./pages/schedule.js?v=202611031118'),   // public closing-time link (no sign-in needed)
-  crm: () => import('./pages/crm.js?v=202611031118'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  login: () => import('./pages/entry.js?v=202611031316'),
+  dashboard: () => import('./pages/dashboard.js?v=202611031316'),
+  orders: () => import('./pages/orders.js?v=202611031316'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611031316'),
+  deal: () => import('./pages/deal.js?v=202611031316'),
+  users: () => import('./pages/users.js?v=202611031316'),
+  profile: () => import('./pages/profile.js?v=202611031316'),
+  'contact-us': () => import('./pages/contact.js?v=202611031316'),
+  teams: () => import('./pages/teams.js?v=202611031316'),
+  templates: () => import('./pages/templates.js?v=202611031316'),
+  library: () => import('./pages/library.js?v=202611031316'),
+  activity: () => import('./pages/activity.js?v=202611031316'),
+  outbox: () => import('./pages/outbox.js?v=202611031316'),
+  tasks: () => import('./pages/tasks.js?v=202611031316'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611031316'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  schedule: () => import('./pages/schedule.js?v=202611031316'),   // public closing-time link (no sign-in needed)
+  crm: () => import('./pages/crm.js?v=202611031316'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };
@@ -63,10 +64,13 @@ async function layout(u, view, route) {
   const api = await getAdapter(); const unread = await api.notificationCount();
   const dealId = route.page === 'deal' ? route.params.id : null; let deal = null;
   if (dealId) { try { deal = await api.getDeal(dealId); } catch (e) { deal = null; } }
+  // Francis, Nov 3: a count badge on every order tab (Tasks = outstanding for you, Inbox = unread, Documents, Activity)
+  let counts = null; if (deal) { try { counts = (await api.getOrderOverview(dealId)).counts; } catch (e) { counts = null; } }
+  const cnt = (tab) => { if (!counts) return ''; const n = { tasks: counts.tasks, inbox: counts.inbox, documents: counts.documents, activity: counts.activity }[tab]; return n == null ? '' : html`<span class="tab-count" data-tab-count="${tab}">${n}</span>`; };
   const cur = route.page + (route.page === 'users' && route.params.mode === 'new' ? '/new' : '');
   const core = navFor(u, null, 0, api.features || {}).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}">${n.label}</a></li>`);
-  const t = route.params.tab; const link = (tab, label, cls) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}">${label}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : ''}</a></li>`;
-  const dealNav = deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${link('inbox', 'Inbox', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${isClient(deal.myRole) || isAgent(deal.myRole) || isOutside(deal.myRole) || isOutside(u.role) ? '' : link('activity', 'Activity', 'activity')}` : '';
+  const t = route.params.tab; const link = (tab, label, cls) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}">${label}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : tab === 'inbox' ? '' : cnt(tab)}</a></li>`;
+  const dealNav = deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${link('inbox', 'Inbox', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${link('activity', 'Activity', 'activity')}` : '';
   const contact = isStaff(u.role) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us">Contact Us</a></li>`;
   const sidebarHead = deal ? html`<a class="logo-home-link" href="#/deals/${deal.id}"><div class="order-heading-left"><span>${deal.fileNumber}</span></div><div class="map-div"><img class="map-pin" src="assets/img/map-icon-new.png" alt=""><p>${deal.street}<br>${deal.city}, ${deal.state}, ${deal.zip}</p></div></a>` : '';
   const topButtons = runsOrders(u) ? html`<a class="green-btn" href="#/orders/new">Place Order</a>` : '';
@@ -85,6 +89,7 @@ async function layout(u, view, route) {
       <h1 class="welcome-title">Welcome ${u.firstName} ${u.lastName} to CLATitle Portal</h1>
       ${view.crumbs ? html`<ol class="breadcrumb"><li><a href="#${homeFor(u)}"><img src="assets/img/bread-home.png" alt="">Home</a></li>${view.crumbs.map(([label, href], i) => html`<li class="${i === view.crumbs.length - 1 ? 'active' : ''}">${href ? html`<a href="${href}">${label}</a>` : label}</li>`)}</ol>` : ''}
       <div class="dev-banner">DEV BUILD &middot; FAKE DATA ONLY &middot; no real clients, no Zoho &middot; <a href="#" data-reset>reset demo data</a></div>
+      ${deal ? html`<div class="order-header" data-order-header><span class="pill ${phaseOf(deal).badge === 'Closed' ? '' : 'ok'}" data-progress-badge>${phaseOf(deal).badge}</span> <strong>${deal.street}, ${deal.city}, ${deal.state} ${deal.zip}</strong> <span class="order-no">Order # ${deal.fileNumber}</span></div>` : ''}
       <div id="view">${view.body}</div>
     </div>
     <div class="footer-bar"><span><img src="assets/img/logo-icon.png" alt="" class="foot-logo"> Copyright 2026 C.L.A Title &amp; Escrow | All Rights Reserved.</span><span>Security / Privacy Policy</span></div>
@@ -95,7 +100,7 @@ let rendering = 0;
 export async function render() {
   const my = ++rendering; const root = $('#app'); const api = await getAdapter(); const route = parse(); closeModal();
   let u = await api.getSession();
-  if (!u && !PUBLIC.has(route.page)) { location.hash = '#/login'; return; }
+  if (!u && !PUBLIC.has(route.page)) { if (route.page === 'deal') sessionStorage.setItem('cla-portal-new:return', location.hash); location.hash = '#/login'; return; }   // invite deep link: back to the order after sign-in
   if (u && route.page === 'login') { location.hash = '#' + homeFor(u); return; }
   const loader = FLAGGED[route.page] && !(api.features || {})[FLAGGED[route.page]] ? null : pages[route.page];
   if (!loader) { root.innerHTML = toText(await layout(u, { body: html`<div class="box-title"><h2>Page not found</h2></div><p>That page does not exist.</p>` }, route)); wireChrome(u); return; }
@@ -127,5 +132,10 @@ function wireBell() {
   $('[data-readall]', dd).addEventListener('click', async () => { const api = await getAdapter(); await api.markAllNotificationsRead(); render(); });
   document.addEventListener('click', () => { dd.hidden = true; }, { once: true });
 }
-window.addEventListener('hashchange', render);
+// UNSAVED CHANGES (Francis, Nov 3: "are you sure you want to leave... continue editing"): a page that sets window.claDirty() = true is asked before leaving
+let lastHash = location.hash; let bounce = false;
+window.addEventListener('hashchange', () => { if (bounce) { bounce = false; return; }
+  if (typeof window.claDirty === 'function' && window.claDirty() && !confirm('You have unsaved changes. Leave this page? Press Cancel to continue editing.')) { bounce = true; location.hash = lastHash; return; }
+  window.claDirty = null; lastHash = location.hash; render(); });
+window.addEventListener('beforeunload', (e) => { if (typeof window.claDirty === 'function' && window.claDirty()) { e.preventDefault(); e.returnValue = ''; } });
 render();
