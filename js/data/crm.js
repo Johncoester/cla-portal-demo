@@ -1,21 +1,146 @@
 /* crm.js : shared CRM constants and pure helpers (John, Nov 2). Used by the screens, the mock adapter and the unit tests;
- * the same lists are CHECK constraints in SQL (migration 22). FAKE DATA ONLY in this build. See docs/CRM.md. */
-export const LEAD_STATUSES = ['New', 'Contacted', 'Qualified', 'Unqualified'];
-export const LEAD_SOURCES = ['Referral', 'Website', 'Open house', 'Event', 'Cold call', 'Past client', 'Social media', 'Other'];
-export const CRM_STAGES = [['prospect', 'Prospect'], ['active_partner', 'Active Partner'], ['inactive', 'Inactive']];
+ * the same lists are CHECK constraints in SQL (migrations 22 + 24). FAKE DATA ONLY in this build. See docs/CRM.md.
+ * Nov 2 (Zoho match, migration 24 / mock v17): picklists, labels and task / meeting fields copied from John's Zoho training videos
+ * (Zoho modules renamed there: Clients = Contacts, Companies = Accounts). */
+// ---- Zoho picklists (exact labels from the videos) ----
+export const ROLES_IN_COMPANY = ['Realtor', 'Real Estate Broker', 'Transaction Coordinator', 'Loan Officer', 'Mortgage Broker', 'Team Lead'];
+export const LEAD_SOURCES = ['Business Group', 'Call in/Walk in', 'Direct Mail', 'Door Knocking', 'Email Campaign', 'Existing Client or Agent', 'Facebook/IG Ads', 'Facebook Group',
+  'FB/IG Organic', 'Google Ads', 'Other Agent (Our Team)', 'Partnering w/ Other Agents', 'Personal Network', 'Re-assigned', 'Search Engine', 'Social Media', 'Warm Call'];
+export const RELATIONSHIP_STATUSES = ['Potential/Warm', 'Prospecting', 'Not Interested', 'Unresponsive', 'Converted/Current Client', 'Churn'];
+export const CONVERTED_STATUS = 'Converted/Current Client';
+export const LEAD_STATUSES = RELATIONSHIP_STATUSES;   // a lead's status IS its Relationship Status (lead form ~ client form)
+export const TASK_SUBJECTS = ['Email', 'Call', 'Follow-up', 'Send Quote', 'Send Letter', 'Send Email', 'Other'];   // combobox: free text allowed
+export const TASK_STATUSES = ['Not Started', 'Deferred', 'In Progress', 'Completed', 'Waiting for input'];
+export const TASK_CLOSED = 'Completed';
+export const TASK_PRIORITIES = ['Highest', 'High', 'Normal', 'Low', 'Lowest'];
+export const REPEAT_EVERY = [['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']];
+export const MEETING_TYPES = ['Phone Meeting', 'Virtual Meeting', 'Coffee', 'Lunch Meeting', 'Office Stop By'];
+// Social Media Links & Web Addresses (+ Zillow URL in Client Information). Only http / https links are kept.
+export const LINK_FIELDS = [['website', 'Website'], ['facebookProfile', 'Facebook Profile'], ['facebookGroup', 'Facebook Group'], ['facebookPage', 'Facebook Business Page'],
+  ['linkedin', 'LinkedIn Profile'], ['instagram', 'Instagram Profile'], ['zillowProfile', 'Zillow Profile'], ['linktree', 'Linktree'], ['other1', 'Other Link 1'], ['other2', 'Other Link 2'], ['other3', 'Other Link 3']];
+export const LINK_KEYS = LINK_FIELDS.map(([k]) => k);
+// Home > task widget filter (Zoho Classic View), default My Open Tasks
+export const HOME_TASK_FILTERS = ["Closed Tasks", "Next 7 Days + Overdue Tasks", "Open Tasks", "Overdue Tasks", "Today + Overdue Tasks", "Today's Tasks", "Tomorrow's Tasks", "All Tasks", "My Open Tasks", "My Tasks"];
+export const HOME_TASK_DEFAULT = 'My Open Tasks';
+
+// ---- older CRM lists (Nov 2 first cut) kept only to carry stored data forward ----
+export const OLD_LEAD_SOURCES = ['Referral', 'Website', 'Open house', 'Event', 'Cold call', 'Past client', 'Social media', 'Other'];
+export const SOURCE_FROM_OLD = { 'Referral': 'Existing Client or Agent', 'Website': 'Search Engine', 'Open house': 'Call in/Walk in', 'Event': 'Business Group', 'Cold call': 'Warm Call',
+  'Past client': 'Existing Client or Agent', 'Social media': 'Social Media', 'Other': '' };
+export const STATUS_FROM_OLD = { 'New': 'Potential/Warm', 'Contacted': 'Prospecting', 'Qualified': 'Prospecting', 'Unqualified': 'Not Interested' };
+export const STAGE_TO_STATUS = { prospect: 'Prospecting', active_partner: CONVERTED_STATUS, inactive: 'Churn' };
+export const TASK_STATUS_FROM_OLD = { open: 'Not Started', done: TASK_CLOSED, cancelled: TASK_CLOSED };
+export const roleForContactType = (t) => ({ realtor: 'Realtor', lender: 'Loan Officer' })[t] || '';
+export const CRM_STAGES = [['prospect', 'Prospect'], ['active_partner', 'Active Partner'], ['inactive', 'Inactive']];   // superseded by Relationship Status (kept for old data)
 export const CRM_STAGE_CODES = CRM_STAGES.map(([c]) => c);
 export const crmStageLabel = (c) => (CRM_STAGES.find(([k]) => k === c) || [null, ''])[1];
 // pipeline of referral-partner opportunities (one opportunity = winning a realtor / brokerage / lender as a source of orders)
 export const OPP_STAGES = ['New', 'Meeting set', 'Proposal', 'Won', 'Lost'];
-export const ACTIVITY_KINDS = [['call', 'Call'], ['email', 'Email (logged only, nothing is sent)'], ['meeting', 'Meeting'], ['note', 'Note'], ['task', 'Follow-up task']];
-export const ACTIVITY_KIND_CODES = ACTIVITY_KINDS.map(([c]) => c);
-export const activityKindLabel = (c) => ({ call: 'Call', email: 'Email', meeting: 'Meeting', note: 'Note', task: 'Follow-up' })[c] || c;
-export const TASK_STATES = ['open', 'done', 'cancelled'];
+// what can be LOGGED as already happened (tasks and meetings have their own forms)
+export const ACTIVITY_KINDS = [['call', 'Call'], ['email', 'Email (logged only, nothing is sent)'], ['note', 'Note']];
+export const ACTIVITY_KIND_CODES = ['call', 'email', 'meeting', 'note', 'task'];
+export const activityKindLabel = (c) => ({ call: 'Call', email: 'Email', meeting: 'Meeting', note: 'Note', task: 'Task' })[c] || c;
 export const ACCOUNT_KINDS = [['brokerage', 'Brokerage'], ['lender', 'Lender'], ['other', 'Other']];
 export const ACCOUNT_KIND_CODES = ACCOUNT_KINDS.map(([c]) => c);
 export const accountKindLabel = (c) => (ACCOUNT_KINDS.find(([k]) => k === c) || [null, ''])[1];
 export const CRM_ENTITIES = ['lead', 'contact', 'account', 'opportunity'];
+export const entityLabel = (e) => ({ lead: 'Lead', contact: 'Client', account: 'Company', opportunity: 'Opportunity' })[e] || e;
 export const accountKindForType = (t) => ({ realtor: 'brokerage', lender: 'lender' })[t] || 'other';
+
+// ---- URLs: only http(s). "www.x.com" gets https:// in front. Anything else (javascript:, data:, mailto:...) is refused. ----
+export function cleanUrl(v) {
+  let s = String(v == null ? '' : v).trim(); if (!s) return '';
+  if (s.length > 500) throw new Error('A link can be at most 500 characters.');
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = 'https://' + s.replace(/^\/+/, '');
+  let u; try { u = new URL(s); } catch (e) { throw new Error(`"${String(v).trim().slice(0, 60)}" is not a valid web address.`); }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('Links must start with http:// or https://.');
+  if (!u.hostname || !u.hostname.includes('.') || /\s/.test(s)) throw new Error(`"${String(v).trim().slice(0, 60)}" is not a valid web address.`);
+  return u.href;
+}
+// for rendering: the link if it is http(s), else '' (data from elsewhere is checked again before it becomes an href)
+export const safeHref = (v) => { try { const s = cleanUrl(v); return s; } catch (e) { return ''; } };
+
+// ---- dates / times (local, minute precision: 'YYYY-MM-DDTHH:MM') ----
+const p2 = (n) => String(n).padStart(2, '0');
+export const localStamp = (d = new Date()) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
+export const addDaysTo = (ymd, n) => { const [y, m, d] = ymd.split('-').map(Number); const t = new Date(y, m - 1, d + n); return `${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())}`; };
+// next due date of a repeating task (monthly keeps the day, clamped to the month's last day)
+export function nextDue(ymd, every) {
+  if (every === 'daily') return addDaysTo(ymd, 1); if (every === 'weekly') return addDaysTo(ymd, 7);
+  if (every === 'monthly') { const [y, m, d] = ymd.split('-').map(Number); const last = new Date(y, m + 1, 0).getDate(); const t = new Date(y, m, Math.min(d, last)); return `${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())}`; }
+  throw new Error('Repeat must be daily, weekly or monthly.');
+}
+export const taskOpen = (t) => t.status !== TASK_CLOSED;
+export const meetingEnd = (m) => (m.allDay ? String(m.endsAt || m.startsAt || '').slice(0, 10) + 'T23:59' : String(m.endsAt || ''));
+export const meetingOpen = (m, nowStamp = localStamp()) => meetingEnd(m) >= nowStamp;
+export const priorityRank = (p) => { const i = TASK_PRIORITIES.indexOf(p); return i < 0 ? 9 : i; };
+
+// HOME task widget filter (pure). today = 'YYYY-MM-DD' local. "Today's / Tomorrow's Tasks" = due that day, any status; the others as named.
+export function homeTaskFilter(tasks, filter, meId, today) {
+  const tomorrow = addDaysTo(today, 1), week = addDaysTo(today, 7);
+  const f = {
+    'Closed Tasks': (t) => !taskOpen(t),
+    'Next 7 Days + Overdue Tasks': (t) => taskOpen(t) && t.dueDate <= week,
+    'Open Tasks': (t) => taskOpen(t),
+    'Overdue Tasks': (t) => taskOpen(t) && t.dueDate < today,
+    'Today + Overdue Tasks': (t) => taskOpen(t) && t.dueDate <= today,
+    "Today's Tasks": (t) => t.dueDate === today,
+    "Tomorrow's Tasks": (t) => t.dueDate === tomorrow,
+    'All Tasks': () => true,
+    'My Open Tasks': (t) => taskOpen(t) && t.ownerId === meId,
+    'My Tasks': (t) => t.ownerId === meId,
+  }[filter];
+  if (!f) throw new Error('Unknown task filter.');
+  return tasks.filter(f);
+}
+// sort for the widget columns (dueDate, subject, relatedTo, contactName, status, priority); blanks last; ties by due date then subject
+export function sortTasks(rows, key = 'dueDate', dir = 'asc') {
+  const m = dir === 'desc' ? -1 : 1;
+  const val = (r) => (key === 'priority' ? priorityRank(r.priority) : key === 'status' ? TASK_STATUSES.indexOf(r.status) : r[key] == null || r[key] === '' ? null : String(r[key]));
+  return [...rows].sort((a, b) => { const x = val(a), y = val(b);
+    if (x === null && y !== null) return 1; if (y === null && x !== null) return -1;
+    const c = x === null ? 0 : typeof x === 'number' ? x - y : x.localeCompare(y, 'en', { numeric: true, sensitivity: 'base' });
+    return c * m || String(a.dueDate || '').localeCompare(String(b.dueDate || '')) || String(a.subject || '').localeCompare(String(b.subject || '')); });
+}
+// a record page's related lists (Zoho): Notes, Open Activities, Closed Activities, Invited Meetings
+export function relatedLists(acts, invited = [], nowStamp = localStamp()) {
+  const isOpen = (a) => (a.kind === 'task' ? taskOpen(a) : a.kind === 'meeting' ? meetingOpen(a, nowStamp) : false);
+  const when = (a) => (a.kind === 'task' ? a.dueDate || '' : a.kind === 'meeting' ? a.startsAt || '' : a.occurredOn || String(a.createdAt || '').slice(0, 10));
+  const acts2 = acts.filter((a) => a.kind !== 'note');
+  return { notes: acts.filter((a) => a.kind === 'note'),
+    open: acts2.filter(isOpen).sort((a, b) => when(a).localeCompare(when(b))),
+    closed: acts2.filter((a) => !isOpen(a)).sort((a, b) => when(b).localeCompare(when(a))),
+    invited: invited.filter((m) => m.kind === 'meeting').sort((a, b) => String(b.startsAt).localeCompare(String(a.startsAt))) };
+}
+// Amount by Stage (Home): estimated volume of the open pipeline per stage (archived opportunities left out)
+export function amountByStage(opps) {
+  return OPP_STAGES.map((stage) => { const l = opps.filter((o) => o.stage === stage && !o.archived); return { stage, count: l.length, amount: l.reduce((n, o) => n + (Number(o.estVolume) || 0), 0) }; });
+}
+// v16 -> v17 (mock data) and the fresh seed: old picklist values -> Zoho values, follow-up tasks -> Zoho tasks, logged meetings -> meetings.
+// Idempotent (a row already in the new shape is left alone). Never removes a record.
+export function crmZohoUpgrade(d) {
+  const blankPerson = { roleInCompany: '', title: '', mobile: '', assistant: '', asstPhone: '', agentSplit: null, licenseNo: '', salesVolumeLastYear: null, dealsClosedLastYear: null,
+    zillowUrl: '', street: '', city: '', state: '', zip: '', county: '', links: {}, leadSource: '' };
+  (d.crmLeads || []).forEach((l) => {
+    if (OLD_LEAD_SOURCES.includes(l.source)) l.source = SOURCE_FROM_OLD[l.source]; else if (l.source && !LEAD_SOURCES.includes(l.source)) l.source = '';
+    if (!RELATIONSHIP_STATUSES.includes(l.status)) l.status = l.convertedAt ? CONVERTED_STATUS : STATUS_FROM_OLD[l.status] || 'Potential/Warm';
+    if (l.convertedAt) l.status = CONVERTED_STATUS;
+    for (const [k, v] of Object.entries(blankPerson)) if (l[k] === undefined && k !== 'leadSource') l[k] = typeof v === 'object' && v ? {} : v;
+    if (!l.roleInCompany) l.roleInCompany = roleForContactType(l.contactType);
+    if (l.modifiedAt === undefined) { l.modifiedAt = l.createdAt || null; l.modifiedBy = l.createdBy || null; } });
+  (d.contacts || []).forEach((c) => { if (!('crmOwnerId' in c) && !('crmStage' in c) && !('relationshipStatus' in c)) return;   // never in the CRM: leave untouched
+    for (const [k, v] of Object.entries(blankPerson)) if (c[k] === undefined) c[k] = typeof v === 'object' && v ? {} : v;
+    if (c.relationshipStatus === undefined) c.relationshipStatus = STAGE_TO_STATUS[c.crmStage] || '';
+    if (!c.roleInCompany) c.roleInCompany = roleForContactType(c.contactType); });
+  (d.crmActivities || []).forEach((a) => {
+    if (a.kind === 'task' && !TASK_STATUSES.includes(a.status)) { if (a.status === 'cancelled') a.cancelled = true; a.status = TASK_STATUS_FROM_OLD[a.status] || 'Not Started';
+      Object.assign(a, { priority: a.priority || 'High', reminder: false, reminderAt: null, repeatEvery: null, repeatUntil: null, closedAt: a.status === TASK_CLOSED ? a.doneAt || a.createdAt : null,
+        modifiedBy: a.createdBy, modifiedAt: a.doneAt || a.createdAt }); }
+    if (a.kind === 'meeting' && a.startsAt === undefined) Object.assign(a, { allDay: true, startsAt: a.occurredOn, endsAt: a.occurredOn, location: '', meetingType: '', hostId: a.createdBy || a.ownerId || null, participants: [] });
+  });
+  d.crmAttachments ||= [];
+  return d;
+}
 
 // ACCESS (mirrored by private.crm_* in SQL). Staff only: Admin / Super admin (all, edit), Sales Person (own + linked, edit),
 // Sales Team (the sales team's records: owned by any salesperson or unowned, plus linked; edit), Processor (everything, READ-ONLY).
@@ -37,7 +162,8 @@ export function crmFilter(rows, f = {}, fields = ['name', 'email', 'company', 'p
   return rows.filter((r) => {
     const hay = fields.map((k) => (Array.isArray(r[k]) ? r[k].join(' ') : r[k] || '')).join(' ').toLowerCase();
     if (!words.every((w) => hay.includes(w))) return false;
-    if (!eq(f.ownerId, r.ownerId) || !eq(f.contactType, r.contactType) || !eq(f.stage, r.stage) || !eq(f.status, r.status) || !eq(f.source, r.source) || !eq(f.kind, r.kind)) return false;
+    if (['ownerId', 'contactType', 'stage', 'status', 'source', 'kind', 'roleInCompany', 'relationshipStatus', 'leadSource', 'state'].some((k) => !eq(f[k], r[k]))) return false;
+    if (f.county && (f.county === 'none' ? !!r.county : String(r.county || '').toLowerCase() !== String(f.county).toLowerCase())) return false;
     if (f.tag && !(r.tags || []).includes(String(f.tag).toLowerCase())) return false;
     const arch = f.archived || ''; if (arch === '' && r.archived) return false; if (arch === 'only' && !r.archived) return false;
     if ('converted' in r || f.converted) { const cv = f.converted || ''; if (cv === '' && r.converted) return false; if (cv === 'only' && !r.converted) return false; }

@@ -1,5 +1,6 @@
 // FAKE DATA ONLY. Fictional people, example.test addresses, 555 phone numbers. No real clients, no credentials.
-import { TEMPLATE_DEFS } from './templates.js?v=202611022019';
+import { TEMPLATE_DEFS } from './templates.js?v=202611022114';
+import { crmZohoUpgrade } from './crm.js?v=202611022114';
 export const DEAL_FOLDERS = ['Contract & addenda', 'IDs & personal', 'Lender & payoff', 'HOA', 'Closing'];
 const addDays = (iso, n) => new Date(Date.parse(iso.slice(0, 10) + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 export function buildSeed() {
@@ -256,5 +257,27 @@ function crm(contacts) {
     A('ca-7', 'opportunity', 'opp-2', 'note', 'Lena wants a demo of the portal', 'u-sp'),
     A('ca-8', 'contact', 'c-lagent', 'task', 'Thank-you card after closing', 'u-team', { dueDate: '2026-10-16', status: 'done', doneAt: '2026-10-16T15:00:00Z' }),
   ];
-  return { crmAccounts, crmLeads, crmOpportunities, crmActivities };
+  // Nov 2 (Zoho match): the same mapping a stored v16 browser gets (Zoho lead sources / relationship status, follow-ups -> tasks), then fake Zoho details
+  const out = crmZohoUpgrade({ contacts, crmLeads, crmActivities });
+  const Z = { // id: [role in company, title, county, city, extra]
+    'c-bagent': ['Realtor', 'Buyer Specialist', 'Montgomery', 'Rockville', { leadSource: 'Existing Client or Agent', agentSplit: 70, licenseNo: 'MD-RE-000101 (fake)', salesVolumeLastYear: 9800000, dealsClosedLastYear: 21,
+      mobile: '301-555-0191', zillowUrl: 'https://www.zillow.com/profile/bianca-fake', links: { website: 'https://harbor-realty.example.test/bianca', linkedin: 'https://www.linkedin.com/in/bianca-fake' } }],
+    'c-multi': ['Realtor', '', 'Montgomery', 'Bethesda', { leadSource: 'Personal Network' }], 'c-selfrep': ['Realtor', '', 'Montgomery', 'Silver Spring', {}], 'c-gone': ['Realtor', '', 'Anne Arundel', 'Annapolis', {}],
+    'c-lagent': ['Team Lead', 'Listing Team Lead', 'Montgomery', 'Bethesda', { leadSource: 'Business Group', assistant: 'Avery Assistant (fake)', asstPhone: '301-555-0192', links: { facebookPage: 'https://www.facebook.com/oak-street-fake' } }],
+    'c-lena': ['Realtor', 'Associate Agent', 'Anne Arundel', 'Annapolis', { leadSource: 'Facebook Group', links: { instagram: 'https://www.instagram.com/lena-fake', linktree: 'https://linktr.ee/lena-fake' } }],
+    'c-lender1': ['Loan Officer', 'Senior Loan Officer', 'Baltimore', 'Baltimore', { leadSource: 'Warm Call' }], 'c-buyer': ['', '', 'Montgomery', 'Rockville', {}], 'c-seller': ['', '', 'Montgomery', 'Bethesda', {}],
+    'c-cora': ['', '', 'Anne Arundel', 'Annapolis', {}] };
+  contacts.forEach((c) => { const z = Z[c.id]; if (!z) return; Object.assign(c, { roleInCompany: z[0] || c.roleInCompany, title: z[1], county: z[2], city: z[3], state: 'MD' }, z[4]); });
+  const LZ = { 'lead-1': ['Montgomery', { agentSplit: 80, dealsClosedLastYear: 20 }], 'lead-2': ['Howard', { roleInCompany: 'Mortgage Broker', title: 'Branch Manager' }], 'lead-3': ['Anne Arundel', {}],
+    'lead-4': ['Frederick', { roleInCompany: 'Real Estate Broker' }], 'lead-5': ['Montgomery', { links: { facebookProfile: 'https://www.facebook.com/olivia-fake' } }], 'lead-6': ['Montgomery', { roleInCompany: 'Transaction Coordinator' }] };
+  crmLeads.forEach((l) => { const z = LZ[l.id]; if (z) Object.assign(l, { state: 'MD', county: z[0] }, z[1]); });
+  const t = (id) => crmActivities.find((a) => a.id === id);
+  Object.assign(t('ca-2'), { priority: 'Highest' }); Object.assign(t('ca-3'), { priority: 'Normal', reminder: true, reminderAt: '2026-11-19T09:00' }); Object.assign(t('ca-6'), { priority: 'High', status: 'In Progress' });
+  Object.assign(t('ca-5'), { meetingType: 'Lunch Meeting', location: 'Oak Street Realty office (fake)' });
+  // one upcoming meeting (a week from today) so Open Activities / Invited Meetings have something to show. No invitations are ever sent.
+  const soon = addDays(new Date().toISOString(), 7);
+  crmActivities.push({ id: 'ca-9', entity: 'contact', entityId: 'c-bagent', kind: 'meeting', subject: 'Coffee with Bianca', body: 'Talk about the spring buyer pipeline (fake).', status: 'done', dueDate: null, occurredOn: soon,
+    ownerId: 'u-sp', hostId: 'u-sp', allDay: false, startsAt: soon + 'T10:00', endsAt: soon + 'T11:00', location: 'Harbor Coffee (fake)', meetingType: 'Coffee', participants: ['contact:c-bagent', 'contact:c-multi', 'user:u-sp'],
+    system: false, createdBy: 'u-sp', createdAt: '2026-10-29T15:00:00Z', doneAt: null, modifiedBy: 'u-sp', modifiedAt: '2026-10-29T15:00:00Z' });
+  return { crmAccounts, crmLeads, crmOpportunities, crmActivities, crmAttachments: out.crmAttachments };
 }

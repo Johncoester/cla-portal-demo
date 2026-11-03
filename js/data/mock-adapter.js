@@ -5,28 +5,35 @@
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
 import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, localDate, localDayOf, isRealDate,
   isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
-  phoneOk, fmtPhone, PHONE_MSG, fileTitleOf, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel } from './constants.js?v=202611022019';
-import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611022019';
-import { indexedDbFileStore } from './file-store.js?v=202611022019';
-import { delegationLocked } from './templates.js?v=202611022019';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611022019';
-import { devAuth } from './mock-part-auth.js?v=202611022019';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611022019';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611022019';
-import { messagesActivity } from './mock-part-msgs.js?v=202611022019';
-import { adminUsersTeams } from './mock-part-admin.js?v=202611022019';
-import { libraryFolders } from './mock-part-library.js?v=202611022019';
-import { closingSchedule } from './mock-part-schedule.js?v=202611022019';
-import { notificationsPart } from './mock-part-notify.js?v=202611022019';
-import { mattP2 } from './mock-part-matt.js?v=202611022019';
-import { mattNov2 } from './mock-part-nov2.js?v=202611022019';
-import { crmPart } from './mock-part-crm.js?v=202611022019';
-import { featureFlags } from './features.js?v=202611022019';
+  phoneOk, fmtPhone, PHONE_MSG, fileTitleOf, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel } from './constants.js?v=202611022114';
+import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611022114';
+import { indexedDbFileStore } from './file-store.js?v=202611022114';
+import { delegationLocked } from './templates.js?v=202611022114';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611022114';
+import { devAuth } from './mock-part-auth.js?v=202611022114';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611022114';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611022114';
+import { messagesActivity } from './mock-part-msgs.js?v=202611022114';
+import { adminUsersTeams } from './mock-part-admin.js?v=202611022114';
+import { libraryFolders } from './mock-part-library.js?v=202611022114';
+import { closingSchedule } from './mock-part-schedule.js?v=202611022114';
+import { notificationsPart } from './mock-part-notify.js?v=202611022114';
+import { mattP2 } from './mock-part-matt.js?v=202611022114';
+import { mattNov2 } from './mock-part-nov2.js?v=202611022114';
+import { crmPart } from './mock-part-crm.js?v=202611022114';
+import { featureFlags } from './features.js?v=202611022114';
+import { crmZohoUpgrade } from './crm.js?v=202611022114';
 
-const KEY = 'cla-portal-new:data:v16';   // v16: County on orders (seeded fake files get one; stored v15 data is CARRIED FORWARD, see upgradeData; John, Nov 2). v15: the CRM (leads, accounts, opportunities, activities, CRM fields on contacts; John, Nov 2). v14: contact type on every contact (realtor / lender / buyer_seller; John, Nov 2). v13: EMD amount + due date on orders, Place Order documents, TC = Transaction Coordinator accounts only (John, Nov 2). v12: several salespeople per file (deal_sales_people). v11: client <-> salesperson links (John, Nov 2). v10: Matt's Nov 2 notes (more Transaction Coordinator test tasks). v9: role 'Sales Processor' renamed 'Processor'. v8: Matt's Oct 31 priority 2 (seller questions, agreements, e-sign, closing proposals, phone format). v7: IndexedDB file store (ID upload fix). v6: agent buying/selling for themselves (v5: per-file roles; v4: agent delegation flags + home warranty v2). Old saved demo data is re-seeded.
-const PREV_KEY = 'cla-portal-new:data:v15';
+const KEY = 'cla-portal-new:data:v17';   // v17: CRM matched to Zoho (client / lead fields, Zoho picklists, tasks, meetings, attachments; stored v16 data is CARRIED FORWARD, see upgradeToV17; John, Nov 2). v16: County on orders (seeded fake files get one; stored v15 data is CARRIED FORWARD, see upgradeData; John, Nov 2). v15: the CRM (leads, accounts, opportunities, activities, CRM fields on contacts; John, Nov 2). v14: contact type on every contact (realtor / lender / buyer_seller; John, Nov 2). v13: EMD amount + due date on orders, Place Order documents,
+export const STORAGE_KEY = KEY;
+// Older keys we still carry forward (newest first). v1..v14 are not upgraded (unchanged behaviour).
+const PREV_KEYS = [['cla-portal-new:data:v16', 'v16'], ['cla-portal-new:data:v15', 'v15']];
 // v15 -> v16: every stored order gets county '' (optional field). Nothing else changes shape; ids, documents (IndexedDB), sessions stay valid.
 export function upgradeData(d) { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); d.deals.forEach((q) => { if (q.county == null) q.county = ''; }); d.upgradedFrom = 'v15'; return d; }
+// v16 -> v17: CRM values mapped to the Zoho lists (lead source, relationship status from lead status / CRM stage), follow-ups -> Zoho tasks
+// (open -> Not Started, done / cancelled -> Completed), logged meetings -> all-day meetings, new client / lead fields empty. Orders, documents,
+// users and everything outside the CRM are untouched; no record is dropped.
+export function upgradeToV17(d, from = 'v16') { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); if (from === 'v15') upgradeData(d); crmZohoUpgrade(d); d.upgradedFrom = from; return d; }
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();
@@ -51,16 +58,16 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   let db = null;
   function save() { store.setItem(KEY, JSON.stringify(db)); }
   // Older demo-data versions (v1..v6) are never read again; drop them so they stop using up this browser's ~5 MB localStorage (part of the ID-upload bug).
-  const dropStale = () => { try { for (let i = store.length - 1; i >= 0; i--) { const k = store.key(i); if (k && /^cla-portal-new:data:v\d+$/.test(k) && k !== KEY) store.removeItem(k); } } catch (e) { /* plain Map storage in tests */ } };
-  // UPGRADE (John, Nov 2, v16): a browser that holds v15 data (e.g. a real test order entered by hand) keeps it. The v15 JSON is carried forward
-  // into v16 with the new fields defaulted (deals.county = ''), saved under v16, and only then is the v15 copy removed. "Reset demo data" removes v16
-  // and builds a fresh seed (the v15 copy is gone by then, so it is never resurrected). Older keys (v1..v14) are not upgraded (unchanged behaviour).
-  function loadPrevious() { const raw = store.getItem(PREV_KEY); if (!raw) return null; try { return upgradeData(JSON.parse(raw)); } catch (e) { return null; } }
+  const dropStale = () => { try { for (let i = store.length - 1; i >= 0; i--) { const k = store.key(i); if (k && /^cla-portal-new:data:v\d+$/.test(k) && k !== KEY && !PREV_KEYS.some(([p]) => p === k)) store.removeItem(k); /* an unreadable v15 / v16 copy is kept, never dropped */ } } catch (e) { /* plain Map storage in tests */ } };
+  // UPGRADE (John, Nov 2, v16 and v17): a browser that holds older data (e.g. a real test order entered by hand) keeps it. The newest older copy
+  // (v16, else v15) is carried forward into v17 with the new fields defaulted / mapped, saved under v17, and only then is the old copy removed.
+  // "Reset demo data" removes v17 and any older copies and builds a fresh seed (old data is never resurrected). v1..v14 are not upgraded.
+  function loadPrevious() { for (const [k, from] of PREV_KEYS) { const raw = store.getItem(k); if (!raw) continue; try { return [k, upgradeToV17(JSON.parse(raw), from)]; } catch (e) { /* unreadable: try the next */ } } return null; }
   function load() { if (db) return db; const raw = store.getItem(KEY); if (raw) { db = JSON.parse(raw); return db; }
     const prev = loadPrevious();
-    if (prev) { db = prev; const old = store.getItem(PREV_KEY);
-      try { save(); } catch (e) { if (!isQuota(e)) throw e; store.removeItem(PREV_KEY); try { save(); } catch (e2) { store.setItem(PREV_KEY, old); throw e2; } }   // storage full: make room by moving, never lose the old copy
-      store.removeItem(PREV_KEY); return db; }
+    if (prev) { const [pk, data] = prev; db = data; const old = store.getItem(pk);
+      try { save(); } catch (e) { if (!isQuota(e)) throw e; store.removeItem(pk); try { save(); } catch (e2) { store.setItem(pk, old); throw e2; } }   // storage full: make room by moving, never lose the old copy
+      store.removeItem(pk); return db; }
     db = buildSeed(); if (typeof store.key === 'function') dropStale(); save(); return db; }
   const nid = (p) => { const d = load(); d.seq += 1; return `${p}-${d.seq}`; };
 
@@ -204,7 +211,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   const api = { mode: 'mock', features: { ...flags } };
   const ctx = { api, DEAL_FOLDERS, store, sess, SESSION_KEY, KEY, load, save, nid, me, needUser, needProcessor, needAdmin, isManager, notViewOnly, contactOf, salesOf, seesAll, teamAgentIds, dealsFor, dealOr404, fileRole, fileRoles, fileRoleText, holds, scopeTo, onDeal, fileRolesOf, fileLabelsOf, log, prof, nameOf, roleOf, fullName,
     folderOf, docVisible, threadVisible, unreadIn, participantsOf, isStaffView, personSide, canMessage, mixedSides, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, dealView, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, localDayOf, phone,
-    reset() { store.removeItem(KEY); db = null; if (files) files.clearAll().catch(() => {}); load(); },
+    reset() { store.removeItem(KEY); PREV_KEYS.forEach(([k]) => store.removeItem(k)); db = null; if (files) files.clearAll().catch(() => {}); load(); },
     files,
     // move an upload's bytes out of the record into the file store BEFORE the record is saved (so a failed save never lists a file without content)
     async keepFile(doc) { if (!files || !doc.dataUrl) return doc; try { await files.put(doc.id, doc.dataUrl); } catch (e) { throw new Error('This browser could not store the file (private browsing or storage full). Try a smaller file or another browser.'); }
