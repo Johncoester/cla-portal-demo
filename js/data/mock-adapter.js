@@ -5,35 +5,39 @@
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
 import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, localDate, localDayOf, isRealDate,
   isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
-  phoneOk, fmtPhone, PHONE_MSG, fileTitleOf, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel } from './constants.js?v=202611022207';
-import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611022207';
-import { indexedDbFileStore } from './file-store.js?v=202611022207';
-import { delegationLocked } from './templates.js?v=202611022207';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611022207';
-import { devAuth } from './mock-part-auth.js?v=202611022207';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611022207';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611022207';
-import { messagesActivity } from './mock-part-msgs.js?v=202611022207';
-import { adminUsersTeams } from './mock-part-admin.js?v=202611022207';
-import { libraryFolders } from './mock-part-library.js?v=202611022207';
-import { closingSchedule } from './mock-part-schedule.js?v=202611022207';
-import { notificationsPart } from './mock-part-notify.js?v=202611022207';
-import { mattP2 } from './mock-part-matt.js?v=202611022207';
-import { mattNov2 } from './mock-part-nov2.js?v=202611022207';
-import { crmPart } from './mock-part-crm.js?v=202611022207';
-import { featureFlags } from './features.js?v=202611022207';
-import { crmZohoUpgrade } from './crm.js?v=202611022207';
+  phoneOk, fmtPhone, PHONE_MSG, fileTitleOf, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel } from './constants.js?v=202611031028';
+import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611031028';
+import { indexedDbFileStore } from './file-store.js?v=202611031028';
+import { delegationLocked, applyNov3Templates } from './templates.js?v=202611031028';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611031028';
+import { devAuth } from './mock-part-auth.js?v=202611031028';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611031028';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611031028';
+import { messagesActivity } from './mock-part-msgs.js?v=202611031028';
+import { adminUsersTeams } from './mock-part-admin.js?v=202611031028';
+import { libraryFolders } from './mock-part-library.js?v=202611031028';
+import { closingSchedule } from './mock-part-schedule.js?v=202611031028';
+import { notificationsPart } from './mock-part-notify.js?v=202611031028';
+import { mattP2 } from './mock-part-matt.js?v=202611031028';
+import { mattNov2 } from './mock-part-nov2.js?v=202611031028';
+import { crmPart } from './mock-part-crm.js?v=202611031028';
+import { featureFlags } from './features.js?v=202611031028';
+import { crmZohoUpgrade } from './crm.js?v=202611031028';
 
-const KEY = 'cla-portal-new:data:v17';   // v17: CRM matched to Zoho (client / lead fields, Zoho picklists, tasks, meetings, attachments; stored v16 data is CARRIED FORWARD, see upgradeToV17; John, Nov 2). v16: County on orders (seeded fake files get one; stored v15 data is CARRIED FORWARD, see upgradeData; John, Nov 2). v15: the CRM (leads, accounts, opportunities, activities, CRM fields on contacts; John, Nov 2). v14: contact type on every contact (realtor / lender / buyer_seller; John, Nov 2). v13: EMD amount + due date on orders, Place Order documents,
+const KEY = 'cla-portal-new:data:v18';   // v18: Matt, Nov 3: personal info v3 (POA follow-ups, + Add entity with entity documents, settlement type for sellers only) and title vesting v2 (vesting help); stored v17 data is CARRIED FORWARD (upgradeToV18: new template versions added, untouched open copies moved to them). v17: CRM matched to Zoho (client / lead fields, Zoho picklists, tasks, meetings, attachments; stored v16 data is CARRIED FORWARD, see upgradeToV17; John, Nov 2). v16: County on orders (seeded fake files get one; stored v15 data is CARRIED FORWARD, see upgradeData; John, Nov 2). v15: the CRM (leads, accounts, opportunities, activities, CRM fields on contacts; John, Nov 2). v14: contact type on every contact (realtor / lender / buyer_seller; John, Nov 2). v13: EMD amount + due date on orders, Place Order documents,
 export const STORAGE_KEY = KEY;
 // Older keys we still carry forward (newest first). v1..v14 are not upgraded (unchanged behaviour).
-const PREV_KEYS = [['cla-portal-new:data:v16', 'v16'], ['cla-portal-new:data:v15', 'v15']];
+const PREV_KEYS = [['cla-portal-new:data:v17', 'v17'], ['cla-portal-new:data:v16', 'v16'], ['cla-portal-new:data:v15', 'v15']];
 // v15 -> v16: every stored order gets county '' (optional field). Nothing else changes shape; ids, documents (IndexedDB), sessions stay valid.
 export function upgradeData(d) { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); d.deals.forEach((q) => { if (q.county == null) q.county = ''; }); d.upgradedFrom = 'v15'; return d; }
 // v16 -> v17: CRM values mapped to the Zoho lists (lead source, relationship status from lead status / CRM stage), follow-ups -> Zoho tasks
 // (open -> Not Started, done / cancelled -> Completed), logged meetings -> all-day meetings, new client / lead fields empty. Orders, documents,
 // users and everything outside the CRM are untouched; no record is dropped.
 export function upgradeToV17(d, from = 'v16') { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); if (from === 'v15') upgradeData(d); crmZohoUpgrade(d); d.upgradedFrom = from; return d; }
+// v17 -> v18 (Matt, Nov 3): the new built-in template versions are added (personal_info v3, title_vesting v2; numbered after any version an Admin published)
+// and UNTOUCHED copies (todo, no answers saved) move onto them. Copies with answers, orders, documents, users and the CRM are untouched. v15 / v16 go through v17 first.
+export function upgradeToV18(d, from = 'v17') { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); if (from !== 'v17') upgradeToV17(d, from);
+  applyNov3Templates(d); d.upgradedFrom = from; return d; }
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();
@@ -59,10 +63,10 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   function save() { store.setItem(KEY, JSON.stringify(db)); }
   // Older demo-data versions (v1..v6) are never read again; drop them so they stop using up this browser's ~5 MB localStorage (part of the ID-upload bug).
   const dropStale = () => { try { for (let i = store.length - 1; i >= 0; i--) { const k = store.key(i); if (k && /^cla-portal-new:data:v\d+$/.test(k) && k !== KEY && !PREV_KEYS.some(([p]) => p === k)) store.removeItem(k); /* an unreadable v15 / v16 copy is kept, never dropped */ } } catch (e) { /* plain Map storage in tests */ } };
-  // UPGRADE (John, Nov 2, v16 and v17): a browser that holds older data (e.g. a real test order entered by hand) keeps it. The newest older copy
-  // (v16, else v15) is carried forward into v17 with the new fields defaulted / mapped, saved under v17, and only then is the old copy removed.
-  // "Reset demo data" removes v17 and any older copies and builds a fresh seed (old data is never resurrected). v1..v14 are not upgraded.
-  function loadPrevious() { for (const [k, from] of PREV_KEYS) { const raw = store.getItem(k); if (!raw) continue; try { return [k, upgradeToV17(JSON.parse(raw), from)]; } catch (e) { /* unreadable: try the next */ } } return null; }
+  // UPGRADE (John, Nov 2, v16 and v17; Matt, Nov 3, v18): a browser that holds older data (e.g. a real test order entered by hand) keeps it. The newest older copy
+  // (v17, else v16, else v15) is carried forward into v18 with the new fields defaulted / mapped, saved under v18, and only then is the old copy removed.
+  // "Reset demo data" removes v18 and any older copies and builds a fresh seed (old data is never resurrected). v1..v14 are not upgraded.
+  function loadPrevious() { for (const [k, from] of PREV_KEYS) { const raw = store.getItem(k); if (!raw) continue; try { return [k, upgradeToV18(JSON.parse(raw), from)]; } catch (e) { /* unreadable: try the next */ } } return null; }
   function load() { if (db) return db; const raw = store.getItem(KEY); if (raw) { db = JSON.parse(raw); return db; }
     const prev = loadPrevious();
     if (prev) { const [pk, data] = prev; db = data; const old = store.getItem(pk);

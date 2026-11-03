@@ -1,6 +1,6 @@
 // FAKE DATA ONLY. Fictional people, example.test addresses, 555 phone numbers. No real clients, no credentials.
-import { TEMPLATE_DEFS } from './templates.js?v=202611022207';
-import { crmZohoUpgrade } from './crm.js?v=202611022207';
+import { TEMPLATE_DEFS, applyNov3Templates } from './templates.js?v=202611031028';
+import { crmZohoUpgrade } from './crm.js?v=202611031028';
 export const DEAL_FOLDERS = ['Contract & addenda', 'IDs & personal', 'Lender & payoff', 'HOA', 'Closing'];
 const addDays = (iso, n) => new Date(Date.parse(iso.slice(0, 10) + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 export function buildSeed() {
@@ -124,7 +124,9 @@ export function buildSeed() {
   const dealSalesPeople = deals.filter((q) => q.salesPersonId).map((q) => ({ dealId: q.id, salesId: q.salesPersonId, addedBy: 'u-proc', addedAt: q.createdAt }));
   dealSalesPeople.push({ dealId: 'deal-1', salesId: 'u-team', addedBy: 'u-proc', addedAt: '2026-09-28T14:05:00Z' });
   deals.forEach((q) => { delete q.salesPersonId; });
-  return { version: 2, seq: 100, profiles, contacts, teams, teamMembers, deals, participants, taskTemplates, tasks, clientSalesReps, dealSalesPeople, ...crm(contacts), ...more(deals) };
+  // Matt, Nov 3: open (untouched) personal info / title vesting copies use the new versions (POA follow-ups, entity, seller-only settlement type, vesting help)
+  const seed = { version: 2, seq: 100, profiles, contacts, teams, teamMembers, deals, participants, taskTemplates, tasks, clientSalesReps, dealSalesPeople, ...crm(contacts), ...more(deals) };
+  applyNov3Templates(seed); return seed;
 }
 
 function more(deals) {

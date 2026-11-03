@@ -3,7 +3,7 @@
  *   filterTasks / sortTasks / groupTasks : the cross-file task list (Tasks page, Work Queue "incomplete tasks by Buyer / Seller / Agent")
  *   filterDeals / sortDeals              : the order list (Open Orders) filters + sort
  *   buildTaskGrid                        : Processor / Admin grid, file numbers across (columns), tasks down (rows) */
-import { isAgent } from './constants.js?v=202611022207';
+import { isAgent } from './constants.js?v=202611031028';
 
 export const OPEN_STATUSES = ['todo', 'in_progress', 'blocked'];
 export const isOpenTask = (t) => OPEN_STATUSES.includes(t.status);
@@ -69,12 +69,18 @@ export function filterDeals(deals, f = {}) {
     return true;
   });
 }
-export const DEAL_SORTS = [['openDate', 'Open date'], ['fileNumber', 'File number'], ['address', 'Property address'], ['closingDate', 'Closing date'], ['status', 'Status / stage']];
+// Matt, Nov 3: every Open Orders column header sorts (click = up / down arrows). role = your role on the file (outside users), tasks = Task Pending
+// (action required for you, then overdue, then open tasks), txType = transaction type. DEAL_SORT_DIR = the direction a first click uses.
+export const DEAL_SORTS = [['openDate', 'Open date'], ['fileNumber', 'File number'], ['address', 'Property address'], ['closingDate', 'Closing date'], ['status', 'Status / stage'],
+  ['role', 'Your role'], ['tasks', 'Task pending'], ['txType', 'Transaction type']];
+export const DEAL_SORT_DIR = { openDate: 'desc', tasks: 'desc' };
+const pad = (n) => String(1e6 + (Number(n) || 0));
 const DEAL_STATUS_ORDER = { Open: 0, 'On Hold': 1, Closed: 2, Cancelled: 3 };
 export function sortDeals(deals, key = 'openDate', dir) {
-  const s = (dir || (key === 'openDate' ? 'desc' : 'asc')) === 'desc' ? -1 : 1;
+  const s = (dir || DEAL_SORT_DIR[key] || 'asc') === 'desc' ? -1 : 1;
   const val = (d) => ({ openDate: d.openDate, closingDate: d.closingDate, fileNumber: fileKey(d.fileNumber), address: lc(d.address || d.street),
-    status: `${DEAL_STATUS_ORDER[d.status] ?? 9}-${String(d.stage ?? 0).padStart(2, '0')}` }[key]);
+    status: `${DEAL_STATUS_ORDER[d.status] ?? 9}-${String(d.stage ?? 0).padStart(2, '0')}`,
+    role: lc(d.selfRep ? d.myRoleLabel : roleShort(d.myRole)), tasks: `${d.myOpenTasks ? 1 : 0}-${pad(d.overdueTasks)}-${pad(d.openTasks)}`, txType: lc(d.transactionType) }[key]);
   const cmp = (a, b) => { const x = val(a); const y = val(b); if (!x && !y) return 0; if (!x) return 1; if (!y) return -1; return (x < y ? -1 : x > y ? 1 : 0) * s; };
   return [...deals].sort((a, b) => cmp(a, b) || fileKey(a.fileNumber).localeCompare(fileKey(b.fileNumber)) * s);
 }

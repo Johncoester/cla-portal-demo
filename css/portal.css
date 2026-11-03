@@ -160,3 +160,6 @@ a.active-link { font-weight: 700; text-decoration: underline; } tr.overdue td { 
 .multi-party .multi-row .picker { flex: 1; }
 .file-title { font-weight: 600; margin-left: 8px; }
 .sum-card .person + .person { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #ddd; }
+/* Matt, Nov 3: sortable Open Orders column headers (up / down arrows; the lit one shows the current direction) */
+.th-sort { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.sort-arrows { font-size: 9px; margin-left: 3px; white-space: nowrap; } .sort-arrows span { opacity: .3; } .sort-arrows span.on { opacity: 1; }

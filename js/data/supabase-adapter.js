@@ -1,10 +1,11 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611022207';
-import { localDate } from './constants.js?v=202611022207';
-import { featureFlags } from './features.js?v=202611022207';
-import { crmSupabase } from './supabase-crm.js?v=202611022207';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611031028';
+import { localDate } from './constants.js?v=202611031028';
+import { featureFlags } from './features.js?v=202611031028';
+import { fieldsForRole } from './templates.js?v=202611031028';
+import { crmSupabase } from './supabase-crm.js?v=202611031028';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned; vendor locally before go-live
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -109,8 +110,13 @@ export async function createSupabaseAdapter(cfg) {
     async getTask(id) {
       const t = camel(ok(await sb.from('tasks').select(TASK_COLS).eq('id', id).single()));
       if (t.kind === 'form') { const r = await sb.rpc('get_task_form', { p_task: id }); if (r.error) t.formHidden = true; else t.formData = r.data || {}; }
+      // Matt, Nov 3: the copy's fields = template fields for its role (settlement type is seller-only); same rule as private.fields_for_role
+      if (t.templateId) { const tp = await sb.from('task_templates').select('id, code, version, title, fields').eq('id', t.templateId).maybeSingle();
+        if (!tp.error && tp.data) { t.template = { id: tp.data.id, code: tp.data.code, version: tp.data.version, title: tp.data.title }; t.fields = fieldsForRole(tp.data.fields || [], t.assignedRole); } }
       return t;
     },
+    // Matt, Nov 3 (migration 26): entity documents requested from buyers / sellers acting as an entity (person, processor, coordinator, Admin)
+    async listEntityDocRequests(dealId) { return camel(ok(await sb.rpc('entity_doc_requests', { p_deal: dealId }))); },
     async saveTaskForm(id, data, { complete = false } = {}) { return ok(await sb.rpc('save_task_form', { p_task: id, p_data: data, p_complete: complete })); },
     // ---- round 2 RPCs (same names as SQL) ----
     async adminDeleteUser(id) { ok(await sb.rpc('admin_delete_user', { p_user: id })); },

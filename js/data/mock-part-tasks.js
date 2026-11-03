@@ -1,11 +1,13 @@
 /* mock adapter: tasks. Templates (versioned definitions) are separate from each participant's task COPY; a copy records templateId + templateVersion.
  * Intake forms: save partial work, validate, mark complete. Reminders are QUEUED in an outbox only and never sent. Tasks are cancelled, never deleted. */
-import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields } from './templates.js?v=202611022207';
-import { maskAccount } from './constants.js?v=202611022207';
+import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, ENTITY_DOCS } from './templates.js?v=202611031028';
+import { maskAccount } from './constants.js?v=202611031028';
 export function tasksAndForms(x) {
   const { load, save, nid, needUser, needAdmin, isManager, dealOr404, onDeal, fileRole, fileRoles, holds, dealsFor, log, prof, nameOf, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, dateOrNull, localDate, localDayOf, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
   const tpl = (id) => load().taskTemplates.find((t) => t.id === id);
+  // Matt, Nov 3: a copy's fields = the template's fields for that copy's role (e.g. settlement type is on SELLER copies only)
+  const fieldsOf = (t, tp = tpl(t.templateId)) => (tp ? fieldsForRole(tp.fields, t.assignedRole) : []);
   const addDays = (n) => localDate(n);
   const taskOr404 = (u, id) => { const t = load().tasks.find((z) => z.id === id) || fail('Task not found.'); u = onDeal(u, t.dealId); if (!taskVisible(u, t)) fail('Task not found.'); return t; };
   // Bank details (seller proceeds): only the owner and the PROCESSOR see them in full or change them; the coordinator / Admin see the last 4 digits.
@@ -63,7 +65,7 @@ export function tasksAndForms(x) {
     },
     async getTask(id) {
       let u = needUser(); const t = taskOr404(u, id); u = onDeal(u, t.dealId); const o = out(u, t); const tp = t.templateId ? tpl(t.templateId) : null;
-      o.fields = tp ? clone(tp.fields) : []; o.template = tp ? { id: tp.id, code: tp.code, version: tp.version, title: tp.title } : null;
+      o.fields = tp ? clone(fieldsOf(t, tp)) : []; o.template = tp ? { id: tp.id, code: tp.code, version: tp.version, title: tp.title } : null;
       if (t.kind === 'sign') o.signature = x.signInfo(u, t);
       if (!o.formHidden) { o.documents = load().documents.filter((z) => z.dealId === t.dealId && o.fields.some((f) => f.type === 'doc' && t.formData[f.k] === z.id)).map((z) => ({ id: z.id, name: z.name })); }
       return o;
@@ -89,7 +91,7 @@ export function tasksAndForms(x) {
       if (patch.status != null && patch.status !== t.status) {
         if (!C.TASK_STATUSES.includes(patch.status)) fail('Unknown task status.');
         if (t.kind === 'sign' && patch.status !== 'cancelled') fail('A signature task is completed by the signer signing it (or cancel the request).');
-        if (t.kind === 'form' && patch.status === 'done') { const tp = tpl(t.templateId); const r = validateForm(tp.fields, t.formData, true); if (r.errors.length) fail('The form is not complete yet: ' + r.errors[0].msg); }
+        if (t.kind === 'form' && patch.status === 'done') { const r = validateForm(fieldsOf(t), t.formData, true); if (r.errors.length) fail('The form is not complete yet: ' + r.errors[0].msg); }
         t.status = patch.status; t.completedAt = patch.status === 'done' ? now() : null; t.completedBy = patch.status === 'done' ? u.id : null;
         log(t.dealId, u.id, 'task.status', 'task', t.id, `${t.title}: ${patch.status}${!isManager(u) && (u.roles || []).length > 1 ? ` by ${who(u.id, t.dealId, t.assignedRole)}` : ''}`);
       }
@@ -99,8 +101,8 @@ export function tasksAndForms(x) {
     async saveTaskForm(id, input, { complete = false } = {}) {
       let u = needUser(); const t = taskOr404(u, id); u = onDeal(u, t.dealId); if (!canFill(u, t)) fail('You cannot fill in this task.');
       const tp = tpl(t.templateId) || fail('Task template missing.');
-      const r = validateForm(tp.fields, input || {}, complete);
-      for (const f of tp.fields.filter((z) => z.type === 'doc' && r.data[z.k] && fieldActive(z, r.data))) {
+      const fields = fieldsOf(t, tp); const r = validateForm(fields, input || {}, complete);
+      for (const f of fields.filter((z) => z.type === 'doc' && r.data[z.k] && fieldActive(z, r.data))) {
         const doc = load().documents.find((z) => z.id === r.data[f.k]); if (!doc || doc.dealId !== t.dealId) r.errors.push({ k: f.k, msg: `${f.label}: upload the file again.` });
       }
       if (r.errors.length) { const e = new Error(r.errors.map((z) => z.msg).join(' ')); e.fieldErrors = r.errors; throw e; }
@@ -121,8 +123,21 @@ export function tasksAndForms(x) {
     async uploadForTask(id, file) {
       let u = needUser(); const t = taskOr404(u, id); u = onDeal(u, t.dealId); if (!canFill(u, t)) fail('You cannot fill in this task.');
       const side = C.sideOf(t.assignedRole); const doc = x.newDoc(u, { ...file, visibility: side || 'staff' }); doc.dealId = t.dealId; if (t.templateCode === 'id_upload') doc.docType = 'Photo ID';
+      const ff = file && file.field ? fieldsOf(t).find((z) => z.k === file.field && z.type === 'doc') : null; if (ff && ff.docType) doc.docType = ff.docType;   // Matt, Nov 3: entity documents get their type
       const f = load().folders.find((z) => z.dealId === t.dealId && z.name === 'IDs & personal'); doc.folderId = f ? f.id : null;
       await x.keepFile(doc); load().documents.push(doc); log(t.dealId, u.id, 'document.uploaded', 'document', doc.id, `Uploaded ${doc.name} for ${t.title}`); save(); return { id: doc.id, name: doc.name };
+    },
+    // Matt, Nov 3: ENTITY DOCUMENTS REQUESTED. For every buyer / seller whose personal info says they act as an entity ("+ Add entity"): the entity
+    // answers and, per requested document, the attached file or "not yet attached". Same people who may see intake answers: the person themself,
+    // the processor, the coordinator and Admin (agents and sales roles get nothing). Mirrored by public.entity_doc_requests(deal) in SQL (migration 26).
+    async listEntityDocRequests(dealId) {
+      let u = needUser(); u = onDeal(u, dealId); const d = load();
+      return d.tasks.filter((t) => t.dealId === dealId && t.kind === 'form' && t.status !== 'cancelled' && t.formData && t.formData.is_entity === true && taskVisible(u, t) && formDataVisible(u, t))
+        .map((t) => { const fd = t.formData; const keys = new Set(fieldsOf(t).map((f) => f.k)); const owner = ownerOf(t);
+          return { taskId: t.id, taskTitle: t.title, taskStatus: t.status, ownerId: owner, ownerName: owner ? nameOf(owner) : '', role: t.assignedRole, entityName: fd.entity_name || '', entityType: fd.entity_type || '',
+            entityState: fd.entity_state || '', signerName: fd.entity_signer_name || '', signerTitle: fd.entity_signer_title || '',
+            documents: ENTITY_DOCS.filter(([k]) => keys.has(k)).map(([k, label]) => { const doc = fd[k] ? d.documents.find((z) => z.id === fd[k] && z.dealId === dealId) : null;
+              return { key: k, label, optional: k === 'entity_doc_amendments', attached: !!doc, docId: doc ? doc.id : null, docName: doc ? doc.name : '' }; }) }; });
     },
     // ---------- Templates ----------
     async listTaskTemplates() {

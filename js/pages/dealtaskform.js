@@ -1,16 +1,24 @@
 // One intake task (form). Save partial work, validate, mark complete. ID-type fields upload a file into the order's "IDs & personal" folder.
-import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611022207';
-import { fieldActive } from '../data/templates.js?v=202611022207';
-import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611022207';
-import { CLS, LABEL } from './dealtasks.js?v=202611022207';
+import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611031028';
+import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611031028';
+import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611031028';
+import { CLS, LABEL } from './dealtasks.js?v=202611031028';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 export async function render({ api, deal, params, refresh, go }) {
   const t = await api.getTask(params.sub); const v = t.formData || {};
+  t.fields = fieldsForRole(t.fields, t.assignedRole);   // Matt, Nov 3: role-only fields (settlement type = sellers only); the data layer filters too
   const docName = (id) => ((t.documents || []).find((z) => z.id === id) || {}).name || '';
   const input = (f) => {
     const val = v[f.k] == null ? '' : v[f.k]; const req = f.req ? html`<span class="req">*</span>` : '';
     if (f.type === 'info') return html`<div class="span2 fld note-box" data-k="${f.k}"><strong>${f.label}</strong><br>${f.text || ''}</div>`;
+    // Matt, Nov 3: "+ Add entity" = a checkbox shown as a + button (the box stays in the form so save / validation are unchanged)
+    if (f.type === 'checkbox' && f.plus) return html`<div class="span2 fld" data-k="${f.k}"><input type="checkbox" name="${f.k}" hidden ${val ? html`checked` : ''}>
+      <button type="button" class="ghost" data-plus="${f.k}" aria-pressed="${val ? 'true' : 'false'}">${val ? '\u2212 Remove entity' : '+ Add entity'}</button> <span class="muted small">${f.label.replace(/^Add entity\s*/, '')}</span><span class="ferr"></span></div>`;
+    // Matt, Nov 3: plain-English help for a select (Title vesting: "What do these mean?")
+    const help = f.help ? html` <button type="button" class="ghost" data-help="${f.k}" aria-expanded="false">${f.help.button}</button>
+      <div class="note-box" data-help-panel="${f.k}" hidden><strong>${f.help.title}</strong><dl class="answers">${f.help.items.map(([o, txt]) => html`<dt>${o}</dt><dd>${txt}</dd>`)}</dl><p class="small" data-help-note><em>${f.help.note}</em></p></div>` : '';
+    if (f.type === 'select' && f.help) return html`<div class="span2 fld" data-k="${f.k}"><label>${f.label} ${req}<select name="${f.k}"><option value="">Choose&hellip;</option>${f.opts.map((o) => html`<option ${o === val ? raw('selected') : ''}>${o}</option>`)}</select></label>${help}<span class="ferr"></span></div>`;
     if (f.type === 'checkbox') return html`<label class="check span2 fld" data-k="${f.k}"><input type="checkbox" name="${f.k}" ${val ? html`checked` : ''}> ${f.label} ${req}<span class="ferr"></span></label>`;
     if (f.type === 'select') return html`<label class="fld" data-k="${f.k}">${f.label} ${req}<select name="${f.k}"><option value="">Choose&hellip;</option>${f.opts.map((o) => html`<option ${o === val ? raw('selected') : ''}>${o}</option>`)}</select><span class="ferr"></span></label>`;
     if (f.type === 'textarea') return html`<label class="span2 fld" data-k="${f.k}">${f.label} ${req}<textarea name="${f.k}" rows="3" maxlength="2000">${val}</textarea><span class="ferr"></span></label>`;
@@ -36,15 +44,18 @@ export async function render({ api, deal, params, refresh, go }) {
       : answers}</div>`;
   return { title: t.title, crumbs: [['All Tasks', `#/deals/${deal.id}/tasks`], [t.title]], body, mount(root) {
     const form = $('#tform', root); if (!form) return;
-    const sync = () => { const cur = {}; new FormData(form).forEach((val, k) => { cur[k] = val; }); t.fields.forEach((f) => { const el = $(`.fld[data-k="${f.k}"]`, form); if (el) el.hidden = !fieldActive(f, cur); }); };
+    const sync = () => { const cur = {}; new FormData(form).forEach((val, k) => { cur[k] = val; }); t.fields.filter((f) => f.type === 'checkbox').forEach((f) => { if (cur[f.k]) cur[f.k] = true; });   /* a ticked box counts as true ("+ Add entity") */ t.fields.forEach((f) => { const el = $(`.fld[data-k="${f.k}"]`, form); if (el) el.hidden = !fieldActive(f, cur); }); };
     form.addEventListener('change', sync); sync();
+    $$('[data-plus]', form).forEach((b) => b.addEventListener('click', () => { const cb = form.elements[b.dataset.plus]; cb.checked = !cb.checked;
+      b.textContent = cb.checked ? '\u2212 Remove entity' : '+ Add entity'; b.setAttribute('aria-pressed', String(cb.checked)); sync(); }));
+    $$('[data-help]', form).forEach((b) => b.addEventListener('click', () => { const pnl = $(`[data-help-panel="${b.dataset.help}"]`, form); pnl.hidden = !pnl.hidden; b.setAttribute('aria-expanded', String(!pnl.hidden)); }));
     let mode = 'save'; $$('button[data-mode]', form).forEach((b) => b.addEventListener('click', () => { mode = b.dataset.mode; }));
     form.addEventListener('submit', async (e) => {
       e.preventDefault(); $$('.ferr', form).forEach((x) => { x.textContent = ''; }); $$('.fld', form).forEach((x) => x.classList.remove('has-err'));
       try {
         for (const fi of $$('input[data-file]', form)) { const file = fi.files[0]; if (!file) continue;
           if (file.size > MAX_UPLOAD_BYTES) throw new Error('File is too large for this demo.');
-          const up = await api.uploadForTask(t.id, { name: file.name, mimeType: file.type, size: file.size, dataUrl: await readFile(file) }); form.elements[fi.dataset.file].value = up.id; fi.value = ''; }   // stored once: a retry after a form error must not upload it again
+          const up = await api.uploadForTask(t.id, { name: file.name, mimeType: file.type, size: file.size, dataUrl: await readFile(file), field: fi.dataset.file }); form.elements[fi.dataset.file].value = up.id; fi.value = ''; }   // stored once: a retry after a form error must not upload it again
         const data = {}; new FormData(form).forEach((val, k) => { if (typeof val === 'string') data[k] = val; });
         await api.saveTaskForm(t.id, data, { complete: mode === 'complete' });
         toast(mode === 'complete' ? 'Task complete. Thank you!' : 'Progress saved'); mode === 'complete' ? go(`/deals/${deal.id}/tasks`) : refresh();

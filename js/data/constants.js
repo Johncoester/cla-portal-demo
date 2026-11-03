@@ -133,9 +133,11 @@ export const routingOk = (v) => { const s = String(v || ''); if (!/^\d{9}$/.test
 export const accountOk = (v) => /^\d{4,17}$/.test(String(v || ''));
 export const maskAccount = (v) => (v ? '\u2022\u2022\u2022\u2022' + String(v).slice(-4) : v);
 // DOCUMENT TYPES (item 9). Sellers pick from the seller list; the buyer side from the general list; staff from both.
+// Matt, Nov 3: an entity buyer or seller attaches its entity documents (both sides); listed before 'Other'. Mirrored by private.doc_types (migration 26).
+export const ENTITY_DOC_TYPES = ['Operating agreement / amendments', 'Certificate of good standing', 'Articles of organization'];
 export const SELLER_DOC_TYPES = ['Payoff statement', 'HOA documents', 'Deed', 'Survey', 'Tax bill', 'Power of attorney', 'Death certificate / estate documents',
-  'Mortgage statement', 'W-9 / 1099-S information', 'Utility bills', 'Other'];
-export const GENERAL_DOC_TYPES = ['Contract / addendum', 'Photo ID', 'Lender documents', 'Homeowners insurance', 'Earnest money receipt', 'Settlement statement', 'Other'];
+  'Mortgage statement', 'W-9 / 1099-S information', 'Utility bills', ...ENTITY_DOC_TYPES, 'Other'];
+export const GENERAL_DOC_TYPES = ['Contract / addendum', 'Photo ID', 'Lender documents', 'Homeowners insurance', 'Earnest money receipt', 'Settlement statement', ...ENTITY_DOC_TYPES, 'Other'];
 export const DOC_TYPES = [...new Set([...GENERAL_DOC_TYPES, ...SELLER_DOC_TYPES])];
 export const docTypeChoices = (role) => (sideOf(role) === 'seller' ? SELLER_DOC_TYPES : sideOf(role) === 'buyer' ? GENERAL_DOC_TYPES : DOC_TYPES);
 // CLOSING (item 12): where the client wants to sign

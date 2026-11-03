@@ -1,6 +1,6 @@
 // Documents tab with folders. Upload, open/download, file into folders, edit description/visibility. There is NO delete: documents are kept permanently.
-import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDateTime, fmtSize, pill, toast } from '../ui.js?v=202611022207';
-import { runsOrders, viewOnly, DOC_VISIBILITY, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isViewOnly, isClient, visibilityChoices, visibilityLabel, CLIENT_SHARE_NOTE, DOC_TYPES, docTypeChoices } from '../data/constants.js?v=202611022207';
+import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDateTime, fmtSize, pill, toast } from '../ui.js?v=202611031028';
+import { runsOrders, viewOnly, DOC_VISIBILITY, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isViewOnly, isClient, visibilityChoices, visibilityLabel, CLIENT_SHARE_NOTE, DOC_TYPES, docTypeChoices } from '../data/constants.js?v=202611031028';
 const icon = (n) => (/\.pdf$/i.test(n) ? 'pdf_icon.png' : /\.docx?$/i.test(n) ? 'word_icon.png' : /\.(xlsx?|csv)$/i.test(n) ? 'excel_icon.png' : 'image_icon.png');
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
@@ -12,6 +12,14 @@ export async function render({ api, user, deal, refresh }) {
   const shown = docs.filter((d) => tab === 'all' || (tab === 'sent') === (d.uploadedBy === user.id));
   const staffView = !user.accountRole && user.role !== 'Outside user'; const types = staffView ? DOC_TYPES : docTypeChoices(user.role);   // Matt: seller document types
   const sigs = await api.listSignatureRequests(deal.id);
+  // Matt, Nov 3: entity documents requested from a buyer / seller acting as an entity (shown to the person, the processor, the coordinator and Admin)
+  const ents = await api.listEntityDocRequests(deal.id).catch(() => []);
+  const entBlock = ents.length ? html`<div class="box-title"><h2><span class="h-ico"></span>Requested entity documents</h2></div>
+    <table class="tbl striped" id="entity-docs"><thead><tr><th>Buyer / seller</th><th>Entity</th><th>Authorized signer</th><th>Requested documents</th></tr></thead><tbody>${ents.map((e) => html`<tr data-entity-task="${e.taskId}">
+      <td>${e.ownerName || e.role}<br><span class="muted small">${e.role === 'Client-Seller' ? 'Seller' : 'Buyer'} &middot; <a href="#/deals/${deal.id}/tasks/${e.taskId}">${e.taskTitle}</a></span></td>
+      <td>${e.entityName || html`<span class="muted">name not given yet</span>`}<br><span class="muted small">${[e.entityType, e.entityState && `formed in ${e.entityState}`].filter(Boolean).join(' \u00b7 ')}</span></td>
+      <td>${e.signerName}${e.signerTitle ? html`<br><span class="muted small">${e.signerTitle}</span>` : ''}</td>
+      <td><ul class="plain">${e.documents.map((x) => html`<li data-entity-doc="${x.key}" data-attached="${x.attached ? 'yes' : 'no'}">${x.label}: ${x.attached ? html`${pill('attached', 'ok')} <a href="#" data-open="${x.docId}" class="doc-link">${x.docName}</a>` : pill(x.optional ? 'none attached (only if there are amendments)' : 'not yet attached', x.optional ? '' : 'warn')}</li>`)}</ul></td></tr>`)}</tbody></table>` : '';
   const canUpload = !viewOnly(user); const visOpts = visibilityChoices(user.role, user.isAdmin); const VL = (v) => visibilityLabel(v, user.role);   // user.role = the role on THIS file (deal.js scopes it)
   const rows = shown.map((d) => html`<tr><td class="center"><img class="fileico" src="assets/img/${icon(d.name)}" alt=""></td>
     <td><a href="#" data-open="${d.id}" class="doc-link">${d.name}</a><br><span class="muted small">${d.docType ? html`<span data-doctype>${d.docType}</span> &middot; ` : ''}${fmtSize(d.size)}${d.hasContent ? '' : ' \u00b7 sample file'}</span></td>
@@ -24,7 +32,7 @@ export async function render({ api, user, deal, refresh }) {
       ${manage ? html`<button class="ghost" id="newfolder">+ Folder</button>${folder ? html` <button class="ghost" id="renamefolder">Rename folder</button>` : ''}` : ''}</div>
     <ul class="nav-tabs">${[['all', 'All files'], ['received', 'Received'], ['sent', 'Sent']].map(([k, l]) => html`<li><a class="${k === tab ? 'active' : ''}" href="${href(k, folder)}">${l}</a></li>`)}</ul>
     ${rows.length ? html`<table class="tbl striped"><thead><tr><th>File Type</th><th>File Name</th><th>Folder</th><th>Date</th><th>From</th><th>Additional Instruction</th><th>Access</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : html`<p class="muted">No files here yet.</p>`}
-    <p class="muted small">Documents are kept permanently. They cannot be deleted.</p>
+    <p class="muted small">Documents are kept permanently. They cannot be deleted.</p>${entBlock}
     ${sigs.length ? html`<div class="box-title"><h2><span class="h-ico"></span>Signatures</h2></div><p class="muted small">Demo e-sign: not legally binding. A real provider (DocuSign / Dropbox Sign) plugs in at the same place.</p>
       <table class="tbl striped" id="sigtable"><thead><tr><th>Document</th><th>Signers</th><th>Status</th><th></th></tr></thead><tbody>${sigRows}</tbody></table>` : ''}`;
   return { title: 'Documents', crumbs: [['Documents']], body, mount(root) {
