@@ -1,12 +1,12 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611031733';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611031733';
-import { slotText } from './dealclosing.js?v=202611031733';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611031733';
-import { composeModal } from './compose.js?v=202611031733';
-import { moneyShow, moneyClean } from './money-input.js?v=202611031733';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611031817';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611031817';
+import { slotText } from './dealclosing.js?v=202611031817';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611031817';
+import { composeModal } from './compose.js?v=202611031817';
+import { moneyShow, moneyClean } from './money-input.js?v=202611031817';
 
-const TABS = { tasks: './dealtasks.js?v=202611031733', inbox: './dealmsgs.js?v=202611031733', documents: './dealdocs.js?v=202611031733', contacts: './dealcontacts.js?v=202611031733', activity: './dealactivity.js?v=202611031733', closing: './dealclosing.js?v=202611031733', agreements: './dealagreements.js?v=202611031733' };
+const TABS = { tasks: './dealtasks.js?v=202611031817', inbox: './dealmsgs.js?v=202611031817', documents: './dealdocs.js?v=202611031817', contacts: './dealcontacts.js?v=202611031817', activity: './dealactivity.js?v=202611031817', closing: './dealclosing.js?v=202611031817', agreements: './dealagreements.js?v=202611031817' };
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -14,15 +14,41 @@ export async function render(ctx) {
   // per-file roles: on this order an outside user acts as their role HERE (deal.myRole), e.g. Buyer Agent here, Client-Buyer elsewhere
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611031733' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611031817' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
   // Francis, Nov 3 (Qualia Connect agent portal): outstanding-task alert, 4-step progress, Order Details, Parties, Activity, Conversations,
   // Request Update / Share Access (agents) and, for staff, the update requests to answer + shared access + the portal invite email
   const ov = await ctx.api.getOrderOverview(deal.id); const ur = await ctx.api.listUpdateRequests(deal.id); const inv = await ctx.api.listSharedAccess(deal.id);
-  const v = overview(ctx, deal, here, ag, salesStaff); const extra = agentPanels(ctx, deal, ov, ur, inv);
-  return { ...v, body: html`${extra.top}${v.body}`, mount(root) { v.mount(root); extra.mount(root); } };
+  const v = overview(ctx, deal, here, ag, salesStaff); const extra = agentPanels(ctx, deal, ov, ur, inv); const done = placedPanel(deal);
+  return { ...v, body: html`${done.html}${extra.top}${v.body}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
+}
+
+// REDESIGN (John, Nov 3): the confirmation after Place Order. ordernew.js leaves a note in sessionStorage (key below) and opens the new order; the
+// panel is shown once, at the top of that order's overview: file number, what was created, what was not, and the next things to do.
+const PLACED_KEY = 'cla-portal-new:placed';
+function placedPanel(d) {
+  let p = null; try { p = JSON.parse(sessionStorage.getItem(PLACED_KEY) || 'null'); } catch (e) { p = null; }
+  if (!p || p.dealId !== d.id) return { html: '', mount() {} };
+  sessionStorage.removeItem(PLACED_KEY);
+  const refi = isRefi(p.transactionType); const a = p.added || {};
+  const LBL = { 'Client-Buyer': refi ? ['borrower', 'borrowers'] : ['buyer', 'buyers'], 'Client-Seller': ['seller', 'sellers'], 'Buyer Agent': ['buyer agent', 'buyer agents'], 'Listing Agent': ['listing agent', 'listing agents'], Lender: ['lender', 'lenders'], 'Transaction Coordinator': ['transaction coordinator', 'transaction coordinators'], 'Sales Team': ['sales team member', 'sales team members'] };
+  const who = Object.keys(LBL).filter((r) => a[r]).map((r) => `${a[r]} ${LBL[r][a[r] === 1 ? 0 : 1]}`);
+  const body = html`<section class="placed-confirm" data-placed-confirm role="status" aria-live="polite">
+    <div class="placed-icon" aria-hidden="true">&#10003;</div>
+    <div class="placed-main"><p class="eyebrow">Order placed</p><h2>Order <span data-placed-file>${p.fileNumber}</span> is open</h2>
+      <p class="muted">${p.address} &middot; ${p.transactionType}</p>
+      <ul class="checklist">
+        <li>${who.length ? html`Added ${who.join(', ')}` : 'No people added yet (add them on the Contacts tab)'}${p.tasks ? html`; <strong>${p.tasks}</strong> intake task(s) created for them` : ''}.</li>
+        <li>${p.docs ? html`${p.docs} document(s) saved to the Documents tab.` : 'No documents attached yet.'}</li>
+        <li>No emails, texts or portal invites were sent.</li>
+        ${(p.skipped || []).length ? html`<li class="warn-text">Not added (nobody picked from the list): ${p.skipped.join(', ').toLowerCase()}.</li>` : ''}
+        ${(p.problems || []).length ? html`<li class="err-text">Not added: ${p.problems.join(' | ')}</li>` : ''}
+      </ul>
+      <div class="placed-actions"><a class="m-btn" href="#/deals/${d.id}/tasks">View tasks</a><a class="ghost" href="#/deals/${d.id}/contacts">Contacts &amp; invites</a><a class="ghost" href="#/deals/${d.id}/documents">Documents</a><a class="ghost" href="#/orders/new">Place another order</a><a class="ghost" href="#/orders">Open Orders</a></div></div>
+    <button type="button" class="placed-x" data-placed-close aria-label="Close the confirmation">&times;</button></section>`;
+  return { html: body, mount(root) { window.scrollTo(0, 0); const x = $('[data-placed-close]', root); if (x) x.addEventListener('click', () => { const s = $('[data-placed-confirm]', root); if (s) s.remove(); }); } };
 }
 
 // opposing side (outside viewers): the adapter sends no phone/email; say where to go instead

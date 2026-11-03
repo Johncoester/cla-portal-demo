@@ -1,11 +1,11 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611031733';
-import { localDate } from './constants.js?v=202611031733';
-import { featureFlags } from './features.js?v=202611031733';
-import { fieldsForRole } from './templates.js?v=202611031733';
-import { crmSupabase } from './supabase-crm.js?v=202611031733';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611031817';
+import { localDate } from './constants.js?v=202611031817';
+import { featureFlags } from './features.js?v=202611031817';
+import { fieldsForRole } from './templates.js?v=202611031817';
+import { crmSupabase } from './supabase-crm.js?v=202611031817';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned; vendor locally before go-live
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };

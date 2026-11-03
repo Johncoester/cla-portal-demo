@@ -1,8 +1,8 @@
 // crm-kit.js : shared CRM screen pieces (John, Nov 2): section tabs, list views (search / filters / sort), selects, activities panel, CSV download.
 // Function first, minimal styling. Every rule is enforced by the adapter (and RLS in migration 22), not by these screens.
-import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pill } from '../ui.js?v=202611031733';
-import { CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611031733';
-import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611031733';
+import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pill } from '../ui.js?v=202611031817';
+import { CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611031817';
+import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611031817';
 
 // Nov 2 (Zoho): Home is the CRM landing page; Contacts are shown as Clients and Accounts as Companies (routes keep their internal names); My follow-ups -> Home tasks
 export const SECTIONS = [['home', 'Home'], ['leads', 'Leads'], ['contacts', 'Clients'], ['accounts', 'Companies'], ['deals', 'Deals'], ['pipeline', 'Pipeline'], ['dashboards', 'Dashboards'], ['reports', 'Reports'], ['templates', 'Templates']];   // Nov 3 (b): Deals (the portal's orders), Dashboards (video 9);   // Nov 3: Templates (email templates, every CRM user; Processor read-only)

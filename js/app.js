@@ -1,10 +1,10 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611031733';
-import { html, raw, toText, esc, $, $$, toast, closeModal } from './ui.js?v=202611031733';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611031733';
-import { canUseCrm } from './data/crm.js?v=202611031733';
-import { phaseOf } from './data/agent-portal.js?v=202611031733';
-import { formatMoneyInput } from './pages/money-input.js?v=202611031733';
+import { getAdapter } from './data/adapter.js?v=202611031817';
+import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611031817';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611031817';
+import { canUseCrm } from './data/crm.js?v=202611031817';
+import { phaseOf } from './data/agent-portal.js?v=202611031817';
+import { formatMoneyInput } from './pages/money-input.js?v=202611031817';
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
@@ -13,23 +13,23 @@ document.addEventListener('input', (e) => { const el = e.target; if (el instance
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611031733'),
-  dashboard: () => import('./pages/dashboard.js?v=202611031733'),
-  orders: () => import('./pages/orders.js?v=202611031733'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611031733'),
-  deal: () => import('./pages/deal.js?v=202611031733'),
-  users: () => import('./pages/users.js?v=202611031733'),
-  profile: () => import('./pages/profile.js?v=202611031733'),
-  'contact-us': () => import('./pages/contact.js?v=202611031733'),
-  teams: () => import('./pages/teams.js?v=202611031733'),
-  templates: () => import('./pages/templates.js?v=202611031733'),
-  library: () => import('./pages/library.js?v=202611031733'),
-  activity: () => import('./pages/activity.js?v=202611031733'),
-  outbox: () => import('./pages/outbox.js?v=202611031733'),
-  tasks: () => import('./pages/tasks.js?v=202611031733'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611031733'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
-  schedule: () => import('./pages/schedule.js?v=202611031733'),   // public closing-time link (no sign-in needed)
-  crm: () => import('./pages/crm.js?v=202611031733'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  login: () => import('./pages/entry.js?v=202611031817'),
+  dashboard: () => import('./pages/dashboard.js?v=202611031817'),
+  orders: () => import('./pages/orders.js?v=202611031817'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611031817'),
+  deal: () => import('./pages/deal.js?v=202611031817'),
+  users: () => import('./pages/users.js?v=202611031817'),
+  profile: () => import('./pages/profile.js?v=202611031817'),
+  'contact-us': () => import('./pages/contact.js?v=202611031817'),
+  teams: () => import('./pages/teams.js?v=202611031817'),
+  templates: () => import('./pages/templates.js?v=202611031817'),
+  library: () => import('./pages/library.js?v=202611031817'),
+  activity: () => import('./pages/activity.js?v=202611031817'),
+  outbox: () => import('./pages/outbox.js?v=202611031817'),
+  tasks: () => import('./pages/tasks.js?v=202611031817'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611031817'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  schedule: () => import('./pages/schedule.js?v=202611031817'),   // public closing-time link (no sign-in needed)
+  crm: () => import('./pages/crm.js?v=202611031817'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };
@@ -93,11 +93,22 @@ async function layout(u, view, route) {
       <h1 class="welcome-title">Welcome ${u.firstName} ${u.lastName} to CLATitle Portal</h1>
       ${view.crumbs ? html`<ol class="breadcrumb"><li><a href="#${homeFor(u)}"><img src="assets/img/bread-home.png" alt="">Home</a></li>${view.crumbs.map(([label, href], i) => html`<li class="${i === view.crumbs.length - 1 ? 'active' : ''}">${href ? html`<a href="${href}">${label}</a>` : label}</li>`)}</ol>` : ''}
       <div class="dev-banner">DEV BUILD &middot; FAKE DATA ONLY &middot; no real clients, no Zoho &middot; <a href="#" data-reset>reset demo data</a></div>
-      ${deal ? html`<div class="order-header" data-order-header><span class="pill ${phaseOf(deal).badge === 'Closed' ? '' : 'ok'}" data-progress-badge>${phaseOf(deal).badge}</span> <strong>${deal.street}, ${deal.city}, ${deal.state} ${deal.zip}</strong> <span class="order-no">Order # ${deal.fileNumber}</span></div>` : ''}
+      ${deal ? orderHeader(deal) : ''}
       <div id="view">${view.body}</div>
     </div>
     <div class="footer-bar"><span><img src="assets/img/logo-icon.png" alt="" class="foot-logo"> Copyright 2026 C.L.A Title &amp; Escrow | All Rights Reserved.</span><span>Security / Privacy Policy</span></div>
   </div>`;
+}
+
+// REDESIGN (John, Nov 3): the persistent order header on every tab of a file: Order #, progress badge, address, then type / dates / status.
+// Same data-order-header / data-progress-badge / .order-no hooks as before (the badge text is exactly the phase name).
+function orderHeader(deal) {
+  const ph = phaseOf(deal).badge;
+  return html`<div class="order-header" data-order-header>
+    <div class="oh-top"><span class="order-no">Order # ${deal.fileNumber}</span><span class="pill ${ph === 'Closed' ? '' : 'ok'}" data-progress-badge>${ph}</span>${deal.status && deal.status !== 'Open' ? html`<span class="pill warn" data-oh-status>${deal.status}</span>` : ''}</div>
+    <strong class="oh-address">${deal.street}, ${deal.city}, ${deal.state} ${deal.zip}</strong>
+    <div class="oh-meta"><span>${deal.transactionType || 'Purchase'}${deal.fileTitle ? html` &middot; <strong>${deal.fileTitle}</strong>` : ''}</span>${deal.openDate ? html`<span>Opened <strong>${fmtDate(deal.openDate)}</strong></span>` : ''}${deal.county ? html`<span>${deal.county} County</span>` : ''}</div>
+    <div class="oh-side"><span class="oh-big-label">Settlement date</span><span class="oh-big">${fmtDate(deal.closingDate) || 'Not set'}</span></div></div>`;
 }
 
 let rendering = 0;
@@ -122,7 +133,7 @@ export async function render() {
 const HEADER_SEARCH = `<div class="crm-global-search" data-global-search-wrap style="position:relative;display:inline-block;margin-right:10px"><input type="search" data-global-search placeholder="Search CRM (name, email, phone)" aria-label="Search the CRM" autocomplete="off" maxlength="100"><div data-global-search-dd hidden style="position:absolute;right:0;top:100%;z-index:50;background:#fff;color:#222;min-width:420px;max-height:70vh;overflow:auto;border:1px solid #ccc;padding:6px;text-align:left"></div></div>`;
 const crmSearchOn = (u, api) => !!(u && (api.features || {}).crm && canUseCrm(u));
 function wireChrome(u) {
-  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611031733').then((m) => m.wireHeaderSearch(api)); });
+  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611031817').then((m) => m.wireHeaderSearch(api)); });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');
   if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; });
   document.addEventListener('click', () => { if (dd) dd.hidden = true; }, { once: true });

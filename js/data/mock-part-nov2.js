@@ -3,7 +3,7 @@
  *    each with its file (number, address, closing date, status) so the Tasks page / Work Queue can filter, sort and group by Buyer / Seller / Agent.
  *  - getTaskGrid: the Processor / Admin grid (file numbers across, agent / buyer / seller tasks down). Uses the Processor's normal access (every file).
  * Mirrored in SQL by public.task_board() / public.task_grid() (migration 16). */
-import { buildTaskGrid, groupOfRole, isOverdue } from './task-board.js?v=202611031733';
+import { buildTaskGrid, groupOfRole, isOverdue } from './task-board.js?v=202611031817';
 
 export function mattNov2(x) {
   const { load, needUser, dealsFor, scopeTo, taskVisible, nameOf, fail, localDate, C } = x;
