@@ -1,11 +1,11 @@
 // crm-kit.js : shared CRM screen pieces (John, Nov 2): section tabs, list views (search / filters / sort), selects, activities panel, CSV download.
 // Function first, minimal styling. Every rule is enforced by the adapter (and RLS in migration 22), not by these screens.
-import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pill } from '../ui.js?v=202611031525';
-import { CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611031525';
-import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611031525';
+import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pill } from '../ui.js?v=202611031532';
+import { CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611031532';
+import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611031532';
 
 // Nov 2 (Zoho): Home is the CRM landing page; Contacts are shown as Clients and Accounts as Companies (routes keep their internal names); My follow-ups -> Home tasks
-export const SECTIONS = [['home', 'Home'], ['leads', 'Leads'], ['contacts', 'Clients'], ['accounts', 'Companies'], ['pipeline', 'Pipeline'], ['reports', 'Reports'], ['templates', 'Templates']];   // Nov 3: Templates (email templates, every CRM user; Processor read-only)
+export const SECTIONS = [['home', 'Home'], ['leads', 'Leads'], ['contacts', 'Clients'], ['accounts', 'Companies'], ['deals', 'Deals'], ['pipeline', 'Pipeline'], ['dashboards', 'Dashboards'], ['reports', 'Reports'], ['templates', 'Templates']];   // Nov 3 (b): Deals (the portal's orders), Dashboards (video 9);   // Nov 3: Templates (email templates, every CRM user; Processor read-only)
 // Settings tab: Admin / Super admin only (crm.js calls setCrmAdmin on every CRM page load; the adapter refuses everyone else anyway)
 let ADMIN = false; export const setCrmAdmin = (v) => { ADMIN = !!v; };
 export const tabs = (cur) => html`<ul class="nav-tabs" data-crm-tabs>${[...SECTIONS, ...(ADMIN ? [['settings', 'Settings']] : [])].map(([k, l]) => html`<li><a class="${k === cur ? 'active' : ''}" href="#/crm/${k}" data-crm-tab="${k}">${l}</a></li>`)}</ul>`;

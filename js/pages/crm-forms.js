@@ -1,14 +1,14 @@
 // crm-forms.js : Zoho-style CRM pieces (John, Nov 2): the client / lead form (Client Information, Social Media Links & Web Addresses, Address,
 // Description; Cancel / Save and New / Save), the record view, the related lists (Notes, Attachments, Open Activities, Closed Activities,
 // Invited Meetings) and the Task and Meeting forms. Meetings: NO calendar sync, NO invitations, nothing is ever emailed. Function first.
-import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, fmtMoney, fmtSize, modal, closeModal, pill } from '../ui.js?v=202611031525';
-import { CONTACT_TYPES, contactTypeLabel, US_STATE_NAMES, localDate } from '../data/constants.js?v=202611031525';
+import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, fmtMoney, fmtSize, modal, closeModal, pill } from '../ui.js?v=202611031532';
+import { CONTACT_TYPES, contactTypeLabel, US_STATE_NAMES, localDate } from '../data/constants.js?v=202611031532';
 import { ROLES_IN_COMPANY, LEAD_SOURCES, RELATIONSHIP_STATUSES, LINK_FIELDS, safeHref, TASK_SUBJECTS, TASK_STATUSES, TASK_PRIORITIES, REPEAT_EVERY, MEETING_TYPES, relatedLists,
-  activityKindLabel, ACTIVITY_KINDS, entityLabel, localStamp } from '../data/crm.js?v=202611031525';
-import { sel, pairs, ownerSel } from './crm-kit.js?v=202611031525';
-import { CONVERTED_STATUS } from '../data/crm.js?v=202611031525';
-import { fieldsInSection, builtinRequired, activeOptions, defaultOption } from '../data/crm-config.js?v=202611031525';
-import { optSel, lbl, lblOrDash, hiddenField, cfInputs, cfRows } from './crm-custom.js?v=202611031525';
+  activityKindLabel, ACTIVITY_KINDS, entityLabel, localStamp } from '../data/crm.js?v=202611031532';
+import { sel, pairs, ownerSel } from './crm-kit.js?v=202611031532';
+import { CONVERTED_STATUS } from '../data/crm.js?v=202611031532';
+import { fieldsInSection, builtinRequired, activeOptions, defaultOption } from '../data/crm-config.js?v=202611031532';
+import { optSel, lbl, lblOrDash, hiddenField, cfInputs, cfRows, cfExtraSections } from './crm-custom.js?v=202611031532';
 
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 const v0 = (v) => (v == null ? '' : v);
@@ -59,7 +59,7 @@ export function personFormHtml(kind, v, { owners, accounts = [], me, edit = fals
     <h4 class="span2">Description Information</h4>
     ${H('description') ? '' : html`<label class="span2">Description<textarea name="description" rows="3" maxlength="4000">${v0(v.description)}</textarea></label>`}
     ${cf('description')}
-    ${extra.length ? html`<h4 class="span2" data-additional>Additional Information</h4>${cf('additional')}` : ''}
+    ${extra.length ? html`<h4 class="span2" data-additional>Additional Information</h4>${cf('additional')}` : ''}${cfExtraSections(cfg, kind, 'form', v)}
     ${lockId ? html`<p class="muted small span2">Name, email and phone are edited by the Processor on the order's Contacts tab (this person may have a portal login).</p>` : ''}
     <p class="muted small span2">* required. Links must be http:// or https:// web addresses. No email is ever sent from the CRM.</p>
     <p class="err-text span2" data-form-err></p>
@@ -104,7 +104,7 @@ export function personView(kind, r, extra = '', cfg = null) {
     ${links.length ? html`<dl class="kv" data-links>${links.map(([k, label]) => html`<dt>${label}</dt><dd data-link="${k}">${extLink(r.links[k])}</dd>`)}</dl>` : html`<p class="muted" data-links>No links yet.</p>`}
     <h3>Description Information</h3>${H('description') ? '' : html`<p data-f="description">${r.description || html`<span class="muted">&mdash;</span>`}</p>`}
     ${fieldsInSection(cfg, kind, 'description').length ? html`<dl class="kv">${cfRows(cfg, kind, 'description', r)}</dl>` : ''}
-    ${extraFields.length ? html`<h3 data-additional>Additional Information</h3><dl class="kv" data-custom-fields>${cfRows(cfg, kind, 'additional', r)}</dl>` : ''}</div>`;
+    ${extraFields.length ? html`<h3 data-additional>Additional Information</h3><dl class="kv" data-custom-fields>${cfRows(cfg, kind, 'additional', r)}</dl>` : ''}${cfExtraSections(cfg, kind, 'view', r)}</div>`;
 }
 
 // ---------- RELATED LISTS ----------
@@ -149,9 +149,14 @@ export function wireRelated(root, api, refresh, ctx) {
   const nm = $('[data-new-meeting]', root); if (nm) nm.addEventListener('click', guard(() => meetingModal(api, ctx, null, () => refresh())));
   const lc = $('[data-log-call]', root); if (lc) lc.addEventListener('click', () => {
     const m = modal('Log a call / email', html`<form id="log-form" class="form-grid"><label>Type${sel('kind', ACTIVITY_KINDS.filter(([k]) => k !== 'note'), 'call')}</label><label>Subject *<input name="subject" maxlength="200"></label>
-      <label>Date<input name="occurredOn" type="date" value="${localDate()}" max="${localDate()}"></label><label class="span2">Details<textarea name="body" rows="2" maxlength="4000"></textarea></label>
+      <label>Date<input name="occurredOn" type="date" value="${localDate()}" max="${localDate()}"></label>
+      <fieldset class="span2" data-call-fields><legend>Call (Zoho Calls: type, start, duration)</legend><label>Call Type<select name="callType"><option value="">—</option><option>Outbound</option><option>Inbound</option><option>Missed</option></select></label>
+        <label>Call Start Time<input name="callStart" type="datetime-local"></label><label>Call Duration (minutes)<input name="callDuration" type="number" min="0" max="1440" step="1"></label></fieldset>
+      <label class="span2">Details<textarea name="body" rows="2" maxlength="4000"></textarea></label>
       <p class="muted small span2">A log entry only: nothing is sent from the CRM.</p><div class="span2"><button class="ghost" type="button" data-close>Cancel</button> <button class="m-btn" type="submit">Save</button></div></form>`);
-    $('#log-form', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.logCrmActivity({ ...formData(e.target), entity: ctx.entity, entityId: ctx.entityId }); closeModal(); toast('Activity logged'); refresh(); })); });
+    const lf = $('#log-form', m); const cf = $('[data-call-fields]', lf); const kindSel = $('[name=kind]', lf); const sync = () => { cf.hidden = kindSel.value !== 'call'; }; kindSel.addEventListener('change', sync); sync();
+    lf.addEventListener('submit', guard(async (e) => { e.preventDefault(); const v = formData(e.target); if (v.kind !== 'call') { delete v.callType; delete v.callStart; delete v.callDuration; }
+      await api.logCrmActivity({ ...v, entity: ctx.entity, entityId: ctx.entityId }); closeModal(); toast('Activity logged'); refresh(); })); });
 }
 
 // ---------- TASK form (Zoho: Subject* combobox, Due Date*, Client, Status, Priority, Reminder, Repeat, Description) ----------

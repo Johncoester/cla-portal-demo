@@ -5,13 +5,15 @@
  * sync, no invitations, nothing is ever emailed) on a lead, contact (= "Client" on screen), account (= "Company") or opportunity. Attachments on records.
  * NOTHING is deleted: leads, contacts, accounts and opportunities are archived; tasks are closed; attachments and notes stay.
  * Access (mirrored by private.crm_* in migration 22): see crm.js. */
-import { CRM_OFF } from './features.js?v=202611031525';
+import { CRM_OFF } from './features.js?v=202611031532';
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, OPP_STAGES, ACCOUNT_KIND_CODES, CRM_ENTITIES, accountKindForType, entityLabel,
   TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, LINK_KEYS, LINK_FIELDS, cleanUrl, nextDue, addDaysTo, taskOpen, meetingOpen, localStamp,
-  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals } from './crm.js?v=202611031525';
-import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired } from './crm-config.js?v=202611031525';
-import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611031525';
-import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611031525';
+  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals } from './crm.js?v=202611031532';
+import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611031532';
+import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611031532';
+import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611031532';
+import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611031532';
+import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611031532';
 
 export function crmPart(x, flags) {
   const { load, save, nid, needUser, dealsFor, prof, nameOf, fullName, clone, now, fail, str, emailOk, localDate, C } = x;
@@ -78,16 +80,59 @@ export function crmPart(x, flags) {
     if (o.retired && o.value !== current) fail(`"${o.label}" is retired; pick another ${label.toLowerCase()}.`); return o.value; };
   // CUSTOM FIELD values: input.custom = { fieldId: value } or form keys 'cf.<fieldId>'. On create every active field is read (required ones must
   // be filled); on update only the fields sent. Values of deleted (archived) fields are never touched. Unknown keys are ignored.
+  // Nov 3 (b), video 8: Edit permission per role (a field the user may not edit keeps its value; sending it is refused), computed types (formula /
+  // rollup: never stored; auto-number: assigned on create), file / image (set by uploadCrmFieldFile), "Do not allow duplicate values", max characters.
+  const recordsOfEntity = (entity) => { const d = db(); return entity === 'lead' ? d.crmLeads : entity === 'contact' ? d.contacts.filter(inCrm) : entity === 'account' ? d.crmAccounts : d.crmOpportunities; };
+  const userOk = (id) => { const p = prof(id); return !!p && p.status === 'active' && !C.isOutside(p.role) && p.role !== 'Transaction Coordinator'; };
+  const lookupOk = (target, id) => { const d = db(); return target === 'contacts' ? d.contacts.some((c) => c.id === id && inCrm(c)) : target === 'leads' ? d.crmLeads.some((l) => l.id === id)
+    : target === 'accounts' ? d.crmAccounts.some((a) => a.id === id) : target === 'opportunities' ? d.crmOpportunities.some((o) => o.id === id) : target === 'deals' ? d.deals.some((q) => q.id === id) : false; };
   function applyCustom(entity, rec, input, create) {
-    const given = { ...(input.custom && typeof input.custom === 'object' ? input.custom : {}) };
-    Object.keys(input).forEach((k) => { if (k.startsWith('cf.')) given[k.slice(3)] = input[k]; });
+    const u = needUser(); const given = gatherCustom(input);
     const cur = { ...(rec.custom || {}) };
-    activeFields(cfg(), entity).forEach((f) => { const has = Object.prototype.hasOwnProperty.call(given, f.id); if (!create && !has) return;
-      const v = cleanCustomValue(f, has ? given[f.id] : null, cur[f.id], { phone: (s, l) => x.phone(s, l) });
+    activeFields(cfg(), entity).forEach((f) => { const has = Object.prototype.hasOwnProperty.call(given, f.id);
+      if (f.type === 'autonumber') { if (create && cur[f.id] == null) { f.config ||= { prefix: '', suffix: '', start: 1, next: 1 }; cur[f.id] = autoNumberText(f.config, f.config.next); f.config.next += 1; } return; }
+      if (COMPUTED_TYPES.includes(f.type) || FILE_TYPES.includes(f.type)) return;
+      const may = fieldCan(u, f, 'edit');
+      if (!may) { if (has && !sameValue(given[f.id], cur[f.id])) fail(`You cannot change "${f.label}".`); return; }
+      if (!create && !has) return;
+      const useDefault = create && !has && f.defaultValue != null;   // Set Default Values (video 8)
+      const v = cleanCustomValue(f, has ? given[f.id] : useDefault ? f.defaultValue : null, cur[f.id], { phone: (s, l) => x.phone(s, l), userOk, lookupOk });
       if (f.required && isBlankValue(v)) fail(`${f.label} is required.`);
+      if (f.unique && !isBlankValue(v)) { const k = dupKey(f.type, v); const other = recordsOfEntity(entity).find((r) => r.id !== rec.id && dupKey(f.type, (r.custom || {})[f.id]) === k);
+        if (other) fail(`${f.label} "${v}" is already used by ${recName(entity, other)}; duplicates are not allowed.`); }
       if (v === null) delete cur[f.id]; else cur[f.id] = v; });
     rec.custom = cur;
   }
+  const sameValue = (a, b) => (a == null || a === '' ? b == null || b === '' : JSON.stringify(a) === JSON.stringify(b) || String(a) === String(b));
+  const recName = (entity, r) => (entity === 'account' || entity === 'opportunity' ? `"${r.name}"` : `${`${r.firstName || ''} ${r.lastName || ''}`.trim()}`);
+  // Clients & Leads: one email / phone across both modules (video 8). The warning names the record and its owner; nothing is saved.
+  function personDup({ email: e, phone: p }, { leadId = null, contactId = null } = {}) {
+    const d = db(); const ph = String(p || '').replace(/\D/g, ''); const em = String(e || '').trim().toLowerCase();
+    const leadHit = (test) => d.crmLeads.find((l) => l.id !== leadId && !l.convertedAt && !l.archivedAt && test(l));
+    const clientHit = (test) => d.contacts.find((c) => c.id !== contactId && inCrm(c) && !c.crmArchivedAt && test(c));
+    const who = (kind, r, ownerId) => `${kind} ${`${r.firstName || ''} ${r.lastName || ''}`.trim()} (owner ${ownerId ? nameOf(ownerId) : 'none'})`;
+    if (em) { const l = leadHit((z) => (z.email || '').toLowerCase() === em); if (l) fail(`This email is already used by ${who('Lead', l, l.ownerId)}. Duplicates are not allowed.`);
+      const c = clientHit((z) => (z.email || '').toLowerCase() === em); if (c) fail(`This email is already used by ${who('Client', c, c.crmOwnerId)}. Duplicates are not allowed.`); }
+    if (ph.length >= 7 && (cfg().dupRules || {}).phone !== false) { const same = (v) => String(v || '').replace(/\D/g, '') === ph;
+      const l = leadHit((z) => same(z.phone)); if (l) fail(`This phone number is already used by ${who('Lead', l, l.ownerId)}. Duplicates are not allowed.`);
+      const c = clientHit((z) => same(z.phone)); if (c) fail(`This phone number is already used by ${who('Client', c, c.crmOwnerId)}. Duplicates are not allowed.`); }
+  }
+  // computed custom values for display (formula, rollup). Rollups use the records the viewer may see (late-bound to the Nov 3 b part).
+  const late = {};
+  function withComputed(u, entity, rec, out) {
+    const fs = activeFields(cfg(), entity).filter((f) => f.type === 'formula' || f.type === 'rollup'); if (!fs.length) return out;
+    const custom = { ...(out.custom || {}) };
+    fs.filter((f) => f.type === 'rollup').forEach((f) => { try { const v = late.rollup ? late.rollup(u, entity, rec.id, f.config) : null; if (v == null) delete custom[f.id]; else custom[f.id] = v; } catch (e) { delete custom[f.id]; } });
+    const byLabel = (label) => { const l = label.toLowerCase(); const b = (FORMULA_BUILTINS[entity] || []).find(([, z]) => z.toLowerCase() === l); if (b) return out[b[0]];
+      const cf = activeFields(cfg(), entity).find((z) => z.label.toLowerCase() === l); return cf ? custom[cf.id] : null; };
+    fs.filter((f) => f.type === 'formula').forEach((f) => { try { const v = evalFormula(parseFormula(f.config.expression), byLabel); if (v == null) delete custom[f.id]; else custom[f.id] = v; } catch (e) { delete custom[f.id]; } });
+    return { ...out, custom };
+  }
+  // what the viewer may see of the custom values (fields without View permission are left out)
+  const visibleCustom = (u, entity, custom) => { const out = {}; const fs = (cfg().customFields || []).filter((f) => f.entity === entity);
+    Object.entries(custom || {}).forEach(([k, v]) => { const f = fs.find((z) => z.id === k); if (!f || fieldCan(u, f, 'view')) out[k] = v; }); return out; };
+  // the settings as one user sees them (no fields they may not view; canEdit per field)
+  const cfgFor = (u) => { const c = cfg(); return { ...c, customFields: c.customFields.filter((f) => fieldCan(u, f, 'view')).map((f) => ({ ...f, canView: true, canEdit: fieldCan(u, f, 'edit') })) }; };
   const actLog = (u, entity, entityId, subject) => db().crmActivities.push({ id: nid('ca'), entity, entityId, kind: 'note', subject: str(subject, 200), body: '', status: 'done', dueDate: null, occurredOn: localDate(), ownerId: null, system: true, createdBy: u.id, createdAt: now(), doneAt: now() });
 
   // ---------- orders linked to people (the portal's own deals) ----------
@@ -128,18 +173,22 @@ export function crmPart(x, flags) {
     dealsClosedLastYear: r.dealsClosedLastYear == null ? null : r.dealsClosedLastYear, zillowUrl: r.zillowUrl || '', street: r.street || '', city: r.city || '', state: r.state || '', zip: r.zip || '', county: r.county || '', links: { ...(r.links || {}) } });
 
   // ---------- row shapes ----------
-  const leadOut = (u, l) => ({ ...clone(l), ...personOut(l), name: `${l.firstName || ''} ${l.lastName || ''}`.trim(), source: l.source || '', leadSource: l.source || '', relationshipStatus: l.status, description: l.notes || '',
+  const leadOut0 = (u, l) => ({ ...clone(l), ...personOut(l), name: `${l.firstName || ''} ${l.lastName || ''}`.trim(), source: l.source || '', leadSource: l.source || '', relationshipStatus: l.status, description: l.notes || '',
     ownerName: ownerName(l.ownerId), converted: !!l.convertedAt, archived: !!l.archivedAt, canEdit: !crmReadOnly(u), modifiedByName: l.modifiedBy ? nameOf(l.modifiedBy) : '',
-    convertedContactName: l.convertedContactId ? fullName(contactRow(l.convertedContactId)) : '', custom: clone(l.custom || {}) });
-  const contactOut = (u, c) => { const o = ordersOf([c.id]); const t = orderTotals(o);
+    convertedContactName: l.convertedContactId ? fullName(contactRow(l.convertedContactId)) : '', custom: visibleCustom(u, 'lead', clone(l.custom || {})) });
+  const contactOut0 = (u, c) => { const o = ordersOf([c.id]); const t = orderTotals(o);
     return { id: c.id, name: fullName(c), firstName: c.firstName, lastName: c.lastName, email: c.email, phone: c.phone, company: c.company, contactType: c.contactType || null, hasLogin: !!c.profileId,
       ...personOut(c), leadSource: c.leadSource || '', relationshipStatus: c.relationshipStatus || '', description: c.crmNotes || '',
       ownerId: c.crmOwnerId || null, ownerName: ownerName(c.crmOwnerId), accountId: c.accountId || null, accountName: accName(c.accountId), companyName: accName(c.accountId) || c.company || '',
       lastContactedOn: c.lastContactedOn || null, tags: c.tags || [], notes: c.crmNotes || '', archived: !!c.crmArchivedAt, fromLeadId: c.crmLeadId || null,
-      salesReps: salesRepsOf(c), linked: linked(u, c), orders: t.orders, volume: t.volume, canEdit: !crmReadOnly(u), custom: clone(c.custom || {}) }; };
-  const accountOut = (u, a) => { const cs = db().contacts.filter((c) => c.accountId === a.id && inCrm(c)); const t = orderTotals(ordersOf(cs.map((c) => c.id)));
-    return { ...clone(a), custom: clone(a.custom || {}), ownerName: ownerName(a.ownerId), archived: !!a.archivedAt, contacts: cs.filter((c) => contactSeen(u, c)).length, orders: t.orders, volume: t.volume, canEdit: !crmReadOnly(u) }; };
-  const oppOut = (u, o) => ({ ...clone(o), custom: clone(o.custom || {}), ownerName: ownerName(o.ownerId), contactName: o.contactId ? fullName(contactRow(o.contactId)) : '', accountName: accName(o.accountId), archived: !!o.archivedAt, canEdit: !crmReadOnly(u) });
+      salesReps: salesRepsOf(c), linked: linked(u, c), orders: t.orders, volume: t.volume, canEdit: !crmReadOnly(u), custom: visibleCustom(u, 'contact', clone(c.custom || {})) }; };
+  const accountOut0 = (u, a) => { const cs = db().contacts.filter((c) => c.accountId === a.id && inCrm(c)); const t = orderTotals(ordersOf(cs.map((c) => c.id)));
+    return { ...clone(a), custom: visibleCustom(u, 'account', clone(a.custom || {})), ownerName: ownerName(a.ownerId), archived: !!a.archivedAt, contacts: cs.filter((c) => contactSeen(u, c)).length, orders: t.orders, volume: t.volume, canEdit: !crmReadOnly(u) }; };
+  const oppOut0 = (u, o) => ({ ...clone(o), custom: visibleCustom(u, 'opportunity', clone(o.custom || {})), ownerName: ownerName(o.ownerId), contactName: o.contactId ? fullName(contactRow(o.contactId)) : '', accountName: accName(o.accountId), archived: !!o.archivedAt, canEdit: !crmReadOnly(u) });
+  const leadOut = (u, l) => withComputed(u, 'lead', l, leadOut0(u, l));
+  const contactOut = (u, c) => withComputed(u, 'contact', c, contactOut0(u, c));
+  const accountOut = (u, a) => withComputed(u, 'account', a, accountOut0(u, a));
+  const oppOut = (u, o) => withComputed(u, 'opportunity', o, oppOut0(u, o));
   const parentName = (entity, id) => { const d = db();
     if (entity === 'lead') { const l = d.crmLeads.find((z) => z.id === id); return l ? `${l.firstName || ''} ${l.lastName || ''}`.trim() : ''; }
     if (entity === 'contact') { const c = d.contacts.find((z) => z.id === id); return c ? fullName(c) : ''; }
@@ -230,10 +279,11 @@ export function crmPart(x, flags) {
       if (l.status === CONVERTED_STATUS) fail('A new lead cannot start as Converted/Current Client; convert it instead.');
       if (l.email) { const c = emailTaken(l.email); if (c) fail(`${fullName(c)} is already a client with this email (one person per email). Open them under CRM > Clients instead.`);
         if (d.crmLeads.some((z) => z.email === l.email && !z.convertedAt && !z.archivedAt)) fail('A lead with this email already exists.'); }
+      personDup(l, { leadId: l.id });
       d.crmLeads.push(l); save(); return leadOut(u, l);
     },
     async updateCrmLead(id, patch) {
-      const u = crmEditor(); const d = db(); const l = get.lead(u, id); if (l.convertedAt) fail('This lead was converted; edit the client instead.');
+      const u = crmEditor(); const d = db(); const l = get.lead(u, id); if (l.convertedAt) fail('This lead was converted; edit the client instead.'); const before = { email: l.email, phone: l.phone };
       ['firstName', 'lastName', 'company'].forEach((k) => { if (patch[k] != null) l[k] = str(patch[k], k === 'company' ? 120 : 80); });
       if (desc(patch) != null) l.notes = str(desc(patch), 4000);
       if (patch.phone != null) l.phone = x.phone(patch.phone);
@@ -245,6 +295,7 @@ export function crmPart(x, flags) {
         if (l.status === CONVERTED_STATUS && was !== CONVERTED_STATUS) fail('Use "Convert" to make a lead a client.'); }
       personFields(l, patch, false); applyCustom('lead', l, patch, false); required(l.lastName, l.roleInCompany, l.status, l.state);
       if (patch.ownerId !== undefined) l.ownerId = owner(u, patch.ownerId, l.ownerId);
+      if ((patch.email != null && l.email !== before.email) || (patch.phone != null && String(l.phone || '').replace(/\D/g, '') !== String(before.phone || '').replace(/\D/g, ''))) personDup({ email: l.email !== before.email ? l.email : '', phone: String(l.phone || '').replace(/\D/g, '') !== String(before.phone || '').replace(/\D/g, '') ? l.phone : '' }, { leadId: l.id });
       touch(l, u); save(); return leadOut(u, l);
     },
     // Lead -> Client (+ Company). One person per email: if a client already has the email, pass { linkExisting: true } to attach the lead to that person instead.
@@ -296,6 +347,7 @@ export function crmPart(x, flags) {
         leadSource: leadSrc(input.leadSource), relationshipStatus: relStatus(input.relationshipStatus) || (builtinRequired(cfg(), 'relationshipStatus') ? '' : defaultOption(cfg(), 'relationshipStatus', 'Potential/Warm')), lastContactedOn: date(input.lastContactedOn, 'Last contacted', { noFuture: true }),
         tags: normTags(input.tags), crmNotes: str(desc(input), 4000), crmLeadId: null, crmArchivedAt: null, createdBy: u.id, createdAt: now(), modifiedBy: u.id, modifiedAt: now() };
       personFields(c, input, true); applyCustom('contact', c, input, true); required(c.lastName, c.roleInCompany, c.relationshipStatus, c.state);
+      personDup(c, { contactId: c.id });
       d.contacts.push(c); save(); return contactOut(u, c);
     },
     // CRM fields only (name / email / phone stay with the Processor's contact edit on the order, because a contact may be a portal login)
@@ -384,6 +436,11 @@ export function crmPart(x, flags) {
       const a = { id: nid('ca'), entity, entityId: parent.id, kind, subject: str(input.subject, 200) || (kind === 'note' ? 'Note' : fail('Subject is required.')), body: str(input.body, 4000),
         status: 'done', dueDate: null, occurredOn: date(input.occurredOn, 'Date', { noFuture: true }) || localDate(), ownerId: u.id, system: false, createdBy: u.id, createdAt: now(), doneAt: now(), modifiedBy: u.id, modifiedAt: now() };
       if (kind === 'note' && !a.body && a.subject === 'Note') fail('Write the note first.');
+      if (kind === 'call') {   // Nov 3 (b), video 7: Call Type, Call Start Time, Call Duration (minutes)
+        a.callType = input.callType ? oneOf(input.callType, ['Outbound', 'Inbound', 'Missed'], 'Call type') : '';
+        a.callStart = input.callStart ? dt(input.callStart, 'Call Start Time') : null; if (a.callStart && a.callStart.slice(0, 10) > localDate()) fail('Call Start Time cannot be in the future.');
+        if (a.callStart) a.occurredOn = a.callStart.slice(0, 10);
+        const dur = input.callDuration == null || input.callDuration === '' ? null : Number(input.callDuration); if (dur != null && (!Number.isInteger(dur) || dur < 0 || dur > 1440)) fail('Call Duration is minutes (0 to 1440).'); a.callDuration = dur; }
       // a logged call / email on a contact moves its "last contacted" date forward
       if (entity === 'contact' && kind !== 'note' && (!parent.lastContactedOn || parent.lastContactedOn < a.occurredOn)) parent.lastContactedOn = a.occurredOn;
       db().crmActivities.push(a); save(); return actOut(a);
@@ -497,5 +554,23 @@ export function crmPart(x, flags) {
   Object.assign(api, crmSettingsPart(x, { db, cfg, crmUser }).api);
   // EMAIL TEMPLATES (Nov 3, Zoho video 6): nothing is ever sent. Template files ride in crmAttachments (entity 'template'), so getCrmAttachmentContent is extended.
   Object.assign(api, crmTemplatesPart(x, { db, cfg, crmUser, crmEditor, entityOf, leadOut, contactOut, accountOut, oppOut, actOut, baseApi: { getCrmAttachmentContent: api.getCrmAttachmentContent } }).api);
+  // Nov 3 (b): Janine's videos 7, 9, 10 (search, Send Email, dashboards, reports) + file / image custom fields (video 8)
+  const nb = crmNov3bPart(x, { db, cfg, cfgFor, crmUser, crmEditor, entityOf, seen, contactSeen, leadSeen, accountSeen, oppSeen, inCrm, leadOut, contactOut, accountOut, oppOut, actOut, salesOf: x.salesOf });
+  Object.assign(api, nb.api);
+  late.rollup = (u, entity, id, conf) => { const parentModule = { contact: 'contacts', lead: 'leads', account: 'accounts', opportunity: 'opportunities' }[entity];
+    const kids = (nb.relMap(u, parentModule, [{ id, _contactIds: [] }], conf.related, cfgFor(u))[id]) || []; if (conf.fn === 'count') return kids.length;
+    const vals = kids.map((k) => k[conf.field]).filter((v) => v != null && v !== '' && isFinite(Number(v))).map(Number); if (!vals.length) return null;
+    const r = conf.fn === 'sum' ? vals.reduce((a, b) => a + b, 0) : conf.fn === 'avg' ? vals.reduce((a, b) => a + b, 0) / vals.length : conf.fn === 'min' ? Math.min(...vals) : Math.max(...vals); return Math.round(r * 100) / 100; };
+  // File Upload / Image Upload custom field: the file is kept in the record's attachments for good; the field points at the newest one
+  api.uploadCrmFieldFile = async (entity, id, fieldId, { name, mimeType, size, dataUrl } = {}) => {
+    const u = crmEditor(); const e = str(entity, 20); const rec = entityOf(u, e, str(id, 60)); const f = activeFields(cfg(), e).find((z) => z.id === str(fieldId, 60)) || fail('That field does not exist.');
+    if (!FILE_TYPES.includes(f.type)) fail('That field does not take files.'); if (!fieldCan(u, f, 'edit')) fail(`You cannot change "${f.label}".`);
+    const full = str(name, 400).replace(/[\\/]/g, '_') || fail('A file name is required.'); const dot = full.lastIndexOf('.'); const ext = dot > 0 ? full.slice(dot + 1).toLowerCase() : '';
+    if (f.type === 'image' && !IMAGE_EXT.includes(ext)) fail(`${f.label} takes an image (${IMAGE_EXT.join(', ')}).`);
+    if (f.type === 'file' && !C.ALLOWED_UPLOAD_EXT.includes(ext)) fail(`.${ext || '?'} files are not allowed. Allowed: ${C.ALLOWED_UPLOAD_EXT.join(', ')}.`);
+    if (!(Number(size) >= 0) || Number(size) > C.MAX_UPLOAD_BYTES) fail('File is too large.');
+    const file = { id: nid('cfile'), entity: e, entityId: rec.id, name: full.slice(0, 200), mimeType: str(mimeType, 100) || 'application/octet-stream', size: Number(size) || 0, dataUrl: dataUrl || null, uploadedBy: u.id, createdAt: now(), fieldId: f.id };
+    await x.keepFile(file); db().crmAttachments.push(file); rec.custom = { ...(rec.custom || {}), [f.id]: [file.id] }; touch(rec, u); save(); return { id: file.id, name: file.name };
+  };
   return api;
 }

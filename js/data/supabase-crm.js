@@ -2,11 +2,11 @@
  * NOT run against a hosted project (best effort; the mock adapter is the tested one). Two switches must both be on: the browser flag
  * (features.js, CLA_PORTAL_CONFIG.features.crm, OFF in supabase mode) and the database switch (private.features 'crm', migration 22).
  * With the browser flag off every method refuses before calling the database. Meetings never send invitations; nothing is emailed. */
-import { CRM_OFF } from './features.js?v=202611031525';
-import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611031525';
-import { localDate } from './constants.js?v=202611031525';
-import { ensureSettings, activeFields, cleanCustomValue, cleanLabel } from './crm-config.js?v=202611031525';
-import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611031525';
+import { CRM_OFF } from './features.js?v=202611031532';
+import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611031532';
+import { localDate } from './constants.js?v=202611031532';
+import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611031532';
+import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611031532';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };
@@ -68,8 +68,7 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
   // ---------- CRM Settings (migration 25) ----------
   const settingsRaw = async () => ensureSettings(await rpc('crm_settings'));
   // custom values from a form ({custom: {...}} and / or 'cf.<id>' keys), cleaned like the mock; the database checks them again
-  const customIn = async (entity, v) => { const given = { ...(v.custom && typeof v.custom === 'object' ? v.custom : {}) };
-    Object.keys(v).forEach((k) => { if (k.startsWith('cf.')) given[k.slice(3)] = v[k]; }); if (!Object.keys(given).length) return null;
+  const customIn = async (entity, v) => { const given = gatherCustom(v); if (!Object.keys(given).length) return null;
     const out = {}; activeFields(await settingsRaw(), entity).forEach((f) => { if (Object.prototype.hasOwnProperty.call(given, f.id)) out[f.id] = cleanCustomValue(f, given[f.id]); }); return out; };
   const withCustom = async (entity, o, v) => { const c = await customIn(entity, v); if (c) o.custom = c; return o; };
   const noCf = (v) => { const o = {}; Object.entries(v).forEach(([k, x]) => { if (!k.startsWith('cf.')) o[k] = x; }); return o; };

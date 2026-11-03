@@ -5,11 +5,11 @@
 //   #/crm/signature              my email signature (${User Signature})
 // Plus composeModal(): "Compose email from template" on a lead / client / company / opportunity. NOTHING IS SENT anywhere; Send Test Email is
 // shown but cannot send until Gmail is connected; Stats (Opened / Bounced / Clicked) wait for Gmail too. Function first, minimal styling.
-import { html, raw, $, $$, guard, toast, modal, closeModal, pill, fmtDateTime, fmtSize } from '../ui.js?v=202611031525';
-import { TEMPLATE_MODULES, moduleLabel, GALLERY_TABS, GALLERY, starterBlocks, VIEW_FOLDERS, templatesInView, GMAIL_NOTE, STATS_NOTE, templateHtml, textToHtml, ATTACH_EXT, isPersonalFolder } from '../data/crm-templates.js?v=202611031525';
-import { tabs, head } from './crm-kit.js?v=202611031525';
-import { richEditor, wireInputPicker, insertIntoInput, openPicker, copyText, readFile } from './crm-rte.js?v=202611031525';
-import { builder } from './crm-builder.js?v=202611031525';
+import { html, raw, $, $$, guard, toast, modal, closeModal, pill, fmtDateTime, fmtSize } from '../ui.js?v=202611031532';
+import { TEMPLATE_MODULES, moduleLabel, GALLERY_TABS, GALLERY, starterBlocks, VIEW_FOLDERS, templatesInView, GMAIL_NOTE, STATS_NOTE, templateHtml, textToHtml, ATTACH_EXT, isPersonalFolder } from '../data/crm-templates.js?v=202611031532';
+import { tabs, head } from './crm-kit.js?v=202611031532';
+import { richEditor, wireInputPicker, insertIntoInput, openPicker, copyText, readFile } from './crm-rte.js?v=202611031532';
+import { builder } from './crm-builder.js?v=202611031532';
 
 const q = () => new URLSearchParams(location.hash.split('?')[1] || '');
 const crumbs = (extra) => [['CRM', '#/crm'], ['Templates', '#/crm/templates'], ...(extra ? [[extra]] : [])];
@@ -199,12 +199,15 @@ async function editorPage({ api, me, params, go, refresh }) {
 
 // ---------------- signature ----------------
 async function signaturePage({ api, me, refresh }) {
-  const s = await api.getCrmSignature(); const ed = richEditor('sig', s.html, { mini: true });
+  const s = await api.getCrmSignature(); const ed = richEditor('sig', s.html, { mini: true }); const es = await api.getCrmEmailSettings();
   const body = html`${head('CRM: My Email Signature', { ...me, canEdit: true })}${tabs('templates')}
     <div class="card" data-signature><p class="muted small">Used wherever a template has <code>\${User Signature}</code>. Each person edits their own (the Processor too). ${s.modifiedAt ? `Last saved ${fmtDateTime(s.modifiedAt)}.` : 'Not set yet.'}</p>
-      ${ed.body}<p><button class="m-btn" type="button" data-save-signature>Save signature</button> <a class="ghost" href="#/crm/templates">Back to templates</a></p></div>`;
+      ${ed.body}<p><button class="m-btn" type="button" data-save-signature>Save signature</button> <a class="ghost" href="#/crm/templates">Back to templates</a></p></div>
+    <div class="card" data-email-aliases><h3>From addresses (Send Email)</h3><p class="muted small">Your login email (${es.primary || 'none'}) is always offered. Add up to 5 aliases, one per line. A removed alias is retired, not deleted. ${es.sendNote}</p>
+      <textarea rows="3" data-aliases style="width:100%">${es.aliases.join('\n')}</textarea><p><button class="ghost" type="button" data-save-aliases>Save aliases</button></p></div>`;
   return { title: 'My signature', crumbs: [['CRM', '#/crm'], ['Templates', '#/crm/templates'], ['My signature']], body, mount(root) {
-    const ctl = ed.mount(root); $('[data-save-signature]', root).addEventListener('click', guard(async () => { await api.saveCrmSignature(ctl.getHtml()); toast('Signature saved'); refresh(); })); } };
+    const ctl = ed.mount(root); $('[data-save-signature]', root).addEventListener('click', guard(async () => { await api.saveCrmSignature(ctl.getHtml()); toast('Signature saved'); refresh(); }));
+    $('[data-save-aliases]', root).addEventListener('click', guard(async () => { await api.saveCrmEmailAliases($('[data-aliases]', root).value.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean)); toast('Aliases saved'); refresh(); })); } };
 }
 
 // ---------------- compose from a record ----------------

@@ -1,11 +1,11 @@
 // crm-more.js : CRM pipeline (Kanban + list) and Reports (John, Nov 2; follow-ups moved to CRM Home tasks). Function only, minimal styling.
-import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611031525';
-import { localDate } from '../data/constants.js?v=202611031525';
-import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort } from '../data/crm.js?v=202611031525';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv } from './crm-kit.js?v=202611031525';
-import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611031525';
-import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611031525';
-import { wireCompose } from './crm-templates.js?v=202611031525';
+import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611031532';
+import { localDate } from '../data/constants.js?v=202611031532';
+import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort } from '../data/crm.js?v=202611031532';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv } from './crm-kit.js?v=202611031532';
+import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611031532';
+import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611031532';
+import { wireCompose } from './crm-templates.js?v=202611031532';
 
 const crumbs = (label) => [['CRM', '#/crm'], [label]];
 const q = () => new URLSearchParams(location.hash.split('?')[1] || '');
@@ -57,6 +57,7 @@ export async function pipelinePage({ api, me, owners, refresh, go, cfg }) {
 
 // ---------------- REPORTS (order open-date range) + CSV export ----------------
 const ORDER_COLS = (first) => [['name', first], ['orders', 'Orders'], ['open', 'Open'], ['closed', 'Closed'], ['cancelled', 'Cancelled'], ['volume', 'Volume ($)']];
+// Report Export (CSV) is Admin / Super admin only (Janine, video 10); the list-view CSVs are unchanged
 export async function reportsPage({ api, me }) {
   const p = q(); const from = p.get('from') || ''; const to = p.get('to') || ''; const r = await api.crmReport({ from, to });
   const tables = [
@@ -69,13 +70,13 @@ export async function reportsPage({ api, me }) {
   const cell = (k, v) => (k === 'volume' ? fmtMoney(v) : v ?? '');
   const body = html`${head('CRM: Reports', me)}${tabs('reports')}
     <form class="filter-bar" id="rep-form"><label>Order open date from<input type="date" name="from" value="${from}"></label><label>to<input type="date" name="to" value="${to}"></label>
-      <button class="m-btn" type="submit">Run</button> <a class="ghost" href="#/crm/reports">All dates</a></form>
+      <button class="m-btn" type="submit">Run</button> <a class="ghost" href="#/crm/reports/summary">All dates</a></form>
     <p data-rep-totals>${from || to ? `Orders opened ${from ? 'from ' + fmtDate(from) : ''} ${to ? 'to ' + fmtDate(to) : ''}` : 'All orders'}: <strong>${r.totals.orders}</strong> (${r.totals.open} open, ${r.totals.closed} closed, ${r.totals.cancelled} cancelled), volume <strong>${fmtMoney(r.totals.volume)}</strong>. Leads: ${r.leadCount}.
       <span class="muted small">Orders = the orders you can see in the portal. Volume = purchase price of orders that are not cancelled. An order counts once for each realtor / lender / company / salesperson on it.</span></p>
-    ${tables.map(([id, label, cols, rows]) => html`<div class="card" data-report="${id}"><h3>${label} <button class="ghost right" data-csv="${id}">Export CSV</button></h3>
+    ${tables.map(([id, label, cols, rows]) => html`<div class="card" data-report="${id}"><h3>${label} ${me.canConfigure ? html`<button class="ghost right" data-csv="${id}">Export CSV</button>` : ''}</h3>
       <table class="tbl"><thead><tr>${cols.map(([, l]) => html`<th>${l}</th>`)}</tr></thead><tbody>${rows.length ? rows.map((row) => html`<tr>${cols.map(([k]) => html`<td>${cell(k, row[k])}</td>`)}</tr>`) : html`<tr><td colspan="${cols.length}" class="muted">No data in this range.</td></tr>`}</tbody></table></div>`)}`;
   return { title: 'CRM Reports', crumbs: crumbs('Reports'), body, mount(root) {
-    $('#rep-form', root).addEventListener('submit', (e) => { e.preventDefault(); const f = formData(e.target); location.hash = '#/crm/reports?' + new URLSearchParams(Object.fromEntries(Object.entries(f).filter(([, v]) => v))); });
+    $('#rep-form', root).addEventListener('submit', (e) => { e.preventDefault(); const f = formData(e.target); location.hash = '#/crm/reports/summary?' + new URLSearchParams(Object.fromEntries(Object.entries(f).filter(([, v]) => v))); });
     $$('[data-csv]', root).forEach((b) => b.addEventListener('click', () => { const [id, , cols, rows] = tables.find((t) => t[0] === b.dataset.csv);
       downloadCsv(`crm-${id}${from ? '-from-' + from : ''}${to ? '-to-' + to : ''}.csv`, cols, rows); toast('CSV downloaded'); })); } };
 }

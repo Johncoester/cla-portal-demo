@@ -3,8 +3,8 @@
 // alignment (incl. justify), outdent / indent, lists, link (Add Link dialog), remove link, image (Upload from computer / Web URL, width / height px),
 // table, horizontal rule, Insert field (and typing #), Insert Code, Edit HTML, Survey (not available yet). Every HTML that leaves the editor is
 // sanitized (crm-templates.js sanitizeHtml: no scripts, no event handlers, no javascript: links). Function first, minimal styling.
-import { html, raw, $, $$, toast, modal, closeModal, esc } from '../ui.js?v=202611031525';
-import { sanitizeHtml, safeLink, safeImageSrc } from '../data/crm-templates.js?v=202611031525';
+import { html, raw, $, $$, toast, modal, closeModal, esc } from '../ui.js?v=202611031532';
+import { sanitizeHtml, safeLink, safeImageSrc } from '../data/crm-templates.js?v=202611031532';
 
 export const IMAGE_MAX_BYTES = 400_000;   // uploaded images are stored inside the template (demo storage is small); bigger: use a web link
 const FONTS = ['Arial', 'Georgia', 'Times New Roman', 'Verdana', 'Courier New', 'Tahoma'];
@@ -117,7 +117,8 @@ export function richEditor(key, html0, opts = {}) {
       ${opts.fields ? b('field', '# Insert field', 'Insert a merge field') : ''}
       ${mini ? '' : b('code', '&lt;/&gt; Insert Code', 'Insert HTML code')}
       ${b('html', 'Edit HTML', 'Edit the HTML source', 'data-html-toggle')}
-      ${mini ? '' : html`<button type="button" class="rte-b" disabled title="Survey links are not available yet" data-survey>Survey (not available yet)</button>`}
+      ${opts.compose ? html`${b('removeFormat', 'Clear', 'Clear formatting')}${b('undo', '&#8630; Undo', 'Undo')}${b('redo', '&#8631; Redo', 'Redo')}` : ''}
+      ${mini || opts.compose ? '' : html`<button type="button" class="rte-b" disabled title="Survey links are not available yet" data-survey>Survey (not available yet)</button>`}
     </div>
     <div class="rte-area" contenteditable="true" data-rte="${key}" style="${opts.pageBg ? `background-color: ${opts.pageBg}` : ''}">${raw(sanitizeHtml(html0 || ''))}</div>
     <textarea class="rte-src" data-rte-src="${key}" hidden rows="14" spellcheck="false" aria-label="HTML source"></textarea></div>`;

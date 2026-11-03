@@ -2,9 +2,9 @@
 // Palette: Image, Text, Button, Columns, Spacer, Divider, Social, HTML, Video (click to add at the end, or drag onto the email).
 // Each block: hover controls Move (drag handle, plus up / down) and Delete; click a block for its settings. Text blocks are typed in place with a
 // small toolbar that floats over the block. Output = email-safe HTML (crm-templates.js blocksToHtml). Images: Upload from computer or Web URL.
-import { html, raw, $, $$, toast, esc } from '../ui.js?v=202611031525';
-import { BLOCK_TYPES, IMAGE_SIZES, SPACER_HEIGHTS, ALIGNS, SOCIAL_NETWORKS, newBlock, cleanBlock, blockInner, blockCellStyle, sanitizeHtml, safeImageSrc, MAX_BLOCKS } from '../data/crm-templates.js?v=202611031525';
-import { exec, selectionKeeper, linkDialog, openPicker, wireEditablePicker, readFile, IMAGE_MAX_BYTES } from './crm-rte.js?v=202611031525';
+import { html, raw, $, $$, toast, esc } from '../ui.js?v=202611031532';
+import { BLOCK_TYPES, IMAGE_SIZES, SPACER_HEIGHTS, ALIGNS, SOCIAL_NETWORKS, newBlock, cleanBlock, blockInner, blockCellStyle, sanitizeHtml, safeImageSrc, MAX_BLOCKS } from '../data/crm-templates.js?v=202611031532';
+import { exec, selectionKeeper, linkDialog, openPicker, wireEditablePicker, readFile, IMAGE_MAX_BYTES } from './crm-rte.js?v=202611031532';
 
 const opts = (list, cur) => list.map(([v, l]) => html`<option value="${v}" ${String(v) === String(cur) ? raw('selected') : ''}>${l}</option>`);
 const common = (b) => html`<label>Background Color<input type="color" data-set="bg" value="${b.bg || '#ffffff'}"></label>${'padding' in b ? html`<label>Padding (px)<input type="number" min="0" max="60" data-set="padding" value="${b.padding}"></label>` : ''}`;

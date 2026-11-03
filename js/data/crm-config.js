@@ -9,7 +9,8 @@
  * text as the value, so no stored record had to change. Renaming changes only the label, so every record, filter and report shows the
  * new name at once. Retiring hides the option from new entries; records that already use it keep it and show "(retired)". */
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, TASK_SUBJECTS, TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, OPP_STAGES,
-  ACCOUNT_KINDS, LINK_FIELDS, cleanUrl } from './crm.js?v=202611031525';
+  ACCOUNT_KINDS, LINK_FIELDS, cleanUrl } from './crm.js?v=202611031532';
+import { ZOHO_FIELD_TYPES, ensureSections, sectionsOf, cleanNewValue, checkMaxChars, newDisplay, addressText, COMPUTED_TYPES, FILE_TYPES } from './crm-fields.js?v=202611031532';
 
 // ---------- picklists ----------
 // locked = cannot be retired (the CRM itself depends on it); it can still be renamed and moved.
@@ -30,8 +31,8 @@ export const MAX_OPTIONS = 100;
 export const OPTION_MAX = 60;
 
 // ---------- custom fields ----------
-export const FIELD_TYPES = [['text', 'Single line'], ['textarea', 'Multi line'], ['number', 'Number'], ['currency', 'Currency'], ['percent', 'Percent'], ['date', 'Date'],
-  ['checkbox', 'Checkbox'], ['dropdown', 'Dropdown (pick list)'], ['email', 'Email'], ['phone', 'Phone'], ['url', 'URL (web address)']];
+// Nov 3 (b), Zoho video 8: the 24 Zoho field types (crm-fields.js). The first 11 are the Nov 2 types; their stored values are unchanged.
+export const FIELD_TYPES = ZOHO_FIELD_TYPES;
 export const FIELD_TYPE_CODES = FIELD_TYPES.map(([c]) => c);
 export const fieldTypeLabel = (t) => (FIELD_TYPES.find(([c]) => c === t) || [null, t])[1];
 export const CF_ENTITIES = [['lead', 'Leads'], ['contact', 'Clients'], ['account', 'Companies'], ['opportunity', 'Opportunities']];
@@ -39,7 +40,7 @@ export const CF_ENTITY_CODES = CF_ENTITIES.map(([c]) => c);
 // sections a field can show in (the record page and the form use the same sections)
 const PERSON_SECTIONS = [['info', 'Information (top)'], ['address', 'Address Information'], ['description', 'Description Information'], ['additional', 'Additional Information']];
 export const SECTIONS_FOR = { lead: PERSON_SECTIONS, contact: PERSON_SECTIONS, account: [['info', 'Company details'], ['additional', 'Additional Information']], opportunity: [['info', 'Opportunity details']] };
-export const sectionLabel = (entity, s) => ((SECTIONS_FOR[entity] || []).find(([k]) => k === s) || [null, s])[1];
+export const sectionLabel = (entity, s, cfg = null) => { const l = sectionsOf(cfg, entity).find((z) => z.key === s); return l ? l.label : ((SECTIONS_FOR[entity] || []).find(([k]) => k === s) || [null, s])[1]; };
 export const MAX_FIELDS = 50;
 export const cfKey = (id) => 'cf_' + String(id).replace(/[^a-z0-9]/gi, '_');   // list column / filter name for a custom field
 
@@ -65,7 +66,7 @@ export function defaultSettings() {
   const fields = { person: {}, account: {} };
   PERSON_FIELDS.forEach(([k, , o]) => { fields.person[k] = { hidden: false, required: !!(o && o.requirable && REQUIRED_DEFAULT.includes(k)) }; });
   ACCOUNT_FIELDS.forEach(([k]) => { fields.account[k] = { hidden: false, required: false }; });
-  return { version: 1, picklists, customFields: [], fields, modifiedAt: null, modifiedBy: null };
+  return { version: 1, picklists, customFields: [], fields, sections: ensureSections(null), dupRules: { email: true, phone: true }, modifiedAt: null, modifiedBy: null };
 }
 // fills anything missing (older stored settings, a new built-in list) without touching what an Admin changed
 export function ensureSettings(s) {
@@ -73,6 +74,9 @@ export function ensureSettings(s) {
   s.picklists ||= {}; PICKLISTS.forEach((p) => { if (!Array.isArray(s.picklists[p.key]) || !s.picklists[p.key].length) s.picklists[p.key] = d.picklists[p.key]; });
   s.customFields = Array.isArray(s.customFields) ? s.customFields : [];
   s.fields ||= {}; ['person', 'account'].forEach((sc) => { s.fields[sc] ||= {}; Object.entries(d.fields[sc]).forEach(([k, v]) => { if (!s.fields[sc][k]) s.fields[sc][k] = { ...v }; }); });
+  s.sections = ensureSections(s.sections);   // Nov 3 (b): layout sections (video 8)
+  if (!s.dupRules || typeof s.dupRules !== 'object') s.dupRules = { email: true, phone: true };   // Clients & Leads: no duplicate email / phone across both modules
+  s.dupRules.email = true;
   s.version ||= 1; return s;
 }
 
@@ -139,9 +143,14 @@ export function moveOption(list, value, to) {
 // ---------- custom field values ----------
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const realDate = (s) => { if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false; const [y, m, d] = s.split('-').map(Number); const t = new Date(y, m - 1, d); return t.getFullYear() === y && t.getMonth() === m - 1 && t.getDate() === d; };
-export const isBlankValue = (v) => v == null || v === '' || v === false;
+export const isBlankValue = (v) => v == null || v === '' || v === false || (Array.isArray(v) && !v.length);
 // one value in -> the stored value (or throws a message naming the field). current = what the record holds now (a retired dropdown option may stay).
-export function cleanCustomValue(def, v, current, { phone } = {}) {
+export function cleanCustomValue(def, v, current, opts = {}) {
+  if (COMPUTED_TYPES.includes(def.type) || FILE_TYPES.includes(def.type)) return current === undefined ? null : current;   // filled by the CRM / by an upload, never typed
+  const nv = cleanNewValue(def, v, current, opts); if (nv !== undefined) return nv;
+  const out = cleanOldValue(def, v, current, opts); checkMaxChars(def, out); return out;
+}
+function cleanOldValue(def, v, current, { phone } = {}) {
   const L = def.label; const s = typeof v === 'string' ? v.trim() : v;
   if (def.type === 'checkbox') return v === true || v === 1 || ['1', 'on', 'true', 'yes'].includes(String(v).toLowerCase());
   if (s == null || s === '') return null;
@@ -165,6 +174,7 @@ export function cleanCustomValue(def, v, current, { phone } = {}) {
 // display text of a stored value (escaped by the screens' html``; never raw HTML)
 export function customDisplay(def, v, fmt = {}) {
   if (def.type === 'checkbox') return v ? 'Yes' : 'No';
+  const nd = newDisplay(def, v, fmt); if (nd !== undefined) return nd;
   if (v == null || v === '') return '';
   if (def.type === 'dropdown') { const o = (def.options || []).find((z) => z.value === String(v)); return o ? (o.retired ? `${o.label} (retired)` : o.label) : String(v); }
   if (def.type === 'currency') return fmt.money ? fmt.money(v) : '$' + Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -177,8 +187,19 @@ export const fieldsInSection = (cfg, entity, section) => activeFields(cfg, entit
 export const builtinHidden = (cfg, scope, key) => !!(cfg && cfg.fields && cfg.fields[scope] && cfg.fields[scope][key] && cfg.fields[scope][key].hidden);
 export const builtinRequired = (cfg, key) => (cfg && cfg.fields && cfg.fields.person && cfg.fields.person[key] ? !!cfg.fields.person[key].required : REQUIRED_DEFAULT.includes(key));
 // list rows for the screens: custom values flattened to cf_<id> (dropdown: stored value; checkbox: 'yes' / 'no'), for filters, sorting and CSV
-export function flattenCustom(cfg, entity, row) {
+export function flattenCustom(cfg, entity, row, fmt = {}) {
   const out = { ...row }; activeFields(cfg, entity).forEach((f) => { const v = (row.custom || {})[f.id];
-    out[cfKey(f.id)] = f.type === 'checkbox' ? (v ? 'yes' : 'no') : v == null ? '' : v; out[cfKey(f.id) + '_text'] = customDisplay(f, v); });
+    out[cfKey(f.id)] = f.type === 'checkbox' ? (v ? 'yes' : 'no') : f.type === 'address' ? addressText(v) : v == null ? '' : v; out[cfKey(f.id) + '_text'] = customDisplay(f, v, fmt); });
   return out;
 }
+
+// Nov 3 (b): custom values from a form. 'cf.<id>' = one value; 'cf.<id>.ms' (marker) + 'cf.<id>.ms.<option>' = multi select; 'cf.<id>.a.<part>' = address parts.
+export function gatherCustom(input) {
+  const given = { ...(input && input.custom && typeof input.custom === 'object' ? input.custom : {}) };
+  Object.keys(input || {}).forEach((k) => { if (!k.startsWith('cf.')) return; const [id, kind, ...rest] = k.slice(3).split('.'); const tail = rest.join('.');
+    if (!kind) given[id] = input[k];
+    else if (kind === 'ms') { if (!Array.isArray(given[id])) given[id] = []; if (tail && input[k]) given[id].push(tail); }
+    else if (kind === 'a') { if (!given[id] || typeof given[id] !== 'object' || Array.isArray(given[id])) given[id] = {}; given[id][tail] = input[k]; } });
+  return given;
+}
+
