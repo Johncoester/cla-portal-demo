@@ -1,8 +1,8 @@
 // Type-to-search person picker (John, Nov 2): replaces the long contact dropdowns for Buyer, Seller, Buyer Agent and Listing Agent.
 // Searches name, email, phone (digits) and company / brokerage as you type; arrow keys + Enter or a click select; Escape closes.
 // Only the first MAX matches are drawn, so it stays fast with thousands of contacts. The chosen contact id goes into a hidden input (name = the field).
-import { html, toText, $ } from '../ui.js?v=202611031426';
-import { fmtPhone, contactTypeLabel } from '../data/constants.js?v=202611031426';
+import { html, toText, $ } from '../ui.js?v=202611031525';
+import { fmtPhone, contactTypeLabel } from '../data/constants.js?v=202611031525';
 
 const MAX = 25;
 const digits = (s) => String(s || '').replace(/\D/g, '');
@@ -21,7 +21,7 @@ export const pickerHtml = (name, label, { hint = 'Type a name, email, phone or b
   <div class="picker-chosen muted small" data-chosen></div></div>`;
 
 // el = the .picker element; source() = the current list of people to search (may change, e.g. after "Add new user")
-export function mountPicker(el, source) {
+export function mountPicker(el, source, { onSet } = {}) {   // onSet(contact) after a pick (Matt, Nov 3 (b): Lender fills its phone / email)
   const q = $('.picker-q', el); const hid = $('input[type=hidden]', el); const ul = $('.picker-list', el); const chosen = $('[data-chosen]', el);
   let hits = []; let active = -1;
   const close = () => { ul.hidden = true; q.setAttribute('aria-expanded', 'false'); active = -1; };
@@ -31,7 +31,7 @@ export function mountPicker(el, source) {
       : html`<li class="muted small" data-none>No match. Use "Add new user" below to add this person.</li>`);
     ul.hidden = false; q.setAttribute('aria-expanded', 'true'); };
   const set = (c) => { hid.value = c ? c.id : ''; q.value = c ? personLabel(c) : ''; chosen.textContent = c ? `Selected: ${personLabel(c)}${detail(c) ? ' (' + detail(c) + ')' : ''}` : '';
-    el.toggleAttribute('data-selected', !!c); close(); };
+    el.toggleAttribute('data-selected', !!c); close(); if (onSet && c) onSet(c); };
   q.addEventListener('input', () => { if (hid.value) { hid.value = ''; chosen.textContent = ''; el.removeAttribute('data-selected'); } active = 0; draw(); });
   q.addEventListener('focus', () => { if (!hid.value) draw(); });
   q.addEventListener('keydown', (e) => {

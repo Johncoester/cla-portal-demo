@@ -1,11 +1,11 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611031426';
-import { localDate } from './constants.js?v=202611031426';
-import { featureFlags } from './features.js?v=202611031426';
-import { fieldsForRole } from './templates.js?v=202611031426';
-import { crmSupabase } from './supabase-crm.js?v=202611031426';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611031525';
+import { localDate } from './constants.js?v=202611031525';
+import { featureFlags } from './features.js?v=202611031525';
+import { fieldsForRole } from './templates.js?v=202611031525';
+import { crmSupabase } from './supabase-crm.js?v=202611031525';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned; vendor locally before go-live
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -62,7 +62,12 @@ export async function createSupabaseAdapter(cfg) {
       d.participants = (ok(await sb.rpc('deal_contacts', { p_deal: id })) || []).map((r) => ({ id: r.participant_id, dealId: r.deal_id, contactId: r.contact_id, role: r.role,
         contact: { id: r.contact_id, profileId: r.profile_id, firstName: r.first_name, lastName: r.last_name, company: r.company, email: r.email, phone: r.phone, contactHidden: r.contact_hidden } }));
       const ct = await types(d.participants.map((p) => p.contactId)); d.participants.forEach((p) => { p.contact.contactType = ct.get(p.contactId) || null; });
-      Object.assign(d, salesFields((await salesMap(id)).get(id))); d.county = d.county || ''; d.fileTitle = (await titles(id)).get(id) || ''; return withRole(d, roles.get(d.id), pm); },
+      Object.assign(d, salesFields((await salesMap(id)).get(id))); d.county = d.county || ''; d.fileTitle = (await titles(id)).get(id) || '';
+      // Matt, Nov 3b (migration 31): buyer / seller entities (rep phone / email blank for the other side) + Source of business (CLA staff only; empty otherwise)
+      const ents = new Map((ok(await sb.rpc('deal_entities', { p_deal: id })) || []).map((r) => [r.participant_id, { name: r.name, type: r.entity_type || '', repName: r.rep_name || '', repTitle: r.rep_title || '', repPhone: r.rep_phone || '', repEmail: r.rep_email || '' }]));
+      d.participants.forEach((p) => { p.entity = ents.get(p.id) || null; });
+      const src = (ok(await sb.rpc('deal_source', { p_deal: id })) || [])[0]; d.sourceOfBusiness = src ? src.value : ''; d.sourceOfBusinessLabel = src ? src.label : '';
+      return withRole(d, roles.get(d.id), pm); },
     // John, Nov 2 (migration 19): several salespeople per order; the Processor and Admins add/remove them (RPCs check the role + file access)
     async listProcessors() { return camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status').eq('role', 'Processor').eq('status', 'active').order('first_name')))
       .map((p) => ({ ...p, name: `${p.firstName} ${p.lastName}` })); },
@@ -71,8 +76,10 @@ export async function createSupabaseAdapter(cfg) {
       const { data: { user } } = await sb.auth.getUser(); const num = (v) => (v === '' || v == null ? null : Number(String(v).replace(/[$,\s]/g, '')));
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
         open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: num(input.purchasePrice), loan_amount: num(input.loanAmount),
-        emd_amount: num(input.emdAmount), emd_due_date: input.emdDueDate || null, notes: input.notes || '', processor_id: input.processorId || user.id, created_by: user.id };
+        emd_amount: num(input.emdAmount), emd_due_date: input.emdDueDate || null, notes: input.notes || '', processor_id: input.processorId || user.id, created_by: user.id,
+        lender_name: input.lenderName || '', lender_contact: input.lenderContact || '', lender_phone: input.lenderPhone || '', lender_email: String(input.lenderEmail || '').trim().toLowerCase() };   // Matt, Nov 3b: lender phone / email at placement
       const d = camel(ok(await sb.from('deals').insert(row).select().single()));
+      if (String(input.sourceOfBusiness || '').trim()) ok(await sb.rpc('set_deal_source', { p_deal: d.id, p_source: input.sourceOfBusiness }));   // migration 31 (staff-only table)
       const ids = [].concat(input.salesIds || []).filter(Boolean); if (ids.length) ok(await sb.rpc('set_deal_sales_people', { p_deal: d.id, p_sales: ids }));
       return { ...d, address: `${d.street}, ${d.city}, ${d.state} ${d.zip}` }; },
     async updateDeal(id, patch) {
@@ -82,7 +89,9 @@ export async function createSupabaseAdapter(cfg) {
       for (const [k, col] of Object.entries(map)) if (patch[k] !== undefined) { const v = patch[k];
         row[col] = money.has(col) ? (v === '' || v == null ? null : Number(String(v).replace(/[$,\s]/g, ''))) : dates.has(col) ? (v || null) : v; }
       if (row.open_date === null) delete row.open_date;
-      ok(await sb.from('deals').update(row).eq('id', id)); if (patch.salesIds !== undefined) ok(await sb.rpc('set_deal_sales_people', { p_deal: id, p_sales: [].concat(patch.salesIds || []) }));
+      if (Object.keys(row).length) ok(await sb.from('deals').update(row).eq('id', id));
+      if (patch.sourceOfBusiness !== undefined) ok(await sb.rpc('set_deal_source', { p_deal: id, p_source: patch.sourceOfBusiness || '' }));
+      if (patch.salesIds !== undefined) ok(await sb.rpc('set_deal_sales_people', { p_deal: id, p_sales: [].concat(patch.salesIds || []) }));
       return a.getDeal(id); },
     // contacts: unique email (contacts_email_uq); a new contact has no login and no invite is sent
     async createContact(input) { return camel(ok(await sb.from('contacts').insert({ first_name: input.firstName, last_name: input.lastName || '', email: String(input.email || '').toLowerCase(),
@@ -91,7 +100,11 @@ export async function createSupabaseAdapter(cfg) {
       if (patch[k] !== undefined) row[col] = k === 'contactType' ? (patch[k] || null) : k === 'email' ? String(patch[k] || '').toLowerCase() : patch[k];
       return camel(ok(await sb.from('contacts').update(row).eq('id', id).select().single())); },
     // participants: the triggers (migrations 10, 11, 20) enforce outside-user roles, self-representation pairs and "TC = Transaction Coordinator accounts only"
-    async addParticipant(dealId, contactId, role) { ok(await sb.from('deal_participants').insert({ deal_id: dealId, contact_id: contactId, role })); return { ok: true }; },
+    // Matt, Nov 3b: opts.entity = { name, type, repName, repTitle, repPhone, repEmail } on a buyer / seller row (set_participant_entity, migration 31)
+    async addParticipant(dealId, contactId, role, opts = {}) { const p = ok(await sb.from('deal_participants').insert({ deal_id: dealId, contact_id: contactId, role }).select('id').single());
+      if (opts && opts.entity) ok(await sb.rpc('set_participant_entity', { p_participant: p.id, p_entity: opts.entity })); return { ok: true, id: p.id }; },
+    async setParticipantEntity(dealId, participantId, entity) { return ok(await sb.rpc('set_participant_entity', { p_participant: participantId, p_entity: entity || null })); },
+    async listSourceOptions() { return ok(await sb.rpc('source_of_business_options')) || []; },
     async listCoordinators() { return ok(await sb.rpc('coordinator_choices')).map((r) => camel(r)); },
     async addDealSalesPerson(dealId, salesId) { ok(await sb.rpc('add_deal_sales_person', { p_deal: dealId, p_sales: salesId })); return (await a.getDeal(dealId)).salesPeople; },
     async removeDealSalesPerson(dealId, salesId) { ok(await sb.rpc('remove_deal_sales_person', { p_deal: dealId, p_sales: salesId })); return (await a.getDeal(dealId)).salesPeople; },

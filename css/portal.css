@@ -158,6 +158,11 @@ a.active-link { font-weight: 700; text-decoration: underline; } tr.overdue td { 
 /* John, Nov 2: several buyers / sellers on Place Order, file title (Buyer names / Seller names) */
 .multi-party .multi-row { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 6px; }
 .multi-party .multi-row .picker { flex: 1; }
+/* Matt, Nov 3 (b): entity details under a buyer / seller row, Lender phone / email, the flipped task grid (scrolls sideways), Intake by person */
+.multi-party .entity-panel { margin: 0 0 10px 12px; padding: 6px 10px; border-left: 3px solid #ccc; } .entity-line { margin-bottom: 2px; }
+.grid-scroll { overflow-x: auto; } .grid-scroll th[data-sort] { vertical-align: bottom; }
+.intake-party { border: 1px solid #ddd; border-radius: 4px; margin: 0 0 8px; padding: 4px 10px; } .intake-party > summary { cursor: pointer; padding: 4px 0; }
+.intake-party .intake-form { margin: 6px 0 10px 12px; }
 .file-title { font-weight: 600; margin-left: 8px; }
 .sum-card .person + .person { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #ddd; }
 /* Matt, Nov 3: sortable Open Orders column headers (up / down arrows; the lit one shows the current direction) */

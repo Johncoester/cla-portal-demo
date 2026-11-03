@@ -4,7 +4,7 @@
  * Deliberately NOT collected: SSNs (the old portal asked for them; that needs a separate secure decision).
  * DELEGATION: agentRoles = which agent roles may fill a CLIENT's copy for them (only the agent on the client's own side, on that order).
  * Admin / processor change it on the Task Templates page (setTemplateAgentRoles). Personal items can never be delegated: see delegationLocked(). */
-import { isRealDate, phoneOk, fmtPhone, PHONE_MSG, routingOk, accountOk } from './constants.js?v=202611031426';
+import { isRealDate, phoneOk, fmtPhone, PHONE_MSG, routingOk, accountOk } from './constants.js?v=202611031525';
 const yn = ['Yes', 'No'];
 const F = (k, label, type, req = false, extra = {}) => ({ k, label, type, req, ...extra });
 const none = (label) => F('none', label, 'checkbox');
@@ -36,6 +36,15 @@ export const ENTITY_FIELDS = [F('is_entity', 'Add entity (I am buying / selling 
   ...ENTITY_DOCS.map(([k, label, docType]) => F(k, label, 'doc', false, { when: ENT, docType }))];
 const PERSONAL_V3 = [...PERSONAL_V1, F('settlement_type', 'In-person or online settlement?', 'select', true, { opts: ['In person', 'Online'], roles: ['Client-Seller'] }),
   ...POA_FIELDS, ...ENTITY_FIELDS, F('notes', 'Anything else we should know?', 'textarea')];
+// ---- Matt, Nov 3 (b) (migration 31, storage v23): "Entity Representative" when a buyer / seller is an entity: the person CLA deals with for the entity
+// (name, title or role, phone, email). Optional: often the same person as the authorized signer. Asked inside "+ Add entity", before the documents.
+// Place Order can record it too (per buyer / seller row); it is then pre-filled on that person's Personal information copy.
+export const ENTITY_REP_FIELDS = [F('entity_rep_name', 'Entity Representative (full name; leave blank if it is the authorized signer)', 'text', false, { when: ENT }),
+  F('entity_rep_title', "Representative's title or role", 'text', false, { when: ENT }), F('entity_rep_phone', "Representative's phone", 'phone', false, { when: ENT }),
+  F('entity_rep_email', "Representative's email", 'email', false, { when: ENT })];
+const ENTITY_FIELDS_V4 = (() => { const i = ENTITY_FIELDS.findIndex((f) => f.k === 'entity_docs_note'); return [...ENTITY_FIELDS.slice(0, i), ...ENTITY_REP_FIELDS, ...ENTITY_FIELDS.slice(i)]; })();
+const PERSONAL_V4 = [...PERSONAL_V1, F('settlement_type', 'In-person or online settlement?', 'select', true, { opts: ['In person', 'Online'], roles: ['Client-Seller'] }),
+  ...POA_FIELDS, ...ENTITY_FIELDS_V4, F('notes', 'Anything else we should know?', 'textarea')];
 // Plain-English vesting explanations ("What do these mean?" button on Title vesting). General information only, not legal advice.
 export const VESTING_TYPES = [
   ['Sole owner', 'One person owns the property alone. Only that person signs to sell or borrow against it, and when they die it passes under their will (or state law if there is no will).'],
@@ -61,6 +70,10 @@ export const TEMPLATE_DEFS = [
   { code: 'personal_info', version: 3, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 26,
     description: 'Contact details and closing preferences, power of attorney, and whether you are buying or selling as an entity (LLC, corporation, partnership or trust).',
     fields: PERSONAL_V3 },
+  // ---- Matt, Nov 3 (b) (migration 31): + Entity Representative inside "+ Add entity" ----
+  { code: 'personal_info', version: 4, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 31,
+    description: 'Contact details and closing preferences, power of attorney, and whether you are buying or selling as an entity (LLC, corporation, partnership or trust) and who represents it.',
+    fields: PERSONAL_V4 },
   { code: 'title_vesting', version: 2, title: 'Title vesting', roles: ['Client-Buyer'], dueDays: 10, agentRoles: [], migration: 26, description: 'How the buyer(s) will hold title.',
     fields: [F('vesting_names', 'Name(s) exactly as they should appear on the deed', 'textarea', true),
       F('vesting_type', 'Manner of holding title', 'select', true, { opts: VESTING_TYPES.map(([o]) => o), help: VESTING_HELP }),
@@ -170,4 +183,35 @@ export function applyNov3Templates(d, { at = new Date().toISOString(), by = null
       .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
   }
   return { added, moved };
+}
+
+/* Matt, Nov 3 (b) (storage v23 / migration 31): same rule as applyNov3Templates for the templates tagged `migration: 31` (personal_info v4 = + Entity
+ * Representative). Recognised by its marker field (entity_rep_name), numbered after any later Admin version, agent-delegation policy carried over; untouched
+ * copies (todo, nothing saved) of OLDER versions move onto it while it is the active version. Idempotent. Mirrored in SQL (migration 31). */
+export const NOV3B_MARKERS = { personal_info: 'entity_rep_name' };
+export function applyNov3bTemplates(d, { at = new Date().toISOString(), by = null } = {}) {
+  const added = []; let moved = 0;
+  for (const def of TEMPLATE_DEFS.filter((t) => t.migration === 31)) {
+    const vs = d.taskTemplates.filter((t) => t.code === def.code); let nt = vs.find((t) => hasMarker(t, NOV3B_MARKERS[def.code]));
+    if (!nt) {
+      const top = vs.slice().sort((a, b) => b.version - a.version)[0]; const version = top ? Math.max(top.version + 1, def.version) : def.version;
+      nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: top ? [...(top.agentRoles || [])] : [...def.agentRoles], active: true, publishedBy: by, publishedAt: at };
+      if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-nov3b`;
+      vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
+    }
+    if (!nt.active) continue;
+    d.tasks.filter((t) => t.templateCode === def.code && t.templateId !== nt.id && t.kind === 'form' && t.status === 'todo' && !t.savedAt && !Object.keys(t.formData || {}).length
+      && (d.taskTemplates.find((z) => z.id === t.templateId) || { version: 0 }).version < nt.version)
+      .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
+  }
+  return { added, moved };
+}
+// Place Order entity (participant.entity) -> answers pre-filled on that person's Personal information copy (only when the copy has no answers yet)
+export const ENTITY_TYPES_SET = new Set(ENTITY_TYPES);
+export function entityPrefill(entity, fields) {
+  if (!entity || !entity.name) return null; const keys = new Set((fields || []).map((f) => f.k)); if (!keys.has('is_entity')) return null;
+  const out = { is_entity: true, entity_name: entity.name };
+  if (entity.type && ENTITY_TYPES_SET.has(entity.type)) out.entity_type = entity.type;
+  [['repName', 'entity_rep_name'], ['repTitle', 'entity_rep_title'], ['repPhone', 'entity_rep_phone'], ['repEmail', 'entity_rep_email']].forEach(([a, k]) => { if (entity[a] && keys.has(k)) out[k] = entity[a]; });
+  return out;
 }

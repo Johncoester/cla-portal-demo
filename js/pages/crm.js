@@ -1,17 +1,17 @@
 // crm.js : the CRM (John, Nov 2). Routes #/crm/<section>[/<id>]: home (default), leads, contacts (= Clients), accounts (= Companies), pipeline, reports,
 // tasks/<id>, meetings/<id>; followups (older link) shows Home. Labels follow John's Zoho (Clients / Companies); internal names stay contacts / accounts.
 // Reachable only when the `crm` feature flag is on (app.js never loads this module otherwise) and only for CLA staff (adapter refuses others).
-import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611031426';
-import { CONTACT_TYPES, contactTypeLabel, US_STATES } from '../data/constants.js?v=202611031426';
-import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611031426';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin } from './crm-kit.js?v=202611031426';
-import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611031426';
-import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch } from './crm-custom.js?v=202611031426';
-import { settingsPage } from './crm-settings.js?v=202611031426';
-import { personModal, personView, relatedHtml, wireRelated } from './crm-forms.js?v=202611031426';
-import { pipelinePage, reportsPage } from './crm-more.js?v=202611031426';
-import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611031426';
-import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611031426';
+import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611031525';
+import { CONTACT_TYPES, contactTypeLabel, US_STATES } from '../data/constants.js?v=202611031525';
+import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611031525';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin } from './crm-kit.js?v=202611031525';
+import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611031525';
+import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch } from './crm-custom.js?v=202611031525';
+import { settingsPage } from './crm-settings.js?v=202611031525';
+import { personModal, personView, relatedHtml, wireRelated } from './crm-forms.js?v=202611031525';
+import { pipelinePage, reportsPage } from './crm-more.js?v=202611031525';
+import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611031525';
+import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611031525';
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
 const archivedOpts = [['only', 'Archived only'], ['all', 'Active + archived']];

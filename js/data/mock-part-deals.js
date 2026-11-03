@@ -1,4 +1,5 @@
 /* mock adapter, part 1: auth, profile, dashboard, deals. See mock-adapter.js. */
+import { checkSource } from './mock-part-nov3b.js?v=202611031525';
 export function dealsAndAuth(x) {
   const { load, save, nid, me, needUser, needProcessor, contactOf, dealsFor, dealOr404, log, nameOf, dealView, taskVisible, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
@@ -71,7 +72,10 @@ export function dealsAndAuth(x) {
       const deal = { id: nid('deal'), fileNumber: `MD-26-${nextNum}`, street, city, state, zip, county, transactionType, stage: 0, status: 'Open',
         openDate, closingDate: dateOrNull(input.closingDate, 'Closing date'), purchasePrice: money(input.purchasePrice, 'Purchase price'), loanAmount: money(input.loanAmount, 'Loan amount'),
         emdAmount: money(input.emdAmount, 'EMD amount'), emdDueDate: dateOrNull(input.emdDueDate, 'EMD due date'),
-        lenderName: '', lenderContact: '', lenderEmail: '', lenderPhone: '', notes: str(input.notes, 2000), processorId: procId, createdBy: u.id, createdAt: now() };
+        // Matt, Nov 3 (b): lender phone + email (and the picked lender's name / company) and the source of business are set at placement
+        lenderName: str(input.lenderName, 200), lenderContact: str(input.lenderContact, 200), lenderEmail: str(input.lenderEmail, 200).toLowerCase(), lenderPhone: x.phone(input.lenderPhone, 'Lender phone'),
+        sourceOfBusiness: checkSource(d, input.sourceOfBusiness, '', fail), notes: str(input.notes, 2000), processorId: procId, createdBy: u.id, createdAt: now() };
+      if (deal.lenderEmail && !emailOk(deal.lenderEmail)) fail('Lender email is not valid.');
       d.deals.push(deal);
       const pc = contactOf(procId); if (pc) d.participants.push({ id: nid('dp'), dealId: deal.id, contactId: pc.id, role: 'Processor', createdAt: now() });
       x.DEAL_FOLDERS.forEach((name) => d.folders.push({ id: nid('f'), scope: 'deal', dealId: deal.id, name, staffOnly: false, createdBy: u.id, createdAt: now() }));
@@ -98,6 +102,7 @@ export function dealsAndAuth(x) {
       // John, Nov 2: earnest money deposit (optional; amount >= 0)
       if (patch.emdAmount !== undefined) q.emdAmount = money(patch.emdAmount, 'EMD amount');
       if (patch.emdDueDate !== undefined) q.emdDueDate = dateOrNull(patch.emdDueDate, 'EMD due date');
+      if (patch.sourceOfBusiness !== undefined) q.sourceOfBusiness = checkSource(load(), patch.sourceOfBusiness, q.sourceOfBusiness, fail);   // Matt, Nov 3 (b)
       if (patch.processorId) { checkProcessor(patch.processorId); if (patch.processorId !== q.processorId) { q.processorId = patch.processorId; log(id, u.id, 'deal.processor', 'deal', id, `Processor set to ${nameOf(q.processorId)}`); } }
       if (patch.salesIds !== undefined || patch.salesPersonId !== undefined) { const ids = salesList(patch); ids.forEach((sid) => { if (!x.salesOf(id).some((s) => s.salesId === sid)) checkSales(sid); }); setSales(u, id, ids); }
       log(id, u.id, 'deal.updated', 'deal', id, 'Order details updated'); save(); return clone(dealView(u, q));

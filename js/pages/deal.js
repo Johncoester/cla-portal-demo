@@ -1,11 +1,12 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611031426';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES } from '../data/constants.js?v=202611031426';
-import { slotText } from './dealclosing.js?v=202611031426';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611031426';
-import { composeModal } from './compose.js?v=202611031426';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611031525';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES } from '../data/constants.js?v=202611031525';
+import { slotText } from './dealclosing.js?v=202611031525';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611031525';
+import { composeModal } from './compose.js?v=202611031525';
+import { moneyShow, moneyClean } from './money-input.js?v=202611031525';
 
-const TABS = { tasks: './dealtasks.js?v=202611031426', inbox: './dealmsgs.js?v=202611031426', documents: './dealdocs.js?v=202611031426', contacts: './dealcontacts.js?v=202611031426', activity: './dealactivity.js?v=202611031426', closing: './dealclosing.js?v=202611031426', agreements: './dealagreements.js?v=202611031426' };
+const TABS = { tasks: './dealtasks.js?v=202611031525', inbox: './dealmsgs.js?v=202611031525', documents: './dealdocs.js?v=202611031525', contacts: './dealcontacts.js?v=202611031525', activity: './dealactivity.js?v=202611031525', closing: './dealclosing.js?v=202611031525', agreements: './dealagreements.js?v=202611031525' };
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -13,7 +14,7 @@ export async function render(ctx) {
   // per-file roles: on this order an outside user acts as their role HERE (deal.myRole), e.g. Buyer Agent here, Client-Buyer elsewhere
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611031426' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611031525' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
@@ -26,7 +27,9 @@ export async function render(ctx) {
 
 // opposing side (outside viewers): the adapter sends no phone/email; say where to go instead
 export const HIDDEN_CONTACT = 'Contact through CLA Title';
-const person = (p) => (p ? html`<div class="person" data-person="${p.contactId}"><strong>${p.contact.firstName} ${p.contact.lastName}${p.removed ? ' (removed)' : ''}</strong>${p.contact.contactHidden ? html`<br><span class="muted contact-hidden">${HIDDEN_CONTACT}</span>` : html`<br><span class="muted">${p.contact.email}</span><br><span class="muted">${fmtPhone(p.contact.phone)}</span>`}${p.contact.company ? html`<br><span class="muted">${p.contact.company}</span>` : ''}</div>` : html`<div class="muted">Not specified</div>`);
+// Matt, Nov 3 (b): a buyer / seller who is an entity shows the entity and its Entity Representative (rep phone / email follow the same opposing-side rule)
+export const entityLine = (e) => (e ? html`<div class="entity-line small" data-entity="${e.name}">Entity: <strong>${e.name}</strong>${e.type ? ` (${e.type})` : ''}${e.repName || e.repTitle || e.repPhone || e.repEmail ? html`<br>Entity Representative: ${[e.repName, e.repTitle].filter(Boolean).join(', ') || '\u2014'}${e.repPhone || e.repEmail ? html`<br><span class="muted">${[fmtPhone(e.repPhone), e.repEmail].filter(Boolean).join(' \u00b7 ')}</span>` : ''}` : ''}</div>` : '');
+const person = (p) => (p ? html`<div class="person" data-person="${p.contactId}">${entityLine(p.entity)}<strong>${p.contact.firstName} ${p.contact.lastName}${p.removed ? ' (removed)' : ''}</strong>${p.contact.contactHidden ? html`<br><span class="muted contact-hidden">${HIDDEN_CONTACT}</span>` : html`<br><span class="muted">${p.contact.email}</span><br><span class="muted">${fmtPhone(p.contact.phone)}</span>`}${p.contact.company ? html`<br><span class="muted">${p.contact.company}</span>` : ''}</div>` : html`<div class="muted">Not specified</div>`);
 // John, Nov 2: several buyers / sellers. Each is listed; the Processor / Admins can add another one here (removing stays on the Contacts tab, as before).
 const people = (ps) => (ps.length ? html`${ps.map((p) => person(p))}` : person(null));
 const card = (title, inner) => html`<fieldset class="sum-card"><legend>${title}</legend>${inner}</fieldset>`;
@@ -39,7 +42,7 @@ function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = []) {
   const tracker = STAGES.map((s, i) => html`<li class="${i < d.stage ? 'done' : i === d.stage ? 'current' : ''}"><button type="button" class="step" ${edit ? '' : raw('disabled')} data-stage="${i}" title="${edit ? 'Set stage' : s}"></button><span>${s}</span></li>`);
   const team = d.participants.filter((p) => ['Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(p.role));
   // John, Nov 2: when the lender fields are empty, show the order's Lender contact (e.g. added through Place Order's Add new user)
-  const lender = d.lenderName || d.lenderContact ? html`<div><strong>${d.lenderName}</strong><br>${d.lenderContact}<br><span class="muted">${d.lenderEmail} ${fmtPhone(d.lenderPhone)}</span></div>` : by('Lender') ? person(by('Lender')) : html`<div class="muted">Not specified</div>`;
+  const lender = d.lenderName || d.lenderContact || d.lenderEmail || d.lenderPhone ? html`<div><strong>${d.lenderName}</strong><br>${d.lenderContact}<br><span class="muted">${d.lenderEmail} ${fmtPhone(d.lenderPhone)}</span></div>` : by('Lender') ? person(by('Lender')) : html`<div class="muted">Not specified</div>`;
   const body = html`
     <div class="deal-head"><img class="home-flag" src="assets/img/order-new-icon.png" alt=""><h2>${d.street} ${d.city} ${d.state} ${d.zip}${d.county ? html` <span class="muted small" data-county-head>(${d.county} County)</span>` : ''}</h2><span class="order-no">Order # ${d.fileNumber}</span>${d.fileTitle ? html` <span class="file-title" data-file-title>${d.fileTitle}</span>` : ''}${d.agentParties && d.agentParties.length ? html` <span class="pill warn agent-party">Agent is a party</span>` : ''}
       <span class="spacer"></span>${edit ? html`<select id="statussel" aria-label="Order status">${options(DEAL_STATUSES, d.status)}</select>` : pill(d.status, d.status === 'Open' ? 'ok' : '')}</div>
@@ -57,14 +60,14 @@ function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = []) {
     <div class="box-title"><h2><span class="h-ico"></span>Summary</h2></div>
     <div class="sum-grid">${card(all('Client-Buyer').length > 1 ? `Buyer Information (${all('Client-Buyer').length} buyers)` : 'Buyer Information', html`<div data-party-list="Client-Buyer">${people(all('Client-Buyer'))}</div>${edit ? html`<button type="button" class="ghost" data-add-party="Client-Buyer">+ Add buyer</button>` : ''}`)}${card(all('Client-Seller').length > 1 ? `Seller Information (${all('Client-Seller').length} sellers)` : 'Seller Information', html`<div data-party-list="Client-Seller">${people(all('Client-Seller'))}</div>${edit ? html`<button type="button" class="ghost" data-add-party="Client-Seller">+ Add seller</button>` : ''}`)}
       ${card('Buyer Agent Representation', person(by('Buyer Agent')))}${card('Listing Agent Representation', person(by('Listing Agent')))}
-      ${card('Lender Information', lender)}${card('CLA Title Information', html`<div>Processor: <strong>${d.processorName}</strong><br>Salespeople: ${(d.salesPeople || []).length ? (d.salesPeople || []).map((s, i) => html`${i ? ', ' : ''}<span class="nowrap" data-sales-person="${s.id}">${s.name}${edit ? html` <button class="ghost" data-rm-sales="${s.id}" title="Remove from this order" aria-label="Remove ${s.name}">&times;</button>` : ''}</span>`) : 'Not specified'}${edit && salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)).length ? html`<br><select id="addsales" aria-label="Add a salesperson"><option value="">+ Add salesperson&hellip;</option>${options(salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)), '', (s) => `${s.firstName} ${s.lastName} (${s.role})`, (s) => s.id)}</select>` : ''}<br>${team.filter((p) => p.role === 'Transaction Coordinator').map((p) => html`Transaction coordinator: ${p.contact.firstName} ${p.contact.lastName}<br>`)}</div>`)}</div>
+      ${card('Lender Information', lender)}${card('CLA Title Information', html`<div>Processor: <strong>${d.processorName}</strong><br>Salespeople: ${(d.salesPeople || []).length ? (d.salesPeople || []).map((s, i) => html`${i ? ', ' : ''}<span class="nowrap" data-sales-person="${s.id}">${s.name}${edit ? html` <button class="ghost" data-rm-sales="${s.id}" title="Remove from this order" aria-label="Remove ${s.name}">&times;</button>` : ''}</span>`) : 'Not specified'}${edit && salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)).length ? html`<br><select id="addsales" aria-label="Add a salesperson"><option value="">+ Add salesperson&hellip;</option>${options(salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)), '', (s) => `${s.firstName} ${s.lastName} (${s.role})`, (s) => s.id)}</select>` : ''}<br>${team.filter((p) => p.role === 'Transaction Coordinator').map((p) => html`Transaction coordinator: ${p.contact.firstName} ${p.contact.lastName}<br>`)}${staffView ? html`<span data-source-of-business>Source of business: <strong>${d.sourceOfBusinessLabel || 'Not set'}</strong></span>` : ''}</div>`)}</div>
     ${d.notes ? html`<div class="card"><h3>Notes</h3><p>${d.notes}</p></div>` : ''}
     <div class="box-title"><h2><span class="h-ico"></span>Order Contacts</h2><a class="ghost right" href="#/deals/${d.id}/contacts">All contacts</a></div>
     <table class="tbl striped"><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th></tr></thead><tbody>${d.participants.map((p) => html`<tr><td>${p.contact.firstName} ${p.contact.lastName}${p.removed ? html` ${pill('removed', 'bad')}` : ''}</td><td>${p.role}</td>${p.contact.contactHidden ? html`<td colspan="2" class="muted contact-hidden">${HIDDEN_CONTACT}</td>` : html`<td>${fmtPhone(p.contact.phone)}</td><td>${p.contact.email}</td>`}</tr>`)}</tbody></table>`;
   return { title: d.fileNumber, crumbs: [...crumbs, ['Order Details']], body, mount(root) {
     $$('.step', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.setStage(d.id, b.dataset.stage); toast('Stage updated'); refresh(); })));
     const ss = $('#statussel', root); if (ss) ss.addEventListener('change', guard(async () => { await api.setDealStatus(d.id, ss.value); toast('Status updated'); refresh(); }));
-    const eb = $('#editdeal', root); if (eb) eb.addEventListener('click', () => editModal(api, d, refresh));
+    const eb = $('#editdeal', root); if (eb) eb.addEventListener('click', guard(() => editModal(api, d, refresh)));
     const as = $('#addsales', root); if (as) as.addEventListener('change', guard(async () => { if (!as.value) return; await api.addDealSalesPerson(d.id, as.value); toast('Salesperson added'); refresh(); }));
     $$('[data-rm-sales]', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.removeDealSalesPerson(d.id, b.dataset.rmSales); toast('Salesperson removed'); refresh(); })));
     const wb = $('#wirebtn', root); if (wb) wb.addEventListener('click', guard(() => wireModal(api, d)));
@@ -83,19 +86,24 @@ async function wireModal(api, d) {
     <div><button type="button" class="ghost" data-close>Close</button></div>`, { wide: true });
 }
 
-function editModal(api, d, refresh) {
+async function editModal(api, d, refresh) {
   const v = (k) => d[k] == null ? '' : d[k];
+  // Matt, Nov 3 (b): source of business (CRM Settings Lead Source list; a retired / renamed value already on the order stays selectable) + money with commas
+  const src = api.listSourceOptions ? await api.listSourceOptions().catch(() => []) : []; const srcOpts = [...src];
+  if (d.sourceOfBusiness && !srcOpts.some((o) => o.value === d.sourceOfBusiness)) srcOpts.push({ value: d.sourceOfBusiness, label: d.sourceOfBusinessLabel || d.sourceOfBusiness });
   const m = modal('Edit order details', html`<form id="edf" class="form-grid">
     <label class="span2">Street<input name="street" required value="${v('street')}"></label><label>City<input name="city" required value="${v('city')}"></label>
     <label>State<select name="state" required><option value="">Select state</option>${US_STATE_NAMES.map(([c, n]) => html`<option value="${c}" ${c === d.state ? raw('selected') : ''}>${n} (${c})</option>`)}${d.state && !US_STATES.includes(d.state) ? html`<option value="${d.state}" selected>${d.state}</option>` : ''}</select></label><label>ZIP<input name="zip" value="${v('zip')}"></label><label>County<input name="county" maxlength="100" value="${v('county')}" aria-label="County"></label>
     <label>Open date<input type="date" name="openDate" required value="${v('openDate')}" max="${localDate()}"></label>    <label>Closing date<input type="date" name="closingDate" value="${v('closingDate')}"></label>
-    <label>Purchase price<input name="purchasePrice" value="${v('purchasePrice')}"></label><label>Loan amount<input name="loanAmount" value="${v('loanAmount')}"></label>
-    <label>EMD amount<input name="emdAmount" inputmode="decimal" value="${v('emdAmount')}"></label><label>EMD due date<input type="date" name="emdDueDate" value="${v('emdDueDate')}"></label>
+    <label>Purchase price<input name="purchasePrice" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.purchasePrice)}"></label><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>
+    <label>EMD amount<input name="emdAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.emdAmount)}"></label><label>EMD due date<input type="date" name="emdDueDate" value="${v('emdDueDate')}"></label>
     <h4 class="span2">Lender</h4><label>Company<input name="lenderName" value="${v('lenderName')}"></label><label>Contact<input name="lenderContact" value="${v('lenderContact')}"></label>
     <label>Email<input name="lenderEmail" value="${v('lenderEmail')}"></label><label>Phone<input name="lenderPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${v('lenderPhone')}"></label>
+    <label class="span2">Source of business<select name="sourceOfBusiness" aria-label="Source of business"><option value="">(not set)</option>${options(srcOpts, d.sourceOfBusiness || '', (o) => o.label, (o) => o.value)}</select></label>
     <label class="span2">Notes<textarea name="notes" rows="3">${v('notes')}</textarea></label>
     <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
-  $('#edf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.updateDeal(d.id, formData(e.target)); closeModal(); toast('Order saved'); refresh(); }));
+  $('#edf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); ['purchasePrice', 'loanAmount', 'emdAmount'].forEach((k) => { f[k] = moneyClean(f[k]); });
+    await api.updateDeal(d.id, f); closeModal(); toast('Order saved'); refresh(); }));
 }
 
 // John, Nov 2: add another buyer / seller to an existing order (Edit order flow). Same type-to-search picker; a new person is added on the Contacts tab.

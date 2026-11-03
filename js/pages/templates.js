@@ -1,7 +1,7 @@
 // Task templates (definitions with versions). Each participant gets a COPY that records the version it was made from.
 // Admin publishes a new version (title / description / due days); existing copies keep their version. Processor and TC can view.
-import { html, $$, guard, toast, fmtDate, pill } from '../ui.js?v=202611031426';
-import { runsOrders, isProcessor } from '../data/constants.js?v=202611031426';
+import { html, $$, guard, toast, fmtDate, pill } from '../ui.js?v=202611031525';
+import { runsOrders, isProcessor } from '../data/constants.js?v=202611031525';
 const DELEG = [['', 'No - client only'], ['Buyer Agent', 'Buyer Agent (for the buyer)'], ['Listing Agent', 'Listing Agent (for the seller)'], ['Buyer Agent,Listing Agent', 'Each side\'s agent for their own client']];
 
 export async function render({ api, user, refresh }) {

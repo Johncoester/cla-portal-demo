@@ -53,12 +53,17 @@
  *               previewCrmEmail({templateId|draft, recordId}), listCrmTemplatesFor(entity), composeCrmEmail(templateId, entity, recordId),
  *               logCrmEmailDraft(templateId, entity, recordId) ("Email drafted (not sent)" activity), sendCrmTestEmail() (always refuses).
  * There is intentionally NO deleteDocument (or folder delete) in either adapter, for anyone.
+ * Matt Nov 3b (migration 31; mock storage v23): createDeal also takes lenderName / lenderContact / lenderPhone / lenderEmail and sourceOfBusiness
+ *               (a CRM Settings Lead Source value; staff only: getDeal returns sourceOfBusiness + sourceOfBusinessLabel to CLA staff, '' to anyone else);
+ *               updateDeal accepts sourceOfBusiness. listSourceOptions() -> [{value, label}] (Processor / Admin). addParticipant(dealId, contactId, role,
+ *               {entity: {name, type, repName, repTitle, repPhone, repEmail}}) for a buyer / seller entity; setParticipantEntity(dealId, participantId, entity|null).
+ *               getDeal participants carry entity (rep phone / email blank for the other side's outside users). No API change for the task grid.
  */
 let cached = null;
 export async function getAdapter() {
   if (cached) return cached;
   const cfg = (typeof window !== 'undefined' && window.CLA_PORTAL_CONFIG) || { mode: 'mock' };
-  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611031426'); cached = await m.createSupabaseAdapter(cfg); }
-  else { const m = await import('./mock-adapter.js?v=202611031426'); cached = m.createMockAdapter(); }
+  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611031525'); cached = await m.createSupabaseAdapter(cfg); }
+  else { const m = await import('./mock-adapter.js?v=202611031525'); cached = m.createMockAdapter(); }
   return cached;
 }

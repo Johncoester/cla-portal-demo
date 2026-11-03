@@ -1,7 +1,7 @@
 // FAKE DATA ONLY. Fictional people, example.test addresses, 555 phone numbers. No real clients, no credentials.
-import { TEMPLATE_DEFS, applyNov3Templates } from './templates.js?v=202611031426';
-import { crmZohoUpgrade } from './crm.js?v=202611031426';
-import { ensureEmailTemplates } from './crm-templates.js?v=202611031426';
+import { TEMPLATE_DEFS, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611031525';
+import { crmZohoUpgrade } from './crm.js?v=202611031525';
+import { ensureEmailTemplates } from './crm-templates.js?v=202611031525';
 export const DEAL_FOLDERS = ['Contract & addenda', 'IDs & personal', 'Lender & payoff', 'HOA', 'Closing'];
 const addDays = (iso, n) => new Date(Date.parse(iso.slice(0, 10) + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 export function buildSeed() {
@@ -127,7 +127,7 @@ export function buildSeed() {
   deals.forEach((q) => { delete q.salesPersonId; });
   // Matt, Nov 3: open (untouched) personal info / title vesting copies use the new versions (POA follow-ups, entity, seller-only settlement type, vesting help)
   const seed = { version: 2, seq: 100, profiles, contacts, teams, teamMembers, deals, participants, taskTemplates, tasks, clientSalesReps, dealSalesPeople, ...crm(contacts), ...more(deals) };
-  applyNov3Templates(seed); ensureEmailTemplates(seed); return seed;   // Nov 3: + 3 fake CRM email templates, 4 shared folders, 2 signatures
+  applyNov3Templates(seed); applyNov3bTemplates(seed); ensureEmailTemplates(seed); return seed;   // Nov 3: + 3 fake CRM email templates, 4 shared folders, 2 signatures
 }
 
 function more(deals) {

@@ -1,4 +1,5 @@
 /* mock adapter: contacts, participants, documents (deal files). NOTE: there is no delete for documents, for anyone (Admin included). */
+import { cleanEntity } from './mock-part-nov3b.js?v=202611031525';
 export function contactsTasksDocs(x) {
   const { load, save, nid, needUser, needProcessor, isManager, notViewOnly, seesAll, dealsFor, dealOr404, onDeal, fileRole, log, prof, nameOf, roleOf, fullName, folderOf, docVisible, participantsOf, notify, dealProfileIds, clone, now, fail, str, emailOk, C } = x;
   const docOut = (z) => ({ ...z, wireInstructions: x.isWireDoc(z), dataUrl: undefined, hasContent: !!(z.dataUrl || z.hasFile), uploadedByName: nameOf(z.uploadedBy), uploadedByRole: x.fileRoleText(z.uploadedBy, z.dealId), folderName: (folderOf(z.folderId) || {}).name || '' });
@@ -33,7 +34,8 @@ export function contactsTasksDocs(x) {
       const p = c.profileId && prof(c.profileId); if (p) { p.firstName = c.firstName; p.lastName = c.lastName; p.phone = c.phone; }
       save(); return clone(c);
     },
-    async addParticipant(dealId, contactId, role) {
+    // Matt, Nov 3 (b): opts.entity = a buyer / seller who is an entity (name, type, Entity Representative); see cleanEntity
+    async addParticipant(dealId, contactId, role, opts = {}) {
       const u = needProcessor(); const d = load(); d.deals.find((z) => z.id === dealId) || fail('Order not found.');
       if (!C.PARTICIPANT_ROLES.includes(role)) fail('Unknown role.'); const c = d.contacts.find((z) => z.id === contactId) || fail('Contact not found.');
       if (d.participants.some((p) => p.dealId === dealId && p.contactId === contactId && p.role === role)) fail('That person already has this role on the order.');
@@ -49,7 +51,8 @@ export function contactsTasksDocs(x) {
       // John, Nov 2: a file's Transaction Coordinator must be an ACTIVE user whose account role is exactly 'Transaction Coordinator' (not a Processor, salesperson, agent or a contact without a login)
       if (role === 'Transaction Coordinator' && !(login && login.status === 'active' && login.role === 'Transaction Coordinator'))
         fail('Only an active user with the Transaction Coordinator role can be the Transaction Coordinator on an order.');
-      const p = { id: nid('dp'), dealId, contactId, role, createdAt: now() }; d.participants.push(p);
+      const entity = cleanEntity(opts && opts.entity, role, x);
+      const p = { id: nid('dp'), dealId, contactId, role, createdAt: now(), ...(entity ? { entity } : {}) }; d.participants.push(p);
       log(dealId, u.id, 'participant.added', 'contact', contactId, `${fullName(c)} added as ${role}`);
       const n = x.makeCopies(dealId, p, u.id); save(); return { ok: true, tasksCreated: n };
     },

@@ -5,32 +5,34 @@
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
 import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, localDate, localDayOf, isRealDate,
   isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
-  phoneOk, fmtPhone, PHONE_MSG, fileTitleOf, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611031426';
-import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611031426';
-import { indexedDbFileStore } from './file-store.js?v=202611031426';
-import { delegationLocked, applyNov3Templates } from './templates.js?v=202611031426';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611031426';
-import { devAuth } from './mock-part-auth.js?v=202611031426';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611031426';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611031426';
-import { messagesActivity } from './mock-part-msgs.js?v=202611031426';
-import { adminUsersTeams } from './mock-part-admin.js?v=202611031426';
-import { libraryFolders } from './mock-part-library.js?v=202611031426';
-import { closingSchedule } from './mock-part-schedule.js?v=202611031426';
-import { notificationsPart } from './mock-part-notify.js?v=202611031426';
-import { mattP2 } from './mock-part-matt.js?v=202611031426';
-import { mattNov2 } from './mock-part-nov2.js?v=202611031426';
-import { crmPart } from './mock-part-crm.js?v=202611031426';
-import { featureFlags } from './features.js?v=202611031426';
-import { crmZohoUpgrade } from './crm.js?v=202611031426';
-import { ensureEmailTemplates } from './crm-templates.js?v=202611031426';
-import { ensureAgentPortal } from './agent-portal.js?v=202611031426';
-import { agentPortal } from './mock-part-agent.js?v=202611031426';
+  phoneOk, fmtPhone, PHONE_MSG, fileTitleOf, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611031525';
+import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611031525';
+import { indexedDbFileStore } from './file-store.js?v=202611031525';
+import { delegationLocked, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611031525';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611031525';
+import { devAuth } from './mock-part-auth.js?v=202611031525';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611031525';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611031525';
+import { messagesActivity } from './mock-part-msgs.js?v=202611031525';
+import { adminUsersTeams } from './mock-part-admin.js?v=202611031525';
+import { libraryFolders } from './mock-part-library.js?v=202611031525';
+import { closingSchedule } from './mock-part-schedule.js?v=202611031525';
+import { notificationsPart } from './mock-part-notify.js?v=202611031525';
+import { mattP2 } from './mock-part-matt.js?v=202611031525';
+import { mattNov2 } from './mock-part-nov2.js?v=202611031525';
+import { crmPart } from './mock-part-crm.js?v=202611031525';
+import { featureFlags } from './features.js?v=202611031525';
+import { crmZohoUpgrade } from './crm.js?v=202611031525';
+import { ensureEmailTemplates } from './crm-templates.js?v=202611031525';
+import { ensureAgentPortal } from './agent-portal.js?v=202611031525';
+import { agentPortal } from './mock-part-agent.js?v=202611031525';
+import { mattNov3b } from './mock-part-nov3b.js?v=202611031525';
+import { ensureSettings, optLabel } from './crm-config.js?v=202611031525';
 
-const KEY = 'cla-portal-new:data:v21';   // v21: WIRE INSTRUCTIONS = BUYER CLIENTS + CLA STAFF ONLY (John, Nov 3): every document carries wireInstructions (true when staff mark it, or its name says wire instructions); agents never see one. Stored v20 data is CARRIED FORWARD (upgradeToV21 flags existing wire files, so a wire PDF already sent into an agent's conversation disappears for the agent). v20: Qualia-style agent portal (Francis Santos, Nov 3): agent tasks, update requests, access invites, message attachments; stored v19 data is CARRIED FORWARD (upgradeToV20). v19: CRM email templates (John / Janine, Nov 3, Zoho video 6): folders, templates, favorites, signatures, template files; stored v18 data is CARRIED FORWARD (upgradeToV19 adds the collections and the 3 fake templates). v18: Matt, Nov 3: personal info v3 (POA follow-ups, + Add entity with entity documents, settlement type for sellers only) and title vesting v2 (vesting help); stored v17 data is CARRIED FORWARD (upgradeToV18: new template versions added, untouched open copies moved to them). v17: CRM matched to Zoho (client / lead fields, Zoho picklists, tasks, meetings, attachments; stored v16 data is CARRIED FORWARD, see upgradeToV17; John, Nov 2). v16: County on orders (seeded fake files get one; stored v15 data is CARRIED FORWARD, see upgradeData; John, Nov 2). v15: the CRM (leads, accounts, opportunities, activities, CRM fields on contacts; John, Nov 2). v14: contact type on every contact (realtor / lender / buyer_seller; John, Nov 2). v13: EMD amount + due date on orders, Place Order documents,
+const KEY = 'cla-portal-new:data:v23';   // v23: Matt, Nov 3 (b) (Processor notes): personal_info v4 (+ Entity Representative), orders get sourceOfBusiness, buyer / seller rows may carry an entity (Place Order). Stored v22 (Janine's CRM branch) and v21 data are CARRIED FORWARD (upgradeToV23; v22 is skipped by number so the two branches can merge). v21: WIRE INSTRUCTIONS = BUYER CLIENTS + CLA STAFF ONLY (John, Nov 3): every document carries wireInstructions (true when staff mark it, or its name says wire instructions); agents never see one. Stored v20 data is CARRIED FORWARD (upgradeToV21 flags existing wire files, so a wire PDF already sent into an agent's conversation disappears for the agent). v20: Qualia-style agent portal (Francis Santos, Nov 3): agent tasks, update requests, access invites, message attachments; stored v19 data is CARRIED FORWARD (upgradeToV20). v19: CRM email templates (John / Janine, Nov 3, Zoho video 6): folders, templates, favorites, signatures, template files; stored v18 data is CARRIED FORWARD (upgradeToV19 adds the collections and the 3 fake templates). v18: Matt, Nov 3: personal info v3 (POA follow-ups, + Add entity with entity documents, settlement type for sellers only) and title vesting v2 (vesting help); stored v17 data is CARRIED FORWARD (upgradeToV18: new template versions added, untouched open copies moved to them). v17: CRM matched to Zoho (client / lead fields, Zoho picklists, tasks, meetings, attachments; stored v16 data is CARRIED FORWARD, see upgradeToV17; John, Nov 2). v16: County on orders (seeded fake files get one; stored v15 data is CARRIED FORWARD, see upgradeData; John, Nov 2). v15: the CRM (leads, accounts, opportunities, activities, CRM fields on contacts; John, Nov 2). v14: contact type on every contact (realtor / lender / buyer_seller; John, Nov 2). v13: EMD amount + due date on orders, Place Order documents,
 export const STORAGE_KEY = KEY;
 // Older keys we still carry forward (newest first). v1..v14 are not upgraded (unchanged behaviour).
-const PREV_KEYS = [['cla-portal-new:data:v20', 'v20'], ['cla-portal-new:data:v19', 'v19'], ['cla-portal-new:data:v18', 'v18'], ['cla-portal-new:data:v17', 'v17'], ['cla-portal-new:data:v16', 'v16'], ['cla-portal-new:data:v15', 'v15']];
+const PREV_KEYS = [['cla-portal-new:data:v22', 'v22'], ['cla-portal-new:data:v21', 'v21'], ['cla-portal-new:data:v20', 'v20'], ['cla-portal-new:data:v19', 'v19'], ['cla-portal-new:data:v18', 'v18'], ['cla-portal-new:data:v17', 'v17'], ['cla-portal-new:data:v16', 'v16'], ['cla-portal-new:data:v15', 'v15']];
 // v15 -> v16: every stored order gets county '' (optional field). Nothing else changes shape; ids, documents (IndexedDB), sessions stay valid.
 export function upgradeData(d) { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); d.deals.forEach((q) => { if (q.county == null) q.county = ''; }); d.upgradedFrom = 'v15'; return d; }
 // v16 -> v17: CRM values mapped to the Zoho lists (lead source, relationship status from lead status / CRM stage), follow-ups -> Zoho tasks
@@ -54,6 +56,11 @@ export function upgradeToV20(d, from = 'v19') { if (!d || !Array.isArray(d.deals
 export function ensureWireFlags(d) { (d.documents || []).forEach((z) => { if (typeof z.wireInstructions !== 'boolean') z.wireInstructions = isWireDocName(z.name); else if (isWireDocName(z.name)) z.wireInstructions = true; }); return d; }
 export function upgradeToV21(d, from = 'v20') { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); if (from !== 'v20') upgradeToV20(d, from);
   ensureWireFlags(d); d.upgradedFrom = from; return d; }
+// v21 / v22 -> v23 (Matt, Nov 3 (b)): personal_info v4 (+ Entity Representative) added, untouched copies moved onto it. Orders, participants, documents unchanged.
+// v22 is the CRM (Janine) branch's key: its extra collections are kept untouched (only the steps below run). v15..v20 go through v21 first.
+export function upgradeToV23(d, from = 'v21') { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); if (from !== 'v21' && from !== 'v22') upgradeToV21(d, from);
+  ensureNov3b(d); d.upgradedFrom = from; return d; }
+export function ensureNov3b(d) { applyNov3bTemplates(d); return d; }   // orders are not rewritten: a missing sourceOfBusiness reads as ''
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();
@@ -82,13 +89,13 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   // UPGRADE (John, Nov 2, v16 and v17; Matt, Nov 3, v18): a browser that holds older data (e.g. a real test order entered by hand) keeps it. The newest older copy
   // (v17, else v16, else v15) is carried forward into v18 with the new fields defaulted / mapped, saved under v18, and only then is the old copy removed.
   // (v19 since Nov 3: v18 is carried forward the same way.) "Reset demo data" removes v19 and any older copies and builds a fresh seed (old data is never resurrected). v1..v14 are not upgraded.
-  function loadPrevious() { for (const [k, from] of PREV_KEYS) { const raw = store.getItem(k); if (!raw) continue; try { return [k, upgradeToV21(JSON.parse(raw), from)]; } catch (e) { /* unreadable: try the next */ } } return null; }
+  function loadPrevious() { for (const [k, from] of PREV_KEYS) { const raw = store.getItem(k); if (!raw) continue; try { return [k, upgradeToV23(JSON.parse(raw), from)]; } catch (e) { /* unreadable: try the next */ } } return null; }
   function load() { if (db) return db; const raw = store.getItem(KEY); if (raw) { db = JSON.parse(raw); return db; }
     const prev = loadPrevious();
     if (prev) { const [pk, data] = prev; db = data; const old = store.getItem(pk);
       try { save(); } catch (e) { if (!isQuota(e)) throw e; store.removeItem(pk); try { save(); } catch (e2) { store.setItem(pk, old); throw e2; } }   // storage full: make room by moving, never lose the old copy
       store.removeItem(pk); return db; }
-    db = ensureWireFlags(ensureAgentPortal(buildSeed())); if (typeof store.key === 'function') dropStale(); save(); return db; }
+    db = ensureNov3b(ensureWireFlags(ensureAgentPortal(buildSeed()))); if (typeof store.key === 'function') dropStale(); save(); return db; }
   const nid = (p) => { const d = load(); d.seq += 1; return `${p}-${d.seq}`; };
 
   const me = () => { const id = sess.getItem(SESSION_KEY); return (id && load().profiles.find((p) => p.id === id && p.status === 'active')) || null; };
@@ -187,7 +194,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     const d = load(); const staff = isStaffView(viewer); const mySide = sideOf(viewer.role);
     let rows = d.participants.filter((p) => p.dealId === dealId).map((p) => { const c = d.contacts.find((z) => z.id === p.contactId); const pr = c && c.profileId && prof(c.profileId);
       const opposing = !staff && !!sideOf(p.role) && sideOf(p.role) !== mySide && !(c && c.profileId === viewer.id);
-      return { ...p, contact: c ? (opposing ? hideContact(clone(c)) : clone(c)) : c, removed: !!(pr && pr.status === 'removed') }; });
+      return { ...clone(p), ...(p.entity && opposing ? { entity: { ...p.entity, repPhone: '', repEmail: '' } } : {}), contact: c ? (opposing ? hideContact(clone(c)) : clone(c)) : c, removed: !!(pr && pr.status === 'removed') }; });
     if (isClient(viewer.role)) rows = rows.filter((p) => !(isClient(p.role) && p.role !== viewer.role));   // a client does not see the OTHER side's client
     return rows;
   }
@@ -219,7 +226,9 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     const parties = d.participants.filter((p) => p.dealId === x.id && isClient(p.role) && d.participants.some((q) => q.dealId === x.id && q.contactId === p.contactId && isAgent(q.role) && pairAllowed(p.role, q.role)))
       .map((p) => { const c = d.contacts.find((z) => z.id === p.contactId); return { contactId: p.contactId, name: c ? fullName(c) : '', label: fileRoleLabel([p.role === 'Client-Buyer' ? 'Buyer Agent' : 'Listing Agent', p.role]) }; });
     const staffView = !isOutside(u.accountRole || u.role) && !isClient(u.role) && !isAgent(u.role);
-    return { ...clone(x), myRole: u.role, myRoles: u.roles || [u.role], myRoleLabel: fileRoleLabel(u.roles, u.role), selfRep: !!u.selfRep, agentParties: staffView ? parties : [], county: x.county || '', address: `${x.street}, ${x.city}, ${x.state} ${x.zip}`, stageName: STAGES[x.stage],
+    // Matt, Nov 3 (b): source of business is CLA-internal (staff only); its label follows renames in CRM Settings -> Lead Source
+    const src = staffView ? (x.sourceOfBusiness || '') : ''; const srcLabel = src ? optLabel(ensureSettings(clone(d.crmSettings || null)), 'leadSource', src) : '';
+    return { ...clone(x), sourceOfBusiness: src, sourceOfBusinessLabel: srcLabel, myRole: u.role, myRoles: u.roles || [u.role], myRoleLabel: fileRoleLabel(u.roles, u.role), selfRep: !!u.selfRep, agentParties: staffView ? parties : [], county: x.county || '', address: `${x.street}, ${x.city}, ${x.state} ${x.zip}`, stageName: STAGES[x.stage],
       openTasks: tasks.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status)).length,
       myOpenTasks: tasks.filter((t) => ['todo', 'in_progress'].includes(t.status) && (ownerOf(t) === u.id || (!t.participantId && holds(u, t.assignedRole)))).length,
       unread: mine.reduce((n, t) => n + unreadIn(u, t), 0),
@@ -245,6 +254,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     async fileContent(z) { if (z.dataUrl) return z.dataUrl; if (z.hasFile && files) return (await files.get(z.id)) || null; return null; },
     C: { ROLES, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel , COUNTY_MAX } };
   Object.assign(api, devAuth(ctx), dealsAndAuth(ctx), contactsTasksDocs(ctx), tasksAndForms(ctx), messagesActivity(ctx), adminUsersTeams(ctx), libraryFolders(ctx), closingSchedule(ctx), notificationsPart(ctx), mattP2(ctx), mattNov2(ctx), crmPart(ctx, flags), agentPortal(ctx));
+  Object.assign(api, mattNov3b(ctx));   // Matt, Nov 3 (b): source-of-business options for Place Order
   // a new Buyer / Listing Agent on an open order gets the 3 agent tasks (Francis, Nov 3)
   { const addP = api.addParticipant; api.addParticipant = async function (...a) { const r = await addP.apply(this, a); ensureAgentPortal(load()); save(); return r; }; }
   // Every call is all-or-nothing: if it throws (validation error, or browser storage full), drop the in-memory copy so the next call

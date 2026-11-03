@@ -1,16 +1,30 @@
 // Place Order (Processor, Admin, Super admin; John Nov 2): creates a deal and links the chosen people (their intake tasks are copied from the current task templates).
 // John, Nov 2 (later): Open Date (backdating allowed, never future), every US state (no default), EMD amount + due date, documents attached at placement,
 // type-to-search pickers for Buyer / Seller / Buyer Agent / Listing Agent, one "Add new user" place, and Transaction Coordinator = TC accounts only.
-import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText } from '../ui.js?v=202611031426';
-import { TX_TYPES, runsOrders, isProcessor, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole } from '../data/constants.js?v=202611031426';
-import { pickerHtml, mountPicker, personLabel } from './person-picker.js?v=202611031426';
+import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText } from '../ui.js?v=202611031525';
+import { fmtPhone, TX_TYPES, runsOrders, isProcessor, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole } from '../data/constants.js?v=202611031525';
+import { pickerHtml, mountPicker, personLabel } from './person-picker.js?v=202611031525';
+import { ENTITY_TYPES } from '../data/templates.js?v=202611031525';
+import { moneyClean } from './money-input.js?v=202611031525';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
 // Each person becomes their own deal_participants row, so each buyer / seller gets their own copy of the client intake tasks (existing per-person behaviour).
 export const MULTI = { 'Client-Buyer': 'buyer', 'Client-Seller': 'seller' };
-const partyRow = (role, label) => html`<div class="multi-row" data-party-row>${pickerHtml('p:' + role, label)}<button type="button" class="ghost" data-rm-row title="Remove this ${label.toLowerCase()} (before the order is created)" hidden>Remove</button></div>`;
-const partyBlock = (role, label) => html`<fieldset class="span2 multi-party" data-multi="${role}"><legend>${label}s <span class="muted small">(one or more)</span></legend>
-  <div class="multi-rows" data-rows>${partyRow(role, label)}</div><button type="button" class="ghost" data-add-row="${role}">+ Add another ${MULTI[role]}</button></fieldset>`;
+// Matt, Nov 3 (b): TWO buyer and TWO seller rows by default (the second is optional and may stay blank); "+ Add another" still adds more (3, 4, ...).
+// Each row has its own "+ Add entity": the buyer / seller is an LLC, corporation, partnership or trust -> entity name, type and the Entity Representative
+// (name, title or role, phone, email). Saved on that person's row of the order and pre-filled on their Personal information form (+ Add entity there).
+export const MIN_ROWS = 2;
+const rowLabel = (label, n) => `${label} ${n}${n > 1 ? ' (optional)' : ''}`;
+const entityPanel = (label) => html`<div class="entity-panel" data-entity-panel hidden><p class="muted small">This ${label.toLowerCase()} is an entity (LLC, corporation, partnership or trust). The person picked above is our contact for it; they confirm the details and attach the entity documents on their Personal information form.</p>
+  <div class="form-grid"><label>Entity name *<input data-ent="name" maxlength="200" aria-label="Entity name"></label>
+  <label>Entity type<select data-ent="type" aria-label="Entity type"><option value="">Choose&hellip;</option>${ENTITY_TYPES.map((t) => html`<option>${t}</option>`)}</select></label>
+  <label>Entity Representative<input data-ent="repName" maxlength="120" placeholder="Full name" aria-label="Entity Representative"></label>
+  <label>Representative's title or role<input data-ent="repTitle" maxlength="120" placeholder="e.g. Managing Member, Trustee" aria-label="Representative's title or role"></label>
+  <label>Representative's phone<input data-ent="repPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone aria-label="Representative's phone"></label>
+  <label>Representative's email<input data-ent="repEmail" type="email" maxlength="200" aria-label="Representative's email"></label></div></div>`;
+const partyRow = (role, label, n = 1) => html`<div class="party-row-wrap" data-party-row="${n}"><div class="multi-row">${pickerHtml('p:' + role, rowLabel(label, n))}<button type="button" class="ghost" data-ent-toggle aria-pressed="false" title="This ${label.toLowerCase()} is an LLC, corporation, partnership or trust">+ Add entity</button><button type="button" class="ghost" data-rm-row title="Remove this ${label.toLowerCase()} (before the order is created)" hidden>Remove</button></div>${entityPanel(label)}</div>`;
+const partyBlock = (role, label) => html`<fieldset class="span2 multi-party" data-multi="${role}"><legend>${label}s <span class="muted small">(${label} 1 and ${label} 2 shown; add more with +)</span></legend>
+  <div class="multi-rows" data-rows>${Array.from({ length: MIN_ROWS }, (_, i) => partyRow(role, label, i + 1))}</div><button type="button" class="ghost" data-add-row="${role}">+ Add another ${MULTI[role]}</button></fieldset>`;
 
 // optional single-person slots: text in the box without a pick is ignored, never an error (Francis, Nov 3: "Buyer Agent field should be optional")
 export const OPTIONAL_SLOTS = ['Buyer agent', 'Listing agent', 'Lender'];
@@ -20,6 +34,8 @@ const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); 
 export async function render({ api, user, go }) {
   if (!runsOrders(user)) throw new Error('Only a Processor or Admin can place orders.');
   const contacts = await api.listContacts(); const staff = await api.listSalesStaff(); const procs = await api.listProcessors(); const tcs = await api.listCoordinators();
+  // Matt, Nov 3 (b): Source of business = the CRM Settings "Lead Source" list (Admins edit it there)
+  const sources = api.listSourceOptions ? await api.listSourceOptions().catch(() => []) : [];
   // the file's Processor: a Processor defaults to themselves; an Admin / Super admin is not a valid Processor, so they must choose one
   const meProc = isProcessor(user.role); const today = localDate();
   // "Add new user" roles. Salesperson creates a staff login, which is Admin-only (John's earlier decision), so only Admins / Super admins see it.
@@ -34,14 +50,18 @@ export async function render({ api, user, go }) {
       <label>ZIP<input name="zip" maxlength="10" placeholder="20850"></label>
       <label>County <span class="muted small">(optional)</span><input name="county" maxlength="100" placeholder="e.g. Frederick" aria-label="County"></label>
       <label>Transaction type<select name="transactionType">${options(TX_TYPES, 'Purchase')}</select></label>
+      <label>Source of business<select name="sourceOfBusiness" aria-label="Source of business"><option value="">(not set)</option>${options(sources, '', (o) => o.label, (o) => o.value)}</select><span class="muted small">How this order came to us. ${user.isAdmin ? html`Edit the list in <a href="#/crm/settings">CRM Settings &rarr; Lead Source</a>.` : 'An Admin edits the list (CRM Settings, Lead Source).'}</span></label>
       <label>Open date *<input name="openDate" type="date" required value="${today}" max="${today}" title="The day the order came in. Can be backdated; not in the future."></label>
-      <label>Purchase price<input name="purchasePrice" inputmode="decimal" placeholder="485000"></label><label>Loan amount<input name="loanAmount" inputmode="decimal" placeholder="388000"></label>
-      <label>EMD amount<input name="emdAmount" inputmode="decimal" placeholder="10000" aria-label="EMD amount (earnest money deposit)"></label><label>EMD due date<input name="emdDueDate" type="date"></label>
+      <label>Purchase price<input name="purchasePrice" inputmode="decimal" placeholder="485,000" data-money autocomplete="off"></label><label>Loan amount<input name="loanAmount" inputmode="decimal" placeholder="388,000" data-money autocomplete="off"></label>
+      <label>EMD amount<input name="emdAmount" inputmode="decimal" placeholder="10,000" aria-label="EMD amount (earnest money deposit)" data-money autocomplete="off"></label><label>EMD due date<input name="emdDueDate" type="date"></label>
       <label>Closing date<input name="closingDate" type="date"></label>
       <label>Processor *<select name="processorId" required>${meProc ? '' : html`<option value="">Choose the Processor&hellip;</option>`}${options(procs, meProc ? user.id : '', (s) => `${s.firstName} ${s.lastName}${s.id === user.id ? ' (you)' : ''}`, (s) => s.id)}</select></label>
       <fieldset class="span2" data-sales-picker><legend>Salespeople on this order (check all that apply)</legend><div data-sales-list>${staff.length ? staff.map((s) => salesBox(s)) : html`<p class="muted" data-no-sales>No active salespeople.</p>`}</div></fieldset>
       <h3 class="span2">People on this order <span class="muted">(all optional; you can add or change them later under Contacts)</span></h3>
-      ${SEARCH.map(([role, label]) => (MULTI[role] ? partyBlock(role, label) : pickerHtml('p:' + role, label)))}
+      ${SEARCH.map(([role, label]) => (MULTI[role] ? partyBlock(role, label) : role === 'Lender' ? html`<div class="span2 lender-block" data-lender-block>${pickerHtml('p:' + role, label)}
+        <div class="form-grid"><label>Lender phone<input name="lenderPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone aria-label="Lender phone"></label>
+        <label>Lender email<input name="lenderEmail" type="email" maxlength="200" aria-label="Lender email"></label></div>
+        <p class="muted small">Filled in from the lender you pick (change them for this order if needed). Optional, like the lender.</p></div>` : pickerHtml('p:' + role, label)))}
       <label>Transaction coordinator<select name="p:Transaction Coordinator"><option value="">(none yet)</option>${options(tcs, '', (c) => `${c.firstName} ${c.lastName}${c.company ? ' \u2014 ' + c.company : ''}`, (c) => c.contactId)}</select></label>
       <label>Sales team member<select name="p:Sales Team"><option value="">(none yet)</option>${options(contacts, '', (c) => `${c.firstName} ${c.lastName}${c.company ? ' \u2014 ' + c.company : ''}`, (c) => c.id)}</select></label>
       <fieldset class="span2" id="addnew"><legend>Add new user</legend>
@@ -72,16 +92,24 @@ export async function render({ api, user, go }) {
     </form>`;
   return { title: 'Place Order', crumbs: [['Orders', '#/orders'], ['Place Order']], body, mount(root) {
     const form = $('#nof', root); const people = [...contacts];
-    const pickers = Object.fromEntries(SEARCH.filter(([role]) => !MULTI[role]).map(([role]) => [role, mountPicker($(`[data-picker="p:${role}"]`, root), () => people)]));
+    // Matt, Nov 3 (b): picking a lender fills Lender phone / email (only boxes still empty; the processor can change them for this order)
+    const fillLender = (c) => { if (!c) return; const ph = $('[name=lenderPhone]', root); const em = $('[name=lenderEmail]', root);
+      if (ph && !ph.value.trim() && c.phone) ph.value = fmtPhone(c.phone); if (em && !em.value.trim() && c.email) em.value = c.email; };
+    const pickers = Object.fromEntries(SEARCH.filter(([role]) => !MULTI[role]).map(([role]) => [role, mountPicker($(`[data-picker="p:${role}"]`, root), () => people, role === 'Lender' ? { onSet: fillLender } : {})]));
     // ---------- several buyers / sellers ----------
     const rows = {};   // role -> [{ pk, el }] in screen order
-    const renumber = (role) => { rows[role].forEach(({ pk, el }, i) => { const nm = i ? `p:${role}:${i + 1}` : `p:${role}`; pk.el.dataset.picker = nm; $('input[type=hidden]', pk.el).name = nm; el.dataset.partyRow = String(i + 1); });
-      rows[role].forEach(({ el }) => { $('[data-rm-row]', el).hidden = rows[role].length < 2; }); };
+    const renumber = (role) => { rows[role].forEach(({ pk, el }, i) => { const nm = i ? `p:${role}:${i + 1}` : `p:${role}`; pk.el.dataset.picker = nm; $('input[type=hidden]', pk.el).name = nm; el.dataset.partyRow = String(i + 1);
+        const lab = rowLabel(SEARCH.find((x) => x[0] === role)[1], i + 1); const q = $('.picker-q', pk.el); q.setAttribute('aria-label', lab); q.parentNode.firstChild.textContent = lab; });
+      // Matt, Nov 3 (b): always at least two rows (leave the second blank if there is only one). Any row can be removed; the rest move up and a
+      // blank row is added back at the end. The last row of a two-row set has no Remove (removing it would only put an empty row back).
+      rows[role].forEach(({ el }, i) => { $('[data-rm-row]', el).hidden = rows[role].length <= MIN_ROWS && i === rows[role].length - 1; }); };
     const hookRow = (role, el) => { const r = { el, pk: mountPicker($('.picker', el), () => people) }; rows[role].push(r);
-      $('[data-rm-row]', el).addEventListener('click', () => { if (rows[role].length < 2) return; rows[role] = rows[role].filter((z) => z !== r); el.remove(); renumber(role); }); renumber(role); return r; };
-    const addRow = (role) => { const box = $(`[data-multi="${role}"] [data-rows]`, root); box.insertAdjacentHTML('beforeend', toText(partyRow(role, SEARCH.find((x) => x[0] === role)[1])));
+      const tg = $('[data-ent-toggle]', el); const panel = $('[data-entity-panel]', el);
+      tg.addEventListener('click', () => { const on = panel.hidden; panel.hidden = !on; tg.setAttribute('aria-pressed', String(on)); tg.textContent = on ? '\u2212 Remove entity' : '+ Add entity'; if (on) $('[data-ent="name"]', panel).focus(); });
+      $('[data-rm-row]', el).addEventListener('click', () => { rows[role] = rows[role].filter((z) => z !== r); el.remove(); renumber(role); while (rows[role].length < MIN_ROWS) addRow(role); }); renumber(role); return r; };
+    const addRow = (role) => { const box = $(`[data-multi="${role}"] [data-rows]`, root); box.insertAdjacentHTML('beforeend', toText(partyRow(role, SEARCH.find((x) => x[0] === role)[1], rows[role].length + 1)));
       const r = hookRow(role, box.lastElementChild); return r; };
-    Object.keys(MULTI).forEach((role) => { rows[role] = []; hookRow(role, $(`[data-multi="${role}"] [data-party-row]`, root));
+    Object.keys(MULTI).forEach((role) => { rows[role] = []; $$(`[data-multi="${role}"] [data-party-row]`, root).forEach((el) => hookRow(role, el));
       $(`[data-add-row="${role}"]`, root).addEventListener('click', () => { const r = addRow(role); $('.picker-q', r.el).focus(); }); });
     const allPickers = () => [...SEARCH.filter(([role]) => !MULTI[role]).map(([role, label]) => [label, pickers[role]]), ...Object.keys(MULTI).flatMap((role) => rows[role].map((r) => [SEARCH.find((x) => x[0] === role)[1], r.pk]))];
     // "Add new user" / "Select existing person" with role Buyer or Seller APPENDS: fills the first empty row, else adds a row
@@ -122,6 +150,9 @@ export async function render({ api, user, go }) {
         staff.push(p); place(role, { ...p, profileId: p.id }); return; }
       const c = await api.createContact({ firstName: first, lastName: val('an-last'), email, phone: val('an-phone'), company: ['Buyer Agent', 'Listing Agent', 'Lender'].includes(role) ? val('an-company') : '', contactType: $('#an-ctype', root).value });
       people.push(c); place(role, c); }));
+    // entity of a buyer / seller row (null when "+ Add entity" is closed or empty)
+    const entityOf = (r) => { const panel = $('[data-entity-panel]', r.el); if (panel.hidden) return null;
+      const e = Object.fromEntries($$('[data-ent]', panel).map((i) => [i.dataset.ent, i.value.trim()])); return Object.values(e).some(Boolean) ? e : null; };
     // ---------- submit ----------
     form.addEventListener('submit', guard(async (e) => {
       e.preventDefault(); const f = formData(e.target);
@@ -132,15 +163,23 @@ export async function render({ api, user, go }) {
       for (const [label, pk] of allPickers()) if (pk.typed && !pk.value) { if (OPTIONAL_SLOTS.includes(label)) skipped.push(label); else throw new Error(`${label}: pick a person from the list (or clear the box, or use "Add new user").`); }
       for (const role of Object.keys(MULTI)) { const ids = rows[role].map((r) => r.pk.value).filter(Boolean); const twice = ids.find((id, i) => ids.indexOf(id) !== i);
         if (twice) throw new Error(`${personLabel(people.find((p) => p.id === twice) || { firstName: 'That person', lastName: '' })} is listed twice as ${SEARCH.find((x) => x[0] === role)[1]}.`); }
-      const amt = String(f.emdAmount || '').replace(/[$,\s]/g, ''); if (amt && !(isFinite(Number(amt)) && Number(amt) >= 0)) throw new Error('EMD amount must be a number of 0 or more.');
+      // Matt, Nov 3 (b): amounts are shown with commas (485,000) and sent clean (485000)
+      const amt = moneyClean(f.emdAmount); if (amt && !(isFinite(Number(amt)) && Number(amt) >= 0)) throw new Error('EMD amount must be a number of 0 or more.');
+      for (const [k, l] of [['purchasePrice', 'Purchase price'], ['loanAmount', 'Loan amount']]) { const v = moneyClean(f[k]); if (v && !(isFinite(Number(v)) && Number(v) >= 0)) throw new Error(`${l} must be a number of 0 or more.`); }
+      const entities = {};   // hidden input name (p:<role> / p:<role>:<n>) -> entity
+      for (const role of Object.keys(MULTI)) rows[role].forEach((r, i) => { const e = entityOf(r); if (!e) return; const lab = rowLabel(SEARCH.find((x) => x[0] === role)[1], i + 1).replace(/ \(optional\)$/, '');
+        if (!r.pk.value) throw new Error(`${lab}: pick the person who is our contact for the entity (or remove the entity).`);
+        if (!e.name) throw new Error(`${lab}: entity name is required (or remove the entity).`); entities[$('input[type=hidden]', r.pk.el).name] = e; });
+      const lenderPk = pickers.Lender; const lender = lenderPk && lenderPk.value ? people.find((p) => p.id === lenderPk.value) : null;
       if (f.openDate && f.openDate > localDate()) throw new Error('Open date cannot be in the future.');
       const files = [...fileIn.files]; for (const file of files) { if (file.size > MAX_UPLOAD_BYTES) throw new Error(`${file.name} is too large for this demo.`);
         if (!ALLOWED_UPLOAD_EXT.includes((file.name.split('.').pop() || '').toLowerCase())) throw new Error(`${file.name}: that file type is not allowed.`); }
-      const input = { ...f, emdAmount: amt, salesIds: new FormData(e.target).getAll('salesIds') };
+      const input = { ...f, emdAmount: amt, purchasePrice: moneyClean(f.purchasePrice), loanAmount: moneyClean(f.loanAmount), salesIds: new FormData(e.target).getAll('salesIds'),
+        ...(lender ? { lenderName: lender.company || '', lenderContact: personLabel(lender) } : {}) };
       const deal = await api.createDeal(input); const problems = [];
       // in screen order: Buyer 1, Buyer 2, ..., Seller 1, Seller 2, ... (p:<role> or p:<role>:<n>)
       for (const [k, v] of new FormData(e.target).entries()) if (k.startsWith('p:') && v) { const role = k.slice(2).replace(/:\d+$/, '');
-        try { await api.addParticipant(deal.id, v, role); } catch (err) { problems.push(`${role}: ${err.message}`); } }
+        try { await api.addParticipant(deal.id, v, role, entities[k] ? { entity: entities[k] } : undefined); } catch (err) { problems.push(`${role}: ${err.message}`); } }
       for (let i = 0; i < files.length; i++) { const file = files[i]; const sel = $(`[data-doctype="${i}"]`, root);
         try { await api.addDocument(deal.id, { name: file.name, description: '', mimeType: file.type, size: file.size, dataUrl: await readFile(file), visibility: $('#nof-vis', root).value, folderId: null, docType: sel ? sel.value : '', wireInstructions: $('#nof-wire', root).checked }); }
         catch (err) { problems.push(`${file.name}: ${err.message}`); } }
