@@ -1,14 +1,15 @@
 // crm-forms.js : Zoho-style CRM pieces (John, Nov 2): the client / lead form (Client Information, Social Media Links & Web Addresses, Address,
 // Description; Cancel / Save and New / Save), the record view, the related lists (Notes, Attachments, Open Activities, Closed Activities,
 // Invited Meetings) and the Task and Meeting forms. Meetings: NO calendar sync, NO invitations, nothing is ever emailed. Function first.
-import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, fmtMoney, fmtSize, modal, closeModal, pill } from '../ui.js?v=202611031702';
-import { CONTACT_TYPES, contactTypeLabel, US_STATE_NAMES, localDate } from '../data/constants.js?v=202611031702';
+import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, fmtMoney, fmtSize, modal, closeModal, pill } from '../ui.js?v=202611031733';
+import { CONTACT_TYPES, contactTypeLabel, US_STATE_NAMES, localDate } from '../data/constants.js?v=202611031733';
 import { ROLES_IN_COMPANY, LEAD_SOURCES, RELATIONSHIP_STATUSES, LINK_FIELDS, safeHref, TASK_SUBJECTS, TASK_STATUSES, TASK_PRIORITIES, REPEAT_EVERY, MEETING_TYPES, relatedLists,
-  activityKindLabel, ACTIVITY_KINDS, entityLabel, localStamp } from '../data/crm.js?v=202611031702';
-import { sel, pairs, ownerSel } from './crm-kit.js?v=202611031702';
-import { CONVERTED_STATUS } from '../data/crm.js?v=202611031702';
-import { fieldsInSection, builtinRequired, activeOptions, defaultOption } from '../data/crm-config.js?v=202611031702';
-import { optSel, lbl, lblOrDash, hiddenField, cfInputs, cfRows, cfExtraSections } from './crm-custom.js?v=202611031702';
+  activityKindLabel, ACTIVITY_KINDS, entityLabel, localStamp } from '../data/crm.js?v=202611031733';
+import { sel, pairs, ownerSel } from './crm-kit.js?v=202611031733';
+import { CONVERTED_STATUS } from '../data/crm.js?v=202611031733';
+import { fieldsInSection, builtinRequired, activeOptions, defaultOption } from '../data/crm-config.js?v=202611031733';
+import { optSel, lbl, lblOrDash, hiddenField, cfInputs, cfRows, cfExtraSections } from './crm-custom.js?v=202611031733';
+import { activityBoard, wireCalls } from './crm-calls.js?v=202611031733';
 
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 const v0 = (v) => (v == null ? '' : v);
@@ -108,15 +109,15 @@ export function personView(kind, r, extra = '', cfg = null) {
 }
 
 // ---------- RELATED LISTS ----------
-const actWhen = (a) => (a.kind === 'task' ? fmtDate(a.dueDate) : a.kind === 'meeting' ? `${fmtWhen(a.startsAt)}${a.allDay ? ' (all day)' : ''}` : fmtDate(a.occurredOn));
-const actLink = (a) => (a.kind === 'task' ? html`<a href="#/crm/tasks/${a.id}" data-task-link="${a.id}">${a.subject}</a>` : a.kind === 'meeting' ? html`<a href="#/crm/meetings/${a.id}" data-meeting-link="${a.id}">${a.subject}</a>` : html`<strong>${a.subject}</strong>`);
+const actWhen = (a) => (a.kind === 'task' ? fmtDate(a.dueDate) : a.kind === 'meeting' ? `${fmtWhen(a.startsAt)}${a.allDay ? ' (all day)' : ''}` : a.kind === 'call' && a.callStart ? fmtWhen(a.callStart) : fmtDate(a.occurredOn));
+const actLink = (a) => (a.kind === 'task' ? html`<a href="#/crm/tasks/${a.id}" data-task-link="${a.id}">${a.subject}</a>` : a.kind === 'meeting' ? html`<a href="#/crm/meetings/${a.id}" data-meeting-link="${a.id}">${a.subject}</a>` : a.kind === 'call' ? html`<a href="#/crm/calls/${a.id}" data-call-link="${a.id}">${a.subject}</a>` : html`<strong>${a.subject}</strong>`);
 function actTable(list, me, { closeBtn = false, empty = 'None.', cfg = null } = {}) {
   return html`<table class="tbl"><thead><tr><th>Type</th><th>Subject / Title</th><th>Due / From</th><th>Status</th><th>Owner / Host</th><th></th></tr></thead><tbody>
     ${list.length ? list.map((a) => html`<tr data-act="${a.id}" data-kind="${a.kind}" class="${a.overdue ? 'overdue' : ''}"><td>${activityKindLabel(a.kind)}${a.system ? html` <span class="muted small">(CRM)</span>` : ''}</td>
       <td>${actLink(a)}${a.body && a.kind !== 'task' && a.kind !== 'meeting' ? html`<br><span class="small">${a.body}</span>` : ''}${a.parentLabel && a.entity === 'lead' && a.kind !== 'note' ? '' : ''}</td>
       <td>${actWhen(a)}</td>
-      <td>${a.kind === 'task' ? html`${lbl(cfg, 'taskStatus', a.status)}${a.overdue ? html` ${pill('Overdue', 'bad')}` : ''}${a.reminderDue ? html` ${pill('Reminder', 'warn')}` : ''} <span class="muted small">${lbl(cfg, 'taskPriority', a.priority)}</span>` : a.kind === 'meeting' ? html`${lbl(cfg, 'meetingType', a.meetingType) || 'Meeting'}${a.open ? '' : html` <span class="muted small">(held)</span>`}` : 'Logged'}</td>
-      <td>${a.kind === 'task' ? a.ownerName : a.kind === 'meeting' ? a.hostName : a.createdByName}</td>
+      <td>${a.kind === 'task' ? html`${lbl(cfg, 'taskStatus', a.status)}${a.overdue ? html` ${pill('Overdue', 'bad')}` : ''}${a.reminderDue ? html` ${pill('Reminder', 'warn')}` : ''} <span class="muted small">${lbl(cfg, 'taskPriority', a.priority)}</span>` : a.kind === 'meeting' ? html`${lbl(cfg, 'meetingType', a.meetingType) || 'Meeting'}${a.open ? '' : html` <span class="muted small">(held)</span>`}` : a.kind === 'call' ? html`${a.callStatus || 'Completed'}${a.callType ? html` <span class="muted small">${a.callType}</span>` : ''}${a.callDurationText ? html` <span class="muted small">${a.callDurationText}</span>` : ''}${a.reminderDue ? html` ${pill('Reminder', 'warn')}` : ''}` : 'Logged'}</td>
+      <td>${a.kind === 'task' ? a.ownerName : a.kind === 'meeting' ? a.hostName : a.kind === 'call' ? a.ownerName || a.createdByName : a.createdByName}</td>
       <td>${closeBtn && me.canEdit && a.kind === 'task' && a.open ? html`<button class="ghost" data-close-task="${a.id}">Close Task</button>` : ''}</td></tr>`) : html`<tr><td colspan="6" class="muted">${empty}</td></tr>`}</tbody></table>`;
 }
 // record = { activities, invitedMeetings, attachments }
@@ -131,7 +132,8 @@ export function relatedHtml(rec, { entity, entityId, me, cfg = null }) {
     ${me.canEdit && entity !== 'opportunity' ? html`<form id="att-form" class="inline-form"><input type="file" name="file" data-att-file><button class="m-btn" type="submit">Attach</button></form>` : ''}
     ${(rec.attachments || []).length ? html`<table class="tbl"><thead><tr><th>File</th><th>Size</th><th>Attached by</th><th>Date</th></tr></thead><tbody>${rec.attachments.map((f) => html`<tr data-att="${f.id}"><td><a href="#" data-open-att="${f.id}">${f.name}</a></td><td>${fmtSize(f.size)}</td><td>${f.uploadedByName}</td><td>${fmtDateTime(f.createdAt)}</td></tr>`)}</tbody></table>` : html`<p class="muted">No attachments.</p>`}
     <p class="muted small">Attachments are kept permanently (never deleted).</p></div>
-  <div class="card" data-open-acts><h3>Open Activities (${rl.open.length}) ${me.canEdit ? html`<span class="right"><button class="m-btn" data-new-task>+ Task</button> <button class="m-btn" data-new-meeting>+ Meeting</button> <button class="ghost" data-log-call>Log a call / email</button></span>` : ''}</h3>
+  ${activityBoard(rec, { me, cfg })}
+  <div class="card" data-open-acts><h3>Open Activities (${rl.open.length}) ${me.canEdit ? html`<span class="right"><button class="m-btn" data-new-task>+ Task</button> <button class="m-btn" data-new-meeting>+ Meeting</button> <button class="ghost" data-schedule-call-btn>+ Call</button></span>` : ''}</h3>
     ${actTable(rl.open, me, { closeBtn: true, empty: 'No open activities.', cfg })}</div>
   <div class="card" data-closed-acts><h3>Closed Activities (${rl.closed.length})</h3>${actTable(rl.closed, me, { empty: 'No closed activities.', cfg })}</div>
   <div class="card" data-invited><h3>Invited Meetings (${rl.invited.length})</h3>
@@ -145,18 +147,22 @@ export function wireRelated(root, api, refresh, ctx) {
   $$('[data-open-att]', root).forEach((a) => a.addEventListener('click', guard(async (e) => { e.preventDefault(); const c = await api.getCrmAttachmentContent(a.dataset.openAtt);
     const l = document.createElement('a'); l.href = c.dataUrl; l.download = c.name; document.body.appendChild(l); l.click(); l.remove(); })));
   $$('[data-close-task]', root).forEach((b) => b.addEventListener('click', guard(async () => { const r = await api.closeCrmTask(b.dataset.closeTask); toast(r.nextTaskId ? 'Task closed; next occurrence created' : 'Task closed'); refresh(); })));
-  const nt = $('[data-new-task]', root); if (nt) nt.addEventListener('click', () => taskModal(api, ctx, null, () => refresh()));
-  const nm = $('[data-new-meeting]', root); if (nm) nm.addEventListener('click', guard(() => meetingModal(api, ctx, null, () => refresh())));
-  const lc = $('[data-log-call]', root); if (lc) lc.addEventListener('click', () => {
-    const m = modal('Log a call / email', html`<form id="log-form" class="form-grid"><label>Type${sel('kind', ACTIVITY_KINDS.filter(([k]) => k !== 'note'), 'call')}</label><label>Subject *<input name="subject" maxlength="200"></label>
+  const nt = $('[data-open-acts] [data-new-task]', root); if (nt) nt.addEventListener('click', () => taskModal(api, ctx, null, () => refresh()));
+  const nm = $('[data-open-acts] [data-new-meeting]', root); if (nm) nm.addEventListener('click', guard(() => meetingModal(api, ctx, null, () => refresh())));
+  // video 11: calls use Schedule a call / Log a call (crm-calls.js); this older quick log stays for EMAILS only (logged, never sent)
+  const logEmail = () => {
+    const m = modal('Log an email', html`<form id="log-form" class="form-grid"><input type="hidden" name="kind" value="email"><label>Subject *<input name="subject" maxlength="200"></label>
       <label>Date<input name="occurredOn" type="date" value="${localDate()}" max="${localDate()}"></label>
-      <fieldset class="span2" data-call-fields><legend>Call (Zoho Calls: type, start, duration)</legend><label>Call Type<select name="callType"><option value="">—</option><option>Outbound</option><option>Inbound</option><option>Missed</option></select></label>
-        <label>Call Start Time<input name="callStart" type="datetime-local"></label><label>Call Duration (minutes)<input name="callDuration" type="number" min="0" max="1440" step="1"></label></fieldset>
       <label class="span2">Details<textarea name="body" rows="2" maxlength="4000"></textarea></label>
       <p class="muted small span2">A log entry only: nothing is sent from the CRM.</p><div class="span2"><button class="ghost" type="button" data-close>Cancel</button> <button class="m-btn" type="submit">Save</button></div></form>`);
-    const lf = $('#log-form', m); const cf = $('[data-call-fields]', lf); const kindSel = $('[name=kind]', lf); const sync = () => { cf.hidden = kindSel.value !== 'call'; }; kindSel.addEventListener('change', sync); sync();
-    lf.addEventListener('submit', guard(async (e) => { e.preventDefault(); const v = formData(e.target); if (v.kind !== 'call') { delete v.callType; delete v.callStart; delete v.callDuration; }
-      await api.logCrmActivity({ ...v, entity: ctx.entity, entityId: ctx.entityId }); closeModal(); toast('Activity logged'); refresh(); })); });
+    const lf = $('#log-form', m);
+    lf.addEventListener('submit', guard(async (e) => { e.preventDefault(); const v = formData(e.target);
+      await api.logCrmActivity({ ...v, kind: 'email', entity: ctx.entity, entityId: ctx.entityId }); closeModal(); toast('Email logged'); refresh(); })); };
+  // the board's "+" menu: Task / Meeting / Call > Schedule a call | Log a call (calls: crm-calls.js)
+  const pt = $('[data-plus-task]', root); if (pt) pt.addEventListener('click', () => taskModal(api, ctx, null, () => refresh()));
+  const pm = $('[data-plus-meeting]', root); if (pm) pm.addEventListener('click', guard(() => meetingModal(api, ctx, null, () => refresh())));
+  const pc = $('[data-schedule-call-btn]', root); if (pc) pc.addEventListener('click', () => { const d = $('[data-act-plus]', root); if (d) { d.open = true; const c = $('[data-plus-call]', d); if (c) c.open = true; d.scrollIntoView({ block: 'center' }); } });
+  wireCalls(root, api, refresh, ctx, { logEmail });
 }
 
 // ---------- TASK form (Zoho: Subject* combobox, Due Date*, Client, Status, Priority, Reminder, Repeat, Description) ----------

@@ -1,12 +1,12 @@
 // crm-home.js : CRM Home (Zoho Classic View: task list widget, Today's Leads, Amount by Stage) and the Task / Meeting detail pages (John, Nov 2).
 // Function first, minimal styling. Reminders show in the portal only; nothing is emailed; meetings are never sent as invitations.
-import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611031702';
-import { localDate } from '../data/constants.js?v=202611031702';
-import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY } from '../data/crm.js?v=202611031702';
-import { tabs, head } from './crm-kit.js?v=202611031702';
-import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611031702';
-import { optionsOf, optLabel } from '../data/crm-config.js?v=202611031702';
-import { lbl } from './crm-custom.js?v=202611031702';
+import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611031733';
+import { localDate } from '../data/constants.js?v=202611031733';
+import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY } from '../data/crm.js?v=202611031733';
+import { tabs, head } from './crm-kit.js?v=202611031733';
+import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611031733';
+import { optionsOf, optLabel } from '../data/crm-config.js?v=202611031733';
+import { lbl } from './crm-custom.js?v=202611031733';
 const subj = (cfg, s) => optLabel(cfg, 'taskSubject', s, { mark: false });   // Task Subject is free text; a subject that is a list option shows its current name
 const orderOf = (cfg) => ({ priority: optionsOf(cfg, 'taskPriority').map((o) => o.value), status: optionsOf(cfg, 'taskStatus').map((o) => o.value) });
 
@@ -17,13 +17,14 @@ const LEADS_PER_PAGE = 5;
 
 // ---------------- HOME ----------------
 export async function homePage({ api, me, params, cfg }) {
-  const [tasks, leads, opps] = await Promise.all([api.listCrmTasks(), api.listCrmLeads(), api.listCrmOpportunities()]);
+  const [tasks, leads, opps, callRem] = await Promise.all([api.listCrmTasks(), api.listCrmLeads(), api.listCrmOpportunities(), api.listCrmCallReminders ? api.listCrmCallReminders().catch(() => []) : []]);   // video 11: call reminders (recorded only)
   const today = localDate(); const todayLeads = leads.filter((l) => !l.archived && localDay(l.createdAt) === today).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   const so = optionsOf(cfg, 'oppStage'); const stages = amountByStage(opps, so.map((o) => o.value), so.filter((o) => o.retired).map((o) => o.value)); const max = Math.max(1, ...stages.map((s) => s.amount));
   const reminders = tasks.filter((t) => t.reminderDue && (t.ownerId === me.id));
   const body = html`${head('CRM: Home', me)}${tabs('home')}
     ${params.section === 'followups' ? html`<p class="muted small" data-followups-moved>My follow-ups are now the tasks on CRM Home ("My Open Tasks").</p>` : ''}
     ${reminders.length ? html`<p class="card" data-reminders>${pill('Reminder', 'warn')} ${reminders.length} task reminder(s) due: ${reminders.map((t, i) => html`${i ? ', ' : ''}<a href="#/crm/tasks/${t.id}">${subj(cfg, t.subject)}</a>`)} <span class="muted small">(shown in the portal only; never emailed)</span></p>` : ''}
+    ${callRem.length ? html`<p class="card" data-call-reminders>${pill('Reminder', 'warn')} ${callRem.length} call reminder(s) due: ${callRem.map((a, i) => html`${i ? ', ' : ''}<a href="#/crm/calls/${a.id}" data-call-reminder-link="${a.id}">${a.subject}</a> <span class="muted small">(${String(a.callStart || '').replace('T', ' ')})</span>`)} <span class="muted small">(shown in the portal only; nothing is sent)</span></p>` : ''}
     <div class="card" data-home-tasks><h3><select data-task-filter aria-label="Task view">${HOME_TASK_FILTERS.map((f) => html`<option value="${f}">${f}</option>`)}</select> <span class="muted small" data-task-count></span></h3>
       <table class="tbl" id="home-tasks"><thead><tr>${TASK_COLS.map(([k, l]) => html`<th><a href="#" data-sort="${k}">${l}</a> <span class="muted small" data-sort-mark="${k}"></span></th>`)}</tr></thead><tbody></tbody></table></div>
     <div class="card" data-home-leads><h3>Today's Leads <a class="right small" href="#/crm/leads" data-view-all>View All</a></h3>

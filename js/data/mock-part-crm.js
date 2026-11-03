@@ -5,15 +5,17 @@
  * sync, no invitations, nothing is ever emailed) on a lead, contact (= "Client" on screen), account (= "Company") or opportunity. Attachments on records.
  * NOTHING is deleted: leads, contacts, accounts and opportunities are archived; tasks are closed; attachments and notes stay.
  * Access (mirrored by private.crm_* in migration 22): see crm.js. */
-import { CRM_OFF } from './features.js?v=202611031702';
+import { CRM_OFF } from './features.js?v=202611031733';
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, OPP_STAGES, ACCOUNT_KIND_CODES, CRM_ENTITIES, accountKindForType, entityLabel,
   TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, LINK_KEYS, LINK_FIELDS, cleanUrl, nextDue, addDaysTo, taskOpen, meetingOpen, localStamp,
-  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals } from './crm.js?v=202611031702';
-import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611031702';
-import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611031702';
-import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611031702';
-import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611031702';
-import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611031702';
+  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals } from './crm.js?v=202611031733';
+import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611031733';
+import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611031733';
+import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611031733';
+import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611031733';
+import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611031733';
+import { crmCallsPart } from './mock-part-crm-calls.js?v=202611031733';
+import { callOpen, callSeconds, durationText, callStatusOf } from './crm-calls.js?v=202611031733';
 
 export function crmPart(x, flags) {
   const { load, save, nid, needUser, dealsFor, prof, nameOf, fullName, clone, now, fail, str, emailOk, localDate, C } = x;
@@ -195,7 +197,11 @@ export function crmPart(x, flags) {
     if (entity === 'account') return accName(id); const o = d.crmOpportunities.find((z) => z.id === id); return o ? o.name : ''; };
   const linkOf = (entity, id) => (entity === 'opportunity' ? '#/crm/pipeline' : `#/crm/${entity}s/${id}`);
   // Zoho columns: "Contact Name" = the person (client or lead); "Related To" = the company / opportunity it is about
-  const relOf = (a) => { const d = db();
+  // video 11: a call's own Related To (company / opportunity / deal) wins over the person's company
+  const relName = (e, id) => { const d = db(); if (e === 'deal') { const q = d.deals.find((z) => z.id === id); return q ? `${q.fileNumber} ${q.street}` : ''; } return parentName(e, id); };
+  const relOf = (a) => { const base = relOf0(a); if (a.kind !== 'call' || !a.relatedEntity || !a.relatedId) return base;
+    return { ...base, relatedTo: relName(a.relatedEntity, a.relatedId), relatedLink: a.relatedEntity === 'deal' ? `#/crm/deals/${a.relatedId}` : linkOf(a.relatedEntity, a.relatedId) }; };
+  const relOf0 = (a) => { const d = db();
     if (a.entity === 'contact') { const c = d.contacts.find((z) => z.id === a.entityId) || {}; return { contactName: c.id ? fullName(c) : '', contactLink: linkOf('contact', a.entityId),
       relatedTo: accName(c.accountId) || c.company || '', relatedLink: c.accountId ? linkOf('account', c.accountId) : '' }; }
     if (a.entity === 'lead') { const l = d.crmLeads.find((z) => z.id === a.entityId) || {}; return { contactName: parentName('lead', a.entityId), contactLink: linkOf('lead', a.entityId), relatedTo: l.company || '', relatedLink: '' }; }
@@ -206,10 +212,14 @@ export function crmPart(x, flags) {
   const actOut = (a) => ({ ...clone(a), ownerName: ownerName(a.ownerId), createdByName: nameOf(a.createdBy), modifiedByName: a.modifiedBy ? nameOf(a.modifiedBy) : '', hostName: a.hostId ? nameOf(a.hostId) : '',
     parentName: parentName(a.entity, a.entityId), parentLabel: entityLabel(a.entity), parentLink: linkOf(a.entity, a.entityId), ...relOf(a),
     participants: (a.participants || []).map(partOut),
-    open: a.kind === 'task' ? taskOpen(a) : a.kind === 'meeting' ? meetingOpen(a, localStamp()) : false,
+    open: a.kind === 'task' ? taskOpen(a) : a.kind === 'meeting' ? meetingOpen(a, localStamp()) : a.kind === 'call' ? callOpen(a) : false,
     overdue: a.kind === 'task' && taskOpen(a) && !!a.dueDate && a.dueDate < localDate(),
-    reminderDue: a.kind === 'task' && taskOpen(a) && !!a.reminder && !!a.reminderAt && a.reminderAt <= localStamp() });
-  const actsFor = (pairs) => db().crmActivities.filter((a) => pairs.some(([e, id]) => a.entity === e && a.entityId === id)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(actOut);
+    reminderDue: (a.kind === 'task' && taskOpen(a) && !!a.reminder && !!a.reminderAt && a.reminderAt <= localStamp()) || (a.kind === 'call' && callOpen(a) && !!a.callReminderAt && a.callReminderAt <= localStamp()),
+    ...(a.kind === 'call' ? { callStatus: callStatusOf(a), callDurationSec: callSeconds(a), callDurationText: durationText(callSeconds(a)), relatedName: a.relatedEntity && a.relatedId ? relName(a.relatedEntity, a.relatedId) : '',
+      voiceRecording: a.voiceRecording ? (a.voiceRecording.kind === 'link' ? { kind: 'link', url: a.voiceRecording.url } : { kind: 'file', name: a.voiceRecording.name, size: a.voiceRecording.size }) : null } : {}) });
+  // video 11: a call shows on its Call To record and on its Related To company / opportunity (only when the viewer may see the Call To record)
+  const actsFor = (pairs, u = null) => db().crmActivities.filter((a) => pairs.some(([e, id]) => (a.entity === e && a.entityId === id)
+    || (a.kind === 'call' && a.relatedEntity === e && a.relatedId === id && !pairs.some(([e2, id2]) => a.entity === e2 && a.entityId === id2) && (!u || seen(u, a.entity, a.entityId))))).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(actOut);
   const invitedTo = (u, pairs) => db().crmActivities.filter((a) => a.kind === 'meeting' && (a.participants || []).some((p) => pairs.some(([e, id]) => p === `${e}:${id}`)) && seen(u, a.entity, a.entityId)).map(actOut);
   const attachmentsOf = (pairs) => db().crmAttachments.filter((f) => pairs.some(([e, id]) => f.entity === e && f.entityId === id)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
     .map((f) => ({ id: f.id, entity: f.entity, entityId: f.entityId, name: f.name, mimeType: f.mimeType, size: f.size, uploadedBy: f.uploadedBy, uploadedByName: nameOf(f.uploadedBy), createdAt: f.createdAt }));
@@ -268,7 +278,7 @@ export function crmPart(x, flags) {
     // ---------- leads ----------
     async listCrmLeads() { const u = crmUser(); return db().crmLeads.filter((l) => leadSeen(u, l)).map((l) => leadOut(u, l)); },
     async getCrmLead(id) { const u = crmUser(); const l = get.lead(u, id); const pairs = [['lead', l.id]];
-      return { ...leadOut(u, l), activities: actsFor(pairs), invitedMeetings: invitedTo(u, pairs), attachments: attachmentsOf(pairs) }; },
+      return { ...leadOut(u, l), activities: actsFor(pairs, u), invitedMeetings: invitedTo(u, pairs), attachments: attachmentsOf(pairs) }; },
     async createCrmLead(input) {
       const u = crmEditor(); const d = db();
       const l = { id: nid('lead'), firstName: str(input.firstName, 80), lastName: str(input.lastName, 80), company: str(input.company, 120), email: email(input.email), phone: x.phone(input.phone),
@@ -335,7 +345,7 @@ export function crmPart(x, flags) {
     async getCrmContact(id) {
       const u = crmUser(); const c = get.contact(u, id); const orders = withAccess(u, ordersOf([c.id]));
       const pairs = [['contact', c.id]]; if (c.crmLeadId) pairs.push(['lead', c.crmLeadId]);
-      return { ...contactOut(u, c), account: c.accountId ? accountOut(u, accountRow(c.accountId)) : null, orders, totals: orderTotals(orders), activities: actsFor(pairs),
+      return { ...contactOut(u, c), account: c.accountId ? accountOut(u, accountRow(c.accountId)) : null, orders, totals: orderTotals(orders), activities: actsFor(pairs, u),
         invitedMeetings: invitedTo(u, pairs), attachments: attachmentsOf(pairs), opportunities: db().crmOpportunities.filter((o) => o.contactId === c.id).map((o) => oppOut(u, o)) };
     },
     async createCrmContact(input) {
@@ -374,7 +384,7 @@ export function crmPart(x, flags) {
     async getCrmAccount(id) {
       const u = crmUser(); const a = get.account(u, id); const d = db(); const cs = d.contacts.filter((c) => c.accountId === a.id && inCrm(c));
       const orders = withAccess(u, ordersOf(cs.map((c) => c.id)));
-      return { ...accountOut(u, a), contactList: cs.filter((c) => contactSeen(u, c)).map((c) => contactOut(u, c)), orders, totals: orderTotals(orders), activities: actsFor([['account', a.id]]),
+      return { ...accountOut(u, a), contactList: cs.filter((c) => contactSeen(u, c)).map((c) => contactOut(u, c)), orders, totals: orderTotals(orders), activities: actsFor([['account', a.id]], u),
         invitedMeetings: [], attachments: attachmentsOf([['account', a.id]]), opportunities: d.crmOpportunities.filter((o) => o.accountId === a.id).map((o) => oppOut(u, o)) };
     },
     async createCrmAccount(input) {
@@ -426,7 +436,7 @@ export function crmPart(x, flags) {
     },
 
     // ---------- activities: logged calls / emails / notes ----------
-    async listCrmActivities(entity, id) { const u = crmUser(); entityOf(u, entity, id); return actsFor([[entity, id]]); },
+    async listCrmActivities(entity, id) { const u = crmUser(); entityOf(u, entity, id); return actsFor([[entity, id]], u); },
     // kind call / email (a log only: nothing is sent) / note. kind 'task' is passed on to createCrmTask (older callers).
     async logCrmActivity(input) {
       if (input.kind === 'task') return api.createCrmTask({ ...input, description: input.body });
@@ -440,7 +450,8 @@ export function crmPart(x, flags) {
         a.callType = input.callType ? oneOf(input.callType, ['Outbound', 'Inbound', 'Missed'], 'Call type') : '';
         a.callStart = input.callStart ? dt(input.callStart, 'Call Start Time') : null; if (a.callStart && a.callStart.slice(0, 10) > localDate()) fail('Call Start Time cannot be in the future.');
         if (a.callStart) a.occurredOn = a.callStart.slice(0, 10);
-        const dur = input.callDuration == null || input.callDuration === '' ? null : Number(input.callDuration); if (dur != null && (!Number.isInteger(dur) || dur < 0 || dur > 1440)) fail('Call Duration is minutes (0 to 1440).'); a.callDuration = dur; }
+        const dur = input.callDuration == null || input.callDuration === '' ? null : Number(input.callDuration); if (dur != null && (!Number.isInteger(dur) || dur < 0 || dur > 1440)) fail('Call Duration is minutes (0 to 1440).'); a.callDuration = dur;
+        Object.assign(a, { callMode: 'logged', callStatus: 'Completed', callDurationSec: dur == null ? null : dur * 60, completedAt: now() }); }   // video 11 shape (this older quick-log path is kept for callers; the screens use logCrmCall)
       // a logged call / email on a contact moves its "last contacted" date forward
       if (entity === 'contact' && kind !== 'note' && (!parent.lastContactedOn || parent.lastContactedOn < a.occurredOn)) parent.lastContactedOn = a.occurredOn;
       db().crmActivities.push(a); save(); return actOut(a);
@@ -557,6 +568,8 @@ export function crmPart(x, flags) {
   // Nov 3 (b): Janine's videos 7, 9, 10 (search, Send Email, dashboards, reports) + file / image custom fields (video 8)
   const nb = crmNov3bPart(x, { db, cfg, cfgFor, crmUser, crmEditor, entityOf, seen, contactSeen, leadSeen, accountSeen, oppSeen, inCrm, leadOut, contactOut, accountOut, oppOut, actOut, salesOf: x.salesOf });
   Object.assign(api, nb.api);
+  // video 11: Schedule a call / Log a call / Mark as Completed; CSV downloads of the lists = Admin / Super admin only
+  Object.assign(api, crmCallsPart(x, { db, cfg, crmUser, crmEditor, entityOf, seen, assignee, opt, dt, actOut, leadSeen, contactSeen, accountSeen }).api);
   late.rollup = (u, entity, id, conf) => { const parentModule = { contact: 'contacts', lead: 'leads', account: 'accounts', opportunity: 'opportunities' }[entity];
     const kids = (nb.relMap(u, parentModule, [{ id, _contactIds: [] }], conf.related, cfgFor(u))[id]) || []; if (conf.fn === 'count') return kids.length;
     const vals = kids.map((k) => k[conf.field]).filter((v) => v != null && v !== '' && isFinite(Number(v))).map(Number); if (!vals.length) return null;

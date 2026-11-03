@@ -189,4 +189,13 @@ a.active-link { font-weight: 700; text-decoration: underline; } tr.overdue td { 
 .phase-tracker { display: flex; gap: 8px; list-style: none; padding: 0; } .phase-tracker li { flex: 1; border-top: 4px solid #ccc; padding-top: 4px; } .phase-tracker li.done, .phase-tracker li.current { border-color: #3a8f3a; } .phase-tracker li.current { font-weight: bold; }
 .tab-count { margin-left: 4px; font-size: 11px; background: #ddd; border-radius: 8px; padding: 0 5px; }
 .ap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; margin-bottom: 14px; }
+/* CRM calls (Zoho video 11, Nov 3): required fields get a red left bar; activities board; call alert + banner. Function first. */
+.req { border-left: 3px solid var(--red, #c62828); padding-left: 6px; } .req-mark { display: inline-block; width: 3px; height: 1em; background: var(--red, #c62828); vertical-align: middle; }
+.act-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; } .act-col h4 { margin: 4px 0; } .act-list { list-style: none; padding: 0; margin: 0; }
+.act-card { border: 1px solid #ddd; border-radius: 4px; padding: 6px 8px; margin-bottom: 6px; background: #fff; } [data-board-closed] .act-card { background: #f7f7f7; }
+.act-plus-items { position: absolute; z-index: 50; background: #fff; border: 1px solid #bbb; padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 160px; } .act-plus-items details { display: flex; flex-direction: column; }
+.call-alert { border: 1px solid #e0a800; background: #fff8e1; padding: 10px; border-radius: 4px; } .call-alert[hidden] { display: none; }
+.call-banner { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 3000; background: #e8f5e9; border: 1px solid #2e7d32; color: #1b5e20; padding: 8px 14px; border-radius: 4px; }
+@media (max-width: 800px) { .act-board { grid-template-columns: 1fr; } }
+[data-voice] label.check { display: inline-flex; margin-right: 12px; } [data-voice] input[type=radio] { width: auto; margin: 0; }
 .col-chooser { display: inline-block; margin-left: 12px; } .col-chooser .col-list label { display: inline-flex !important; align-items: center; gap: 5px; width: auto !important; margin: 0; font-weight: normal; } .col-chooser .col-list input { width: auto !important; margin: 0; } .col-chooser .col-list { display: flex; flex-wrap: wrap; gap: 4px 14px; max-width: 640px; padding: 6px 0; }

@@ -2,11 +2,12 @@
  * NOT run against a hosted project (best effort; the mock adapter is the tested one). Two switches must both be on: the browser flag
  * (features.js, CLA_PORTAL_CONFIG.features.crm, OFF in supabase mode) and the database switch (private.features 'crm', migration 22).
  * With the browser flag off every method refuses before calling the database. Meetings never send invitations; nothing is emailed. */
-import { CRM_OFF } from './features.js?v=202611031702';
-import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611031702';
-import { localDate } from './constants.js?v=202611031702';
-import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611031702';
-import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611031702';
+import { CRM_OFF } from './features.js?v=202611031733';
+import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611031733';
+import { localDate } from './constants.js?v=202611031733';
+import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611031733';
+import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611031733';
+import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611031733';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };
@@ -165,5 +166,7 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
   };
   // Nov 3 (migration 27): email templates. Nothing is ever sent.
   Object.assign(api, crmTemplatesSupabase({ sb, ok, camel, me, on, one, self: api }));
+  // Nov 3 (migration 33): calls (Zoho video 11) + Admin-only list CSV downloads. Nothing is ever sent.
+  Object.assign(api, crmCallsSupabase({ sb, ok, camel, on, one, actOut, staff }));
   return api;
 }

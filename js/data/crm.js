@@ -106,8 +106,9 @@ export function sortTasks(rows, key = 'dueDate', dir = 'asc', order = {}) {
 }
 // a record page's related lists (Zoho): Notes, Open Activities, Closed Activities, Invited Meetings
 export function relatedLists(acts, invited = [], nowStamp = localStamp()) {
-  const isOpen = (a) => (a.kind === 'task' ? taskOpen(a) : a.kind === 'meeting' ? meetingOpen(a, nowStamp) : false);
-  const when = (a) => (a.kind === 'task' ? a.dueDate || '' : a.kind === 'meeting' ? a.startsAt || '' : a.occurredOn || String(a.createdAt || '').slice(0, 10));
+  // video 11: a scheduled call is open until it is marked completed
+  const isOpen = (a) => (a.kind === 'task' ? taskOpen(a) : a.kind === 'meeting' ? meetingOpen(a, nowStamp) : a.kind === 'call' ? a.callStatus === 'Scheduled' : false);
+  const when = (a) => (a.kind === 'task' ? a.dueDate || '' : a.kind === 'meeting' ? a.startsAt || '' : a.kind === 'call' && a.callStart ? a.callStart : a.occurredOn || String(a.createdAt || '').slice(0, 10));
   const acts2 = acts.filter((a) => a.kind !== 'note');
   return { notes: acts.filter((a) => a.kind === 'note'),
     open: acts2.filter(isOpen).sort((a, b) => when(a).localeCompare(when(b))),

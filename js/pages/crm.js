@@ -1,22 +1,23 @@
 // crm.js : the CRM (John, Nov 2). Routes #/crm/<section>[/<id>]: home (default), leads, contacts (= Clients), accounts (= Companies), pipeline, reports,
 // tasks/<id>, meetings/<id>; followups (older link) shows Home. Labels follow John's Zoho (Clients / Companies); internal names stay contacts / accounts.
 // Reachable only when the `crm` feature flag is on (app.js never loads this module otherwise) and only for CLA staff (adapter refuses others).
-import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611031702';
-import { CONTACT_TYPES, contactTypeLabel, US_STATES } from '../data/constants.js?v=202611031702';
-import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611031702';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin } from './crm-kit.js?v=202611031702';
-import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611031702';
-import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611031702';
-import { settingsPage } from './crm-settings.js?v=202611031702';
-import { personModal, personView, relatedHtml, wireRelated } from './crm-forms.js?v=202611031702';
-import { pipelinePage, reportsPage } from './crm-more.js?v=202611031702';
-import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611031702';
-import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611031702';
-import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611031702';
-import { searchPage } from './crm-search.js?v=202611031702';
-import { dashboardsPage } from './crm-dashboards.js?v=202611031702';
-import { reportsHome } from './crm-reports.js?v=202611031702';
-import { dealsPage } from './crm-deals.js?v=202611031702';
+import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611031733';
+import { CONTACT_TYPES, contactTypeLabel, US_STATES } from '../data/constants.js?v=202611031733';
+import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611031733';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin } from './crm-kit.js?v=202611031733';
+import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611031733';
+import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611031733';
+import { settingsPage } from './crm-settings.js?v=202611031733';
+import { personModal, personView, relatedHtml, wireRelated } from './crm-forms.js?v=202611031733';
+import { pipelinePage, reportsPage } from './crm-more.js?v=202611031733';
+import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611031733';
+import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611031733';
+import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611031733';
+import { searchPage } from './crm-search.js?v=202611031733';
+import { dashboardsPage } from './crm-dashboards.js?v=202611031733';
+import { reportsHome } from './crm-reports.js?v=202611031733';
+import { dealsPage } from './crm-deals.js?v=202611031733';
+import { callPage } from './crm-calls.js?v=202611031733';
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
 const archivedOpts = [['only', 'Archived only'], ['all', 'Active + archived']];
@@ -52,6 +53,7 @@ export async function render(ctx) {
   if (s === 'accounts') return params.id ? accountPage(c) : accountsList(c);
   if (s === 'tasks' && params.id) return taskPage(c);
   if (s === 'meetings' && params.id) return meetingPage(c);
+  if (s === 'calls' && params.id) return callPage(c);   // video 11: a call's details
   if (s === 'pipeline') return pipelinePage(c);
   if (s === 'reports') return params.id === 'summary' ? reportsPage(c) : reportsHome(c);   // Nov 3 (b), video 10: Zoho-style reports; the older per-table summary stays at #/crm/reports/summary
   if (s === 'dashboards') return dashboardsPage(c);   // video 9
@@ -69,7 +71,8 @@ const pk = (cfg, key, field, label) => [field, label, (r) => lbl(cfg, key, r[fie
 async function leadsList({ api, me, owners, go, cfg }) {
   const rows = (await api.listCrmLeads()).map((r) => flattenCustom(cfg, 'lead', r));
   const H = (k) => hiddenField(cfg, 'person', k);
-  const lv = listView({ key: 'leads', rows, fields: ['name', 'email', 'company', 'phone', 'leadSource', 'notes', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'lead')], sortDefault: 'createdAt:desc', csv: 'crm-leads.csv',
+  const lv = listView({ key: 'leads', rows, fields: ['name', 'email', 'company', 'phone', 'leadSource', 'notes', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'lead')], sortDefault: 'createdAt:desc', csv: me.canConfigure ? 'crm-leads.csv' : '', exporter: (cols, out) => api.exportCrmList('leads', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
+   
     cols: [['name', 'Lead Name', (r) => html`${link('leads', r)}${r.converted ? html` ${pill('Converted', 'ok')}` : ''}${r.archived ? html` ${pill('Archived')}` : ''}`, (r) => r.name], ['company', 'Company'], ['email', 'Email'], ['phone', 'Phone'],
       ...(H('leadSource') ? [] : [pk(cfg, 'leadSource', 'leadSource', 'Lead Source')]), ...(H('relationshipStatus') ? [] : [pk(cfg, 'relationshipStatus', 'relationshipStatus', 'Relationship Status')]),
       ...(H('roleInCompany') ? [] : [pk(cfg, 'roleInCompany', 'roleInCompany', 'Role in Company')]), ...(H('county') ? [] : [['county', 'County']]),
@@ -92,7 +95,7 @@ async function leadPage({ api, me, owners, assignees, params, refresh, go, cfg }
     ${personView('lead', l, html`<dt>Created</dt><dd>${fmtDateTime(l.createdAt)}</dd>${l.modifiedByName ? html`<dt>Modified By</dt><dd>${l.modifiedByName}, ${fmtDateTime(l.modifiedAt)}</dd>` : ''}`, cfg)}
     ${relatedHtml(l, { entity: 'lead', entityId: l.id, me, cfg })}${emailsCard(emails)}`;
   return { title: 'Lead ' + l.name, crumbs: crumbs('Leads', ['#/crm/leads', l.name]), body, mount(root) {
-    wireSendEmail(root, api, me, refresh); wireEmails(root, api, emails); wireCfFiles(root, api, refresh); wireArchive(root, api, refresh); wireCompose(root, api, me, refresh); wireRelated(root, api, refresh, { entity: 'lead', entityId: l.id, parentName: l.name, me, assignees, cfg });
+    wireSendEmail(root, api, me, refresh); wireEmails(root, api, emails); wireCfFiles(root, api, refresh); wireArchive(root, api, refresh); wireCompose(root, api, me, refresh); wireRelated(root, api, refresh, { entity: 'lead', entityId: l.id, parentName: l.name, me, assignees, cfg, rec: l });
     const e = $('[data-edit-lead]', root); if (e) e.addEventListener('click', () => personModal('lead', l, { owners, me, edit: true, cfg }, (v) => api.updateCrmLead(l.id, v), () => refresh()));
     const cv = $('[data-convert]', root); if (cv) cv.addEventListener('click', () => {
       const m = modal('Convert lead to client', html`<form id="convert-form" class="form-grid">
@@ -115,7 +118,8 @@ async function leadPage({ api, me, owners, assignees, params, refresh, go, cfg }
 async function contactsList({ api, me, owners, go, cfg }) {
   const rows = (await api.listCrmContacts()).map((r) => flattenCustom(cfg, 'contact', r)); const accounts = me.canEdit ? await api.listCrmAccounts() : [];
   const H = (k) => hiddenField(cfg, 'person', k);
-  const lv = listView({ key: 'contacts', rows, fields: ['name', 'email', 'companyName', 'phone', 'mobile', 'tags', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'contact')], csv: 'crm-clients.csv',
+  const lv = listView({ key: 'contacts', rows, fields: ['name', 'email', 'companyName', 'phone', 'mobile', 'tags', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'contact')], csv: me.canConfigure ? 'crm-clients.csv' : '', exporter: (cols, out) => api.exportCrmList('contacts', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
+   
     cols: [['name', 'Client Name', (r) => html`${link('contacts', r)}${r.archived ? html` ${pill('Archived')}` : ''}${r.hasLogin ? html` <span class="muted small">(portal login)</span>` : ''}`, (r) => r.name],
       ['companyName', 'Company Name', (r) => (r.accountId ? html`<a href="#/crm/accounts/${r.accountId}">${r.accountName}</a>` : r.company), (r) => r.companyName], ...(H('roleInCompany') ? [] : [pk(cfg, 'roleInCompany', 'roleInCompany', 'Role in Company')]), ['email', 'Email'],
       ...(H('mobile') ? [] : [['mobile', 'Mobile']]), ...(H('leadSource') ? [] : [pk(cfg, 'leadSource', 'leadSource', 'Lead Source')]), ...(H('relationshipStatus') ? [] : [pk(cfg, 'relationshipStatus', 'relationshipStatus', 'Status')]),
@@ -144,14 +148,15 @@ async function contactPage({ api, me, owners, assignees, params, refresh, cfg })
     ${ordersCard(c.orders, c.totals)}${emailsCard(emails)}
     <div class="card" data-contact-opps><h3>Pipeline</h3>${c.opportunities.length ? html`<ul>${c.opportunities.map((o) => html`<li>${o.name}: <strong>${lbl(cfg, 'oppStage', o.stage)}</strong> (${o.ownerName || 'unassigned'})</li>`)}</ul>` : html`<p class="muted">No opportunities.</p>`}<a href="#/crm/pipeline">Open the pipeline</a></div>`;
   return { title: 'Client ' + c.name, crumbs: crumbs('Clients', ['#/crm/contacts', c.name]), body, mount(root) {
-    wireSendEmail(root, api, me, refresh); wireEmails(root, api, emails); wireCfFiles(root, api, refresh); wireArchive(root, api, refresh); wireCompose(root, api, me, refresh); wireRelated(root, api, refresh, { entity: 'contact', entityId: c.id, parentName: c.name, me, assignees, cfg });
+    wireSendEmail(root, api, me, refresh); wireEmails(root, api, emails); wireCfFiles(root, api, refresh); wireArchive(root, api, refresh); wireCompose(root, api, me, refresh); wireRelated(root, api, refresh, { entity: 'contact', entityId: c.id, parentName: c.name, me, assignees, cfg, rec: c });
     const e = $('[data-edit-contact]', root); if (e) e.addEventListener('click', () => personModal('contact', c, { owners, accounts, me, edit: true, cfg }, (v) => api.updateCrmContact(c.id, v), () => refresh())); } };
 }
 
 // ---------------- COMPANIES ----------------
 async function accountsList({ api, me, owners, go, cfg }) {
   const rows = (await api.listCrmAccounts()).map((a) => flattenCustom(cfg, 'account', { ...a, place: [a.city, a.state].filter(Boolean).join(', ') }));
-  const lv = listView({ key: 'accounts', rows, fields: ['name', 'city', 'website', 'notes', ...cfSearch(cfg, 'account')], csv: 'crm-companies.csv',
+  const lv = listView({ key: 'accounts', rows, fields: ['name', 'city', 'website', 'notes', ...cfSearch(cfg, 'account')], csv: me.canConfigure ? 'crm-companies.csv' : '', exporter: (cols, out) => api.exportCrmList('accounts', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
+   
     cols: [['name', 'Company Name', (r) => html`${link('accounts', r)}${r.archived ? html` ${pill('Archived')}` : ''}`, (r) => r.name], pk(cfg, 'accountKind', 'kind', 'Type'), ...(hiddenField(cfg, 'account', 'city') ? [] : [['place', 'City']]), ['ownerName', 'Company Owner', (r) => r.ownerName || muted('Unassigned'), (r) => r.ownerName],
       ['contacts', 'Clients'], ['orders', 'Orders'], ['volume', 'Volume', (r) => money(r.volume), (r) => r.volume], ...cfCols(cfg, 'account')],
     filters: [['ownerId', 'Company Owner', ownerOpts(owners), 'Any owner'], ['kind', 'Type', fopts(cfg, 'accountKind'), 'Any type'], ['archived', 'Archived', archivedOpts, 'Hide archived'], ...cfFilters(cfg, 'account')],
@@ -195,5 +200,5 @@ async function accountPage({ api, me, owners, assignees, params, refresh, cfg })
     ${relatedHtml(a, { entity: 'account', entityId: a.id, me, cfg })}${emailsCard(emails)}`;
   return { title: 'Company ' + a.name, crumbs: crumbs('Companies', ['#/crm/accounts', a.name]), body, mount(root) {
     const e = $('[data-edit-account]', root); if (e) e.addEventListener('click', () => accountForm(api, me, owners, a, () => refresh(), cfg));
-    wireSendEmail(root, api, me, refresh); wireEmails(root, api, emails); wireCfFiles(root, api, refresh); wireArchive(root, api, refresh); wireCompose(root, api, me, refresh); wireRelated(root, api, refresh, { entity: 'account', entityId: a.id, parentName: a.name, me, assignees, cfg }); } };
+    wireSendEmail(root, api, me, refresh); wireEmails(root, api, emails); wireCfFiles(root, api, refresh); wireArchive(root, api, refresh); wireCompose(root, api, me, refresh); wireRelated(root, api, refresh, { entity: 'account', entityId: a.id, parentName: a.name, me, assignees, cfg, rec: a }); } };
 }

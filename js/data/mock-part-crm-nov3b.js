@@ -8,11 +8,11 @@
  * Nothing here deletes: dashboards, components and reports are RETIRED (hidden, restorable). Mirrored by migration 30. */
 import { MODULE_CODES, moduleName, SEARCH_MODULES, REPORT_MODULES, DASH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, parseQuery, searchMatch, moduleFields, reportFields,
   RELATED, joinRows, runReport, reportCsv, cleanCriteria, applyCriteria, criteriaText, chartData, measureOf, measureLabel, groupOf, display, dealStageOf, CALL_TYPES,
-  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, BUCKETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611031702';
-import { ensureNov3b } from './crm-nov3b.js?v=202611031702';
-import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611031702';
-import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611031702';
-import { crmReadOnly, CRM_OWNER_ROLES } from './crm.js?v=202611031702';
+  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, BUCKETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611031733';
+import { ensureNov3b } from './crm-nov3b.js?v=202611031733';
+import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611031733';
+import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611031733';
+import { crmReadOnly, CRM_OWNER_ROLES } from './crm.js?v=202611031733';
 
 export const SEND_NOTE = 'Not sent: Gmail is not connected yet. The email was saved on this record only.';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -66,8 +66,9 @@ export function crmNov3bPart(x, h) {
     if (a.kind === 'meeting') return { ...base, startsAt: a.startsAt, endsAt: a.endsAt, meetingType: a.meetingType || '', location: a.location || '', hostId: a.hostId, hostName: a.hostName, _link: `#/crm/meetings/${a.id}`,
       startsAtText: display({ type: a.allDay ? 'date' : 'datetime', key: 'a' }, { a: a.startsAt }), endsAtText: display({ type: a.allDay ? 'date' : 'datetime', key: 'a' }, { a: a.endsAt }) };
     const start = a.callStart || (a.occurredOn ? a.occurredOn : null);
-    return { ...base, callType: a.callType || '', callStart: start, callDuration: a.callDuration == null ? null : a.callDuration, ownerId: a.createdBy, ownerName: a.createdByName, _link: `${a.parentLink}?act=${a.id}`,
-      callTypeText: a.callType || '', callStartText: display({ type: a.callStart ? 'datetime' : 'date', key: 'a' }, { a: start }), callDurationText: a.callDuration == null ? '' : `${a.callDuration} min` };
+    // video 11: Call Owner = the owner picked on the form (older logs: whoever logged it); duration shown mm:ss
+    return { ...base, callType: a.callType || '', callStart: start, callDuration: a.callDuration == null ? null : a.callDuration, callStatus: a.callStatus || 'Completed', ownerId: a.ownerId || a.createdBy, ownerName: a.ownerName || a.createdByName, _link: `#/crm/calls/${a.id}`,
+      callTypeText: a.callType || '', callStartText: display({ type: a.callStart ? 'datetime' : 'date', key: 'a' }, { a: start }), callDurationText: a.callDurationText || (a.callDuration == null ? '' : `${a.callDuration} min`) };
   }
   function rowsOf(u, module, cfg = cfgFor(u)) {
     const d = db();
