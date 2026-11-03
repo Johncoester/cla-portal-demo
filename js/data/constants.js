@@ -146,3 +146,13 @@ export const CLOSING_LOCATIONS = ['CLA Title office', 'Mobile notary', 'Remote (
 export const CLA_PHONE = '301-555-0100';
 export const WIRE_FRAUD_NOTE = `Before you send any money, CALL CLA Title at ${CLA_PHONE} (a number you already know - never one from an email) to confirm these instructions. `
   + 'CLA Title will NEVER change wire instructions by email, text or phone. If you get a message saying the instructions changed, it is fraud: do not send money, call us.';
+// WIRE INSTRUCTIONS GO TO BUYER CLIENTS ONLY (Matt, Oct 31; John, Nov 3: real estate agents - Buyer Agent or Listing Agent - and anyone they
+// Share Access with must NEVER receive or see them: threads, files, documents, activity, previews, counts). Allowed: CLA staff + a person who is
+// a Client-Buyer ON THAT FILE (a self-represented buyer included, because they are the buyer). Mirrored by private.wire_allowed (migration 29).
+// A document is "wire instructions" when staff mark it so, or when its name says so (safety net). "Wire Fraud Warning" is NOT wire instructions.
+export const WIRE_DOC_RE = /\bwir(?:e|ing)[\s_.-]*(?:transfer[\s_.-]*)?(?:instruction|info(?:rmation)?\b|details\b)/i;
+export const isWireDocName = (name) => WIRE_DOC_RE.test(String(name == null ? '' : name));
+// message text that carries wire details (mentions wiring AND a routing / ABA / account number or a 9-digit number). Refused in any conversation
+// that includes someone who may not get wire instructions. Mirrored by private.wire_text (migration 29).
+export const looksLikeWireDetails = (t) => { const s = String(t == null ? '' : t); return /\bwir(?:e|ed|ing)\b/i.test(s) && (/\b(?:routing|aba)\b/i.test(s) || /\baccount\s*(?:no\.?|number|num|#)/i.test(s) || /(?<!\d)\d{9}(?!\d)/.test(s)); };
+export const WIRE_BUYER_ONLY = 'Wire instructions go to the buyer only (and CLA Title staff). Real estate agents never receive them.';

@@ -1,8 +1,8 @@
 // Type-to-search person picker (John, Nov 2): replaces the long contact dropdowns for Buyer, Seller, Buyer Agent and Listing Agent.
 // Searches name, email, phone (digits) and company / brokerage as you type; arrow keys + Enter or a click select; Escape closes.
 // Only the first MAX matches are drawn, so it stays fast with thousands of contacts. The chosen contact id goes into a hidden input (name = the field).
-import { html, toText, $ } from '../ui.js?v=202611031316';
-import { fmtPhone, contactTypeLabel } from '../data/constants.js?v=202611031316';
+import { html, toText, $ } from '../ui.js?v=202611031426';
+import { fmtPhone, contactTypeLabel } from '../data/constants.js?v=202611031426';
 
 const MAX = 25;
 const digits = (s) => String(s || '').replace(/\D/g, '');

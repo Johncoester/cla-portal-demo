@@ -3,8 +3,8 @@
  * Modify / Submit Revision, task-tied messages, Request Update (staff answer it), Share Access (RECORDED only: no email, no login is created),
  * "Complete Requests Now" invite email (preview + outbox only), rich-text messages with file attachments (Share Files), and the outside user's own
  * Activity feed (only things they can already open). Nothing here deletes anything; documents stay permanent. */
-import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, COMMISSION_LABEL, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611031316';
-import { CLA_PHONE } from './constants.js?v=202611031316';
+import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, COMMISSION_LABEL, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611031426';
+import { CLA_PHONE } from './constants.js?v=202611031426';
 export function agentPortal(x) {
   const { api: root, load, save, nid, needUser, isManager, notViewOnly, dealOr404, onDeal, log, prof, nameOf, ownerOf, taskVisible, threadVisible, unreadIn, docVisible, participantsOf, isStaffView,
     notify, dealProfileIds, dealView, contactOf, clone, now, fail, str, emailOk, C } = x;
@@ -40,13 +40,19 @@ export function agentPortal(x) {
   // documents shared through messages: who can see them follows the normal visibility rules (outside sender: their own side + CLA)
   const shareVisibility = (u, ids, dealId) => { if (!isStaffView(u)) return C.sideOf(u.role) || 'all';
     const sides = [...new Set(ids.map((id) => x.personSide(id, dealId)).filter((sd) => sd !== 'staff'))]; return sides.length === 0 ? 'staff' : sides.length === 1 && sides[0] ? sides[0] : 'all'; };
+  // WIRE INSTRUCTIONS (John, Nov 3): a file that is (or is named as) wire instructions may only go to people who may get them: CLA staff + the buyer
+  // clients on this file. A conversation that includes an agent (or the seller side, or a side-less outside user) is refused, before anything is stored.
+  const wireFile = (u, f) => x.isWireDocName(f && f.name) || (!!(f && f.wireInstructions) && isStaffView(u));
+  const wireGuard = (u, ids, dealId, files) => { if (!(files || []).some((f) => wireFile(u, f))) return;
+    const no = [...new Set(ids)].filter((id) => !x.wireAllowed(id, dealId));
+    if (no.length) fail(`${x.WIRE_BUYER_ONLY} ${no.map((id) => `${nameOf(id)} (${x.fileRoleText(id, dealId)})`).join(', ')} cannot receive them. Use Share Files and send them to the buyer alone.`); };
   const attach = async (u, dealId, files, vis) => { const ids = [];
-    for (const f of (files || []).slice(0, 10)) { const doc = x.newDoc(u, { name: f.name, description: str(f.description, 500) || 'Shared in a message', mimeType: f.mimeType, size: f.size, dataUrl: f.dataUrl, visibility: vis, docType: f.docType || '' });
+    for (const f of (files || []).slice(0, 10)) { const doc = x.newDoc(u, { name: f.name, description: str(f.description, 500) || 'Shared in a message', mimeType: f.mimeType, size: f.size, dataUrl: f.dataUrl, visibility: vis, docType: f.docType || '', wireInstructions: wireFile(u, f) });
       doc.dealId = dealId; doc.folderId = null; doc.sharedInMessage = true; await x.keepFile(doc); load().documents.push(doc); ids.push(doc.id);
       log(dealId, u.id, 'document.uploaded', 'document', doc.id, `Uploaded ${doc.name} (shared in a message)`); }
     return ids; };
   const msgOut = (u, m) => { const d = load(); const atts = (m.attachmentIds || []).map((id) => d.documents.find((z) => z.id === id)).filter((z) => z && docVisible(u, z));
-    return { ...m, bodyHtml: m.bodyHtml ? sanitizeMessageHtml(m.bodyHtml) : '', attachments: atts.map((z) => ({ id: z.id, name: z.name, size: z.size, wire: /wire/i.test(z.name) || /wire/i.test(z.docType || '') })) }; };
+    return { ...m, bodyHtml: m.bodyHtml ? sanitizeMessageHtml(m.bodyHtml) : '', attachments: atts.map((z) => ({ id: z.id, name: z.name, size: z.size, wire: x.isWireDoc(z) })) }; };
 
   const api = {
     // ---------- Overview ----------
@@ -61,7 +67,7 @@ export function agentPortal(x) {
         { label: 'Settlement Agent', name: proc ? `${proc.firstName} ${proc.lastName}` : 'Not specified', company: 'CLA Title & Escrow', email: proc ? proc.email : '', phone: proc ? proc.phone : '', contactHidden: false, profileId: proc ? proc.id : null,
           canMessage: !!(proc && proc.id !== u.id && !C.viewOnly(u)) },
         { label: 'Title Company', name: 'CLA Title & Escrow', company: '', email: '', phone: CLA_PHONE, contactHidden: false, profileId: null, canMessage: false },
-        ...all('Buyer Agent').map((p) => party('Buyer Agent', p)), ...all('Listing Agent').map((p) => party('Listing Agent', p)), ...(all('Listing Agent').length ? [] : [party('Listing Agent', null)]),
+        ...all('Buyer Agent').map((p) => party('Buyer Agent', p)), ...(all('Buyer Agent').length ? [] : [party('Buyer Agent', null)]), ...all('Listing Agent').map((p) => party('Listing Agent', p)), ...(all('Listing Agent').length ? [] : [party('Listing Agent', null)]),
         ...all('Client-Seller').map((p) => party('Seller', p))];
       // Agency License ID: an agent sees their own (from their transaction info / commission task); staff see each agent's
       const lic = (role) => { const p = d.participants.find((z) => z.dealId === dealId && z.role === role); if (!p) return '';
@@ -163,11 +169,13 @@ export function agentPortal(x) {
       let u = needUser(); const clean = sanitizeMessageHtml(bodyHtml); const text = htmlToText(clean).slice(0, 4000); if (!text && !(files || []).length) fail('Write a message first.');
       if (threadId) { const t = load().threads.find((z) => z.id === threadId) || fail('Conversation not found.'); u = onDeal(u, t.dealId); notViewOnly(u);
         if (!t.participantIds.includes(u.id)) fail('You are not part of this conversation.');
+        wireGuard(u, t.participantIds, t.dealId, files); x.wireTextGuard(t.participantIds, t.dealId, text);
         const ids = await attach(u, t.dealId, files, shareVisibility(u, t.participantIds.filter((i) => i !== u.id), t.dealId));
         const m = await root.postMessage(threadId, text || '(file shared)'); const mm = load().messages.find((z) => z.id === m.id); mm.bodyHtml = clean; mm.attachmentIds = ids; save(); return clone(msgOut(u, mm)); }
       u = onDeal(u, dealId); notViewOnly(u); const allowed = new Set((await root.listMessageRecipients(dealId)).map((p) => p.id)); const rec = [...new Set(to || [])];
       if (!rec.length) fail('Pick who to send it to.'); if (rec.some((i) => !allowed.has(i))) fail('You can message CLA Title staff and people on your own side of this order only.');
       if (x.mixedSides([u.id, ...rec], dealId)) fail('A conversation can include CLA Title staff and ONE side of the order, not both.');
+      wireGuard(u, [u.id, ...rec], dealId, files); x.wireTextGuard([u.id, ...rec], dealId, `${str(subject, 150)}\n${text}`);
       const ids = await attach(u, dealId, files, shareVisibility(u, rec, dealId));
       const t = await root.createThread(dealId, { subject: str(subject, 150) || ((files || []).length ? 'Shared files' : 'New conversation'), participantIds: rec, body: text || '(file shared)' });
       const d = load(); const m = d.messages.filter((z) => z.threadId === t.id)[0]; m.bodyHtml = clean; m.attachmentIds = ids; save(); return clone({ ...t, message: msgOut(u, m) });

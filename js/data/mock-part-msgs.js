@@ -1,21 +1,27 @@
 /* mock adapter: messages (with notifications) and the activity log (with filters). User admin lives in mock-part-admin.js (Admin flag only). */
 export function messagesActivity(x) {
   const { load, save, nid, needUser, notViewOnly, dealOr404, onDeal, fileRole, dealsFor, log, nameOf, roleOf, threadVisible, unreadIn, participantsOf, notify, clone, now, fail, str, docVisible, taskVisible, localDayOf, C } = x;
-  const withPeople = (t) => ({ ...t, participants: t.participantIds.map((id) => ({ id, name: nameOf(id), role: x.fileRoleText(id, t.dealId) })) });
+  const withPeople = (t) => ({ ...t, participants: t.participantIds.map((id) => ({ id, name: nameOf(id), role: x.fileRoleText(id, t.dealId), wireOk: x.wireAllowed(id, t.dealId) })) });
+  // WIRE INSTRUCTIONS (John, Nov 3): text that carries wire details never goes into a conversation that includes anyone who may not get them (an agent,
+  // the seller side ...). Staff start a conversation with the buyer alone instead. Mirrored by the messages_wire_guard trigger (migration 29).
+  x.wireTextGuard = (ids, dealId, text) => { if (!x.looksLikeWireDetails(text)) return; const no = [...new Set(ids)].filter((id) => !x.wireAllowed(id, dealId));
+    if (no.length) fail(`${x.WIRE_BUYER_ONLY} This conversation includes ${no.map((id) => `${nameOf(id)} (${x.fileRoleText(id, dealId)})`).join(', ')}. Start a conversation with the buyer alone to send wire details.`); };
   const api = {
-    async listMessageRecipients(dealId) {
+    // { wire: true }: only the people who may receive WIRE INSTRUCTIONS (CLA staff + the buyer clients on this file; never an agent). Every row says wireOk.
+    async listMessageRecipients(dealId, { wire = false } = {}) {
       let u = needUser(); u = onDeal(u, dealId); const ids = new Set(participantsOf(dealId, u).map((p) => p.contact && p.contact.profileId).filter(Boolean));
       ids.add(load().deals.find((z) => z.id === dealId).processorId);
       if (u.role === 'Transaction Coordinator') ids.add(u.id);
       // outside users: CLA staff + their own side only (never the other side's agent or client)
       return clone(load().profiles.filter((p) => ids.has(p.id) && p.id !== u.id && p.status === 'active' && x.canMessage(u, p.id, dealId))
-        .map(({ id, firstName, lastName }) => ({ id, firstName, lastName, role: x.fileRoleText(id, dealId), side: x.personSide(id, dealId) })));
+        .filter((p) => !wire || x.wireAllowed(p.id, dealId))
+        .map(({ id, firstName, lastName }) => ({ id, firstName, lastName, role: x.fileRoleText(id, dealId), side: x.personSide(id, dealId), wireOk: x.wireAllowed(id, dealId) })));
     },
     async listThreads(dealId) {
       let u = needUser(); u = onDeal(u, dealId); const d = load();
       return clone(d.threads.filter((t) => t.dealId === dealId && threadVisible(u, t)).map((t) => {
         const ms = d.messages.filter((m) => m.threadId === t.id); const last = ms[ms.length - 1];
-        return { ...withPeople(t), count: ms.length, lastAt: last ? last.createdAt : t.createdAt, lastBody: last ? last.body : '', lastFrom: last ? nameOf(last.authorId) : '', hasFiles: ms.some((m) => (m.attachmentIds || []).length > 0), taskId: t.taskId || null, unread: unreadIn(u, t) };
+        return { ...withPeople(t), count: ms.length, lastAt: last ? last.createdAt : t.createdAt, lastBody: last ? last.body : '', lastFrom: last ? nameOf(last.authorId) : '', hasFiles: ms.some((m) => (m.attachmentIds || []).some((id) => { const z = d.documents.find((q) => q.id === id); return z && docVisible(u, z); })), taskId: t.taskId || null, unread: unreadIn(u, t) };
       }).sort((a, b) => b.lastAt.localeCompare(a.lastAt)));
     },
     async getThread(id) {
@@ -28,6 +34,7 @@ export function messagesActivity(x) {
       if ((participantIds || []).some((i) => !allowed.has(i) && i !== u.id)) fail('You can message CLA Title staff and people on your own side of this order only.');
       if (!ids.length) fail('Pick at least one recipient on this order.'); if (!str(body, 4000)) fail('Write a message first.');
       if (x.mixedSides([u.id, ...ids], dealId)) fail('A conversation can include CLA Title staff and ONE side of the order (buyer side or seller side), not both. Start a separate conversation for each side.');
+      x.wireTextGuard([u.id, ...ids], dealId, `${str(subject, 150)}\n${str(body, 4000)}`);
       const t = { id: nid('th'), dealId, subject: str(subject, 150) || 'New conversation', createdBy: u.id, createdAt: now(), participantIds: [u.id, ...ids] };
       d.threads.push(t); d.messages.push({ id: nid('m'), threadId: t.id, authorId: u.id, body: str(body, 4000), createdAt: now() }); d.reads.push({ threadId: t.id, profileId: u.id, at: now() });
       log(dealId, u.id, 'message.thread', 'thread', t.id, `Started conversation: ${t.subject}`);
@@ -37,7 +44,7 @@ export function messagesActivity(x) {
       let u = needUser(); const d = load(); const t = d.threads.find((z) => z.id === threadId) || fail('Conversation not found.'); u = onDeal(u, t.dealId); notViewOnly(u);
       if (!threadVisible(u, t) || !t.participantIds.includes(u.id)) fail('You are not part of this conversation.');
       if (!x.isStaffView(u) && t.participantIds.some((pid) => pid !== u.id && !x.canMessage(u, pid, t.dealId))) fail('This conversation includes the other side of the order. Ask CLA Title to start a separate conversation for your side.');
-      const text = str(body, 4000); if (!text) fail('Write a message first.');
+      const text = str(body, 4000); if (!text) fail('Write a message first.'); x.wireTextGuard(t.participantIds, t.dealId, text);
       const m = { id: nid('m'), threadId, authorId: u.id, body: text, createdAt: now() }; d.messages.push(m);
       log(t.dealId, u.id, 'message.posted', 'thread', threadId, `Message in: ${t.subject}`);
       notify(t.participantIds, { kind: 'message', dealId: t.dealId, title: `New message from ${nameOf(u.id)}: ${t.subject}`, link: `#/deals/${t.dealId}/inbox/${t.id}` }, u.id); await api.markThreadRead(threadId); save(); return clone(m);

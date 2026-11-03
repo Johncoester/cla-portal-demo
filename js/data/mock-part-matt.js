@@ -5,9 +5,9 @@
  *    coordinator confirms a scheduled closing, which everyone on the file then sees.
  *  - E-sign (DEMO): processor / coordinator ask specific people to sign a document; each signer gets a 'Sign' task, types their name and
  *    adopts it. Only the signer can sign (an agent cannot sign for a client). Provider seam: esign.js. */
-import { AGREEMENTS, agreementOf } from './agreements.js?v=202611031316';
-import { getProvider, ESIGN_PROVIDER } from './esign.js?v=202611031316';
-import { WIRE_FRAUD_NOTE, CLA_PHONE } from './constants.js?v=202611031316';
+import { AGREEMENTS, agreementOf } from './agreements.js?v=202611031426';
+import { getProvider, ESIGN_PROVIDER } from './esign.js?v=202611031426';
+import { WIRE_FRAUD_NOTE, CLA_PHONE } from './constants.js?v=202611031426';
 export function mattP2(x) {
   const { load, save, nid, needUser, isManager, notViewOnly, onDeal, scopeTo, holds, contactOf, isStaffView, personSide, docVisible, log, prof, nameOf, notify, dealProfileIds, clone, now, fail, str, localDate, C } = x;
   const d0 = () => load();
@@ -96,6 +96,8 @@ export function mattP2(x) {
     async requestSignature(docId, { signerIds, message } = {}) {
       let u = needUser(); const d = d0(); const doc = d.documents.find((z) => z.id === docId && z.dealId) || fail('Document not found.'); u = onDeal(u, doc.dealId);
       if (!isManager(u)) fail('Only the processor or coordinator can request signatures.');
+      // John, Nov 3: a sign task carries the file name and the buyer's agent can see the buyer's tasks, so wire instructions are never sent for e-sign
+      if (x.isWireDoc(doc)) fail('Wire instructions are not sent for e-signature (the sign task would show the file to the agents). Share them with the buyer alone.');
       const ids = [...new Set(Array.isArray(signerIds) ? signerIds : [])]; if (!ids.length) fail('Pick at least one person to sign.');
       const people = new Set(outsidePeople(doc.dealId)); const open = arr('signatureRequests').filter((r) => r.docId === docId && r.status === 'requested');
       ids.forEach((pid) => { if (!people.has(pid)) fail('Signers must be agents or clients on this file.');

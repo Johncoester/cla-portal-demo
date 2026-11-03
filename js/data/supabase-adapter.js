@@ -1,11 +1,11 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611031316';
-import { localDate } from './constants.js?v=202611031316';
-import { featureFlags } from './features.js?v=202611031316';
-import { fieldsForRole } from './templates.js?v=202611031316';
-import { crmSupabase } from './supabase-crm.js?v=202611031316';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611031426';
+import { localDate } from './constants.js?v=202611031426';
+import { featureFlags } from './features.js?v=202611031426';
+import { fieldsForRole } from './templates.js?v=202611031426';
+import { crmSupabase } from './supabase-crm.js?v=202611031426';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned; vendor locally before go-live
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -99,7 +99,11 @@ export async function createSupabaseAdapter(cfg) {
     // contact type (migration 21): contact_directory() / deal_contacts() keep their shape; types come from contact_types(ids)
     async listContacts(search = '') { const cs = camel(ok(await sb.rpc('contact_directory', { p_search: search }))); const t = await types(cs.map((c) => c.id)); return cs.map((c) => ({ ...c, contactType: t.get(c.id) || null })); },
     // messaging (migration 13): recipients = CLA staff + own side for outside users; a conversation never mixes the two sides
-    async listMessageRecipients(dealId) { return camel(ok(await sb.rpc('message_recipients', { p_deal: dealId }))); },
+    // John, Nov 3 (migration 29): wire_recipients = the same list cut to the buyer(s) + staff; wireOk drives the Share Files wire mode
+    async listMessageRecipients(dealId, { wire = false } = {}) {
+      const w = camel(ok(await sb.rpc('wire_recipients', { p_deal: dealId }))) || []; if (wire) return w.map((r) => ({ ...r, wireOk: true }));
+      const ids = new Set(w.map((r) => r.id)); return (camel(ok(await sb.rpc('message_recipients', { p_deal: dealId }))) || []).map((r) => ({ ...r, wireOk: ids.has(r.id) }));
+    },
     async createThread(dealId, { subject, participantIds, body }) { return { id: ok(await sb.rpc('create_thread', { p_deal: dealId, p_subject: subject, p_participants: participantIds, p_body: body })) }; },
     async postMessage(threadId, body) { const { data: { user } } = await sb.auth.getUser(); return camel(ok(await sb.from('messages').insert({ thread_id: threadId, author_id: user.id, body }).select().single())); },
     // activity log: RLS returns rows to CLA staff only (migration 13)
@@ -175,6 +179,7 @@ export async function createSupabaseAdapter(cfg) {
     async cancelSignatureRequest(id) { ok(await sb.rpc('cancel_signature_request', { p_request: id })); return true; },
   };
   for (const n of ['pickPerson', 'signInDev', 'updateMyProfile', 'getWorkQueue', 'unreadCount', 'setStage', 'setDealStatus',
+    // addDocument / updateDocumentMeta: pass wire_instructions (migration 29 column; the trigger forces it on wire-named files, staff only)
     'removeParticipant', 'createTask', 'addDocument', 'updateDocumentMeta', 'getDocumentContent',
     'listThreads', 'getThread', 'markThreadRead', 'adminListUsers', 'adminGetUser', 'adminUpdateUser', 'adminCreateUser',
     // round 2 still to wire (tables/RPCs exist in migrations 4-6; adminCreateUser needs an Edge Function with the service role)

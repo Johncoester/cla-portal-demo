@@ -1,7 +1,7 @@
 /* mock adapter: contacts, participants, documents (deal files). NOTE: there is no delete for documents, for anyone (Admin included). */
 export function contactsTasksDocs(x) {
   const { load, save, nid, needUser, needProcessor, isManager, notViewOnly, seesAll, dealsFor, dealOr404, onDeal, fileRole, log, prof, nameOf, roleOf, fullName, folderOf, docVisible, participantsOf, notify, dealProfileIds, clone, now, fail, str, emailOk, C } = x;
-  const docOut = (z) => ({ ...z, dataUrl: undefined, hasContent: !!(z.dataUrl || z.hasFile), uploadedByName: nameOf(z.uploadedBy), uploadedByRole: x.fileRoleText(z.uploadedBy, z.dealId), folderName: (folderOf(z.folderId) || {}).name || '' });
+  const docOut = (z) => ({ ...z, wireInstructions: x.isWireDoc(z), dataUrl: undefined, hasContent: !!(z.dataUrl || z.hasFile), uploadedByName: nameOf(z.uploadedBy), uploadedByRole: x.fileRoleText(z.uploadedBy, z.dealId), folderName: (folderOf(z.folderId) || {}).name || '' });
   // CONTACT TYPE (John, Nov 2): '' / null = not set; otherwise one of the fixed codes. A contact with a CLA staff login has none.
   const ctype = (v, login) => { const s = str(v, 20); if (!s) return null; if (!C.CONTACT_TYPE_CODES.includes(s)) fail('Pick a contact type from the list (Realtor, Lender or Buyer/Seller).');
     if (login && login.status !== 'removed' && !C.isOutside(login.role)) fail('CLA staff have no contact type.'); return s; };
@@ -65,9 +65,9 @@ export function contactsTasksDocs(x) {
       return clone(load().documents.filter((z) => z.dealId === dealId && docVisible(u, z) && (folderId === undefined || (folderId === '' ? !z.folderId : z.folderId === folderId)))
         .map(docOut).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
     },
-    async addDocument(dealId, { name, description, mimeType, size, dataUrl, visibility, folderId, docType }) {
+    async addDocument(dealId, { name, description, mimeType, size, dataUrl, visibility, folderId, docType, wireInstructions }) {
       let u = needUser(); u = onDeal(u, dealId); notViewOnly(u);
-      const doc = x.newDoc(u, { name, description, mimeType, size, dataUrl, visibility, docType }); doc.dealId = dealId;
+      const doc = x.newDoc(u, { name, description, mimeType, size, dataUrl, visibility, docType, wireInstructions }); doc.dealId = dealId;
       if (folderId) { const f = folderOf(folderId); if (!f || f.dealId !== dealId) fail('That folder is not part of this order.'); doc.folderId = f.id; } else doc.folderId = null;
       await x.keepFile(doc); load().documents.push(doc); log(dealId, u.id, 'document.uploaded', 'document', doc.id, `Uploaded ${doc.name}`);
       notify(dealProfileIds(dealId).filter((pid) => docVisible(prof(pid), doc)), { kind: 'document', dealId, title: `${nameOf(u.id)} uploaded ${doc.name}`, link: `#/deals/${dealId}/documents` }, u.id);
@@ -85,6 +85,11 @@ export function contactsTasksDocs(x) {
       if (patch.description != null) z.description = str(patch.description, 500);
       if (patch.docType != null) z.docType = docTypeOf(u, patch.docType);
       if (patch.visibility != null) { if (!C.DOC_VISIBILITY.includes(patch.visibility)) fail('Unknown visibility.'); visCheck(u, patch.visibility); z.visibility = patch.visibility; }
+      // wire instructions (John, Nov 3): CLA staff mark / unmark a file. A file whose NAME says wire instructions always stays marked.
+      if (patch.wireInstructions != null) { const want = patch.wireInstructions === true || patch.wireInstructions === 'on' || patch.wireInstructions === 'true';
+        if (!x.isStaffView(u) || C.viewOnly(u)) fail('Only CLA Title staff can mark wire instructions.');
+        if (!want && x.isWireDocName(z.name)) fail('This file is named as wire instructions, so it stays buyer-only. Upload it again under another name if it is not.');
+        if (z.wireInstructions !== want) log(z.dealId, u.id, 'document.updated', 'document', id, `${want ? 'Marked' : 'Unmarked'} ${z.name} as wire instructions`); z.wireInstructions = want; }
       log(z.dealId, u.id, 'document.updated', 'document', id, `Updated details of ${z.name}`); save(); return true;
     },
     async getDocumentContent(id) {
@@ -103,7 +108,7 @@ export function contactsTasksDocs(x) {
   // DOCUMENT TYPE (Matt, Oct 31): optional; sellers choose from the seller list (payoff statement, HOA docs, deed ...), the buyer side from the general list, staff from all.
   const docTypeOf = (u, v) => { const s = str(v, 60); if (!s) return ''; const ok = x.isStaffView(u) ? C.DOC_TYPES : C.docTypeChoices(u.role); if (!ok.includes(s)) fail('Pick a document type from the list.'); return s; };
   x.docTypeOf = docTypeOf;
-  x.newDoc = (u, { name, description, mimeType, size, dataUrl, visibility, docType }) => {
+  x.newDoc = (u, { name, description, mimeType, size, dataUrl, visibility, docType, wireInstructions }) => {
     const full = String(name == null ? '' : name).trim().replace(/[\\/]/g, '_'); if (!full) fail('A file name is required.');
     const dot = full.lastIndexOf('.'); const ext = dot > 0 ? full.slice(dot + 1).toLowerCase() : '';
     if (!ext) fail(`Files without an extension are not allowed. Allowed: ${C.ALLOWED_UPLOAD_EXT.join(', ')}.`);
@@ -113,7 +118,9 @@ export function contactsTasksDocs(x) {
     const vis = C.DOC_VISIBILITY.includes(visibility) ? visibility : C.visibilityChoices(u.role, u.isAdmin)[0];   // default: 'all' for staff/agents, own side for clients
     visCheck(u, vis);
     return { id: nid('doc'), dealId: null, folderId: null, name: n, description: str(description, 500), mimeType: str(mimeType, 100) || 'application/octet-stream', size: Number(size) || 0,
-      dataUrl: dataUrl || null, uploadedBy: u.id, visibility: vis, docType: docTypeOf(u, docType), createdAt: now() };
+      dataUrl: dataUrl || null, uploadedBy: u.id, visibility: vis, docType: docTypeOf(u, docType),
+      // wire instructions (John, Nov 3): staff may mark a file; any file NAMED as wire instructions is marked whoever uploads it. Buyer clients + staff only.
+      wireInstructions: x.isWireDocName(n) || (!!wireInstructions && wireInstructions !== 'false' && x.isStaffView(u)), createdAt: now() };
   };
   x.docOut = docOut;
   return api;

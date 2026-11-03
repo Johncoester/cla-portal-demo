@@ -4,7 +4,7 @@
  *   an allow-list HTML SANITIZER (no scripts, no event handlers, no javascript: links), the drag-and-drop BUILDER blocks -> email-safe HTML,
  *   the New Template gallery, the folder sidebar views, and the fake seed (3 templates, 4 shared folders).
  * NOTHING HERE SENDS EMAIL. Sending, open / bounce / click tracking and test emails wait for the Gmail connection ("we can tie in Gmail later"). */
-import { optLabel, activeFields, customDisplay, builtinHidden } from './crm-config.js?v=202611031316';
+import { optLabel, activeFields, customDisplay, builtinHidden } from './crm-config.js?v=202611031426';
 
 export const GMAIL_NOTE = 'Sending will be turned on when Gmail is connected.';
 export const STATS_NOTE = 'tracking starts when Gmail is connected';

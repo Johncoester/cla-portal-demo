@@ -1,9 +1,9 @@
 // Place Order (Processor, Admin, Super admin; John Nov 2): creates a deal and links the chosen people (their intake tasks are copied from the current task templates).
 // John, Nov 2 (later): Open Date (backdating allowed, never future), every US state (no default), EMD amount + due date, documents attached at placement,
 // type-to-search pickers for Buyer / Seller / Buyer Agent / Listing Agent, one "Add new user" place, and Transaction Coordinator = TC accounts only.
-import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText } from '../ui.js?v=202611031316';
-import { TX_TYPES, runsOrders, isProcessor, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole } from '../data/constants.js?v=202611031316';
-import { pickerHtml, mountPicker, personLabel } from './person-picker.js?v=202611031316';
+import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText } from '../ui.js?v=202611031426';
+import { TX_TYPES, runsOrders, isProcessor, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole } from '../data/constants.js?v=202611031426';
+import { pickerHtml, mountPicker, personLabel } from './person-picker.js?v=202611031426';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
 // Each person becomes their own deal_participants row, so each buyer / seller gets their own copy of the client intake tasks (existing per-person behaviour).
@@ -12,6 +12,8 @@ const partyRow = (role, label) => html`<div class="multi-row" data-party-row>${p
 const partyBlock = (role, label) => html`<fieldset class="span2 multi-party" data-multi="${role}"><legend>${label}s <span class="muted small">(one or more)</span></legend>
   <div class="multi-rows" data-rows>${partyRow(role, label)}</div><button type="button" class="ghost" data-add-row="${role}">+ Add another ${MULTI[role]}</button></fieldset>`;
 
+// optional single-person slots: text in the box without a pick is ignored, never an error (Francis, Nov 3: "Buyer Agent field should be optional")
+export const OPTIONAL_SLOTS = ['Buyer agent', 'Listing agent', 'Lender'];
 const SEARCH = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer agent'], ['Listing Agent', 'Listing agent'], ['Lender', 'Lender']];   // Lender slot: John, Nov 2 (contact type)
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
@@ -38,7 +40,7 @@ export async function render({ api, user, go }) {
       <label>Closing date<input name="closingDate" type="date"></label>
       <label>Processor *<select name="processorId" required>${meProc ? '' : html`<option value="">Choose the Processor&hellip;</option>`}${options(procs, meProc ? user.id : '', (s) => `${s.firstName} ${s.lastName}${s.id === user.id ? ' (you)' : ''}`, (s) => s.id)}</select></label>
       <fieldset class="span2" data-sales-picker><legend>Salespeople on this order (check all that apply)</legend><div data-sales-list>${staff.length ? staff.map((s) => salesBox(s)) : html`<p class="muted" data-no-sales>No active salespeople.</p>`}</div></fieldset>
-      <h3 class="span2">People on this order <span class="muted">(you can add or change them later under Contacts)</span></h3>
+      <h3 class="span2">People on this order <span class="muted">(all optional; you can add or change them later under Contacts)</span></h3>
       ${SEARCH.map(([role, label]) => (MULTI[role] ? partyBlock(role, label) : pickerHtml('p:' + role, label)))}
       <label>Transaction coordinator<select name="p:Transaction Coordinator"><option value="">(none yet)</option>${options(tcs, '', (c) => `${c.firstName} ${c.lastName}${c.company ? ' \u2014 ' + c.company : ''}`, (c) => c.contactId)}</select></label>
       <label>Sales team member<select name="p:Sales Team"><option value="">(none yet)</option>${options(contacts, '', (c) => `${c.firstName} ${c.lastName}${c.company ? ' \u2014 ' + c.company : ''}`, (c) => c.id)}</select></label>
@@ -63,6 +65,7 @@ export async function render({ api, user, go }) {
         <label>Files <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB each; choose several at once)</span><input type="file" id="nof-files" multiple accept="${ALLOWED_UPLOAD_EXT.map((e) => '.' + e).join(',')}"></label>
         <div id="nof-filelist"></div>
         <label>Who can see them<select id="nof-vis">${options(visOpts, visOpts[0], (v) => visibilityLabel(v, user.role))}</select></label>
+        <label class="check"><input type="checkbox" id="nof-wire"> These are wire instructions (buyer clients and CLA Title only; agents never see them)</label>
         <p class="muted small">They are saved to the order's Documents tab when you create the order. Documents are kept permanently and cannot be deleted.</p>
       </fieldset>
       <div class="span2"><button class="m-btn" type="submit">Create order</button> <a class="ghost" href="#/orders">Cancel</a></div>
@@ -122,7 +125,11 @@ export async function render({ api, user, go }) {
     // ---------- submit ----------
     form.addEventListener('submit', guard(async (e) => {
       e.preventDefault(); const f = formData(e.target);
-      for (const [label, pk] of allPickers()) if (pk.typed && !pk.value) throw new Error(`${label}: pick a person from the list (or clear the box, or use "Add new user").`);
+      // Francis, Nov 3: Buyer agent (like Listing agent and Lender) is OPTIONAL. Text left in one of those boxes without a person picked from the list (a
+      // half-typed name, "none", "N/A", browser autofill) never blocks the order: the order is created without that person and a note says so.
+      // Buyers and sellers still have to be picked from the list (or the box cleared) so a client is never dropped by accident.
+      const skipped = [];
+      for (const [label, pk] of allPickers()) if (pk.typed && !pk.value) { if (OPTIONAL_SLOTS.includes(label)) skipped.push(label); else throw new Error(`${label}: pick a person from the list (or clear the box, or use "Add new user").`); }
       for (const role of Object.keys(MULTI)) { const ids = rows[role].map((r) => r.pk.value).filter(Boolean); const twice = ids.find((id, i) => ids.indexOf(id) !== i);
         if (twice) throw new Error(`${personLabel(people.find((p) => p.id === twice) || { firstName: 'That person', lastName: '' })} is listed twice as ${SEARCH.find((x) => x[0] === role)[1]}.`); }
       const amt = String(f.emdAmount || '').replace(/[$,\s]/g, ''); if (amt && !(isFinite(Number(amt)) && Number(amt) >= 0)) throw new Error('EMD amount must be a number of 0 or more.');
@@ -135,8 +142,9 @@ export async function render({ api, user, go }) {
       for (const [k, v] of new FormData(e.target).entries()) if (k.startsWith('p:') && v) { const role = k.slice(2).replace(/:\d+$/, '');
         try { await api.addParticipant(deal.id, v, role); } catch (err) { problems.push(`${role}: ${err.message}`); } }
       for (let i = 0; i < files.length; i++) { const file = files[i]; const sel = $(`[data-doctype="${i}"]`, root);
-        try { await api.addDocument(deal.id, { name: file.name, description: '', mimeType: file.type, size: file.size, dataUrl: await readFile(file), visibility: $('#nof-vis', root).value, folderId: null, docType: sel ? sel.value : '' }); }
+        try { await api.addDocument(deal.id, { name: file.name, description: '', mimeType: file.type, size: file.size, dataUrl: await readFile(file), visibility: $('#nof-vis', root).value, folderId: null, docType: sel ? sel.value : '', wireInstructions: $('#nof-wire', root).checked }); }
         catch (err) { problems.push(`${file.name}: ${err.message}`); } }
+      if (skipped.length) toast(`No ${skipped.join(' / ').toLowerCase()} added (nobody was picked from the list). You can add one later on the Contacts tab.`);
       toast(`Order ${deal.fileNumber} created${files.length ? ` with ${files.length - problems.filter((p) => files.some((x) => p.startsWith(x.name + ':'))).length} document(s)` : ''}`);
       if (problems.length) toast('Some items were not added: ' + problems.join(' | '), 'err');
       go('/deals/' + deal.id);

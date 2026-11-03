@@ -1,11 +1,11 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611031316';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES } from '../data/constants.js?v=202611031316';
-import { slotText } from './dealclosing.js?v=202611031316';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611031316';
-import { composeModal } from './compose.js?v=202611031316';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611031426';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES } from '../data/constants.js?v=202611031426';
+import { slotText } from './dealclosing.js?v=202611031426';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611031426';
+import { composeModal } from './compose.js?v=202611031426';
 
-const TABS = { tasks: './dealtasks.js?v=202611031316', inbox: './dealmsgs.js?v=202611031316', documents: './dealdocs.js?v=202611031316', contacts: './dealcontacts.js?v=202611031316', activity: './dealactivity.js?v=202611031316', closing: './dealclosing.js?v=202611031316', agreements: './dealagreements.js?v=202611031316' };
+const TABS = { tasks: './dealtasks.js?v=202611031426', inbox: './dealmsgs.js?v=202611031426', documents: './dealdocs.js?v=202611031426', contacts: './dealcontacts.js?v=202611031426', activity: './dealactivity.js?v=202611031426', closing: './dealclosing.js?v=202611031426', agreements: './dealagreements.js?v=202611031426' };
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -13,7 +13,7 @@ export async function render(ctx) {
   // per-file roles: on this order an outside user acts as their role HERE (deal.myRole), e.g. Buyer Agent here, Client-Buyer elsewhere
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611031316' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611031426' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
@@ -139,7 +139,7 @@ function agentPanels(ctx, d, ov, ur, inv) {
     const rq = $('#requpdate', root); if (rq) rq.addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); if (!f.topic) throw new Error('Pick what you want an update on.');
       await api.requestUpdate(d.id, f); toast('Update requested. CLA Title will answer here.'); refresh(); }));
     $$('[data-answer]', root).forEach((f) => f.addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.respondUpdateRequest(f.dataset.answer, formData(f)); toast('Update sent'); refresh(); })));
-    $$('[data-message-to]', root).forEach((b) => b.addEventListener('click', guard(() => composeModal({ api, deal: d, go }, { title: 'New Conversation', to: b.dataset.messageTo, withFiles: true }))));
+    $$('[data-message-to]', root).forEach((b) => b.addEventListener('click', guard(() => composeModal({ api, deal: d, go, user }, { title: 'New Conversation', to: b.dataset.messageTo, withFiles: true }))));
     const sa = $('#shareaccess', root); if (sa) sa.addEventListener('click', () => { const m = modal('Share Access', html`<form id="saf" class="form-grid" novalidate>
       <label>First Name<input name="firstName" required maxlength="80"></label><label>Last Name<input name="lastName" required maxlength="80"></label>
       <label class="span2">Email<input name="email" type="email" required maxlength="200"></label>

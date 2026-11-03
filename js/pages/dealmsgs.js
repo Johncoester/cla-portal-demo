@@ -1,9 +1,9 @@
 // Inbox tab: conversations on this file (only people on the thread see it). Replies, new conversation, unread counts.
-import { html, $, $$, guard, formData, modal, closeModal, fmtDateTime, pill, toast } from '../ui.js?v=202611031316';
-import { viewOnly, isViewOnly, WIRE_FRAUD_NOTE } from '../data/constants.js?v=202611031316';
-import { raw } from '../ui.js?v=202611031316';
-import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611031316';
-import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611031316';
+import { html, $, $$, guard, formData, modal, closeModal, fmtDateTime, pill, toast } from '../ui.js?v=202611031426';
+import { viewOnly, isViewOnly, WIRE_FRAUD_NOTE } from '../data/constants.js?v=202611031426';
+import { raw } from '../ui.js?v=202611031426';
+import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611031426';
+import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611031426';
 
 export async function render(ctx) {
   const { api, user, deal, refresh, params } = ctx; const notViewOnly = !viewOnly(user);
@@ -35,6 +35,7 @@ async function thread({ api, user, deal, refresh, params }) {
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>${t.subject}</h2><a class="ghost right" href="#/deals/${deal.id}/inbox">All conversations</a></div>
     <p class="muted">With: ${t.participants.map((p) => `${p.name} (${p.role})`).join(', ')}${t.task ? html` &middot; about task <a href="#/deals/${deal.id}/tasks/${t.task.id}" data-thread-task>${t.task.title}</a>` : ''}</p>
     ${wire ? html`<div class="notice warn" data-wire-warning><strong>STOP - wire fraud warning.</strong> ${WIRE_FRAUD_NOTE}</div>` : ''}<div class="thread">${msgs}</div>
+    ${canPost && t.participants.some((p) => !p.wireOk) ? html`<p class="muted small" data-no-wire-here>Wire instructions cannot be sent in this conversation: ${t.participants.filter((p) => !p.wireOk).map((p) => `${p.name} (${p.role})`).join(', ')} may not receive them. Use Share Files and send them to the buyer alone.</p>` : ''}
     ${canPost ? html`<form id="rf" class="reply" data-reply><p><strong>Reply to this thread</strong></p>${editorHtml('reply-rte')}${filesHtml()}<button class="m-btn" type="submit" data-send>Send</button></form>` : html`<p class="muted">You can read this conversation but not reply.</p>`}`;
   return { title: t.subject, crumbs: [['Conversation', `#/deals/${deal.id}/inbox`], [t.subject]], body, mount(root) {
     $$('[data-open]', root).forEach((a) => a.addEventListener('click', guard(async (e) => { e.preventDefault(); const c = await api.getDocumentContent(a.dataset.open); const l = document.createElement('a'); l.href = c.dataUrl; l.download = c.name; document.body.appendChild(l); l.click(); l.remove(); })));

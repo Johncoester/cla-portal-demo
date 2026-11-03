@@ -3,7 +3,9 @@
  * Mirrored by public.my_notifications() in SQL (migration 16). */
 export function notificationsPart(x) {
   const { load, save, needUser, dealsFor, clone, now, fail } = x;
-  const mine = (u) => load().notifications.filter((n) => n.profileId === u.id);
+  // John, Nov 3: a notification that names a wire-instructions file never shows to someone who may not get wire instructions (an agent), including ones
+  // stored before the fix. Mirrored by migration 29 (old titles rewritten; new ones never created for agents).
+  const mine = (u) => load().notifications.filter((n) => n.profileId === u.id && !(x.isWireDocName(n.title) && !x.wireAllowed(u.id, n.dealId)));
   const withFile = (u, list) => { const seen = new Map(dealsFor(u).map((q) => [q.id, q]));
     return list.map((n) => { const q = n.dealId && seen.get(n.dealId); return { ...clone(n), fileNumber: q ? q.fileNumber : '', address: q ? `${q.street}, ${q.city}, ${q.state} ${q.zip}` : '' }; }); };
   return {
