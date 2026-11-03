@@ -2,10 +2,11 @@
  * NOT run against a hosted project (best effort; the mock adapter is the tested one). Two switches must both be on: the browser flag
  * (features.js, CLA_PORTAL_CONFIG.features.crm, OFF in supabase mode) and the database switch (private.features 'crm', migration 22).
  * With the browser flag off every method refuses before calling the database. Meetings never send invitations; nothing is emailed. */
-import { CRM_OFF } from './features.js?v=202611031028';
-import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611031028';
-import { localDate } from './constants.js?v=202611031028';
-import { ensureSettings, activeFields, cleanCustomValue, cleanLabel } from './crm-config.js?v=202611031028';
+import { CRM_OFF } from './features.js?v=202611031118';
+import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611031118';
+import { localDate } from './constants.js?v=202611031118';
+import { ensureSettings, activeFields, cleanCustomValue, cleanLabel } from './crm-config.js?v=202611031118';
+import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611031118';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };
@@ -78,7 +79,7 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     const a = rows[i].position; let b = rows[j].position; if (a === b) b += 1;
     ok(await match(sb.from(table).update({ position: b }), rows[i])); ok(await match(sb.from(table).update({ position: a }), rows[j])); };
   const fieldRow = (f) => ({ id: f.id, entity: f.entity, label: f.label, type: f.type, required: f.required, section: f.section, position: f.position, showInList: f.show_in_list, archivedAt: f.archived_at });
-  return {
+  const api = {
     async getCrmSettings() { return settingsRaw(); },
     async addCrmOption(key, label) { on(); const l = cleanLabel(label, 'The option'); const list = await opts(key);
       const same = list.find((o) => o.label.toLowerCase() === l.toLowerCase());
@@ -103,7 +104,7 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async setCrmBuiltinField(scope, key, v = {}) { on(); const o = {}; if (v.hidden !== undefined) o.hidden = !!v.hidden && v.hidden !== '0'; if (v.required !== undefined) o.required = !!v.required && v.required !== '0';
       const r = await one(sb.from('crm_field_settings').update(o).eq('scope', scope).eq('key', key)); return { hidden: r.hidden, required: r.required }; },
     async crmMe() { on(); const u = await me(); if (!canUseCrm(u)) throw new Error('The CRM is for CLA staff only.');
-      return { canEdit: !crmReadOnly(u), canConfigure: !!u.isAdmin, role: u.role, isAdmin: !!u.isAdmin, id: u.id, name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim(), scope: u.isAdmin || u.role === 'Processor' ? 'all' : u.role === 'Sales Team' ? 'team' : 'own' }; },
+      return { email: u.email || '', canEdit: !crmReadOnly(u), canConfigure: !!u.isAdmin, role: u.role, isAdmin: !!u.isAdmin, id: u.id, name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim(), scope: u.isAdmin || u.role === 'Processor' ? 'all' : u.role === 'Sales Team' ? 'team' : 'own' }; },
     async listCrmOwners() { on(); return owners(); },
     async listCrmAssignees() { on(); return staff(); },
     async listCrmUsers() { on(); return staff(); },   // participants: the CLA staff the caller can pick (other users can be added by an Admin later)
@@ -159,4 +160,7 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async getCrmAttachmentContent() { on(); throw new Error('CRM attachments are not set up on this portal yet.'); },
     async crmReport({ from = '', to = '' } = {}) { return rpc('crm_report', { p_from: from || null, p_to: to || null }); },
   };
+  // Nov 3 (migration 27): email templates. Nothing is ever sent.
+  Object.assign(api, crmTemplatesSupabase({ sb, ok, camel, me, on, one, self: api }));
+  return api;
 }

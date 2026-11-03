@@ -44,13 +44,21 @@
  *               listCrmContacts / getCrmContact (orders + totals + salesReps + activities) / createCrmContact / updateCrmContact (CRM fields only),
  *               listCrmAccounts / getCrmAccount / createCrmAccount / updateCrmAccount, listCrmOpportunities / createCrmOpportunity / updateCrmOpportunity / moveCrmOpportunity,
  *               archiveCrmRecord(entity, id, archived) (no CRM deletes), listCrmActivities / logCrmActivity / updateCrmActivity, listCrmFollowUps({ownerId, status}), crmReport({from, to}).
+ * Nov 3 (migration 27): CRM EMAIL TEMPLATES (same flag). NOTHING IS SENT: sendCrmTestEmail always refuses ("Sending will be turned on when Gmail is connected.").
+ *               listCrmEmailFolders() -> {canCreate, folders}, createCrmEmailFolder(name) / renameCrmEmailFolder(id, name) (Admin / Super admin),
+ *               listCrmEmailTemplates / getCrmEmailTemplate / createCrmEmailTemplate({module, kind, name, subject, body|blocks, pageBg, status, folderId})
+ *               / updateCrmEmailTemplate (creator or Admin; module + kind fixed) / duplicateCrmEmailTemplate(id, {name, folderId}) (Save As)
+ *               / retireCrmEmailTemplate(id, retired) (no delete), setCrmTemplateFavorite(id, on), addCrmTemplateAttachment(id, file) (PDF / PNG / JPG)
+ *               / detachCrmTemplateAttachment(id, fileId, detached) (file kept), getCrmSignature / saveCrmSignature(html), crmMergeFields(module),
+ *               previewCrmEmail({templateId|draft, recordId}), listCrmTemplatesFor(entity), composeCrmEmail(templateId, entity, recordId),
+ *               logCrmEmailDraft(templateId, entity, recordId) ("Email drafted (not sent)" activity), sendCrmTestEmail() (always refuses).
  * There is intentionally NO deleteDocument (or folder delete) in either adapter, for anyone.
  */
 let cached = null;
 export async function getAdapter() {
   if (cached) return cached;
   const cfg = (typeof window !== 'undefined' && window.CLA_PORTAL_CONFIG) || { mode: 'mock' };
-  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611031028'); cached = await m.createSupabaseAdapter(cfg); }
-  else { const m = await import('./mock-adapter.js?v=202611031028'); cached = m.createMockAdapter(); }
+  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611031118'); cached = await m.createSupabaseAdapter(cfg); }
+  else { const m = await import('./mock-adapter.js?v=202611031118'); cached = m.createMockAdapter(); }
   return cached;
 }

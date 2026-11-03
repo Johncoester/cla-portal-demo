@@ -1,8 +1,8 @@
 // One intake task (form). Save partial work, validate, mark complete. ID-type fields upload a file into the order's "IDs & personal" folder.
-import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611031028';
-import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611031028';
-import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611031028';
-import { CLS, LABEL } from './dealtasks.js?v=202611031028';
+import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611031118';
+import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611031118';
+import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611031118';
+import { CLS, LABEL } from './dealtasks.js?v=202611031118';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 export async function render({ api, deal, params, refresh, go }) {

@@ -1,8 +1,8 @@
 // crm-settings.js : CRM SETTINGS page, #/crm/settings (Janine / John, Nov 2). Admin and Super admin ONLY (the tab is hidden from everyone else
 // and the adapter refuses their calls). Pick lists, custom fields, built-in fields. Nothing here deletes stored data. Function first.
-import { html, raw, $, $$, guard, formData, toast, modal, closeModal, pill } from '../ui.js?v=202611031028';
-import { PICKLISTS, picklistDef, optionsOf, isLocked, FIELD_TYPES, fieldTypeLabel, CF_ENTITIES, SECTIONS_FOR, sectionLabel, PERSON_FIELDS, ACCOUNT_FIELDS, PROTECTED_FIELDS } from '../data/crm-config.js?v=202611031028';
-import { tabs, head, sel } from './crm-kit.js?v=202611031028';
+import { html, raw, $, $$, guard, formData, toast, modal, closeModal, pill } from '../ui.js?v=202611031118';
+import { PICKLISTS, picklistDef, optionsOf, isLocked, FIELD_TYPES, fieldTypeLabel, CF_ENTITIES, SECTIONS_FOR, sectionLabel, PERSON_FIELDS, ACCOUNT_FIELDS, PROTECTED_FIELDS } from '../data/crm-config.js?v=202611031118';
+import { tabs, head, sel } from './crm-kit.js?v=202611031118';
 
 const q = () => new URLSearchParams(location.hash.split('?')[1] || '');
 const url = (o) => { const n = new URLSearchParams({ ...Object.fromEntries(q()), ...o }); [...n.keys()].forEach((k) => { if (!n.get(k)) n.delete(k); }); return '#/crm/settings?' + n; };
@@ -56,6 +56,8 @@ export async function settingsPage({ api, me, cfg, refresh }) {
   const body = html`${head('CRM: Settings', me)}${tabs('settings')}
     <p class="muted">Admins and Super admins only. Everyone with the CRM uses these lists and fields; nothing here deletes data that is already stored.
       ${cfg.modifiedAt ? html`Last changed by ${cfg.modifiedByName || 'an Admin'}.` : ''}</p>
+    <div class="card" data-settings-templates><h3>Email templates</h3><p>Templates, folders (Admins and Super admins create and rename them) and signatures:
+      <a href="#/crm/templates" data-settings-templates-link>CRM &gt; Templates</a> · <a href="#/crm/signature">My email signature</a>. Nothing is sent until Gmail is connected.</p></div>
     <div class="card" data-settings-picklists><h3>Pick lists</h3>
       <div class="filter-bar">${PICKLISTS.map((l) => html`<a class="${l.key === listKey ? 'active-link' : ''}" href="${url({ list: l.key })}" data-pick-list="${l.key}">${l.label}</a> `)}</div>
       ${optionEditor(cfg, listKey, { title: def.label, note: `Used on: ${def.where}.${def.locked ? ` Locked options can be renamed and moved but not retired (${def.why}).` : ''}` })}</div>

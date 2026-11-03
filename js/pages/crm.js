@@ -1,16 +1,17 @@
 // crm.js : the CRM (John, Nov 2). Routes #/crm/<section>[/<id>]: home (default), leads, contacts (= Clients), accounts (= Companies), pipeline, reports,
 // tasks/<id>, meetings/<id>; followups (older link) shows Home. Labels follow John's Zoho (Clients / Companies); internal names stay contacts / accounts.
 // Reachable only when the `crm` feature flag is on (app.js never loads this module otherwise) and only for CLA staff (adapter refuses others).
-import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611031028';
-import { CONTACT_TYPES, contactTypeLabel, US_STATES } from '../data/constants.js?v=202611031028';
-import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611031028';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin } from './crm-kit.js?v=202611031028';
-import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611031028';
-import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch } from './crm-custom.js?v=202611031028';
-import { settingsPage } from './crm-settings.js?v=202611031028';
-import { personModal, personView, relatedHtml, wireRelated } from './crm-forms.js?v=202611031028';
-import { pipelinePage, reportsPage } from './crm-more.js?v=202611031028';
-import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611031028';
+import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611031118';
+import { CONTACT_TYPES, contactTypeLabel, US_STATES } from '../data/constants.js?v=202611031118';
+import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611031118';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin } from './crm-kit.js?v=202611031118';
+import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611031118';
+import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch } from './crm-custom.js?v=202611031118';
+import { settingsPage } from './crm-settings.js?v=202611031118';
+import { personModal, personView, relatedHtml, wireRelated } from './crm-forms.js?v=202611031118';
+import { pipelinePage, reportsPage } from './crm-more.js?v=202611031118';
+import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611031118';
+import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611031118';
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
 const archivedOpts = [['only', 'Archived only'], ['all', 'Active + archived']];
@@ -34,6 +35,8 @@ export async function render(ctx) {
   if (s === 'meetings' && params.id) return meetingPage(c);
   if (s === 'pipeline') return pipelinePage(c);
   if (s === 'reports') return reportsPage(c);
+  if (s === 'templates') return templatesPage(c);   // Nov 3: email templates (nothing is ever sent)
+  if (s === 'signature') return signaturePage(c);
   throw new Error('That CRM page does not exist.');
 }
 
@@ -62,12 +65,12 @@ async function leadPage({ api, me, owners, assignees, params, refresh, go, cfg }
   const body = html`${head(`Lead: ${l.name}`, me)}${tabs('leads')}
     <div class="card" data-lead="${l.id}"><p>${l.converted ? html`${pill('Converted', 'ok')} to client <a href="#/crm/contacts/${l.convertedContactId}" data-converted-contact>${l.convertedContactName}</a> on ${fmtDate(l.convertedAt)}` : ''}${l.archived ? html` ${pill('Archived')}` : ''}</p>
       <p>${me.canEdit && !l.converted ? html`<button class="ghost" data-edit-lead>Edit</button> ${l.archived ? '' : html`<button class="m-btn" data-convert>Convert to client</button>`} ` : ''}${archiveBtn(me, 'lead', l.id, l.archived)}
-        <a class="ghost" href="#/crm/leads">Back to leads</a></p>
+        ${composeBtn('lead', l.id)} <a class="ghost" href="#/crm/leads">Back to leads</a></p>
       <span hidden data-lead-owner>${l.ownerName || 'Unassigned'}</span><span hidden data-lead-ctype>${contactTypeLabel(l.contactType) || 'Not set'}</span><span hidden data-lead-status>${l.relationshipStatus}</span></div>
     ${personView('lead', l, html`<dt>Created</dt><dd>${fmtDateTime(l.createdAt)}</dd>${l.modifiedByName ? html`<dt>Modified By</dt><dd>${l.modifiedByName}, ${fmtDateTime(l.modifiedAt)}</dd>` : ''}`, cfg)}
     ${relatedHtml(l, { entity: 'lead', entityId: l.id, me, cfg })}`;
   return { title: 'Lead ' + l.name, crumbs: crumbs('Leads', ['#/crm/leads', l.name]), body, mount(root) {
-    wireArchive(root, api, refresh); wireRelated(root, api, refresh, { entity: 'lead', entityId: l.id, parentName: l.name, me, assignees, cfg });
+    wireArchive(root, api, refresh); wireCompose(root, api, me, refresh); wireRelated(root, api, refresh, { entity: 'lead', entityId: l.id, parentName: l.name, me, assignees, cfg });
     const e = $('[data-edit-lead]', root); if (e) e.addEventListener('click', () => personModal('lead', l, { owners, me, edit: true, cfg }, (v) => api.updateCrmLead(l.id, v), () => refresh()));
     const cv = $('[data-convert]', root); if (cv) cv.addEventListener('click', () => {
       const m = modal('Convert lead to client', html`<form id="convert-form" class="form-grid">
@@ -112,14 +115,14 @@ async function contactPage({ api, me, owners, assignees, params, refresh, cfg })
     ${c.fromLeadId ? html`<dt>From lead</dt><dd><a href="#/crm/leads/${c.fromLeadId}">open the lead</a></dd>` : ''}`;
   const body = html`${head(`Client: ${c.name}`, me)}${tabs('contacts')}
     <div class="card" data-contact="${c.id}"><h3>${c.name} ${c.archived ? pill('Archived') : ''}</h3>
-      <p>${me.canEdit ? html`<button class="ghost" data-edit-contact>Edit</button> ` : ''}${archiveBtn(me, 'contact', c.id, c.archived)} <a class="ghost" href="#/crm/contacts">Back to clients</a></p>
+      <p>${me.canEdit ? html`<button class="ghost" data-edit-contact>Edit</button> ` : ''}${archiveBtn(me, 'contact', c.id, c.archived)} ${composeBtn('contact', c.id)} <a class="ghost" href="#/crm/contacts">Back to clients</a></p>
       <span hidden data-contact-account>${c.accountId ? c.accountName : ''}</span></div>
     ${personView('contact', c, extra, cfg)}
     ${relatedHtml(c, { entity: 'contact', entityId: c.id, me, cfg })}
     ${ordersCard(c.orders, c.totals)}
     <div class="card" data-contact-opps><h3>Pipeline</h3>${c.opportunities.length ? html`<ul>${c.opportunities.map((o) => html`<li>${o.name}: <strong>${lbl(cfg, 'oppStage', o.stage)}</strong> (${o.ownerName || 'unassigned'})</li>`)}</ul>` : html`<p class="muted">No opportunities.</p>`}<a href="#/crm/pipeline">Open the pipeline</a></div>`;
   return { title: 'Client ' + c.name, crumbs: crumbs('Clients', ['#/crm/contacts', c.name]), body, mount(root) {
-    wireArchive(root, api, refresh); wireRelated(root, api, refresh, { entity: 'contact', entityId: c.id, parentName: c.name, me, assignees, cfg });
+    wireArchive(root, api, refresh); wireCompose(root, api, me, refresh); wireRelated(root, api, refresh, { entity: 'contact', entityId: c.id, parentName: c.name, me, assignees, cfg });
     const e = $('[data-edit-contact]', root); if (e) e.addEventListener('click', () => personModal('contact', c, { owners, accounts, me, edit: true, cfg }, (v) => api.updateCrmContact(c.id, v), () => refresh())); } };
 }
 
@@ -160,7 +163,7 @@ async function accountPage({ api, me, owners, assignees, params, refresh, cfg })
       <dl class="kv"><dt>Type</dt><dd data-f="kind">${lbl(cfg, 'accountKind', a.kind)}</dd>${H('phone') ? '' : html`<dt>Phone</dt><dd>${a.phone || '—'}</dd>`}${H('website') ? '' : html`<dt>Website</dt><dd>${a.website || '—'}</dd>`}${H('city') && H('state') ? '' : html`<dt>City</dt><dd>${[H('city') ? '' : a.city, H('state') ? '' : a.state].filter(Boolean).join(', ') || '—'}</dd>`}
         <dt>Company Owner</dt><dd data-account-owner>${a.ownerName || 'Unassigned'}</dd>${H('notes') ? '' : html`<dt>Description</dt><dd>${a.notes || '—'}</dd>`}${cfRows(cfg, 'account', 'info', a)}</dl>
       ${fieldsInSection(cfg, 'account', 'additional').length ? html`<h3 data-additional>Additional Information</h3><dl class="kv" data-custom-fields>${cfRows(cfg, 'account', 'additional', a)}</dl>` : ''}
-      <p>${me.canEdit ? html`<button class="ghost" data-edit-account>Edit</button> ` : ''}${archiveBtn(me, 'account', a.id, a.archived)}</p></div>
+      <p>${me.canEdit ? html`<button class="ghost" data-edit-account>Edit</button> ` : ''}${archiveBtn(me, 'account', a.id, a.archived)} ${composeBtn('account', a.id)}</p></div>
     <div class="card" data-account-contacts><h3>Clients at ${a.name} (${a.contactList.length})</h3>
       <table class="tbl"><thead><tr><th>Client Name</th><th>Role in Company</th><th>Client Owner</th><th>Status</th><th>Orders</th><th>Volume</th></tr></thead><tbody>
       ${a.contactList.length ? a.contactList.map((c) => html`<tr data-row="${c.id}"><td>${link('contacts', c)}</td><td>${lbl(cfg, 'roleInCompany', c.roleInCompany) || ctype(c.contactType)}</td><td>${c.ownerName}</td><td>${lbl(cfg, 'relationshipStatus', c.relationshipStatus)}</td><td>${c.orders}</td><td>${money(c.volume)}</td></tr>`) : html`<tr><td colspan="6" class="muted">No clients yet. Pick this company on a client's Edit form.</td></tr>`}
@@ -170,5 +173,5 @@ async function accountPage({ api, me, owners, assignees, params, refresh, cfg })
     ${relatedHtml(a, { entity: 'account', entityId: a.id, me, cfg })}`;
   return { title: 'Company ' + a.name, crumbs: crumbs('Companies', ['#/crm/accounts', a.name]), body, mount(root) {
     const e = $('[data-edit-account]', root); if (e) e.addEventListener('click', () => accountForm(api, me, owners, a, () => refresh(), cfg));
-    wireArchive(root, api, refresh); wireRelated(root, api, refresh, { entity: 'account', entityId: a.id, parentName: a.name, me, assignees, cfg }); } };
+    wireArchive(root, api, refresh); wireCompose(root, api, me, refresh); wireRelated(root, api, refresh, { entity: 'account', entityId: a.id, parentName: a.name, me, assignees, cfg }); } };
 }

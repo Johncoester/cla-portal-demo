@@ -1,10 +1,11 @@
 // crm-more.js : CRM pipeline (Kanban + list) and Reports (John, Nov 2; follow-ups moved to CRM Home tasks). Function only, minimal styling.
-import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611031028';
-import { localDate } from '../data/constants.js?v=202611031028';
-import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort } from '../data/crm.js?v=202611031028';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv } from './crm-kit.js?v=202611031028';
-import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611031028';
-import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611031028';
+import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611031118';
+import { localDate } from '../data/constants.js?v=202611031118';
+import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort } from '../data/crm.js?v=202611031118';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv } from './crm-kit.js?v=202611031118';
+import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611031118';
+import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611031118';
+import { wireCompose } from './crm-templates.js?v=202611031118';
 
 const crumbs = (label) => [['CRM', '#/crm'], [label]];
 const q = () => new URLSearchParams(location.hash.split('?')[1] || '');
@@ -29,7 +30,7 @@ export async function pipelinePage({ api, me, owners, refresh, go, cfg }) {
   const total = (list) => (board === 'opps' ? fmtMoney(list.reduce((n, i) => n + (Number(i.estVolume) || 0), 0)) : `${list.reduce((n, i) => n + i.orders, 0)} orders`);
   const boardHtml = html`<div class="kanban" data-board="${board}">${stages.map(([v, l]) => { const list = crmSort(items.filter((i) => (i.stage || '') === v), 'name');
     return html`<section class="kanban-col" data-stage="${v}"><h4>${l} <span class="muted small">(${list.length} · ${total(list)})</span></h4>
-      ${list.map((i) => html`<div class="kanban-card" data-card="${i.id}">${title(i)}<div class="small">${sub(i)}</div><div class="muted small">${i.ownerName || 'Unassigned'}</div>${mover(i)}</div>`)}</section>`; })}</div>`;
+      ${list.map((i) => html`<div class="kanban-card" data-card="${i.id}">${title(i)}<div class="small">${sub(i)}</div><div class="muted small">${i.ownerName || 'Unassigned'}</div>${mover(i)}${board === 'opps' ? html` <button type="button" class="ghost small" data-compose-btn="opportunity:${i.id}" title="Compose email from template">Email</button>` : ''}</div>`)}</section>`; })}</div>`;
   const listHtml = html`<table class="tbl" data-pipeline-list><thead><tr><th>${board === 'opps' ? 'Opportunity' : 'Partner'}</th><th>Details</th><th>Owner</th><th>Stage</th></tr></thead><tbody>
     ${crmSort(items, 'name').map((i) => html`<tr data-card="${i.id}"><td>${title(i)}</td><td class="small">${sub(i)}</td><td>${i.ownerName || 'Unassigned'}</td><td>${me.canEdit ? mover(i) : (stages.find(([v]) => v === i.stage) || [, ''])[1]}</td></tr>`)}</tbody></table>`;
   const body = html`${head('CRM: Pipeline', me, me.canEdit && board === 'opps' ? html`<button class="m-btn right" data-new-opp>+ New opportunity</button>` : '')}${tabs('pipeline')}
@@ -37,7 +38,7 @@ export async function pipelinePage({ api, me, owners, refresh, go, cfg }) {
       <span>View: <a href="${url({ view: 'board' })}" data-view-link="board">Board</a> · <a href="${url({ view: 'list' })}" data-view-link="list">List</a></span>
       <label>Owner<select data-pipe-owner><option value="">Any owner</option><option value="none" ${owner === 'none' ? raw('selected') : ''}>Unassigned</option>${owners.map((o) => html`<option value="${o.id}" ${o.id === owner ? raw('selected') : ''}>${o.name}</option>`)}</select></label></div>
     ${view === 'board' ? boardHtml : listHtml}`;
-  return { title: 'CRM Pipeline', crumbs: crumbs('Pipeline'), body, mount(root) {
+  return { title: 'CRM Pipeline', crumbs: crumbs('Pipeline'), body, mount(root) { wireCompose(root, api, me, refresh);
     $('[data-pipe-owner]', root).addEventListener('change', (e) => { location.hash = url({ owner: e.target.value }); });
     $$('[data-move]', root).forEach((s) => s.addEventListener('change', guard(async () => {
       if (board === 'opps') await api.moveCrmOpportunity(s.dataset.move, s.value); else await api.updateCrmContact(s.dataset.move, { relationshipStatus: s.value });

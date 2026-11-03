@@ -1,30 +1,30 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611031028';
-import { html, raw, toText, esc, $, $$, toast, closeModal } from './ui.js?v=202611031028';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611031028';
-import { canUseCrm } from './data/crm.js?v=202611031028';
+import { getAdapter } from './data/adapter.js?v=202611031118';
+import { html, raw, toText, esc, $, $$, toast, closeModal } from './ui.js?v=202611031118';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611031118';
+import { canUseCrm } from './data/crm.js?v=202611031118';
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611031028'),
-  dashboard: () => import('./pages/dashboard.js?v=202611031028'),
-  orders: () => import('./pages/orders.js?v=202611031028'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611031028'),
-  deal: () => import('./pages/deal.js?v=202611031028'),
-  users: () => import('./pages/users.js?v=202611031028'),
-  profile: () => import('./pages/profile.js?v=202611031028'),
-  'contact-us': () => import('./pages/contact.js?v=202611031028'),
-  teams: () => import('./pages/teams.js?v=202611031028'),
-  templates: () => import('./pages/templates.js?v=202611031028'),
-  library: () => import('./pages/library.js?v=202611031028'),
-  activity: () => import('./pages/activity.js?v=202611031028'),
-  outbox: () => import('./pages/outbox.js?v=202611031028'),
-  tasks: () => import('./pages/tasks.js?v=202611031028'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611031028'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
-  schedule: () => import('./pages/schedule.js?v=202611031028'),   // public closing-time link (no sign-in needed)
-  crm: () => import('./pages/crm.js?v=202611031028'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  login: () => import('./pages/entry.js?v=202611031118'),
+  dashboard: () => import('./pages/dashboard.js?v=202611031118'),
+  orders: () => import('./pages/orders.js?v=202611031118'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611031118'),
+  deal: () => import('./pages/deal.js?v=202611031118'),
+  users: () => import('./pages/users.js?v=202611031118'),
+  profile: () => import('./pages/profile.js?v=202611031118'),
+  'contact-us': () => import('./pages/contact.js?v=202611031118'),
+  teams: () => import('./pages/teams.js?v=202611031118'),
+  templates: () => import('./pages/templates.js?v=202611031118'),
+  library: () => import('./pages/library.js?v=202611031118'),
+  activity: () => import('./pages/activity.js?v=202611031118'),
+  outbox: () => import('./pages/outbox.js?v=202611031118'),
+  tasks: () => import('./pages/tasks.js?v=202611031118'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611031118'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  schedule: () => import('./pages/schedule.js?v=202611031118'),   // public closing-time link (no sign-in needed)
+  crm: () => import('./pages/crm.js?v=202611031118'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };

@@ -2,7 +2,7 @@
  * Picklists (add / rename / reorder / retire), custom fields (add / edit / reorder / delete = archive, restore), built-in fields (hide, un-require).
  * Nothing here ever deletes a value stored on a record. Mirrored by migration 25 (crm_picklist_options, crm_custom_fields, crm_field_settings). */
 import { PICKLIST_KEYS, picklistDef, optionsOf, addOption, renameOption, retireOption, moveOption, cleanLabel, FIELD_TYPE_CODES, CF_ENTITY_CODES, SECTIONS_FOR, MAX_FIELDS,
-  PERSON_FIELDS, ACCOUNT_FIELDS, PROTECTED_FIELDS, BUILTIN_SCOPES, isLocked } from './crm-config.js?v=202611031028';
+  PERSON_FIELDS, ACCOUNT_FIELDS, PROTECTED_FIELDS, BUILTIN_SCOPES, isLocked } from './crm-config.js?v=202611031118';
 
 export function crmSettingsPart(x, h) {
   const { save, now, fail, str, clone, nameOf, nid } = x;

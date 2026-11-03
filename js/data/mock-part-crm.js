@@ -5,12 +5,13 @@
  * sync, no invitations, nothing is ever emailed) on a lead, contact (= "Client" on screen), account (= "Company") or opportunity. Attachments on records.
  * NOTHING is deleted: leads, contacts, accounts and opportunities are archived; tasks are closed; attachments and notes stay.
  * Access (mirrored by private.crm_* in migration 22): see crm.js. */
-import { CRM_OFF } from './features.js?v=202611031028';
+import { CRM_OFF } from './features.js?v=202611031118';
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, OPP_STAGES, ACCOUNT_KIND_CODES, CRM_ENTITIES, accountKindForType, entityLabel,
   TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, LINK_KEYS, LINK_FIELDS, cleanUrl, nextDue, addDaysTo, taskOpen, meetingOpen, localStamp,
-  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals } from './crm.js?v=202611031028';
-import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired } from './crm-config.js?v=202611031028';
-import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611031028';
+  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals } from './crm.js?v=202611031118';
+import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired } from './crm-config.js?v=202611031118';
+import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611031118';
+import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611031118';
 
 export function crmPart(x, flags) {
   const { load, save, nid, needUser, dealsFor, prof, nameOf, fullName, clone, now, fail, str, emailOk, localDate, C } = x;
@@ -209,7 +210,7 @@ export function crmPart(x, flags) {
   }
 
   const api = {
-    async crmMe() { const u = crmUser(); return { canEdit: !crmReadOnly(u), canConfigure: !!u.isAdmin, role: u.role, isAdmin: !!u.isAdmin, id: u.id, name: nameOf(u.id), scope: seesAllCrm(u) ? 'all' : u.role === 'Sales Team' ? 'team' : 'own' }; },
+    async crmMe() { const u = crmUser(); return { email: (prof(u.id) || {}).email || '', canEdit: !crmReadOnly(u), canConfigure: !!u.isAdmin, role: u.role, isAdmin: !!u.isAdmin, id: u.id, name: nameOf(u.id), scope: seesAllCrm(u) ? 'all' : u.role === 'Sales Team' ? 'team' : 'own' }; },
     async listCrmOwners() { crmUser(); return db().profiles.filter((p) => CRM_OWNER_ROLES.includes(p.role) && p.status === 'active').map((p) => ({ id: p.id, name: `${p.firstName} ${p.lastName}`.trim(), role: p.role })).sort((a, b) => a.name.localeCompare(b.name)); },
     // task owners / meeting hosts (Sales Person, Sales Team, Admins) and the "Users" a meeting can include (active CLA staff)
     async listCrmAssignees() { crmUser(); return db().profiles.filter(assignable).map((p) => ({ id: p.id, name: `${p.firstName} ${p.lastName}`.trim(), role: p.role })).sort((a, b) => a.name.localeCompare(b.name)); },
@@ -494,5 +495,7 @@ export function crmPart(x, flags) {
     },
   };
   Object.assign(api, crmSettingsPart(x, { db, cfg, crmUser }).api);
+  // EMAIL TEMPLATES (Nov 3, Zoho video 6): nothing is ever sent. Template files ride in crmAttachments (entity 'template'), so getCrmAttachmentContent is extended.
+  Object.assign(api, crmTemplatesPart(x, { db, cfg, crmUser, crmEditor, entityOf, leadOut, contactOut, accountOut, oppOut, actOut, baseApi: { getCrmAttachmentContent: api.getCrmAttachmentContent } }).api);
   return api;
 }
