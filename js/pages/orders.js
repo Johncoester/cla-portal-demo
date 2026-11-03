@@ -1,7 +1,7 @@
 // Orders list: tabs Open / Close / On Hold / Cancelled / All, search box. Same columns as the old portal.
-import { html, fmtDate, pill, $, $$, raw, options } from '../ui.js?v=202611021647';
-import { runsOrders, isClient, isAgent, isProcessor, isOutside, TX_TYPES } from '../data/constants.js?v=202611021647';
-import { filterDeals, sortDeals, DEAL_SORTS } from '../data/task-board.js?v=202611021647';
+import { html, fmtDate, pill, $, $$, raw, options } from '../ui.js?v=202611022019';
+import { runsOrders, isClient, isAgent, isProcessor, isOutside, TX_TYPES } from '../data/constants.js?v=202611022019';
+import { filterDeals, sortDeals, DEAL_SORTS } from '../data/task-board.js?v=202611022019';
 
 const TABS = [['Open', 'Open'], ['Closed', 'Close'], ['On Hold', 'On Hold'], ['Cancelled', 'Cancelled'], ['All', 'All Orders']];
 // what each tab is called in its heading / count / empty message, so switching tabs visibly changes the page even when a tab is empty
@@ -15,9 +15,9 @@ export async function render({ api, user }) {
   const q = new URLSearchParams((location.hash.split('?')[1]) || ''); const tab = TABS.some((t) => t[0] === q.get('s')) ? q.get('s') : 'Open';
   const deals = await api.listDeals({ status: tab });
   const showRole = isClient(user.role) || isAgent(user.role) || isOutside(user.role);   // outside users: their role differs per file
-  const rows = deals.map((d) => html`<tr data-deal="${d.id}" data-search="${(d.fileNumber + ' ' + d.address + ' ' + d.transactionType).toLowerCase()}">
+  const rows = deals.map((d) => html`<tr data-deal="${d.id}" data-search="${(d.fileNumber + ' ' + d.address + ' ' + (d.county || '') + ' ' + (d.fileTitle || '') + ' ' + d.transactionType).toLowerCase()}">
     <td class="nowrap"><span class="bell-cell"><img src="assets/img/bell_new.png" alt=""><span class="count">${d.unread}</span></span></td>
-    <td>${fmtDate(d.openDate)}</td><td>${fmtDate(d.closingDate)}</td><td>${d.fileNumber}${partyBadge(d)}</td>${showRole ? html`<td>${d.selfRep ? d.myRoleLabel : SIDE[d.myRole] || '-'}</td>` : ''}
+    <td>${fmtDate(d.openDate)}</td><td>${fmtDate(d.closingDate)}</td><td>${d.fileNumber}${d.fileTitle ? html` <br><span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}${partyBadge(d)}</td>${showRole ? html`<td>${d.selfRep ? d.myRoleLabel : SIDE[d.myRole] || '-'}</td>` : ''}
     <td>${d.street},<br>${d.city}, ${d.state}, ${d.zip}</td>
     <td>${d.myOpenTasks ? html`<span class="action-req">Action Required</span>` : d.openTasks && !showRole ? html`<span class="muted">${d.openTasks} open task(s)</span>` : ''}${d.overdueTasks && !showRole ? html`<br>${pill(d.overdueTasks + ' overdue', 'bad')}` : ''}</td>
     <td>${d.transactionType}</td><td>${d.stageName}${d.status !== 'Open' ? html`<br>${pill(d.status)}` : ''}<br><a class="view-btn" href="#/deals/${d.id}">View Order</a></td></tr>`);

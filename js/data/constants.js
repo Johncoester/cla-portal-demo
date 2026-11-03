@@ -51,6 +51,13 @@ export const SALES_ROLES = ['Sales Person', 'Sales Team'];
 export const isSalesRole = (role) => SALES_ROLES.includes(role);
 export const isClient = (role) => role === 'Client-Buyer' || role === 'Client-Seller';
 export const isAgent = (role) => role === 'Buyer Agent' || role === 'Listing Agent';
+// John, Nov 2 (multi buyer/seller): a file's short title from its clients, buyers ' / ' sellers, last names in the order they were added, e.g. 'Parker & Quinn / Walsh'.
+// participants = [{ role, contact: { firstName, lastName } }] in the order they were added (only the ones this viewer may see). Mirrored by private.file_title (migration 23).
+export const COUNTY_MAX = 100;
+export function fileTitleOf(participants) {
+  const side = (role) => [...new Set((participants || []).filter((p) => p.role === role && p.contact).map((p) => String(p.contact.lastName || '').trim() || String(p.contact.firstName || '').trim()).filter(Boolean))].join(' & ');
+  return [side('Client-Buyer'), side('Client-Seller')].filter(Boolean).join(' / ');
+}
 // Which side of the deal a role sits on ('buyer' | 'seller' | null = neutral/staff)
 export const sideOf = (role) => ({ 'Buyer Agent': 'buyer', 'Client-Buyer': 'buyer', 'Listing Agent': 'seller', 'Client-Seller': 'seller' }[role] || null);
 

@@ -4,9 +4,9 @@
  * Activities = calls / emails (logged only, never sent) / meetings / notes / follow-up tasks on a lead, contact, account or opportunity.
  * NOTHING is deleted: leads, contacts, accounts and opportunities are archived; tasks are done or cancelled.
  * Access (mirrored by private.crm_* in migration 22): see crm.js. */
-import { CRM_OFF } from './features.js?v=202611021647';
+import { CRM_OFF } from './features.js?v=202611022019';
 import { LEAD_STATUSES, LEAD_SOURCES, CRM_STAGE_CODES, crmStageLabel, OPP_STAGES, ACTIVITY_KIND_CODES, TASK_STATES, ACCOUNT_KIND_CODES, CRM_ENTITIES, accountKindForType,
-  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals } from './crm.js?v=202611021647';
+  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals } from './crm.js?v=202611022019';
 
 export function crmPart(x, flags) {
   const { load, save, nid, needUser, dealsFor, prof, nameOf, fullName, clone, now, fail, str, emailOk, localDate, C } = x;

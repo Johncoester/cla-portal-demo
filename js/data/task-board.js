@@ -3,7 +3,7 @@
  *   filterTasks / sortTasks / groupTasks : the cross-file task list (Tasks page, Work Queue "incomplete tasks by Buyer / Seller / Agent")
  *   filterDeals / sortDeals              : the order list (Open Orders) filters + sort
  *   buildTaskGrid                        : Processor / Admin grid, file numbers across (columns), tasks down (rows) */
-import { isAgent } from './constants.js?v=202611021647';
+import { isAgent } from './constants.js?v=202611022019';
 
 export const OPEN_STATUSES = ['todo', 'in_progress', 'blocked'];
 export const isOpenTask = (t) => OPEN_STATUSES.includes(t.status);
@@ -55,7 +55,7 @@ export const groupTasks = (tasks, groups = TASK_GROUPS) => groups.map(([key, lab
 
 /* Order-list filters (the status tab is applied by listDeals). f = { closingFrom, closingTo, noClosing: bool, role: '' | a role on the file
  *   (outside users: their role there; staff: 'agent-party' = an agent is a party), overdue: bool (has overdue tasks), txType, q } */
-export const dealSearchText = (d) => lc([d.fileNumber, d.address, d.street, d.city, d.zip, d.transactionType, ...(d.partyNames || []), ...(d.salesPeople || []).map((s) => s.name)].join(' '));
+export const dealSearchText = (d) => lc([d.fileNumber, d.address, d.street, d.city, d.zip, d.county || '', d.fileTitle || '', d.transactionType, ...(d.partyNames || []), ...(d.salesPeople || []).map((s) => s.name)].join(' '));
 export function filterDeals(deals, f = {}) {
   const q = lc(f.q).trim();
   return deals.filter((d) => {

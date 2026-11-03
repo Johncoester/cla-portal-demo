@@ -1,10 +1,10 @@
 // crm.js : the CRM (John, Nov 2). Routes #/crm/<section>[/<id>]: leads, contacts, accounts, pipeline, followups, reports.
 // Reachable only when the `crm` feature flag is on (app.js never loads this module otherwise) and only for CLA staff (adapter refuses others).
-import { html, raw, $, $$, guard, formData, toast, fmtDate, modal, closeModal, pill } from '../ui.js?v=202611021647';
-import { CONTACT_TYPES, contactTypeLabel, US_STATES } from '../data/constants.js?v=202611021647';
-import { LEAD_STATUSES, LEAD_SOURCES, CRM_STAGES, crmStageLabel, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611021647';
-import { tabs, head, sel, pairs, ctypeSel, ownerSel, ctype, money, dis, listView, activityPanel, wireActivities, ordersCard, archiveBtn, wireArchive } from './crm-kit.js?v=202611021647';
-import { pipelinePage, followupsPage, reportsPage } from './crm-more.js?v=202611021647';
+import { html, raw, $, $$, guard, formData, toast, fmtDate, modal, closeModal, pill } from '../ui.js?v=202611022019';
+import { CONTACT_TYPES, contactTypeLabel, US_STATES } from '../data/constants.js?v=202611022019';
+import { LEAD_STATUSES, LEAD_SOURCES, CRM_STAGES, crmStageLabel, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611022019';
+import { tabs, head, sel, pairs, ctypeSel, ownerSel, ctype, money, dis, listView, activityPanel, wireActivities, ordersCard, archiveBtn, wireArchive } from './crm-kit.js?v=202611022019';
+import { pipelinePage, followupsPage, reportsPage } from './crm-more.js?v=202611022019';
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
 const archivedOpts = [['only', 'Archived only'], ['all', 'Active + archived']];

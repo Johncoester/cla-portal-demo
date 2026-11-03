@@ -1,8 +1,8 @@
 /* [SUPABASE] CRM methods for supabase-adapter.js (John, Nov 2). Same names / shapes as mock-part-crm.js. NOT run against a hosted project.
  * Two switches must both be on: the browser flag (features.js, CLA_PORTAL_CONFIG.features.crm) and the database switch
  * (private.features 'crm', migration 22). With the browser flag off every method refuses before calling the database. */
-import { CRM_OFF } from './features.js?v=202611021647';
-import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel } from './crm.js?v=202611021647';
+import { CRM_OFF } from './features.js?v=202611022019';
+import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel } from './crm.js?v=202611022019';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };

@@ -1,5 +1,5 @@
 // FAKE DATA ONLY. Fictional people, example.test addresses, 555 phone numbers. No real clients, no credentials.
-import { TEMPLATE_DEFS } from './templates.js?v=202611021647';
+import { TEMPLATE_DEFS } from './templates.js?v=202611022019';
 export const DEAL_FOLDERS = ['Contract & addenda', 'IDs & personal', 'Lender & payoff', 'HOA', 'Closing'];
 const addDays = (iso, n) => new Date(Date.parse(iso.slice(0, 10) + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 export function buildSeed() {
@@ -38,16 +38,16 @@ export function buildSeed() {
     { teamId: 'team-oak', profileId: 'u-lagent', memberRole: 'agent', addedAt: '2026-09-01T12:00:00Z' },
     { teamId: 'team-harbor', profileId: 'u-multi', memberRole: 'agent', addedAt: '2026-09-01T12:00:00Z' }];   // TC sees Morgan's files only where she is an AGENT
   const deals = [
-    { id: 'deal-1', fileNumber: 'MD-26-97183', street: '145 Main Street', city: 'Rockville', state: 'MD', zip: '20850', transactionType: 'Purchase', stage: 3, status: 'Open',
+    { id: 'deal-1', fileNumber: 'MD-26-97183', street: '145 Main Street', city: 'Rockville', state: 'MD', zip: '20850', county: 'Montgomery', transactionType: 'Purchase', stage: 3, status: 'Open',
       openDate: '2026-09-28', closingDate: null, purchasePrice: 485000, loanAmount: 388000, emdAmount: 10000, emdDueDate: '2026-10-03', lenderName: 'Example Home Loans (fake)', lenderContact: 'Linda Lender', lenderEmail: 'linda.lender@example.test', lenderPhone: '410-555-0111',
       notes: 'Fake file. Buyer needs to finish photo ID; closing date request is out to both sides.', processorId: 'u-proc', salesPersonId: 'u-sp', createdBy: 'u-proc', createdAt: '2026-09-28T14:00:00Z' },
-    { id: 'deal-2', fileNumber: 'MD-26-97201', street: '22 Elm Court', city: 'Bethesda', state: 'MD', zip: '20814', transactionType: 'Purchase', stage: 0, status: 'Open',
+    { id: 'deal-2', fileNumber: 'MD-26-97201', street: '22 Elm Court', city: 'Bethesda', state: 'MD', zip: '20814', county: 'Montgomery', transactionType: 'Purchase', stage: 0, status: 'Open',
       openDate: '2026-09-28', closingDate: '2026-12-02', purchasePrice: 720000, loanAmount: 540000, emdAmount: null, emdDueDate: null, lenderName: '', lenderContact: '', lenderEmail: '', lenderPhone: '',
       notes: 'Fake file. New order; waiting on contract and EMD.', processorId: 'u-proc', salesPersonId: 'u-team', createdBy: 'u-proc', createdAt: '2026-09-28T15:00:00Z' },
-    { id: 'deal-3', fileNumber: 'MD-26-96877', street: '9 Harbor Lane', city: 'Annapolis', state: 'MD', zip: '21401', transactionType: 'Purchase', stage: 9, status: 'Closed',
+    { id: 'deal-3', fileNumber: 'MD-26-96877', street: '9 Harbor Lane', city: 'Annapolis', state: 'MD', zip: '21401', county: 'Anne Arundel', transactionType: 'Purchase', stage: 9, status: 'Closed',
       openDate: '2026-08-10', closingDate: '2026-10-15', purchasePrice: 610000, loanAmount: 450000, emdAmount: 15000, emdDueDate: '2026-08-14', lenderName: 'Example Home Loans (fake)', lenderContact: 'Linda Lender', lenderEmail: 'linda.lender@example.test', lenderPhone: '410-555-0111',
       notes: 'Fake file. Closed and funded. Buyer agent (Gary Gone) was later removed by Admin; his file history is kept.', processorId: 'u-proc', salesPersonId: 'u-sp', createdBy: 'u-proc', createdAt: '2026-08-10T14:00:00Z' },
-    { id: 'deal-4', fileNumber: 'MD-26-97240', street: '7 Cedar Way', city: 'Silver Spring', state: 'MD', zip: '20901', transactionType: 'Purchase', stage: 1, status: 'Open',
+    { id: 'deal-4', fileNumber: 'MD-26-97240', street: '7 Cedar Way', city: 'Silver Spring', state: 'MD', zip: '20901', county: 'Montgomery', transactionType: 'Purchase', stage: 1, status: 'Open',
       openDate: '2026-10-01', closingDate: '2026-12-10', purchasePrice: 455000, loanAmount: 364000, emdAmount: 5000, emdDueDate: '2026-11-05', lenderName: '', lenderContact: '', lenderEmail: '', lenderPhone: '',
       notes: 'Fake file. The buyer (Alex Agent-Buyer) is a licensed agent representing himself: licensee disclosure required.', processorId: 'u-proc', salesPersonId: 'u-team', createdBy: 'u-proc', createdAt: '2026-10-01T14:00:00Z' },
   ];

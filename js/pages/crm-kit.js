@@ -1,8 +1,8 @@
 // crm-kit.js : shared CRM screen pieces (John, Nov 2): section tabs, list views (search / filters / sort), selects, activities panel, CSV download.
 // Function first, minimal styling. Every rule is enforced by the adapter (and RLS in migration 22), not by these screens.
-import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pill } from '../ui.js?v=202611021647';
-import { CONTACT_TYPES, contactTypeLabel, localDate } from '../data/constants.js?v=202611021647';
-import { crmFilter, crmSort, toCsv, ACTIVITY_KINDS, activityKindLabel } from '../data/crm.js?v=202611021647';
+import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pill } from '../ui.js?v=202611022019';
+import { CONTACT_TYPES, contactTypeLabel, localDate } from '../data/constants.js?v=202611022019';
+import { crmFilter, crmSort, toCsv, ACTIVITY_KINDS, activityKindLabel } from '../data/crm.js?v=202611022019';
 
 export const SECTIONS = [['leads', 'Leads'], ['contacts', 'Contacts'], ['accounts', 'Accounts'], ['pipeline', 'Pipeline'], ['followups', 'My follow-ups'], ['reports', 'Reports']];
 export const tabs = (cur) => html`<ul class="nav-tabs" data-crm-tabs>${SECTIONS.map(([k, l]) => html`<li><a class="${k === cur ? 'active' : ''}" href="#/crm/${k}" data-crm-tab="${k}">${l}</a></li>`)}</ul>`;

@@ -1,8 +1,8 @@
 // crm-more.js : CRM pipeline (Kanban + list), My follow-ups, Reports (John, Nov 2). Function only, minimal styling.
-import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611021647';
-import { localDate } from '../data/constants.js?v=202611021647';
-import { OPP_STAGES, CRM_STAGES, crmSort } from '../data/crm.js?v=202611021647';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv, activityPanel } from './crm-kit.js?v=202611021647';
+import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611022019';
+import { localDate } from '../data/constants.js?v=202611022019';
+import { OPP_STAGES, CRM_STAGES, crmSort } from '../data/crm.js?v=202611022019';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv, activityPanel } from './crm-kit.js?v=202611022019';
 
 const crumbs = (label) => [['CRM', '#/crm'], [label]];
 const q = () => new URLSearchParams(location.hash.split('?')[1] || '');

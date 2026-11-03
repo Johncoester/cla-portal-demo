@@ -5,25 +5,28 @@
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
 import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, localDate, localDayOf, isRealDate,
   isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
-  phoneOk, fmtPhone, PHONE_MSG, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel } from './constants.js?v=202611021647';
-import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611021647';
-import { indexedDbFileStore } from './file-store.js?v=202611021647';
-import { delegationLocked } from './templates.js?v=202611021647';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611021647';
-import { devAuth } from './mock-part-auth.js?v=202611021647';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611021647';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611021647';
-import { messagesActivity } from './mock-part-msgs.js?v=202611021647';
-import { adminUsersTeams } from './mock-part-admin.js?v=202611021647';
-import { libraryFolders } from './mock-part-library.js?v=202611021647';
-import { closingSchedule } from './mock-part-schedule.js?v=202611021647';
-import { notificationsPart } from './mock-part-notify.js?v=202611021647';
-import { mattP2 } from './mock-part-matt.js?v=202611021647';
-import { mattNov2 } from './mock-part-nov2.js?v=202611021647';
-import { crmPart } from './mock-part-crm.js?v=202611021647';
-import { featureFlags } from './features.js?v=202611021647';
+  phoneOk, fmtPhone, PHONE_MSG, fileTitleOf, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel } from './constants.js?v=202611022019';
+import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611022019';
+import { indexedDbFileStore } from './file-store.js?v=202611022019';
+import { delegationLocked } from './templates.js?v=202611022019';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611022019';
+import { devAuth } from './mock-part-auth.js?v=202611022019';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611022019';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611022019';
+import { messagesActivity } from './mock-part-msgs.js?v=202611022019';
+import { adminUsersTeams } from './mock-part-admin.js?v=202611022019';
+import { libraryFolders } from './mock-part-library.js?v=202611022019';
+import { closingSchedule } from './mock-part-schedule.js?v=202611022019';
+import { notificationsPart } from './mock-part-notify.js?v=202611022019';
+import { mattP2 } from './mock-part-matt.js?v=202611022019';
+import { mattNov2 } from './mock-part-nov2.js?v=202611022019';
+import { crmPart } from './mock-part-crm.js?v=202611022019';
+import { featureFlags } from './features.js?v=202611022019';
 
-const KEY = 'cla-portal-new:data:v15';   // v15: the CRM (leads, accounts, opportunities, activities, CRM fields on contacts; John, Nov 2). v14: contact type on every contact (realtor / lender / buyer_seller; John, Nov 2). v13: EMD amount + due date on orders, Place Order documents, TC = Transaction Coordinator accounts only (John, Nov 2). v12: several salespeople per file (deal_sales_people). v11: client <-> salesperson links (John, Nov 2). v10: Matt's Nov 2 notes (more Transaction Coordinator test tasks). v9: role 'Sales Processor' renamed 'Processor'. v8: Matt's Oct 31 priority 2 (seller questions, agreements, e-sign, closing proposals, phone format). v7: IndexedDB file store (ID upload fix). v6: agent buying/selling for themselves (v5: per-file roles; v4: agent delegation flags + home warranty v2). Old saved demo data is re-seeded.
+const KEY = 'cla-portal-new:data:v16';   // v16: County on orders (seeded fake files get one; stored v15 data is CARRIED FORWARD, see upgradeData; John, Nov 2). v15: the CRM (leads, accounts, opportunities, activities, CRM fields on contacts; John, Nov 2). v14: contact type on every contact (realtor / lender / buyer_seller; John, Nov 2). v13: EMD amount + due date on orders, Place Order documents, TC = Transaction Coordinator accounts only (John, Nov 2). v12: several salespeople per file (deal_sales_people). v11: client <-> salesperson links (John, Nov 2). v10: Matt's Nov 2 notes (more Transaction Coordinator test tasks). v9: role 'Sales Processor' renamed 'Processor'. v8: Matt's Oct 31 priority 2 (seller questions, agreements, e-sign, closing proposals, phone format). v7: IndexedDB file store (ID upload fix). v6: agent buying/selling for themselves (v5: per-file roles; v4: agent delegation flags + home warranty v2). Old saved demo data is re-seeded.
+const PREV_KEY = 'cla-portal-new:data:v15';
+// v15 -> v16: every stored order gets county '' (optional field). Nothing else changes shape; ids, documents (IndexedDB), sessions stay valid.
+export function upgradeData(d) { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); d.deals.forEach((q) => { if (q.county == null) q.county = ''; }); d.upgradedFrom = 'v15'; return d; }
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();
@@ -49,7 +52,16 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   function save() { store.setItem(KEY, JSON.stringify(db)); }
   // Older demo-data versions (v1..v6) are never read again; drop them so they stop using up this browser's ~5 MB localStorage (part of the ID-upload bug).
   const dropStale = () => { try { for (let i = store.length - 1; i >= 0; i--) { const k = store.key(i); if (k && /^cla-portal-new:data:v\d+$/.test(k) && k !== KEY) store.removeItem(k); } } catch (e) { /* plain Map storage in tests */ } };
-  function load() { if (db) return db; const raw = store.getItem(KEY); db = raw ? JSON.parse(raw) : buildSeed(); if (!raw) { if (typeof store.key === 'function') dropStale(); save(); } return db; }
+  // UPGRADE (John, Nov 2, v16): a browser that holds v15 data (e.g. a real test order entered by hand) keeps it. The v15 JSON is carried forward
+  // into v16 with the new fields defaulted (deals.county = ''), saved under v16, and only then is the v15 copy removed. "Reset demo data" removes v16
+  // and builds a fresh seed (the v15 copy is gone by then, so it is never resurrected). Older keys (v1..v14) are not upgraded (unchanged behaviour).
+  function loadPrevious() { const raw = store.getItem(PREV_KEY); if (!raw) return null; try { return upgradeData(JSON.parse(raw)); } catch (e) { return null; } }
+  function load() { if (db) return db; const raw = store.getItem(KEY); if (raw) { db = JSON.parse(raw); return db; }
+    const prev = loadPrevious();
+    if (prev) { db = prev; const old = store.getItem(PREV_KEY);
+      try { save(); } catch (e) { if (!isQuota(e)) throw e; store.removeItem(PREV_KEY); try { save(); } catch (e2) { store.setItem(PREV_KEY, old); throw e2; } }   // storage full: make room by moving, never lose the old copy
+      store.removeItem(PREV_KEY); return db; }
+    db = buildSeed(); if (typeof store.key === 'function') dropStale(); save(); return db; }
   const nid = (p) => { const d = load(); d.seq += 1; return `${p}-${d.seq}`; };
 
   const me = () => { const id = sess.getItem(SESSION_KEY); return (id && load().profiles.find((p) => p.id === id && p.status === 'active')) || null; };
@@ -174,12 +186,14 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     const parties = d.participants.filter((p) => p.dealId === x.id && isClient(p.role) && d.participants.some((q) => q.dealId === x.id && q.contactId === p.contactId && isAgent(q.role) && pairAllowed(p.role, q.role)))
       .map((p) => { const c = d.contacts.find((z) => z.id === p.contactId); return { contactId: p.contactId, name: c ? fullName(c) : '', label: fileRoleLabel([p.role === 'Client-Buyer' ? 'Buyer Agent' : 'Listing Agent', p.role]) }; });
     const staffView = !isOutside(u.accountRole || u.role) && !isClient(u.role) && !isAgent(u.role);
-    return { ...clone(x), myRole: u.role, myRoles: u.roles || [u.role], myRoleLabel: fileRoleLabel(u.roles, u.role), selfRep: !!u.selfRep, agentParties: staffView ? parties : [], address: `${x.street}, ${x.city}, ${x.state} ${x.zip}`, stageName: STAGES[x.stage],
+    return { ...clone(x), myRole: u.role, myRoles: u.roles || [u.role], myRoleLabel: fileRoleLabel(u.roles, u.role), selfRep: !!u.selfRep, agentParties: staffView ? parties : [], county: x.county || '', address: `${x.street}, ${x.city}, ${x.state} ${x.zip}`, stageName: STAGES[x.stage],
       openTasks: tasks.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status)).length,
       myOpenTasks: tasks.filter((t) => ['todo', 'in_progress'].includes(t.status) && (ownerOf(t) === u.id || (!t.participantId && holds(u, t.assignedRole)))).length,
       unread: mine.reduce((n, t) => n + unreadIn(u, t), 0),
       // Matt, Nov 2: order-list filters. Overdue = open tasks this person can see that are past due; partyNames = the names this person may see on the file (search)
       overdueTasks: tasks.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status) && t.dueDate && t.dueDate < localDate()).length,
+      // John, Nov 2: several buyers / sellers; fileTitle = 'Buyer last names / Seller last names' of the people this viewer may see
+      fileTitle: fileTitleOf(participantsOf(x.id, u)),
       partyNames: [...new Set(participantsOf(x.id, u).map((p) => (p.contact ? fullName(p.contact) : '')).filter(Boolean))],
       processorName: nameOf(x.processorId),
       // John, Nov 2: several salespeople per file. salesPersonName stays as the joined names (older callers).
@@ -196,7 +210,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     async keepFile(doc) { if (!files || !doc.dataUrl) return doc; try { await files.put(doc.id, doc.dataUrl); } catch (e) { throw new Error('This browser could not store the file (private browsing or storage full). Try a smaller file or another browser.'); }
       doc.dataUrl = null; doc.hasFile = true; return doc; },
     async fileContent(z) { if (z.dataUrl) return z.dataUrl; if (z.hasFile && files) return (await files.get(z.id)) || null; return null; },
-    C: { ROLES, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel } };
+    C: { ROLES, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel , COUNTY_MAX } };
   Object.assign(api, devAuth(ctx), dealsAndAuth(ctx), contactsTasksDocs(ctx), tasksAndForms(ctx), messagesActivity(ctx), adminUsersTeams(ctx), libraryFolders(ctx), closingSchedule(ctx), notificationsPart(ctx), mattP2(ctx), mattNov2(ctx), crmPart(ctx, flags));
   // Every call is all-or-nothing: if it throws (validation error, or browser storage full), drop the in-memory copy so the next call
   // reloads the last SAVED state. Without this a half-applied edit (e.g. a rejected lender email) stayed in memory and broke later saves.
