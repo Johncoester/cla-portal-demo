@@ -1,7 +1,7 @@
 // Contacts tab: everyone on this file. Processor can add people (existing or new), edit them, and unlink them from the order.
-import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill } from '../ui.js?v=202611031532';
-import { runsOrders, PARTICIPANT_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole } from '../data/constants.js?v=202611031532';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611031532';
+import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill } from '../ui.js?v=202611031702';
+import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole } from '../data/constants.js?v=202611031702';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611031702';
 
 // contact type (John, Nov 2): CLA staff have none, so the select is not offered for them
 const STAFF_ROLES = ['Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator'];
@@ -29,7 +29,7 @@ export async function render({ api, user, deal, refresh }) {
   // active users whose account role is 'Transaction Coordinator' are offered, and "new person" is off (a TC needs a TC login, made by an Admin).
   async function addPerson() {
     const all = await api.listContacts(); const tcs = await api.listCoordinators(); const tcIds = new Set(tcs.map((t) => t.contactId));
-    const m = modal('Add contact to this order', html`<form id="apf" class="form-grid"><label class="span2">Role on this order<select name="role">${options(PARTICIPANT_ROLES, 'Other')}</select></label>
+    const m = modal('Add contact to this order', html`<form id="apf" class="form-grid"><label class="span2">Role on this order<select name="role">${options(isRefi(deal) ? PARTICIPANT_ROLES.filter((r) => !REFI_BLOCKED_ROLES.includes(r)) : PARTICIPANT_ROLES, 'Other')}</select></label>${isRefi(deal) ? html`<p class="muted small span2" data-refi-roles>Refinance: no seller, realtor or transaction coordinator roles. Add the borrower as Client-Buyer.</p>` : ''}
       <p class="muted small span2">One person can hold two roles on an order only when an agent is buying or selling for themselves: add them once as Client-Buyer and once as Buyer Agent (or Client-Seller and Listing Agent).</p>
       <p class="muted small span2" data-tc-note hidden>Only users with the Transaction Coordinator account role can be the Transaction Coordinator. An Admin creates them under Create User.</p>
       <div class="span2">${pickerHtml('contactId', 'Existing contact')}</div>

@@ -189,3 +189,4 @@ a.active-link { font-weight: 700; text-decoration: underline; } tr.overdue td { 
 .phase-tracker { display: flex; gap: 8px; list-style: none; padding: 0; } .phase-tracker li { flex: 1; border-top: 4px solid #ccc; padding-top: 4px; } .phase-tracker li.done, .phase-tracker li.current { border-color: #3a8f3a; } .phase-tracker li.current { font-weight: bold; }
 .tab-count { margin-left: 4px; font-size: 11px; background: #ddd; border-radius: 8px; padding: 0 5px; }
 .ap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; margin-bottom: 14px; }
+.col-chooser { display: inline-block; margin-left: 12px; } .col-chooser .col-list label { display: inline-flex !important; align-items: center; gap: 5px; width: auto !important; margin: 0; font-weight: normal; } .col-chooser .col-list input { width: auto !important; margin: 0; } .col-chooser .col-list { display: flex; flex-wrap: wrap; gap: 4px 14px; max-width: 640px; padding: 6px 0; }

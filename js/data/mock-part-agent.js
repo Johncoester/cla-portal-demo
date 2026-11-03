@@ -3,8 +3,8 @@
  * Modify / Submit Revision, task-tied messages, Request Update (staff answer it), Share Access (RECORDED only: no email, no login is created),
  * "Complete Requests Now" invite email (preview + outbox only), rich-text messages with file attachments (Share Files), and the outside user's own
  * Activity feed (only things they can already open). Nothing here deletes anything; documents stay permanent. */
-import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, COMMISSION_LABEL, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611031532';
-import { CLA_PHONE } from './constants.js?v=202611031532';
+import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, COMMISSION_LABEL, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611031702';
+import { CLA_PHONE, isRefi } from './constants.js?v=202611031702';
 export function agentPortal(x) {
   const { api: root, load, save, nid, needUser, isManager, notViewOnly, dealOr404, onDeal, log, prof, nameOf, ownerOf, taskVisible, threadVisible, unreadIn, docVisible, participantsOf, isStaffView,
     notify, dealProfileIds, dealView, contactOf, clone, now, fail, str, emailOk, C } = x;
@@ -63,11 +63,13 @@ export function agentPortal(x) {
         contactHidden: !!(p && p.contact.contactHidden), profileId: p ? pid(p) || null : null, canMessage: !!(p && pid(p) && pid(p) !== u.id && !C.viewOnly(u) && x.canMessage(u, pid(p), dealId) && (prof(pid(p)) || {}).status === 'active') });
       const all = (role) => ps.filter((p) => p.role === role);
       const proc = prof(q.processorId);
-      const parties = [...all('Client-Buyer').map((p) => party('Buyer', p)), ...(all('Client-Buyer').length ? [] : [party('Buyer', null)]),
+      // Refinance (John, Nov 3): the borrower(s), the settlement agent and the lender only; no realtor or seller placeholders (an older refinance that still has one shows it)
+      const refi = isRefi(q); const opt = (role, label) => (all(role).length ? all(role).map((p) => party(label, p)) : refi ? [] : [party(label, null)]);
+      const parties = [...all('Client-Buyer').map((p) => party(refi ? 'Borrower' : 'Buyer', p)), ...(all('Client-Buyer').length ? [] : [party(refi ? 'Borrower' : 'Buyer', null)]),
         { label: 'Settlement Agent', name: proc ? `${proc.firstName} ${proc.lastName}` : 'Not specified', company: 'CLA Title & Escrow', email: proc ? proc.email : '', phone: proc ? proc.phone : '', contactHidden: false, profileId: proc ? proc.id : null,
           canMessage: !!(proc && proc.id !== u.id && !C.viewOnly(u)) },
         { label: 'Title Company', name: 'CLA Title & Escrow', company: '', email: '', phone: CLA_PHONE, contactHidden: false, profileId: null, canMessage: false },
-        ...all('Buyer Agent').map((p) => party('Buyer Agent', p)), ...(all('Buyer Agent').length ? [] : [party('Buyer Agent', null)]), ...all('Listing Agent').map((p) => party('Listing Agent', p)), ...(all('Listing Agent').length ? [] : [party('Listing Agent', null)]),
+        ...opt('Buyer Agent', 'Buyer Agent'), ...opt('Listing Agent', 'Listing Agent'), ...(refi ? all('Lender').map((p) => party('Lender', p)) : []),
         ...all('Client-Seller').map((p) => party('Seller', p))];
       // Agency License ID: an agent sees their own (from their transaction info / commission task); staff see each agent's
       const lic = (role) => { const p = d.participants.find((z) => z.dealId === dealId && z.role === role); if (!p) return '';
@@ -82,7 +84,7 @@ export function agentPortal(x) {
       const outstanding = staff ? v.openTasks : tasks.filter((t) => OPEN.includes(t.status) && (ownerOf(t) === u.id || (!t.participantId && x.holds(u, t.assignedRole)) || x.agentCanFill(u, t))).length;
       return clone({ progress: progressOut(q), outstanding,
         counts: { tasks: staff ? v.openTasks : outstanding, inbox: v.unread, threads: threads.length, documents: docs.length, activity: act.length },
-        orderDetails: { propertyAddress: v.address, orderId: q.id, orderType: q.transactionType || 'Purchase', purchasePrice: q.purchasePrice, loanAmount: q.loanAmount, fileNumber: q.fileNumber, agencyLicenseId: licenseId },
+        orderDetails: { propertyAddress: v.address, orderId: q.id, orderType: q.transactionType || 'Purchase', refinance: refi, purchasePrice: refi ? null : q.purchasePrice, loanAmount: q.loanAmount, fileNumber: q.fileNumber, agencyLicenseId: licenseId },
         parties, recentActivity: act.slice(0, 6), conversations: threads.slice(0, 5),
         canRequestUpdate: !staff && !!C.sideOf(u.role) && !C.viewOnly(u), canShareAccess: isAgentHere(u) && !C.viewOnly(u), canAnswerUpdates: staff && (isManager(u) || u.isAdmin),
         updateTopics: UPDATE_TOPICS, permissions: ORG_PERMISSIONS });

@@ -8,11 +8,11 @@
  * Nothing here deletes: dashboards, components and reports are RETIRED (hidden, restorable). Mirrored by migration 30. */
 import { MODULE_CODES, moduleName, SEARCH_MODULES, REPORT_MODULES, DASH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, parseQuery, searchMatch, moduleFields, reportFields,
   RELATED, joinRows, runReport, reportCsv, cleanCriteria, applyCriteria, criteriaText, chartData, measureOf, measureLabel, groupOf, display, dealStageOf, CALL_TYPES,
-  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, BUCKETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611031532';
-import { ensureNov3b } from './crm-nov3b.js?v=202611031532';
-import { flattenCustom, optLabel } from './crm-config.js?v=202611031532';
-import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611031532';
-import { crmReadOnly, CRM_OWNER_ROLES } from './crm.js?v=202611031532';
+  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, BUCKETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611031702';
+import { ensureNov3b } from './crm-nov3b.js?v=202611031702';
+import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611031702';
+import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611031702';
+import { crmReadOnly, CRM_OWNER_ROLES } from './crm.js?v=202611031702';
 
 export const SEND_NOTE = 'Not sent: Gmail is not connected yet. The email was saved on this record only.';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -31,6 +31,13 @@ export function crmNov3bPart(x, h) {
     const q = d.deals.find((z) => z.id === id); return q ? `${q.fileNumber} ${q.street}` : id; };
   const fmt = { nameOf, lookupName, fileName: (fid) => (db().crmAttachments.find((f) => f.id === fid) || {}).name || '(file)' };
   const flat = (cfg, entity, row) => flattenCustom(cfg, entity, row, fmt);
+  // ---------- CRM DEALS SCOPE (John, Nov 3; migration 32 private.crm_deal_visible) ----------
+  // 'all'  = Admin, Super admin, Processor (read-only) and Sales Team (whose CRM scope is the whole sales team's records; every deal owner is a salesperson):
+  //          every order they can open in the portal, with Deal Owner / Client / Source filters.
+  // 'own'  = Sales Person: ONLY the deals they are a salesperson on (deal_sales_people). A deal they merely appear on as a contact is not "theirs" in the
+  //          CRM. Enforced here (list, record page, search, reports, dashboards all read this) and in SQL, not only on the screen.
+  const dealScope = (u) => (u.isAdmin || C.runsOrders(u) || u.role === 'Sales Team' ? 'all' : 'own');
+  const crmDealsFor = (u) => { const list = dealsFor(u); return dealScope(u) === 'all' ? list : list.filter((q) => salesOf(q.id).some((z) => z.salesId === u.id)); };
 
   // ---------- module rows (what the viewer may see), flat, for search / reports / dashboards ----------
   const pick = (r, keys) => Object.fromEntries(keys.map((k) => [k, r[k]]));
@@ -43,6 +50,9 @@ export function crmNov3bPart(x, h) {
       clientName: [...new Set(clients.map(fullName))].join(', '), _clientLink: firstClient && contactSeen(u, firstClient) ? `#/crm/contacts/${firstClient.id}` : '',
       contactName: [...new Set(agents.map(fullName))].join(', '), ownerId: sales[0] ? sales[0].salesId : null, ownerName: sales[0] ? nameOf(sales[0].salesId) : '', salesReps: sales.map((s) => nameOf(s.salesId)).join(', '),
       county: q.county || '', city: q.city, transactionType: q.transactionType || '', lenderName: q.lenderName || '', createdAt: q.createdAt, _link: `#/crm/deals/${q.id}`, _portalLink: `#/deals/${q.id}`,
+      // John, Nov 3: SOURCE = the order's Source of business (the CRM Settings Lead Source list, staff only; Matt Nov 3 b) = who / what sent us the deal
+      source: q.sourceOfBusiness || '', sourceText: q.sourceOfBusiness ? L(cfg, 'leadSource', q.sourceOfBusiness) : '', salesIds: sales.map((z) => z.salesId),
+      clientIds: [...new Set(ps.filter((p) => isClientRole(p.role)).map((p) => p.contactId))],
       _contactIds: [...new Set(ps.map((p) => p.contactId))], _people: people.flatMap((c) => [fullName(c), c.email || '']), _phones: people.map((c) => c.phone || '').filter(Boolean),
       amountText: q.purchasePrice == null ? '' : display({ type: 'currency', key: 'a' }, { a: q.purchasePrice }), closingDateText: display({ type: 'date', key: 'a' }, { a: q.closingDate }) };
   }
@@ -67,7 +77,7 @@ export function crmNov3bPart(x, h) {
       case 'leads': return d.crmLeads.filter((l) => leadSeen(u, l)).map((l) => { const r = flat(cfg, 'lead', leadOut(u, l)); return { ...r, createdByName: l.createdBy ? nameOf(l.createdBy) : '', leadSourceText: L(cfg, 'leadSource', r.leadSource), _link: `#/crm/leads/${l.id}` }; });
       case 'accounts': return d.crmAccounts.filter((a) => accountSeen(u, a)).map((a) => ({ ...flat(cfg, 'account', accountOut(u, a)), createdByName: a.createdBy ? nameOf(a.createdBy) : '', _link: `#/crm/accounts/${a.id}` }));
       case 'opportunities': return d.crmOpportunities.filter((o) => oppSeen(u, o)).map((o) => ({ ...flat(cfg, 'opportunity', oppOut(u, o)), _link: '#/crm/pipeline', _contactLink: o.contactId ? `#/crm/contacts/${o.contactId}` : '', _accountLink: o.accountId ? `#/crm/accounts/${o.accountId}` : '' }));
-      case 'deals': return dealsFor(u).map((q) => dealRow(u, q, cfg));
+      case 'deals': return crmDealsFor(u).map((q) => dealRow(u, q, cfg));
       case 'tasks': case 'meetings': case 'calls': { const kind = { tasks: 'task', meetings: 'meeting', calls: 'call' }[module];
         return d.crmActivities.filter((a) => a.kind === kind && seen(u, a.entity, a.entityId)).map((a) => actRow(actOut(a), cfg)); }
       default: return fail('Unknown CRM module.');
@@ -221,8 +231,25 @@ export function crmNov3bPart(x, h) {
     },
     async saveCrmRecentSearch(q) { const u = crmUser(); const s0 = parseQuery(q).q; if (s0) rememberSearch(u, s0); return { ok: true }; },
     // ---------- deals (the portal's orders, read-only in the CRM) ----------
-    async listCrmDeals() { const u = crmUser(); return rowsOf(u, 'deals'); },
-    async getCrmDeal(id) { const u = crmUser(); const q = dealsFor(u).find((z) => z.id === str(id, 60)) || fail('Deal not found.'); const row = dealRow(u, q, cfgFor(u)); const d = db();
+    // John, Nov 3: filters. status 'Open' (default on the screen) | 'All' | a portal status; ownerId = any salesperson on the file ('none' = no salesperson);
+    // clientId = a buyer / seller (borrower) contact; source = a Lead Source value ('none' = not set). A Sales Person may not ask for another owner's deals.
+    async listCrmDeals(f = {}) { const u = crmUser(); f = f || {}; const scope = dealScope(u);
+      const owner = str(f.ownerId, 60); if (owner && scope === 'own' && owner !== u.id) fail('A Sales Person sees only their own deals.');
+      const status = str(f.status, 20); if (status && status !== 'All' && !C.DEAL_STATUSES.includes(status)) fail('Unknown status.');
+      const client = str(f.clientId, 60); const src = str(f.source, 60);
+      return rowsOf(u, 'deals').filter((r) => (!status || status === 'All' || r.status === status) && (!owner || (owner === 'none' ? !r.salesIds.length : r.salesIds.includes(owner)))
+        && (!client || r.clientIds.includes(client)) && (!src || (src === 'none' ? !r.source : r.source === src))); },
+    // the filter choices for the viewer: Deal Owner and Client only for the 'all' scope (a Sales Person filters by Source); Source = the Lead Source list
+    // (active options, plus a retired one still on a visible deal)
+    async listCrmDealFilters() { const u = crmUser(); const scope = dealScope(u); const rows = rowsOf(u, 'deals'); const d = db(); const cfg = cfgFor(u);
+      const owners = scope === 'all' ? d.profiles.filter((p) => CRM_OWNER_ROLES.includes(p.role) && (p.status === 'active' || rows.some((r) => r.salesIds.includes(p.id))))
+        .map((p) => ({ id: p.id, name: nameOf(p.id), role: p.role })).sort((a, b) => a.name.localeCompare(b.name)) : [];
+      const clients = scope === 'all' ? [...new Set(rows.flatMap((r) => r.clientIds))].map((id) => d.contacts.find((c) => c.id === id)).filter(Boolean)
+        .map((c) => ({ id: c.id, name: fullName(c) })).sort((a, b) => a.name.localeCompare(b.name)) : [];
+      const used = new Set(rows.map((r) => r.source).filter(Boolean));
+      const sources = optionsOf(cfg, 'leadSource').filter((o) => !o.retired || used.has(o.value)).map((o) => ({ value: o.value, label: o.label + (o.retired ? ' (retired)' : '') }));
+      return { scope, role: u.role, me: { id: u.id, name: nameOf(u.id) }, owners, clients, sources, statuses: ['Open', ...C.DEAL_STATUSES.filter((z) => z !== 'Open'), 'All'] }; },
+    async getCrmDeal(id) { const u = crmUser(); const q = crmDealsFor(u).find((z) => z.id === str(id, 60)) || fail('Deal not found.'); const row = dealRow(u, q, cfgFor(u)); const d = db();
       const people = d.participants.filter((p) => p.dealId === q.id).map((p) => { const c = d.contacts.find((z) => z.id === p.contactId) || {}; return { role: p.role, name: fullName(c), email: c.email || '', link: c.id && contactSeen(u, c) ? `#/crm/contacts/${c.id}` : '' }; });
       return { ...row, people, notes: q.notes || '', emails: d.crmEmails.filter((m) => m.entity === 'deal' && m.entityId === q.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(emailOut), canEdit: !crmReadOnly(u) }; },
     // ---------- email (NOTHING IS SENT) ----------

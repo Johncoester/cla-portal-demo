@@ -1,5 +1,8 @@
 /* mock adapter, part 1: auth, profile, dashboard, deals. See mock-adapter.js. */
-import { checkSource } from './mock-part-nov3b.js?v=202611031532';
+import { checkSource } from './mock-part-nov3b.js?v=202611031702';
+import { isRefi, REFI_BLOCKED_FIELDS } from './constants.js?v=202611031702';
+// Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
+const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 export function dealsAndAuth(x) {
   const { load, save, nid, me, needUser, needProcessor, contactOf, dealsFor, dealOr404, log, nameOf, dealView, taskVisible, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
@@ -68,6 +71,7 @@ export function dealsAndAuth(x) {
       const zip = str(input.zip, 10); if (!zipOk(zip)) fail('ZIP must be 5 digits (or ZIP+4).');
       const county = str(input.county, C.COUNTY_MAX);   // John, Nov 2: optional, free text (e.g. Frederick)
       const transactionType = C.TX_TYPES.includes(input.transactionType) ? input.transactionType : 'Purchase';
+      if (isRefi(transactionType)) refiNoPrice(input, fail);
       const nextNum = Math.max(97000, ...d.deals.map((q) => Number(q.fileNumber.split('-')[2]) || 0)) + 1;
       const deal = { id: nid('deal'), fileNumber: `MD-26-${nextNum}`, street, city, state, zip, county, transactionType, stage: 0, status: 'Open',
         openDate, closingDate: dateOrNull(input.closingDate, 'Closing date'), purchasePrice: money(input.purchasePrice, 'Purchase price'), loanAmount: money(input.loanAmount, 'Loan amount'),
@@ -97,6 +101,7 @@ export function dealsAndAuth(x) {
       if (!q.street || !q.city || !q.state) fail('Street, city and state are required.');
       if (patch.openDate) { const o = dateOrNull(patch.openDate, 'Open date'); if (o > localDate()) fail('Open date cannot be in the future.'); q.openDate = o; }
       if (patch.closingDate !== undefined) q.closingDate = dateOrNull(patch.closingDate, 'Closing date');
+      if (isRefi(q)) refiNoPrice(patch, fail);   // a refinance keeps no purchase price / EMD (clearing one an old order still has is allowed)
       if (patch.purchasePrice !== undefined) q.purchasePrice = money(patch.purchasePrice, 'Purchase price');
       if (patch.loanAmount !== undefined) q.loanAmount = money(patch.loanAmount, 'Loan amount');
       // John, Nov 2: earnest money deposit (optional; amount >= 0)

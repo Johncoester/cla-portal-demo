@@ -2,11 +2,11 @@
  * NOT run against a hosted project (best effort; the mock adapter is the tested one). Two switches must both be on: the browser flag
  * (features.js, CLA_PORTAL_CONFIG.features.crm, OFF in supabase mode) and the database switch (private.features 'crm', migration 22).
  * With the browser flag off every method refuses before calling the database. Meetings never send invitations; nothing is emailed. */
-import { CRM_OFF } from './features.js?v=202611031532';
-import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611031532';
-import { localDate } from './constants.js?v=202611031532';
-import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611031532';
-import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611031532';
+import { CRM_OFF } from './features.js?v=202611031702';
+import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611031702';
+import { localDate } from './constants.js?v=202611031702';
+import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611031702';
+import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611031702';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };
@@ -158,6 +158,10 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async addCrmAttachment() { on(); throw new Error('CRM attachments are not set up on this portal yet.'); },
     async getCrmAttachmentContent() { on(); throw new Error('CRM attachments are not set up on this portal yet.'); },
     async crmReport({ from = '', to = '' } = {}) { return rpc('crm_report', { p_from: from || null, p_to: to || null }); },
+    // John, Nov 3 (migration 32): CRM Deals list with filters. public.crm_deals() applies the scope (a Sales Person gets only their own deals) on the server.
+    async listCrmDeals(f = {}) { const rows = await rpc('crm_deals', { p_status: f.status || null, p_owner: f.ownerId || null, p_client: f.clientId || null, p_source: f.source || null });
+      return (rows || []).map((r) => ({ ...r, _link: `#/crm/deals/${r.id}`, _portalLink: `#/deals/${r.id}`, _clientLink: '' })); },
+    async listCrmDealFilters() { return rpc('crm_deal_filters'); },
   };
   // Nov 3 (migration 27): email templates. Nothing is ever sent.
   Object.assign(api, crmTemplatesSupabase({ sb, ok, camel, me, on, one, self: api }));

@@ -1,10 +1,10 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611031532';
-import { html, raw, toText, esc, $, $$, toast, closeModal } from './ui.js?v=202611031532';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611031532';
-import { canUseCrm } from './data/crm.js?v=202611031532';
-import { phaseOf } from './data/agent-portal.js?v=202611031532';
-import { formatMoneyInput } from './pages/money-input.js?v=202611031532';
+import { getAdapter } from './data/adapter.js?v=202611031702';
+import { html, raw, toText, esc, $, $$, toast, closeModal } from './ui.js?v=202611031702';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611031702';
+import { canUseCrm } from './data/crm.js?v=202611031702';
+import { phaseOf } from './data/agent-portal.js?v=202611031702';
+import { formatMoneyInput } from './pages/money-input.js?v=202611031702';
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
@@ -13,23 +13,23 @@ document.addEventListener('input', (e) => { const el = e.target; if (el instance
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611031532'),
-  dashboard: () => import('./pages/dashboard.js?v=202611031532'),
-  orders: () => import('./pages/orders.js?v=202611031532'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611031532'),
-  deal: () => import('./pages/deal.js?v=202611031532'),
-  users: () => import('./pages/users.js?v=202611031532'),
-  profile: () => import('./pages/profile.js?v=202611031532'),
-  'contact-us': () => import('./pages/contact.js?v=202611031532'),
-  teams: () => import('./pages/teams.js?v=202611031532'),
-  templates: () => import('./pages/templates.js?v=202611031532'),
-  library: () => import('./pages/library.js?v=202611031532'),
-  activity: () => import('./pages/activity.js?v=202611031532'),
-  outbox: () => import('./pages/outbox.js?v=202611031532'),
-  tasks: () => import('./pages/tasks.js?v=202611031532'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611031532'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
-  schedule: () => import('./pages/schedule.js?v=202611031532'),   // public closing-time link (no sign-in needed)
-  crm: () => import('./pages/crm.js?v=202611031532'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  login: () => import('./pages/entry.js?v=202611031702'),
+  dashboard: () => import('./pages/dashboard.js?v=202611031702'),
+  orders: () => import('./pages/orders.js?v=202611031702'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611031702'),
+  deal: () => import('./pages/deal.js?v=202611031702'),
+  users: () => import('./pages/users.js?v=202611031702'),
+  profile: () => import('./pages/profile.js?v=202611031702'),
+  'contact-us': () => import('./pages/contact.js?v=202611031702'),
+  teams: () => import('./pages/teams.js?v=202611031702'),
+  templates: () => import('./pages/templates.js?v=202611031702'),
+  library: () => import('./pages/library.js?v=202611031702'),
+  activity: () => import('./pages/activity.js?v=202611031702'),
+  outbox: () => import('./pages/outbox.js?v=202611031702'),
+  tasks: () => import('./pages/tasks.js?v=202611031702'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611031702'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  schedule: () => import('./pages/schedule.js?v=202611031702'),   // public closing-time link (no sign-in needed)
+  crm: () => import('./pages/crm.js?v=202611031702'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };
@@ -122,7 +122,7 @@ export async function render() {
 const HEADER_SEARCH = `<div class="crm-global-search" data-global-search-wrap style="position:relative;display:inline-block;margin-right:10px"><input type="search" data-global-search placeholder="Search CRM (name, email, phone)" aria-label="Search the CRM" autocomplete="off" maxlength="100"><div data-global-search-dd hidden style="position:absolute;right:0;top:100%;z-index:50;background:#fff;color:#222;min-width:420px;max-height:70vh;overflow:auto;border:1px solid #ccc;padding:6px;text-align:left"></div></div>`;
 const crmSearchOn = (u, api) => !!(u && (api.features || {}).crm && canUseCrm(u));
 function wireChrome(u) {
-  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611031532').then((m) => m.wireHeaderSearch(api)); });
+  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611031702').then((m) => m.wireHeaderSearch(api)); });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');
   if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; });
   document.addEventListener('click', () => { if (dd) dd.hidden = true; }, { once: true });

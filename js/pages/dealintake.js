@@ -4,11 +4,11 @@
 // their tasks are done / overdue, and EVERY one of their intake sections with its status and answers on one page (no need to open each form).
 // Same data and permissions as the task pages: listTasks + getTask / getAgentTask (answers only where the viewer may already read them, bank
 // numbers masked as before). Expand all / Collapse all; everything starts expanded.
-import { html, $, $$, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611031532';
-import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611031532';
-import { localDate, fmtPhone } from '../data/constants.js?v=202611031532';
-import { CLS, LABEL } from './dealtasks.js?v=202611031532';
-import { entityLine } from './deal.js?v=202611031532';
+import { html, $, $$, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611031702';
+import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611031702';
+import { localDate, fmtPhone, isRefi } from '../data/constants.js?v=202611031702';
+import { CLS, LABEL } from './dealtasks.js?v=202611031702';
+import { entityLine } from './deal.js?v=202611031702';
 
 const ORDER = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent'];
 const ROLE_NAME = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent' };
@@ -39,7 +39,9 @@ export async function render({ api, deal }) {
   // full detail of every intake section (fields + answers), in parallel; one that cannot be read is listed with its status only
   const full = new Map(await Promise.all(tasks.map(async (t) => { try { return [t.id, t.kind === 'agent' ? await api.getAgentTask(t.id) : t.kind === 'form' ? await api.getTask(t.id) : t]; } catch (e) { return [t.id, t]; } })));
   const today = localDate(); const parts = deal.participants || [];
-  const people = new Map(); tasks.forEach((t) => { const k = t.participantId; if (!people.has(k)) people.set(k, { pid: k, role: t.assignedRole, name: t.ownerName || ROLE_NAME[t.assignedRole], tasks: [] }); people.get(k).tasks.push(t); });
+  // Refinance (John, Nov 3): the Client-Buyer rows are the BORROWERS; there are no seller or agent sections (none can be added to a refinance)
+  const refi = isRefi(deal); const roleName = (r) => (refi && r === 'Client-Buyer' ? 'Borrower' : ROLE_NAME[r]);
+  const people = new Map(); tasks.forEach((t) => { const k = t.participantId; if (!people.has(k)) people.set(k, { pid: k, role: t.assignedRole, name: t.ownerName || roleName(t.assignedRole), tasks: [] }); people.get(k).tasks.push(t); });
   const list = [...people.values()].sort((a, b) => ORDER.indexOf(a.role) - ORDER.indexOf(b.role) || a.name.localeCompare(b.name));
   const section = (t) => { const f = full.get(t.id) || t; const late = open(t) && t.dueDate && t.dueDate < today;
     return html`<div class="intake-form" data-intake-task="${t.id}"><strong>${t.title}</strong> ${pill(LABEL[t.status], CLS[t.status])}${late ? html` ${pill('overdue', 'bad')}` : ''}
@@ -49,13 +51,13 @@ export async function render({ api, deal }) {
       ${t.kind === 'form' ? formAnswers(f) : t.kind === 'agent' ? agentAnswers(f) : ''}</div>`; };
   const block = (p) => { const done = p.tasks.filter((t) => t.status === 'done').length; const late = p.tasks.filter((t) => open(t) && t.dueDate && t.dueDate < today).length;
     const part = parts.find((z) => z.id === p.pid);
-    return html`<details class="intake-party" data-intake-party="${p.pid}" data-role="${p.role}" open><summary><strong>${p.name}</strong> &middot; ${ROLE_NAME[p.role]}
+    return html`<details class="intake-party" data-intake-party="${p.pid}" data-role="${p.role}" open><summary><strong>${p.name}</strong> &middot; ${roleName(p.role)}
       &middot; <span data-progress>${done} of ${p.tasks.length} done</span>${late ? html` ${pill(late + ' overdue', 'bad')}` : ''}${part && part.entity ? html` &middot; <span class="muted">entity: ${part.entity.name}</span>` : ''}</summary>
       ${part && part.entity ? entityLine(part.entity) : ''}${p.tasks.map(section)}</details>`; };
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>Intake by person</h2><a class="ghost right" href="#/deals/${deal.id}/tasks">Task list</a></div>
-    <p class="muted">Every buyer, seller and agent on this order with all of their intake sections and answers in one place. Click a name to collapse or expand it.</p>
+    <p class="muted">${refi ? html`<span data-refi-intake>Refinance: every borrower on this order (no sellers or agents)</span>` : 'Every buyer, seller and agent on this order'} with all of their intake sections and answers in one place. Click a name to collapse or expand it.</p>
     <p><button type="button" class="ghost" data-expand="1">Expand all</button> <button type="button" class="ghost" data-expand="0">Collapse all</button></p>
-    ${list.length ? list.map(block) : html`<p class="muted" data-no-people>No buyer, seller or agent tasks on this order yet.</p>`}`;
+    ${list.length ? list.map(block) : html`<p class="muted" data-no-people>${refi ? 'No borrower tasks on this order yet.' : 'No buyer, seller or agent tasks on this order yet.'}</p>`}`;
   return { title: 'Intake by person', crumbs: [['All Tasks', `#/deals/${deal.id}/tasks`], ['Intake by person']], body, mount(root) {
     $$('[data-expand]', root).forEach((b) => b.addEventListener('click', () => $$('details.intake-party', root).forEach((d) => { d.open = b.dataset.expand === '1'; })));
   } };

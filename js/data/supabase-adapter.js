@@ -1,11 +1,11 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611031532';
-import { localDate } from './constants.js?v=202611031532';
-import { featureFlags } from './features.js?v=202611031532';
-import { fieldsForRole } from './templates.js?v=202611031532';
-import { crmSupabase } from './supabase-crm.js?v=202611031532';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611031702';
+import { localDate } from './constants.js?v=202611031702';
+import { featureFlags } from './features.js?v=202611031702';
+import { fieldsForRole } from './templates.js?v=202611031702';
+import { crmSupabase } from './supabase-crm.js?v=202611031702';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned; vendor locally before go-live
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -73,10 +73,12 @@ export async function createSupabaseAdapter(cfg) {
       .map((p) => ({ ...p, name: `${p.firstName} ${p.lastName}` })); },
     // John, Nov 2 (migration 20): Place Order. Open Date (backdating OK, never future), any US state, EMD amount / due date; the DB re-checks all of it.
     async createDeal(input) {
+      // Refinance (John, Nov 3): no purchase price / EMD; migration 32 (private.deal_refi_guard) refuses them, and sellers / realtors / a TC on the file
+      const refi = input.transactionType === 'Refinance';
       const { data: { user } } = await sb.auth.getUser(); const num = (v) => (v === '' || v == null ? null : Number(String(v).replace(/[$,\s]/g, '')));
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
-        open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: num(input.purchasePrice), loan_amount: num(input.loanAmount),
-        emd_amount: num(input.emdAmount), emd_due_date: input.emdDueDate || null, notes: input.notes || '', processor_id: input.processorId || user.id, created_by: user.id,
+        open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : num(input.purchasePrice), loan_amount: num(input.loanAmount),
+        emd_amount: refi ? null : num(input.emdAmount), emd_due_date: refi ? null : input.emdDueDate || null, notes: input.notes || '', processor_id: input.processorId || user.id, created_by: user.id,
         lender_name: input.lenderName || '', lender_contact: input.lenderContact || '', lender_phone: input.lenderPhone || '', lender_email: String(input.lenderEmail || '').trim().toLowerCase() };   // Matt, Nov 3b: lender phone / email at placement
       const d = camel(ok(await sb.from('deals').insert(row).select().single()));
       if (String(input.sourceOfBusiness || '').trim()) ok(await sb.rpc('set_deal_source', { p_deal: d.id, p_source: input.sourceOfBusiness }));   // migration 31 (staff-only table)

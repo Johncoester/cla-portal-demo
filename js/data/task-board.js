@@ -3,7 +3,7 @@
  *   filterTasks / sortTasks / groupTasks : the cross-file task list (Tasks page, Work Queue "incomplete tasks by Buyer / Seller / Agent")
  *   filterDeals / sortDeals              : the order list (Open Orders) filters + sort
  *   buildTaskGrid                        : Processor / Admin grid, file numbers across (columns), tasks down (rows) */
-import { isAgent } from './constants.js?v=202611031532';
+import { isAgent } from './constants.js?v=202611031702';
 
 export const OPEN_STATUSES = ['todo', 'in_progress', 'blocked'];
 export const isOpenTask = (t) => OPEN_STATUSES.includes(t.status);
@@ -93,7 +93,7 @@ const rowKey = (t) => `${t.assignedRole}|${t.templateCode ? 'tpl:' + t.templateC
 const dayOf = (iso) => { if (!iso) return ''; const s = String(iso); if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const d = new Date(s); if (isNaN(d)) return s.slice(0, 10);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 export function buildTaskGrid(tasks, deals, today) {
-  const columns = sortDeals(deals, 'fileNumber', 'asc').map((d) => ({ id: d.id, fileNumber: d.fileNumber, address: d.address || `${d.street}, ${d.city}`, street: d.street, closingDate: d.closingDate || null, status: d.status }));
+  const columns = sortDeals(deals, 'fileNumber', 'asc').map((d) => ({ id: d.id, fileNumber: d.fileNumber, address: d.address || `${d.street}, ${d.city}`, street: d.street, closingDate: d.closingDate || null, status: d.status, transactionType: d.transactionType || 'Purchase' }));
   const ids = new Set(columns.map((c) => c.id)); const rows = new Map();
   tasks.filter((t) => GRID_ROLES.includes(t.assignedRole) && ids.has(t.dealId)).forEach((t) => { const k = rowKey(t);
     if (!rows.has(k)) rows.set(k, { key: k, title: t.title, role: t.assignedRole, roleLabel: roleShort(t.assignedRole), group: groupOfRole(t.assignedRole), byDeal: {} });

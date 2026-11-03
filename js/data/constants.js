@@ -72,6 +72,14 @@ export const PROFILE_STATUSES = ['active', 'disabled', 'removed'];   // removed 
 export const TEAM_MEMBER_ROLES = ['coordinator', 'agent'];
 export const isAdmin = (u) => !!(u && u.isAdmin);
 export const TX_TYPES = ['Purchase', 'Refinance'];
+// REFINANCE (John, Nov 3): a refinance has no purchase / sales price, no EMD, no sellers and no realtors. The people on it are the borrower(s) (kept as
+// Client-Buyer, the party on the loan; shown as "Borrower"), the salespeople, the Processor and the Lender. Mirrored by migration 32
+// (private.deal_refi_guard / private.participant_refi_guard).
+export const REFI = 'Refinance';
+export const isRefi = (d) => !!d && (d === REFI || d.transactionType === REFI || d.transaction_type === REFI);
+export const REFI_BLOCKED_ROLES = ['Client-Seller', 'Buyer Agent', 'Listing Agent', 'Transaction Coordinator'];
+export const REFI_BLOCKED_FIELDS = [['purchasePrice', 'Purchase price'], ['emdAmount', 'EMD amount'], ['emdDueDate', 'EMD due date']];
+export const refiRoleMsg = (role) => `A refinance has no ${role === 'Client-Seller' ? 'seller' : role === 'Transaction Coordinator' ? 'transaction coordinator' : 'realtor (' + role + ')'}. Its people are the borrower(s), salespeople, the Processor and the Lender.`;
 // CONTACT TYPE (John, Nov 2): a person-level reporting attribute that will flow into the CRM. Fixed list, stored as stable codes.
 // Separate from per-file roles: a Realtor stays a Realtor even when buying a home on one file. CLA staff have none.
 export const CONTACT_TYPES = [['realtor', 'Realtor'], ['lender', 'Lender'], ['buyer_seller', 'Buyer/Seller']];

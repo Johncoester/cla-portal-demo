@@ -1,5 +1,6 @@
 /* mock adapter: contacts, participants, documents (deal files). NOTE: there is no delete for documents, for anyone (Admin included). */
-import { cleanEntity } from './mock-part-nov3b.js?v=202611031532';
+import { cleanEntity } from './mock-part-nov3b.js?v=202611031702';
+import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611031702';
 export function contactsTasksDocs(x) {
   const { load, save, nid, needUser, needProcessor, isManager, notViewOnly, seesAll, dealsFor, dealOr404, onDeal, fileRole, log, prof, nameOf, roleOf, fullName, folderOf, docVisible, participantsOf, notify, dealProfileIds, clone, now, fail, str, emailOk, C } = x;
   const docOut = (z) => ({ ...z, wireInstructions: x.isWireDoc(z), dataUrl: undefined, hasContent: !!(z.dataUrl || z.hasFile), uploadedByName: nameOf(z.uploadedBy), uploadedByRole: x.fileRoleText(z.uploadedBy, z.dealId), folderName: (folderOf(z.folderId) || {}).name || '' });
@@ -36,8 +37,10 @@ export function contactsTasksDocs(x) {
     },
     // Matt, Nov 3 (b): opts.entity = a buyer / seller who is an entity (name, type, Entity Representative); see cleanEntity
     async addParticipant(dealId, contactId, role, opts = {}) {
-      const u = needProcessor(); const d = load(); d.deals.find((z) => z.id === dealId) || fail('Order not found.');
-      if (!C.PARTICIPANT_ROLES.includes(role)) fail('Unknown role.'); const c = d.contacts.find((z) => z.id === contactId) || fail('Contact not found.');
+      const u = needProcessor(); const d = load(); const deal = d.deals.find((z) => z.id === dealId) || fail('Order not found.');
+      if (!C.PARTICIPANT_ROLES.includes(role)) fail('Unknown role.');
+      if (isRefi(deal) && REFI_BLOCKED_ROLES.includes(role)) fail(refiRoleMsg(role));   // John, Nov 3: refinance = borrower(s), salespeople, Processor, Lender (migration 32)
+      const c = d.contacts.find((z) => z.id === contactId) || fail('Contact not found.');
       if (d.participants.some((p) => p.dealId === dealId && p.contactId === contactId && p.role === role)) fail('That person already has this role on the order.');
       // per-file roles: an outside user's login takes its permissions from this row, so keep it unambiguous
       const login = c.profileId && prof(c.profileId);
