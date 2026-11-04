@@ -5,17 +5,17 @@
  * sync, no invitations, nothing is ever emailed) on a lead, contact (= "Client" on screen), account (= "Company") or opportunity. Attachments on records.
  * NOTHING is deleted: leads, contacts, accounts and opportunities are archived; tasks are closed; attachments and notes stay.
  * Access (mirrored by private.crm_* in migration 22): see crm.js. */
-import { CRM_OFF } from './features.js?v=202611031946';
+import { CRM_OFF } from './features.js?v=202611032037';
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, OPP_STAGES, ACCOUNT_KIND_CODES, CRM_ENTITIES, accountKindForType, entityLabel,
   TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, LINK_KEYS, LINK_FIELDS, cleanUrl, nextDue, addDaysTo, taskOpen, meetingOpen, localStamp,
-  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals } from './crm.js?v=202611031946';
-import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611031946';
-import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611031946';
-import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611031946';
-import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611031946';
-import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611031946';
-import { crmCallsPart } from './mock-part-crm-calls.js?v=202611031946';
-import { callOpen, callSeconds, durationText, callStatusOf } from './crm-calls.js?v=202611031946';
+  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals } from './crm.js?v=202611032037';
+import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611032037';
+import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611032037';
+import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611032037';
+import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611032037';
+import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611032037';
+import { crmCallsPart } from './mock-part-crm-calls.js?v=202611032037';
+import { callOpen, callSeconds, durationText, callStatusOf } from './crm-calls.js?v=202611032037';
 
 export function crmPart(x, flags) {
   const { load, save, nid, needUser, dealsFor, prof, nameOf, fullName, clone, now, fail, str, emailOk, localDate, C } = x;

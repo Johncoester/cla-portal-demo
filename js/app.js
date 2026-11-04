@@ -1,13 +1,14 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611031946';
-import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611031946';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611031946';
-import { canUseCrm } from './data/crm.js?v=202611031946';
-import { acctCanRead } from './data/accounting.js?v=202611031946';
-import { phaseOf } from './data/agent-portal.js?v=202611031946';
-import { formatMoneyInput } from './pages/money-input.js?v=202611031946';
-import { applyTheme, themeOn } from './theme.js?v=202611031946';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
-import { icon } from './pages/theme-cards.js?v=202611031946';
+import { getAdapter } from './data/adapter.js?v=202611032037';
+import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611032037';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611032037';
+import { canUseCrm } from './data/crm.js?v=202611032037';
+import { acctCanRead } from './data/accounting.js?v=202611032037';
+import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611032037';
+import { phaseOf } from './data/agent-portal.js?v=202611032037';
+import { formatMoneyInput } from './pages/money-input.js?v=202611032037';
+import { applyTheme, themeOn } from './theme.js?v=202611032037';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
+import { icon } from './pages/theme-cards.js?v=202611032037';
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
@@ -16,27 +17,35 @@ document.addEventListener('input', (e) => { const el = e.target; if (el instance
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611031946'),
-  dashboard: () => import('./pages/dashboard.js?v=202611031946'),
-  orders: () => import('./pages/orders.js?v=202611031946'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611031946'),
-  deal: () => import('./pages/deal.js?v=202611031946'),
-  users: () => import('./pages/users.js?v=202611031946'),
-  profile: () => import('./pages/profile.js?v=202611031946'),
-  'contact-us': () => import('./pages/contact.js?v=202611031946'),
-  teams: () => import('./pages/teams.js?v=202611031946'),
-  templates: () => import('./pages/templates.js?v=202611031946'),
-  library: () => import('./pages/library.js?v=202611031946'),
-  activity: () => import('./pages/activity.js?v=202611031946'),
-  outbox: () => import('./pages/outbox.js?v=202611031946'),
-  tasks: () => import('./pages/tasks.js?v=202611031946'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611031946'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
-  schedule: () => import('./pages/schedule.js?v=202611031946'),   // public closing-time link (no sign-in needed)
-  crm: () => import('./pages/crm.js?v=202611031946'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  login: () => import('./pages/entry.js?v=202611032037'),
+  dashboard: () => import('./pages/dashboard.js?v=202611032037'),
+  orders: () => import('./pages/orders.js?v=202611032037'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611032037'),
+  deal: () => import('./pages/deal.js?v=202611032037'),
+  users: () => import('./pages/users.js?v=202611032037'),
+  profile: () => import('./pages/profile.js?v=202611032037'),
+  'contact-us': () => import('./pages/contact.js?v=202611032037'),
+  teams: () => import('./pages/teams.js?v=202611032037'),
+  templates: () => import('./pages/templates.js?v=202611032037'),
+  library: () => import('./pages/library.js?v=202611032037'),
+  activity: () => import('./pages/activity.js?v=202611032037'),
+  outbox: () => import('./pages/outbox.js?v=202611032037'),
+  tasks: () => import('./pages/tasks.js?v=202611032037'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611032037'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  schedule: () => import('./pages/schedule.js?v=202611032037'),   // public closing-time link (no sign-in needed)
+  crm: () => import('./pages/crm.js?v=202611032037'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  modules: () => import('./pages/modules.js?v=202611032037'),   // John, Nov 3: Admin / Super admin only: one "Live" switch per module
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };
 const PUBLIC = new Set(['login', 'schedule']);
+// MODULE SWITCHES (John, Nov 3): which switchable module a route belongs to (data/modules.js). Not Live = beta: only Admins / Super admins get it.
+export function routeModule(route) {
+  const p = route.page;
+  if (p === 'crm') return route.params.section === 'deals' ? 'crm-deals' : route.params.section === 'calls' ? 'calls' : 'crm';
+  if (p === 'deal' && route.params.tab === 'accounting') return 'accounting';
+  return ['tasks', 'task-grid', 'library'].includes(p) ? p : null;
+}
 
 function parse() {
   const h = (location.hash || '#/').replace(/^#\/?/, '').split('?')[0]; const seg = h.split('/').filter(Boolean);
@@ -57,14 +66,15 @@ export function navFor(u, dealId, unread, features = {}) {
   const add = (id, label, href, cls) => items.push({ id, label, href, cls });
   add('dashboard', dashLabel(u), '#/dashboard', 'orders');
   add('orders', u.role === 'Transaction Coordinator' ? 'Orders' : 'Open Orders', '#/orders', 'orders');
-  if (u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator') add('tasks', 'All Tasks', '#/tasks', 'task');
-  if (u.isAdmin || runsOrders(u)) add('task-grid', 'Task Grid', '#/task-grid', 'task');
+  if ((u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator') && modOn('tasks')) add('tasks', 'All Tasks', '#/tasks', 'task');
+  if ((u.isAdmin || runsOrders(u)) && modOn('task-grid')) add('task-grid', 'Task Grid', '#/task-grid', 'task');
   if (u.isAdmin) { add('users/new', 'Create User', '#/users/new', 'documents'); add('users', 'User List', '#/users', 'documents'); add('teams', 'Teams', '#/teams', 'contact-us'); }
-  if (features.crm && canUseCrm(u)) add('crm', 'CRM', '#/crm', 'contact-us');   // feature flag + CLA staff only (not TCs, not outside users)
-  add('library', 'Library', '#/library', 'documents');
+  if (features.crm && canUseCrm(u) && modOn('crm')) add('crm', 'CRM', '#/crm', 'contact-us');   // feature flag + CLA staff only (not TCs, not outside users)
+  if (modOn('library')) add('library', 'Library', '#/library', 'documents');
   if (runsOrders(u) || u.isAdmin) add('activity', 'Activity Log', '#/activity', 'activity');
   if (runsOrders(u) || u.isAdmin || u.role === 'Transaction Coordinator') { add('templates', 'Task Templates', '#/templates', 'task'); add('outbox', 'Reminder Outbox', '#/outbox', 'inbox'); }
-  return items;
+  if (canManageModules(u)) add('modules', 'Modules', '#/modules', 'documents');   // John, Nov 3: the Live switches (Admin / Super admin only)
+  return items.map((n) => ({ ...n, beta: modBeta(n.id) }));
 }
 
 async function layout(u, view, route) {
@@ -76,10 +86,11 @@ async function layout(u, view, route) {
   const cnt = (tab) => { if (!counts) return ''; const n = { tasks: counts.tasks, inbox: counts.inbox, documents: counts.documents, activity: counts.activity }[tab]; return n == null ? '' : html`<span class="tab-count" data-tab-count="${tab}">${n}</span>`; };
   const cur = route.page + (route.page === 'users' && route.params.mode === 'new' ? '/new' : '');
   // card theme only: an inline SVG icon + the label in a span (shown as a tooltip in the icon-only sidebar); the link text stays the same
-  const tc = themeOn(); const lbl = (id, label) => (tc ? html`${icon(id)}<span class="nav-label">${label}</span>` : label); const tip = (label) => (tc ? raw(` title="${esc(label)}"`) : '');
-  const core = navFor(u, null, 0, api.features || {}).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}"${tip(n.label)}>${lbl(n.id, n.label)}</a></li>`);
-  const t = route.params.tab; const link = (tab, label, cls) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}"${tip(label)}>${lbl(tab, label)}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : tab === 'inbox' ? '' : cnt(tab)}</a></li>`;
-  const dealNav = deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${link('inbox', 'Inbox', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${link('activity', 'Activity', 'activity')}${(api.features || {}).accounting && acctCanRead(u) ? link('accounting', 'Accounting', 'documents') : ''}` : '';
+  const tc = themeOn(); const lbl = (id, label) => (tc ? html`${icon(id)}<span class="nav-label">${label}</span>` : label); const tip = (label, beta) => (tc || beta ? raw(` title="${esc(label)}${beta ? ` (${BETA_LABEL})` : ''}"`) : '');
+  const betaTag = (id) => html`<span class="beta-badge" data-beta-badge="${id}" title="${BETA_LABEL}">Beta</span>`;
+  const core = navFor(u, null, 0, api.features || {}).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}"${tip(n.label, n.beta)}${n.beta ? raw(' data-beta-nav') : ''}>${lbl(n.id, n.label)}${n.beta ? betaTag(n.id) : ''}</a></li>`);
+  const t = route.params.tab; const link = (tab, label, cls, beta) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}"${tip(label, beta)}${beta ? raw(' data-beta-nav') : ''}>${lbl(tab, label)}${beta ? betaTag(tab) : ''}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : tab === 'inbox' ? '' : cnt(tab)}</a></li>`;
+  const dealNav = deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${link('inbox', 'Inbox', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${link('activity', 'Activity', 'activity')}${(api.features || {}).accounting && acctCanRead(u) && modOn('accounting') ? link('accounting', 'Accounting', 'documents', modBeta('accounting')) : ''}` : '';
   const contact = isStaff(u.role) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us"${tip('Contact Us')}>${lbl('contact-us', 'Contact Us')}</a></li>`;
   const sidebarHead = deal ? html`<a class="logo-home-link" href="#/deals/${deal.id}"><div class="order-heading-left"><span>${deal.fileNumber}</span></div><div class="map-div"><img class="map-pin" src="assets/img/map-icon-new.png" alt=""><p>${deal.street}<br>${deal.city}, ${deal.state}, ${deal.zip}</p></div></a>` : '';
   const topButtons = runsOrders(u) ? html`<a class="green-btn" href="#/orders/new">Place Order</a>` : '';
@@ -99,12 +110,20 @@ async function layout(u, view, route) {
       ${view.crumbs ? html`<ol class="breadcrumb"><li><a href="#${homeFor(u)}"><img src="assets/img/bread-home.png" alt="">Home</a></li>${view.crumbs.map(([label, href], i) => html`<li class="${i === view.crumbs.length - 1 ? 'active' : ''}">${href ? html`<a href="${href}">${label}</a>` : label}</li>`)}</ol>` : ''}
       <div class="dev-banner">DEV BUILD &middot; FAKE DATA ONLY &middot; no real clients, no Zoho &middot; <a href="#" data-reset>reset demo data</a></div>
       ${deal ? orderHeader(deal) : ''}
+      ${betaBanner(route)}
       <div id="view">${view.body}</div>
     </div>
     <div class="footer-bar"><span><img src="assets/img/logo-icon.png" alt="" class="foot-logo"> Copyright 2026 C.L.A Title &amp; Escrow | All Rights Reserved.</span><span>Security / Privacy Policy</span></div>
   </div>`;
 }
 
+// MODULE SWITCHES: an Admin testing a module that is not Live sees this above the page (regular users never reach the page)
+function betaBanner(route) {
+  const id = routeModule(route); if (!id || !modBeta(id)) return '';
+  const m = moduleById(id);
+  return html`<div class="beta-banner" data-beta-banner="${id}" role="note"><span class="beta-badge">${BETA_LABEL}</span> <span><strong>${m.label}</strong> is not Live yet: only Admins and Super admins can see it.
+    Turn it Live on the <a href="#/modules">Modules</a> page.</span></div>`;
+}
 // REDESIGN (John, Nov 3): the persistent order header on every tab of a file: Order #, progress badge, address, then type / dates / status.
 // Same data-order-header / data-progress-badge / .order-no hooks as before (the badge text is exactly the phase name).
 function orderHeader(deal) {
@@ -122,7 +141,9 @@ export async function render() {
   let u = await api.getSession();
   if (!u && !PUBLIC.has(route.page)) { if (route.page === 'deal') sessionStorage.setItem('cla-portal-new:return', location.hash); location.hash = '#/login'; return; }   // invite deep link: back to the order after sign-in
   if (u && route.page === 'login') { location.hash = '#' + homeFor(u); return; }
-  const loader = (FLAGGED[route.page] && !(api.features || {})[FLAGGED[route.page]]) || (route.page === 'deal' && route.params.tab === 'accounting' && !(api.features || {}).accounting) ? null : pages[route.page];   // Accounting tab: Page not found when the flag is off
+  let mods = {}; if (u && api.getModuleAccess) { try { mods = await api.getModuleAccess(); } catch (e) { mods = {}; } } setModuleMap(mods);   // module switches for this user
+  const modId = u ? routeModule(route) : null;
+  const loader = (FLAGGED[route.page] && !(api.features || {})[FLAGGED[route.page]]) || (route.page === 'deal' && route.params.tab === 'accounting' && !(api.features || {}).accounting) || (modId && !modOn(modId)) ? null : pages[route.page];   // a module that is not Live (beta): Page not found for everyone but Admins   // Accounting tab: Page not found when the flag is off
   if (!loader) { root.innerHTML = toText(await layout(u, { body: html`<div class="box-title"><h2>Page not found</h2></div><p>That page does not exist.</p>` }, route)); wireChrome(u); return; }
   const mod = await loader(); let view;
   try { view = await mod.render({ api, user: u, params: route.params, refresh: render, go }); }
@@ -136,9 +157,9 @@ export async function render() {
 }
 // Nov 3 (b), Zoho video 7: CRM global search in the header (CLA staff with the CRM only; the module loads only then)
 const HEADER_SEARCH = `<div class="crm-global-search" data-global-search-wrap style="position:relative;display:inline-block;margin-right:10px"><input type="search" data-global-search placeholder="Search CRM (name, email, phone)" aria-label="Search the CRM" autocomplete="off" maxlength="100"><div data-global-search-dd hidden style="position:absolute;right:0;top:100%;z-index:50;background:#fff;color:#222;min-width:420px;max-height:70vh;overflow:auto;border:1px solid #ccc;padding:6px;text-align:left"></div></div>`;
-const crmSearchOn = (u, api) => !!(u && (api.features || {}).crm && canUseCrm(u));
+const crmSearchOn = (u, api) => !!(u && (api.features || {}).crm && canUseCrm(u) && modOn('crm'));
 function wireChrome(u) {
-  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611031946').then((m) => m.wireHeaderSearch(api)); });
+  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611032037').then((m) => m.wireHeaderSearch(api)); });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');
   if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; });
   document.addEventListener('click', () => { if (dd) dd.hidden = true; }, { once: true });

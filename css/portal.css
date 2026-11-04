@@ -389,3 +389,22 @@ label.req { color: var(--ink-2); border-left: 3px solid var(--bad); padding-left
   .crm-global-search { display: none !important; } .topbar-inner { padding: 0 var(--s3); gap: var(--s2); } .user-btn .role-tag { display: none; } .tpl-layout { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .wiz-label { display: none; } .wiz-tab.is-current .wiz-label { display: block; } .stat-row { grid-template-columns: 1fr 1fr; } .page-head { flex-direction: column; } .placed-confirm { flex-direction: column; } }
 @media print { .topbar-main, .left-bar, .footer-bar, .dev-banner, .wiz-progress, .wiz-nav { display: none !important; } .right-bar { margin: 0; padding: 0; } }
+/* ---------- MODULE SWITCHES (John, Nov 3): Modules page (Admin only), Live switch, Beta badge + banner ---------- */
+.beta-badge { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 9px; background: #fff4e5; color: #8a4306; border: 1px solid #f3c58a; font-size: 10.5px; font-weight: 700; letter-spacing: .03em; line-height: 16px; vertical-align: middle; white-space: nowrap; }
+.beta-banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 var(--s4); padding: 10px 14px; background: #fff8ee; border: 1px solid #f3c58a; border-left: 4px solid #e58a1f; border-radius: var(--r); color: #5c3a0a; }
+.beta-banner .beta-badge { margin-left: 0; font-size: 11.5px; line-height: 18px; }
+.mod-intro { max-width: 900px; } .mod-intro .beta-badge { margin: 0 2px; }
+.mod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--s4); margin: var(--s4) 0; }
+.mod-card { display: flex; flex-direction: column; gap: 6px; } .mod-card p { margin: 0; }
+.mod-card.is-beta { border-color: #f3c58a; } .mod-card.is-off { opacity: .75; }
+.mod-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; } .mod-title { margin: 0; font-size: var(--fs-md); }
+.mod-pill { display: inline-block; padding: 1px 9px; border-radius: 10px; font-size: 11.5px; font-weight: 700; line-height: 18px; white-space: nowrap; }
+.mod-pill.live { background: var(--ok-bg, #e7f6ec); color: var(--ok, #1d7a43); } .mod-pill.beta { background: #fff4e5; color: #8a4306; } .mod-pill.off { background: #eee; color: #666; }
+.mod-switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; user-select: none; position: relative; }
+.mod-switch input { position: absolute; opacity: 0; width: 44px; height: 24px; margin: 0; cursor: pointer; z-index: 1; }
+.mod-track { width: 44px; height: 24px; border-radius: 12px; background: #c9ced6; position: relative; transition: background .15s; flex: none; }
+.mod-knob { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: left .15s; }
+.mod-switch input:checked + .mod-track { background: var(--ok, #1d7a43); } .mod-switch input:checked + .mod-track .mod-knob { left: 23px; }
+.mod-switch input:focus-visible + .mod-track { box-shadow: var(--focus); } .mod-switch.is-disabled { cursor: not-allowed; opacity: .55; } .mod-switch.is-disabled input { cursor: not-allowed; }
+.mod-always-list { columns: 2; margin: 6px 0 0; padding-left: 18px; } @media (max-width: 800px) { .mod-always-list { columns: 1; } }
+.mod-log-card { margin-top: var(--s4); }

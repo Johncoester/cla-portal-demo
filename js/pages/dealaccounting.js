@@ -1,9 +1,10 @@
 // ACCOUNTING tab (John, Nov 3: "an accounting tab that will allow fees to be added to an ALTA and CD"). CLA staff only, behind the `accounting`
 // feature flag (app.js never loads this module when it is off). ONE fee ledger feeds the ALTA Settlement Statement and the Closing Disclosure fee
 // view. Processor / Admin / Super admin edit; Sales Person / Sales Team read only. TEST ONLY: "TEST - not a legal disclosure" on every page and print.
-import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime } from '../ui.js?v=202611031946';
-import { themeOn } from '../theme.js?v=202611031946';
-import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611031946';
+import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime } from '../ui.js?v=202611032037';
+import { themeOn } from '../theme.js?v=202611032037';
+import { modOn } from '../data/modules.js?v=202611032037';
+import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611032037';
 
 const VIEWS = [['ledger', 'Fee ledger'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['history', 'Edit history']];
 const m2 = (n) => (n == null || Number(n) === 0 ? '' : '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
@@ -12,7 +13,7 @@ const opt = (v, l, sel) => html`<option value="${v}" ${String(v) === String(sel 
 const names = (deal, role) => deal.participants.filter((p) => p.role === role && p.contact).map((p) => (p.entity && p.entity.name) || `${p.contact.firstName} ${p.contact.lastName}`).join(', ');
 
 export async function render({ api, deal, user }) {
-  if (!(api.features || {}).accounting) throw new Error('That page does not exist.');
+  if (!(api.features || {}).accounting || !modOn('accounting')) throw new Error('That page does not exist.');   // config flag off, or not Live (beta) for this user
   if (!acctCanRead(user) || user.accountRole) throw new Error('Accounting is for CLA staff only.');
   const q = new URLSearchParams(location.hash.split('?')[1] || ''); const view = VIEWS.some(([k]) => k === q.get('v')) ? q.get('v') : 'ledger';
   const showRetired = q.get('retired') === '1'; const base = `#/deals/${deal.id}/accounting`;

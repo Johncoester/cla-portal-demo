@@ -2,7 +2,7 @@
  * effort; the mock adapter is the tested one). Two switches: the browser flag (features.accounting, off unless the config says true) and the
  * database switch (private.features 'accounting', off by default; RLS refuses everything while it is off). RLS + triggers enforce the rules
  * (staff only, Sales read-only, no deletes, refinance has no seller side, every change logged in accounting_fee_log). Nothing is sent. */
-import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, TEST_MARK, cleanFee, allEntries, ledgerTotals, altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee } from './accounting.js?v=202611031946';
+import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, TEST_MARK, cleanFee, allEntries, ledgerTotals, altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee } from './accounting.js?v=202611032037';
 
 const toRow = (f) => ({ kind: f.kind, description: f.description, alta_section: f.altaSection, cd_section: f.cdSection, cd_line: f.cdLine, payee: f.payee, amount: f.amount, note: f.note, preset_key: f.presetKey,
   paid_by: f.paidBy, split_buyer: f.split ? f.split.buyer : 0, split_seller: f.split ? f.split.seller : 0, split_lender: f.split ? f.split.lender : 0, split_other: f.split ? f.split.other : 0,

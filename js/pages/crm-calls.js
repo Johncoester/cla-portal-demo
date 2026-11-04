@@ -3,11 +3,12 @@
 // "Mark as Completed" -> Complete (Call Duration MM minutes SS seconds, above zero), call detail page #/crm/calls/<id>.
 // Reminders are RECORDED ONLY (shown in the portal; nothing is ever sent). The voice recording stays in this browser (nothing uploads anywhere).
 // Function first, minimal styling. Every rule is checked again by the adapter (and migration 33 in SQL).
-import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611031946';
-import { relatedLists, localStamp, entityLabel } from '../data/crm.js?v=202611031946';
-import { CALL_TYPE_CHOICES, CALL_REMINDERS, CALL_TO_TYPES, RELATED_TO_TYPES, CALL_TIME_MSG, CALL_ZERO_MSG, VOICE_EXT, durationText, durationWords, reminderLabel, defaultCallSubject } from '../data/crm-calls.js?v=202611031946';
-import { optSel, lbl } from './crm-custom.js?v=202611031946';
-import { ownerSel, tabs, head } from './crm-kit.js?v=202611031946';
+import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611032037';
+import { relatedLists, localStamp, entityLabel } from '../data/crm.js?v=202611032037';
+import { CALL_TYPE_CHOICES, CALL_REMINDERS, CALL_TO_TYPES, RELATED_TO_TYPES, CALL_TIME_MSG, CALL_ZERO_MSG, VOICE_EXT, durationText, durationWords, reminderLabel, defaultCallSubject } from '../data/crm-calls.js?v=202611032037';
+import { optSel, lbl } from './crm-custom.js?v=202611032037';
+import { ownerSel, tabs, head } from './crm-kit.js?v=202611032037';
+import { modOn } from '../data/modules.js?v=202611032037';   // module switches: Calls not Live = no call menu / call columns for regular users
 
 const v0 = (v) => (v == null ? '' : v);
 const when = (s) => (!s ? '' : s.length > 10 ? `${fmtDate(s.slice(0, 10))} ${s.slice(11, 16)}` : fmtDate(s));
@@ -17,7 +18,7 @@ const req = (label, inner, extra = '') => html`<label class="req ${extra}" data-
 // ---------- "+" menu (Task / Meeting / Call > Schedule a call | Log a call) ----------
 export const activityPlus = (me) => (me.canEdit ? html`<details class="more-menu act-plus" data-act-plus style="display:inline-block"><summary class="m-btn" data-act-plus-btn title="Add an activity">+</summary>
   <div data-act-plus-items class="act-plus-items"><button type="button" class="ghost" data-plus-task>Task</button> <button type="button" class="ghost" data-plus-meeting>Meeting</button>
-    <details data-plus-call><summary class="ghost" data-plus-call-btn>Call &#9656;</summary><button type="button" class="ghost" data-schedule-call>Schedule a call</button> <button type="button" class="ghost" data-log-call-new>Log a call</button></details></div></details>` : '');
+    ${modOn('calls') ? html`<details data-plus-call><summary class="ghost" data-plus-call-btn>Call &#9656;</summary><button type="button" class="ghost" data-schedule-call>Schedule a call</button> <button type="button" class="ghost" data-log-call-new>Log a call</button></details>` : ''}</div></details>` : '');
 
 // ---------- activities board ----------
 const taskCard = (a, cfg) => html`<li class="act-card" data-board-card="${a.id}" data-kind="task"><a href="#/crm/tasks/${a.id}">${a.subject}</a><br><span class="small">Due ${fmtDate(a.dueDate)} &middot; ${lbl(cfg, 'taskStatus', a.status)}${a.overdue ? html` ${pill('Overdue', 'bad')}` : ''}</span><br><span class="muted small">${a.ownerName}</span></li>`;
@@ -32,8 +33,8 @@ export function activityBoard(rec, { me, cfg }) {
   const col = (title, key, list, card, empty) => html`<div class="act-col" data-board-col="${key}"><h4>${title} (${list.length})</h4><ul class="act-list">${list.length ? list.map(card) : html`<li class="muted small">${empty}</li>`}</ul></div>`;
   const by = (list, k) => list.filter((a) => a.kind === k);
   return html`<div class="card" data-act-board><h3>Activities ${activityPlus(me)} ${me.canEdit ? html`<button class="ghost small" data-log-email>Log an email</button>` : ''}</h3>
-    <div class="act-board" data-board-open>${col('Open Tasks', 'open-tasks', by(rl.open, 'task'), (a) => taskCard(a, cfg), 'No open tasks.')}${col('Open Meetings', 'open-meetings', by(rl.open, 'meeting'), meetingCard, 'No open meetings.')}${col('Open Calls', 'open-calls', by(rl.open, 'call'), (a) => callCard(a, me), 'No open calls.')}</div>
-    <div class="act-board" data-board-closed>${col('Closed Tasks', 'closed-tasks', by(rl.closed, 'task'), (a) => taskCard(a, cfg), 'None.')}${col('Closed Meetings', 'closed-meetings', by(rl.closed, 'meeting'), meetingCard, 'None.')}${col('Closed Calls', 'closed-calls', by(rl.closed, 'call'), (a) => callCard(a, me), 'None.')}</div>
+    <div class="act-board" data-board-open>${col('Open Tasks', 'open-tasks', by(rl.open, 'task'), (a) => taskCard(a, cfg), 'No open tasks.')}${col('Open Meetings', 'open-meetings', by(rl.open, 'meeting'), meetingCard, 'No open meetings.')}${modOn('calls') ? col('Open Calls', 'open-calls', by(rl.open, 'call'), (a) => callCard(a, me), 'No open calls.') : ''}</div>
+    <div class="act-board" data-board-closed>${col('Closed Tasks', 'closed-tasks', by(rl.closed, 'task'), (a) => taskCard(a, cfg), 'None.')}${col('Closed Meetings', 'closed-meetings', by(rl.closed, 'meeting'), meetingCard, 'None.')}${modOn('calls') ? col('Closed Calls', 'closed-calls', by(rl.closed, 'call'), (a) => callCard(a, me), 'None.') : ''}</div>
     <p class="muted small">Call reminders are shown in the portal only (CRM Home and the call); nothing is emailed, texted or dialled.</p></div>`;
 }
 

@@ -218,3 +218,18 @@ body.theme-cards .acct-mark { background: #fff; }
   body.theme-cards .acct .tbl tr.acct-sec th, body.theme-cards .acct .tbl tr.acct-total td { background: #eee !important; color: #000 !important; }
   body.theme-cards .left-bar, body.theme-cards .topbar-main, body.theme-cards .footer-bar { display: none !important; }
 }
+
+/* ---------- MODULE SWITCHES (John, Nov 3): Modules page as baby-blue cards; Beta badge on the icon sidebar ---------- */
+body.theme-cards .nav-link .beta-badge { position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); margin: 0; padding: 0 3px; font-size: 8px; line-height: 11px; border-radius: 3px; letter-spacing: .02em; }
+body.theme-cards .beta-banner { border-radius: 2px; background: #fff8ee; }
+body.theme-cards .mod-grid { gap: 28px; }
+body.theme-cards .mod-card { background: var(--tc-card); padding: 13px 13px 20px; border-radius: 1px; gap: 8px; }
+body.theme-cards .mod-card .mod-head { background: #fff; padding: 16px 16px 14px; margin-bottom: 6px; }
+body.theme-cards .mod-card > p, body.theme-cards .mod-card .mod-status { padding: 0 6px; }
+body.theme-cards .mod-title { font-size: 26px; font-weight: 300; color: var(--tc-blue); }
+body.theme-cards .mod-card.is-beta .mod-head { box-shadow: inset 3px 0 0 #e58a1f; } body.theme-cards .mod-card.is-live .mod-head { box-shadow: inset 3px 0 0 var(--tc-baby); }
+body.theme-cards .mod-switch input:checked + .mod-track { background: var(--tc-baby); } body.theme-cards .mod-switch-label { color: var(--tc-on-baby); font-weight: 500; }
+body.theme-cards .mod-switch input:checked + .mod-track .mod-knob { box-shadow: 0 0 0 1px var(--tc-baby-ink); }
+body.theme-cards .mod-pill.live { background: var(--tc-baby-soft); color: var(--tc-baby-ink-2); }
+body.theme-cards .mod-always, body.theme-cards .mod-log-card { background: var(--tc-card); padding: 18px 20px 22px; }
+body.theme-cards .mod-log-card .tbl { background: #fff; }
