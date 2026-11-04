@@ -2,12 +2,13 @@
  * NOT run against a hosted project (best effort; the mock adapter is the tested one). Two switches must both be on: the browser flag
  * (features.js, CLA_PORTAL_CONFIG.features.crm, OFF in supabase mode) and the database switch (private.features 'crm', migration 22).
  * With the browser flag off every method refuses before calling the database. Meetings never send invitations; nothing is emailed. */
-import { CRM_OFF } from './features.js?v=202611032037';
-import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611032037';
-import { localDate } from './constants.js?v=202611032037';
-import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611032037';
-import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611032037';
-import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611032037';
+import { CRM_OFF } from './features.js?v=202611032132';
+import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611032132';
+import { localDate } from './constants.js?v=202611032132';
+import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611032132';
+import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611032132';
+import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611032132';
+import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611032132';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };
@@ -26,7 +27,7 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     agentSplit: r.agent_split == null ? null : Number(r.agent_split), licenseNo: r.license_no || '', salesVolumeLastYear: r.sales_volume_last_year == null ? null : Number(r.sales_volume_last_year),
     dealsClosedLastYear: r.deals_closed_last_year, zillowUrl: r.zillow_url || '', street: r.crm_street || '', city: r.crm_city || '', state: r.crm_state || '', zip: r.crm_zip || '', county: r.crm_county || '', links: r.links || {} });
   const leadRow = (l, os) => ({ ...camel(l), ...personOut(l), name: `${l.first_name} ${l.last_name}`.trim(), ownerName: nameOf(os, l.owner_id), converted: !!l.converted_at, archived: !!l.archived_at,
-    leadSource: l.source, relationshipStatus: l.status, description: l.notes });
+    leadSource: l.source, relationshipStatus: l.status, description: l.notes, accountId: l.account_id || null, accountName: l.account_id ? l.company : '', companyText: l.account_id ? '' : l.company });
   const contactRow = (c) => ({ ...c, stageLabel: crmStageLabel(c.stage) });
   const linkOf = (e, id) => (e === 'opportunity' ? '#/crm/pipeline' : `#/crm/${e === 'lead' ? 'leads' : e === 'contact' ? 'contacts' : 'accounts'}/${id}`);
   const actOut = (a, ppl) => { const now = localStamp(); const r = camel(a);
@@ -47,7 +48,9 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     const d = v.description !== undefined ? v.description : v.notes; if (d != null) o.notes = d;
     if (v.agentSplit !== undefined) o.agent_split = num(v.agentSplit); if (v.salesVolumeLastYear !== undefined) o.sales_volume_last_year = num(v.salesVolumeLastYear);
     if (v.dealsClosedLastYear !== undefined) o.deals_closed_last_year = num(v.dealsClosedLastYear); if (hasLinks(v)) o.links = linksIn(v);
-    if (v.contactType !== undefined) o.contact_type = blank(v.contactType); if (v.ownerId !== undefined) o.owner_id = blank(v.ownerId); return o; };
+    if (v.contactType !== undefined) o.contact_type = blank(v.contactType); if (v.ownerId !== undefined) o.owner_id = blank(v.ownerId);
+    if (v.accountId !== undefined) { o.account_id = blank(v.accountId); delete o.company; }   // Janine, Nov 3: Company lookup (migration 37 sets the name)
+    if (v.zillowUrl !== undefined && hasLinks(v) && !o.links.zillowProfile && o.zillow_url) o.links.zillowProfile = o.zillow_url; return o; };
   const contactIn = (v) => { const p = {}; Object.entries(v).forEach(([k, x]) => { if (!k.startsWith('links.')) p[k] = x; }); if (hasLinks(v)) p.links = linksIn(v); if (p.tags !== undefined) p.tags = normTags(p.tags); return p; };
   const accIn = (v) => { const o = {}; ['name', 'kind', 'phone', 'website', 'city', 'state', 'notes'].forEach((k) => { if (v[k] != null) o[k] = String(v[k]).trim(); }); if (v.ownerId !== undefined) o.owner_id = blank(v.ownerId); return o; };
   const oppIn = (v) => { const o = {}; if (v.name != null) o.name = String(v.name).trim(); if (v.stage != null) o.stage = v.stage; if (v.notes != null) o.notes = v.notes;
@@ -168,5 +171,6 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
   Object.assign(api, crmTemplatesSupabase({ sb, ok, camel, me, on, one, self: api }));
   // Nov 3 (migration 33): calls (Zoho video 11) + Admin-only list CSV downloads. Nothing is ever sent.
   Object.assign(api, crmCallsSupabase({ sb, ok, camel, on, one, actOut, staff }));
+  Object.assign(api, crmJanineSupabase({ sb, ok, camel, on, rpc, me, self: api }));   // Janine, Nov 3 (migration 37)
   return api;
 }

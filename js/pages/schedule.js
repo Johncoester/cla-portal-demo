@@ -1,6 +1,6 @@
 // Public closing-time link (#/schedule/<token>). Works without signing in, like the old portal's scheduler links. Shows only that side's view.
-import { html, raw, $, $$, guard, toast, formData } from '../ui.js?v=202611032037';
-import { slotText } from './dealclosing.js?v=202611032037';
+import { html, raw, $, $$, guard, toast, formData } from '../ui.js?v=202611032132';
+import { slotText } from './dealclosing.js?v=202611032132';
 
 export async function render({ api, params }) {
   let s; try { s = await api.getSchedulingLink(params.token); } catch (e) { return { title: 'Closing time', body: shell(html`<h2>Link not valid</h2><p>${e.message}</p>`) }; }

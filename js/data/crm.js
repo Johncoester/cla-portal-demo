@@ -6,14 +6,19 @@
 export const ROLES_IN_COMPANY = ['Realtor', 'Real Estate Broker', 'Transaction Coordinator', 'Loan Officer', 'Mortgage Broker', 'Team Lead'];
 export const LEAD_SOURCES = ['Business Group', 'Call in/Walk in', 'Direct Mail', 'Door Knocking', 'Email Campaign', 'Existing Client or Agent', 'Facebook/IG Ads', 'Facebook Group',
   'FB/IG Organic', 'Google Ads', 'Other Agent (Our Team)', 'Partnering w/ Other Agents', 'Personal Network', 'Re-assigned', 'Search Engine', 'Social Media', 'Warm Call'];
-export const RELATIONSHIP_STATUSES = ['Potential/Warm', 'Prospecting', 'Not Interested', 'Unresponsive', 'Converted/Current Client', 'Churn'];
+export const RELATIONSHIP_STATUSES = ['Potential/Warm', 'Prospecting', 'Not Interested', 'Unresponsive', 'Converted/Current Client', 'Churn'];   // CLIENTS (unchanged)
+// Janine, Nov 3: LEADS have their own Relationship Status list, in this order. A lead holding an older value keeps it (shown as stored, never erased).
+export const LEAD_RELATIONSHIP_STATUSES = ['Met With', 'Meeting Set', 'Open to Meet', 'Hot Prospect', 'Shows Interest', 'Not Interested', 'Do NOT Contact', 'Prospecting',
+  'Voicemail 1', 'Voicemail 2', 'Voicemail 3', 'Voicemail 4', 'Voicemail 5', 'Need to find contact info', 'Need to verify contact info', 'No longer in real estate', 'Out of Range'];
+export const LEAD_STATUS_DEFAULT = 'Prospecting';
 export const CONVERTED_STATUS = 'Converted/Current Client';
 export const LEAD_STATUSES = RELATIONSHIP_STATUSES;   // a lead's status IS its Relationship Status (lead form ~ client form)
 export const TASK_SUBJECTS = ['Email', 'Call', 'Follow-up', 'Send Quote', 'Send Letter', 'Send Email', 'Other'];   // combobox: free text allowed
 export const TASK_STATUSES = ['Not Started', 'Deferred', 'In Progress', 'Completed', 'Waiting for input'];
 export const TASK_CLOSED = 'Completed';
 export const TASK_PRIORITIES = ['Highest', 'High', 'Normal', 'Low', 'Lowest'];
-export const REPEAT_EVERY = [['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']];
+export const REPEAT_EVERY = [['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly'], ['quarterly', 'Quarterly'], ['yearly', 'Yearly']];   // Janine, Nov 3: + Quarterly, Yearly
+export const REPEAT_CODES = REPEAT_EVERY.map(([c]) => c);
 export const MEETING_TYPES = ['Phone Meeting', 'Virtual Meeting', 'Coffee', 'Lunch Meeting', 'Office Stop By'];
 // Social Media Links & Web Addresses (+ Zillow URL in Client Information). Only http / https links are kept.
 export const LINK_FIELDS = [['website', 'Website'], ['facebookProfile', 'Facebook Profile'], ['facebookGroup', 'Facebook Group'], ['facebookPage', 'Facebook Business Page'],
@@ -64,11 +69,27 @@ export const safeHref = (v) => { try { const s = cleanUrl(v); return s; } catch 
 const p2 = (n) => String(n).padStart(2, '0');
 export const localStamp = (d = new Date()) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
 export const addDaysTo = (ymd, n) => { const [y, m, d] = ymd.split('-').map(Number); const t = new Date(y, m - 1, d + n); return `${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())}`; };
-// next due date of a repeating task (monthly keeps the day, clamped to the month's last day)
-export function nextDue(ymd, every) {
+// next due date of a repeating task. Monthly / quarterly / yearly step 1 / 3 / 12 calendar months and keep the ANCHOR day (the day of the
+// month of the series' first due date), clamped to the month's last day: Jan 31 -> Feb 28 -> Mar 31 (not Mar 28); Feb 29 yearly -> Feb 28 -> ... -> Feb 29.
+// anchorDay defaults to the day of ymd (older callers / tasks without an anchor).
+export const REPEAT_MONTHS = { monthly: 1, quarterly: 3, yearly: 12 };
+export function nextDue(ymd, every, anchorDay = null) {
   if (every === 'daily') return addDaysTo(ymd, 1); if (every === 'weekly') return addDaysTo(ymd, 7);
-  if (every === 'monthly') { const [y, m, d] = ymd.split('-').map(Number); const last = new Date(y, m + 1, 0).getDate(); const t = new Date(y, m, Math.min(d, last)); return `${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())}`; }
-  throw new Error('Repeat must be daily, weekly or monthly.');
+  const step = REPEAT_MONTHS[every];
+  if (step) { const [y, m, d] = ymd.split('-').map(Number); const want = Math.min(31, Math.max(1, Number(anchorDay) || d));
+    const mi = m - 1 + step; const ny = y + Math.floor(mi / 12), nm = mi % 12; const last = new Date(ny, nm + 1, 0).getDate();
+    return `${ny}-${p2(nm + 1)}-${p2(Math.min(want, last))}`; }
+  throw new Error('Repeat must be daily, weekly, monthly, quarterly or yearly.');
+}
+// company DUPLICATES (Janine, Nov 3): names compared case / punctuation / spacing-insensitively, "&" = "and", a leading "The" and trailing
+// Inc / LLC / LLP / Ltd / Co / Corp / Corporation / Company / PLLC / PC dropped. "Harbor Realty, LLC" = "harbor realty" = "HARBOR  REALTY INC."
+const CO_WORDS = new Set(['inc', 'incorporated', 'llc', 'llp', 'ltd', 'corp', 'corporation', 'pllc']);
+const CO_SUFFIX = /\s+(inc|incorporated|llc|l l c|llp|ltd|limited|co|corp|corporation|company|pllc|pc|lp)$/;
+export function companyKey(name) {
+  let s = String(name == null ? '' : name).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim().replace(/(^| )l l (c|p)(?= |$)/g, '$1ll$2').replace(/^the\s+/, '');   // "L.L.C." = "LLC"
+  for (let i = 0; i < 3 && CO_SUFFIX.test(s); i++) s = s.replace(CO_SUFFIX, '').trim();
+  const t = s.split(' ').filter((w) => !CO_WORDS.has(w)).join(' ');   // "Harbor Realty LLC (fake)" = "Harbor Realty (fake)"
+  return t || s;
 }
 export const taskOpen = (t) => t.status !== TASK_CLOSED;
 export const meetingEnd = (m) => (m.allDay ? String(m.endsAt || m.startsAt || '').slice(0, 10) + 'T23:59' : String(m.endsAt || ''));

@@ -1,8 +1,18 @@
 /* mock adapter, part 1: auth, profile, dashboard, deals. See mock-adapter.js. */
-import { checkSource } from './mock-part-nov3b.js?v=202611032037';
-import { isRefi, REFI_BLOCKED_FIELDS } from './constants.js?v=202611032037';
+import { checkSource } from './mock-part-nov3b.js?v=202611032132';
+import { isRefi, REFI_BLOCKED_FIELDS } from './constants.js?v=202611032132';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
+// John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only
+// (a refinance keeps neither). They feed the Accounting tab's CLA-rate calculation (e.g. the Maryland first-time homebuyer exemption).
+export const YES_NO = ['yes', 'no', ''];
+export function occFields(input, transactionType, fail) {
+  const v = (x, label) => { const s = String(x == null ? '' : x).trim().toLowerCase(); const t = s === 'true' ? 'yes' : s === 'false' ? 'no' : s; if (!YES_NO.includes(t)) fail(`${label} must be Yes, No or not set.`); return t; };
+  const pr = v(input.primaryResidence, 'Primary residence'); const ft = v(input.firstTimeBuyer, 'First-time buyer');
+  if (isRefi(transactionType)) return { primaryResidence: '', firstTimeBuyer: '' };
+  if (ft === 'yes' && pr === 'no') fail('A first-time buyer exemption needs the home to be the buyer\'s primary residence: answer Primary residence Yes, or First-time buyer No.');
+  return { primaryResidence: pr, firstTimeBuyer: ft };
+}
 export function dealsAndAuth(x) {
   const { load, save, nid, me, needUser, needProcessor, contactOf, dealsFor, dealOr404, log, nameOf, dealView, taskVisible, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
@@ -78,7 +88,7 @@ export function dealsAndAuth(x) {
         emdAmount: money(input.emdAmount, 'EMD amount'), emdDueDate: dateOrNull(input.emdDueDate, 'EMD due date'),
         // Matt, Nov 3 (b): lender phone + email (and the picked lender's name / company) and the source of business are set at placement
         lenderName: str(input.lenderName, 200), lenderContact: str(input.lenderContact, 200), lenderEmail: str(input.lenderEmail, 200).toLowerCase(), lenderPhone: x.phone(input.lenderPhone, 'Lender phone'),
-        sourceOfBusiness: checkSource(d, input.sourceOfBusiness, '', fail), notes: str(input.notes, 2000), processorId: procId, createdBy: u.id, createdAt: now() };
+        sourceOfBusiness: checkSource(d, input.sourceOfBusiness, '', fail), ...occFields(input, transactionType, fail), notes: str(input.notes, 2000), processorId: procId, createdBy: u.id, createdAt: now() };
       if (deal.lenderEmail && !emailOk(deal.lenderEmail)) fail('Lender email is not valid.');
       d.deals.push(deal);
       const pc = contactOf(procId); if (pc) d.participants.push({ id: nid('dp'), dealId: deal.id, contactId: pc.id, role: 'Processor', createdAt: now() });
@@ -107,6 +117,7 @@ export function dealsAndAuth(x) {
       // John, Nov 2: earnest money deposit (optional; amount >= 0)
       if (patch.emdAmount !== undefined) q.emdAmount = money(patch.emdAmount, 'EMD amount');
       if (patch.emdDueDate !== undefined) q.emdDueDate = dateOrNull(patch.emdDueDate, 'EMD due date');
+      if (patch.primaryResidence !== undefined || patch.firstTimeBuyer !== undefined) Object.assign(q, occFields({ primaryResidence: patch.primaryResidence !== undefined ? patch.primaryResidence : q.primaryResidence, firstTimeBuyer: patch.firstTimeBuyer !== undefined ? patch.firstTimeBuyer : q.firstTimeBuyer }, q.transactionType, fail));   // John, Nov 3 call
       if (patch.sourceOfBusiness !== undefined) q.sourceOfBusiness = checkSource(load(), patch.sourceOfBusiness, q.sourceOfBusiness, fail);   // Matt, Nov 3 (b)
       if (patch.processorId) { checkProcessor(patch.processorId); if (patch.processorId !== q.processorId) { q.processorId = patch.processorId; log(id, u.id, 'deal.processor', 'deal', id, `Processor set to ${nameOf(q.processorId)}`); } }
       if (patch.salesIds !== undefined || patch.salesPersonId !== undefined) { const ids = salesList(patch); ids.forEach((sid) => { if (!x.salesOf(id).some((s) => s.salesId === sid)) checkSales(sid); }); setSales(u, id, ids); }

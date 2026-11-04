@@ -1,13 +1,15 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611032037';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611032037';
-import { slotText } from './dealclosing.js?v=202611032037';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611032037';
-import { composeModal } from './compose.js?v=202611032037';
-import { moneyShow, moneyClean } from './money-input.js?v=202611032037';
-import { themeOn } from '../theme.js?v=202611032037';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611032132';
+import { GMAIL_OFF } from '../data/automation.js?v=202611032132';
+import { occSelects, yesNo } from './occ-fields.js?v=202611032132';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611032132';
+import { slotText } from './dealclosing.js?v=202611032132';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611032132';
+import { composeModal } from './compose.js?v=202611032132';
+import { moneyShow, moneyClean } from './money-input.js?v=202611032132';
+import { themeOn } from '../theme.js?v=202611032132';
 
-const TABS = { tasks: './dealtasks.js?v=202611032037', inbox: './dealmsgs.js?v=202611032037', documents: './dealdocs.js?v=202611032037', contacts: './dealcontacts.js?v=202611032037', activity: './dealactivity.js?v=202611032037', closing: './dealclosing.js?v=202611032037', agreements: './dealagreements.js?v=202611032037', accounting: './dealaccounting.js?v=202611032037' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611032132', inbox: './dealmsgs.js?v=202611032132', documents: './dealdocs.js?v=202611032132', contacts: './dealcontacts.js?v=202611032132', activity: './dealactivity.js?v=202611032132', closing: './dealclosing.js?v=202611032132', agreements: './dealagreements.js?v=202611032132', accounting: './dealaccounting.js?v=202611032132' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -16,7 +18,7 @@ export async function render(ctx) {
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
   if (tab === 'accounting' && !(api.features || {}).accounting) throw new Error('That page does not exist.');   // John, Nov 3: switchable off for the live portal
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611032037' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611032132' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
@@ -29,7 +31,7 @@ export async function render(ctx) {
   return { ...v, body: html`${done.html}${cards}${extra.top}${v.body}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
 }
 async function themedSummary({ api, user }, d, ov, inv) {
-  const { orderSummary } = await import('./theme-cards.js?v=202611032037');
+  const { orderSummary } = await import('./theme-cards.js?v=202611032132');
   const staffView = !user.accountRole && user.role !== 'Outside user';
   const canWire = staffView || (user.roles || [user.role]).includes('Client-Buyer');   // SAME rule as the Wire instructions button: CLA staff + the buyer, never an agent
   const tasks = await api.listTasks(d.id).catch(() => []);
@@ -98,12 +100,14 @@ function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = []) {
       <div><strong>${fmtMoney(d.loanAmount) || '\u2014'}</strong><span>Loan Amount</span></div><div><strong>${fmtDate(d.closingDate) || '\u2014'}</strong><span>Settlement Date</span></div>
       ${showEmd ? html`<div data-emd-amount><strong>${d.emdAmount == null || d.emdAmount === '' ? '\u2014' : fmtMoney(d.emdAmount)}</strong><span>EMD Amount</span></div><div data-emd-due><strong>${fmtDate(d.emdDueDate) || '\u2014'}</strong><span>EMD Due Date</span></div>` : ''}
       <div data-county><strong>${d.county || '\u2014'}</strong><span>County</span></div>
+      ${edit && !refi ? html`<div data-occ-primary><strong>${yesNo(d.primaryResidence)}</strong><span>Primary residence</span></div><div data-occ-fthb><strong>${yesNo(d.firstTimeBuyer)}</strong><span>First-time buyer</span></div>` : ''}
       ${edit ? html`<button class="icon-edit" id="editdeal" title="Edit order details">&#9998;</button>` : ''}</div>
     <div class="box-title"><h2><span class="h-ico"></span>Summary</h2></div>
     <div class="sum-grid">${card(all('Client-Buyer').length > 1 ? `${B} Information (${all('Client-Buyer').length} ${B.toLowerCase()}s)` : `${B} Information`, html`<div data-party-list="Client-Buyer">${people(all('Client-Buyer'))}</div>${edit ? html`<button type="button" class="ghost" data-add-party="Client-Buyer">+ Add ${B.toLowerCase()}</button>` : ''}`)}${showSellers ? card(all('Client-Seller').length > 1 ? `Seller Information (${all('Client-Seller').length} sellers)` : 'Seller Information', html`<div data-party-list="Client-Seller">${people(all('Client-Seller'))}</div>${edit && !refi ? html`<button type="button" class="ghost" data-add-party="Client-Seller">+ Add seller</button>` : ''}`) : ''}
       ${showAgents('Buyer Agent') ? card('Buyer Agent Representation', person(by('Buyer Agent'))) : ''}${showAgents('Listing Agent') ? card('Listing Agent Representation', person(by('Listing Agent'))) : ''}
       ${card('Lender Information', lender)}${card('CLA Title Information', html`<div>Processor: <strong>${d.processorName}</strong><br>Salespeople: ${(d.salesPeople || []).length ? (d.salesPeople || []).map((s, i) => html`${i ? ', ' : ''}<span class="nowrap" data-sales-person="${s.id}">${s.name}${edit ? html` <button class="ghost" data-rm-sales="${s.id}" title="Remove from this order" aria-label="Remove ${s.name}">&times;</button>` : ''}</span>`) : 'Not specified'}${edit && salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)).length ? html`<br><select id="addsales" aria-label="Add a salesperson"><option value="">+ Add salesperson&hellip;</option>${options(salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)), '', (s) => `${s.firstName} ${s.lastName} (${s.role})`, (s) => s.id)}</select>` : ''}<br>${team.filter((p) => p.role === 'Transaction Coordinator').map((p) => html`Transaction coordinator: ${p.contact.firstName} ${p.contact.lastName}<br>`)}${staffView ? html`<span data-source-of-business>Source of business: <strong>${d.sourceOfBusinessLabel || 'Not set'}</strong></span>` : ''}</div>`)}</div>
     ${d.notes ? html`<div class="card"><h3>Notes</h3><p>${d.notes}</p></div>` : ''}
+    ${edit ? automationSection(d, refi) : ''}
     <div class="box-title"><h2><span class="h-ico"></span>Order Contacts</h2><a class="ghost right" href="#/deals/${d.id}/contacts">All contacts</a></div>
     <table class="tbl striped"><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th></tr></thead><tbody>${d.participants.map((p) => html`<tr><td>${p.contact.firstName} ${p.contact.lastName}${p.removed ? html` ${pill('removed', 'bad')}` : ''}</td><td>${p.role}</td>${p.contact.contactHidden ? html`<td colspan="2" class="muted contact-hidden">${HIDDEN_CONTACT}</td>` : html`<td>${fmtPhone(p.contact.phone)}</td><td>${p.contact.email}</td>`}</tr>`)}</tbody></table>`;
   return { title: d.fileNumber, crumbs: [...crumbs, ['Order Details']], body, mount(root) {
@@ -112,6 +116,7 @@ function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = []) {
     const eb = $('#editdeal', root); if (eb) eb.addEventListener('click', guard(() => editModal(api, d, refresh)));
     const as = $('#addsales', root); if (as) as.addEventListener('change', guard(async () => { if (!as.value) return; await api.addDealSalesPerson(d.id, as.value); toast('Salesperson added'); refresh(); }));
     $$('[data-rm-sales]', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.removeDealSalesPerson(d.id, b.dataset.rmSales); toast('Salesperson removed'); refresh(); })));
+    const ab = $('[data-email-sellers-agents]', root); if (ab) ab.addEventListener('click', guard(() => automationModal(api, d)));
     const wb = $('#wirebtn', root); if (wb) wb.addEventListener('click', guard(() => wireModal(api, d)));
     $$('[data-add-party]', root).forEach((b) => b.addEventListener('click', guard(() => addPartyModal(api, d, b.dataset.addParty, refresh))));
   } };
@@ -140,6 +145,7 @@ async function editModal(api, d, refresh) {
     ${refi ? html`<p class="span2 muted small" data-refi-edit>Refinance: no purchase price or EMD.${d.purchasePrice != null || d.emdAmount != null || d.emdDueDate ? ' This older order still has one; saving clears it.' : ''}</p><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>`
       : html`<label>Purchase price<input name="purchasePrice" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.purchasePrice)}"></label><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>
     <label>EMD amount<input name="emdAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.emdAmount)}"></label><label>EMD due date<input type="date" name="emdDueDate" value="${v('emdDueDate')}"></label>`}
+    ${refi ? '' : occSelects(d)}
     <h4 class="span2">Lender</h4><label>Company<input name="lenderName" value="${v('lenderName')}"></label><label>Contact<input name="lenderContact" value="${v('lenderContact')}"></label>
     <label>Email<input name="lenderEmail" value="${v('lenderEmail')}"></label><label>Phone<input name="lenderPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${v('lenderPhone')}"></label>
     <label class="span2">Source of business<select name="sourceOfBusiness" aria-label="Source of business"><option value="">(not set)</option>${options(srcOpts, d.sourceOfBusiness || '', (o) => o.label, (o) => o.value)}</select></label>
@@ -209,4 +215,30 @@ function agentPanels(ctx, d, ov, ur, inv) {
       $('#ipf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.queuePortalWelcomeEmail(d.id, $('[name=pid]', m).value); closeModal(); toast('Invite queued in the outbox (not sent)'); })); }));
   }
   return { top, mount };
+}
+
+// AUTOMATION (John, Nov 3 call): on the File Overview, under the Summary, for whoever runs the order (Processor / Admins). It sits with the
+// order's parties because it writes to them. "Email sellers and agents" builds a PREVIEW only: Gmail is not connected, nothing is sent.
+// Agents never receive wire instructions (data/automation.js strips any wire / bank text or merge field).
+function automationSection(d, refi) {
+  return html`<div class="box-title"><h2><span class="h-ico"></span>Automation</h2></div>
+    <div class="card automation-card" data-automation><div class="automation-row"><div><strong>Email sellers and agents</strong>
+      <p class="small muted">Prepares one email per seller, listing agent and buyer's agent on this order, from a CRM email template when one fits (name or subject mentions sellers / agents), otherwise a built-in message.
+      Wire instructions are never included: they go to the buyer only, and real estate agents never receive them.</p>
+      <p class="small" data-gmail-off><span class="pill warn">Not sending yet</span> ${GMAIL_OFF}</p></div>
+      <button type="button" class="m-btn" data-email-sellers-agents ${refi ? raw('disabled title="A refinance has no sellers or agents"') : ''}>Email sellers and agents</button></div></div>`;
+}
+async function automationModal(api, d) {
+  const P = await api.previewSellerAgentEmails(d.id);
+  modal('Email sellers and agents (preview)', html`<div class="notice warn" data-gmail-off-modal><strong>Preview only.</strong> ${P.note} Nothing has been sent.</div>
+    <p class="small muted" data-wire-rule>${P.wireRule}</p>
+    ${P.messages.length ? P.messages.map((m) => html`<div class="card preview-msg" data-preview-msg="${m.role}" data-preview-agent="${m.agent ? '1' : '0'}">
+      <div class="small"><strong>To:</strong> ${m.name} &lt;${m.email || 'no email on file'}&gt; &middot; ${m.roleLabel}${m.noEmail ? html` <span class="pill bad">no email</span>` : ''}</div>
+      <div class="small"><strong>Template:</strong> <span data-preview-template>${m.template}</span>${m.fromCrm ? html` <span class="pill info">CRM template</span>` : ''}</div>
+      <div class="small"><strong>Subject:</strong> <span data-preview-subject>${m.subject}</span></div>
+      <pre class="preview-body" data-preview-body>${m.body}</pre>
+      ${m.notes.length ? html`<ul class="small notice info" data-preview-notes>${m.notes.map((n) => html`<li>${n}</li>`)}</ul>` : ''}</div>`)
+      : html`<p class="muted" data-preview-none>No sellers or agents on this order yet.</p>`}
+    <div><button type="button" class="m-btn" disabled title="${P.note}" data-send-disabled>Send (${P.messages.length})</button> <button type="button" class="ghost" data-close>Close</button>
+      <span class="small muted">${P.note}</span></div>`, { wide: true });
 }

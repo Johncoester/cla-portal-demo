@@ -90,10 +90,11 @@ export function checkFormulaRefs(parsed, entity, customFields, selfId = null) {
 // ---------- layout sections (video 8: Clients Information, Links and Socials, Sales Info Needed, Sales Numbers - Last 12 Months, Open and Closed Deals,
 // Address Information, Description Information). Built-in sections keep their keys; Admins add, rename, reorder and hide sections. ----------
 const PERSON_SECTIONS = (L) => [['info', `${L} Information`, true], ['links', 'Links and Socials', true], ['salesInfo', 'Sales Info Needed', false], ['salesNumbers', 'Sales Numbers - Last 12 Months', false],
-  ['openClosedDeals', 'Open and Closed Deals', false], ['address', 'Address Information', true], ['description', 'Description Information', true], ['additional', 'Additional Information', true]];
+  ['openClosedDeals', 'Open and Closed Deals', false], ['address', 'Address Information', true], ['description', 'Description', true], ['additional', 'Additional Information', true]];   // Janine, Nov 3: "Description" (was "Description Information")
 export const DEFAULT_SECTIONS = { lead: PERSON_SECTIONS('Leads'), contact: PERSON_SECTIONS('Clients'), account: [['info', 'Company details', true], ['additional', 'Additional Information', true]], opportunity: [['info', 'Opportunity details', true]] };
 export function defaultSections() { const o = {}; Object.entries(DEFAULT_SECTIONS).forEach(([e, l]) => { o[e] = l.map(([key, label, builtin], i) => ({ key, label, builtin, position: i + 1, hidden: false })); }); return o; }
 export function ensureSections(s) { const d = defaultSections(); const out = s && typeof s === 'object' ? s : {};
+  ['lead', 'contact'].forEach((e) => (Array.isArray(out[e]) ? out[e] : []).forEach((x) => { if (x.key === 'description' && x.builtin && x.label === 'Description Information') x.label = 'Description'; }));   // Janine, Nov 3 (an Admin's own rename is kept)
   Object.entries(d).forEach(([e, list]) => { out[e] = Array.isArray(out[e]) ? out[e] : []; list.forEach((x) => { if (!out[e].some((z) => z.key === x.key)) out[e].push({ ...x, position: x.position + (out[e].length ? 100 : 0) }); }); out[e].sort((a, b) => a.position - b.position); });
   return out; }
 export const sectionsOf = (cfg, entity) => ((cfg && cfg.sections && cfg.sections[entity]) || defaultSections()[entity] || []).slice().sort((a, b) => a.position - b.position);

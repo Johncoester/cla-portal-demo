@@ -8,15 +8,17 @@
  * STABLE VALUES: every option has a stable `value` (stored on records) and a `label` (shown). Built-in options keep their original
  * text as the value, so no stored record had to change. Renaming changes only the label, so every record, filter and report shows the
  * new name at once. Retiring hides the option from new entries; records that already use it keep it and show "(retired)". */
-import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, TASK_SUBJECTS, TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, OPP_STAGES,
-  ACCOUNT_KINDS, LINK_FIELDS, cleanUrl } from './crm.js?v=202611032037';
-import { CALL_OUTCOMES } from './crm-calls.js?v=202611032037';
-import { ZOHO_FIELD_TYPES, ensureSections, sectionsOf, cleanNewValue, checkMaxChars, newDisplay, addressText, COMPUTED_TYPES, FILE_TYPES } from './crm-fields.js?v=202611032037';
+import { RELATIONSHIP_STATUSES, LEAD_RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, TASK_SUBJECTS, TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, OPP_STAGES,
+  ACCOUNT_KINDS, LINK_FIELDS, cleanUrl } from './crm.js?v=202611032132';
+import { CALL_OUTCOMES } from './crm-calls.js?v=202611032132';
+import { ZOHO_FIELD_TYPES, ensureSections, sectionsOf, cleanNewValue, checkMaxChars, newDisplay, addressText, COMPUTED_TYPES, FILE_TYPES } from './crm-fields.js?v=202611032132';
 
 // ---------- picklists ----------
 // locked = cannot be retired (the CRM itself depends on it); it can still be renamed and moved.
 export const PICKLISTS = [
-  { key: 'relationshipStatus', label: 'Relationship Status', where: 'Leads and Clients (and the referral-partner board)', defaults: RELATIONSHIP_STATUSES, locked: [CONVERTED_STATUS], why: 'used when a lead is converted' },
+  { key: 'relationshipStatus', label: 'Relationship Status (Clients)', where: 'Clients (and the referral-partner board)', defaults: RELATIONSHIP_STATUSES, locked: [CONVERTED_STATUS], why: 'used when a lead is converted' },
+  // Janine, Nov 3: Leads have their own list (a lead's older value stays on the record, shown as stored). Converting a lead still marks it Converted/Current Client.
+  { key: 'leadRelationshipStatus', label: 'Relationship Status (Leads)', where: 'Leads', defaults: LEAD_RELATIONSHIP_STATUSES },
   { key: 'leadSource', label: 'Lead Source', where: 'Leads and Clients', defaults: LEAD_SOURCES },
   { key: 'roleInCompany', label: 'Role in Company', where: 'Leads and Clients', defaults: ROLES_IN_COMPANY },
   { key: 'accountKind', label: 'Company Type', where: 'Companies', defaults: ACCOUNT_KINDS, locked: ['other'], why: 'the default type' },
@@ -40,7 +42,7 @@ export const fieldTypeLabel = (t) => (FIELD_TYPES.find(([c]) => c === t) || [nul
 export const CF_ENTITIES = [['lead', 'Leads'], ['contact', 'Clients'], ['account', 'Companies'], ['opportunity', 'Opportunities']];
 export const CF_ENTITY_CODES = CF_ENTITIES.map(([c]) => c);
 // sections a field can show in (the record page and the form use the same sections)
-const PERSON_SECTIONS = [['info', 'Information (top)'], ['address', 'Address Information'], ['description', 'Description Information'], ['additional', 'Additional Information']];
+const PERSON_SECTIONS = [['info', 'Information (top)'], ['address', 'Address Information'], ['description', 'Description'], ['additional', 'Additional Information']];   // Janine, Nov 3: "Description" (no "Information")
 export const SECTIONS_FOR = { lead: PERSON_SECTIONS, contact: PERSON_SECTIONS, account: [['info', 'Company details'], ['additional', 'Additional Information']], opportunity: [['info', 'Opportunity details']] };
 export const sectionLabel = (entity, s, cfg = null) => { const l = sectionsOf(cfg, entity).find((z) => z.key === s); return l ? l.label : ((SECTIONS_FOR[entity] || []).find(([k]) => k === s) || [null, s])[1]; };
 export const MAX_FIELDS = 50;
@@ -52,7 +54,7 @@ export const cfKey = (id) => 'cf_' + String(id).replace(/[^a-z0-9]/gi, '_');   /
 export const PERSON_FIELDS = [
   ['roleInCompany', 'Role in Company', { requirable: true }], ['relationshipStatus', 'Relationship Status', { requirable: true }], ['state', 'State', { requirable: true }],
   ['title', 'Title'], ['mobile', 'Mobile'], ['assistant', 'Assistant'], ['asstPhone', 'Asst Phone'], ['leadSource', 'Lead Source'], ['agentSplit', 'Agent Split (%)'],
-  ['licenseNo', 'Real Estate License #'], ['salesVolumeLastYear', 'Sales Volume (Last Year)'], ['dealsClosedLastYear', 'Deals Closed (Last Year)'], ['zillowUrl', 'Zillow URL'],
+  ['licenseNo', 'Real Estate License #'], ['salesVolumeLastYear', 'Sales Volume (Last Year)'], ['dealsClosedLastYear', 'Deals Closed (Last Year)'],   // Janine, Nov 3: 'Zillow URL' retired (its values moved into Zillow Profile; the stored value is kept, hidden)
   ['contactType', 'Contact type (portal)'], ['tags', 'Tags (clients)'], ...LINK_FIELDS.map(([k, l]) => ['links.' + k, l]),
   ['street', 'Street'], ['city', 'City'], ['zip', 'Zip Code'], ['county', 'County'], ['description', 'Description'],
 ];

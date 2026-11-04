@@ -4,7 +4,7 @@
  *   an allow-list HTML SANITIZER (no scripts, no event handlers, no javascript: links), the drag-and-drop BUILDER blocks -> email-safe HTML,
  *   the New Template gallery, the folder sidebar views, and the fake seed (3 templates, 4 shared folders).
  * NOTHING HERE SENDS EMAIL. Sending, open / bounce / click tracking and test emails wait for the Gmail connection ("we can tie in Gmail later"). */
-import { optLabel, activeFields, customDisplay, builtinHidden } from './crm-config.js?v=202611032037';
+import { optLabel, activeFields, customDisplay, builtinHidden } from './crm-config.js?v=202611032132';
 
 export const GMAIL_NOTE = 'Sending will be turned on when Gmail is connected.';
 export const STATS_NOTE = 'tracking starts when Gmail is connected';
@@ -26,7 +26,7 @@ const PERSON = (mod) => [
   ['First Name', (r) => r.firstName], ['Last Name', (r) => r.lastName], [mod === 'lead' ? 'Lead Name' : 'Client Name', (r) => r.name], ['Email', (r) => r.email], ['Phone', (r) => r.phone],
   ['Mobile', (r) => r.mobile, 'mobile'], ['Title', (r) => r.title, 'title'], ['Company', (r) => r.companyName || r.company],
   ['Role in Company', (r, c) => optLabel(c, 'roleInCompany', r.roleInCompany, { mark: false }), 'roleInCompany'], ['Lead Source', (r, c) => optLabel(c, 'leadSource', r.leadSource, { mark: false }), 'leadSource'],
-  ['Relationship Status', (r, c) => optLabel(c, 'relationshipStatus', r.relationshipStatus, { mark: false }), 'relationshipStatus'],
+  ['Relationship Status', (r, c) => optLabel(c, mod === 'lead' ? 'leadRelationshipStatus' : 'relationshipStatus', r.relationshipStatus, { mark: false }), 'relationshipStatus'],   // Janine, Nov 3: each module its own list
   ['Street', (r) => r.street, 'street'], ['City', (r) => r.city, 'city'], ['State', (r) => r.state, 'state'], ['Zip Code', (r) => r.zip, 'zip'], ['County', (r) => r.county, 'county'],
   ['Real Estate License #', (r) => r.licenseNo, 'licenseNo'], ['Website', (r) => (r.links || {}).website, 'links.website'], [mod === 'lead' ? 'Lead Owner' : 'Client Owner', (r) => r.ownerName]];
 const BUILTIN = {

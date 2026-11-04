@@ -1,16 +1,19 @@
 // crm-kit.js : shared CRM screen pieces (John, Nov 2): section tabs, list views (search / filters / sort), selects, activities panel, CSV download.
 // Function first, minimal styling. Every rule is enforced by the adapter (and RLS in migration 22), not by these screens.
-import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pill } from '../ui.js?v=202611032037';
-import { CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611032037';
-import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611032037';
-import { modOn, modBeta, BETA_LABEL } from '../data/modules.js?v=202611032037';   // module switches: Deals hidden when not Live (beta badge for Admins)
+import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pill } from '../ui.js?v=202611032132';
+import { CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611032132';
+import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611032132';
+import { modOn, modBeta, BETA_LABEL } from '../data/modules.js?v=202611032132';   // module switches: Deals hidden when not Live (beta badge for Admins)
+import { createNewMenu } from './crm-janine.js?v=202611032132';
 
 // Nov 2 (Zoho): Home is the CRM landing page; Contacts are shown as Clients and Accounts as Companies (routes keep their internal names); My follow-ups -> Home tasks
 export const SECTIONS = [['home', 'Home'], ['leads', 'Leads'], ['contacts', 'Clients'], ['accounts', 'Companies'], ['deals', 'Deals'], ['pipeline', 'Pipeline'], ['dashboards', 'Dashboards'], ['reports', 'Reports'], ['templates', 'Templates']];   // Nov 3 (b): Deals (the portal's orders), Dashboards (video 9);   // Nov 3: Templates (email templates, every CRM user; Processor read-only)
 // Settings tab: Admin / Super admin only (crm.js calls setCrmAdmin on every CRM page load; the adapter refuses everyone else anyway)
 let ADMIN = false; export const setCrmAdmin = (v) => { ADMIN = !!v; };
 const TAB_MODULE = { deals: 'crm-deals' };
-export const tabs = (cur) => html`<ul class="nav-tabs" data-crm-tabs>${[...SECTIONS, ...(ADMIN ? [['settings', 'Settings']] : [])].filter(([k]) => !TAB_MODULE[k] || modOn(TAB_MODULE[k])).map(([k, l]) => html`<li><a class="${k === cur ? 'active' : ''}" href="#/crm/${k}" data-crm-tab="${k}">${l}${TAB_MODULE[k] && modBeta(TAB_MODULE[k]) ? html` <span class="beta-badge" data-beta-badge="${TAB_MODULE[k]}" title="${BETA_LABEL}">Beta</span>` : ''}</a></li>`)}</ul>`;
+// Janine, Nov 3: a "+" Create New menu at the end of the tabs on every CRM page (crm.js calls setCrmMe on every CRM page load; only modules this user may add to)
+let ME = null; export const setCrmMe = (me) => { ME = me || null; };
+export const tabs = (cur) => html`<div class="crm-tabs-row"><ul class="nav-tabs" data-crm-tabs>${[...SECTIONS, ...(ADMIN ? [['settings', 'Settings']] : [])].filter(([k]) => !TAB_MODULE[k] || modOn(TAB_MODULE[k])).map(([k, l]) => html`<li><a class="${k === cur ? 'active' : ''}" href="#/crm/${k}" data-crm-tab="${k}">${l}${TAB_MODULE[k] && modBeta(TAB_MODULE[k]) ? html` <span class="beta-badge" data-beta-badge="${TAB_MODULE[k]}" title="${BETA_LABEL}">Beta</span>` : ''}</a></li>`)}</ul>${ME ? createNewMenu(ME) : ''}</div>`;
 export const head = (title, me, extra = '') => html`<div class="box-title"><h2><span class="h-ico"></span>${title}</h2>${extra}</div>
   ${me.canEdit ? '' : html`<p class="muted" data-readonly>Read-only: the Processor can see the CRM but not change it.</p>`}`;
 export const sel = (name, list, cur, blank) => html`<select name="${name}">${blank != null ? html`<option value="">${blank}</option>` : ''}${list.map(([v, l]) => html`<option value="${v}" ${String(v) === String(cur ?? '') ? raw('selected') : ''}>${l}</option>`)}</select>`;

@@ -72,7 +72,7 @@ export function cleanFee(input, deal, prev = null) {
   const cdLine = s(v.cdLine, 2); if (cdLine && !/^(0[1-9]|[1-9][0-9])$/.test(cdLine)) fail('CD line must be 01 to 99.');
   const amount = money(v.amount, 'Amount', { allowZero: false });
   const payee = s(v.payee, 120); const note = s(v.note, 1000);
-  const out = { kind, description, altaSection, cdSection, cdLine, payee, amount, note, presetKey: s(v.presetKey, 60) || null };
+  const out = { kind, description, altaSection, cdSection, cdLine, payee, amount, note, presetKey: s(v.presetKey, 160) || null };
   if (kind === 'charge') {
     if (['K', 'L', 'M'].includes(cdSection)) fail('A charge goes in a CD fee section (A-H), N (seller) or none.');
     const paidBy = v.paidBy || (v.split ? 'split' : 'buyer');
@@ -106,6 +106,21 @@ export function feeChanges(before, after) {
   const out = []; for (const k of FEE_FIELDS) { const a = before ? before[k] : undefined; const b = after[k]; if (JSON.stringify(a ?? null) !== JSON.stringify(b ?? null)) out.push({ field: k, old: a ?? null, new: b ?? null }); }
   return out;
 }
+
+// ---------- CLA RATES (fee-engine.js; John, Nov 3: "start working on having our fees recording fees into the system") ----------
+// A fee added by "Calculate fees from CLA rates" carries source 'cla-rates' and a calc block { key, fields, rateSource, calculation, inputs,
+// version, at }: fields = what the calculation set. A person changing any CALC_FIELDS value makes it OVERRIDDEN (derived, never stored as the
+// truth): re-running the calculation keeps overridden lines as they are and only updates untouched ones. The note is free to edit.
+export const CALC_SOURCE_ID = 'cla-rates';
+export const CALC_TAG = 'From CLA rates';
+export const CALC_FIELDS = ['description', 'altaSection', 'cdSection', 'cdLine', 'payee', 'amount', 'paidBy', 'split', 'titlePrefix', 'timing', 'poc'];
+const normSplit = (sp) => (sp ? { buyer: round2(sp.buyer), seller: round2(sp.seller), lender: round2(sp.lender), other: round2(sp.other) } : null);
+export const calcFields = (x) => Object.fromEntries(CALC_FIELDS.map((k) => [k, k === 'split' ? normSplit(x.split) : k === 'amount' ? round2(x.amount) : x[k] ?? (k === 'cdLine' || k === 'payee' ? '' : k === 'titlePrefix' || k === 'poc' ? false : null)]));
+export const isCalculated = (f) => !!f && f.source === CALC_SOURCE_ID && !!f.calc && !!f.calc.key;
+const sameJ = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+export const isOverridden = (f) => isCalculated(f) && CALC_FIELDS.some((k) => !sameJ(calcFields(f)[k], (f.calc.fields || {})[k]));
+// what the page and the statements see: the stored fee + overridden (derived)
+export const withCalcFlags = (f) => (isCalculated(f) ? { ...f, overridden: isOverridden(f) } : f);
 
 // ---------- auto entries from the order (not stored; always in step with the order) ----------
 export function autoEntries(deal) {

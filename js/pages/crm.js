@@ -1,23 +1,24 @@
 // crm.js : the CRM (John, Nov 2). Routes #/crm/<section>[/<id>]: home (default), leads, contacts (= Clients), accounts (= Companies), pipeline, reports,
 // tasks/<id>, meetings/<id>; followups (older link) shows Home. Labels follow John's Zoho (Clients / Companies); internal names stay contacts / accounts.
 // Reachable only when the `crm` feature flag is on (app.js never loads this module otherwise) and only for CLA staff (adapter refuses others).
-import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611032037';
-import { CONTACT_TYPES, contactTypeLabel, US_STATES } from '../data/constants.js?v=202611032037';
-import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611032037';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin } from './crm-kit.js?v=202611032037';
-import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611032037';
-import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611032037';
-import { settingsPage } from './crm-settings.js?v=202611032037';
-import { personModal, personView, relatedHtml, wireRelated } from './crm-forms.js?v=202611032037';
-import { pipelinePage, reportsPage } from './crm-more.js?v=202611032037';
-import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611032037';
-import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611032037';
-import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611032037';
-import { searchPage } from './crm-search.js?v=202611032037';
-import { dashboardsPage } from './crm-dashboards.js?v=202611032037';
-import { reportsHome } from './crm-reports.js?v=202611032037';
-import { dealsPage } from './crm-deals.js?v=202611032037';
-import { callPage } from './crm-calls.js?v=202611032037';
+import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611032132';
+import { CONTACT_TYPES, contactTypeLabel, US_STATES, US_STATE_NAMES } from '../data/constants.js?v=202611032132';
+import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611032132';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin, setCrmMe } from './crm-kit.js?v=202611032132';
+import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-janine.js?v=202611032132';
+import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611032132';
+import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611032132';
+import { settingsPage } from './crm-settings.js?v=202611032132';
+import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611032132';
+import { pipelinePage, reportsPage } from './crm-more.js?v=202611032132';
+import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611032132';
+import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611032132';
+import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611032132';
+import { searchPage } from './crm-search.js?v=202611032132';
+import { dashboardsPage } from './crm-dashboards.js?v=202611032132';
+import { reportsHome } from './crm-reports.js?v=202611032132';
+import { dealsPage } from './crm-deals.js?v=202611032132';
+import { callPage, callModal } from './crm-calls.js?v=202611032132';
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
 const archivedOpts = [['only', 'Archived only'], ['all', 'Active + archived']];
@@ -39,7 +40,7 @@ async function recNav(list, id, base) {
 }
 
 export async function render(ctx) {
-  const { api, params } = ctx; const me = await api.crmMe(); setCrmAdmin(me.canConfigure);
+  const { api, params } = ctx; const me = await api.crmMe(); setCrmAdmin(me.canConfigure); setCrmMe(me);
   const [owners, assignees, cfg] = await Promise.all([api.listCrmOwners(), api.listCrmAssignees(), api.getCrmSettings()]); const c = { ...ctx, me, owners, assignees, cfg };
   // Nov 3 (b): choices for User and Lookup custom fields (only loaded when such a field exists)
   const cfl = (cfg.customFields || []).filter((f) => !f.archivedAt); cfg.userOptions = owners.map((o) => [o.id, o.name]);
@@ -47,6 +48,9 @@ export async function render(ctx) {
   await Promise.all(targets.map(async (t) => { try { cfg.lookupOptions[t] = (await api.listCrmModuleRows(t)).map((r) => [r.id, r.name || r.subject || r.id]); } catch { cfg.lookupOptions[t] = []; } }));
   const s = params.section || 'home';
   if (s === 'settings') return settingsPage(c);
+  // Janine, Nov 3: "+" Create New -> #/crm/new/<module> (opens the module's own create form), CSV import (Admin / Super admin)
+  if (s === 'new') return newPage(c);
+  if (s === 'import') return importPage(c, { tabs, head });
   if (s === 'home' || s === 'followups') return homePage(c);
   if (s === 'leads') return params.id ? leadPage(c) : leadsList(c);
   if (s === 'contacts') return params.id ? contactPage(c) : contactsList(c);
@@ -64,26 +68,43 @@ export async function render(ctx) {
   throw new Error('That CRM page does not exist.');
 }
 
+// ---------------- CREATE NEW (Janine, Nov 3) ----------------
+// list-type modules: render the module's page and open its own create form (same checks as its button); task / meeting / call: pick the record first
+const autoOpen = (view, selector) => ({ ...view, mount(root, x) { if (view.mount) view.mount(root, x); const b = $(selector, root); if (b) b.click(); } });
+async function newPage(c) {
+  const k = c.params.id; if (!c.me.canEdit) throw new Error('Read-only: you cannot create CRM records.');
+  const AUTO = { lead: [leadsList, '[data-new-lead]'], contact: [contactsList, '[data-new-contact]'], account: [accountsList, '[data-new-account]'], opportunity: [pipelinePage, '[data-new-opp]'], dashboard: [dashboardsPage, '[data-new-dash]'] };
+  if (AUTO[k]) return autoOpen(await AUTO[k][0](c), AUTO[k][1]);
+  if (k === 'task' || k === 'meeting' || k === 'call') return newActivityPage(c, { tabs, head, taskModal, meetingModal, callModal });
+  if (k === 'template') { c.go('/crm/templates/new'); return { title: 'New Template', crumbs: crumbs('New'), body: html`<p>Opening...</p>` }; }
+  if (k === 'report') { c.go('/crm/reports/new'); return { title: 'New Report', crumbs: crumbs('New'), body: html`<p>Opening...</p>` }; }
+  throw new Error('That CRM page does not exist.');
+}
+// old lead values stay visible in the filter even when they are not in the Leads list (Janine, Nov 3: never erased)
+const leadStatusOpts = (cfg, rows) => { const o = fopts(cfg, 'leadRelationshipStatus'); const have = new Set(o.map(([v]) => v));
+  const old = [...new Set(rows.map((r) => r.relationshipStatus).filter((v) => v && !have.has(v)))].sort().map((v) => [v, lbl(cfg, 'leadRelationshipStatus', v) || v]); return [...o, ...old, ['none', 'Not set']]; };
+const importBtns = (me, module) => (me.isAdmin ? html` <a class="ghost right" href="#/crm/import/${module}/notes" data-import-notes-btn="${module}">Import Notes</a> <a class="ghost right" href="#/crm/import/${module}" data-import-btn="${module}">Import ${module === 'leads' ? 'Leads' : 'Clients'}</a>` : '');   // float right: shown as Import, Import Notes, + Create
+
 // ---------------- LEADS (Zoho list: Lead Name, Company, Email, Phone, Lead Source, Lead Owner) ----------------
 const blankPerson = (me) => ({ ownerId: me.isAdmin ? '' : me.id, relationshipStatus: '', links: {} });
 // pick-list column: shows the current label (retired marked); CSV gets the same text. Hidden built-in fields (CRM Settings) drop out of lists too.
 const pk = (cfg, key, field, label) => [field, label, (r) => lbl(cfg, key, r[field]) || muted('—'), (r) => lbl(cfg, key, r[field])];
 async function leadsList({ api, me, owners, go, cfg }) {
-  const rows = (await api.listCrmLeads()).map((r) => flattenCustom(cfg, 'lead', r));
+  const rows = (await api.listCrmLeads()).map((r) => flattenCustom(cfg, 'lead', r)); const accounts = me.canEdit ? await api.listCrmAccounts() : [];
   const H = (k) => hiddenField(cfg, 'person', k);
   const lv = listView({ key: 'leads', rows, fields: ['name', 'email', 'company', 'phone', 'leadSource', 'notes', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'lead')], sortDefault: 'createdAt:desc', csv: me.canConfigure ? 'crm-leads.csv' : '', exporter: (cols, out) => api.exportCrmList('leads', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
    
-    cols: [['name', 'Lead Name', (r) => html`${link('leads', r)}${r.converted ? html` ${pill('Converted', 'ok')}` : ''}${r.archived ? html` ${pill('Archived')}` : ''}`, (r) => r.name], ['company', 'Company'], ['email', 'Email'], ['phone', 'Phone'],
-      ...(H('leadSource') ? [] : [pk(cfg, 'leadSource', 'leadSource', 'Lead Source')]), ...(H('relationshipStatus') ? [] : [pk(cfg, 'relationshipStatus', 'relationshipStatus', 'Relationship Status')]),
+    cols: [['name', 'Lead Name', (r) => html`${link('leads', r)}${r.converted ? html` ${pill('Converted', 'ok')}` : ''}${r.archived ? html` ${pill('Archived')}` : ''}`, (r) => r.name], ['company', 'Company', (r) => (r.accountId ? html`<a href="#/crm/accounts/${r.accountId}" data-lead-company>${r.accountName}</a>` : r.company || muted('—')), (r) => r.company], ['email', 'Email'], ['phone', 'Phone'],
+      ...(H('leadSource') ? [] : [pk(cfg, 'leadSource', 'leadSource', 'Lead Source')]), ...(H('relationshipStatus') ? [] : [pk(cfg, 'leadRelationshipStatus', 'relationshipStatus', 'Relationship Status')]),
       ...(H('roleInCompany') ? [] : [pk(cfg, 'roleInCompany', 'roleInCompany', 'Role in Company')]), ...(H('county') ? [] : [['county', 'County']]),
       ['ownerName', 'Lead Owner', (r) => r.ownerName || muted('Unassigned'), (r) => r.ownerName], ['createdAt', 'Created', (r) => fmtDate(r.createdAt), (r) => fmtDate(r.createdAt)], ...cfCols(cfg, 'lead')],
-    filters: [['ownerId', 'Lead Owner', ownerOpts(owners), 'Any owner'], ['roleInCompany', 'Role in Company', fopts(cfg, 'roleInCompany'), 'Any role'], ['relationshipStatus', 'Relationship Status', fopts(cfg, 'relationshipStatus'), 'Any status'],
+    filters: [['ownerId', 'Lead Owner', ownerOpts(owners), 'Any owner'], ['roleInCompany', 'Role in Company', fopts(cfg, 'roleInCompany'), 'Any role'], ['relationshipStatus', 'Relationship Status', leadStatusOpts(cfg, rows), 'Any status'],
       ['leadSource', 'Lead Source', fopts(cfg, 'leadSource'), 'Any source'], ['county', 'County', countyOpts(rows), 'Any county'], ['state', 'State', stateOpts(rows), 'Any state'], ['contactType', 'Contact type', ctOpts, 'Any type'],
       ['converted', 'Converted', [['only', 'Converted only'], ['all', 'Open + converted']], 'Hide converted'], ['archived', 'Archived', archivedOpts, 'Hide archived'], ...cfFilters(cfg, 'lead')],
     sorts: [['name', 'Lead Name'], ['company', 'Company'], ['relationshipStatus', 'Relationship Status'], ['leadSource', 'Lead Source'], ['county', 'County'], ['ownerName', 'Lead Owner'], ['createdAt', 'Created'], ...cfSorts(cfg, 'lead')] });
-  const body = html`${head('CRM: Leads', me, me.canEdit ? html`<button class="m-btn right" data-new-lead>+ Create Lead</button>` : '')}${tabs('leads')}${lv.body}`;
+  const body = html`${head('CRM: Leads', me, me.canEdit ? html`<button class="m-btn right" data-new-lead>+ Create Lead</button>${importBtns(me, 'leads')}` : '')}${tabs('leads')}${lv.body}`;
   return { title: 'CRM Leads', crumbs: crumbs('Leads'), body, mount(root) { lv.mount(root);
-    const b = $('[data-new-lead]', root); if (b) b.addEventListener('click', () => personModal('lead', blankPerson(me), { owners, me, cfg, blank: () => blankPerson(me) }, (v) => api.createCrmLead(v), (l) => go('/crm/leads/' + l.id))); } };
+    const b = $('[data-new-lead]', root); if (b) b.addEventListener('click', () => personModal('lead', blankPerson(me), { owners, accounts, me, cfg, blank: () => blankPerson(me) }, (v) => api.createCrmLead(v), (l) => go('/crm/leads/' + l.id))); } };
 }
 async function leadPage({ api, me, owners, assignees, params, refresh, go, cfg }) {
   const l = await api.getCrmLead(params.id); const accounts = me.canEdit && !l.converted ? await api.listCrmAccounts() : []; const emails = await api.listCrmEmails('lead', l.id); noteRecent(api, 'lead', l.id); const nav = await recNav(api.listCrmLeads(), l.id, 'leads');
@@ -96,19 +117,20 @@ async function leadPage({ api, me, owners, assignees, params, refresh, go, cfg }
     ${relatedHtml(l, { entity: 'lead', entityId: l.id, me, cfg })}${emailsCard(emails)}`;
   return { title: 'Lead ' + l.name, crumbs: crumbs('Leads', ['#/crm/leads', l.name]), body, mount(root) {
     wireSendEmail(root, api, me, refresh); wireEmails(root, api, emails); wireCfFiles(root, api, refresh); wireArchive(root, api, refresh); wireCompose(root, api, me, refresh); wireRelated(root, api, refresh, { entity: 'lead', entityId: l.id, parentName: l.name, me, assignees, cfg, rec: l });
-    const e = $('[data-edit-lead]', root); if (e) e.addEventListener('click', () => personModal('lead', l, { owners, me, edit: true, cfg }, (v) => api.updateCrmLead(l.id, v), () => refresh()));
+    const e = $('[data-edit-lead]', root); if (e) e.addEventListener('click', () => personModal('lead', l, { owners, accounts, me, edit: true, cfg }, (v) => api.updateCrmLead(l.id, v), () => refresh()));
     const cv = $('[data-convert]', root); if (cv) cv.addEventListener('click', () => {
       const m = modal('Convert lead to client', html`<form id="convert-form" class="form-grid">
         <p class="span2">Creates a CRM client for <strong>${l.name}</strong> (${lbl(cfg, 'roleInCompany', l.roleInCompany) || 'no role'}, contact type ${contactTypeLabel(l.contactType) || 'not set'}) owned by ${l.ownerName || 'nobody yet'}, with all the lead's details. The lead is kept, marked Converted/Current Client.</p>
-        <label>Existing company${sel('accountId', accounts.filter((a) => !a.archived).map((a) => [a.id, `${a.name} (${lbl(cfg, 'accountKind', a.kind)})`]), accounts.find((a) => l.company && a.name.toLowerCase() === l.company.toLowerCase())?.id || '', '(none / new company)')}</label>
-        <label>Or a new company<input name="newAccountName" maxlength="160" value="${l.company && !accounts.some((a) => a.name.toLowerCase() === l.company.toLowerCase()) ? l.company : ''}" placeholder="Company name"></label>
+        <label>Existing company${sel('accountId', accounts.filter((a) => !a.archived).map((a) => [a.id, `${a.name} (${lbl(cfg, 'accountKind', a.kind)})`]), (l.accountId && accounts.some((a) => a.id === l.accountId && !a.archived) ? l.accountId : accounts.find((a) => l.company && a.name.toLowerCase() === l.company.toLowerCase())?.id) || '', '(none / new company)')}</label>
+        <label>Or a new company<input name="newAccountName" maxlength="160" value="${!l.accountId && l.company && !accounts.some((a) => a.name.toLowerCase() === l.company.toLowerCase()) ? l.company : ''}" placeholder="Company name"></label>
+        <label>New company state *${sel('accountState', US_STATE_NAMES, l.state || '', '-Pick a state-')}</label>
         <label>New company type${optSel(cfg, 'accountKind', 'accountKind', defaultOption(cfg, 'accountKind', accountKindForType(l.contactType)), null)}</label>
         <label>Also start a pipeline opportunity (optional)<input name="opportunityName" maxlength="160" placeholder="e.g. ${l.company || l.name}: referrals"></label>
         <label class="check span2" data-link-existing hidden><input type="checkbox" name="linkExisting" value="1"> Link to the existing client (one person per email)</label>
         <p class="err-text span2" data-convert-err></p>
         <div class="span2"><button class="m-btn" type="submit">Convert</button> <button class="ghost" type="button" data-close>Cancel</button></div></form>`, { wide: true });
       $('#convert-form', m).addEventListener('submit', async (ev) => { ev.preventDefault(); const f = formData(ev.target);
-        const opts = { accountId: f.accountId, newAccountName: f.accountId ? '' : f.newAccountName, accountKind: f.accountKind, opportunityName: f.opportunityName, linkExisting: !!f.linkExisting };
+        const opts = { accountId: f.accountId, newAccountName: f.accountId ? '' : f.newAccountName, accountState: f.accountState, accountKind: f.accountKind, opportunityName: f.opportunityName, linkExisting: !!f.linkExisting };
         try { const r = await api.convertCrmLead(l.id, opts); closeModal(); toast(r.linkedExisting ? 'Lead linked to the existing client' : 'Lead converted'); go('/crm/contacts/' + r.contactId); }
         catch (err) { $('[data-convert-err]', m).textContent = err.message; if (/existing client/i.test(err.message)) $('[data-link-existing]', m).hidden = false; } });
     }); } };
@@ -128,7 +150,7 @@ async function contactsList({ api, me, owners, go, cfg }) {
     filters: [['ownerId', 'Client Owner', ownerOpts(owners), 'Any owner'], ['roleInCompany', 'Role in Company', fopts(cfg, 'roleInCompany'), 'Any role'], ['relationshipStatus', 'Status', [...fopts(cfg, 'relationshipStatus'), ['none', 'Not set']], 'Any status'],
       ['leadSource', 'Lead Source', fopts(cfg, 'leadSource'), 'Any source'], ['county', 'County', countyOpts(rows), 'Any county'], ['state', 'State', stateOpts(rows), 'Any state'], ['contactType', 'Contact type', ctOpts, 'Any type'], ['archived', 'Archived', archivedOpts, 'Hide archived'], ...cfFilters(cfg, 'contact')],
     sorts: [['name', 'Client Name'], ['companyName', 'Company Name'], ['relationshipStatus', 'Status'], ['county', 'County'], ['lastContactedOn', 'Last contacted'], ['orders', 'Orders'], ['volume', 'Volume'], ['ownerName', 'Client Owner'], ...cfSorts(cfg, 'contact')] });
-  const body = html`${head('CRM: Clients', me, me.canEdit ? html`<button class="m-btn right" data-new-contact>+ Create Client</button>` : '')}${tabs('contacts')}
+  const body = html`${head('CRM: Clients', me, me.canEdit ? html`<button class="m-btn right" data-new-contact>+ Create Client</button>${importBtns(me, 'contacts')}` : '')}${tabs('contacts')}
     <p class="muted small">Clients are the portal's own contacts (one person per email). CLA staff are not listed.</p>${lv.body}`;
   return { title: 'CRM Clients', crumbs: crumbs('Clients'), body, mount(root) { lv.mount(root);
     const b = $('[data-new-contact]', root); if (b) b.addEventListener('click', () => personModal('contact', blankPerson(me), { owners, accounts, me, cfg, blank: () => blankPerson(me) }, (v) => api.createCrmContact(v), (r) => go('/crm/contacts/' + r.id))); } };
@@ -169,17 +191,17 @@ function accountForm(api, me, owners, a, done, cfg = null) {
   const blankKind = () => defaultOption(cfg, 'accountKind', 'brokerage');
   const v = a || { kind: blankKind(), ownerId: me.isAdmin ? '' : me.id };
   const H = (k) => hiddenField(cfg, 'account', k); const extra = fieldsInSection(cfg, 'account', 'additional');
-  const open = (vals) => { const m = modal(a ? 'Edit Company' : 'Create Company', html`<form id="acc-form" class="form-grid" novalidate><label>Company Name *<input name="name" maxlength="160" value="${vals.name || ''}"></label><label>Type${optSel(cfg, 'accountKind', 'kind', vals.kind, null)}</label>
+  const open = (vals) => { const m = modal(a ? 'Edit Company' : 'Create Company', html`<form id="acc-form" class="form-grid" novalidate><label>Company Name *<input name="name" maxlength="160" value="${vals.name || ''}"><span data-dup-warn></span></label><label>Type${optSel(cfg, 'accountKind', 'kind', vals.kind, null)}</label>
     ${H('phone') ? '' : html`<label>Phone<input name="phone" type="tel" data-phone value="${vals.phone || ''}"></label>`}${H('website') ? '' : html`<label>Website<input name="website" value="${vals.website || ''}"></label>`}
-    ${H('city') ? '' : html`<label>City<input name="city" value="${vals.city || ''}"></label>`}${H('state') ? '' : html`<label>State${sel('state', US_STATES.map((s) => [s, s]), vals.state, '—')}</label>`}
+    ${H('city') ? '' : html`<label>City<input name="city" value="${vals.city || ''}"></label>`}<label>State *${sel('state', US_STATE_NAMES.map(([s, n]) => [s, `${n} (${s})`]), vals.state, '-Pick a state-')}</label>
     <label>Company Owner${ownerSel(owners, vals.ownerId)}</label>${H('notes') ? '' : html`<label class="span2">Description<textarea name="notes" rows="2">${vals.notes || ''}</textarea></label>`}
     ${cfInputs(cfg, 'account', 'info', vals)}${extra.length ? html`<h4 class="span2" data-additional>Additional Information</h4>${cfInputs(cfg, 'account', 'additional', vals)}` : ''}${cfExtraSections(cfg, 'account', 'form', vals)}
     <p class="err-text span2" data-form-err></p>
     <div class="span2"><button class="ghost" type="button" data-close>Cancel</button> ${a ? '' : html`<button class="ghost" type="button" data-save-new>Save and New</button> `}<button class="m-btn" type="submit">Save</button></div></form>`, { wide: true });
-    const f = $('#acc-form', m);
+    const f = $('#acc-form', m); wireCompanyDup(f, api, a ? a.id : null);   // Janine, Nov 3: State is mandatory; duplicates are refused (with a link to the existing company)
     const run = (andNew) => guard(async (e) => { if (e) e.preventDefault(); $('[data-form-err]', f).textContent = '';
       try { const r = a ? await api.updateCrmAccount(a.id, formData(f)) : await api.createCrmAccount(formData(f)); toast(a ? 'Company saved' : 'Company created');
-        if (andNew) open({ kind: blankKind(), ownerId: me.isAdmin ? '' : me.id }); else { closeModal(); done(r); } } catch (err) { $('[data-form-err]', f).textContent = err.message; throw err; } });
+        if (andNew) open({ kind: blankKind(), ownerId: me.isAdmin ? '' : me.id }); else { closeModal(); done(r); } } catch (err) { const box = $('[data-form-err]', f); box.textContent = err.message; if (err.duplicate) { box.innerHTML = ''; box.appendChild(document.createRange().createContextualFragment(String(dupHtml(err.duplicate)))); box.dataset.dupBlocked = err.duplicate.id; } throw err; } });
     f.addEventListener('submit', run(false)); const sn = $('[data-save-new]', f); if (sn) sn.addEventListener('click', run(true)); };
   open(v);
 }

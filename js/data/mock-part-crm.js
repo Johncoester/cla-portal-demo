@@ -5,21 +5,25 @@
  * sync, no invitations, nothing is ever emailed) on a lead, contact (= "Client" on screen), account (= "Company") or opportunity. Attachments on records.
  * NOTHING is deleted: leads, contacts, accounts and opportunities are archived; tasks are closed; attachments and notes stay.
  * Access (mirrored by private.crm_* in migration 22): see crm.js. */
-import { CRM_OFF } from './features.js?v=202611032037';
+import { CRM_OFF } from './features.js?v=202611032132';
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, OPP_STAGES, ACCOUNT_KIND_CODES, CRM_ENTITIES, accountKindForType, entityLabel,
   TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, LINK_KEYS, LINK_FIELDS, cleanUrl, nextDue, addDaysTo, taskOpen, meetingOpen, localStamp,
-  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals } from './crm.js?v=202611032037';
-import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611032037';
-import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611032037';
-import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611032037';
-import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611032037';
-import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611032037';
-import { crmCallsPart } from './mock-part-crm-calls.js?v=202611032037';
-import { callOpen, callSeconds, durationText, callStatusOf } from './crm-calls.js?v=202611032037';
+  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals, REPEAT_CODES, LEAD_STATUS_DEFAULT, companyKey } from './crm.js?v=202611032132';
+import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611032132';
+import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611032132';
+import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611032132';
+import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611032132';
+import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611032132';
+import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611032132';
+import { crmCallsPart } from './mock-part-crm-calls.js?v=202611032132';
+import { callOpen, callSeconds, durationText, callStatusOf } from './crm-calls.js?v=202611032132';
 
 export function crmPart(x, flags) {
-  const { load, save, nid, needUser, dealsFor, prof, nameOf, fullName, clone, now, fail, str, emailOk, localDate, C } = x;
-  const db = () => { const d = load(); ['crmLeads', 'crmAccounts', 'crmOpportunities', 'crmActivities', 'crmAttachments', 'clientSalesReps', 'dealSalesPeople'].forEach((k) => { d[k] ||= []; }); return d; };
+  const { load, save: save0, nid, needUser, dealsFor, prof, nameOf, fullName, clone, now, fail, str, emailOk, localDate, C } = x;
+  // Janine, Nov 3: an import PREVIEW runs the real create rules without saving (dry.on), then the in-memory copy is dropped (x.forget)
+  const dry = { on: false }; const save = () => { if (!dry.on) save0(); };
+  // Janine, Nov 3 (no storage bump): Zillow URL -> Zillow Profile, leads linked to their company, the import / invite logs. Lazy, idempotent, lossless.
+  const db = () => { const d = load(); ['crmLeads', 'crmAccounts', 'crmOpportunities', 'crmActivities', 'crmAttachments', 'clientSalesReps', 'dealSalesPeople'].forEach((k) => { d[k] ||= []; }); janineLazyUpgrade(d); return d; };
   // CRM SETTINGS (Nov 2, Janine): picklists, custom fields, built-in field settings. Added to stored v17 data in place when first needed
   // (additive: no record changes, so the storage key stays v17). Defaults = the Zoho lists below.
   const cfg = () => { const d = db(); d.crmSettings = ensureSettings(d.crmSettings); return d.crmSettings; };
@@ -162,12 +166,15 @@ export function crmPart(x, flags) {
     if (has('dealsClosedLastYear')) { const v = str(input.dealsClosedLastYear, 10); if (!v) t.dealsClosedLastYear = null; else { const n = Number(v); if (!Number.isInteger(n) || n < 0) fail('Deals Closed (Last Year) must be a whole number.'); t.dealsClosedLastYear = n; } }
     if (has('zillowUrl')) t.zillowUrl = urlFor('Zillow URL', input.zillowUrl);
     const links = { ...(t.links || {}) }; LINK_KEYS.forEach((k) => { const v = input.links && input.links[k] !== undefined ? input.links[k] : input['links.' + k]; if (create || v !== undefined) { const u2 = urlFor((LINK_FIELDS.find(([key]) => key === k) || [, k])[1], v); if (u2) links[k] = u2; else delete links[k]; } }); t.links = links;
+    // Janine, Nov 3: only Zillow Profile is shown. An older caller's Zillow URL fills Zillow Profile when that is empty (the old value stays stored, hidden).
+    if (input.zillowUrl !== undefined && t.zillowUrl && !t.links.zillowProfile) t.links.zillowProfile = t.zillowUrl; if (t.zillowUrl) t.zillowMoved = true;
   }
   // Zoho mandatory fields on a client / lead: Last Name, Role in Company, Relationship Status, State
   // Last Name is always required; Role in Company, Relationship Status and State unless an Admin un-required them (CRM Settings)
   const required = (lastName, role, status, state) => { const c = cfg(); if (!lastName) fail('Last Name is required.'); if (!role && builtinRequired(c, 'roleInCompany')) fail('Role in Company is required.');
     if (!status && builtinRequired(c, 'relationshipStatus')) fail('Relationship Status is required.'); if (!state && builtinRequired(c, 'state')) fail('State is required.'); };
   const relStatus = (v, current) => opt('relationshipStatus', v, 'relationship status', { current });
+  const leadStatus = (v, current) => opt('leadRelationshipStatus', v, 'relationship status', { current });   // Janine, Nov 3: the Leads list (an older value on the record is kept)
   const leadSrc = (v, current) => opt('leadSource', v, 'lead source', { current });
   const desc = (input) => (input.description !== undefined ? input.description : input.notes);
   const personOut = (r) => ({ roleInCompany: r.roleInCompany || '', title: r.title || '', mobile: r.mobile || '', assistant: r.assistant || '', asstPhone: r.asstPhone || '',
@@ -176,6 +183,7 @@ export function crmPart(x, flags) {
 
   // ---------- row shapes ----------
   const leadOut0 = (u, l) => ({ ...clone(l), ...personOut(l), name: `${l.firstName || ''} ${l.lastName || ''}`.trim(), source: l.source || '', leadSource: l.source || '', relationshipStatus: l.status, description: l.notes || '',
+    accountId: l.accountId || null, accountName: accName(l.accountId), company: accName(l.accountId) || l.company || '', companyText: l.company || '',   // Janine, Nov 3: Company = a lookup to Companies
     ownerName: ownerName(l.ownerId), converted: !!l.convertedAt, archived: !!l.archivedAt, canEdit: !crmReadOnly(u), modifiedByName: l.modifiedBy ? nameOf(l.modifiedBy) : '',
     convertedContactName: l.convertedContactId ? fullName(contactRow(l.convertedContactId)) : '', custom: visibleCustom(u, 'lead', clone(l.custom || {})) });
   const contactOut0 = (u, c) => { const o = ordersOf([c.id]); const t = orderTotals(o);
@@ -230,7 +238,7 @@ export function crmPart(x, flags) {
       if (f.type === 'dropdown') { const lab = optLabel(cfg(), 'cf:' + f.id, v, { mark: false }); const o = (t.options || []).find((z) => z.label.toLowerCase() === lab.toLowerCase() && !z.retired); if (o) c.custom[t.id] = o.value; }
       else c.custom[t.id] = v; }); };
   const spawnNext = (u, t) => {   // a repeating task that is closed makes its next occurrence (until the end date, if any)
-    if (!t.repeatEvery) return null; const due = nextDue(t.dueDate, t.repeatEvery); if (t.repeatUntil && due > t.repeatUntil) return null;
+    if (!t.repeatEvery) return null; const due = nextDue(t.dueDate, t.repeatEvery, t.repeatAnchorDay); if (t.repeatUntil && due > t.repeatUntil) return null;
     const shift = (s) => { if (!s) return null; const days = Math.round((Date.parse(due) - Date.parse(t.dueDate)) / 864e5); return addDaysTo(s.slice(0, 10), days) + s.slice(10); };
     const n = { ...clone(t), id: nid('ca'), dueDate: due, status: 'Not Started', closedAt: null, cancelled: false, reminderAt: shift(t.reminderAt), repeatOf: t.repeatOf || t.id, createdBy: u.id, createdAt: now(), modifiedBy: u.id, modifiedAt: now(), doneAt: null };
     db().crmActivities.push(n); return n; };
@@ -244,9 +252,10 @@ export function crmPart(x, flags) {
   function taskExtras(t, input, create) {
     if (create || input.reminder !== undefined) { t.reminder = yes(input.reminder); t.reminderAt = t.reminder ? dt(input.reminderAt, 'Reminder') || fail('Pick the reminder date and time.') : null; }
     if (create || input.repeat !== undefined) {
-      if (yes(input.repeat)) { t.repeatEvery = oneOf(input.repeatEvery, ['daily', 'weekly', 'monthly'], 'Repeat', 'weekly'); t.repeatUntil = date(input.repeatUntil, 'Repeat ends');
+      if (yes(input.repeat)) { const was = t.repeatEvery; t.repeatEvery = oneOf(input.repeatEvery, REPEAT_CODES, 'Repeat', 'weekly'); t.repeatUntil = date(input.repeatUntil, 'Repeat ends');
+        if (was !== t.repeatEvery || !t.repeatAnchorDay) t.repeatAnchorDay = Number(String(t.dueDate).slice(8, 10)) || null;   // Janine, Nov 3: the series keeps its day of the month
         if (t.repeatUntil && t.repeatUntil < t.dueDate) fail('The repeat end date must be on or after the due date.'); }
-      else { t.repeatEvery = null; t.repeatUntil = null; } }
+      else { t.repeatEvery = null; t.repeatUntil = null; t.repeatAnchorDay = null; } }
   }
   function urlFor(label, v) { try { return cleanUrl(v); } catch (e) { return fail(`${label}: ${e.message}`); } }
   function meetingFields(u, m, input, create) {
@@ -268,6 +277,15 @@ export function crmPart(x, flags) {
       if (keep.length > 50) fail('At most 50 participants.'); m.participants = keep; }
   }
 
+  // COMPANIES (Janine, Nov 3): State is required (50 states + DC) and a company may not repeat an existing one: same name after normalising (case,
+  // punctuation, spacing, "&" / "and", Inc / LLC / Co ...), in any state, archived ones included (restore it instead). The error carries the existing record.
+  const companyDup = (name, exceptId = null) => { const k = companyKey(name); if (!k) return null; return db().crmAccounts.find((a) => a.id !== exceptId && companyKey(a.name) === k) || null; };
+  function companyRules(name, state, exceptId, hint = 'open it instead') {
+    if (state !== null) { if (!state) fail('State is required.'); if (!C.US_STATES.includes(state)) fail('Pick a US state (or DC).'); }
+    const dup = companyDup(name, exceptId); if (!dup) return;
+    const e = new Error(`A company named "${dup.name}"${dup.state ? ` (${dup.state})` : ''} already exists${dup.archivedAt ? ' (archived: restore it)' : ''}; duplicates are not allowed, ${hint}.`);
+    const u = needUser(); e.duplicate = { id: dup.id, name: dup.name, state: dup.state || '', archived: !!dup.archivedAt, canOpen: accountSeen(u, dup), link: `#/crm/accounts/${dup.id}` }; throw e;
+  }
   const api = {
     async crmMe() { const u = crmUser(); return { email: (prof(u.id) || {}).email || '', canEdit: !crmReadOnly(u), canConfigure: !!u.isAdmin, role: u.role, isAdmin: !!u.isAdmin, id: u.id, name: nameOf(u.id), scope: seesAllCrm(u) ? 'all' : u.role === 'Sales Team' ? 'team' : 'own' }; },
     async listCrmOwners() { crmUser(); return db().profiles.filter((p) => CRM_OWNER_ROLES.includes(p.role) && p.status === 'active').map((p) => ({ id: p.id, name: `${p.firstName} ${p.lastName}`.trim(), role: p.role })).sort((a, b) => a.name.localeCompare(b.name)); },
@@ -281,8 +299,10 @@ export function crmPart(x, flags) {
       return { ...leadOut(u, l), activities: actsFor(pairs, u), invitedMeetings: invitedTo(u, pairs), attachments: attachmentsOf(pairs) }; },
     async createCrmLead(input) {
       const u = crmEditor(); const d = db();
-      const l = { id: nid('lead'), firstName: str(input.firstName, 80), lastName: str(input.lastName, 80), company: str(input.company, 120), email: email(input.email), phone: x.phone(input.phone),
-        contactType: ctype(input.contactType), source: leadSrc(input.leadSource !== undefined ? input.leadSource : input.source), status: relStatus(input.relationshipStatus !== undefined ? input.relationshipStatus : input.status) || (builtinRequired(cfg(), 'relationshipStatus') ? '' : defaultOption(cfg(), 'relationshipStatus', 'Potential/Warm')),
+      const acc = str(input.accountId, 60) ? get.account(u, str(input.accountId, 60)) : null;   // Janine, Nov 3: Company = an existing company
+      if (str(input.relationshipStatus !== undefined ? input.relationshipStatus : input.status, 80) === CONVERTED_STATUS) fail('A new lead cannot start as Converted/Current Client; convert it instead.');
+      const l = { id: nid('lead'), firstName: str(input.firstName, 80), lastName: str(input.lastName, 80), company: acc ? acc.name : str(input.company, 120), accountId: acc ? acc.id : null, email: email(input.email), phone: x.phone(input.phone),
+        contactType: ctype(input.contactType), source: leadSrc(input.leadSource !== undefined ? input.leadSource : input.source), status: leadStatus(input.relationshipStatus !== undefined ? input.relationshipStatus : input.status) || (builtinRequired(cfg(), 'relationshipStatus') ? '' : defaultOption(cfg(), 'leadRelationshipStatus', LEAD_STATUS_DEFAULT)),
         ownerId: owner(u, input.ownerId, null, true), notes: str(desc(input), 4000),
         convertedAt: null, convertedContactId: null, convertedAccountId: null, archivedAt: null, createdBy: u.id, createdAt: now(), modifiedBy: u.id, modifiedAt: now() };
       personFields(l, input, true); applyCustom('lead', l, input, true); required(l.lastName, l.roleInCompany, l.status, l.state);
@@ -295,13 +315,15 @@ export function crmPart(x, flags) {
     async updateCrmLead(id, patch) {
       const u = crmEditor(); const d = db(); const l = get.lead(u, id); if (l.convertedAt) fail('This lead was converted; edit the client instead.'); const before = { email: l.email, phone: l.phone };
       ['firstName', 'lastName', 'company'].forEach((k) => { if (patch[k] != null) l[k] = str(patch[k], k === 'company' ? 120 : 80); });
+      if (patch.accountId !== undefined) { const aid = str(patch.accountId, 60);   // Janine, Nov 3: the Company lookup; clearing it keeps an older lead's typed company text
+        if (aid) { const acc = get.account(u, aid); l.accountId = acc.id; l.company = acc.name; } else { if (l.accountId && patch.company == null) l.company = ''; l.accountId = null; } }
       if (desc(patch) != null) l.notes = str(desc(patch), 4000);
       if (patch.phone != null) l.phone = x.phone(patch.phone);
       if (patch.email != null) { const e = email(patch.email); if (e && e !== l.email) { const c = emailTaken(e); if (c) fail(`${fullName(c)} is already a client with this email (one person per email).`);
         if (d.crmLeads.some((z) => z.id !== l.id && z.email === e && !z.convertedAt && !z.archivedAt)) fail('A lead with this email already exists.'); } l.email = e; }
       if (patch.contactType !== undefined) l.contactType = ctype(patch.contactType);
       const src = patch.leadSource !== undefined ? patch.leadSource : patch.source; if (src !== undefined) l.source = leadSrc(src, l.source);
-      const st = patch.relationshipStatus !== undefined ? patch.relationshipStatus : patch.status; if (st !== undefined) { const was = l.status; l.status = relStatus(st, l.status) || (builtinRequired(cfg(), 'relationshipStatus') ? '' : was);
+      const st = patch.relationshipStatus !== undefined ? patch.relationshipStatus : patch.status; if (st !== undefined) { const was = l.status; l.status = leadStatus(st, l.status) || (builtinRequired(cfg(), 'relationshipStatus') ? '' : was);
         if (l.status === CONVERTED_STATUS && was !== CONVERTED_STATUS) fail('Use "Convert" to make a lead a client.'); }
       personFields(l, patch, false); applyCustom('lead', l, patch, false); required(l.lastName, l.roleInCompany, l.status, l.state);
       if (patch.ownerId !== undefined) l.ownerId = owner(u, patch.ownerId, l.ownerId);
@@ -317,10 +339,12 @@ export function crmPart(x, flags) {
       let acc = null;
       if (str(opts.accountId, 60)) acc = get.account(u, str(opts.accountId, 60));
       else if (str(opts.newAccountName, 160)) { const name = str(opts.newAccountName, 160);
-        const dup = d.crmAccounts.find((a) => a.name.toLowerCase() === name.toLowerCase() && !a.archivedAt); if (dup) fail(`A company named "${dup.name}" already exists; pick it from the list.`);
-        acc = { id: nid('acc'), name, kind: opt('accountKind', opts.accountKind, 'Company type', { dflt: defaultOption(cfg(), 'accountKind', accountKindForType(l.contactType)) }), phone: '', website: '', city: '', state: '', ownerId: l.ownerId, notes: '', archivedAt: null, createdBy: u.id, createdAt: now() }; }
+        const st = (str(opts.accountState, 2) || l.state || '').toUpperCase(); companyRules(name, st, null, 'pick it from the list');   // Janine, Nov 3: State required, no duplicates
+        acc = { id: nid('acc'), name, kind: opt('accountKind', opts.accountKind, 'Company type', { dflt: defaultOption(cfg(), 'accountKind', accountKindForType(l.contactType)) }), phone: '', website: '', city: '', state: st, ownerId: l.ownerId, notes: '', archivedAt: null, createdBy: u.id, createdAt: now() }; }
+      else if (l.accountId && opts.accountId === undefined) acc = d.crmAccounts.find((a) => a.id === l.accountId) || null;   // the lead's Company lookup
       let c = l.email ? emailTaken(l.email) : null; let linkedExisting = false;
-      const carry = { ...personOut(l), leadSource: l.source || '', relationshipStatus: l.status };
+      // Leads and Clients have separate Relationship Status lists (Janine, Nov 3): a lead value that is also an active client option is kept, else Converted/Current Client
+      const cs = findOption(cfg(), 'relationshipStatus', l.status); const carry = { ...personOut(l), leadSource: l.source || '', relationshipStatus: cs && !cs.retired && cs.value === l.status ? l.status : CONVERTED_STATUS };
       if (c) { if (!opts.linkExisting) fail(`A client with this email already exists: ${fullName(c)}. Choose "Link to the existing client" (one person per email).`);
         if (!inCrm(c)) fail('That email belongs to a CLA staff login; it cannot be a CRM client.');
         if (!c.contactType && l.contactType) c.contactType = l.contactType;
@@ -389,18 +413,17 @@ export function crmPart(x, flags) {
     },
     async createCrmAccount(input) {
       const u = crmEditor(); const d = db(); const name = str(input.name, 160) || fail('Company name is required.');
-      const dup = d.crmAccounts.find((a) => a.name.toLowerCase() === name.toLowerCase() && !a.archivedAt); if (dup) fail(`A company named "${dup.name}" already exists.`);
-      const a = { id: nid('acc'), name, kind: opt('accountKind', input.kind, 'Company type', { dflt: defaultOption(cfg(), 'accountKind', 'other') }), phone: x.phone(input.phone), website: str(input.website, 200), city: str(input.city, 80), state: str(input.state, 2).toUpperCase(),
+      const st = str(input.state, 2).toUpperCase(); companyRules(name, st, null);   // Janine, Nov 3: State required (50 states + DC), no duplicate companies
+      const a = { id: nid('acc'), name, kind: opt('accountKind', input.kind, 'Company type', { dflt: defaultOption(cfg(), 'accountKind', 'other') }), phone: x.phone(input.phone), website: str(input.website, 200), city: str(input.city, 80), state: st,
         ownerId: owner(u, input.ownerId, null, true), notes: str(input.notes, 4000), archivedAt: null, createdBy: u.id, createdAt: now() };
-      if (a.state && !C.US_STATES.includes(a.state)) fail('Pick a US state.');
       applyCustom('account', a, input, true); d.crmAccounts.push(a); save(); return accountOut(u, a);
     },
     async updateCrmAccount(id, patch) {
       const u = crmEditor(); const d = db(); const a = get.account(u, id);
-      if (patch.name != null) { const n = str(patch.name, 160) || fail('Company name is required.'); if (d.crmAccounts.some((z) => z.id !== a.id && !z.archivedAt && z.name.toLowerCase() === n.toLowerCase())) fail(`A company named "${n}" already exists.`); a.name = n; }
+      if (patch.name != null) { const n = str(patch.name, 160) || fail('Company name is required.'); if (companyKey(n) !== companyKey(a.name)) companyRules(n, null, a.id); a.name = n; }
       if (patch.kind != null) a.kind = opt('accountKind', patch.kind, 'Company type', { current: a.kind, required: true });
       if (patch.phone != null) a.phone = x.phone(patch.phone); ['website', 'city', 'notes'].forEach((k) => { if (patch[k] != null) a[k] = str(patch[k], k === 'notes' ? 4000 : 200); });
-      if (patch.state != null) { const s = str(patch.state, 2).toUpperCase(); if (s && !C.US_STATES.includes(s)) fail('Pick a US state.'); a.state = s; }
+      if (patch.state != null) { const s = str(patch.state, 2).toUpperCase(); if (!s) fail('State is required.'); if (!C.US_STATES.includes(s)) fail('Pick a US state (or DC).'); a.state = s; }
       if (patch.ownerId !== undefined) a.ownerId = owner(u, patch.ownerId, a.ownerId);
       applyCustom('account', a, patch, false); touch(a, u); save(); return accountOut(u, a);
     },
@@ -473,7 +496,7 @@ export function crmPart(x, flags) {
     async updateCrmTask(id, patch) {
       const u = crmEditor(); const t = taskOf(u, id); if (t.system) fail('This entry was written by the CRM and cannot be changed.');
       if (patch.subject != null) t.subject = str(patch.subject, 200) || fail('Subject is required.');
-      if (patch.dueDate !== undefined) t.dueDate = date(patch.dueDate, 'Due Date') || fail('Due Date is required.');
+      if (patch.dueDate !== undefined) { const was = t.dueDate; t.dueDate = date(patch.dueDate, 'Due Date') || fail('Due Date is required.'); if (t.repeatEvery && t.dueDate !== was) t.repeatAnchorDay = Number(t.dueDate.slice(8, 10)); }
       if (patch.priority != null) t.priority = opt('taskPriority', patch.priority, 'Priority', { current: t.priority, required: true });
       const body = patch.description !== undefined ? patch.description : patch.body; if (body != null) t.body = str(body, 4000);
       if (patch.ownerId !== undefined) t.ownerId = assignee(u, patch.ownerId, t.ownerId, 'task owner');
@@ -559,7 +582,7 @@ export function crmPart(x, flags) {
         return vals.map((k) => { const ls = leads.filter((l) => l[key] === k); return { value: k, name: optLabel(cfg(), listKey, k), leads: ls.length, converted: ls.filter((l) => l.convertedAt).length }; }).filter((r) => r.leads); };
       const none = leads.filter((l) => !l.source);
       return { from: f, to: t, totals: orderTotals(deals), byRealtor: rows(groups.realtor), byLender: rows(groups.lender), byBrokerage: rows(groups.brokerage), bySalesperson: rows(groups.sales),
-        leadsBySource: [...count('source', 'leadSource'), ...(none.length ? [{ value: '', name: '(none)', leads: none.length, converted: none.filter((l) => l.convertedAt).length }] : [])], leadsByStatus: count('status', 'relationshipStatus'), leadCount: leads.length };
+        leadsBySource: [...count('source', 'leadSource'), ...(none.length ? [{ value: '', name: '(none)', leads: none.length, converted: none.filter((l) => l.convertedAt).length }] : [])], leadsByStatus: count('status', 'leadRelationshipStatus'), leadCount: leads.length };
     },
   };
   Object.assign(api, crmSettingsPart(x, { db, cfg, crmUser }).api);
@@ -570,6 +593,8 @@ export function crmPart(x, flags) {
   Object.assign(api, nb.api);
   // video 11: Schedule a call / Log a call / Mark as Completed; CSV downloads of the lists = Admin / Super admin only
   Object.assign(api, crmCallsPart(x, { db, cfg, crmUser, crmEditor, entityOf, seen, assignee, opt, dt, actOut, leadSeen, contactSeen, accountSeen }).api);
+  // Janine, Nov 3: CSV import (leads / clients / notes; Admin only), meeting invite previews (never sent), company duplicate lookup
+  Object.assign(api, crmJaninePart(x, { db, cfg, crmUser, crmEditor, entityOf, seen, accountSeen, leadSeen, contactSeen, inCrm, actOut, dry, baseApi: api, companyDup, companyKey }).api);
   late.rollup = (u, entity, id, conf) => { const parentModule = { contact: 'contacts', lead: 'leads', account: 'accounts', opportunity: 'opportunities' }[entity];
     const kids = (nb.relMap(u, parentModule, [{ id, _contactIds: [] }], conf.related, cfgFor(u))[id]) || []; if (conf.fn === 'count') return kids.length;
     const vals = kids.map((k) => k[conf.field]).filter((v) => v != null && v !== '' && isFinite(Number(v))).map(Number); if (!vals.length) return null;

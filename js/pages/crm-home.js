@@ -1,12 +1,13 @@
 // crm-home.js : CRM Home (Zoho Classic View: task list widget, Today's Leads, Amount by Stage) and the Task / Meeting detail pages (John, Nov 2).
 // Function first, minimal styling. Reminders show in the portal only; nothing is emailed; meetings are never sent as invitations.
-import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611032037';
-import { localDate } from '../data/constants.js?v=202611032037';
-import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY } from '../data/crm.js?v=202611032037';
-import { tabs, head } from './crm-kit.js?v=202611032037';
-import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611032037';
-import { optionsOf, optLabel } from '../data/crm-config.js?v=202611032037';
-import { lbl } from './crm-custom.js?v=202611032037';
+import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611032132';
+import { localDate } from '../data/constants.js?v=202611032132';
+import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY } from '../data/crm.js?v=202611032132';
+import { tabs, head } from './crm-kit.js?v=202611032132';
+import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611032132';
+import { inviteBtn, invitePreview } from './crm-janine.js?v=202611032132';
+import { optionsOf, optLabel } from '../data/crm-config.js?v=202611032132';
+import { lbl } from './crm-custom.js?v=202611032132';
 const subj = (cfg, s) => optLabel(cfg, 'taskSubject', s, { mark: false });   // Task Subject is free text; a subject that is a list option shows its current name
 const orderOf = (cfg) => ({ priority: optionsOf(cfg, 'taskPriority').map((o) => o.value), status: optionsOf(cfg, 'taskStatus').map((o) => o.value) });
 
@@ -92,7 +93,7 @@ export async function meetingPage({ api, me, assignees, params, refresh, cfg }) 
   const m = await api.getCrmMeeting(params.id);
   const body = html`${head(`Meeting: ${m.subject}`, me)}${tabs('home')}
     <div class="card" data-meeting-detail="${m.id}">
-      <p>${me.canEdit ? html`<button class="ghost" data-edit-meeting>Edit</button> ` : ''}<a class="ghost" href="${m.parentLink}">Back to ${m.parentName}</a></p>
+      <p>${me.canEdit ? html`<button class="ghost" data-edit-meeting>Edit</button> ${inviteBtn(me)} ` : ''}<a class="ghost" href="${m.parentLink}">Back to ${m.parentName}</a></p>
       <dl class="kv" data-meeting-fields>
         <dt>Title</dt><dd data-f="title">${m.subject}</dd><dt>Type</dt><dd data-f="type">${lbl(cfg, 'meetingType', m.meetingType) || '—'}</dd><dt>Location</dt><dd>${m.location || '—'}</dd>
         <dt>From</dt><dd data-f="from">${fmtWhen(m.startsAt)}</dd><dt>To</dt><dd data-f="to">${fmtWhen(m.endsAt)}</dd><dt>All Day</dt><dd>${m.allDay ? 'Yes' : 'No'}</dd>
@@ -102,7 +103,8 @@ export async function meetingPage({ api, me, assignees, params, refresh, cfg }) 
         <dt>Status</dt><dd>${m.open ? 'Upcoming' : 'Held'}</dd>
         <dt>Created By</dt><dd>${m.createdByName}, ${fmtDateTime(m.createdAt)}</dd><dt>Modified By</dt><dd>${m.modifiedByName || m.createdByName}, ${fmtDateTime(m.modifiedAt || m.createdAt)}</dd>
         <dt>Description</dt><dd>${m.body || '—'}</dd></dl>
-      <p class="muted small">Recorded in the portal only: no invitations were sent and nothing was added to any calendar.</p></div>`;
+      <p class="muted small">Recorded in the portal only: no invitations were sent and nothing was added to any calendar. "Send invite" shows a preview and an .ics file; sending turns on once Gmail is connected.</p></div>`;
   return { title: 'Meeting ' + m.subject, crumbs: crumbs('Home', ['#/crm', m.subject]), body, mount(root) {
-    const e = $('[data-edit-meeting]', root); if (e) e.addEventListener('click', guard(() => meetingModal(api, { entity: m.entity, entityId: m.entityId, parentName: m.parentName, me, assignees, cfg }, m, () => refresh()))); } };
+    const e = $('[data-edit-meeting]', root); if (e) e.addEventListener('click', guard(() => meetingModal(api, { entity: m.entity, entityId: m.entityId, parentName: m.parentName, me, assignees, cfg }, m, () => refresh())));
+    const si = $('[data-send-invite]', root); if (si) si.addEventListener('click', guard(() => invitePreview(api, m.id))); } };
 }

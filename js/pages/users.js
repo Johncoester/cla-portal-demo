@@ -3,11 +3,12 @@
 // Delete = the account is removed (cannot sign in, leaves teams and salesperson links), but their documents, messages and history stay.
 // Nov 2 (John): filter/search, staff role vs per-file roles for outside users, clients linked to salespeople (many-to-many),
 // Super admin (only a Super admin grants/removes it or deletes/suspends/changes a Super admin).
-import { html, raw, $, $$, guard, formData, pill, toast, fmtDate, options } from '../ui.js?v=202611032037';
-import { ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, OUTSIDE, isAdminRole, isSuperAdmin, isSalesRole, roleLabel, CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611032037';
+import { html, raw, $, $$, guard, formData, pill, toast, fmtDate, options } from '../ui.js?v=202611032132';
+import { cleanBirthdate, BIRTHDATE_NOTE } from '../data/agent-info.js?v=202611032132';
+import { ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, OUTSIDE, isAdminRole, isSuperAdmin, isSalesRole, roleLabel, CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611032132';
 // contact type (John, Nov 2): outside users only (agents, clients, lenders); staff have none
 const ctypeSel = (sel, dis = '') => html`<label data-ctype-field>Contact type <span class="muted small">(outside users; for reporting)</span><select name="contactType" ${dis}><option value="">(not set)</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}" ${v === sel ? raw('selected') : ''}>${l}</option>`)}</select></label>`;
-import { USER_ROLE_FILTERS, USER_STATUS_FILTERS, filterUsers } from '../data/user-filter.js?v=202611032037';
+import { USER_ROLE_FILTERS, USER_STATUS_FILTERS, filterUsers } from '../data/user-filter.js?v=202611032132';
 const acct = (r) => (r === OUTSIDE ? 'Outside user (role set per order)' : r);
 const fullName = (u) => `${u.firstName} ${u.lastName}`.trim();
 // account-type options; a plain Admin sees "Super admin" but cannot pick it
@@ -29,6 +30,7 @@ export async function render({ api, user, params, refresh, go }) {
       <form id="cuf" class="card form-grid"><label>First name *<input name="firstName" required maxlength="80"></label><label>Last name<input name="lastName" maxlength="80"></label>
         <label>Email *<input name="email" type="email" required></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone maxlength="40"></label>
         <label>Account type *<select name="role" required><option value="">Choose&hellip;</option>${roleOptions(user, '')}</select></label>${ctypeSel('')}
+        <label data-birthdate-field>Agent birthdate (optional)<input type="date" name="birthdate" max="${new Date().toISOString().slice(0, 10)}" data-birthdate><span class="field-hint">Outside users (agents) only. ${BIRTHDATE_NOTE}</span></label>
         <p class="muted span2">Agents and clients are <strong>outside users</strong>: they have no fixed role. When the processor adds them to an order, the role picked there (Buyer Agent, Listing Agent, Client-Buyer or Client-Seller) decides what they can see and do <em>on that order</em>. One email = one login, even for someone who is an agent on one file and a buyer on another.</p>
         <label class="check"><input type="checkbox" name="isAdmin"> Also give Admin access (roles "Admin" and "Super admin" always have it)</label>
         <label class="check"><input type="checkbox" name="isClient" data-isclient> This person is a client (buyer or seller): link them to salespeople</label>
@@ -38,10 +40,11 @@ export async function render({ api, user, params, refresh, go }) {
     return { title: 'Create User', crumbs: [['User List', '#/users'], ['Create User']], body, mount(root) {
       const f = $('#cuf', root); const role = $('[name=role]', f);
       $('[data-isclient]', f).addEventListener('change', (e) => { if (e.target.checked && !role.value) role.value = OUTSIDE; showCt(); });
-      const ct = $('[name=contactType]', f); const showCt = () => { const out = role.value === OUTSIDE; $('[data-ctype-field]', f).hidden = !out; if (!out) ct.value = ''; };
+      const ct = $('[name=contactType]', f); const showCt = () => { const out = role.value === OUTSIDE; $('[data-ctype-field]', f).hidden = !out; if (!out) ct.value = ''; $('[data-birthdate-field]', f).hidden = !out; if (!out) $('[data-birthdate]', f).value = ''; };
       role.addEventListener('change', showCt); showCt();
       f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const fd = formData(e.target); fd.salesIds = new FormData(e.target).getAll('salesIds');
-        await api.adminCreateUser(fd); toast('User created'); go('/users'); }));
+        const bd = fd.birthdate; delete fd.birthdate; if (bd) cleanBirthdate(bd);   // check before creating anything
+        const nu = await api.adminCreateUser(fd); if (bd && nu && nu.id) await api.setAgentBirthdate(nu.id, bd); toast('User created'); go('/users'); }));
     } };
   }
   if (params.mode === 'edit') {
@@ -50,12 +53,14 @@ export async function render({ api, user, params, refresh, go }) {
     const lockNote = locked ? 'Only a Super admin can change the role or status of a Super admin.' : self ? 'You cannot change your own role, status or Admin access.' : '';
     const dis = gone || locked || self ? raw('disabled') : '';
     const chosen = (u.salesReps || []).map((s) => s.id);
+    const bday = u.role === OUTSIDE && api.getAgentBirthdate ? await api.getAgentBirthdate(u.id).catch(() => null) : null;   // John, Nov 3 call: optional agent birthdate
     const body = html`<div class="box-title"><h2><span class="h-ico"></span>Edit User</h2></div>
       <form id="euf" class="card form-grid" data-user="${u.id}">
         <label>First name *<input name="firstName" required maxlength="80" value="${u.firstName}" ${gone ? raw('disabled') : ''}></label><label>Last name<input name="lastName" maxlength="80" value="${u.lastName}" ${gone ? raw('disabled') : ''}></label>
         <label>Email<input value="${u.email}" disabled title="Changed by the sign-in provider only"></label><label>Phone<input name="phone" type="tel" inputmode="tel" data-phone maxlength="40" value="${u.phone || ''}" ${gone ? raw('disabled') : ''}></label>
         <label>Account type<select name="role" ${dis}>${roleOptions(user, u.role)}</select></label>
         ${u.role === OUTSIDE ? ctypeSel(u.contactType || '', gone ? raw('disabled') : '') : ''}
+        ${u.role === OUTSIDE ? html`<label data-birthdate-field>Agent birthdate (optional)<input type="date" name="birthdate" value="${bday || ''}" max="${new Date().toISOString().slice(0, 10)}" data-birthdate ${gone ? raw('disabled') : ''}><span class="field-hint">${BIRTHDATE_NOTE}</span></label>` : ''}
         <label>Status<select name="status" ${dis}>${options(['active', 'disabled'], u.status === 'removed' ? 'disabled' : u.status, (s) => (s === 'active' ? 'Active' : 'Disabled (suspended)'))}</select></label>
         <label class="check"><input type="checkbox" name="isAdmin" ${u.isAdmin ? raw('checked') : ''} ${gone || locked || self || isAdminRole(u.role) ? raw('disabled') : ''}> Admin access${isAdminRole(u.role) ? ` (role ${u.role} always has it)` : ''}</label>
         ${lockNote ? html`<p class="muted span2" data-lock-note>${lockNote}</p>` : ''}
@@ -70,7 +75,8 @@ export async function render({ api, user, params, refresh, go }) {
         if (!dis) { patch.role = fd.role; patch.status = fd.status; }
         const adm = $('[name=isAdmin]', f); if (!adm.disabled) patch.isAdmin = adm.checked;
         if ($('[data-sales-picker]', f)) patch.salesIds = new FormData(e.target).getAll('salesIds');
-        await api.adminUpdateUser(u.id, patch); toast('User saved'); go('/users'); }));
+        const bdIn = $('[data-birthdate]', f); if (bdIn && (bdIn.value || '') !== (bday || '')) { cleanBirthdate(bdIn.value); }
+        await api.adminUpdateUser(u.id, patch); if (bdIn && (bdIn.value || '') !== (bday || '')) await api.setAgentBirthdate(u.id, bdIn.value); toast('User saved'); go('/users'); }));
     } };
   }
   const order = { active: 0, disabled: 1, removed: 2 };

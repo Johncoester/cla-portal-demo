@@ -1,13 +1,16 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611032037';
-import { localDate } from './constants.js?v=202611032037';
-import { featureFlags } from './features.js?v=202611032037';
-import { accountingSupabase } from './supabase-accounting.js?v=202611032037';
-import { modulesSupabase } from './supabase-modules.js?v=202611032037';
-import { fieldsForRole } from './templates.js?v=202611032037';
-import { crmSupabase } from './supabase-crm.js?v=202611032037';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611032132';
+import { localDate } from './constants.js?v=202611032132';
+import { featureFlags } from './features.js?v=202611032132';
+import { accountingSupabase } from './supabase-accounting.js?v=202611032132';
+import { modulesSupabase } from './supabase-modules.js?v=202611032132';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611032132';
+import { automationPart } from './automation.js?v=202611032132';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611032132';
+import { fieldsForRole } from './templates.js?v=202611032132';
+import { crmSupabase } from './supabase-crm.js?v=202611032132';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned; vendor locally before go-live
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -81,14 +84,15 @@ export async function createSupabaseAdapter(cfg) {
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
         open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : num(input.purchasePrice), loan_amount: num(input.loanAmount),
         emd_amount: refi ? null : num(input.emdAmount), emd_due_date: refi ? null : input.emdDueDate || null, notes: input.notes || '', processor_id: input.processorId || user.id, created_by: user.id,
-        lender_name: input.lenderName || '', lender_contact: input.lenderContact || '', lender_phone: input.lenderPhone || '', lender_email: String(input.lenderEmail || '').trim().toLowerCase() };   // Matt, Nov 3b: lender phone / email at placement
+        lender_name: input.lenderName || '', lender_contact: input.lenderContact || '', lender_phone: input.lenderPhone || '', lender_email: String(input.lenderEmail || '').trim().toLowerCase(),
+        primary_residence: refi ? '' : String(input.primaryResidence || ''), first_time_buyer: refi ? '' : String(input.firstTimeBuyer || '') };   // John, Nov 3 call (migration 38)   // Matt, Nov 3b: lender phone / email at placement
       const d = camel(ok(await sb.from('deals').insert(row).select().single()));
       if (String(input.sourceOfBusiness || '').trim()) ok(await sb.rpc('set_deal_source', { p_deal: d.id, p_source: input.sourceOfBusiness }));   // migration 31 (staff-only table)
       const ids = [].concat(input.salesIds || []).filter(Boolean); if (ids.length) ok(await sb.rpc('set_deal_sales_people', { p_deal: d.id, p_sales: ids }));
       return { ...d, address: `${d.street}, ${d.city}, ${d.state} ${d.zip}` }; },
     async updateDeal(id, patch) {
       const map = { street: 'street', city: 'city', state: 'state', zip: 'zip', county: 'county', openDate: 'open_date', closingDate: 'closing_date', purchasePrice: 'purchase_price', loanAmount: 'loan_amount',
-        emdAmount: 'emd_amount', emdDueDate: 'emd_due_date', lenderName: 'lender_name', lenderContact: 'lender_contact', lenderEmail: 'lender_email', lenderPhone: 'lender_phone', notes: 'notes', processorId: 'processor_id' };
+        emdAmount: 'emd_amount', emdDueDate: 'emd_due_date', lenderName: 'lender_name', lenderContact: 'lender_contact', lenderEmail: 'lender_email', lenderPhone: 'lender_phone', notes: 'notes', processorId: 'processor_id', primaryResidence: 'primary_residence', firstTimeBuyer: 'first_time_buyer' };
       const money = new Set(['purchase_price', 'loan_amount', 'emd_amount']); const dates = new Set(['open_date', 'closing_date', 'emd_due_date']); const row = {};
       for (const [k, col] of Object.entries(map)) if (patch[k] !== undefined) { const v = patch[k];
         row[col] = money.has(col) ? (v === '' || v == null ? null : Number(String(v).replace(/[$,\s]/g, ''))) : dates.has(col) ? (v || null) : v; }
@@ -210,5 +214,7 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, accountingSupabase({ sb, ok, flags: a.features }));
   // MODULE SWITCHES (John, Nov 3; migration 35): Admin-only Live switch per module; off = beta (Admins only)
   Object.assign(a, modulesSupabase({ sb, ok, me, flags: a.features }));
+  Object.assign(a, callItemsSupabase({ sb, ok, me }));   // John, Nov 3 call (migration 38): underwriter splits, agent birthdate
+  Object.assign(a, automationPart(a, { runsOrders: runsOrdersCI, me }));   // Email sellers and agents: preview only, nothing sent
   return a;
 }

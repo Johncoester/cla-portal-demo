@@ -1,0 +1,17 @@
+{
+  "repo": "github.com/Johncoester/cla-closing-cost-calculator",
+  "commit": "69568a9",
+  "copiedOn": "2026-11-04",
+  "files": {
+    "calc-core.js": {
+      "from": "index.html (first <script>, up to \"// ---------- UI ----------\")",
+      "sha256": "aa835376786dcba5c03ade3e13ad6e07e96a41593d83fa617e5c42ef5390c93b",
+      "lines": 268
+    },
+    "fee-snapshot.js": {
+      "from": "fee-snapshot.js",
+      "sha256": "ff48e4c019e2b279c996b4aac73481226140928a0d1e96c9992cd38ed3f654c2",
+      "bytes": 127710
+    }
+  }
+}

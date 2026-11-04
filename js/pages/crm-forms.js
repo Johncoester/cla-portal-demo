@@ -1,15 +1,16 @@
 // crm-forms.js : Zoho-style CRM pieces (John, Nov 2): the client / lead form (Client Information, Social Media Links & Web Addresses, Address,
 // Description; Cancel / Save and New / Save), the record view, the related lists (Notes, Attachments, Open Activities, Closed Activities,
 // Invited Meetings) and the Task and Meeting forms. Meetings: NO calendar sync, NO invitations, nothing is ever emailed. Function first.
-import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, fmtMoney, fmtSize, modal, closeModal, pill } from '../ui.js?v=202611032037';
-import { CONTACT_TYPES, contactTypeLabel, US_STATE_NAMES, localDate } from '../data/constants.js?v=202611032037';
+import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, fmtMoney, fmtSize, modal, closeModal, pill } from '../ui.js?v=202611032132';
+import { CONTACT_TYPES, contactTypeLabel, US_STATE_NAMES, localDate } from '../data/constants.js?v=202611032132';
 import { ROLES_IN_COMPANY, LEAD_SOURCES, RELATIONSHIP_STATUSES, LINK_FIELDS, safeHref, TASK_SUBJECTS, TASK_STATUSES, TASK_PRIORITIES, REPEAT_EVERY, MEETING_TYPES, relatedLists,
-  activityKindLabel, ACTIVITY_KINDS, entityLabel, localStamp } from '../data/crm.js?v=202611032037';
-import { sel, pairs, ownerSel } from './crm-kit.js?v=202611032037';
-import { CONVERTED_STATUS } from '../data/crm.js?v=202611032037';
-import { fieldsInSection, builtinRequired, activeOptions, defaultOption } from '../data/crm-config.js?v=202611032037';
-import { optSel, lbl, lblOrDash, hiddenField, cfInputs, cfRows, cfExtraSections } from './crm-custom.js?v=202611032037';
-import { activityBoard, wireCalls } from './crm-calls.js?v=202611032037';
+  activityKindLabel, ACTIVITY_KINDS, entityLabel, localStamp } from '../data/crm.js?v=202611032132';
+import { sel, pairs, ownerSel } from './crm-kit.js?v=202611032132';
+import { CONVERTED_STATUS } from '../data/crm.js?v=202611032132';
+import { fieldsInSection, builtinRequired, activeOptions, defaultOption } from '../data/crm-config.js?v=202611032132';
+import { optSel, lbl, lblOrDash, hiddenField, cfInputs, cfRows, cfExtraSections } from './crm-custom.js?v=202611032132';
+import { activityBoard, wireCalls } from './crm-calls.js?v=202611032132';
+import { wireZipCounty, wireSubjectTypeahead, inviteBtn, invitePreview } from './crm-janine.js?v=202611032132';
 
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 const v0 = (v) => (v == null ? '' : v);
@@ -35,18 +36,18 @@ export function personFormHtml(kind, v, { owners, accounts = [], me, edit = fals
     <h4 class="span2">${L} Information</h4>
     <label>${L} Owner${ownerSel(owners, v.ownerId)}</label>
     ${idTxt('firstName', 'First Name')}<label>Last Name *<input name="lastName" maxlength="80" value="${v0(v.lastName)}" ${lockId ? raw('disabled') : ''}></label>
-    ${isLead ? html`<label>Company<input name="company" maxlength="120" value="${v0(v.company)}"></label>` : html`<label>Company Name${sel('accountId', accounts.filter((a) => !a.archived || a.id === v.accountId).map((a) => [a.id, a.name]), v.accountId, '(none)')}</label>
+    ${isLead ? html`<label>Company${sel('accountId', accounts.filter((a) => !a.archived || a.id === v.accountId).map((a) => [a.id, a.state ? `${a.name} (${a.state})` : a.name]), v.accountId, '(none)')}
+      ${!v.accountId && v.companyText ? html`<span class="muted small" data-old-company>Typed before the lookup: ${v.companyText} (kept until you pick a company)</span>` : ''}<a class="small" href="#/crm/new/account" target="_blank" rel="noopener" data-company-new>New company</a></label>` : html`<label>Company Name${sel('accountId', accounts.filter((a) => !a.archived || a.id === v.accountId).map((a) => [a.id, a.name]), v.accountId, '(none)')}</label>
       <label>Company (if not in the list)<input name="company" maxlength="120" value="${v0(v.company)}"></label>`}
     ${H('roleInCompany') ? '' : html`<label>Role in Company${R('roleInCompany')}${optSel(cfg, 'roleInCompany', 'roleInCompany', v.roleInCompany)}</label>`}${txt('title', 'Title')}
     ${idTxt('email', 'Email', 'email')}${idTxt('phone', 'Phone', 'tel')}
     ${H('mobile') ? '' : html`<label>Mobile<input name="mobile" type="tel" data-phone placeholder="xxx-xxx-xxxx" value="${v0(v.mobile)}"></label>`}${txt('assistant', 'Assistant')}
     ${H('asstPhone') ? '' : html`<label>Asst Phone<input name="asstPhone" type="tel" data-phone placeholder="xxx-xxx-xxxx" value="${v0(v.asstPhone)}"></label>`}
     ${H('leadSource') ? '' : html`<label>Lead Source${optSel(cfg, 'leadSource', 'leadSource', v.leadSource)}</label>`}
-    ${H('relationshipStatus') ? '' : html`<label>Relationship Status${R('relationshipStatus')}${optSel(cfg, 'relationshipStatus', 'relationshipStatus', v.relationshipStatus, '-None-', notConverted)}</label>`}
+    ${H('relationshipStatus') ? '' : html`<label>Relationship Status${R('relationshipStatus')}${optSel(cfg, isLead ? 'leadRelationshipStatus' : 'relationshipStatus', 'relationshipStatus', v.relationshipStatus, '-None-', notConverted)}</label>`}
     ${H('agentSplit') ? '' : html`<label>Agent Split (%)<input name="agentSplit" inputmode="decimal" value="${v0(v.agentSplit)}"></label>`}${txt('licenseNo', 'Real Estate License #', 60)}
     ${H('salesVolumeLastYear') ? '' : html`<label>Sales Volume (Last Year)<input name="salesVolumeLastYear" inputmode="decimal" value="${v0(v.salesVolumeLastYear)}"></label>`}
     ${H('dealsClosedLastYear') ? '' : html`<label>Deals Closed (Last Year)<input name="dealsClosedLastYear" inputmode="numeric" value="${v0(v.dealsClosedLastYear)}"></label>`}
-    ${H('zillowUrl') ? '' : html`<label>Zillow URL<input name="zillowUrl" inputmode="url" maxlength="500" value="${v0(v.zillowUrl)}" placeholder="https://"></label>`}
     ${H('contactType') ? '' : html`<label>Contact type (portal)${sel('contactType', CONTACT_TYPES, v.contactType, '(not set)')}</label>`}
     ${isLead || H('tags') ? '' : html`<label>Tags<input name="tags" value="${(v.tags || []).join(', ')}" placeholder="comma separated"></label>`}
     ${cf('info')}
@@ -57,7 +58,7 @@ export function personFormHtml(kind, v, { owners, accounts = [], me, edit = fals
     ${H('state') ? '' : html`<label>State${R('state')}${sel('state', US_STATE_NAMES.map(([c, n]) => [c, `${n} (${c})`]), v.state, '-None-')}</label>`}
     ${H('zip') ? '' : html`<label>Zip Code<input name="zip" maxlength="10" inputmode="numeric" value="${v0(v.zip)}"></label>`}${txt('county', 'County', 60)}
     ${cf('address')}
-    <h4 class="span2">Description Information</h4>
+    <h4 class="span2" data-desc-head>Description</h4>
     ${H('description') ? '' : html`<label class="span2">Description<textarea name="description" rows="3" maxlength="4000">${v0(v.description)}</textarea></label>`}
     ${cf('description')}
     ${extra.length ? html`<h4 class="span2" data-additional>Additional Information</h4>${cf('additional')}` : ''}${cfExtraSections(cfg, kind, 'form', v)}
@@ -69,7 +70,7 @@ export function personFormHtml(kind, v, { owners, accounts = [], me, edit = fals
 // opens the form in a modal. save(values) -> record. done(record) after Save; Save and New keeps the modal open with an empty form.
 export function personModal(kind, v, opts, save, done) {
   const title = `${opts.edit ? 'Edit' : 'Create'} ${kind === 'lead' ? 'Lead' : 'Client'}`;
-  const open = (vals) => { const m = modal(title, personFormHtml(kind, vals, opts), { wide: true }); const f = $('#person-form', m);
+  const open = (vals) => { const m = modal(title, personFormHtml(kind, vals, opts), { wide: true }); const f = $('#person-form', m); wireZipCounty(f);   // Janine, Nov 3: county from the ZIP
     const run = (andNew) => guard(async (e) => { if (e) e.preventDefault(); fieldErr(f, '');
       try { const r = await save(formData(f)); toast(`${kind === 'lead' ? 'Lead' : 'Client'} ${opts.edit ? 'saved' : 'created'}`);
         if (andNew) { open(opts.blank ? opts.blank() : {}); const nf = $('#person-form'); if (nf) nf.dataset.savedNew = r.id; } else { closeModal(); done(r); } }
@@ -89,21 +90,21 @@ export function personView(kind, r, extra = '', cfg = null) {
     <h3>${L} Information</h3>
     <dl class="kv" data-info>
       <dt>${L} Owner</dt><dd data-f="owner">${r.ownerName || 'Unassigned'}</dd><dt>${kind === 'lead' ? 'Lead Name' : 'Client Name'}</dt><dd data-f="name">${r.name}</dd>
-      <dt>${kind === 'lead' ? 'Company' : 'Company Name'}</dt><dd data-f="company">${kind === 'lead' ? dash(r.company) : r.accountId ? html`<a href="#/crm/accounts/${r.accountId}">${r.accountName}</a>` : dash(r.company)}</dd>
+      <dt>${kind === 'lead' ? 'Company' : 'Company Name'}</dt><dd data-f="company">${r.accountId ? html`<a href="#/crm/accounts/${r.accountId}">${r.accountName}</a>` : dash(r.company)}</dd>
       ${row('roleInCompany', 'Role in Company', lblOrDash(cfg, 'roleInCompany', r.roleInCompany), 'roleInCompany')}${row('title', 'Title', dash(r.title))}
       <dt>Email</dt><dd>${dash(r.email)}</dd><dt>Phone</dt><dd>${dash(r.phone)}</dd>${row('mobile', 'Mobile', dash(r.mobile), 'mobile')}
       ${row('assistant', 'Assistant', dash(r.assistant))}${row('asstPhone', 'Asst Phone', dash(r.asstPhone))}
-      ${row('leadSource', 'Lead Source', lblOrDash(cfg, 'leadSource', r.leadSource), 'leadSource')}${row('relationshipStatus', 'Relationship Status', lblOrDash(cfg, 'relationshipStatus', r.relationshipStatus), 'relationshipStatus')}
+      ${row('leadSource', 'Lead Source', lblOrDash(cfg, 'leadSource', r.leadSource), 'leadSource')}${row('relationshipStatus', 'Relationship Status', lblOrDash(cfg, kind === 'lead' ? 'leadRelationshipStatus' : 'relationshipStatus', r.relationshipStatus), 'relationshipStatus')}
       ${row('agentSplit', 'Agent Split (%)', r.agentSplit == null ? dash('') : r.agentSplit + '%')}${row('licenseNo', 'Real Estate License #', dash(r.licenseNo))}
       ${row('salesVolumeLastYear', 'Sales Volume (Last Year)', r.salesVolumeLastYear == null ? dash('') : fmtMoney(r.salesVolumeLastYear))}${row('dealsClosedLastYear', 'Deals Closed (Last Year)', dash(r.dealsClosedLastYear))}
-      ${row('zillowUrl', 'Zillow URL', extLink(r.zillowUrl), 'zillowUrl')}${row('contactType', 'Contact type (portal)', contactTypeLabel(r.contactType) || 'Not set', 'contactType')}
+      ${row('contactType', 'Contact type (portal)', contactTypeLabel(r.contactType) || 'Not set', 'contactType')}
       ${cfRows(cfg, kind, 'info', r)}
       ${extra}</dl>
     <h3>Address Information</h3>
     <dl class="kv" data-address>${row('street', 'Street', dash(r.street))}${row('city', 'City', dash(r.city))}${row('state', 'State', dash(r.state), 'state')}${row('zip', 'Zip Code', dash(r.zip))}${row('county', 'County', dash(r.county), 'county')}${cfRows(cfg, kind, 'address', r)}</dl>
     <h3>Social Media Links &amp; Web Addresses</h3>
     ${links.length ? html`<dl class="kv" data-links>${links.map(([k, label]) => html`<dt>${label}</dt><dd data-link="${k}">${extLink(r.links[k])}</dd>`)}</dl>` : html`<p class="muted" data-links>No links yet.</p>`}
-    <h3>Description Information</h3>${H('description') ? '' : html`<p data-f="description">${r.description || html`<span class="muted">&mdash;</span>`}</p>`}
+    <h3 data-desc-head>Description</h3>${H('description') ? '' : html`<p data-f="description">${r.description || html`<span class="muted">&mdash;</span>`}</p>`}
     ${fieldsInSection(cfg, kind, 'description').length ? html`<dl class="kv">${cfRows(cfg, kind, 'description', r)}</dl>` : ''}
     ${extraFields.length ? html`<h3 data-additional>Additional Information</h3><dl class="kv" data-custom-fields>${cfRows(cfg, kind, 'additional', r)}</dl>` : ''}${cfExtraSections(cfg, kind, 'view', r)}</div>`;
 }
@@ -170,7 +171,7 @@ export function wireRelated(root, api, refresh, ctx) {
 export function taskModal(api, ctx, t, done) {
   const cfg = ctx.cfg || null; const v = t || { status: 'Not Started', priority: cfg ? defaultOption(cfg, 'taskPriority', 'High') : 'High', ownerId: ctx.me.id };
   const m = modal(t ? 'Edit Task' : 'Create Task', html`<form id="task-form" class="form-grid" novalidate>
-    <label>Subject *<input name="subject" list="task-subjects" maxlength="200" value="${v0(v.subject)}" autocomplete="off"><datalist id="task-subjects">${(cfg ? activeOptions(cfg, 'taskSubject').map((o) => o.label) : TASK_SUBJECTS).map((s) => html`<option value="${s}"></option>`)}</datalist></label>
+    <label class="ta-wrap">Subject *<input name="subject" type="text" maxlength="200" value="${v0(v.subject)}" autocomplete="off" data-task-subject placeholder="Type a subject"></label>
     <label>Due Date *<input name="dueDate" type="date" value="${v0(v.dueDate)}"></label>
     <label>${entityLabel(ctx.entity)}<input value="${ctx.parentName}" disabled data-task-client></label>
     <label>Task Owner${ownerSel(ctx.assignees || [], v.ownerId, null)}</label>
@@ -183,7 +184,7 @@ export function taskModal(api, ctx, t, done) {
     <p class="muted small span2">Reminders show in the portal only (Home and the task); they are never emailed. A repeating task makes its next occurrence when it is closed.</p>
     <p class="err-text span2" data-form-err></p>
     <div class="span2"><button class="ghost" type="button" data-close>Cancel</button> <button class="m-btn" type="submit">Save</button></div></form>`, { wide: true });
-  const f = $('#task-form', m);
+  const f = $('#task-form', m); wireSubjectTypeahead(f, cfg ? activeOptions(cfg, 'taskSubject').map((o) => o.label) : TASK_SUBJECTS);   // Janine, Nov 3: a plain text field, old choices as type-ahead
   const sync = () => { $('[data-rem-at]', f).hidden = !$('[data-rem-on]', f).checked; $('[data-rep]', f).hidden = !$('[data-rep-on]', f).checked; };
   $('[data-rem-on]', f).addEventListener('change', sync); $('[data-rep-on]', f).addEventListener('change', sync);
   f.addEventListener('submit', guard(async (e) => { e.preventDefault(); fieldErr(f, ''); const val = formData(f); val.reminder = val.reminder ? '1' : ''; val.repeat = val.repeat ? '1' : '';
@@ -192,7 +193,7 @@ export function taskModal(api, ctx, t, done) {
 }
 
 // ---------- MEETING form (Zoho: Title*, Location, All Day, From*, To*, Host, Type*, Participants, Client, "Add the client as a participant") ----------
-// No "Send invitations?" step: John said skip invitations and calendar sync. Nothing is emailed.
+// Janine, Nov 3: a "Send invite" option makes an invite PREVIEW (+ .ics download) after Save. Nothing is ever sent ("Sending turns on once Gmail is connected").
 export async function meetingModal(api, ctx, mt, done) {
   const [leads, clients, users] = await Promise.all([api.listCrmLeads(), api.listCrmContacts(), api.listCrmUsers()]);
   const cands = [...leads.filter((l) => !l.archived && !l.converted).map((l) => ['lead:' + l.id, l.name, 'Lead']), ...clients.filter((c) => !c.archived).map((c) => ['contact:' + c.id, c.name, 'Client']),
@@ -211,6 +212,7 @@ export async function meetingModal(api, ctx, mt, done) {
     <label>${entityLabel(ctx.entity)}<input value="${ctx.parentName}" disabled data-meeting-client></label>
     ${mt ? '' : html`<label class="check"><input type="checkbox" name="addClient" value="1" data-add-client> Add the ${entityLabel(ctx.entity).toLowerCase()} as a participant</label>`}
     <label class="span2">Description<textarea name="description" rows="2" maxlength="4000">${v0(v.body)}</textarea></label>
+    ${ctx.me.canEdit ? html`<label class="check span2"><input type="checkbox" name="sendInvite" value="1" data-send-invite-opt> Send invite <span class="muted small">(preview + .ics only: sending turns on once Gmail is connected)</span></label>` : ''}
     <p class="muted small span2">Recorded in the portal only: no invitations are sent and nothing is added to Google Calendar or any other calendar.</p>
     <p class="err-text span2" data-form-err></p>
     <div class="span2"><button class="ghost" type="button" data-close>Cancel</button> <button class="m-btn" type="submit">Save</button></div></form>`, { wide: true });
@@ -218,7 +220,8 @@ export async function meetingModal(api, ctx, mt, done) {
   $('[data-allday]', f).addEventListener('change', (e) => { $$('[data-when]', f).forEach((i) => { const val = i.value; i.type = e.target.checked ? 'date' : 'datetime-local'; i.value = e.target.checked ? val.slice(0, 10) : val; }); });
   $('[data-part-q]', f).addEventListener('input', (e) => { const q = e.target.value.toLowerCase(); $$('[data-part]', f).forEach((l) => { l.hidden = !!q && !l.textContent.toLowerCase().includes(q); }); });
   f.addEventListener('submit', guard(async (e) => { e.preventDefault(); fieldErr(f, ''); const fd = new FormData(f); const val = formData(f);
-    val.participants = fd.getAll('participants'); val.allDay = val.allDay ? '1' : ''; val.addClient = val.addClient ? '1' : '';
-    try { const r = mt ? await api.updateCrmMeeting(mt.id, val) : await api.createCrmMeeting({ ...val, entity: ctx.entity, entityId: ctx.entityId }); closeModal(); toast(mt ? 'Meeting saved' : 'Meeting created'); done(r); }
+    val.participants = fd.getAll('participants'); val.allDay = val.allDay ? '1' : ''; val.addClient = val.addClient ? '1' : ''; const inv = !!val.sendInvite; delete val.sendInvite;
+    try { const r = mt ? await api.updateCrmMeeting(mt.id, val) : await api.createCrmMeeting({ ...val, entity: ctx.entity, entityId: ctx.entityId }); closeModal(); toast(mt ? 'Meeting saved' : 'Meeting created');
+      if (inv) { await invitePreview(api, r.id || (mt && mt.id)); const back = $('#modal'); if (back) back.addEventListener('click', (ev) => { if (ev.target === back || ev.target.closest('[data-close]')) done(r); }); } else done(r); }
     catch (err) { fieldErr(f, err.message); throw err; } }));
 }

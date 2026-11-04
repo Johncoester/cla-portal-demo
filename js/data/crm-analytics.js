@@ -6,7 +6,7 @@
  *  * GROUPING with date buckets (By Day, By Calendar Week, By Month, By Quarter, By Year) and measures (Record Count, Sum / Avg of a number field).
  *  * REPORTS: columns, row groups ("Owner (count)"), aggregate columns (sum, avg, min, max, count), CSV.
  *  * SEARCH: words in name / email, phone by digits only. */
-import { optLabel, activeFields, customDisplay, cfKey } from './crm-config.js?v=202611032037';
+import { optLabel, activeFields, customDisplay, cfKey } from './crm-config.js?v=202611032132';
 
 // ---------- modules ----------
 export const MODULES = [['contacts', 'Clients'], ['leads', 'Leads'], ['accounts', 'Companies'], ['deals', 'Deals'], ['tasks', 'Tasks'], ['meetings', 'Meetings'], ['calls', 'Calls'], ['opportunities', 'Opportunities']];
@@ -33,7 +33,7 @@ const BASE = {
     F('salesVolumeLastYear', 'Sales Volume (Last Year)', 'currency'), F('dealsClosedLastYear', 'Deals Closed (Last Year)', 'number'), F('agentSplit', 'Agent Split (%)', 'percent'),
     F('archived', 'Archived', 'boolean'), F('createdBy', 'Created By', 'user', { labelKey: 'createdByName' }), F('createdAt', 'Created Time', 'datetime'), F('modifiedAt', 'Modified Time', 'datetime')],
   leads: [F('name', 'Lead Name', 'text', { link: '_link' }), F('firstName', 'First Name'), F('lastName', 'Last Name'), F('company', 'Company'), F('email', 'Email', 'email'), F('phone', 'Phone', 'phone'), F('mobile', 'Mobile', 'phone'),
-    F('leadSource', 'Lead Source', 'picklist', { list: 'leadSource' }), F('relationshipStatus', 'Relationship Status', 'picklist', { list: 'relationshipStatus' }), F('roleInCompany', 'Role in Company', 'picklist', { list: 'roleInCompany' }),
+    F('leadSource', 'Lead Source', 'picklist', { list: 'leadSource' }), F('relationshipStatus', 'Relationship Status', 'picklist', { list: 'leadRelationshipStatus' }), F('roleInCompany', 'Role in Company', 'picklist', { list: 'roleInCompany' }),
     F('ownerId', 'Lead Owner', 'user', { labelKey: 'ownerName' }), F('city', 'City'), F('state', 'State'), F('county', 'County'), F('converted', 'Converted', 'boolean'), F('archived', 'Archived', 'boolean'),
     F('createdBy', 'Created By', 'user', { labelKey: 'createdByName' }), F('createdAt', 'Created Time', 'datetime'), F('modifiedAt', 'Modified Time', 'datetime')],
   accounts: [F('name', 'Company Name', 'text', { link: '_link' }), F('kind', 'Type', 'picklist', { list: 'accountKind' }), F('phone', 'Phone', 'phone'), F('website', 'Website'), F('city', 'City'), F('state', 'State'),

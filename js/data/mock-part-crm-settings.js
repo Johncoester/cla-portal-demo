@@ -2,10 +2,10 @@
  * Picklists (add / rename / reorder / retire), custom fields (add / edit / reorder / delete = archive, restore), built-in fields (hide, un-require).
  * Nothing here ever deletes a value stored on a record. Mirrored by migration 25 (crm_picklist_options, crm_custom_fields, crm_field_settings). */
 import { PICKLIST_KEYS, picklistDef, optionsOf, addOption, renameOption, retireOption, moveOption, cleanLabel, FIELD_TYPE_CODES, CF_ENTITY_CODES, SECTIONS_FOR, MAX_FIELDS,
-  PERSON_FIELDS, ACCOUNT_FIELDS, PROTECTED_FIELDS, BUILTIN_SCOPES, isLocked, cleanCustomValue, isBlankValue } from './crm-config.js?v=202611032037';
+  PERSON_FIELDS, ACCOUNT_FIELDS, PROTECTED_FIELDS, BUILTIN_SCOPES, isLocked, cleanCustomValue, isBlankValue } from './crm-config.js?v=202611032132';
 import { OPTION_TYPES, COMPUTED_TYPES, CHAR_TYPES, UNIQUE_TYPES, ENCRYPT_TYPES, LOOKUP_TARGETS, ROLLUP_RELATED, ROLLUP_FNS, TOOLTIP_MAX, cleanPerms, fieldCan, parseFormula, checkFormulaRefs,
-  sectionsOf, NUMBER_CF, DEFAULT_TYPES } from './crm-fields.js?v=202611032037';
-import { moduleFields } from './crm-analytics.js?v=202611032037';
+  sectionsOf, NUMBER_CF, DEFAULT_TYPES } from './crm-fields.js?v=202611032132';
+import { moduleFields } from './crm-analytics.js?v=202611032132';
 
 export function crmSettingsPart(x, h) {
   const { save, now, fail, str, clone, nameOf, nid } = x;
@@ -21,7 +21,8 @@ export function crmSettingsPart(x, h) {
     const d = db(); const n = {}; const inc = (v) => { if (v != null && v !== '') n[v] = (n[v] || 0) + 1; };
     const people = [...d.crmLeads, ...d.contacts.filter((c) => 'crmOwnerId' in c || 'relationshipStatus' in c)];
     const tasks = d.crmActivities.filter((a) => a.kind === 'task'); const meets = d.crmActivities.filter((a) => a.kind === 'meeting');
-    if (key === 'relationshipStatus') { d.crmLeads.forEach((l) => inc(l.status)); d.contacts.forEach((c) => inc(c.relationshipStatus)); }
+    if (key === 'relationshipStatus') d.contacts.forEach((c) => inc(c.relationshipStatus));   // Janine, Nov 3: Clients and Leads have their own lists
+    else if (key === 'leadRelationshipStatus') d.crmLeads.forEach((l) => inc(l.status));
     else if (key === 'leadSource') { d.crmLeads.forEach((l) => inc(l.source)); d.contacts.forEach((c) => inc(c.leadSource)); }
     else if (key === 'roleInCompany') people.forEach((p) => inc(p.roleInCompany));
     else if (key === 'accountKind') d.crmAccounts.forEach((a) => inc(a.kind));

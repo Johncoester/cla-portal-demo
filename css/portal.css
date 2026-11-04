@@ -366,6 +366,12 @@ label.req { color: var(--ink-2); border-left: 3px solid var(--bad); padding-left
 .acct-summaries { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s4); } .acct-summ h4 { font-size: var(--fs-sm); font-weight: 700; margin: var(--s2) 0 6px; color: var(--ink-2); } .acct-side { font-size: var(--fs); color: var(--navy-800); margin: 0 0 4px; }
 .acct-cash { background: var(--navy-50); border: 1px solid var(--navy-100); border-radius: var(--r); padding: 8px 12px; } .acct-foot { margin-top: var(--s3); }
 @media (max-width: 1000px) { .acct-summaries { grid-template-columns: 1fr; } }
+/* Accounting: CLA rates (fee engine) - scoped, minimal */
+.acct-calc .acct-calc-panel { margin-top: var(--s3); } .acct-calc-form .form-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s3) var(--s4); align-items: end; } @media (max-width: 1100px) { .acct-calc-form .form-grid { grid-template-columns: 1fr 1fr; } }
+.acct-calc-ends { border: 1px solid var(--line); border-radius: var(--r); padding: 6px 10px; margin: var(--s3) 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.acct-calc-counts { margin: var(--s3) 0 var(--s2); } .acct-calc-diff td { padding: 7px 10px; vertical-align: top; } .tbl tr.acct-calc-quiet td { color: var(--ink-3); }
+.acct-calc-detail summary { cursor: pointer; color: var(--navy-700, var(--ink-3)); } .acct-calc-detail div { margin: 2px 0 0 12px; max-width: 760px; } .acct-calc-examples { display: block; margin-top: var(--s3); }
+.pill.acct-calc-pill { background: var(--navy-50); color: var(--navy-800); border-color: var(--navy-100); }
 @media print {
   .acct-noprint, .welcome-title, .breadcrumb, .order-header, .acct-form, .toast, #toasts { display: none !important; }
   body { background: #fff; } .acct-doc, .card { box-shadow: none; border: 0; padding: 0; } .acct-doc .tbl { border: 1px solid #999; } .tbl th, .tbl td { font-size: 10.5px; padding: 4px 6px !important; }
@@ -408,3 +414,21 @@ label.req { color: var(--ink-2); border-left: 3px solid var(--bad); padding-left
 .mod-switch input:focus-visible + .mod-track { box-shadow: var(--focus); } .mod-switch.is-disabled { cursor: not-allowed; opacity: .55; } .mod-switch.is-disabled input { cursor: not-allowed; }
 .mod-always-list { columns: 2; margin: 6px 0 0; padding-left: 18px; } @media (max-width: 800px) { .mod-always-list { columns: 1; } }
 .mod-log-card { margin-top: var(--s4); }
+/* ===== John's Nov 3 call items: Automation card, preview, underwriter splits ===== */
+.automation-row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s4, 16px); flex-wrap: wrap; }
+.automation-row > div { flex: 1 1 420px; } .automation-row p { margin: 4px 0; }
+.preview-msg { margin: 10px 0; } .preview-body { white-space: pre-wrap; font: inherit; font-size: 13px; background: #f7f9fb; border: 1px solid #e3e8ee; padding: 10px; border-radius: 6px; margin: 8px 0 0; }
+.acct-uw { margin-top: 3px; color: #2c4a63; } .acct-uw[data-uw-unset] { color: #8a5a00; }
+.uw-pct { width: 80px; text-align: right; } [data-uw-table] input[name=underwriter] { width: 220px; }
+.uw-add { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 14px; } .uw-add input { width: 140px; }
+
+/* Janine, Nov 3: "+" Create New menu at the end of the CRM tabs, county-from-ZIP note, company duplicate warning, task Subject type-ahead, import preview, invite preview */
+.crm-tabs-row { display: flex; align-items: flex-end; gap: var(--s3); } .crm-tabs-row .nav-tabs { flex: 1; }
+.crm-create-new { position: relative; margin: 0 0 var(--s4); } .crm-create-new > summary { list-style: none; cursor: pointer; font-size: 1.2em; line-height: 1; padding: 6px 12px; } .crm-create-new > summary::-webkit-details-marker { display: none; }
+.crm-create-list { position: absolute; right: 0; z-index: 60; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--sh-3); padding: 8px; display: flex; flex-direction: column; min-width: 220px; }
+.crm-create-list a { padding: 6px 10px; border-radius: var(--r-sm); text-decoration: none; } .crm-create-list a:hover, .crm-create-list a:focus { background: var(--surface-2); }
+.zip-note { display: block; margin-top: 2px; } [data-county-pick] { margin-top: 4px; }
+.dup-warn { display: block; margin-top: 4px; color: var(--red); font-size: var(--fs-sm); font-weight: 600; } .dup-warn a { color: inherit; text-decoration: underline; }
+.ta-wrap { position: relative; } .typeahead { position: absolute; left: 0; right: 0; top: 100%; z-index: 70; list-style: none; margin: 2px 0 0; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); box-shadow: var(--sh-3); }
+.typeahead li { padding: 5px 8px; cursor: pointer; font-weight: 400; border-radius: var(--r-sm); } .typeahead li:hover, .typeahead li.on { background: var(--surface-2); }
+tr.bad-row td { background: var(--warn-bg); } .invite-body { white-space: pre-wrap; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px; font-size: var(--fs-sm); max-height: 240px; overflow: auto; }

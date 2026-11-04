@@ -7,11 +7,12 @@
 // It is still ONE <form id="nof"> with the same field names, ids and data-attributes; only one step is shown at a time. Every rule is unchanged:
 // refinance hides price / EMD / sellers / agents / TC (the Agents step is skipped), Buyer Agent / Listing Agent / Lender are optional, two buyer + two seller
 // rows, entity representative, commas in money fields, source of business (CLA staff only: Place Order is staff-only), wires never shown to agents.
-import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611032037';
-import { fmtPhone, TX_TYPES, runsOrders, isProcessor, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES } from '../data/constants.js?v=202611032037';
-import { pickerHtml, mountPicker, personLabel } from './person-picker.js?v=202611032037';
-import { ENTITY_TYPES } from '../data/templates.js?v=202611032037';
-import { moneyClean } from './money-input.js?v=202611032037';
+import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611032132';
+import { occSelects, yesNo } from './occ-fields.js?v=202611032132';
+import { fmtPhone, TX_TYPES, runsOrders, isProcessor, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES } from '../data/constants.js?v=202611032132';
+import { pickerHtml, mountPicker, personLabel } from './person-picker.js?v=202611032132';
+import { ENTITY_TYPES } from '../data/templates.js?v=202611032132';
+import { moneyClean } from './money-input.js?v=202611032132';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
 // Each person becomes their own deal_participants row, so each buyer / seller gets their own copy of the client intake tasks (existing per-person behaviour).
@@ -87,6 +88,7 @@ export async function render({ api, user, go }) {
         <label>Transaction type<select name="transactionType">${options(TX_TYPES, 'Purchase')}</select></label>
         <label>Source of business<select name="sourceOfBusiness" aria-label="Source of business"><option value="">(not set)</option>${options(sources, '', (o) => o.label, (o) => o.value)}</select><span class="field-hint">How this order came to us (CLA staff only). ${user.isAdmin ? html`Edit the list in <a href="#/crm/settings">CRM Settings &rarr; Lead Source</a>.` : 'An Admin edits the list (CRM Settings, Lead Source).'}</span></label>
         <label>Open date *<input name="openDate" type="date" required value="${today}" max="${today}" title="The day the order came in. Can be backdated; not in the future."><span class="field-hint">The day the order came in. Can be backdated, never in the future.</span></label>
+        ${occSelects({}, 'data-refi-hide="occ"')}
         <p class="span2 notice info" data-refi-note hidden><strong>Refinance:</strong> no purchase price, EMD, sellers or realtors. The people on the order are the borrower(s), salespeople, the Processor and the Lender. Switch back to Purchase to see those fields again.</p></div>`,
         'What kind of order is this, and when did it come in?')}
       ${panel('property', html`<div class="form-grid">
@@ -263,7 +265,7 @@ export async function render({ api, user, go }) {
           : html`<div class="notice ok-box" data-review-ready><strong>Ready to place.</strong> Everything required is filled in.</div>`}
         ${skipped.length ? html`<div class="notice info" data-review-skipped>Not added (nobody picked from the list): ${skipped.join(', ').toLowerCase()}. You can add them later on the Contacts tab.</div>` : ''}
         <div class="review-grid">
-        ${section('transaction', 'Transaction', [['Transaction type', html`<strong>${f.transactionType}</strong>`], ['Source of business', val(selText($('[name=sourceOfBusiness]', root)))], ['Open date', val(fmtDate(f.openDate))]])}
+        ${section('transaction', 'Transaction', [['Transaction type', html`<strong>${f.transactionType}</strong>`], ['Source of business', val(selText($('[name=sourceOfBusiness]', root)))], ['Open date', val(fmtDate(f.openDate))], ...(r ? [] : [['Primary residence', yesNo(f.primaryResidence)], ['First-time buyer', yesNo(f.firstTimeBuyer)]])])}
         ${section('property', 'Property', [['Address', f.street ? html`${f.street}<br>${[f.city, f.state].filter(Boolean).join(', ')} ${f.zip || ''}` : dash], ['County', val(f.county)]])}
         ${section('parties', r ? 'Borrowers' : 'Buyers & Sellers', [[r ? 'Borrowers' : 'Buyers', partyList('Client-Buyer')], ...(r ? [] : [['Sellers', partyList('Client-Seller')]])])}
         ${section('loan', 'Lender & Loan', [...(r ? [] : [['Purchase price', val(fmtMoney(moneyClean(f.purchasePrice)))]]), ['Loan amount', val(fmtMoney(moneyClean(f.loanAmount)))],
