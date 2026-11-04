@@ -50,7 +50,10 @@ const d = (n) => n / 100;                                      // dollars
 export const round2 = (n) => d(c(n));
 const fail = (m) => { throw new Error(m); };
 const s = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
-import { computeProration, cleanProration, prorationRange, PRORATION_ITEMS } from './prorations.js?v=202611041131';
+const flag0 = (x) => !!x && x !== 'false' && x !== '0';
+import { computeProration, cleanProration, prorationRange, PRORATION_ITEMS } from './prorations.js?v=202611041251';
+// QUALIA layout (John, Nov 4 2026): per-line payments + section settings (meta), the CD text of a line, E.01 recording fees as one line
+import { cleanMeta, cdText, recTypeOf, recordingText } from './qualia-charges.js?v=202611041251';
 export const closingDateOf = (deal) => (deal && (deal.closingDate ?? deal.closing_date)) || null;
 const isRefiDeal = (deal) => !!deal && (deal.transactionType === 'Refinance' || deal.transaction_type === 'Refinance');
 const buyerWord = (deal) => (isRefiDeal(deal) ? 'Borrower' : 'Buyer');
@@ -81,9 +84,11 @@ export function cleanFee(input, deal, prev = null) {
   const altaSection = s(v.altaSection, 40) || 'misc'; if (!ALTA_KEYS.includes(altaSection)) fail('Pick an ALTA section from the list.');
   let cdSection = v.cdSection == null ? (kind === 'credit' ? '' : DEFAULT_CD[altaSection]) : s(v.cdSection, 2).toUpperCase(); if (!CD_KEYS.includes(cdSection)) fail('Pick a CD section from the list.');
   const cdLine = s(v.cdLine, 2); if (cdLine && !/^(0[1-9]|[1-9][0-9])$/.test(cdLine)) fail('CD line must be 01 to 99.');
-  const amount = money(v.amount, 'Amount', { allowZero: false });
+  // Qualia shows description-only lines (e.g. "H.01 Home Warranty" with no amount yet): a charge on a NUMBERED line of a CD fee section A-H may be
+  // $0.00; anything else must be more than zero (as before)
+  const amount = money(v.amount, 'Amount', { allowZero: kind === 'charge' && !!cdLine && CD_FEE_SECTIONS.some(([k]) => k === cdSection) && !flag0(v.reduces) });
   const payee = s(v.payee, 120); const note = s(v.note, 1000);
-  const out = { kind, description, altaSection, cdSection, cdLine, payee, amount, note, presetKey: s(v.presetKey, 160) || null, reduces: undefined, lenderCredit: undefined, proration: undefined };
+  const out = { kind, description, altaSection, cdSection, cdLine, payee, amount, note, presetKey: s(v.presetKey, 160) || null, reduces: undefined, lenderCredit: undefined, proration: undefined, meta: cleanMeta(v.meta) || undefined };
   const flag = (x) => !!x && x !== 'false' && x !== '0';
   if (kind === 'charge') {
     if (['K', 'L', 'M'].includes(cdSection)) fail('A charge goes in a CD fee section (A-H), N (seller) or none.');
@@ -100,7 +105,7 @@ export function cleanFee(input, deal, prev = null) {
     const timing = poc ? 'before' : v.timing === 'before' ? 'before' : v.timing == null || v.timing === 'at' ? 'at' : fail('Paid must be at closing or before closing.');
     const titlePrefix = !!v.titlePrefix && v.titlePrefix !== 'false' && v.titlePrefix !== '0';
     if (titlePrefix && altaSection !== 'title') fail('The "Title -" prefix is only for title charges (ALTA Title Charges section).');
-    Object.assign(out, { paidBy: PAYER_KEYS.filter((k) => split[k] > 0).length === 1 && parts === c(amount) ? PAYER_KEYS.find((k) => split[k] > 0) : 'split', split, timing, poc, titlePrefix, from: null, to: null });
+    Object.assign(out, { paidBy: c(amount) === 0 && paidBy !== 'split' ? paidBy : PAYER_KEYS.filter((k) => split[k] > 0).length === 1 && parts === c(amount) ? PAYER_KEYS.find((k) => split[k] > 0) : 'split', split, timing, poc, titlePrefix, from: null, to: null });
     // AGGREGATE ADJUSTMENT (Caroline, Nov 4: initial escrow payment, CD section G): a charge that REDUCES the borrower's total (shown negative)
     if (flag(v.reduces)) { if (cdSection !== 'G' || altaSection !== 'impounds') fail('Only an escrow aggregate adjustment (ALTA Impounds, CD section G) can reduce the total.');
       if (out.paidBy !== 'buyer' || poc) fail('An aggregate adjustment is borrower-side, at closing.'); out.reduces = true; }
@@ -120,9 +125,9 @@ export function cleanFee(input, deal, prev = null) {
   }
   return out;
 }
-export const FEE_FIELDS = ['kind', 'description', 'altaSection', 'cdSection', 'cdLine', 'payee', 'amount', 'paidBy', 'split', 'timing', 'poc', 'titlePrefix', 'from', 'to', 'note', 'reduces', 'lenderCredit', 'proration'];
+export const FEE_FIELDS = ['kind', 'description', 'altaSection', 'cdSection', 'cdLine', 'payee', 'amount', 'paidBy', 'split', 'timing', 'poc', 'titlePrefix', 'from', 'to', 'note', 'reduces', 'lenderCredit', 'proration', 'meta'];
 export function feeChanges(before, after) {
-  const n = (k, x) => ((k === 'reduces' || k === 'lenderCredit') && !x ? null : x ?? null);   // false / missing = the same (older fees have neither)
+  const n = (k, x) => ((k === 'reduces' || k === 'lenderCredit' || k === 'meta') && !x ? null : x ?? null);   // false / missing = the same (older fees have neither)
   const out = []; for (const k of FEE_FIELDS) { const a = n(k, before ? before[k] : undefined); const b = n(k, after[k]); if (JSON.stringify(a) !== JSON.stringify(b)) out.push({ field: k, old: a, new: b }); }
   return out;
 }
@@ -238,14 +243,29 @@ export function closingDisclosure(deal, fees) {
   for (const e of charges.filter((x) => sec[x.cdSection])) {
     const sp = e.split || {}; const before = e.timing === 'before' || e.poc;
     const g = e.reduces ? -1 : 1;
-    const r = { id: e.id, line: e.cdLine, description: cdDescription(e), payee: e.payee, reduces: !!e.reduces, borrowerAt: before ? 0 : round2(g * (sp.buyer || 0)), borrowerBefore: before ? round2(sp.buyer || 0) : 0,
+    const r = { id: e.id, line: e.cdLine, description: cdDescription({ ...e, description: cdText(e, deal) }), payee: e.payee, recType: recTypeOf(e), reduces: !!e.reduces, borrowerAt: before ? 0 : round2(g * (sp.buyer || 0)), borrowerBefore: before ? round2(sp.buyer || 0) : 0,
       sellerAt: before ? 0 : round2(sp.seller || 0), sellerBefore: before ? round2(sp.seller || 0) : 0, others: round2((Number(sp.lender) || 0) + (Number(sp.other) || 0)), othersWho: ['lender', 'other'].filter((k) => Number(sp[k]) > 0).map((k) => (k === 'lender' ? 'L' : 'O')).join('/') };
     sec[e.cdSection].rows.push(r);
   }
+  // E.01 RECORDING FEES (TRID / Qualia): every recording-fee line (deed, mortgage, release ...) is ONE line "Recording fees: Deed: $60.00 Mortgage: $60.00"
+  { const E = sec.E; const rec = E.rows.filter((r) => r.recType); if (rec.length) { const sumf = (f) => round2(rec.reduce((t, x) => t + c(x[f]), 0) / 100);
+    const merged = { id: 'E-recording', line: '01', description: recordingText(rec.map((x) => ({ type: x.recType, amount: round2(x.borrowerAt + x.borrowerBefore + x.sellerAt + x.sellerBefore + x.others) }))), payee: [...new Set(rec.map((x) => x.payee).filter(Boolean))].join(', '),
+      borrowerAt: sumf('borrowerAt'), borrowerBefore: sumf('borrowerBefore'), sellerAt: sumf('sellerAt'), sellerBefore: sumf('sellerBefore'), others: sumf('others'), othersWho: [...new Set(rec.map((x) => x.othersWho).filter(Boolean))].join('/'), recording: rec.map((x) => ({ id: x.id, type: x.recType })) };
+    E.rows = [merged, ...E.rows.filter((r) => !r.recType).map((r) => (r.line === '01' ? { ...r, line: '' } : r))]; } }
+  // ONE CD line per charge (TRID / Qualia: "Title - Settlement Fee" shows the borrower part and the seller part on the same line): a buyer-only fee and a
+  // seller-only fee with the same description and payee in the same section are shown as one row; `parts` keeps the two ledger fees.
+  for (const k of Object.keys(sec)) { const S = sec[k]; const out = [];
+    const sideOf = (r) => { const b = c(r.borrowerAt) + c(r.borrowerBefore), sl = c(r.sellerAt) + c(r.sellerBefore), o = c(r.others); return o ? null : b && !sl ? 'buyer' : sl && !b ? 'seller' : null; };
+    for (const r of S.rows) { const side = sideOf(r); const twin = side && !r.recording && !r.reduces && out.find((x) => !x.recording && !x.reduces && x.description === r.description && (x.payee || '') === (r.payee || '') && (!x.line || !r.line || x.line === r.line) && x.parts.length === 1 && x.parts[0].side !== side && x.parts[0].side);
+      if (twin) { for (const f of ['borrowerAt', 'borrowerBefore', 'sellerAt', 'sellerBefore']) twin[f] = round2((c(twin[f]) + c(r[f])) / 100); twin.parts.push({ id: r.id, side }); if (!twin.line) twin.line = r.line; continue; }
+      out.push({ ...r, parts: [{ id: r.id, side }] }); }
+    S.rows = out.map((r) => (r.parts.length > 1 ? r : (({ parts, ...x }) => x)(r))); }
   for (const k of Object.keys(sec)) { const S = sec[k];
     if (k === 'B' || k === 'C') S.rows.sort((a, b) => (a.line && b.line ? a.line.localeCompare(b.line) : a.line ? -1 : b.line ? 1 : a.description.localeCompare(b.description)));   // B and C: alphabetical (TRID)
     else S.rows.sort((a, b) => (a.line && b.line ? a.line.localeCompare(b.line) : a.line ? -1 : b.line ? 1 : 0));
-    S.rows.forEach((r, i) => { if (!r.line) r.line = String(i + 1).padStart(2, '0'); });
+    if (k === 'E' && S.rows[0] && S.rows[0].id === 'E-recording') S.rows.slice(1).forEach((r, i) => { r.line = String(i + 2).padStart(2, '0'); });   // E.01 recording, then E.02+ in order
+    { const used = new Set(S.rows.filter((r) => r.line).map((r) => r.line)); let n = 0;   // unnumbered lines take the next free number
+      S.rows.forEach((r) => { if (!r.line) { do n++; while (used.has(String(n).padStart(2, '0'))); r.line = String(n).padStart(2, '0'); used.add(r.line); } }); }
     for (const f of ['borrowerAt', 'borrowerBefore', 'sellerAt', 'sellerBefore', 'others']) S[f] = round2(S.rows.reduce((t, r) => t + c(r[f]), 0) / 100); }
   const sum = (keys, f) => round2(keys.reduce((t, k) => t + c(sec[k][f]), 0) / 100);
   const tot = (keys) => ({ borrowerAt: sum(keys, 'borrowerAt'), borrowerBefore: sum(keys, 'borrowerBefore'), sellerAt: sum(keys, 'sellerAt'), sellerBefore: sum(keys, 'sellerBefore'), others: sum(keys, 'others') });

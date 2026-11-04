@@ -1,6 +1,6 @@
 // Profile Setting: edit my own name and phone. (Role and email are changed by a processor / by the auth provider.)
-import { html, $, guard, formData, toast } from '../ui.js?v=202611041131';
-import { cleanBirthdate, BIRTHDATE_NOTE } from '../data/agent-info.js?v=202611041131';
+import { html, $, guard, formData, toast } from '../ui.js?v=202611041251';
+import { cleanBirthdate, BIRTHDATE_NOTE } from '../data/agent-info.js?v=202611041251';
 
 export async function render({ api, refresh }) {
   const p = await api.getMyProfile();

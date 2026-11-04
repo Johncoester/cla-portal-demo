@@ -3,9 +3,9 @@
 // needed so the CD pages are complete (loan terms / projected payments can be manual entry fields). Keep everything marked TEST").
 // Fees, lender credits, prorations and summaries come from the fee ledger; loan terms, projected payments, the Loan Estimate column, loan
 // disclosures and loan calculations are manual entries (CD details, every save logged). Processor / Admin / Super admin edit; Sales and TCs read.
-import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611041131';
-import { TEST_MARK } from '../data/accounting.js?v=202611041131';
-import { CD_DETAIL_GROUPS } from '../data/cd-pages.js?v=202611041131';
+import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611041251';
+import { TEST_MARK } from '../data/accounting.js?v=202611041251';
+import { CD_DETAIL_GROUPS } from '../data/cd-pages.js?v=202611041251';
 const m2 = (n) => (n == null || Number(n) === 0 ? '' : (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const m2z = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const mv = (n) => (n == null ? html`<span class="muted">—</span>` : m2z(n));
@@ -18,7 +18,7 @@ export async function cdPagesView(api, deal, acc, docHead, printBtn, mountPrint)
   const X = await api.getAccountingCd(deal.id); const cd = X.cd; const refi = cd.refi; const P = X.pages; const p1 = P.page1, p4 = P.page4, p5 = P.page5;
   const n = (v) => html`<td class="num">${m2(v)}</td>`;
   // page 1
-  const info = html`<div class="acct-cd-info" data-cd-info><div><h4>Closing Information</h4><dl><dt>Date Issued</dt><dd>${fmtDate(p1.issued) || '—'}</dd><dt>Closing Date</dt><dd>${fmtDate(deal.closingDate) || 'Not set'}</dd><dt>Disbursement Date</dt><dd>${fmtDate(deal.closingDate) || '—'}</dd>
+  const info = html`<div class="acct-cd-info" data-cd-info><div><h4>Closing Information</h4><dl><dt>Date Issued</dt><dd>${fmtDate(p1.issued) || '—'}</dd><dt>Closing Date</dt><dd>${fmtDate(deal.closingDate) || 'Not set'}</dd><dt>Disbursement Date</dt><dd data-cd-disbursement>${fmtDate((X.details || {})['dates.disbursement'] || deal.closingDate) || '—'}</dd>
       <dt>Settlement Agent</dt><dd>CLA Title &amp; Escrow (test portal)</dd><dt>File #</dt><dd>${deal.fileNumber}</dd><dt>Property</dt><dd>${deal.street}, ${deal.city}, ${deal.state} ${deal.zip}</dd>
       <dt>${refi ? 'Appraised Prop. Value' : 'Sale Price'}</dt><dd>${refi ? mv(p1.appraised) : m2z(deal.purchasePrice)}</dd></dl></div>
     <div><h4>Transaction Information</h4><dl><dt>Borrower</dt><dd>${names(deal, 'Client-Buyer') || '—'}</dd>${refi ? '' : html`<dt>Seller</dt><dd>${names(deal, 'Client-Seller') || '—'}</dd>`}<dt>Lender</dt><dd>${deal.lenderName || names(deal, 'Lender') || '—'}</dd></dl></div>

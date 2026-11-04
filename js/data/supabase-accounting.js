@@ -3,23 +3,23 @@
  * database switch (private.features 'accounting', off by default; RLS refuses everything while it is off). RLS + triggers enforce the rules
  * (staff only, Sales read-only, no deletes, refinance has no seller side, every change logged in accounting_fee_log). Nothing is sent. */
 // Caroline, Nov 4 (migration 39): prorations, CD details (accounting_cd_details + accounting_cd_log), prepaids / escrow lines, TCs read-only.
-import { cleanCdDetails, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA, cdFieldLabel } from './cd-pages.js?v=202611041131';
-import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, cleanFee, allEntries, ledgerTotals, altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration, feeChanges } from './accounting.js?v=202611041131';
+import { cleanCdDetails, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA, cdFieldLabel } from './cd-pages.js?v=202611041251';
+import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, cleanFee, allEntries, ledgerTotals, altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration, feeChanges } from './accounting.js?v=202611041251';
 // CLA RATES (migration 36): calculated fees carry calc_source = 'cla-rates' + calc_key / calc_fields / rate_source / calculation / calc_inputs /
 // calc_version / calc_at; the trigger keeps `overridden` (a person changed what the calculation set). The engine loads lazily (flag off = never).
-const engine = () => import('./fee-engine.js?v=202611041131');
+const engine = () => import('./fee-engine.js?v=202611041251');
 const calcRow = (f) => (f.calc ? { calc_source: CALC_SOURCE_ID, calc_key: f.calc.key, calc_fields: f.calc.fields, rate_source: f.calc.rateSource, calculation: f.calc.calculation, calc_inputs: f.calc.inputs, calc_version: f.calc.version, calc_at: f.calc.at } : {});
 
 const toRow = (f) => ({ kind: f.kind, description: f.description, alta_section: f.altaSection, cd_section: f.cdSection, cd_line: f.cdLine, payee: f.payee, amount: f.amount, note: f.note, preset_key: f.presetKey,
   paid_by: f.paidBy, split_buyer: f.split ? f.split.buyer : 0, split_seller: f.split ? f.split.seller : 0, split_lender: f.split ? f.split.lender : 0, split_other: f.split ? f.split.other : 0,
   timing: f.timing, poc: f.poc, title_prefix: f.titlePrefix, credit_from: f.from, credit_to: f.to,
   // migration 39 (Caroline, Nov 4): aggregate adjustment, lender credit, calculated proration
-  reduces: !!f.reduces, lender_credit: !!f.lenderCredit, proration: f.proration || null });
+  reduces: !!f.reduces, lender_credit: !!f.lenderCredit, proration: f.proration || null, charge_meta: f.meta || null });   // charge_meta: Qualia line settings + payments (migration 40)
 const fromRow = (r) => ({ id: r.id, dealId: r.deal_id, kind: r.kind, description: r.description, altaSection: r.alta_section, cdSection: r.cd_section, cdLine: r.cd_line, payee: r.payee, amount: Number(r.amount), note: r.note, presetKey: r.preset_key,
   paidBy: r.paid_by, split: r.kind === 'charge' ? { buyer: Number(r.split_buyer), seller: Number(r.split_seller), lender: Number(r.split_lender), other: Number(r.split_other) } : null,
   timing: r.timing, poc: r.poc, titlePrefix: r.title_prefix, from: r.credit_from, to: r.credit_to, retired: !!r.retired_at, retiredAt: r.retired_at, retiredBy: r.retired_by,
   createdAt: r.created_at, createdBy: r.created_by, updatedAt: r.updated_at, updatedBy: r.updated_by,
-  ...(r.reduces ? { reduces: true } : {}), ...(r.lender_credit ? { lenderCredit: true } : {}), ...(r.proration ? { proration: r.proration } : {}),
+  ...(r.reduces ? { reduces: true } : {}), ...(r.lender_credit ? { lenderCredit: true } : {}), ...(r.proration ? { proration: r.proration } : {}), ...(r.charge_meta ? { meta: r.charge_meta } : {}),
   ...(r.calc_source ? { source: r.calc_source, calc: { key: r.calc_key, fields: r.calc_fields, rateSource: r.rate_source, calculation: r.calculation, inputs: r.calc_inputs, version: r.calc_version, at: r.calc_at } } : {}) });
 const dealOf = (d) => ({ id: d.id, fileNumber: d.file_number, state: d.state, county: d.county || '', primaryResidence: d.primary_residence || '', firstTimeBuyer: d.first_time_buyer || '', transactionType: d.transaction_type, purchasePrice: d.purchase_price == null ? null : Number(d.purchase_price), loanAmount: d.loan_amount == null ? null : Number(d.loan_amount), emdAmount: d.emd_amount == null ? null : Number(d.emd_amount),
   closingDate: d.closing_date || null, lenderName: d.lender_name || '', street: d.street || '', city: d.city || '', zip: d.zip || '' });

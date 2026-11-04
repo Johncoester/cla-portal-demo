@@ -10,7 +10,7 @@
  *  - cdPages(): CD pages 1-5 built from the ledger (closingDisclosure) + the details: page 1 Loan Terms / Projected Payments / Costs at Closing,
  *    page 2 Loan Costs / Other Costs (with Lender Credits in J), page 3 Calculating Cash to Close + Summaries of Transactions, page 4 Loan
  *    Disclosures + Escrow Account, page 5 Loan Calculations, Other Disclosures, Contact Information. */
-import { addMonths, isDate, mdy, PRORATION_CYCLES } from './prorations.js?v=202611041131';
+import { addMonths, isDate, mdy, PRORATION_CYCLES } from './prorations.js?v=202611041251';
 const fail = (m) => { throw new Error(m); };
 const c = (n) => Math.round((Number(n) || 0) * 100); const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const usd = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -18,6 +18,8 @@ const YN = [['', '—'], ['yes', 'YES'], ['no', 'NO']];
 const CYC = PRORATION_CYCLES.map(([k, l]) => [k, l]);
 // [key, type, label, options] ; types: text | money | pct | int | date | select | yn
 export const CD_DETAIL_GROUPS = [
+  // Qualia Basic Info › Dates (John, Nov 4 2026): the disbursement date is F.03 Prepaid Interest's From Date default
+  ['dates', 'Basic Info dates (Qualia)', [['dates.disbursement', 'date', 'Disbursement date (blank = settlement date; F.03 prepaid interest starts here)'], ['dates.funding', 'date', 'Funding date']]],
   ['loan', 'Loan Information & Loan Terms (page 1)', [
     ['loan.term', 'text', 'Loan term (e.g. 30 years)'], ['loan.purpose', 'select', 'Purpose', [['', '—'], ['Purchase', 'Purchase'], ['Refinance', 'Refinance'], ['Construction', 'Construction'], ['Home Equity Loan', 'Home Equity Loan']]],
     ['loan.product', 'text', 'Product (e.g. Fixed Rate)'], ['loan.type', 'select', 'Loan type', [['', '—'], ['Conventional', 'Conventional'], ['FHA', 'FHA'], ['VA', 'VA'], ['Other', 'Other']]],

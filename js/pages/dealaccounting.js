@@ -1,15 +1,16 @@
 // ACCOUNTING tab (John, Nov 3: "an accounting tab that will allow fees to be added to an ALTA and CD"). CLA staff only, behind the `accounting`
 // feature flag (app.js never loads this module when it is off). ONE fee ledger feeds the ALTA Settlement Statement and the Closing Disclosure fee
 // view. Processor / Admin / Super admin edit; Sales Person / Sales Team read only. TEST ONLY: "TEST - not a legal disclosure" on every page and print.
-import { html, raw, $, $$, guard, formData, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611041131';
-import { themeOn } from '../theme.js?v=202611041131';
-import { modOn } from '../data/modules.js?v=202611041131';
-import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611041131';
-import { prorationsView } from './dealaccounting-prorations.js?v=202611041131';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
-import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611041131'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
-import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611041131';
+import { html, raw, $, $$, guard, formData, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611041251';
+import { themeOn } from '../theme.js?v=202611041251';
+import { modOn } from '../data/modules.js?v=202611041251';
+import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611041251';
+import { prorationsView } from './dealaccounting-prorations.js?v=202611041251';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
+import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611041251'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
+import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611041251';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611041251';
 
-const VIEWS = [['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
+const VIEWS = [['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
 // negative amounts (the escrow aggregate adjustment) show as -$x.xx
 const m2 = (n) => (n == null || Number(n) === 0 ? '' : (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const m2z = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -20,11 +21,11 @@ const names = (deal, role) => deal.participants.filter((p) => p.role === role &&
 export async function render({ api, deal, user }) {
   if (!(api.features || {}).accounting || !modOn('accounting')) throw new Error('That page does not exist.');   // config flag off, or not Live (beta) for this user
   if (!acctCanRead(user) || user.accountRole) throw new Error('Accounting is for CLA staff only.');
-  const q = new URLSearchParams(location.hash.split('?')[1] || ''); const view = VIEWS.some(([k]) => k === q.get('v')) ? q.get('v') : 'ledger';
+  const q = new URLSearchParams(location.hash.split('?')[1] || ''); const view = VIEWS.some(([k]) => k === q.get('v')) ? q.get('v') : q.get('calc') === '1' || q.get('retired') === '1' ? 'ledger' : 'charges';   // Qualia: Accounting opens on Charges
   const showRetired = q.get('retired') === '1'; const base = `#/deals/${deal.id}/accounting`;
   const acc = await api.getAccounting(deal.id, { includeRetired: showRetired });
   const T = acc.totals; const B = acc.refi ? 'Borrower' : 'Buyer / borrower';
-  const tabs = html`<ul class="nav-tabs acct-noprint" data-acct-tabs>${VIEWS.map(([k, l]) => html`<li><a class="${k === view ? 'active' : ''}" href="${base}?v=${k}" data-acct-tab="${k}">${l}</a></li>`)}</ul>`;
+  const nav = qcNav(deal, view, q.get('s') || 'A', base);   // Qualia-style left nav: General · Closing › Charges A-N · Preview · CLA tools
   const head = html`<div class="acct-head acct-noprint"><div><p class="eyebrow">Accounting</p><h2 class="page-title">Fees, ALTA &amp; Closing Disclosure</h2>
       <p class="muted small">One fee ledger for this order. The ALTA Settlement Statement and the Closing Disclosure fee pages are built from it. Sales price, deposit and loan amount come from the order.</p></div>
     <div class="acct-head-side"><span class="pill warn" data-test-mark>${TEST_MARK}</span>${acc.canEdit ? '' : html`<span class="pill" data-acct-readonly>Read only</span>`}</div></div>`;
@@ -44,13 +45,15 @@ export async function render({ api, deal, user }) {
     ${T.issues.length ? html`<div class="notice warn acct-noprint" data-balance-issues><strong>Out of balance.</strong><ul>${T.issues.map((i) => html`<li>${i}</li>`)}</ul></div>` : ''}
     ${(T.warnings || []).length ? html`<div class="notice info acct-noprint" data-acct-warnings><ul>${T.warnings.map((i) => html`<li>${i}</li>`)}</ul></div>` : ''}`;
   let v;
-  if (view === 'alta') v = await altaView(api, deal, acc, q, base);
-  else if (view === 'cd') v = await cdPagesView(api, deal, acc, docHead, printBtn, mountPrint);
+  if (view === 'charges') v = await chargesView(api, deal, acc, q, base);
+  else if (view === 'payments') v = await paymentSummaryView(api, deal, acc, base);
+  else if (view === 'alta') v = await altaView(api, deal, acc, q, base);
+  else if (view === 'cd') v = viewerChrome(await cdPagesView(api, deal, acc, docHead, printBtn, mountPrint), base);
   else if (view === 'cddetails') v = await cdDetailsView(api, deal, acc);
   else if (view === 'prorations') v = await prorationsView(api, deal, acc, base);
   else if (view === 'history') v = await historyView(api, deal);
   else v = await ledgerView(api, deal, acc, showRetired, base);
-  return { title: 'Accounting', crumbs: [['Accounting']], body: html`<section class="acct" data-accounting data-acct-view="${view}">${head}${tabs}${view === 'ledger' || view === 'prorations' ? balance : ''}${v.body}</section>`, mount: v.mount || (() => {}) };
+  return { title: 'Accounting', crumbs: [['Accounting']], body: html`<section class="acct qc-shell-wrap" data-accounting data-acct-view="${view}">${head}<div class="qc-shell">${nav}<div class="qc-body">${view === 'ledger' || view === 'prorations' ? balance : ''}${v.body}</div></div></section>`, mount: v.mount || (() => {}) };
 }
 
 // ---------------- ledger + add / edit form ----------------
@@ -262,8 +265,8 @@ async function altaView(api, deal, acc, q, base) {
 // ---------------- Closing Disclosure: pages 1-5 are built in dealaccounting-cd.js (Caroline Kim, Nov 4 2026) ----------------
 
 // ---------------- edit history ----------------
-const LABELS = { reduces: 'Reduces the total (aggregate adjustment)', lenderCredit: 'Lender credit', proration: 'Proration', kind: 'Type', description: 'Description', altaSection: 'ALTA section', cdSection: 'CD section', cdLine: 'CD line', payee: 'Payee', amount: 'Amount', paidBy: 'Paid by', split: 'Split', timing: 'Paid', poc: 'POC', titlePrefix: '"Title -" prefix', from: 'Credit from', to: 'Credit to', note: 'Note', retired: 'Retired' };
-const showVal = (k, v) => { if (v == null || v === '') return '—'; if (k === 'proration') return v.calc ? `${v.cycle} ${m2z(v.cycleAmount)} from ${v.periodStart}, ${v.basis === 'installment' ? 'installment' : v.basis + '-day'}, ${v.status}; settlement ${v.calc.settlementDate}: ${m2z(v.calc.amount)}` : 'proration'; if (k === 'amount') return m2z(v); if (k === 'altaSection') return altaLabel(v); if (k === 'split') return Object.entries(v).filter(([, x]) => Number(x)).map(([p, x]) => `${p} ${m2z(x)}`).join(', ') || '—'; if (typeof v === 'boolean') return v ? 'yes' : 'no'; return String(v); };
+const LABELS = { meta: 'Line settings / payments', reduces: 'Reduces the total (aggregate adjustment)', lenderCredit: 'Lender credit', proration: 'Proration', kind: 'Type', description: 'Description', altaSection: 'ALTA section', cdSection: 'CD section', cdLine: 'CD line', payee: 'Payee', amount: 'Amount', paidBy: 'Paid by', split: 'Split', timing: 'Paid', poc: 'POC', titlePrefix: '"Title -" prefix', from: 'Credit from', to: 'Credit to', note: 'Note', retired: 'Retired' };
+const showVal = (k, v) => { if (v == null || v === '') return '—'; if (k === 'meta') return metaText(v); if (k === 'proration') return v.calc ? `${v.cycle} ${m2z(v.cycleAmount)} from ${v.periodStart}, ${v.basis === 'installment' ? 'installment' : v.basis + '-day'}, ${v.status}; settlement ${v.calc.settlementDate}: ${m2z(v.calc.amount)}` : 'proration'; if (k === 'amount') return m2z(v); if (k === 'altaSection') return altaLabel(v); if (k === 'split') return Object.entries(v).filter(([, x]) => Number(x)).map(([p, x]) => `${p} ${m2z(x)}`).join(', ') || '—'; if (typeof v === 'boolean') return v ? 'yes' : 'no'; return String(v); };
 async function historyView(api, deal) {
   const log = await api.listAccountingLog(deal.id);
   const body = html`<div class="card"><h3>Edit history</h3><p class="muted small">Every add, edit, retire and restore: who, when, the old value and the new one. Read only.</p>
@@ -279,4 +282,32 @@ function uwSplit(e, uw, state) {
   if (!uw || uw.pct === null || uw.pct === undefined) return html`<div class="small muted acct-uw" data-uw-line="${e.id}" data-uw-unset>Underwriter split for ${state || 'this state'}: not set. ${UNSET_NOTE}</div>`;
   const sp = splitAmount(e.amount, uw.pct);
   return html`<div class="small acct-uw" data-uw-line="${e.id}" data-uw-cla="${sp.cla}" data-uw-amount="${sp.underwriter}">Split: <strong>CLA ${m2z(sp.cla)}</strong> (${sp.claPct}%) &middot; <strong>${uw.underwriter} ${m2z(sp.underwriter)}</strong> (${sp.pct}%)</div>`;
+}
+
+// meta (Qualia line settings + payments) in the edit history, in words
+const PAYM = { check: 'Check', wire: 'Wire', netFunded: 'Net Funded', aggregate: 'Aggregate', transfer: 'Transfer', holdback: 'Holdback' };
+function metaText(m) {
+  const out = []; if (m.loanPct != null) out.push(`Loan Amount ${m.loanPct}%`); if (m.months != null) out.push(`${m.months} months`); if (m.perMonth != null) out.push(`${m2z(m.perMonth)} per month`);
+  if (m.recType) out.push(`recording type ${m.recType}`); if (m.perDiem) out.push(`per diem ${m.perDiem.perDiem ?? 'calculated'}${m.perDiem.rate != null ? ` @ ${m.perDiem.rate}%` : ''}${m.perDiem.from ? ` from ${m.perDiem.from}` : ''}${m.perDiem.to ? ` to ${m.perDiem.to}` : ''}`);
+  if (m.payments) out.push('payments: ' + m.payments.map((p) => `${p.payee || 'no payee'} (${PAYM[p.method] || p.method}${p.label && p.label !== 'Unclassified' ? ', ' + p.label : ''}${p.amount != null ? ', ' + m2z(p.amount) : ''})`).join('; '));
+  return out.join(' · ') || '—';
+}
+
+// ---------------- Qualia-style document viewer chrome around the CD pages: title dropdown, Page x of 5, print, zoom, fit ----------------
+function viewerChrome(v, base) {
+  const bar = html`<div class="qc-viewer-bar acct-noprint" data-qc-viewer><select data-qc-doc aria-label="Document"><option value="cd" selected>Closing Disclosure</option><option value="alta">Settlement Statement</option></select>
+    <button type="button" class="ghost small qc-sq" data-qc-page-prev aria-label="Previous page">&lsaquo;</button><span data-qc-pageof>Page 1 of 5</span><button type="button" class="ghost small qc-sq" data-qc-page-next aria-label="Next page">&rsaquo;</button><span class="spacer"></span>
+    <button type="button" class="ghost small" data-qc-print>Print</button><button type="button" class="ghost small" disabled title="The test portal does not store generated documents">Save</button><button type="button" class="ghost small" disabled title="The test portal does not store generated documents">Download</button>
+    <button type="button" class="ghost small" data-qc-fit>Fit</button><button type="button" class="ghost small qc-sq" data-qc-zoom="1" aria-label="Zoom in">+</button><button type="button" class="ghost small qc-sq" data-qc-zoom="-1" aria-label="Zoom out">&minus;</button><span class="small muted" data-qc-zoom-pct>100%</span></div>`;
+  return { body: html`${bar}<div class="qc-viewer" data-qc-viewer-body><div class="qc-viewer-inner" data-qc-viewer-inner>${v.body}</div></div>`, mount: (root, c) => { if (v.mount) v.mount(root, c);
+    const inner = $('[data-qc-viewer-inner]', root); let z = 1; const pages = () => $$('[data-cd-page]', root); let cur = 1;
+    const setZ = (n) => { z = Math.min(2, Math.max(0.5, Math.round(n * 10) / 10)); inner.style.zoom = String(z); $('[data-qc-zoom-pct]', root).textContent = Math.round(z * 100) + '%'; };
+    const show = () => { $('[data-qc-pageof]', root).textContent = `Page ${cur} of ${pages().length || 5}`; };
+    const go = (n) => { const list = pages(); if (!list.length) return; cur = Math.min(list.length, Math.max(1, n)); list[cur - 1].scrollIntoView({ block: 'start' }); show(); };
+    $('[data-qc-doc]', root).addEventListener('change', (e) => { if (e.target.value === 'alta') location.hash = `${base}?v=alta`; });
+    $('[data-qc-page-prev]', root).addEventListener('click', () => go(cur - 1)); $('[data-qc-page-next]', root).addEventListener('click', () => go(cur + 1));
+    $('[data-qc-print]', root).addEventListener('click', () => { const b = $('[data-print]', root); if (b) b.click(); });
+    $$('[data-qc-zoom]', root).forEach((b) => b.addEventListener('click', () => setZ(z + 0.1 * Number(b.dataset.qcZoom))));
+    $('[data-qc-fit]', root).addEventListener('click', () => { const pg = pages()[0]; const box = $('[data-qc-viewer-body]', root); if (!pg || !box) return; inner.style.zoom = '1'; setZ(Math.min(1.5, (box.clientWidth - 24) / Math.max(1, pg.scrollWidth))); });
+    show(); } };
 }
