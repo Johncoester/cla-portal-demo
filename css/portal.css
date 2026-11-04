@@ -580,3 +580,46 @@ tr.bad-row td { background: var(--warn-bg); } .invite-body { white-space: pre-wr
 .ws-prompt { text-align: left; background: linear-gradient(180deg, #f2f8ff, #e1efff); border: 1px solid #b9dcff; border-radius: 16px; padding: 22px 18px; cursor: pointer; box-shadow: 0 6px 18px rgba(30,110,200,.10); display: flex; flex-direction: column; gap: 8px; transition: transform .12s, box-shadow .12s; }
 .ws-prompt:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(30,110,200,.18); }
 .ws-prompt strong { color: #0b3a6e; font-size: 18px; } .ws-prompt span { color: #456; font-size: 13px; min-height: 36px; } .ws-prompt em { font-style: normal; color: #2f7fd6; font-weight: 600; font-size: 13px; }
+/* ---- Payoffs / HOA / FFB / Ground Rent (Qualia, feature/payoffs-hoa-ffb-gr; John, Nov 4 2026) ---- */
+.po-tabs .qc-paytab { text-decoration: none; color: var(--ink-2); } .po-tabs .qc-paytab.on { background: var(--tc-baby, #89cff0); border-color: var(--tc-baby-hover, #74c4ea); color: var(--tc-on-baby, #0b2a45); font-weight: 600; }
+.po-sub { margin: 12px 0 8px; font-size: 14px; } .po-inline-h { display: inline; margin: 0 8px 0 0; font-size: 14px; }
+.po-addbox { display: grid; grid-template-columns: 1fr 40px 1fr; background: #fff; border: 1px solid var(--tc-line, #d9d9d9); border-radius: 4px; min-height: 180px; }
+.po-addside { padding: 22px 18px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; } .po-addside h4 { margin: 0; font-size: 16px; }
+.po-addside .qc-input { width: 100%; max-width: 300px; } .po-or { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--ink-3); border-left: 1px solid #eee; border-right: 1px solid #eee; }
+.po-ico { font-size: 30px; color: var(--ink-2); line-height: 1; }
+.po-results { width: 100%; max-width: 320px; display: flex; flex-direction: column; gap: 4px; } .po-result { display: flex; flex-direction: column; align-items: flex-start; text-align: left; border: 1px solid #e3e3e3; background: #fff; border-radius: 4px; padding: 6px 10px; cursor: pointer; font: inherit; }
+.po-result:hover { background: var(--tc-baby-soft, #e8f6fd); border-color: var(--tc-baby, #89cff0); }
+.po-newform { width: 100%; max-width: 320px; text-align: left; } .po-newform .qc-field { margin: 0 0 6px; } .po-newform .qc-input { width: 100%; }
+.po-card { margin: 0 0 12px; } .po-kv th { width: 170px; text-align: right; padding: 6px 10px; font-size: 11px; letter-spacing: .05em; color: var(--ink-3); background: #fafafa; } .po-kv td { padding: 6px 10px; }
+.po-kv { border: 1px solid #e5e5e5; } .po-kv tr + tr th, .po-kv tr + tr td { border-top: 1px solid #eee; }
+details.po-card > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; margin: 0 0 8px; } details.po-card > summary::-webkit-details-marker { display: none; }
+.po-lines-grid { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 14px; align-items: start; } @media (max-width: 1200px) { .po-lines-grid { grid-template-columns: 1fr; } }
+.po-li { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 8px; align-items: center; margin: 0 0 6px; } .po-li[data-po-li="interest"] { grid-template-columns: 170px minmax(0, 1fr) auto minmax(0, 1fr); }
+.po-li-l { margin: 0; } .po-li .qc-input { width: 100%; } .po-item { grid-template-columns: 170px minmax(0, 1fr); } .po-item-l { font-size: 12px; background: #fafafa; }
+.po-to { font-size: 12px; color: var(--ink-3); padding: 0 4px; border: 1px solid #e3e3e3; border-radius: 3px; background: #f6f6f6; line-height: 26px; }
+.po-calc { position: sticky; top: 8px; } .po-calc h5 { margin: 0 0 6px; font-size: 13px; } .po-calc-h { margin-top: 12px !important; padding-top: 10px; border-top: 1px solid #eee; } .po-calc .seg { margin: 0 0 8px; }
+.po-calc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; } .po-calc-grid .qc-input { width: 100%; } .po-x-wrap { display: flex; gap: 2px; } .po-x { border: 0; background: transparent; color: #b45309; cursor: pointer; font-size: 16px; }
+.po-gt { margin-top: 10px; max-width: 360px; }
+.po-total { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin: 0 0 12px; padding: 12px 16px; border-radius: 6px; background: #eaf7ee; border: 1px solid #bfe3c9; }
+.po-total strong { font-size: 22px; color: #166534; } .po-total .small { color: #2f6b42; }
+.po-info, .po-team { margin-top: var(--s4); } .po-check { align-self: end; } .po-orderinfo, .po-note pre { white-space: pre-wrap; font: inherit; font-size: 12px; background: #fafafa; border: 1px solid #eee; border-radius: 4px; padding: 8px 10px; margin: 8px 0; }
+.po-team-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: var(--s4); } @media (max-width: 1100px) { .po-team-grid { grid-template-columns: 1fr; } }
+.po-team h4 { margin: 10px 0 6px; font-size: 14px; } .po-folders, .po-log { margin: 4px 0 8px; padding-left: 0; list-style: none; } .po-folders li, .po-log li { padding: 2px 0; }
+.po-quick { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; } .po-note-form textarea { width: 100%; }
+.po-note.is-critical pre { border-color: #f5b971; background: #fff8ef; } .po-notes h5 { margin: 10px 0 2px; font-size: 12px; letter-spacing: .05em; color: var(--ink-3); }
+.po-pop { margin: 0 0 10px; max-width: 420px; } .po-pop .seg { margin: 0 0 8px; } .po-pop h5 { margin: 0 0 8px; }
+.po-grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 10px; } .po-grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 10px; }
+.po-grid4 .qc-input, .po-grid3 .qc-input, .po-wide .qc-input { width: 100%; } .po-blue .qc-label { color: var(--tc-baby-ink, #1f6fa3); }
+.po-prorated { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: end; margin: 10px 0; padding: 12px 14px; border: 2px solid #bfe3c9; border-radius: 6px; background: #fff; }
+.po-prorated .qc-input { width: 100%; color: #166534; font-weight: 600; } .po-green { color: #166534; }
+.po-dotset { color: var(--tc-baby-ink, #1f6fa3); } .po-inline-sel { display: inline-block; width: auto; }
+.po-choose { padding: 30px 16px; text-align: center; background: #fff; border: 1px solid var(--tc-line, #d9d9d9); border-radius: 4px; } .po-choose .qc-input { min-width: 240px; }
+.po-hg { margin-top: var(--s4); } .po-switch { margin: 8px 0 0; max-width: 360px; } .po-demo { margin-top: 10px; }
+.po-res-l { display: block; font-size: 13px; font-weight: 600; margin: 0 0 4px; }
+
+/* Title Sales Rep on the agent Parties grid (John, Nov 4): photo or initials */
+.sum-card .party-avatar { float: right; width: 40px; height: 40px; border-radius: 50%; object-fit: cover; display: inline-flex; align-items: center; justify-content: center; background: var(--line); font-weight: 700; font-size: 14px; margin-left: 8px; }
+.sum-card .sales-rep-party::after { content: ''; display: block; clear: both; }
+
+/* VIEW AS (Super admin locked link only, live28) */
+.view-as { display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; color: inherit; } .view-as select { max-width: 260px; font-size: 13px; padding: 4px 6px; border-radius: 6px; }

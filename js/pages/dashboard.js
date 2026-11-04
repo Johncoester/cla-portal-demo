@@ -1,9 +1,9 @@
 // Role dashboards: Processor = Work Queue; Sales Person / Sales Team = Team Dashboard (view-only);
 // Transaction Coordinator = Dashboard; Buyer/Listing Agent = Transactions; clients = My Closing.
-import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js?v=202611041516';
-import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611041516';
-import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611041516';
-import { themeOn } from '../theme.js?v=202611041516';
+import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js?v=202611041617';
+import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611041617';
+import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611041617';
+import { themeOn } from '../theme.js?v=202611041617';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>${d.fileTitle ? html` <span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}`;
 // CARD THEME (default look): a tile that repeats one of the four dashboard cards (open orders = "in Pipeline" count, overdue tasks) is not drawn;
@@ -21,7 +21,7 @@ export async function render(ctx) {
   const v = await pick({ ...ctx, deals, open, all, today });
   // CARD THEME MOCKUP (opt-in): four clickable summary cards above the CLA team dashboards (computed from the orders this person can see)
   const tc = themeOn() && (user.isAdmin || runsOrders(user) || ['Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(user.role));
-  const top = tc ? (await import('./theme-cards.js?v=202611041516')).dashCards(deals) : '';
+  const top = tc ? (await import('./theme-cards.js?v=202611041617')).dashCards(deals) : '';
   return { title: v.title, crumbs: [[v.title]], body: tc ? html`${top}${v.body}` : v.body, mount: v.mount };
 }
 
@@ -108,7 +108,19 @@ async function admin({ api, user, deals }) {
 const GROUPS = [['Buyer Agent', "Files I'm the buyer's agent on"], ['Listing Agent', "Files I'm the listing agent on"], ['Client-Buyer', 'My purchases'], ['Client-Seller', 'My sales'], ['Outside user', 'Other files I can see']];
 // a self-represented file (client + own agent) is listed ONCE, under the client group (My purchases / My sales), with an agent badge
 const groupOf = (d) => (d.selfRep ? (d.myRoles || []).find((r) => isClient(r)) : d.myRole);
-async function outside({ deals, all }) {
+// FILE-FIRST (John, Nov 4): ONE combined "everything I need to do" list across every file this person is on (buyer's-agent AND listing-agent files,
+// client files). Each row = its file (address + file number) and their role on THAT file; clicking opens that file at that task. Which tasks exist
+// on a file still comes from the role there; what shows inside a file still follows the per-file rules (api.listMyTasks / my_task_list).
+const taskHref = (t) => `#/deals/${t.deal.id}/tasks${['form', 'sign', 'agent'].includes(t.kind) ? '/' + t.id : ''}`;
+export const myTaskList = (tasks) => { const open = tasks.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status));
+  return html`<div class="card" data-my-tasks><h3>Everything I need to do <span class="muted small" data-my-tasks-count>${open.length} task(s) on ${new Set(open.map((t) => t.deal.id)).size} file(s)</span></h3>
+    ${open.length ? html`<table class="table"><thead><tr><th>Task</th><th>File</th><th>My role on this file</th><th>Due</th></tr></thead><tbody>${open.map((t) => html`<tr data-my-task="${t.id}" data-my-task-deal="${t.deal.id}">
+      <td><a href="${taskHref(t)}" data-my-task-link>${t.title}</a> ${t.status === 'in_progress' ? pill('started', 'info') : ''}</td>
+      <td><a href="#/deals/${t.deal.id}">${t.deal.fileNumber}</a><br><span class="muted small">${t.deal.address}</span></td>
+      <td data-my-task-role>${t.myRoleLabel || ''}</td><td class="nowrap ${t.overdue ? 'warn' : ''}">${t.dueDate ? fmtDate(t.dueDate) : html`<span class="muted">-</span>`}</td></tr>`)}</tbody></table>`
+      : html`<p class="muted">Nothing needed from you right now.</p>`}</div>`; };
+async function outside({ api, deals, all }) {
+  const mine = api.listMyTasks ? await api.listMyTasks({ fileStatus: 'Open' }) : [];
   const mineOpen = (d) => all.filter((t) => t.deal.id === d.id && t.mine && ['todo', 'in_progress', 'blocked'].includes(t.status)).length;
   const sections = GROUPS.map(([role, label]) => { const list = deals.filter((d) => groupOf(d) === role); if (!list.length) return '';
     const isC = isClient(role); const shown = isC ? list.filter((d) => d.status === 'Open') : list;
@@ -117,5 +129,5 @@ async function outside({ deals, all }) {
     return html`<section class="role-group" data-group="${role}"><h3 class="group-title">${label} <span class="muted small" data-count>${list.length} file(s)${isC && shown.length !== list.length ? ` (${shown.length} open)` : ''} &middot; ${todo} task(s) for you${isAgent(role) || (forClient && list.some((d) => d.selfRep)) ? ` · ${forClient} you can complete for your client` : ''}${list.some((d) => d.selfRep) ? ` · ${list.filter((d) => d.selfRep).length} as your own agent` : ''}</span></h3>
       ${isC ? (shown.length ? clientBlocks(list, all) : html`<p class="muted">No open files.</p>`) : html`<div class="card-grid">${isAgent(role) ? agentCards(list, all, role) : list.map((d) => html`<div class="card">${dealLink(d)} <strong>${d.address}</strong></div>`)}</div>`}</section>`; });
   return { title: 'My files', body: html`<div class="page-head"><div><div class="eyebrow">MY FILES</div><h2 class="page-title">My files</h2><div class="muted">${deals.length} file(s). What you can see and do on each file depends on your role on that file.</div></div></div>
-    ${deals.length ? sections : html`<p class="muted">You are not on any files yet.</p>`}` };
+    ${deals.length ? myTaskList(mine) : ''}${deals.length ? sections : html`<p class="muted">You are not on any files yet.</p>`}` };
 }

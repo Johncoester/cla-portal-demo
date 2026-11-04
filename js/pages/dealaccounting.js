@@ -1,16 +1,18 @@
 // ACCOUNTING tab (John, Nov 3: "an accounting tab that will allow fees to be added to an ALTA and CD"). CLA staff only, behind the `accounting`
 // feature flag (app.js never loads this module when it is off). ONE fee ledger feeds the ALTA Settlement Statement and the Closing Disclosure fee
 // view. Processor / Admin / Super admin edit; Sales Person / Sales Team read only. TEST ONLY: "TEST - not a legal disclosure" on every page and print.
-import { html, raw, $, $$, guard, formData, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611041516';
-import { themeOn } from '../theme.js?v=202611041516';
-import { modOn } from '../data/modules.js?v=202611041516';
-import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611041516';
-import { prorationsView } from './dealaccounting-prorations.js?v=202611041516';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
-import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611041516'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
-import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611041516';
-import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611041516';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { html, raw, $, $$, guard, formData, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611041617';
+import { themeOn } from '../theme.js?v=202611041617';
+import { modOn } from '../data/modules.js?v=202611041617';
+import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611041617';
+import { prorationsView } from './dealaccounting-prorations.js?v=202611041617';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
+import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611041617'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
+import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611041617';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611041617';
+import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611041617';
+import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611041617';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 
-const VIEWS = [['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
+const VIEWS = [['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
 // negative amounts (the escrow aggregate adjustment) show as -$x.xx
 const m2 = (n) => (n == null || Number(n) === 0 ? '' : (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const m2z = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -22,10 +24,11 @@ export async function render({ api, deal, user }) {
   if (!(api.features || {}).accounting || !modOn('accounting')) throw new Error('That page does not exist.');   // config flag off, or not Live (beta) for this user
   if (!acctCanRead(user) || user.accountRole) throw new Error('Accounting is for CLA staff only.');
   const q = new URLSearchParams(location.hash.split('?')[1] || ''); const view = VIEWS.some(([k]) => k === q.get('v')) ? q.get('v') : q.get('calc') === '1' || q.get('retired') === '1' ? 'ledger' : 'charges';   // Qualia: Accounting opens on Charges
+  if (PAYOFF_VIEWS.includes(view) && !canReachPayoffs(user)) throw new Error('That section is not available for your account.');   // live28: same rule as the route guard
   const showRetired = q.get('retired') === '1'; const base = `#/deals/${deal.id}/accounting`;
   const acc = await api.getAccounting(deal.id, { includeRetired: showRetired });
   const T = acc.totals; const B = acc.refi ? 'Borrower' : 'Buyer / borrower';
-  const nav = qcNav(deal, view, q.get('s') || 'A', base);   // Qualia-style left nav: General · Closing › Charges A-N · Preview · CLA tools
+  const nav = qcNav(deal, view, q.get('s') || 'A', base, canReachPayoffs(user));   // live28: Payoffs / Taxes / Other Contacts links for Processors + admins only   // Qualia-style left nav: General · Closing › Charges A-N · Preview · CLA tools
   const head = html`<div class="acct-head acct-noprint"><div><p class="eyebrow">Accounting</p><h2 class="page-title">Fees, ALTA &amp; Closing Disclosure</h2>
       <p class="muted small">One fee ledger for this order. The ALTA Settlement Statement and the Closing Disclosure fee pages are built from it. Sales price, deposit and loan amount come from the order.</p></div>
     <div class="acct-head-side"><span class="pill warn" data-test-mark>${TEST_MARK}</span>${acc.canEdit ? '' : html`<span class="pill" data-acct-readonly>Read only</span>`}</div></div>`;
@@ -46,6 +49,9 @@ export async function render({ api, deal, user }) {
     ${(T.warnings || []).length ? html`<div class="notice info acct-noprint" data-acct-warnings><ul>${T.warnings.map((i) => html`<li>${i}</li>`)}</ul></div>` : ''}`;
   let v;
   if (view === 'charges') v = await chargesView(api, deal, acc, q, base);
+  else if (view === 'payoffs') v = await payoffsView(api, deal, acc, q, base, user);
+  else if (view === 'taxes') v = await taxesView(api, deal, acc, q, base);
+  else if (view === 'othercontacts') v = await otherContactsView(api, deal, acc, q, base);
   else if (view === 'payments') v = await paymentSummaryView(api, deal, acc, base);
   else if (view === 'alta') v = await altaView(api, deal, acc, q, base);
   else if (view === 'cd') v = viewerChrome(await cdPagesView(api, deal, acc, docHead, printBtn, mountPrint), base);
@@ -288,7 +294,7 @@ function uwSplit(e, uw, state) {
 const PAYM = { check: 'Check', wire: 'Wire', netFunded: 'Net Funded', aggregate: 'Aggregate', transfer: 'Transfer', holdback: 'Holdback' };
 function metaText(m) {
   const out = []; if (m.loanPct != null) out.push(`Loan Amount ${m.loanPct}%`); if (m.months != null) out.push(`${m.months} months`); if (m.perMonth != null) out.push(`${m2z(m.perMonth)} per month`);
-  if (m.recType) out.push(`recording type ${m.recType}`); if (m.perDiem) out.push(`per diem ${m.perDiem.perDiem ?? 'calculated'}${m.perDiem.rate != null ? ` @ ${m.perDiem.rate}%` : ''}${m.perDiem.from ? ` from ${m.perDiem.from}` : ''}${m.perDiem.to ? ` to ${m.perDiem.to}` : ''}`);
+  if (m.recType) out.push(`recording type ${m.recType}`); if (m.paidTo) out.push(`paid to ${m.paidTo}`); if (m.group === 'hoaGr') out.push('HOA / Condo / Ground Rent / Payoffs'); if (m.perDiem) out.push(`per diem ${m.perDiem.perDiem ?? 'calculated'}${m.perDiem.rate != null ? ` @ ${m.perDiem.rate}%` : ''}${m.perDiem.from ? ` from ${m.perDiem.from}` : ''}${m.perDiem.to ? ` to ${m.perDiem.to}` : ''}`);
   if (m.payments) out.push('payments: ' + m.payments.map((p) => `${p.payee || 'no payee'} (${PAYM[p.method] || p.method}${p.label && p.label !== 'Unclassified' ? ', ' + p.label : ''}${p.amount != null ? ', ' + m2z(p.amount) : ''})`).join('; '));
   return out.join(' · ') || '—';
 }

@@ -1,16 +1,17 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611041516';
-import { localDate } from './constants.js?v=202611041516';
-import { featureFlags } from './features.js?v=202611041516';
-import { accountingSupabase } from './supabase-accounting.js?v=202611041516';
-import { modulesSupabase } from './supabase-modules.js?v=202611041516';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611041516';
-import { automationPart } from './automation.js?v=202611041516';
-import { runsOrders as runsOrdersCI } from './constants.js?v=202611041516';
-import { fieldsForRole } from './templates.js?v=202611041516';
-import { crmSupabase } from './supabase-crm.js?v=202611041516';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611041617';
+import { localDate, fileRoleLabel } from './constants.js?v=202611041617';
+import { featureFlags } from './features.js?v=202611041617';
+import { accountingSupabase } from './supabase-accounting.js?v=202611041617';
+import { payoffsSupabase } from './supabase-payoffs.js?v=202611041617';
+import { modulesSupabase } from './supabase-modules.js?v=202611041617';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611041617';
+import { automationPart } from './automation.js?v=202611041617';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611041617';
+import { fieldsForRole } from './templates.js?v=202611041617';
+import { crmSupabase } from './supabase-crm.js?v=202611041617';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned; vendor locally before go-live
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -116,6 +117,8 @@ export async function createSupabaseAdapter(cfg) {
     async listCoordinators() { return ok(await sb.rpc('coordinator_choices')).map((r) => camel(r)); },
     async addDealSalesPerson(dealId, salesId) { ok(await sb.rpc('add_deal_sales_person', { p_deal: dealId, p_sales: salesId })); return (await a.getDeal(dealId)).salesPeople; },
     async removeDealSalesPerson(dealId, salesId) { ok(await sb.rpc('remove_deal_sales_person', { p_deal: dealId, p_sales: salesId })); return (await a.getDeal(dealId)).salesPeople; },
+    // migration 46: the Title Sales Rep card on the agent Parties grid (public work contact only: name, work phone, work email)
+    async listSalesRepContacts(dealId) { return (ok(await sb.rpc('agent_sales_rep_contacts', { p_deal: dealId })) || []).map((r) => ({ id: r.sales_id, name: r.name, phone: r.work_phone, email: r.work_email })); },
     async setDealSalesPeople(dealId, salesIds) { ok(await sb.rpc('set_deal_sales_people', { p_deal: dealId, p_sales: salesIds })); return (await a.getDeal(dealId)).salesPeople; },
     // contact type (migration 21): contact_directory() / deal_contacts() keep their shape; types come from contact_types(ids)
     async listContacts(search = '') { const cs = camel(ok(await sb.rpc('contact_directory', { p_search: search }))); const t = await types(cs.map((c) => c.id)); return cs.map((c) => ({ ...c, contactType: t.get(c.id) || null })); },
@@ -170,6 +173,8 @@ export async function createSupabaseAdapter(cfg) {
     async listDocuments(dealId) { return camel(ok(await sb.from('documents').select('*').eq('deal_id', dealId))); },
     // ---- Matt, Nov 2 (migration 16): cross-file task list + Processor / Admin task grid. task_board / task_grid are SECURITY INVOKER (RLS decides). ----
     async listAllTasks({ fileStatus = 'All' } = {}) { return boardRows(ok(await sb.rpc('task_board', { p_file_status: fileStatus }))); },
+    // FILE-FIRST combined list (John, Nov 4; migration 45): my tasks on every file I am on, each with my role on that file
+    async listMyTasks({ fileStatus = 'Open' } = {}) { return boardRows(ok(await sb.rpc('my_task_list', { p_file_status: fileStatus }))).map((t) => ({ ...t, mine: true, myRoles: t.myRoles || [], myRoleLabel: fileRoleLabel(t.myRoles || []) })); },
     async getTaskGrid({ fileStatus = 'Open' } = {}) {
       const rows = boardRows(ok(await sb.rpc('task_grid', { p_file_status: fileStatus })));   // raises for anyone but a Processor / Admin
       let q = sb.from('deals').select('id, file_number, street, city, state, zip, closing_date, status'); if (fileStatus !== 'All') q = q.eq('status', fileStatus);
@@ -212,6 +217,8 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, crmSupabase({ sb, ok, camel, me, flags: a.features }));
   // ACCOUNTING (John, Nov 3; migration 34): only when features.accounting === true (off by default everywhere) AND the database switch is on.
   Object.assign(a, accountingSupabase({ sb, ok, flags: a.features }));
+  // PAYOFFS / HOA / FFB / GROUND RENT (John, Nov 4; migration 42): same switches as accounting, staff only
+  Object.assign(a, payoffsSupabase({ sb, ok, flags: a.features, api: a }));
   // MODULE SWITCHES (John, Nov 3; migration 35): Admin-only Live switch per module; off = beta (Admins only)
   Object.assign(a, modulesSupabase({ sb, ok, me, flags: a.features }));
   Object.assign(a, callItemsSupabase({ sb, ok, me }));   // John, Nov 3 call (migration 38): underwriter splits, agent birthdate

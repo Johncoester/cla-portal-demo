@@ -10,7 +10,7 @@
  *    A.01 Loan Amount % override, F # of months, F.03 prepaid interest per-diem calculation, G $ per month x # of months, E.01 recording types;
  *  - the CD text of a line (e.g. "Prepaid Interest ($53.42 per day from 11/30/26 to 12/01/26)", "Homeowner's Insurance Premium (12 mo.)").
  * WIRE INSTRUCTIONS: bank routing / account numbers are NEVER stored (the meta has no such keys; cleanMeta and the database refuse unknown keys). */
-import { addMonths, isDate, mdy } from './prorations.js?v=202611041516';
+import { addMonths, isDate, mdy } from './prorations.js?v=202611041617';
 const fail = (m) => { throw new Error(m); };
 const c = (n) => Math.round((Number(n) || 0) * 100); const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const usd = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -73,7 +73,8 @@ export function defaultLabel(sec, line, description = '') {
 }
 const PAY_FIELDS = ['payee', 'method', 'label', 'memo', 'amount', 'street', 'unit', 'intl', 'transferOrder', 'forBenefitOf', 'releaseNote', 'releaseDate', 'aggregatePayee'];
 export const REC_TYPES = ['Deed', 'Mortgage', 'Release', 'Assignment', 'Power of Attorney', 'Other'];
-const META_KEYS = ['payments', 'loanPct', 'months', 'perDiem', 'perMonth', 'recType'];
+const META_KEYS = ['payments', 'loanPct', 'months', 'perDiem', 'perMonth', 'recType', 'paidTo', 'group'];   // paidTo + group: H "HOA / Condo / Ground Rent / Payoffs" lines (migration 42)
+export const META_GROUPS = ['hoaGr'];
 const PD_KEYS = ['from', 'to', 'perDiem', 'rate', 'daysPerYear', 'decimals', 'paidBy'];
 const amt2 = (v, label) => { const t = String(v).replace(/[$,\s]/g, ''); if (!/^\d+(\.\d{1,2})?$/.test(t) || Number(t) > 100000000) fail(`${label} must be an amount like 1,250.00.`); return r2(t); };
 // validate the per-line meta (same rules in the mock adapter, the Supabase adapter and migration 40's trigger)
@@ -102,6 +103,8 @@ export function cleanMeta(meta) {
   if (meta.loanPct != null && meta.loanPct !== '') { const t = String(meta.loanPct).replace(/[%\s]/g, ''); if (!/^\d{1,2}(\.\d{1,3})?$|^100$/.test(t)) fail('Loan Amount % must be a percentage like 1 or 1.125.'); out.loanPct = Number(t); }
   if (meta.months != null && meta.months !== '') { const t = String(meta.months).trim(); if (!/^\d{1,3}$/.test(t) || Number(t) > 360) fail('# of months must be a whole number (0-360).'); out.months = Number(t); }
   if (meta.perMonth != null && meta.perMonth !== '') out.perMonth = amt2(meta.perMonth, '$ per month');
+  if (meta.paidTo != null && meta.paidTo !== '') out.paidTo = s(meta.paidTo, 120);
+  if (meta.group != null && meta.group !== '') { if (!META_GROUPS.includes(meta.group)) fail('Unknown line group.'); out.group = meta.group; }
   if (meta.recType != null && meta.recType !== '') { if (!REC_TYPES.includes(meta.recType)) fail('Recording type: pick one from the list.'); out.recType = meta.recType; }
   if (meta.perDiem != null) {
     const p = meta.perDiem; if (typeof p !== 'object' || Array.isArray(p)) fail('Per diem: bad settings.');
@@ -165,8 +168,9 @@ export function cdText(e, deal) {
 
 // ---------------- standard payees (order contacts + the order's county / state offices + CLA + the underwriter) ----------------
 const STATE_NAME = { MD: 'Maryland', VA: 'Virginia', DC: 'the District of Columbia', FL: 'Florida', SC: 'South Carolina', DE: 'Delaware', PA: 'Pennsylvania' };
-export function standardPayees(deal) {
+export function standardPayees(deal, extra = []) {
   const out = []; const add = (name, role) => { if (name && !out.some((x) => x.name === name)) out.push({ name, role }); };
+  for (const e of extra || []) add(e.name, e.role);   // Other Contacts on the file (HOA, HOA Management Co., Utility Co., Ground Rent Leaseholder, payoff lenders)
   add(SETTLEMENT_AGENT, 'Settlement agent'); add(UNDERWRITER_PAYEE, 'Underwriter'); add('Fidelity National Title Group', 'Underwriter (aggregate payee)');
   if (deal) {
     if (deal.lenderName) add(deal.lenderName, 'Lender');

@@ -3,8 +3,8 @@
  * Modify / Submit Revision, task-tied messages, Request Update (staff answer it), Share Access (RECORDED only: no email, no login is created),
  * "Complete Requests Now" invite email (preview + outbox only), rich-text messages with file attachments (Share Files), and the outside user's own
  * Activity feed (only things they can already open). Nothing here deletes anything; documents stay permanent. */
-import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, COMMISSION_LABEL, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611041516';
-import { CLA_PHONE, isRefi } from './constants.js?v=202611041516';
+import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, COMMISSION_LABEL, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611041617';
+import { CLA_PHONE, isRefi } from './constants.js?v=202611041617';
 export function agentPortal(x) {
   const { api: root, load, save, nid, needUser, isManager, notViewOnly, dealOr404, onDeal, log, prof, nameOf, ownerOf, taskVisible, threadVisible, unreadIn, docVisible, participantsOf, isStaffView,
     notify, dealProfileIds, dealView, contactOf, clone, now, fail, str, emailOk, C } = x;
@@ -65,10 +65,20 @@ export function agentPortal(x) {
       const proc = prof(q.processorId);
       // Refinance (John, Nov 3): the borrower(s), the settlement agent and the lender only; no realtor or seller placeholders (an older refinance that still has one shows it)
       const refi = isRefi(q); const opt = (role, label) => (all(role).length ? all(role).map((p) => party(label, p)) : refi ? [] : [party(label, null)]);
+      // TITLE SALES REP (John, Nov 4): the file's CLA Title salesperson(s) from deal_sales_people (the existing link, no new field), shown to the
+      // Buyer Agent / Listing Agent only. Work contact only (name, work phone, work email); CLA staff are messageable by either side, so Message
+      // follows the usual canMessage rule. None assigned: one 'Not specified' card, like the other placeholders. Mirrored by migration 46.
+      const salesReps = () => { if (!isAgentHere(u)) return [];
+        const rows = (d.dealSalesPeople || []).filter((s) => s.dealId === dealId).map((s) => prof(s.salesId)).filter((p) => p && p.status === 'active');
+        if (!rows.length) return [{ label: 'Title Sales Rep', name: 'Not specified', company: 'CLA Title', email: '', phone: '', contactHidden: false, profileId: null, canMessage: false, salesRep: true }];
+        return rows.map((p) => ({ label: 'Title Sales Rep', name: `${p.firstName} ${p.lastName}`.trim(), company: 'CLA Title', email: p.email || '', phone: p.phone || '', contactHidden: false,
+          profileId: p.id, photo: p.photo || '', initials: `${(p.firstName || '')[0] || ''}${(p.lastName || '')[0] || ''}`.toUpperCase(), salesRep: true,
+          canMessage: p.id !== u.id && !C.viewOnly(u) && x.canMessage(u, p.id, dealId) })); };
       const parties = [...all('Client-Buyer').map((p) => party(refi ? 'Borrower' : 'Buyer', p)), ...(all('Client-Buyer').length ? [] : [party(refi ? 'Borrower' : 'Buyer', null)]),
         { label: 'Settlement Agent', name: proc ? `${proc.firstName} ${proc.lastName}` : 'Not specified', company: 'CLA Title & Escrow', email: proc ? proc.email : '', phone: proc ? proc.phone : '', contactHidden: false, profileId: proc ? proc.id : null,
           canMessage: !!(proc && proc.id !== u.id && !C.viewOnly(u)) },
         { label: 'Title Company', name: 'CLA Title & Escrow', company: '', email: '', phone: CLA_PHONE, contactHidden: false, profileId: null, canMessage: false },
+        ...salesReps(),
         ...opt('Buyer Agent', 'Buyer Agent'), ...opt('Listing Agent', 'Listing Agent'), ...(refi ? all('Lender').map((p) => party('Lender', p)) : []),
         ...all('Client-Seller').map((p) => party('Seller', p))];
       // Agency License ID: an agent sees their own (from their transaction info / commission task); staff see each agent's

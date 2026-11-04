@@ -3,7 +3,7 @@
  * public.set_module_live() changes it, and that function refuses anyone but an active Admin / Super admin. Every change is written to
  * public.module_settings_log (Admins read it); nothing is ever deleted. The config flags (features.crm / features.accounting) still decide
  * whether a module exists at all. Beta gating of data is done in the app; the existing database switches (private.features) still apply. */
-import { MODULES, ALWAYS_ON, BETA_LABEL, moduleById, moduleAvailable, canManageModules, accessMap } from './modules.js?v=202611041516';
+import { MODULES, ALWAYS_ON, BETA_LABEL, moduleById, moduleAvailable, canManageModules, accessMap } from './modules.js?v=202611041617';
 
 const fromRow = (r) => ({ module: r.module, live: r.live !== false, updatedAt: r.updated_at, updatedBy: r.updated_by });
 export function modulesSupabase({ sb, ok, me, flags }) {

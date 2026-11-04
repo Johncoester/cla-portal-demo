@@ -1,15 +1,15 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611041516';
-import { GMAIL_OFF } from '../data/automation.js?v=202611041516';
-import { occSelects, yesNo } from './occ-fields.js?v=202611041516';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611041516';
-import { slotText } from './dealclosing.js?v=202611041516';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611041516';
-import { composeModal } from './compose.js?v=202611041516';
-import { moneyShow, moneyClean } from './money-input.js?v=202611041516';
-import { themeOn } from '../theme.js?v=202611041516';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611041617';
+import { GMAIL_OFF } from '../data/automation.js?v=202611041617';
+import { occSelects, yesNo } from './occ-fields.js?v=202611041617';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611041617';
+import { slotText } from './dealclosing.js?v=202611041617';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611041617';
+import { composeModal } from './compose.js?v=202611041617';
+import { moneyShow, moneyClean } from './money-input.js?v=202611041617';
+import { themeOn } from '../theme.js?v=202611041617';
 
-const TABS = { tasks: './dealtasks.js?v=202611041516', inbox: './dealmsgs.js?v=202611041516', documents: './dealdocs.js?v=202611041516', contacts: './dealcontacts.js?v=202611041516', activity: './dealactivity.js?v=202611041516', closing: './dealclosing.js?v=202611041516', agreements: './dealagreements.js?v=202611041516', accounting: './dealaccounting.js?v=202611041516' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611041617', inbox: './dealmsgs.js?v=202611041617', documents: './dealdocs.js?v=202611041617', contacts: './dealcontacts.js?v=202611041617', activity: './dealactivity.js?v=202611041617', closing: './dealclosing.js?v=202611041617', agreements: './dealagreements.js?v=202611041617', accounting: './dealaccounting.js?v=202611041617' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -18,7 +18,7 @@ export async function render(ctx) {
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
   if (tab === 'accounting' && !(api.features || {}).accounting) throw new Error('That page does not exist.');   // John, Nov 3: switchable off for the live portal
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041516' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041617' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
@@ -31,7 +31,7 @@ export async function render(ctx) {
   return { ...v, body: html`${done.html}${cards}${extra.top}${v.body}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
 }
 async function themedSummary({ api, user }, d, ov, inv) {
-  const { orderSummary } = await import('./theme-cards.js?v=202611041516');
+  const { orderSummary } = await import('./theme-cards.js?v=202611041617');
   const staffView = !user.accountRole && user.role !== 'Outside user';
   const canWire = staffView || (user.roles || [user.role]).includes('Client-Buyer');   // SAME rule as the Wire instructions button: CLA staff + the buyer, never an agent
   const tasks = await api.listTasks(d.id).catch(() => []);
@@ -171,7 +171,8 @@ async function addPartyModal(api, d, role, refresh) {
 function agentPanels(ctx, d, ov, ur, inv) {
   const { api, user, refresh, go } = ctx; const staffView = !user.accountRole && user.role !== 'Outside user'; const od = ov.orderDetails;
   const steps = html`<ol class="phase-tracker" data-phase-tracker aria-label="Closing progress">${ov.progress.steps.map((st) => html`<li class="${st.state}" data-phase="${st.name}" data-state="${st.state}">${st.name}</li>`)}</ol>`;
-  const party = (p) => html`<div class="person" data-party="${p.label}"><span class="muted small">${p.label}</span><br><strong>${p.name}</strong>${p.company ? html`<br><span class="muted small">${p.company}</span>` : ''}
+  const avatar = (p) => (p.salesRep && p.profileId ? (p.photo ? html`<img class="party-avatar" src="${p.photo}" alt="" data-sales-photo>` : html`<span class="party-avatar" aria-hidden="true" data-sales-initials>${p.initials}</span>`) : '');
+  const party = (p) => html`<div class="person${p.salesRep ? ' sales-rep-party' : ''}" data-party="${p.label}"${p.salesRep ? html` data-sales-rep="${p.profileId || ''}"` : ''}>${avatar(p)}<span class="muted small">${p.label}</span><br><strong>${p.name}</strong>${p.company ? html`<br><span class="muted small">${p.company}</span>` : ''}
     ${p.contactHidden ? html`<br><span class="muted small contact-hidden">${HIDDEN_CONTACT}</span>` : p.email ? html`<br><span class="muted small">${p.email}</span>` : ''}
     <div>${p.canMessage ? html`<button type="button" class="ghost" data-message-to="${p.profileId}">Message</button>` : ''} ${p.phone && !p.contactHidden ? html`<a class="ghost" href="tel:${p.phone.replace(/[^0-9+]/g, '')}" data-call>Call ${fmtPhone(p.phone)}</a>` : ''}</div></div>`;
   const urRow = (r) => html`<tr data-ur="${r.id}" data-ur-status="${r.status}"><td>${fmtDate(r.createdAt)}</td><td><strong>${r.topic}</strong>${r.note ? html`<br><span class="muted small">${r.note}</span>` : ''}${staffView ? html`<br><span class="muted small">from ${r.requestedByName} (${r.requestedRole})</span>` : ''}</td>

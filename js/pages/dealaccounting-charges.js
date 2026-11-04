@@ -4,10 +4,11 @@
 // click a line -> "Settings · Line NN" + "Payments · <line>", six payment methods, help rail); colours stay ours (baby-blue cards), no Qualia branding.
 // Every line is still ONE fee on the same ledger (accounting.js), so the ALTA, the CD pages, prorations and CLA rates keep working.
 // TEST ONLY. Wire instructions (bank routing / account numbers) are NEVER stored: the Wire block is a reminder only.
-import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611041516';
-import { splitFor } from '../data/underwriter.js?v=202611041516';
-import { cdDescription } from '../data/accounting.js?v=202611041516';
-import * as Q from '../data/qualia-charges.js?v=202611041516';
+import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611041617';
+import { splitFor } from '../data/underwriter.js?v=202611041617';
+import { cdDescription } from '../data/accounting.js?v=202611041617';
+import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611041617';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
+import * as Q from '../data/qualia-charges.js?v=202611041617';
 
 const usd = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const cell$ = (n) => (n == null || Number(n) === 0 ? '' : usd(n));
@@ -18,18 +19,19 @@ const sectionHref = (base, k, line) => `${base}?v=charges&s=${k}${line ? '&l=' +
 const ALLOC = [['buyer', 'Buyer'], ['seller', 'Seller'], ['split', 'Split'], ['others', 'Paid By Others']];
 
 // ---------------- left nav (Qualia: General · Closing › Charges · Preview), plus CLA's own tools ----------------
-export function qcNav(deal, view, sec, base) {
+export function qcNav(deal, view, sec, base, showPayoffs = true) {
   const a = (href, label, on, attrs = '', chip = '') => html`<a class="qc-nav-link ${on ? 'on' : ''}" href="${href}"${raw(attrs)}>${chip ? html`<span class="qc-chip">${chip}</span>` : ''}<span>${label}</span></a>`;
   return html`<nav class="qc-nav acct-noprint" data-acct-tabs data-qc-nav aria-label="Accounting sections">
     <div class="qc-nav-group">General</div>
     ${a(`#/deals/${deal.id}/overview`, 'Basic Info', false, ' data-qc-nav-basic')}${a(`#/deals/${deal.id}/contacts`, 'Contacts', false, ' data-qc-nav-contacts')}
-    ${a(`${base}?v=prorations`, 'Taxes & Prorations', view === 'prorations', ' data-acct-tab="prorations"')}
+    ${showPayoffs ? html`${a(`${base}?v=othercontacts`, 'Other Contacts', view === 'othercontacts', ' data-acct-tab="othercontacts"')}
+    ${a(`${base}?v=taxes`, 'Taxes & Prorations', view === 'taxes', ' data-acct-tab="taxes"')}${a(`${base}?v=payoffs`, 'Payoffs', view === 'payoffs', ' data-acct-tab="payoffs"')}` : ''}
     <div class="qc-nav-group">Closing</div><div class="qc-nav-sub">Charges</div>
     ${Q.QC_SECTIONS.map(([k, chip, label]) => a(sectionHref(base, k), label, view === 'charges' && sec === k, ` data-qc-nav-sec="${k}"${k === 'A' ? ' data-acct-tab="charges"' : ''}`, chip))}
     <div class="qc-nav-group">Preview</div>
     ${a(`${base}?v=cd`, 'Closing Disclosure', view === 'cd', ' data-acct-tab="cd"')}${a(`${base}?v=alta`, 'Settlement Statement', view === 'alta', ' data-acct-tab="alta"')}
     <div class="qc-nav-group">CLA tools</div>
-    ${a(`${base}?v=cddetails`, 'CD details & escrow', view === 'cddetails', ' data-acct-tab="cddetails"')}${a(`${base}?v=ledger`, 'Fee ledger', view === 'ledger', ' data-acct-tab="ledger"')}
+    ${a(`${base}?v=prorations`, 'Prorations (CLA list)', view === 'prorations', ' data-acct-tab="prorations"')}${a(`${base}?v=cddetails`, 'CD details & escrow', view === 'cddetails', ' data-acct-tab="cddetails"')}${a(`${base}?v=ledger`, 'Fee ledger', view === 'ledger', ' data-acct-tab="ledger"')}
     ${a(`${base}?v=payments`, 'Payment summary', view === 'payments', ' data-acct-tab="payments"')}${a(`${base}?v=history`, 'Edit history', view === 'history', ' data-acct-tab="history"')}
   </nav>`;
 }
@@ -56,16 +58,16 @@ export function helpRail(sec) {
 // ---------------- the Charges page ----------------
 export async function chargesView(api, deal, acc, q, base) {
   const sec = Q.QC_KEYS.includes(q.get('s')) ? q.get('s') : 'A'; const [, chip, , title, kind] = Q.qcSection(sec);
-  const [cd, cdRec, uwRows] = await Promise.all([api.getClosingDisclosure(deal.id), api.getAccountingCd ? api.getAccountingCd(deal.id).catch(() => null) : null,
-    api.listUnderwriterSplits ? api.listUnderwriterSplits().then((r) => r.rows, () => null) : null]);
+  const [cd, cdRec, uwRows, extraPayees] = await Promise.all([api.getClosingDisclosure(deal.id), api.getAccountingCd ? api.getAccountingCd(deal.id).catch(() => null) : null,
+    api.listUnderwriterSplits ? api.listUnderwriterSplits().then((r) => r.rows, () => null) : null, api.listPayoffPayees ? api.listPayoffPayees(deal.id).catch(() => []) : []]);
   const uw = uwRows ? splitFor(uwRows, deal.state) : null; const uwSplitPct = uw && uw.pct != null ? Number(uw.pct) : null;
-  const details = (cdRec && cdRec.details) || {}; const ctx = { api, deal, acc, cd, details, base, sec, uwSplitPct, canEdit: acc.canEdit };
+  const details = (cdRec && cdRec.details) || {}; const ctx = { api, deal, acc, cd, details, base, sec, uwSplitPct, canEdit: acc.canEdit, extraPayees };
   const head = html`<div class="qc-page-head"><span class="qc-chip big">${chip}</span><h3 data-qc-title>${title}</h3><span class="spacer"></span>
     ${kind === 'fee' && acc.canEdit ? html`<div class="qc-head-btns"><button type="button" class="ghost small" disabled data-qc-extract title="Qualia reads the lender's CD with AI. Not in the test portal.">Extract From CD</button>
       <button type="button" class="ghost small" data-qc-sort>Sort Lines</button><button type="button" class="ghost small qc-sq" data-qc-minus title="Clear the selected line" aria-label="Clear the selected line">&ndash;</button><button type="button" class="ghost small qc-sq" data-qc-plus title="Add a line" aria-label="Add a line">+</button></div>` : ''}</div>`;
   const main = kind === 'fee' ? feeSection(ctx) : kind === 'credits' ? lenderCredits(ctx) : summaries(ctx, sec === 'KM' ? ['K', 'M'] : ['L', 'N']);
   const body = html`<div class="qc-wrap" data-qc-page="${sec}"><div class="qc-main">${head}${acc.canEdit ? '' : html`<p class="notice info small" data-readonly-note>Read only for your role: you can read every section; only a Processor, Admin or Super admin can change it.</p>`}${main.body}</div>${helpRail(sec)}</div>`;
-  return { body, mount: (root, c = {}) => main.mount(root, c.refresh || (() => location.reload())) };
+  return { body, mount: (root, c = {}) => { const r = c.refresh || (() => location.reload()); main.mount(root, r); if (sec === 'H') mountHoaGr(root, api, deal, acc, r); } };
 }
 
 // ---------------- fee sections A B C E F G H ----------------
@@ -100,8 +102,8 @@ function feeSection(ctx) {
     <tfoot><tr class="qc-totals" data-qc-totals><td></td><td><strong>TOTALS</strong></td>${G ? html`<td></td><td></td>` : ''}<td></td>${amtCols.map((f) => html`<td class="num" data-qc-total="${f}"><strong>${usd(T[f])}</strong></td>`)}</tr></tfoot></table></div>`;
   const titleBtns = canEdit && (sec === 'C' || sec === 'H') ? html`<div class="qc-under-btns acct-noprint"><a class="ghost small btn-like" href="${base}?v=ledger&calc=1" data-qc-edit-premium>Edit Premium Line</a>
     <button type="button" class="ghost small" data-qc-adjust>Adjust Allocations</button>${sec === 'C' ? html`<button type="button" class="ghost small" data-qc-send-b>Send Title Charges to B</button>` : ''}</div>` : '';
-  const payees = html`<datalist id="qc-payees">${Q.standardPayees(deal).map((p) => html`<option value="${p.name}">${p.role}</option>`)}</datalist>`;
-  const body = html`${banner}${table}${titleBtns}${payees}<div class="qc-panels" data-qc-panels><div data-qc-settings></div><div data-qc-payments></div></div>
+  const payees = html`<datalist id="qc-payees">${Q.standardPayees(deal, ctx.extraPayees).map((p) => html`<option value="${p.name}">${p.role}</option>`)}</datalist>`;
+  const body = html`${banner}${table}${titleBtns}${payees}${sec === 'H' ? hoaGrPanel(ctx) : ''}<div class="qc-panels" data-qc-panels><div data-qc-settings></div><div data-qc-payments></div></div>
     <p class="muted small qc-foot">Click a line to see its Settings and Payments. Type in a cell and press Enter (or leave the cell) to save: every change is logged. Lines are never deleted: Clear retires a line (kept in the edit history).</p>`;
   return { body, mount: (root, refresh) => mountFees(root, refresh, { ...ctx, rows, byLine, loan }) };
 }

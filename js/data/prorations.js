@@ -22,7 +22,16 @@ export const PRORATION_CYCLES = [['annual', 'Annual', 12], ['semiannual', 'Semi-
 export const PRORATION_BASES = [['365', '365-day year'], ['360', '360-day year (30/360)'], ['366', '366-day year'], ['installment', 'Installment (days in the payment period)']];
 export const PRORATION_STATUS = [['paid', 'Paid in advance by the seller (buyer credits the seller)'], ['unpaid', 'Unpaid / in arrears (seller credits the buyer)']];
 export const PRORATION_ITEMS = [['countyTaxes', 'County property taxes'], ['cityTaxes', 'City / town taxes'], ['hoa', 'HOA dues'], ['condo', 'Condo fees'],
-  ['water', 'Water / sewer'], ['other', 'Other']];
+  ['water', 'Water / sewer'], ['schoolTaxes', 'School taxes'], ['assessments', 'Assessments'], ['groundRent', 'Ground rent'], ['ffb', 'Front foot benefit'], ['other', 'Other']];
+// QUALIA Taxes & Prorations (Francis video, Nov 4 2026; feature/payoffs-hoa-ffb-gr). Optional keys on the proration block, all backwards compatible:
+//   debitedTo   'buyer' (default, Caroline's rule: the settlement day is the buyer's) | 'seller' (Qualia gear "PRORATION DATE DEBITED TO Seller":
+//               the proration date is the seller's, e.g. HOA 11/01-12/01, proration 11/19 -> buyer has 11 days)
+//   perDiemDp   4 = Qualia rounds the per diem to 4 decimals BEFORE multiplying (FFB $560 / 365 = $1.5342 x 72 days = $110.46)
+//   tab / name / prorateUsing / daysPerYear / taxInfo  the Qualia tab this came from and its display fields (no effect on the math)
+export const QUALIA_TABS = [['city', 'City/Town Taxes', 'tax', 'cityTaxes'], ['county', 'County Taxes', 'tax', 'countyTaxes'], ['assessments', 'Assessments', 'tax', 'assessments'],
+  ['school', 'School Taxes', 'tax', 'schoolTaxes'], ['hoa', 'HOA/Condo Fee', 'basic', 'hoa'], ['groundRent', 'Ground Rent/Annual', 'rent', 'groundRent']];
+const TAB_KEYS = /^(city|county|assessments|school|hoa|groundRent|custom-[a-z0-9]{1,12})$/;
+const short = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
 const MONTHS = Object.fromEntries(PRORATION_CYCLES.map(([k, , m]) => [k, m]));
 const fail = (m) => { throw new Error(m); };
 const iso = (dt) => dt.toISOString().slice(0, 10);
@@ -50,7 +59,20 @@ export function cleanProration(p) {
   const status = v.status === 'paid' || v.status === 'unpaid' ? v.status : fail('Pick paid in advance or unpaid (in arrears).');
   const cycleAmount = money(v.cycleAmount, 'Amount for one payment period');
   const periodStart = isDate(v.periodStart) ? v.periodStart : fail('Enter the first day of the current payment period (YYYY-MM-DD).');
-  return { item, cycle, cycleAmount, periodStart, basis, status };
+  const out = { item, cycle, cycleAmount, periodStart, basis, status };
+  if (v.debitedTo != null && v.debitedTo !== '') { if (v.debitedTo !== 'buyer' && v.debitedTo !== 'seller') fail('Proration date debited to must be Buyer or Seller.'); out.debitedTo = v.debitedTo; }
+  if (v.perDiemDp != null && v.perDiemDp !== '') { if (Number(v.perDiemDp) !== 4) fail('Per diem decimals must be 4 (Qualia) or not set.'); out.perDiemDp = 4; }
+  if (v.tab != null && v.tab !== '') { if (!TAB_KEYS.test(String(v.tab))) fail('Unknown Taxes & Prorations tab.'); out.tab = String(v.tab); }
+  if (v.name != null && v.name !== '') out.name = short(v.name, 80);
+  if (v.prorateUsing != null && v.prorateUsing !== '') { if (!['installment', 'perDiem'].includes(v.prorateUsing)) fail('Prorate using must be Installment Amount or Per Diem.'); out.prorateUsing = v.prorateUsing; }
+  if (v.daysPerYear != null && v.daysPerYear !== '') { if (!['360', '365', '366'].includes(String(v.daysPerYear))) fail('Days per year must be 360, 365 or 366.'); out.daysPerYear = String(v.daysPerYear); }
+  if (v.taxInfo != null) { const t = v.taxInfo; if (typeof t !== 'object' || Array.isArray(t)) fail('Tax info: bad fields.');
+    const ti = {}; for (const k of Object.keys(t)) if (!['annualAmount', 'parcelId', 'paidThru', 'nextDue', 'schedule'].includes(k)) fail(`Unknown tax info field: ${k}.`);
+    if (t.annualAmount != null && t.annualAmount !== '') ti.annualAmount = money(t.annualAmount, 'Annual amount');
+    for (const k of ['paidThru', 'nextDue']) if (t[k]) { if (!isDate(t[k])) fail(`${k === 'paidThru' ? 'Paid thru' : 'Next due'} must be a date (YYYY-MM-DD).`); ti[k] = t[k]; }
+    if (t.parcelId) ti.parcelId = short(t.parcelId, 40); if (t.schedule) { if (!MONTHS[t.schedule]) fail('Payment schedule must be Annual, Semi-Annual, Quarterly or Monthly.'); ti.schedule = t.schedule; }
+    if (Object.keys(ti).length) out.taxInfo = ti; }
+  return out;
 }
 // the calculation for a settlement date (YYYY-MM-DD). Throws when there is no settlement date or it is outside the payment period.
 export function computeProration(p, settlementDate) {
@@ -60,20 +82,22 @@ export function computeProration(p, settlementDate) {
   if (settlementDate < start || settlementDate > end) fail(`The settlement date ${mdy(settlementDate)} is not in the payment period ${mdy(start)} to ${mdy(end)}. Enter the period the settlement date falls in.`);
   const annual = Math.round(x.cycleAmount * perYear * 100) / 100;
   let sellerDays, buyerDays, totalDays, perDiem, basisText;
-  if (x.basis === '360') { totalDays = months * 30; sellerDays = days360(start, settlementDate); buyerDays = totalDays - sellerDays; perDiem = annual / 360; basisText = `annual ${usd(annual)} ÷ 360`; }
-  else { totalDays = actualDays(start, addDays(end, 1)); sellerDays = actualDays(start, settlementDate); buyerDays = totalDays - sellerDays;
+  const sOwn = x.debitedTo === 'seller' ? 1 : 0;   // Qualia "proration date debited to Seller": the settlement day is the seller's
+  if (x.basis === '360') { totalDays = months * 30; sellerDays = Math.min(totalDays, days360(start, settlementDate) + sOwn); buyerDays = totalDays - sellerDays; perDiem = annual / 360; basisText = `annual ${usd(annual)} ÷ 360`; }
+  else { totalDays = actualDays(start, addDays(end, 1)); sellerDays = actualDays(start, settlementDate) + sOwn; buyerDays = totalDays - sellerDays;
     if (x.basis === 'installment') { perDiem = x.cycleAmount / totalDays; basisText = `installment ${usd(x.cycleAmount)} ÷ ${totalDays} days in the period`; }
     else { perDiem = annual / Number(x.basis); basisText = `annual ${usd(annual)} ÷ ${x.basis}`; } }
+  if (x.perDiemDp === 4) perDiem = Math.round(perDiem * 10000) / 10000;
   const paid = x.status === 'paid'; const days = paid ? buyerDays : sellerDays;
   const amount = Math.round(perDiem * days * 100) / 100;
-  const sellerTo = addDays(settlementDate, -1);
+  const sellerTo = sOwn ? settlementDate : addDays(settlementDate, -1); const buyerFrom = sOwn ? addDays(settlementDate, 1) : settlementDate;
   const out = { settlementDate, periodStart: start, periodEnd: end, annual, perDiem: Math.round(perDiem * 100000) / 100000, sellerDays, buyerDays, totalDays, days, amount,
     from: paid ? 'buyer' : 'seller', to: paid ? 'seller' : 'buyer',
     // the CD shows the date range the adjustment covers: paid in advance = the buyer's days, unpaid = the seller's days
-    rangeFrom: paid ? settlementDate : start, rangeTo: paid ? end : sellerTo };
+    rangeFrom: paid ? buyerFrom : start, rangeTo: paid ? end : sellerTo, endExclusive: addDays(end, 1), debitedTo: sOwn ? 'seller' : 'buyer' };
   const cyc = PRORATION_CYCLES.find(([k]) => k === x.cycle)[1].toLowerCase();
   out.text = `${usd(x.cycleAmount)} ${cyc} (${mdy(start)} to ${mdy(end)}); per diem ${basisText} = ${usd(out.perDiem, 5)}/day. `
-    + `Seller ${sellerDays ? `${mdy(start)} to ${mdy(sellerTo)} (${sellerDays} day${sellerDays === 1 ? '' : 's'})` : 'no days'}, buyer ${mdy(settlementDate)} to ${mdy(end)} (${buyerDays} day${buyerDays === 1 ? '' : 's'}; the settlement day is charged to the buyer). `
+    + `Seller ${sellerDays ? `${mdy(start)} to ${mdy(sellerTo)} (${sellerDays} day${sellerDays === 1 ? '' : 's'})` : 'no days'}, buyer ${buyerDays ? `${mdy(buyerFrom)} to ${mdy(end)} ` : ''}(${buyerDays} day${buyerDays === 1 ? '' : 's'}; the settlement day is charged to the ${sOwn ? 'seller' : 'buyer'}). `
     + (paid ? `Paid in advance by the seller: the buyer credits the seller ${buyerDays} day${buyerDays === 1 ? '' : 's'} = ${usd(amount)}.` : `Unpaid (in arrears): the seller credits the buyer ${sellerDays} day${sellerDays === 1 ? '' : 's'} = ${usd(amount)}.`);
   return out;
 }

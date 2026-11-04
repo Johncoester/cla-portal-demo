@@ -1,7 +1,7 @@
 // FAKE DATA ONLY. Fictional people, example.test addresses, 555 phone numbers. No real clients, no credentials.
-import { TEMPLATE_DEFS, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611041516';
-import { crmZohoUpgrade } from './crm.js?v=202611041516';
-import { ensureEmailTemplates } from './crm-templates.js?v=202611041516';
+import { TEMPLATE_DEFS, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611041617';
+import { crmZohoUpgrade } from './crm.js?v=202611041617';
+import { ensureEmailTemplates } from './crm-templates.js?v=202611041617';
 export const DEAL_FOLDERS = ['Contract & addenda', 'IDs & personal', 'Lender & payoff', 'HOA', 'Closing'];
 const addDays = (iso, n) => new Date(Date.parse(iso.slice(0, 10) + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 export function buildSeed() {
@@ -12,6 +12,7 @@ export function buildSeed() {
     P('u-sp', 'Sam', 'Salesperson', 'Sales Person', 2),
     P('u-team', 'Tina', 'Salesteam', 'Sales Team', 3),
     P('u-tc', 'Terry', 'Coordinator', 'Transaction Coordinator', 4),
+    P('u-tc2', 'Morgan', 'Coordinator', 'Transaction Coordinator', 14),   // John, Nov 4: the Transaction Coordinator on Ben's file MD-26-97183 (Harbor team). A TC on a file must be a TC login, so this is a staff Morgan, not Morgan Multi-Role.
     // Outside users (agents, clients): no fixed role. What they can do on each order comes from their role ON THAT ORDER (participants below).
     P('u-bagent', 'Bianca', 'Buyer-Agent', 'Outside user', 5, { co: 'Harbor Realty (fake)' }),
     P('u-lagent', 'Larry', 'Listing-Agent', 'Outside user', 6, { co: 'Oak Street Realty (fake)' }),
@@ -33,12 +34,15 @@ export function buildSeed() {
     { id: 'c-cora', profileId: null, contactType: 'buyer_seller', firstName: 'Cora', lastName: 'Seller', email: 'cora.seller@example.test', phone: '410-555-0133', company: '', createdBy: 'u-proc', createdAt: '2026-10-01T12:00:00Z' },
     { id: 'c-lena', profileId: null, contactType: 'realtor', firstName: 'Lena', lastName: 'Listing', email: 'lena.listing@example.test', phone: '410-555-0144', company: 'Bayview Realty (fake)', createdBy: 'u-proc', createdAt: '2026-10-01T12:00:00Z' },
     { id: 'c-lender1', profileId: null, contactType: 'lender', firstName: 'Linda', lastName: 'Lender', email: 'linda.lender@example.test', phone: '410-555-0111', company: 'Example Home Loans (fake)', createdBy: 'u-proc', createdAt: '2026-09-01T12:00:00Z' },
+    { id: 'c-wbuyer', profileId: null, contactType: 'buyer_seller', firstName: 'Wendy', lastName: 'Willow-Buyer', email: 'wendy.willow-buyer@example.test', phone: '410-555-0155', company: '', createdBy: 'u-proc', createdAt: '2026-10-20T12:00:00Z' },
+    { id: 'c-wseller', profileId: null, contactType: 'buyer_seller', firstName: 'Walt', lastName: 'Willow-Seller', email: 'walt.willow-seller@example.test', phone: '410-555-0166', company: '', createdBy: 'u-proc', createdAt: '2026-10-20T12:00:00Z' },
     { id: 'c-hoa1', profileId: null, contactType: null, firstName: 'Hank', lastName: 'Hoa-Manager', email: 'hank.hoa@example.test', phone: '410-555-0122', company: 'Maple Ridge HOA (fake)', createdBy: 'u-proc', createdAt: '2026-09-01T12:00:00Z' });
   // TC access comes from TEAMS: a coordinator sees the deals of the agents on their team(s).
   const teams = [{ id: 'team-harbor', name: 'Harbor Realty team', createdBy: 'u-admin', createdAt: '2026-09-01T12:00:00Z' }, { id: 'team-oak', name: 'Oak Street team', createdBy: 'u-admin', createdAt: '2026-09-01T12:00:00Z' }];
   const teamMembers = [{ teamId: 'team-harbor', profileId: 'u-tc', memberRole: 'coordinator', addedAt: '2026-09-01T12:00:00Z' }, { teamId: 'team-harbor', profileId: 'u-bagent', memberRole: 'agent', addedAt: '2026-09-01T12:00:00Z' },
     { teamId: 'team-oak', profileId: 'u-lagent', memberRole: 'agent', addedAt: '2026-09-01T12:00:00Z' },
-    { teamId: 'team-harbor', profileId: 'u-multi', memberRole: 'agent', addedAt: '2026-09-01T12:00:00Z' }];   // TC sees Morgan's files only where she is an AGENT
+    { teamId: 'team-harbor', profileId: 'u-multi', memberRole: 'agent', addedAt: '2026-09-01T12:00:00Z' },   // TC sees Morgan's files only where she is an AGENT
+    { teamId: 'team-harbor', profileId: 'u-tc2', memberRole: 'coordinator', addedAt: '2026-11-04T12:00:00Z' }];   // Morgan Coordinator reaches Ben's file through the Harbor team (Bianca)   // TC sees Morgan's files only where she is an AGENT
   const deals = [
     { id: 'deal-1', fileNumber: 'MD-26-97183', street: '145 Main Street', city: 'Rockville', state: 'MD', zip: '20850', county: 'Montgomery', transactionType: 'Purchase', stage: 3, status: 'Open',
       openDate: '2026-09-28', closingDate: null, purchasePrice: 485000, loanAmount: 388000, emdAmount: 10000, emdDueDate: '2026-10-03', lenderName: 'Example Home Loans (fake)', lenderContact: 'Linda Lender', lenderEmail: 'linda.lender@example.test', lenderPhone: '410-555-0111',
@@ -52,11 +56,16 @@ export function buildSeed() {
     { id: 'deal-4', fileNumber: 'MD-26-97240', street: '7 Cedar Way', city: 'Silver Spring', state: 'MD', zip: '20901', county: 'Montgomery', transactionType: 'Purchase', stage: 1, status: 'Open',
       openDate: '2026-10-01', closingDate: '2026-12-10', purchasePrice: 455000, loanAmount: 364000, emdAmount: 5000, emdDueDate: '2026-11-05', lenderName: '', lenderContact: '', lenderEmail: '', lenderPhone: '',
       notes: 'Fake file. The buyer (Alex Agent-Buyer) is a licensed agent representing himself: licensee disclosure required.', processorId: 'u-proc', salesPersonId: 'u-team', createdBy: 'u-proc', createdAt: '2026-10-01T14:00:00Z' },
+    // John, Nov 4: the same two agents on OPPOSITE sides of Ben's file: here Larry is the Buyer's Agent and Bianca the Listing Agent.
+    { id: 'deal-5', fileNumber: 'MD-26-97262', street: '18 Willow Drive', city: 'Gaithersburg', state: 'MD', zip: '20878', county: 'Montgomery', transactionType: 'Purchase', stage: 1, status: 'Open',
+      openDate: '2026-10-20', closingDate: '2026-12-15', purchasePrice: 532000, loanAmount: 425600, emdAmount: 8000, emdDueDate: '2026-11-10', lenderName: '', lenderContact: '', lenderEmail: '', lenderPhone: '',
+      notes: 'Fake file. Bianca Buyer-Agent lists it and Larry Listing-Agent brings the buyer (the reverse of 145 Main Street).', processorId: 'u-proc', salesPersonId: 'u-sp', createdBy: 'u-proc', createdAt: '2026-10-20T14:00:00Z' },
   ];
   const participants = [];
   const link = (n, cid, role) => participants.push({ id: participants.some((z) => z.id === `dp-${n}-${cid.slice(2)}`) ? `dp-${n}-${cid.slice(2)}-${role.toLowerCase().replace(/[^a-z]/g, '')}` : `dp-${n}-${cid.slice(2)}`, dealId: `deal-${n}`, contactId: cid, role, createdAt: deals[n - 1].createdAt });
   [1, 2].forEach((n) => { link(n, 'c-proc', 'Processor'); link(n, 'c-sp', 'Sales Person'); link(n, 'c-team', 'Sales Team'); link(n, 'c-tc', 'Transaction Coordinator');
     link(n, 'c-bagent', 'Buyer Agent'); link(n, 'c-lagent', 'Listing Agent'); link(n, 'c-buyer', 'Client-Buyer'); link(n, 'c-seller', 'Client-Seller'); });
+  link(1, 'c-tc2', 'Transaction Coordinator');   // John, Nov 4: Morgan Coordinator is the TC on Ben's file (Terry stays on too; Bianca stays its Buyer Agent)
   link(1, 'c-lender1', 'Lender'); link(1, 'c-hoa1', 'HOA');
   link(1, 'c-multi', 'Buyer Agent');    // Morgan: co-buyer's agent with Bianca on deal 1 ...
   link(2, 'c-multi', 'Client-Buyer');   // ... and a co-buyer (her own purchase) on deal 2
@@ -64,6 +73,9 @@ export function buildSeed() {
   // deal 4: Alex is BOTH the buyer and the buyer's agent (self-represented). Seller side has no portal logins.
   link(4, 'c-proc', 'Processor'); link(4, 'c-team', 'Sales Team'); link(4, 'c-selfrep', 'Client-Buyer'); link(4, 'c-selfrep', 'Buyer Agent');
   link(4, 'c-cora', 'Client-Seller'); link(4, 'c-lena', 'Listing Agent');
+  // deal 5 (John, Nov 4): agents swap sides vs deal 1. Clients have no portal logins. Morgan Coordinator is the TC.
+  link(5, 'c-proc', 'Processor'); link(5, 'c-sp', 'Sales Person'); link(5, 'c-tc2', 'Transaction Coordinator');
+  link(5, 'c-lagent', 'Buyer Agent'); link(5, 'c-bagent', 'Listing Agent'); link(5, 'c-wbuyer', 'Client-Buyer'); link(5, 'c-wseller', 'Client-Seller');
   link(3, 'c-buyer', 'Client-Buyer'); link(3, 'c-seller', 'Client-Seller'); link(3, 'c-lender1', 'Lender');
 
   const taskTemplates = TEMPLATE_DEFS.map((t) => ({ id: `tt-${t.code}-v${t.version}`, ...JSON.parse(JSON.stringify(t)),
@@ -94,6 +106,7 @@ export function buildSeed() {
   copy(2, 'home_warranty', 2, 'Client-Seller', 'todo');
   ['id_upload', 'title_vesting', 'lender_info', 'home_warranty'].forEach((c) => copy(2, c, 1, 'Client-Buyer', 'todo', {}, 'c-multi')); copy(2, 'personal_info', 2, 'Client-Buyer', 'todo', {}, 'c-multi');
   copy(2, 'commissions', 1, 'Buyer Agent', 'todo'); copy(2, 'commissions', 1, 'Listing Agent', 'todo');
+  copy(5, 'commissions', 1, 'Buyer Agent', 'todo'); copy(5, 'commissions', 1, 'Listing Agent', 'todo');   // Nov 4: Larry (buyer's agent) / Bianca (listing agent) on Willow Drive
   adhoc('t-2-contract', 2, 'Collect executed contract', 'Processor', 'todo', '2026-10-30'); adhoc('t-2-emd', 2, 'Earnest money deposit receipt', 'Client-Buyer', 'todo', '2026-10-24', 'Upload the EMD receipt.');
   // deal 4: Alex's client copies + his agent copy, one list on one file
   ['id_upload', 'title_vesting', 'home_warranty'].forEach((c) => copy(4, c, 1, 'Client-Buyer', 'todo')); copy(4, 'personal_info', 2, 'Client-Buyer', 'todo');

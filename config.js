@@ -3,4 +3,5 @@
 // Mock mode, FAKE DATA ONLY (everything stays in the visitor's browser). No URLs, no keys, no secrets.
 // features.accounting: true turns the order Accounting tab ON for the demo only. The real live portal keeps it OFF
 // (public/config.example.js has accounting: false, and the database switch private.features 'accounting' defaults to false). See docs/ACCOUNTING.md.
-window.CLA_PORTAL_CONFIG = { mode: 'mock', features: { accounting: true } };
+// devPicker: false (John, Nov 4, live28): NO fake-user picker on the public demo; the plain URL says "Please use the link you were sent."
+window.CLA_PORTAL_CONFIG = { mode: 'mock', features: { accounting: true }, devPicker: false };

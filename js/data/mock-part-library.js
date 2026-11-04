@@ -13,7 +13,8 @@ export function libraryFolders(x) {
     async listDealFolders(dealId) {
       let u = needUser(); u = onDeal(u, dealId); const d = load();
       const docs = d.documents.filter((z) => z.dealId === dealId && docVisible(u, z));
-      return clone([...d.folders.filter((f) => f.scope === 'deal' && f.dealId === dealId).map((f) => ({ ...f, count: docs.filter((z) => z.folderId === f.id).length })),
+      // staffOnly deal folders (the Payoffs "300 Payoffs and Invoices" folders, feature/payoffs-hoa-ffb-gr) are hidden from agents and clients
+      return clone([...d.folders.filter((f) => f.scope === 'deal' && f.dealId === dealId && (!f.staffOnly || staffish(u))).map((f) => ({ ...f, count: docs.filter((z) => z.folderId === f.id).length })),
         { id: '', name: 'Unfiled', scope: 'deal', dealId, virtual: true, count: docs.filter((z) => !z.folderId).length }]);
     },
     async createFolder({ scope, dealId, name, staffOnly }) {
