@@ -1,24 +1,24 @@
 // crm.js : the CRM (John, Nov 2). Routes #/crm/<section>[/<id>]: home (default), leads, contacts (= Clients), accounts (= Companies), pipeline, reports,
 // tasks/<id>, meetings/<id>; followups (older link) shows Home. Labels follow John's Zoho (Clients / Companies); internal names stay contacts / accounts.
 // Reachable only when the `crm` feature flag is on (app.js never loads this module otherwise) and only for CLA staff (adapter refuses others).
-import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611041356';
-import { CONTACT_TYPES, contactTypeLabel, US_STATES, US_STATE_NAMES } from '../data/constants.js?v=202611041356';
-import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611041356';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin, setCrmMe } from './crm-kit.js?v=202611041356';
-import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-janine.js?v=202611041356';
-import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611041356';
-import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611041356';
-import { settingsPage } from './crm-settings.js?v=202611041356';
-import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611041356';
-import { pipelinePage, reportsPage } from './crm-more.js?v=202611041356';
-import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611041356';
-import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611041356';
-import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611041356';
-import { searchPage } from './crm-search.js?v=202611041356';
-import { dashboardsPage } from './crm-dashboards.js?v=202611041356';
-import { reportsHome } from './crm-reports.js?v=202611041356';
-import { dealsPage } from './crm-deals.js?v=202611041356';
-import { callPage, callModal } from './crm-calls.js?v=202611041356';
+import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611041516';
+import { CONTACT_TYPES, contactTypeLabel, US_STATES, US_STATE_NAMES } from '../data/constants.js?v=202611041516';
+import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611041516';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin, setCrmMe } from './crm-kit.js?v=202611041516';
+import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-janine.js?v=202611041516';
+import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611041516';
+import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611041516';
+import { settingsPage } from './crm-settings.js?v=202611041516';
+import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611041516';
+import { pipelinePage, reportsPage } from './crm-more.js?v=202611041516';
+import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611041516';
+import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611041516';
+import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611041516';
+import { searchPage } from './crm-search.js?v=202611041516';
+import { dashboardsPage } from './crm-dashboards.js?v=202611041516';
+import { reportsHome } from './crm-reports.js?v=202611041516';
+import { dealsPage } from './crm-deals.js?v=202611041516';
+import { callPage, callModal } from './crm-calls.js?v=202611041516';
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
 const archivedOpts = [['only', 'Archived only'], ['all', 'Active + archived']];

@@ -1,16 +1,17 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611041356';
-import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611041356';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611041356';
-import { canUseCrm } from './data/crm.js?v=202611041356';
-import { acctCanRead } from './data/accounting.js?v=202611041356';
-import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611041356';
-import { phaseOf } from './data/agent-portal.js?v=202611041356';
-import { formatMoneyInput } from './pages/money-input.js?v=202611041356';
-import { applyTheme, themeOn } from './theme.js?v=202611041356';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
-import { icon } from './pages/theme-cards.js?v=202611041356';
-import { canInviteAgents } from './data/agent-profile.js?v=202611041356';
-import { yourAgentHtml } from './pages/your-agent.js?v=202611041356';
+import { getAdapter } from './data/adapter.js?v=202611041516';
+import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611041516';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611041516';
+import { canUseCrm } from './data/crm.js?v=202611041516';
+import { acctCanRead } from './data/accounting.js?v=202611041516';
+import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611041516';
+import { phaseOf } from './data/agent-portal.js?v=202611041516';
+import { formatMoneyInput } from './pages/money-input.js?v=202611041516';
+import { applyTheme, themeOn } from './theme.js?v=202611041516';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
+import { icon } from './pages/theme-cards.js?v=202611041516';
+import { canInviteAgents } from './data/agent-profile.js?v=202611041516';
+import { yourAgentHtml } from './pages/your-agent.js?v=202611041516';
+import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs } from './workspace.js?v=202611041516';   // John, Nov 4: Workspace dropdown (Admin / Super admin)
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
@@ -19,27 +20,27 @@ document.addEventListener('input', (e) => { const el = e.target; if (el instance
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611041356'),
-  dashboard: () => import('./pages/dashboard.js?v=202611041356'),
-  orders: () => import('./pages/orders.js?v=202611041356'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611041356'),
-  deal: () => import('./pages/deal.js?v=202611041356'),
-  users: () => import('./pages/users.js?v=202611041356'),
-  profile: () => import('./pages/profile.js?v=202611041356'),
-  'contact-us': () => import('./pages/contact.js?v=202611041356'),
-  teams: () => import('./pages/teams.js?v=202611041356'),
-  templates: () => import('./pages/templates.js?v=202611041356'),
-  library: () => import('./pages/library.js?v=202611041356'),
-  activity: () => import('./pages/activity.js?v=202611041356'),
-  outbox: () => import('./pages/outbox.js?v=202611041356'),
-  tasks: () => import('./pages/tasks.js?v=202611041356'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611041356'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
-  schedule: () => import('./pages/schedule.js?v=202611041356'),   // public closing-time link (no sign-in needed)
-  crm: () => import('./pages/crm.js?v=202611041356'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
-  modules: () => import('./pages/modules.js?v=202611041356'),
-  'agent-invites': () => import('./pages/agent-invites.js?v=202611041356'),   // John, Nov 4: invite agents (link shown, nothing sent)
-  'agent-invite': () => import('./pages/agent-signup.js?v=202611041356'),     // the agent's one-time setup link (no sign-in)
-  underwriters: () => import('./pages/underwriters.js?v=202611041356'),   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
+  login: () => import('./pages/entry.js?v=202611041516'),
+  dashboard: () => import('./pages/dashboard.js?v=202611041516'),
+  orders: () => import('./pages/orders.js?v=202611041516'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611041516'),
+  deal: () => import('./pages/deal.js?v=202611041516'),
+  users: () => import('./pages/users.js?v=202611041516'),
+  profile: () => import('./pages/profile.js?v=202611041516'),
+  'contact-us': () => import('./pages/contact.js?v=202611041516'),
+  teams: () => import('./pages/teams.js?v=202611041516'),
+  templates: () => import('./pages/templates.js?v=202611041516'),
+  library: () => import('./pages/library.js?v=202611041516'),
+  activity: () => import('./pages/activity.js?v=202611041516'),
+  outbox: () => import('./pages/outbox.js?v=202611041516'),
+  tasks: () => import('./pages/tasks.js?v=202611041516'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611041516'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  schedule: () => import('./pages/schedule.js?v=202611041516'),   // public closing-time link (no sign-in needed)
+  crm: () => import('./pages/crm.js?v=202611041516'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  modules: () => import('./pages/modules.js?v=202611041516'),
+  'agent-invites': () => import('./pages/agent-invites.js?v=202611041516'),   // John, Nov 4: invite agents (link shown, nothing sent)
+  'agent-invite': () => import('./pages/agent-signup.js?v=202611041516'),     // the agent's one-time setup link (no sign-in)
+  underwriters: () => import('./pages/underwriters.js?v=202611041516'),   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };
@@ -67,7 +68,8 @@ export const go = (path) => { if (location.hash === '#' + path) render(); else l
 export const homeFor = () => '/dashboard';
 export const dashLabel = (u) => u.isAdmin ? 'Admin' : ({ 'Processor': 'Work Queue', 'Sales Person': 'Team Dashboard', 'Sales Team': 'Team Dashboard', 'Transaction Coordinator': 'Dashboard', 'Buyer Agent': 'Transactions', 'Listing Agent': 'Transactions', 'Client-Buyer': 'My Closing', 'Client-Seller': 'My Closing', 'Outside user': 'My Files' }[u.role]);
 
-export function navFor(u, dealId, unread, features = {}) {
+export function navFor(u, dealId, unread, features = {}, ws = 'everything') {
+  if (ws === null) return [{ id: 'home', label: 'Home', href: '#/dashboard', cls: 'orders', beta: false }];   // neutral Home: nothing picked yet
   const items = [];
   const add = (id, label, href, cls) => items.push({ id, label, href, cls });
   add('dashboard', dashLabel(u), '#/dashboard', 'orders');
@@ -82,21 +84,29 @@ export function navFor(u, dealId, unread, features = {}) {
   if (canInviteAgents(u)) add('agent-invites', 'Agent Invites', '#/agent-invites', 'contact-us');   // John, Nov 4
   if (canManageModules(u)) add('modules', 'Modules', '#/modules', 'documents');
   if (canManageModules(u)) add('underwriters', 'Underwriter Splits', '#/underwriters', 'documents');   // John, Nov 3 call (Admin / Super admin)   // John, Nov 3: the Live switches (Admin / Super admin only)
-  return items.map((n) => ({ ...n, beta: modBeta(n.id) }));
+  let out = items.map((n) => ({ ...n, beta: modBeta(n.id) }));
+  if (ws === 'everything') return out;   // Everything = exactly the full menu of before
+  if (ws === 'crm') { const i = out.findIndex((n) => n.id === 'crm'); if (i >= 0) {   // the CRM workspace spells out its main sections
+    const c = out[i].beta; const sub = [['crm-home', 'CRM Home', '#/crm', 'contact-us', c], ['crm-deals', 'Deals', '#/crm/deals', 'orders', c || modBeta('crm-deals'), 'crm-deals'],
+      ['crm-contacts', 'Clients', '#/crm/contacts', 'contact-us', c], ['crm-leads', 'Leads', '#/crm/leads', 'contact-us', c], ['crm-calls', 'Calls', '#/crm/calls', 'task', c || modBeta('calls'), 'calls'],
+      ['crm-templates', 'Email Templates', '#/crm/templates', 'documents', c]].filter((x) => !x[5] || modOn(x[5])).map(([id, label, href, cls, beta]) => ({ id, label, href, cls, beta }));
+    out.splice(i, 1, ...sub); } }
+  return out.filter((n) => navInWs(n.id, ws));
 }
 
-async function layout(u, view, route) {
+async function layout(u, view, route, ws = 'everything') {
   const api = await getAdapter(); const unread = await api.notificationCount();
   const dealId = route.page === 'deal' ? route.params.id : null; let deal = null;
   if (dealId) { try { deal = await api.getDeal(dealId); } catch (e) { deal = null; } }
   // Francis, Nov 3: a count badge on every order tab (Tasks = outstanding for you, Inbox = unread, Documents, Activity)
   let counts = null; if (deal) { try { counts = (await api.getOrderOverview(dealId)).counts; } catch (e) { counts = null; } }
   const cnt = (tab) => { if (!counts) return ''; const n = { tasks: counts.tasks, inbox: counts.inbox, documents: counts.documents, activity: counts.activity }[tab]; return n == null ? '' : html`<span class="tab-count" data-tab-count="${tab}">${n}</span>`; };
-  const cur = route.page + (route.page === 'users' && route.params.mode === 'new' ? '/new' : '');
+  const cur = route.page === 'crm' && ws === 'crm' ? ({ home: 'crm-home', deals: 'crm-deals', contacts: 'crm-contacts', leads: 'crm-leads', calls: 'crm-calls', templates: 'crm-templates' }[route.params.section] || '') : (route.page === 'dashboard' && ws === null ? 'home' : route.page + (route.page === 'users' && route.params.mode === 'new' ? '/new' : ''));
   // card theme only: an inline SVG icon + the label in a span (shown as a tooltip in the icon-only sidebar); the link text stays the same
-  const tc = themeOn(); const lbl = (id, label) => (tc ? html`${icon(id)}<span class="nav-label">${label}</span>` : label); const tip = (label, beta) => (tc || beta ? raw(` title="${esc(label)}${beta ? ` (${BETA_LABEL})` : ''}"`) : '');
+  const tc = themeOn(); const ICO = { home: 'dashboard', 'crm-home': 'crm', 'crm-deals': 'orders', 'crm-contacts': 'contacts', 'crm-leads': 'users/new', 'crm-calls': 'closing', 'crm-templates': 'templates' };   // workspace menu items reuse the card-theme icons
+  const lbl = (id, label) => (tc ? html`${icon(ICO[id] || id)}<span class="nav-label">${label}</span>` : label); const tip = (label, beta) => (tc || beta ? raw(` title="${esc(label)}${beta ? ` (${BETA_LABEL})` : ''}"`) : '');
   const betaTag = (id) => html`<span class="beta-badge" data-beta-badge="${id}" title="${BETA_LABEL}">Beta</span>`;
-  const core = navFor(u, null, 0, api.features || {}).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}"${tip(n.label, n.beta)}${n.beta ? raw(' data-beta-nav') : ''}>${lbl(n.id, n.label)}${n.beta ? betaTag(n.id) : ''}</a></li>`);
+  const core = navFor(u, null, 0, api.features || {}, ws).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}"${tip(n.label, n.beta)}${n.beta ? raw(' data-beta-nav') : ''}>${lbl(n.id, n.label)}${n.beta ? betaTag(n.id) : ''}</a></li>`);
   const t = route.params.tab; const link = (tab, label, cls, beta) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}"${tip(label, beta)}${beta ? raw(' data-beta-nav') : ''}>${lbl(tab, label)}${beta ? betaTag(tab) : ''}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : tab === 'inbox' ? '' : cnt(tab)}</a></li>`;
   const dealNav = deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${link('inbox', 'Inbox', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${link('activity', 'Activity', 'activity')}${(api.features || {}).accounting && acctCanRead(u) && modOn('accounting') ? link('accounting', 'Accounting', 'documents', modBeta('accounting')) : ''}` : '';
   const contact = isStaff(u.role) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us"${tip('Contact Us')}>${lbl('contact-us', 'Contact Us')}</a></li>`;
@@ -104,11 +114,11 @@ async function layout(u, view, route) {
   let agents = []; if (isOutside(u.role) && api.listMyAgents) { try { agents = await api.listMyAgents(deal ? { dealId: deal.id } : {}); } catch (e) { agents = []; } }
   const agentCard = yourAgentHtml(agents);
   const sidebarHead = deal ? html`<a class="logo-home-link" href="#/deals/${deal.id}"><div class="order-heading-left"><span>${deal.fileNumber}</span></div><div class="map-div"><img class="map-pin" src="assets/img/map-icon-new.png" alt=""><p>${deal.street}<br>${deal.city}, ${deal.state}, ${deal.zip}</p></div></a>` : '';
-  const topButtons = runsOrders(u) ? html`<a class="green-btn" href="#/orders/new">Place Order</a>` : '';
+  const topButtons = runsOrders(u) && (ws === 'portal' || ws === 'everything') ? html`<a class="green-btn" href="#/orders/new">Place Order</a>` : '';
   return html`
   <div class="topbar-main"><div class="topbar-inner">
-    <a class="brand" href="#${homeFor(u)}"><img src="assets/img/logo-white.png" alt="CLA Title &amp; Escrow"></a>
-    <div class="topbar-right">${crmSearchOn(u, api) ? raw(HEADER_SEARCH) : ''}${topButtons}
+    <a class="brand" href="#${homeFor(u)}"><img src="assets/img/logo-white.png" alt="CLA Title &amp; Escrow"></a>${usesWorkspaces(u) ? wsMenu(u, ws, api) : ''}
+    <div class="topbar-right">${crmSearchOn(u, api) && (ws === 'crm' || ws === 'everything') ? raw(HEADER_SEARCH) : ''}${topButtons}
       <div class="notif-wrap"><button class="bell" data-bell title="${unread} unread notification(s)" aria-label="Notifications"><img src="assets/img/bell_new.png" alt=""><span class="notification-num">${unread}</span></button>
         <div class="notif-dd" hidden><div class="notif-head"><strong>Notifications</strong><button class="linkish" data-readall>Mark all read</button></div><ul class="notif-list"><li class="muted">Loading&hellip;</li></ul></div></div>
       <div class="user-menu"><button class="user-btn" data-usermenu>${u.firstName} ${u.lastName} <span class="role-tag" data-role-tag>${isOutside(u.role) ? (deal ? `${deal.myRoleLabel || deal.myRole} on this file` : fileRolesLabel(u.fileLabels || u.fileRoles)) : roleLabel(u)}</span> &#9662;</button>
@@ -128,6 +138,21 @@ async function layout(u, view, route) {
   </div>`;
 }
 
+// WORKSPACE DROPDOWN (John, Nov 4): top bar, next to the logo. Admin / Super admin only.
+const wsChoices = (u, api) => WORKSPACES.filter((w) => w.id !== 'crm' || ((api.features || {}).crm && canUseCrm(u) && modOn('crm')));   // no CRM option when the CRM is off
+function wsMenu(u, ws, api) {
+  const w = wsById(ws); const last = lastWs(u);
+  return html`<div class="ws-wrap" data-ws-wrap><button class="ws-btn" data-ws-btn aria-haspopup="true" aria-label="Choose a workspace"><span class="ws-k">Workspace</span> <strong data-ws-current="${ws || 'none'}">${w ? w.label : 'Choose…'}</strong> &#9662;</button>
+    <div class="ws-dd" data-ws-dd hidden role="menu">${wsChoices(u, api).map((x) => html`<button class="ws-opt ${x.id === ws ? 'on' : ''}" data-ws-pick="${x.id}" role="menuitem"><span class="ws-opt-l">${x.id === ws ? raw('&#10003; ') : ''}${x.label}${x.id === last && x.id !== ws ? html` <span class="ws-chip">Last used</span>` : ''}</span><small>${x.desc}</small></button>`)}</div></div>`;
+}
+// the neutral Home after sign-in: a welcome and the choices, NO CRM or portal data (nothing is even loaded)
+function neutralHome(u, api) {
+  const last = wsById(lastWs(u));
+  return { title: 'Home', crumbs: [['Home']], body: html`<div class="ws-home" data-ws-home><div class="ws-home-head"><h2 class="page-title">Welcome, ${u.firstName}</h2>
+    <p class="muted">Pick a workspace to get started. You can switch any time from the <strong>Workspace</strong> menu at the top.</p>
+    ${last ? html`<p><button class="m-btn" data-ws-pick="${last.id}" data-ws-continue>Continue in ${last.label}</button> <span class="muted small">last used</span></p>` : ''}</div>
+    <div class="ws-prompts">${wsChoices(u, api).map((x) => html`<button class="ws-prompt" data-ws-pick="${x.id}"><strong>${x.label}</strong><span>${x.desc}</span><em>Open ${x.label} &rarr;</em></button>`)}</div></div>` };
+}
 // MODULE SWITCHES: an Admin testing a module that is not Live sees this above the page (regular users never reach the page)
 function betaBanner(route) {
   const id = routeModule(route); if (!id || !modBeta(id)) return '';
@@ -153,15 +178,20 @@ export async function render() {
   if (!u && !PUBLIC.has(route.page)) { if (route.page === 'deal') sessionStorage.setItem('cla-portal-new:return', location.hash); location.hash = '#/login'; return; }   // invite deep link: back to the order after sign-in
   if (u && route.page === 'login') { location.hash = '#' + homeFor(u); return; }
   let mods = {}; if (u && api.getModuleAccess) { try { mods = await api.getModuleAccess(); } catch (e) { mods = {}; } } setModuleMap(mods);   // module switches for this user
+  let ws = u ? currentWs(u) : 'everything';
+  if (u && usesWorkspaces(u)) { const rw = routeWs(route);   // deep link: auto-switch to that link's workspace
+    if (rw && ws !== 'everything' && ws !== rw) { setWs(u, rw); ws = rw; }
+    if (route.page === 'dashboard' && ws && ws !== 'portal' && ws !== 'everything') { location.hash = '#' + wsById(ws).home; return; }
+    if (route.page === 'dashboard' && ws === null) { const v = neutralHome(u, api); if (my !== rendering) return; root.innerHTML = toText(await layout(u, v, route, ws)); wireChrome(u); document.title = 'Home | CLA Title & Escrow Portal'; return; } }
   const modId = u ? routeModule(route) : null;
   const loader = (FLAGGED[route.page] && !(api.features || {})[FLAGGED[route.page]]) || (route.page === 'deal' && route.params.tab === 'accounting' && !(api.features || {}).accounting) || (modId && !modOn(modId)) ? null : pages[route.page];   // a module that is not Live (beta): Page not found for everyone but Admins   // Accounting tab: Page not found when the flag is off
-  if (!loader) { root.innerHTML = toText(await layout(u, { body: html`<div class="box-title"><h2>Page not found</h2></div><p>That page does not exist.</p>` }, route)); wireChrome(u); return; }
+  if (!loader) { root.innerHTML = toText(await layout(u, { body: html`<div class="box-title"><h2>Page not found</h2></div><p>That page does not exist.</p>` }, route, ws)); wireChrome(u); return; }
   const mod = await loader(); let view;
   try { view = await mod.render({ api, user: u, params: route.params, refresh: render, go }); }
   catch (e) { view = { crumbs: [['Not available']], body: html`<div class="box-title"><h2>Not available</h2></div><p class="err-text">${e.message}</p><p><a class="back-btn" href="#${homeFor(u)}">Back</a></p>` }; }
   if (my !== rendering) return;
   if (PUBLIC.has(route.page)) { root.innerHTML = toText(view.body); }
-  else { let shell; try { shell = await layout(u, view, route); } catch (e) { if (/sign in/i.test(e.message || '')) { location.hash = '#/login'; return; } throw e; }   // session ended mid-render
+  else { let shell; try { shell = await layout(u, view, route, ws); } catch (e) { if (/sign in/i.test(e.message || '')) { location.hash = '#/login'; return; } throw e; }   // session ended mid-render
     if (my !== rendering) return; root.innerHTML = toText(shell); wireChrome(u); }
   document.title = (view.title ? view.title + ' | ' : '') + 'CLA Title & Escrow Portal';
   if (view.mount) view.mount($('#view') || root, { api, user: u, refresh: render, go });
@@ -170,13 +200,18 @@ export async function render() {
 const HEADER_SEARCH = `<div class="crm-global-search" data-global-search-wrap style="position:relative;display:inline-block;margin-right:10px"><input type="search" data-global-search placeholder="Search CRM (name, email, phone)" aria-label="Search the CRM" autocomplete="off" maxlength="100"><div data-global-search-dd hidden style="position:absolute;right:0;top:100%;z-index:50;background:#fff;color:#222;min-width:420px;max-height:70vh;overflow:auto;border:1px solid #ccc;padding:6px;text-align:left"></div></div>`;
 const crmSearchOn = (u, api) => !!(u && (api.features || {}).crm && canUseCrm(u) && modOn('crm'));
 function wireChrome(u) {
-  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611041356').then((m) => m.wireHeaderSearch(api)); });
+  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611041516').then((m) => m.wireHeaderSearch(api)); });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');
   if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; });
   document.addEventListener('click', () => { if (dd) dd.hidden = true; }, { once: true });
-  wireBell();
-  const so = $('[data-signout]'); if (so) so.addEventListener('click', async (e) => { e.preventDefault(); const api = await getAdapter(); await api.signOut(); location.hash = '#/login'; });
+  wireBell(); wireWs(u);
+  const so = $('[data-signout]'); if (so) so.addEventListener('click', async (e) => { e.preventDefault(); const api = await getAdapter(); clearSessionWs(); await api.signOut(); location.hash = '#/login'; });
   const rs = $('[data-reset]'); if (rs) rs.addEventListener('click', async (e) => { e.preventDefault(); if (!confirm('Reset all demo data back to the 4 fake deals?')) return; const api = await getAdapter(); await api.resetDemoData(); toast('Demo data reset'); render(); });
+}
+function wireWs(u) {
+  const b = $('[data-ws-btn]'); const dd = $('[data-ws-dd]');
+  if (b && dd) { b.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; }); document.addEventListener('click', () => { dd.hidden = true; }, { once: true }); }
+  $$('[data-ws-pick]').forEach((el) => el.addEventListener('click', (e) => { e.preventDefault(); const id = el.dataset.wsPick; setWs(u, id); go(wsById(id).home); }));
 }
 function wireBell() {
   const b = $('[data-bell]'); const dd = $('.notif-dd'); if (!b) return;

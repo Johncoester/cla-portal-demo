@@ -2,10 +2,10 @@
  * Picklists (add / rename / reorder / retire), custom fields (add / edit / reorder / delete = archive, restore), built-in fields (hide, un-require).
  * Nothing here ever deletes a value stored on a record. Mirrored by migration 25 (crm_picklist_options, crm_custom_fields, crm_field_settings). */
 import { PICKLIST_KEYS, picklistDef, optionsOf, addOption, renameOption, retireOption, moveOption, cleanLabel, FIELD_TYPE_CODES, CF_ENTITY_CODES, SECTIONS_FOR, MAX_FIELDS,
-  PERSON_FIELDS, ACCOUNT_FIELDS, PROTECTED_FIELDS, BUILTIN_SCOPES, isLocked, cleanCustomValue, isBlankValue } from './crm-config.js?v=202611041356';
+  PERSON_FIELDS, ACCOUNT_FIELDS, PROTECTED_FIELDS, BUILTIN_SCOPES, isLocked, cleanCustomValue, isBlankValue } from './crm-config.js?v=202611041516';
 import { OPTION_TYPES, COMPUTED_TYPES, CHAR_TYPES, UNIQUE_TYPES, ENCRYPT_TYPES, LOOKUP_TARGETS, ROLLUP_RELATED, ROLLUP_FNS, TOOLTIP_MAX, cleanPerms, fieldCan, parseFormula, checkFormulaRefs,
-  sectionsOf, NUMBER_CF, DEFAULT_TYPES } from './crm-fields.js?v=202611041356';
-import { moduleFields } from './crm-analytics.js?v=202611041356';
+  sectionsOf, NUMBER_CF, DEFAULT_TYPES } from './crm-fields.js?v=202611041516';
+import { moduleFields } from './crm-analytics.js?v=202611041516';
 
 export function crmSettingsPart(x, h) {
   const { save, now, fail, str, clone, nameOf, nid } = x;

@@ -1,9 +1,10 @@
-import { raw, $, guard, options } from '../ui.js?v=202611041356';
-import { roleLabel, fileRolesLabel, isOutside } from '../data/constants.js?v=202611041356';
+import { raw, $, guard, options } from '../ui.js?v=202611041516';
+import { roleLabel, fileRolesLabel, isOutside } from '../data/constants.js?v=202611041516';
+import { clearSessionWs } from '../workspace.js?v=202611041516';
 
 export async function render({ api, go }) {
   const users = await api.listDevUsers();
-  const tpl = await (await fetch('partials/entry.html?v=202611041356')).text();
+  const tpl = await (await fetch('partials/entry.html?v=202611041516')).text();
   const opts = options(users, '', (x) => `${x.firstName} ${x.lastName} \u2014 ${isOutside(x.role) ? `Outside user: ${fileRolesLabel(x.fileLabels || x.fileRoles)}` : roleLabel(x)}`, (x) => x.id);
   const body = raw(tpl.replace('</select>', opts.toString() + '</select>'));
   return { title: 'Welcome', body, mount: (root) => wire(root, api, go) };
@@ -14,7 +15,7 @@ function wire(root, api, go) {
     e.preventDefault();
     const who = new FormData(e.target).get('who');
     if (!who) throw new Error('Choose a sample person first.');
-    await api.pickPerson(who);
+    await api.pickPerson(who); clearSessionWs();   // John, Nov 4: every new sign-in lands on the neutral Home first
     // invite deep link ("Complete Requests Now"): go back to the order page that was asked for, if any
     const back = sessionStorage.getItem('cla-portal-new:return'); sessionStorage.removeItem('cla-portal-new:return');
     go(back && /^#\/deals\/[\w-]+(\/[\w-]+)?$/.test(back) ? back.slice(1) : '/dashboard');
