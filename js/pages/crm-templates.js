@@ -5,11 +5,11 @@
 //   #/crm/signature              my email signature (${User Signature})
 // Plus composeModal(): "Compose email from template" on a lead / client / company / opportunity. NOTHING IS SENT anywhere; Send Test Email is
 // shown but cannot send until Gmail is connected; Stats (Opened / Bounced / Clicked) wait for Gmail too. Function first, minimal styling.
-import { html, raw, $, $$, guard, toast, modal, closeModal, pill, fmtDateTime, fmtSize } from '../ui.js?v=202611031817';
-import { TEMPLATE_MODULES, moduleLabel, GALLERY_TABS, GALLERY, starterBlocks, VIEW_FOLDERS, templatesInView, GMAIL_NOTE, STATS_NOTE, templateHtml, textToHtml, ATTACH_EXT, isPersonalFolder } from '../data/crm-templates.js?v=202611031817';
-import { tabs, head } from './crm-kit.js?v=202611031817';
-import { richEditor, wireInputPicker, insertIntoInput, openPicker, copyText, readFile } from './crm-rte.js?v=202611031817';
-import { builder } from './crm-builder.js?v=202611031817';
+import { html, raw, $, $$, guard, toast, modal, closeModal, pill, fmtDateTime, fmtSize } from '../ui.js?v=202611031910';
+import { TEMPLATE_MODULES, moduleLabel, GALLERY_TABS, GALLERY, starterBlocks, VIEW_FOLDERS, templatesInView, GMAIL_NOTE, STATS_NOTE, templateHtml, textToHtml, ATTACH_EXT, isPersonalFolder } from '../data/crm-templates.js?v=202611031910';
+import { tabs, head } from './crm-kit.js?v=202611031910';
+import { richEditor, wireInputPicker, insertIntoInput, openPicker, copyText, readFile } from './crm-rte.js?v=202611031910';
+import { builder } from './crm-builder.js?v=202611031910';
 
 const q = () => new URLSearchParams(location.hash.split('?')[1] || '');
 const crumbs = (extra) => [['CRM', '#/crm'], ['Templates', '#/crm/templates'], ...(extra ? [[extra]] : [])];

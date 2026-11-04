@@ -1,12 +1,13 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611031817';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611031817';
-import { slotText } from './dealclosing.js?v=202611031817';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611031817';
-import { composeModal } from './compose.js?v=202611031817';
-import { moneyShow, moneyClean } from './money-input.js?v=202611031817';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611031910';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611031910';
+import { slotText } from './dealclosing.js?v=202611031910';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611031910';
+import { composeModal } from './compose.js?v=202611031910';
+import { moneyShow, moneyClean } from './money-input.js?v=202611031910';
+import { themeOn } from '../theme.js?v=202611031910';
 
-const TABS = { tasks: './dealtasks.js?v=202611031817', inbox: './dealmsgs.js?v=202611031817', documents: './dealdocs.js?v=202611031817', contacts: './dealcontacts.js?v=202611031817', activity: './dealactivity.js?v=202611031817', closing: './dealclosing.js?v=202611031817', agreements: './dealagreements.js?v=202611031817' };
+const TABS = { tasks: './dealtasks.js?v=202611031910', inbox: './dealmsgs.js?v=202611031910', documents: './dealdocs.js?v=202611031910', contacts: './dealcontacts.js?v=202611031910', activity: './dealactivity.js?v=202611031910', closing: './dealclosing.js?v=202611031910', agreements: './dealagreements.js?v=202611031910' };
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -14,7 +15,7 @@ export async function render(ctx) {
   // per-file roles: on this order an outside user acts as their role HERE (deal.myRole), e.g. Buyer Agent here, Client-Buyer elsewhere
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611031817' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611031910' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
@@ -22,7 +23,16 @@ export async function render(ctx) {
   // Request Update / Share Access (agents) and, for staff, the update requests to answer + shared access + the portal invite email
   const ov = await ctx.api.getOrderOverview(deal.id); const ur = await ctx.api.listUpdateRequests(deal.id); const inv = await ctx.api.listSharedAccess(deal.id);
   const v = overview(ctx, deal, here, ag, salesStaff); const extra = agentPanels(ctx, deal, ov, ur, inv); const done = placedPanel(deal);
-  return { ...v, body: html`${done.html}${extra.top}${v.body}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
+  // CARD THEME MOCKUP (opt-in): the Order Summary cards go on top; the existing overview follows unchanged under "Order details"
+  const cards = themeOn() ? await themedSummary(ctx, deal, ov, inv) : '';
+  return { ...v, body: html`${done.html}${cards}${extra.top}${v.body}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
+}
+async function themedSummary({ api, user }, d, ov, inv) {
+  const { orderSummary } = await import('./theme-cards.js?v=202611031910');
+  const staffView = !user.accountRole && user.role !== 'Outside user';
+  const canWire = staffView || (user.roles || [user.role]).includes('Client-Buyer');   // SAME rule as the Wire instructions button: CLA staff + the buyer, never an agent
+  const tasks = await api.listTasks(d.id).catch(() => []);
+  return orderSummary({ d, user, ov, inv, tasks, canWire, staffView });
 }
 
 // REDESIGN (John, Nov 3): the confirmation after Place Order. ordernew.js leaves a note in sessionStorage (key below) and opens the new order; the

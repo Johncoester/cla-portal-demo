@@ -3,11 +3,11 @@
 // "Mark as Completed" -> Complete (Call Duration MM minutes SS seconds, above zero), call detail page #/crm/calls/<id>.
 // Reminders are RECORDED ONLY (shown in the portal; nothing is ever sent). The voice recording stays in this browser (nothing uploads anywhere).
 // Function first, minimal styling. Every rule is checked again by the adapter (and migration 33 in SQL).
-import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611031817';
-import { relatedLists, localStamp, entityLabel } from '../data/crm.js?v=202611031817';
-import { CALL_TYPE_CHOICES, CALL_REMINDERS, CALL_TO_TYPES, RELATED_TO_TYPES, CALL_TIME_MSG, CALL_ZERO_MSG, VOICE_EXT, durationText, durationWords, reminderLabel, defaultCallSubject } from '../data/crm-calls.js?v=202611031817';
-import { optSel, lbl } from './crm-custom.js?v=202611031817';
-import { ownerSel, tabs, head } from './crm-kit.js?v=202611031817';
+import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611031910';
+import { relatedLists, localStamp, entityLabel } from '../data/crm.js?v=202611031910';
+import { CALL_TYPE_CHOICES, CALL_REMINDERS, CALL_TO_TYPES, RELATED_TO_TYPES, CALL_TIME_MSG, CALL_ZERO_MSG, VOICE_EXT, durationText, durationWords, reminderLabel, defaultCallSubject } from '../data/crm-calls.js?v=202611031910';
+import { optSel, lbl } from './crm-custom.js?v=202611031910';
+import { ownerSel, tabs, head } from './crm-kit.js?v=202611031910';
 
 const v0 = (v) => (v == null ? '' : v);
 const when = (s) => (!s ? '' : s.length > 10 ? `${fmtDate(s.slice(0, 10))} ${s.slice(11, 16)}` : fmtDate(s));

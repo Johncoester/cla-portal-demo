@@ -1,11 +1,14 @@
 // Role dashboards: Processor = Work Queue; Sales Person / Sales Team = Team Dashboard (view-only);
 // Transaction Coordinator = Dashboard; Buyer/Listing Agent = Transactions; clients = My Closing.
-import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js?v=202611031817';
-import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611031817';
-import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611031817';
+import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js?v=202611031910';
+import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611031910';
+import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611031910';
+import { themeOn } from '../theme.js?v=202611031910';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>${d.fileTitle ? html` <span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}`;
-const stat = (label, value, sub, cls = '') => html`<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value ${cls}">${value}</div><div class="stat-sub">${sub}</div></div>`;
+// CARD THEME (default look): a tile that repeats one of the four dashboard cards (open orders = "in Pipeline" count, overdue tasks) is not drawn;
+// the tiles with figures the cards do not show stay. With ?theme=default every tile is drawn as before.
+const stat = (label, value, sub, cls = '', dup = false) => (dup && themeOn() ? '' : html`<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value ${cls}">${value}</div><div class="stat-sub">${sub}</div></div>`);
 const bar = (d) => html`<div class="progress" title="${d.stageName}"><div style="width:${Math.round(((d.stage + 1) / STAGES.length) * 100)}%"></div></div>`;
 
 export async function render(ctx) {
@@ -16,7 +19,10 @@ export async function render(ctx) {
   const open = deals.filter((d) => d.status === 'Open'); const today = localDate();
   const pick = user.isAdmin ? admin : runsOrders(user) ? processor : user.role === 'Transaction Coordinator' ? coordinator : isAgent(user.role) ? agent : isClient(user.role) ? client : isOutside(user.role) ? outside : team;
   const v = await pick({ ...ctx, deals, open, all, today });
-  return { title: v.title, crumbs: [[v.title]], body: v.body, mount: v.mount };
+  // CARD THEME MOCKUP (opt-in): four clickable summary cards above the CLA team dashboards (computed from the orders this person can see)
+  const tc = themeOn() && (user.isAdmin || runsOrders(user) || ['Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(user.role));
+  const top = tc ? (await import('./theme-cards.js?v=202611031910')).dashCards(deals) : '';
+  return { title: v.title, crumbs: [[v.title]], body: tc ? html`${top}${v.body}` : v.body, mount: v.mount };
 }
 
 async function processor({ api, open, deals, today }) {
@@ -29,8 +35,8 @@ async function processor({ api, open, deals, today }) {
   return { title: 'Work queue', body: html`
     <div class="page-head"><div><div class="eyebrow">PROCESSOR</div><h2 class="page-title">Work queue</h2><div class="muted">${wq.assigned} open &middot; ${wq.totalAssigned} total assigned</div></div>
       <div><button class="ghost" id="remind">Queue reminders for overdue tasks</button> <a class="ghost" href="#/outbox">Outbox</a> <a class="m-btn" href="#/orders/new">+ New order</a></div></div>
-    <div class="stat-row">${stat('Open orders', wq.assigned, wq.totalAssigned + ' total')}${stat('Waiting on clients', wq.blockedOnClients, 'client tasks open', 'warn')}
-      ${stat('Overdue tasks', wq.overdueTasks, 'past due date', wq.overdueTasks ? 'bad' : '')}${stat('Unread messages', wq.unreadMessages, 'across open orders')}</div>
+    <div class="stat-row">${stat('Open orders', wq.assigned, wq.totalAssigned + ' total', '', true)}${stat('Waiting on clients', wq.blockedOnClients, 'client tasks open', 'warn')}
+      ${stat('Overdue tasks', wq.overdueTasks, 'past due date', wq.overdueTasks ? 'bad' : '', true)}${stat('Unread messages', wq.unreadMessages, 'across open orders')}</div>
     <div class="two-col"><div class="card"><h3>Needs attention</h3>
       ${rows.length ? html`<table class="tbl"><thead><tr><th>Order</th><th>Property</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : html`<p class="muted">Nothing needs attention.</p>`}</div>
       <div class="card"><h3>Closing in the next 3 weeks</h3>${soon.length ? html`<ul class="plain">${soon}</ul>` : html`<p class="muted">No closings scheduled soon.</p>`}</div></div>
@@ -45,8 +51,8 @@ async function team({ user, open, all, deals, today }) {
   const rows = open.map((d) => html`<tr><td>${dealLink(d)}</td><td>${d.address}</td><td>${d.processorName}</td><td>${d.stageName}</td><td>${fmtDate(d.closingDate)}</td><td>${d.openTasks}</td></tr>`);
   return { title: 'Team dashboard', body: html`
     <div class="page-head"><div><div class="eyebrow">CLA TEAM &middot; ${user.role.toUpperCase()}</div><h2 class="page-title">Team dashboard</h2><div class="muted">View-only. Your processor updates files and tasks.</div></div></div>
-    <div class="stat-row">${stat('Open files', open.length, 'right now')}${stat('Closed', deals.filter((d) => d.status === 'Closed').length, 'all time')}
-      ${stat('Overdue tasks', overdue, 'on open files', overdue ? 'bad' : '')}${stat('Closing in 21 days', open.filter((d) => d.closingDate && d.closingDate >= today && d.closingDate <= localDate(21)).length, 'files')}</div>
+    <div class="stat-row">${stat('Open files', open.length, 'right now', '', true)}${stat('Closed', deals.filter((d) => d.status === 'Closed').length, 'all time')}
+      ${stat('Overdue tasks', overdue, 'on open files', overdue ? 'bad' : '', true)}${stat('Closing in 21 days', open.filter((d) => d.closingDate && d.closingDate >= today && d.closingDate <= localDate(21)).length, 'files')}</div>
     <div class="card"><h3>Open files</h3><table class="tbl"><thead><tr><th>Order</th><th>Property</th><th>Processor</th><th>Stage</th><th>Closing</th><th>Open tasks</th></tr></thead><tbody>${rows}</tbody></table></div>` };
 }
 
@@ -56,7 +62,7 @@ async function coordinator({ user, open, all, today }) {
   const files = open.map((d) => html`<tr><td>${dealLink(d)}</td><td>${d.address}</td><td>${d.stageName}</td><td>${fmtDate(d.closingDate)}</td><td>${d.unread ? pill(d.unread + ' new', 'info') : ''}</td></tr>`);
   return { title: 'Dashboard', body: html`
     <div class="page-head"><div><div class="eyebrow">TRANSACTION COORDINATOR</div><h2 class="page-title">Coordination board</h2></div></div>
-    <div class="stat-row">${stat('My open tasks', mine.length, 'assigned to coordinators')}${stat('Files', open.length, 'open')}${stat('Unread messages', open.reduce((n, d) => n + d.unread, 0), 'in my threads')}</div>
+    <div class="stat-row">${stat('My open tasks', mine.length, 'assigned to coordinators')}${stat('Files', open.length, 'open', '', true)}${stat('Unread messages', open.reduce((n, d) => n + d.unread, 0), 'in my threads')}</div>
     <div class="two-col"><div class="card"><h3>My tasks</h3>${rows.length ? html`<table class="tbl"><thead><tr><th>Task</th><th>Order</th><th>Due</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>` : html`<p class="muted">You're all caught up.</p>`}</div>
       <div class="card"><h3>My files</h3><table class="tbl"><thead><tr><th>Order</th><th>Property</th><th>Stage</th><th>Closing</th><th></th></tr></thead><tbody>${files}</tbody></table></div></div>` };
 }

@@ -1,12 +1,12 @@
 // crm-home.js : CRM Home (Zoho Classic View: task list widget, Today's Leads, Amount by Stage) and the Task / Meeting detail pages (John, Nov 2).
 // Function first, minimal styling. Reminders show in the portal only; nothing is emailed; meetings are never sent as invitations.
-import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611031817';
-import { localDate } from '../data/constants.js?v=202611031817';
-import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY } from '../data/crm.js?v=202611031817';
-import { tabs, head } from './crm-kit.js?v=202611031817';
-import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611031817';
-import { optionsOf, optLabel } from '../data/crm-config.js?v=202611031817';
-import { lbl } from './crm-custom.js?v=202611031817';
+import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611031910';
+import { localDate } from '../data/constants.js?v=202611031910';
+import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY } from '../data/crm.js?v=202611031910';
+import { tabs, head } from './crm-kit.js?v=202611031910';
+import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611031910';
+import { optionsOf, optLabel } from '../data/crm-config.js?v=202611031910';
+import { lbl } from './crm-custom.js?v=202611031910';
 const subj = (cfg, s) => optLabel(cfg, 'taskSubject', s, { mark: false });   // Task Subject is free text; a subject that is a list option shows its current name
 const orderOf = (cfg) => ({ priority: optionsOf(cfg, 'taskPriority').map((o) => o.value), status: optionsOf(cfg, 'taskStatus').map((o) => o.value) });
 

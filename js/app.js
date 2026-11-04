@@ -1,10 +1,12 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611031817';
-import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611031817';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611031817';
-import { canUseCrm } from './data/crm.js?v=202611031817';
-import { phaseOf } from './data/agent-portal.js?v=202611031817';
-import { formatMoneyInput } from './pages/money-input.js?v=202611031817';
+import { getAdapter } from './data/adapter.js?v=202611031910';
+import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611031910';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611031910';
+import { canUseCrm } from './data/crm.js?v=202611031910';
+import { phaseOf } from './data/agent-portal.js?v=202611031910';
+import { formatMoneyInput } from './pages/money-input.js?v=202611031910';
+import { applyTheme, themeOn } from './theme.js?v=202611031910';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
+import { icon } from './pages/theme-cards.js?v=202611031910';
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
@@ -13,23 +15,23 @@ document.addEventListener('input', (e) => { const el = e.target; if (el instance
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611031817'),
-  dashboard: () => import('./pages/dashboard.js?v=202611031817'),
-  orders: () => import('./pages/orders.js?v=202611031817'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611031817'),
-  deal: () => import('./pages/deal.js?v=202611031817'),
-  users: () => import('./pages/users.js?v=202611031817'),
-  profile: () => import('./pages/profile.js?v=202611031817'),
-  'contact-us': () => import('./pages/contact.js?v=202611031817'),
-  teams: () => import('./pages/teams.js?v=202611031817'),
-  templates: () => import('./pages/templates.js?v=202611031817'),
-  library: () => import('./pages/library.js?v=202611031817'),
-  activity: () => import('./pages/activity.js?v=202611031817'),
-  outbox: () => import('./pages/outbox.js?v=202611031817'),
-  tasks: () => import('./pages/tasks.js?v=202611031817'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611031817'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
-  schedule: () => import('./pages/schedule.js?v=202611031817'),   // public closing-time link (no sign-in needed)
-  crm: () => import('./pages/crm.js?v=202611031817'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  login: () => import('./pages/entry.js?v=202611031910'),
+  dashboard: () => import('./pages/dashboard.js?v=202611031910'),
+  orders: () => import('./pages/orders.js?v=202611031910'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611031910'),
+  deal: () => import('./pages/deal.js?v=202611031910'),
+  users: () => import('./pages/users.js?v=202611031910'),
+  profile: () => import('./pages/profile.js?v=202611031910'),
+  'contact-us': () => import('./pages/contact.js?v=202611031910'),
+  teams: () => import('./pages/teams.js?v=202611031910'),
+  templates: () => import('./pages/templates.js?v=202611031910'),
+  library: () => import('./pages/library.js?v=202611031910'),
+  activity: () => import('./pages/activity.js?v=202611031910'),
+  outbox: () => import('./pages/outbox.js?v=202611031910'),
+  tasks: () => import('./pages/tasks.js?v=202611031910'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611031910'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  schedule: () => import('./pages/schedule.js?v=202611031910'),   // public closing-time link (no sign-in needed)
+  crm: () => import('./pages/crm.js?v=202611031910'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };
@@ -72,10 +74,12 @@ async function layout(u, view, route) {
   let counts = null; if (deal) { try { counts = (await api.getOrderOverview(dealId)).counts; } catch (e) { counts = null; } }
   const cnt = (tab) => { if (!counts) return ''; const n = { tasks: counts.tasks, inbox: counts.inbox, documents: counts.documents, activity: counts.activity }[tab]; return n == null ? '' : html`<span class="tab-count" data-tab-count="${tab}">${n}</span>`; };
   const cur = route.page + (route.page === 'users' && route.params.mode === 'new' ? '/new' : '');
-  const core = navFor(u, null, 0, api.features || {}).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}">${n.label}</a></li>`);
-  const t = route.params.tab; const link = (tab, label, cls) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}">${label}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : tab === 'inbox' ? '' : cnt(tab)}</a></li>`;
+  // card theme only: an inline SVG icon + the label in a span (shown as a tooltip in the icon-only sidebar); the link text stays the same
+  const tc = themeOn(); const lbl = (id, label) => (tc ? html`${icon(id)}<span class="nav-label">${label}</span>` : label); const tip = (label) => (tc ? raw(` title="${esc(label)}"`) : '');
+  const core = navFor(u, null, 0, api.features || {}).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}"${tip(n.label)}>${lbl(n.id, n.label)}</a></li>`);
+  const t = route.params.tab; const link = (tab, label, cls) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}"${tip(label)}>${lbl(tab, label)}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : tab === 'inbox' ? '' : cnt(tab)}</a></li>`;
   const dealNav = deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${link('inbox', 'Inbox', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${link('activity', 'Activity', 'activity')}` : '';
-  const contact = isStaff(u.role) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us">Contact Us</a></li>`;
+  const contact = isStaff(u.role) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us"${tip('Contact Us')}>${lbl('contact-us', 'Contact Us')}</a></li>`;
   const sidebarHead = deal ? html`<a class="logo-home-link" href="#/deals/${deal.id}"><div class="order-heading-left"><span>${deal.fileNumber}</span></div><div class="map-div"><img class="map-pin" src="assets/img/map-icon-new.png" alt=""><p>${deal.street}<br>${deal.city}, ${deal.state}, ${deal.zip}</p></div></a>` : '';
   const topButtons = runsOrders(u) ? html`<a class="green-btn" href="#/orders/new">Place Order</a>` : '';
   return html`
@@ -113,7 +117,7 @@ function orderHeader(deal) {
 
 let rendering = 0;
 export async function render() {
-  const my = ++rendering; const root = $('#app'); const api = await getAdapter(); const route = parse(); closeModal();
+  const my = ++rendering; applyTheme(); const root = $('#app'); const api = await getAdapter(); const route = parse(); closeModal();
   let u = await api.getSession();
   if (!u && !PUBLIC.has(route.page)) { if (route.page === 'deal') sessionStorage.setItem('cla-portal-new:return', location.hash); location.hash = '#/login'; return; }   // invite deep link: back to the order after sign-in
   if (u && route.page === 'login') { location.hash = '#' + homeFor(u); return; }
@@ -133,7 +137,7 @@ export async function render() {
 const HEADER_SEARCH = `<div class="crm-global-search" data-global-search-wrap style="position:relative;display:inline-block;margin-right:10px"><input type="search" data-global-search placeholder="Search CRM (name, email, phone)" aria-label="Search the CRM" autocomplete="off" maxlength="100"><div data-global-search-dd hidden style="position:absolute;right:0;top:100%;z-index:50;background:#fff;color:#222;min-width:420px;max-height:70vh;overflow:auto;border:1px solid #ccc;padding:6px;text-align:left"></div></div>`;
 const crmSearchOn = (u, api) => !!(u && (api.features || {}).crm && canUseCrm(u));
 function wireChrome(u) {
-  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611031817').then((m) => m.wireHeaderSearch(api)); });
+  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611031910').then((m) => m.wireHeaderSearch(api)); });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');
   if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; });
   document.addEventListener('click', () => { if (dd) dd.hidden = true; }, { once: true });
