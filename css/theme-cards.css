@@ -12,7 +12,7 @@ body.theme-cards {
   --tc-sky: var(--tc-baby); --tc-sky-2: var(--tc-baby-hover); --tc-blue: var(--tc-baby-ink); --tc-blue-ink: var(--tc-baby-ink-2); --tc-card: #f5f5f5; --tc-card-2: #efefef; --tc-white: #fff;
   --tc-title: #767676; --tc-label: #6f6f6f; --tc-value: #4a4a4a; --tc-line: #d9d9d9; --tc-icon: #8f8f8f; --tc-side: #f6f6f6;
   --tc-font: 'Roboto', 'Segoe UI', 'Helvetica Neue', Arial, system-ui, sans-serif;
-  --topbar-h: 56px; --sidebar-w: 64px;
+  --topbar-h: 56px; --sidebar-w: 236px;
   /* the redesign's navy scale, remapped to baby blue so every existing page (CRM, Place Order, tasks, portals) picks it up */
   --navy-950: var(--tc-on-baby); --navy-900: #123a5c; --navy-800: var(--tc-baby-ink-2); --navy-700: var(--tc-baby-ink); --navy-600: var(--tc-baby-ink); --navy-500: var(--tc-baby);
   --navy-200: var(--tc-baby-line); --navy-100: var(--tc-baby-soft); --navy-50: #f3fafe; --info: var(--tc-baby-ink-2); --info-bg: var(--tc-baby-soft); --info-line: var(--tc-baby-line);
@@ -36,19 +36,19 @@ body.theme-cards .role-tag { background: rgba(255,255,255,.55) !important; color
 body.theme-cards .crm-global-search input { background: rgba(255,255,255,.7) !important; border-color: rgba(11,42,69,.18) !important; border-radius: 3px !important; color: var(--tc-on-baby) !important; }
 body.theme-cards .crm-global-search input::placeholder { color: #3d5a73 !important; }
 
-/* ---------- icon-only sidebar ---------- */
+/* ---------- labelled sidebar (John, Nov 4 call: no more icon-only; every item shows its text next to its icon) ---------- */
 body.theme-cards .wrapper-main { background: linear-gradient(to right, var(--tc-side) var(--sidebar-w), transparent var(--sidebar-w)); }
-body.theme-cards .left-bar { width: var(--sidebar-w); background: var(--tc-side); border-right: 0; padding: 18px 0 24px; overflow-x: hidden; }
+body.theme-cards .left-bar { width: var(--sidebar-w); background: var(--tc-side); border-right: 0; padding: 0 12px 24px; overflow-x: hidden; }
 body.theme-cards .left-bar .logo { display: none; }   /* the file card: the order page shows the address in its title instead */
-body.theme-cards .main-nav .nav-pills { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-body.theme-cards .nav-link { width: 44px; height: 44px; padding: 0; margin: 0; justify-content: center; background-image: none !important; color: var(--tc-icon); border-radius: 6px; }
-body.theme-cards .nav-link .tc-ico { width: 23px; height: 23px; flex: none; }
+body.theme-cards .main-nav .nav-pills { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+body.theme-cards .nav-link { width: auto; min-height: 40px; padding: 0 10px; margin: 0; gap: 10px; justify-content: flex-start; position: relative; font-size: 14px; background-image: none !important; color: var(--tc-icon); border-radius: 6px; }
+body.theme-cards .nav-link .tc-ico { width: 20px; height: 20px; flex: none; }
 body.theme-cards .nav-link:hover { color: var(--tc-blue); background-color: #fff; }
 body.theme-cards .nav-link.active { color: var(--tc-blue); background-color: #fff; font-weight: 400; box-shadow: 0 0 0 1px #ececec; }
 body.theme-cards .nav-link.active::before { left: -10px; top: 10px; bottom: 10px; width: 3px; background: var(--tc-blue); }
-body.theme-cards .nav-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }   /* kept for screen readers; title = tooltip */
-body.theme-cards .nav-sep { width: 28px; height: 0; padding: 0; margin: 10px 0; border-top: 1px solid var(--tc-line); font-size: 0; color: transparent; overflow: hidden; }
-body.theme-cards .tab-count, body.theme-cards .nav-badge { position: absolute; top: 5px; right: 4px; margin: 0; min-width: 15px; height: 15px; padding: 0 4px; line-height: 15px; font-size: 9.5px; font-weight: 500; border-radius: 8px; background: #e2e2e2; color: #777; text-align: center; }
+body.theme-cards .nav-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.theme-cards .nav-sep { padding: 12px 10px 4px; margin: 6px 0 0; border-top: 1px solid var(--tc-line); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--tc-icon); }
+body.theme-cards .tab-count, body.theme-cards .nav-badge { position: static; margin: 0 0 0 auto; min-width: 15px; height: 15px; padding: 0 4px; line-height: 15px; font-size: 9.5px; font-weight: 500; border-radius: 8px; background: #e2e2e2; color: #777; text-align: center; }
 body.theme-cards .nav-badge { background: var(--tc-blue); color: #fff; }
 body.theme-cards .nav-link.active .tab-count { background: #d6eef9; color: var(--tc-blue-ink); }
 
@@ -139,8 +139,8 @@ body.theme-cards #view:has(> [data-tc-dash-row]) > * { order: 2; } body.theme-ca
   body.theme-cards .wrapper-main { background: none; }
   body.theme-cards .left-bar { position: static; width: 100%; padding: 6px 12px; background: var(--tc-side); }
   body.theme-cards .main-nav .nav-pills { flex-direction: row; flex-wrap: wrap; justify-content: flex-start; gap: 2px; }
-  body.theme-cards .nav-link { width: 40px; height: 40px; } body.theme-cards .nav-link.active::before { display: none; }
-  body.theme-cards .nav-sep { width: 0; height: 24px; margin: 8px 6px; border-top: 0; border-left: 1px solid var(--tc-line); }
+  body.theme-cards .nav-link { width: auto; min-height: 36px; } body.theme-cards .nav-link.active::before { display: none; }
+  body.theme-cards .nav-sep { width: 100%; padding: 8px 4px 2px; }
   body.theme-cards .right-bar { margin-left: 0; padding: 22px 18px 56px; } body.theme-cards .footer-bar { margin-left: 0; }
   body.theme-cards .page-title, body.theme-cards .tc-page-title { font-size: 30px; }
 }

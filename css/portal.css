@@ -669,3 +669,22 @@ details.po-card > summary { cursor: pointer; list-style: none; display: flex; al
   .hr-filter-grid, .hr-form .form-grid { grid-template-columns: 1fr; } .hr-form .form-grid .span2 { grid-column: auto; } .hr-dl-row { grid-template-columns: 1fr; gap: 2px; }
   .hr-tb-right { margin-left: 0; } .hr-prof-actions { margin-left: 0; } .hr-quick-dd, .hr-more-dd { right: auto; left: 0; }
 }
+
+/* ---------- SIDEBAR SEARCH + PINNED ORDER NAV (John, Nov 4 call; js/sidebar-search.js) ---------- */
+.ss-pin { position: sticky; top: 0; z-index: 5; background: inherit; padding: 12px 0 10px; margin-bottom: 8px; border-bottom: 1px solid var(--line); }
+body.theme-cards .ss-pin { background: var(--tc-side); }
+.ss-wrap { position: relative; } .ss-input { width: 100%; box-sizing: border-box; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; background: #fff; }
+.ss-pin-main .ss-input { padding: 10px 10px; font-size: 14px; border-width: 2px; }
+.ss-dd { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 60; list-style: none; margin: 0; padding: 4px; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); max-height: 60vh; overflow: auto; min-width: 260px; }
+.ss-dd li { padding: 7px 9px; border-radius: 6px; cursor: pointer; font-size: 13px; line-height: 1.35; } .ss-dd li.on, .ss-dd li[data-ss-pick]:hover { background: #eaf6fc; } .ss-fn { color: var(--ink-3); font-size: 12px; }
+.ss-row { display: flex; gap: 6px; margin-top: 8px; align-items: center; } .ss-switch { flex: 1; min-width: 0; padding: 7px 6px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; background: #fff; }
+.ss-open { white-space: nowrap; font-size: 13px; font-weight: 600; padding: 7px 8px; border-radius: 8px; text-decoration: none; color: var(--navy-700); border: 1px solid var(--line); background: #fff; }
+.ss-home { margin: 0 0 18px; max-width: 760px; } .ss-home-l { display: block; font-size: 13px; color: var(--ink-3); margin-bottom: 6px; } .ss-home .ss-input { padding: 14px 16px; font-size: 18px; border-width: 2px; border-radius: 10px; }
+.nav-more details > summary { cursor: pointer; list-style: none; padding: 10px; font-size: 14px; font-weight: 600; color: var(--ink-2); border-radius: 6px; } .nav-more details > summary::before { content: '\25B8  '; } .nav-more details[open] > summary::before { content: '\25BE  '; }
+.nav-more details > summary:hover { background: #fff; } .nav-more details > ul { display: flex; flex-direction: column; gap: 4px; padding: 0; margin: 0; list-style: none; }
+@media (max-width: 860px) {
+  /* mobile: the sidebar is the block above the page; the search is first and the order block stays stuck under the top bar */
+  .left-bar, body.theme-cards .left-bar { display: contents; } .main-nav { background: var(--tc-side, var(--surface)); padding: 4px 12px; border-bottom: 1px solid var(--line); }
+  .left-bar .logo { background: var(--surface); padding: 0 12px; } .ss-pin, body.theme-cards .ss-pin { top: var(--topbar-h); padding: 10px 12px; margin: 0; background: var(--tc-side, var(--surface)); z-index: 15; }
+  .nav-more details > ul { flex-direction: row; flex-wrap: wrap; }
+}
