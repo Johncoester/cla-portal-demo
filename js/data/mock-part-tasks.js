@@ -1,7 +1,7 @@
 /* mock adapter: tasks. Templates (versioned definitions) are separate from each participant's task COPY; a copy records templateId + templateVersion.
  * Intake forms: save partial work, validate, mark complete. Reminders are QUEUED in an outbox only and never sent. Tasks are cancelled, never deleted. */
-import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611041617';
-import { maskAccount } from './constants.js?v=202611041617';
+import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611041755';
+import { maskAccount } from './constants.js?v=202611041755';
 export function tasksAndForms(x) {
   const { load, save, nid, needUser, needAdmin, isManager, dealOr404, onDeal, fileRole, fileRoles, holds, dealsFor, log, prof, nameOf, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, dateOrNull, localDate, localDayOf, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];

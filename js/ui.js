@@ -1,9 +1,19 @@
 // ui.js : tiny helpers. Every value interpolated through html`` is HTML-escaped unless wrapped in raw().
 // (The old portal's stored-XSS findings came from unescaped echoes; escaping is the default here.)
-class Safe { constructor(s) { this.s = s; } toString() { return this.s; } }
+// HOTFIX live28 (Nov 4): "already safe HTML" is recognised by a GLOBAL brand (Symbol.for), not by `instanceof Safe`. GitHub Pages' CDN ignores the
+// ?v= query when caching, so right after a publish an edge can serve an old copy of one page module (importing ui.js?v=<old>) next to a new app.js
+// (importing ui.js?v=<new>). That loads ui.js twice = two different Safe classes, and the page's whole body failed `instanceof` and was escaped into
+// visible text ('<section class="modules-page" ...'). A Symbol.for key is shared by every copy of this module and can never come from JSON / stored
+// data (JSON has no symbols), so user input still cannot mark itself as safe.
+const SAFE = Symbol.for('cla-portal.safe-html');
+class Safe { constructor(s) { this.s = s; Object.defineProperty(this, SAFE, { value: true }); } toString() { return this.s; } }
+// LEGACY: a Safe built by an OLDER copy of ui.js (before this brand; e.g. a stale CDN copy during the next publish) is a real class instance named Safe.
+// JSON / localStorage can only make plain objects (Object.prototype), so this cannot be forged from stored data either.
+const legacySafe = (v) => { const p = Object.getPrototypeOf(v); return !!p && p !== Object.prototype && p.constructor && p.constructor.name === 'Safe' && Object.keys(v).length === 1 && typeof v.s === 'string'; };
+export const isSafe = (v) => !!v && typeof v === 'object' && typeof v.s === 'string' && (v[SAFE] === true || legacySafe(v));
 export const raw = (s) => new Safe(String(s));
 export const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const part = (v) => (v instanceof Safe ? v.s : Array.isArray(v) ? v.map(part).join('') : esc(v));
+const part = (v) => (isSafe(v) ? v.s : Array.isArray(v) ? v.map(part).join('') : esc(v));
 export const html = (strings, ...vals) => new Safe(strings.reduce((out, s, i) => out + s + (i < vals.length ? part(vals[i]) : ''), ''));
 export const toText = (v) => part(v);
 

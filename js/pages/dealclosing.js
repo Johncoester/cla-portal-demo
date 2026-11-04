@@ -1,7 +1,7 @@
 // Closing Date tab: the processor sends time options; each side answers through its own link; the processor confirms; a request can be reopened.
 // Links are shown here to copy. Nothing is emailed from this build.
-import { html, $, $$, guard, formData, modal, closeModal, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611041617';
-import { runsOrders, viewOnly, isProcessor, isClient, sideOf, isViewOnly, CLOSING_LOCATIONS } from '../data/constants.js?v=202611041617';
+import { html, $, $$, guard, formData, modal, closeModal, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611041755';
+import { runsOrders, viewOnly, isProcessor, isClient, sideOf, isViewOnly, CLOSING_LOCATIONS } from '../data/constants.js?v=202611041755';
 export const slotText = (s) => new Date(s).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 const STATUS = { open: ['waiting for answers', 'info'], confirmed: ['confirmed', 'ok'] };
 
