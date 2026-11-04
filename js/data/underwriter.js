@@ -1,7 +1,7 @@
 // UNDERWRITER SPLITS (John, Nov 3 call): per-state underwriter share of the title premium; CLA keeps the rest.
 // MD 15% (Francis's Qualia video: 85% CLA / 15% Fidelity), FL 30%, SC 40%; VA and DC blank until an Admin sets them.
 // Admin / Super admin only edit (every change logged, never deleted). Shown on the Accounting tab's title premium lines. FAKE data only.
-import { acctCanRead } from './accounting.js?v=202611041817';
+import { acctCanRead } from './accounting.js?v=202611041824';
 export const DEFAULT_UNDERWRITER = 'Fidelity National Title';
 export const DEFAULT_SPLITS = [['MD', 15], ['FL', 30], ['SC', 40], ['VA', null], ['DC', null]].map(([state, pct]) => ({ state, pct, underwriter: DEFAULT_UNDERWRITER }));
 export const UNSET_NOTE = 'Not set yet: an Admin sets it on the Underwriter splits page. Until then no split is shown for this state.';

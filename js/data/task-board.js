@@ -3,7 +3,7 @@
  *   filterTasks / sortTasks / groupTasks : the cross-file task list (Tasks page, Work Queue "incomplete tasks by Buyer / Seller / Agent")
  *   filterDeals / sortDeals              : the order list (Open Orders) filters + sort
  *   buildTaskGrid                        : Processor / Admin grid, file numbers across (columns), tasks down (rows) */
-import { isAgent } from './constants.js?v=202611041817';
+import { isAgent } from './constants.js?v=202611041824';
 
 export const OPEN_STATUSES = ['todo', 'in_progress', 'blocked'];
 export const isOpenTask = (t) => OPEN_STATUSES.includes(t.status);
@@ -50,6 +50,11 @@ export function sortTasks(tasks, key = 'dueDate', dir = 'asc') {
   const missingLast = (a, b) => { const x = get(a, key); const y = get(b, key); if (!x && !y) return 0; if (!x) return 1; if (!y) return -1; return cmp(a, b, key) * s; };
   return [...tasks].sort((a, b) => missingLast(a, b) || cmp(a, b, 'dueDate') || cmp(a, b, 'fileNumber') || cmp(a, b, 'title'));
 }
+// File Tasks tab (John, Nov 4): one box per side. Same side logic as the Tasks page (groupOfRole on the task's typed assigned_role field),
+// with the agent group split by WHICH agent (Buyer Agent vs Listing Agent). Every task lands in exactly one box (Other = CLA staff, lender, anything else).
+export const FILE_TASK_BOXES = [['buyer', 'Buyer tasks'], ['seller', 'Seller tasks'], ['buyer-agent', "Buyer's Agent tasks"], ['listing-agent', "Listing (Seller's) Agent tasks"], ['other', 'Other / File tasks']];
+export const boxOfRole = (role) => { const g = groupOfRole(role); return g === 'agent' ? (role === 'Buyer Agent' ? 'buyer-agent' : 'listing-agent') : g === 'staff' ? 'other' : g; };
+export const boxTasks = (tasks) => FILE_TASK_BOXES.map(([key, label]) => ({ key, label, tasks: tasks.filter((t) => boxOfRole(t.assignedRole) === key) }));
 // [{ key, label, tasks }] in Buyer, Seller, Agent, Staff order; empty groups kept (so the screen can say "none")
 export const groupTasks = (tasks, groups = TASK_GROUPS) => groups.map(([key, label]) => ({ key, label, tasks: tasks.filter((t) => groupOfRole(t.assignedRole) === key) }));
 

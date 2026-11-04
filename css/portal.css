@@ -688,3 +688,15 @@ body.theme-cards .ss-pin { background: var(--tc-side); }
   .left-bar .logo { background: var(--surface); padding: 0 12px; } .ss-pin, body.theme-cards .ss-pin { top: var(--topbar-h); padding: 10px 12px; margin: 0; background: var(--tc-side, var(--surface)); z-index: 15; }
   .nav-more details > ul { flex-direction: row; flex-wrap: wrap; }
 }
+
+/* ---------- FILE TASKS TAB: one box per side (John, Nov 4 2026). Soft tints, dark ink labels (all >= 7:1 on their tint). ---------- */
+.side-box { border: 1px solid var(--sb-line); background: var(--sb-bg); border-radius: 10px; padding: 0 14px 12px; margin: 0 0 16px; }
+.side-box > summary { cursor: pointer; padding: 10px 0; font-weight: 600; list-style-position: inside; }
+.side-box .side-tag { display: inline-block; padding: 2px 10px; border-radius: 12px; background: var(--sb-tag); color: var(--sb-ink); font-size: 14px; }
+.side-box .side-count { color: var(--sb-ink); }
+.side-box .tbl { background: #fff; } .side-scroll { overflow-x: auto; }
+.side-buyer { --sb-bg: #eef8fd; --sb-line: #bfe6f8; --sb-tag: #cdeefb; --sb-ink: #0b2a45; }
+.side-seller { --sb-bg: #f2f7ee; --sb-line: #cfe3c2; --sb-tag: #dcefd0; --sb-ink: #1f3d12; }
+.side-buyer-agent { --sb-bg: #f3f1fb; --sb-line: #d5cdf0; --sb-tag: #e2dcf7; --sb-ink: #2e2160; }
+.side-listing-agent { --sb-bg: #fdf5ec; --sb-line: #f0d6b8; --sb-tag: #f8e3cc; --sb-ink: #4a2a07; }
+.side-other { --sb-bg: #f5f6f7; --sb-line: #d6dadf; --sb-tag: #e4e7ea; --sb-ink: #22292f; }

@@ -3,7 +3,7 @@
  * RLS (HR admins read every employee, an employee reads only their own row), column grants (an employee UPDATEs only phone / address /
  * emergency contact), a guard trigger (HR fields only by an HR manager or Super admin; an HR manager never changes their own HR fields),
  * security-definer RPCs for HR writes, and history triggers. NOTHING IS SENT: invites return a one-time link. No SSNs / government IDs. */
-import { HR_INVITE_DAYS, COLUMN_OF, FIELD_LABEL, SELF_FIELDS, HR_FIELDS, basicOf, fullNameOf, nextEmployeeCode, cleanEmployee, cleanSelfPatch, employeesCsv, historyCsv, csvStamp } from './hr.js?v=202611041817';
+import { HR_INVITE_DAYS, COLUMN_OF, FIELD_LABEL, SELF_FIELDS, HR_FIELDS, basicOf, fullNameOf, nextEmployeeCode, cleanEmployee, cleanSelfPatch, employeesCsv, historyCsv, csvStamp } from './hr.js?v=202611041824';
 
 const FIELD_OF = Object.fromEntries(Object.entries(COLUMN_OF).map(([k, c]) => [c, k]));
 const EMP_COLS = 'id,employee_code,profile_id,first_name,last_name,email,department_id,designation_id,job_title,reporting_to,date_of_joining,work_location,employment_type,employment_status,country,work_phone,phone,'

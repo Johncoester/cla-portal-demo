@@ -13,8 +13,8 @@
  *   { id, label, version, loadTables(): Promise<raw tabs> }   raw tabs = { CLA_Fees: [[header...], [row...]], Recording_Fees: [...], ... }
  *   vendoredRateSource          the built-in snapshot above (the only one used today)
  *   calculatorSupabaseRateSource NOT CONNECTED: a placeholder showing where a reader of the calculator's tables would plug in. It refuses. */
-import * as C from './vendor/cla-calculator/calc-core.js?v=202611041817';
-import { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden } from './accounting.js?v=202611041817';
+import * as C from './vendor/cla-calculator/calc-core.js?v=202611041824';
+import { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden } from './accounting.js?v=202611041824';
 export { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden };
 
 export const CALC_SOURCE = { repo: 'github.com/Johncoester/cla-closing-cost-calculator', commit: '69568a9', snapshot: '2026-11-02', files: 'index.html (calc code), fee-snapshot.js (rate tables)' };
