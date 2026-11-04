@@ -1,6 +1,6 @@
 // Agreements tab (Matt, Oct 31): agents and clients acknowledge the Wire Fraud Warning, privacy notice and e-consent, each for themselves.
 // CLA staff see who acknowledged what, and when. The wording is SAMPLE text until CLA supplies the final versions.
-import { html, $$, guard, fmtDateTime, pill, toast } from '../ui.js?v=202611031910';
+import { html, $$, guard, fmtDateTime, pill, toast } from '../ui.js?v=202611031946';
 
 export async function render({ api, deal, refresh }) {
   const r = await api.listAgreements(deal.id);

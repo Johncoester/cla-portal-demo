@@ -2,9 +2,9 @@
 // with ?theme=default nothing here is rendered and the pages look as before. FAKE DATA ONLY. Inline SVG icons (no CDN, no icon font).
 // Figures that the portal does not store yet (title search / commitment, cash to close, wire status, payoffs, loan type, rate) are MOCKUP
 // SAMPLES derived from the fake order (sampleFacts below); every one of them carries a visible "sample" tag (SAMPLE) on the page.
-import { html, raw, fmtDate, fmtMoney } from '../ui.js?v=202611031910';
-import { STAGES, isRefi, localDate } from '../data/constants.js?v=202611031910';
-import { phaseOf, PHASES } from '../data/agent-portal.js?v=202611031910';
+import { html, raw, fmtDate, fmtMoney } from '../ui.js?v=202611031946';
+import { STAGES, isRefi, localDate } from '../data/constants.js?v=202611031946';
+import { phaseOf, PHASES } from '../data/agent-portal.js?v=202611031946';
 
 // ---------- icons: 24x24, thin 1.5 stroke, currentColor ----------
 const P = {
@@ -26,6 +26,7 @@ const P = {
   closing: '<rect x="3.5" y="5.5" width="17" height="15" rx="1.5"/><path d="M3.5 10h17M8 3.5v4M16 3.5v4"/><path d="M9.5 15l1.8 1.8 3.4-3.4"/>',
   contacts: '<rect x="5" y="3.5" width="14.5" height="17" rx="1.5"/><circle cx="12.2" cy="10" r="2.5"/><path d="M8.5 16.5c.6-1.9 2-2.9 3.7-2.9s3.1 1 3.7 2.9M3.5 7.5h3M3.5 12h3M3.5 16.5h3"/>',
   agreements: '<path d="M6 3.5h8l4.5 4.5v12.5H6z"/><path d="M14 3.5V8h4.5"/><path d="M8.5 16.5c1.2-1.8 2.2-2.6 3-2.4.9.3-.3 2.2.6 2.4.7.1 1.3-1 2-1.1.6 0 .8.7 1.9.7"/>',
+  accounting: '<rect x="5" y="3.5" width="14" height="17" rx="1.5"/><rect x="7.5" y="6" width="9" height="3.5" rx=".5"/><path d="M8.5 13h.01M12 13h.01M15.5 13h.01M8.5 16.5h.01M12 16.5h.01M15.5 16.5h.01"/>',   // Accounting tab (calculator)
   'contact-us': '<path d="M6.5 3.5h3l1.5 4-2 1.3a10 10 0 005.2 5.2l1.3-2 4 1.5v3a1.5 1.5 0 01-1.6 1.5C10.4 17.6 6.4 13.6 5 6.1a1.5 1.5 0 011.5-2.6z"/>',
   bell: '<path d="M6 16.5V11a6 6 0 0112 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 004 0"/>',
   lock: '<rect x="5.5" y="10.5" width="13" height="10" rx="1.5"/><path d="M8.5 10.5V7.5a3.5 3.5 0 017 0v3"/><circle cx="12" cy="15.5" r="1.2"/>',

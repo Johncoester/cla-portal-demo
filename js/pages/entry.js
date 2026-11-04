@@ -1,9 +1,9 @@
-import { raw, $, guard, options } from '../ui.js?v=202611031910';
-import { roleLabel, fileRolesLabel, isOutside } from '../data/constants.js?v=202611031910';
+import { raw, $, guard, options } from '../ui.js?v=202611031946';
+import { roleLabel, fileRolesLabel, isOutside } from '../data/constants.js?v=202611031946';
 
 export async function render({ api, go }) {
   const users = await api.listDevUsers();
-  const tpl = await (await fetch('partials/entry.html?v=202611031910')).text();
+  const tpl = await (await fetch('partials/entry.html?v=202611031946')).text();
   const opts = options(users, '', (x) => `${x.firstName} ${x.lastName} \u2014 ${isOutside(x.role) ? `Outside user: ${fileRolesLabel(x.fileLabels || x.fileRoles)}` : roleLabel(x)}`, (x) => x.id);
   const body = raw(tpl.replace('</select>', opts.toString() + '</select>'));
   return { title: 'Welcome', body, mount: (root) => wire(root, api, go) };

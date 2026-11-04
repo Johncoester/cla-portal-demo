@@ -1,13 +1,13 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611031910';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611031910';
-import { slotText } from './dealclosing.js?v=202611031910';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611031910';
-import { composeModal } from './compose.js?v=202611031910';
-import { moneyShow, moneyClean } from './money-input.js?v=202611031910';
-import { themeOn } from '../theme.js?v=202611031910';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611031946';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611031946';
+import { slotText } from './dealclosing.js?v=202611031946';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611031946';
+import { composeModal } from './compose.js?v=202611031946';
+import { moneyShow, moneyClean } from './money-input.js?v=202611031946';
+import { themeOn } from '../theme.js?v=202611031946';
 
-const TABS = { tasks: './dealtasks.js?v=202611031910', inbox: './dealmsgs.js?v=202611031910', documents: './dealdocs.js?v=202611031910', contacts: './dealcontacts.js?v=202611031910', activity: './dealactivity.js?v=202611031910', closing: './dealclosing.js?v=202611031910', agreements: './dealagreements.js?v=202611031910' };
+const TABS = { tasks: './dealtasks.js?v=202611031946', inbox: './dealmsgs.js?v=202611031946', documents: './dealdocs.js?v=202611031946', contacts: './dealcontacts.js?v=202611031946', activity: './dealactivity.js?v=202611031946', closing: './dealclosing.js?v=202611031946', agreements: './dealagreements.js?v=202611031946', accounting: './dealaccounting.js?v=202611031946' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -15,7 +15,8 @@ export async function render(ctx) {
   // per-file roles: on this order an outside user acts as their role HERE (deal.myRole), e.g. Buyer Agent here, Client-Buyer elsewhere
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611031910' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab === 'accounting' && !(api.features || {}).accounting) throw new Error('That page does not exist.');   // John, Nov 3: switchable off for the live portal
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611031946' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
@@ -28,7 +29,7 @@ export async function render(ctx) {
   return { ...v, body: html`${done.html}${cards}${extra.top}${v.body}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
 }
 async function themedSummary({ api, user }, d, ov, inv) {
-  const { orderSummary } = await import('./theme-cards.js?v=202611031910');
+  const { orderSummary } = await import('./theme-cards.js?v=202611031946');
   const staffView = !user.accountRole && user.role !== 'Outside user';
   const canWire = staffView || (user.roles || [user.role]).includes('Client-Buyer');   // SAME rule as the Wire instructions button: CLA staff + the buyer, never an agent
   const tasks = await api.listTasks(d.id).catch(() => []);

@@ -174,3 +174,47 @@ body.theme-cards .login-left h1 { font-weight: 300; color: var(--tc-title); }
 body.theme-cards .login-card h2 { font-weight: 300; color: var(--tc-baby-ink); }
 /* mockup samples: every made-up figure carries a visible "sample" tag */
 .theme-cards .tc-sample { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 3px; background: #fff4e5; color: #8a4306; font-size: 11px; font-weight: 500; letter-spacing: .02em; text-transform: lowercase; vertical-align: middle; line-height: 17px; }
+
+/* ---------- ACCOUNTING tab (Nov 3 f merge): fee ledger, ALTA Settlement Statement and Closing Disclosure in the baby-blue card look ----------
+   Summary tiles are Loan-Summary cards (dealaccounting.js renders .tc-card tiles when the card theme is on); ?theme=default keeps the portal.css look.
+   The red "TEST - not a legal disclosure" marks stay red on purpose. */
+.theme-cards .acct-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; margin: 4px 0 30px; }
+.theme-cards .acct-tile { padding: 11px 11px 14px; }
+.theme-cards .acct-tile .tc-head { padding: 16px 14px 13px; }
+.theme-cards .acct-tile-big { display: block; font-size: 27px; font-variant-numeric: tabular-nums; }
+.theme-cards .acct-tile-foot { padding: 12px 4px 0; font-size: 12.5px; color: #767676; }
+.theme-cards .acct-tile.is-ok .acct-tile-big { color: #2f7d4f; }
+.theme-cards .acct-tile.is-bad { background: #fdeeee; } .theme-cards .acct-tile.is-bad .acct-tile-big { color: #b42318; }
+.theme-cards .acct-tile.is-ok .tc-head { box-shadow: inset 3px 0 0 #6cc28f; } .theme-cards .acct-tile.is-bad .tc-head { box-shadow: inset 3px 0 0 #e07a7a; }
+body.theme-cards .acct-head .page-title { font-size: 32px; font-weight: 300; color: var(--tc-title); }
+body.theme-cards .acct .nav-tabs { border-bottom-color: #ececec; margin-bottom: 22px; }
+body.theme-cards .acct .card { padding: 18px 20px 22px; }
+body.theme-cards .acct-card-head h3, body.theme-cards .acct-doc-head h2 { font-weight: 300; color: var(--tc-title); }
+body.theme-cards .acct-card-head h3 { font-size: 20px; }
+body.theme-cards .acct .tbl { background: #fff; }
+body.theme-cards .acct .tbl tr.acct-sec td { background: var(--tc-baby-soft); border-top-color: var(--tc-baby-line); }
+body.theme-cards .acct .tbl tr.acct-sec th { background: var(--tc-baby-soft); color: var(--tc-baby-ink-2); font-weight: 500; border-top-color: var(--tc-baby-line); }
+body.theme-cards .acct .tbl tr.acct-subtotal td { background: #fafafa; border-top-color: #e6e6e6; }
+body.theme-cards .acct .tbl tr.acct-total td { background: var(--tc-baby-soft); border-top: 2px solid var(--tc-baby); color: var(--tc-on-baby); font-weight: 600; }
+body.theme-cards .acct .tbl tr.acct-auto td { background: #fcfcfc; }
+body.theme-cards .acct-preset { background: #fff; border-color: var(--tc-baby-line); border-radius: 2px; }
+body.theme-cards .acct-split { background: #fff; border-color: #dcdcdc; border-radius: 2px; }
+body.theme-cards .acct-form-actions { border-top-color: #e6e6e6; }
+body.theme-cards .seg { border-color: #dcdcdc; border-radius: 3px; box-shadow: none; }
+body.theme-cards .seg-btn { color: #6d6d6d; font-weight: 500; border-right-color: #dcdcdc; } body.theme-cards .seg-btn:hover { background: var(--tc-baby-soft); }
+body.theme-cards .seg-btn.on { background: var(--tc-baby); color: var(--tc-on-baby); }
+body.theme-cards .acct-doc { background: var(--tc-card); padding: 14px 14px 22px; }
+body.theme-cards .acct-doc-head { background: #fff; padding: 18px 18px 6px; margin-bottom: 18px; }
+body.theme-cards .acct-doc-head h2 { font-size: 28px; color: var(--tc-baby-ink); }
+body.theme-cards .acct-doc-meta { background: #fff; border-color: #ececec; border-radius: 2px; }
+body.theme-cards .acct-h { font-weight: 400; color: var(--tc-title); font-size: 18px; }
+body.theme-cards .acct-side { color: var(--tc-baby-ink-2); font-weight: 500; }
+body.theme-cards .acct-summaries > div { background: #fff; padding: 14px 16px 16px; }
+body.theme-cards .acct-cash { background: var(--tc-baby-soft); border-color: var(--tc-baby-line); border-radius: 2px; color: var(--tc-on-baby); }
+body.theme-cards .acct-cash strong { font-weight: 500; color: var(--tc-baby-ink-2); font-size: 17px; }
+body.theme-cards .acct-mark { background: #fff; }
+@media print {
+  body.theme-cards .acct-doc, body.theme-cards .acct-doc-head, body.theme-cards .acct-summaries > div { background: #fff !important; padding: 0 !important; }
+  body.theme-cards .acct .tbl tr.acct-sec th, body.theme-cards .acct .tbl tr.acct-total td { background: #eee !important; color: #000 !important; }
+  body.theme-cards .left-bar, body.theme-cards .topbar-main, body.theme-cards .footer-bar { display: none !important; }
+}

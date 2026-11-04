@@ -1,11 +1,12 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611031910';
-import { localDate } from './constants.js?v=202611031910';
-import { featureFlags } from './features.js?v=202611031910';
-import { fieldsForRole } from './templates.js?v=202611031910';
-import { crmSupabase } from './supabase-crm.js?v=202611031910';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611031946';
+import { localDate } from './constants.js?v=202611031946';
+import { featureFlags } from './features.js?v=202611031946';
+import { accountingSupabase } from './supabase-accounting.js?v=202611031946';
+import { fieldsForRole } from './templates.js?v=202611031946';
+import { crmSupabase } from './supabase-crm.js?v=202611031946';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned; vendor locally before go-live
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -204,5 +205,7 @@ export async function createSupabaseAdapter(cfg) {
   // CRM (John, Nov 2; migration 22): only when the `crm` flag is on (default OFF in supabase mode; features.js). The database has its own switch too.
   a.features = featureFlags(cfg);
   Object.assign(a, crmSupabase({ sb, ok, camel, me, flags: a.features }));
+  // ACCOUNTING (John, Nov 3; migration 34): only when features.accounting === true (off by default everywhere) AND the database switch is on.
+  Object.assign(a, accountingSupabase({ sb, ok, flags: a.features }));
   return a;
 }

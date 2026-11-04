@@ -9,9 +9,9 @@
  * text as the value, so no stored record had to change. Renaming changes only the label, so every record, filter and report shows the
  * new name at once. Retiring hides the option from new entries; records that already use it keep it and show "(retired)". */
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, TASK_SUBJECTS, TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, OPP_STAGES,
-  ACCOUNT_KINDS, LINK_FIELDS, cleanUrl } from './crm.js?v=202611031910';
-import { CALL_OUTCOMES } from './crm-calls.js?v=202611031910';
-import { ZOHO_FIELD_TYPES, ensureSections, sectionsOf, cleanNewValue, checkMaxChars, newDisplay, addressText, COMPUTED_TYPES, FILE_TYPES } from './crm-fields.js?v=202611031910';
+  ACCOUNT_KINDS, LINK_FIELDS, cleanUrl } from './crm.js?v=202611031946';
+import { CALL_OUTCOMES } from './crm-calls.js?v=202611031946';
+import { ZOHO_FIELD_TYPES, ensureSections, sectionsOf, cleanNewValue, checkMaxChars, newDisplay, addressText, COMPUTED_TYPES, FILE_TYPES } from './crm-fields.js?v=202611031946';
 
 // ---------- picklists ----------
 // locked = cannot be retired (the CRM itself depends on it); it can still be renamed and moved.
