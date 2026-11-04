@@ -19,6 +19,11 @@ export const OUTSIDE = 'Outside user';
 export const OUTSIDE_FILE_ROLES = ['Buyer Agent', 'Listing Agent', 'Client-Buyer', 'Client-Seller'];   // roles an outside user can hold on a file
 export const STAFF_ACCOUNT_ROLES = ['Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', ADMIN_ROLE, SUPER_ADMIN_ROLE];
 export const ROLES = [...STAFF_ACCOUNT_ROLES, OUTSIDE];   // account types a login can have (user admin picker)
+// HR WORKSPACE (John + Francis, Nov 4; migration 47): a CLA employee who has NO order / CRM work (e.g. most of the Philippines team, an HR-only manager)
+// signs in with the 'Employee' account role. It is NOT staff (isStaff false: no orders, CRM, invites) and NOT an outside user. Such a login is
+// created only by accepting an HR invite link; it reaches the HR workspace only (My profile, or the HR directory for an HR manager).
+export const EMPLOYEE_ROLE = 'Employee';
+export const isEmployeeOnly = (u) => !!u && u.role === EMPLOYEE_ROLE;
 export const isOutside = (role) => role === OUTSIDE;
 // SELF-REPRESENTATION (migration 11): an outside user may hold a client role AND their own side's agent role on the same order
 // (an agent buying or selling for themselves). These are the only two allowed pairs; cross-side pairs and both agent roles are refused.

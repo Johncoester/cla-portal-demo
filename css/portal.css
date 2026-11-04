@@ -623,3 +623,49 @@ details.po-card > summary { cursor: pointer; list-style: none; display: flex; al
 
 /* VIEW AS (Super admin locked link only, live28) */
 .view-as { display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; color: inherit; } .view-as select { max-width: 260px; font-size: 13px; padding: 4px 6px; border-radius: 6px; }
+
+/* HR WORKSPACE, Phase 1 (John + Francis, Nov 4; Zoho People layout in the baby-blue card style). Works in both themes. */
+.hr-page { --hr-baby: #89cff0; --hr-baby-soft: #e8f6fd; --hr-baby-line: #bfe6f8; --hr-ink: #1f6fa3; --hr-on: #0b2a45; }
+.hr-head { align-items: center; } .hr-subtabs { margin: 0 0 14px; }
+.hr-quick-wrap, .hr-more-wrap { position: relative; display: inline-block; }
+.hr-plus { font-size: 18px; line-height: 1; padding: 8px 14px; } .hr-plus-l { font-size: 13px; }
+.hr-quick-dd, .hr-more-dd { position: absolute; right: 0; top: calc(100% + 4px); z-index: 60; min-width: 230px; display: flex; flex-direction: column; gap: 2px; padding: 10px; background: #fff !important; box-shadow: 0 6px 24px rgba(11, 42, 69, .16) !important; border: 1px solid var(--hr-baby-line, #bfe6f8) !important; }
+.hr-quick-dd a, .hr-more-dd .linkish, .hr-more-dd > span { display: block; padding: 7px 8px; border-radius: 4px; text-align: left; font-size: 14px; }
+.hr-quick-dd a:hover, .hr-more-dd .linkish:hover { background: #e8f6fd; text-decoration: none; }
+.hr-av { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: #89cff0; color: #0b2a45; font-weight: 700; font-size: 12px; flex: none; letter-spacing: .02em; }
+.hr-av.lg { width: 52px; height: 52px; font-size: 18px; } .hr-av.xl { width: 84px; height: 84px; font-size: 28px; }
+.hr-home-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; } .hr-home-grid > .card { margin: 0; }
+.hr-greet { grid-column: span 2; background: linear-gradient(120deg, #e8f6fd, #f5fbff) !important; border-left: 4px solid #89cff0 !important; }
+.hr-greet-row { display: flex; gap: 16px; align-items: center; } .hr-greet h3 { margin: 0 0 4px; color: #0b2a45 !important; font-size: 22px !important; }
+.hr-action-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.hr-stats { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.hr-stat { display: flex; flex-direction: column; gap: 2px; margin: 0; text-decoration: none; color: inherit; border-top: 3px solid #89cff0 !important; }
+.hr-stat:hover { text-decoration: none; background: #e8f6fd !important; } .hr-stat-n { font-size: 28px; color: #1f6fa3; font-weight: 300; } .hr-stat-l { font-size: 13px; color: #6f6f6f; }
+.hr-soon h3 .pill { margin-left: 6px; font-size: 11px; vertical-align: middle; }
+.hr-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 14px !important; }
+.hr-toolbar input[type=search] { flex: 1 1 260px; max-width: 420px; } .hr-tb-right { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; }
+.hr-view-toggle { display: inline-flex; } .hr-view-toggle .ghost { border-radius: 0; } .hr-view-toggle .ghost:first-child { border-radius: 4px 0 0 4px; } .hr-view-toggle .ghost:last-child { border-radius: 0 4px 4px 0; margin-left: -1px; }
+.hr-filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.hr-table-card { padding: 0 !important; overflow-x: auto; } .hr-table { margin: 0; } .hr-table td, .hr-table th { white-space: nowrap; vertical-align: middle; }
+.hr-chip { background: #e8f6fd; border-color: #bfe6f8; color: #0b2a45; }
+.hr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+.hr-emp-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; margin: 0; text-decoration: none; color: inherit; border-top: 3px solid #89cff0 !important; }
+.hr-emp-card:hover { text-decoration: none; background: #e8f6fd !important; }
+.hr-form .form-grid .span2 { grid-column: span 2; } .hr-inline { display: flex; gap: 8px; align-items: stretch; margin-top: 4px; } .hr-inline input, .hr-inline select { flex: 1; margin-top: 0 !important; }
+.hr-invite-box { margin-top: 12px; padding: 12px; background: #e8f6fd; border: 1px solid #bfe6f8; border-radius: 4px; }
+.hr-invite-box .ai-link-row { display: flex; gap: 8px; } .hr-invite-box input { flex: 1; }
+.hr-prof-head { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; border-left: 4px solid #89cff0 !important; }
+.hr-prof-id h3 { margin: 0 0 2px; color: #0b2a45 !important; font-size: 22px !important; } .hr-prof-id p { margin: 2px 0; } .hr-prof-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.hr-sec-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } .hr-sec-grid > .card { margin: 0; }
+.hr-sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.hr-dl { margin: 0; } .hr-dl-row { display: grid; grid-template-columns: 200px 1fr; gap: 10px; padding: 6px 0; border-bottom: 1px solid #ececec; } .hr-dl-row:last-child { border-bottom: 0; }
+.hr-dl dt { color: #6f6f6f; font-size: 13px; } .hr-dl dd { margin: 0; color: #2b2b2b; } .hr-dl dd input, .hr-dl dd select { width: 100%; }
+.hr-dl dd input:disabled, .hr-dl dd select:disabled { background: #f0f0f0; color: #777; cursor: not-allowed; }
+.hr-save-row { position: sticky; bottom: 0; background: rgba(255, 255, 255, .95); padding: 10px 0; margin: 12px 0 0; z-index: 5; }
+.hr-hist td { vertical-align: top; } .hr-prof-body { margin: 16px 0; }
+.ws-static { cursor: default; } .ws-opt-l .beta-badge, .ws-prompt .beta-badge { vertical-align: middle; }
+@media (max-width: 900px) {
+  .hr-home-grid, .hr-sec-grid { grid-template-columns: 1fr; } .hr-greet { grid-column: auto; } .hr-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hr-filter-grid, .hr-form .form-grid { grid-template-columns: 1fr; } .hr-form .form-grid .span2 { grid-column: auto; } .hr-dl-row { grid-template-columns: 1fr; gap: 2px; }
+  .hr-tb-right { margin-left: 0; } .hr-prof-actions { margin-left: 0; } .hr-quick-dd, .hr-more-dd { right: auto; left: 0; }
+}

@@ -9,10 +9,11 @@
  * VIEW AS (Super admin only): inside a locked link whose OWNER is a Super admin (King John), a "View as" dropdown switches the tab to any fake user and
  * back; the route guard then applies to the person being viewed. Any other locked link (Adam Admin included) never gets it, and a stored viewAs on a
  * lock whose owner is not a Super admin is ignored and cleared (app.js). */
-import { runsOrders, isStaff } from './constants.js?v=202611041755';
-import { canUseCrm } from './crm.js?v=202611041755';
-import { canInviteAgents } from './agent-profile.js?v=202611041755';
-import { canManageModules } from './modules.js?v=202611041755';
+import { runsOrders, isStaff, isOutside } from './constants.js?v=202611041802';
+import { canUseCrm } from './crm.js?v=202611041802';
+import { canInviteAgents } from './agent-profile.js?v=202611041802';
+import { canManageModules } from './modules.js?v=202611041802';
+import { hrSectionAllowed } from './hr.js?v=202611041802';
 
 export const LOCK_KEY = 'cla-portal-new:locked:v1';
 export function devPickerOn(w = (typeof window !== 'undefined' ? window : {})) {
@@ -28,6 +29,7 @@ export const LINK_TOKENS = {
   '8f35592f04f1ff466320a8fe': 'u-proc', '0647edc4ee2a4d029a0f8930': 'u-sp', '1d23d39566522fce5c6952bd': 'u-team', '3fbd6a653b1b49e5ae4bd016': 'u-tc',
   'f1fefad2347ba878391dd44d': 'u-bagent', '9dd9de8b9c327645419f86bb': 'u-lagent', '6279357492dca5e12fc800d9': 'u-buyer', '6e7d6ca958d6fb3b4285894d': 'u-seller',
   'c356ab42259b4c120f77c9d3': 'u-multi', 'd5be9004fe1a25635731fc06': 'u-selfrep', '3455a01bbb58d0a8fc801ec9': 'u-adam', '50f70c55b90611bcd9a49ce1': 'u-admin', 'f0678aacef75b9ab555e8bbc': 'u-tc2',
+  'd9324aeb920aff3bb132baaf': 'u-hr1', 'c648b06c6b1da945bae4cc6c': 'u-ph1',   // HR (Nov 4): Hana HR-Manager, Pia Processor-PH (HR-only 'Employee' logins; fake, not secrets)
 };
 // LANDING FILE (John, Nov 4, file-first): an optional  &file=<deal id>  only picks the FIRST page (that file's view). It never widens access:
 // the token alone decides the person; the file must be one the person is on (the adapter's getDeal refuses others), and the person can still
@@ -47,8 +49,14 @@ export function routeAllowed(u, route, { locked = false } = {}) {
   const p = route.page;
   if (p === 'schedule') return true;                                   // public closing-time link
   if (p === 'agent-invite') return !locked;   // one-time agent setup page: never inside a locked test-link session
+  if (p === 'hr-invite') return !locked;      // HR: the employee's one-time login setup page, never inside a locked test-link session
   if (p === 'login') return !locked;
   if (!u) return false;
+  // HR WORKSPACE (John + Francis, Nov 4): outside users (agents, clients; every outside tester link) NEVER reach HR. Everyone else needs an HR role
+  // (Super admin, HR manager, or an employee record) and the section must fit it; the HR module switch is checked on top in app.js (routeModule 'hr').
+  if (p === 'hr') return !isOutside(u.role) && !u.accountRole && hrSectionAllowed(u, (route.params && route.params.section) || 'home');
+  // an HR-only login (account role 'Employee') has no orders, CRM or admin: HR and their own Profile Setting only
+  if (u.role === 'Employee') return p === 'profile' || p === 'dashboard';   // dashboard = redirected to #/hr by app.js
   if (p === 'deal' && route.params && route.params.tab === 'accounting' && PAYOFF_VIEWS.includes(route.params.v)) return canReachPayoffs(u);
   if (['dashboard', 'orders', 'deal', 'profile', 'contact-us'].includes(p)) return true;   // deal access itself is checked per file by the adapter
   if (p === 'crm') return canUseCrm(u);
@@ -69,7 +77,10 @@ const ACCT_VIEWS = ['charges', 'cd', 'cddetails', 'prorations', 'payments', 'led
 export const SECTIONS = { home: '/dashboard', 'my-tasks': '/dashboard', orders: '/orders', 'place-order': '/orders/new', tasks: '/tasks', 'task-grid': '/task-grid', library: '/library',
   crm: '/crm', 'crm-deals': '/crm/deals', 'crm-leads': '/crm/leads', 'crm-calls': '/crm', 'crm-templates': '/crm/templates', 'crm-pipeline': '/crm/pipeline', 'crm-reports': '/crm/reports',
   admin: '/users', users: '/users', 'create-user': '/users/new', teams: '/teams', modules: '/modules', underwriters: '/underwriters', 'agent-invites': '/agent-invites',
-  templates: '/templates', outbox: '/outbox', activity: '/activity', profile: '/profile' };
+  templates: '/templates', outbox: '/outbox', activity: '/activity', profile: '/profile', hr: '/hr', 'my-profile': '/hr/me',
+  // HR section links (John, Nov 4: "HR should have a link"). Only pick the first page: app.js still applies hrSectionAllowed + the 'hr' module switch
+  // (Super admins only while HR is off; HR managers once Live; an employee only their own profile; HR Settings = Super admin only).
+  'hr-home': '/hr', 'hr-employees': '/hr/employees', 'hr-managers': '/hr/settings', 'hr-my-profile': '/hr/me' };   // hr: refused for outside users by routeAllowed
 export function sectionHash(section, file) {
   const f = safeLanding(file); if (typeof section !== 'string') return null;
   if (f && FILE_TABS.includes(section)) return `#/deals/${f}${section === 'overview' ? '' : '/' + section}`;

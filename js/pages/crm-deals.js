@@ -1,10 +1,10 @@
 /* crm-deals.js : DEALS in the CRM (Zoho's Deals module) = the portal's orders you can already see. #/crm/deals[/<id>]. Read-only here (orders are run
  * in the portal); a deal has Send Email (saved, NOT sent) and its Emails list. Function only. */
-import { html, raw, toText, $, $$, fmtDate, formData } from '../ui.js?v=202611041755';
-import { crmSort } from '../data/crm.js?v=202611041755';
-import { DEAL_COLS, LOCKED_COLS, DEFAULT_HIDDEN, loadHidden, saveHidden } from '../data/crm-deal-cols.js?v=202611041755';
-import { tabs, head, money } from './crm-kit.js?v=202611041755';
-import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611041755';
+import { html, raw, toText, $, $$, fmtDate, formData } from '../ui.js?v=202611041802';
+import { crmSort } from '../data/crm.js?v=202611041802';
+import { DEAL_COLS, LOCKED_COLS, DEFAULT_HIDDEN, loadHidden, saveHidden } from '../data/crm-deal-cols.js?v=202611041802';
+import { tabs, head, money } from './crm-kit.js?v=202611041802';
+import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611041802';
 
 export async function dealsPage(c) { return c.params.id ? dealPage(c) : dealsList(c); }
 

@@ -8,11 +8,16 @@
 // A module whose CONFIG flag is off (features.crm / features.accounting in config.js) is not available at all: not even Admins see it and the
 // switch is disabled. That keeps the real live portal clean (config.example.js: accounting false).
 // Core order pages are ALWAYS ON and have no switch (ALWAYS_ON below). Mirrored by migration 35 (public.module_settings + module_settings_log).
+import { isSuperAdmin, isOutside } from './constants.js?v=202611041802';
 export const BETA_LABEL = 'Beta, in testing';
 export const MODULES = [
   { id: 'crm', label: 'CRM', flag: 'crm', where: '#/crm', desc: 'The Zoho-style CRM: Home, Leads, Clients, Companies, Pipeline, Reports, Dashboards, Templates.', who: 'CLA staff (Processor read only); never TCs, agents or clients' },
   { id: 'crm-deals', label: 'Deals', flag: 'crm', parent: 'crm', where: '#/crm/deals', desc: 'CRM Deals: the portal orders shown as Zoho deals (sort, columns, filters).', who: 'CLA staff with the CRM' },
   { id: 'calls', label: 'Calls', flag: 'crm', parent: 'crm', where: '#/crm/calls', desc: 'CRM calls: schedule / log / complete a call, Open and Closed Calls on the activities board, in-portal call reminders.', who: 'CLA staff with the CRM' },
+  // HR WORKSPACE (John + Francis, Nov 4; migration 47): OFF by default while it is being set up. Stricter than the other modules: while it is not Live
+  // ONLY Super admins see it (Beta); plain Admins do not. Only a Super admin flips this switch. Live: HR managers get the HR directory, every other
+  // employee only their own profile (data/hr.js). Agents and clients never.
+  { id: 'hr', label: 'HR', where: 'Workspace > HR', desc: 'HR workspace (Zoho People style): employee directory, profiles, departments, designations, invite links, change history.', who: 'Super admins while in setup; when Live: HR managers (directory) and every employee (My profile only); never agents or clients', defaultLive: false, superOnly: true, noOutside: true },
   { id: 'accounting', label: 'Accounting', flag: 'accounting', where: 'order > Accounting', desc: 'Order Accounting tab: fee ledger, ALTA Settlement Statement, Closing Disclosure fee pages (TEST - not a legal disclosure).', who: 'Processor / Admin / Super admin edit; Sales and TCs read only; never agents or clients' },
   { id: 'tasks', label: 'All Tasks', where: '#/tasks', desc: 'All tasks across files (filters, sort, Buyer / Seller / Agent groups).', who: 'Admins, CLA staff and TCs' },
   { id: 'task-grid', label: 'Task Grid', where: '#/task-grid', desc: 'Files across, tasks down (Processor / Admin grid).', who: 'Processor and Admins' },
@@ -23,15 +28,19 @@ export const ALWAYS_ON = ['Dashboard / Work Queue', 'Open Orders', 'Place Order'
   'User List, Create User, Teams', 'Activity Log', 'Task Templates', 'Reminder Outbox', 'Profile', 'Contact Us', 'Notifications', 'This Modules page'];
 export const moduleById = (id) => MODULES.find((m) => m.id === id) || null;
 export const moduleAvailable = (m, features = {}) => !!m && (!m.flag || features[m.flag] === true);
-export const defaultModuleSettings = () => MODULES.map((m) => ({ module: m.id, live: true, updatedAt: null, updatedBy: null }));   // every module starts Live (same as before the switches)
+export const defaultModuleSettings = () => MODULES.map((m) => ({ module: m.id, live: m.defaultLive !== false, updatedAt: null, updatedBy: null }));   // every module starts Live (same as before the switches), except HR (off while it is set up)
 export const canManageModules = (u) => !!(u && u.isAdmin && (u.status || 'active') === 'active');   // Admin and Super admin (isAdmin is THE admin check)
+// who may flip ONE module's switch: any Admin / Super admin, except a superOnly module (HR): Super admins only
+export const canSwitchModule = (u, m) => canManageModules(u) && (!m || !m.superOnly || isSuperAdmin(u));
 // what THIS user gets for a module: 'live' (normal), 'beta' (Admin testing a module that is not live) or 'off' (hidden / refused)
 export function moduleAccess(id, u, features = {}, settings = []) {
   const m = moduleById(id); if (!m) return 'live';
   if (!moduleAvailable(m, features)) return 'off';
   const parent = m.parent ? moduleAccess(m.parent, u, features, settings) : 'live'; if (parent === 'off') return 'off';
-  const s = settings.find((x) => x.module === id); const live = s ? s.live !== false : true;
+  if (m.noOutside && (!u || isOutside(u.role) || u.accountRole)) return 'off';   // HR: agents and clients never
+  const s = settings.find((x) => x.module === id); const live = s ? s.live !== false : m.defaultLive !== false;
   if (live && parent === 'live') return 'live';
+  if (m.superOnly) return isSuperAdmin(u) ? 'beta' : 'off';   // HR in setup: Super admins only (not plain Admins)
   return canManageModules(u) ? 'beta' : 'off';
 }
 export const accessMap = (u, features, settings) => Object.fromEntries(MODULES.map((m) => [m.id, moduleAccess(m.id, u, features, settings)]));
@@ -41,3 +50,4 @@ let CURRENT = {};
 export const setModuleMap = (map) => { CURRENT = map || {}; };
 export const modOn = (id) => CURRENT[id] !== 'off';
 export const modBeta = (id) => CURRENT[id] === 'beta';
+export const modAccess = (id) => CURRENT[id] || 'live';   // 'live' | 'beta' | 'off' for the signed-in user (HR: data/hr.js hrVisibleFor)
