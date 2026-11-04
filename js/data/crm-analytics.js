@@ -6,7 +6,7 @@
  *  * GROUPING with date buckets (By Day, By Calendar Week, By Month, By Quarter, By Year) and measures (Record Count, Sum / Avg of a number field).
  *  * REPORTS: columns, row groups ("Owner (count)"), aggregate columns (sum, avg, min, max, count), CSV.
  *  * SEARCH: words in name / email, phone by digits only. */
-import { optLabel, activeFields, customDisplay, cfKey } from './crm-config.js?v=202611041251';
+import { optLabel, activeFields, customDisplay, cfKey } from './crm-config.js?v=202611041356';
 
 // ---------- modules ----------
 export const MODULES = [['contacts', 'Clients'], ['leads', 'Leads'], ['accounts', 'Companies'], ['deals', 'Deals'], ['tasks', 'Tasks'], ['meetings', 'Meetings'], ['calls', 'Calls'], ['opportunities', 'Opportunities']];

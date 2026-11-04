@@ -446,6 +446,48 @@ tr.bad-row td { background: var(--warn-bg); } .invite-body { white-space: pre-wr
 .acct-prorations td { vertical-align: top; } .acct-escrow td { padding: 4px 10px; } .tbl tr.acct-escrow-low td { background: var(--warn-bg); font-weight: 600; }
 @media print { .acct-cd-page { page-break-before: always; border-top: 0; } .acct-cd-page:first-of-type { page-break-before: auto; } .acct-cd-info > div, .acct-cd-costs > div { background: #fff !important; } }
 
+/* ===== AGENT INVITE + "YOUR AGENT" CARD (John, Nov 4). Baby-blue card style, same palette variables as theme-cards.css ===== */
+.with-agent { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; align-items: start; }
+.your-agent { position: sticky; top: 16px; background: #fff; border: 1px solid var(--tc-baby-line, #bfe6f8); border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(11, 42, 69, .06); }
+.your-agent .ya-head { background: var(--tc-baby, #89cff0); color: var(--tc-on-baby, #0b2a45); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; font-size: 12px; padding: 9px 16px; }
+.ya-agent { padding: 18px 16px 14px; text-align: center; border-bottom: 1px solid #eef6fb; }
+.ya-agent:last-of-type { border-bottom: 0; }
+.ya-photo { display: flex; justify-content: center; margin-bottom: 10px; }
+.ya-who { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.ya-name { font-size: 18px; color: var(--tc-on-baby, #0b2a45); }
+.ya-brokerage { color: #555; font-size: 13px; }
+.ya-role { color: var(--tc-baby-ink, #1f6fa3); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; margin-top: 2px; }
+.ya-contact { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.ya-contact a { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 6px; background: var(--tc-baby-soft, #e8f6fd); color: var(--tc-baby-ink-2, #1a5f8c); text-decoration: none; font-size: 13px; word-break: break-all; }
+.ya-contact a:hover, .ya-contact a:focus { background: var(--tc-baby-line, #bfe6f8); outline: none; box-shadow: var(--tc-focus, 0 0 0 3px rgba(31,111,163,.45)); }
+.ya-lbl { margin-left: auto; font-size: 11px; color: #6b7f8e; }
+.ya-foot { margin: 0; padding: 10px 16px 14px; font-size: 12px; color: #6b7f8e; text-align: center; background: #f8fcfe; }
+.ap-avatar { display: inline-flex; align-items: center; justify-content: center; object-fit: cover; background: var(--tc-baby-soft, #e8f6fd); color: var(--tc-on-baby, #0b2a45); font-weight: 700; border: 3px solid #fff; box-shadow: 0 0 0 2px var(--tc-baby, #89cff0); width: 56px; height: 56px; font-size: 20px; }
+.ap-avatar.circle { border-radius: 50%; } .ap-avatar.square { border-radius: 10px; }
+.ap-avatar.lg { width: 96px; height: 96px; font-size: 32px; } .ap-avatar.xl { width: 128px; height: 128px; font-size: 42px; }
+.ap-form { padding: 20px; } .apf-grid { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; }
+.ap-photo-col { border: 0; margin: 0; padding: 0; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.ap-photo-col legend { font-weight: 600; margin-bottom: 8px; }
+.ap-file { cursor: pointer; display: inline-block; padding: 6px 12px; border: 1px solid var(--tc-baby-line, #bfe6f8); border-radius: 4px; background: var(--tc-baby-soft, #e8f6fd); font-size: 13px; }
+.ap-file input { display: block; max-width: 190px; margin-top: 4px; font-size: 11px; }
+.ap-crop { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px; border: 1px dashed var(--tc-baby, #89cff0); border-radius: 8px; }
+.ap-crop-canvas { width: 180px; height: 180px; cursor: grab; touch-action: none; box-shadow: 0 0 0 2px var(--tc-baby, #89cff0); }
+.ap-crop-canvas.circle { border-radius: 50%; } .ap-crop-canvas.square { border-radius: 10px; }
+.ap-shape { display: flex; gap: 12px; } .ap-dob { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; } .ap-dob-label { width: 100%; } .ap-dob select { width: auto !important; min-width: 150px; }
+.ap-row2 { display: grid; grid-template-columns: 80px 1fr; gap: 10px; }
+.ap-signup-card { max-width: 920px; width: calc(100% - 24px); text-align: left; }
+.ai-layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: start; }
+.ai-new { padding: 16px; display: flex; flex-direction: column; gap: 10px; } .ai-new label { display: flex; flex-direction: column; gap: 4px; }
+.ai-link { background: var(--tc-baby-soft, #e8f6fd); border: 1px solid var(--tc-baby-line, #bfe6f8); border-radius: 8px; padding: 10px; }
+.ai-link-row { display: flex; gap: 6px; } .ai-link-row input { flex: 1; min-width: 0; font-family: monospace; font-size: 12px; }
+@media (max-width: 900px) {
+  .with-agent { grid-template-columns: 1fr; } .with-agent .your-agent { order: -1; position: static; }
+  .ya-agent { display: grid; grid-template-columns: 56px 1fr; gap: 4px 12px; text-align: left; padding: 12px; align-items: center; }
+  .ya-photo { margin: 0; grid-row: span 2; } .ya-photo .ap-avatar { width: 56px; height: 56px; font-size: 20px; }
+  .ya-who { margin: 0; } .ya-name { font-size: 16px; } .ya-role, .ya-foot, .ya-office { display: none; }
+  .ya-contact { flex-direction: row; gap: 6px; } .ya-contact a { padding: 6px 10px; } .ya-contact .ya-txt, .ya-lbl { display: none; }
+  .apf-grid, .ai-layout { grid-template-columns: 1fr; }
+}
 /* ---------- ACCOUNTING › CHARGES (Qualia layout, John Nov 4 2026; CLA baby-blue colours, no Qualia branding) ---------- */
 .qc-shell { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: var(--s4); align-items: start; }
 .qc-body { min-width: 0; }
