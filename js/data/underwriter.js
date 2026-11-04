@@ -1,13 +1,15 @@
 // UNDERWRITER SPLITS (John, Nov 3 call): per-state underwriter share of the title premium; CLA keeps the rest.
 // MD 15% (Francis's Qualia video: 85% CLA / 15% Fidelity), FL 30%, SC 40%; VA and DC blank until an Admin sets them.
 // Admin / Super admin only edit (every change logged, never deleted). Shown on the Accounting tab's title premium lines. FAKE data only.
-import { acctCanRead } from './accounting.js?v=202611032132';
+import { acctCanRead } from './accounting.js?v=202611041131';
 export const DEFAULT_UNDERWRITER = 'Fidelity National Title';
 export const DEFAULT_SPLITS = [['MD', 15], ['FL', 30], ['SC', 40], ['VA', null], ['DC', null]].map(([state, pct]) => ({ state, pct, underwriter: DEFAULT_UNDERWRITER }));
 export const UNSET_NOTE = 'Not set yet: an Admin sets it on the Underwriter splits page. Until then no split is shown for this state.';
 export const SPLIT_ADMIN_ONLY = 'Only an Admin or Super admin can change underwriter splits.';
 export const canManageSplits = (u) => !!(u && u.isAdmin && (u.status || 'active') === 'active');
-export const canReadSplits = (u) => !!(u && (u.isAdmin || acctCanRead(u)));
+// Caroline Kim, Nov 4 2026: TCs read the Accounting tab, but the CLA / underwriter premium split stays with the roles that had it (Processor,
+// Sales, Admins), matching uw_reader() in migration 38. Open question for Caroline (docs/ACCOUNTING-CAROLINE-NOV4.md).
+export const canReadSplits = (u) => !!(u && (u.isAdmin || (acctCanRead(u) && u.role !== 'Transaction Coordinator')));
 export function cleanState(v) { const s = String(v == null ? '' : v).trim().toUpperCase(); if (!/^[A-Z]{2}$/.test(s)) throw new Error('State must be a 2-letter code (e.g. SC).'); return s; }
 export function cleanPct(v) {
   if (v === null || v === undefined || String(v).trim() === '') return null;

@@ -13,8 +13,8 @@
  *   { id, label, version, loadTables(): Promise<raw tabs> }   raw tabs = { CLA_Fees: [[header...], [row...]], Recording_Fees: [...], ... }
  *   vendoredRateSource          the built-in snapshot above (the only one used today)
  *   calculatorSupabaseRateSource NOT CONNECTED: a placeholder showing where a reader of the calculator's tables would plug in. It refuses. */
-import * as C from './vendor/cla-calculator/calc-core.js?v=202611032132';
-import { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden } from './accounting.js?v=202611032132';
+import * as C from './vendor/cla-calculator/calc-core.js?v=202611041131';
+import { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden } from './accounting.js?v=202611041131';
 export { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden };
 
 export const CALC_SOURCE = { repo: 'github.com/Johncoester/cla-closing-cost-calculator', commit: '69568a9', snapshot: '2026-11-02', files: 'index.html (calc code), fee-snapshot.js (rate tables)' };
@@ -53,7 +53,23 @@ export function countyOf(R, deal) {
 }
 export const NO_OO = /^(FL|VA)$/;   // the calculator hides principal residence / first-time buyer in FL and VA (they change nothing there)
 // options: everything the calculator asks that the order does not store. Defaults = the calculator's own defaults.
-export const DEFAULT_OPTIONS = { occ: true, fthb: false, pol: 'enhanced', rate: 'basic', pres: 'trid', ownPay: '', payoff: 0, assessed: 0, ends: null };
+// owner (Caroline Kim, Nov 4 2026): true = an owner's policy is issued (simultaneous issue with the lender's policy on a financed purchase);
+// false = the owner's policy is REMOVED: no owner's line, no owner's endorsements, and the lender's policy is priced at the full basic rate.
+export const DEFAULT_OPTIONS = { occ: true, fthb: false, pol: 'enhanced', rate: 'basic', pres: 'trid', ownPay: '', payoff: 0, assessed: 0, ends: null, owner: true };
+// BASIC vs ENHANCED owner's policy (Caroline, Nov 4: "in states where applicable"): what the calculator's rate data supports per state.
+//   bands = Premium_Tiers has Owner / Enhanced bands; pct = Premium_Rules enhanced_owner_pct (ALTA Homeowner's = pct% of basic); none = no
+//   enhanced rate in the data (FL today): the toggle is shown as a PLACEHOLDER and the basic rate is used (open question for Caroline).
+export function enhancedSupport(R, state) {
+  const st = String(state || '').toUpperCase(); const bands = C.uwRows(R.Premium_Tiers, UNDERWRITER, st).some((x) => C.eq(x.Policy, 'Owner') && C.eq(x['Rate Type'], 'Enhanced'));
+  const pct = C.rule(R, UNDERWRITER, st, 'enhanced_owner_pct');
+  if (bands) return { supported: true, how: 'bands', pct: null, note: `${st}: Enhanced owner's rate table (Premium_Tiers).` };
+  if (pct) return { supported: true, how: 'pct', pct, note: `${st}: Enhanced (ALTA Homeowner's) = ${pct}% of the basic owner's premium (Premium_Rules enhanced_owner_pct).` };
+  return { supported: false, how: 'none', pct: null, note: `${st}: the CLA rate data has no enhanced owner's rate for ${st} (no Enhanced bands, no enhanced_owner_pct). PLACEHOLDER: the basic owner's rate is used. Open question for Caroline.` };
+}
+export const ENHANCED_PLACEHOLDER = "PLACEHOLDER - no enhanced owner's rate in the CLA rate data for this state; the basic rate is shown.";
+// the rate tables without any owner's premium bands (used when the owner's policy is removed, so the calculator prices the lender's policy alone)
+const noOwnerCache = new WeakMap();
+const tablesWithoutOwner = (R) => { if (!noOwnerCache.has(R)) noOwnerCache.set(R, { ...R, Premium_Tiers: R.Premium_Tiers.filter((x) => !C.eq(x.Policy, 'Owner')) }); return noOwnerCache.get(R); };
 export function cleanOptions(o = {}) {
   const v = { ...DEFAULT_OPTIONS, ...(o || {}) }; const money = (x, l) => { const n = Number(String(x ?? 0).replace(/[$,\s]/g, '')); if (!isFinite(n) || n < 0 || n > 1e8) fail(`${l} must be an amount (0 or more).`); return r2(n); };
   if (!['enhanced', 'standard'].includes(v.pol)) fail("Owner's policy must be enhanced or standard.");
@@ -61,7 +77,9 @@ export function cleanOptions(o = {}) {
   if (!['trid', 'actual'].includes(v.pres)) fail('Premium presentation must be TRID or actual.');
   if (!['', 'Buyer', 'Seller', 'MDB', 'CHA'].includes(v.ownPay)) fail("Owner's policy paid by must be local custom, buyer or seller (Florida: MDB / CHA too).");
   if (v.ends != null && (!Array.isArray(v.ends) || v.ends.some((x) => typeof x !== 'string' || x.length > 40))) fail('Endorsements must be a list of codes.');
-  return { occ: v.occ !== false && v.occ !== 'false', fthb: v.fthb === true || v.fthb === 'true', pol: v.pol, rate: v.rate, pres: v.pres, ownPay: v.ownPay, payoff: money(v.payoff, 'Payoff'), assessed: money(v.assessed, 'Assessed value'), ends: v.ends ? [...v.ends] : null };
+  if (![true, false, 'true', 'false'].includes(v.owner)) fail("Owner's policy must be included (true) or removed (false).");
+  return { occ: v.occ !== false && v.occ !== 'false', fthb: v.fthb === true || v.fthb === 'true', pol: v.pol, rate: v.rate, pres: v.pres, ownPay: v.ownPay, payoff: money(v.payoff, 'Payoff'), assessed: money(v.assessed, 'Assessed value'), ends: v.ends ? [...v.ends] : null,
+    owner: v.owner !== false && v.owner !== 'false' };
 }
 export function endorsementChoices(R, state, type) {
   return C.uwRows(R.Endorsements, UNDERWRITER, state).filter((e) => C.txOK(e.Transaction, type) && !(type === 'cash' && C.eq(e['Applies To'], 'Lender')))
@@ -74,7 +92,8 @@ export function claFeeInputs(R, state, type) {
 export function calcInputs(deal, options = {}, R = vendoredTables()) {
   if (!deal) fail('Order not found.');
   const state = String(deal.state || '').toUpperCase(); if (!CALC_STATES.includes(state)) fail(`CLA rates cover MD, VA, DC and FL only (this order is in ${state || 'no state'}).`);
-  const o = cleanOptions(options); const type = calcTypeOf(deal);
+  const o = cleanOptions(options); const type = calcTypeOf(deal); const enh = enhancedSupport(R, state);
+  const enhancedPlaceholder = !enh.supported && o.pol === 'enhanced' && !!options && options.pol === 'enhanced' && o.owner && type !== 'refi';
   const price = Number(deal.purchasePrice ?? deal.purchase_price) || 0; const loan = Number(deal.loanAmount ?? deal.loan_amount) || 0;
   if (type !== 'refi' && !(price > 0)) fail('Enter the purchase price on the order first (File Overview).');
   if (type === 'refi' && !(loan > 0)) fail('Enter the loan amount on the order first (File Overview).');
@@ -82,7 +101,8 @@ export function calcInputs(deal, options = {}, R = vendoredTables()) {
   const ends = o.ends != null ? o.ends : endorsementChoices(R, state, type).filter((e) => e.defaultOn).map((e) => e.code);
   return { type, state, county, uw: UNDERWRITER, price: type === 'refi' ? 0 : price, assessed: state === 'VA' && type !== 'refi' ? o.assessed : 0, loan: type === 'cash' ? 0 : loan, payoff: type === 'refi' ? o.payoff : 0,
     pol: o.pol, rate: o.rate, fthb: o.fthb && !NO_OO.test(state) && type !== 'refi', occ: NO_OO.test(state) || o.occ, ownPay: type === 'refi' ? '' : o.ownPay, pres: o.pres, ends,
-    fees: claFeeInputs(R, state, type), docs: JSON.parse(JSON.stringify(C.DOC_DEFAULTS[type])), buyerPaidComm: { mode: 'pct', val: 0 }, brokerAdminFee: 0, buyerPaysSellerTax: false, taxPayers: undefined };
+    fees: claFeeInputs(R, state, type), docs: JSON.parse(JSON.stringify(C.DOC_DEFAULTS[type])), buyerPaidComm: { mode: 'pct', val: 0 }, brokerAdminFee: 0, buyerPaysSellerTax: false, taxPayers: undefined,
+    owner: type === 'refi' ? false : o.owner, enhancedPlaceholder };   // pol is passed as given: with no enhanced rate the calculator itself uses the basic rate
 }
 
 // ---------------- explanations (text only; amounts always come from calc()) ----------------
@@ -97,6 +117,8 @@ const bandText = (R, st, pol, rt, amt) => {
 function premiumExplain(R, i, P, which) {
   const st = i.state; const trid = i.pres !== 'actual';
   if (which === 'lender') {
+    if (i.type !== 'refi' && i.owner === false) { const full = bandText(R, st, 'Loan', 'Basic', i.loan);
+      return { rateSource: `${SRC} · Premium_Tiers (${UNDERWRITER}, ${st}, Loan, Basic) + Premium_Rules`, calculation: `Lender's policy alone (owner's policy removed, so no simultaneous issue): full rate ${full} = ${usd(P.lenderFull)}.` }; }
     if (i.type === 'refi') { const rt = i.rate === 'reissue' ? 'Reissue' : 'Refinance'; const t = bandText(R, st, 'Loan', rt, i.loan) || bandText(R, st, 'Loan', 'Basic', i.loan);
       return { rateSource: `${SRC} · Premium_Tiers (${UNDERWRITER}, ${st}, Loan, ${rt})`, calculation: `Lender's policy, refinance: ${t} = ${usd(P.lenderFull)}.` }; }
     const full = bandText(R, st, 'Loan', 'Basic', i.loan); const sim = C.rule(R, UNDERWRITER, st, 'simultaneous_lender_flat');
@@ -107,8 +129,12 @@ function premiumExplain(R, i, P, which) {
   const rt = i.rate === 'reissue' ? 'Reissue' : 'Basic'; const base = bandText(R, st, 'Owner', rt, i.price); const pct = C.rule(R, UNDERWRITER, st, 'enhanced_owner_pct');
   const enh = i.pol === 'enhanced' && rt === 'Basic' ? (bandText(R, st, 'Owner', 'Enhanced', i.price) ? ` Enhanced rate table used.` : pct ? ` Enhanced / homeowner's policy = ${pct}% of the basic premium (Premium_Rules enhanced_owner_pct).` : '') : '';
   const pay = i.state === 'FL' ? ` Paid by: ${C.FL_TITLE[C.flTitleOpt(R, i)] || 'local custom'} (Florida AS IS contract 9(c) / county custom).` : ` Paid by: ${i.ownPay || C.ownerPayDefault(R, i.state, i.county)} (${i.ownPay ? 'chosen' : `local custom in ${i.county || i.state}, Jurisdictions sheet`}).`;
+  const enhPh = i.enhancedPlaceholder ? ` ${ENHANCED_PLACEHOLDER}` : '';
+  const isEnh = i.pol === 'enhanced' && enhancedSupport(R, st).supported && rt === 'Basic';
+  const isPct = isEnh && !bandText(R, st, 'Owner', 'Enhanced', i.price) && !!pct && P.owner != null;   // e.g. MD / VA / DC: enhanced = pct% of the basic premium
+  const basicAmt = isPct ? Math.max(C.bandPremium(R, UNDERWRITER, st, 'Owner', 'Basic', i.price) || 0, C.rule(R, UNDERWRITER, st, 'min_premium_owner') || 0) : null;
   const tridTxt = trid && P.lenderFull != null && P.lenderActual != null ? ` TRID owner's policy = owner's premium ${usd(P.owner)} + simultaneous lender's ${usd(P.lenderActual)} − full lender's ${usd(P.lenderFull)}.` : '';
-  return { rateSource: `${SRC} · Premium_Tiers (${UNDERWRITER}, ${st}, Owner, ${rt}) + Premium_Rules + Jurisdictions`, calculation: `Owner's policy: ${base} = ${usd(P.owner)}.${enh}${tridTxt}${pay}` };
+  return { rateSource: `${SRC} · Premium_Tiers (${UNDERWRITER}, ${st}, Owner, ${rt}) + Premium_Rules + Jurisdictions`, calculation: `Owner's policy (${isEnh ? 'enhanced' : 'basic'}): ${base} = ${usd(isPct ? basicAmt : P.owner)}.${enh}${isPct ? ` ${usd(basicAmt)} × ${pct}% = ${usd(P.owner)}.` : ''}${enhPh}${tridTxt}${pay}` };
 }
 function taxExplain(R, i, t) {
   const rows = C.pick(R.Transfer_Taxes, i.state, i.county, i.type, (r) => r['Tax Name'] + '|' + r.Transaction).filter((r) => r['Tax Name'] === t.name);
@@ -154,8 +180,10 @@ export const NOT_COVERED_PRESETS = ['originationFee', 'appraisal', 'homeownersIn
 
 // ---------------- the proposal ----------------
 export function proposeFees(deal, options = {}, R = vendoredTables(), source = { id: vendoredRateSource.id, label: vendoredRateSource.label, version: vendoredRateSource.version }) {
-  const i = calcInputs(deal, options, R); const res = C.calc(R, i); const P = res.premiums; const refi = i.type === 'refi';
-  const used = new Set(); const lines = []; const warnings = [...res.warnings];
+  const i = calcInputs(deal, options, R); const noOwner = i.type !== 'refi' && i.owner === false; const res = C.calc(noOwner ? tablesWithoutOwner(R) : R, i); const P = res.premiums; const refi = i.type === 'refi';
+  const used = new Set(); const lines = []; const warnings = res.warnings.filter((w) => !(noOwner && /owner's premium rates/.test(w)));
+  if (noOwner) warnings.push("Owner's policy removed (Caroline, Nov 4 option): no owner's premium; the lender's policy is at the full rate.");
+  if (i.enhancedPlaceholder) warnings.push(`Enhanced owner's policy: ${ENHANCED_PLACEHOLDER}`);
   const docs = Object.entries(i.docs).filter(([d, [n]]) => n > 0 && !(d === 'Deed of Trust' && (i.type === 'cash' || !(i.loan > 0))));
   for (const l of res.lines) {
     const letter = String(l.sec).charAt(0); const b = r2(l.b), s = refi ? 0 : r2(l.s); let key, meta;
@@ -197,10 +225,14 @@ const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 export const fieldDiff = (cur, next) => CALC_FIELDS.filter((k) => !same(calcFields(cur)[k], calcFields(next)[k])).map((k) => ({ field: k, old: calcFields(cur)[k], new: calcFields(next)[k] }));
 export function diffProposal(proposal, fees) {
   const all = fees || []; const active = all.filter((f) => !f.retired); const out = []; const keys = new Set(proposal.lines.map((l) => l.key));
+  // Caroline, Nov 4: the owner's policy was REMOVED on the last run and is now put back: its retired lines (owner's policy, owner's endorsements)
+  // were retired by that run, not by a person, so they come back as new lines (the retired ones stay in the history).
+  const newest = all.filter(isCalculated).sort((x, y) => String(y.calc.at || '').localeCompare(String(x.calc.at || '')))[0];
+  const ownerBack = !!newest && (newest.calc.inputs || {}).owner === false && proposal.inputs.owner !== false && proposal.inputs.type !== 'refi';
   for (const l of proposal.lines) {
     const cur = active.find((f) => isCalculated(f) && f.calc.key === l.key);
-    if (!cur) { const gone = all.find((f) => f.retired && isCalculated(f) && f.calc.key === l.key);
-      out.push(gone ? { key: l.key, status: 'retired', proposed: l, current: gone, changes: [] } : { key: l.key, status: 'new', proposed: l, current: null, changes: [] }); continue; }
+    if (!cur) { const gone = all.find((f) => f.retired && isCalculated(f) && f.calc.key === l.key) && !(ownerBack && (l.key === 'ownersPolicy' || l.key.startsWith('end:')));
+      out.push(gone ? { key: l.key, status: 'retired', proposed: l, current: all.find((f) => f.retired && isCalculated(f) && f.calc.key === l.key), changes: [] } : { key: l.key, status: 'new', proposed: l, current: null, changes: [] }); continue; }
     if (isOverridden(cur)) { out.push({ key: l.key, status: 'overridden', proposed: l, current: cur, changes: fieldDiff(cur, l) }); continue; }
     const ch = fieldDiff(cur, l); const textOnly = !ch.length && (cur.calc.calculation !== l.calculation || cur.calc.rateSource !== l.rateSource);
     out.push({ key: l.key, status: ch.length || textOnly ? 'changed' : 'unchanged', proposed: l, current: cur, changes: ch });
@@ -219,14 +251,15 @@ const hash = (s) => { let h = 5381; for (let k = 0; k < s.length; k++) h = ((h *
 // the stored calc block for a line (what the ledger keeps next to a calculated fee)
 export const calcBlock = (line, proposal, at) => ({ key: line.key, fields: calcFields(line), rateSource: line.rateSource, calculation: line.calculation, version: `${CALC_SOURCE.commit}/${CALC_SOURCE.snapshot}`, sourceId: proposal.source.id,
   inputs: { type: proposal.inputs.type, state: proposal.inputs.state, county: proposal.inputs.county, price: proposal.inputs.price, loan: proposal.inputs.loan, payoff: proposal.inputs.payoff, assessed: proposal.inputs.assessed,
-    occ: proposal.inputs.occ, fthb: proposal.inputs.fthb, pol: proposal.inputs.pol, rate: proposal.inputs.rate, pres: proposal.inputs.pres, ownPay: proposal.inputs.ownPay, ends: proposal.inputs.ends }, at });
+    occ: proposal.inputs.occ, fthb: proposal.inputs.fthb, pol: proposal.inputs.pol, rate: proposal.inputs.rate, pres: proposal.inputs.pres, ownPay: proposal.inputs.ownPay, ends: proposal.inputs.ends,
+    owner: proposal.inputs.type === 'refi' ? true : proposal.inputs.owner !== false }, at });
 // fee input (for accounting.js cleanFee) from a calculated line
 export const feeInput = (line) => ({ kind: 'charge', description: line.description, altaSection: line.altaSection, cdSection: line.cdSection, cdLine: line.cdLine, payee: line.payee, amount: line.amount,
   paidBy: line.paidBy === 'split' ? 'split' : line.paidBy, split: line.paidBy === 'split' ? line.split : null, titlePrefix: line.titlePrefix, timing: 'at', poc: false, note: `${CALC_TAG}: ${line.calculation}`.slice(0, 1000), presetKey: 'cla:' + line.key });
 // the options a re-run should start from: the inputs stored on the newest calculated fee (the order's price / loan always come from the order)
 export function lastOptions(fees, deal) {
   const f = (fees || []).filter(isCalculated).sort((a, b) => String(b.calc.at || '').localeCompare(String(a.calc.at || '')))[0]; if (!f) return { ...DEFAULT_OPTIONS, ...orderOptions(deal) };
-  const x = f.calc.inputs || {}; return { ...cleanOptions({ occ: x.occ, fthb: x.fthb, pol: x.pol, rate: x.rate, pres: x.pres, ownPay: x.ownPay, payoff: x.payoff, assessed: x.assessed, ends: x.ends }), ...orderOptions(deal) };
+  const x = f.calc.inputs || {}; return { ...cleanOptions({ occ: x.occ, fthb: x.fthb, pol: x.pol, rate: x.rate, pres: x.pres, ownPay: x.ownPay, payoff: x.payoff, assessed: x.assessed, ends: x.ends, owner: x.owner !== false }), ...orderOptions(deal) };
 }
 // John, Nov 3 call: the order's own First-time buyer / Primary residence answers (Place Order / Edit order) win over the last run's options
 export const orderAnswers = (deal) => ({ occ: deal && deal.primaryResidence ? deal.primaryResidence : '', fthb: deal && deal.firstTimeBuyer ? deal.firstTimeBuyer : '' });
@@ -239,8 +272,10 @@ export function calcSetup(deal, fees, R = vendoredTables()) {
   const base = { fromOrder: orderAnswers(deal), source: { ...vendoredRateSource, loadTables: undefined, tablesSync: undefined, commit: CALC_SOURCE.commit, snapshot: CALC_SOURCE.snapshot }, state, type, options };
   if (!CALC_STATES.includes(state)) return { ...base, covered: false, reason: `CLA rates cover MD, VA, DC and FL only (this order is in ${state || 'no state'}).` };
   const county = countyOf(R, deal); const known = state === 'DC' || C.allCounties(R, state).some((x) => C.eq(x, county));
+  const enhanced = enhancedSupport(R, state); if (!enhanced.supported && base.options.pol === 'enhanced') base.options = { ...base.options, pol: 'standard' };   // no enhanced rate: the form starts on basic
   let reason = ''; try { calcInputs(deal, options, R); } catch (e) { reason = e.message; }
   return { ...base, covered: !reason, reason, county, countyKnown: known, usesStateDefaults: !!county && C.usesDefaults(R, state, county),
+    enhanced, ownerPolicy: { removable: type !== 'refi', included: base.options.owner !== false },
     endorsements: endorsementChoices(R, state, type), asks: { payoff: type === 'refi', assessed: state === 'VA' && type !== 'refi', occ: !NO_OO.test(state), fthb: !NO_OO.test(state) && type !== 'refi', ownPay: type !== 'refi', flTitle: state === 'FL' && type !== 'refi' },
     flTitleDefault: state === 'FL' && type !== 'refi' ? C.FL_TITLE[C.flTitleOpt(R, { state, county, ownPay: '' })] : '', ownerPayDefault: type !== 'refi' ? C.ownerPayDefault(R, state, county) : '' };
 }

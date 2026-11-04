@@ -432,3 +432,16 @@ label.req { color: var(--ink-2); border-left: 3px solid var(--bad); padding-left
 .ta-wrap { position: relative; } .typeahead { position: absolute; left: 0; right: 0; top: 100%; z-index: 70; list-style: none; margin: 2px 0 0; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); box-shadow: var(--sh-3); }
 .typeahead li { padding: 5px 8px; cursor: pointer; font-weight: 400; border-radius: var(--r-sm); } .typeahead li:hover, .typeahead li.on { background: var(--surface-2); }
 tr.bad-row td { background: var(--warn-bg); } .invite-body { white-space: pre-wrap; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px; font-size: var(--fs-sm); max-height: 240px; overflow: auto; }
+/* ---------- ACCOUNTING, Caroline Kim Nov 4 2026: prorations, CD pages 1-5, CD details & escrow ---------- */
+.acct-cd-page { margin: 0 0 var(--s5); padding-top: var(--s3); border-top: 1px dashed var(--line-2); } .acct-cd-page:first-of-type { border-top: 0; }
+.acct-cd-pagehead { display: flex; align-items: baseline; gap: var(--s3); flex-wrap: wrap; margin-bottom: var(--s2); } .acct-cd-pagehead .acct-h { margin: 0; flex: 1 1 auto; }
+.acct-cd-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--s3) var(--s4); margin: 0 0 var(--s3); }
+.acct-cd-info > div { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; } .acct-cd-info h4 { margin: 0 0 6px; font-size: var(--fs-sm); color: var(--navy-800); }
+.acct-cd-info dl { display: grid; grid-template-columns: minmax(120px, auto) 1fr; gap: 3px 12px; margin: 0; font-size: var(--fs-sm); } .acct-cd-info dt { color: var(--ink-3); } .acct-cd-info dd { margin: 0; font-weight: 500; }
+.acct-cd-costs { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); } .acct-cd-costs > div { display: flex; flex-direction: column; gap: 2px; background: var(--navy-50); border: 1px solid var(--navy-100); border-radius: var(--r); padding: 10px 14px; } .acct-cd-costs strong { font-size: 20px; }
+.acct-yn.yes { color: var(--bad); } .acct-yn.no { color: var(--ink-2); }
+.acct-cd-group { border: 1px solid var(--line); border-radius: var(--r); padding: 8px 12px 12px; margin: 0 0 var(--s3); } .acct-cd-group legend { font-weight: 600; font-size: var(--fs-sm); color: var(--navy-800); padding: 0 6px; }
+.acct-cd-form .form-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s3) var(--s4); align-items: end; } @media (max-width: 1100px) { .acct-cd-form .form-grid { grid-template-columns: 1fr 1fr; } }
+.acct-pr-preview { margin: var(--s3) 0 0; padding: 8px 12px; border: 1px dashed var(--line-2); border-radius: var(--r); background: var(--surface-2); } .acct-pr-text { color: var(--ink-3); max-width: 760px; margin-top: 2px; }
+.acct-prorations td { vertical-align: top; } .acct-escrow td { padding: 4px 10px; } .tbl tr.acct-escrow-low td { background: var(--warn-bg); font-weight: 600; }
+@media print { .acct-cd-page { page-break-before: always; border-top: 0; } .acct-cd-page:first-of-type { page-break-before: auto; } .acct-cd-info > div, .acct-cd-costs > div { background: #fff !important; } }

@@ -241,3 +241,11 @@ body.theme-cards .acct-uw { color: var(--tc-baby-ink, #1F6FA3); }
 body.theme-cards .crm-create-list { border-radius: 14px; border-color: #e6eef7; } body.theme-cards .crm-create-list a:hover { background: var(--tc-baby-soft, #eaf4fd); color: var(--tc-baby-ink-2); }
 body.theme-cards .typeahead { border-radius: 12px; } body.theme-cards .typeahead li.on, body.theme-cards .typeahead li:hover { background: var(--tc-baby-soft, #eaf4fd); }
 body.theme-cards .invite-body { border-radius: 12px; background: #f6faff; }
+/* ACCOUNTING, Caroline Kim Nov 4 2026 (prorations, CD pages 1-5, CD details): the same baby-blue card look */
+body.theme-cards .acct-cd-page { background: #fff; padding: 14px 16px 16px; border-top: 0; margin-bottom: 18px; }
+body.theme-cards .acct-cd-info > div { background: #fff; border-color: var(--tc-baby-line); border-radius: 2px; box-shadow: inset 3px 0 0 var(--tc-baby); }
+body.theme-cards .acct-cd-info h4 { color: var(--tc-baby-ink-2); font-weight: 500; }
+body.theme-cards .acct-cd-costs > div { background: var(--tc-baby-soft); border-color: var(--tc-baby-line); border-radius: 2px; } body.theme-cards .acct-cd-costs strong { color: var(--tc-baby-ink-2); font-weight: 500; }
+body.theme-cards .acct-cd-group { background: #fff; border-color: var(--tc-baby-line); border-radius: 2px; } body.theme-cards .acct-cd-group legend { color: var(--tc-baby-ink-2); font-weight: 500; }
+body.theme-cards .acct-pr-preview { background: var(--tc-baby-soft); border-color: var(--tc-baby-line); border-radius: 2px; }
+@media print { body.theme-cards .acct-cd-page { padding: 0 !important; } }

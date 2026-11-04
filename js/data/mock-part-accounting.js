@@ -4,13 +4,17 @@
  * Sales Person / Sales Team read the orders they can see; Transaction Coordinators, agents and clients get nothing.
  * Every add / edit / retire / restore is logged in d.accountingLog (who, when, field, old, new). Fees are RETIRED, never deleted. */
 import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, acctCanRead, acctCanEdit, cleanFee, feeChanges, allEntries, ledgerTotals,
-  altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags } from './accounting.js?v=202611032132';
+  altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration } from './accounting.js?v=202611041131';
+// Caroline Kim, Nov 4 2026: prorations from the settlement date, the rest of the CD (details, prepaids F, initial escrow G), TCs read-only.
+import { cleanCdDetails, cdDetailChanges, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA } from './cd-pages.js?v=202611041131';
+const PRORATION_VIA = 'Settlement date change (prorations re-saved)';
 // CLA RATES (John, Nov 3): the fee engine (+ the vendored calculator code and rate tables) is loaded only when a CLA-rate method is called,
 // so with the flag off it is never loaded at all.
-const engine = () => import('./fee-engine.js?v=202611032132');
+const engine = () => import('./fee-engine.js?v=202611041131');
 const VIA = 'CLA rates';
 
-export function ensureAccounting(d) { if (!Array.isArray(d.accountingFees)) d.accountingFees = []; if (!Array.isArray(d.accountingLog)) d.accountingLog = []; return d; }
+// accountingCd (Caroline, Nov 4): one record of manual Closing Disclosure entries per order; added lazily, so the storage key stays v26
+export function ensureAccounting(d) { if (!Array.isArray(d.accountingFees)) d.accountingFees = []; if (!Array.isArray(d.accountingLog)) d.accountingLog = []; if (!Array.isArray(d.accountingCd)) d.accountingCd = []; return d; }
 
 export function accountingPart(x, flags) {
   const { load, save, nid, needUser, dealsFor, fail, now, nameOf, clone } = x;
@@ -35,7 +39,7 @@ export function accountingPart(x, flags) {
     async getAccounting(dealId, { includeRetired = false } = {}) {
       const { u, deal } = reader(dealId); const fees = feesOf(dealId);
       return { dealId, fileNumber: deal.fileNumber, state: deal.state, transactionType: deal.transactionType || 'Purchase', refi: deal.transactionType === 'Refinance',
-        purchasePrice: deal.purchasePrice ?? null, loanAmount: deal.loanAmount ?? null, emdAmount: deal.emdAmount ?? null, canEdit: acctCanEdit(u), mark: TEST_MARK,
+        purchasePrice: deal.purchasePrice ?? null, loanAmount: deal.loanAmount ?? null, emdAmount: deal.emdAmount ?? null, closingDate: deal.closingDate || null, canEdit: acctCanEdit(u), mark: TEST_MARK,
         entries: clone(allEntries(deal, fees, { includeRetired }).map(withCalcFlags)), retiredCount: fees.filter((f) => f.retired).length, totals: ledgerTotals(deal, fees) };
     },
     // EXAMPLE presets are REPLACED by this order's CLA-rate lines wherever the calculator has them; the rest stay marked EXAMPLE
@@ -88,6 +92,34 @@ export function accountingPart(x, flags) {
       f.retired = on2; f.retiredAt = on2 ? now() : null; f.retiredBy = on2 ? u.id : null; f.updatedAt = now(); f.updatedBy = u.id;
       logIt(u, f, on2 ? 'retired' : 'restored', [{ field: 'retired', old: !on2, new: on2 }]); save(); return out(f);
     },
+    // ---------- PRORATIONS (Caroline, Nov 4): re-save every proration whose amount moved with the settlement date (logged) ----------
+    async refreshAccountingProrations(dealId) { const { u, deal } = editor(dealId); let updated = 0; const at = now();
+      for (const f of feesOf(dealId).filter((x) => !x.retired && x.proration)) { const live = liveProration(f, deal); if (!live.prorationStale || live.prorationError) continue;
+        const clean = cleanFee({ proration: f.proration, description: f.description }, deal, f); const changes = feeChanges(f, clean); if (!changes.length) continue;
+        Object.assign(f, clean, { updatedAt: at, updatedBy: u.id }); logIt(u, f, 'edited', changes, PRORATION_VIA); updated++; }
+      if (updated) save(); return { updated }; },
+    // ---------- CLOSING DISCLOSURE details + prepaids / escrow (Caroline, Nov 4) ----------
+    async getAccountingCd(dealId) { const { u, deal } = reader(dealId); const rec = db().accountingCd.find((x) => x.dealId === dealId); const details = rec ? rec.data : {};
+      const cd = closingDisclosure(deal, feesOf(dealId)); let calc = { lines: [], warnings: [], escrow: null }; try { calc = prepaidEscrowLines(deal, details); } catch (e) { calc.warnings = [e.message]; }
+      return clone({ dealId, canEdit: acctCanEdit(u), details, updatedAt: rec ? rec.updatedAt : null, updatedByName: rec ? nameOf(rec.updatedBy) : '', cd, pages: cdPages(deal, cd, details, calc.escrow), escrow: calc.escrow, calcWarnings: calc.warnings, mark: TEST_MARK,
+        deal: { closingDate: deal.closingDate || null, loanAmount: deal.loanAmount ?? null, purchasePrice: deal.purchasePrice ?? null, lenderName: deal.lenderName || '', street: deal.street, city: deal.city, state: deal.state, zip: deal.zip } }); },
+    async saveAccountingCd(dealId, input) { const { u } = editor(dealId); const list = db().accountingCd; let rec = list.find((x) => x.dealId === dealId);
+      const next = cleanCdDetails(input || {}); const changes = cdDetailChanges(rec ? rec.data : {}, next); if (!changes.length) return { changed: 0 };
+      const first = !rec; if (!rec) { rec = { id: nid('acd'), dealId, data: {}, createdAt: now(), createdBy: u.id }; list.push(rec); }
+      rec.data = next; rec.updatedAt = now(); rec.updatedBy = u.id;
+      db().accountingLog.push({ id: nid('alog'), dealId, feeId: rec.id, description: 'Closing Disclosure details', action: first ? 'added' : 'edited', at: now(), byId: u.id, byName: nameOf(u.id), changes, cd: true });
+      save(); return { changed: changes.length }; },
+    async previewAccountingPrepaids(dealId) { const { deal } = editor(dealId); const rec = db().accountingCd.find((x) => x.dealId === dealId); const P = prepaidEscrowLines(deal, rec ? rec.data : {});
+      return clone({ ...P, ...diffCdcalc(P.lines, feesOf(dealId)) }); },
+    async applyAccountingPrepaids(dealId, { retireExamples = true } = {}) { const { u, deal } = editor(dealId); const rec = db().accountingCd.find((x) => x.dealId === dealId); const P = prepaidEscrowLines(deal, rec ? rec.data : {});
+      const D = diffCdcalc(P.lines, feesOf(dealId)); const at = now(); const r = { added: 0, updated: 0, retired: 0, examplesRetired: 0 };
+      for (const row of D.rows) {
+        if (row.status === 'new') { const clean = cleanFee(cdcalcFeeInput(row.proposed), deal); const f = { id: nid('fee'), dealId, ...clean, retired: false, retiredAt: null, retiredBy: null, createdAt: at, createdBy: u.id, updatedAt: at, updatedBy: u.id };
+          db().accountingFees.push(f); logIt(u, f, 'added', feeChanges(null, f), CDCALC_VIA); r.added++; }
+        else if (row.status === 'changed') { const f = feeOf(row.current.id); const clean = cleanFee(cdcalcFeeInput(row.proposed), deal, f); const changes = feeChanges(f, clean); Object.assign(f, clean, { updatedAt: at, updatedBy: u.id }); logIt(u, f, 'edited', changes, CDCALC_VIA); r.updated++; }
+        else if (row.status === 'retire') { retire(u, feeOf(row.current.id), CDCALC_VIA + ' (no longer calculated)'); r.retired++; } }
+      if (retireExamples) for (const x of D.examples) { const f = feeOf(x.id); if (!f.retired) { retire(u, f, CDCALC_VIA + ' (EXAMPLE fee replaced)'); r.examplesRetired++; } }
+      save(); return r; },
     async listAccountingLog(dealId) { reader(dealId); return clone(db().accountingLog.filter((l) => l.dealId === dealId)).reverse(); },
     async getAltaStatement(dealId, view = 'combined') { const { deal } = reader(dealId); return altaStatement(deal, feesOf(dealId), view); },
     async getClosingDisclosure(dealId) { const { deal } = reader(dealId); return closingDisclosure(deal, feesOf(dealId)); },

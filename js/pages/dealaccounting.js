@@ -1,15 +1,19 @@
 // ACCOUNTING tab (John, Nov 3: "an accounting tab that will allow fees to be added to an ALTA and CD"). CLA staff only, behind the `accounting`
 // feature flag (app.js never loads this module when it is off). ONE fee ledger feeds the ALTA Settlement Statement and the Closing Disclosure fee
 // view. Processor / Admin / Super admin edit; Sales Person / Sales Team read only. TEST ONLY: "TEST - not a legal disclosure" on every page and print.
-import { html, raw, $, $$, guard, formData, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611032132';
-import { themeOn } from '../theme.js?v=202611032132';
-import { modOn } from '../data/modules.js?v=202611032132';
-import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611032132';
-import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611032132';
+import { html, raw, $, $$, guard, formData, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611041131';
+import { themeOn } from '../theme.js?v=202611041131';
+import { modOn } from '../data/modules.js?v=202611041131';
+import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611041131';
+import { prorationsView } from './dealaccounting-prorations.js?v=202611041131';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
+import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611041131'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
+import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611041131';
 
-const VIEWS = [['ledger', 'Fee ledger'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['history', 'Edit history']];
-const m2 = (n) => (n == null || Number(n) === 0 ? '' : '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-const m2z = (n) => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const VIEWS = [['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
+// negative amounts (the escrow aggregate adjustment) show as -$x.xx
+const m2 = (n) => (n == null || Number(n) === 0 ? '' : (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+const m2z = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const READ_ONLY_NOTE = 'Read only for your role (Sales Person, Sales Team, Transaction Coordinator): you can read the ledger, prorations and statements; only a Processor, Admin or Super admin can add or change them.';
 const opt = (v, l, sel) => html`<option value="${v}" ${String(v) === String(sel ?? '') ? raw('selected') : ''}>${l}</option>`;
 const names = (deal, role) => deal.participants.filter((p) => p.role === role && p.contact).map((p) => (p.entity && p.entity.name) || `${p.contact.firstName} ${p.contact.lastName}`).join(', ');
 
@@ -37,38 +41,41 @@ export async function render({ api, deal, user }) {
       ${tile('Paid by others / outside closing', m2z(T.paidByLender + T.paidByOther), html`POC / before closing ${m2z(T.paidOutsideClosing)}`)}
       ${tile('Balance check', T.balanced ? 'Balanced' : 'OUT OF BALANCE', html`Funds in ${m2z(T.receipts)} &middot; out ${m2z(T.disbursements)}${T.balanced ? '' : html` &middot; difference <strong data-balance-diff>${m2z(Math.abs(T.difference))}</strong>`}`,
         ` data-balance="${T.balanced ? 'ok' : 'out'}"`, `acct-balance ${T.balanced ? 'is-ok' : 'is-bad'}`, T.balanced ? '' : 'bad')}</div>
-    ${T.issues.length ? html`<div class="notice warn acct-noprint" data-balance-issues><strong>Out of balance.</strong><ul>${T.issues.map((i) => html`<li>${i}</li>`)}</ul></div>` : ''}`;
+    ${T.issues.length ? html`<div class="notice warn acct-noprint" data-balance-issues><strong>Out of balance.</strong><ul>${T.issues.map((i) => html`<li>${i}</li>`)}</ul></div>` : ''}
+    ${(T.warnings || []).length ? html`<div class="notice info acct-noprint" data-acct-warnings><ul>${T.warnings.map((i) => html`<li>${i}</li>`)}</ul></div>` : ''}`;
   let v;
   if (view === 'alta') v = await altaView(api, deal, acc, q, base);
-  else if (view === 'cd') v = await cdView(api, deal, acc);
+  else if (view === 'cd') v = await cdPagesView(api, deal, acc, docHead, printBtn, mountPrint);
+  else if (view === 'cddetails') v = await cdDetailsView(api, deal, acc);
+  else if (view === 'prorations') v = await prorationsView(api, deal, acc, base);
   else if (view === 'history') v = await historyView(api, deal);
   else v = await ledgerView(api, deal, acc, showRetired, base);
-  return { title: 'Accounting', crumbs: [['Accounting']], body: html`<section class="acct" data-accounting data-acct-view="${view}">${head}${tabs}${view === 'ledger' ? balance : ''}${v.body}</section>`, mount: v.mount || (() => {}) };
+  return { title: 'Accounting', crumbs: [['Accounting']], body: html`<section class="acct" data-accounting data-acct-view="${view}">${head}${tabs}${view === 'ledger' || view === 'prorations' ? balance : ''}${v.body}</section>`, mount: v.mount || (() => {}) };
 }
 
 // ---------------- ledger + add / edit form ----------------
 async function ledgerView(api, deal, acc, showRetired, base) {
   // John, Nov 3 call: the state's underwriter split, shown on title premium lines (CLA portion vs underwriter portion)
-  const uw = api.listUnderwriterSplits ? await api.listUnderwriterSplits().then((r) => splitFor(r.rows, deal.state), () => null) : null;
+  const uw = api.listUnderwriterSplits ? await api.listUnderwriterSplits().then((r) => splitFor(r.rows, deal.state), () => 'hidden') : null;   // TCs: no underwriter split (Caroline, Nov 4: TCs read-only)
   const presets = acc.canEdit ? await api.listAccountingPresets(deal.id) : [];
   const groups = [['CLA rates for this order', presets.filter((p) => p.calculated)], ...PRESET_STATES.filter(([k]) => k === 'ALL' || k === deal.state).map(([k, l]) => [l, presets.filter((p) => !p.calculated && p.state === k)])].filter(([, l]) => l.length);
   const bySec = ALTA_SECTIONS.map(([k, l]) => [k, l, acc.entries.filter((e) => e.altaSection === k)]).filter(([, , l]) => l.length);
   const who = (e) => { if (e.kind === 'credit') return html`<span class="small acct-flow">${FROM_LABEL[e.from]} &rarr; ${e.to === 'buyer' ? (acc.refi ? 'Borrower' : 'Buyer') : 'Seller'}</span>`; return ''; };
   const cell = (n) => html`<td class="num">${m2(n)}</td>`;
   const row = (e) => { const sp = e.split || {}; const cr = e.kind === 'credit';
-    const bD = cr ? (e.from === 'buyer' ? e.amount : 0) : sp.buyer; const bC = cr && e.to === 'buyer' ? e.amount : 0; const sD = cr ? (e.from === 'seller' ? e.amount : 0) : sp.seller; const sC = cr && e.to === 'seller' ? e.amount : 0;
+    const bD = cr ? (e.from === 'buyer' ? e.amount : 0) : (e.reduces ? -1 : 1) * (sp.buyer || 0); const bC = cr && e.to === 'buyer' ? e.amount : 0; const sD = cr ? (e.from === 'seller' ? e.amount : 0) : sp.seller; const sC = cr && e.to === 'seller' ? e.amount : 0;
     return html`<tr data-fee-row="${e.id}" class="${e.retired ? 'is-done acct-retired' : ''} ${e.auto ? 'acct-auto' : ''}">
-      <td><strong>${e.kind === 'charge' ? cdDescription(e) : e.description}</strong>${e.auto ? html` <span class="pill" data-auto>From the order</span>` : ''}${calcTags(e)}${e.retired ? html` <span class="pill warn">Retired</span>` : ''}
+      <td><strong>${e.kind === 'charge' ? cdDescription(e) : e.description}</strong>${e.auto ? html` <span class="pill" data-auto>From the order</span>` : ''}${calcTags(e)}${e.retired ? html` <span class="pill warn">Retired</span>` : ''}${e.proration ? html` <a class="pill acct-calc-pill" data-proration-pill href="#/deals/${deal.id}/accounting?v=prorations">Proration${e.prorationStale ? ' · date changed' : ''}</a>` : ''}${e.lenderCredit ? html` <span class="pill acct-calc-pill" data-lender-credit>Lender credit · CD J</span>` : ''}${e.reduces ? html` <span class="pill" data-reduces>Aggregate adjustment</span>` : ''}${String(e.presetKey || '').startsWith('cdcalc:') ? html` <span class="pill acct-calc-pill" data-cdcalc-tag>Prepaids / escrow calculator</span>` : ''}
         ${e.poc ? html` <span class="pill" data-poc>POC</span>` : e.timing === 'before' ? html` <span class="pill">Before closing</span>` : ''}
         ${e.auto ? '' : e.calc ? calcDetail(e) : html`<div class="small muted">${e.payee ? `to ${e.payee}` : ''}${e.payee && e.note ? ' · ' : ''}${e.note || ''}</div>`}${who(e)}${uwSplit(e, uw, deal.state)}</td>
       <td class="small">${e.cdSection ? html`<span title="${cdLabel(e.cdSection)}">${e.cdSection}${e.cdLine ? '.' + e.cdLine : ''}</span>` : html`<span class="muted">&mdash;</span>`}</td>
-      <td class="num"><strong>${m2z(e.amount)}</strong></td>${cell(bD)}${cell(bC)}${acc.refi ? '' : html`${cell(sD)}${cell(sC)}`}${cell(cr ? 0 : (Number(sp.lender) || 0) + (Number(sp.other) || 0))}
-      <td class="nowrap acct-noprint">${acc.canEdit && !e.auto ? (e.retired ? html`<button class="ghost small" type="button" data-restore="${e.id}">Restore</button>` : html`<button class="ghost small" type="button" data-edit-fee="${e.id}">Edit</button> <button class="ghost small danger" type="button" data-retire="${e.id}">Retire</button>`) : ''}</td></tr>`; };
+      <td class="num"><strong>${m2z(e.reduces ? -e.amount : e.amount)}</strong></td>${cell(bD)}${cell(bC)}${acc.refi ? '' : html`${cell(sD)}${cell(sC)}`}${cell(cr ? 0 : (Number(sp.lender) || 0) + (Number(sp.other) || 0))}
+      <td class="nowrap acct-noprint">${acc.canEdit && !e.auto ? (e.proration && !e.retired ? html`<a class="ghost small" href="#/deals/${deal.id}/accounting?v=prorations" data-edit-in-prorations>Edit in Prorations</a> <button class="ghost small danger" type="button" data-retire="${e.id}">Retire</button>` : e.retired ? html`<button class="ghost small" type="button" data-restore="${e.id}">Restore</button>` : html`<button class="ghost small" type="button" data-edit-fee="${e.id}">Edit</button> <button class="ghost small danger" type="button" data-retire="${e.id}">Retire</button>`) : ''}</td></tr>`; };
   const cols = acc.refi ? 7 : 9;
   const table = html`<table class="tbl acct-ledger" data-ledger><thead><tr><th>Description</th><th>CD</th><th class="num">Amount</th><th class="num">${acc.refi ? 'Borrower' : 'Buyer'} debit</th><th class="num">${acc.refi ? 'Borrower' : 'Buyer'} credit</th>${acc.refi ? '' : html`<th class="num">Seller debit</th><th class="num">Seller credit</th>`}<th class="num">Lender / other</th><th class="acct-noprint"></th></tr></thead>
     <tbody>${bySec.length ? bySec.map(([k, l, list]) => html`<tr class="acct-sec" data-sec="${k}"><th colspan="${cols}">${l}</th></tr>${list.map(row)}`) : html`<tr><td colspan="${cols}" class="muted">No fees yet.</td></tr>`}
       <tr class="acct-total" data-running-totals><td><strong>Totals (at closing)</strong></td><td></td><td></td><td class="num">${m2z(acc.totals.buyerDebits)}</td><td class="num">${m2z(acc.totals.buyerCredits)}</td>${acc.refi ? '' : html`<td class="num">${m2z(acc.totals.sellerDebits)}</td><td class="num">${m2z(acc.totals.sellerCredits)}</td>`}<td class="num">${m2z(acc.totals.paidByLender + acc.totals.paidByOther)}</td><td class="acct-noprint"></td></tr></tbody></table>`;
-  const form = acc.canEdit ? feeForm(acc, groups) : html`<p class="notice info" data-readonly-note>Sales roles can read the ledger and statements; only a Processor, Admin or Super admin can add or change fees.</p>`;
+  const form = acc.canEdit ? feeForm(acc, groups) : html`<p class="notice info" data-readonly-note>${READ_ONLY_NOTE}</p>`;
   const nCalc = acc.entries.filter((e) => e.calc && !e.retired); const nOver = nCalc.filter((e) => e.overridden).length;
   const calcCard = acc.canEdit ? html`<div class="card acct-calc acct-noprint" data-calc-card><div class="acct-card-head"><h3>CLA rates</h3><span class="muted small" data-calc-status>${nCalc.length ? `${nCalc.length} line${nCalc.length === 1 ? '' : 's'} from CLA rates${nOver ? ` · ${nOver} overridden` : ''}` : 'No fees from CLA rates yet'}</span></div>
       <p class="small muted">Title premiums, endorsements, CLA settlement fees, recording fees and transfer / recordation taxes from the CLA quote calculator's rates for this order. You see a preview first; nothing changes until you apply. Lines you changed by hand are kept.</p>
@@ -104,7 +111,8 @@ function feeForm(acc, groups) {
       <div class="span2 acct-credit-only" data-credit-only hidden><div class="form-grid">
         <label>Credit from<select name="from">${FROM_KEYS.filter((k) => !(acc.refi && k === 'seller')).map((k) => opt(k, FROM_LABEL[k], 'seller'))}</select></label>
         <label>Credit to<select name="to">${TO_KEYS.filter((k) => !(acc.refi && k === 'seller')).map((k) => opt(k, k === 'buyer' ? (acc.refi ? 'Borrower' : 'Buyer / borrower') : 'Seller', 'buyer'))}</select></label>
-        ${acc.refi ? '' : html`<p class="span2 small muted" data-proration-help>Proration: <button type="button" class="linkish" data-prorate="advance">seller paid in advance</button> (buyer pays seller back) or <button type="button" class="linkish" data-prorate="unpaid">unpaid by seller</button> (seller credits the buyer). Enter the prorated amount you worked out.</p>`}</div></div>
+        <label class="check span2" data-lender-credit-wrap><input type="checkbox" name="lenderCredit" value="1"> Lender credit (lender pays toward the borrower's closing costs: CD section J "Lender Credits")</label>
+        ${acc.refi ? '' : html`<p class="span2 small muted" data-proration-help>Taxes, HOA dues and other prorations are <a href="#/deals/${acc.dealId}/accounting?v=prorations" data-goto-prorations>calculated on the Prorations tab</a> from the settlement date. A hand-entered adjustment: <button type="button" class="linkish" data-prorate="advance">seller paid in advance</button> (buyer pays seller back) or <button type="button" class="linkish" data-prorate="unpaid">unpaid by seller</button> (seller credits the buyer).</p>`}</div></div>
       <label class="span2">Note<textarea name="note" rows="2" maxlength="1000"></textarea></label>
     </div>
     <p class="err-text small" data-form-err></p>
@@ -127,7 +135,8 @@ function mountLedger(root, api, deal, acc, refresh) {
   el('kind').addEventListener('change', () => { if (el('kind').value === 'credit') { el('cdSection').value = ''; if (!['prorations', 'financial', 'misc'].includes(el('altaSection').value)) el('altaSection').value = 'prorations'; } else { el('cdSection').value = DEFAULT_CD[el('altaSection').value] ?? ''; } sync(); });
   ['paidBy', 'poc', 'amount'].forEach((n) => el(n).addEventListener(n === 'amount' ? 'input' : 'change', sync)); $$('[data-split] input', f).forEach((i) => i.addEventListener('input', left));
   $$('[data-prorate]', f).forEach((b) => b.addEventListener('click', () => { el('altaSection').value = 'prorations'; el('cdSection').value = ''; if (b.dataset.prorate === 'advance') { el('from').value = 'buyer'; el('to').value = 'seller'; } else { el('from').value = 'seller'; el('to').value = 'buyer'; } sync(); }));
-  const fill = (fee) => { el('kind').value = fee.kind || 'charge'; for (const n of ['description', 'altaSection', 'cdSection', 'cdLine', 'payee', 'note', 'presetKey']) el(n).value = fee[n] ?? '';
+  if (el('lenderCredit')) el('lenderCredit').addEventListener('change', () => { if (el('lenderCredit').checked) { el('from').value = 'lender'; el('to').value = 'buyer'; el('cdSection').value = ''; if (el('altaSection').value === 'prorations') el('altaSection').value = 'loanCharges'; } });
+  const fill = (fee) => { el('kind').value = fee.kind || 'charge'; if (el('lenderCredit')) el('lenderCredit').checked = !!fee.lenderCredit; for (const n of ['description', 'altaSection', 'cdSection', 'cdLine', 'payee', 'note', 'presetKey']) el(n).value = fee[n] ?? '';
     el('amount').value = fee.amount != null ? Number(fee.amount).toFixed(2) : ''; el('paidBy').value = fee.paidBy || 'buyer'; el('timing').value = fee.timing || 'at'; el('poc').checked = !!fee.poc; el('titlePrefix').checked = !!fee.titlePrefix;
     PAYERS.forEach(([k]) => { if (el('split_' + k)) el('split_' + k).value = fee.split && Number(fee.split[k]) ? Number(fee.split[k]).toFixed(2) : ''; });
     if (fee.kind === 'credit') { el('from').value = fee.from || 'seller'; el('to').value = fee.to || 'buyer'; } sync(); };
@@ -138,7 +147,7 @@ function mountLedger(root, api, deal, acc, refresh) {
     $('[data-form-title]', f).textContent = fee.calc ? `Edit fee (${CALC_TAG}: a change to the amount, payer or sections marks it overridden)` : 'Edit fee'; $('[data-save-fee]', f).textContent = 'Save changes'; $('[data-cancel-edit]', f).hidden = false; f.scrollIntoView({ block: 'start' }); el('description').focus(); }));
   f.addEventListener('submit', async (e) => { e.preventDefault(); const v = formData(f); const err = $('[data-form-err]', f); err.textContent = '';
     const input = { kind: v.kind, description: v.description, altaSection: v.altaSection, cdSection: v.cdSection, cdLine: v.cdLine, payee: v.payee, amount: v.amount, note: v.note, presetKey: v.presetKey || null };
-    if (v.kind === 'credit') Object.assign(input, { from: v.from, to: v.to });
+    if (v.kind === 'credit') Object.assign(input, { from: v.from, to: v.to, lenderCredit: !!(el('lenderCredit') && el('lenderCredit').checked) });
     else Object.assign(input, { paidBy: v.paidBy, timing: el('poc').checked ? 'before' : v.timing, poc: el('poc').checked, titlePrefix: el('titlePrefix').checked,
       split: v.paidBy === 'split' ? Object.fromEntries(PAYERS.filter(([k]) => el('split_' + k)).map(([k]) => [k, v['split_' + k]])) : null });
     try { if (v.editId) { await api.updateAccountingFee(v.editId, input); toast('Fee updated (logged).'); } else { await api.addAccountingFee(deal.id, input); toast('Fee added (logged).'); } go(); }
@@ -162,9 +171,11 @@ function calcOptionsForm(S) {
     <div class="form-grid">
       ${S.asks.occ ? html`<label class="check"><input type="checkbox" name="occ" value="1" ${o.occ !== false ? raw('checked') : ''}> Principal residence</label>` : ''}
       ${S.asks.fthb ? html`<label class="check"><input type="checkbox" name="fthb" value="1" ${o.fthb ? raw('checked') : ''}> First-time buyer</label>` : ''}
-      ${S.asks.ownPay ? html`<label>Owner's policy${sel('pol', [['enhanced', 'Enhanced'], ['standard', 'Standard']], o.pol)}</label>` : ''}
+      ${S.ownerPolicy && S.ownerPolicy.removable ? html`<label>Owner's policy${sel('owner', [['true', "Include owner's policy"], ['false', "Remove owner's policy"]], String(o.owner !== false))}</label>` : ''}
+      ${S.asks.ownPay ? html`<label data-pol-wrap>Owner's policy type${sel('pol', [['standard', 'Basic (standard)'], ['enhanced', S.enhanced && S.enhanced.supported ? "Enhanced (ALTA Homeowner's)" : 'Enhanced - PLACEHOLDER (no rate in the data)']], o.pol)}
+        <span class="field-hint small ${S.enhanced && !S.enhanced.supported ? 'warn-text' : 'muted'}" data-enhanced-note>${S.enhanced ? S.enhanced.note : ''}</span></label>` : ''}
       <label>Rate${sel('rate', [['basic', 'Basic'], ['reissue', 'Reissue']], o.rate)}</label>
-      ${S.type === 'cash' ? '' : html`<label>Premium presentation${sel('pres', [['trid', 'TRID (full lender\'s premium in C)'], ['actual', 'Actual (simultaneous price)']], o.pres)}</label>`}
+      ${S.type === 'cash' ? '' : html`<label>Premium presentation${sel('pres', [['trid', 'TRID disclosure (CLA default): full lender\'s premium in C, owner\'s in H = the difference'], ['actual', 'Actual (simultaneous price)']], o.pres)}</label>`}
       ${S.asks.ownPay ? html`<label>${S.asks.flTitle ? 'Title / owner\'s policy paid by' : 'Owner\'s policy paid by'}${sel('ownPay', [['', `Local custom (${S.asks.flTitle ? S.flTitleDefault : S.ownerPayDefault || 'Buyer'})`], ...(S.asks.flTitle ? ['Seller', 'Buyer', 'MDB', 'CHA'] : ['Buyer', 'Seller']).map((k) => [k, ownL[k]])], o.ownPay)}</label>` : ''}
       ${S.asks.payoff ? html`<label>Payoff of the existing loan<input name="payoff" inputmode="decimal" value="${o.payoff || ''}" placeholder="0.00"></label>` : ''}
       ${S.asks.assessed ? html`<label>Assessed value <span class="muted">(if higher than the price)</span><input name="assessed" inputmode="decimal" value="${o.assessed || ''}" placeholder="0.00"></label>` : ''}
@@ -196,7 +207,7 @@ function mountCalc(root, api, deal, acc, refresh) {
   const refi = acc.refi; let setup = null;
   const read = (f) => { const v = (n) => (f.elements[n] ? f.elements[n].value : undefined); const o = { rate: v('rate') };
     if (f.elements.occ) o.occ = f.elements.occ.checked; else o.occ = true; if (f.elements.fthb) o.fthb = f.elements.fthb.checked;
-    if (f.elements.pol) o.pol = v('pol'); if (f.elements.pres) o.pres = v('pres'); if (f.elements.ownPay) o.ownPay = v('ownPay'); if (f.elements.payoff) o.payoff = v('payoff') || 0; if (f.elements.assessed) o.assessed = v('assessed') || 0;
+    if (f.elements.pol) o.pol = v('pol'); if (f.elements.owner) o.owner = v('owner') !== 'false'; if (f.elements.pres) o.pres = v('pres'); if (f.elements.ownPay) o.ownPay = v('ownPay'); if (f.elements.payoff) o.payoff = v('payoff') || 0; if (f.elements.assessed) o.assessed = v('assessed') || 0;
     if (setup.endorsements.length) o.ends = $$('input[name=end]', f).filter((x) => x.checked).map((x) => x.value); return o; };
   const open = guard(async () => { setup = await api.getCalculatorSetup(deal.id); panel.hidden = false; $('[data-calc-open]', card).hidden = true;
     if (!setup.covered) { panel.innerHTML = toText(html`<p class="notice warn" data-calc-not-ready>${setup.reason}</p>`); return; }
@@ -248,46 +259,23 @@ async function altaView(api, deal, acc, q, base) {
   return { body, mount: mountPrint };
 }
 
-// ---------------- Closing Disclosure fee view ----------------
-async function cdView(api, deal, acc) {
-  const cd = await api.getClosingDisclosure(deal.id); const refi = cd.refi;
-  const n = (v) => html`<td class="num">${m2(v)}</td>`;
-  const secRows = (S) => html`<tr class="acct-sec" data-cd-sec="${S.key}"><th>${S.key}. ${S.label}</th>${n(S.borrowerAt + S.borrowerBefore)}<td></td>${refi ? '' : html`<td></td><td></td>`}<td></td></tr>
-    ${S.rows.length ? S.rows.map((r) => html`<tr data-cd-row="${r.id}"><td><span class="cd-line">${r.line}</span> ${r.description}${r.payee ? html` <span class="muted small">to ${r.payee}</span>` : ''}</td>${n(r.borrowerAt)}${n(r.borrowerBefore)}${refi ? '' : html`${n(r.sellerAt)}${n(r.sellerBefore)}`}<td class="num">${r.others ? html`${r.othersWho ? html`<span class="muted small">(${r.othersWho})</span> ` : ''}${m2(r.others)}` : ''}</td></tr>`)
-      : html`<tr class="acct-empty"><td colspan="${refi ? 4 : 6}" class="muted small">None</td></tr>`}`;
-  const totRow = (label, Tt, key) => html`<tr class="acct-subtotal" data-cd-total="${key}"><td><strong>${label}</strong></td>${n(Tt.borrowerAt)}${n(Tt.borrowerBefore)}${refi ? '' : html`${n(Tt.sellerAt)}${n(Tt.sellerBefore)}`}${n(Tt.others)}</tr>`;
-  const head = html`<thead><tr><th rowspan="2"></th><th colspan="2" class="center">Borrower-Paid</th>${refi ? '' : html`<th colspan="2" class="center">Seller-Paid</th>`}<th rowspan="2" class="center">Paid by Others</th></tr>
-    <tr><th class="num">At Closing</th><th class="num">Before Closing</th>${refi ? '' : html`<th class="num">At Closing</th><th class="num">Before Closing</th>`}</tr></thead>`;
-  const loan = cd.sections.filter((s) => ['A', 'B', 'C'].includes(s.key)); const other = cd.sections.filter((s) => ['E', 'F', 'G', 'H'].includes(s.key));
-  const summ = (k) => { const S = cd.summaries[k]; if (!S) return ''; return html`<div class="acct-summ" data-cd-summary="${k}"><h4>${k}. ${S.label}</h4><table class="tbl"><tbody>${S.rows.length ? S.rows.map((r, i) => html`<tr><td><span class="cd-line">${String(i + 1).padStart(2, '0')}</span> ${r.label}</td>${n(r.amount)}</tr>`) : html`<tr><td class="muted small">None</td><td></td></tr>`}
-    <tr class="acct-subtotal"><td><strong>Total ${k}</strong></td><td class="num"><strong data-summary-total="${k}">${m2z(S.total)}</strong></td></tr></tbody></table></div>`; };
-  const body = html`<div class="acct-toolbar acct-noprint"><span class="muted small">Closing Disclosure pages 2-3 layout (fees + Summaries of Transactions). Lender credits, Projected Payments and the rest of the CD are not built here.</span><span class="spacer"></span>${printBtn('cd')}</div>
-    <div class="card acct-doc" data-print-area="cd">${docHead(deal, 'Closing Disclosure - Closing Cost Details', 'Fee pages built from the Accounting fee ledger. For testing the portal only.')}
-      <h3 class="acct-h">Loan Costs</h3><table class="tbl acct-cd" data-cd-loan>${head}<tbody>${loan.map(secRows)}${totRow('D. TOTAL LOAN COSTS (Borrower-Paid)', cd.D, 'D')}</tbody></table>
-      <h3 class="acct-h">Other Costs</h3><table class="tbl acct-cd" data-cd-other>${head}<tbody>${other.map(secRows)}${totRow('I. TOTAL OTHER COSTS (Borrower-Paid)', cd.I, 'I')}
-        ${totRow('J. TOTAL CLOSING COSTS (Borrower-Paid)', cd.J, 'J')}<tr class="acct-total"><td>Closing Costs Subtotals (D + I)</td><td class="num" colspan="2" data-j-borrower>${m2z(cd.J.borrower)}</td>${refi ? '' : html`<td class="num" colspan="2">${m2z(cd.J.sellerAt + cd.J.sellerBefore)}</td>`}<td class="num">${m2z(cd.J.others)}</td></tr></tbody></table>
-      <h3 class="acct-h">Summaries of Transactions</h3>
-      <div class="acct-summaries"><div><h4 class="acct-side">Borrower's Transaction</h4>${summ('K')}${summ('L')}<p class="acct-cash" data-cash-to-close>Cash to close ${cd.cashToClose >= 0 ? 'from' : 'to'} borrower: <strong>${m2z(Math.abs(cd.cashToClose))}</strong> <span class="muted small">(K - L)</span></p></div>
-        ${refi ? '' : html`<div><h4 class="acct-side">Seller's Transaction</h4>${summ('M')}${summ('N')}<p class="acct-cash" data-cash-to-seller>Cash ${cd.cashToSeller >= 0 ? 'to' : 'from'} seller: <strong>${m2z(Math.abs(cd.cashToSeller))}</strong> <span class="muted small">(M - N)</span></p></div>`}</div>
-      <div class="acct-mark acct-mark-foot">${TEST_MARK}</div></div>`;
-  return { body, mount: mountPrint };
-}
+// ---------------- Closing Disclosure: pages 1-5 are built in dealaccounting-cd.js (Caroline Kim, Nov 4 2026) ----------------
 
 // ---------------- edit history ----------------
-const LABELS = { kind: 'Type', description: 'Description', altaSection: 'ALTA section', cdSection: 'CD section', cdLine: 'CD line', payee: 'Payee', amount: 'Amount', paidBy: 'Paid by', split: 'Split', timing: 'Paid', poc: 'POC', titlePrefix: '"Title -" prefix', from: 'Credit from', to: 'Credit to', note: 'Note', retired: 'Retired' };
-const showVal = (k, v) => { if (v == null || v === '') return '—'; if (k === 'amount') return m2z(v); if (k === 'altaSection') return altaLabel(v); if (k === 'split') return Object.entries(v).filter(([, x]) => Number(x)).map(([p, x]) => `${p} ${m2z(x)}`).join(', ') || '—'; if (typeof v === 'boolean') return v ? 'yes' : 'no'; return String(v); };
+const LABELS = { reduces: 'Reduces the total (aggregate adjustment)', lenderCredit: 'Lender credit', proration: 'Proration', kind: 'Type', description: 'Description', altaSection: 'ALTA section', cdSection: 'CD section', cdLine: 'CD line', payee: 'Payee', amount: 'Amount', paidBy: 'Paid by', split: 'Split', timing: 'Paid', poc: 'POC', titlePrefix: '"Title -" prefix', from: 'Credit from', to: 'Credit to', note: 'Note', retired: 'Retired' };
+const showVal = (k, v) => { if (v == null || v === '') return '—'; if (k === 'proration') return v.calc ? `${v.cycle} ${m2z(v.cycleAmount)} from ${v.periodStart}, ${v.basis === 'installment' ? 'installment' : v.basis + '-day'}, ${v.status}; settlement ${v.calc.settlementDate}: ${m2z(v.calc.amount)}` : 'proration'; if (k === 'amount') return m2z(v); if (k === 'altaSection') return altaLabel(v); if (k === 'split') return Object.entries(v).filter(([, x]) => Number(x)).map(([p, x]) => `${p} ${m2z(x)}`).join(', ') || '—'; if (typeof v === 'boolean') return v ? 'yes' : 'no'; return String(v); };
 async function historyView(api, deal) {
   const log = await api.listAccountingLog(deal.id);
   const body = html`<div class="card"><h3>Edit history</h3><p class="muted small">Every add, edit, retire and restore: who, when, the old value and the new one. Read only.</p>
     <table class="tbl striped" data-acct-log><thead><tr><th>When</th><th>Who</th><th>Fee</th><th>Action</th><th>Changes</th></tr></thead><tbody>
     ${log.length ? log.map((l) => html`<tr data-log-row="${l.id}" data-log-action="${l.action}"><td class="nowrap">${fmtDateTime(l.at)}</td><td>${l.byName}</td><td>${l.description}</td><td>${l.action}${l.via ? html`<div class="small muted" data-log-via>via ${l.via}</div>` : ''}</td>
-      <td class="small">${l.action === 'added' ? html`Added at ${showVal('amount', (l.changes.find((c) => c.field === 'amount') || {}).new)}` : (l.changes || []).map((c) => html`<div><strong>${LABELS[c.field] || c.field}</strong>: ${showVal(c.field, c.old)} &rarr; ${showVal(c.field, c.new)}</div>`)}</td></tr>`) : html`<tr><td colspan="5" class="muted">No changes yet.</td></tr>`}</tbody></table></div>`;
+      <td class="small">${l.cd ? (l.changes || []).map((c) => html`<div><strong>${c.label || c.field}</strong>: ${c.old == null ? '—' : String(c.old)} &rarr; ${c.new == null ? '—' : String(c.new)}</div>`) : l.action === 'added' ? html`Added at ${showVal('amount', (l.changes.find((c) => c.field === 'amount') || {}).new)}` : (l.changes || []).map((c) => html`<div><strong>${LABELS[c.field] || c.field}</strong>: ${showVal(c.field, c.old)} &rarr; ${showVal(c.field, c.new)}</div>`)}</td></tr>`) : html`<tr><td colspan="5" class="muted">No changes yet.</td></tr>`}</tbody></table></div>`;
   return { body };
 }
 
 // UNDERWRITER SPLIT on a title premium line (owner's / lender's policy): CLA portion vs underwriter portion, from the Admin's per-state %
 function uwSplit(e, uw, state) {
-  if (e.retired || !isTitlePremium(e)) return '';
+  if (e.retired || !isTitlePremium(e) || uw === 'hidden') return '';
   if (!uw || uw.pct === null || uw.pct === undefined) return html`<div class="small muted acct-uw" data-uw-line="${e.id}" data-uw-unset>Underwriter split for ${state || 'this state'}: not set. ${UNSET_NOTE}</div>`;
   const sp = splitAmount(e.amount, uw.pct);
   return html`<div class="small acct-uw" data-uw-line="${e.id}" data-uw-cla="${sp.cla}" data-uw-amount="${sp.underwriter}">Split: <strong>CLA ${m2z(sp.cla)}</strong> (${sp.claPct}%) &middot; <strong>${uw.underwriter} ${m2z(sp.underwriter)}</strong> (${sp.pct}%)</div>`;

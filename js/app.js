@@ -1,14 +1,14 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611032132';
-import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611032132';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611032132';
-import { canUseCrm } from './data/crm.js?v=202611032132';
-import { acctCanRead } from './data/accounting.js?v=202611032132';
-import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611032132';
-import { phaseOf } from './data/agent-portal.js?v=202611032132';
-import { formatMoneyInput } from './pages/money-input.js?v=202611032132';
-import { applyTheme, themeOn } from './theme.js?v=202611032132';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
-import { icon } from './pages/theme-cards.js?v=202611032132';
+import { getAdapter } from './data/adapter.js?v=202611041131';
+import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611041131';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611041131';
+import { canUseCrm } from './data/crm.js?v=202611041131';
+import { acctCanRead } from './data/accounting.js?v=202611041131';
+import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611041131';
+import { phaseOf } from './data/agent-portal.js?v=202611041131';
+import { formatMoneyInput } from './pages/money-input.js?v=202611041131';
+import { applyTheme, themeOn } from './theme.js?v=202611041131';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
+import { icon } from './pages/theme-cards.js?v=202611041131';
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
@@ -17,25 +17,25 @@ document.addEventListener('input', (e) => { const el = e.target; if (el instance
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611032132'),
-  dashboard: () => import('./pages/dashboard.js?v=202611032132'),
-  orders: () => import('./pages/orders.js?v=202611032132'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611032132'),
-  deal: () => import('./pages/deal.js?v=202611032132'),
-  users: () => import('./pages/users.js?v=202611032132'),
-  profile: () => import('./pages/profile.js?v=202611032132'),
-  'contact-us': () => import('./pages/contact.js?v=202611032132'),
-  teams: () => import('./pages/teams.js?v=202611032132'),
-  templates: () => import('./pages/templates.js?v=202611032132'),
-  library: () => import('./pages/library.js?v=202611032132'),
-  activity: () => import('./pages/activity.js?v=202611032132'),
-  outbox: () => import('./pages/outbox.js?v=202611032132'),
-  tasks: () => import('./pages/tasks.js?v=202611032132'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611032132'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
-  schedule: () => import('./pages/schedule.js?v=202611032132'),   // public closing-time link (no sign-in needed)
-  crm: () => import('./pages/crm.js?v=202611032132'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
-  modules: () => import('./pages/modules.js?v=202611032132'),
-  underwriters: () => import('./pages/underwriters.js?v=202611032132'),   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
+  login: () => import('./pages/entry.js?v=202611041131'),
+  dashboard: () => import('./pages/dashboard.js?v=202611041131'),
+  orders: () => import('./pages/orders.js?v=202611041131'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611041131'),
+  deal: () => import('./pages/deal.js?v=202611041131'),
+  users: () => import('./pages/users.js?v=202611041131'),
+  profile: () => import('./pages/profile.js?v=202611041131'),
+  'contact-us': () => import('./pages/contact.js?v=202611041131'),
+  teams: () => import('./pages/teams.js?v=202611041131'),
+  templates: () => import('./pages/templates.js?v=202611041131'),
+  library: () => import('./pages/library.js?v=202611041131'),
+  activity: () => import('./pages/activity.js?v=202611041131'),
+  outbox: () => import('./pages/outbox.js?v=202611041131'),
+  tasks: () => import('./pages/tasks.js?v=202611041131'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611041131'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  schedule: () => import('./pages/schedule.js?v=202611041131'),   // public closing-time link (no sign-in needed)
+  crm: () => import('./pages/crm.js?v=202611041131'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  modules: () => import('./pages/modules.js?v=202611041131'),
+  underwriters: () => import('./pages/underwriters.js?v=202611041131'),   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };
@@ -161,7 +161,7 @@ export async function render() {
 const HEADER_SEARCH = `<div class="crm-global-search" data-global-search-wrap style="position:relative;display:inline-block;margin-right:10px"><input type="search" data-global-search placeholder="Search CRM (name, email, phone)" aria-label="Search the CRM" autocomplete="off" maxlength="100"><div data-global-search-dd hidden style="position:absolute;right:0;top:100%;z-index:50;background:#fff;color:#222;min-width:420px;max-height:70vh;overflow:auto;border:1px solid #ccc;padding:6px;text-align:left"></div></div>`;
 const crmSearchOn = (u, api) => !!(u && (api.features || {}).crm && canUseCrm(u) && modOn('crm'));
 function wireChrome(u) {
-  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611032132').then((m) => m.wireHeaderSearch(api)); });
+  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611041131').then((m) => m.wireHeaderSearch(api)); });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');
   if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; });
   document.addEventListener('click', () => { if (dd) dd.hidden = true; }, { once: true });

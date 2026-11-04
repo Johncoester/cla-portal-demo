@@ -20,7 +20,7 @@ export const ACCOUNTING_READ_ONLY = 'Accounting is read-only for your role.';
 export const TEST_MARK = 'TEST - not a legal disclosure';
 export const EXAMPLE_MARK = 'EXAMPLE amount - not a real rate. Enter the real figure.';
 export const ACCT_EDIT_ROLES = ['Processor', 'Admin', 'Super admin'];      // + anyone with the Admin flag
-export const ACCT_READ_ROLES = ['Sales Person', 'Sales Team'];               // read-only
+export const ACCT_READ_ROLES = ['Sales Person', 'Sales Team', 'Transaction Coordinator'];   // read-only (Caroline Kim, Nov 4 2026: "TCs get read-only access")
 export const acctCanRead = (u) => !!u && (u.isAdmin || ACCT_EDIT_ROLES.includes(u.role) || ACCT_READ_ROLES.includes(u.role));
 export const acctCanEdit = (u) => !!u && (u.isAdmin || ACCT_EDIT_ROLES.includes(u.role));
 
@@ -50,6 +50,8 @@ const d = (n) => n / 100;                                      // dollars
 export const round2 = (n) => d(c(n));
 const fail = (m) => { throw new Error(m); };
 const s = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
+import { computeProration, cleanProration, prorationRange, PRORATION_ITEMS } from './prorations.js?v=202611041131';
+export const closingDateOf = (deal) => (deal && (deal.closingDate ?? deal.closing_date)) || null;
 const isRefiDeal = (deal) => !!deal && (deal.transactionType === 'Refinance' || deal.transaction_type === 'Refinance');
 const buyerWord = (deal) => (isRefiDeal(deal) ? 'Borrower' : 'Buyer');
 
@@ -65,6 +67,15 @@ export function money(v, label, { allowZero = true } = {}) {
 // ---------- validation (same rules in the mock adapter, the Supabase adapter and migration 34) ----------
 export function cleanFee(input, deal, prev = null) {
   const v = { ...(prev || {}), ...(input || {}) }; const refi = isRefiDeal(deal);
+  // PRORATION (Caroline, Nov 4): a credit in Prorations / Adjustments whose amount and direction are CALCULATED from the order's settlement date
+  if (v.proration) {
+    if (refi) fail('A refinance has no seller side, so there is nothing to prorate between a buyer and a seller.');
+    const p = cleanProration(v.proration); const c = computeProration(p, closingDateOf(deal));
+    if (!(c.amount > 0)) fail(`Nothing to prorate: the ${c.from === 'buyer' ? "buyer's" : "seller's"} share for this period is $0.00 on the settlement date ${c.settlementDate}.`);
+    const label = (PRORATION_ITEMS.find(([k]) => k === p.item) || [, 'Proration'])[1];
+    Object.assign(v, { kind: 'credit', altaSection: 'prorations', cdSection: '', amount: c.amount.toFixed(2), from: c.from, to: c.to, lenderCredit: false, description: s(input && input.description != null ? input.description : v.description, 200) || label,
+      proration: { ...p, calc: { settlementDate: c.settlementDate, amount: c.amount, perDiem: c.perDiem, days: c.days, sellerDays: c.sellerDays, buyerDays: c.buyerDays, totalDays: c.totalDays, periodEnd: c.periodEnd, rangeFrom: c.rangeFrom, rangeTo: c.rangeTo, text: c.text } } });
+  }
   const kind = v.kind === 'credit' ? 'credit' : v.kind === 'charge' || v.kind == null ? 'charge' : fail('Type must be a charge or a credit.');
   const description = s(v.description, 200) || fail('Description is required.');
   const altaSection = s(v.altaSection, 40) || 'misc'; if (!ALTA_KEYS.includes(altaSection)) fail('Pick an ALTA section from the list.');
@@ -72,7 +83,8 @@ export function cleanFee(input, deal, prev = null) {
   const cdLine = s(v.cdLine, 2); if (cdLine && !/^(0[1-9]|[1-9][0-9])$/.test(cdLine)) fail('CD line must be 01 to 99.');
   const amount = money(v.amount, 'Amount', { allowZero: false });
   const payee = s(v.payee, 120); const note = s(v.note, 1000);
-  const out = { kind, description, altaSection, cdSection, cdLine, payee, amount, note, presetKey: s(v.presetKey, 160) || null };
+  const out = { kind, description, altaSection, cdSection, cdLine, payee, amount, note, presetKey: s(v.presetKey, 160) || null, reduces: undefined, lenderCredit: undefined, proration: undefined };
+  const flag = (x) => !!x && x !== 'false' && x !== '0';
   if (kind === 'charge') {
     if (['K', 'L', 'M'].includes(cdSection)) fail('A charge goes in a CD fee section (A-H), N (seller) or none.');
     const paidBy = v.paidBy || (v.split ? 'split' : 'buyer');
@@ -89,6 +101,9 @@ export function cleanFee(input, deal, prev = null) {
     const titlePrefix = !!v.titlePrefix && v.titlePrefix !== 'false' && v.titlePrefix !== '0';
     if (titlePrefix && altaSection !== 'title') fail('The "Title -" prefix is only for title charges (ALTA Title Charges section).');
     Object.assign(out, { paidBy: PAYER_KEYS.filter((k) => split[k] > 0).length === 1 && parts === c(amount) ? PAYER_KEYS.find((k) => split[k] > 0) : 'split', split, timing, poc, titlePrefix, from: null, to: null });
+    // AGGREGATE ADJUSTMENT (Caroline, Nov 4: initial escrow payment, CD section G): a charge that REDUCES the borrower's total (shown negative)
+    if (flag(v.reduces)) { if (cdSection !== 'G' || altaSection !== 'impounds') fail('Only an escrow aggregate adjustment (ALTA Impounds, CD section G) can reduce the total.');
+      if (out.paidBy !== 'buyer' || poc) fail('An aggregate adjustment is borrower-side, at closing.'); out.reduces = true; }
   } else {
     if (CD_FEE_SECTIONS.some(([k]) => k === cdSection)) fail('A credit or adjustment is not a CD fee: use K / L / M / N or none.');
     const from = s(v.from, 20); const to = s(v.to, 20);
@@ -98,12 +113,17 @@ export function cleanFee(input, deal, prev = null) {
     if (refi && (from === 'seller' || to === 'seller')) fail('A refinance has no seller side.');
     if (v.titlePrefix === true) fail('The "Title -" prefix is only for title charges.');
     Object.assign(out, { paidBy: null, split: null, timing: 'at', poc: false, titlePrefix: false, from, to });
+    // LENDER CREDIT (Caroline, Nov 4): lender money toward the borrower's closing costs. On the CD it is the "Lender Credits" line in J (it
+    // lowers Total Closing Costs), not a line in L; on the ALTA it is a borrower credit. Stored with cd section '' (not a K-N line).
+    if (flag(v.lenderCredit)) { if (from !== 'lender' || to !== 'buyer') fail('A lender credit goes from the lender to the borrower / buyer.'); out.lenderCredit = true; out.cdSection = ''; }
+    if (v.proration) { if (out.altaSection !== 'prorations') fail('A proration belongs in Prorations / Adjustments.'); out.proration = v.proration; out.cdSection = ''; }
   }
   return out;
 }
-export const FEE_FIELDS = ['kind', 'description', 'altaSection', 'cdSection', 'cdLine', 'payee', 'amount', 'paidBy', 'split', 'timing', 'poc', 'titlePrefix', 'from', 'to', 'note'];
+export const FEE_FIELDS = ['kind', 'description', 'altaSection', 'cdSection', 'cdLine', 'payee', 'amount', 'paidBy', 'split', 'timing', 'poc', 'titlePrefix', 'from', 'to', 'note', 'reduces', 'lenderCredit', 'proration'];
 export function feeChanges(before, after) {
-  const out = []; for (const k of FEE_FIELDS) { const a = before ? before[k] : undefined; const b = after[k]; if (JSON.stringify(a ?? null) !== JSON.stringify(b ?? null)) out.push({ field: k, old: a ?? null, new: b ?? null }); }
+  const n = (k, x) => ((k === 'reduces' || k === 'lenderCredit') && !x ? null : x ?? null);   // false / missing = the same (older fees have neither)
+  const out = []; for (const k of FEE_FIELDS) { const a = n(k, before ? before[k] : undefined); const b = n(k, after[k]); if (JSON.stringify(a) !== JSON.stringify(b)) out.push({ field: k, old: a, new: b }); }
   return out;
 }
 
@@ -131,20 +151,32 @@ export function autoEntries(deal) {
   if (la > 0) out.push({ ...base, id: 'auto-loanAmount', autoKey: 'loanAmount', description: 'Loan Amount', amount: round2(la), from: 'lender', to: 'buyer', cdSection: 'L', cdLine: '02' });
   return out;
 }
-export const allEntries = (deal, fees, { includeRetired = false } = {}) => [...autoEntries(deal), ...(fees || []).filter((f) => includeRetired || !f.retired)];
+// PRORATIONS follow the order's CURRENT settlement date (Caroline, Nov 4: "calculated automatically from the settlement date"): the statements
+// use the live calculation; prorationStale says the saved amount / date differ (an editor re-saves it, which logs the change).
+export function liveProration(f, deal) {
+  if (!f || !f.proration || f.retired) return f;
+  try { const c = computeProration(f.proration, closingDateOf(deal)); const saved = f.proration.calc || {};
+    const stale = c.amount !== Number(f.amount) || c.settlementDate !== saved.settlementDate || c.from !== f.from;
+    if (!(c.amount > 0)) return { ...f, prorationError: `Nothing to prorate on the settlement date ${c.settlementDate}: the saved amount is kept.`, prorationLive: c };
+    return { ...f, amount: c.amount, from: c.from, to: c.to, prorationLive: c, prorationStale: stale ? { savedAmount: Number(f.amount), savedDate: saved.settlementDate || null } : null };
+  } catch (e) { return { ...f, prorationError: e.message }; }
+}
+export const allEntries = (deal, fees, { includeRetired = false } = {}) => [...autoEntries(deal), ...(fees || []).filter((f) => includeRetired || !f.retired).map((f) => liveProration(f, deal))];
 
 // ---------- running totals + balance check ----------
 export function ledgerTotals(deal, fees) {
   const refi = isRefiDeal(deal); const L = allEntries(deal, fees);
-  const t = { bD: 0, bC: 0, sD: 0, sC: 0, lender: 0, other: 0, poc: 0, receiptsIn: 0, disbursed: 0, unallocated: 0 }; const issues = [];
+  const t = { bD: 0, bC: 0, sD: 0, sC: 0, lender: 0, other: 0, poc: 0, receiptsIn: 0, disbursed: 0, unallocated: 0 }; const issues = []; const warnings = [];
+  for (const e of L) { if (e.prorationError) warnings.push(`Proration "${e.description}": ${e.prorationError}`); else if (e.prorationStale) warnings.push(`Proration "${e.description}": the settlement date changed, so the statements now use ${fmt(c(e.amount))} (saved ${fmt(c(e.prorationStale.savedAmount))}). Re-save prorations to log it.`); }
   for (const e of L) {
     if (e.kind === 'charge') {
       const sp = e.split || {}; const parts = PAYER_KEYS.reduce((x, k) => x + c(sp[k]), 0); const amt = c(e.amount);
       if (parts !== amt) { t.unallocated += amt - parts; issues.push(`"${e.description}": paid-by amounts add up to ${fmt(parts)}, not ${fmt(amt)} (${fmt(amt - parts)} not assigned).`); }
       if (refi && c(sp.seller) > 0) issues.push(`"${e.description}": seller-paid on a refinance.`);
       if (e.timing === 'before' || e.poc) { t.poc += amt; continue; }
-      t.bD += c(sp.buyer); t.sD += c(sp.seller); t.lender += c(sp.lender); t.other += c(sp.other);
-      t.receiptsIn += c(sp.lender) + c(sp.other); t.disbursed += amt;
+      const g = e.reduces ? -1 : 1;   // an aggregate adjustment lowers the borrower's escrow deposit
+      t.bD += g * c(sp.buyer); t.sD += c(sp.seller); t.lender += c(sp.lender); t.other += c(sp.other);
+      t.receiptsIn += c(sp.lender) + c(sp.other); t.disbursed += g * amt;
     } else {
       const amt = c(e.amount);
       if (e.from === 'buyer') t.bD += amt; else if (e.from === 'seller') t.sD += amt; else t.receiptsIn += amt;   // lender / deposit / other money comes in
@@ -161,7 +193,7 @@ export function ledgerTotals(deal, fees) {
     totalDebits: d(totalDebits), totalCredits: d(totalCredits), receipts: d(receipts), disbursements: d(disbursements), difference: d(receipts - disbursements),
     // combined statement check: each side's debits + due-to = credits + due-from (always true when every fee's parts add up)
     buyerBalanced: t.bD + dueToBuyer === t.bC + dueFromBuyer, sellerBalanced: t.sD + dueToSeller === t.sC + dueFromSeller,
-    balanced, issues, entries: L.length };
+    balanced, issues, warnings, entries: L.length };
 }
 const fmt = (cents) => '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -176,12 +208,14 @@ export function altaStatement(deal, fees, view = 'combined') {
     if (e.kind === 'charge') {
       const sp = e.split || {};
       if (e.timing === 'before' || e.poc) { const who = PAYER_KEYS.filter((k) => Number(sp[k]) > 0).map((k) => (k === 'buyer' ? buyerWord(deal) : PAYERS.find(([x]) => x === k)[1]).toLowerCase()); row.memo.push(`POC ${fmt(c(e.amount))}${who.length ? ' by ' + who.join(' / ') : ''}`); }
-      else { row.buyerDebit = round2(sp.buyer || 0); row.sellerDebit = round2(sp.seller || 0); if (Number(sp.lender) > 0) row.memo.push(`${fmt(c(sp.lender))} paid by lender`); if (Number(sp.other) > 0) row.memo.push(`${fmt(c(sp.other))} paid by others`); }
+      else { row.buyerDebit = round2((e.reduces ? -1 : 1) * (sp.buyer || 0)); row.sellerDebit = round2(sp.seller || 0); if (e.reduces) row.memo.push('aggregate adjustment (reduces the escrow deposit)'); if (Number(sp.lender) > 0) row.memo.push(`${fmt(c(sp.lender))} paid by lender`); if (Number(sp.other) > 0) row.memo.push(`${fmt(c(sp.other))} paid by others`); }
       if (e.payee) row.memo.unshift(`to ${e.payee}`);
     } else {
       if (e.from === 'buyer') row.buyerDebit = e.amount; if (e.from === 'seller') row.sellerDebit = e.amount;
       if (e.to === 'buyer') row.buyerCredit = e.amount; if (e.to === 'seller') row.sellerCredit = e.amount;
-      if (['lender', 'deposit', 'other'].includes(e.from)) row.memo.push(FROM_LABEL[e.from]);
+      if (e.lenderCredit) row.memo.push('Lender credit (CD section J)'); else if (['lender', 'deposit', 'other'].includes(e.from)) row.memo.push(FROM_LABEL[e.from]);
+      if (e.proration && e.prorationLive) row.memo.push(`${prorationRange(e.prorationLive)} · ${e.prorationLive.days} day${e.prorationLive.days === 1 ? '' : 's'} × $${e.prorationLive.perDiem.toFixed(5)}/day (${e.proration.basis === 'installment' ? 'installment' : e.proration.basis + '-day year'}, ${e.from === 'buyer' ? 'paid in advance by seller' : 'unpaid by seller'})`);
+      if (e.prorationError) row.memo.push('CHECK: ' + e.prorationError);
     }
     const shows = v === 'combined' ? true : v === 'buyer' ? row.buyerDebit || row.buyerCredit || (e.kind === 'charge' && Number((e.split || {}).buyer) > 0) : row.sellerDebit || row.sellerCredit || (e.kind === 'charge' && Number((e.split || {}).seller) > 0);
     if (!shows) continue;
@@ -203,7 +237,8 @@ export function closingDisclosure(deal, fees) {
   const charges = L.filter((e) => e.kind === 'charge');
   for (const e of charges.filter((x) => sec[x.cdSection])) {
     const sp = e.split || {}; const before = e.timing === 'before' || e.poc;
-    const r = { id: e.id, line: e.cdLine, description: cdDescription(e), payee: e.payee, borrowerAt: before ? 0 : round2(sp.buyer || 0), borrowerBefore: before ? round2(sp.buyer || 0) : 0,
+    const g = e.reduces ? -1 : 1;
+    const r = { id: e.id, line: e.cdLine, description: cdDescription(e), payee: e.payee, reduces: !!e.reduces, borrowerAt: before ? 0 : round2(g * (sp.buyer || 0)), borrowerBefore: before ? round2(sp.buyer || 0) : 0,
       sellerAt: before ? 0 : round2(sp.seller || 0), sellerBefore: before ? round2(sp.seller || 0) : 0, others: round2((Number(sp.lender) || 0) + (Number(sp.other) || 0)), othersWho: ['lender', 'other'].filter((k) => Number(sp[k]) > 0).map((k) => (k === 'lender' ? 'L' : 'O')).join('/') };
     sec[e.cdSection].rows.push(r);
   }
@@ -215,11 +250,20 @@ export function closingDisclosure(deal, fees) {
   const sum = (keys, f) => round2(keys.reduce((t, k) => t + c(sec[k][f]), 0) / 100);
   const tot = (keys) => ({ borrowerAt: sum(keys, 'borrowerAt'), borrowerBefore: sum(keys, 'borrowerBefore'), sellerAt: sum(keys, 'sellerAt'), sellerBefore: sum(keys, 'sellerBefore'), others: sum(keys, 'others') });
   const D = tot(['A', 'B', 'C']); const I = tot(['E', 'F', 'G', 'H']); const J = tot(['A', 'B', 'C', 'E', 'F', 'G', 'H']);
+  // LENDER CREDITS (Caroline, Nov 4): J = D + I - Lender Credits (borrower-paid at closing column)
+  const lcRows = L.filter((e) => e.kind === 'credit' && e.lenderCredit).map((e) => ({ id: e.id, description: e.description, amount: round2(e.amount) }));
+  J.lenderCredits = round2(lcRows.reduce((t, x) => t + c(x.amount), 0) / 100); J.lenderCreditRows = lcRows; J.beforeCredits = J.borrowerAt;
+  J.borrowerAt = round2(J.borrowerAt - J.lenderCredits);
   D.borrower = round2(D.borrowerAt + D.borrowerBefore); I.borrower = round2(I.borrowerAt + I.borrowerBefore); J.borrower = round2(J.borrowerAt + J.borrowerBefore);
   // Summaries of Transactions
   const K = [], Lr = [], M = [], N = [];
-  const add = (list, label, amount, id) => { if (c(amount)) list.push({ label, amount: round2(amount), id }); };
+  const add = (list, label, amount, id, group) => { if (c(amount)) list.push({ label, amount: round2(amount), id, ...(group ? { group } : {}) }); };
   for (const e of L) {
+    if (e.kind === 'credit' && e.lenderCredit) continue;   // in J (Lender Credits), not in L
+    if (e.kind === 'credit' && e.proration && e.prorationLive) {   // calculated proration: the CD shows the date range it covers
+      const lab = `${e.description} ${prorationRange(e.prorationLive)}`;
+      if (e.from === 'buyer') { add(K, lab, e.amount, e.id, 'advance'); add(M, lab, e.amount, e.id, 'advance'); } else { add(Lr, lab, e.amount, e.id, 'unpaid'); add(N, lab, e.amount, e.id, 'unpaid'); }
+      continue; }
     if (e.kind === 'credit') {
       const pr = e.altaSection === 'prorations';
       if (e.autoKey === 'salesPrice') { add(K, 'Sale Price of Property', e.amount, e.id); add(M, 'Sale Price of Property', e.amount, e.id); continue; }
@@ -234,7 +278,8 @@ export function closingDisclosure(deal, fees) {
       const sp = e.split || {}; add(K, e.description, sp.buyer || 0, e.id); add(N, (e.altaSection === 'payoffs' ? 'Payoff: ' : '') + e.description, sp.seller || 0, e.id);
     }
   }
-  if (c(J.borrowerAt)) K.splice(K.findIndex((x) => x.id === 'auto-salesPrice') + 1, 0, { label: 'Closing Costs Paid at Closing (J)', amount: J.borrowerAt, id: 'J-borrower' });
+  if (c(J.borrowerAt) > 0) K.splice(K.findIndex((x) => x.id === 'auto-salesPrice') + 1, 0, { label: 'Closing Costs Paid at Closing (J)', amount: J.borrowerAt, id: 'J-borrower' });
+  else if (c(J.borrowerAt) < 0) Lr.push({ label: 'Lender Credits in excess of Closing Costs (J)', amount: round2(-J.borrowerAt), id: 'J-excess' });
   if (!refi && c(J.sellerAt)) N.unshift({ label: 'Closing Costs Paid at Closing (J)', amount: J.sellerAt, id: 'J-seller' });
   const total = (l) => round2(l.reduce((t, x) => t + c(x.amount), 0) / 100);
   const Kt = total(K), Lt = total(Lr), Mt = total(M), Nt = total(N);
@@ -264,6 +309,7 @@ export const FEE_PRESETS = [
   P('homeownersIns', 'ALL', "Homeowner's insurance premium (12 mo.)", { alta: 'otherLoanCharges', cd: 'F', payee: 'Example Insurance Co.', example: 1200 }),
   P('escrowTaxes', 'ALL', 'Property taxes escrow (initial deposit)', { alta: 'impounds', cd: 'G', payee: 'Example Lender', example: 900 }),
   P('commission', 'ALL', 'Real estate commission', { alta: 'commission', cd: 'H', paidBy: 'seller', payee: 'Example Realty', example: 10000 }),
+  P('lenderCredit', 'ALL', 'Lender credit (CD section J)', { alta: 'loanCharges', kind: 'credit', cd: '', payee: '', example: 500, note: 'Lender credits lower Total Closing Costs (J) on the CD.' }),
   P('payoff', 'ALL', 'Payoff of first mortgage loan', { alta: 'payoffs', cd: 'N', paidBy: 'seller', payee: 'Example Mortgage Servicer', example: 150000 }),
   P('md-stateTransfer', 'MD', 'MD state transfer tax', { alta: 'government', cd: 'E', paidBy: 'split', basis: 'price', example: 1, payee: 'Clerk of the Circuit Court (example)', note: 'Split shown 50/50 as an example only.' }),
   P('md-countyTransfer', 'MD', 'MD county transfer tax', { alta: 'government', cd: 'E', paidBy: 'split', basis: 'price', example: 1, payee: 'County finance office (example)', note: 'Split shown 50/50 as an example only.' }),
@@ -291,6 +337,7 @@ export function presetFee(key, deal) {
   let paidBy = p.paidBy; let split = null;
   if (refi && (paidBy === 'seller' || paidBy === 'split')) paidBy = 'buyer';
   if (paidBy === 'split') { const half = Math.floor(c(amount) / 2); split = { buyer: d(c(amount) - half), seller: d(half), lender: 0, other: 0 }; }
+  if (p.kind === 'credit') return { presetKey: p.key, kind: 'credit', description: p.description, altaSection: p.altaSection, cdSection: '', payee: '', amount, from: 'lender', to: 'buyer', lenderCredit: p.key === 'lenderCredit', note: p.note };
   return { presetKey: p.key, kind: p.kind, description: p.description, altaSection: p.altaSection, cdSection: refi && p.cdSection === 'N' ? 'H' : p.cdSection, payee: p.payee, amount, paidBy, split,
     titlePrefix: p.titlePrefix, timing: 'at', poc: false, note: p.note + (p.basis ? ` (EXAMPLE $${p.example} per $1,000 of the ${p.basis === 'price' ? 'purchase price' : 'loan amount'})` : '') };
 }
