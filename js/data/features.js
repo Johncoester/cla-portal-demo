@@ -15,5 +15,5 @@ export function featureFlags(cfg) {
   const c = cfg || (typeof window !== 'undefined' && window.CLA_PORTAL_CONFIG) || { mode: 'mock' };
   const f = (c && c.features) || {};
   // title (John, Nov 4: the Title review module inside an order): follows the accounting flag unless set explicitly (on in the test / demo config, off at go-live)
-  return { crm: typeof f.crm === 'boolean' ? f.crm : (c.mode || 'mock') !== 'supabase', accounting: f.accounting === true, title: typeof f.title === 'boolean' ? f.title : (c.mode || 'mock') !== 'supabase' && f.accounting === true };
+  return { crm: typeof f.crm === 'boolean' ? f.crm : (c.mode || 'mock') !== 'supabase', accounting: f.accounting === true, funding: typeof f.funding === 'boolean' ? f.funding : f.accounting === true, wires: typeof f.wires === 'boolean' ? f.wires : f.accounting === true, policy: typeof f.policy === 'boolean' ? f.policy : f.accounting === true, title: typeof f.title === 'boolean' ? f.title : (c.mode || 'mock') !== 'supabase' && f.accounting === true };
 }

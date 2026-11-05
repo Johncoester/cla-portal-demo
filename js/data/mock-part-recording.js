@@ -1,5 +1,5 @@
 /* Mock: Scanbacks and E-Recording. Every rule mirrors migrations 84-89. Nothing is sent. */
-import * as R from './recording-scanbacks.js?v=202611051319';
+import * as R from './recording-scanbacks.js?v=202611051418';
 const COLS = ['scanbacks', 'scanbackDocs', 'scanbackEvents', 'recordings', 'recordingDocs', 'recordingChecks', 'recordingEvents'];
 export function ensureRecording(d, { seed = false } = {}) {
   for (const k of COLS) if (!Array.isArray(d[k])) d[k] = [];

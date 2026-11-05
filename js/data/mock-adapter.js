@@ -5,48 +5,51 @@
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
 import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, localDate, localDayOf, isRealDate,
   isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
-  phoneOk, fmtPhone, PHONE_MSG, fileTitleOf, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611051319';
-import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611051319';
-import { indexedDbFileStore } from './file-store.js?v=202611051319';
-import { delegationLocked, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611051319';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611051319';
-import { devAuth } from './mock-part-auth.js?v=202611051319';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611051319';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611051319';
-import { messagesActivity } from './mock-part-msgs.js?v=202611051319';
-import { adminUsersTeams } from './mock-part-admin.js?v=202611051319';
-import { libraryFolders } from './mock-part-library.js?v=202611051319';
-import { closingSchedule } from './mock-part-schedule.js?v=202611051319';
-import { notificationsPart } from './mock-part-notify.js?v=202611051319';
-import { mattP2 } from './mock-part-matt.js?v=202611051319';
-import { mattNov2 } from './mock-part-nov2.js?v=202611051319';
-import { crmPart } from './mock-part-crm.js?v=202611051319';
-import { featureFlags } from './features.js?v=202611051319';
-import { crmZohoUpgrade } from './crm.js?v=202611051319';
-import { ensureEmailTemplates } from './crm-templates.js?v=202611051319';
-import { ensureNov3b as ensureCrmNov3b } from './crm-nov3b.js?v=202611051319';
-import { ensureAgentPortal } from './agent-portal.js?v=202611051319';
-import { agentPortal } from './mock-part-agent.js?v=202611051319';
-import { mattNov3b } from './mock-part-nov3b.js?v=202611051319';
-import { ensureSettings, optLabel } from './crm-config.js?v=202611051319';
-import { upgradeCalls } from './crm-calls.js?v=202611051319';
-import { accountingPart, ensureAccounting } from './mock-part-accounting.js?v=202611051319';
-import { payoffsPart, ensurePayoffs } from './mock-part-payoffs.js?v=202611051319';
-import { modulesPart, ensureModules } from './mock-part-modules.js?v=202611051319';
-import { taskShownTo } from './task-switches.js?v=202611051319';
-import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611051319';
-import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.js?v=202611051319';
-import { underwriterPart } from './mock-part-underwriter.js?v=202611051319';
-import { agentInfoPart } from './mock-part-agentinfo.js?v=202611051319';
-import { agentInvitePart } from './mock-part-agent-invite.js?v=202611051319';
-import { automationPart } from './automation.js?v=202611051319';
-import { hrPart, ensureHr } from './mock-part-hr.js?v=202611051319';
-import { titlePart, ensureTitle } from './mock-part-title.js?v=202611051319';
-import { tcPortal, ensureTc, tcMessageViews } from './mock-part-tc.js?v=202611051319';
-import { emailSendersPart, ensureEmailSenders } from './email-senders.js?v=202611051319';   // John, Nov 4: the Title review module (staff only; in place, no storage bump)
-import { officesPart, officeById } from './mock-part-offices.js?v=202611051319';
-import { closingLocationPart } from './mock-part-closing-location.js?v=202611051319';
-import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611051319';   // John, Nov 4: where each buyer / seller will be at closing (migration 58)   // Admin > Offices (John, Nov 4; migration 57)
+  phoneOk, fmtPhone, PHONE_MSG, fileTitleOf, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611051418';
+import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611051418';
+import { indexedDbFileStore } from './file-store.js?v=202611051418';
+import { delegationLocked, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611051418';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611051418';
+import { devAuth } from './mock-part-auth.js?v=202611051418';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611051418';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611051418';
+import { messagesActivity } from './mock-part-msgs.js?v=202611051418';
+import { adminUsersTeams } from './mock-part-admin.js?v=202611051418';
+import { libraryFolders } from './mock-part-library.js?v=202611051418';
+import { closingSchedule } from './mock-part-schedule.js?v=202611051418';
+import { notificationsPart } from './mock-part-notify.js?v=202611051418';
+import { mattP2 } from './mock-part-matt.js?v=202611051418';
+import { mattNov2 } from './mock-part-nov2.js?v=202611051418';
+import { crmPart } from './mock-part-crm.js?v=202611051418';
+import { featureFlags } from './features.js?v=202611051418';
+import { crmZohoUpgrade } from './crm.js?v=202611051418';
+import { ensureEmailTemplates } from './crm-templates.js?v=202611051418';
+import { ensureNov3b as ensureCrmNov3b } from './crm-nov3b.js?v=202611051418';
+import { ensureAgentPortal } from './agent-portal.js?v=202611051418';
+import { agentPortal } from './mock-part-agent.js?v=202611051418';
+import { mattNov3b } from './mock-part-nov3b.js?v=202611051418';
+import { ensureSettings, optLabel } from './crm-config.js?v=202611051418';
+import { upgradeCalls } from './crm-calls.js?v=202611051418';
+import { accountingPart, ensureAccounting } from './mock-part-accounting.js?v=202611051418';
+import { payoffsPart, ensurePayoffs } from './mock-part-payoffs.js?v=202611051418';
+import { modulesPart, ensureModules } from './mock-part-modules.js?v=202611051418';
+import { taskShownTo } from './task-switches.js?v=202611051418';
+import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611051418';
+import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.js?v=202611051418';
+import { underwriterPart } from './mock-part-underwriter.js?v=202611051418';
+import { agentInfoPart } from './mock-part-agentinfo.js?v=202611051418';
+import { agentInvitePart } from './mock-part-agent-invite.js?v=202611051418';
+import { automationPart } from './automation.js?v=202611051418';
+import { hrPart, ensureHr } from './mock-part-hr.js?v=202611051418';
+import { titlePart, ensureTitle } from './mock-part-title.js?v=202611051418';
+import { tcPortal, ensureTc, tcMessageViews } from './mock-part-tc.js?v=202611051418';
+import { emailSendersPart, ensureEmailSenders } from './email-senders.js?v=202611051418';   // John, Nov 4: the Title review module (staff only; in place, no storage bump)
+import { officesPart, officeById } from './mock-part-offices.js?v=202611051418';
+import { closingLocationPart } from './mock-part-closing-location.js?v=202611051418';
+import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611051418';
+import { fwpCanRead, FWP_STAFF_ONLY } from './funding-wire-policy.js?v=202611051418';
+import { fwpPart, ensureFwp } from './mock-part-fwp.js?v=202611051418';
+import { seedFwp as FSEED } from './fwp-seed.js?v=202611051418';   // John, Nov 4: where each buyer / seller will be at closing (migration 58)   // Admin > Offices (John, Nov 4; migration 57)
 
 const KEY = 'cla-portal-new:data:v30';   // v29: HR WORKSPACE PHASE 1 (John + Francis, Nov 4; feature/hr-workspace): the hr* collections (departments, designations, employees, HR manager assignments, invite links, change history) + the two fake HR-only logins (Hana HR-Manager, Pia Processor-PH, account role 'Employee') and the 'hr' module switch (off = Super admins only). upgradeToV29 runs from v28 (or anything older through upgradeToV28); nothing existing is changed or removed. v28: RELEASE live28 (John, Nov 4): payoffs / HOA / FFB / ground rent collections (ensurePayoffs) + the Nov 4 seed (ensureSeedBenTc) are guaranteed on every carried-forward copy; upgradeToV28 runs from v27 (seed already there) or v26 (the live27 demo: adds Morgan Coordinator + deal-5 Willow Drive). Nothing existing is changed or removed. v27: SEED (John, Nov 4): Ben's file MD-26-97183 gets Morgan Coordinator (a TC login, Harbor team) as its Transaction Coordinator; upgradeToV27 adds her to stored v26 data if missing, nothing else changes. v26: ACCOUNTING (John, Nov 3; feature/accounting-fees): every order can carry a fee ledger (accountingFees) and its edit log (accountingLog); upgradeToV26 adds the two empty collections, nothing else changes. Stored v25..v21 data is CARRIED FORWARD (v21..v24 go through upgradeToV25 first). v25: CRM calls (Janine's Zoho video 11, Nov 3): Schedule a call / Log a call / Mark as Completed; calls logged with the Nov 3 (b) form (duration in minutes) become logged, Completed calls with the minutes kept and copied to seconds (upgradeToV25). Stored v24 (left to the refi / deal-filters branch), v23, v22 and v21 data are CARRIED FORWARD. v24 is reserved for feature/refi-deal-filters. v23: Matt, Nov 3 (b) (Processor notes): personal_info v4 (+ Entity Representative), orders get sourceOfBusiness, buyer / seller rows may carry an entity (Place Order). Stored v22 (Janine's CRM Nov 3 b) and v21 data are CARRIED FORWARD through the chain v21 -> v22 -> v23 (upgradeToV22 then upgradeToV23). v22: CRM Nov 3 (b), Janine's Zoho videos 7-10 (John): global search + recent items, Send Email records (NEVER SENT), the 24 Zoho custom field types with permissions and layout sections, dashboards, reports (upgradeToV22 adds the collections, the built-in dashboards and the fake sample reports). v21: WIRE INSTRUCTIONS = BUYER CLIENTS + CLA STAFF ONLY (John, Nov 3): every document carries wireInstructions (true when staff mark it, or its name says wire instructions); agents never see one. Stored v20 data is CARRIED FORWARD (upgradeToV21 flags existing wire files, so a wire PDF already sent into an agent's conversation disappears for the agent). v20: Qualia-style agent portal (Francis Santos, Nov 3): agent tasks, update requests, access invites, message attachments; stored v19 data is CARRIED FORWARD (upgradeToV20). v19: CRM email templates (John / Janine, Nov 3, Zoho video 6): folders, templates, favorites, signatures, template files; stored v18 data is CARRIED FORWARD (upgradeToV19 adds the collections and the 3 fake templates). v18: Matt, Nov 3: personal info v3 (POA follow-ups, + Add entity with entity documents, settlement type for sellers only) and title vesting v2 (vesting help); stored v17 data is CARRIED FORWARD (upgradeToV18: new template versions added, untouched open copies moved to them). v17: CRM matched to Zoho (client / lead fields, Zoho picklists, tasks, meetings, attachments; stored v16 data is CARRIED FORWARD, see upgradeToV17; John, Nov 2). v16: County on orders (seeded fake files get one; stored v15 data is CARRIED FORWARD, see upgradeData; John, Nov 2). v15: the CRM (leads, accounts, opportunities, activities, CRM fields on contacts; John, Nov 2). v14: contact type on every contact (realtor / lender / buyer_seller; John, Nov 2). v13: EMD amount + due date on orders, Place Order documents,
 export const STORAGE_KEY = KEY;
@@ -154,12 +157,16 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   // (v17, else v16, else v15) is carried forward into v18 with the new fields defaulted / mapped, saved under v18, and only then is the old copy removed.
   // (v19 since Nov 3: v18 is carried forward the same way.) "Reset demo data" removes v19 and any older copies and builds a fresh seed (old data is never resurrected). v1..v14 are not upgraded.
   function loadPrevious() { for (const [k, from] of PREV_KEYS) { const raw = store.getItem(k); if (!raw) continue; try { return [k, upgradeToV29(JSON.parse(raw), from)]; } catch (e) { /* unreadable: try the next */ } } return null; }
-  function load() { if (db) return db; const raw = store.getItem(KEY); if (raw) { db = ensureRecording(ensureEmailSenders(ensurePreprocessorSeed(ensureTitle(ensureTc(JSON.parse(raw)), TSEED))), { seed: !!flags.accounting }); const renamed = (db.profiles || []).some((p) => p.id === 'u-multi' && p.lastName === 'Multi-Role'); ensureRealtorName(db); if (db.titleSeedAddedNow || renamed) { delete db.titleSeedAddedNow; save(); } return db; }
+  const ensureAll = (data, { fresh = false } = {}) => {
+    let d = fresh ? ensureTitle(ensureTc(ensureHr(ensurePayoffs(ensureModules(ensureAccounting(upgradeCalls(ensureMattNov3b(ensureCrmNov3b(ensureWireFlags(ensureAgentPortal(data)))))))))), { seed: !!flags.title }) : ensureTitle(ensureTc(data), { seed: !!flags.title });
+    d = ensurePreprocessorSeed(d); d = ensureEmailSenders(d); d = ensureRealtorName(d); d = ensureRecording(d, { seed: !!flags.accounting }); d = ensureFwp(d, { seed: !!flags.policy || !!flags.funding || !!flags.wires }); return d;
+  };
+  function load() { if (db) return db; const raw = store.getItem(KEY); if (raw) { db = JSON.parse(raw); const renamed = (db.profiles || []).some((p) => p.id === 'u-multi' && p.lastName === 'Multi-Role'); db = ensureAll(db); const seeded = db.titleSeedAddedNow || db.fwpSampleAddedNow; delete db.titleSeedAddedNow; delete db.fwpSampleAddedNow; if (seeded || renamed) save(); return db; }
     const prev = loadPrevious();
-    if (prev) { const [pk, data] = prev; db = ensureRecording(ensureEmailSenders(ensurePreprocessorSeed(ensureRealtorName(ensureTitle(ensureTc(data), TSEED)))), { seed: !!flags.accounting }); delete db.titleSeedAddedNow;   // carried-forward older data: + the 3 fake title sample orders, ADDITIVE only (insert if missing by marker; nothing overwritten or removed) const old = store.getItem(pk);
-      try { save(); } catch (e) { if (!isQuota(e)) throw e; store.removeItem(pk); try { save(); } catch (e2) { store.setItem(pk, old); throw e2; } }   // storage full: make room by moving, never lose the old copy
+    if (prev) { const [pk, data] = prev; db = ensureAll(data); delete db.titleSeedAddedNow; delete db.fwpSampleAddedNow; const old = store.getItem(pk);
+      try { save(); } catch (e) { if (!isQuota(e)) throw e; store.removeItem(pk); try { save(); } catch (e2) { store.setItem(pk, old); throw e2; } }
       store.removeItem(pk); return db; }
-    db = ensureRecording(ensureEmailSenders(ensurePreprocessorSeed(ensureTitle(ensureTc(ensureHr(ensurePayoffs(ensureModules(ensureAccounting(upgradeCalls(ensureMattNov3b(ensureCrmNov3b(ensureWireFlags(ensureAgentPortal(buildSeed())))))))))), TSEED))), { seed: !!flags.accounting }); if (typeof store.key === 'function') dropStale(); save(); return db; }
+    db = ensureAll(buildSeed(), { fresh: true }); if (typeof store.key === 'function') dropStale(); save(); return db; }
   const nid = (p) => { const d = load(); d.seq += 1; return `${p}-${d.seq}`; };
 
   const me = () => { const id = sess.getItem(SESSION_KEY); return (id && load().profiles.find((p) => p.id === id && p.status === 'active')) || null; };
@@ -376,6 +383,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   Object.assign(api, agentInfoPart(ctx));     // John, Nov 3 call: optional agent birthdate (agent + staff only)
   Object.assign(api, agentInvitePart(ctx));   // John, Nov 4: agent invites (link shown, nothing sent), agent profiles, the clients' "Your agent" card
   Object.assign(api, recordingPart(ctx, flags, api));
+  Object.assign(api, fwpPart(ctx, flags, api));
   Object.assign(api, titlePart(ctx, flags, api));   // John, Nov 4: order > Title (title review; staff only; sends nothing; no SSNs)
   Object.assign(api, tcPortal(ctx, api));
   tcMessageViews(api, ctx);
@@ -387,9 +395,15 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   // MODULE GATE (data side): while a module is not Live, its adapter calls refuse everyone but Admins / Super admins (beta testers).
   // Only when the module is available (config flag on); with the flag off the methods keep their own "turned off" refusal.
   { const GATES = [[/Scanback|PostClosing|Recording/, 'post-closing'], [/Title|Pacer|ChainEntry|BeingClause|PrelimCd|Cpl$|Commitment/, 'title'], [/CrmCall/, 'calls'], [/CrmDeal/, 'crm-deals'], [/Accounting/, 'accounting'], [/Payoff|OtherCompan|OtherContact|HoaGr/, 'payoffs'], [/Crm|^crm[A-Z]/, 'crm']];
-    for (const [k, fn] of Object.entries(api)) { if (typeof fn !== 'function') continue; const g = GATES.find(([re]) => re.test(k)); if (!g) continue; const m = MODULES.find((z) => z.id === g[1]);
+    const FWP_GATE = new Map();
+    for (const k of ['listFundingQueue','getFunding','saveFunding','saveFundingFund','setFundingCheck','saveFundingDisbursement','notifyWireTeam','queueFundsDisbursedNotification','markFundingDisbursed','voidFundingDisbursement','completeFundingTasks']) FWP_GATE.set(k,'funding');
+    for (const k of ['listWireQueue','getWire','saveWire','verifyWire','postWireDisbursement','saveEscrowAccount']) FWP_GATE.set(k,'wires');
+    for (const k of ['listPolicyQueue','getPolicy','savePolicy','queuePolicyEscalation','resolvePolicyEscalation','refreshPolicyRates','addPolicyException','setPolicyCheck','issuePolicies','completePolicy']) FWP_GATE.set(k,'policy');
+    for (const [k, fn] of Object.entries(api)) { if (typeof fn !== 'function') continue; const m = FWP_GATE.has(k) ? MODULES.find((z) => z.id === FWP_GATE.get(k)) : (() => { const g = GATES.find(([re]) => re.test(k)); return g && MODULES.find((z) => z.id === g[1]); })(); if (!m) continue;
       api[k] = async function (...a) { const u = me();
-        if (u && moduleAvailable(m, flags)) { const set = ensureModules(load()).moduleSettings; const chain = m.parent ? [MODULES.find((z) => z.id === m.parent), m] : [m];
+        if (FWP_GATE.has(k) || k === 'listFwpLog') { if (!fwpCanRead(u)) throw new Error(FWP_STAFF_ONLY); }
+        if (u && moduleAvailable(m, flags)) { const set = ensureModules(load()).moduleSettings; let chain = m.parent ? [MODULES.find((z) => z.id === m.parent), m] : [m];
+          if (['funding','wires'].includes(m.id)) chain = [...new Set([MODULES.find((z) => z.id === 'accounting'), ...chain])];
           const chain2 = k === 'transitionRecording' || k === 'setRecordingDoc' || k === 'setRecordingCheck' || k === 'saveRecording' ? [...chain, MODULES.find((z) => z.id === 'e-recording')] : chain; const shut = chain2.find((z) => moduleAccess(z.id, u, flags, set) === 'off'); if (shut) fail(betaRefusal(shut)); }
         return fn.apply(this, a); }; } }
   // a new Buyer / Listing Agent on an open order gets the 3 agent tasks (Francis, Nov 3)

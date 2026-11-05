@@ -7,8 +7,8 @@
  *   d.hrSignatureRequests  [{id, documentId, employeeId, provider: zoho_sign|other, status: draft|not_sent|sent|signed|declined, sentAt, signedAt, declinedAt, statusNote, createdAt, createdBy, updatedAt, updatedBy, archivedAt, archivedBy}]
  *   d.hrPortalSessions     [{id, employeeId, profileId, startedAt, lastActivityAt, endedAt, endReason: logout|idle|closed|null, heartbeatCount}]
  * No e-sign provider is connected: signature status is recorded by hand. Nothing is ever deleted (archive instead). */
-import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from './constants.js?v=202611051319';
-import { HR_COMPANY_DOC_CATEGORIES, HR_SHARE_SCOPES, HR_EMP_DOC_TYPES, HR_SIGN_STATUSES, HR_SIGN_PROVIDERS, HR_IDLE_MS, sessionSeconds, sessionTotals, fullNameOf, labelOf } from './hr.js?v=202611051319';
+import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from './constants.js?v=202611051418';
+import { HR_COMPANY_DOC_CATEGORIES, HR_SHARE_SCOPES, HR_EMP_DOC_TYPES, HR_SIGN_STATUSES, HR_SIGN_PROVIDERS, HR_IDLE_MS, sessionSeconds, sessionTotals, fullNameOf, labelOf } from './hr.js?v=202611051418';
 const SEED_AT = '2026-11-04T14:00:00Z';
 const ago = (iso, min) => new Date(Date.parse(iso) - min * 60000).toISOString();
 
