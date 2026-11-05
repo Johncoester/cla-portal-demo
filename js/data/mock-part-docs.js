@@ -1,9 +1,17 @@
 /* mock adapter: contacts, participants, documents (deal files). NOTE: there is no delete for documents, for anyone (Admin included). */
-import { cleanEntity } from './mock-part-nov3b.js?v=202611041824';
-import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611041824';
+import { cleanEntity } from './mock-part-nov3b.js?v=202611041856';
+import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611041856';
 export function contactsTasksDocs(x) {
   const { load, save, nid, needUser, needProcessor, isManager, notViewOnly, seesAll, dealsFor, dealOr404, onDeal, fileRole, log, prof, nameOf, roleOf, fullName, folderOf, docVisible, participantsOf, notify, dealProfileIds, clone, now, fail, str, emailOk, C } = x;
-  const docOut = (z) => ({ ...z, wireInstructions: x.isWireDoc(z), dataUrl: undefined, hasContent: !!(z.dataUrl || z.hasFile), uploadedByName: nameOf(z.uploadedBy), uploadedByRole: x.fileRoleText(z.uploadedBy, z.dealId), folderName: (folderOf(z.folderId) || {}).name || '' });
+  // u = the deal-scoped viewer (optional). A pure buyer never gets the name, role or id of another party who uploaded a file CLA staff shared with
+  // them (e.g. the listing agent): it reads "CLA Title & Escrow" (John, Nov 4). Staff get buyerShareable = the Share-with-buyer switch applies.
+  const staffLogin = (pid) => { const p = prof(pid); return !!p && !C.isOutside(p.role); };
+  const docOut = (z, u) => { const masked = !!u && z.dealId && x.pureBuyer(u) && z.uploadedBy !== u.id && !staffLogin(z.uploadedBy);
+    const f = folderOf(z.folderId);
+    return { ...z, wireInstructions: x.isWireDoc(z), dataUrl: undefined, hasContent: !!(z.dataUrl || z.hasFile), uploadedBy: masked ? null : z.uploadedBy,
+      uploadedByName: masked ? 'CLA Title & Escrow' : nameOf(z.uploadedBy), uploadedByRole: masked ? 'Shared with you by CLA Title' : x.fileRoleText(z.uploadedBy, z.dealId), folderName: (f || {}).name || '',
+      sharedWithClient: z.sharedWithClient === true, sharedWithClientBy: z.sharedWithClientBy || null, sharedWithClientByName: z.sharedWithClientBy ? nameOf(z.sharedWithClientBy) : '', sharedWithClientAt: z.sharedWithClientAt || null,
+      buyerShareable: !!u && !!z.dealId && x.isStaffView(u) && !staffLogin(z.uploadedBy) && !x.fileRoles(z.uploadedBy, z.dealId).includes('Client-Buyer') && z.visibility !== 'staff' && !(f && f.staffOnly) }; };
   // CONTACT TYPE (John, Nov 2): '' / null = not set; otherwise one of the fixed codes. A contact with a CLA staff login has none.
   const ctype = (v, login) => { const s = str(v, 20); if (!s) return null; if (!C.CONTACT_TYPE_CODES.includes(s)) fail('Pick a contact type from the list (Realtor, Lender or Buyer/Seller).');
     if (login && login.status !== 'removed' && !C.isOutside(login.role)) fail('CLA staff have no contact type.'); return s; };
@@ -69,15 +77,16 @@ export function contactsTasksDocs(x) {
     async listDocuments(dealId, { folderId } = {}) {
       let u = needUser(); u = onDeal(u, dealId);
       return clone(load().documents.filter((z) => z.dealId === dealId && docVisible(u, z) && (folderId === undefined || (folderId === '' ? !z.folderId : z.folderId === folderId)))
-        .map(docOut).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+        .map((z) => docOut(z, u)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
     },
     async addDocument(dealId, { name, description, mimeType, size, dataUrl, visibility, folderId, docType, wireInstructions }) {
       let u = needUser(); u = onDeal(u, dealId); notViewOnly(u);
       const doc = x.newDoc(u, { name, description, mimeType, size, dataUrl, visibility, docType, wireInstructions }); doc.dealId = dealId;
       if (folderId) { const f = folderOf(folderId); if (!f || f.dealId !== dealId) fail('That folder is not part of this order.'); doc.folderId = f.id; } else doc.folderId = null;
       await x.keepFile(doc); load().documents.push(doc); log(dealId, u.id, 'document.uploaded', 'document', doc.id, `Uploaded ${doc.name}`);
-      notify(dealProfileIds(dealId).filter((pid) => docVisible(prof(pid), doc)), { kind: 'document', dealId, title: `${nameOf(u.id)} uploaded ${doc.name}`, link: `#/deals/${dealId}/documents` }, u.id);
-      save(); return clone(docOut(doc));
+      // notified = the people who can open it AS THEY ACT ON THIS ORDER (scoped: a buyer is not told about a listing agent's upload, Nov 4)
+      notify(dealProfileIds(dealId).filter((pid) => docVisible(x.scopeTo(prof(pid), dealId), doc)), { kind: 'document', dealId, title: `${nameOf(u.id)} uploaded ${doc.name}`, link: `#/deals/${dealId}/documents` }, u.id);
+      save(); return clone(docOut(doc, u));
     },
     async moveDocument(id, folderId) {   // file a document into another folder of the same order (processor / coordinator)
       let u = needUser(); const z = load().documents.find((q) => q.id === id) || fail('Document not found.'); if (!z.dealId) fail('Use the Library to manage library files.');
@@ -90,13 +99,30 @@ export function contactsTasksDocs(x) {
       if (!(C.runsOrders(u) || z.uploadedBy === u.id)) fail('Only the uploader or a processor can edit this document.');
       if (patch.description != null) z.description = str(patch.description, 500);
       if (patch.docType != null) z.docType = docTypeOf(u, patch.docType);
-      if (patch.visibility != null) { if (!C.DOC_VISIBILITY.includes(patch.visibility)) fail('Unknown visibility.'); visCheck(u, patch.visibility); z.visibility = patch.visibility; }
+      if (patch.visibility != null) { patch.visibility = buyerVis(u, patch.visibility); if (!C.DOC_VISIBILITY.includes(patch.visibility)) fail('Unknown visibility.'); visCheck(u, patch.visibility); z.visibility = patch.visibility; }
       // wire instructions (John, Nov 3): CLA staff mark / unmark a file. A file whose NAME says wire instructions always stays marked.
       if (patch.wireInstructions != null) { const want = patch.wireInstructions === true || patch.wireInstructions === 'on' || patch.wireInstructions === 'true';
         if (!x.isStaffView(u) || C.viewOnly(u)) fail('Only CLA Title staff can mark wire instructions.');
         if (!want && x.isWireDocName(z.name)) fail('This file is named as wire instructions, so it stays buyer-only. Upload it again under another name if it is not.');
         if (z.wireInstructions !== want) log(z.dealId, u.id, 'document.updated', 'document', id, `${want ? 'Marked' : 'Unmarked'} ${z.name} as wire instructions`); z.wireInstructions = want; }
       log(z.dealId, u.id, 'document.updated', 'document', id, `Updated details of ${z.name}`); save(); return true;
+    },
+    // SHARE WITH CLIENT (John, Nov 4): CLA staff (processor / coordinator / Admin, not view-only) share another party's upload, e.g. the listing
+    // agent's, with the buyer(s) on the file, or stop sharing it. Stored on the document (sharedWithClient, sharedWithClientBy, sharedWithClientAt =
+    // who / when it was last shared); every change is in the activity log. Nothing is deleted; turning it off keeps who shared it before.
+    async shareDocumentWithClient(id, share = true) {
+      let u = needUser(); const z = load().documents.find((q) => q.id === id) || fail('Document not found.'); if (!z.dealId) fail('Library files are shared from the Library.');
+      u = onDeal(u, z.dealId); if (!x.isStaffView(u) || !isManager(u) || C.viewOnly(u)) fail('Only CLA Title staff (processor, coordinator or Admin) can share a document with the buyer.');
+      const on = share === true || share === 'true' || share === 'on';
+      if (on) { const f = folderOf(z.folderId); if (z.visibility === 'staff' || (f && f.staffOnly)) fail('This file is staff-only. Change "Who can see it" first.');
+        if (staffLogin(z.uploadedBy)) fail('CLA staff uploads already reach the buyer through "Who can see it".');
+        if (x.fileRoles(z.uploadedBy, z.dealId).includes('Client-Buyer')) fail('This is the buyer\'s own upload.'); }
+      if ((z.sharedWithClient === true) === on) return clone(docOut(z, u));
+      z.sharedWithClient = on; if (on) { z.sharedWithClientBy = u.id; z.sharedWithClientAt = now(); }
+      log(z.dealId, u.id, on ? 'document.shared_client' : 'document.unshared_client', 'document', z.id, on ? `Shared ${z.name} with the buyer` : `Stopped sharing ${z.name} with the buyer`);
+      if (on) { const buyers = dealProfileIds(z.dealId).filter((pid) => { const v = x.scopeTo(prof(pid), z.dealId); return x.pureBuyer(v) && docVisible(v, z); });
+        notify(buyers, { kind: 'document', dealId: z.dealId, title: `CLA Title shared a document with you: ${z.name}`, link: `#/deals/${z.dealId}/documents` }, u.id); }
+      save(); return clone(docOut(z, u));
     },
     async getDocumentContent(id) {
       let u = needUser(); const z = load().documents.find((q) => q.id === id) || fail('Document not found.');
@@ -106,6 +132,8 @@ export function contactsTasksDocs(x) {
     },
   };
   // u = the deal-scoped user. Outside users: 'all' or their own side only (never staff-only, never the other side).
+  // BUYER (Nov 4 call): shares with CLA Title only. An older 'buyer side' request from the buyer is stored as 'staff' (CLA staff only)
+  const buyerVis = (u, vis) => (u.role === 'Client-Buyer' && vis === 'buyer' ? 'staff' : vis);
   const visCheck = (u, vis) => { if (C.visibilityChoices(u.role, u.isAdmin).includes(vis)) return;
     if (vis === 'staff') fail(C.isClient(u.role) ? 'Clients cannot make staff-only documents.' : 'Only CLA staff can make staff-only documents.');
     if (C.isClient(u.role)) fail('Clients share files with CLA Title (and their own agent) only.');
@@ -121,10 +149,10 @@ export function contactsTasksDocs(x) {
     if (!C.ALLOWED_UPLOAD_EXT.includes(ext)) fail(`.${ext} files are not allowed. Allowed: ${C.ALLOWED_UPLOAD_EXT.join(', ')}.`);
     const n = full.length > 200 ? full.slice(0, 199 - ext.length) + '.' + ext : full;   // long names are cut but keep their extension
     if (!(size >= 0) || size > C.MAX_UPLOAD_BYTES) fail(`File is too large (demo limit ${Math.round(C.MAX_UPLOAD_BYTES / 1e5) / 10} MB).`);
-    const vis = C.DOC_VISIBILITY.includes(visibility) ? visibility : C.visibilityChoices(u.role, u.isAdmin)[0];   // default: 'all' for staff/agents, own side for clients
+    const vis = buyerVis(u, C.DOC_VISIBILITY.includes(visibility) ? visibility : C.visibilityChoices(u.role, u.isAdmin)[0]);   // default: 'all' for staff/agents, own side for clients
     visCheck(u, vis);
     return { id: nid('doc'), dealId: null, folderId: null, name: n, description: str(description, 500), mimeType: str(mimeType, 100) || 'application/octet-stream', size: Number(size) || 0,
-      dataUrl: dataUrl || null, uploadedBy: u.id, visibility: vis, docType: docTypeOf(u, docType),
+      dataUrl: dataUrl || null, uploadedBy: u.id, visibility: vis, docType: docTypeOf(u, docType), sharedWithClient: false, sharedWithClientBy: null, sharedWithClientAt: null,
       // wire instructions (John, Nov 3): staff may mark a file; any file NAMED as wire instructions is marked whoever uploads it. Buyer clients + staff only.
       wireInstructions: x.isWireDocName(n) || (!!wireInstructions && wireInstructions !== 'false' && x.isStaffView(u)), createdAt: now() };
   };

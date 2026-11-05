@@ -1,7 +1,7 @@
 /* mock adapter: tasks. Templates (versioned definitions) are separate from each participant's task COPY; a copy records templateId + templateVersion.
  * Intake forms: save partial work, validate, mark complete. Reminders are QUEUED in an outbox only and never sent. Tasks are cancelled, never deleted. */
-import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611041824';
-import { maskAccount } from './constants.js?v=202611041824';
+import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611041856';
+import { maskAccount } from './constants.js?v=202611041856';
 export function tasksAndForms(x) {
   const { load, save, nid, needUser, needAdmin, isManager, dealOr404, onDeal, fileRole, fileRoles, holds, dealsFor, log, prof, nameOf, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, dateOrNull, localDate, localDayOf, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
@@ -42,6 +42,7 @@ export function tasksAndForms(x) {
     return n;
   };
   function queueReminder(u, t) {
+    if (!OPEN.includes(t.status)) return 0;   // received / done (or cancelled): nobody is reminded any more
     const d = load(); const deal = d.deals.find((z) => z.id === t.dealId); const today = localDate();
     let to = t.participantId ? [ownerOf(t)] : dealProfileIds(t.dealId).filter((pid) => fileRoles(pid, t.dealId).includes(t.assignedRole));
     to = to.filter((pid) => pid && prof(pid) && prof(pid).status === 'active');
@@ -49,10 +50,15 @@ export function tasksAndForms(x) {
     to.forEach((pid) => {
       if (d.outbox.some((o) => o.taskId === t.id && o.toProfileId === pid && localDayOf(o.createdAt) === today)) return;   // one per task/person/day
       const p = prof(pid);
-      d.outbox.push({ id: nid('ob'), channel: 'email', status: 'queued', toProfileId: pid, toEmail: p.email, subject: `Reminder: ${t.title} (${deal.fileNumber})`,
-        body: `Hi ${p.firstName}, this is a reminder about "${t.title}" for ${deal.street}, ${deal.city}.${t.dueDate ? ' Due ' + t.dueDate + '.' : ''} Please sign in to the portal to finish it.`,
-        taskId: t.id, dealId: t.dealId, createdBy: u.id, createdAt: now(), sentAt: null });
-      notify([pid], { kind: 'reminder', dealId: t.dealId, title: `Reminder: ${t.title}`, link: `#/deals/${t.dealId}/tasks` }, u.id); n++;
+      // EMD RECEIPT (John, Nov 4): the task is hidden from the buyer, but the buyer is still reminded while CLA Title has NOT received the deposit
+      // (the task is open). The reminder speaks about the deposit, not a task they cannot open, and links to their Overview. Closed task = no reminder (OPEN check above).
+      const emd = x.EMD_RECEIPT.test(t.title || '') && x.pureBuyer(x.scopeTo(p, t.dealId));
+      d.outbox.push({ id: nid('ob'), channel: 'email', status: 'queued', toProfileId: pid, toEmail: p.email, subject: emd ? `Reminder: earnest money deposit not received yet (${deal.fileNumber})` : `Reminder: ${t.title} (${deal.fileNumber})`,
+        body: emd ? `Hi ${p.firstName}, CLA Title & Escrow has not received your earnest money deposit (EMD) for ${deal.street}, ${deal.city} yet.${t.dueDate ? ' It was due ' + t.dueDate + '.' : ''} Once it arrives, CLA Title sends you the receipt and these reminders stop.`
+          : `Hi ${p.firstName}, this is a reminder about "${t.title}" for ${deal.street}, ${deal.city}.${t.dueDate ? ' Due ' + t.dueDate + '.' : ''} Please sign in to the portal to finish it.`,
+        taskId: t.id, dealId: t.dealId, createdBy: u.id, createdAt: now(), sentAt: null, ...(emd ? { emdReminder: true } : {}) });
+      notify([pid], emd ? { kind: 'reminder', dealId: t.dealId, title: 'Reminder: CLA Title has not received your earnest money deposit yet', link: `#/deals/${t.dealId}` }
+        : { kind: 'reminder', dealId: t.dealId, title: `Reminder: ${t.title}`, link: `#/deals/${t.dealId}/tasks` }, u.id); n++;
     });
     if (n) log(t.dealId, u.id, 'reminder.queued', 'task', t.id, `Reminder queued for ${t.title} (${n} recipient(s); not sent - outbox only)`);
     return n;

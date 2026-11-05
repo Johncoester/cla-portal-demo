@@ -9,11 +9,11 @@
  * VIEW AS (Super admin only): inside a locked link whose OWNER is a Super admin (King John), a "View as" dropdown switches the tab to any fake user and
  * back; the route guard then applies to the person being viewed. Any other locked link (Adam Admin included) never gets it, and a stored viewAs on a
  * lock whose owner is not a Super admin is ignored and cleared (app.js). */
-import { runsOrders, isStaff, isOutside } from './constants.js?v=202611041824';
-import { canUseCrm } from './crm.js?v=202611041824';
-import { canInviteAgents } from './agent-profile.js?v=202611041824';
-import { canManageModules } from './modules.js?v=202611041824';
-import { hrSectionAllowed } from './hr.js?v=202611041824';
+import { runsOrders, isStaff, isOutside } from './constants.js?v=202611041856';
+import { canUseCrm } from './crm.js?v=202611041856';
+import { canInviteAgents } from './agent-profile.js?v=202611041856';
+import { canManageModules } from './modules.js?v=202611041856';
+import { hrSectionAllowed } from './hr.js?v=202611041856';
 
 export const LOCK_KEY = 'cla-portal-new:locked:v1';
 export function devPickerOn(w = (typeof window !== 'undefined' ? window : {})) {

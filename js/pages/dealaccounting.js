@@ -1,16 +1,16 @@
 // ACCOUNTING tab (John, Nov 3: "an accounting tab that will allow fees to be added to an ALTA and CD"). CLA staff only, behind the `accounting`
 // feature flag (app.js never loads this module when it is off). ONE fee ledger feeds the ALTA Settlement Statement and the Closing Disclosure fee
 // view. Processor / Admin / Super admin edit; Sales Person / Sales Team read only. TEST ONLY: "TEST - not a legal disclosure" on every page and print.
-import { html, raw, $, $$, guard, formData, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611041824';
-import { themeOn } from '../theme.js?v=202611041824';
-import { modOn } from '../data/modules.js?v=202611041824';
-import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611041824';
-import { prorationsView } from './dealaccounting-prorations.js?v=202611041824';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
-import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611041824'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
-import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611041824';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
-import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611041824';
-import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611041824';
-import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611041824';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { html, raw, $, $$, guard, formData, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611041856';
+import { themeOn } from '../theme.js?v=202611041856';
+import { modOn } from '../data/modules.js?v=202611041856';
+import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611041856';
+import { prorationsView } from './dealaccounting-prorations.js?v=202611041856';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
+import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611041856'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
+import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611041856';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611041856';
+import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611041856';
+import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611041856';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 
 const VIEWS = [['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
 // negative amounts (the escrow aggregate adjustment) show as -$x.xx

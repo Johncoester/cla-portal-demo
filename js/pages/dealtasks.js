@@ -1,17 +1,20 @@
 // Tasks tab. Intake forms are per-participant copies of a versioned template (open them to fill in). Simple tasks are ticked.
 // Processor + transaction coordinator manage tasks and queue reminders (outbox only, never sent). Tasks are cancelled, never deleted.
-import { html, $, $$, guard, formData, modal, closeModal, options, fmtDate, pill, toast } from '../ui.js?v=202611041824';
-import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611041824';
-import { boxTasks } from '../data/task-board.js?v=202611041824';
+import { html, $, $$, guard, formData, modal, closeModal, options, fmtDate, pill, toast } from '../ui.js?v=202611041856';
+import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611041856';
+import { boxTasks } from '../data/task-board.js?v=202611041856';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
 export const LABEL = { todo: 'to do', in_progress: 'started', done: 'done', blocked: 'blocked', cancelled: 'cancelled' };
 
 export async function render(ctx) {
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611041824')).render(ctx);
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611041856')).render(ctx);
   const { api, user, deal, refresh } = ctx;
-  const tasks = await api.listTasks(deal.id); const manage = runsOrders(user) || user.role === 'Transaction Coordinator'; const today = localDate(); const refi = isRefi(deal);
+  const tasks = await api.listTasks(deal.id);
+  // BUYER (Nov 4 call): the agreements are to-dos that open the agreement (no Agreements tab for the buyer); the buyer never gets a Listing Agent box (listing agent never shown)
+  const { isPureBuyer, agreementTasks } = await import('./client-overview.js?v=202611041856'); const pure = user.accountRole && isPureBuyer(user);
+  const agTodo = pure ? agreementTasks(deal, await api.listAgreements(deal.id).catch(() => null)) : []; const manage = runsOrders(user) || user.role === 'Transaction Coordinator'; const today = localDate(); const refi = isRefi(deal);
   const open = (t) => ['todo', 'in_progress', 'blocked'].includes(t.status);
   const row = (t) => html`<tr class="${t.status === 'done' || t.status === 'cancelled' ? 'is-done' : ''}">
       <td class="center">${t.canTick ? html`<input type="checkbox" data-tick="${t.id}" ${t.status === 'done' ? html`checked` : ''} aria-label="Done">` : ''}</td>
@@ -22,9 +25,9 @@ export async function render(ctx) {
       <td class="nowrap">${t.kind === 'agent' ? html`<a class="ghost" href="#/deals/${deal.id}/tasks/${t.id}" data-agent-task="${t.id}">${t.status === 'done' ? 'View Submission' : t.mine ? 'Start' : 'View'}</a>` : ''}${t.kind === 'sign' ? html`<a class="ghost" href="#/deals/${deal.id}/tasks/${t.id}">${t.mine && open(t) ? 'Sign' : 'View'}</a>` : ''}${t.kind === 'form' && t.canFill ? html`<a class="ghost" href="#/deals/${deal.id}/tasks/${t.id}">${t.status === 'done' ? 'View' : t.mine ? 'Fill in' : t.forClient ? 'Fill in for client' : 'Open'}</a>` : ''}
         ${manage ? html`<button class="ghost" data-edit="${t.id}">Edit</button>` : ''}${manage && open(t) ? html` <button class="ghost" data-remind="${t.id}" title="Queues an email in the outbox. Nothing is sent from this build.">Remind</button>` : ''}</td></tr>`;
   const mineFirst = [...tasks].sort((a, b) => ((b.mine || b.forClient) && open(b)) - ((a.mine || a.forClient) && open(a)));
-  const body = html`<div class="box-title"><h2><span class="h-ico"></span>All Tasks</h2>${manage ? html`<button class="m-btn right" id="addtask">+ Add task</button>` : ''}</div>
+  const body = html`${pure ? html`<div class="box-title"><h2><span class="h-ico"></span>Agreements to acknowledge</h2></div>${agTodo.length ? html`<table class="tbl striped" data-agreement-todos><tbody>${agTodo.map((a) => html`<tr data-co-agreement="${a.agreement}"><td><strong><a href="${a.href}">${a.title}</a></strong><br><span class="muted small">Opens the agreement to read and acknowledge</span></td><td class="nowrap"><a class="ghost" href="${a.href}">Open</a></td></tr>`)}</tbody></table>` : html`<p class="muted" data-agreement-todos="0">All agreements acknowledged.</p>`}` : ''}<div class="box-title"><h2><span class="h-ico"></span>${pure ? 'To-do list' : 'All Tasks'}</h2>${manage ? html`<button class="m-btn right" id="addtask">+ Add task</button>` : ''}</div>
     ${tasks.some((t) => t.participantId) ? html`<p data-view-switch><strong>Task list</strong> &middot; <a href="#/deals/${deal.id}/tasks?view=people" data-intake-by-person>Intake by person</a> <span class="muted small">(each buyer, seller and agent with all their intake answers on one page)</span></p>` : ''}
-    ${tasks.length ? html`<p class="muted small" data-side-total>${tasks.length} task(s) on this file, grouped by side (from each task's assigned role).</p>${boxTasks(mineFirst).map((g) => html`<details class="side-box side-${g.key}" data-sidebox="${g.key}" data-count="${g.tasks.length}" open>
+    ${tasks.length ? html`<p class="muted small" data-side-total>${tasks.length} task(s) on this file, grouped by side (from each task's assigned role).</p>${boxTasks(mineFirst).filter((g) => !(pure && g.key === 'listing-agent')).map((g) => html`<details class="side-box side-${g.key}" data-sidebox="${g.key}" data-count="${g.tasks.length}" open>
       <summary><span class="side-tag">${g.key === 'buyer' && refi ? 'Borrower tasks' : g.label}</span> <span class="side-count">(${g.tasks.length})</span></summary>
       ${g.tasks.length ? html`<div class="side-scroll"><table class="tbl striped"><thead><tr><th></th><th>Task</th><th>Assigned to</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>${g.tasks.map(row)}</tbody></table></div>` : html`<p class="muted small">None.</p>`}</details>`)}` : html`<p class="muted">No tasks yet.</p>`}
     <p class="muted small">Tasks are never deleted; use Edit &rarr; Cancelled to retire one. Reminders are queued in the outbox only and never sent from this build.</p>`;

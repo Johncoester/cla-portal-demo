@@ -1,15 +1,16 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611041824';
-import { GMAIL_OFF } from '../data/automation.js?v=202611041824';
-import { occSelects, yesNo } from './occ-fields.js?v=202611041824';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611041824';
-import { slotText } from './dealclosing.js?v=202611041824';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611041824';
-import { composeModal } from './compose.js?v=202611041824';
-import { moneyShow, moneyClean } from './money-input.js?v=202611041824';
-import { themeOn } from '../theme.js?v=202611041824';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611041856';
+import { GMAIL_OFF } from '../data/automation.js?v=202611041856';
+import { occSelects, yesNo } from './occ-fields.js?v=202611041856';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611041856';
+import { slotText } from './dealclosing.js?v=202611041856';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611041856';
+import { composeModal } from './compose.js?v=202611041856';
+import { moneyShow, moneyClean } from './money-input.js?v=202611041856';
+import { themeOn } from '../theme.js?v=202611041856';
+import { renderClientOverview, clientSide, isPureBuyer, clientTabChrome } from './client-overview.js?v=202611041856';
 
-const TABS = { tasks: './dealtasks.js?v=202611041824', inbox: './dealmsgs.js?v=202611041824', documents: './dealdocs.js?v=202611041824', contacts: './dealcontacts.js?v=202611041824', activity: './dealactivity.js?v=202611041824', closing: './dealclosing.js?v=202611041824', agreements: './dealagreements.js?v=202611041824', accounting: './dealaccounting.js?v=202611041824' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611041856', inbox: './dealmsgs.js?v=202611041856', documents: './dealdocs.js?v=202611041856', contacts: './dealcontacts.js?v=202611041856', activity: './dealactivity.js?v=202611041856', closing: './dealclosing.js?v=202611041856', agreements: './dealagreements.js?v=202611041856', accounting: './dealaccounting.js?v=202611041856' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -17,9 +18,22 @@ export async function render(ctx) {
   // per-file roles: on this order an outside user acts as their role HERE (deal.myRole), e.g. Buyer Agent here, Client-Buyer elsewhere
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
-  if (tab === 'accounting' && !(api.features || {}).accounting) throw new Error('That page does not exist.');   // John, Nov 3: switchable off for the live portal
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041824' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab === 'accounting' && !(api.features || {}).accounting) throw new Error('That page does not exist.');
+  if (tab === 'contacts' && user.accountRole && isPureBuyer(user)) throw new Error('Your closing team is on the Overview.');   // buyer: no Contacts tab (Nov 4 call)   // John, Nov 3: switchable off for the live portal
+  // CLIENT TABS (John, Nov 4: every buyer tab in the light client layout; same for the seller): the tab's own content, under the client file line +
+  // pill tabs, drawn in the client shell (app.js: white top bar, CLA logo, no sidebar). The content and its rules are unchanged.
+  if (tab !== 'overview' && TABS[tab] && user.accountRole && clientSide(user)) {
+    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041856' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
+    const top = await clientTabChrome(ctx, deal, tab);
+    return { ...v, crumbs: [...here, ...(v.crumbs || [])], clientPage: { deal, side: clientSide(user), tab }, body: html`<div class="co-page co-tabpage" data-client-tab="${tab}">${top}<section class="co-card co-tabcard"><div class="co-cb">${v.body}</div></section></div>` };
+  }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041856' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
+  // CLIENT OVERVIEW (John, Nov 4): the buyer / seller get the redesigned overview (client-overview.js) in place of the old overview + card summary (no Cash to Close / payoff mockup figures for clients).
+  if (user.accountRole && clientSide(user)) {
+    const ov0 = await ctx.api.getOrderOverview(deal.id);
+    return renderClientOverview({ ...ctx, wireModal, shareModal: (o) => shareModal(ctx, deal, ov0, o) }, deal, here);
+  }
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
   // Francis, Nov 3 (Qualia Connect agent portal): outstanding-task alert, 4-step progress, Order Details, Parties, Activity, Conversations,
@@ -31,7 +45,7 @@ export async function render(ctx) {
   return { ...v, body: html`${done.html}${cards}${extra.top}${v.body}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
 }
 async function themedSummary({ api, user }, d, ov, inv) {
-  const { orderSummary } = await import('./theme-cards.js?v=202611041824');
+  const { orderSummary } = await import('./theme-cards.js?v=202611041856');
   const staffView = !user.accountRole && user.role !== 'Outside user';
   const canWire = staffView || (user.roles || [user.role]).includes('Client-Buyer');   // SAME rule as the Wire instructions button: CLA staff + the buyer, never an agent
   const tasks = await api.listTasks(d.id).catch(() => []);
@@ -126,7 +140,7 @@ function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = []) {
 async function wireModal(api, d) {
   const w = await api.getWireInstructions(d.id);
   modal('Wire instructions', html`<div class="notice warn" data-wire-warning><strong>STOP - wire fraud warning.</strong> ${w.warning}</div>
-    ${w.sample ? html`<p class="pill warn" data-wire-sample>SAMPLE ONLY - FAKE INSTRUCTIONS FOR THIS DEMO. DO NOT SEND MONEY.</p>` : ''}
+    ${w.sample ? html`<p class="pill warn" data-wire-sample>TEST &middot; SAMPLE ONLY - FAKE INSTRUCTIONS FOR THIS DEMO. DO NOT SEND MONEY.</p>` : ''}
     <table class="tbl" id="wire-table"><tbody><tr><th>Bank</th><td>${w.bankName}<br><span class="muted small">${w.bankAddress}</span></td></tr><tr><th>Routing number</th><td>${w.routing}</td></tr>
       <tr><th>Account number</th><td>${w.account}</td></tr><tr><th>Account name</th><td>${w.accountName}</td></tr><tr><th>Reference</th><td>${w.reference}</td></tr></tbody></table>
     <p class="muted small">${w.amountNote}</p><p><strong>Questions? Call CLA Title at ${w.claPhone}</strong> (use the number you already have, not one from an email).</p>
@@ -199,13 +213,7 @@ function agentPanels(ctx, d, ov, ur, inv) {
       await api.requestUpdate(d.id, f); toast('Update requested. CLA Title will answer here.'); refresh(); }));
     $$('[data-answer]', root).forEach((f) => f.addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.respondUpdateRequest(f.dataset.answer, formData(f)); toast('Update sent'); refresh(); })));
     $$('[data-message-to]', root).forEach((b) => b.addEventListener('click', guard(() => composeModal({ api, deal: d, go, user }, { title: 'New Conversation', to: b.dataset.messageTo, withFiles: true }))));
-    const sa = $('#shareaccess', root); if (sa) sa.addEventListener('click', () => { const m = modal('Share Access', html`<form id="saf" class="form-grid" novalidate>
-      <label>First Name<input name="firstName" required maxlength="80"></label><label>Last Name<input name="lastName" required maxlength="80"></label>
-      <label class="span2">Email<input name="email" type="email" required maxlength="200"></label>
-      <label class="span2">Organization Permissions<select name="permission" required><option value="">Choose&hellip;</option>${options(ov.permissions, '')}</select></label>
-      <p class="muted small span2">Demo build: the share is recorded on this order and shown to CLA Title. No email is sent and no login is created.</p>
-      <div class="span2"><button type="button" class="ghost" data-close>Cancel</button> <button class="m-btn" type="submit">Share</button></div></form>`);
-      $('#saf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.shareAccess(d.id, formData(e.target)); closeModal(); toast('Access shared (recorded; no email sent)'); refresh(); })); });
+    const sa = $('#shareaccess', root); if (sa) sa.addEventListener('click', () => shareModal(ctx, d, ov));
     const ip = $('#invitepreview', root); if (ip) ip.addEventListener('click', guard(async () => {
       const outside = d.participants.filter((p) => p.contact && p.contact.profileId && ['Buyer Agent', 'Listing Agent', 'Client-Buyer', 'Client-Seller'].includes(p.role));
       const m = modal('Portal invite email', html`<form id="ipf" class="form-grid"><label class="span2">Invite<select name="pid">${outside.map((p) => html`<option value="${p.contact.profileId}">${p.contact.firstName} ${p.contact.lastName} (${p.role})</option>`)}</select></label>
@@ -242,4 +250,18 @@ async function automationModal(api, d) {
       : html`<p class="muted" data-preview-none>No sellers or agents on this order yet.</p>`}
     <div><button type="button" class="m-btn" disabled title="${P.note}" data-send-disabled>Send (${P.messages.length})</button> <button type="button" class="ghost" data-close>Close</button>
       <span class="small muted">${P.note}</span></div>`, { wide: true });
+}
+
+// Share Access (agents on the order; recorded only, nothing is sent). Shared by the agent overview and the client overview.
+// John, Nov 4: the BUYER shares access on their own file with the same form; the note says what that person could ever see (never the
+// listing agent's details or anything CLA keeps staff-only) and that nothing is sent.
+function shareModal({ api, refresh }, d, ov, { buyer = false } = {}) {
+  const m = modal('Share Access', html`<form id="saf" class="form-grid" novalidate>
+      <label>First Name<input name="firstName" required maxlength="80"></label><label>Last Name<input name="lastName" required maxlength="80"></label>
+      <label class="span2">Email<input name="email" type="email" required maxlength="200"></label>
+      <label class="span2">Organization Permissions<select name="permission" required><option value="">Choose&hellip;</option>${options(ov.permissions, '')}</select></label>
+      ${buyer ? html`<p class="small span2" data-buyer-share-note>They would see only what you see on this file as the buyer: never the listing agent's contact details and nothing CLA Title keeps staff-only.</p>` : ''}
+      <p class="muted small span2">Demo build: the share is recorded on this order and shown to CLA Title. No email is sent and no login is created.</p>
+      <div class="span2"><button type="button" class="ghost" data-close>Cancel</button> <button class="m-btn" type="submit">Share</button></div></form>`);
+      $('#saf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.shareAccess(d.id, formData(e.target)); closeModal(); toast('Access shared (recorded; no email sent)'); refresh(); }));
 }

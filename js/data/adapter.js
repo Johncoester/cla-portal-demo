@@ -19,7 +19,7 @@
  *               accept it for outside users; adminListUsers rows carry it.
  *   tasks:      listTasks, getTask, createTask, updateTask, saveTaskForm(id, data, {complete}), uploadForTask,
  *               listTaskTemplates, publishTemplateVersion (Admin), sendTaskReminder, queueOverdueReminders, listOutbox (queued only, never sent)
- *   documents:  listDocuments, addDocument, moveDocument, updateDocumentMeta, getDocumentContent, listDealFolders, createFolder, renameFolder,
+ *   documents:  listDocuments, addDocument, moveDocument, updateDocumentMeta, shareDocumentWithClient (staff: share an upload with the buyer), getDocumentContent, listDealFolders, createFolder, renameFolder,
  *               listLibrary, addLibraryDocument
  *   messages:   listMessageRecipients, listThreads, getThread, createThread, postMessage, markThreadRead
  *   closing:    listSettlements, createSettlementRequest, getSchedulingLink(token), respondSettlement(token, ...), confirmSettlement, reopenSettlement
@@ -64,7 +64,7 @@ let cached = null;
 export async function getAdapter() {
   if (cached) return cached;
   const cfg = (typeof window !== 'undefined' && window.CLA_PORTAL_CONFIG) || { mode: 'mock' };
-  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611041824'); cached = await m.createSupabaseAdapter(cfg); }
-  else { const m = await import('./mock-adapter.js?v=202611041824'); cached = m.createMockAdapter(); }
+  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611041856'); cached = await m.createSupabaseAdapter(cfg); }
+  else { const m = await import('./mock-adapter.js?v=202611041856'); cached = m.createMockAdapter(); }
   return cached;
 }

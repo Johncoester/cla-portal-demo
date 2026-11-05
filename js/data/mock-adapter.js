@@ -5,40 +5,40 @@
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
 import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, localDate, localDayOf, isRealDate,
   isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
-  phoneOk, fmtPhone, PHONE_MSG, fileTitleOf, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611041824';
-import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611041824';
-import { indexedDbFileStore } from './file-store.js?v=202611041824';
-import { delegationLocked, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611041824';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611041824';
-import { devAuth } from './mock-part-auth.js?v=202611041824';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611041824';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611041824';
-import { messagesActivity } from './mock-part-msgs.js?v=202611041824';
-import { adminUsersTeams } from './mock-part-admin.js?v=202611041824';
-import { libraryFolders } from './mock-part-library.js?v=202611041824';
-import { closingSchedule } from './mock-part-schedule.js?v=202611041824';
-import { notificationsPart } from './mock-part-notify.js?v=202611041824';
-import { mattP2 } from './mock-part-matt.js?v=202611041824';
-import { mattNov2 } from './mock-part-nov2.js?v=202611041824';
-import { crmPart } from './mock-part-crm.js?v=202611041824';
-import { featureFlags } from './features.js?v=202611041824';
-import { crmZohoUpgrade } from './crm.js?v=202611041824';
-import { ensureEmailTemplates } from './crm-templates.js?v=202611041824';
-import { ensureNov3b as ensureCrmNov3b } from './crm-nov3b.js?v=202611041824';
-import { ensureAgentPortal } from './agent-portal.js?v=202611041824';
-import { agentPortal } from './mock-part-agent.js?v=202611041824';
-import { mattNov3b } from './mock-part-nov3b.js?v=202611041824';
-import { ensureSettings, optLabel } from './crm-config.js?v=202611041824';
-import { upgradeCalls } from './crm-calls.js?v=202611041824';
-import { accountingPart, ensureAccounting } from './mock-part-accounting.js?v=202611041824';
-import { payoffsPart, ensurePayoffs } from './mock-part-payoffs.js?v=202611041824';
-import { modulesPart, ensureModules } from './mock-part-modules.js?v=202611041824';
-import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.js?v=202611041824';
-import { underwriterPart } from './mock-part-underwriter.js?v=202611041824';
-import { agentInfoPart } from './mock-part-agentinfo.js?v=202611041824';
-import { agentInvitePart } from './mock-part-agent-invite.js?v=202611041824';
-import { automationPart } from './automation.js?v=202611041824';
-import { hrPart, ensureHr } from './mock-part-hr.js?v=202611041824';
+  phoneOk, fmtPhone, PHONE_MSG, fileTitleOf, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611041856';
+import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611041856';
+import { indexedDbFileStore } from './file-store.js?v=202611041856';
+import { delegationLocked, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611041856';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611041856';
+import { devAuth } from './mock-part-auth.js?v=202611041856';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611041856';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611041856';
+import { messagesActivity } from './mock-part-msgs.js?v=202611041856';
+import { adminUsersTeams } from './mock-part-admin.js?v=202611041856';
+import { libraryFolders } from './mock-part-library.js?v=202611041856';
+import { closingSchedule } from './mock-part-schedule.js?v=202611041856';
+import { notificationsPart } from './mock-part-notify.js?v=202611041856';
+import { mattP2 } from './mock-part-matt.js?v=202611041856';
+import { mattNov2 } from './mock-part-nov2.js?v=202611041856';
+import { crmPart } from './mock-part-crm.js?v=202611041856';
+import { featureFlags } from './features.js?v=202611041856';
+import { crmZohoUpgrade } from './crm.js?v=202611041856';
+import { ensureEmailTemplates } from './crm-templates.js?v=202611041856';
+import { ensureNov3b as ensureCrmNov3b } from './crm-nov3b.js?v=202611041856';
+import { ensureAgentPortal } from './agent-portal.js?v=202611041856';
+import { agentPortal } from './mock-part-agent.js?v=202611041856';
+import { mattNov3b } from './mock-part-nov3b.js?v=202611041856';
+import { ensureSettings, optLabel } from './crm-config.js?v=202611041856';
+import { upgradeCalls } from './crm-calls.js?v=202611041856';
+import { accountingPart, ensureAccounting } from './mock-part-accounting.js?v=202611041856';
+import { payoffsPart, ensurePayoffs } from './mock-part-payoffs.js?v=202611041856';
+import { modulesPart, ensureModules } from './mock-part-modules.js?v=202611041856';
+import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.js?v=202611041856';
+import { underwriterPart } from './mock-part-underwriter.js?v=202611041856';
+import { agentInfoPart } from './mock-part-agentinfo.js?v=202611041856';
+import { agentInvitePart } from './mock-part-agent-invite.js?v=202611041856';
+import { automationPart } from './automation.js?v=202611041856';
+import { hrPart, ensureHr } from './mock-part-hr.js?v=202611041856';
 
 const KEY = 'cla-portal-new:data:v29';   // v29: HR WORKSPACE PHASE 1 (John + Francis, Nov 4; feature/hr-workspace): the hr* collections (departments, designations, employees, HR manager assignments, invite links, change history) + the two fake HR-only logins (Hana HR-Manager, Pia Processor-PH, account role 'Employee') and the 'hr' module switch (off = Super admins only). upgradeToV29 runs from v28 (or anything older through upgradeToV28); nothing existing is changed or removed. v28: RELEASE live28 (John, Nov 4): payoffs / HOA / FFB / ground rent collections (ensurePayoffs) + the Nov 4 seed (ensureSeedBenTc) are guaranteed on every carried-forward copy; upgradeToV28 runs from v27 (seed already there) or v26 (the live27 demo: adds Morgan Coordinator + deal-5 Willow Drive). Nothing existing is changed or removed. v27: SEED (John, Nov 4): Ben's file MD-26-97183 gets Morgan Coordinator (a TC login, Harbor team) as its Transaction Coordinator; upgradeToV27 adds her to stored v26 data if missing, nothing else changes. v26: ACCOUNTING (John, Nov 3; feature/accounting-fees): every order can carry a fee ledger (accountingFees) and its edit log (accountingLog); upgradeToV26 adds the two empty collections, nothing else changes. Stored v25..v21 data is CARRIED FORWARD (v21..v24 go through upgradeToV25 first). v25: CRM calls (Janine's Zoho video 11, Nov 3): Schedule a call / Log a call / Mark as Completed; calls logged with the Nov 3 (b) form (duration in minutes) become logged, Completed calls with the minutes kept and copied to seconds (upgradeToV25). Stored v24 (left to the refi / deal-filters branch), v23, v22 and v21 data are CARRIED FORWARD. v24 is reserved for feature/refi-deal-filters. v23: Matt, Nov 3 (b) (Processor notes): personal_info v4 (+ Entity Representative), orders get sourceOfBusiness, buyer / seller rows may carry an entity (Place Order). Stored v22 (Janine's CRM Nov 3 b) and v21 data are CARRIED FORWARD through the chain v21 -> v22 -> v23 (upgradeToV22 then upgradeToV23). v22: CRM Nov 3 (b), Janine's Zoho videos 7-10 (John): global search + recent items, Send Email records (NEVER SENT), the 24 Zoho custom field types with permissions and layout sections, dashboards, reports (upgradeToV22 adds the collections, the built-in dashboards and the fake sample reports). v21: WIRE INSTRUCTIONS = BUYER CLIENTS + CLA STAFF ONLY (John, Nov 3): every document carries wireInstructions (true when staff mark it, or its name says wire instructions); agents never see one. Stored v20 data is CARRIED FORWARD (upgradeToV21 flags existing wire files, so a wire PDF already sent into an agent's conversation disappears for the agent). v20: Qualia-style agent portal (Francis Santos, Nov 3): agent tasks, update requests, access invites, message attachments; stored v19 data is CARRIED FORWARD (upgradeToV20). v19: CRM email templates (John / Janine, Nov 3, Zoho video 6): folders, templates, favorites, signatures, template files; stored v18 data is CARRIED FORWARD (upgradeToV19 adds the collections and the 3 fake templates). v18: Matt, Nov 3: personal info v3 (POA follow-ups, + Add entity with entity documents, settlement type for sellers only) and title vesting v2 (vesting help); stored v17 data is CARRIED FORWARD (upgradeToV18: new template versions added, untouched open copies moved to them). v17: CRM matched to Zoho (client / lead fields, Zoho picklists, tasks, meetings, attachments; stored v16 data is CARRIED FORWARD, see upgradeToV17; John, Nov 2). v16: County on orders (seeded fake files get one; stored v15 data is CARRIED FORWARD, see upgradeData; John, Nov 2). v15: the CRM (leads, accounts, opportunities, activities, CRM fields on contacts; John, Nov 2). v14: contact type on every contact (realtor / lender / buyer_seller; John, Nov 2). v13: EMD amount + due date on orders, Place Order documents,
 export const STORAGE_KEY = KEY;
@@ -186,7 +186,13 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   }
   const fileRole = (profileId, dealId) => fileRoles(profileId, dealId)[0];
   const fileRoleText = (profileId, dealId) => { const rs = fileRoles(profileId, dealId); return rs.length ? fileRoleLabel(rs) : undefined; };   // display: 'Buyer + Buyer\'s Agent' or the one role
-  const holds = (u, r) => (u.roles || [u.role]).includes(r);   // does the (deal-scoped) user hold role r on this order
+  const holds = (u, r) => (u.roles || [u.role]).includes(r);
+  // BUYER-ONLY RULES (Matt / John, Nov 4 call): a buyer on this file who is not also an agent on it
+  const pureBuyer = (u) => !!u && !isStaffView(u) && holds(u, 'Client-Buyer') && !(u.roles || [u.role]).some((r) => isAgent(r));
+  const EMD_RECEIPT = /earnest money deposit receipt/i;   // CLA sends this receipt to the buyer; the buyer no longer gets the task (data kept), only reminders while it is open (Nov 4, John)
+  // LISTING AGENT NEVER SHOWN TO THE BUYER (John, Nov 4: "no listing agent contact will ever be shared to the buyer"): true when `pid` holds the
+  // Listing Agent role on this order and the viewer is a pure buyer there. Used by every buyer-facing read (parties, documents, activity, signatures, closing).
+  const hiddenFromBuyer = (viewer, pid, dealId) => !!pid && pureBuyer(viewer) && pid !== viewer.id && fileRoles(pid, dealId).includes('Listing Agent');
   const selfRep = (roles) => roles.length === 2 && pairAllowed(roles[0], roles[1]);
   // The signed-in user as they act on ONE order (all deal-scoped rules take this, never the bare session user).
   const scopeTo = (u, dealId) => { if (!u || !isOutside(u.role)) return u; const roles = fileRoles(u.id, dealId);
@@ -208,10 +214,20 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   const wireAllowed = (profileId, dealId) => { const p = prof(profileId); if (!p || p.status !== 'active') return false; if (!isOutside(p.role)) return true;
     return !!dealId && fileRoles(p.id, dealId).includes('Client-Buyer'); };
   const isWireDoc = (doc) => !!doc && (doc.wireInstructions === true || isWireDocName(doc.name));
-  const docVisible = (u, doc) => {
+  // staffShare: CLA staff sending the document to this person (e.g. a signature request) counts as "the processor shared it"
+  const docVisible = (u, doc, { staffShare = false } = {}) => {
     if (isWireDoc(doc) && doc.uploadedBy !== u.id && !wireAllowed(u.id, doc.dealId)) return false;   // before every other rule (folders, visibility, staff)
     if (u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator' || doc.uploadedBy === u.id) return true;
-    const f = folderOf(doc.folderId); if (f && f.staffOnly) return false;
+    // the buyer sees only what they uploaded (above) or what CLA staff shared with them
+    // SHARED WITH CLIENT (John, Nov 4): CLA staff may share any other party's upload (e.g. the listing agent's) with the buyer: a stored flag
+    // (documents.shared_with_client + shared_with_client_by / _at, migration 57). It opens the file to the file's buyer(s) whatever side it was kept on,
+    // never a staff-only file or folder, and never past the wire rule above.
+    const f = folderOf(doc.folderId);
+    if (pureBuyer(u) && !staffShare) { const up = prof(doc.uploadedBy);
+      if (doc.sharedWithClient === true) return !(f && f.staffOnly) && doc.visibility !== 'staff';
+      const asked = (load().signatureRequests || []).some((r) => r.docId === doc.id && r.signers.some((s) => s.profileId === u.id));   // sent to him for signature by CLA staff
+      if (!asked && (!up || !(up.isAdmin || isStaff(up.role)))) return false; }
+    if (f && f.staffOnly) return false;
     if (doc.visibility === 'all') return true;
     if (doc.visibility === 'staff') return false;
     return doc.visibility === sideOf(u.role);
@@ -238,12 +254,14 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     let rows = d.participants.filter((p) => p.dealId === dealId).map((p) => { const c = d.contacts.find((z) => z.id === p.contactId); const pr = c && c.profileId && prof(c.profileId);
       const opposing = !staff && !!sideOf(p.role) && sideOf(p.role) !== mySide && !(c && c.profileId === viewer.id);
       return { ...clone(p), ...(p.entity && opposing ? { entity: { ...p.entity, repPhone: '', repEmail: '' } } : {}), contact: c ? (opposing ? hideContact(clone(c)) : clone(c)) : c, removed: !!(pr && pr.status === 'removed') }; });
+    if (pureBuyer(viewer)) rows = rows.filter((p) => p.role !== 'Listing Agent');   // the buyer never sees the listing agent (Nov 4 call)
     if (isClient(viewer.role)) rows = rows.filter((p) => !(isClient(p.role) && p.role !== viewer.role));   // a client does not see the OTHER side's client
     return rows;
   }
   const ownerOf = (t) => { if (!t.participantId) return null; const d = load(); const p = d.participants.find((z) => z.id === t.participantId); const c = p && d.contacts.find((z) => z.id === p.contactId); return c ? c.profileId : null; };
   const taskVisible = (u, t) => {
     if (u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator') return true;
+    if (pureBuyer(u) && t.assignedRole === 'Client-Buyer' && EMD_RECEIPT.test(t.title || '')) return false;
     if (t.participantId) return ownerOf(t) === u.id || (isAgent(u.role) && sideOf(t.assignedRole) === sideOf(u.role));
     return holds(u, t.assignedRole) || (isAgent(u.role) && sideOf(t.assignedRole) === sideOf(u.role));
   };
@@ -288,7 +306,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
 
   const api = { mode: 'mock', features: { ...flags } };
   const ctx = { api, DEAL_FOLDERS, store, sess, SESSION_KEY, KEY, load, save, nid, me, needUser, needProcessor, needAdmin, isManager, notViewOnly, contactOf, salesOf, seesAll, teamAgentIds, dealsFor, dealOr404, fileRole, fileRoles, fileRoleText, holds, scopeTo, onDeal, fileRolesOf, fileLabelsOf, log, prof, nameOf, roleOf, fullName,
-    folderOf, docVisible, wireAllowed, isWireDoc, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY, threadVisible, unreadIn, participantsOf, isStaffView, personSide, canMessage, mixedSides, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, dealView, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, localDayOf, phone,
+    folderOf, docVisible, wireAllowed, isWireDoc, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY, threadVisible, unreadIn, participantsOf, isStaffView, personSide, canMessage, mixedSides, ownerOf, taskVisible, agentCanFill, pureBuyer, hiddenFromBuyer, EMD_RECEIPT, formDataVisible, notify, dealProfileIds, dealView, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, localDayOf, phone,
     forget() { db = null; },   // drop the in-memory copy; the next call reloads the last SAVED state (CRM import preview, Janine Nov 3)
     reset() { store.removeItem(KEY); PREV_KEYS.forEach(([k]) => store.removeItem(k)); db = null; if (files) files.clearAll().catch(() => {}); load(); },
     files,

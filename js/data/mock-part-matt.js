@@ -5,9 +5,9 @@
  *    coordinator confirms a scheduled closing, which everyone on the file then sees.
  *  - E-sign (DEMO): processor / coordinator ask specific people to sign a document; each signer gets a 'Sign' task, types their name and
  *    adopts it. Only the signer can sign (an agent cannot sign for a client). Provider seam: esign.js. */
-import { AGREEMENTS, agreementOf } from './agreements.js?v=202611041824';
-import { getProvider, ESIGN_PROVIDER } from './esign.js?v=202611041824';
-import { WIRE_FRAUD_NOTE, CLA_PHONE } from './constants.js?v=202611041824';
+import { AGREEMENTS, agreementOf } from './agreements.js?v=202611041856';
+import { getProvider, ESIGN_PROVIDER } from './esign.js?v=202611041856';
+import { WIRE_FRAUD_NOTE, CLA_PHONE } from './constants.js?v=202611041856';
 export function mattP2(x) {
   const { load, save, nid, needUser, isManager, notViewOnly, onDeal, scopeTo, holds, contactOf, isStaffView, personSide, docVisible, log, prof, nameOf, notify, dealProfileIds, clone, now, fail, str, localDate, C } = x;
   const d0 = () => load();
@@ -91,7 +91,7 @@ export function mattP2(x) {
     async listSignatureCandidates(docId) {
       let u = needUser(); const doc = d0().documents.find((z) => z.id === docId && z.dealId) || fail('Document not found.'); u = onDeal(u, doc.dealId);
       if (!isManager(u)) fail('Only the processor or coordinator can request signatures.');
-      return outsidePeople(doc.dealId).map((pid) => ({ profileId: pid, name: nameOf(pid), roleLabel: fileText(pid, doc.dealId), canSee: docVisible(scopeTo(prof(pid), doc.dealId), doc) }));
+      return outsidePeople(doc.dealId).map((pid) => ({ profileId: pid, name: nameOf(pid), roleLabel: fileText(pid, doc.dealId), canSee: docVisible(scopeTo(prof(pid), doc.dealId), doc, { staffShare: true }) }));
     },
     async requestSignature(docId, { signerIds, message } = {}) {
       let u = needUser(); const d = d0(); const doc = d.documents.find((z) => z.id === docId && z.dealId) || fail('Document not found.'); u = onDeal(u, doc.dealId);
@@ -101,7 +101,7 @@ export function mattP2(x) {
       const ids = [...new Set(Array.isArray(signerIds) ? signerIds : [])]; if (!ids.length) fail('Pick at least one person to sign.');
       const people = new Set(outsidePeople(doc.dealId)); const open = arr('signatureRequests').filter((r) => r.docId === docId && r.status === 'requested');
       ids.forEach((pid) => { if (!people.has(pid)) fail('Signers must be agents or clients on this file.');
-        if (!docVisible(scopeTo(prof(pid), doc.dealId), doc)) fail(`${nameOf(pid)} cannot see this document. Change "Who can see it" first.`);
+        if (!docVisible(scopeTo(prof(pid), doc.dealId), doc, { staffShare: true })) fail(`${nameOf(pid)} cannot see this document. Change "Who can see it" first.`);
         if (open.some((r) => r.signers.some((s) => s.profileId === pid && s.status === 'requested'))) fail(`${nameOf(pid)} already has an open signature request for this document.`); });
       const provider = getProvider(ESIGN_PROVIDER); const env = await provider.createRequest({ documentName: doc.name, signers: ids });
       const r = { id: nid('sig'), dealId: doc.dealId, docId, provider: provider.id, envelopeId: env.envelopeId, message: str(message, 500), status: 'requested', requestedBy: u.id, requestedAt: now(), completedAt: null, signers: [] };

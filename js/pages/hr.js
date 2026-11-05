@@ -7,9 +7,9 @@
 //   #/hr/me              My profile (every employee)        #/hr/team   My team (direct reports' basic fields only)
 //   #/hr/settings        HR Settings: assign / remove HR managers (Super admin only, logged to the history)
 // The adapter refuses anything the person may not do; the page only hides what they cannot use.
-import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime } from '../ui.js?v=202611041824';
+import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime } from '../ui.js?v=202611041856';
 import { hrCanManage, hrIsSuper, filterEmployees, initials, fullNameOf, COUNTRIES, EMPLOYMENT_TYPES, EMPLOYMENT_STATUSES, PAY_TYPES, PAY_CURRENCIES, WORK_LOCATIONS, EMPLOYEE_ROLE_FILTER,
-  HR_NO_EMAIL_NOTE, HR_INVITE_DAYS, FIELD_LABEL, labelOf } from '../data/hr.js?v=202611041824';
+  HR_NO_EMAIL_NOTE, HR_INVITE_DAYS, FIELD_LABEL, labelOf } from '../data/hr.js?v=202611041856';
 const PILL = { active: 'ok', on_leave: 'warn', separated: 'bad' };
 const INV = { pending: ['Invite pending', 'warn'], expired: ['Invite expired', 'bad'], revoked: ['Invite revoked', ''], none: ['No login yet', ''], accepted: ['Has login', 'ok'] };
 const abs = (link) => location.href.split('#')[0] + link;

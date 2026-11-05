@@ -110,11 +110,14 @@ export const visibilityChoices = (role, isAdmin = false) => {
   const side = ({ 'Buyer Agent': 'buyer', 'Client-Buyer': 'buyer', 'Listing Agent': 'seller', 'Client-Seller': 'seller' })[role];
   // CLIENTS (Matt, Oct 31): one choice, 'Share with CLA Title' = CLA staff + their own side (their agent), never the other side.
   // (A self-represented agent acts as the agent here, so keeps the agent choices.) Migration 13 refuses 'all' from a client.
-  if (role === 'Client-Buyer' || role === 'Client-Seller') return [side];
+  // BUYER (Matt, Nov 4 call): the buyer shares documents with CLA Title ONLY ('staff'), not with their agent or anyone else
+  if (role === 'Client-Buyer') return ['staff'];
+  if (role === 'Client-Seller') return [side];
   return side ? ['all', side] : ['all']; };
 // Labels for 'Who can see it'. Clients see their own-side option as 'Share with CLA Title'.
 export const VIS_LABELS = { all: 'Everyone on the file', buyer: 'Buyer side only', seller: 'Seller side only', staff: 'CLA staff only' };
-export const visibilityLabel = (vis, role) => ((role === 'Client-Buyer' || role === 'Client-Seller') && vis === sideOf(role) ? 'Share with CLA Title' : VIS_LABELS[vis] || vis);
+export const visibilityLabel = (vis, role) => ((role === 'Client-Buyer' && vis === 'staff') || ((role === 'Client-Buyer' || role === 'Client-Seller') && vis === sideOf(role)) ? 'Share with CLA Title' : VIS_LABELS[vis] || vis);
+export const BUYER_SHARE_NOTE = 'Share with CLA Title: only CLA Title & Escrow staff can see it. Nobody else on the file (not your agent, not the other side).';
 export const CLIENT_SHARE_NOTE = 'Share with CLA Title: CLA Title staff and your own agent on this file can see it. The other side (their agent and client) cannot.';
 // Participant roles on a deal = the 8 order roles plus non-login parties (never 'Admin')
 export const PARTICIPANT_ROLES = [...DEAL_ROLES, 'Lender', 'HOA', 'Other'];
