@@ -1,11 +1,12 @@
 // crm-janine.js : screens for Janine's Nov 3 CRM feedback (John approved). FAKE DATA ONLY. Nothing is emailed or sent anywhere.
 //   "+" Create New menu (every CRM page), #/crm/new/<module>, CSV import (#/crm/import/<leads|contacts>[/notes], Admin / Super admin),
 //   county from the ZIP on the person form, the company duplicate warning, the meeting "Send invite" PREVIEW (.ics), the task Subject type-ahead.
-import { html, raw, $, $$, guard, toast, modal, closeModal, fmtDateTime, pill, toText } from '../ui.js?v=202611051418';
-import { modOn } from '../data/modules.js?v=202611051418';   // module switches (combined nov3g)
-import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, guessMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, statusListOf } from '../data/crm-janine.js?v=202611051418';
-import { fopts } from './crm-custom.js?v=202611051418';
-import { US_STATES } from '../data/constants.js?v=202611051418';
+import { html, raw, $, $$, guard, toast, modal, closeModal, fmtDateTime, pill, toText } from '../ui.js?v=202611052122';
+import { modOn } from '../data/modules.js?v=202611052122';   // module switches (combined nov3g)
+import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, guessMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS } from '../data/crm-janine.js?v=202611052122';
+import { fopts } from './crm-custom.js?v=202611052122';
+import { importStatusChoices } from '../data/nov5-rules.js?v=202611052122';
+import { US_STATES } from '../data/constants.js?v=202611052122';
 
 // ---------- "+" Create New (Home and every CRM page) ----------
 // combined nov3g: skip modules whose Live switch is off for this user (regular users; Admins testing a beta module still get it)
@@ -101,7 +102,7 @@ export async function invitePreview(api, meetingId, done) {
 // ---------- IMPORT (Admin / Super admin): upload -> map columns -> preview (errors, duplicates) -> import -> summary ----------
 // Janine, Nov 4: default values for fields the file does not have (or leaves blank). A value in the file always wins.
 function defaultsCard(module, owners, cfg) {
-  const opts = (src) => (src === 'user' ? owners.map((o) => [o.id, o.name]) : src === 'state' ? US_STATES.map((s) => [s, s]) : fopts(cfg, src === 'status' ? statusListOf(module) : src));
+  const opts = (src) => (src === 'user' ? owners.map((o) => [o.id, o.name]) : src === 'state' ? US_STATES.map((s) => [s, s]) : src === 'status' ? importStatusChoices(cfg, module) : fopts(cfg, src));
   return html`<fieldset data-import-defaults><legend>Default values <span class="muted small">(optional; used when a row's cell is blank or the column is not in the file)</span></legend>
     <div class="filter-bar">${IMPORT_DEFAULT_FIELDS.map(([k, l, src]) => html`<label>${l}<select data-import-default="${k}" aria-label="Default ${l}"><option value="">(no default)</option>${opts(src).map(([v, t]) => html`<option value="${v}">${t}</option>`)}</select></label>`)}</div></fieldset>`;
 }

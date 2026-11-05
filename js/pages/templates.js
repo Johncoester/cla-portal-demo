@@ -1,16 +1,17 @@
 // Task templates (definitions with versions). Each participant gets a COPY that records the version it was made from.
 // Admin publishes a new version (title / description / due days); existing copies keep their version. Processor and TC can view.
-import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime, pill, modal, closeModal, formData } from '../ui.js?v=202611051418';
-import { canManageTaskSwitches, REASON_MSG } from '../data/task-switches.js?v=202611051418';
-import { runsOrders, isProcessor } from '../data/constants.js?v=202611051418';
+import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime, pill, modal, closeModal, formData } from '../ui.js?v=202611052122';
+import { canManageTaskSwitches, REASON_MSG } from '../data/task-switches.js?v=202611052122';
+import { taskAdminView } from './task-admin.js?v=202611052122';
+import { runsOrders, isProcessor } from '../data/constants.js?v=202611052122';
 const DELEG = [['', 'No - client only'], ['Buyer Agent', 'Buyer Agent (for the buyer)'], ['Listing Agent', 'Listing Agent (for the seller)'], ['Buyer Agent,Listing Agent', 'Each side\'s agent for their own client']];
 
 export async function render(ctx) {
   // TASK SWITCHES (John, Nov 4; mockup 04): Admin / Super admin get the tabs; #/templates?tab=switches opens the switches
   const tab = new URLSearchParams((location.hash || '').split('?')[1] || '').get('tab') || '';
   const admin = canManageTaskSwitches(ctx.user);
-  const tabs = admin ? html`<nav class="tpl-tabs" role="tablist" data-tpl-tabs><a role="tab" href="#/templates" class="${tab === 'switches' ? '' : 'active'}" aria-selected="${tab === 'switches' ? 'false' : 'true'}">Templates</a><a role="tab" href="#/templates?tab=switches" data-tab-switches class="${tab === 'switches' ? 'active' : ''}" aria-selected="${tab === 'switches' ? 'true' : 'false'}">Task switches</a></nav>` : '';
-  const v = admin && tab === 'switches' ? await switchesView(ctx) : await templatesView(ctx);
+  const tabs = admin ? html`<nav class="tpl-tabs" role="tablist" data-tpl-tabs><a role="tab" href="#/templates" class="${tab ? '' : 'active'}" aria-selected="${tab ? 'false' : 'true'}">Templates</a><a role="tab" href="#/templates?tab=switches" data-tab-switches class="${tab === 'switches' ? 'active' : ''}" aria-selected="${tab === 'switches' ? 'true' : 'false'}">Task switches</a><a role="tab" href="#/templates?tab=admin" data-tab-task-admin class="${tab === 'admin' ? 'active' : ''}" aria-selected="${tab === 'admin' ? 'true' : 'false'}">Task admin</a></nav>` : '';
+  const v = admin && tab === 'admin' ? await taskAdminView(ctx) : admin && tab === 'switches' ? await switchesView(ctx) : await templatesView(ctx);
   return { ...v, body: html`<div class="box-title"><h2><span class="h-ico"></span>Task Templates</h2></div>${tabs}${v.body}` };
 }
 

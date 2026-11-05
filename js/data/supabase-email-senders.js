@@ -1,4 +1,4 @@
-import { isSuperAdmin } from './constants.js?v=202611051418';
+import { isSuperAdmin } from './constants.js?v=202611052122';
 export function emailSendersSupabase({ sb, ok, me }) {
   const guard = async () => { const u = await me(); if (!isSuperAdmin(u)) throw new Error('Only a Super admin can see or change email sender settings.'); };
   return {

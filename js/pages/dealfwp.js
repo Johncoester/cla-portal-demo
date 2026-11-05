@@ -1,7 +1,7 @@
 /* Order > Funding / Wires / Final Policy. Staff only; FAKE records; nothing sent and no bank wire created. */
-import { html, raw, $, $$, guard, toast, formData, options, pill, fmtDate, fmtDateTime, fmtMoney } from '../ui.js?v=202611051418';
-import * as R from '../data/funding-wire-policy.js?v=202611051418';
-import { modOn } from '../data/modules.js?v=202611051418';
+import { html, raw, $, $$, guard, toast, formData, options, pill, fmtDate, fmtDateTime, fmtMoney } from '../ui.js?v=202611052122';
+import * as R from '../data/funding-wire-policy.js?v=202611052122';
+import { modOn } from '../data/modules.js?v=202611052122';
 const val = (v) => v == null ? '' : v;
 const yn = (v) => v === true ? 'true' : v === false ? 'false' : '';
 function fld(k, label, v, type = 'text') {

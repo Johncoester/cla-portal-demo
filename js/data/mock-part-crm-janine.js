@@ -6,9 +6,11 @@
  *     No email is sent, no calendar is touched.
  *   - Company duplicate lookup for the Company form (live warning with a link to the existing record).
  *   - janineLazyUpgrade: Zillow URL -> Zillow Profile, leads linked to their company. No storage-key bump: lazy, idempotent, lossless. */
-import { parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, buildIcs, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611051418';
-import { companyKey, CRM_OWNER_ROLES } from './crm.js?v=202611051418';
-import { US_STATE_NAMES } from './constants.js?v=202611051418';
+import { parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, buildIcs, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611052122';
+import { resolveImportedStatus } from './nov5-rules.js?v=202611052122';
+import { ensureSettings } from './crm-config.js?v=202611052122';
+import { companyKey, CRM_OWNER_ROLES } from './crm.js?v=202611052122';
+import { US_STATE_NAMES } from './constants.js?v=202611052122';
 
 const seenData = new WeakSet();
 // runs on every CRM read (cheap after the first time for one in-memory copy); changes are saved with the next save. Never removes a value.
@@ -49,13 +51,18 @@ export function crmJaninePart(x, ctx) {
   }
 
   // defaults (Janine, Nov 4): { key: value } -> a checked [{ field, value }] list ('' = no default). Owner must be an active Sales Person / Sales Team user.
-  function cleanDefaults(raw0, kind) {
+  function cleanDefaults(raw0, kind, module) {
     if (kind !== 'records' || !raw0) return [];
     const raw = Array.isArray(raw0) ? Object.fromEntries(raw0.map((z) => [z.field, z.value])) : raw0;
     Object.keys(raw).forEach((k) => { if (!IMPORT_DEFAULT_KEYS.includes(k)) fail(`"${k}" cannot have a default value.`); });
+    const cfg = ensureSettings(db().crmSettings || null);
     return IMPORT_DEFAULT_FIELDS.map(([k]) => [k, str(raw[k], 200)]).filter(([, v]) => v).map(([k, v]) => {
       if (k === 'ownerId') { const p = prof(v); if (!p || p.status !== 'active' || !CRM_OWNER_ROLES.includes(p.role)) fail('The default Owner must be an active Sales Person or Sales Team user.'); }
       if (k === 'state') { const c = stateCode(v); if (!/^[A-Z]{2}$/.test(c)) fail('Pick a state for the default State.'); return { field: k, value: c }; }
+      if (k === 'relationshipStatus') { const resolved = resolveImportedStatus(cfg, module, v);
+        if (resolved.error) fail(resolved.error);
+        if (resolved.historical) fail('A default Relationship Status must be a current choice. Retired choices stay on records that already have them and can still arrive in the file.');
+        return { field: k, value: resolved.value }; }
       return { field: k, value: v }; });
   }
   const DEFAULT_LABEL = Object.fromEntries(IMPORT_DEFAULT_FIELDS.map(([k, l]) => [k, l]));
@@ -71,6 +78,10 @@ export function crmJaninePart(x, ctx) {
     input.ownerId = defOwner || ownerByText(rec.ownerId);
     if (rec.zip && !str(rec.county, 60)) { const cs = countiesFor(table, rec.zip).filter((c) => !input.state || c.state === input.state);
       if (cs.length) { input.county = cs[0].county; notes.push(cs.length > 1 ? `County ${cs[0].county} from ZIP ${rec.zip} (it spans ${cs.length} counties; the main one was used)` : `County ${cs[0].county} from ZIP ${rec.zip}`); } }
+    const cfg = ensureSettings(db().crmSettings || null);
+    if (String(rec.relationshipStatus || '').trim()) { const resolved = resolveImportedStatus(cfg, module, rec.relationshipStatus);
+      if (resolved.error) fail(resolved.error); input.relationshipStatus = resolved.value; input.retainHistoricalStatus = resolved.historical;
+      if (resolved.historical) notes.push(`Relationship Status kept as the historical value ${resolved.value}`); }
     const co = str(rec.company, 160); delete input.company;
     if (co) { const acc = companyDup(co); if (acc && !acc.archivedAt) { input.accountId = acc.id; notes.push(`Company: ${acc.name}`); }
       else { input.company = co; notes.push(`No company called "${co}" yet: kept as text${module === 'leads' ? ' (pick it from Companies later)' : ''}`); } }
@@ -96,11 +107,12 @@ export function crmJaninePart(x, ctx) {
   async function run(input = {}, commit) {
     const u = admin(); const module = str(input.module, 20); if (!MODULES[module]) fail('Import into Leads or Clients.');
     const kind = input.kind === 'notes' ? 'notes' : 'records'; const fields = kind === 'notes' ? NOTE_IMPORT_FIELDS : PERSON_IMPORT_FIELDS;
-    const { header, mapping, records } = readInput(input, fields); const defaults = cleanDefaults(input.defaults, kind);
+    const { header, mapping, records } = readInput(input, fields);
     if (kind === 'records' && !mapping.includes('lastName')) fail('Map a column to Last Name (required).');
     if (kind === 'notes' && !mapping.includes('note')) fail('Map a column to Note (required).');
     if (kind === 'notes' && !mapping.some((k) => ['email', 'fullName', 'lastName'].includes(k))) fail('Map the Email or the name columns, so each note can find its ' + (module === 'leads' ? 'lead' : 'client') + '.');
     const table = kind === 'records' && mapping.includes('zip') ? await loadZipTable() : null;
+    const defaults = cleanDefaults(input.defaults, kind, module);
     const targets = kind === 'notes' ? noteTargets(u, module) : null;
     const out = []; dry.on = !commit;
     try {

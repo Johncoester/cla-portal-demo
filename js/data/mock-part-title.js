@@ -4,9 +4,11 @@
  * "Buyers Initial Commitment copy", made with the existing signature-request / task pattern).
  * Every value is a typed field on a typed row (mirrors migration 61), rows are soft-deleted (deletedAt), nothing is ever sent (outbox = queued only),
  * NO SSN is ever stored (the PACER rows hold party, search type, result and the receipt document only). FAKE DATA ONLY. */
-import * as T from './title.js?v=202611051418';
-import { senderFor } from './email-senders.js?v=202611051418';
-import { seedTitleSamples } from './title-seed.js?v=202611051418';
+import * as T from './title.js?v=202611052122';
+import { senderFor } from './email-senders.js?v=202611052122';
+import { ensureNov5 } from './mock-part-nov5.js?v=202611052122';
+import { resolveCplPrice, CPL_UNRESOLVED, attorneyAuthorized } from './nov5-rules.js?v=202611052122';
+import { seedTitleSamples } from './title-seed.js?v=202611052122';
 
 const COLS = ['titleReviews', 'titleSteps', 'titlePacer', 'titleDiscrepancies', 'titleChain', 'titleItems', 'titleCpls', 'titlePackageComponents', 'titleSignatures', 'titleSummaries', 'titleCurative', 'orderNotes', 'titleLog', 'titleSearches', 'titleLiens', 'titleEntities', 'titleLienCerts', 'titleCtcChecks', 'titleProcessorNotes'];
 // typed review fields (title_reviews columns): s = text, L = long text, m = money, d = date, b = boolean, e:<list> = one of a list
@@ -148,7 +150,7 @@ export function titlePart(x, flags, api) {
       lienCerts: live('titleLienCerts', deal.id).map(z => ({ ...clone(z), overdue: T.lienCertOverdue(z), complete: T.lienCertChecksComplete(z) })),
       ctcChecks: T.CTC_ITEMS.map(([key, label]) => { const q = live('titleCtcChecks', deal.id).find(z => z.checkKey === key); return { checkKey: key, label, status: q ? q.status : 'open', note: q ? q.note : '', id: q ? q.id : null }; }), effectiveDateCheck: T.effectiveDateCheck(r && r.effectiveDate, deal.closingDate),
       processorNotes: live('titleProcessorNotes', deal.id).map(z => ({ ...clone(z), byName: nameOf(z.createdBy) })).reverse(),
-      staffAttorneys: d.profiles.filter(z => z.status === 'active' && (/attorney/i.test(z.role || '') || z.isAdmin)).map(z => ({ id: z.id, name: nameOf(z.id), role: z.role })),
+      staffAttorneys: ensureNov5(d).entityAttorneys.filter((z) => z.active && !z.retiredAt).map((z) => ({ id: z.id, profileId: z.profileId, name: z.displayName, role: z.assignmentRole, authorized: !!z.profileId })),
       packageRecipients: T.PACKAGE_RECIPIENT_ROLES,
       summary: summary ? { ...clone(summary), curative: d.titleCurative.filter((c) => c.summaryId === summary.id && !c.deletedAt).sort((a, b) => a.position - b.position).map((c) => c.text) } : null,
       ownerMatches: r && r.vestingOwnerName ? T.namesMatch(r.vestingOwnerName, sellerNames(deal.id)) : null,
@@ -294,13 +296,19 @@ export function titlePart(x, flags, api) {
       r.commitmentDocumentId = doc.id; setStep(u, dealId, 'finalized', 'done'); setStep(u, dealId, 'schedule_a', 'done'); done(u, deal, ['Commitment', `Final (${r.commitmentNumber})`]); return { documentId: doc.id }; },
     async reopenCommitment(dealId) { const { u, deal } = editor(dealId); const r = ensureReview(u, deal); r.commitmentStatus = 'draft'; stamp(r, u, false); setStep(u, dealId, 'finalized', 'open'); done(u, deal, ['Commitment', 'back to Draft']); return true; },
     async issueCpl(dealId, input = {}) { const { u, deal } = editor(dealId); T.noSsn(input); const protectedParty = str(input.protectedParty, 200) || deal.lenderName || fail('Protected party is required.');
-      const type = T.CPL_TYPES.includes(input.cplType) ? input.cplType : 'Standard'; const clause = T.LENDER_CLAUSES.includes(input.lenderClause) ? input.lenderClause : T.LENDER_CLAUSES[0];
-      const who = input.cplFor === 'seller' ? 'seller' : 'buyer'; const cost = input.cost === '' || input.cost == null ? T.CPL_DEFAULT_COST : Number(String(input.cost).replace(/[$,]/g, '')); if (!isFinite(cost) || cost < 0) fail('CPL cost must be an amount.');
-      ensureReview(u, deal); const match = T.cplLenderMatches(protectedParty, deal.lenderName); const number = T.fakeCplId(db().seq + 1);
+      const legacy = str(input.cplType, 80); const type = legacy && T.CPL_TYPES.includes(legacy) ? legacy : ''; const clause = T.LENDER_CLAUSES.includes(input.lenderClause) ? input.lenderClause : T.LENDER_CLAUSES[0];
+      const who = input.cplFor === 'seller' ? 'seller' : 'buyer'; const review = ensureReview(u, deal);
+      const price = resolveCplPrice(ensureNov5(db()).cplPrices, { state: deal.state, underwriter: review.underwriter || '' });
+      const match = T.cplLenderMatches(protectedParty, deal.lenderName); const number = T.fakeCplId(db().seq + 1);
+      if (price.unresolved) {
+        const row = stamp({ id: nid('tcpl'), dealId, cplNumber: number, protectedParty, lenderNameAtIssue: deal.lenderName || '', lenderMatch: match, cplType: type, lenderClause: clause, cost: null, status: 'blocked', escalated: true, cplFor: who, issuedAt: null, issuedBy: null, documentId: null, priceId: null }, u, true);
+        db().titleCpls.push(row); notify([deal.processorId || u.id], { kind: 'cpl-price', dealId, title: `CPL price needed: ${deal.fileNumber}`, link: `#/deals/${dealId}/title?v=cpl` });
+        const ob = { id: nid('ob'), channel: 'email', status: 'queued', toProfileId: deal.processorId || u.id, toEmail: '', toName: nameOf(deal.processorId || u.id), subject: `CPL price unresolved - ${deal.fileNumber}`, body: `${CPL_UNRESOLVED}\n\nTEST PORTAL: queued only; never sent.`, dealId, createdBy: u.id, createdAt: now(), sentAt: null, sendBlocked: 'No CPL price is configured.', titlePackage: false };
+        db().outbox.push(ob); done(u, deal, ['CPL', `${number} blocked: price unresolved (not zero)`]); return { ...clone(row), issued: false, blocked: true, escalated: true, cost: null, warning: CPL_UNRESOLVED }; }
       const doc = mkDoc(u, dealId, 'cpl', `Closing Protection Letter (${number}).pdf`, { description: `CPL for the ${who}, protected party ${protectedParty} (FAKE).` });
-      const row = stamp({ id: nid('tcpl'), dealId, cplNumber: number, protectedParty, lenderNameAtIssue: deal.lenderName || '', lenderMatch: match, cplType: type, lenderClause: clause, cost: Math.round(cost * 100) / 100, cplFor: who, issuedAt: now(), issuedBy: u.id, documentId: doc.id }, u, true);
+      const row = stamp({ id: nid('tcpl'), dealId, cplNumber: number, protectedParty, lenderNameAtIssue: deal.lenderName || '', lenderMatch: match, cplType: type, lenderClause: clause, cost: price.amount, status: 'issued', escalated: false, cplFor: who, issuedAt: now(), issuedBy: u.id, documentId: doc.id, priceId: price.priceId }, u, true);
       db().titleCpls.push(row); if (!match) flag(u, dealId, 'cpl_lender_mismatch', `${number}: protected party "${protectedParty}" does not match the order's lender "${deal.lenderName || 'none'}".`);
-      setStep(u, dealId, who === 'seller' ? 'cpl_seller' : 'cpl_buyer', 'done'); done(u, deal, ['CPL', `${number} issued for the ${who}${match ? '' : ' (lender mismatch flagged)'}`]); return { ...clone(row), warning: match ? '' : T.CPL_LENDER_MISMATCH }; },
+      setStep(u, dealId, who === 'seller' ? 'cpl_seller' : 'cpl_buyer', 'done'); done(u, deal, ['CPL', `${number} issued for the ${who}${match ? '' : ' (lender mismatch flagged)'}`]); return { ...clone(row), issued: true, blocked: false, warning: match ? '' : T.CPL_LENDER_MISMATCH }; },
     async filePrelimCd(dealId) { const { u, deal } = editor(dealId); ensureReview(u, deal); let doc = docOfKind(dealId, 'prelim_cd');
       if (!doc) doc = mkDoc(u, dealId, 'prelim_cd', 'Prelim CD.pdf', { description: 'Closing Disclosure draft from the Accounting tab, NOT shared (staff only; TEST, not a legal disclosure).', linkedHash: `#/deals/${dealId}/accounting?v=cd` });
       setStep(u, dealId, 'prelim_cd', 'done'); done(u, deal, ['Prelim CD', 'filed in 200 Title (unshared)']); return { documentId: doc.id }; },
@@ -327,18 +335,24 @@ export function titlePart(x, flags, api) {
       r.titlePackageDocumentId = doc.id; stamp(r, u, false); setStep(u, dealId, 'title_package', 'done');
       done(u, deal, ['Title Package', missing.length ? `built; MISSING ${missing.map(T.docKindLabel).join(', ')}` : 'built']); return { documentId: doc.id, missing: missing.map(T.docKindLabel) }; },
     // QUEUED ONLY: an outbox entry to the lender contact with the Title Package attached, + sent_at / by on the review. Nothing is sent.
-    async sendTitlePackage(dealId, recipients = ['lender']) { const { u, deal } = editor(dealId); const r = ensureReview(u, deal); const pkg = docOfKind(dealId, 'title_package') || fail('Build the Title Package first.');
-      const roles = [...new Set((Array.isArray(recipients) ? recipients : [recipients]).filter(z => T.PACKAGE_RECIPIENT_ROLES.includes(z)))]; if (!roles.length) fail('Pick lender, buyer and/or listing agent.');
+    async sendTitlePackage(dealId, recipients = ['lender']) { const { u, deal } = editor(dealId); const r = ensureReview(u, deal);
+      const roles = [...new Set((Array.isArray(recipients) ? recipients : [recipients]).filter(z => T.PACKAGE_RECIPIENT_ROLES.includes(z)))]; if (!roles.length) fail('Pick lender, buyer, listing agent, and/or buyer agent.');
+      const packageRoles = roles.filter((z) => z !== 'buyer_agent');
+      const pkg = packageRoles.length ? (docOfKind(dealId, 'title_package') || fail('Build the Title Package first.')) : null;
       const d = db(); const out = []; const add = (role, name, email, profileId = null) => { if (!email && !profileId) fail(`${role}: no email/contact on the order.`); const ob = { id: nid('ob'), channel: 'email', status: 'queued', toProfileId: profileId, toName: name, toEmail: email, subject: `Title Package - ${deal.fileNumber} - ${deal.street}, ${deal.city}`,
         body: `Template: ${T.TITLE_PACKAGE_TEMPLATE}. Hello ${name}, attached is the Title Package (CPL, Title Commitment, Tax Certificate, E&O, Prelim CD) for ${deal.street}, ${deal.city}, ${deal.state}. CLA Title & Escrow. (TEST portal: queued only, never sent.)`, templateKey: T.TITLE_PACKAGE_TEMPLATE,
         taskId: null, dealId, createdBy: u.id, createdAt: now(), sentAt: null, attachmentDocumentIds: [pkg.id], titlePackage: true }; Object.assign(ob, senderFor(d, 'processor', dealId)); d.outbox.push(ob); out.push(ob); };
       if (roles.includes('lender')) add('lender', deal.lenderContact || deal.lenderName || 'Lender', deal.lenderEmail);
       if (roles.includes('buyer')) for (const b of parties(dealId, 'Client-Buyer')) { const c = d.contacts.find(z => z.id === b.contactId) || {}; add('buyer', b.name, c.email, b.profileId); }
       if (roles.includes('listing_agent')) { const as = parties(dealId, 'Listing Agent'); if (!as.length) fail('No listing agent on this order.'); for (const a of as) { const c = d.contacts.find(z => z.id === a.contactId) || {}; add('listing_agent', a.name, c.email, a.profileId); } }
-      // Deliberately no buyer agent: existing Nov4 open question remains; buyer agent is not the buyer recipient.
+      if (roles.includes('buyer_agent')) { const commitment = docOfKind(dealId, 'title_commitment') || fail('The buyer agent receives the title commitment only. Finalize the commitment first.');
+        const agents = parties(dealId, 'Buyer Agent'); if (!agents.length) fail('No buyer agent on this order.');
+        for (const a of agents) { const c = d.contacts.find(z => z.id === a.contactId) || {}; const ob = { id: nid('ob'), channel: 'email', status: 'queued', toProfileId: a.profileId || null, toName: a.name, toEmail: c.email || '', subject: `Title commitment - ${deal.fileNumber} - ${deal.street}`,
+          body: `Hello ${a.name}, attached is the title commitment only for ${deal.street}, ${deal.city}. Payoffs, wires, cash-to-close, curative and entity material are not included. (TEST portal: queued only, never sent.)`, templateKey: 'TITLE - Commitment only',
+          taskId: null, dealId, createdBy: u.id, createdAt: now(), sentAt: null, attachmentDocumentIds: [commitment.id], titlePackage: false, titleRecipientRole: 'buyer_agent_commitment' }; Object.assign(ob, senderFor(d, 'processor', dealId)); d.outbox.push(ob); out.push(ob); } }
       r.packageSentAt = now(); r.packageSentBy = u.id; r.packageOutboxId = out[0].id; stamp(r, u, false); setStep(u, dealId, 'send_package', 'done');
       completeTask(u, deal, T.SEND_TASK, `${T.TITLE_PACKAGE_TEMPLATE} queued to ${roles.join(', ')} (outbox only, not sent).`); completeTask(u, deal, 'Title commitment sent');
-      done(u, deal, ['Send Title Package', `queued to ${roles.join(', ')} (not sent; no buyer agent)`]); return { outboxId: out[0].id, outboxIds: out.map(o => o.id) }; },
+      done(u, deal, ['Send Title Package', `queued to ${roles.join(', ')} (not sent; buyer agent gets the commitment only)`]); return { outboxId: out[0].id, outboxIds: out.map(o => o.id) }; },
 
     // ---------- Nov 5: search tracking / EMD gate and queues ----------
     async saveTitleSearch(dealId, input = {}) { const { u, deal } = editor(dealId); const c = clean(input, SEARCH_FIELDS, 'Title search');
@@ -370,14 +384,14 @@ export function titlePart(x, flags, api) {
     async saveTitleEntity(dealId, input = {}) { const { u, deal } = editor(dealId); const { id, ...rest } = input; const c = clean(rest, ENTITY_FIELDS, 'Entity review'); ensureReview(u, deal);
       let row = id ? db().titleEntities.find(z => z.id === id && z.dealId === dealId && !z.deletedAt) || fail('Entity review not found.') : null; const first = !row;
       if (!row) { row = { id: nid('tent'), dealId, side: 'buyer', criticalIssue: false, attorneyApproved: false }; db().titleEntities.push(row); }
-      if (c.assignedAttorneyId && !(prof(c.assignedAttorneyId) && (prof(c.assignedAttorneyId).isAdmin || /attorney/i.test(prof(c.assignedAttorneyId).role || '')))) fail('Choose an attorney or admin for entity approval.');
+      if (c.assignedAttorneyId) { const list = ensureNov5(db()).entityAttorneys; const byRow = list.find((a) => a.id === c.assignedAttorneyId && a.active && !a.retiredAt); if (byRow) c.assignedAttorneyId = byRow.profileId || fail('Link this attorney to a staff profile id before assigning them. A display name is not authorization.'); if (!attorneyAuthorized(list, c.assignedAttorneyId)) fail('Choose an entity-review attorney by profile id. A display name is not authorization.'); }
       Object.assign(row, c); if (!T.entityDocsComplete(row)) row.attorneyApproved = false; stamp(row, u, first);
       T.ENTITY_TASKS.forEach(name => ensureTask(u, deal, name, row.assignedAttorneyId || u.id));
       const req = db().tasks.find(t => t.dealId === dealId && t.title === 'Entity Documents Requested'); if (req) req.status = 'done';
       if (T.ENTITY_DOC_FIELDS.some(([k]) => row[k])) { const t = db().tasks.find(t => t.dealId === dealId && t.title === 'Entity Documents Received'); if (t) t.status = 'done'; }
       done(u, deal, ['Entity review', `${row.side}: ${row.criticalIssue ? 'CRITICAL ISSUE — attorney approval required' : 'saved'}`]); return clone(row); },
     async approveTitleEntity(id, note) { const row = db().titleEntities.find(z => z.id === id && !z.deletedAt) || fail('Entity review not found.'); const { u, deal } = editor(row.dealId);
-      if (!row.assignedAttorneyId || row.assignedAttorneyId !== u.id && !u.isAdmin) fail('The assigned attorney must approve this entity review.'); T.noSsn({ note });
+      if (!attorneyAuthorized(ensureNov5(db()).entityAttorneys, u.id)) fail('Only a configured entity-review attorney can approve this. Authorization is the profile id on the list, not a name.'); T.noSsn({ note });
       row.attorneyApproved = true; row.attorneyApprovalNotes = str(note, 1000); stamp(row, u, false); completeTask(u, deal, 'Entity Documents Review Completed', row.attorneyApprovalNotes); done(u, deal, ['Entity review', 'attorney approved']); return clone(row); },
 
     // ---------- lien certificate: review due 24 hours after receipt ----------

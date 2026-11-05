@@ -1,5 +1,7 @@
 /* Mock: Scanbacks and E-Recording. Every rule mirrors migrations 84-89. Nothing is sent. */
-import * as R from './recording-scanbacks.js?v=202611051418';
+import * as R from './recording-scanbacks.js?v=202611052122';
+import { postclosingAlertPlan } from './nov5-rules.js?v=202611052122';
+import { ensureNov5 } from './mock-part-nov5.js?v=202611052122';
 const COLS = ['scanbacks', 'scanbackDocs', 'scanbackEvents', 'recordings', 'recordingDocs', 'recordingChecks', 'recordingEvents'];
 export function ensureRecording(d, { seed = false } = {}) {
   for (const k of COLS) if (!Array.isArray(d[k])) d[k] = [];
@@ -37,7 +39,8 @@ export function recordingPart(x, flags, api) {
   const startR = (id, u, deal) => { let r = rec(id); if (!r) { r = { id: nid('rec'), dealId: id, disbursementDate: new Date().toLocaleDateString('en-CA'), processorName: x.nameOf(deal.processorId), recordingMethod: 'online', packageName: R.packageName(deal), paymentAccount: `${deal.state} - echeck`, status: 'draft', sentReceived: null, collectedFees: 0, estimatedFees: 0, platformFeePaid: false, createdAt: now(), createdBy: u.id, deletedAt: null }; db().recordings.push(r); } return r; };
   const event = (coll, u, dealId, action, detail) => db()[coll].push({ id: nid(coll === 'scanbackEvents' ? 'se' : 're'), dealId, action, detail: String(detail || '').slice(0, 500), createdAt: now(), createdBy: u.id, byName: x.nameOf(u.id), deletedAt: null });
   const task = async (dealId, title, status = 'done') => { let t = (await api.listTasks(dealId)).find((z) => z.title.toLowerCase() === title.toLowerCase()); if (!t) t = await api.createTask(dealId, { title, description: 'Post-closing workflow task', assignedRole: 'Processor' }); if (t.status !== status) await api.updateTask(t.id, { status }); };
-  const alertStaff = (u, deal, title) => notify(deal.processorId ? [deal.processorId] : [], { kind: 'post-closing-alert', dealId: deal.id, title, link: `#/deals/${deal.id}/accounting?v=postclosing` });
+  const alertStaff = (u, deal, title) => { const plan = postclosingAlertPlan(ensureNov5(db()), deal); notify(plan.inAppProfileIds, { kind: 'post-closing-alert', dealId: deal.id, title, link: `#/deals/${deal.id}/accounting?v=postclosing` });
+    plan.outbox.forEach((to) => { db().outbox.push({ id: nid('ob'), channel: 'email', status: 'queued', toProfileId: to.toProfileId, toEmail: to.toEmail || '', toName: to.toName, subject: title, body: `${title}\n\nTEST PORTAL: queued only; never sent.${to.sendBlocked ? `\n${to.sendBlocked}` : ''}`, dealId: deal.id, createdBy: u.id, createdAt: now(), sentAt: null, postClosingType: 'alert', sendBlocked: to.sendBlocked || '', assignmentRole: to.assignmentRole, alertGroupId: to.groupId }); }); };
   const queue = (u, deal, type, to, subject, body) => { const row = { id: nid('ob'), channel: 'email', status: 'queued', toProfileId: to.profileId || null, toEmail: to.email || 'postclosing@example.test', toName: to.name || 'Post Closing', subject, body: `${body}\n\nTEST PORTAL: queued only; never sent.`, dealId: deal.id, createdBy: u.id, createdAt: now(), sentAt: null, postClosingType: type }; db().outbox.push(row); return row; };
   const recipients = (dealId) => { const d = db(); return d.participants.filter((p) => p.dealId === dealId && ['Listing Agent', 'Buyer Agent', 'Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(p.role)).map((p) => { const c = d.contacts.find((z) => z.id === p.contactId) || {}; return { name: `${c.firstName || ''} ${c.lastName || ''}`.trim(), email: c.email, profileId: c.profileId, role: p.role }; }).filter((r) => r.email); };
   return {

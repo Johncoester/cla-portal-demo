@@ -8,12 +8,13 @@
  * Nothing here deletes: dashboards, components and reports are RETIRED (hidden, restorable). Mirrored by migration 30. */
 import { MODULE_CODES, moduleName, SEARCH_MODULES, REPORT_MODULES, DASH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, parseQuery, searchMatch, moduleFields, reportFields,
   RELATED, joinRows, runReport, reportCsv, cleanCriteria, applyCriteria, criteriaText, chartData, measureOf, measureLabel, groupOf, display, dealStageOf, CALL_TYPES,
-  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, BUCKETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611051418';
-import { ensureNov3b } from './crm-nov3b.js?v=202611051418';
-import { DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611051418';
-import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611051418';
-import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611051418';
-import { crmReadOnly, CRM_OWNER_ROLES } from './crm.js?v=202611051418';
+  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, BUCKETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611052122';
+import { ensureNov3b } from './crm-nov3b.js?v=202611052122';
+import { DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611052122';
+import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611052122';
+import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611052122';
+import { crmReadOnly, CRM_OWNER_ROLES } from './crm.js?v=202611052122';
+import { dealDisplayName } from './nov5-rules.js?v=202611052122';
 
 export const SEND_NOTE = 'Not sent: Gmail is not connected yet. The email was saved on this record only.';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -29,7 +30,7 @@ export function crmNov3bPart(x, h) {
   const lookupName = (target, id) => { const d = db(); const p = (r) => (r ? `${r.firstName || ''} ${r.lastName || ''}`.trim() : '');
     if (target === 'contacts') return p(d.contacts.find((c) => c.id === id)) || id; if (target === 'leads') return p(d.crmLeads.find((l) => l.id === id)) || id;
     if (target === 'accounts') return (d.crmAccounts.find((a) => a.id === id) || {}).name || id; if (target === 'opportunities') return (d.crmOpportunities.find((o) => o.id === id) || {}).name || id;
-    const q = d.deals.find((z) => z.id === id); return q ? `${q.fileNumber} ${q.street}` : id; };
+    const q = d.deals.find((z) => z.id === id); return q ? dealDisplayName(q) : id; };
   const fmt = { nameOf, lookupName, fileName: (fid) => (db().crmAttachments.find((f) => f.id === fid) || {}).name || '(file)' };
   const flat = (cfg, entity, row) => flattenCustom(cfg, entity, row, fmt);
   // ---------- CRM DEALS SCOPE (John, Nov 3; migration 32 private.crm_deal_visible) ----------
@@ -46,7 +47,7 @@ export function crmNov3bPart(x, h) {
     const d = db(); const ps = d.participants.filter((p) => p.dealId === q.id); const cOf = (id) => d.contacts.find((c) => c.id === id);
     const clients = ps.filter((p) => isClientRole(p.role)).map((p) => cOf(p.contactId)).filter(Boolean); const agents = ps.filter((p) => C.isAgent(p.role)).map((p) => cOf(p.contactId)).filter(Boolean);
     const firstClient = clients[0]; const sales = salesOf(q.id); const people = ps.map((p) => cOf(p.contactId)).filter(Boolean);
-    return { id: q.id, name: `${q.fileNumber} ${q.street}`, fileNumber: q.fileNumber, propertyAddress: `${q.street}, ${q.city}, ${q.state} ${q.zip}`, amount: q.purchasePrice == null ? null : q.purchasePrice,
+    return { id: q.id, name: dealDisplayName(q), fileNumber: q.fileNumber, propertyAddress: dealDisplayName(q), amount: q.purchasePrice == null ? null : q.purchasePrice,
       loanAmount: q.loanAmount == null ? null : q.loanAmount, stage: dealStageOf(q.status), status: q.status, closingDate: q.closingDate || null, openDate: q.openDate || null,
       clientName: [...new Set(clients.map(fullName))].join(', '), _clientLink: firstClient && contactSeen(u, firstClient) ? `#/crm/contacts/${firstClient.id}` : '',
       contactName: [...new Set(agents.map(fullName))].join(', '), ownerId: sales[0] ? sales[0].salesId : null, ownerName: sales[0] ? nameOf(sales[0].salesId) : '', salesReps: sales.map((s) => nameOf(s.salesId)).join(', '),
@@ -117,7 +118,7 @@ export function crmNov3bPart(x, h) {
   // the record an email is about (only records the viewer may see). Deals = orders the viewer can see in the portal.
   function recordFor(u, entity, id) {
     const e = str(entity, 20); const rid = str(id, 60);
-    if (e === 'deal') { const q = dealsFor(u).find((z) => z.id === rid); if (!q) fail('Deal not found.'); return { entity: e, id: q.id, name: `${q.fileNumber} ${q.street}`, email: '', row: dealRow(u, q, cfgFor(u)) }; }
+    if (e === 'deal') { const q = dealsFor(u).find((z) => z.id === rid); if (!q) fail('Deal not found.'); return { entity: e, id: q.id, name: dealDisplayName(q), email: '', row: dealRow(u, q, cfgFor(u)) }; }
     if (e === 'report') { const r = reportOf(u, rid); return { entity: e, id: r.id, name: r.name, email: '' }; }
     if (!['contact', 'lead', 'account', 'opportunity'].includes(e)) fail('Unknown CRM record type.');
     const r = entityOf(u, e, rid); const out = e === 'lead' ? leadOut(u, r) : e === 'contact' ? contactOut(u, r) : e === 'account' ? accountOut(u, r) : oppOut(u, r);

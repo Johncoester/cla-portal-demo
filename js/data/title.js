@@ -5,7 +5,7 @@
  *   - NO SSN IS EVER STORED: the bankruptcy (PACER) search records only the party, the search type, the result and the receipt document.
  *   - Every field is typed (no JSON blobs for anything reported on); rows are soft-deleted (deleted_at), never removed.
  *   - The portal sends nothing: "Send Title Package" only queues an outbox entry + records who / when. */
-import { US_STATE_NAMES } from './constants.js?v=202611051418';
+import { US_STATE_NAMES } from './constants.js?v=202611052122';
 
 export const TITLE_OFF = 'The Title module is turned off on this portal.';
 export const TITLE_STAFF_ONLY = 'The Title module is for CLA staff only.';
@@ -82,6 +82,11 @@ export const DOC_KINDS = [
   ['buyer_commitment_copy', 'Buyers Initial Commitment copy', BUYER_COPY_FOLDER],
   ['title_package', 'Title Package', '200 Title'],
   ['prior_policy', 'Prior title policy', '450 Prior Closing Documents'],
+  ['vesting_deed', 'Vesting deed', '200 Title'],
+  ['curative_lien', 'Internal curative', '200 Title'],
+  ['entity_document', 'Entity document', '200 Title'],
+  ['lien_certificate', 'Lien certificate', '200 Title'],
+  ['other_title', 'Other title document', '200 Title'],
   ['other', 'Other title document', '200 Title'],
 ];
 export const docKindLabel = (k) => (DOC_KINDS.find(([v]) => v === k) || [k, k])[1];
@@ -270,9 +275,9 @@ export function miniMarkdown(text, esc) { const lines = String(text || '').split
 export const LENDER_POLICY_TYPES = ['ALTA Short Form Loan Policy', 'ALTA Loan Policy', 'ALTA Expanded Coverage Residential Loan Policy'];
 export const OWNER_POLICY_TYPES = ["ALTA Homeowner's Policy", "ALTA Owner's Policy"];
 export const RATE_TYPES = ['Basic', 'Reissue', 'Substitution / Refinance', 'Simultaneous Issue'];
-export const CPL_TYPES = ['Standard', 'Standard - Buyer/Borrower', 'Standard - Seller', 'Lender Only'];
+export const CPL_TYPES = ['Standard', 'Standard - Buyer/Borrower', 'Standard - Seller', 'Lender Only'];   // legacy history only; a new CPL does not require a type
 export const LENDER_CLAUSES = ['ISAOA/ATIMA', 'Its Successors And/Or Assigns', 'ISAOA', '(none)'];
-export const CPL_DEFAULT_COST = 50;
+export const CPL_DEFAULT_COST = null;   // unresolved until a state + underwriter price is configured; never a silent zero
 export const LOSS_PAYEE_DEFAULT = 'Its Successors And/Or Assigns';
 export const FUNDING_TYPES = [['net', 'Net'], ['gross', 'Gross']];
 export const INTEREST_TYPES = ['Fixed', 'Adjustable', 'Interest Only', 'Other'];
@@ -400,4 +405,4 @@ export const TITLE_ALIGNMENT_TASKS = ['Review Title Search', 'Commitment Typed',
   'Title clearing/Curative', 'Order survey', 'Survey received', 'CPL requested', 'Title clearance'];
 export const STANDARD_EXCEPTION_KEYS = ['taxes', 'water', 'setback', 'parties_possession', 'rights_of_way', 'utility_agreements', 'easements'];
 export const TITLE_PACKAGE_TEMPLATE = 'TITLE - Title Package (Standard)';
-export const PACKAGE_RECIPIENT_ROLES = ['lender', 'buyer', 'listing_agent'];
+export const PACKAGE_RECIPIENT_ROLES = ['lender', 'buyer', 'listing_agent', 'buyer_agent'];

@@ -5,19 +5,20 @@
  * sync, no invitations, nothing is ever emailed) on a lead, contact (= "Client" on screen), account (= "Company") or opportunity. Attachments on records.
  * NOTHING is deleted: leads, contacts, accounts and opportunities are archived; tasks are closed; attachments and notes stay.
  * Access (mirrored by private.crm_* in migration 22): see crm.js. */
-import { CRM_OFF } from './features.js?v=202611051418';
+import { CRM_OFF } from './features.js?v=202611052122';
+import { dealDisplayName } from './nov5-rules.js?v=202611052122';
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, OPP_STAGES, ACCOUNT_KIND_CODES, CRM_ENTITIES, accountKindForType, entityLabel,
   TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, LINK_KEYS, LINK_FIELDS, cleanUrl, nextDue, addDaysTo, taskOpen, meetingOpen, localStamp,
-  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals, REPEAT_CODES, LEAD_STATUS_DEFAULT, companyKey } from './crm.js?v=202611051418';
-import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611051418';
-import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611051418';
-import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611051418';
-import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611051418';
-import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611051418';
-import { feedbackNov4Part } from './mock-part-feedback-nov4.js?v=202611051418';
-import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611051418';
-import { crmCallsPart } from './mock-part-crm-calls.js?v=202611051418';
-import { callOpen, callSeconds, durationText, callStatusOf } from './crm-calls.js?v=202611051418';
+  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals, REPEAT_CODES, LEAD_STATUS_DEFAULT, companyKey } from './crm.js?v=202611052122';
+import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611052122';
+import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611052122';
+import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611052122';
+import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611052122';
+import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611052122';
+import { feedbackNov4Part } from './mock-part-feedback-nov4.js?v=202611052122';
+import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611052122';
+import { crmCallsPart } from './mock-part-crm-calls.js?v=202611052122';
+import { callOpen, callSeconds, durationText, callStatusOf } from './crm-calls.js?v=202611052122';
 
 export function crmPart(x, flags) {
   const { load, save: save0, nid, needUser, dealsFor, prof, nameOf, fullName, clone, now, fail, str, emailOk, localDate, C } = x;
@@ -207,7 +208,7 @@ export function crmPart(x, flags) {
   const linkOf = (entity, id) => (entity === 'opportunity' ? '#/crm/pipeline' : `#/crm/${entity}s/${id}`);
   // Zoho columns: "Contact Name" = the person (client or lead); "Related To" = the company / opportunity it is about
   // video 11: a call's own Related To (company / opportunity / deal) wins over the person's company
-  const relName = (e, id) => { const d = db(); if (e === 'deal') { const q = d.deals.find((z) => z.id === id); return q ? `${q.fileNumber} ${q.street}` : ''; } return parentName(e, id); };
+  const relName = (e, id) => { const d = db(); if (e === 'deal') { const q = d.deals.find((z) => z.id === id); return q ? dealDisplayName(q) : ''; } return parentName(e, id); };
   const relOf = (a) => { const base = relOf0(a); if (a.kind !== 'call' || !a.relatedEntity || !a.relatedId) return base;
     return { ...base, relatedTo: relName(a.relatedEntity, a.relatedId), relatedLink: a.relatedEntity === 'deal' ? `#/crm/deals/${a.relatedId}` : linkOf(a.relatedEntity, a.relatedId) }; };
   const relOf0 = (a) => { const d = db();
@@ -303,7 +304,7 @@ export function crmPart(x, flags) {
       const acc = str(input.accountId, 60) ? get.account(u, str(input.accountId, 60)) : null;   // Janine, Nov 3: Company = an existing company
       if (str(input.relationshipStatus !== undefined ? input.relationshipStatus : input.status, 80) === CONVERTED_STATUS) fail('A new lead cannot start as Converted/Current Client; convert it instead.');
       const l = { id: nid('lead'), firstName: str(input.firstName, 80), lastName: str(input.lastName, 80), company: acc ? acc.name : str(input.company, 120), accountId: acc ? acc.id : null, email: email(input.email), phone: x.phone(input.phone),
-        contactType: ctype(input.contactType), source: leadSrc(input.leadSource !== undefined ? input.leadSource : input.source), status: leadStatus(input.relationshipStatus !== undefined ? input.relationshipStatus : input.status) || (builtinRequired(cfg(), 'relationshipStatus') ? '' : defaultOption(cfg(), 'leadRelationshipStatus', LEAD_STATUS_DEFAULT)),
+        contactType: ctype(input.contactType), source: leadSrc(input.leadSource !== undefined ? input.leadSource : input.source), status: leadStatus(input.relationshipStatus !== undefined ? input.relationshipStatus : input.status, input.retainHistoricalStatus ? (input.relationshipStatus !== undefined ? input.relationshipStatus : input.status) : undefined) || (builtinRequired(cfg(), 'relationshipStatus') ? '' : defaultOption(cfg(), 'leadRelationshipStatus', LEAD_STATUS_DEFAULT)),
         ownerId: owner(u, input.ownerId, null, true), notes: str(desc(input), 4000),
         convertedAt: null, convertedContactId: null, convertedAccountId: null, archivedAt: null, createdBy: u.id, createdAt: now(), modifiedBy: u.id, modifiedAt: now() };
       personFields(l, input, true); applyCustom('lead', l, input, true); required(l.lastName, l.roleInCompany, l.status, l.state);
@@ -379,7 +380,7 @@ export function crmPart(x, flags) {
       const acc = str(input.accountId, 60) ? get.account(u, str(input.accountId, 60)) : null;
       const c = { id: nid('c'), profileId: null, firstName: str(input.firstName, 80), lastName: str(input.lastName, 80), email: e, phone: x.phone(input.phone), company: str(input.company, 120) || (acc ? acc.name : ''),
         contactType: ctype(input.contactType), crmOwnerId: owner(u, input.ownerId, null, true), accountId: acc ? acc.id : null, crmStage: null,
-        leadSource: leadSrc(input.leadSource), relationshipStatus: relStatus(input.relationshipStatus) || (builtinRequired(cfg(), 'relationshipStatus') ? '' : defaultOption(cfg(), 'relationshipStatus', 'Potential/Warm')), lastContactedOn: date(input.lastContactedOn, 'Last contacted', { noFuture: true }),
+        leadSource: leadSrc(input.leadSource), relationshipStatus: relStatus(input.relationshipStatus, input.retainHistoricalStatus ? input.relationshipStatus : undefined) || (builtinRequired(cfg(), 'relationshipStatus') ? '' : defaultOption(cfg(), 'relationshipStatus', 'Potential/Warm')), lastContactedOn: date(input.lastContactedOn, 'Last contacted', { noFuture: true }),
         tags: normTags(input.tags), crmNotes: str(desc(input), 4000), crmLeadId: null, crmArchivedAt: null, createdBy: u.id, createdAt: now(), modifiedBy: u.id, modifiedAt: now() };
       personFields(c, input, true); applyCustom('contact', c, input, true); required(c.lastName, c.roleInCompany, c.relationshipStatus, c.state);
       personDup(c, { contactId: c.id });
