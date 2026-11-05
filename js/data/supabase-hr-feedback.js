@@ -1,7 +1,7 @@
 /* [SUPABASE] HR FEEDBACK (John's Nov 4 HR review; migration 59). Same names / shapes as mock-part-hr-feedback.js. NOT run against a hosted project
  * (best effort; the mock adapter is the tested one, migration 59 has its own DB test 128). Files go to the private 'hr-documents' bucket.
  * Nothing is ever sent: no e-sign provider is connected, signature status is recorded by hand. */
-import { HR_COMPANY_DOC_CATEGORIES, HR_EMP_DOC_TYPES, HR_SIGN_STATUSES, HR_SIGN_PROVIDERS, sessionTotals, labelOf } from './hr.js?v=202611041931';
+import { HR_COMPANY_DOC_CATEGORIES, HR_EMP_DOC_TYPES, HR_SIGN_STATUSES, HR_SIGN_PROVIDERS, sessionTotals, labelOf } from './hr.js?v=202611041935';
 const uid = () => (globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 const safeName = (n) => String(n || 'file').replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 120);
 const dataUrlBlob = async (u) => (await fetch(u)).blob();

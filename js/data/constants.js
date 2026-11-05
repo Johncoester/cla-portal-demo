@@ -120,7 +120,8 @@ export const visibilityLabel = (vis, role) => ((role === 'Client-Buyer' && vis =
 export const BUYER_SHARE_NOTE = 'Share with CLA Title: only CLA Title & Escrow staff can see it. Nobody else on the file (not your agent, not the other side).';
 export const CLIENT_SHARE_NOTE = 'Share with CLA Title: CLA Title staff and your own agent on this file can see it. The other side (their agent and client) cannot.';
 // Participant roles on a deal = the 8 order roles plus non-login parties (never 'Admin')
-export const PARTICIPANT_ROLES = [...DEAL_ROLES, 'Lender', 'HOA', 'Other'];
+// John, Nov 4 meeting: abstractors and underwriters are parties too (non-login, like Lender / HOA; migration 49 allows them)
+export const PARTICIPANT_ROLES = [...DEAL_ROLES, 'Lender', 'HOA', 'Abstractor', 'Underwriter', 'Other'];
 // 25 MB per file (was 1.5 MB, which refused ordinary phone photos of an ID). The mock keeps file contents in IndexedDB (file-store.js);
 // Supabase Storage bucket 'deal-documents' allows 25 MiB. Mirrored by migration 13 (allowed extensions).
 export const MAX_UPLOAD_BYTES = 25_000_000;

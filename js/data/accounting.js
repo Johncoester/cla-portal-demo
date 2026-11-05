@@ -50,10 +50,10 @@ const d = (n) => n / 100;                                      // dollars
 export const round2 = (n) => d(c(n));
 const fail = (m) => { throw new Error(m); };
 const s = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
-import { computeProration, cleanProration, prorationRange, PRORATION_ITEMS } from './prorations.js?v=202611041931';
+import { computeProration, cleanProration, prorationRange, PRORATION_ITEMS } from './prorations.js?v=202611041935';
 const flag0 = (x) => !!x && x !== 'false' && x !== '0';
 // QUALIA layout (John, Nov 4 2026): per-line payments + section settings (meta), the CD text of a line, E.01 recording fees as one line
-import { cleanMeta, cdText, recTypeOf, recordingText } from './qualia-charges.js?v=202611041931';
+import { cleanMeta, cdText, recTypeOf, recordingText } from './qualia-charges.js?v=202611041935';
 export const closingDateOf = (deal) => (deal && (deal.closingDate ?? deal.closing_date)) || null;
 const isRefiDeal = (deal) => !!deal && (deal.transactionType === 'Refinance' || deal.transaction_type === 'Refinance');
 const buyerWord = (deal) => (isRefiDeal(deal) ? 'Borrower' : 'Buyer');

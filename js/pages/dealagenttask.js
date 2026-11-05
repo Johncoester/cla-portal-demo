@@ -1,9 +1,9 @@
 // Agent task page (Francis, Nov 3; Qualia Connect): Confirm Client Contact Information / Your Transaction Information / Home Warranty Information.
 // Edit -> Submit -> "Task Complete". A completed task opens as View Submission (read-only) with Modify, which turns the button into Submit Revision.
 // "About This Task" sidebar with Send Message (a conversation with the processor tied to this task). Leaving with unsaved edits asks first.
-import { html, raw, toText, $, $$, guard, toast, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611041931';
-import { MARITAL } from '../data/agent-portal.js?v=202611041931';
-import { CLS, LABEL } from './dealtasks.js?v=202611041931';
+import { html, raw, toText, $, $$, guard, toast, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611041935';
+import { MARITAL } from '../data/agent-portal.js?v=202611041935';
+import { CLS, LABEL } from './dealtasks.js?v=202611041935';
 
 const yn = (name, val, label) => html`<fieldset class="span2 yn" data-k="${name}"><legend>${label}</legend>${['Yes', 'No'].map((o) => html`<label class="check"><input type="radio" name="${name}" value="${o}" ${val === o ? raw('checked') : ''}> ${o}</label>`)}<span class="ferr"></span></fieldset>`;
 const inp = (name, label, val, type = 'text', extra = '') => html`<label class="fld" data-k="${name}">${label}<input name="${name}" type="${type}" value="${val == null ? '' : val}" ${raw(extra)}><span class="ferr"></span></label>`;

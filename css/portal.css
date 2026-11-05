@@ -623,6 +623,72 @@ details.po-card > summary { cursor: pointer; list-style: none; display: flex; al
 
 /* VIEW AS (Super admin locked link only, live28) */
 .view-as { display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; color: inherit; } .view-as select { max-width: 260px; font-size: 13px; padding: 4px 6px; border-radius: 6px; }
+/* TASK SWITCHES (John, Nov 4; mockup 04) */
+.tpl-tabs { display: flex; gap: 22px; border-bottom: 1px solid #e3e3e3; margin: 0 0 14px; }
+.tpl-tabs a { padding: 8px 2px; color: #555; text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tpl-tabs a.active { color: var(--ink, #1d4f7a); border-bottom-color: var(--ink, #1d4f7a); font-weight: 600; }
+.task-switches tr.is-off td { color: #888; } .task-switches tr.is-off strong { color: #777; }
+.ts-off-pill { display: inline-block; padding: 0 7px; border: 1px solid #f2c48d; background: #fff4e5; color: #8a4306; border-radius: 9px; font-size: 11px; font-weight: 600; }
+.ts-filter { margin: 10px 0; }
+/* ORDER PAGE REDESIGN (John, Nov 4; mockups 01-order-page / -mobile): status bar + glance, big address, one Parties list */
+.op-status { background: #fff; border: 1px solid var(--line, #e3e3e3); border-radius: 10px; padding: 14px 18px; margin: 4px 0 6px; }
+.op-status-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; color: #666; margin-bottom: 4px; }
+.op-status-label b { color: var(--navy-700, #123a5c); }
+.op-status .tracker.op-steps { margin: 6px 0 2px; padding: 8px 0 4px; background: transparent; border: 0; box-shadow: none; }
+.op-hint { margin: 0 0 4px; }
+.op-glance { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; font-size: 13.5px; color: #444; border-top: 1px solid #eee; padding-top: 10px; margin-top: 6px; }
+.op-glance b { color: var(--navy-700, #123a5c); } .op-glance .icon-edit { position: static; margin-left: auto; }
+.op-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 16px; margin: 22px 0 2px; }
+.op-title .op-address { font-size: 32px; line-height: 1.15; font-weight: 500; color: #333; margin: 0; }
+.op-title .op-order-no { font-size: 20px; font-weight: 600; color: var(--navy-600, #1d4f7a); }
+.op-sub { margin: 2px 0 10px; font-size: 13px; }
+.op-actions { display: flex; gap: 10px; align-items: center; margin: 0 0 10px; } .op-actions:empty { display: none; }
+.op-plist { border: 1px solid #e3e3e3; border-radius: 6px; overflow: hidden; background: #fff; }
+.op-prow { display: grid; grid-template-columns: 170px minmax(160px, 1.2fr) 140px minmax(160px, 1.4fr) auto; align-items: center; gap: 10px; padding: 10px 16px; border-top: 1px solid #eee; }
+.op-prow:first-child { border-top: 0; } .op-prow:nth-child(even) { background: #fafafa; }
+.op-role { font-size: 12px; text-transform: uppercase; letter-spacing: .4px; color: var(--navy-600, #1d4f7a); font-weight: 600; }
+.op-nm strong { color: #333; } .op-nm small { display: block; color: #888; font-size: 12px; } .op-nm .party-avatar { float: left; margin-right: 8px; }
+.op-em { overflow-wrap: anywhere; font-size: 13px; } .op-ph { font-size: 13px; white-space: nowrap; }
+.op-acts { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.op-act { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #cfcfcf; border-radius: 3px; padding: 3px 9px; font-size: 12px; background: #fff; color: #333; text-decoration: none; cursor: pointer; font: inherit; font-size: 12px; min-height: 28px; }
+.op-act:hover { border-color: var(--navy-500, #2a6496); } .op-act.is-off { color: #aaa; cursor: not-allowed; }
+.op-pnote { margin: 6px 0 0; } .op-party-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.op-notes .op-note { border-left: 3px solid var(--baby, #8fcff0); padding: 8px 12px; background: #fafafa; margin-bottom: 8px; font-size: 13px; white-space: pre-wrap; }
+.op-contacts-card { display: flex; gap: 40px; flex-wrap: wrap; font-size: 13px; }
+@media (max-width: 700px) {
+  .op-title .op-address { font-size: 25px; } .op-title .op-order-no { font-size: 17px; }
+  .op-prow { grid-template-columns: 1fr auto; gap: 2px 10px; padding: 10px 12px; }
+  .op-prow .op-role { grid-column: 1; } .op-prow .op-nm, .op-prow .op-ph, .op-prow .op-em { grid-column: 1; }
+  .op-prow .op-acts { grid-column: 2; grid-row: 1 / span 4; flex-direction: column; align-items: stretch; }
+  .op-status { padding: 12px; } .op-glance { gap: 4px 12px; font-size: 13px; } .op-contacts-card { gap: 14px; flex-direction: column; }
+  .op-contacts-tbl { display: block; overflow-x: auto; }
+}
+/* ORDER PAGE REDESIGN (John, Nov 4 meeting): a SMALL EMD box next to the Wire instructions box (staff + buyer only; never agents) */
+.op-money { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; margin: 4px 0 12px; }
+.op-emd { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 12px; border: 1px solid #e3e3e3; border-radius: 6px; background: #fff; font-size: 13px; max-width: 340px; }
+.op-emd b { color: var(--navy-700, #123a5c); font-size: 14px; } .op-emd .pill { font-size: 11px; }
+.op-box-label { font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--navy-600, #1d4f7a); font-weight: 700; }
+.op-wire { flex: 1 1 380px; padding: 8px 14px; border: 1px solid #f2c48d; border-left: 4px solid #e7a33e; border-radius: 6px; background: #fffaf2; font-size: 13px; }
+.op-wire-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.op-wire-facts { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 6px 0 2px; } .op-wire-facts b { color: var(--navy-700, #123a5c); } .op-wire p { margin: 4px 0 0; }
+.op-prow.is-placeholder .op-nm strong { color: #888; font-weight: 500; }
+/* ALIGN the document tabs and the Closing Disclosure (Nov 4 meeting): same tab strip on both. The Accounting / CD section menu was forced back
+   into a 190px side column on phones by a later rule (.qc-shell above), squeezing the CD into ~150px: on narrow screens it now sits ABOVE the CD
+   as one scrollable strip, like the Documents folder tabs, and both line up with the page's left edge. */
+@media (max-width: 1100px) {
+  .qc-shell { grid-template-columns: minmax(0, 1fr); }
+  .qc-nav { position: static; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; align-items: center; gap: 4px; padding: 6px; -webkit-overflow-scrolling: touch; }
+  .qc-nav > * { flex: 0 0 auto; white-space: nowrap; } .qc-nav-group, .qc-nav-group:first-child { margin: 0 4px 0 8px; } .qc-nav-sub { display: none; }
+}
+@media (max-width: 700px) {
+  [data-deal-docs] .folder-bar, .folder-bar { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; } .folder-bar > * { flex: 0 0 auto; white-space: nowrap; }
+  .nav-tabs { flex-wrap: nowrap; overflow-x: auto; } .nav-tabs li { flex: 0 0 auto; }
+  .qc-viewer-bar { gap: 4px; } .qc-main { padding: 10px; }
+  .op-emd { max-width: none; width: 100%; }
+}
+.op-money { align-items: flex-start; }
+/* every Parties row uses the same columns (the actions column no longer changes width with a Message / + Add button), so names, phones and emails line up */
+@media (min-width: 701px) { .op-prow { grid-template-columns: 170px minmax(160px, 1.2fr) 130px minmax(160px, 1.4fr) 300px; } }
 
 /* HR WORKSPACE, Phase 1 (John + Francis, Nov 4; Zoho People layout in the baby-blue card style). Works in both themes. */
 .hr-page { --hr-baby: #89cff0; --hr-baby-soft: #e8f6fd; --hr-baby-line: #bfe6f8; --hr-ink: #1f6fa3; --hr-on: #0b2a45; }

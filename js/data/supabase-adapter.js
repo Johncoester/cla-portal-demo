@@ -1,18 +1,19 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611041931';
-import { localDate, fileRoleLabel } from './constants.js?v=202611041931';
-import { featureFlags } from './features.js?v=202611041931';
-import { accountingSupabase } from './supabase-accounting.js?v=202611041931';
-import { payoffsSupabase } from './supabase-payoffs.js?v=202611041931';
-import { modulesSupabase } from './supabase-modules.js?v=202611041931';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611041931';
-import { automationPart } from './automation.js?v=202611041931';
-import { runsOrders as runsOrdersCI } from './constants.js?v=202611041931';
-import { fieldsForRole } from './templates.js?v=202611041931';
-import { crmSupabase } from './supabase-crm.js?v=202611041931';
-import { hrSupabase } from './supabase-hr.js?v=202611041931';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611041935';
+import { localDate, fileRoleLabel } from './constants.js?v=202611041935';
+import { featureFlags } from './features.js?v=202611041935';
+import { accountingSupabase } from './supabase-accounting.js?v=202611041935';
+import { payoffsSupabase } from './supabase-payoffs.js?v=202611041935';
+import { modulesSupabase } from './supabase-modules.js?v=202611041935';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611041935';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611041935';
+import { automationPart } from './automation.js?v=202611041935';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611041935';
+import { fieldsForRole } from './templates.js?v=202611041935';
+import { crmSupabase } from './supabase-crm.js?v=202611041935';
+import { hrSupabase } from './supabase-hr.js?v=202611041935';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned; vendor locally before go-live
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -135,7 +136,10 @@ export async function createSupabaseAdapter(cfg) {
     async listActivity(dealId) { let q = sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(300); q = dealId ? q.eq('deal_id', dealId) : q.is('deal_id', null);
       const items = camel(ok(await q)); return { items, total: items.length, types: [...new Set(items.map((a) => a.action.split('.')[0]))].sort(), actors: [] }; },
     // tasks.form_data is NOT selectable (column grant); answers come from get_task_form for the owner / processor / coordinator / Admin only
-    async listTasks(dealId) { return camel(ok(await sb.from('tasks').select(TASK_COLS).eq('deal_id', dealId).order('created_at'))); },
+    async listTasks(dealId) { const rows = camel(ok(await sb.from('tasks').select(TASK_COLS).eq('deal_id', dealId).order('created_at')));
+      // TASK SWITCHES (migration 49): RLS already hides switched-off copies from non-admins; an Admin gets them, marked like the mock (switchedOff)
+      const off = rows.some((t) => t.templateCode) ? new Set((ok(await sb.from('task_template_switches').select('code').eq('enabled', false)) || []).map((r) => r.code)) : new Set();
+      return rows.map((t) => ({ ...t, switchedOff: !!t.templateCode && off.has(t.templateCode) })); },
     async getTask(id) {
       const t = camel(ok(await sb.from('tasks').select(TASK_COLS).eq('id', id).single()));
       if (t.kind === 'form') { const r = await sb.rpc('get_task_form', { p_task: id }); if (r.error) t.formHidden = true; else t.formData = r.data || {}; }
@@ -224,6 +228,7 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, payoffsSupabase({ sb, ok, flags: a.features, api: a }));
   // MODULE SWITCHES (John, Nov 3; migration 35): Admin-only Live switch per module; off = beta (Admins only)
   Object.assign(a, modulesSupabase({ sb, ok, me, flags: a.features }));
+  Object.assign(a, taskSwitchesSupabase({ sb, ok, me }));   // John, Nov 4 (migration 49): Task Templates > Task switches (Admin only)
   Object.assign(a, callItemsSupabase({ sb, ok, me }));   // John, Nov 3 call (migration 38): underwriter splits, agent birthdate
   Object.assign(a, agentInviteSupabase({ sb, ok, me }));   // John, Nov 4 (migration 41): agent invites (nothing sent), agent profiles, the clients' agent card
   { const { hrSessionExtras, ...hrApi } = hrSupabase({ sb, ok, me }); Object.assign(a, hrApi);   // HR workspace, Phase 1 (Nov 4, migration 47): the session carries hrRole / hrEmployeeId / hrHasReports

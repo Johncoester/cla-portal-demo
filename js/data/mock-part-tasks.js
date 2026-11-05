@@ -1,7 +1,8 @@
 /* mock adapter: tasks. Templates (versioned definitions) are separate from each participant's task COPY; a copy records templateId + templateVersion.
  * Intake forms: save partial work, validate, mark complete. Reminders are QUEUED in an outbox only and never sent. Tasks are cancelled, never deleted. */
-import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611041931';
-import { maskAccount } from './constants.js?v=202611041931';
+import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611041935';
+import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611041935';   // Task switch OFF: no new copy (existing copies kept)
+import { maskAccount } from './constants.js?v=202611041935';
 export function tasksAndForms(x) {
   const { load, save, nid, needUser, needAdmin, isManager, dealOr404, onDeal, fileRole, fileRoles, holds, dealsFor, log, prof, nameOf, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, dateOrNull, localDate, localDayOf, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
@@ -24,6 +25,7 @@ export function tasksAndForms(x) {
   const out = (u, t) => { const o = clone(t); o.ownerId = ownerOf(t); o.ownerName = o.ownerId ? nameOf(o.ownerId) : ''; o.mine = o.ownerId === u.id || (!t.participantId && holds(u, t.assignedRole));
     o.canFill = canFill(u, t); o.canTick = t.kind === 'simple' && t.status !== 'cancelled' && (isManager(u) || (!t.participantId && holds(u, t.assignedRole) && ['todo', 'done'].includes(t.status)));
     o.forClient = !o.mine && agentCanFill(u, t);   // "a task you can complete for your client"
+    o.switchedOff = taskSwitchedOff(load(), t);   // TASK SWITCHES: only Admin / Super admin ever get such a row (taskVisible); shown marked "Switched off"
     const tp = t.templateId ? tpl(t.templateId) : null; o.agentRoles = tp && !delegationLocked(tp) ? (tp.agentRoles || []) : [];
     o.completedByLabel = t.status === 'done' && t.completedBy ? `Completed by ${byLine(t.completedBy, o.ownerId, t.dealId, t)}` : '';
     o.savedByLabel = t.savedBy ? `Last saved by ${byLine(t.savedBy, o.ownerId, t.dealId, t)}` : '';
@@ -33,7 +35,7 @@ export function tasksAndForms(x) {
   // Copy the CURRENT version of every template that applies to this participant's role. Never duplicates an open copy.
   x.makeCopies = (dealId, p, actorId) => {
     const d = load(); let n = 0;
-    d.taskTemplates.filter((t) => t.active && t.roles.includes(p.role)).forEach((t) => {
+    d.taskTemplates.filter((t) => t.active && t.roles.includes(p.role) && taskEnabled(d, t.code)).forEach((t) => {
       if (d.tasks.some((z) => z.participantId === p.id && z.templateCode === t.code && z.status !== 'cancelled')) return;
       d.tasks.push({ id: nid('t'), dealId, participantId: p.id, templateId: t.id, templateCode: t.code, templateVersion: t.version, kind: 'form', title: t.title, description: t.description,
         assignedRole: p.role, status: 'todo', dueDate: addDays(t.dueDays || 7), formData: (p.entity && entityPrefill(p.entity, fieldsForRole(t.fields, p.role))) || {}, savedAt: null, savedBy: null, completedAt: null, completedBy: null, createdBy: actorId, createdAt: now() }); n++;

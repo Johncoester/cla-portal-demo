@@ -6,7 +6,7 @@
 //    View Submission, Modify -> Submit Revision (every revision kept).
 //  * Request Update topics, Share Access permissions (invites are RECORDED only, nothing is sent), invite email preview ("Complete Requests Now").
 //  * Rich-text message HTML sanitizer (Bold, Italic, Underline, bullet / numbered lists, links; nothing else survives).
-import { STAGES, phoneOk, fmtPhone, isRealDate } from './constants.js?v=202611041931';
+import { STAGES, phoneOk, fmtPhone, isRealDate } from './constants.js?v=202611041935';
 
 export const PHASES = ['Title Processing', 'Closing Prep', 'Scheduled Closing Date', 'Closed'];
 // stage indexes (constants.js STAGES): 0-2 Opened / EMD Receipt / Buyer Info Received -> Title Processing; 3-6 Schedule Closing .. Buyer Final Doc
@@ -127,6 +127,7 @@ export function ensureAgentPortal(d) {
   d.deals.filter((q) => q.status === 'Open').forEach((q) => d.participants.filter((p) => p.dealId === q.id && (p.role === 'Buyer Agent' || p.role === 'Listing Agent')).forEach((p) => {
     const c = contactOf(p.contactId); if (!c || !c.profileId) return;
     AGENT_TASKS.forEach((def) => { if (d.tasks.some((t) => t.participantId === p.id && t.templateCode === def.code && t.status !== 'cancelled')) return;
+      if ((d.taskSwitches || []).some((z) => z.code === def.code && z.enabled === false)) return;   // Task switch OFF (task-switches.js): not created; existing copies kept
       d.tasks.push({ id: `t-ap-${p.id}-${def.code}`, dealId: q.id, participantId: p.id, templateId: null, templateCode: def.code, templateVersion: 1, kind: 'agent', title: def.title, description: def.about,
         assignedRole: p.role, status: 'todo', dueDate: addDays(def.dueDays), formData: {}, savedAt: null, savedBy: null, completedAt: null, completedBy: null, createdBy: q.processorId || 'u-proc', createdAt: at }); });
   }));

@@ -1,24 +1,24 @@
 // Tasks tab. Intake forms are per-participant copies of a versioned template (open them to fill in). Simple tasks are ticked.
 // Processor + transaction coordinator manage tasks and queue reminders (outbox only, never sent). Tasks are cancelled, never deleted.
-import { html, $, $$, guard, formData, modal, closeModal, options, fmtDate, pill, toast } from '../ui.js?v=202611041931';
-import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611041931';
-import { boxTasks } from '../data/task-board.js?v=202611041931';
+import { html, $, $$, guard, formData, modal, closeModal, options, fmtDate, pill, toast } from '../ui.js?v=202611041935';
+import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611041935';
+import { boxTasks } from '../data/task-board.js?v=202611041935';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
 export const LABEL = { todo: 'to do', in_progress: 'started', done: 'done', blocked: 'blocked', cancelled: 'cancelled' };
 
 export async function render(ctx) {
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611041931')).render(ctx);
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611041935')).render(ctx);
   const { api, user, deal, refresh } = ctx;
   const tasks = await api.listTasks(deal.id);
   // BUYER (Nov 4 call): the agreements are to-dos that open the agreement (no Agreements tab for the buyer); the buyer never gets a Listing Agent box (listing agent never shown)
-  const { isPureBuyer, agreementTasks } = await import('./client-overview.js?v=202611041931'); const pure = user.accountRole && isPureBuyer(user);
+  const { isPureBuyer, agreementTasks } = await import('./client-overview.js?v=202611041935'); const pure = user.accountRole && isPureBuyer(user);
   const agTodo = pure ? agreementTasks(deal, await api.listAgreements(deal.id).catch(() => null)) : []; const manage = runsOrders(user) || user.role === 'Transaction Coordinator'; const today = localDate(); const refi = isRefi(deal);
   const open = (t) => ['todo', 'in_progress', 'blocked'].includes(t.status);
   const row = (t) => html`<tr class="${t.status === 'done' || t.status === 'cancelled' ? 'is-done' : ''}">
       <td class="center">${t.canTick ? html`<input type="checkbox" data-tick="${t.id}" ${t.status === 'done' ? html`checked` : ''} aria-label="Done">` : ''}</td>
-      <td><strong>${t.kind === 'form' || t.kind === 'sign' || t.kind === 'agent' ? html`<a href="#/deals/${deal.id}/tasks/${t.id}">${t.title}</a>` : t.title}</strong>${t.description ? html`<br><span class="muted">${t.description}</span>` : ''}
+      <td><strong>${t.kind === 'form' || t.kind === 'sign' || t.kind === 'agent' ? html`<a href="#/deals/${deal.id}/tasks/${t.id}">${t.title}</a>` : t.title}</strong>${t.description ? html`<br><span class="muted">${t.description}</span>` : ''}${t.switchedOff ? html` <span class="pill warn" data-switched-off title="Switched off on Task Templates > Task switches: kept, hidden from everyone except Admin / Super admin">Switched off (admins only)</span>` : ''}
         ${t.kind === 'form' ? html`<br><span class="muted small">Form &middot; template v${t.templateVersion}</span>` : t.kind === 'sign' ? html`<br><span class="muted small">Signature (demo e-sign)</span>` : t.kind === 'agent' ? html`<br><span class="muted small">Agent task</span>` : ''}</td>
       <td>${t.ownerName || t.assignedRole}${t.ownerName ? html`<br><span class="muted small">${t.assignedRole}</span>` : ''}${t.mine ? html` ${pill(user.selfRep ? `you, as ${t.assignedRole}` : 'you', 'info')}` : ''}${t.forClient && open(t) ? html` ${pill('you can complete this for your client', 'warn')}` : ''}</td>
       <td class="${open(t) && t.dueDate && t.dueDate < today ? 'bad-text' : ''}">${fmtDate(t.dueDate)}</td><td>${pill(LABEL[t.status], CLS[t.status])}${t.completedByLabel ? html`<br><span class="muted small done-by">${t.completedByLabel}</span>` : ''}</td>

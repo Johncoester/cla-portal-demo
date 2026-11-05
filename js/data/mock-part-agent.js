@@ -3,8 +3,8 @@
  * Modify / Submit Revision, task-tied messages, Request Update (staff answer it), Share Access (RECORDED only: no email, no login is created),
  * "Complete Requests Now" invite email (preview + outbox only), rich-text messages with file attachments (Share Files), and the outside user's own
  * Activity feed (only things they can already open). Nothing here deletes anything; documents stay permanent. */
-import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, COMMISSION_LABEL, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611041931';
-import { CLA_PHONE, isRefi } from './constants.js?v=202611041931';
+import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, COMMISSION_LABEL, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611041935';
+import { CLA_PHONE, isRefi } from './constants.js?v=202611041935';
 export function agentPortal(x) {
   const { api: root, load, save, nid, needUser, isManager, notViewOnly, dealOr404, onDeal, log, prof, nameOf, ownerOf, taskVisible, threadVisible, unreadIn, docVisible, participantsOf, isStaffView,
     notify, dealProfileIds, dealView, contactOf, clone, now, fail, str, emailOk, C } = x;
@@ -65,7 +65,7 @@ export function agentPortal(x) {
       let u = needUser(); const q = dealOr404(u, dealId); u = onDeal(u, dealId); const d = load(); const v = dealView(u, q); const staff = isStaffView(u);
       const ps = participantsOf(dealId, u); const pid = (p) => p.contact && p.contact.profileId;
       const party = (label, p) => ({ label, name: p ? `${p.contact.firstName} ${p.contact.lastName}`.trim() : 'Not specified', company: p ? p.contact.company || '' : '', email: p ? p.contact.email : '', phone: p ? p.contact.phone : '',
-        contactHidden: !!(p && p.contact.contactHidden), profileId: p ? pid(p) || null : null, canMessage: !!(p && pid(p) && pid(p) !== u.id && !C.viewOnly(u) && x.canMessage(u, pid(p), dealId) && (prof(pid(p)) || {}).status === 'active') });
+        contactHidden: !!(p && p.contact.contactHidden), entity: p && p.entity ? p.entity : null, profileId: p ? pid(p) || null : null, canMessage: !!(p && pid(p) && pid(p) !== u.id && !C.viewOnly(u) && x.canMessage(u, pid(p), dealId) && (prof(pid(p)) || {}).status === 'active') });
       const all = (role) => ps.filter((p) => p.role === role);
       const proc = prof(q.processorId);
       // Refinance (John, Nov 3): the borrower(s), the settlement agent and the lender only; no realtor or seller placeholders (an older refinance that still has one shows it)

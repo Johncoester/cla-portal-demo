@@ -1,16 +1,17 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611041931';
-import { GMAIL_OFF } from '../data/automation.js?v=202611041931';
-import { occSelects, yesNo } from './occ-fields.js?v=202611041931';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611041931';
-import { slotText } from './dealclosing.js?v=202611041931';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611041931';
-import { composeModal } from './compose.js?v=202611041931';
-import { moneyShow, moneyClean } from './money-input.js?v=202611041931';
-import { themeOn } from '../theme.js?v=202611041931';
-import { renderClientOverview, clientSide, isPureBuyer, clientTabChrome } from './client-overview.js?v=202611041931';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611041935';
+import { GMAIL_OFF } from '../data/automation.js?v=202611041935';
+import { occSelects, yesNo } from './occ-fields.js?v=202611041935';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611041935';
+import { slotText } from './dealclosing.js?v=202611041935';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611041935';
+import { composeModal } from './compose.js?v=202611041935';
+import { moneyShow, moneyClean } from './money-input.js?v=202611041935';
+import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611041935';
+import { themeOn } from '../theme.js?v=202611041935';
+import { renderClientOverview, clientSide, isPureBuyer, clientTabChrome } from './client-overview.js?v=202611041935';
 
-const TABS = { tasks: './dealtasks.js?v=202611041931', inbox: './dealmsgs.js?v=202611041931', documents: './dealdocs.js?v=202611041931', contacts: './dealcontacts.js?v=202611041931', activity: './dealactivity.js?v=202611041931', closing: './dealclosing.js?v=202611041931', agreements: './dealagreements.js?v=202611041931', accounting: './dealaccounting.js?v=202611041931' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611041935', inbox: './dealmsgs.js?v=202611041935', documents: './dealdocs.js?v=202611041935', contacts: './dealcontacts.js?v=202611041935', activity: './dealactivity.js?v=202611041935', closing: './dealclosing.js?v=202611041935', agreements: './dealagreements.js?v=202611041935', accounting: './dealaccounting.js?v=202611041935' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -23,11 +24,11 @@ export async function render(ctx) {
   // CLIENT TABS (John, Nov 4: every buyer tab in the light client layout; same for the seller): the tab's own content, under the client file line +
   // pill tabs, drawn in the client shell (app.js: white top bar, CLA logo, no sidebar). The content and its rules are unchanged.
   if (tab !== 'overview' && TABS[tab] && user.accountRole && clientSide(user)) {
-    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041931' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
+    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041935' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
     const top = await clientTabChrome(ctx, deal, tab);
     return { ...v, crumbs: [...here, ...(v.crumbs || [])], clientPage: { deal, side: clientSide(user), tab }, body: html`<div class="co-page co-tabpage" data-client-tab="${tab}">${top}<section class="co-card co-tabcard"><div class="co-cb">${v.body}</div></section></div>` };
   }
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041931' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041935' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   // CLIENT OVERVIEW (John, Nov 4): the buyer / seller get the redesigned overview (client-overview.js) in place of the old overview + card summary (no Cash to Close / payoff mockup figures for clients).
   if (user.accountRole && clientSide(user)) {
@@ -39,17 +40,12 @@ export async function render(ctx) {
   // Francis, Nov 3 (Qualia Connect agent portal): outstanding-task alert, 4-step progress, Order Details, Parties, Activity, Conversations,
   // Request Update / Share Access (agents) and, for staff, the update requests to answer + shared access + the portal invite email
   const ov = await ctx.api.getOrderOverview(deal.id); const ur = await ctx.api.listUpdateRequests(deal.id); const inv = await ctx.api.listSharedAccess(deal.id);
-  const v = overview(ctx, deal, here, ag, salesStaff); const extra = agentPanels(ctx, deal, ov, ur, inv); const done = placedPanel(deal);
-  // CARD THEME MOCKUP (opt-in): the Order Summary cards go on top; the existing overview follows unchanged under "Order details"
-  const cards = themeOn() ? await themedSummary(ctx, deal, ov, inv) : '';
-  return { ...v, body: html`${done.html}${cards}${extra.top}${v.body}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
-}
-async function themedSummary({ api, user }, d, ov, inv) {
-  const { orderSummary } = await import('./theme-cards.js?v=202611041931');
-  const staffView = !user.accountRole && user.role !== 'Outside user';
-  const canWire = staffView || (user.roles || [user.role]).includes('Client-Buyer');   // SAME rule as the Wire instructions button: CLA staff + the buyer, never an agent
-  const tasks = await api.listTasks(d.id).catch(() => []);
-  return orderSummary({ d, user, ov, inv, tasks, canWire, staffView });
+  // ORDER PAGE REDESIGN (John, Nov 4 meeting; mockups 01-order-page / -mobile): one status bar (the Overview milestones) with the at-a-glance line under
+  // it, a bigger address + order number, one Parties list (Call / Email / Copy per person), Notes, Order contacts. The Summary cards, the card-theme
+  // Order Summary and the buyer / seller summary block are gone. Same page for every role; the role rules (adapter + canWire) are unchanged.
+  const splits = !user.accountRole && user.role !== 'Outside user' && ctx.api.listUnderwriterSplits ? await ctx.api.listUnderwriterSplits().then((r) => (r && r.rows) || []).catch(() => []) : [];   // the state's underwriter (Underwriter row)
+  const v = overview(ctx, deal, here, ag, salesStaff, ov, splits); const extra = agentPanels(ctx, deal, ov, ur, inv); const done = placedPanel(deal);
+  return { ...v, noOrderHeader: true, body: html`${done.html}${v.head}${extra.top}${v.body}${extra.bottom}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
 }
 
 // REDESIGN (John, Nov 3): the confirmation after Place Order. ordernew.js leaves a note in sessionStorage (key below) and opens the new order; the
@@ -83,11 +79,8 @@ export const HIDDEN_CONTACT = 'Contact through CLA Title';
 // Matt, Nov 3 (b): a buyer / seller who is an entity shows the entity and its Entity Representative (rep phone / email follow the same opposing-side rule)
 export const entityLine = (e) => (e ? html`<div class="entity-line small" data-entity="${e.name}">Entity: <strong>${e.name}</strong>${e.type ? ` (${e.type})` : ''}${e.repName || e.repTitle || e.repPhone || e.repEmail ? html`<br>Entity Representative: ${[e.repName, e.repTitle].filter(Boolean).join(', ') || '\u2014'}${e.repPhone || e.repEmail ? html`<br><span class="muted">${[fmtPhone(e.repPhone), e.repEmail].filter(Boolean).join(' \u00b7 ')}</span>` : ''}` : ''}</div>` : '');
 const person = (p) => (p ? html`<div class="person" data-person="${p.contactId}">${entityLine(p.entity)}<strong>${p.contact.firstName} ${p.contact.lastName}${p.removed ? ' (removed)' : ''}</strong>${p.contact.contactHidden ? html`<br><span class="muted contact-hidden">${HIDDEN_CONTACT}</span>` : html`<br><span class="muted">${p.contact.email}</span><br><span class="muted">${fmtPhone(p.contact.phone)}</span>`}${p.contact.company ? html`<br><span class="muted">${p.contact.company}</span>` : ''}</div>` : html`<div class="muted">Not specified</div>`);
-// John, Nov 2: several buyers / sellers. Each is listed; the Processor / Admins can add another one here (removing stays on the Contacts tab, as before).
-const people = (ps) => (ps.length ? html`${ps.map((p) => person(p))}` : person(null));
-const card = (title, inner) => html`<fieldset class="sum-card"><legend>${title}</legend>${inner}</fieldset>`;
 
-function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = []) {
+function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = [], ov = null, splits = []) {
   const staffView = !user.accountRole && user.role !== 'Outside user';
   const canWire = staffView || (user.roles || [user.role]).includes('Client-Buyer');   // Matt, Oct 31: buyer only (plus CLA staff)
   const sc = d.scheduledClosing;
@@ -97,34 +90,47 @@ function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = []) {
   const refi = isRefi(d); const B = refi ? 'Borrower' : 'Buyer';
   const showSellers = !refi || all('Client-Seller').length; const showAgents = (r) => !refi || all(r).length; const showPrice = !refi || d.purchasePrice != null; const showEmd = !refi || d.emdAmount != null || d.emdDueDate;
   const tracker = STAGES.map((s, i) => html`<li class="${i < d.stage ? 'done' : i === d.stage ? 'current' : ''}"><button type="button" class="step" ${edit ? '' : raw('disabled')} data-stage="${i}" title="${edit ? 'Set stage' : s}"></button><span>${s}</span></li>`);
-  const team = d.participants.filter((p) => ['Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(p.role));
-  // John, Nov 2: when the lender fields are empty, show the order's Lender contact (e.g. added through Place Order's Add new user)
-  const lender = d.lenderName || d.lenderContact || d.lenderEmail || d.lenderPhone ? html`<div><strong>${d.lenderName}</strong><br>${d.lenderContact}<br><span class="muted">${d.lenderEmail} ${fmtPhone(d.lenderPhone)}</span></div>` : by('Lender') ? person(by('Lender')) : html`<div class="muted">Not specified</div>`;
-  const body = html`
-    <div class="deal-head"><img class="home-flag" src="assets/img/order-new-icon.png" alt=""><h2>${d.street} ${d.city} ${d.state} ${d.zip}${d.county ? html` <span class="muted small" data-county-head>(${d.county} County)</span>` : ''}</h2><span class="order-no">Order # ${d.fileNumber}</span>${d.fileTitle ? html` <span class="file-title" data-file-title>${d.fileTitle}</span>` : ''}${d.agentParties && d.agentParties.length ? html` <span class="pill warn agent-party">Agent is a party</span>` : ''}
-      <span class="spacer"></span>${edit ? html`<select id="statussel" aria-label="Order status">${options(DEAL_STATUSES, d.status)}</select>` : pill(d.status, d.status === 'Open' ? 'ok' : '')}</div>
+  const stage = Math.max(0, Math.min(STAGES.length - 1, Number(d.stage) || 0)); const today = localDate();
+  const toGo = d.closingDate ? Math.round((Date.parse(d.closingDate + 'T12:00:00') - Date.parse(today + 'T12:00:00')) / 864e5) : null;
+  const openN = ov ? (staffView ? ov.counts.tasks : ov.outstanding) : d.openTasks;
+  const glance = html`<div class="op-glance" data-glance><span class="muted">At a glance:</span>
+    ${showPrice ? html`<span data-purchase-price>Purchase <b>${fmtMoney(d.purchasePrice) || '\u2014'}</b></span>` : ''}<span data-loan-amount>Loan <b>${fmtMoney(d.loanAmount) || '\u2014'}</b></span>
+    ${showEmd ? html`<span data-emd-amount>EMD <b>${d.emdAmount == null || d.emdAmount === '' ? '\u2014' : fmtMoney(d.emdAmount)}</b></span><span data-emd-due>EMD due <b>${fmtDate(d.emdDueDate) || '\u2014'}</b></span>` : ''}
+    <span data-settlement>Settlement <b>${fmtDate(d.closingDate) || 'not set'}</b>${toGo != null && toGo >= 0 ? ` (${toGo === 0 ? 'today' : `${toGo} day${toGo === 1 ? '' : 's'}`})` : ''}</span>
+    ${openN != null ? html`<span data-open-tasks><a href="#/deals/${d.id}/tasks"><b>${openN}</b> ${staffView ? 'open task' : 'task'}${openN === 1 ? '' : 's'}${staffView ? '' : ' for you'}</a></span>` : ''}
+    ${edit && !refi ? html`<span data-occ-primary>Primary residence <b>${yesNo(d.primaryResidence)}</b></span><span data-occ-fthb>First-time buyer <b>${yesNo(d.firstTimeBuyer)}</b></span>` : ''}
+    ${edit ? html`<button class="icon-edit" id="editdeal" title="Edit order details" aria-label="Edit order details">&#9998;</button>` : ''}</div>`;
+  const head = html`<section class="op-status" data-status-bar aria-label="Order status">
+      <div class="op-status-top"><span class="op-status-label">ORDER STATUS &middot; <b data-status-step>Step ${stage + 1} of ${STAGES.length} &mdash; ${STAGES[stage]}</b>${ov && !staffView ? html` &middot; <span class="muted">your closing progress: <strong data-progress-step>${ov.progress.phaseName}</strong></span>` : ''}</span>
+        <span class="op-status-right">${edit ? html`<select id="statussel" aria-label="Order status">${options(DEAL_STATUSES, d.status)}</select>` : pill(d.status, d.status === 'Open' ? 'ok' : '')}</span></div>
+      <ol class="tracker op-steps" data-milestones>${tracker}</ol>${edit ? html`<p class="muted small op-hint">Click a step to set the stage. The last step closes the order.</p>` : ''}
+      ${glance}</section>
+    <div class="op-title deal-head"><h1 class="op-address" data-op-address>${d.street}, ${d.city}, ${d.state} ${d.zip}</h1><span class="op-order-no order-no" data-op-order-no>Order # ${d.fileNumber}</span>${d.fileTitle ? html` <span class="file-title" data-file-title>${d.fileTitle}</span>` : ''}${d.agentParties && d.agentParties.length ? html` <span class="pill warn agent-party">Agent is a party</span>` : ''}</div>
+    <p class="op-sub muted" data-op-sub>${d.transactionType || 'Purchase'}${d.county ? html` &middot; <span data-county-head>${d.county} County</span>` : ''}<span data-county hidden>${d.county || '\u2014'}</span> &middot; Opened ${fmtDate(d.openDate)} &middot; Processor ${d.processorName || 'not set'}${staffView ? html` &middot; <span data-source-of-business>Source of business: ${d.sourceOfBusinessLabel || 'Not set'}</span>` : ''}${ov && ov.orderDetails.agencyLicenseId ? html` &middot; Agency License ID <span data-license>${ov.orderDetails.agencyLicenseId}</span>` : ''}</p>
+    ${moneyRow(d, { canWire, staffView, showEmd })}
+    ${d.unread ? html`<div class="op-actions"><a class="new-msg" href="#/deals/${d.id}/inbox">${d.unread} new message(s)</a></div>` : ''}
     ${d.agentParties && d.agentParties.length ? html`<div class="notice warn" data-agent-party><strong>Agent is a party.</strong> ${d.agentParties.map((p) => `${p.name} is the ${p.label}`).join('; ')} on this file (a licensee buying or selling for themselves). Make sure the licensee disclosure is on file.</div>` : ''}
     ${d.selfRep ? html`<div class="notice info" data-self-rep>You are the <strong>${d.myRoleLabel}</strong> on this file. Your tasks as the client and as the agent are in one list; the history records which capacity you acted in.</div>` : ''}
     ${sc ? html`<div class="notice info" data-scheduled-closing><strong>Closing scheduled:</strong> ${slotText(sc.at)} &middot; ${sc.location}${sc.note ? html` &middot; ${sc.note}` : ''} <a href="#/deals/${d.id}/closing">details</a></div>` : ''}
     ${ag && ag.pending ? html`<div class="notice warn" data-agreements-pending>You have <strong>${ag.pending}</strong> agreement(s) to read and acknowledge (including the Wire Fraud Warning). <a href="#/deals/${d.id}/agreements">Open Agreements</a></div>` : ''}
-    <div class="box-title"><h2><span class="h-ico"></span>Overview</h2>${canWire ? html`<button class="m-btn right" id="wirebtn">Wire instructions</button>` : ''}${d.unread ? html`<a class="new-msg" href="#/deals/${d.id}/inbox">${d.unread} new message(s)</a>` : ''}</div>
-    <ol class="tracker">${tracker}</ol>${edit ? html`<p class="muted small">Click a step to set the stage. The last step closes the order.</p>` : ''}
-    ${refi ? html`<p class="notice info" data-refi-note><strong>Refinance.</strong> No purchase price, EMD, sellers or realtors on this order: the people are the borrower(s), salespeople, the Processor and the Lender.</p>` : ''}
-    <div class="keybar"><div><strong>${fmtDate(d.openDate)}</strong><span>Open Date</span></div>${showPrice ? html`<div data-purchase-price><strong>${fmtMoney(d.purchasePrice) || '\u2014'}</strong><span>Purchase Price</span></div>` : ''}
-      <div><strong>${fmtMoney(d.loanAmount) || '\u2014'}</strong><span>Loan Amount</span></div><div><strong>${fmtDate(d.closingDate) || '\u2014'}</strong><span>Settlement Date</span></div>
-      ${showEmd ? html`<div data-emd-amount><strong>${d.emdAmount == null || d.emdAmount === '' ? '\u2014' : fmtMoney(d.emdAmount)}</strong><span>EMD Amount</span></div><div data-emd-due><strong>${fmtDate(d.emdDueDate) || '\u2014'}</strong><span>EMD Due Date</span></div>` : ''}
-      <div data-county><strong>${d.county || '\u2014'}</strong><span>County</span></div>
-      ${edit && !refi ? html`<div data-occ-primary><strong>${yesNo(d.primaryResidence)}</strong><span>Primary residence</span></div><div data-occ-fthb><strong>${yesNo(d.firstTimeBuyer)}</strong><span>First-time buyer</span></div>` : ''}
-      ${edit ? html`<button class="icon-edit" id="editdeal" title="Edit order details">&#9998;</button>` : ''}</div>
-    <div class="box-title"><h2><span class="h-ico"></span>Summary</h2></div>
-    <div class="sum-grid">${card(all('Client-Buyer').length > 1 ? `${B} Information (${all('Client-Buyer').length} ${B.toLowerCase()}s)` : `${B} Information`, html`<div data-party-list="Client-Buyer">${people(all('Client-Buyer'))}</div>${edit ? html`<button type="button" class="ghost" data-add-party="Client-Buyer">+ Add ${B.toLowerCase()}</button>` : ''}`)}${showSellers ? card(all('Client-Seller').length > 1 ? `Seller Information (${all('Client-Seller').length} sellers)` : 'Seller Information', html`<div data-party-list="Client-Seller">${people(all('Client-Seller'))}</div>${edit && !refi ? html`<button type="button" class="ghost" data-add-party="Client-Seller">+ Add seller</button>` : ''}`) : ''}
-      ${showAgents('Buyer Agent') ? card('Buyer Agent Representation', person(by('Buyer Agent'))) : ''}${showAgents('Listing Agent') ? card('Listing Agent Representation', person(by('Listing Agent'))) : ''}
-      ${card('Lender Information', lender)}${card('CLA Title Information', html`<div>Processor: <strong>${d.processorName}</strong><br>Salespeople: ${(d.salesPeople || []).length ? (d.salesPeople || []).map((s, i) => html`${i ? ', ' : ''}<span class="nowrap" data-sales-person="${s.id}">${s.name}${edit ? html` <button class="ghost" data-rm-sales="${s.id}" title="Remove from this order" aria-label="Remove ${s.name}">&times;</button>` : ''}</span>`) : 'Not specified'}${edit && salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)).length ? html`<br><select id="addsales" aria-label="Add a salesperson"><option value="">+ Add salesperson&hellip;</option>${options(salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)), '', (s) => `${s.firstName} ${s.lastName} (${s.role})`, (s) => s.id)}</select>` : ''}<br>${team.filter((p) => p.role === 'Transaction Coordinator').map((p) => html`Transaction coordinator: ${p.contact.firstName} ${p.contact.lastName}<br>`)}${staffView ? html`<span data-source-of-business>Source of business: <strong>${d.sourceOfBusinessLabel || 'Not set'}</strong></span>` : ''}</div>`)}</div>
-    ${d.notes ? html`<div class="card"><h3>Notes</h3><p>${d.notes}</p></div>` : ''}
+    ${refi ? html`<p class="notice info" data-refi-note><strong>Refinance.</strong> No purchase price, EMD, sellers or realtors on this order: the people are the borrower(s), salespeople, the Processor and the Lender.</p>` : ''}`;
+  const lenderLine = d.lenderName || d.lenderContact || d.lenderEmail || d.lenderPhone ? html`<b>${d.lenderName || d.lenderContact}</b>${d.lenderName && d.lenderContact ? html` &middot; ${d.lenderContact}` : ''}${d.lenderEmail || d.lenderPhone ? html`<br><span class="muted small">${[d.lenderEmail, fmtPhone(d.lenderPhone)].filter(Boolean).join(' \u00b7 ')}</span>` : ''}`
+    : by('Lender') ? html`<b>${by('Lender').contact.firstName} ${by('Lender').contact.lastName}</b>${by('Lender').contact.company ? html`<br><span class="muted small">${by('Lender').contact.company}</span>` : ''}` : Number(d.loanAmount) ? html`<b>Not yet entered</b>` : html`<b>None (cash)</b>`;
+  const body = html`
+    <div class="box-title"><h2><span class="h-ico"></span>Parties</h2><a class="ghost right" href="#/deals/${d.id}/contacts">All contacts</a></div>
+    ${partiesList(d, ov, staffView, { splits, edit })}
+    ${staffView ? html`<div class="op-party-tools" data-party-tools>${edit ? html`<button type="button" class="ghost" data-add-party="Client-Buyer">+ Add ${B.toLowerCase()}</button>${!refi ? html` <button type="button" class="ghost" data-add-party="Client-Seller">+ Add seller</button>` : ''}` : ''}
+      <span class="op-sales">Salespeople: ${(d.salesPeople || []).length ? (d.salesPeople || []).map((s, i) => html`${i ? ', ' : ''}<span class="nowrap" data-sales-person="${s.id}">${s.name}${edit ? html` <button class="ghost" data-rm-sales="${s.id}" title="Remove from this order" aria-label="Remove ${s.name}">&times;</button>` : ''}</span>`) : 'Not specified'}
+      ${edit && salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)).length ? html` <select id="addsales" aria-label="Add a salesperson"><option value="">+ Add salesperson&hellip;</option>${options(salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)), '', (s) => `${s.firstName} ${s.lastName} (${s.role})`, (s) => s.id)}</select>` : ''}</span></div>` : ''}
+    <div class="box-title"><h2><span class="h-ico"></span>Notes</h2></div>
+    <div class="op-notes" data-notes>${d.notes ? html`<div class="op-note">${d.notes}</div>` : html`<p class="muted">No notes on this order.</p>`}${edit ? html`<button type="button" class="ghost" data-edit-notes>${d.notes ? 'Edit note' : '+ Add note'}</button>` : ''}</div>
     ${edit ? automationSection(d, refi) : ''}
     <div class="box-title"><h2><span class="h-ico"></span>Order Contacts</h2><a class="ghost right" href="#/deals/${d.id}/contacts">All contacts</a></div>
-    <table class="tbl striped"><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th></tr></thead><tbody>${d.participants.map((p) => html`<tr><td>${p.contact.firstName} ${p.contact.lastName}${p.removed ? html` ${pill('removed', 'bad')}` : ''}</td><td>${p.role}</td>${p.contact.contactHidden ? html`<td colspan="2" class="muted contact-hidden">${HIDDEN_CONTACT}</td>` : html`<td>${fmtPhone(p.contact.phone)}</td><td>${p.contact.email}</td>`}</tr>`)}</tbody></table>`;
-  return { title: d.fileNumber, crumbs: [...crumbs, ['Order Details']], body, mount(root) {
+    <div class="card op-contacts-card" data-order-contacts><div><div class="muted small">Lender</div><div data-lender>${lenderLine}</div></div>
+      <div><div class="muted small">HOA</div><div>${by('HOA') ? html`<b>${by('HOA').contact.firstName} ${by('HOA').contact.lastName}</b>` : html`<b>&mdash;</b>`}</div></div>
+      <div><div class="muted small">Closing location</div><div><b>${sc && sc.location ? sc.location : 'CLA Title office (to be confirmed)'}</b></div></div></div>
+    <table class="tbl striped op-contacts-tbl"><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th></tr></thead><tbody>${d.participants.map((p) => html`<tr><td>${p.contact.firstName} ${p.contact.lastName}${p.removed ? html` ${pill('removed', 'bad')}` : ''}</td><td>${p.role}</td>${p.contact.contactHidden ? html`<td colspan="2" class="muted contact-hidden">${HIDDEN_CONTACT}</td>` : html`<td>${fmtPhone(p.contact.phone)}</td><td>${p.contact.email}</td>`}</tr>`)}</tbody></table>`;
+  return { title: d.fileNumber, crumbs: [...crumbs, ['Order Details']], head, body, mount(root) {
     $$('.step', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.setStage(d.id, b.dataset.stage); toast('Stage updated'); refresh(); })));
     const ss = $('#statussel', root); if (ss) ss.addEventListener('change', guard(async () => { await api.setDealStatus(d.id, ss.value); toast('Status updated'); refresh(); }));
     const eb = $('#editdeal', root); if (eb) eb.addEventListener('click', guard(() => editModal(api, d, refresh)));
@@ -133,6 +139,8 @@ function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = []) {
     const ab = $('[data-email-sellers-agents]', root); if (ab) ab.addEventListener('click', guard(() => automationModal(api, d)));
     const wb = $('#wirebtn', root); if (wb) wb.addEventListener('click', guard(() => wireModal(api, d)));
     $$('[data-add-party]', root).forEach((b) => b.addEventListener('click', guard(() => addPartyModal(api, d, b.dataset.addParty, refresh))));
+    const en = $('[data-edit-notes]', root); if (en) en.addEventListener('click', guard(() => editModal(api, d, refresh)));
+    mountParties(root);
   } };
 }
 
@@ -181,27 +189,72 @@ async function addPartyModal(api, d, role, refresh) {
     await api.addParticipant(d.id, pk.value, role); closeModal(); toast(`${label[0].toUpperCase() + label.slice(1)} added`); refresh(); }));
 }
 
+// ---------------- ORDER PAGE REDESIGN (John, Nov 4): a SMALL EMD box + the Wire instructions box ----------------
+// EMD: one compact box (amount, due date, received or not; received = past the EMD Receipt step). Wire instructions: ONLY where the existing wire
+// rule allows it (canWire = CLA staff + the buyer, never an agent); it holds the button and the sample Cash to Close / wire status (payoffs: staff only).
+function moneyRow(d, { canWire, staffView, showEmd }) {
+  const emdIn = Number(d.stage) >= 2 || d.status === 'Closed'; const s = canWire ? sampleFacts(d) : null;
+  const emd = showEmd ? html`<section class="op-emd" data-emd-box aria-label="Earnest money deposit"><span class="op-box-label">EMD</span>
+      <b data-emd-box-amount>${d.emdAmount == null || d.emdAmount === '' ? '\u2014' : fmtMoney(d.emdAmount)}</b>
+      <span class="muted small" data-emd-box-due>due ${fmtDate(d.emdDueDate) || '\u2014'}</span>${pill(emdIn ? 'received' : 'not received yet', emdIn ? 'ok' : 'warn')}</section>` : '';
+  const wire = canWire ? html`<section class="op-wire" data-wire-box aria-label="Wire instructions"><div class="op-wire-head"><span class="op-box-label">Wire instructions</span><button class="m-btn" id="wirebtn">Wire instructions</button></div>
+      <div class="op-wire-facts"><span data-wire-cash>Cash to Close <b>${fmtMoney(s.cash)}</b> ${SAMPLE}</span><span data-wire-status>Wire status <b>${s.wire}</b> ${SAMPLE}</span>${staffView ? html`<span data-wire-payoffs>Payoffs <b>${s.payoffs}</b> ${SAMPLE}</span>` : ''}</div>
+      <p class="muted small">Buyer funds only. Agents never see this box. Call CLA Title to confirm any wire (use a number you already have).</p></section>` : '';
+  return emd || wire ? html`<div class="op-money" data-money-row>${emd}${wire}</div>` : '';
+}
+
+// ---------------- ORDER PAGE REDESIGN (John, Nov 4): ONE Parties list ----------------
+// Rows come from getOrderOverview().parties: the adapter already applies every role rule (opposing side's contact hidden for outside users,
+// the CLA Title sales rep only on agent Parties, no wire / cash-to-close / payoff data at all). CLA staff also see the other people on the file
+// (lender, TC, sales team, HOA, ...). Per person: Call (tel:), Email (mailto: opens the viewer's own mail app; the portal sends nothing), Copy.
+const telOf = (ph) => String(ph || '').replace(/[^0-9+]/g, '');
+const OVERVIEW_ROLES = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'Processor'];
+// John, Nov 4 meeting: CLA staff also get the ABSTRACTOR and the UNDERWRITER in the same list. Someone added on Contacts with that role shows
+// with their details; otherwise the row still shows (Underwriter = the state's underwriter from Underwriter Splits, Abstractor = not assigned yet).
+export const STAFF_EXTRA_ROLES = ['Abstractor', 'Underwriter'];
+export function partyRows(d, ov, staffView, splits = []) {
+  const rows = ov ? ov.parties.map((p) => ({ ...p })) : [];
+  if (staffView) d.participants.filter((p) => !p.removed && p.contact && !OVERVIEW_ROLES.includes(p.role) && !(p.role === 'Lender' && rows.some((r) => r.label === 'Lender')))
+    .forEach((p) => rows.push({ label: p.role, name: `${p.contact.firstName} ${p.contact.lastName}`.trim(), company: p.contact.company || '', email: p.contact.email || '', phone: p.contact.phone || '', contactHidden: !!p.contact.contactHidden, entity: p.entity || null, profileId: p.contact.profileId || null, canMessage: false }));
+  if (staffView) for (const role of STAFF_EXTRA_ROLES) if (!rows.some((r) => r.label === role)) {
+    const sp = role === 'Underwriter' ? (splits || []).find((x) => x.state === String(d.state || '').toUpperCase() && x.underwriter) : null;
+    rows.push(sp ? { label: role, name: sp.underwriter, company: `${sp.state} underwriter (Underwriter Splits)`, email: '', phone: '', placeholder: true, fromSplits: true }
+      : { label: role, name: 'Not specified', company: role === 'Abstractor' ? 'No abstractor on this order yet' : 'No underwriter on this order yet', email: '', phone: '', placeholder: true }); }
+  return rows;
+}
+function partiesList(d, ov, staffView, { splits = [], edit = false } = {}) {
+  const rows = partyRows(d, ov, staffView, splits);
+  const avatar = (p) => (p.salesRep && p.profileId ? (p.photo ? html`<img class="party-avatar" src="${p.photo}" alt="" data-sales-photo>` : html`<span class="party-avatar" aria-hidden="true" data-sales-initials>${p.initials}</span>`) : '');
+  const row = (p, i) => { const real = p.name && p.name !== 'Not specified'; const hid = p.contactHidden; const tel = hid ? '' : telOf(p.phone); const em = hid ? '' : p.email || '';
+    const copy = [p.name, p.label + (p.company ? `, ${p.company}` : ''), hid ? HIDDEN_CONTACT : '', tel ? fmtPhone(p.phone) : '', em].filter(Boolean).join('\n');
+    return html`<div class="op-prow${p.salesRep ? ' sales-rep-party' : ''}${p.placeholder ? ' is-placeholder' : ''}" data-party="${p.label}"${p.placeholder ? html` data-party-placeholder` : ''}${p.salesRep ? html` data-sales-rep="${p.profileId || ''}"` : ''} data-party-row="${i}">
+      <span class="op-role">${p.label}</span><span class="op-nm">${avatar(p)}${entityLine(p.entity)}<strong>${p.name}</strong>${p.company ? html`<small>${p.company}</small>` : ''}</span>
+      ${hid ? html`<span class="op-ph op-hidden muted small contact-hidden" data-contact-hidden>${HIDDEN_CONTACT}</span><span class="op-em"></span>` : html`<span class="op-ph">${tel ? fmtPhone(p.phone) : html`<span class="muted">&mdash;</span>`}</span><span class="op-em">${em || html`<span class="muted">&mdash;</span>`}</span>`}
+      <span class="op-acts">${tel ? html`<a class="op-act" href="tel:${tel}" data-call aria-label="Call ${p.name}">&#9742; Call</a>` : html`<span class="op-act is-off" aria-disabled="true">&#9742; Call</span>`}
+        ${em ? html`<a class="op-act" href="mailto:${em}" data-email aria-label="Email ${p.name} (opens your mail app)">&#9993; Email</a>` : html`<span class="op-act is-off" aria-disabled="true">&#9993; Email</span>`}
+        ${real ? html`<button type="button" class="op-act" data-copy="${copy}" aria-label="Copy ${p.name}'s contact details">&#10697; Copy</button>` : ''}
+        ${p.canMessage ? html`<button type="button" class="op-act" data-message-to="${p.profileId}">Message</button>` : ''}
+        ${p.placeholder && edit ? html`<a class="op-act" href="#/deals/${d.id}/contacts" data-add-role="${p.label}" aria-label="Add ${p.label.toLowerCase()} on Contacts">+ Add</a>` : ''}</span></div>`; };
+  return html`<div class="op-plist" data-parties data-party-list-all>${rows.length ? rows.map(row) : html`<p class="muted">Nobody on this order yet.</p>`}</div>
+    <p class="muted small op-pnote">Call and Email open your phone or mail app. The portal does not send anything.</p>`;
+}
+function mountParties(root) {
+  $$('[data-copy]', root).forEach((b) => b.addEventListener('click', guard(async () => { const t = b.dataset.copy;
+    try { await navigator.clipboard.writeText(t); } catch (e) { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } finally { ta.remove(); } }
+    toast('Copied'); })));
+}
+
 // ---------------- Francis, Nov 3: the Qualia-style overview panels ----------------
 function agentPanels(ctx, d, ov, ur, inv) {
-  const { api, user, refresh, go } = ctx; const staffView = !user.accountRole && user.role !== 'Outside user'; const od = ov.orderDetails;
-  const steps = html`<ol class="phase-tracker" data-phase-tracker aria-label="Closing progress">${ov.progress.steps.map((st) => html`<li class="${st.state}" data-phase="${st.name}" data-state="${st.state}">${st.name}</li>`)}</ol>`;
-  const avatar = (p) => (p.salesRep && p.profileId ? (p.photo ? html`<img class="party-avatar" src="${p.photo}" alt="" data-sales-photo>` : html`<span class="party-avatar" aria-hidden="true" data-sales-initials>${p.initials}</span>`) : '');
-  const party = (p) => html`<div class="person${p.salesRep ? ' sales-rep-party' : ''}" data-party="${p.label}"${p.salesRep ? html` data-sales-rep="${p.profileId || ''}"` : ''}>${avatar(p)}<span class="muted small">${p.label}</span><br><strong>${p.name}</strong>${p.company ? html`<br><span class="muted small">${p.company}</span>` : ''}
-    ${p.contactHidden ? html`<br><span class="muted small contact-hidden">${HIDDEN_CONTACT}</span>` : p.email ? html`<br><span class="muted small">${p.email}</span>` : ''}
-    <div>${p.canMessage ? html`<button type="button" class="ghost" data-message-to="${p.profileId}">Message</button>` : ''} ${p.phone && !p.contactHidden ? html`<a class="ghost" href="tel:${p.phone.replace(/[^0-9+]/g, '')}" data-call>Call ${fmtPhone(p.phone)}</a>` : ''}</div></div>`;
+  const { api, user, refresh, go } = ctx; const staffView = !user.accountRole && user.role !== 'Outside user';
   const urRow = (r) => html`<tr data-ur="${r.id}" data-ur-status="${r.status}"><td>${fmtDate(r.createdAt)}</td><td><strong>${r.topic}</strong>${r.note ? html`<br><span class="muted small">${r.note}</span>` : ''}${staffView ? html`<br><span class="muted small">from ${r.requestedByName} (${r.requestedRole})</span>` : ''}</td>
     <td>${r.status === 'answered' ? html`${pill('answered', 'ok')}<br>${r.response}<br><span class="muted small">${r.respondedByName}, ${fmtDate(r.respondedAt)}</span>` : ov.canAnswerUpdates ? html`<form class="inline-form" data-answer="${r.id}"><textarea name="response" rows="2" maxlength="2000" placeholder="Write the update" aria-label="Update for ${r.topic}"></textarea> <button class="m-btn" type="submit">Send update</button></form>` : pill('waiting for CLA Title', 'warn')}</td></tr>`;
   const top = html`<div class="agent-overview" data-agent-overview>
     ${ov.outstanding ? html`<div class="notice warn" data-outstanding>You have <strong>${ov.outstanding}</strong> outstanding task${ov.outstanding === 1 ? '' : 's'}. <a class="m-btn" href="#/deals/${d.id}/tasks" data-view-tasks>View Tasks</a></div>` : html`<div class="notice info" data-outstanding="0">No outstanding tasks for you on this order.</div>`}
-    <div class="box-title"><h2><span class="h-ico"></span>Closing progress</h2>${ov.canShareAccess ? html`<button class="m-btn right" id="shareaccess">Share Access</button>` : ''}</div>
-    ${steps}<p class="muted small">Current step: <strong data-progress-step>${ov.progress.phaseName}</strong> (order stage: ${ov.progress.stageName}${ov.progress.status !== 'Open' ? `, status ${ov.progress.status}` : ''}). The badge at the top comes from the same stage, so they always agree.</p>
+    ${ov.canShareAccess ? html`<p><button class="m-btn" id="shareaccess">Share Access</button></p>` : ''}
     ${ov.canRequestUpdate ? html`<form id="requpdate" class="filter-bar" data-request-update><label>Request Update<select name="topic" required><option value="">Choose&hellip;</option>${options(ov.updateTopics, '')}</select></label>
-      <label>Note (optional)<input name="note" maxlength="1000"></label><button class="m-btn" type="submit">Submit Request</button></form>` : ''}
-    <div class="ap-grid sum-grid-ap"><fieldset class="sum-card" data-order-details><legend>Order Details</legend><dl class="answers">
-      <dt>Property Address</dt><dd>${od.propertyAddress}</dd><dt>Order ID</dt><dd>${od.orderId}</dd><dt>Order Type</dt><dd>${od.orderType}</dd>
-      ${od.refinance ? '' : html`<dt>Purchase Price</dt><dd>${fmtMoney(od.purchasePrice) || '\u2014'}</dd>`}<dt>Loan Amount</dt><dd>${fmtMoney(od.loanAmount) || '\u2014'}</dd><dt>File Number</dt><dd>${od.fileNumber}</dd>
-      ${od.refinance && !od.agencyLicenseId ? '' : html`<dt>Agency License ID</dt><dd data-license>${od.agencyLicenseId || html`<span class="muted">not given yet${staffView ? '' : ' (Confirm Your Transaction Information)'}</span>`}</dd>`}</dl></fieldset>
-    <fieldset class="sum-card" data-parties><legend>Parties</legend>${ov.parties.map(party)}</fieldset></div>
+      <label>Note (optional)<input name="note" maxlength="1000"></label><button class="m-btn" type="submit">Submit Request</button></form>` : ''}</div>`;
+  const bottom = html`<div class="agent-overview-more">
     <div class="ap-grid sum-grid-ap"><fieldset class="sum-card" data-activity-panel><legend>Activity</legend>${ov.recentActivity.length ? html`<ul class="plain">${ov.recentActivity.map((a) => html`<li><span class="muted small">${fmtDate(a.createdAt)}</span> ${a.actorName}: ${a.detail}</li>`)}</ul>` : html`<p class="muted">Nothing yet.</p>`}<a href="#/deals/${d.id}/activity">All activity</a></fieldset>
       <fieldset class="sum-card" data-conversations-panel><legend>Conversations</legend>${ov.conversations.length ? html`<ul class="plain">${ov.conversations.map((t) => html`<li><a href="#/deals/${d.id}/inbox/${t.id}">${t.subject}</a>${t.unread ? html` ${pill(t.unread + ' new', 'info')}` : ''}<br><span class="muted small">${t.lastFrom} &middot; ${fmtDate(t.lastAt)}</span></li>`)}</ul>` : html`<p class="muted">No conversations yet.</p>`}<a href="#/deals/${d.id}/inbox">Inbox</a></fieldset></div>
     ${ur.length || ov.canAnswerUpdates ? html`<div class="box-title"><h2><span class="h-ico"></span>${staffView ? 'Update requests from agents and clients' : 'Your update requests'}</h2></div>
@@ -223,7 +276,7 @@ function agentPanels(ctx, d, ov, ur, inv) {
       $('[name=pid]', m).addEventListener('change', guard(show)); await show();
       $('#ipf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.queuePortalWelcomeEmail(d.id, $('[name=pid]', m).value); closeModal(); toast('Invite queued in the outbox (not sent)'); })); }));
   }
-  return { top, mount };
+  return { top, bottom, mount };
 }
 
 // AUTOMATION (John, Nov 3 call): on the File Overview, under the Summary, for whoever runs the order (Processor / Admins). It sits with the
