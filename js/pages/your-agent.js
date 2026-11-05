@@ -2,9 +2,9 @@
 // cell and email (tap to call / email). A Client-Buyer sees the buyer's agent on the file, a Client-Seller the listing agent. The data comes from
 // api.listMyAgents(), which returns only the card fields (no birthday, no license, no address, nothing about money or wires).
 // No agent on the file: no card. No photo: an initials avatar. On a phone it collapses to one compact row with call / email buttons.
-import { html, raw } from '../ui.js?v=202611041856';
-import { telHref } from '../data/agent-profile.js?v=202611041856';
-import { avatarHtml } from './agent-profile-form.js?v=202611041856';
+import { html, raw } from '../ui.js?v=202611041931';
+import { telHref } from '../data/agent-profile.js?v=202611041931';
+import { avatarHtml } from './agent-profile-form.js?v=202611041931';
 const ico = { phone: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z"/></svg>',
   mail: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 4-8 5-8-5V6l8 5 8-5z"/></svg>' };
 export function yourAgentHtml(agents) {

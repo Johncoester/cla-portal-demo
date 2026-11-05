@@ -1,10 +1,10 @@
 // crm-kit.js : shared CRM screen pieces (John, Nov 2): section tabs, list views (search / filters / sort), selects, activities panel, CSV download.
 // Function first, minimal styling. Every rule is enforced by the adapter (and RLS in migration 22), not by these screens.
-import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pill } from '../ui.js?v=202611041856';
-import { CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611041856';
-import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611041856';
-import { modOn, modBeta, BETA_LABEL } from '../data/modules.js?v=202611041856';   // module switches: Deals hidden when not Live (beta badge for Admins)
-import { createNewMenu } from './crm-janine.js?v=202611041856';
+import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pill } from '../ui.js?v=202611041931';
+import { CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611041931';
+import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611041931';
+import { modOn, modBeta, BETA_LABEL } from '../data/modules.js?v=202611041931';   // module switches: Deals hidden when not Live (beta badge for Admins)
+import { createNewMenu } from './crm-janine.js?v=202611041931';
 
 // Nov 2 (Zoho): Home is the CRM landing page; Contacts are shown as Clients and Accounts as Companies (routes keep their internal names); My follow-ups -> Home tasks
 export const SECTIONS = [['home', 'Home'], ['leads', 'Leads'], ['contacts', 'Clients'], ['accounts', 'Companies'], ['deals', 'Deals'], ['pipeline', 'Pipeline'], ['dashboards', 'Dashboards'], ['reports', 'Reports'], ['templates', 'Templates']];   // Nov 3 (b): Deals (the portal's orders), Dashboards (video 9);   // Nov 3: Templates (email templates, every CRM user; Processor read-only)

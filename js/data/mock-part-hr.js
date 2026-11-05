@@ -8,16 +8,17 @@
  *   d.hrInvites          [{id, employeeId, token, email, createdAt, createdBy, expiresAt, acceptedAt, acceptedProfileId, revokedAt, revokedBy}]   (link only, 14 days)
  *   d.hrChangeHistory    [{id, seq, tableName, rowId, employeeId, field, column, oldValue, newValue, action, changedBy, changedByName, changedAt}]   (append only)
  * Nothing is ever deleted: archive / deactivate instead. No SSNs or other government ID numbers. */
-import { isSuperAdmin, isOutside, EMPLOYEE_ROLE } from './constants.js?v=202611041856';
-import { moduleAccess } from './modules.js?v=202611041856';
-import { ensureModules } from './mock-part-modules.js?v=202611041856';
+import { isSuperAdmin, isOutside, EMPLOYEE_ROLE } from './constants.js?v=202611041931';
+import { ensureHrFeedback, hrFeedbackPart } from './mock-part-hr-feedback.js?v=202611041931';
+import { moduleAccess } from './modules.js?v=202611041931';
+import { ensureModules } from './mock-part-modules.js?v=202611041931';
 import { HR_INVITE_DAYS, SELF_FIELDS, HR_FIELDS, SENSITIVE_FIELDS, FIELD_LABEL, COLUMN_OF, cleanEmployee, cleanSelfPatch, nextEmployeeCode, basicOf, fullNameOf, employeesCsv, historyCsv, csvStamp,
-  EMPLOYMENT_TYPES, EMPLOYMENT_STATUSES, PAY_TYPES, labelOf } from './hr.js?v=202611041856';
+  EMPLOYMENT_TYPES, EMPLOYMENT_STATUSES, PAY_TYPES, labelOf } from './hr.js?v=202611041931';
 const rnd = () => { const a = new Uint8Array(16); (globalThis.crypto || { getRandomValues: (x) => x.map(() => Math.floor(Math.random() * 256)) }).getRandomValues(a); return [...a].map((b) => b.toString(16).padStart(2, '0')).join(''); };
 const plusDays = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString();
 const SEED_AT = '2026-11-04T14:00:00Z';
 const BLANK = { jobTitle: '', workPhone: '', phone: '', addressLine1: '', addressLine2: '', city: '', stateProvince: '', postalCode: '', addressCountry: '', emergencyName: '', emergencyRelationship: '', emergencyPhone: '',
-  payType: null, payRate: null, payCurrency: null, employmentType: 'full_time', employmentStatus: 'active', reportingToId: null, profileId: null, archivedAt: null, archivedBy: null, updatedAt: null, updatedBy: null };
+  payType: null, payRate: null, payCurrency: null, commissioned: false, commissionNotes: '', employmentType: 'full_time', employmentStatus: 'active', reportingToId: null, profileId: null, archivedAt: null, archivedBy: null, updatedAt: null, updatedBy: null };
 
 // ---------------- FAKE SEED (invented names, example.test emails, 555 / fake PH numbers). Idempotent; nothing existing changes. ----------------
 export function ensureHr(d) {
@@ -26,7 +27,7 @@ export function ensureHr(d) {
   // two HR-only logins (account role 'Employee'): the seeded HR manager and one Philippines processor who already accepted her invite
   addProfile({ id: 'u-hr1', email: 'hana.hr-manager@example.test', firstName: 'Hana', lastName: 'HR-Manager', phone: '301-555-0115', role: EMPLOYEE_ROLE });
   addProfile({ id: 'u-ph1', email: 'pia.processor-ph@example.test', firstName: 'Pia', lastName: 'Processor-PH', phone: '+63 917 555 0101', role: EMPLOYEE_ROLE });
-  if (Array.isArray(d.hrEmployees)) return d;
+  if (Array.isArray(d.hrEmployees)) return ensureHrFeedback(d);
   const at = (x) => ({ createdAt: SEED_AT, createdBy: 'u-admin', updatedAt: null, updatedBy: null, archivedAt: null, archivedBy: null, ...x });
   d.hrDepartments = [['hrd-proc', 'Processing'], ['hrd-exam', 'Title Examiners'], ['hrd-admin', 'Administrative'], ['hrd-recr', 'Recruiting'], ['hrd-close', 'Closing'], ['hrd-sales', 'Sales']]
     .map(([id, name], i) => at({ id, name, sort: (i + 1) * 10 }));
@@ -65,7 +66,7 @@ export function ensureHr(d) {
   H({ tableName: 'hr_role_assignments', rowId: 'hra-1', employeeId: 'hre-08', field: 'hrManager', column: 'hr_manager', oldValue: 'No', newValue: 'Yes', action: 'assign' });
   H({ tableName: 'hr_employees', rowId: 'hre-13', employeeId: 'hre-13', field: 'archivedAt', column: 'archived_at', oldValue: '', newValue: '2026-06-30T16:00:00Z', action: 'archive', changedAt: '2026-06-30T16:00:00Z' });
   d.hrSeq = seq;
-  return d;
+  return ensureHrFeedback(d);
 }
 
 export function hrPart(x, flags) {
@@ -94,16 +95,17 @@ export function hrPart(x, flags) {
   function view(e) {
     const d = db(); const mgr = e.reportingToId && empById(e.reportingToId); const inv = latestInvite(e.id);
     return { ...clone(e), departmentName: nameOfLookup(d.hrDepartments, e.departmentId), designationName: nameOfLookup(d.hrDesignations, e.designationId), reportingToName: mgr ? fullNameOf(mgr) : '',
-      employeeRole: employeeRoleOf(e), isHrManager: isMgr(e.id), hasLogin: !!e.profileId, inviteStatus: e.profileId ? 'accepted' : inviteStatus(inv), inviteExpiresAt: inv && !e.profileId ? inv.expiresAt : null,
+      jobTitleDisplay: String(e.jobTitle || '').trim() || nameOfLookup(d.hrDesignations, e.designationId), employeeRole: employeeRoleOf(e), isHrManager: isMgr(e.id), hasLogin: !!e.profileId, inviteStatus: e.profileId ? 'accepted' : inviteStatus(inv), inviteExpiresAt: inv && !e.profileId ? inv.expiresAt : null,
       reportCount: d.hrEmployees.filter((z) => z.reportingToId === e.id && !z.archivedAt).length };
   }
   const textOf = (field, v) => { const d = db();
+    if (field === 'commissioned') return v === true ? 'Yes' : 'No';
     if (v == null || v === '') return '';
     if (field === 'departmentId') return nameOfLookup(d.hrDepartments, v) || String(v);
     if (field === 'designationId') return nameOfLookup(d.hrDesignations, v) || String(v);
     if (field === 'reportingToId') { const m = empById(v); return m ? fullNameOf(m) : String(v); }
     if (field === 'profileId') { const p = x.prof(v); return p ? `${p.firstName} ${p.lastName} (${p.email})` : String(v); }
-    if (field === 'employmentType') return labelOf(EMPLOYMENT_TYPES, v); if (field === 'employmentStatus') return labelOf(EMPLOYMENT_STATUSES, v); if (field === 'payType') return labelOf(PAY_TYPES, v);
+    if (field === 'employmentType') return labelOf(EMPLOYMENT_TYPES, v); if (field === 'employmentStatus') return labelOf(EMPLOYMENT_STATUSES, v); if (field === 'payType') return labelOf(PAY_TYPES, v); if (field === 'commissioned' || field === 'signatureRequired') return v === true || v === 'Yes' ? 'Yes' : 'No';
     return String(v); };
   function hist(u, tableName, rowId, employeeId, field, oldV, newV, action = 'update') {
     const d = db(); d.hrSeq = (d.hrSeq || d.hrChangeHistory.length) + 1;
@@ -157,7 +159,9 @@ export function hrPart(x, flags) {
     .map((h) => { const e = h.employeeId && empById(h.employeeId); const lk = !e && (d.hrDepartments.find((z) => z.id === h.rowId) || d.hrDesignations.find((z) => z.id === h.rowId));
       return { ...h, employeeCode: e ? e.employeeCode : '', recordLabel: e ? fullNameOf(e) : lk ? lk.name : h.rowId, fieldLabel: FIELD_LABEL[h.field] || h.field }; }); };
 
+  const fb = hrFeedbackPart(x, { db, gate, needHr, empById, empOfProfile, hist });
   return {
+    ...fb,
     // ---- who am I in HR (the session also carries hrRole / hrEmployeeId / hrHasReports, see mock-adapter getSession) ----
     hrSessionInfo(u) { if (!u) return { hrRole: null, hrEmployeeId: null, hrHasReports: false }; const e = empOfProfile(u.id);
       return { hrRole: hrRoleOf(u), hrEmployeeId: e ? e.id : null, hrHasReports: !!e && db().hrEmployees.some((z) => z.reportingToId === e.id && !z.archivedAt) }; },
@@ -198,6 +202,7 @@ export function hrPart(x, flags) {
       else if (admin) { if (e.archivedAt) fail('Restore the employee before editing.'); v = cleanEmployee(patch); checkRefs(e, v); }
       else if (e.profileId === u.id && !e.archivedAt) v = cleanSelfPatch(patch);
       else fail('You can only edit your own phone, address and emergency contact.');
+      if (v.commissionNotes !== undefined && !(v.commissioned !== undefined ? v.commissioned : e.commissioned)) v.commissionNotes = '';
       const n = applyPatch(u, e, v); if (n) save(); return { employee: admin ? view(e) : view(e), changed: n }; },
     async archiveHrEmployee(id, archived = true) { const { u } = needHr(); const d = db(); const e = empById(id) || fail('Employee not found.');
       if (e.profileId === u.id && archived) fail('You cannot archive your own record.');

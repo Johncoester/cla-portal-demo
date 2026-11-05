@@ -784,3 +784,21 @@ body .co-shell .co-tabcard .card h3 { color: var(--co-nv); font-weight: 500; }
 .co-tabcard .m-btn { background: var(--co-b); color: var(--co-nv); border-color: var(--co-b); border-radius: 999px; } .co-tabcard button.ghost { border-radius: 999px; }
 .co-with-agent { align-items: flex-start; }
 @media (max-width: 700px) { .co-greet.co-greet-sm { font-size: 20px; } .co-tabcard .co-cb { padding: 12px 10px; } .co-with-agent { display: block; } .co-with-agent > :not(#view) { margin-top: 14px; } }
+/* HR FEEDBACK (John, Nov 4 HR review): time log, documents, hover labels on the HR sidebar icons */
+.hr-timelog { margin-top: 10px; border-top: 1px solid var(--hr-baby-line, #bfe6f8); padding-top: 10px; }
+.hr-timelog h4 { margin: 0 0 8px; color: var(--hr-ink, #1f6fa3); }
+.hr-time-totals { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.hr-time-tot { display: flex; flex-direction: column; background: var(--hr-baby-soft, #e8f6fd); border: 1px solid var(--hr-baby-line, #bfe6f8); border-radius: 10px; padding: 8px 12px; min-width: 110px; }
+.hr-time-tot strong { font-size: 18px; color: var(--hr-on, #0b2a45); }
+.hr-time-tbl td, .hr-time-tbl th, .hr-edoc-tbl td, .hr-edoc-tbl th { font-size: 13px; }
+.hr-edoc-form { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--hr-baby-line, #bfe6f8); }
+.hr-sign-edit { display: inline-flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; } .hr-sign-edit select { font-size: 12px; padding: 2px 4px; }
+.hr-doc-list { list-style: none; padding: 0; margin: 0; } .hr-doc-list li { padding: 6px 0; border-bottom: 1px solid var(--hr-baby-line, #bfe6f8); }
+.hr-page textarea[data-hr-field] { width: 100%; }
+.nav-link[data-hr-nav] { position: relative; }
+.nav-link[data-hr-nav]:hover::after, .nav-link[data-hr-nav]:focus-visible::after { content: attr(data-tip); position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%); z-index: 200;
+  background: #0b2a45; color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 12px; white-space: nowrap; box-shadow: 0 4px 14px rgba(11, 42, 69, .25); pointer-events: none; }
+.hr-sec-wide { grid-column: 1 / -1; } .hr-timelog { overflow-x: auto; }
+/* EMD reminder banner (John, Nov 4): pure buyer only, while the EMD receipt task is open; compact so the overview still fits one screen */
+.co-emd { display: flex; align-items: center; gap: 12px; background: #eaf7fe; border: 1px solid var(--co-bl); border-left: 6px solid var(--co-b); border-radius: 12px; padding: 10px 16px; margin-bottom: 12px; color: #0b2a4a; font-size: 14px; }
+.co-emd-ic { flex: none; width: 26px; height: 26px; border-radius: 50%; background: #fff; border: 1px solid var(--co-bl); display: grid; place-items: center; font-weight: 700; }

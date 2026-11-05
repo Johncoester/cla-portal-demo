@@ -7,9 +7,10 @@
 //   #/hr/me              My profile (every employee)        #/hr/team   My team (direct reports' basic fields only)
 //   #/hr/settings        HR Settings: assign / remove HR managers (Super admin only, logged to the history)
 // The adapter refuses anything the person may not do; the page only hides what they cannot use.
-import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime } from '../ui.js?v=202611041856';
+import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime } from '../ui.js?v=202611041931';
 import { hrCanManage, hrIsSuper, filterEmployees, initials, fullNameOf, COUNTRIES, EMPLOYMENT_TYPES, EMPLOYMENT_STATUSES, PAY_TYPES, PAY_CURRENCIES, WORK_LOCATIONS, EMPLOYEE_ROLE_FILTER,
-  HR_NO_EMAIL_NOTE, HR_INVITE_DAYS, FIELD_LABEL, labelOf } from '../data/hr.js?v=202611041856';
+  HR_NO_EMAIL_NOTE, HR_INVITE_DAYS, FIELD_LABEL, labelOf, jobTitleOf } from '../data/hr.js?v=202611041931';
+import { companyDocsPage, employeeDocsCard, sharedDocsCard, portalTimeCard, wireEmployeeDocs, wireSharedDocs } from './hr-feedback.js?v=202611041931';
 const PILL = { active: 'ok', on_leave: 'warn', separated: 'bad' };
 const INV = { pending: ['Invite pending', 'warn'], expired: ['Invite expired', 'bad'], revoked: ['Invite revoked', ''], none: ['No login yet', ''], accepted: ['Has login', 'ok'] };
 const abs = (link) => location.href.split('#')[0] + link;
@@ -41,6 +42,7 @@ export async function render(ctx) {
   if (sec === 'employees') return list(ctx);
   if (sec === 'add') return addForm(ctx);
   if (sec === 'departments' || sec === 'designations') return lookup(ctx, sec);
+  if (sec === 'documents') return companyDocsPage(ctx, head, wireQuick);   // John, Nov 4 HR review: HR Documents page
   if (sec === 'settings') { if (!hrIsSuper(user)) throw new Error('Only a Super admin can assign or remove HR managers.'); return settings(ctx); }
   throw new Error('That HR page does not exist.');
 }
@@ -156,14 +158,22 @@ async function profile({ api, user, refresh }, id, mine) {
   const r = await api.getHrEmployee(id); const e = r.employee; const hr = r.access === 'hr'; const basic = r.access === 'basic';
   const lk = r.lookups || { departments: [], designations: [] }; let all = [];
   if (hr) { try { all = await api.listHrEmployees(); } catch (er) { all = []; } }
+  // John, Nov 4 HR review: portal time log (HR + the reporting manager), the Documents card (HR + the employee), documents HR shared with the employee
+  if ((hr || basic || mine) && api.listHrPortalTime) { try { r.timeLog = await api.listHrPortalTime(e.id); } catch (er) { r.timeLog = null; } }
+  let empDocs = null; let shared = null;
+  if (!basic && api.listHrEmployeeDocs) { try { empDocs = await api.listHrEmployeeDocs(e.id, { includeArchived: hr }); } catch (er) { empDocs = null; } }
+  if (!basic && api.listHrDocsSharedWith) { try { shared = await api.listHrDocsSharedWith(hr && !mine ? e.id : null); } catch (er) { shared = null; } }
   const can = (k) => (r.canEditHr ? true : r.selfFields.includes(k));   // an HR manager on their OWN record edits only the employee fields
   const val = (k) => { const v = e[k]; if (k === 'departmentId') return e.departmentName; if (k === 'designationId') return e.designationName; if (k === 'reportingToId') return e.reportingToName;
     if (k === 'employmentType') return labelOf(EMPLOYMENT_TYPES, v); if (k === 'employmentStatus') return labelOf(EMPLOYMENT_STATUSES, v); if (k === 'country') return labelOf(COUNTRIES, v);
+    if (k === 'jobTitle') return jobTitleOf(e) ? html`${jobTitleOf(e)}${String(e.jobTitle || '').trim() ? '' : html` <span class="muted small" data-hr-title-fallback>(from designation)</span>`}` : '';
+    if (k === 'commissioned') return e.commissioned ? 'Yes' : 'No'; if (k === 'commissionNotes') return v;
     if (k === 'payType') return labelOf(PAY_TYPES, v); if (k === 'dateOfJoining') return fmtDate(v); if (k === 'payRate') return v == null || v === '' ? '' : Number(v).toLocaleString('en-US', { minimumFractionDigits: 2 }); return v; };
+  const modeKey0 = 'cla-portal-new:hr-edit'; const editingNow = !basic && (hr || r.canEditSelf) && sessionStorage.getItem(modeKey0) === e.id;
   const SECTIONS = [
     ['basic', 'Basic information', ['employeeCode', 'firstName', 'lastName', 'email']],
     ['work', 'Work information', ['departmentId', 'designationId', 'jobTitle', 'reportingToId', 'dateOfJoining', 'workLocation', 'employmentType', 'employmentStatus', 'country', 'workPhone']],
-    ...(basic ? [['contact', 'Contact', ['workPhone']]] : [['comp', 'Compensation', ['payType', 'payRate', 'payCurrency']],
+    ...(basic ? [['contact', 'Contact', ['workPhone']]] : [['comp', 'Compensation', ['payType', 'payRate', 'payCurrency', 'commissioned', ...(e.commissioned || editingNow ? ['commissionNotes'] : [])]],
       ['contact', 'Contact details', ['phone', 'addressLine1', 'addressLine2', 'city', 'stateProvince', 'postalCode', 'addressCountry']],
       ['emergency', 'Emergency contact', ['emergencyName', 'emergencyRelationship', 'emergencyPhone']]])];
   const input = (k) => { const v = e[k] == null ? '' : e[k]; const dis = can(k) ? '' : raw(' disabled');
@@ -172,6 +182,8 @@ async function profile({ api, user, refresh }, id, mine) {
     if (k === 'designationId') return sel(lk.designations.filter((d) => !d.archivedAt || d.id === v).map((d) => [d.id, d.name]), 'None');
     if (k === 'reportingToId') return sel(all.filter((z) => z.id !== e.id).map((z) => [z.id, `${fullNameOf(z)} (${z.employeeCode})`]).concat(v && !all.some((z) => z.id === v) ? [[v, e.reportingToName]] : []), 'Nobody');
     if (k === 'employmentType') return sel(EMPLOYMENT_TYPES); if (k === 'employmentStatus') return sel(EMPLOYMENT_STATUSES); if (k === 'country') return sel(COUNTRIES);
+    if (k === 'commissioned') return html`<select name="commissioned" data-hr-field="commissioned" data-hr-commissioned${dis}><option value="false"${e.commissioned ? '' : raw(' selected')}>No</option><option value="true"${e.commissioned ? raw(' selected') : ''}>Yes</option></select>`;
+    if (k === 'commissionNotes') return html`<textarea name="commissionNotes" rows="3" maxlength="2000" placeholder="How the commission is worked out (rate, base, when it is paid)" data-hr-field="commissionNotes"${dis}>${v}</textarea>`;
     if (k === 'payType') return sel(PAY_TYPES, 'Not set'); if (k === 'payCurrency') return sel(PAY_CURRENCIES, 'Not set');
     if (k === 'workLocation') return html`<input name="${k}" value="${v}" list="hr-locs" maxlength="80" data-hr-field="${k}"${dis}>`;
     if (k === 'dateOfJoining') return html`<input name="${k}" type="date" value="${v}" data-hr-field="${k}"${dis}>`;
@@ -180,13 +192,14 @@ async function profile({ api, user, refresh }, id, mine) {
     return html`<input name="${k}" value="${v}" maxlength="160" data-hr-field="${k}"${dis}>`; };
   const editable = !basic && (hr || r.canEditSelf);
   const sectionCard = (key, title, fields, edit) => html`<div class="card hr-sec" data-hr-section="${key}"><div class="hr-sec-head"><h3>${title}</h3>${!hr && !basic && !fields.some(can) ? html`<span class="muted small" data-hr-locked="${key}">Set by HR</span>` : ''}</div>
-    <dl class="hr-dl">${fields.map((k) => html`<div class="hr-dl-row"><dt>${FIELD_LABEL[k]}</dt><dd data-hr-value="${k}">${edit ? input(k) : val(k) || html`<span class="muted">&mdash;</span>`}</dd></div>`)}</dl></div>`;
+    <dl class="hr-dl">${fields.map((k) => html`<div class="hr-dl-row" data-hr-row-of="${k}"${k === 'commissionNotes' && !e.commissioned ? raw(' hidden') : ''}><dt>${FIELD_LABEL[k]}</dt><dd data-hr-value="${k}">${edit ? input(k) : val(k) || html`<span class="muted">&mdash;</span>`}</dd></div>`)}</dl></div>`;
   const history = r.history.length ? html`<table class="tbl hr-hist" data-hr-history><thead><tr><th>When</th><th>Who</th><th>Field</th><th>Old value</th><th>New value</th><th>Action</th></tr></thead><tbody>
     ${r.history.slice(0, 200).map((h) => html`<tr data-hr-hist-row="${h.field}"><td class="nowrap small">${fmtDateTime(h.changedAt)}</td><td class="small">${h.changedByName}</td><td>${h.fieldLabel}</td><td class="small">${h.oldValue}</td><td class="small">${h.newValue}</td><td class="small muted">${h.action}</td></tr>`)}</tbody></table>`
     : html`<p class="muted" data-hr-history>No changes yet.</p>`;
   const mgrNote = basic ? html`<p class="notice small" data-hr-basic-note>You are ${e.firstName}'s reporting manager: you see their basic work details only (no pay, address or emergency contact). Leave and timesheet approvals come in Phase 2.</p>` : '';
   const selfNote = !hr && !basic ? html`<p class="notice small" data-hr-self-note>You can edit your <strong>phone, address and emergency contact</strong>. HR keeps your job title, department, designation, pay, status, date of joining, reporting manager, work location and employee ID up to date.</p>` : '';
-  const invite = hr ? html`<div class="card hr-sec" data-hr-login><h3>Portal login</h3>${e.profileId ? html`<p><span class="pill ok">Has login</span></p>`
+  const timeLog = (hr || basic || mine) && r.timeLog ? portalTimeCard(r.timeLog) : '';
+  const invite = hr ? html`<div class="card hr-sec${timeLog ? ' hr-sec-wide' : ''}" data-hr-login><h3>Portal login</h3>${e.profileId ? html`<p><span class="pill ok">Has login</span></p>${timeLog}`
     : html`<p><span class="pill ${INV[e.inviteStatus] ? INV[e.inviteStatus][1] : ''}" data-hr-invite-status="${e.inviteStatus}">${(INV[e.inviteStatus] || [e.inviteStatus])[0]}</span>${e.inviteExpiresAt ? html` <span class="muted small">${e.inviteStatus === 'expired' ? 'expired' : 'expires'} ${fmtDateTime(e.inviteExpiresAt)}</span>` : ''}</p>
       ${e.archivedAt ? '' : html`<button class="ghost" data-hr-new-invite>${e.inviteStatus === 'none' ? 'Create invite link' : 'Make a new invite link'}</button>`}<div class="ai-link hr-invite-box" data-hr-invite-result hidden></div>`}
     ${e.isHrManager ? html`<p class="small"><span class="pill hr-chip">HR manager</span>${hrIsSuper(user) ? html` <a href="#/hr/settings">Change in HR Settings</a>` : ''}</p>` : ''}</div>` : '';
@@ -201,15 +214,20 @@ async function profile({ api, user, refresh }, id, mine) {
     <form data-hr-edit-form class="hr-prof-body"><datalist id="hr-locs">${WORK_LOCATIONS.map((l) => html`<option value="${l}">`)}</datalist>
       <div class="hr-sec-grid">${SECTIONS.map(([k, t, fs]) => sectionCard(k, t, fs, editing))}${invite}</div>
       ${editing ? html`<p class="hr-save-row"><button class="m-btn" type="submit" data-hr-save>Save changes</button> <button class="ghost" type="button" data-hr-cancel>Cancel</button></p>` : ''}</form>
-    ${basic ? '' : html`<div class="card hr-sec" data-hr-section="history"><h3>History</h3><p class="muted small">Every change: who, when, field, old and new value. Read only.</p>${history}</div>`}</section>`;
+    ${basic ? '' : html`<div class="card hr-sec" data-hr-section="history"><h3>History</h3><p class="muted small">Every change: who, when, field, old and new value. Read only.</p>${history}</div>`}
+    ${(basic || (!hr && mine)) && r.timeLog ? html`<div class="card hr-sec" data-hr-section="time"><h3>Portal time log</h3>${timeLog}</div>` : ''}
+    ${shared && shared.length ? sharedDocsCard(shared, mine) : ''}${empDocs ? employeeDocsCard(e, empDocs, hr) : ''}</section>`;
   return { title: mine ? 'My profile' : `${e.firstName} ${e.lastName}`, crumbs: hr ? [['HR', '#/hr'], ['Employee Information', '#/hr/employees'], [`${e.firstName} ${e.lastName}`]] : [['HR', '#/hr'], [mine ? 'My profile' : `${e.firstName} ${e.lastName}`]], body, mount(root) {
     wireQuick(root);
+    wireEmployeeDocs(root, { api, refresh, employee: e, hr }); wireSharedDocs(root, api);
+    const cs = $('[data-hr-commissioned]', root); if (cs) cs.addEventListener('change', () => { const row = $('[data-hr-row-of="commissionNotes"]', root); if (row) row.hidden = cs.value !== 'true'; });
     const ed = $('[data-hr-edit]', root); if (ed) ed.addEventListener('click', () => { sessionStorage.setItem(modeKey, e.id); refresh(); });
     const cn = $('[data-hr-cancel]', root); if (cn) cn.addEventListener('click', () => { sessionStorage.removeItem(modeKey); window.claDirty = null; refresh(); });
     const form = $('[data-hr-edit-form]', root);
     if (editing) { let dirty = false; form.addEventListener('input', () => { dirty = true; }); window.claDirty = () => dirty;
       form.addEventListener('submit', guard(async (ev) => { ev.preventDefault(); const patch = {};
         $$('[data-hr-field]', form).forEach((el) => { if (el.disabled) return; const k = el.dataset.hrField; const old = e[k] == null ? '' : String(e[k]); if (el.value !== old) patch[k] = el.value; });
+        if (patch.commissioned === 'false') delete patch.commissionNotes;
         const res = await api.updateHrEmployee(e.id, patch); window.claDirty = null; sessionStorage.removeItem(modeKey); toast(res.changed ? `Saved ${res.changed} change(s)` : 'Nothing changed'); refresh(); })); }
     const ar = $('[data-hr-archive]', root); if (ar) ar.addEventListener('click', guard(async () => { const on = ar.dataset.hrArchive === 'archive';
       if (on && !confirm(`Archive ${e.firstName} ${e.lastName}? They leave the directory and lose HR access. Nothing is deleted; you can restore them.`)) return;

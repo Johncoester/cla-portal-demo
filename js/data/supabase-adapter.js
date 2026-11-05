@@ -1,18 +1,18 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611041856';
-import { localDate, fileRoleLabel } from './constants.js?v=202611041856';
-import { featureFlags } from './features.js?v=202611041856';
-import { accountingSupabase } from './supabase-accounting.js?v=202611041856';
-import { payoffsSupabase } from './supabase-payoffs.js?v=202611041856';
-import { modulesSupabase } from './supabase-modules.js?v=202611041856';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611041856';
-import { automationPart } from './automation.js?v=202611041856';
-import { runsOrders as runsOrdersCI } from './constants.js?v=202611041856';
-import { fieldsForRole } from './templates.js?v=202611041856';
-import { crmSupabase } from './supabase-crm.js?v=202611041856';
-import { hrSupabase } from './supabase-hr.js?v=202611041856';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611041931';
+import { localDate, fileRoleLabel } from './constants.js?v=202611041931';
+import { featureFlags } from './features.js?v=202611041931';
+import { accountingSupabase } from './supabase-accounting.js?v=202611041931';
+import { payoffsSupabase } from './supabase-payoffs.js?v=202611041931';
+import { modulesSupabase } from './supabase-modules.js?v=202611041931';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611041931';
+import { automationPart } from './automation.js?v=202611041931';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611041931';
+import { fieldsForRole } from './templates.js?v=202611041931';
+import { crmSupabase } from './supabase-crm.js?v=202611041931';
+import { hrSupabase } from './supabase-hr.js?v=202611041931';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned; vendor locally before go-live
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };

@@ -2,10 +2,10 @@
 // (Client-Seller). Same data as before (getDeal / getOrderOverview / listTasks / listMessageRecipients / listMyAgents), no new fields.
 // Buyers never see Cash to Close, payoffs or wire details here; the only wire item is the existing Wire instructions button (buyer + staff only, as before).
 // app.js draws this page in the light "client shell" (white top bar, no sidebar) because the view sets clientPage.
-import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney, pill, toast } from '../ui.js?v=202611041856';
-import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611041856';
-import { composeModal } from './compose.js?v=202611041856';
-import { slotText } from './dealclosing.js?v=202611041856';
+import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney, pill, toast } from '../ui.js?v=202611041931';
+import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611041931';
+import { composeModal } from './compose.js?v=202611041931';
+import { slotText } from './dealclosing.js?v=202611041931';
 
 // stage 5 shows as "Wire Fraud Awareness" on the BUYER's view only (display only; the stored stage list is unchanged)
 export const clientStageName = (i, side) => (side === 'buyer' && i === 4 ? 'Wire Fraud Awareness' : STAGES[i]);
@@ -94,6 +94,7 @@ export async function renderClientOverview(ctx, d, here) {
     ${d.selfRep ? html`<div class="notice info" data-self-rep>You are the <strong>${d.myRoleLabel}</strong> on this file. Your tasks as the client and as the agent are in one list; the history records which capacity you acted in.</div>` : ''}
     ${sc ? html`<div class="notice info" data-scheduled-closing><strong>Closing scheduled:</strong> ${slotText(sc.at)} &middot; ${sc.location}${sc.note ? html` &middot; ${sc.note}` : ''} <a href="#/deals/${d.id}/closing">details</a></div>` : ''}
     ${!pure && ag && ag.pending ? html`<div class="notice warn" data-agreements-pending>You have <strong>${ag.pending}</strong> agreement(s) to read and acknowledge (including the Wire Fraud Warning). <a href="#/deals/${d.id}/agreements">Open Agreements</a></div>` : ''}
+    ${pure && ov.emdPending ? html`<div class="co-emd" role="status" data-co-emd><span class="co-emd-ic" aria-hidden="true">&#36;</span><span><strong>CLA Title hasn\u2019t received your earnest money deposit yet.</strong>${!refi && d.emdDueDate ? html` It was due ${longDate(d.emdDueDate)}.` : ''} Once it arrives, CLA Title sends you the receipt and this note goes away.</span></div>` : ''}
     <section class="co-next" data-co-next="${next ? next.id : ''}" data-co-outstanding="${todo.length}"><div class="co-ic" aria-hidden="true">&#10004;</div><div class="co-next-main">
       <div class="k">${todo.length ? `Your outstanding tasks (${todo.length})` : 'Next step for you'}</div>
       ${todo.length ? html`<ul class="co-todo">${todo.map((t, i) => html`<li data-co-todo="${t.id}"${t.agreement ? html` data-co-agreement="${t.agreement}"` : ''}><span class="t">${t.title}</span><span class="d">${t.dueDate ? html`Due <span ${i === 0 ? raw('data-co-next-due') : ''}>${longDate(t.dueDate)}</span>` : t.agreement ? 'Read and acknowledge' : 'No due date'}</span><a class="co-btn ${i === 0 ? 'p' : 'g'}" href="${t.href}" ${i === 0 ? raw('data-co-start') : ''}>${i === 0 ? 'Start this step' : 'Open'}</a></li>`)}</ul>`

@@ -3,8 +3,8 @@
  * Modify / Submit Revision, task-tied messages, Request Update (staff answer it), Share Access (RECORDED only: no email, no login is created),
  * "Complete Requests Now" invite email (preview + outbox only), rich-text messages with file attachments (Share Files), and the outside user's own
  * Activity feed (only things they can already open). Nothing here deletes anything; documents stay permanent. */
-import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, COMMISSION_LABEL, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611041856';
-import { CLA_PHONE, isRefi } from './constants.js?v=202611041856';
+import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, COMMISSION_LABEL, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611041931';
+import { CLA_PHONE, isRefi } from './constants.js?v=202611041931';
 export function agentPortal(x) {
   const { api: root, load, save, nid, needUser, isManager, notViewOnly, dealOr404, onDeal, log, prof, nameOf, ownerOf, taskVisible, threadVisible, unreadIn, docVisible, participantsOf, isStaffView,
     notify, dealProfileIds, dealView, contactOf, clone, now, fail, str, emailOk, C } = x;
@@ -97,7 +97,9 @@ export function agentPortal(x) {
       const act = staff ? (await root.listActivity(dealId, {})).items.map((a) => ({ id: a.id, createdAt: a.createdAt, action: a.action, detail: a.detail, actorName: a.actorName })) : activityFor(u, dealId);
       const tasks = d.tasks.filter((t) => t.dealId === dealId && taskVisible(u, t));
       const outstanding = staff ? v.openTasks : tasks.filter((t) => OPEN.includes(t.status) && (ownerOf(t) === u.id || (!t.participantId && x.holds(u, t.assignedRole)) || x.agentCanFill(u, t))).length;
-      return clone({ progress: progressOut(q), outstanding,
+      // EMD BANNER (John, Nov 4): true for a pure buyer while the file's EMD receipt task is still open (same rule as the bell / outbox reminders); the task itself stays hidden
+      const emdPending = x.pureBuyer(u) && d.tasks.some((t) => t.dealId === dealId && t.assignedRole === 'Client-Buyer' && x.EMD_RECEIPT.test(t.title || '') && OPEN.includes(t.status));
+      return clone({ progress: progressOut(q), outstanding, emdPending,
         counts: { tasks: staff ? v.openTasks : outstanding, inbox: v.unread, threads: threads.length, documents: docs.length, activity: act.length },
         orderDetails: { propertyAddress: v.address, orderId: q.id, orderType: q.transactionType || 'Purchase', refinance: refi, purchasePrice: refi ? null : q.purchasePrice, loanAmount: q.loanAmount, fileNumber: q.fileNumber, agencyLicenseId: licenseId },
         parties, recentActivity: act.slice(0, 6), conversations: threads.slice(0, 5),

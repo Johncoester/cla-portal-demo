@@ -1,16 +1,16 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611041856';
-import { GMAIL_OFF } from '../data/automation.js?v=202611041856';
-import { occSelects, yesNo } from './occ-fields.js?v=202611041856';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611041856';
-import { slotText } from './dealclosing.js?v=202611041856';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611041856';
-import { composeModal } from './compose.js?v=202611041856';
-import { moneyShow, moneyClean } from './money-input.js?v=202611041856';
-import { themeOn } from '../theme.js?v=202611041856';
-import { renderClientOverview, clientSide, isPureBuyer, clientTabChrome } from './client-overview.js?v=202611041856';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611041931';
+import { GMAIL_OFF } from '../data/automation.js?v=202611041931';
+import { occSelects, yesNo } from './occ-fields.js?v=202611041931';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611041931';
+import { slotText } from './dealclosing.js?v=202611041931';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611041931';
+import { composeModal } from './compose.js?v=202611041931';
+import { moneyShow, moneyClean } from './money-input.js?v=202611041931';
+import { themeOn } from '../theme.js?v=202611041931';
+import { renderClientOverview, clientSide, isPureBuyer, clientTabChrome } from './client-overview.js?v=202611041931';
 
-const TABS = { tasks: './dealtasks.js?v=202611041856', inbox: './dealmsgs.js?v=202611041856', documents: './dealdocs.js?v=202611041856', contacts: './dealcontacts.js?v=202611041856', activity: './dealactivity.js?v=202611041856', closing: './dealclosing.js?v=202611041856', agreements: './dealagreements.js?v=202611041856', accounting: './dealaccounting.js?v=202611041856' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611041931', inbox: './dealmsgs.js?v=202611041931', documents: './dealdocs.js?v=202611041931', contacts: './dealcontacts.js?v=202611041931', activity: './dealactivity.js?v=202611041931', closing: './dealclosing.js?v=202611041931', agreements: './dealagreements.js?v=202611041931', accounting: './dealaccounting.js?v=202611041931' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -23,11 +23,11 @@ export async function render(ctx) {
   // CLIENT TABS (John, Nov 4: every buyer tab in the light client layout; same for the seller): the tab's own content, under the client file line +
   // pill tabs, drawn in the client shell (app.js: white top bar, CLA logo, no sidebar). The content and its rules are unchanged.
   if (tab !== 'overview' && TABS[tab] && user.accountRole && clientSide(user)) {
-    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041856' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
+    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041931' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
     const top = await clientTabChrome(ctx, deal, tab);
     return { ...v, crumbs: [...here, ...(v.crumbs || [])], clientPage: { deal, side: clientSide(user), tab }, body: html`<div class="co-page co-tabpage" data-client-tab="${tab}">${top}<section class="co-card co-tabcard"><div class="co-cb">${v.body}</div></section></div>` };
   }
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041856' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041931' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   // CLIENT OVERVIEW (John, Nov 4): the buyer / seller get the redesigned overview (client-overview.js) in place of the old overview + card summary (no Cash to Close / payoff mockup figures for clients).
   if (user.accountRole && clientSide(user)) {
@@ -45,7 +45,7 @@ export async function render(ctx) {
   return { ...v, body: html`${done.html}${cards}${extra.top}${v.body}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
 }
 async function themedSummary({ api, user }, d, ov, inv) {
-  const { orderSummary } = await import('./theme-cards.js?v=202611041856');
+  const { orderSummary } = await import('./theme-cards.js?v=202611041931');
   const staffView = !user.accountRole && user.role !== 'Outside user';
   const canWire = staffView || (user.roles || [user.role]).includes('Client-Buyer');   // SAME rule as the Wire instructions button: CLA staff + the buyer, never an agent
   const tasks = await api.listTasks(d.id).catch(() => []);

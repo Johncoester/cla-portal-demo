@@ -24,8 +24,8 @@ export const labelOf = (list, code) => (list.find(([c]) => c === code) || [null,
 // FIELDS. Every one is a real typed column (migration 47 hr_employees). SELF_FIELDS = the only ones an employee edits on their own profile.
 export const SELF_FIELDS = ['phone', 'addressLine1', 'addressLine2', 'city', 'stateProvince', 'postalCode', 'addressCountry', 'emergencyName', 'emergencyRelationship', 'emergencyPhone'];
 export const HR_FIELDS = ['employeeCode', 'firstName', 'lastName', 'email', 'departmentId', 'designationId', 'jobTitle', 'reportingToId', 'dateOfJoining', 'workLocation',
-  'employmentType', 'employmentStatus', 'country', 'workPhone', 'payType', 'payRate', 'payCurrency'];
-export const SENSITIVE_FIELDS = ['phone', 'payType', 'payRate', 'payCurrency', 'addressLine1', 'addressLine2', 'city', 'stateProvince', 'postalCode', 'addressCountry', 'emergencyName', 'emergencyRelationship', 'emergencyPhone'];
+  'employmentType', 'employmentStatus', 'country', 'workPhone', 'payType', 'payRate', 'payCurrency', 'commissioned', 'commissionNotes'];
+export const SENSITIVE_FIELDS = ['phone', 'payType', 'payRate', 'payCurrency', 'commissioned', 'commissionNotes', 'addressLine1', 'addressLine2', 'city', 'stateProvince', 'postalCode', 'addressCountry', 'emergencyName', 'emergencyRelationship', 'emergencyPhone'];
 // what a line manager sees of a direct report (mirrored by public.hr_my_reports() in SQL)
 export const BASIC_FIELDS = ['id', 'employeeCode', 'firstName', 'lastName', 'email', 'departmentId', 'departmentName', 'designationId', 'designationName', 'jobTitle', 'reportingToId', 'reportingToName',
   'dateOfJoining', 'workLocation', 'employmentType', 'employmentStatus', 'country', 'workPhone', 'archivedAt'];   // work phone only: the personal phone is self + HR
@@ -34,12 +34,12 @@ export const FIELD_LABEL = { employeeCode: 'Employee ID', firstName: 'First Name
   reportingToId: 'Reporting To', dateOfJoining: 'Date of joining', workLocation: 'Work location', employmentType: 'Employment type', employmentStatus: 'Employment status', country: 'Country',
   workPhone: 'Work phone', phone: 'Phone', addressLine1: 'Address line 1', addressLine2: 'Address line 2', city: 'City', stateProvince: 'State / Province', postalCode: 'Postal code',
   addressCountry: 'Address country', emergencyName: 'Emergency contact name', emergencyRelationship: 'Emergency contact relationship', emergencyPhone: 'Emergency contact phone',
-  payType: 'Pay type', payRate: 'Pay rate', payCurrency: 'Pay currency', profileId: 'Portal login', archivedAt: 'Archived', name: 'Name', sort: 'Sort', hrManager: 'HR manager', invite: 'Invite link' };
+  payType: 'Pay type', payRate: 'Pay rate', payCurrency: 'Pay currency', commissioned: 'Commissioned', commissionNotes: 'Commission structure notes', profileId: 'Portal login', archivedAt: 'Archived', name: 'Name', sort: 'Sort', hrManager: 'HR manager', invite: 'Invite link' };
 // the SQL column for each field (History Export and the CSV use the same names a report would)
 export const COLUMN_OF = { employeeCode: 'employee_code', firstName: 'first_name', lastName: 'last_name', email: 'email', departmentId: 'department_id', designationId: 'designation_id', jobTitle: 'job_title',
   reportingToId: 'reporting_to_id', dateOfJoining: 'date_of_joining', workLocation: 'work_location', employmentType: 'employment_type', employmentStatus: 'employment_status', country: 'country',
   workPhone: 'work_phone', phone: 'phone', addressLine1: 'address_line1', addressLine2: 'address_line2', city: 'city', stateProvince: 'state_province', postalCode: 'postal_code', addressCountry: 'address_country',
-  emergencyName: 'emergency_name', emergencyRelationship: 'emergency_relationship', emergencyPhone: 'emergency_phone', payType: 'pay_type', payRate: 'pay_rate', payCurrency: 'pay_currency',
+  emergencyName: 'emergency_name', emergencyRelationship: 'emergency_relationship', emergencyPhone: 'emergency_phone', payType: 'pay_type', payRate: 'pay_rate', payCurrency: 'pay_currency', commissioned: 'commissioned', commissionNotes: 'commission_notes',
   profileId: 'profile_id', archivedAt: 'archived_at', name: 'name', sort: 'sort', hrManager: 'hr_manager', invite: 'invite' };
 
 const s = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
@@ -71,6 +71,10 @@ export function cleanEmployee(f = {}, { full = false } = {}) {
   if (has('payType')) out.payType = pick(PAY_TYPES, s(f.payType, 10), 'Pay type') || null;
   if (has('payCurrency')) out.payCurrency = pick(PAY_CURRENCIES, s(f.payCurrency, 3).toUpperCase(), 'Pay currency') || null;
   if (has('payRate')) { const v = s(f.payRate, 20).replace(/[$,]/g, ''); if (!v) out.payRate = null; else { const n = Number(v); if (!isFinite(n) || n < 0 || n > 9999999999) throw new Error('Pay rate must be a positive number.'); out.payRate = Math.round(n * 100) / 100; } }
+  // John, Nov 4 HR review: Commissioned Yes / No + Commission structure notes (HR only, like pay). Notes are cleared when Commissioned = No.
+  if (has('commissioned')) { const v = f.commissioned; out.commissioned = v === true || v === 'true' || v === 'yes' || v === 'Yes' || v === '1';
+    if (!out.commissioned) out.commissionNotes = ''; }
+  if (has('commissionNotes') && out.commissionNotes !== '') out.commissionNotes = s(f.commissionNotes, 2000);
   // NO government ID numbers in Phase 1 (SSN, SSS, PhilHealth, Pag-IBIG, TIN ...): any such key is refused, never stored
   for (const k of Object.keys(f)) if (/ssn|social|sss|philhealth|pagibig|pag_ibig|tin\b|taxid|tax_id|passport|national_?id|gov/i.test(k)) throw new Error('Government ID numbers (SSN, SSS, PhilHealth, Pag-IBIG, TIN) are not collected.');
   return out;
@@ -94,6 +98,7 @@ export function hrSectionAllowed(u, section) {
   if (!u || !u.hrRole) return false;
   if (['home', 'employees', 'employee', 'add', 'departments', 'designations', 'me'].includes(section) && hrCanManage(u)) return section !== 'me' || !!u.hrEmployeeId;
   if (section === 'settings') return hrIsSuper(u);
+  if (section === 'documents') return hrCanManage(u);   // HR Documents page (John, Nov 4): HR managers + Super admins; employees see theirs on My profile
   if (section === 'me' || section === 'home') return !!u.hrEmployeeId;
   if (section === 'team') return !!u.hrEmployeeId && !!u.hrHasReports;
   if (section === 'employee') return !!u.hrEmployeeId;   // own record or a report: the adapter decides (basic fields only for a report)
@@ -118,4 +123,23 @@ export const EXPORT_COLUMNS = [['employee_code', 'employeeCode'], ['first_name',
 export const employeesCsv = (rows) => toCsv(EXPORT_COLUMNS.map(([h]) => h), rows.map((e) => EXPORT_COLUMNS.map(([, k]) => (k === 'hasLogin' ? (e.profileId ? 'yes' : 'no') : e[k]))));
 export const HISTORY_COLUMNS = ['changed_at', 'changed_by', 'table_name', 'record', 'employee_code', 'field', 'old_value', 'new_value', 'action'];
 export const historyCsv = (rows) => toCsv(HISTORY_COLUMNS, rows.map((h) => [h.changedAt, h.changedByName, h.tableName, h.recordLabel, h.employeeCode || '', h.column || h.field, h.oldValue, h.newValue, h.action]));
+// John, Nov 4 HR review: job title falls back to the designation when blank (Paula showed "-" for Job title)
+export const jobTitleOf = (e) => (e ? (String(e.jobTitle || '').trim() || e.designationName || '') : '');
+export const HR_COMPANY_DOC_CATEGORIES = [['handbook', 'Handbook'], ['policy', 'Policy'], ['form', 'Form'], ['benefits', 'Benefits'], ['other', 'Other']];
+export const HR_SHARE_SCOPES = [['all', 'All employees'], ['departments', 'Department(s)'], ['employees', 'Specific employees']];
+export const HR_EMP_DOC_TYPES = [['offer_letter', 'Offer letter'], ['manual', 'Manual'], ['signed_policy', 'Signed policy'], ['other', 'Other']];
+export const HR_SIGN_STATUSES = [['draft', 'Draft'], ['not_sent', 'Not sent'], ['sent', 'Sent'], ['signed', 'Signed'], ['declined', 'Declined']];
+export const HR_SIGN_PROVIDERS = [['zoho_sign', 'Zoho Sign'], ['other', 'Other']];
+export const HR_ESIGN_NOTE = 'E-signature service not connected yet. Nothing is sent: record the status here by hand.';
+export const HR_IDLE_MS = 15 * 60 * 1000;   // 15 minutes without a heartbeat ends a portal session
+export const HR_HEARTBEAT_MS = 60 * 1000;   // heartbeat every 60 s while the tab is visible
+export const sessionSeconds = (x) => Math.max(0, Math.round((Date.parse(x.endedAt || x.lastActivityAt) - Date.parse(x.startedAt)) / 1000));
+export const fmtDuration = (sec) => { sec = Math.max(0, Math.round(sec || 0)); const h = Math.floor(sec / 3600); const m = Math.floor((sec % 3600) / 60); return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`; };
+// totals for today / this week (Mon start) / last 30 days, by session start (local time)
+export function sessionTotals(rows, nowIso = new Date().toISOString()) {
+  const n = new Date(nowIso); const day0 = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime(); const wd = (n.getDay() + 6) % 7; const week0 = day0 - wd * 864e5; const d30 = n.getTime() - 30 * 864e5;
+  const t = { today: 0, week: 0, days30: 0, sessions30: 0 };
+  for (const r of rows) { const st = Date.parse(r.startedAt); const sec = sessionSeconds(r); if (st >= day0) t.today += sec; if (st >= week0) t.week += sec; if (st >= d30) { t.days30 += sec; t.sessions30++; } }
+  return t;
+}
 export const csvStamp = (d = new Date()) => d.toISOString().slice(0, 10);
