@@ -2,13 +2,13 @@
  * NOT run against a hosted project (best effort; the mock adapter is the tested one). Two switches must both be on: the browser flag
  * (features.js, CLA_PORTAL_CONFIG.features.crm, OFF in supabase mode) and the database switch (private.features 'crm', migration 22).
  * With the browser flag off every method refuses before calling the database. Meetings never send invitations; nothing is emailed. */
-import { CRM_OFF } from './features.js?v=202611051059';
-import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611051059';
-import { localDate } from './constants.js?v=202611051059';
-import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611051059';
-import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611051059';
-import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611051059';
-import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611051059';
+import { CRM_OFF } from './features.js?v=202611051216';
+import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611051216';
+import { localDate } from './constants.js?v=202611051216';
+import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611051216';
+import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611051216';
+import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611051216';
+import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611051216';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };
@@ -107,7 +107,7 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async setCrmBuiltinField(scope, key, v = {}) { on(); const o = {}; if (v.hidden !== undefined) o.hidden = !!v.hidden && v.hidden !== '0'; if (v.required !== undefined) o.required = !!v.required && v.required !== '0';
       const r = await one(sb.from('crm_field_settings').update(o).eq('scope', scope).eq('key', key)); return { hidden: r.hidden, required: r.required }; },
     async crmMe() { on(); const u = await me(); if (!canUseCrm(u)) throw new Error('The CRM is for CLA staff only.');
-      return { email: u.email || '', canEdit: !crmReadOnly(u), canConfigure: !!u.isAdmin, role: u.role, isAdmin: !!u.isAdmin, id: u.id, name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim(), scope: u.isAdmin || u.role === 'Processor' ? 'all' : u.role === 'Sales Team' ? 'team' : 'own' }; },
+      return { email: u.email || '', canEdit: !crmReadOnly(u), canConfigure: !!u.isAdmin, role: u.role, isAdmin: !!u.isAdmin, id: u.id, name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim(), scope: u.isAdmin || runsOrdersCI(u) ? 'all' : u.role === 'Sales Team' ? 'team' : 'own' }; },
     async listCrmOwners() { on(); return owners(); },
     async listCrmAssignees() { on(); return staff(); },
     async listCrmUsers() { on(); return staff(); },   // participants: the CLA staff the caller can pick (other users can be added by an Admin later)

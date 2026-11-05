@@ -171,9 +171,9 @@ export function crmZohoUpgrade(d) {
 // ACCESS (mirrored by private.crm_* in SQL). Staff only: Admin / Super admin (all, edit), Sales Person (own + linked, edit),
 // Sales Team (the sales team's records: owned by any salesperson or unowned, plus linked; edit), Processor (everything, READ-ONLY).
 // Transaction Coordinators and outside users (agents, clients) have no CRM.
-export const CRM_ROLES = ['Processor', 'Sales Person', 'Sales Team'];
+export const CRM_ROLES = ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team'];
 export const canUseCrm = (u) => !!u && (!!u.isAdmin || CRM_ROLES.includes(u.role));
-export const crmReadOnly = (u) => !!u && !u.isAdmin && u.role === 'Processor';
+export const crmReadOnly = (u) => !!u && !u.isAdmin && (u.role === 'Processor' || u.role === 'Preprocessor');
 export const CRM_OWNER_ROLES = ['Sales Person', 'Sales Team'];   // who can own a lead / contact / account / opportunity / follow-up
 
 // tags: comma list or array -> trimmed, lower-case, unique, max 10 x 30 chars

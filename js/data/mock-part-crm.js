@@ -5,19 +5,19 @@
  * sync, no invitations, nothing is ever emailed) on a lead, contact (= "Client" on screen), account (= "Company") or opportunity. Attachments on records.
  * NOTHING is deleted: leads, contacts, accounts and opportunities are archived; tasks are closed; attachments and notes stay.
  * Access (mirrored by private.crm_* in migration 22): see crm.js. */
-import { CRM_OFF } from './features.js?v=202611051059';
+import { CRM_OFF } from './features.js?v=202611051216';
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, OPP_STAGES, ACCOUNT_KIND_CODES, CRM_ENTITIES, accountKindForType, entityLabel,
   TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, LINK_KEYS, LINK_FIELDS, cleanUrl, nextDue, addDaysTo, taskOpen, meetingOpen, localStamp,
-  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals, REPEAT_CODES, LEAD_STATUS_DEFAULT, companyKey } from './crm.js?v=202611051059';
-import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611051059';
-import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611051059';
-import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611051059';
-import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611051059';
-import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611051059';
-import { feedbackNov4Part } from './mock-part-feedback-nov4.js?v=202611051059';
-import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611051059';
-import { crmCallsPart } from './mock-part-crm-calls.js?v=202611051059';
-import { callOpen, callSeconds, durationText, callStatusOf } from './crm-calls.js?v=202611051059';
+  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals, REPEAT_CODES, LEAD_STATUS_DEFAULT, companyKey } from './crm.js?v=202611051216';
+import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611051216';
+import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611051216';
+import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611051216';
+import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611051216';
+import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611051216';
+import { feedbackNov4Part } from './mock-part-feedback-nov4.js?v=202611051216';
+import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611051216';
+import { crmCallsPart } from './mock-part-crm-calls.js?v=202611051216';
+import { callOpen, callSeconds, durationText, callStatusOf } from './crm-calls.js?v=202611051216';
 
 export function crmPart(x, flags) {
   const { load, save: save0, nid, needUser, dealsFor, prof, nameOf, fullName, clone, now, fail, str, emailOk, localDate, C } = x;
@@ -33,7 +33,7 @@ export function crmPart(x, flags) {
   const crmEditor = () => { const u = crmUser(); if (crmReadOnly(u)) fail('The Processor has read-only access to the CRM.'); return u; };
   const isSales = (u) => CRM_OWNER_ROLES.includes(u.role) && !u.isAdmin;
   const salesIds = () => new Set(db().profiles.filter((p) => CRM_OWNER_ROLES.includes(p.role)).map((p) => p.id));   // incl. disabled / removed salespeople, so their records stay with the team
-  const seesAllCrm = (u) => u.isAdmin || u.role === 'Processor';
+  const seesAllCrm = (u) => u.isAdmin || C.runsOrders(u);
   // owner rule: Sales Person = own; Sales Team = the sales team's (owned by any salesperson, or unowned)
   const ownerOk = (u, ownerId) => seesAllCrm(u) || ownerId === u.id || (u.role === 'Sales Team' && (!ownerId || salesIds().has(ownerId)));
   const staffLogin = (c) => { const p = c.profileId && prof(c.profileId); return !!(p && p.status !== 'removed' && !C.isOutside(p.role)); };

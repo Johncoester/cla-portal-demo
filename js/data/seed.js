@@ -1,7 +1,7 @@
 // FAKE DATA ONLY. Fictional people, example.test addresses, 555 phone numbers. No real clients, no credentials.
-import { TEMPLATE_DEFS, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611051059';
-import { crmZohoUpgrade } from './crm.js?v=202611051059';
-import { ensureEmailTemplates } from './crm-templates.js?v=202611051059';
+import { TEMPLATE_DEFS, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611051216';
+import { crmZohoUpgrade } from './crm.js?v=202611051216';
+import { ensureEmailTemplates } from './crm-templates.js?v=202611051216';
 export const DEAL_FOLDERS = ['Contract & addenda', 'IDs & personal', 'Lender & payoff', 'HOA', 'Closing'];
 const addDays = (iso, n) => new Date(Date.parse(iso.slice(0, 10) + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 export function buildSeed() {
@@ -9,6 +9,7 @@ export function buildSeed() {
     phone: `301-555-01${String(n).padStart(2, '0')}`, role, isAdmin: false, status: 'active', createdAt: '2026-09-01T12:00:00Z', ...extra });
   const profiles = [
     P('u-proc', 'Paula', 'Processor', 'Processor', 1),
+    P('u-preproc', 'Pat', 'Preprocessor', 'Preprocessor', 15),
     P('u-sp', 'Sam', 'Salesperson', 'Sales Person', 2),
     P('u-team', 'Tina', 'Salesteam', 'Sales Team', 3),
     P('u-tc', 'Terry', 'Coordinator', 'Transaction Coordinator', 4),
@@ -46,10 +47,10 @@ export function buildSeed() {
   const deals = [
     { id: 'deal-1', fileNumber: 'MD-26-97183', street: '145 Main Street', city: 'Rockville', state: 'MD', zip: '20850', county: 'Montgomery', transactionType: 'Purchase', stage: 3, status: 'Open',
       openDate: '2026-09-28', closingDate: null, purchasePrice: 485000, loanAmount: 388000, emdAmount: 10000, emdDueDate: '2026-10-03', lenderName: 'Example Home Loans (fake)', lenderContact: 'Linda Lender', lenderEmail: 'linda.lender@example.test', lenderPhone: '410-555-0111',
-      notes: 'Fake file. Buyer needs to finish photo ID; closing date request is out to both sides.', processorId: 'u-proc', salesPersonId: 'u-sp', createdBy: 'u-proc', createdAt: '2026-09-28T14:00:00Z' },
+      notes: 'Fake file. Buyer needs to finish photo ID; closing date request is out to both sides.', processorId: 'u-proc', preprocessorUserId: 'u-preproc', salesPersonId: 'u-sp', createdBy: 'u-proc', createdAt: '2026-09-28T14:00:00Z' },
     { id: 'deal-2', fileNumber: 'MD-26-97201', street: '22 Elm Court', city: 'Bethesda', state: 'MD', zip: '20814', county: 'Montgomery', transactionType: 'Purchase', stage: 0, status: 'Open',
       openDate: '2026-09-28', closingDate: '2026-12-02', purchasePrice: 720000, loanAmount: 540000, emdAmount: null, emdDueDate: null, lenderName: '', lenderContact: '', lenderEmail: '', lenderPhone: '',
-      notes: 'Fake file. New order; waiting on contract and EMD.', processorId: 'u-proc', salesPersonId: 'u-team', createdBy: 'u-proc', createdAt: '2026-09-28T15:00:00Z' },
+      notes: 'Fake file. New order; waiting on contract and EMD.', processorId: 'u-proc', preprocessorUserId: 'u-preproc', salesPersonId: 'u-team', createdBy: 'u-proc', createdAt: '2026-09-28T15:00:00Z' },
     { id: 'deal-3', fileNumber: 'MD-26-96877', street: '9 Harbor Lane', city: 'Annapolis', state: 'MD', zip: '21401', county: 'Anne Arundel', transactionType: 'Purchase', stage: 9, status: 'Closed',
       openDate: '2026-08-10', closingDate: '2026-10-15', purchasePrice: 610000, loanAmount: 450000, emdAmount: 15000, emdDueDate: '2026-08-14', lenderName: 'Example Home Loans (fake)', lenderContact: 'Linda Lender', lenderEmail: 'linda.lender@example.test', lenderPhone: '410-555-0111',
       notes: 'Fake file. Closed and funded. Buyer agent (Gary Gone) was later removed by Admin; his file history is kept.', processorId: 'u-proc', salesPersonId: 'u-sp', createdBy: 'u-proc', createdAt: '2026-08-10T14:00:00Z' },
@@ -63,7 +64,7 @@ export function buildSeed() {
   ];
   const participants = [];
   const link = (n, cid, role) => participants.push({ id: participants.some((z) => z.id === `dp-${n}-${cid.slice(2)}`) ? `dp-${n}-${cid.slice(2)}-${role.toLowerCase().replace(/[^a-z]/g, '')}` : `dp-${n}-${cid.slice(2)}`, dealId: `deal-${n}`, contactId: cid, role, createdAt: deals[n - 1].createdAt });
-  [1, 2].forEach((n) => { link(n, 'c-proc', 'Processor'); link(n, 'c-sp', 'Sales Person'); link(n, 'c-team', 'Sales Team'); link(n, 'c-tc', 'Transaction Coordinator');
+  [1, 2].forEach((n) => { link(n, 'c-proc', 'Processor'); link(n, 'c-preproc', 'Preprocessor'); link(n, 'c-sp', 'Sales Person'); link(n, 'c-team', 'Sales Team'); link(n, 'c-tc', 'Transaction Coordinator');
     link(n, 'c-bagent', 'Buyer Agent'); link(n, 'c-lagent', 'Listing Agent'); link(n, 'c-buyer', 'Client-Buyer'); link(n, 'c-seller', 'Client-Seller'); });
   link(1, 'c-tc2', 'Transaction Coordinator');   // John, Nov 4: Morgan Coordinator is the TC on Ben's file (Terry stays on too; Bianca stays its Buyer Agent)
   link(1, 'c-lender1', 'Lender'); link(1, 'c-hoa1', 'HOA');

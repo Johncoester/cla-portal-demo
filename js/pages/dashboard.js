@@ -1,9 +1,9 @@
 // Role dashboards: Processor = Work Queue; Sales Person / Sales Team = Team Dashboard (view-only);
 // Transaction Coordinator = Dashboard; Buyer/Listing Agent = Transactions; clients = My Closing.
-import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js?v=202611051059';
-import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611051059';
-import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611051059';
-import { themeOn } from '../theme.js?v=202611051059';
+import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js?v=202611051216';
+import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611051216';
+import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611051216';
+import { themeOn } from '../theme.js?v=202611051216';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>${d.fileTitle ? html` <span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}`;
 // CARD THEME (default look): a tile that repeats one of the four dashboard cards (open orders = "in Pipeline" count, overdue tasks) is not drawn;
@@ -21,7 +21,7 @@ export async function render(ctx) {
   const v = await pick({ ...ctx, deals, open, all, today });
   // CARD THEME MOCKUP (opt-in): four clickable summary cards above the CLA team dashboards (computed from the orders this person can see)
   const tc = themeOn() && (user.isAdmin || runsOrders(user) || ['Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(user.role));
-  const top = tc ? (await import('./theme-cards.js?v=202611051059')).dashCards(deals) : '';
+  const top = tc ? (await import('./theme-cards.js?v=202611051216')).dashCards(deals) : '';
   return { title: v.title, crumbs: [[v.title]], body: tc ? html`${top}${v.body}` : v.body, mount: v.mount };
 }
 
@@ -56,15 +56,24 @@ async function team({ user, open, all, deals, today }) {
     <div class="card"><h3>Open files</h3><table class="tbl"><thead><tr><th>Order</th><th>Property</th><th>Processor</th><th>Stage</th><th>Closing</th><th>Open tasks</th></tr></thead><tbody>${rows}</tbody></table></div>` };
 }
 
-async function coordinator({ user, open, all, today }) {
-  const mine = all.filter((t) => t.assignedRole === user.role && ['todo', 'in_progress', 'blocked'].includes(t.status) && t.deal.status === 'Open');
-  const rows = mine.map((t) => html`<tr><td>${t.title}</td><td>${dealLink(t.deal, 'tasks')}</td><td class="${t.dueDate && t.dueDate < today ? 'bad-text' : ''}">${fmtDate(t.dueDate)}</td><td>${pill(t.status, t.status === 'blocked' ? 'warn' : 'info')}</td></tr>`);
-  const files = open.map((d) => html`<tr><td>${dealLink(d)}</td><td>${d.address}</td><td>${d.stageName}</td><td>${fmtDate(d.closingDate)}</td><td>${d.unread ? pill(d.unread + ' new', 'info') : ''}</td></tr>`);
+async function coordinator({ api, user, open, all, today }) {
+  const mine = all.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status) && t.deal.status === 'Open' && (t.assignedRole === user.role || t.mine))
+    .sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'));
+  const summaries = {};
+  for (const d of open) { try { summaries[d.id] = await api.getTcFileSummary(d.id); } catch (e) { summaries[d.id] = null; } }
+  const tasks = mine.map((t) => html`<tr data-tc-task="${t.id}"><td><a href="#/deals/${t.deal.id}/tasks${['form', 'sign', 'agent'].includes(t.kind) ? '/' + t.id : ''}">${t.title}</a></td><td><a href="#/deals/${t.deal.id}">${t.deal.fileNumber}</a><br><span class="muted small">${t.deal.address}</span></td><td class="${t.dueDate && t.dueDate < today ? 'bad-text' : ''}">${t.dueDate ? fmtDate(t.dueDate) : '—'}</td><td>${pill(t.status, t.status === 'blocked' ? 'warn' : 'info')}</td></tr>`);
+  const files = open.slice().sort((a, b) => (a.closingDate || '9999').localeCompare(b.closingDate || '9999')).map((d) => {
+    const s = summaries[d.id]; const e = s && s.emdAlta;
+    const ms = s && s.milestones.find((m) => m.state === 'current');
+    return html`<tr data-tc-file="${d.id}"><td><a href="#/deals/${d.id}">${d.fileNumber}</a><br><span class="muted small">${d.address}</span></td>
+      <td>${d.stageName}${ms && ms.date ? html`<br><span class="muted small">${fmtDate(ms.date)}</span>` : ''}<div class="progress" title="${d.stageName}"><div style="width:${Math.round(((d.stage + 1) / 10) * 100)}%"></div></div></td>
+      <td data-tc-chips>${e ? html`${e.received ? pill('EMD received', 'ok') : pill('EMD pending', 'warn')} ${e.altaReceived ? pill('ALTA received', 'ok') : pill('ALTA pending', 'warn')}` : '—'}</td>
+      <td>${d.closingDate ? fmtDate(d.closingDate) : html`<span class="warn">Not set</span>`}</td><td>${d.openTasks}</td></tr>`; });
   return { title: 'Dashboard', body: html`
-    <div class="page-head"><div><div class="eyebrow">TRANSACTION COORDINATOR</div><h2 class="page-title">Coordination board</h2></div></div>
-    <div class="stat-row">${stat('My open tasks', mine.length, 'assigned to coordinators')}${stat('Files', open.length, 'open', '', true)}${stat('Unread messages', open.reduce((n, d) => n + d.unread, 0), 'in my threads')}</div>
-    <div class="two-col"><div class="card"><h3>My tasks</h3>${rows.length ? html`<table class="tbl"><thead><tr><th>Task</th><th>Order</th><th>Due</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>` : html`<p class="muted">You're all caught up.</p>`}</div>
-      <div class="card"><h3>My files</h3><table class="tbl"><thead><tr><th>Order</th><th>Property</th><th>Stage</th><th>Closing</th><th></th></tr></thead><tbody>${files}</tbody></table></div></div>` };
+    <div class="page-head"><div><div class="eyebrow">TRANSACTION COORDINATOR</div><h2 class="page-title">Coordination dashboard</h2><div class="muted">Tasks first, then your files. Open a file for the five quick tools.</div></div></div>
+    <div class="stat-row">${stat('My open tasks', mine.length, 'across all my files')}${stat('Files', open.length, 'open', '', true)}${stat('Unread messages', open.reduce((n, d) => n + d.unread, 0), 'in my threads')}${stat('Next closing', open.filter((d) => d.closingDate && d.closingDate >= today).sort((a, b) => a.closingDate.localeCompare(b.closingDate))[0] ? fmtDate(open.filter((d) => d.closingDate && d.closingDate >= today).sort((a, b) => a.closingDate.localeCompare(b.closingDate))[0].closingDate) : '—', 'next scheduled', 'info')}</div>
+    <div class="card" data-tc-dashboard-tasks><h3>Everything I need to do</h3>${tasks.length ? html`<table class="tbl striped"><thead><tr><th>Task</th><th>File</th><th>Due</th><th>Status</th></tr></thead><tbody>${tasks}</tbody></table>` : html`<p class="muted">You're all caught up.</p>`}</div>
+    <div class="card" data-tc-dashboard-files><h3>My files</h3><table class="tbl striped"><thead><tr><th>File / property</th><th>Milestone</th><th>EMD &amp; ALTA</th><th>Closing date</th><th>Open tasks</th></tr></thead><tbody>${files}</tbody></table></div>` };
 }
 
 const agentCards = (deals, all, role) => deals.map((d) => { const side = (role || d.myRole) === 'Buyer Agent' ? 'Buyer' : 'Listing'; const mine = all.filter((t) => t.deal.id === d.id && t.mine && ['todo', 'in_progress'].includes(t.status));

@@ -1,17 +1,17 @@
 // BUYER VIEW, UNCHANGED (John, Nov 4: buyer-specific items are on feature/buyer-overview). A verbatim copy of the live28 File Overview, used ONLY for a
 // Client-Buyer viewing their own order (not an agent there). The order page redesign (deal.js) is for staff / agents / sellers. Delete once buyer overview lands.
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611051059';
-import { GMAIL_OFF } from '../data/automation.js?v=202611051059';
-import { occSelects, yesNo } from './occ-fields.js?v=202611051059';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611051059';
-import { slotText } from './dealclosing.js?v=202611051059';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611051059';
-import { composeModal } from './compose.js?v=202611051059';
-import { moneyShow, moneyClean } from './money-input.js?v=202611051059';
-import { themeOn } from '../theme.js?v=202611051059';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611051216';
+import { GMAIL_OFF } from '../data/automation.js?v=202611051216';
+import { occSelects, yesNo } from './occ-fields.js?v=202611051216';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611051216';
+import { slotText } from './dealclosing.js?v=202611051216';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611051216';
+import { composeModal } from './compose.js?v=202611051216';
+import { moneyShow, moneyClean } from './money-input.js?v=202611051216';
+import { themeOn } from '../theme.js?v=202611051216';
 
-const TABS = { tasks: './dealtasks.js?v=202611051059', inbox: './dealmsgs.js?v=202611051059', documents: './dealdocs.js?v=202611051059', contacts: './dealcontacts.js?v=202611051059', activity: './dealactivity.js?v=202611051059', closing: './dealclosing.js?v=202611051059', agreements: './dealagreements.js?v=202611051059', accounting: './dealaccounting.js?v=202611051059' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611051216', inbox: './dealmsgs.js?v=202611051216', documents: './dealdocs.js?v=202611051216', contacts: './dealcontacts.js?v=202611051216', activity: './dealactivity.js?v=202611051216', closing: './dealclosing.js?v=202611051216', agreements: './dealagreements.js?v=202611051216', accounting: './dealaccounting.js?v=202611051216' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -20,7 +20,7 @@ export async function render(ctx) {
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
   if (tab === 'accounting' && !(api.features || {}).accounting) throw new Error('That page does not exist.');   // John, Nov 3: switchable off for the live portal
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611051059' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611051216' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
@@ -33,7 +33,7 @@ export async function render(ctx) {
   return { ...v, body: html`${done.html}${cards}${extra.top}${v.body}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
 }
 async function themedSummary({ api, user }, d, ov, inv) {
-  const { orderSummary } = await import('./theme-cards.js?v=202611051059');
+  const { orderSummary } = await import('./theme-cards.js?v=202611051216');
   const staffView = !user.accountRole && user.role !== 'Outside user';
   const canWire = staffView || (user.roles || [user.role]).includes('Client-Buyer');   // SAME rule as the Wire instructions button: CLA staff + the buyer, never an agent
   const tasks = await api.listTasks(d.id).catch(() => []);
@@ -85,7 +85,7 @@ function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = []) {
   const refi = isRefi(d); const B = refi ? 'Borrower' : 'Buyer';
   const showSellers = !refi || all('Client-Seller').length; const showAgents = (r) => !refi || all(r).length; const showPrice = !refi || d.purchasePrice != null; const showEmd = !refi || d.emdAmount != null || d.emdDueDate;
   const tracker = STAGES.map((s, i) => html`<li class="${i < d.stage ? 'done' : i === d.stage ? 'current' : ''}"><button type="button" class="step" ${edit ? '' : raw('disabled')} data-stage="${i}" title="${edit ? 'Set stage' : s}"></button><span>${s}</span></li>`);
-  const team = d.participants.filter((p) => ['Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(p.role));
+  const team = d.participants.filter((p) => ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(p.role));
   // John, Nov 2: when the lender fields are empty, show the order's Lender contact (e.g. added through Place Order's Add new user)
   const lender = d.lenderName || d.lenderContact || d.lenderEmail || d.lenderPhone ? html`<div><strong>${d.lenderName}</strong><br>${d.lenderContact}<br><span class="muted">${d.lenderEmail} ${fmtPhone(d.lenderPhone)}</span></div>` : by('Lender') ? person(by('Lender')) : html`<div class="muted">Not specified</div>`;
   const body = html`
@@ -107,7 +107,7 @@ function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = []) {
     <div class="box-title"><h2><span class="h-ico"></span>Summary</h2></div>
     <div class="sum-grid">${card(all('Client-Buyer').length > 1 ? `${B} Information (${all('Client-Buyer').length} ${B.toLowerCase()}s)` : `${B} Information`, html`<div data-party-list="Client-Buyer">${people(all('Client-Buyer'))}</div>${edit ? html`<button type="button" class="ghost" data-add-party="Client-Buyer">+ Add ${B.toLowerCase()}</button>` : ''}`)}${showSellers ? card(all('Client-Seller').length > 1 ? `Seller Information (${all('Client-Seller').length} sellers)` : 'Seller Information', html`<div data-party-list="Client-Seller">${people(all('Client-Seller'))}</div>${edit && !refi ? html`<button type="button" class="ghost" data-add-party="Client-Seller">+ Add seller</button>` : ''}`) : ''}
       ${showAgents('Buyer Agent') ? card('Buyer Agent Representation', person(by('Buyer Agent'))) : ''}${showAgents('Listing Agent') ? card('Listing Agent Representation', person(by('Listing Agent'))) : ''}
-      ${card('Lender Information', lender)}${card('CLA Title Information', html`<div>Processor: <strong>${d.processorName}</strong><br>Salespeople: ${(d.salesPeople || []).length ? (d.salesPeople || []).map((s, i) => html`${i ? ', ' : ''}<span class="nowrap" data-sales-person="${s.id}">${s.name}${edit ? html` <button class="ghost" data-rm-sales="${s.id}" title="Remove from this order" aria-label="Remove ${s.name}">&times;</button>` : ''}</span>`) : 'Not specified'}${edit && salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)).length ? html`<br><select id="addsales" aria-label="Add a salesperson"><option value="">+ Add salesperson&hellip;</option>${options(salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)), '', (s) => `${s.firstName} ${s.lastName} (${s.role})`, (s) => s.id)}</select>` : ''}<br>${team.filter((p) => p.role === 'Transaction Coordinator').map((p) => html`Transaction coordinator: ${p.contact.firstName} ${p.contact.lastName}<br>`)}${staffView ? html`<span data-source-of-business>Source of business: <strong>${d.sourceOfBusinessLabel || 'Not set'}</strong></span>` : ''}</div>`)}</div>
+      ${card('Lender Information', lender)}${card('CLA Title Information', html`<div>Processor: <strong>${d.processorName}</strong><br>Preprocessor: <strong>${d.preprocessorName || 'Not assigned'}</strong><br>Salespeople: ${(d.salesPeople || []).length ? (d.salesPeople || []).map((s, i) => html`${i ? ', ' : ''}<span class="nowrap" data-sales-person="${s.id}">${s.name}${edit ? html` <button class="ghost" data-rm-sales="${s.id}" title="Remove from this order" aria-label="Remove ${s.name}">&times;</button>` : ''}</span>`) : 'Not specified'}${edit && salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)).length ? html`<br><select id="addsales" aria-label="Add a salesperson"><option value="">+ Add salesperson&hellip;</option>${options(salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)), '', (s) => `${s.firstName} ${s.lastName} (${s.role})`, (s) => s.id)}</select>` : ''}<br>${team.filter((p) => p.role === 'Transaction Coordinator').map((p) => html`Transaction coordinator: ${p.contact.firstName} ${p.contact.lastName}<br>`)}${staffView ? html`<span data-source-of-business>Source of business: <strong>${d.sourceOfBusinessLabel || 'Not set'}</strong></span>` : ''}</div>`)}</div>
     ${d.notes ? html`<div class="card"><h3>Notes</h3><p>${d.notes}</p></div>` : ''}
     ${edit ? automationSection(d, refi) : ''}
     <div class="box-title"><h2><span class="h-ico"></span>Order Contacts</h2><a class="ghost right" href="#/deals/${d.id}/contacts">All contacts</a></div>
@@ -138,6 +138,7 @@ async function wireModal(api, d) {
 async function editModal(api, d, refresh) {
   const v = (k) => d[k] == null ? '' : d[k]; const refi = isRefi(d);
   // Matt, Nov 3 (b): source of business (CRM Settings Lead Source list; a retired / renamed value already on the order stays selectable) + money with commas
+  const preprocs = await api.listPreprocessors();
   const src = api.listSourceOptions ? await api.listSourceOptions().catch(() => []) : []; const srcOpts = [...src];
   if (d.sourceOfBusiness && !srcOpts.some((o) => o.value === d.sourceOfBusiness)) srcOpts.push({ value: d.sourceOfBusiness, label: d.sourceOfBusinessLabel || d.sourceOfBusiness });
   const m = modal('Edit order details', html`<form id="edf" class="form-grid">
@@ -148,6 +149,7 @@ async function editModal(api, d, refresh) {
       : html`<label>Purchase price<input name="purchasePrice" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.purchasePrice)}"></label><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>
     <label>EMD amount<input name="emdAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.emdAmount)}"></label><label>EMD due date<input type="date" name="emdDueDate" value="${v('emdDueDate')}"></label>`}
     ${refi ? '' : occSelects(d)}
+    <h4 class="span2">CLA Title team</h4><label class="span2">Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, d.preprocessorUserId || '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select></label>
     <h4 class="span2">Lender</h4><label>Company<input name="lenderName" value="${v('lenderName')}"></label><label>Contact<input name="lenderContact" value="${v('lenderContact')}"></label>
     <label>Email<input name="lenderEmail" value="${v('lenderEmail')}"></label><label>Phone<input name="lenderPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${v('lenderPhone')}"></label>
     <label class="span2">Source of business<select name="sourceOfBusiness" aria-label="Source of business"><option value="">(not set)</option>${options(srcOpts, d.sourceOfBusiness || '', (o) => o.label, (o) => o.value)}</select></label>

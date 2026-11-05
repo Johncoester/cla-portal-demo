@@ -4,8 +4,9 @@
  * "Buyers Initial Commitment copy", made with the existing signature-request / task pattern).
  * Every value is a typed field on a typed row (mirrors migration 61), rows are soft-deleted (deletedAt), nothing is ever sent (outbox = queued only),
  * NO SSN is ever stored (the PACER rows hold party, search type, result and the receipt document only). FAKE DATA ONLY. */
-import * as T from './title.js?v=202611051059';
-import { seedTitleSamples } from './title-seed.js?v=202611051059';
+import { senderFor } from './email-senders.js?v=202611051216';
+import * as T from './title.js?v=202611051216';
+import { seedTitleSamples } from './title-seed.js?v=202611051216';
 
 const COLS = ['titleReviews', 'titleSteps', 'titlePacer', 'titleDiscrepancies', 'titleChain', 'titleItems', 'titleCpls', 'titlePackageComponents', 'titleSignatures', 'titleSummaries', 'titleCurative', 'orderNotes', 'titleLog'];
 // typed review fields (title_reviews columns): s = text, L = long text, m = money, d = date, b = boolean, e:<list> = one of a list
@@ -93,7 +94,7 @@ export function titlePart(x, flags, api) {
   const cplFor = (dealId, who) => live('titleCpls', dealId).find((c) => c.cplFor === who) || null;
   const nextPos = (list) => list.reduce((m, z) => Math.max(m, z.position || 0), 0) + 1;
   function ensureTask(u, deal, title, reviewerId) { const d = db(); let t = d.tasks.find((z) => z.dealId === deal.id && z.title === title && z.status !== 'cancelled');
-    if (!t) { const rv = prof(reviewerId || u.id); const role = rv && ['Processor', 'Transaction Coordinator'].includes(rv.role) ? rv.role : 'Processor';
+    if (!t) { const rv = prof(reviewerId || u.id); const role = rv && ['Processor', 'Preprocessor', 'Transaction Coordinator'].includes(rv.role) ? rv.role : 'Processor';
       t = { id: nid('t'), dealId: deal.id, participantId: null, templateId: null, templateCode: null, templateVersion: null, kind: 'simple', title, description: '', assignedRole: role, status: 'todo', dueDate: deal.closingDate || localDate(7), formData: {},
         savedAt: null, savedBy: null, completedAt: null, completedBy: null, createdBy: u.id, createdAt: now(), taskGroup: T.TITLE_TASK_GROUP, assigneeId: reviewerId || u.id }; d.tasks.push(t); }
     return t; }
@@ -121,7 +122,7 @@ export function titlePart(x, flags, api) {
     const payoffs = (d.payoffs || []).filter((p) => p.dealId === deal.id && !p.retired).map((p) => ({ id: p.id, position: p.position, lender: (p.lender || {}).name || '', titleItemId: p.titleItemId || null }));
     const hoaLinked = (d.dealOtherContacts || []).find((o) => o.dealId === deal.id && !o.retired && o.fromTitleReviewId);
     const summary = d.titleSummaries.filter((s) => s.dealId === deal.id && !s.deletedAt).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] || null;
-    return { dealId: deal.id, canEdit, canPayoffs: !!flags.accounting && (!!u.isAdmin || u.role === 'Processor'), status: deal.titleReviewStatus || 'not_started', statusLabel: T.reviewStatusLabel(deal.titleReviewStatus || 'not_started'),
+    return { dealId: deal.id, canEdit, canPayoffs: !!flags.accounting && !!u && (u.isAdmin || ['Processor','Preprocessor'].includes(u.role)), status: deal.titleReviewStatus || 'not_started', statusLabel: T.reviewStatusLabel(deal.titleReviewStatus || 'not_started'),
       deal: { id: deal.id, fileNumber: deal.fileNumber, street: deal.street, city: deal.city, state: deal.state, zip: deal.zip, county: deal.county || '', transactionType: deal.transactionType, purchasePrice: deal.purchasePrice, loanAmount: deal.loanAmount,
         lenderName: deal.lenderName || '', lenderContact: deal.lenderContact || '', lenderEmail: deal.lenderEmail || '', closingDate: deal.closingDate, loanIdNumber: deal.loanIdNumber || '', lossPayeeName: deal.lossPayeeName || '', usesMers: deal.usesMers ?? null,
         fundingType: deal.fundingType || '', firstPaymentDate: deal.firstPaymentDate || '', interestType: deal.interestType || '', loanType: deal.loanType || '', buyers: buyerNames(deal.id), sellers: sellerNames(deal.id) },
@@ -253,7 +254,7 @@ export function titlePart(x, flags, api) {
 
     // ---------- tie-in with Payoffs / HOA (linked both ways) ----------
     async createPayoffFromItem(itemId) { const row = db().titleItems.find((z) => z.id === itemId && !z.deletedAt && z.templateKey === 'dot_release') || fail('Pick a Deed of Trust requirement.'); const { u, deal } = editor(row.dealId);
-      if (!flags.accounting) fail('Payoffs / HOA is not turned on in this portal.'); if (!(u.isAdmin || u.role === 'Processor')) fail('Only a Processor or Admin creates payoffs.');
+      if (!flags.accounting) fail('Payoffs / HOA is not turned on in this portal.'); if (!u || !(u.isAdmin || ['Processor','Preprocessor'].includes(u.role))) fail('Only a Processor or Admin creates payoffs.');
       if (row.payoffId && (db().payoffs || []).some((p) => p.id === row.payoffId && !p.retired)) fail('This Deed of Trust already has a payoff.');
       const used = new Set((db().payoffs || []).filter((p) => p.dealId === row.dealId && !p.retired).map((p) => p.position)); let pos = 1; while (used.has(pos)) pos++; if (pos > 4) fail('This order already has 4 payoffs.');
       const rec = {}; if (row.dotLender) rec.originalMortgagee = row.dotLender; if (row.dotTrustee) rec.originalTrustee = row.dotTrustee; if (row.dotAmount != null) rec.originalAmount = row.dotAmount; if (row.dotDate) rec.dotDate = row.dotDate;
@@ -262,7 +263,7 @@ export function titlePart(x, flags, api) {
       const p = await api.savePayoff(row.dealId, { position: pos, lender: { name: row.dotLender || 'Payoff lender (from Title)' }, lienHolder: row.dotLender || '', trustee: row.dotTrustee || '', isMortgage: true, recording: rec, note: `From Title REQ#${n ? n.number : ''}: ${T.dotPayoffLine(row)}` });
       const pr = db().payoffs.find((z) => z.id === p.id); pr.titleItemId = row.id; const r2 = db().titleItems.find((z) => z.id === row.id); r2.payoffId = p.id; stamp(r2, u, false);
       done(u, deal, ['Payoff', `created from REQ#${n ? n.number : ''} (${PO_TAB(pos)})`]); return { payoffId: p.id, position: pos }; },
-    async createHoaPayoffFromTitle(dealId) { const { u, deal } = editor(dealId); if (!flags.accounting) fail('Payoffs / HOA is not turned on in this portal.'); if (!(u.isAdmin || u.role === 'Processor')) fail('Only a Processor or Admin creates payoffs.');
+    async createHoaPayoffFromTitle(dealId) { const { u, deal } = editor(dealId); if (!flags.accounting) fail('Payoffs / HOA is not turned on in this portal.'); if (!u || !(u.isAdmin || ['Processor','Preprocessor'].includes(u.role))) fail('Only a Processor or Admin creates payoffs.');
       const r = reviewOf(dealId); if (!hoaFound(r) || !str(r.assocName)) fail('Enter the HOA / condo association on Contract review first.');
       const name = r.assocName; const comp = (db().otherCompanies || []).find((c) => c.type === 'hoa' && c.name.toLowerCase() === name.toLowerCase()) || await api.createOtherCompany({ type: 'hoa', name });
       const have = (db().dealOtherContacts || []).find((o) => o.dealId === dealId && !o.retired && o.companyId === comp.id); const oc = have || await api.addOtherContact(dealId, comp.id, 'hoa');
@@ -315,7 +316,7 @@ export function titlePart(x, flags, api) {
       const ob = { id: nid('ob'), channel: 'email', status: 'queued', toProfileId: null, toName: deal.lenderContact || deal.lenderName, toEmail: deal.lenderEmail, subject: `Title Package - ${deal.fileNumber} - ${deal.street}, ${deal.city}`,
         body: `Hello ${deal.lenderContact || ''}, attached is the Title Package (CPL, Title Commitment, Tax Certificate, E&O, Prelim CD) for ${deal.street}, ${deal.city}, ${deal.state}. CLA Title & Escrow. (TEST portal: queued only, never sent.)`,
         taskId: null, dealId, createdBy: u.id, createdAt: now(), sentAt: null, attachmentDocumentIds: [pkg.id], titlePackage: true };
-      d.outbox.push(ob); r.packageSentAt = now(); r.packageSentBy = u.id; r.packageOutboxId = ob.id; stamp(r, u, false); setStep(u, dealId, 'send_package', 'done');
+      Object.assign(ob, senderFor(d, 'processor', dealId)); d.outbox.push(ob); r.packageSentAt = now(); r.packageSentBy = u.id; r.packageOutboxId = ob.id; stamp(r, u, false); setStep(u, dealId, 'send_package', 'done');
       completeTask(u, deal, T.SEND_TASK, `Title Package queued to ${deal.lenderEmail} (outbox only, not sent).`);
       done(u, deal, ['Send Title Package', `queued to ${deal.lenderEmail} (not sent)`]); return { outboxId: ob.id }; },
 

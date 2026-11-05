@@ -1,7 +1,7 @@
 // Shared constants: roles, stages, statuses. Used by the UI, the mock adapter and mirrored in SQL (supabase/migrations).
 // The 8 roles people play on an order (deal participants, task assignees).
 export const DEAL_ROLES = [
-  'Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator',
+  'Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator',
   'Buyer Agent', 'Listing Agent', 'Client-Buyer', 'Client-Seller',
 ];
 // 'Admin' is a real login role (shown as "Admin"). Picking it always grants Admin access (isAdmin), which stays THE permission check.
@@ -17,7 +17,7 @@ export const isSuperAdmin = (u) => !!(u && u.role === SUPER_ADMIN_ROLE && u.isAd
 // on each order they act as whatever deal_participants says (Buyer Agent on one file, Client-Buyer on another). One email = one login.
 export const OUTSIDE = 'Outside user';
 export const OUTSIDE_FILE_ROLES = ['Buyer Agent', 'Listing Agent', 'Client-Buyer', 'Client-Seller'];   // roles an outside user can hold on a file
-export const STAFF_ACCOUNT_ROLES = ['Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', ADMIN_ROLE, SUPER_ADMIN_ROLE];
+export const STAFF_ACCOUNT_ROLES = ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', ADMIN_ROLE, SUPER_ADMIN_ROLE];
 export const ROLES = [...STAFF_ACCOUNT_ROLES, OUTSIDE];   // account types a login can have (user admin picker)
 // HR WORKSPACE (John + Francis, Nov 4; migration 47): a CLA employee who has NO order / CRM work (e.g. most of the Philippines team, an HR-only manager)
 // signs in with the 'Employee' account role. It is NOT staff (isStaff false: no orders, CRM, invites) and NOT an outside user. Such a login is
@@ -34,7 +34,7 @@ export const fileRoleLabel = (roles, role) => { const r = roles && roles.length 
   if (r.includes('Client-Buyer') && r.includes('Buyer Agent')) return "Buyer + Buyer's Agent";
   if (r.includes('Client-Seller') && r.includes('Listing Agent')) return 'Seller + Listing Agent';
   return r[0] || OUTSIDE; };
-export const STAFF_ROLES = ['Processor', 'Sales Person', 'Sales Team', ADMIN_ROLE, SUPER_ADMIN_ROLE];
+export const STAFF_ROLES = ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', ADMIN_ROLE, SUPER_ADMIN_ROLE];
 export const VIEW_ONLY_ROLES = ['Sales Person', 'Sales Team'];   // no order edits/uploads/messages. Nov 2: Admin / Super admin are no longer view-only
 export const isViewOnly = (role) => VIEW_ONLY_ROLES.includes(role);
 // Label for pickers and lists: the role, plus "+ Admin" when a non-Admin role also has the Admin flag.
@@ -55,9 +55,11 @@ export const accountTypeLabel = (u) => (u && u.role === 'Outside user' ? `${outs
 // Back-office user who runs the deal workflow. NOT an admin: user/team admin = isAdmin (role 'Admin', or the flag on another role as in the old portal).
 // Sales Person / Sales Team are view-only, as in the old portal.
 export const PROCESSOR = 'Processor';
+export const PREPROCESSOR = 'Preprocessor';
 export const isProcessor = (role) => role === PROCESSOR;
-// Runs order work on ANY file: the Processor, and (Nov 2) anyone with Admin access. Use this (not isProcessor) for order-work permission checks.
-export const runsOrders = (u) => !!u && (isProcessor(u.role) || !!u.isAdmin);
+export const isPreprocessor = (role) => role === PREPROCESSOR;
+// Runs order work: Processor/Admin globally; Preprocessor only on files assigned through preprocessorUserId (enforced by dealsFor/RLS).
+export const runsOrders = (u) => !!u && (isProcessor(u.role) || isPreprocessor(u.role) || !!u.isAdmin);
 // View-only for order work: Sales Person / Sales Team, unless they also carry Admin access.
 export const viewOnly = (u) => !!u && !u.isAdmin && isViewOnly(u.role);
 export const isStaff = (role) => STAFF_ROLES.includes(role);
@@ -117,7 +119,7 @@ export const DOC_VISIBILITY = ['all', 'buyer', 'seller', 'staff'];
 // 'CLA staff only' and never the other side's private option. An outside user with no side on the file: 'all' only.
 // Mirrored by private.visibility_allowed(deal, visibility) in SQL (migration 12).
 export const visibilityChoices = (role, isAdmin = false) => {
-  if (isAdmin || ['Processor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin'].includes(role)) return [...DOC_VISIBILITY];
+  if (isAdmin || ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin'].includes(role)) return [...DOC_VISIBILITY];
   const side = ({ 'Buyer Agent': 'buyer', 'Client-Buyer': 'buyer', 'Listing Agent': 'seller', 'Client-Seller': 'seller' })[role];
   // CLIENTS (Matt, Oct 31): one choice, 'Share with CLA Title' = CLA staff + their own side (their agent), never the other side.
   // (A self-represented agent acts as the agent here, so keeps the agent choices.) Migration 13 refuses 'all' from a client.

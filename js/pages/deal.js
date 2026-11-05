@@ -1,18 +1,19 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611051059';
-import { GMAIL_OFF } from '../data/automation.js?v=202611051059';
-import { occSelects, yesNo } from './occ-fields.js?v=202611051059';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611051059';
-import { slotText } from './dealclosing.js?v=202611051059';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611051059';
-import { composeModal } from './compose.js?v=202611051059';
-import { moneyShow, moneyClean } from './money-input.js?v=202611051059';
-import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611051059';
-import { themeOn } from '../theme.js?v=202611051059';
-import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611051059';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611051216';
+import { GMAIL_OFF } from '../data/automation.js?v=202611051216';
+import { occSelects, yesNo } from './occ-fields.js?v=202611051216';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611051216';
+import { slotText } from './dealclosing.js?v=202611051216';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611051216';
+import { composeModal } from './compose.js?v=202611051216';
+import { moneyShow, moneyClean } from './money-input.js?v=202611051216';
+import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611051216';
+import { themeOn } from '../theme.js?v=202611051216';
+import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611051216';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611051216';
 
-const TABS = { tasks: './dealtasks.js?v=202611051059', inbox: './dealmsgs.js?v=202611051059', documents: './dealdocs.js?v=202611051059', contacts: './dealcontacts.js?v=202611051059', activity: './dealactivity.js?v=202611051059', closing: './dealclosing.js?v=202611051059', agreements: './dealagreements.js?v=202611051059', accounting: './dealaccounting.js?v=202611051059', title: './dealtitle.js?v=202611051059' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
-import { placeText } from '../data/cla-offices.js?v=202611051059';
+const TABS = { tasks: './dealtasks.js?v=202611051216', inbox: './dealmsgs.js?v=202611051216', documents: './dealdocs.js?v=202611051216', contacts: './dealcontacts.js?v=202611051216', activity: './dealactivity.js?v=202611051216', closing: './dealclosing.js?v=202611051216', agreements: './dealagreements.js?v=202611051216', accounting: './dealaccounting.js?v=202611051216', title: './dealtitle.js?v=202611051216' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+import { placeText } from '../data/cla-offices.js?v=202611051216';
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -25,13 +26,19 @@ export async function render(ctx) {
   if (tab === 'contacts' && user.accountRole && isPureClient(user)) throw new Error('Your closing team is on the Overview.');   // buyer (Nov 4 call) and seller (mirror): no Contacts tab   // John, Nov 3: switchable off for the live portal
   // CLIENT TABS (John, Nov 4: every buyer tab in the light client layout; same for the seller): the tab's own content, under the client file line +
   // pill tabs, drawn in the client shell (app.js: white top bar, CLA logo, no sidebar). The content and its rules are unchanged.
+  if (tab !== 'overview' && TABS[tab] && user.role === 'Transaction Coordinator' && !user.accountRole) {
+    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611051216' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
+    const top = await tcTabChrome(ctx, deal, tab);
+    return { ...v, crumbs: [...here, ...(v.crumbs || [])], tcPage: true, body: html`<div class="co-page tc-page" data-tc-tabpage="${tab}">${top}<section class="co-card co-tabcard"><div class="co-cb">${v.body}</div></section></div>` };
+  }
   if (tab !== 'overview' && TABS[tab] && user.accountRole && clientSide(user)) {
-    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611051059' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
+    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611051216' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
     const top = await clientTabChrome(ctx, deal, tab);
     return { ...v, crumbs: [...here, ...(v.crumbs || [])], clientPage: { deal, side: clientSide(user), tab }, body: html`<div class="co-page co-tabpage" data-client-tab="${tab}">${top}<section class="co-card co-tabcard"><div class="co-cb">${v.body}</div></section></div>` };
   }
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611051059' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611051216' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
+  if (user.role === 'Transaction Coordinator' && !user.accountRole) { return renderTcOverview(ctx, deal); }
   // CLIENT OVERVIEW (John, Nov 4): the buyer / seller get the redesigned overview (client-overview.js) in place of the old overview + card summary (no Cash to Close / payoff mockup figures for clients).
   if (user.accountRole && clientSide(user)) {
     const ov0 = await ctx.api.getOrderOverview(deal.id);
@@ -114,7 +121,7 @@ function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = [], ov = n
       <ol class="tracker op-steps" data-milestones>${tracker}</ol>${edit ? html`<p class="muted small op-hint">Click a step to set the stage. The last step closes the order.</p>` : ''}
       ${glance}</section>
     <div class="op-title deal-head"><h1 class="op-address" data-op-address>${d.street}, ${d.city}, ${d.state} ${d.zip}</h1><span class="op-order-no order-no" data-op-order-no>Order # ${d.fileNumber}</span>${d.fileTitle ? html` <span class="file-title" data-file-title>${d.fileTitle}</span>` : ''}${d.agentParties && d.agentParties.length ? html` <span class="pill warn agent-party">Agent is a party</span>` : ''}</div>
-    <p class="op-sub muted" data-op-sub>${d.transactionType || 'Purchase'}${d.county ? html` &middot; <span data-county-head>${d.county} County</span>` : ''}<span data-county hidden>${d.county || '\u2014'}</span> &middot; Opened ${fmtDate(d.openDate)} &middot; Processor ${d.processorName || 'not set'}${staffView ? html` &middot; <span data-source-of-business>Source of business: ${d.sourceOfBusinessLabel || 'Not set'}</span>` : ''}${ov && ov.orderDetails.agencyLicenseId ? html` &middot; Agency License ID <span data-license>${ov.orderDetails.agencyLicenseId}</span>` : ''}</p>
+    <p class="op-sub muted" data-op-sub>${d.transactionType || 'Purchase'}${d.county ? html` &middot; <span data-county-head>${d.county} County</span>` : ''}<span data-county hidden>${d.county || '\u2014'}</span> &middot; Opened ${fmtDate(d.openDate)} &middot; Processor ${d.processorName || 'not set'}${d.preprocessorName ? html` &middot; Preprocessor ${d.preprocessorName}` : ''}${staffView ? html` &middot; <span data-source-of-business>Source of business: ${d.sourceOfBusinessLabel || 'Not set'}</span>` : ''}${ov && ov.orderDetails.agencyLicenseId ? html` &middot; Agency License ID <span data-license>${ov.orderDetails.agencyLicenseId}</span>` : ''}</p>
     ${moneyRow(d, { canWire, staffView, showEmd })}
     ${d.unread ? html`<div class="op-actions"><a class="new-msg" href="#/deals/${d.id}/inbox">${d.unread} new message(s)</a></div>` : ''}
     ${d.agentParties && d.agentParties.length ? html`<div class="notice warn" data-agent-party><strong>Agent is a party.</strong> ${d.agentParties.map((p) => `${p.name} is the ${p.label}`).join('; ')} on this file (a licensee buying or selling for themselves). Make sure the licensee disclosure is on file.</div>` : ''}
@@ -166,6 +173,7 @@ async function wireModal(api, d) {
 async function editModal(api, d, refresh) {
   const v = (k) => d[k] == null ? '' : d[k]; const refi = isRefi(d);
   // Matt, Nov 3 (b): source of business (CRM Settings Lead Source list; a retired / renamed value already on the order stays selectable) + money with commas
+  const preprocs = await api.listPreprocessors();
   const src = api.listSourceOptions ? await api.listSourceOptions().catch(() => []) : []; const srcOpts = [...src];
   if (d.sourceOfBusiness && !srcOpts.some((o) => o.value === d.sourceOfBusiness)) srcOpts.push({ value: d.sourceOfBusiness, label: d.sourceOfBusinessLabel || d.sourceOfBusiness });
   const m = modal('Edit order details', html`<form id="edf" class="form-grid">
@@ -176,6 +184,7 @@ async function editModal(api, d, refresh) {
       : html`<label>Purchase price<input name="purchasePrice" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.purchasePrice)}"></label><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>
     <label>EMD amount<input name="emdAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.emdAmount)}"></label><label>EMD due date<input type="date" name="emdDueDate" value="${v('emdDueDate')}"></label>`}
     ${refi ? '' : occSelects(d)}
+    <h4 class="span2">CLA Title team</h4><label class="span2">Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, d.preprocessorUserId || '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select></label>
     <h4 class="span2">Lender</h4><label>Company<input name="lenderName" value="${v('lenderName')}"></label><label>Contact<input name="lenderContact" value="${v('lenderContact')}"></label>
     <label>Email<input name="lenderEmail" value="${v('lenderEmail')}"></label><label>Phone<input name="lenderPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${v('lenderPhone')}"></label>
     <label class="span2">Source of business<select name="sourceOfBusiness" aria-label="Source of business"><option value="">(not set)</option>${options(srcOpts, d.sourceOfBusiness || '', (o) => o.label, (o) => o.value)}</select></label>
@@ -216,7 +225,7 @@ function moneyRow(d, { canWire, staffView, showEmd }) {
 // the CLA Title sales rep only on agent Parties, no wire / cash-to-close / payoff data at all). CLA staff also see the other people on the file
 // (lender, TC, sales team, HOA, ...). Per person: Call (tel:), Email (mailto: opens the viewer's own mail app; the portal sends nothing), Copy.
 const telOf = (ph) => String(ph || '').replace(/[^0-9+]/g, '');
-const OVERVIEW_ROLES = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'Processor'];
+const OVERVIEW_ROLES = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'Processor', 'Preprocessor'];
 // John, Nov 4 meeting: CLA staff also get the ABSTRACTOR and the UNDERWRITER in the same list. Someone added on Contacts with that role shows
 // with their details; otherwise the row still shows (Underwriter = the state's underwriter from Underwriter Splits, Abstractor = not assigned yet).
 export const STAFF_EXTRA_ROLES = ['Abstractor', 'Underwriter'];

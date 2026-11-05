@@ -3,7 +3,7 @@
 // RULE: real estate agents NEVER receive wire instructions (and wire details go to the buyer only, so sellers do not get them here either).
 // No template text and no merge field can put wire / bank details into these messages: wire-ish merge fields resolve to nothing, any line
 // that mentions wires / routing / account numbers is dropped, and a final check replaces the whole body if anything wire-like survived.
-import { WIRE_BUYER_ONLY, looksLikeWireDetails, isWireDocName } from './constants.js?v=202611051059';
+import { WIRE_BUYER_ONLY, looksLikeWireDetails, isWireDocName } from './constants.js?v=202611051216';
 export const GMAIL_OFF = 'Sending turns on once Gmail is connected.';
 export const AUTOMATION_ROLES = ['Client-Seller', 'Listing Agent', 'Buyer Agent'];
 export const isAgentRole = (r) => r === 'Buyer Agent' || r === 'Listing Agent';

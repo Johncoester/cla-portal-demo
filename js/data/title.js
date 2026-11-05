@@ -5,12 +5,12 @@
  *   - NO SSN IS EVER STORED: the bankruptcy (PACER) search records only the party, the search type, the result and the receipt document.
  *   - Every field is typed (no JSON blobs for anything reported on); rows are soft-deleted (deleted_at), never removed.
  *   - The portal sends nothing: "Send Title Package" only queues an outbox entry + records who / when. */
-import { US_STATE_NAMES } from './constants.js?v=202611051059';
+import { US_STATE_NAMES } from './constants.js?v=202611051216';
 
 export const TITLE_OFF = 'The Title module is turned off on this portal.';
 export const TITLE_STAFF_ONLY = 'The Title module is for CLA staff only.';
 export const TITLE_READ_ONLY = 'Read only for your role: a Processor, Transaction Coordinator, Admin or Super admin changes the title review.';
-export const TITLE_EDIT_ROLES = ['Processor', 'Transaction Coordinator'];
+export const TITLE_EDIT_ROLES = ['Processor', 'Preprocessor', 'Transaction Coordinator'];
 export const TITLE_READ_ROLES = ['Sales Person', 'Sales Team'];
 // outside users (agents / clients) never: they have accountRole set when scoped to a file, and their account role is 'Outside user'
 export const titleCanRead = (u) => !!u && !u.accountRole && u.role !== 'Outside user' && u.role !== 'Employee' && (!!u.isAdmin || TITLE_EDIT_ROLES.includes(u.role) || TITLE_READ_ROLES.includes(u.role));

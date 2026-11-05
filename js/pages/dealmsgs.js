@@ -1,24 +1,28 @@
 // Inbox tab: conversations on this file (only people on the thread see it). Replies, new conversation, unread counts.
-import { html, $, $$, guard, formData, modal, closeModal, fmtDateTime, pill, toast } from '../ui.js?v=202611051059';
-import { viewOnly, isViewOnly, WIRE_FRAUD_NOTE } from '../data/constants.js?v=202611051059';
-import { raw } from '../ui.js?v=202611051059';
-import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611051059';
-import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611051059';
+import { html, $, $$, guard, formData, modal, closeModal, fmtDateTime, pill, toast } from '../ui.js?v=202611051216';
+import { viewOnly, isViewOnly, runsOrders, WIRE_FRAUD_NOTE } from '../data/constants.js?v=202611051216';
+import { raw } from '../ui.js?v=202611051216';
+import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611051216';
+import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611051216';
 
 export async function render(ctx) {
   const { api, user, deal, refresh, params } = ctx; const notViewOnly = !viewOnly(user);
   if (params.sub) return thread(ctx);
   const threads = await api.listThreads(deal.id);
-  const rows = threads.map((t, i) => html`<tr class="${t.unread ? 'unread' : ''}"><td>${i + 1}</td><td><a href="#/deals/${deal.id}/inbox/${t.id}">${t.subject}</a>${t.unread ? html` ${pill(t.unread + ' new', 'info')}` : ''}<br><span class="muted small">${t.lastBody.slice(0, 90)}</span></td>
+  const rows = threads.map((t, i) => html`<tr class="${t.unread ? 'unread' : ''}"><td>${i + 1}</td><td><a href="#/deals/${deal.id}/inbox/${t.id}">${t.subject}</a>${t.staffCoordinated ? html` ${pill('all parties · staff coordinated', 'info')}` : ''}${t.unread ? html` ${pill(t.unread + ' new', 'info')}` : ''}<br><span class="muted small">${t.lastBody.slice(0, 90)}</span></td>
     <td>${t.lastFrom}</td><td>${t.participants.map((p) => `${p.name}`).join(' | ')}</td><td>${fmtDateTime(t.lastAt)}</td><td>${t.count}${t.hasFiles ? ' \u{1F4CE}' : ''}</td></tr>`);
-  const body = html`<div class="box-title"><h2><span class="h-ico"></span>Conversations</h2>${notViewOnly ? html`<button class="m-btn right" id="newthread">Start conversation</button> <button class="ghost right" id="sharefiles2">Share Files</button>` : ''}</div>
+  const body = html`<div class="box-title"><h2><span class="h-ico"></span>Conversations</h2>${notViewOnly ? html`${user.role === 'Transaction Coordinator' && api.createAllPartiesThread ? html`<button class="m-btn right" id="allparties">Message all parties</button> ` : ''}<button class="m-btn right" id="newthread">Start conversation</button> <button class="ghost right" id="sharefiles2">Share Files</button>` : ''}</div>
     ${rows.length ? html`<table class="tbl striped"><thead><tr><th>Sr#</th><th>Subject</th><th>From</th><th>Users</th><th>Last activity</th><th>Msgs</th></tr></thead><tbody>${rows}</tbody></table>` : html`<p class="muted">No conversations yet.</p>`}`;
   return { title: 'Inbox', crumbs: [['Conversation']], body, mount(root) {
+    const ap = $('#allparties', root); if (ap) ap.addEventListener('click', guard(async () => {
+      const m = modal('Message all parties', html`<form id="apf" class="form-grid"><p class="span2 notice info">Staff-coordinated: the TC can address the client, processor and both agents in one thread. Outside parties see CLA staff and their own side only; the buyer never sees the listing agent, and the seller never sees the buyer’s agent.</p><label class="span2">Subject<input name="subject" required maxlength="150" value="${deal.street} — coordination update"></label><label class="span2">Message<textarea name="body" required rows="4" maxlength="4000"></textarea></label><div class="span2"><button class="m-btn" type="submit">Start coordination thread</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
+      $('#apf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); const t = await api.createAllPartiesThread(deal.id, f); closeModal(); toast('Coordination thread started (in-portal only; nothing emailed)'); ctx.go(`/deals/${deal.id}/inbox/${t.id}`); }));
+    }));
     const sf = $('#sharefiles2', root); if (sf) sf.addEventListener('click', guard(() => composeModal(ctx, { title: 'New Conversation', withFiles: true })));
     const nb = $('#newthread', root); if (nb) nb.addEventListener('click', guard(async () => {
       const people = await api.listMessageRecipients(deal.id);
       const m = modal('Start a conversation', html`<form id="ntf" class="form-grid"><label class="span2">Subject<input name="subject" maxlength="150" required></label>
-        <p class="span2 muted small">${user.role === 'Processor' || user.isAdmin || user.role === 'Transaction Coordinator' || user.role === 'Sales Person' || user.role === 'Sales Team' ? 'A conversation can include CLA Title staff and one side of the order (buyer side or seller side), not both.' : 'You can message CLA Title staff and people on your own side of this order.'}</p>
+        <p class="span2 muted small">${runsOrders(user) || user.isAdmin || user.role === 'Transaction Coordinator' || user.role === 'Sales Person' || user.role === 'Sales Team' ? 'A conversation can include CLA Title staff and one side of the order (buyer side or seller side), not both.' : 'You can message CLA Title staff and people on your own side of this order.'}</p>
         <fieldset class="span2 checks"><legend>To</legend>${people.map((p) => html`<label><input type="checkbox" name="to" value="${p.id}"> ${p.firstName} ${p.lastName} <span class="muted">(${p.role})</span></label>`)}</fieldset>
         <label class="span2">Message<textarea name="body" rows="4" maxlength="4000" required></textarea></label>
         <div class="span2"><button class="m-btn" type="submit">Send</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);

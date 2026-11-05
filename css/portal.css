@@ -941,3 +941,11 @@ fieldset.span2 { display: flex; flex-wrap: wrap; gap: .5rem; border: 1px solid v
 @media print { .tt-tabs, .tt-progress, nav, .sidebar, button { display: none !important; } }
 /* live40: on the client Open Orders page the orders table scrolls inside its own box instead of running past the page edge (it never sits under the agent card) */
 .agent-inline #view .tbl { display: block; overflow-x: auto; max-width: 100%; }
+
+/* TC PORTAL (John, Nov 5: Melissa Ward / Bowers Group): light coordination shell, five quick jumps, EMD/ALTA chips */
+.co-seg a[aria-current="page"] { background: var(--co-b); color: var(--co-nv); }
+.tc-quick { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 18px; }
+.tc-quick .muted { margin-right: 4px; }
+.tc-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+.tc-page .co-facts { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+@media (max-width: 700px) { .tc-quick { gap: 6px; } .tc-quick .co-btn { padding: 8px 12px; font-size: 13px; } }

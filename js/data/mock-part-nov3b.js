@@ -4,8 +4,8 @@
  *    Readable by anyone who places or edits orders (Processor, Admin, Super admin), even when the CRM feature itself is switched off.
  * Order fields (sourceOfBusiness, lenderPhone / lenderEmail at placement) and buyer / seller entities live in createDeal / updateDeal / addParticipant.
  * Mirrored in SQL by public.source_of_business_options() (migration 31). */
-import { ensureSettings, activeOptions, optionsOf } from './crm-config.js?v=202611051059';
-import { ENTITY_TYPES, entityPrefill } from './templates.js?v=202611051059';
+import { ensureSettings, activeOptions, optionsOf } from './crm-config.js?v=202611051216';
+import { ENTITY_TYPES, entityPrefill } from './templates.js?v=202611051216';
 
 export const sourceOptionsOf = (d) => activeOptions(ensureSettings(JSON.parse(JSON.stringify(d.crmSettings || null))), 'leadSource').map((o) => ({ value: o.value, label: o.label }));
 // a source value is OK when blank, unchanged, or an ACTIVE Lead Source option; returns the stored value

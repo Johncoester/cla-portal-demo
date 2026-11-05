@@ -3,7 +3,8 @@
  * closingLocationState (US code), closingLocationCountry (ISO 3166-1 alpha-2), signingMethod (staff only), answeredAt / answeredBy, updatedAt / updatedBy.
  * Who: the party reads / answers their OWN row; CLA staff read every row on orders they can see; Processor / Admin / Super admin edit any answer and
  * set the signing method; an agent reads their own side's clients (answer only, never the signing method); nobody sees the other side; no deletes. */
-import { cleanLocationAnswer, canManageClosingLocations, locationFlag, whereText, CLIENT_PARTY_ROLES, SIGNING_CODES, signingLabel, reminderTitle, stateName } from './closing-location.js?v=202611051059';
+import { senderFor } from './email-senders.js?v=202611051216';
+import { cleanLocationAnswer, canManageClosingLocations, locationFlag, whereText, CLIENT_PARTY_ROLES, SIGNING_CODES, signingLabel, reminderTitle, stateName } from './closing-location.js?v=202611051216';
 const AGENT_FOR = { 'Buyer Agent': 'Client-Buyer', 'Listing Agent': 'Client-Seller' };
 export function closingLocationPart({ load, save, needUser, now, fail, nid, isStaffView, dealOr404, contactOf, fileRoles, fullName, notify, prof, localDate }) {
   const rows = () => { const d = load(); if (!Array.isArray(d.closingPartyLocations)) d.closingPartyLocations = []; return d.closingPartyLocations; };
@@ -51,7 +52,7 @@ export function closingLocationPart({ load, save, needUser, now, fail, nid, isSt
       const ob = { id: nid('ob'), channel: 'email', kind: 'closing_location_reminder', status: 'queued', toProfileId: x.profileId, toEmail: x.email, subject: title,
         body: `Will you be in ${stateName(x.deal.state)} at the time of closing? If you will be in another state or outside the US, CLA Title will arrange a remote (RON), embassy or out-of-state signing. Answer here: ${link}`,
         link, taskId: null, dealId: x.deal.id, createdBy: by, createdAt: now(), sentAt: null };
-      load().outbox.push(ob);
+      Object.assign(ob, senderFor(load(), 'processor', x.deal.id)); load().outbox.push(ob);
       remRows().push({ id: nid('clr'), dealId: x.deal.id, participantId: x.p.id, profileId: x.profileId, partyRole: x.p.role, remindedOn: today, notificationId: nn ? nn.id : null, outboxId: ob.id, createdAt: now(), createdBy: by });
       n++; }
     if (n) save(); return n; }

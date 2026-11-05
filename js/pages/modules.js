@@ -1,9 +1,7 @@
 // MODULES (John, Nov 3: "an on and off ... for different modules ... controlled through the Admin and Super admins"; "Live on and off switch,
 // which means if it's off, we know that it's in beta [and it] can still be tested through the portal"). Admin / Super admin only.
-// One "Live" switch per module: ON = live for everyone their role allows; OFF = beta (regular users do not see it at all; Admins and Super
-// admins still do, with a "Beta, in testing" badge). Every change is logged below (who, when, old -> new). Nothing is ever deleted.
-import { html, raw, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611051059';
-import { canManageModules } from '../data/modules.js?v=202611051059';
+import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611051216';
+import { canManageModules } from '../data/modules.js?v=202611051216';
 
 const state = (m) => (!m.available ? ['Not available', 'off', 'Turned off in this portal\'s config file, so not even Admins see it. Nothing to switch here.']
   : m.live ? ['Live', 'live', 'Everyone their role allows sees it.'] : ['Beta, in testing', 'beta', m.superOnly ? 'Only Super admins see it (with a Beta badge) while it is set up. Plain Admins and everyone else do not.' : 'Only Admins and Super admins see it (with a Beta badge). Regular users do not see it at all.']);
@@ -11,7 +9,7 @@ const word = (v) => (v ? 'Live' : 'Beta');
 
 export async function render({ api, user, refresh }) {
   if (!canManageModules(user)) throw new Error('Only an Admin or Super admin can see the Modules page.');
-  const data = await api.listModules(); const byId = Object.fromEntries(data.modules.map((m) => [m.id, m]));
+  const data = await api.listModules(); const senders = await api.listEmailSenderSettings().catch(() => null); const byId = Object.fromEntries(data.modules.map((m) => [m.id, m]));
   const card = (m) => { const [label, cls, note] = state(m); const parent = m.parent ? byId[m.parent] : null;
     return html`<div class="card mod-card is-${cls}" data-module="${m.id}" data-module-state="${cls}">
       <div class="mod-head"><div><h3 class="mod-title">${m.label}</h3><div class="mod-where muted small">${m.where}</div></div>
@@ -31,6 +29,9 @@ export async function render({ api, user, refresh }) {
       <strong>Live off</strong> = <span class="beta-badge">${data.betaLabel}</span>: regular users do not see it at all (no menu item, the page is refused);
       Admins and Super admins still see it and can test it, marked "Beta". Role rules always apply on top (agents and clients never see Accounting; agents never get wire instructions).
       Only Admins and Super admins see this page. Every change is logged below; nothing is deleted.</p></div>
+    ${senders ? html`<div class="card" data-email-senders><h3>Email senders</h3><p class="small muted">Super admin only. These editable defaults stamp every new queued email. Updates and reminders use the file's assigned processor instead; Portal is the flagged fallback.</p><form id="email-sender-form"><div class="form-grid">
+${['hr', 'portal'].map((t) => html`<label>${t === 'hr' ? 'HR' : 'Portal'} display name<input name="${t}-display" required maxlength="100" value="${senders[t].displayName}"></label><label>${t === 'hr' ? 'HR' : 'Portal'} email<input name="${t}-email" type="email" required value="${senders[t].email}"></label>`)}
+</div><button class="m-btn" type="submit">Save email senders</button></form></div>` : ''}
     <div class="mod-grid" data-module-list>${data.modules.map(card)}</div>
     <div class="card mod-always" data-always-on><h3>Always on (no switch)</h3><p class="small muted">Core order pages and admin tools stay on for everyone their role allows.</p>
       <ul class="mod-always-list">${data.alwaysOn.map((a) => html`<li>${a}</li>`)}</ul></div>
@@ -40,6 +41,9 @@ export async function render({ api, user, refresh }) {
         <td><span class="mod-pill ${l.old ? 'live' : 'beta'}">${word(l.old)}</span> &rarr; <span class="mod-pill ${l.new ? 'live' : 'beta'}">${word(l.new)}</span></td></tr>`)
         : html`<tr><td colspan="4" class="muted">No changes yet. Every module starts Live.</td></tr>`}</tbody></table></div></section>`;
   return { title: 'Modules', crumbs: [['Modules']], body, mount(root) {
+    const sf = $('#email-sender-form', root); if (sf) sf.addEventListener('submit', guard(async (e) => { e.preventDefault();
+      await api.updateEmailSenderSettings({ hr: { displayName: $('[name=hr-display]', sf).value, email: $('[name=hr-email]', sf).value }, portal: { displayName: $('[name=portal-display]', sf).value, email: $('[name=portal-email]', sf).value } });
+      toast('Email sender settings saved'); refresh(); }));
     $$('[data-live-switch]', root).forEach((cb) => cb.addEventListener('change', guard(async () => {
       const id = cb.dataset.liveSwitch; const m = byId[id]; const live = cb.checked; cb.disabled = true;
       try { await api.setModuleLive(id, live); } catch (e) { cb.checked = !live; cb.disabled = false; throw e; }

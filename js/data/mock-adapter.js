@@ -5,50 +5,52 @@
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
 import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, localDate, localDayOf, isRealDate,
   isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
-  phoneOk, fmtPhone, PHONE_MSG, fileTitleOf, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611051059';
-import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611051059';
-import { indexedDbFileStore } from './file-store.js?v=202611051059';
-import { delegationLocked, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611051059';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611051059';
-import { devAuth } from './mock-part-auth.js?v=202611051059';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611051059';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611051059';
-import { messagesActivity } from './mock-part-msgs.js?v=202611051059';
-import { adminUsersTeams } from './mock-part-admin.js?v=202611051059';
-import { libraryFolders } from './mock-part-library.js?v=202611051059';
-import { closingSchedule } from './mock-part-schedule.js?v=202611051059';
-import { notificationsPart } from './mock-part-notify.js?v=202611051059';
-import { mattP2 } from './mock-part-matt.js?v=202611051059';
-import { mattNov2 } from './mock-part-nov2.js?v=202611051059';
-import { crmPart } from './mock-part-crm.js?v=202611051059';
-import { featureFlags } from './features.js?v=202611051059';
-import { crmZohoUpgrade } from './crm.js?v=202611051059';
-import { ensureEmailTemplates } from './crm-templates.js?v=202611051059';
-import { ensureNov3b as ensureCrmNov3b } from './crm-nov3b.js?v=202611051059';
-import { ensureAgentPortal } from './agent-portal.js?v=202611051059';
-import { agentPortal } from './mock-part-agent.js?v=202611051059';
-import { mattNov3b } from './mock-part-nov3b.js?v=202611051059';
-import { ensureSettings, optLabel } from './crm-config.js?v=202611051059';
-import { upgradeCalls } from './crm-calls.js?v=202611051059';
-import { accountingPart, ensureAccounting } from './mock-part-accounting.js?v=202611051059';
-import { payoffsPart, ensurePayoffs } from './mock-part-payoffs.js?v=202611051059';
-import { modulesPart, ensureModules } from './mock-part-modules.js?v=202611051059';
-import { taskShownTo } from './task-switches.js?v=202611051059';
-import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611051059';
-import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.js?v=202611051059';
-import { underwriterPart } from './mock-part-underwriter.js?v=202611051059';
-import { agentInfoPart } from './mock-part-agentinfo.js?v=202611051059';
-import { agentInvitePart } from './mock-part-agent-invite.js?v=202611051059';
-import { automationPart } from './automation.js?v=202611051059';
-import { hrPart, ensureHr } from './mock-part-hr.js?v=202611051059';
-import { titlePart, ensureTitle } from './mock-part-title.js?v=202611051059';   // John, Nov 4: the Title review module (staff only; in place, no storage bump)
-import { officesPart, officeById } from './mock-part-offices.js?v=202611051059';
-import { closingLocationPart } from './mock-part-closing-location.js?v=202611051059';   // John, Nov 4: where each buyer / seller will be at closing (migration 58)   // Admin > Offices (John, Nov 4; migration 57)
+  phoneOk, fmtPhone, PHONE_MSG, fileTitleOf, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611051216';
+import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611051216';
+import { indexedDbFileStore } from './file-store.js?v=202611051216';
+import { delegationLocked, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611051216';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611051216';
+import { devAuth } from './mock-part-auth.js?v=202611051216';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611051216';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611051216';
+import { messagesActivity } from './mock-part-msgs.js?v=202611051216';
+import { adminUsersTeams } from './mock-part-admin.js?v=202611051216';
+import { libraryFolders } from './mock-part-library.js?v=202611051216';
+import { closingSchedule } from './mock-part-schedule.js?v=202611051216';
+import { notificationsPart } from './mock-part-notify.js?v=202611051216';
+import { mattP2 } from './mock-part-matt.js?v=202611051216';
+import { mattNov2 } from './mock-part-nov2.js?v=202611051216';
+import { crmPart } from './mock-part-crm.js?v=202611051216';
+import { featureFlags } from './features.js?v=202611051216';
+import { crmZohoUpgrade } from './crm.js?v=202611051216';
+import { ensureEmailTemplates } from './crm-templates.js?v=202611051216';
+import { ensureNov3b as ensureCrmNov3b } from './crm-nov3b.js?v=202611051216';
+import { ensureAgentPortal } from './agent-portal.js?v=202611051216';
+import { agentPortal } from './mock-part-agent.js?v=202611051216';
+import { mattNov3b } from './mock-part-nov3b.js?v=202611051216';
+import { ensureSettings, optLabel } from './crm-config.js?v=202611051216';
+import { upgradeCalls } from './crm-calls.js?v=202611051216';
+import { accountingPart, ensureAccounting } from './mock-part-accounting.js?v=202611051216';
+import { payoffsPart, ensurePayoffs } from './mock-part-payoffs.js?v=202611051216';
+import { modulesPart, ensureModules } from './mock-part-modules.js?v=202611051216';
+import { taskShownTo } from './task-switches.js?v=202611051216';
+import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611051216';
+import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.js?v=202611051216';
+import { underwriterPart } from './mock-part-underwriter.js?v=202611051216';
+import { agentInfoPart } from './mock-part-agentinfo.js?v=202611051216';
+import { agentInvitePart } from './mock-part-agent-invite.js?v=202611051216';
+import { automationPart } from './automation.js?v=202611051216';
+import { hrPart, ensureHr } from './mock-part-hr.js?v=202611051216';
+import { titlePart, ensureTitle } from './mock-part-title.js?v=202611051216';
+import { tcPortal, ensureTc, tcMessageViews } from './mock-part-tc.js?v=202611051216';
+import { emailSendersPart, ensureEmailSenders } from './email-senders.js?v=202611051216';   // John, Nov 4: the Title review module (staff only; in place, no storage bump)
+import { officesPart, officeById } from './mock-part-offices.js?v=202611051216';
+import { closingLocationPart } from './mock-part-closing-location.js?v=202611051216';   // John, Nov 4: where each buyer / seller will be at closing (migration 58)   // Admin > Offices (John, Nov 4; migration 57)
 
-const KEY = 'cla-portal-new:data:v29';   // v29: HR WORKSPACE PHASE 1 (John + Francis, Nov 4; feature/hr-workspace): the hr* collections (departments, designations, employees, HR manager assignments, invite links, change history) + the two fake HR-only logins (Hana HR-Manager, Pia Processor-PH, account role 'Employee') and the 'hr' module switch (off = Super admins only). upgradeToV29 runs from v28 (or anything older through upgradeToV28); nothing existing is changed or removed. v28: RELEASE live28 (John, Nov 4): payoffs / HOA / FFB / ground rent collections (ensurePayoffs) + the Nov 4 seed (ensureSeedBenTc) are guaranteed on every carried-forward copy; upgradeToV28 runs from v27 (seed already there) or v26 (the live27 demo: adds Morgan Coordinator + deal-5 Willow Drive). Nothing existing is changed or removed. v27: SEED (John, Nov 4): Ben's file MD-26-97183 gets Morgan Coordinator (a TC login, Harbor team) as its Transaction Coordinator; upgradeToV27 adds her to stored v26 data if missing, nothing else changes. v26: ACCOUNTING (John, Nov 3; feature/accounting-fees): every order can carry a fee ledger (accountingFees) and its edit log (accountingLog); upgradeToV26 adds the two empty collections, nothing else changes. Stored v25..v21 data is CARRIED FORWARD (v21..v24 go through upgradeToV25 first). v25: CRM calls (Janine's Zoho video 11, Nov 3): Schedule a call / Log a call / Mark as Completed; calls logged with the Nov 3 (b) form (duration in minutes) become logged, Completed calls with the minutes kept and copied to seconds (upgradeToV25). Stored v24 (left to the refi / deal-filters branch), v23, v22 and v21 data are CARRIED FORWARD. v24 is reserved for feature/refi-deal-filters. v23: Matt, Nov 3 (b) (Processor notes): personal_info v4 (+ Entity Representative), orders get sourceOfBusiness, buyer / seller rows may carry an entity (Place Order). Stored v22 (Janine's CRM Nov 3 b) and v21 data are CARRIED FORWARD through the chain v21 -> v22 -> v23 (upgradeToV22 then upgradeToV23). v22: CRM Nov 3 (b), Janine's Zoho videos 7-10 (John): global search + recent items, Send Email records (NEVER SENT), the 24 Zoho custom field types with permissions and layout sections, dashboards, reports (upgradeToV22 adds the collections, the built-in dashboards and the fake sample reports). v21: WIRE INSTRUCTIONS = BUYER CLIENTS + CLA STAFF ONLY (John, Nov 3): every document carries wireInstructions (true when staff mark it, or its name says wire instructions); agents never see one. Stored v20 data is CARRIED FORWARD (upgradeToV21 flags existing wire files, so a wire PDF already sent into an agent's conversation disappears for the agent). v20: Qualia-style agent portal (Francis Santos, Nov 3): agent tasks, update requests, access invites, message attachments; stored v19 data is CARRIED FORWARD (upgradeToV20). v19: CRM email templates (John / Janine, Nov 3, Zoho video 6): folders, templates, favorites, signatures, template files; stored v18 data is CARRIED FORWARD (upgradeToV19 adds the collections and the 3 fake templates). v18: Matt, Nov 3: personal info v3 (POA follow-ups, + Add entity with entity documents, settlement type for sellers only) and title vesting v2 (vesting help); stored v17 data is CARRIED FORWARD (upgradeToV18: new template versions added, untouched open copies moved to them). v17: CRM matched to Zoho (client / lead fields, Zoho picklists, tasks, meetings, attachments; stored v16 data is CARRIED FORWARD, see upgradeToV17; John, Nov 2). v16: County on orders (seeded fake files get one; stored v15 data is CARRIED FORWARD, see upgradeData; John, Nov 2). v15: the CRM (leads, accounts, opportunities, activities, CRM fields on contacts; John, Nov 2). v14: contact type on every contact (realtor / lender / buyer_seller; John, Nov 2). v13: EMD amount + due date on orders, Place Order documents,
+const KEY = 'cla-portal-new:data:v30';   // v29: HR WORKSPACE PHASE 1 (John + Francis, Nov 4; feature/hr-workspace): the hr* collections (departments, designations, employees, HR manager assignments, invite links, change history) + the two fake HR-only logins (Hana HR-Manager, Pia Processor-PH, account role 'Employee') and the 'hr' module switch (off = Super admins only). upgradeToV29 runs from v28 (or anything older through upgradeToV28); nothing existing is changed or removed. v28: RELEASE live28 (John, Nov 4): payoffs / HOA / FFB / ground rent collections (ensurePayoffs) + the Nov 4 seed (ensureSeedBenTc) are guaranteed on every carried-forward copy; upgradeToV28 runs from v27 (seed already there) or v26 (the live27 demo: adds Morgan Coordinator + deal-5 Willow Drive). Nothing existing is changed or removed. v27: SEED (John, Nov 4): Ben's file MD-26-97183 gets Morgan Coordinator (a TC login, Harbor team) as its Transaction Coordinator; upgradeToV27 adds her to stored v26 data if missing, nothing else changes. v26: ACCOUNTING (John, Nov 3; feature/accounting-fees): every order can carry a fee ledger (accountingFees) and its edit log (accountingLog); upgradeToV26 adds the two empty collections, nothing else changes. Stored v25..v21 data is CARRIED FORWARD (v21..v24 go through upgradeToV25 first). v25: CRM calls (Janine's Zoho video 11, Nov 3): Schedule a call / Log a call / Mark as Completed; calls logged with the Nov 3 (b) form (duration in minutes) become logged, Completed calls with the minutes kept and copied to seconds (upgradeToV25). Stored v24 (left to the refi / deal-filters branch), v23, v22 and v21 data are CARRIED FORWARD. v24 is reserved for feature/refi-deal-filters. v23: Matt, Nov 3 (b) (Processor notes): personal_info v4 (+ Entity Representative), orders get sourceOfBusiness, buyer / seller rows may carry an entity (Place Order). Stored v22 (Janine's CRM Nov 3 b) and v21 data are CARRIED FORWARD through the chain v21 -> v22 -> v23 (upgradeToV22 then upgradeToV23). v22: CRM Nov 3 (b), Janine's Zoho videos 7-10 (John): global search + recent items, Send Email records (NEVER SENT), the 24 Zoho custom field types with permissions and layout sections, dashboards, reports (upgradeToV22 adds the collections, the built-in dashboards and the fake sample reports). v21: WIRE INSTRUCTIONS = BUYER CLIENTS + CLA STAFF ONLY (John, Nov 3): every document carries wireInstructions (true when staff mark it, or its name says wire instructions); agents never see one. Stored v20 data is CARRIED FORWARD (upgradeToV21 flags existing wire files, so a wire PDF already sent into an agent's conversation disappears for the agent). v20: Qualia-style agent portal (Francis Santos, Nov 3): agent tasks, update requests, access invites, message attachments; stored v19 data is CARRIED FORWARD (upgradeToV20). v19: CRM email templates (John / Janine, Nov 3, Zoho video 6): folders, templates, favorites, signatures, template files; stored v18 data is CARRIED FORWARD (upgradeToV19 adds the collections and the 3 fake templates). v18: Matt, Nov 3: personal info v3 (POA follow-ups, + Add entity with entity documents, settlement type for sellers only) and title vesting v2 (vesting help); stored v17 data is CARRIED FORWARD (upgradeToV18: new template versions added, untouched open copies moved to them). v17: CRM matched to Zoho (client / lead fields, Zoho picklists, tasks, meetings, attachments; stored v16 data is CARRIED FORWARD, see upgradeToV17; John, Nov 2). v16: County on orders (seeded fake files get one; stored v15 data is CARRIED FORWARD, see upgradeData; John, Nov 2). v15: the CRM (leads, accounts, opportunities, activities, CRM fields on contacts; John, Nov 2). v14: contact type on every contact (realtor / lender / buyer_seller; John, Nov 2). v13: EMD amount + due date on orders, Place Order documents,
 export const STORAGE_KEY = KEY;
 // Older keys we still carry forward (newest first). v1..v14 are not upgraded (unchanged behaviour).
-const PREV_KEYS = [['cla-portal-new:data:v28', 'v28'], ['cla-portal-new:data:v27', 'v27'], ['cla-portal-new:data:v26', 'v26'], ['cla-portal-new:data:v25', 'v25'], ['cla-portal-new:data:v24', 'v24'], ['cla-portal-new:data:v23', 'v23'], ['cla-portal-new:data:v22', 'v22'], ['cla-portal-new:data:v21', 'v21'], ['cla-portal-new:data:v20', 'v20'], ['cla-portal-new:data:v19', 'v19'], ['cla-portal-new:data:v18', 'v18'], ['cla-portal-new:data:v17', 'v17'], ['cla-portal-new:data:v16', 'v16'], ['cla-portal-new:data:v15', 'v15']];
+const PREV_KEYS = [['cla-portal-new:data:v29', 'v29'], ['cla-portal-new:data:v28', 'v28'], ['cla-portal-new:data:v27', 'v27'], ['cla-portal-new:data:v26', 'v26'], ['cla-portal-new:data:v25', 'v25'], ['cla-portal-new:data:v24', 'v24'], ['cla-portal-new:data:v23', 'v23'], ['cla-portal-new:data:v22', 'v22'], ['cla-portal-new:data:v21', 'v21'], ['cla-portal-new:data:v20', 'v20'], ['cla-portal-new:data:v19', 'v19'], ['cla-portal-new:data:v18', 'v18'], ['cla-portal-new:data:v17', 'v17'], ['cla-portal-new:data:v16', 'v16'], ['cla-portal-new:data:v15', 'v15']];
 // v15 -> v16: every stored order gets county '' (optional field). Nothing else changes shape; ids, documents (IndexedDB), sessions stay valid.
 export function upgradeData(d) { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); d.deals.forEach((q) => { if (q.county == null) q.county = ''; }); d.upgradedFrom = 'v15'; return d; }
 // v16 -> v17: CRM values mapped to the Zoho lists (lead source, relationship status from lead status / CRM stage), follow-ups -> Zoho tasks
@@ -113,6 +115,13 @@ export function upgradeToV28(d, from = 'v27') { if (!d || !Array.isArray(d.deals
 // v28 -> v29 (HR workspace, Phase 1): ensureHr adds the HR collections + fake HR seed (idempotent) and ensureModules adds the 'hr' switch (off). Nothing else changes.
 export function upgradeToV29(d, from = 'v28') { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); if (from !== 'v28') upgradeToV28(d, from);
   ensureModules(d); ensureHr(d); d.upgradedFrom = from; return d; }
+export function ensurePreprocessorSeed(d) {
+  if (!d.profiles.some((p) => p.id === 'u-preproc')) d.profiles.push({ id: 'u-preproc', email: 'pat.preprocessor@example.test', firstName: 'Pat', lastName: 'Preprocessor', phone: '301-555-0115', role: 'Preprocessor', isAdmin: false, status: 'active', createdAt: '2026-11-05T12:00:00Z' });
+  if (!d.contacts.some((c) => c.id === 'c-preproc')) d.contacts.push({ id: 'c-preproc', profileId: 'u-preproc', firstName: 'Pat', lastName: 'Preprocessor', email: 'pat.preprocessor@example.test', phone: '301-555-0115', company: 'CLA Title & Escrow', createdBy: 'u-proc', createdAt: '2026-11-05T12:00:00Z', contactType: null });
+  for (const n of [1, 2]) { const id = `deal-${n}`; if (d.deals.some((q) => q.id === id)) { const deal = d.deals.find((q) => q.id === id); deal.preprocessorUserId ||= 'u-preproc'; if (!d.participants.some((p) => p.dealId === id && p.contactId === 'c-preproc' && p.role === 'Preprocessor')) d.participants.push({ id: `dp-${n}-preproc`, dealId: id, contactId: 'c-preproc', role: 'Preprocessor', createdAt: deal.createdAt }); } }
+  return d;
+}
+export function upgradeToV30(d, from = 'v29') { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); if (from !== 'v29') upgradeToV29(d, from); ensurePreprocessorSeed(d); d.upgradedFrom = from; return d; }
 export function ensureMattNov3b(d) { applyNov3bTemplates(d); return d; }   // orders are not rewritten: a missing sourceOfBusiness reads as ''
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
@@ -144,12 +153,12 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   // (v17, else v16, else v15) is carried forward into v18 with the new fields defaulted / mapped, saved under v18, and only then is the old copy removed.
   // (v19 since Nov 3: v18 is carried forward the same way.) "Reset demo data" removes v19 and any older copies and builds a fresh seed (old data is never resurrected). v1..v14 are not upgraded.
   function loadPrevious() { for (const [k, from] of PREV_KEYS) { const raw = store.getItem(k); if (!raw) continue; try { return [k, upgradeToV29(JSON.parse(raw), from)]; } catch (e) { /* unreadable: try the next */ } } return null; }
-  function load() { if (db) return db; const raw = store.getItem(KEY); if (raw) { db = ensureTitle(JSON.parse(raw), TSEED); const renamed = (db.profiles || []).some((p) => p.id === 'u-multi' && p.lastName === 'Multi-Role'); ensureRealtorName(db); if (db.titleSeedAddedNow || renamed) { delete db.titleSeedAddedNow; save(); } return db; }
+  function load() { if (db) return db; const raw = store.getItem(KEY); if (raw) { db = ensureEmailSenders(ensurePreprocessorSeed(ensureTitle(ensureTc(JSON.parse(raw)), TSEED))); const renamed = (db.profiles || []).some((p) => p.id === 'u-multi' && p.lastName === 'Multi-Role'); ensureRealtorName(db); if (db.titleSeedAddedNow || renamed) { delete db.titleSeedAddedNow; save(); } return db; }
     const prev = loadPrevious();
-    if (prev) { const [pk, data] = prev; db = ensureRealtorName(ensureTitle(data, TSEED)); delete db.titleSeedAddedNow;   // carried-forward older data: + the 3 fake title sample orders, ADDITIVE only (insert if missing by marker; nothing overwritten or removed) const old = store.getItem(pk);
+    if (prev) { const [pk, data] = prev; db = ensureEmailSenders(ensurePreprocessorSeed(ensureRealtorName(ensureTitle(ensureTc(data), TSEED)))); delete db.titleSeedAddedNow;   // carried-forward older data: + the 3 fake title sample orders, ADDITIVE only (insert if missing by marker; nothing overwritten or removed) const old = store.getItem(pk);
       try { save(); } catch (e) { if (!isQuota(e)) throw e; store.removeItem(pk); try { save(); } catch (e2) { store.setItem(pk, old); throw e2; } }   // storage full: make room by moving, never lose the old copy
       store.removeItem(pk); return db; }
-    db = ensureTitle(ensureHr(ensurePayoffs(ensureModules(ensureAccounting(upgradeCalls(ensureMattNov3b(ensureCrmNov3b(ensureWireFlags(ensureAgentPortal(buildSeed()))))))))), TSEED); if (typeof store.key === 'function') dropStale(); save(); return db; }
+    db = ensureEmailSenders(ensurePreprocessorSeed(ensureTitle(ensureTc(ensureHr(ensurePayoffs(ensureModules(ensureAccounting(upgradeCalls(ensureMattNov3b(ensureCrmNov3b(ensureWireFlags(ensureAgentPortal(buildSeed())))))))))), TSEED))); if (typeof store.key === 'function') dropStale(); save(); return db; }
   const nid = (p) => { const d = load(); d.seq += 1; return `${p}-${d.seq}`; };
 
   const me = () => { const id = sess.getItem(SESSION_KEY); return (id && load().profiles.find((p) => p.id === id && p.status === 'active')) || null; };
@@ -161,7 +170,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   const C_SALES = ['Sales Person', 'Sales Team'];
   const salesOf = (dealId) => (load().dealSalesPeople || []).filter((s) => s.dealId === dealId);
   const contactOf = (profileId) => load().contacts.find((c) => c.profileId === profileId);
-  const seesAll = (u) => u.isAdmin || runsOrders(u) || u.role === 'Sales Team';
+  const seesAll = (u) => u.isAdmin || (runsOrders(u) && u.role !== 'Preprocessor') || u.role === 'Sales Team';
   // TC access = TEAMS. Agents on any team where this TC is a coordinator. Removing either person from the team removes access immediately.
   function teamAgentIds(u) {
     const d = load(); const teamIds = new Set(d.teamMembers.filter((m) => m.profileId === u.id && m.memberRole === 'coordinator').map((m) => m.teamId));
@@ -170,6 +179,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   function dealsFor(u) {
     const d = load();
     if (seesAll(u)) return d.deals;
+    if (u.role === 'Preprocessor') return d.deals.filter((q) => q.preprocessorUserId === u.id);
     if (u.role === 'Transaction Coordinator') {
       const agents = teamAgentIds(u); const agentContacts = new Set(d.contacts.filter((c) => agents.has(c.profileId)).map((c) => c.id));
       const ids = new Set(d.participants.filter((p) => agentContacts.has(p.contactId) && isAgent(p.role)).map((p) => p.dealId));
@@ -259,7 +269,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     if (doc.visibility === 'staff') return false;
     return doc.visibility === sideOf(u.role);
   };
-  const threadVisible = (u, t) => runsOrders(u) || u.isAdmin || t.participantIds.includes(u.id);
+  const threadVisible = (u, t) => runsOrders(u) || u.isAdmin || (u.role === 'Transaction Coordinator' && dealsFor(u).some((q) => q.id === t.dealId)) || t.participantIds.includes(u.id);
   const unreadIn = (u, t) => { const d = load(); const r = d.reads.find((x) => x.threadId === t.id && x.profileId === u.id); const last = r ? r.at : ''; return d.messages.filter((m) => m.threadId === t.id && m.authorId !== u.id && m.createdAt > last).length; };
   // CLA staff (any staff login, incl. TC and Admin) vs an outside user acting on this order (agent / client / plain outside user)
   const isStaffView = (u) => !!u && (u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator') && !isOutside(u.accountRole || u.role);
@@ -312,7 +322,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   }
   const dealProfileIds = (dealId) => { const d = load(); const deal = d.deals.find((z) => z.id === dealId);
     const ids = d.participants.filter((p) => p.dealId === dealId).map((p) => (d.contacts.find((c) => c.id === p.contactId) || {}).profileId).filter(Boolean);
-    return [...new Set([...ids, deal && deal.processorId].filter(Boolean))]; };
+    return [...new Set([...ids, deal && deal.processorId, deal && deal.preprocessorUserId].filter(Boolean))]; };
   function dealView(u, x) {
     u = scopeTo(u, x.id); const d = load(); const tasks = d.tasks.filter((t) => t.dealId === x.id && taskVisible(u, t)); const mine = d.threads.filter((t) => t.dealId === x.id && threadVisible(u, t));
     // staff see 'Agent is a party' (licensee disclosure) when someone on the order is both a client and their side's agent
@@ -335,6 +345,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
       fileTitle: fileTitleOf(participantsOf(x.id, u)),
       partyNames: [...new Set(participantsOf(x.id, u).map((p) => (p.contact ? fullName(p.contact) : '')).filter(Boolean))],
       processorName: nameOf(x.processorId),
+      preprocessorUserId: x.preprocessorUserId || null, preprocessorName: x.preprocessorUserId ? nameOf(x.preprocessorUserId) : '',
       // John, Nov 2: several salespeople per file. salesPersonName stays as the joined names (older callers).
       salesPeople: salesOf(x.id).map((s) => ({ id: s.salesId, name: nameOf(s.salesId), role: (prof(s.salesId) || {}).role, addedAt: s.addedAt })),
       salesPersonIds: salesOf(x.id).map((s) => s.salesId), salesPersonName: salesOf(x.id).map((s) => nameOf(s.salesId)).join(', ') };
@@ -356,13 +367,16 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   Object.assign(api, payoffsPart(ctx, flags, api));   // John, Nov 4: Qualia payoffs / HOA / FFB / ground rent (same `accounting` flag; staff only)   // John, Nov 3: the Accounting tab (behind the `accounting` flag; off = every method refuses)
   Object.assign(api, mattNov3b(ctx));   // Matt, Nov 3 (b): source-of-business options for Place Order
   Object.assign(api, taskSwitchesPart(ctx));   // John, Nov 4: Task Templates > Task switches (Admin only; off = not created on new files, existing kept)
-  Object.assign(api, modulesPart(ctx, flags));   // John, Nov 3: Admin-only Modules page, one "Live" switch per module (off = beta: Admins only)
+  Object.assign(api, modulesPart(ctx, flags));
+  Object.assign(api, emailSendersPart(ctx));   // John, Nov 3: Admin-only Modules page, one "Live" switch per module (off = beta: Admins only)
   Object.assign(api, underwriterPart(ctx));
   Object.assign(api, closingLocationPart(ctx));   // John, Nov 4: in the property's state at closing? (RON / embassy flag, staff signing method)
   Object.assign(api, officesPart(ctx));       // John, Nov 4: Admin > Offices (add, edit, reorder, retire / reactivate; the closing office picker reads them)   // John, Nov 3 call: per-state underwriter split (Admin edits, logged)
   Object.assign(api, agentInfoPart(ctx));     // John, Nov 3 call: optional agent birthdate (agent + staff only)
   Object.assign(api, agentInvitePart(ctx));   // John, Nov 4: agent invites (link shown, nothing sent), agent profiles, the clients' "Your agent" card
   Object.assign(api, titlePart(ctx, flags, api));   // John, Nov 4: order > Title (title review; staff only; sends nothing; no SSNs)
+  Object.assign(api, tcPortal(ctx, api));
+  tcMessageViews(api, ctx);
   Object.assign(api, automationPart(api, { runsOrders, me: async () => me() }));   // John, Nov 3 call: Email sellers and agents (preview only)
   // HR WORKSPACE, Phase 1 (John + Francis, Nov 4): employees, profiles, departments, designations, HR managers (Super admin only), invite links, history + CSV.
   // The session user carries hrRole ('super' | 'hr_manager' | 'employee' | null), hrEmployeeId and hrHasReports (route guard + nav, data/hr.js).

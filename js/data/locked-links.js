@@ -9,13 +9,13 @@
  * VIEW AS (Super admin only): inside a locked link whose OWNER is a Super admin (King John), a "View as" dropdown switches the tab to any fake user and
  * back; the route guard then applies to the person being viewed. Any other locked link (Adam Admin included) never gets it, and a stored viewAs on a
  * lock whose owner is not a Super admin is ignored and cleared (app.js). */
-import { runsOrders, isStaff, isOutside } from './constants.js?v=202611051059';
-import { titleCanRead } from './title.js?v=202611051059';   // John, Nov 4: order > Title route guard
-import { canUseCrm } from './crm.js?v=202611051059';
-import { canInviteAgents } from './agent-profile.js?v=202611051059';
-import { canManageModules } from './modules.js?v=202611051059';
-import { hrSectionAllowed } from './hr.js?v=202611051059';
-import { canManageOffices } from './offices.js?v=202611051059';
+import { runsOrders, isStaff, isOutside } from './constants.js?v=202611051216';
+import { titleCanRead } from './title.js?v=202611051216';   // John, Nov 4: order > Title route guard
+import { canUseCrm } from './crm.js?v=202611051216';
+import { canInviteAgents } from './agent-profile.js?v=202611051216';
+import { canManageModules } from './modules.js?v=202611051216';
+import { hrSectionAllowed } from './hr.js?v=202611051216';
+import { canManageOffices } from './offices.js?v=202611051216';
 
 export const LOCK_KEY = 'cla-portal-new:locked:v1';
 export function devPickerOn(w = (typeof window !== 'undefined' ? window : {})) {
@@ -28,7 +28,7 @@ export const canViewAs = (owner) => !!owner && owner.role === 'Super admin' && o
 // the person the locked tab acts as: the viewed user only when the lock owner may View as, else the owner
 export const effectiveLockUser = (lock, owner) => (!lock ? null : lock.viewAs && canViewAs(owner) ? lock.viewAs : lock.user);
 export const LINK_TOKENS = {
-  '8f35592f04f1ff466320a8fe': 'u-proc', '0647edc4ee2a4d029a0f8930': 'u-sp', '1d23d39566522fce5c6952bd': 'u-team', '3fbd6a653b1b49e5ae4bd016': 'u-tc',
+  '8f35592f04f1ff466320a8fe': 'u-proc', 'b6662f52b1113fb211268fc3': 'u-preproc', '0647edc4ee2a4d029a0f8930': 'u-sp', '1d23d39566522fce5c6952bd': 'u-team', '3fbd6a653b1b49e5ae4bd016': 'u-tc',
   'f1fefad2347ba878391dd44d': 'u-bagent', '9dd9de8b9c327645419f86bb': 'u-lagent', '6279357492dca5e12fc800d9': 'u-buyer', '6e7d6ca958d6fb3b4285894d': 'u-seller',
   'c356ab42259b4c120f77c9d3': 'u-multi', 'd5be9004fe1a25635731fc06': 'u-selfrep', '3455a01bbb58d0a8fc801ec9': 'u-adam', '50f70c55b90611bcd9a49ce1': 'u-admin', 'f0678aacef75b9ab555e8bbc': 'u-tc2',
   'd9324aeb920aff3bb132baaf': 'u-hr1', 'c648b06c6b1da945bae4cc6c': 'u-ph1',   // HR (Nov 4): Hana HR-Manager, Pia Processor-PH (HR-only 'Employee' logins; fake, not secrets)
@@ -45,7 +45,7 @@ export const tokenFor = (userId) => Object.keys(LINK_TOKENS).find((t) => LINK_TO
 // PAYOFFS ROUTES (live28, John Nov 4): the Qualia Payoffs / Taxes & Prorations / Other Contacts views of the Accounting tab are for Processors and
 // admins only. Agents, clients and Transaction Coordinators (and Sales) are refused these URLs; TCs keep Caroline's read-only Accounting elsewhere.
 export const PAYOFF_VIEWS = ['payoffs', 'taxes', 'othercontacts'];
-export const canReachPayoffs = (u) => !!u && u.status !== 'removed' && !u.accountRole && (!!u.isAdmin || u.role === 'Processor');
+export const canReachPayoffs = (u) => !!u && u.status !== 'removed' && !u.accountRole && (!!u.isAdmin || runsOrders(u));
 // ROUTE GUARD (every user, locked or not): a page is reachable only if it belongs to that user's portal (the same rules as the menu in app.js navFor).
 export function routeAllowed(u, route, { locked = false } = {}) {
   const p = route.page;

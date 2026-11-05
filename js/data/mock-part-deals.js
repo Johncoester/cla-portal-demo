@@ -1,7 +1,7 @@
 /* mock adapter, part 1: auth, profile, dashboard, deals. See mock-adapter.js. */
-import { autoCounty } from './county-auto.js?v=202611051059';
-import { checkSource } from './mock-part-nov3b.js?v=202611051059';
-import { isRefi, REFI_BLOCKED_FIELDS } from './constants.js?v=202611051059';
+import { autoCounty } from './county-auto.js?v=202611051216';
+import { checkSource } from './mock-part-nov3b.js?v=202611051216';
+import { isRefi, REFI_BLOCKED_FIELDS } from './constants.js?v=202611051216';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 // John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only
@@ -20,6 +20,7 @@ export function dealsAndAuth(x) {
   // John, Nov 2: several salespeople per file; each must be an ACTIVE Sales Person or Sales Team user. The file's Processor must be an active Processor.
   const checkSales = (id) => { const p = x.prof(id) || fail('Salesperson not found.'); if (!['Sales Person', 'Sales Team'].includes(p.role)) fail('Only a Sales Person or Sales Team user can be a salesperson on an order.');
     if (p.status !== 'active') fail('Only an active salesperson can be added to an order.'); return p; };
+  const checkPreprocessor = (id) => { if (id == null || id === '') return null; const p = x.prof(id) || fail('Preprocessor not found.'); if (p.role !== 'Preprocessor' || p.status !== 'active') fail('The Preprocessor on an order must be an active Preprocessor.'); return p; };
   const checkProcessor = (id) => { const p = x.prof(id) || fail('Processor not found.'); if (!C.isProcessor(p.role) || p.status !== 'active') fail('The Processor on an order must be an active Processor.'); return p; };
   const salesList = (inp) => { const v = inp.salesIds !== undefined ? inp.salesIds : inp.salesPersonId; return [...new Set((v == null ? [] : Array.isArray(v) ? v : String(v).split(',')).map((z) => String(z).trim()).filter(Boolean))]; };
   function setSales(u, dealId, ids) { const d = load(); d.dealSalesPeople ||= []; const cur = x.salesOf(dealId).map((s) => s.salesId);
@@ -55,6 +56,8 @@ export function dealsAndAuth(x) {
     // Place Order: who can be the file's Processor (John, Nov 2: an Admin placing an order must pick one)
     async listProcessors() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
       return clone(load().profiles.filter((p) => p.status === 'active' && C.isProcessor(p.role)).map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role }))); },
+    async listPreprocessors() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
+      return clone(load().profiles.filter((p) => p.status === 'active' && p.role === 'Preprocessor').map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role }))); },
     // John, Nov 2: who can be a file's Transaction Coordinator = active users whose account role is exactly 'Transaction Coordinator' (with their contact id)
     async listCoordinators() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
       return clone(load().profiles.filter((p) => p.status === 'active' && p.role === 'Transaction Coordinator').map((p) => { const c = contactOf(p.id);
@@ -73,6 +76,7 @@ export function dealsAndAuth(x) {
       // the file's Processor: a Processor placing an order is the Processor unless they pick another; an Admin / Super admin must pick one
       const procId = input.processorId || (C.isProcessor(u.role) ? u.id : fail('Pick the Processor for this order.'));
       checkProcessor(procId);
+      const preprocId = checkPreprocessor(input.preprocessorUserId || null);
       const salesIds = salesList(input); salesIds.forEach(checkSales);
       const street = str(input.street, 200) || fail('Street address is required.');
       const city = str(input.city, 100) || fail('City is required.');
@@ -89,10 +93,11 @@ export function dealsAndAuth(x) {
         emdAmount: money(input.emdAmount, 'EMD amount'), emdDueDate: dateOrNull(input.emdDueDate, 'EMD due date'),
         // Matt, Nov 3 (b): lender phone + email (and the picked lender's name / company) and the source of business are set at placement
         lenderName: str(input.lenderName, 200), lenderContact: str(input.lenderContact, 200), lenderEmail: str(input.lenderEmail, 200).toLowerCase(), lenderPhone: x.phone(input.lenderPhone, 'Lender phone'),
-        sourceOfBusiness: checkSource(d, input.sourceOfBusiness, '', fail), ...occFields(input, transactionType, fail), notes: str(input.notes, 2000), processorId: procId, createdBy: u.id, createdAt: now() };
+        sourceOfBusiness: checkSource(d, input.sourceOfBusiness, '', fail), ...occFields(input, transactionType, fail), notes: str(input.notes, 2000), processorId: procId, preprocessorUserId: preprocId ? preprocId.id : null, createdBy: u.id, createdAt: now() };
       if (deal.lenderEmail && !emailOk(deal.lenderEmail)) fail('Lender email is not valid.');
       d.deals.push(deal);
       const pc = contactOf(procId); if (pc) d.participants.push({ id: nid('dp'), dealId: deal.id, contactId: pc.id, role: 'Processor', createdAt: now() });
+      const prec = preprocId && contactOf(preprocId.id); if (prec) d.participants.push({ id: nid('dp'), dealId: deal.id, contactId: prec.id, role: 'Preprocessor', createdAt: now() });
       x.DEAL_FOLDERS.forEach((name) => d.folders.push({ id: nid('f'), scope: 'deal', dealId: deal.id, name, staffOnly: false, createdBy: u.id, createdAt: now() }));
       // Staff task; participants' intake tasks are copied from the current task templates when each person is added (addParticipant).
       d.tasks.push({ id: nid('t'), dealId: deal.id, participantId: null, templateId: null, templateCode: null, templateVersion: null, kind: 'simple', title: 'Collect executed contract', description: '',
@@ -102,7 +107,7 @@ export function dealsAndAuth(x) {
       save(); return clone(dealView(u, deal));
     },
     async updateDeal(id, patch) {
-      const u = needProcessor(); const q = load().deals.find((y) => y.id === id) || fail('Order not found.');
+      const u = needProcessor(); const d = load(); const q = d.deals.find((y) => y.id === id) || fail('Order not found.');
       if (patch.state != null) { patch = { ...patch, state: stateCode(patch.state) }; if (patch.state !== q.state && !C.US_STATES.includes(patch.state)) fail('Pick a US state.'); }
       ['street', 'city', 'state', 'zip', 'lenderName', 'lenderContact', 'lenderEmail', 'lenderPhone', 'notes'].forEach((k) => { if (patch[k] != null) q[k] = str(patch[k], k === 'notes' ? 2000 : 200); });
       if (patch.county != null) q.county = str(patch.county, C.COUNTY_MAX);
@@ -120,6 +125,7 @@ export function dealsAndAuth(x) {
       if (patch.emdDueDate !== undefined) q.emdDueDate = dateOrNull(patch.emdDueDate, 'EMD due date');
       if (patch.primaryResidence !== undefined || patch.firstTimeBuyer !== undefined) Object.assign(q, occFields({ primaryResidence: patch.primaryResidence !== undefined ? patch.primaryResidence : q.primaryResidence, firstTimeBuyer: patch.firstTimeBuyer !== undefined ? patch.firstTimeBuyer : q.firstTimeBuyer }, q.transactionType, fail));   // John, Nov 3 call
       if (patch.sourceOfBusiness !== undefined) q.sourceOfBusiness = checkSource(load(), patch.sourceOfBusiness, q.sourceOfBusiness, fail);   // Matt, Nov 3 (b)
+      if (patch.preprocessorUserId !== undefined) { const pre = checkPreprocessor(patch.preprocessorUserId || null); const next = pre ? pre.id : null; if (next !== (q.preprocessorUserId || null)) { q.preprocessorUserId = next; const c = next && contactOf(next); d.participants = d.participants.filter((p) => !(p.dealId === id && p.role === 'Preprocessor')); if (c) d.participants.push({ id: nid('dp'), dealId: id, contactId: c.id, role: 'Preprocessor', createdAt: now() }); log(id, u.id, 'deal.preprocessor', 'deal', id, `Preprocessor ${next ? 'set to ' + nameOf(next) : 'cleared'}`); } }
       if (patch.processorId) { checkProcessor(patch.processorId); if (patch.processorId !== q.processorId) { q.processorId = patch.processorId; log(id, u.id, 'deal.processor', 'deal', id, `Processor set to ${nameOf(q.processorId)}`); } }
       if (patch.salesIds !== undefined || patch.salesPersonId !== undefined) { const ids = salesList(patch); ids.forEach((sid) => { if (!x.salesOf(id).some((s) => s.salesId === sid)) checkSales(sid); }); setSales(u, id, ids); }
       log(id, u.id, 'deal.updated', 'deal', id, 'Order details updated'); save(); return clone(dealView(u, q));
@@ -135,14 +141,14 @@ export function dealsAndAuth(x) {
       ids.forEach((sid) => { if (!x.salesOf(dealId).some((s) => s.salesId === sid)) checkSales(sid); }); setSales(u, dealId, ids); save();
       return clone(dealView(u, load().deals.find((q) => q.id === dealId)).salesPeople); },
     async setStage(id, stage) {
-      const u = needProcessor(); const q = load().deals.find((y) => y.id === id) || fail('Order not found.');
+      const u = needProcessor(); const d = load(); const q = d.deals.find((y) => y.id === id) || fail('Order not found.');
       const s = Number(stage); if (!Number.isInteger(s) || s < 0 || s >= C.STAGES.length) fail('Unknown stage.');
       q.stage = s; log(id, u.id, 'stage.changed', 'deal', id, `Stage set to ${C.STAGES[s]}`);
       if (s === C.STAGES.length - 1 && q.status === 'Open') { q.status = 'Closed'; log(id, u.id, 'status.changed', 'deal', id, 'Order closed (funds disbursed)'); }
       save(); return clone(dealView(u, q));
     },
     async setDealStatus(id, status) {
-      const u = needProcessor(); const q = load().deals.find((y) => y.id === id) || fail('Order not found.');
+      const u = needProcessor(); const d = load(); const q = d.deals.find((y) => y.id === id) || fail('Order not found.');
       if (!C.DEAL_STATUSES.includes(status)) fail('Unknown status.');
       q.status = status; log(id, u.id, 'status.changed', 'deal', id, `Status set to ${status}`); save(); return clone(dealView(u, q));
     },

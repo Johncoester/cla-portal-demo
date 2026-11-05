@@ -3,8 +3,9 @@
  * Modify / Submit Revision, task-tied messages, Request Update (staff answer it), Share Access (RECORDED only: no email, no login is created),
  * "Complete Requests Now" invite email (preview + outbox only), rich-text messages with file attachments (Share Files), and the outside user's own
  * Activity feed (only things they can already open). Nothing here deletes anything; documents stay permanent. */
-import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, COMMISSION_LABEL, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611051059';
-import { CLA_PHONE, isRefi } from './constants.js?v=202611051059';
+import { senderFor } from './email-senders.js?v=202611051216';
+import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, COMMISSION_LABEL, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611051216';
+import { CLA_PHONE, isRefi } from './constants.js?v=202611051216';
 export function agentPortal(x) {
   const { api: root, load, save, nid, needUser, isManager, notViewOnly, dealOr404, onDeal, log, prof, nameOf, ownerOf, taskVisible, threadVisible, unreadIn, docVisible, participantsOf, isStaffView,
     notify, dealProfileIds, dealView, contactOf, clone, now, fail, str, emailOk, C } = x;
@@ -161,7 +162,7 @@ export function agentPortal(x) {
       const e = await api.getPortalWelcomeEmail(dealId, profileId); const u = needUser(); const d = load();
       const ob = { id: nid('ob'), channel: 'email', kind: 'invite', status: 'queued', toProfileId: profileId, toEmail: e.to, subject: e.subject, body: `${e.body} [${e.buttonLabel}: ${e.link}]`, link: e.link, buttonLabel: e.buttonLabel,
         taskId: null, dealId, createdBy: u.id, createdAt: now(), sentAt: null };
-      d.outbox.push(ob); log(dealId, u.id, 'invite.queued', 'deal', dealId, `Portal invite for ${e.toName} queued in the outbox (not sent)`); save(); return clone(ob);
+      Object.assign(ob, senderFor(d, 'portal', dealId)); d.outbox.push(ob); log(dealId, u.id, 'invite.queued', 'deal', dealId, `Portal invite for ${e.toName} queued in the outbox (not sent)`); save(); return clone(ob);
     },
     // ---------- Agent tasks ----------
     async getAgentTask(id) { const u0 = needUser(); const [t, u] = agentTask(u0, id); return clone(taskOut(u, t)); },

@@ -23,7 +23,7 @@ export const ROLLUP_RELATED = { contact: ['deals', 'tasks', 'meetings', 'calls',
 export const ROLLUP_FNS = [['count', 'Count'], ['sum', 'Sum'], ['avg', 'Average'], ['min', 'Minimum'], ['max', 'Maximum']];
 export const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
 export const ADDRESS_PARTS = [['street', 'Street'], ['city', 'City'], ['state', 'State'], ['zip', 'Zip Code'], ['country', 'Country']];
-export const PERM_ROLES = ['Sales Person', 'Sales Team', 'Processor'];   // Admin and Super admin always view and edit every field
+export const PERM_ROLES = ['Sales Person', 'Sales Team', 'Processor', 'Preprocessor'];   // Admin and Super admin always view and edit every field
 export const TOOLTIP_MAX = 255;
 const fail = (m) => { throw new Error(m); };
 

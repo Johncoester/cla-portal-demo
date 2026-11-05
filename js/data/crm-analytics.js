@@ -6,7 +6,7 @@
  *  * GROUPING with date buckets (By Day, By Calendar Week, By Month, By Quarter, By Year) and measures (Record Count, Sum / Avg of a number field).
  *  * REPORTS: columns, row groups ("Owner (count)"), aggregate columns (sum, avg, min, max, count), CSV.
  *  * SEARCH: words in name / email, phone by digits only. */
-import { optLabel, activeFields, customDisplay, cfKey } from './crm-config.js?v=202611051059';
+import { optLabel, activeFields, customDisplay, cfKey } from './crm-config.js?v=202611051216';
 
 // ---------- modules ----------
 export const MODULES = [['contacts', 'Clients'], ['leads', 'Leads'], ['accounts', 'Companies'], ['deals', 'Deals'], ['tasks', 'Tasks'], ['meetings', 'Meetings'], ['calls', 'Calls'], ['opportunities', 'Opportunities']];
@@ -339,8 +339,8 @@ export const CHART_TYPES = [['column', 'Column'], ['bar', 'Bar'], ['stacked', 'S
 export const CHART_CODES = CHART_TYPES.map(([c]) => c);
 export const VISIBILITY = [['me', 'Only me'], ['all', 'All Users'], ['custom', 'Custom']];
 // "departments" for Custom sharing: CLA has no department list yet, so these group the CRM roles (ask John)
-export const DEPARTMENTS = [['sales', 'CLA Sales Department', ['Sales Person', 'Sales Team']], ['processing', 'CLA Processing Department', ['Processor']], ['admin', 'CLA Administration', ['Admin', 'Super admin']]];
-export const SHARE_ROLES = ['Super admin', 'Admin', 'Sales Person', 'Sales Team', 'Processor'];
+export const DEPARTMENTS = [['sales', 'CLA Sales Department', ['Sales Person', 'Sales Team']], ['processing', 'CLA Processing Department', ['Processor', 'Preprocessor']], ['admin', 'CLA Administration', ['Admin', 'Super admin']]];
+export const SHARE_ROLES = ['Super admin', 'Admin', 'Sales Person', 'Sales Team', 'Processor', 'Preprocessor'];
 export const WIDTHS = [[1, 'Small (1/3)'], [2, 'Medium (2/3)'], [3, 'Full width']];
 export const HEIGHTS = [['s', 'Short'], ['m', 'Medium'], ['l', 'Tall']];
 export const roleKeyOf = (u) => (u.role === 'Super admin' || u.role === 'Admin' ? u.role : u.isAdmin ? 'Admin' : u.role);

@@ -1,8 +1,9 @@
 /* mock adapter: tasks. Templates (versioned definitions) are separate from each participant's task COPY; a copy records templateId + templateVersion.
  * Intake forms: save partial work, validate, mark complete. Reminders are QUEUED in an outbox only and never sent. Tasks are cancelled, never deleted. */
-import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611051059';
-import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611051059';   // Task switch OFF: no new copy (existing copies kept)
-import { maskAccount } from './constants.js?v=202611051059';
+import { senderFor } from './email-senders.js?v=202611051216';
+import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611051216';
+import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611051216';   // Task switch OFF: no new copy (existing copies kept)
+import { maskAccount } from './constants.js?v=202611051216';
 export function tasksAndForms(x) {
   const { load, save, nid, needUser, needAdmin, isManager, dealOr404, onDeal, fileRole, fileRoles, holds, dealsFor, log, prof, nameOf, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, dateOrNull, localDate, localDayOf, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
@@ -55,10 +56,11 @@ export function tasksAndForms(x) {
       // EMD RECEIPT (John, Nov 4): the task is hidden from the buyer, but the buyer is still reminded while CLA Title has NOT received the deposit
       // (the task is open). The reminder speaks about the deposit, not a task they cannot open, and links to their Overview. Closed task = no reminder (OPEN check above).
       const emd = x.EMD_RECEIPT.test(t.title || '') && x.pureBuyer(x.scopeTo(p, t.dealId));
-      d.outbox.push({ id: nid('ob'), channel: 'email', status: 'queued', toProfileId: pid, toEmail: p.email, subject: emd ? `Reminder: earnest money deposit not received yet (${deal.fileNumber})` : `Reminder: ${t.title} (${deal.fileNumber})`,
+      const ob = { id: nid('ob'), channel: 'email', status: 'queued', toProfileId: pid, toEmail: p.email, subject: emd ? `Reminder: earnest money deposit not received yet (${deal.fileNumber})` : `Reminder: ${t.title} (${deal.fileNumber})`,
         body: emd ? `Hi ${p.firstName}, CLA Title & Escrow has not received your earnest money deposit (EMD) for ${deal.street}, ${deal.city} yet.${t.dueDate ? ' It was due ' + t.dueDate + '.' : ''} Once it arrives, CLA Title sends you the receipt and these reminders stop.`
           : `Hi ${p.firstName}, this is a reminder about "${t.title}" for ${deal.street}, ${deal.city}.${t.dueDate ? ' Due ' + t.dueDate + '.' : ''} Please sign in to the portal to finish it.`,
-        taskId: t.id, dealId: t.dealId, createdBy: u.id, createdAt: now(), sentAt: null, ...(emd ? { emdReminder: true } : {}) });
+        taskId: t.id, dealId: t.dealId, createdBy: u.id, createdAt: now(), sentAt: null, ...(emd ? { emdReminder: true } : {}) };
+      Object.assign(ob, senderFor(d, 'processor', t.dealId)); d.outbox.push(ob);
       notify([pid], emd ? { kind: 'reminder', dealId: t.dealId, title: 'Reminder: CLA Title has not received your earnest money deposit yet', link: `#/deals/${t.dealId}` }
         : { kind: 'reminder', dealId: t.dealId, title: `Reminder: ${t.title}`, link: `#/deals/${t.dealId}/tasks` }, u.id); n++;
     });
