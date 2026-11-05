@@ -1,7 +1,7 @@
 /* [SUPABASE] Janine, Nov 3 (migration 37): company duplicate check, meeting invite PREVIEW (+ .ics), import log. Same names / shapes as mock-part-crm-janine.js.
  * NOT run against a hosted project (best effort; the mock adapter is the tested one). NOTHING is sent: an invite is a preview row + an .ics built in the browser.
  * CSV import (preview / run) is not wired to Supabase yet: it refuses with a clear message (the demo build has the full flow). */
-import { buildIcs, INVITE_NOTE } from './crm-janine.js?v=202611052140';
+import { buildIcs, INVITE_NOTE } from './crm-janine.js?v=202611052321';
 export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
   const NOT_YET = 'CSV import is not connected to the live database yet (it works in the demo build). Nothing was imported.';
   return {

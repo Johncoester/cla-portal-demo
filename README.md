@@ -1,3 +1,3 @@
-# CLA Portal demo
+# CLA Portal Live Test
 
-Fake-data demo of the new CLA portal. Not for real data.
+The public test demo is named CLA Portal Live Test. The Test Environment notice stays on the page. Fake data only. Not for real clients or real messages.

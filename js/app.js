@@ -1,22 +1,22 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611052140';
-import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611052140';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611052140';
-import { canUseCrm } from './data/crm.js?v=202611052140';
-import { acctCanRead } from './data/accounting.js?v=202611052140';
-import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611052140';
-import { phaseOf } from './data/agent-portal.js?v=202611052140';
-import { formatMoneyInput } from './pages/money-input.js?v=202611052140';
-import { applyTheme, themeOn } from './theme.js?v=202611052140';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
-import { icon } from './pages/theme-cards.js?v=202611052140';
-import { canInviteAgents } from './data/agent-profile.js?v=202611052140';
-import { yourAgentHtml } from './pages/your-agent.js?v=202611052140';
-import { fwpCanRead } from './data/funding-wire-policy.js?v=202611052140';
-import { titleCanRead } from './data/title.js?v=202611052140';
-import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs } from './data/locked-links.js?v=202611052140';   // John, Nov 4: one locked login link per fake user
-import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611052140';   // John, Nov 4 call: sidebar search + pinned order nav
-import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611052140';
-import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611052140';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
+import { getAdapter } from './data/adapter.js?v=202611052321';
+import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611052321';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611052321';
+import { canUseCrm } from './data/crm.js?v=202611052321';
+import { acctCanRead } from './data/accounting.js?v=202611052321';
+import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611052321';
+import { phaseOf } from './data/agent-portal.js?v=202611052321';
+import { formatMoneyInput } from './pages/money-input.js?v=202611052321';
+import { applyTheme, themeOn } from './theme.js?v=202611052321';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
+import { icon } from './pages/theme-cards.js?v=202611052321';
+import { canInviteAgents } from './data/agent-profile.js?v=202611052321';
+import { yourAgentHtml } from './pages/your-agent.js?v=202611052321';
+import { fwpCanRead } from './data/funding-wire-policy.js?v=202611052321';
+import { titleCanRead } from './data/title.js?v=202611052321';
+import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs } from './data/locked-links.js?v=202611052321';   // John, Nov 4: one locked login link per fake user
+import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611052321';   // John, Nov 4 call: sidebar search + pinned order nav
+import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611052321';
+import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611052321';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
@@ -25,30 +25,30 @@ document.addEventListener('input', (e) => { const el = e.target; if (el instance
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611052140'),
-  dashboard: () => import('./pages/dashboard.js?v=202611052140'),
-  orders: () => import('./pages/orders.js?v=202611052140'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611052140'),
-  deal: () => import('./pages/deal.js?v=202611052140'),
-  users: () => import('./pages/users.js?v=202611052140'),
-  profile: () => import('./pages/profile.js?v=202611052140'),
-  'contact-us': () => import('./pages/contact.js?v=202611052140'),
-  teams: () => import('./pages/teams.js?v=202611052140'),
-  templates: () => import('./pages/templates.js?v=202611052140'),
-  library: () => import('./pages/library.js?v=202611052140'),
-  activity: () => import('./pages/activity.js?v=202611052140'),
-  outbox: () => import('./pages/outbox.js?v=202611052140'),
-  tasks: () => import('./pages/tasks.js?v=202611052140'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611052140'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
-  schedule: () => import('./pages/schedule.js?v=202611052140'),   // public closing-time link (no sign-in needed)
-  crm: () => import('./pages/crm.js?v=202611052140'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
-  modules: () => import('./pages/modules.js?v=202611052140'),
-  'agent-invites': () => import('./pages/agent-invites.js?v=202611052140'),   // John, Nov 4: invite agents (link shown, nothing sent)
-  'agent-invite': () => import('./pages/agent-signup.js?v=202611052140'),     // the agent's one-time setup link (no sign-in)
-  underwriters: () => import('./pages/underwriters.js?v=202611052140'),
-  hr: () => import('./pages/hr.js?v=202611052140'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
-  'hr-invite': () => import('./pages/hr-invite.js?v=202611052140'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
-  offices: () => import('./pages/offices.js?v=202611052140'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
+  login: () => import('./pages/entry.js?v=202611052321'),
+  dashboard: () => import('./pages/dashboard.js?v=202611052321'),
+  orders: () => import('./pages/orders.js?v=202611052321'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611052321'),
+  deal: () => import('./pages/deal.js?v=202611052321'),
+  users: () => import('./pages/users.js?v=202611052321'),
+  profile: () => import('./pages/profile.js?v=202611052321'),
+  'contact-us': () => import('./pages/contact.js?v=202611052321'),
+  teams: () => import('./pages/teams.js?v=202611052321'),
+  templates: () => import('./pages/templates.js?v=202611052321'),
+  library: () => import('./pages/library.js?v=202611052321'),
+  activity: () => import('./pages/activity.js?v=202611052321'),
+  outbox: () => import('./pages/outbox.js?v=202611052321'),
+  tasks: () => import('./pages/tasks.js?v=202611052321'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611052321'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  schedule: () => import('./pages/schedule.js?v=202611052321'),   // public closing-time link (no sign-in needed)
+  crm: () => import('./pages/crm.js?v=202611052321'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  modules: () => import('./pages/modules.js?v=202611052321'),
+  'agent-invites': () => import('./pages/agent-invites.js?v=202611052321'),   // John, Nov 4: invite agents (link shown, nothing sent)
+  'agent-invite': () => import('./pages/agent-signup.js?v=202611052321'),     // the agent's one-time setup link (no sign-in)
+  underwriters: () => import('./pages/underwriters.js?v=202611052321'),
+  hr: () => import('./pages/hr.js?v=202611052321'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
+  'hr-invite': () => import('./pages/hr-invite.js?v=202611052321'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
+  offices: () => import('./pages/offices.js?v=202611052321'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };
@@ -158,7 +158,7 @@ async function layout(u, view, route, ws = 'everything') {
         <div class="notif-dd" hidden><div class="notif-head"><strong>Notifications</strong><button class="linkish" data-readall>Mark all read</button></div><ul class="notif-list"><li class="muted">Loading&hellip;</li></ul></div></div>
       ${VIEW_AS ? viewAsHtml(u) : ''}<div class="user-menu"><button class="user-btn" data-usermenu>Signed in as <b>${u.firstName} ${u.lastName}</b> <span class="role-tag" data-role-tag>${deal ? `${deal.myRoleLabel || deal.myRole} on this file` : fileRolesLabel(u.fileLabels || u.fileRoles)}</span> &#9662;</button>
         <ul class="user-dd" hidden><li><a href="#/profile">Profile Setting</a></li><li><a href="#/contact-us">Contact Us</a></li>${sessionStorage.getItem(LOCK_KEY) ? html`<li class="muted" data-locked-note>${VIEW_AS && VIEW_AS.viewing ? `Viewing as this person from ${VIEW_AS.owner.firstName} ${VIEW_AS.owner.lastName}'s admin link` : 'Test link: signed in as this person only'}</li>` : raw('<li><a href="#" data-signout>Logout</a></li>')}</ul></div></div></div>
-  <div class="co-wrap"><p class="welcome-title co-sr" data-site-name="CLA Portal Test">Welcome ${u.firstName} ${u.lastName} to CLA Portal Test</p><div class="dev-banner" data-test-environment>TEST ENVIRONMENT &middot; FAKE DATA ONLY &middot; no real clients, no real messages &middot; <a href="#" data-reset>reset demo data</a></div>${view.clientPage && view.clientPage.tab && agentCard ? html`<div class="with-agent co-with-agent" data-with-agent><div id="view">${view.body}</div>${agentCard}</div>` : html`<div id="view">${view.body}</div>`}</div>
+  <div class="co-wrap"><p class="welcome-title co-sr" data-site-name="CLA Portal Live Test">Welcome ${u.firstName} ${u.lastName} to CLA Portal Live Test</p><div class="dev-banner" data-test-environment>TEST ENVIRONMENT &middot; FAKE DATA ONLY &middot; no real clients, no real messages &middot; <a href="#" data-reset>reset demo data</a></div>${view.clientPage && view.clientPage.tab && agentCard ? html`<div class="with-agent co-with-agent" data-with-agent><div id="view">${view.body}</div>${agentCard}</div>` : html`<div id="view">${view.body}</div>`}</div>
   <div class="footer-bar"><span><img src="assets/img/logo-icon.png" alt="" class="foot-logo"> Copyright 2026 C.L.A Title &amp; Escrow | All Rights Reserved.</span><span>Security / Privacy Policy</span></div></div>`;
   const topButtons = runsOrders(u) && (ws === 'portal' || ws === 'everything') ? html`<a class="green-btn" href="#/orders/new">Place Order</a>` : '';
   return html`
@@ -173,7 +173,7 @@ async function layout(u, view, route, ws = 'everything') {
   <div class="wrapper-main">
     <div class="left-bar">${deal ? orderPin() : sideSearchOn ? mainPin() : ''}<div class="logo">${sidebarHead}</div><div class="main-nav"><ul class="nav nav-pills"${orderOnly ? raw(' data-order-only-nav') : ''}>${orderOnly ? dealNav : deal ? html`${core}${dealNav}${contact}` : sideSearchOn && !isStaff(u.role) ? moreWrap(u, html`${core}${contact}`) : html`${core}${contact}`}</ul></div></div>
     <div class="right-bar">
-      <h1 class="welcome-title" data-site-name="CLA Portal Test">Welcome ${u.firstName} ${u.lastName} to CLA Portal Test</h1>
+      <h1 class="welcome-title" data-site-name="CLA Portal Live Test">Welcome ${u.firstName} ${u.lastName} to CLA Portal Live Test</h1>
       ${view.crumbs ? html`<ol class="breadcrumb"><li><a href="#${homeFor(u)}"><img src="assets/img/bread-home.png" alt="">Home</a></li>${view.crumbs.map(([label, href], i) => html`<li class="${i === view.crumbs.length - 1 ? 'active' : ''}">${href ? html`<a href="${href}">${label}</a>` : label}</li>`)}</ol>` : ''}
       <div class="dev-banner" data-test-environment>TEST ENVIRONMENT &middot; FAKE DATA ONLY &middot; no real clients, no real messages &middot; <a href="#" data-reset>reset demo data</a></div>
       ${deal && !view.noOrderHeader ? orderHeader(deal) : ''}${sideSearchOn && route.page === 'dashboard' ? homeSearch() : ''}
@@ -257,7 +257,7 @@ export async function render() {
     if (rw === 'hr') { if (ws !== 'hr' && hrVisible(u)) { setWs(u, 'hr'); ws = 'hr'; } }   // HR is not part of Everything: an HR link always opens HR
     else if (rw && ws !== 'everything' && ws !== rw) { const t = u.isAdmin ? rw : 'everything'; setWs(u, t); ws = t; }   // a non-admin leaving HR goes back to their usual portal
     if (route.page === 'dashboard' && ws && ws !== 'portal' && ws !== 'everything') { location.hash = '#' + wsById(ws).home; return; }
-    if (route.page === 'dashboard' && ws === null) { const v = neutralHome(u, api); if (my !== rendering) return; root.innerHTML = toText(await layout(u, v, route, ws)); wireChrome(u); document.title = 'Home | CLA Portal Test'; return; } }
+    if (route.page === 'dashboard' && ws === null) { const v = neutralHome(u, api); if (my !== rendering) return; root.innerHTML = toText(await layout(u, v, route, ws)); wireChrome(u); document.title = 'Home | CLA Portal Live Test'; return; } }
   const modId = u ? routeModule(route) : null;
   const loader = (FLAGGED[route.page] && !(api.features || {})[FLAGGED[route.page]]) || (route.page === 'deal' && route.params.tab === 'accounting' && !(api.features || {}).accounting) || (modId && !modOn(modId)) ? null : pages[route.page];   // a module that is not Live (beta): Page not found for everyone but Admins   // Accounting tab: Page not found when the flag is off
   if (!loader) { root.innerHTML = toText(await layout(u, { body: html`<div class="box-title"><h2>Page not found</h2></div><p>That page does not exist.</p>` }, route, ws)); wireChrome(u); return; }
@@ -268,7 +268,7 @@ export async function render() {
   if (PUBLIC.has(route.page)) { root.innerHTML = toText(view.body); }
   else { let shell; try { shell = await layout(u, view, route, ws); } catch (e) { if (/sign in/i.test(e.message || '')) { location.hash = '#/login'; return; } throw e; }   // session ended mid-render
     if (my !== rendering) return; root.innerHTML = toText(shell); wireChrome(u); }
-  document.title = (view.title ? view.title + ' | ' : '') + 'CLA Portal Test';
+  document.title = (view.title ? view.title + ' | ' : '') + 'CLA Portal Live Test';
   if (view.mount) view.mount($('#view') || root, { api, user: u, refresh: render, go });
 }
 // Nov 3 (b), Zoho video 7: CRM global search in the header (CLA staff with the CRM only; the module loads only then)
@@ -289,7 +289,7 @@ function wireViewAs() {
 }
 function wireChrome(u) {
   wireViewAs(); startHeartbeat(u);
-  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611052140').then((m) => m.wireHeaderSearch(api)); });
+  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611052321').then((m) => m.wireHeaderSearch(api)); });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');
   if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; });
   document.addEventListener('click', () => { if (dd) dd.hidden = true; }, { once: true });
