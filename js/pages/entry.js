@@ -1,13 +1,13 @@
-import { raw, $, guard, options } from '../ui.js?v=202611042154';
-import { roleLabel, fileRolesLabel, isOutside } from '../data/constants.js?v=202611042154';
-import { devPickerOn, PLAIN_URL_NOTICE } from '../data/locked-links.js?v=202611042154';
-import { clearSessionWs } from '../workspace.js?v=202611042154';
+import { raw, $, guard, options } from '../ui.js?v=202611050803';
+import { roleLabel, fileRolesLabel, isOutside } from '../data/constants.js?v=202611050803';
+import { devPickerOn, PLAIN_URL_NOTICE } from '../data/locked-links.js?v=202611050803';
+import { clearSessionWs } from '../workspace.js?v=202611050803';
 
 export async function render({ api, go }) {
   // NO PICKER ON THE PUBLIC DEMO (John, Nov 4): without the test-harness flag the plain URL shows only the notice; nobody can pick a fake user here
   if (!devPickerOn()) return { title: 'CLA Title test portal', body: raw(`<div class="login-page" data-test-portal-notice><div class="login-card"><img class="login-logo" src="assets/img/login-logo-new.png" alt="C.L.A. Title &amp; Escrow"><h2>CLA Title test portal</h2><p data-notice-text>${PLAIN_URL_NOTICE}</p></div></div>`) };
   const users = await api.listDevUsers();
-  const tpl = await (await fetch('partials/entry.html?v=202611042154')).text();
+  const tpl = await (await fetch('partials/entry.html?v=202611050803')).text();
   const opts = options(users, '', (x) => `${x.firstName} ${x.lastName} \u2014 ${isOutside(x.role) ? `Outside user: ${fileRolesLabel(x.fileLabels || x.fileRoles)}` : roleLabel(x)}`, (x) => x.id);
   const body = raw(tpl.replace('</select>', opts.toString() + '</select>'));
   return { title: 'Welcome', body, mount: (root) => wire(root, api, go) };

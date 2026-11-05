@@ -5,8 +5,8 @@
  * Sales Person sees and adds calls only on records they may see; the Processor reads only. Nothing is ever deleted.
  * Also (John, Nov 3): CSV downloads of the Clients, Leads and Companies lists are Admin / Super admin only (exportCrmList), like report Export. */
 import { CALL_TYPE_CHOICES, CALL_SCHEDULED, CALL_COMPLETED, CALL_REMINDER_MINUTES, CALL_TO_CODES, RELATED_TO_CODES, CALL_TIME_MSG, CALL_ZERO_MSG, VOICE_EXT,
-  durationSeconds, minusMinutes, defaultCallSubject, callOpen } from './crm-calls.js?v=202611042154';
-import { cleanUrl, localStamp, toCsv } from './crm.js?v=202611042154';
+  durationSeconds, minusMinutes, defaultCallSubject, callOpen } from './crm-calls.js?v=202611050803';
+import { cleanUrl, localStamp, toCsv } from './crm.js?v=202611050803';
 
 export function crmCallsPart(x, h) {
   const { save, nid, fail, str, now, localDate, clone, dealsFor, C } = x;

@@ -1,8 +1,8 @@
 /* [SUPABASE] Calls (Zoho video 11, migration 33) + Admin-only CRM list CSV downloads. Same names / shapes as mock-part-crm-calls.js.
  * NOT run against a hosted project (best effort; the mock adapter is the tested one). The database (private.crm_call_guard,
  * crm_complete_call, crm_list_export) enforces the rules. Voice recordings: links only here (no 'crm' storage bucket yet). Nothing is sent. */
-import { durationSeconds, defaultCallSubject, CALL_TIME_MSG } from './crm-calls.js?v=202611042154';
-import { toCsv } from './crm.js?v=202611042154';
+import { durationSeconds, defaultCallSubject, CALL_TIME_MSG } from './crm-calls.js?v=202611050803';
+import { toCsv } from './crm.js?v=202611050803';
 
 export function crmCallsSupabase({ sb, ok, camel, on, one, actOut, staff }) {
   const secs = (v) => (v.callDurationSec != null && v.callDurationSec !== '' ? Number(v.callDurationSec) : durationSeconds(v.durationMin, v.durationSec));
