@@ -8,12 +8,12 @@
  *   d.hrInvites          [{id, employeeId, token, email, createdAt, createdBy, expiresAt, acceptedAt, acceptedProfileId, revokedAt, revokedBy}]   (link only, 14 days)
  *   d.hrChangeHistory    [{id, seq, tableName, rowId, employeeId, field, column, oldValue, newValue, action, changedBy, changedByName, changedAt}]   (append only)
  * Nothing is ever deleted: archive / deactivate instead. No SSNs or other government ID numbers. */
-import { isSuperAdmin, isOutside, EMPLOYEE_ROLE } from './constants.js?v=202611051216';
-import { ensureHrFeedback, hrFeedbackPart } from './mock-part-hr-feedback.js?v=202611051216';
-import { moduleAccess } from './modules.js?v=202611051216';
-import { ensureModules } from './mock-part-modules.js?v=202611051216';
+import { isSuperAdmin, isOutside, EMPLOYEE_ROLE } from './constants.js?v=202611051319';
+import { ensureHrFeedback, hrFeedbackPart } from './mock-part-hr-feedback.js?v=202611051319';
+import { moduleAccess } from './modules.js?v=202611051319';
+import { ensureModules } from './mock-part-modules.js?v=202611051319';
 import { HR_INVITE_DAYS, SELF_FIELDS, HR_FIELDS, SENSITIVE_FIELDS, FIELD_LABEL, COLUMN_OF, cleanEmployee, cleanSelfPatch, nextEmployeeCode, basicOf, fullNameOf, employeesCsv, historyCsv, csvStamp,
-  EMPLOYMENT_TYPES, EMPLOYMENT_STATUSES, PAY_TYPES, labelOf } from './hr.js?v=202611051216';
+  EMPLOYMENT_TYPES, EMPLOYMENT_STATUSES, PAY_TYPES, labelOf } from './hr.js?v=202611051319';
 const rnd = () => { const a = new Uint8Array(16); (globalThis.crypto || { getRandomValues: (x) => x.map(() => Math.floor(Math.random() * 256)) }).getRandomValues(a); return [...a].map((b) => b.toString(16).padStart(2, '0')).join(''); };
 const plusDays = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString();
 const SEED_AT = '2026-11-04T14:00:00Z';

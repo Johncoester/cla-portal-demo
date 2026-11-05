@@ -1,7 +1,7 @@
 /* mock adapter, part 1: auth, profile, dashboard, deals. See mock-adapter.js. */
-import { autoCounty } from './county-auto.js?v=202611051216';
-import { checkSource } from './mock-part-nov3b.js?v=202611051216';
-import { isRefi, REFI_BLOCKED_FIELDS } from './constants.js?v=202611051216';
+import { autoCounty } from './county-auto.js?v=202611051319';
+import { checkSource } from './mock-part-nov3b.js?v=202611051319';
+import { isRefi, REFI_BLOCKED_FIELDS } from './constants.js?v=202611051319';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 // John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only

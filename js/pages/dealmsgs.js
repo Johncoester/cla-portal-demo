@@ -1,9 +1,9 @@
 // Inbox tab: conversations on this file (only people on the thread see it). Replies, new conversation, unread counts.
-import { html, $, $$, guard, formData, modal, closeModal, fmtDateTime, pill, toast } from '../ui.js?v=202611051216';
-import { viewOnly, isViewOnly, runsOrders, WIRE_FRAUD_NOTE } from '../data/constants.js?v=202611051216';
-import { raw } from '../ui.js?v=202611051216';
-import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611051216';
-import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611051216';
+import { html, $, $$, guard, formData, modal, closeModal, fmtDateTime, pill, toast } from '../ui.js?v=202611051319';
+import { viewOnly, isViewOnly, runsOrders, WIRE_FRAUD_NOTE } from '../data/constants.js?v=202611051319';
+import { raw } from '../ui.js?v=202611051319';
+import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611051319';
+import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611051319';
 
 export async function render(ctx) {
   const { api, user, deal, refresh, params } = ctx; const notViewOnly = !viewOnly(user);

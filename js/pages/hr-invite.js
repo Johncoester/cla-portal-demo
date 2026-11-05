@@ -2,7 +2,7 @@
 // Mock mode: one click makes the login (account role 'Employee', or links an existing staff login with the same email) and signs them in.
 // Supabase: they first create their sign-in (email + password, Supabase Auth), then public.hr_accept_invite() links it. Nothing is ever emailed.
 // Refused inside a locked test-link session (locked-links.js routeAllowed).
-import { html, $, guard, toast, fmtDateTime } from '../ui.js?v=202611051216';
+import { html, $, guard, toast, fmtDateTime } from '../ui.js?v=202611051319';
 export async function render({ api, params, go }) {
   const inv = await api.getHrInvite(params.token);
   const shell = (inner) => html`<div class="login-page hr-invite-page" data-hr-invite-page="${inv.status}"><div class="login-card"><img src="assets/img/login-logo-new.png" alt="C.L.A. Title &amp; Escrow" class="sched-logo"><div class="eyebrow">HR INVITE &middot; CLA TITLE PORTAL</div><h2>Set up your login</h2>${inner}

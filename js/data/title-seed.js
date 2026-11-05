@@ -3,7 +3,7 @@
  *  deal-t1 MD-26-90101  MD condo, title review IN PROGRESS (Jordan Sample buys from Pat Example; the vesting deed shows an owner mismatch)
  *  deal-t2 VA-26-90102  VA single-family, FINISHED (Final commitment, issued CPL, package queued earlier)
  *  deal-t3 DC-26-90103  DC rowhouse, title review NOT STARTED */
-import * as T from './title.js?v=202611051216';
+import * as T from './title.js?v=202611051319';
 
 const AT = (day, h = 14) => `2026-${day}T${String(h).padStart(2, '0')}:00:00Z`;
 export function seedTitleSamples(d) {
@@ -11,7 +11,7 @@ export function seedTitleSamples(d) {
   // nothing that already exists is overwritten or removed. If any sample order id or file number is already in use, nothing is added.
   const ids = ['deal-t1', 'deal-t2', 'deal-t3']; const files = ['MD-26-90101', 'VA-26-90102', 'DC-26-90103'];
   if (d.deals.some((q) => ids.includes(q.id) || files.includes(q.fileNumber))) return;
-  for (const k of ['titleReviews', 'titleSteps', 'titlePacer', 'titleDiscrepancies', 'titleChain', 'titleItems', 'titleCpls', 'titlePackageComponents', 'titleSignatures', 'titleSummaries', 'titleCurative', 'orderNotes', 'titleLog']) if (!Array.isArray(d[k])) d[k] = [];
+  for (const k of ['titleReviews', 'titleSteps', 'titlePacer', 'titleDiscrepancies', 'titleChain', 'titleItems', 'titleCpls', 'titlePackageComponents', 'titleSignatures', 'titleSummaries', 'titleCurative', 'titleSearches', 'titleLiens', 'titleEntities', 'titleLienCerts', 'titleCtcChecks', 'titleProcessorNotes', 'orderNotes', 'titleLog']) if (!Array.isArray(d[k])) d[k] = [];
   const free = (list, id) => !list.some((z) => z.id === id);
   const base = { stage: 2, status: 'Open', emdAmount: 5000, emdDueDate: null, lenderContact: 'Linda Lender', lenderEmail: 'linda.lender@example.test', lenderPhone: '410-555-0111', processorId: 'u-proc', salesPersonId: 'u-sp', createdBy: 'u-proc' };
   const deals = [
@@ -75,6 +75,19 @@ export function seedTitleSamples(d) {
   item('titem-t1-6', 'requirement', 5, 'spousal_joinder', {});
   item('titem-t1-7', 'exception', 1, 'condo_endorsement', {}); item('titem-t1-8', 'exception', 2, 'taxes', {}); item('titem-t1-9', 'exception', 3, 'alta_4_1', {}); item('titem-t1-10', 'exception', 4, 'alta_8_1', {});
   d.orderNotes.push(S({ id: 'onote-t1-1', dealId: 'deal-t1', category: 'TITLE', body: 'Seller says Lee Example signed a separation agreement (fake). Confirm who must sign the deed.', issueResolved: false, resolvedBy: null, resolvedAt: null, titleSummaryId: null }, AT('10-29')));
+
+
+  // ===== Nov 5 demo: search, curative, entity, lien cert, CTC. FAKE ONLY =====
+  link('deal-t1', 'c-lena', 'Listing Agent');
+  d.titleSearches.push(S({ id: 'tsrch-t1', dealId: 'deal-t1', orderedDate: '2026-10-22', dueDate: '2026-10-27', receivedDate: '2026-10-28', abstractor: 'Example Abstract Services (fake)', assignedTypistId: 'u-proc', notes: 'Abstract in 200 Title; commitment typing assigned.' }, w1));
+  d.titleSearches.push(S({ id: 'tsrch-t3', dealId: 'deal-t3', orderedDate: '2026-11-03', dueDate: '2026-11-05', receivedDate: null, abstractor: 'Example Abstract Services (fake)', assignedTypistId: null, notes: '' }, w1));
+  const lien = (row) => d.titleLiens.push(S(row, w1));
+  lien({ id: 'tlien-t1-dot', dealId: 'deal-t1', itemType: 'deed_of_trust', caseNumber: '', mortgagor: 'Pat Example and Lee Example', beneficiary: 'Sample Savings Bank (fake)', trustee: 'Trustee Sample (fake)', instrumentDate: '2016-08-12', recordedDate: '2016-09-01', amount: 240000, book: '55501', page: '115', instrumentNumber: '', jurisdictionState: 'MD', status: 'payoff_requested', verificationMethod: 'attorney_call', attorneyName: 'Example Law Office (fake)', documentId: null, notes: 'Fake payoff request queued internally.' });
+  lien({ id: 'tlien-t1-tax', dealId: 'deal-t1', itemType: 'state_tax_lien', caseNumber: 'FAKE-TAX-001', mortgagor: 'Pat Example', beneficiary: 'Example State Revenue Office (fake)', entryDate: '2024-02-01', recordedDate: '2024-02-08', amount: 1850, jurisdictionState: 'MD', status: 'verifying', verificationMethod: 'identity_match', identityVerified: false, identityVerifiedBy: '', identityVerifiedDate: null, documentId: null, notes: 'No call; identity match only.' });
+  lien({ id: 'tlien-t1-expired', dealId: 'deal-t1', itemType: 'court_judgment', caseNumber: 'FAKE-CV-2001', mortgagor: 'Pat Example', beneficiary: 'Old Example Creditor (fake)', entryDate: '2001-01-15', renewalDate: null, amount: 3000, jurisdictionState: 'MD', status: 'expired', verificationMethod: 'expiry_rule', identityVerified: null, documentId: null, notes: 'MD 12-year rule; no payoff.' });
+  d.titleEntities.push(S({ id: 'tent-t1-seller', dealId: 'deal-t1', side: 'seller', entityName: 'Example Sellers LLC (fake)', entityType: 'LLC', articlesReceived: true, operatingAgreementReceived: true, resolutionsReceived: false, goodStandingReceived: true, goodStandingYear: '2026', einReceived: true, goodStandingVerified: true, goodStandingStateSite: 'Fake State Entity Search (demo record)', signerAuthorized: false, memberStructure: 'multi', managementStructure: 'Member managed', requiredSignaturesCaptured: false, criticalIssue: true, issueNotes: 'Fake signer mismatch; assigned attorney must review.', assignedAttorneyId: 'u-admin', attorneyApproved: false, attorneyApprovalNotes: '', folderDocumentId: null }, w1));
+  d.titleLienCerts.push(S({ id: 'tlc-t1', dealId: 'deal-t1', receivedAt: '2026-11-05T13:00:00Z', reviewDueAt: '2026-11-06T13:00:00Z', addressMatch: true, parcelMatch: true, allAmountsPaid: false, outstandingAmount: 45.25, zeroViolations: true, violationCount: '0', signedDated: true, outcome: 'curative_needed', notes: 'Fake water balance remains.', documentId: null }, w1));
+  T.CTC_ITEMS.slice(0, 5).forEach(([checkKey], i) => d.titleCtcChecks.push(S({ id: `tctc-t1-${i}`, dealId: 'deal-t1', checkKey, status: i === 2 ? 'issue' : 'pass', note: i === 2 ? 'Update effective date before settlement.' : '' }, w1)));
 
   // ===== deal-t2: VA single-family, finished =====
   const w2 = AT('11-02', 16);

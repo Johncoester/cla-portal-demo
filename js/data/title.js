@@ -5,7 +5,7 @@
  *   - NO SSN IS EVER STORED: the bankruptcy (PACER) search records only the party, the search type, the result and the receipt document.
  *   - Every field is typed (no JSON blobs for anything reported on); rows are soft-deleted (deleted_at), never removed.
  *   - The portal sends nothing: "Send Title Package" only queues an outbox entry + records who / when. */
-import { US_STATE_NAMES } from './constants.js?v=202611051216';
+import { US_STATE_NAMES } from './constants.js?v=202611051319';
 
 export const TITLE_OFF = 'The Title module is turned off on this portal.';
 export const TITLE_STAFF_ONLY = 'The Title module is for CLA staff only.';
@@ -244,6 +244,9 @@ export const EXCEPTION_TEMPLATES = [
   { key: 'setback', label: 'Building restriction / setback lines', tab: 'standard', text: 'Building restriction lines, setback lines and easements as shown on the plat recorded among the Land Records.' },
   { key: 'amendments', label: 'Recorded amendments', tab: 'standard', text: 'Amendments to the Declaration recorded in Liber [Book] at Folio [Page].' },
   { key: 'parties_possession', label: 'Rights of parties in possession', tab: 'standard', text: 'Rights or claims of parties in possession not shown by the public records.' },
+  { key: 'rights_of_way', label: 'Rights of way', tab: 'standard', text: 'Rights of way and agreements of record, including any shown on the recorded plat.' },
+  { key: 'utility_agreements', label: 'Utility agreements', tab: 'standard', text: 'Utility agreements and facilities of record, including any shown on the recorded plat.' },
+  { key: 'easements', label: 'Easements', tab: 'standard', text: 'Easements and servitudes of record, including any shown on the recorded plat.' },
   { key: 'alta_4_1', label: 'ALTA 4.1 Endorsement', tab: 'standard', text: 'ALTA 4.1-06 Endorsement (Condominium - Current Assessments) to be issued with the Loan Policy.' },
   { key: 'alta_8_1', label: 'ALTA 8.1-06 Endorsement', tab: 'standard', text: 'ALTA 8.1-06 Endorsement (Environmental Protection Lien) to be issued with the Loan Policy.' },
 ];
@@ -321,3 +324,80 @@ export const WATER_TYPES = [['public', 'Public'], ['private', 'Private'], ['well
 export const SEWER_TYPES = [['public', 'Public'], ['private', 'Private'], ['septic', 'Septic']];
 export const YNU = [['yes', 'Yes'], ['no', 'No'], ['unknown', 'Unknown']];
 export const TRANSFER_SPLITS = ['50/50', 'Buyer pays all', 'Seller pays all', 'First-time buyer exemption', 'Other'];
+
+
+// =====================================================================
+// Nov 5: TITLE COMMITMENT / CURATIVE (Francis's "Becoming a Title and Curative Specialist").
+// These are sub-sections of Title, not another module. Staff only; all inputs are typed and reportable.
+export const CURATIVE_TYPES = [['deed_of_trust', 'Deed of Trust / mortgage'], ['state_tax_lien', 'State tax lien'], ['hoa_lien', 'HOA lien'],
+  ['court_judgment', 'Court judgment'], ['mechanics_lien', 'Mechanics lien / Notice of Commencement'], ['other', 'Other lien / judgment']];
+export const CURATIVE_STATUSES = [['open', 'Open'], ['verifying', 'Verifying'], ['payoff_requested', 'Payoff requested'], ['cleared', 'Cleared'], ['expired', 'Expired']];
+export const VERIFICATION_METHODS = [['identity_match', 'Identity match — no call'], ['attorney_call', 'Call attorney listed / request payoff'],
+  ['payoff_requested', 'Payoff requested'], ['recorded_release', 'Recorded release verified'], ['expiry_rule', 'Expiry rule — no payoff'], ['other', 'Other']];
+export const CURATIVE_KINDS = Object.fromEntries(CURATIVE_TYPES);
+export const EMD_BLOCK = 'Title search follow-up and processing are blocked until EMD is received. Confirm EMD Receipt must be complete first.';
+export const emdReceived = (deal, tasks = []) => Number(deal && deal.stage) >= 2 || (deal && deal.status === 'Closed') || tasks.some((t) => t.status === 'done' && /confirm\s+(receipt of (the )?)?emd|confirm emd receipt|emd receipt confirmed/i.test(t.title || ''));
+export const searchBlocked = (deal, tasks) => !emdReceived(deal, tasks);
+export function searchOverdue(search, deal, tasks, today = new Date().toISOString().slice(0, 10)) {
+  return !!search && !search.deletedAt && !search.receivedDate && !searchBlocked(deal, tasks) && !!search.dueDate && search.dueDate < today;
+}
+export function searchQueues(searches, deals, tasks, today) {
+  const rows = (searches || []).filter((s) => !s.deletedAt).map((s) => ({ search: s, deal: deals.find((d) => d.id === s.dealId) })).filter((x) => x.deal);
+  return { overdue: rows.filter((x) => searchOverdue(x.search, x.deal, (tasks || []).filter((t) => t.dealId === x.deal.id), today)),
+    packageReview: rows.filter((x) => x.search.receivedDate && x.search.typistId && !searchBlocked(x.deal, (tasks || []).filter((t) => t.dealId === x.deal.id))) };
+}
+export const MATCH_FIELDS = [['vestingContractMatch', 'Vesting matches sales contract'], ['legalContractMatch', 'Legal matches sales contract'],
+  ['vestingLenderMatch', 'Vesting matches lender title request'], ['legalLenderMatch', 'Legal matches lender title request']];
+export function curativeExpiry(item, today = new Date().toISOString().slice(0, 10)) {
+  if (!item) return null; const type = item.itemType; const state = String(item.jurisdictionState || '').toUpperCase();
+  if (type === 'court_judgment' && ['MD', 'DC', 'VA'].includes(state)) {
+    const base = item.renewalDate || item.entryDate; if (!base) return null;
+    const years = state === 'VA' ? 20 : 12; const expiry = `${String(Number(base.slice(0, 4)) + years)}${base.slice(4)}`;
+    return { expiresOn: expiry, expired: today >= expiry, years, rule: `${state} judgment: ${years} years from latest entry/renewal; expired needs no payoff.` };
+  }
+  if (type === 'mechanics_lien' && state === 'FL' && item.filingDate) {
+    const expiry = `${String(Number(item.filingDate.slice(0, 4)) + 1)}${item.filingDate.slice(4)}`;
+    return { expiresOn: expiry, expired: today >= expiry, years: 1, rule: 'FL Notice of Commencement: one year after filing; sufficient funds affidavit required.' };
+  }
+  return null;
+}
+export function expiryWarning(item) { const ex = curativeExpiry(item); return ex ? `${ex.rule} Expires ${mdy(ex.expiresOn)}${ex.expired ? ': EXPIRED; no payoff.' : '.'}` : ''; }
+export function requirementFromCurative(c, { county, state } = {}) {
+  if (c.status === 'expired') return '';
+  if (c.itemType === 'deed_of_trust') return dotRequirementText({ dotGrantor: c.mortgagor, dotTrustee: c.trustee, dotLender: c.beneficiary,
+    dotDate: c.instrumentDate, dotRecordedDate: c.recordedDate, dotAmount: c.amount, dotBook: c.book, dotPage: c.page }, { county, state });
+  const label = (CURATIVE_TYPES.find(([k]) => k === c.itemType) || [, 'Lien / judgment'])[1];
+  return `${label}${c.caseNumber ? `, case ${c.caseNumber}` : ''}, against ${ph(c.mortgagor, 'Party')}${c.beneficiary ? ` in favor of ${c.beneficiary}` : ''}, in the amount of ${usd2(c.amount) || '$[Amount]'}${c.entryDate ? `, entered ${longDate(c.entryDate)}` : ''}${c.recordedDate ? `, recorded ${longDate(c.recordedDate)}` : ''}${c.book || c.page ? ` in Liber ${ph(c.book, 'Book')}, Folio ${ph(c.page, 'Page')}` : ''}${c.instrumentNumber ? `, Instrument # ${c.instrumentNumber}` : ''}. Satisfy, release, or provide evidence acceptable to the underwriter that it does not affect the subject property.`;
+}
+export const ENTITY_SIDES = [['buyer', 'Buyer'], ['seller', 'Seller']];
+export const ENTITY_DOC_FIELDS = [['articlesReceived', 'Articles'], ['operatingAgreementReceived', 'Operating agreement / bylaws'], ['resolutionsReceived', 'Resolutions'],
+  ['goodStandingReceived', 'Certificate of good standing'], ['einReceived', 'EIN evidence (number is not stored here)']];
+export const ENTITY_MEMBERS = [['single', 'Single member'], ['multi', 'Multi member']];
+export const ENTITY_TASKS = ['Entity Documents Requested', 'Entity Documents Received', 'Entity Documents Review Completed'];
+export const entityDocsComplete = (e) => !!e && ENTITY_DOC_FIELDS.every(([k]) => e[k] === true) && !!e.goodStandingVerified && !!e.signerAuthorized;
+export const entityNeedsAttorney = (e) => !!e && (!!e.criticalIssue || !entityDocsComplete(e));
+export const LIEN_CERT_OUTCOMES = [['pending', 'Pending review'], ['clear_to_close', 'Cleared to close'], ['curative_needed', 'Curative needed']];
+export function lienCertDue(receivedAt) { if (!receivedAt) return null; const d = new Date(receivedAt); return isNaN(d) ? null : new Date(d.getTime() + 86400000).toISOString(); }
+export const lienCertChecksComplete = (c) => !!c && ['addressMatch', 'parcelMatch', 'allAmountsPaid', 'zeroViolations', 'signedDated'].every((k) => c[k] === true);
+export const lienCertOverdue = (c, now = new Date().toISOString()) => !!c && !c.deletedAt && c.outcome === 'pending' && !!c.reviewDueAt && c.reviewDueAt < now;
+export const CTC_ITEMS = [
+  ['propertyAddressLot', 'Property address and lot: abstract = Schedule A'], ['taxId', 'Tax ID: tax statement = abstract = commitment'],
+  ['effectiveDate', 'Commitment/abstract effective date within 30 days of settlement'], ['underwriter', 'Underwriter verified'],
+  ['ownerPolicy', 'Owner policy type and amount verified'], ['loanPolicy', 'Loan policy type and amount verified'], ['basicEnhanced', 'Basic vs enhanced verified'],
+  ['underwritingGuidelines', 'Commitment meets requirement and exception underwriting guidelines'], ['contractSignatures', 'Contract signatures (including dual agency consent, if applicable)'],
+  ['proposedInsured', 'Proposed insured matches vesting'], ['chainOfTitle', 'Prior deeds and intake sheets show correct transfers'],
+  ['legalRecorded', 'Legal on recorded deed = Exhibit A (never the abstract cover sheet)'], ['notesCategories', 'TITLE PENDING REQUIREMENTS, LIEN CERT REVIEW, TITLE NOTES, WATER, PAYOFF TEAM, HOA AND COMMISSION reviewed'],
+  ['mortgagesPayoffs', 'DOT/mortgage count, seller payoffs and unsatisfied trusts verified'], ['judgments', 'Open judgments verified'],
+  ['delinquentTaxes', 'Delinquent taxes checked'], ['cityTaxes', 'Additional city/town taxes checked'], ['taxSale', 'Tax sale checked'], ['foreclosure', 'Pending foreclosure checked'],
+  ['taxCertification', 'Tax certification reviewed'], ['lienCert', 'Lien certificate clear'], ['standardExceptions', 'Standard exceptions on B-II'],
+  ['survey', 'Survey required/reviewed'], ['endorsements', 'Lender endorsements / additional exceptions verified'], ['folders', 'CTC/title folders organized']];
+export const CTC_CHECK_STATUSES = [['open', 'Open'], ['pass', 'Pass'], ['na', 'N/A'], ['issue', 'Issue']];
+export function effectiveDateCheck(effective, settlement) { if (!isYmd(effective) || !isYmd(settlement)) return { valid: false, days: null, text: 'Enter commitment effective date and settlement date.' };
+  const days = Math.round((Date.parse(settlement + 'T12:00:00Z') - Date.parse(effective + 'T12:00:00Z')) / 86400000); return { valid: days >= 0 && days <= 30, days, text: days < 0 ? 'Effective date is after settlement.' : `${days} days before settlement${days > 30 ? ' — OVER 30 DAYS' : ''}.` }; }
+export const ctcComplete = (checks) => CTC_ITEMS.every(([k]) => ['pass', 'na'].includes((checks || []).find((c) => c.checkKey === k && !c.deletedAt)?.status));
+export const TITLE_ALIGNMENT_TASKS = ['Review Title Search', 'Commitment Typed', 'Lender Title Request Received', 'Send Title Package', 'Issue CPL',
+  'Title Search ordered', 'Title search rcvd and in file', 'Tax cert ordered', 'Lien cert ordered', 'Title Exam', 'Lien cert rcvd', 'Title commitment sent',
+  'Title clearing/Curative', 'Order survey', 'Survey received', 'CPL requested', 'Title clearance'];
+export const STANDARD_EXCEPTION_KEYS = ['taxes', 'water', 'setback', 'parties_possession', 'rights_of_way', 'utility_agreements', 'easements'];
+export const TITLE_PACKAGE_TEMPLATE = 'TITLE - Title Package (Standard)';
+export const PACKAGE_RECIPIENT_ROLES = ['lender', 'buyer', 'listing_agent'];

@@ -5,11 +5,11 @@
  *    coordinator confirms a scheduled closing, which everyone on the file then sees.
  *  - E-sign (DEMO): processor / coordinator ask specific people to sign a document; each signer gets a 'Sign' task, types their name and
  *    adopts it. Only the signer can sign (an agent cannot sign for a client). Provider seam: esign.js. */
-import { AGREEMENTS, agreementOf } from './agreements.js?v=202611051216';
-import { getProvider, ESIGN_PROVIDER } from './esign.js?v=202611051216';
-import { WIRE_FRAUD_NOTE, CLA_PHONE } from './constants.js?v=202611051216';
-import { OFFICE_LOCATION, placeText as placeText0 } from './offices.js?v=202611051216';
-import { closingOfficeChoices, officeById, officeNameOf } from './mock-part-offices.js?v=202611051216';   // Admin > Offices (migration 57): the stored office list
+import { AGREEMENTS, agreementOf } from './agreements.js?v=202611051319';
+import { getProvider, ESIGN_PROVIDER } from './esign.js?v=202611051319';
+import { WIRE_FRAUD_NOTE, CLA_PHONE } from './constants.js?v=202611051319';
+import { OFFICE_LOCATION, placeText as placeText0 } from './offices.js?v=202611051319';
+import { closingOfficeChoices, officeById, officeNameOf } from './mock-part-offices.js?v=202611051319';   // Admin > Offices (migration 57): the stored office list
 export function mattP2(x) {
   const { load, save, nid, needUser, isManager, notViewOnly, onDeal, scopeTo, holds, contactOf, isStaffView, personSide, docVisible, log, prof, nameOf, notify, dealProfileIds, clone, now, fail, str, localDate, C } = x;
   const d0 = () => load();

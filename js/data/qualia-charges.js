@@ -10,7 +10,7 @@
  *    A.01 Loan Amount % override, F # of months, F.03 prepaid interest per-diem calculation, G $ per month x # of months, E.01 recording types;
  *  - the CD text of a line (e.g. "Prepaid Interest ($53.42 per day from 11/30/26 to 12/01/26)", "Homeowner's Insurance Premium (12 mo.)").
  * WIRE INSTRUCTIONS: bank routing / account numbers are NEVER stored (the meta has no such keys; cleanMeta and the database refuse unknown keys). */
-import { addMonths, isDate, mdy } from './prorations.js?v=202611051216';
+import { addMonths, isDate, mdy } from './prorations.js?v=202611051319';
 const fail = (m) => { throw new Error(m); };
 const c = (n) => Math.round((Number(n) || 0) * 100); const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const usd = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

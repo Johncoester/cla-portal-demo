@@ -1,18 +1,19 @@
 // ACCOUNTING tab (John, Nov 3: "an accounting tab that will allow fees to be added to an ALTA and CD"). CLA staff only, behind the `accounting`
 // feature flag (app.js never loads this module when it is off). ONE fee ledger feeds the ALTA Settlement Statement and the Closing Disclosure fee
 // view. Processor / Admin / Super admin edit; Sales Person / Sales Team read only. TEST ONLY: "TEST - not a legal disclosure" on every page and print.
-import { html, raw, $, $$, guard, formData, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611051216';
-import { themeOn } from '../theme.js?v=202611051216';
-import { modOn } from '../data/modules.js?v=202611051216';
-import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611051216';
-import { prorationsView } from './dealaccounting-prorations.js?v=202611051216';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
-import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611051216'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
-import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611051216';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
-import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611051216';
-import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611051216';
-import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611051216';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { html, raw, $, $$, guard, formData, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611051319';
+import { themeOn } from '../theme.js?v=202611051319';
+import { modOn } from '../data/modules.js?v=202611051319';
+import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611051319';
+import { prorationsView } from './dealaccounting-prorations.js?v=202611051319';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
+import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611051319'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
+import { render as postClosingRender } from './dealpostclosing.js?v=202611051319';
+import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611051319';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611051319';
+import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611051319';
+import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611051319';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 
-const VIEWS = [['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
+const VIEWS = [['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
 // negative amounts (the escrow aggregate adjustment) show as -$x.xx
 const m2 = (n) => (n == null || Number(n) === 0 ? '' : (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const m2z = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -48,7 +49,8 @@ export async function render({ api, deal, user }) {
     ${T.issues.length ? html`<div class="notice warn acct-noprint" data-balance-issues><strong>Out of balance.</strong><ul>${T.issues.map((i) => html`<li>${i}</li>`)}</ul></div>` : ''}
     ${(T.warnings || []).length ? html`<div class="notice info acct-noprint" data-acct-warnings><ul>${T.warnings.map((i) => html`<li>${i}</li>`)}</ul></div>` : ''}`;
   let v;
-  if (view === 'charges') v = await chargesView(api, deal, acc, q, base);
+  if (view === 'postclosing') v = await postClosingRender({ api, deal, user, refresh: () => location.reload() });
+  else if (view === 'charges') v = await chargesView(api, deal, acc, q, base);
   else if (view === 'payoffs') v = await payoffsView(api, deal, acc, q, base, user);
   else if (view === 'taxes') v = await taxesView(api, deal, acc, q, base);
   else if (view === 'othercontacts') v = await otherContactsView(api, deal, acc, q, base);
@@ -59,7 +61,7 @@ export async function render({ api, deal, user }) {
   else if (view === 'prorations') v = await prorationsView(api, deal, acc, base);
   else if (view === 'history') v = await historyView(api, deal);
   else v = await ledgerView(api, deal, acc, showRetired, base);
-  return { title: 'Accounting', crumbs: [['Accounting']], body: html`<section class="acct qc-shell-wrap" data-accounting data-acct-view="${view}">${head}<div class="qc-shell">${nav}<div class="qc-body">${view === 'ledger' || view === 'prorations' ? balance : ''}${v.body}</div></div></section>`, mount: v.mount || (() => {}) };
+  return { title: 'Accounting', crumbs: [['Accounting']], body: html`<section class="acct qc-shell-wrap" data-accounting data-acct-view="${view}">${head}${view === 'postclosing' ? html`<nav class="tt-tabs"><a href="${base}" class="active">Accounting</a><a href="${base}?v=postclosing" class="active">Post-Closing Scanbacks &amp; E-Recording</a></nav>` : ''}<div class="qc-shell">${nav}<div class="qc-body">${view === 'postclosing' ? '' : view === 'ledger' || view === 'prorations' ? balance : ''}${v.body}</div></div></section>`, mount: v.mount || (() => {}) };
 }
 
 // ---------------- ledger + add / edit form ----------------

@@ -4,11 +4,11 @@
  * "Buyers Initial Commitment copy", made with the existing signature-request / task pattern).
  * Every value is a typed field on a typed row (mirrors migration 61), rows are soft-deleted (deletedAt), nothing is ever sent (outbox = queued only),
  * NO SSN is ever stored (the PACER rows hold party, search type, result and the receipt document only). FAKE DATA ONLY. */
-import { senderFor } from './email-senders.js?v=202611051216';
-import * as T from './title.js?v=202611051216';
-import { seedTitleSamples } from './title-seed.js?v=202611051216';
+import * as T from './title.js?v=202611051319';
+import { senderFor } from './email-senders.js?v=202611051319';
+import { seedTitleSamples } from './title-seed.js?v=202611051319';
 
-const COLS = ['titleReviews', 'titleSteps', 'titlePacer', 'titleDiscrepancies', 'titleChain', 'titleItems', 'titleCpls', 'titlePackageComponents', 'titleSignatures', 'titleSummaries', 'titleCurative', 'orderNotes', 'titleLog'];
+const COLS = ['titleReviews', 'titleSteps', 'titlePacer', 'titleDiscrepancies', 'titleChain', 'titleItems', 'titleCpls', 'titlePackageComponents', 'titleSignatures', 'titleSummaries', 'titleCurative', 'orderNotes', 'titleLog', 'titleSearches', 'titleLiens', 'titleEntities', 'titleLienCerts', 'titleCtcChecks', 'titleProcessorNotes'];
 // typed review fields (title_reviews columns): s = text, L = long text, m = money, d = date, b = boolean, e:<list> = one of a list
 const REVIEW_FIELDS = {
   reviewerId: 's', reviewDate: 'd', propertyType: 'e:' + T.PROPERTY_TYPES.join('|'), titleOrderEmailNotes: 'L',
@@ -19,7 +19,7 @@ const REVIEW_FIELDS = {
   assocType: 'e:none|hoa|condo|both', assocName: 's', assocFee: 'm', assocFeeFrequency: 'e:' + T.FEE_FREQUENCIES.join('|'),
   feeInclWater: 'b', feeInclSewer: 'b', feeInclHeat: 'b', feeInclElectric: 'b', feeInclGas: 'b', feeInclAc: 'b',
   waterType: 'e:public|private|well', sewerType: 'e:public|private|septic', frontFootBenefit: 'e:yes|no|unknown', groundRent: 'e:yes|no|unknown', transferTaxSplit: 's', contractNotes: 'L',
-  trLoanAmount: 'm', trLenderName: 's', trLoanIdNumber: 's',
+  trLoanAmount: 'm', trLenderName: 's', trLoanIdNumber: 's', trVestingText: 's', trLegalDescription: 'L', vestingContractMatch: 'b', legalContractMatch: 'b', vestingLenderMatch: 'b', legalLenderMatch: 'b', titleNotes: 'L', curativePending: 'L',
   underwriter: 's', commitmentNumber: 's', commitmentForm: 'e:' + T.COMMITMENT_FORMS.join('|'), effectiveDate: 'd', effectiveTime: 's', proposedInsured: 's', vestingText: 's', legalDescription: 'L',
   beingOverrideOn: 'b', beingOverrideText: 'L',
   lenderPolicyType: 's', lenderPolicyForm: 's', lenderPolicyAmount: 'm', lenderRateType: 's', lenderRateEffectiveDate: 'd', lenderProposedInsured: 's',
@@ -28,6 +28,11 @@ const REVIEW_FIELDS = {
 const LOAN_DEAL_FIELDS = { loanIdNumber: 's', lossPayeeName: 's', usesMers: 'b', fundingType: 'e:net|gross', firstPaymentDate: 'd', interestType: 'e:' + T.INTEREST_TYPES.join('|'), loanType: 's' };
 const CHAIN_FIELDS = { instrumentType: 'e:' + T.INSTRUMENT_TYPES.join('|'), documentName: 's', grantor: 's', grantee: 's', documentDate: 'd', recordedDate: 'd', book: 's', page: 's', instrumentNumber: 's', certOfTitleNumber: 's', documentNumber: 's', pertainsToProperty: 'b', overrideOn: 'b', overrideText: 'L' };
 const ITEM_FIELDS = Object.fromEntries([...T.ITEM_FIELD_KEYS.map((k) => [k, T.MONEY_FIELDS.includes(k) ? 'm' : T.DATE_FIELDS.includes(k) ? 'd' : /Status$/.test(k) ? 'e:paid|unpaid' : 's']), ['dotNeedsPayoff', 'b'], ['bodyText', 'L'], ['overrideOn', 'b'], ['overrideText', 'L'], ['status', 'e:open|satisfied|waived']]);
+const SEARCH_FIELDS = { orderedDate: 'd', dueDate: 'd', receivedDate: 'd', abstractor: 's', assignedTypistId: 's', notes: 'L' };
+const LIEN_FIELDS = { itemType: 'e:' + T.CURATIVE_TYPES.map(x => x[0]).join('|'), caseNumber: 's', mortgagor: 's', beneficiary: 's', trustee: 's', instrumentDate: 'd', recordedDate: 'd', entryDate: 'd', renewalDate: 'd', filingDate: 'd', jurisdictionState: 's', amount: 'm', book: 's', page: 's', instrumentNumber: 's', status: 'e:' + T.CURATIVE_STATUSES.map(x => x[0]).join('|'), verificationMethod: 'e:' + T.VERIFICATION_METHODS.map(x => x[0]).join('|'), identityVerified: 'b', identityVerifiedBy: 's', identityVerifiedDate: 'd', documentId: 's', attorneyName: 's', sufficientFundsAffidavit: 'b', notes: 'L' };
+const ENTITY_FIELDS = { side: 'e:buyer|seller', entityName: 's', entityType: 's', articlesReceived: 'b', operatingAgreementReceived: 'b', resolutionsReceived: 'b', goodStandingReceived: 'b', goodStandingYear: 's', einReceived: 'b', goodStandingVerified: 'b', goodStandingStateSite: 's', signerAuthorized: 'b', memberStructure: 'e:single|multi', managementStructure: 's', requiredSignaturesCaptured: 'b', criticalIssue: 'b', issueNotes: 'L', assignedAttorneyId: 's', attorneyApproved: 'b', attorneyApprovalNotes: 'L', folderDocumentId: 's' };
+const CERT_FIELDS = { receivedAt: 's', addressMatch: 'b', parcelMatch: 'b', allAmountsPaid: 'b', outstandingAmount: 'm', zeroViolations: 'b', violationCount: 's', signedDated: 'b', outcome: 'e:pending|clear_to_close|curative_needed', notes: 'L', documentId: 's' };
+const CTC_FIELDS = { status: 'e:open|pass|na|issue', note: 's' };
 const SUMMARY_TYPES = Object.fromEntries(T.SUMMARY_KEYS.map((k) => [k, 's']));
 
 // in-place, idempotent: the title collections + (once, only where the title flag is on) the three FAKE sample orders. Storage key stays v29 (nothing existing changes).
@@ -38,7 +43,7 @@ export function ensureTitle(d, { seed = false } = {}) {
 }
 
 export function titlePart(x, flags, api) {
-  const { load, save, nid, needUser, dealsFor, fail, now, nameOf, clone, prof, localDate, isStaffView, isManager } = x;
+  const { load, save, nid, needUser, dealsFor, fail, now, nameOf, clone, prof, localDate, isStaffView, isManager, notify } = x;
   const db = () => ensureTitle(load());
   const str = (v, n = 500) => String(v == null ? '' : v).trim().slice(0, n);
   const reader = (dealId) => { if (!flags.title) fail(T.TITLE_OFF); const u = needUser(); if (!T.titleCanRead(u)) fail(T.TITLE_STAFF_ONLY);
@@ -112,6 +117,9 @@ export function titlePart(x, flags, api) {
     const orderDocs = d.documents.filter((z) => z.dealId === deal.id && !x.isWireDoc(z)).map((z) => ({ id: z.id, name: z.name, kind: z.titleDocKind || '', folder: fname(z.folderId) }));
     const steps = T.STEPS.map(([k, label, section]) => { const s = stepRow(deal.id, k); return { key: k, label, section, status: s ? s.status : 'open', doneAt: s ? s.doneAt : null, doneByName: s && s.doneBy ? nameOf(s.doneBy) : '', note: s ? s.note || '' : '' }; });
     const warnings = []; const mdw = T.mdAckWarning(deal, titleDocs(deal.id)); if (mdw) warnings.push({ key: 'md_ack', text: mdw });
+    const searches = live('titleSearches', deal.id); const srch = searches[0] || null; const curatives = live('titleLiens', deal.id);
+    curatives.forEach(z => { const ex=T.curativeExpiry(z); if(ex&&ex.expired&&(z.status!=='expired'||z.verificationMethod!=='expiry_rule')){z.status='expired';z.verificationMethod='expiry_rule';} });
+    if (srch && T.searchBlocked(deal, d.tasks.filter(t => t.dealId === deal.id))) warnings.push({ key: 'emd_block', text: T.EMD_BLOCK, red: true });
     if (r && T.beingClauseMissing(r.legalDescription)) warnings.push({ key: 'being', text: T.BEING_MISSING });
     live('titleDiscrepancies', deal.id).filter((z) => z.status === 'open').forEach((z) => warnings.push({ key: 'discrepancy', id: z.id, text: `${z.discrepancyType === 'owner_seller_mismatch' ? T.OWNER_MISMATCH : T.discrepancyLabel(z.discrepancyType)}: ${z.description}`, red: true }));
     const cpls = live('titleCpls', deal.id).map((c) => ({ ...clone(c), issuedByName: nameOf(c.issuedBy), lenderMatch: T.cplLenderMatches(c.protectedParty, deal.lenderName) }));
@@ -134,6 +142,14 @@ export function titlePart(x, flags, api) {
       chain, being: { generated: beingGenerated, text: beingText, overrideOn: !!(r && r.beingOverrideOn), overrideText: r ? r.beingOverrideText || '' : '', vestingId: vest ? vest.id : null },
       infoBlock: T.infoBlock({ being: beingText, deal, taxId: r ? r.sdatTaxId : '' }), requirements: reqs, exceptions: excs, cpls, docs, orderDocs, notes, payoffs, hoaLinked: !!hoaLinked, hoaFound: hoaFound(r),
       packageComponents: comps, packageMissing: T.PACKAGE_KINDS.filter((k) => !docOfKind(deal.id, k)).map(T.docKindLabel), signatures: live('titleSignatures', deal.id).map((s) => ({ ...clone(s), requestedByName: nameOf(s.requestedBy) })),
+      search: srch ? clone(srch) : null, searches: searches.map(clone), searchBlocked: T.searchBlocked(deal, d.tasks.filter(t => t.dealId === deal.id)), emdReceived: T.emdReceived(deal, d.tasks.filter(t => t.dealId === deal.id)),
+      liens: live('titleLiens', deal.id).map(z => ({ ...clone(z), expiry: T.curativeExpiry(z), requirementText: T.requirementFromCurative(z, ctx), documentName: ((d.documents.find(y => y.id === z.documentId) || {}).name || '') })),
+      entities: live('titleEntities', deal.id).map(z => ({ ...clone(z), assignedAttorneyName: z.assignedAttorneyId ? nameOf(z.assignedAttorneyId) : '', complete: T.entityDocsComplete(z) })),
+      lienCerts: live('titleLienCerts', deal.id).map(z => ({ ...clone(z), overdue: T.lienCertOverdue(z), complete: T.lienCertChecksComplete(z) })),
+      ctcChecks: T.CTC_ITEMS.map(([key, label]) => { const q = live('titleCtcChecks', deal.id).find(z => z.checkKey === key); return { checkKey: key, label, status: q ? q.status : 'open', note: q ? q.note : '', id: q ? q.id : null }; }), effectiveDateCheck: T.effectiveDateCheck(r && r.effectiveDate, deal.closingDate),
+      processorNotes: live('titleProcessorNotes', deal.id).map(z => ({ ...clone(z), byName: nameOf(z.createdBy) })).reverse(),
+      staffAttorneys: d.profiles.filter(z => z.status === 'active' && (/attorney/i.test(z.role || '') || z.isAdmin)).map(z => ({ id: z.id, name: nameOf(z.id), role: z.role })),
+      packageRecipients: T.PACKAGE_RECIPIENT_ROLES,
       summary: summary ? { ...clone(summary), curative: d.titleCurative.filter((c) => c.summaryId === summary.id && !c.deletedAt).sort((a, b) => a.position - b.position).map((c) => c.text) } : null,
       ownerMatches: r && r.vestingOwnerName ? T.namesMatch(r.vestingOwnerName, sellerNames(deal.id)) : null,
       outbox: (d.outbox || []).filter((o) => o.dealId === deal.id && o.titlePackage).map((o) => ({ id: o.id, toEmail: o.toEmail, toName: o.toName, status: o.status, createdAt: o.createdAt, sentAt: o.sentAt })),
@@ -311,14 +327,76 @@ export function titlePart(x, flags, api) {
       r.titlePackageDocumentId = doc.id; stamp(r, u, false); setStep(u, dealId, 'title_package', 'done');
       done(u, deal, ['Title Package', missing.length ? `built; MISSING ${missing.map(T.docKindLabel).join(', ')}` : 'built']); return { documentId: doc.id, missing: missing.map(T.docKindLabel) }; },
     // QUEUED ONLY: an outbox entry to the lender contact with the Title Package attached, + sent_at / by on the review. Nothing is sent.
-    async sendTitlePackage(dealId) { const { u, deal } = editor(dealId); const r = ensureReview(u, deal); const pkg = docOfKind(dealId, 'title_package') || fail('Build the Title Package first.');
-      if (!deal.lenderEmail) fail('The order has no lender email (Edit order details > Lender).'); const d = db();
-      const ob = { id: nid('ob'), channel: 'email', status: 'queued', toProfileId: null, toName: deal.lenderContact || deal.lenderName, toEmail: deal.lenderEmail, subject: `Title Package - ${deal.fileNumber} - ${deal.street}, ${deal.city}`,
-        body: `Hello ${deal.lenderContact || ''}, attached is the Title Package (CPL, Title Commitment, Tax Certificate, E&O, Prelim CD) for ${deal.street}, ${deal.city}, ${deal.state}. CLA Title & Escrow. (TEST portal: queued only, never sent.)`,
-        taskId: null, dealId, createdBy: u.id, createdAt: now(), sentAt: null, attachmentDocumentIds: [pkg.id], titlePackage: true };
-      Object.assign(ob, senderFor(d, 'processor', dealId)); d.outbox.push(ob); r.packageSentAt = now(); r.packageSentBy = u.id; r.packageOutboxId = ob.id; stamp(r, u, false); setStep(u, dealId, 'send_package', 'done');
-      completeTask(u, deal, T.SEND_TASK, `Title Package queued to ${deal.lenderEmail} (outbox only, not sent).`);
-      done(u, deal, ['Send Title Package', `queued to ${deal.lenderEmail} (not sent)`]); return { outboxId: ob.id }; },
+    async sendTitlePackage(dealId, recipients = ['lender']) { const { u, deal } = editor(dealId); const r = ensureReview(u, deal); const pkg = docOfKind(dealId, 'title_package') || fail('Build the Title Package first.');
+      const roles = [...new Set((Array.isArray(recipients) ? recipients : [recipients]).filter(z => T.PACKAGE_RECIPIENT_ROLES.includes(z)))]; if (!roles.length) fail('Pick lender, buyer and/or listing agent.');
+      const d = db(); const out = []; const add = (role, name, email, profileId = null) => { if (!email && !profileId) fail(`${role}: no email/contact on the order.`); const ob = { id: nid('ob'), channel: 'email', status: 'queued', toProfileId: profileId, toName: name, toEmail: email, subject: `Title Package - ${deal.fileNumber} - ${deal.street}, ${deal.city}`,
+        body: `Template: ${T.TITLE_PACKAGE_TEMPLATE}. Hello ${name}, attached is the Title Package (CPL, Title Commitment, Tax Certificate, E&O, Prelim CD) for ${deal.street}, ${deal.city}, ${deal.state}. CLA Title & Escrow. (TEST portal: queued only, never sent.)`, templateKey: T.TITLE_PACKAGE_TEMPLATE,
+        taskId: null, dealId, createdBy: u.id, createdAt: now(), sentAt: null, attachmentDocumentIds: [pkg.id], titlePackage: true }; Object.assign(ob, senderFor(d, 'processor', dealId)); d.outbox.push(ob); out.push(ob); };
+      if (roles.includes('lender')) add('lender', deal.lenderContact || deal.lenderName || 'Lender', deal.lenderEmail);
+      if (roles.includes('buyer')) for (const b of parties(dealId, 'Client-Buyer')) { const c = d.contacts.find(z => z.id === b.contactId) || {}; add('buyer', b.name, c.email, b.profileId); }
+      if (roles.includes('listing_agent')) { const as = parties(dealId, 'Listing Agent'); if (!as.length) fail('No listing agent on this order.'); for (const a of as) { const c = d.contacts.find(z => z.id === a.contactId) || {}; add('listing_agent', a.name, c.email, a.profileId); } }
+      // Deliberately no buyer agent: existing Nov4 open question remains; buyer agent is not the buyer recipient.
+      r.packageSentAt = now(); r.packageSentBy = u.id; r.packageOutboxId = out[0].id; stamp(r, u, false); setStep(u, dealId, 'send_package', 'done');
+      completeTask(u, deal, T.SEND_TASK, `${T.TITLE_PACKAGE_TEMPLATE} queued to ${roles.join(', ')} (outbox only, not sent).`); completeTask(u, deal, 'Title commitment sent');
+      done(u, deal, ['Send Title Package', `queued to ${roles.join(', ')} (not sent; no buyer agent)`]); return { outboxId: out[0].id, outboxIds: out.map(o => o.id) }; },
+
+    // ---------- Nov 5: search tracking / EMD gate and queues ----------
+    async saveTitleSearch(dealId, input = {}) { const { u, deal } = editor(dealId); const c = clean(input, SEARCH_FIELDS, 'Title search');
+      if (c.assignedTypistId && !(prof(c.assignedTypistId) && T.titleCanEdit(prof(c.assignedTypistId)))) fail('Assigned typist must be CLA Title staff.');
+      if (!T.emdReceived(deal, db().tasks.filter(t => t.dealId === dealId)) && (c.receivedDate || c.assignedTypistId || c.notes)) fail(T.EMD_BLOCK);
+      ensureReview(u, deal); let row = live('titleSearches', dealId)[0]; const first = !row; if (!row) { row = { id: nid('tsrch'), dealId }; db().titleSearches.push(row); }
+      Object.assign(row, c); stamp(row, u, first); done(u, deal, ['Title search', first ? 'tracking added' : 'tracking updated']); return clone(row); },
+    async getTitleSearchQueues() { const u = needUser(); if (!flags.title || !T.titleCanRead(u)) fail(T.TITLE_STAFF_ONLY); const d = db(); const deals = dealsFor(u); return T.searchQueues(d.titleSearches, deals, d.tasks).overdue.map(x => ({ ...clone(x.search), fileNumber: x.deal.fileNumber, processor: nameOf(x.deal.processorId), transactionType: x.deal.transactionType, openDate: x.deal.openDate })).concat([]); },
+    async getTitleQueueView(kind) { const u = needUser(); if (!flags.title || !T.titleCanRead(u)) fail(T.TITLE_STAFF_ONLY); const d = db(); const q = T.searchQueues(d.titleSearches, dealsFor(u), d.tasks); const rows = kind === 'package_review' ? q.packageReview : q.overdue;
+      return rows.map(x => ({ ...clone(x.search), fileNumber: x.deal.fileNumber, processor: nameOf(x.deal.processorId), transactionType: x.deal.transactionType, openDate: x.deal.openDate, typistName: x.search.typistId || x.search.assignedTypistId ? nameOf(x.search.typistId || x.search.assignedTypistId) : '' })); },
+    async getLienCertQueue() { const u = needUser(); if (!flags.title || !T.titleCanRead(u)) fail(T.TITLE_STAFF_ONLY); const d = db(); return d.titleLienCerts.filter(z => !z.deletedAt && dealsFor(u).some(q => q.id === z.dealId)).map(z => ({ ...clone(z), fileNumber: (d.deals.find(q => q.id === z.dealId) || {}).fileNumber, overdue: T.lienCertOverdue(z) })); },
+
+    // ---------- curative: one typed row per DOT / lien / judgment; no SSN or identity details ----------
+    async saveTitleLien(dealId, input = {}) { const { u, deal } = editor(dealId); const { id, ...rest } = input; const c = clean(rest, LIEN_FIELDS, 'Curative item'); ensureReview(u, deal);
+      let row = id ? db().titleLiens.find(z => z.id === id && z.dealId === dealId && !z.deletedAt) || fail('Curative item not found.') : null; const first = !row;
+      if (!row) { row = { id: nid('tlien'), dealId, itemType: 'other', status: 'open', identityVerified: null }; db().titleLiens.push(row); }
+      const candidate = { ...row, ...c }; const ex = T.curativeExpiry(candidate); if (ex && ex.expired) { c.status = 'expired'; c.verificationMethod = 'expiry_rule'; }
+      if (candidate.itemType === 'state_tax_lien' && c.verificationMethod && c.verificationMethod !== 'identity_match' && c.verificationMethod !== 'recorded_release' && c.verificationMethod !== 'other') fail('State tax lien: verify identity match; no attorney call is needed.');
+      if (c.identityVerified === true) { if (!str(c.identityVerifiedBy) || !c.identityVerifiedDate) fail('Identity verified: record yes, by and date only. Never enter an SSN.'); }
+      if (candidate.itemType === 'mechanics_lien' && candidate.jurisdictionState === 'FL' && c.status === 'cleared' && ex && !ex.expired && candidate.sufficientFundsAffidavit !== true) fail('FL Notice of Commencement: sufficient funds affidavit required before clearance.');
+      Object.assign(row, c); stamp(row, u, first); done(u, deal, ['Curative item', `${row.itemType}: ${row.status}`]); return clone(row); },
+    async retireTitleLien(id) { const row = db().titleLiens.find(z => z.id === id && !z.deletedAt) || fail('Curative item not found.'); const { u, deal } = editor(row.dealId); row.deletedAt = now(); row.deletedBy = u.id; stamp(row, u, false); done(u, deal, ['Curative item', `${row.itemType} removed (soft)`]); return true; },
+    async generateLienRequirement(id) { const row = db().titleLiens.find(z => z.id === id && !z.deletedAt) || fail('Curative item not found.'); if (row.status === 'expired') fail('Expired item: no payoff or B-I requirement.'); const { u, deal } = editor(row.dealId);
+      const req = await this.addTitleItem(deal.id, { kind: 'requirement', templateKey: row.itemType === 'deed_of_trust' ? 'dot_release' : 'judgment_release', fields: row.itemType === 'deed_of_trust' ? { dotGrantor: row.mortgagor, dotLender: row.beneficiary, dotTrustee: row.trustee, dotDate: row.instrumentDate, dotRecordedDate: row.recordedDate, dotAmount: row.amount, dotBook: row.book, dotPage: row.page, dotInstrumentNumber: row.instrumentNumber } : {} });
+      if (row.itemType !== 'deed_of_trust') { req.generatedText = T.requirementFromCurative(row, ctxOf(deal)); req.overrideOn = true; req.overrideText = req.generatedText; }
+      row.requirementItemId = req.id; stamp(row, u, false); save(); return clone(req); },
+
+    // ---------- entity review and attorney task ----------
+    async saveTitleEntity(dealId, input = {}) { const { u, deal } = editor(dealId); const { id, ...rest } = input; const c = clean(rest, ENTITY_FIELDS, 'Entity review'); ensureReview(u, deal);
+      let row = id ? db().titleEntities.find(z => z.id === id && z.dealId === dealId && !z.deletedAt) || fail('Entity review not found.') : null; const first = !row;
+      if (!row) { row = { id: nid('tent'), dealId, side: 'buyer', criticalIssue: false, attorneyApproved: false }; db().titleEntities.push(row); }
+      if (c.assignedAttorneyId && !(prof(c.assignedAttorneyId) && (prof(c.assignedAttorneyId).isAdmin || /attorney/i.test(prof(c.assignedAttorneyId).role || '')))) fail('Choose an attorney or admin for entity approval.');
+      Object.assign(row, c); if (!T.entityDocsComplete(row)) row.attorneyApproved = false; stamp(row, u, first);
+      T.ENTITY_TASKS.forEach(name => ensureTask(u, deal, name, row.assignedAttorneyId || u.id));
+      const req = db().tasks.find(t => t.dealId === dealId && t.title === 'Entity Documents Requested'); if (req) req.status = 'done';
+      if (T.ENTITY_DOC_FIELDS.some(([k]) => row[k])) { const t = db().tasks.find(t => t.dealId === dealId && t.title === 'Entity Documents Received'); if (t) t.status = 'done'; }
+      done(u, deal, ['Entity review', `${row.side}: ${row.criticalIssue ? 'CRITICAL ISSUE — attorney approval required' : 'saved'}`]); return clone(row); },
+    async approveTitleEntity(id, note) { const row = db().titleEntities.find(z => z.id === id && !z.deletedAt) || fail('Entity review not found.'); const { u, deal } = editor(row.dealId);
+      if (!row.assignedAttorneyId || row.assignedAttorneyId !== u.id && !u.isAdmin) fail('The assigned attorney must approve this entity review.'); T.noSsn({ note });
+      row.attorneyApproved = true; row.attorneyApprovalNotes = str(note, 1000); stamp(row, u, false); completeTask(u, deal, 'Entity Documents Review Completed', row.attorneyApprovalNotes); done(u, deal, ['Entity review', 'attorney approved']); return clone(row); },
+
+    // ---------- lien certificate: review due 24 hours after receipt ----------
+    async saveTitleLienCert(dealId, input = {}) { const { u, deal } = editor(dealId); const { id, ...rest } = input; const c = clean(rest, CERT_FIELDS, 'Lien certificate'); ensureReview(u, deal);
+      let row = id ? db().titleLienCerts.find(z => z.id === id && z.dealId === dealId && !z.deletedAt) || fail('Lien certificate not found.') : null; const first = !row;
+      if (!row) { row = { id: nid('tlc'), dealId, outcome: 'pending' }; db().titleLienCerts.push(row); }
+      if (c.receivedAt && isNaN(Date.parse(c.receivedAt))) fail('Receipt date/time is invalid.'); Object.assign(row, c); if (row.receivedAt) row.reviewDueAt = T.lienCertDue(row.receivedAt);
+      if (row.outcome === 'clear_to_close' && !T.lienCertChecksComplete(row)) fail('Clear to close requires address/parcel match, all paid, zero violations and signed/dated.');
+      stamp(row, u, first); ensureTask(u, deal, 'Lien Cert Review', u.id); if (row.outcome === 'clear_to_close') completeTask(u, deal, 'Lien Cert - Cleared to Close'); if (row.outcome === 'curative_needed') completeTask(u, deal, 'Lien Cert - Curative Needed');
+      done(u, deal, ['Lien certificate', row.outcome]); return clone(row); },
+
+    // ---------- Title CTC: every check is a typed row; processor note is internal only ----------
+    async saveTitleCtcCheck(dealId, checkKey, input = {}) { const { u, deal } = editor(dealId); if (!T.CTC_ITEMS.some(([k]) => k === checkKey)) fail('Unknown CTC check.'); const c = clean(input, CTC_FIELDS, 'CTC check'); ensureReview(u, deal);
+      if (checkKey === 'effectiveDate' && c.status === 'pass' && !T.effectiveDateCheck(reviewOf(dealId).effectiveDate, deal.closingDate).valid) fail('Effective date must be within 30 days before settlement.');
+      let row = live('titleCtcChecks', dealId).find(z => z.checkKey === checkKey); const first = !row; if (!row) { row = { id: nid('tctc'), dealId, checkKey }; db().titleCtcChecks.push(row); } Object.assign(row, c); stamp(row, u, first); done(u, deal, ['Title CTC', `${checkKey}: ${row.status}`]); return clone(row); },
+    async completeTitleCtc(dealId, processorNote = '') { const { u, deal } = editor(dealId); if (!T.ctcComplete(live('titleCtcChecks', dealId))) fail('Complete every Title CTC check as Pass or N/A first.'); T.noSsn({ processorNote });
+      completeTask(u, deal, T.CTC_TASK, str(processorNote, 1000)); if (str(processorNote)) { db().titleProcessorNotes.push(stamp({ id: nid('tpnote'), dealId, body: str(processorNote, 1000) }, u, true)); notify([deal.processorId || u.id], { kind: 'title', dealId, title: `Title CLEAR TO CLOSE: ${deal.fileNumber}`, link: `#/deals/${dealId}/title?v=ctc` }); }
+      setStep(u, dealId, 'tasks_updated', 'done'); done(u, deal, ['Title CTC', 'CLEAR TO CLOSE']); return true; },
+    async alignTitleTasks(dealId) { const { u, deal } = editor(dealId); T.TITLE_ALIGNMENT_TASKS.forEach(t => ensureTask(u, deal, t)); done(u, deal, ['Title tasks', 'task list aligned']); return T.TITLE_ALIGNMENT_TASKS.length; },
 
     // ---------- the summary note + tasks ----------
     async prefillTitleSummary(dealId) { const { u, deal } = reader(dealId); const v = view(u, deal, false); const r = v.review || {};

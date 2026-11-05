@@ -1,11 +1,11 @@
 // crm-more.js : CRM pipeline (Kanban + list) and Reports (John, Nov 2; follow-ups moved to CRM Home tasks). Function only, minimal styling.
-import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611051216';
-import { localDate } from '../data/constants.js?v=202611051216';
-import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort } from '../data/crm.js?v=202611051216';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv } from './crm-kit.js?v=202611051216';
-import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611051216';
-import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611051216';
-import { wireCompose } from './crm-templates.js?v=202611051216';
+import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611051319';
+import { localDate } from '../data/constants.js?v=202611051319';
+import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort } from '../data/crm.js?v=202611051319';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv } from './crm-kit.js?v=202611051319';
+import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611051319';
+import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611051319';
+import { wireCompose } from './crm-templates.js?v=202611051319';
 
 const crumbs = (label) => [['CRM', '#/crm'], [label]];
 const q = () => new URLSearchParams(location.hash.split('?')[1] || '');
