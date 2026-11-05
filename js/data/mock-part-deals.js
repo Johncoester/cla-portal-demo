@@ -1,6 +1,7 @@
 /* mock adapter, part 1: auth, profile, dashboard, deals. See mock-adapter.js. */
-import { checkSource } from './mock-part-nov3b.js?v=202611051010';
-import { isRefi, REFI_BLOCKED_FIELDS } from './constants.js?v=202611051010';
+import { autoCounty } from './county-auto.js?v=202611051059';
+import { checkSource } from './mock-part-nov3b.js?v=202611051059';
+import { isRefi, REFI_BLOCKED_FIELDS } from './constants.js?v=202611051059';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 // John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only
@@ -79,11 +80,11 @@ export function dealsAndAuth(x) {
       // John, Nov 2: Open Date = the day the order came in (defaults to today; may be backdated, never in the future). createdAt stays the system timestamp.
       const openDate = dateOrNull(input.openDate, 'Open date') || localDate(); if (openDate > localDate()) fail('Open date cannot be in the future.');
       const zip = str(input.zip, 10); if (!zipOk(zip)) fail('ZIP must be 5 digits (or ZIP+4).');
-      const county = str(input.county, C.COUNTY_MAX);   // John, Nov 2: optional, free text (e.g. Frederick)
+      const ac = await autoCounty({ county: str(input.county, C.COUNTY_MAX), zip, state }); const county = str(ac.county, C.COUNTY_MAX);   // John, Nov 2: optional, free text (e.g. Frederick); live40: blank -> from the ZIP
       const transactionType = C.TX_TYPES.includes(input.transactionType) ? input.transactionType : 'Purchase';
       if (isRefi(transactionType)) refiNoPrice(input, fail);
       const nextNum = Math.max(97000, ...d.deals.map((q) => Number(q.fileNumber.split('-')[2]) || 0)) + 1;
-      const deal = { id: nid('deal'), fileNumber: `MD-26-${nextNum}`, street, city, state, zip, county, transactionType, stage: 0, status: 'Open',
+      const deal = { id: nid('deal'), fileNumber: `MD-26-${nextNum}`, street, city, state, zip, county, countySource: ac.countySource, transactionType, stage: 0, status: 'Open',
         openDate, closingDate: dateOrNull(input.closingDate, 'Closing date'), purchasePrice: money(input.purchasePrice, 'Purchase price'), loanAmount: money(input.loanAmount, 'Loan amount'),
         emdAmount: money(input.emdAmount, 'EMD amount'), emdDueDate: dateOrNull(input.emdDueDate, 'EMD due date'),
         // Matt, Nov 3 (b): lender phone + email (and the picked lender's name / company) and the source of business are set at placement

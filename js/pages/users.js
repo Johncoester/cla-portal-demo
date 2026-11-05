@@ -3,19 +3,19 @@
 // Delete = the account is removed (cannot sign in, leaves teams and salesperson links), but their documents, messages and history stay.
 // Nov 2 (John): filter/search, staff role vs per-file roles for outside users, clients linked to salespeople (many-to-many),
 // Super admin (only a Super admin grants/removes it or deletes/suspends/changes a Super admin).
-import { html, raw, $, $$, guard, formData, pill, toast, fmtDate, options } from '../ui.js?v=202611051010';
-import { cleanBirthdate, BIRTHDATE_NOTE } from '../data/agent-info.js?v=202611051010';
-import { ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, OUTSIDE, isAdminRole, isSuperAdmin, isSalesRole, roleLabel, CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611051010';
+import { html, raw, $, $$, guard, formData, pill, toast, fmtDate, options } from '../ui.js?v=202611051059';
+import { cleanBirthdate, BIRTHDATE_NOTE } from '../data/agent-info.js?v=202611051059';
+import { ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, OUTSIDE, isAdminRole, isSuperAdmin, isSalesRole, roleLabel, CONTACT_TYPES, contactTypeLabel, outsideTypeLabel } from '../data/constants.js?v=202611051059';
 // contact type (John, Nov 2): outside users only (agents, clients, lenders); staff have none
 const ctypeSel = (sel, dis = '') => html`<label data-ctype-field>Contact type <span class="muted small">(outside users; for reporting)</span><select name="contactType" ${dis}><option value="">(not set)</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}" ${v === sel ? raw('selected') : ''}>${l}</option>`)}</select></label>`;
-import { USER_ROLE_FILTERS, USER_STATUS_FILTERS, filterUsers } from '../data/user-filter.js?v=202611051010';
-const acct = (r) => (r === OUTSIDE ? 'Outside user (role set per order)' : r);
+import { USER_ROLE_FILTERS, USER_STATUS_FILTERS, filterUsers } from '../data/user-filter.js?v=202611051059';
+const acct = (r) => (r === OUTSIDE ? 'Realtor / Client (role set per order)' : r);   // display only (live40): the stored value stays 'Outside user'
 const fullName = (u) => `${u.firstName} ${u.lastName}`.trim();
 // account-type options; a plain Admin sees "Super admin" but cannot pick it
 const roleOptions = (actor, selected) => ROLES.map((r) => { const locked = r === SUPER_ADMIN_ROLE && !isSuperAdmin(actor);
   return html`<option value="${r}" ${r === selected ? raw('selected') : ''} ${locked ? raw('disabled title="Only a Super admin can grant the Super admin role"') : ''}>${acct(r)}${locked ? ' (Super admin only)' : ''}</option>`; });
-const fileRoles = (u) => (u.files && u.files.length ? html`<div class="muted small" data-files="${u.id}">${u.files.map((f) => `${f.role} on ${f.fileNumber}`).join(' · ')}</div>`
-  : u.role === OUTSIDE ? html`<div class="muted small">not on any order yet</div>` : '');
+const fileRoles = (u) => (u.files && u.files.length ? html`<div class="muted small" data-files="${u.id}"><strong data-acct-type="${outsideTypeLabel(u)}">${outsideTypeLabel(u)}:</strong> ${u.files.map((f) => `${f.role} on ${f.fileNumber}`).join(', ')}</div>`
+  : u.role === OUTSIDE ? html`<div class="muted small"><strong data-acct-type="${outsideTypeLabel(u)}">${outsideTypeLabel(u)}:</strong> not on any order yet</div>` : '');
 const salesPicker = (sales, chosen) => (sales.length ? sales.map((s) => html`<label class="check"><input type="checkbox" name="salesIds" value="${s.id}" ${chosen.includes(s.id) ? raw('checked') : ''}> ${fullName(s)} <span class="muted small">(${s.role})</span></label>`)
   : html`<p class="muted">No active Sales Person or Sales Team users yet.</p>`);
 // a plain Admin cannot change anything about a Super admin except name and phone
@@ -30,7 +30,7 @@ export async function render({ api, user, params, refresh, go }) {
       <form id="cuf" class="card form-grid"><label>First name *<input name="firstName" required maxlength="80"></label><label>Last name<input name="lastName" maxlength="80"></label>
         <label>Email *<input name="email" type="email" required></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone maxlength="40"></label>
         <label>Account type *<select name="role" required><option value="">Choose&hellip;</option>${roleOptions(user, '')}</select></label>${ctypeSel('')}
-        <label data-birthdate-field>Agent birthdate (optional)<input type="date" name="birthdate" max="${new Date().toISOString().slice(0, 10)}" data-birthdate><span class="field-hint">Outside users (agents) only. ${BIRTHDATE_NOTE}</span></label>
+        <label data-birthdate-field>Agent birthdate (optional)<input type="date" name="birthdate" max="${new Date().toISOString().slice(0, 10)}" data-birthdate><span class="field-hint">Realtors (agents) only. ${BIRTHDATE_NOTE}</span></label>
         <p class="muted span2">Agents and clients are <strong>outside users</strong>: they have no fixed role. When the processor adds them to an order, the role picked there (Buyer Agent, Listing Agent, Client-Buyer or Client-Seller) decides what they can see and do <em>on that order</em>. One email = one login, even for someone who is an agent on one file and a buyer on another.</p>
         <label class="check"><input type="checkbox" name="isAdmin"> Also give Admin access (roles "Admin" and "Super admin" always have it)</label>
         <label class="check"><input type="checkbox" name="isClient" data-isclient> This person is a client (buyer or seller): link them to salespeople</label>
@@ -84,7 +84,7 @@ export async function render({ api, user, params, refresh, go }) {
     const links = u.role === OUTSIDE ? ((u.salesReps || []).length ? html`<div data-sales="${u.id}">${u.salesReps.map((s) => html`<span class="nowrap">${s.name}${gone ? '' : html` <button class="ghost" data-unlink="${u.id}" data-sales-id="${s.id}" title="Remove this link" aria-label="Remove link to ${s.name}">&times;</button>`}</span> `)}</div>` : html`<span class="muted small">${u.isClient ? 'no salesperson yet' : ''}</span>`)
       : isSalesRole(u.role) ? html`<div class="muted small" data-clients="${u.id}">${(u.clients || []).length ? 'Clients: ' + u.clients.map((c) => c.name).join(', ') : 'no clients linked'}</div>` : '';
     return html`<tr class="${u.status !== 'active' ? 'is-done' : ''}" data-user-row="${u.id}"><td><a href="#/users/edit/${u.id}">${fullName(u)}</a>${gone ? html` ${pill('removed', 'bad')}` : ''}${u.isClient ? html` ${pill('client')}` : ''}${u.contactType ? html`<div class="muted small" data-user-ctype="${u.contactType}">${contactTypeLabel(u.contactType)}</div>` : ''}</td><td>${u.email}</td>
-    <td>${gone ? u.role : html`<select data-role="${u.id}" aria-label="Role" ${self ? raw('disabled title="You cannot change your own role"') : locked ? raw('disabled title="Only a Super admin can change a Super admin"') : ''}>${roleOptions(user, u.role)}</select>`}${fileRoles(u)}</td>
+    <td>${gone ? acct(u.role) : html`<select data-role="${u.id}" aria-label="Role" ${self ? raw('disabled title="You cannot change your own role"') : locked ? raw('disabled title="Only a Super admin can change a Super admin"') : ''}>${roleOptions(user, u.role)}</select>`}${fileRoles(u)}</td>
     <td>${links}</td>
     <td class="center">${gone ? '' : html`<input type="checkbox" data-admin="${u.id}" ${u.isAdmin ? raw('checked') : ''} ${self || isAdminRole(u.role) ? html`disabled title="${self ? 'This is you' : `Role ${u.role} always has Admin access`}"` : ''} aria-label="Admin">`}</td>
     <td>${(u.teams || []).join(', ')}</td><td>${gone ? html`<span class="muted small">removed ${fmtDate(u.removedAt)}</span>` : pill(u.status, u.status === 'active' ? 'ok' : 'warn')}</td>

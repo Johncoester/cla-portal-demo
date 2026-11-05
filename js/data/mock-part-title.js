@@ -4,8 +4,8 @@
  * "Buyers Initial Commitment copy", made with the existing signature-request / task pattern).
  * Every value is a typed field on a typed row (mirrors migration 61), rows are soft-deleted (deletedAt), nothing is ever sent (outbox = queued only),
  * NO SSN is ever stored (the PACER rows hold party, search type, result and the receipt document only). FAKE DATA ONLY. */
-import * as T from './title.js?v=202611051010';
-import { seedTitleSamples } from './title-seed.js?v=202611051010';
+import * as T from './title.js?v=202611051059';
+import { seedTitleSamples } from './title-seed.js?v=202611051059';
 
 const COLS = ['titleReviews', 'titleSteps', 'titlePacer', 'titleDiscrepancies', 'titleChain', 'titleItems', 'titleCpls', 'titlePackageComponents', 'titleSignatures', 'titleSummaries', 'titleCurative', 'orderNotes', 'titleLog'];
 // typed review fields (title_reviews columns): s = text, L = long text, m = money, d = date, b = boolean, e:<list> = one of a list

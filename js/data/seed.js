@@ -1,7 +1,7 @@
 // FAKE DATA ONLY. Fictional people, example.test addresses, 555 phone numbers. No real clients, no credentials.
-import { TEMPLATE_DEFS, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611051010';
-import { crmZohoUpgrade } from './crm.js?v=202611051010';
-import { ensureEmailTemplates } from './crm-templates.js?v=202611051010';
+import { TEMPLATE_DEFS, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611051059';
+import { crmZohoUpgrade } from './crm.js?v=202611051059';
+import { ensureEmailTemplates } from './crm-templates.js?v=202611051059';
 export const DEAL_FOLDERS = ['Contract & addenda', 'IDs & personal', 'Lender & payoff', 'HOA', 'Closing'];
 const addDays = (iso, n) => new Date(Date.parse(iso.slice(0, 10) + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 export function buildSeed() {
@@ -18,7 +18,7 @@ export function buildSeed() {
     P('u-lagent', 'Larry', 'Listing-Agent', 'Outside user', 6, { co: 'Oak Street Realty (fake)' }),
     P('u-buyer', 'Ben', 'Buyer', 'Outside user', 7, { co: '' }),
     P('u-seller', 'Sally', 'Seller', 'Outside user', 8, { co: '' }),
-    P('u-multi', 'Morgan', 'Multi-Role', 'Outside user', 11, { co: 'Harbor Realty (fake)' }),   // one login, two hats: buyer's agent on MD-26-97183, a buyer on MD-26-97201
+    P('u-multi', 'Morgan', 'Realtor', 'Outside user', 11, { co: 'Harbor Realty (fake)', email: 'morgan.multirole@example.test' }),   // live40: was 'Multi-Role' (display name only; id, email and file roles unchanged)   // one login, two hats: buyer's agent on MD-26-97183, a buyer on MD-26-97201
     P('u-selfrep', 'Alex', 'Agent-Buyer', 'Outside user', 12, { co: 'Harbor Realty (fake)' }),   // a licensed agent buying for himself: Client-Buyer AND Buyer Agent on MD-26-97240
     P('u-admin', 'King John', 'Admin', 'Super admin', 9, { isAdmin: true }),   // Nov 2: role 'Super admin' (always isAdmin; isAdmin is the permission check)
     P('u-adam', 'Adam', 'Admin', 'Admin', 13, { isAdmin: true }),   // Nov 2: a plain Admin (cannot delete/suspend/demote a Super admin or grant Super admin)

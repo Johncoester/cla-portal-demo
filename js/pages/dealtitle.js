@@ -1,8 +1,9 @@
 // order > Title (John, Nov 4 2026): the title review, Qualia-style. CLA STAFF ONLY (Processor / TC / Admins edit; Sales read only). FAKE data only.
 // Sections (?v=): Checklist, Notes & Documents, PACER, Search package, Contract, Chain of title, Loan check, Schedule A, Requirements (B-I), Exceptions (B-II),
 // Policies, CPL, Finalize & Package, Summary note. Nothing is ever sent (the lender email is a queued outbox row); no SSN is ever asked for or stored.
-import { html, raw, esc, $, $$, guard, toast, modal, closeModal, options, pill, fmtDate, fmtDateTime, fmtMoney, formData } from '../ui.js?v=202611051010';
-import * as T from '../data/title.js?v=202611051010';
+import { html, raw, esc, $, $$, guard, toast, modal, closeModal, options, pill, fmtDate, fmtDateTime, fmtMoney, formData } from '../ui.js?v=202611051059';
+import * as T from '../data/title.js?v=202611051059';
+import { modOn } from '../data/modules.js?v=202611051059';   // live40: Payoffs / HOA switch
 
 const ld = (iso) => (iso ? fmtDateTime(iso).split(',')[0] : '');   // a timestamp's LOCAL date
 const val = (v) => (v == null ? '' : v);
@@ -159,7 +160,7 @@ const SECTIONS_UI = {
       ${fld('propertyType', 'Property type', r.propertyType, T.PROPERTY_TYPES, ro)}${fld('assocType', 'HOA / condo', r.assocType, T.ASSOC_TYPES, ro)}${fld('assocName', 'Association name', r.assocName, 'text', ro)}${fld('assocFee', 'Fee', r.assocFee, 'money', ro)}${fld('assocFeeFrequency', 'Frequency', r.assocFeeFrequency, T.FEE_FREQUENCIES, ro)}
       <fieldset class="span2"><legend>Fee includes</legend>${[['feeInclWater', 'Water'], ['feeInclSewer', 'Sewer'], ['feeInclHeat', 'Heat'], ['feeInclElectric', 'Electric'], ['feeInclGas', 'Gas'], ['feeInclAc', 'A/C']].map(([k, l]) => fld(k, l, r[k], 'bool', ro))}</fieldset>
       ${fld('waterType', 'Water', r.waterType, T.WATER_TYPES, ro)}${fld('sewerType', 'Sewer', r.sewerType, T.SEWER_TYPES, ro)}${fld('frontFootBenefit', 'Front foot benefit (FFB)', r.frontFootBenefit, T.YNU, ro)}${fld('groundRent', 'Ground rent', r.groundRent, T.YNU, ro)}${fld('transferTaxSplit', 'Transfer tax split', r.transferTaxSplit, 'text', ro)}
-      ${fld('contractNotes', 'Contract notes', r.contractNotes, 'long', ro)}${saveBtn(ro)}<p class="span2">Contract review ${stepBtns(v, 'contract_review', ro)} ${v.canPayoffs && v.hoaFound ? (v.hoaLinked ? pill('HOA in Payoffs / HOA', 'ok') : html`<button type="button" class="ghost" data-mk-hoa>Create HOA payoff</button>`) : ''}</p></form>`; },
+      ${fld('contractNotes', 'Contract notes', r.contractNotes, 'long', ro)}${saveBtn(ro)}<p class="span2">Contract review ${stepBtns(v, 'contract_review', ro)} ${(v.canPayoffs && modOn('payoffs')) && v.hoaFound ? (v.hoaLinked ? pill('HOA in Payoffs / HOA', 'ok') : html`<button type="button" class="ghost" data-mk-hoa>Create HOA payoff</button>`) : ''}</p></form>`; },
   chain(v, ro) { return html`<div class="card" data-title-chain><h3>Chain of title</h3><table class="tbl striped small"><thead><tr><th>#</th><th>Instrument</th><th>Grantor → Grantee</th><th>Recorded</th><th>Clause</th><th></th></tr></thead><tbody>
       ${v.chain.length ? v.chain.map((c) => html`<tr data-chain-row="${c.id}"><td>${c.position}</td><td>${c.instrumentType}</td><td>${c.grantor} → ${c.grantee}</td><td>${fmtDate(c.recordedDate)}</td><td>${c.text}${c.overrideOn ? html` <span class="pill">override</span>` : ''}</td><td class="nowrap">${ro ? '' : html`<button class="ghost small" data-chain-edit="${c.id}">Edit</button> <button class="ghost small" data-chain-del="${c.id}">Remove</button>`}</td></tr>`) : html`<tr><td colspan="6" class="muted">No entries yet.</td></tr>`}</tbody></table>
       ${ro ? '' : html`<button class="m-btn" data-chain-add>Add entry</button>`}
@@ -213,5 +214,5 @@ function items(v, ro, kind) { const list = kind === 'exception' ? v.exceptions :
     <ol class="tt-items">${list.length ? list.map((it) => html`<li class="tt-item ${it.parentId ? 'sub' : ''} ${it.status}" data-item="${it.templateKey || 'custom'}" data-item-id="${it.id}"><span class="tt-num">${it.parentId ? it.label : `${it.number}.`}</span>
       <div class="tt-itext">${md(it.text)}<div class="muted small">${it.templateLabel}${it.overrideOn ? ' · override' : ''}${it.hasPayoff ? ' · payoff linked' : ''}</div></div>
       ${ro ? html`<span>${it.status}</span>` : html`<span class="tt-iact nowrap"><select data-item-status="${it.id}">${options(T.ITEM_STATUSES, it.status, (o) => o[1], (o) => o[0])}</select> <button class="ghost small" data-item-edit="${it.id}">Edit</button> <button class="ghost small" data-item-move="${it.id}" data-dir="up" title="Move up">↑</button><button class="ghost small" data-item-move="${it.id}" data-dir="down" title="Move down">↓</button> ${!it.parentId ? html`<button class="ghost small" data-add-item="${kind}" data-parent="${it.id}">+ sub</button>` : ''} <button class="ghost small" data-item-del="${it.id}">Delete</button>
-        ${it.templateKey === 'dot_release' && v.canPayoffs && !it.hasPayoff ? html` <button class="ghost small" data-mk-payoff="${it.id}">Create payoff</button>` : ''}</span>`}</li>`) : html`<li class="muted">None yet.</li>`}</ol>
+        ${it.templateKey === 'dot_release' && (v.canPayoffs && modOn('payoffs')) && !it.hasPayoff ? html` <button class="ghost small" data-mk-payoff="${it.id}">Create payoff</button>` : ''}</span>`}</li>`) : html`<li class="muted">None yet.</li>`}</ol>
     <p>${kind === 'exception' ? 'Exceptions' : 'Requirements'} ${stepBtns(v, kind === 'exception' ? 'exceptions' : 'requirements', ro)}</p></div>`; }

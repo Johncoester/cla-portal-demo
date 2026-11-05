@@ -447,7 +447,12 @@ tr.bad-row td { background: var(--warn-bg); } .invite-body { white-space: pre-wr
 @media print { .acct-cd-page { page-break-before: always; border-top: 0; } .acct-cd-page:first-of-type { page-break-before: auto; } .acct-cd-info > div, .acct-cd-costs > div { background: #fff !important; } }
 
 /* ===== AGENT INVITE + "YOUR AGENT" CARD (John, Nov 4). Baby-blue card style, same palette variables as theme-cards.css ===== */
-.with-agent { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; align-items: start; }
+.with-agent { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; align-items: start; } .with-agent > #view { min-width: 0; }
+/* live40 (John, Nov 5 meeting): on list pages (Open Orders) the "Your agent" card sits in the page flow ABOVE the table, one compact row; it never floats over the table */
+.with-agent.agent-inline { display: block; } .agent-inline .your-agent { position: static; margin-bottom: 16px; display: flex; flex-wrap: wrap; align-items: stretch; }
+.agent-inline .your-agent .ya-head { flex: 0 0 100%; } .agent-inline .ya-agent { flex: 1 1 320px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; text-align: left; padding: 12px 16px; border-bottom: 0; }
+.agent-inline .ya-photo { margin: 0; } .agent-inline .ap-avatar.lg { width: 56px; height: 56px; font-size: 20px; } .agent-inline .ya-who { margin: 0; min-width: 160px; }
+.agent-inline .ya-contact { flex-direction: row; flex-wrap: wrap; flex: 1 1 260px; } .agent-inline .ya-foot { flex: 0 0 100%; padding: 6px 16px 10px; text-align: left; }
 .your-agent { position: sticky; top: 16px; background: #fff; border: 1px solid var(--tc-baby-line, #bfe6f8); border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(11, 42, 69, .06); }
 .your-agent .ya-head { background: var(--tc-baby, #89cff0); color: var(--tc-on-baby, #0b2a45); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; font-size: 12px; padding: 9px 16px; }
 .ya-agent { padding: 18px 16px 14px; text-align: center; border-bottom: 1px solid #eef6fb; }
@@ -934,3 +939,5 @@ tr.flagged td { background: var(--warn-bg); } [data-location-flags] div + div { 
 fieldset.span2 { display: flex; flex-wrap: wrap; gap: .5rem; border: 1px solid var(--tc-baby-line, #bfe6f8); border-radius: 6px; }
 @media (max-width: 640px) { .tt-item { grid-template-columns: 2rem 1fr; } .tt-iact { grid-column: 1 / -1; justify-content: flex-start; } .tt-item.sub { margin-left: .8rem; } .tt-meta { gap: .5rem; font-size: .82rem; } }
 @media print { .tt-tabs, .tt-progress, nav, .sidebar, button { display: none !important; } }
+/* live40: on the client Open Orders page the orders table scrolls inside its own box instead of running past the page edge (it never sits under the agent card) */
+.agent-inline #view .tbl { display: block; overflow-x: auto; max-width: 100%; }

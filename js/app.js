@@ -1,21 +1,21 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611051010';
-import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611051010';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, phoneTyping } from './data/constants.js?v=202611051010';
-import { canUseCrm } from './data/crm.js?v=202611051010';
-import { acctCanRead } from './data/accounting.js?v=202611051010';
-import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611051010';
-import { phaseOf } from './data/agent-portal.js?v=202611051010';
-import { formatMoneyInput } from './pages/money-input.js?v=202611051010';
-import { applyTheme, themeOn } from './theme.js?v=202611051010';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
-import { icon } from './pages/theme-cards.js?v=202611051010';
-import { canInviteAgents } from './data/agent-profile.js?v=202611051010';
-import { yourAgentHtml } from './pages/your-agent.js?v=202611051010';
-import { titleCanRead } from './data/title.js?v=202611051010';
-import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs } from './data/locked-links.js?v=202611051010';   // John, Nov 4: one locked login link per fake user
-import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611051010';   // John, Nov 4 call: sidebar search + pinned order nav
-import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611051010';
-import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611051010';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
+import { getAdapter } from './data/adapter.js?v=202611051059';
+import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611051059';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611051059';
+import { canUseCrm } from './data/crm.js?v=202611051059';
+import { acctCanRead } from './data/accounting.js?v=202611051059';
+import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611051059';
+import { phaseOf } from './data/agent-portal.js?v=202611051059';
+import { formatMoneyInput } from './pages/money-input.js?v=202611051059';
+import { applyTheme, themeOn } from './theme.js?v=202611051059';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
+import { icon } from './pages/theme-cards.js?v=202611051059';
+import { canInviteAgents } from './data/agent-profile.js?v=202611051059';
+import { yourAgentHtml } from './pages/your-agent.js?v=202611051059';
+import { titleCanRead } from './data/title.js?v=202611051059';
+import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs } from './data/locked-links.js?v=202611051059';   // John, Nov 4: one locked login link per fake user
+import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611051059';   // John, Nov 4 call: sidebar search + pinned order nav
+import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611051059';
+import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611051059';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
@@ -24,30 +24,30 @@ document.addEventListener('input', (e) => { const el = e.target; if (el instance
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611051010'),
-  dashboard: () => import('./pages/dashboard.js?v=202611051010'),
-  orders: () => import('./pages/orders.js?v=202611051010'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611051010'),
-  deal: () => import('./pages/deal.js?v=202611051010'),
-  users: () => import('./pages/users.js?v=202611051010'),
-  profile: () => import('./pages/profile.js?v=202611051010'),
-  'contact-us': () => import('./pages/contact.js?v=202611051010'),
-  teams: () => import('./pages/teams.js?v=202611051010'),
-  templates: () => import('./pages/templates.js?v=202611051010'),
-  library: () => import('./pages/library.js?v=202611051010'),
-  activity: () => import('./pages/activity.js?v=202611051010'),
-  outbox: () => import('./pages/outbox.js?v=202611051010'),
-  tasks: () => import('./pages/tasks.js?v=202611051010'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611051010'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
-  schedule: () => import('./pages/schedule.js?v=202611051010'),   // public closing-time link (no sign-in needed)
-  crm: () => import('./pages/crm.js?v=202611051010'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
-  modules: () => import('./pages/modules.js?v=202611051010'),
-  'agent-invites': () => import('./pages/agent-invites.js?v=202611051010'),   // John, Nov 4: invite agents (link shown, nothing sent)
-  'agent-invite': () => import('./pages/agent-signup.js?v=202611051010'),     // the agent's one-time setup link (no sign-in)
-  underwriters: () => import('./pages/underwriters.js?v=202611051010'),
-  hr: () => import('./pages/hr.js?v=202611051010'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
-  'hr-invite': () => import('./pages/hr-invite.js?v=202611051010'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
-  offices: () => import('./pages/offices.js?v=202611051010'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
+  login: () => import('./pages/entry.js?v=202611051059'),
+  dashboard: () => import('./pages/dashboard.js?v=202611051059'),
+  orders: () => import('./pages/orders.js?v=202611051059'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611051059'),
+  deal: () => import('./pages/deal.js?v=202611051059'),
+  users: () => import('./pages/users.js?v=202611051059'),
+  profile: () => import('./pages/profile.js?v=202611051059'),
+  'contact-us': () => import('./pages/contact.js?v=202611051059'),
+  teams: () => import('./pages/teams.js?v=202611051059'),
+  templates: () => import('./pages/templates.js?v=202611051059'),
+  library: () => import('./pages/library.js?v=202611051059'),
+  activity: () => import('./pages/activity.js?v=202611051059'),
+  outbox: () => import('./pages/outbox.js?v=202611051059'),
+  tasks: () => import('./pages/tasks.js?v=202611051059'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611051059'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  schedule: () => import('./pages/schedule.js?v=202611051059'),   // public closing-time link (no sign-in needed)
+  crm: () => import('./pages/crm.js?v=202611051059'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  modules: () => import('./pages/modules.js?v=202611051059'),
+  'agent-invites': () => import('./pages/agent-invites.js?v=202611051059'),   // John, Nov 4: invite agents (link shown, nothing sent)
+  'agent-invite': () => import('./pages/agent-signup.js?v=202611051059'),     // the agent's one-time setup link (no sign-in)
+  underwriters: () => import('./pages/underwriters.js?v=202611051059'),
+  hr: () => import('./pages/hr.js?v=202611051059'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
+  'hr-invite': () => import('./pages/hr-invite.js?v=202611051059'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
+  offices: () => import('./pages/offices.js?v=202611051059'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };
@@ -56,7 +56,7 @@ const PUBLIC = new Set(['login', 'schedule', 'agent-invite', 'hr-invite']);
 export function routeModule(route) {
   const p = route.page;
   if (p === 'crm') return route.params.section === 'deals' ? 'crm-deals' : route.params.section === 'calls' ? 'calls' : 'crm';
-  if (p === 'deal' && route.params.tab === 'accounting') return 'accounting';
+  if (p === 'deal' && route.params.tab === 'accounting') return route.params.v === 'payoffs' ? 'payoffs' : 'accounting';   // live40: Payoffs / HOA has its own switch (child of Accounting)
   if (p === 'deal' && route.params.tab === 'title') return 'title';   // John, Nov 4: order > Title
   if (p === 'hr') return 'hr';   // HR: off = Super admins only (Beta)
   return ['tasks', 'task-grid', 'library'].includes(p) ? p : null;
@@ -76,8 +76,8 @@ function parse() {
   return { page: seg[0], params: {} };
 }
 export const go = (path) => { if (location.hash === '#' + path) render(); else location.hash = path; };
-export const homeFor = (u) => (u && u.role === 'Employee' ? '/hr' : '/dashboard');   // an HR-only login lives in HR
-export const dashLabel = (u) => u.isAdmin ? 'Admin' : ({ 'Processor': 'Work Queue', 'Sales Person': 'Team Dashboard', 'Sales Team': 'Team Dashboard', 'Transaction Coordinator': 'Dashboard', 'Buyer Agent': 'Transactions', 'Listing Agent': 'Transactions', 'Client-Buyer': 'My Closing', 'Client-Seller': 'My Closing', 'Outside user': 'My Files' }[u.role]);
+export const homeFor = (u) => (u && u.role === 'Employee' ? '/hr' : isClientOnlyUser(u) ? '/orders' : '/dashboard');   // live40: clients land on Open Orders   // an HR-only login lives in HR
+export const dashLabel = (u) => isClientOnlyUser(u) ? 'Open Orders' : u.isAdmin ? 'Admin' : ({ 'Processor': 'Work Queue', 'Sales Person': 'Team Dashboard', 'Sales Team': 'Team Dashboard', 'Transaction Coordinator': 'Dashboard', 'Buyer Agent': 'Transactions', 'Listing Agent': 'Transactions', 'Client-Buyer': 'My Closing', 'Client-Seller': 'My Closing', 'Outside user': 'My Files' }[u.role]);
 
 // HR workspace menu (data/hr.js decides who gets what): HR managers / Super admins the Zoho-style sections, everyone else My profile (+ My team)
 export function hrNavFor(u) {
@@ -96,7 +96,7 @@ export function navFor(u, dealId, unread, features = {}, ws = 'everything') {
   if (ws === 'hr') return hrNavFor(u);   // the HR workspace has its own menu (not part of Everything)
   const items = [];
   const add = (id, label, href, cls) => items.push({ id, label, href, cls });
-  add('dashboard', dashLabel(u), '#/dashboard', 'orders');
+  if (!isClientOnlyUser(u)) add('dashboard', dashLabel(u), '#/dashboard', 'orders');   // live40: no "My files" item for clients
   add('orders', u.role === 'Transaction Coordinator' ? 'Orders' : 'Open Orders', '#/orders', 'orders');
   if ((u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator') && modOn('tasks')) add('tasks', 'All Tasks', '#/tasks', 'task');
   if ((u.isAdmin || runsOrders(u)) && modOn('task-grid')) add('task-grid', 'Task Grid', '#/task-grid', 'task');
@@ -137,7 +137,7 @@ async function layout(u, view, route, ws = 'everything') {
   // BUYER (Nov 4 call): plain tab names; no Contacts tab (the Overview lists the closing team) and no Agreements tab (they are to-dos now)
   const pureBuyer = deal && ['Client-Buyer', 'Client-Seller'].some((c) => (deal.myRoles || [deal.myRole]).includes(c)) && !(deal.myRoles || [deal.myRole]).some((r) => /Agent$/.test(r));   // seller mirror (Nov 4): a pure seller gets the same plain tabs
   const dealNav = deal && pureBuyer ? html`<li class="nav-sep">This file</li>${link('overview', 'Overview', 'orders')}${link('tasks', 'To-do list', 'task')}${link('inbox', 'Messages', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing appointment', 'task')}${link('activity', 'Activity', 'activity')}`
-    : deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${link('inbox', deal && isClient(deal.myRole) ? 'Messages' : 'Inbox', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${link('activity', 'Activity', 'activity')}${(api.features || {}).accounting && acctCanRead(u) && modOn('accounting') ? html`${link('accounting', 'Accounting', 'documents', modBeta('accounting'))}${canReachPayoffs(u) ? html`<li class="nav-item"><a class="nav-link payoffs ${t === 'accounting' && route.params.v === 'payoffs' ? 'active' : ''}" href="#/deals/${dealId}/accounting?v=payoffs" data-nav-payoffs${tip('Payoffs / HOA', modBeta('accounting'))}>${lbl('accounting', 'Payoffs / HOA')}</a></li>` : ''}` : ''}${(api.features || {}).title && titleCanRead(u) && modOn('title') ? html`<li class="nav-item"><a class="nav-link title-nav ${t === 'title' ? 'active' : ''}" href="#/deals/${dealId}/title" data-nav-title${tip('Title', modBeta('title'))}${modBeta('title') ? raw(' data-beta-nav') : ''}>${lbl('title', 'Title')}${modBeta('title') ? betaTag('title') : ''}</a></li>` : ''}` : '';   // John, Nov 4: Title sits directly under Payoffs / HOA (staff only)   // (buyer branch above)
+    : deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${link('inbox', deal && isClient(deal.myRole) ? 'Messages' : 'Inbox', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${link('activity', 'Activity', 'activity')}${(api.features || {}).accounting && acctCanRead(u) && modOn('accounting') ? html`${link('accounting', 'Accounting', 'documents', modBeta('accounting'))}${canReachPayoffs(u) && modOn('payoffs') ? html`<li class="nav-item"><a class="nav-link payoffs ${t === 'accounting' && route.params.v === 'payoffs' ? 'active' : ''}" href="#/deals/${dealId}/accounting?v=payoffs" data-nav-payoffs${tip('Payoffs / HOA', modBeta('payoffs'))}>${lbl('accounting', 'Payoffs / HOA')}</a></li>` : ''}` : ''}${(api.features || {}).title && titleCanRead(u) && modOn('title') ? html`<li class="nav-item"><a class="nav-link title-nav ${t === 'title' ? 'active' : ''}" href="#/deals/${dealId}/title" data-nav-title${tip('Title', modBeta('title'))}${modBeta('title') ? raw(' data-beta-nav') : ''}>${lbl('title', 'Title')}${modBeta('title') ? betaTag('title') : ''}</a></li>` : ''}` : '';   // John, Nov 4: Title sits directly under Payoffs / HOA (staff only)   // (buyer branch above)
   // Order-only sidebar inside an order for non-admins (feature/sidebar-order-search); data-order-only-nav kept for tools/ui-order-page.js
   const orderOnly = !!deal && !u.isAdmin;
   const contact = isStaff(u.role) || hrOnly(u) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us"${tip('Contact Us')}>${lbl('contact-us', 'Contact Us')}</a></li>`;
@@ -176,7 +176,7 @@ async function layout(u, view, route, ws = 'everything') {
       <div class="dev-banner">DEV BUILD &middot; FAKE DATA ONLY &middot; no real clients, no Zoho &middot; <a href="#" data-reset>reset demo data</a></div>
       ${deal && !view.noOrderHeader ? orderHeader(deal) : ''}${sideSearchOn && route.page === 'dashboard' ? homeSearch() : ''}
       ${betaBanner(route)}
-      ${agentCard ? html`<div class="with-agent" data-with-agent><div id="view">${view.body}</div>${agentCard}</div>` : html`<div id="view">${view.body}</div>`}
+      ${agentCard ? (deal ? html`<div class="with-agent" data-with-agent><div id="view">${view.body}</div>${agentCard}</div>` : html`<div class="with-agent agent-inline" data-with-agent data-agent-inline>${agentCard}<div id="view">${view.body}</div></div>`) : html`<div id="view">${view.body}</div>`}
     </div>
     <div class="footer-bar"><span><img src="assets/img/logo-icon.png" alt="" class="foot-logo"> Copyright 2026 C.L.A Title &amp; Escrow | All Rights Reserved.</span><span>Security / Privacy Policy</span></div>
   </div>`;
@@ -244,6 +244,7 @@ export async function render() {
   if (!u && !PUBLIC.has(route.page)) { if (route.page === 'deal') sessionStorage.setItem('cla-portal-new:return', location.hash); location.hash = '#/login'; return; }   // invite deep link: back to the order after sign-in
   if (u && route.page === 'login') { location.hash = '#' + homeFor(u); return; }
   if (u && hrOnly(u) && route.page === 'dashboard') { location.hash = '#/hr'; return; }   // HR-only login: HR is home
+  if (u && isClientOnlyUser(u) && route.page === 'dashboard') { location.replace('#/orders'); return; }   // live40 (John, Nov 5): clients land on Open Orders, no My files page   // HR-only login: HR is home
   let mods = {}; if (u && api.getModuleAccess) { try { mods = await api.getModuleAccess(); } catch (e) { mods = {}; } } setModuleMap(mods);   // module switches for this user
   if (!routeAllowed(u, route, { locked: !!lockedId })) {   // not part of this user's portal: refused for menu AND typed URLs
     if (!u) { location.hash = '#/login'; return; }
@@ -272,7 +273,7 @@ const HEADER_SEARCH = `<div class="crm-global-search" data-global-search-wrap st
 const crmSearchOn = (u, api) => !!(u && (api.features || {}).crm && canUseCrm(u) && modOn('crm'));
 // VIEW AS dropdown (Super admin locked link only): every active fake user; picking the owner goes back to them
 function viewAsHtml(u) {
-  const o = VIEW_AS.owner; const label = (x) => `${x.firstName} ${x.lastName} \u2014 ${isOutside(x.role) ? 'Outside user' : x.role}`;
+  const o = VIEW_AS.owner; const label = (x) => `${x.firstName} ${x.lastName} \u2014 ${isOutside(x.role) ? accountTypeLabel(x) : x.role}`;
   return html`<label class="view-as" data-view-as-wrap title="Super admin only: view the portal as another fake user"><span class="small">View as</span>
     <select data-view-as aria-label="View as"><option value="${o.id}"${u.id === o.id ? ' selected' : ''}>${o.firstName} ${o.lastName} (you, Super admin)</option>${VIEW_AS.people.filter((x) => x.id !== o.id).map((x) => html`<option value="${x.id}"${u.id === x.id ? ' selected' : ''}>${label(x)}</option>`)}</select></label>`;
 }
@@ -285,7 +286,7 @@ function wireViewAs() {
 }
 function wireChrome(u) {
   wireViewAs(); startHeartbeat(u);
-  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611051010').then((m) => m.wireHeaderSearch(api)); });
+  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611051059').then((m) => m.wireHeaderSearch(api)); });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');
   if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; });
   document.addEventListener('click', () => { if (dd) dd.hidden = true; }, { once: true });

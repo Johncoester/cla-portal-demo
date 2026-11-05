@@ -10,7 +10,7 @@
  *  - cdPages(): CD pages 1-5 built from the ledger (closingDisclosure) + the details: page 1 Loan Terms / Projected Payments / Costs at Closing,
  *    page 2 Loan Costs / Other Costs (with Lender Credits in J), page 3 Calculating Cash to Close + Summaries of Transactions, page 4 Loan
  *    Disclosures + Escrow Account, page 5 Loan Calculations, Other Disclosures, Contact Information. */
-import { addMonths, isDate, mdy, PRORATION_CYCLES } from './prorations.js?v=202611051010';
+import { addMonths, isDate, mdy, PRORATION_CYCLES } from './prorations.js?v=202611051059';
 const fail = (m) => { throw new Error(m); };
 const c = (n) => Math.round((Number(n) || 0) * 100); const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const usd = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

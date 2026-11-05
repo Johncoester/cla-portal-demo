@@ -52,10 +52,10 @@ export function adminUsersTeams(x) {
       const role = input.role || (isClient ? C.OUTSIDE : '');
       if (!emailOk(email)) fail('A valid email is required.');
       if (d.profiles.some((p) => p.email === email && p.status !== 'removed')) fail('A user with this email already exists.');
-      if (C.OUTSIDE_FILE_ROLES.includes(role)) fail('Agents and clients are outside users: pick "Outside user". Their role is set on each order they are added to.');
+      if (C.OUTSIDE_FILE_ROLES.includes(role)) fail('Agents and clients are outside users: pick "Realtor / Client". Their role is set on each order they are added to.');
       if (!C.ROLES.includes(role)) fail('Pick a role (account type).');
       if (role === C.SUPER_ADMIN_ROLE && !C.isSuperAdmin(u)) fail('Only a Super admin can grant the Super admin role.');
-      if ((isClient || salesIds.length) && !C.isOutside(role)) fail('Only an outside user (a client) can be linked to salespeople. Pick "Outside user".');
+      if ((isClient || salesIds.length) && !C.isOutside(role)) fail('Only an outside user (a client) can be linked to salespeople. Pick "Realtor / Client".');
       salesIds.forEach(checkSales);
       const firstName = str(input.firstName, 80) || fail('First name is required.');
       const p = { id: nid('u'), email, firstName, lastName: str(input.lastName, 80), phone: x.phone(input.phone), role, isAdmin: C.isAdminRole(role) || input.isAdmin === true || input.isAdmin === 'on',
@@ -73,7 +73,7 @@ export function adminUsersTeams(x) {
     async adminUpdateUser(id, patch) {
       const u = needAdmin(); const p = prof(id) || fail('User not found.'); if (p.status === 'removed') fail('This user was removed.');
       const next = { role: p.role, isAdmin: !!p.isAdmin, status: p.status };
-      if (patch.role != null && patch.role !== p.role) { if (C.OUTSIDE_FILE_ROLES.includes(patch.role)) fail('Agents and clients are outside users: pick "Outside user". Their role is set on each order.'); if (!C.ROLES.includes(patch.role)) fail('Unknown role.'); next.role = patch.role; }
+      if (patch.role != null && patch.role !== p.role) { if (C.OUTSIDE_FILE_ROLES.includes(patch.role)) fail('Agents and clients are outside users: pick "Realtor / Client". Their role is set on each order.'); if (!C.ROLES.includes(patch.role)) fail('Unknown role.'); next.role = patch.role; }
       if (patch.isAdmin != null) next.isAdmin = patch.isAdmin === true || patch.isAdmin === 'on' || patch.isAdmin === 'true';
       if (patch.status != null) { if (!['active', 'disabled'].includes(patch.status)) fail('Unknown status.'); next.status = patch.status; }
       // Super admin rules (Nov 2): only a Super admin grants/removes the role or changes a Super admin's role, status or access

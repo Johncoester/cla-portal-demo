@@ -8,7 +8,7 @@
 // A module whose CONFIG flag is off (features.crm / features.accounting in config.js) is not available at all: not even Admins see it and the
 // switch is disabled. That keeps the real live portal clean (config.example.js: accounting false).
 // Core order pages are ALWAYS ON and have no switch (ALWAYS_ON below). Mirrored by migration 35 (public.module_settings + module_settings_log).
-import { isSuperAdmin, isOutside } from './constants.js?v=202611051010';
+import { isSuperAdmin, isOutside } from './constants.js?v=202611051059';
 export const BETA_LABEL = 'Beta, in testing';
 export const MODULES = [
   { id: 'crm', label: 'CRM', flag: 'crm', where: '#/crm', desc: 'The Zoho-style CRM: Home, Leads, Clients, Companies, Pipeline, Reports, Dashboards, Templates.', who: 'CLA staff (Processor read only); never TCs, agents or clients' },
@@ -19,6 +19,9 @@ export const MODULES = [
   // employee only their own profile (data/hr.js). Agents and clients never.
   { id: 'hr', label: 'HR', where: 'Workspace > HR', desc: 'HR workspace (Zoho People style): employee directory, profiles, departments, designations, invite links, change history.', who: 'Super admins while in setup; when Live: HR managers (directory) and every employee (My profile only); never agents or clients', defaultLive: false, superOnly: true, noOutside: true },
   { id: 'accounting', label: 'Accounting', flag: 'accounting', where: 'order > Accounting', desc: 'Order Accounting tab: fee ledger, ALTA Settlement Statement, Closing Disclosure fee pages (TEST - not a legal disclosure).', who: 'Processor / Admin / Super admin edit; Sales and TCs read only; never agents or clients' },
+  // PAYOFFS / HOA (John, Nov 5, live40: "I don't see a place to turn off the payoff mod"): the order Payoffs / HOA view (Accounting tab ?v=payoffs, so it needs the
+  // accounting config flag and sits under Accounting). Off = Beta: regular users get no Payoffs / HOA nav item, page or data; Admins test it. Title has its own switch.
+  { id: 'payoffs', label: 'Payoffs / HOA', flag: 'accounting', parent: 'accounting', where: 'order > Payoffs / HOA', desc: 'The order Payoffs / HOA tab (payoffs, HOA, FFB, GR)', who: 'CLA staff (Processor edits; Admins); never agents or clients', noOutside: true },
   { id: 'title', label: 'Title', flag: 'title', where: 'order > Title (under Payoffs / HOA)', desc: 'Title review inside an order: order notes, PACER, search package, contract and loan check, chain of title, Schedule A, requirements (B-I), exceptions (B-II), policies, CPL, buyer commitment copy, Title Package, summary note.', who: 'Processor / Transaction Coordinator / Admin / Super admin edit; Sales read only; never agents or clients', noOutside: true },
   { id: 'tasks', label: 'All Tasks', where: '#/tasks', desc: 'All tasks across files (filters, sort, Buyer / Seller / Agent groups).', who: 'Admins, CLA staff and TCs' },
   { id: 'task-grid', label: 'Task Grid', where: '#/task-grid', desc: 'Files across, tasks down (Processor / Admin grid).', who: 'Processor and Admins' },

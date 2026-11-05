@@ -4,11 +4,12 @@
 // click a line -> "Settings · Line NN" + "Payments · <line>", six payment methods, help rail); colours stay ours (baby-blue cards), no Qualia branding.
 // Every line is still ONE fee on the same ledger (accounting.js), so the ALTA, the CD pages, prorations and CLA rates keep working.
 // TEST ONLY. Wire instructions (bank routing / account numbers) are NEVER stored: the Wire block is a reminder only.
-import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611051010';
-import { splitFor } from '../data/underwriter.js?v=202611051010';
-import { cdDescription } from '../data/accounting.js?v=202611051010';
-import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611051010';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
-import * as Q from '../data/qualia-charges.js?v=202611051010';
+import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611051059';
+import { splitFor } from '../data/underwriter.js?v=202611051059';
+import { cdDescription } from '../data/accounting.js?v=202611051059';
+import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611051059';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
+import * as Q from '../data/qualia-charges.js?v=202611051059';
+import { modOn } from '../data/modules.js?v=202611051059';   // live40: Payoffs / HOA switch
 
 const usd = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const cell$ = (n) => (n == null || Number(n) === 0 ? '' : usd(n));
@@ -25,7 +26,7 @@ export function qcNav(deal, view, sec, base, showPayoffs = true) {
     <div class="qc-nav-group">General</div>
     ${a(`#/deals/${deal.id}/overview`, 'Basic Info', false, ' data-qc-nav-basic')}${a(`#/deals/${deal.id}/contacts`, 'Contacts', false, ' data-qc-nav-contacts')}
     ${showPayoffs ? html`${a(`${base}?v=othercontacts`, 'Other Contacts', view === 'othercontacts', ' data-acct-tab="othercontacts"')}
-    ${a(`${base}?v=taxes`, 'Taxes & Prorations', view === 'taxes', ' data-acct-tab="taxes"')}${a(`${base}?v=payoffs`, 'Payoffs', view === 'payoffs', ' data-acct-tab="payoffs"')}` : ''}
+    ${a(`${base}?v=taxes`, 'Taxes & Prorations', view === 'taxes', ' data-acct-tab="taxes"')}${modOn('payoffs') ? a(`${base}?v=payoffs`, 'Payoffs', view === 'payoffs', ' data-acct-tab="payoffs"') : ''}` : ''}
     <div class="qc-nav-group">Closing</div><div class="qc-nav-sub">Charges</div>
     ${Q.QC_SECTIONS.map(([k, chip, label]) => a(sectionHref(base, k), label, view === 'charges' && sec === k, ` data-qc-nav-sec="${k}"${k === 'A' ? ' data-acct-tab="charges"' : ''}`, chip))}
     <div class="qc-nav-group">Preview</div>
@@ -67,7 +68,7 @@ export async function chargesView(api, deal, acc, q, base) {
       <button type="button" class="ghost small" data-qc-sort>Sort Lines</button><button type="button" class="ghost small qc-sq" data-qc-minus title="Clear the selected line" aria-label="Clear the selected line">&ndash;</button><button type="button" class="ghost small qc-sq" data-qc-plus title="Add a line" aria-label="Add a line">+</button></div>` : ''}</div>`;
   const main = kind === 'fee' ? feeSection(ctx) : kind === 'credits' ? lenderCredits(ctx) : summaries(ctx, sec === 'KM' ? ['K', 'M'] : ['L', 'N']);
   const body = html`<div class="qc-wrap" data-qc-page="${sec}"><div class="qc-main">${head}${acc.canEdit ? '' : html`<p class="notice info small" data-readonly-note>Read only for your role: you can read every section; only a Processor, Admin or Super admin can change it.</p>`}${main.body}</div>${helpRail(sec)}</div>`;
-  return { body, mount: (root, c = {}) => { const r = c.refresh || (() => location.reload()); main.mount(root, r); if (sec === 'H') mountHoaGr(root, api, deal, acc, r); } };
+  return { body, mount: (root, c = {}) => { const r = c.refresh || (() => location.reload()); main.mount(root, r); if (sec === 'H' && modOn('payoffs')) mountHoaGr(root, api, deal, acc, r); } };
 }
 
 // ---------------- fee sections A B C E F G H ----------------
@@ -103,7 +104,7 @@ function feeSection(ctx) {
   const titleBtns = canEdit && (sec === 'C' || sec === 'H') ? html`<div class="qc-under-btns acct-noprint"><a class="ghost small btn-like" href="${base}?v=ledger&calc=1" data-qc-edit-premium>Edit Premium Line</a>
     <button type="button" class="ghost small" data-qc-adjust>Adjust Allocations</button>${sec === 'C' ? html`<button type="button" class="ghost small" data-qc-send-b>Send Title Charges to B</button>` : ''}</div>` : '';
   const payees = html`<datalist id="qc-payees">${Q.standardPayees(deal, ctx.extraPayees).map((p) => html`<option value="${p.name}">${p.role}</option>`)}</datalist>`;
-  const body = html`${banner}${table}${titleBtns}${payees}${sec === 'H' ? hoaGrPanel(ctx) : ''}<div class="qc-panels" data-qc-panels><div data-qc-settings></div><div data-qc-payments></div></div>
+  const body = html`${banner}${table}${titleBtns}${payees}${sec === 'H' && modOn('payoffs') ? hoaGrPanel(ctx) : ''}<div class="qc-panels" data-qc-panels><div data-qc-settings></div><div data-qc-payments></div></div>
     <p class="muted small qc-foot">Click a line to see its Settings and Payments. Type in a cell and press Enter (or leave the cell) to save: every change is logged. Lines are never deleted: Clear retires a line (kept in the edit history).</p>`;
   return { body, mount: (root, refresh) => mountFees(root, refresh, { ...ctx, rows, byLine, loan }) };
 }

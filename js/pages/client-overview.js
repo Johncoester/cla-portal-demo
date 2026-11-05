@@ -2,13 +2,16 @@
 // (Client-Seller). Same data as before (getDeal / getOrderOverview / listTasks / listMessageRecipients / listMyAgents), no new fields.
 // Buyers never see Cash to Close, payoffs or wire details here; the only wire item is the existing Wire instructions button (buyer + staff only, as before).
 // app.js draws this page in the light "client shell" (white top bar, no sidebar) because the view sets clientPage.
-import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney, pill, toast } from '../ui.js?v=202611051010';
-import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611051010';
-import { composeModal } from './compose.js?v=202611051010';
-import { slotText } from './dealclosing.js?v=202611051010';
+import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney, pill, toast } from '../ui.js?v=202611051059';
+import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611051059';
+import { composeModal } from './compose.js?v=202611051059';
+import { slotText } from './dealclosing.js?v=202611051059';
 
 // stage 5 shows as "Wire Fraud Awareness" on the BUYER's view only (display only; the stored stage list is unchanged)
-export const clientStageName = (i, side) => (side === 'buyer' && i === 4 ? 'Wire Fraud Awareness' : STAGES[i]);
+// live40 (John, Nov 5 meeting): the client tracker's step 2 (internal STAGES[1] 'EMD Receipt', key unchanged for reports) reads "Buyer info received" for buyer and seller.
+// Client tracker only; staff views keep STAGES / STAGE_LABEL.
+export const CLIENT_STAGE_LABEL = { 1: 'Buyer info received' };
+export const clientStageName = (i, side) => (side === 'buyer' && i === 4 ? 'Wire Fraud Awareness' : CLIENT_STAGE_LABEL[i] || STAGES[i]);
 export const STAGE_GROUPS = [['Getting started', 0, 2], ['Getting ready to close', 3, 6], ['Closing & after', 7, 9]];
 // BUYER-ONLY (Nov 4 call, Matt: "this is specific to the buyer user"): a buyer on the file who is not also an agent on it
 export const isPureBuyer = (user) => (user.roles || [user.role]).includes('Client-Buyer') && !(user.roles || [user.role]).some((r) => /Agent$/.test(r));
@@ -92,6 +95,8 @@ export async function renderClientOverview(ctx, d, here) {
   const groups = STAGE_GROUPS.map(([label, a, b]) => { const st = done > b ? ['Done', ''] : done >= a ? ['In progress', 'w'] : ['Coming up', 'w'];
     return html`<div data-co-group="${label}"><span class="co-gl">${label} (steps ${a + 1}\u2013${b + 1})</span><span class="co-badge ${st[1]}">${st[0]}</span></div>`; });
   const sc = d.scheduledClosing;
+  // live40 (John, Nov 5 meeting): Settlement date = the scheduled closing once there is one; until then the proposed date from order entry (closingDate), labeled "(proposed)"
+  const settleFact = sc && sc.at ? fact('Settlement date', longDate(String(sc.at).slice(0, 10)), 'settlement') : d.closingDate ? fact('Settlement date (proposed)', longDate(d.closingDate), 'settlement') : fact('Settlement date', 'Not set yet', 'settlement');
   const msgCount = d.unread || 0; const cnt = ov.counts || {};
   const body = html`<div class="co-page" data-client-overview="${side}">
     <h1 class="co-greet" data-co-greet>Hi ${user.firstName}, here\u2019s your ${what}</h1><p class="co-sub">${d.street}, ${d.city}, ${d.state} ${d.zip} \u00b7 Order ${d.fileNumber}</p>
@@ -109,12 +114,12 @@ export async function renderClientOverview(ctx, d, here) {
     </div></section>
     <section class="co-card" data-co-property><div class="co-ch">${d.street}${canWire ? html`<span class="r"><button type="button" class="co-btn g" id="wirebtn">Wire instructions</button></span>` : ''}</div><div class="co-cb">
         <div class="co-city">${d.city}, ${d.state} ${d.zip} \u00b7 Order # ${d.fileNumber}</div>
-        <div class="co-facts" data-co-facts>${fact('Open date', longDate(d.openDate), 'open')}${refi ? '' : fact(side === 'buyer' ? 'Purchase price' : 'Sale price', fmtMoney(d.purchasePrice), 'price')}${side === 'buyer' ? fact('Loan amount', fmtMoney(d.loanAmount), 'loan') : ''}${fact('Settlement date', longDate(d.closingDate) || 'Not set yet', 'settlement')}${refi || side !== 'buyer' ? '' : fact('EMD due', longDate(d.emdDueDate), 'emd-due')}${fact('County', d.county, 'county')}</div>
+        <div class="co-facts" data-co-facts>${fact('Open date', longDate(d.openDate), 'open')}${refi ? '' : fact(side === 'buyer' ? 'Purchase price' : 'Sale price', fmtMoney(d.purchasePrice), 'price')}${side === 'buyer' ? fact('Loan amount', fmtMoney(d.loanAmount), 'loan') : ''}${settleFact}${refi || side !== 'buyer' ? '' : fact('EMD due', longDate(d.emdDueDate), 'emd-due')}${fact('County', d.county, 'county')}</div>
         <div class="co-agentline"><img src="assets/img/logo-icon.png" alt=""><span>Your settlement agent: <b>CLA Title &amp; Escrow</b></span></div></div></section>
     <section class="co-next" data-co-next="${next ? next.id : ''}" data-co-outstanding="${todo.length}"><div class="co-ic" aria-hidden="true">&#10004;</div><div class="co-next-main">
       <div class="k">${todo.length ? `Your outstanding tasks (${todo.length})` : 'Next step for you'}</div>
       ${todo.length ? html`<ul class="co-todo">${todo.map((t, i) => html`<li data-co-todo="${t.id}"${t.agreement ? html` data-co-agreement="${t.agreement}"` : ''}><span class="t">${t.title}</span><span class="d">${t.dueDate ? html`Due <span ${i === 0 ? raw('data-co-next-due') : ''}>${longDate(t.dueDate)}</span>` : t.agreement ? 'Read and acknowledge' : 'No due date'}</span><a class="co-btn ${i === 0 ? 'p' : 'g'}" href="${t.href}" ${i === 0 ? raw('data-co-start') : ''}>${i === 0 ? 'Start this step' : 'Open'}</a></li>`)}</ul>`
-        : html`<div class="t">Nothing is needed from you right now</div><div class="d">We will let you know when there is something to do.</div>`}</div></section>
+        : html`<div class="t" data-co-caught-up>You\u2019re all caught up</div><div class="d">We will let you know when there is something to do.</div>`}</div></section>
     <section class="co-card" data-co-team><div class="co-ch">Your closing team${ov.canShareAccess ? html`<span class="r"><button type="button" class="co-btn g" id="shareaccess">Share access</button></span>` : ''}</div><div class="co-cb">${team}
         ${ov.canShareAccess && shares.length ? html`<div class="co-sec">You shared access with</div><ul class="co-ur" data-co-shared>${shares.map((z) => html`<li data-co-share="${z.email}">${z.firstName} ${z.lastName} <span class="muted small">${z.email} \u00b7 ${z.permission} \u00b7 recorded in the portal, nothing sent</span></li>`)}</ul>` : ''}</div></section>
     </div>`;

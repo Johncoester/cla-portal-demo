@@ -7,12 +7,12 @@
 // It is still ONE <form id="nof"> with the same field names, ids and data-attributes; only one step is shown at a time. Every rule is unchanged:
 // refinance hides price / EMD / sellers / agents / TC (the Agents step is skipped), Buyer Agent / Listing Agent / Lender are optional, two buyer + two seller
 // rows, entity representative, commas in money fields, source of business (CLA staff only: Place Order is staff-only), wires never shown to agents.
-import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611051010';
-import { occSelects, yesNo } from './occ-fields.js?v=202611051010';
-import { fmtPhone, TX_TYPES, runsOrders, isProcessor, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES } from '../data/constants.js?v=202611051010';
-import { pickerHtml, mountPicker, personLabel } from './person-picker.js?v=202611051010';
-import { ENTITY_TYPES } from '../data/templates.js?v=202611051010';
-import { moneyClean } from './money-input.js?v=202611051010';
+import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611051059';
+import { occSelects, yesNo } from './occ-fields.js?v=202611051059';
+import { fmtPhone, TX_TYPES, runsOrders, isProcessor, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES } from '../data/constants.js?v=202611051059';
+import { pickerHtml, mountPicker, personLabel } from './person-picker.js?v=202611051059';
+import { ENTITY_TYPES } from '../data/templates.js?v=202611051059';
+import { moneyClean } from './money-input.js?v=202611051059';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
 // Each person becomes their own deal_participants row, so each buyer / seller gets their own copy of the client intake tasks (existing per-person behaviour).
@@ -95,7 +95,7 @@ export async function render({ api, user, go }) {
         <label class="span2">Street address *<input name="street" required maxlength="200" autocomplete="off"></label>
         <label>City *<input name="city" required maxlength="100"></label><label>State *<select name="state" required><option value="">Select state</option>${US_STATE_NAMES.map(([c, n]) => html`<option value="${c}">${n} (${c})</option>`)}</select></label>
         <label>ZIP<input name="zip" maxlength="10" placeholder="20850"></label>
-        <label>County <span class="muted small">(optional)</span><input name="county" maxlength="100" placeholder="e.g. Frederick" aria-label="County"></label></div>`,
+        <label>County <span class="muted small">(optional; filled in from the ZIP if left blank)</span><input name="county" maxlength="100" placeholder="e.g. Frederick" aria-label="County"></label></div>`,
         'The address of the property being bought, sold or refinanced.')}
       ${panel('parties', html`<p class="muted small people-optional">People on this order are all optional; you can add or change them later under Contacts. Pick each person from the list, or add someone new with <strong>Add new user</strong> below.</p>
         <div class="form-grid">${partyBlock('Client-Buyer', 'Buyer')}${partyBlock('Client-Seller', 'Seller')}</div>`,

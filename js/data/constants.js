@@ -41,6 +41,17 @@ export const isViewOnly = (role) => VIEW_ONLY_ROLES.includes(role);
 export const roleLabel = (u) => (isAdminRole(u.role) || !u.isAdmin ? u.role : `${u.role} + Admin`);
 // Dashboard / login-picker label for an outside user: the roles they hold across their files.
 export const fileRolesLabel = (roles) => (roles && roles.length ? roles.join(' + ') : 'not on any file yet');
+// CLIENT-ONLY LOGIN (John, Nov 5 meeting, live40): an outside user whose roles on every file are Client-Buyer / Client-Seller (no agent role anywhere).
+// They land on Open Orders (/orders); the "My files" page and menu item are not shown to them. Agents and staff are unchanged.
+export const isClientOnlyUser = (u) => !!u && u.role === 'Outside user' && !u.accountRole && (u.fileRoles || []).length > 0 && u.fileRoles.every((r) => r === 'Client-Buyer' || r === 'Client-Seller');
+// DISPLAY ONLY (John, Nov 5, live40: "it actually says realtor, listing agent, buyer agent"): the friendly type of an outside user. The stored account role stays 'Outside user' (OUTSIDE).
+// contact type realtor -> Realtor, buyer_seller -> Client, lender -> Lender; not set: inferred from the per-file roles; nothing known -> 'Realtor / Client'
+const AGENT_FILE_ROLES = ['Buyer Agent', 'Listing Agent']; const CLIENT_FILE_ROLES = ['Client-Buyer', 'Client-Seller'];
+export const outsideTypeLabel = (u) => { const ct = u && u.contactType; if (ct === 'realtor') return 'Realtor'; if (ct === 'buyer_seller') return 'Client'; if (ct === 'lender') return 'Lender';
+  const rs = [...((u && u.fileRoles) || []), ...((u && u.files) || []).map((f) => f.role)];
+  return rs.some((r) => AGENT_FILE_ROLES.includes(r)) ? 'Realtor' : rs.some((r) => CLIENT_FILE_ROLES.includes(r)) ? 'Client' : 'Realtor / Client'; };
+// "Realtor: Buyer Agent + Client-Buyer" (pickers) / staff: the role label
+export const accountTypeLabel = (u) => (u && u.role === 'Outside user' ? `${outsideTypeLabel(u)}: ${fileRolesLabel(u.fileLabels || u.fileRoles)}` : roleLabel(u));
 // Back-office user who runs the deal workflow. NOT an admin: user/team admin = isAdmin (role 'Admin', or the flag on another role as in the old portal).
 // Sales Person / Sales Team are view-only, as in the old portal.
 export const PROCESSOR = 'Processor';

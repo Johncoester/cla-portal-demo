@@ -1,20 +1,23 @@
 // Tasks tab. Intake forms are per-participant copies of a versioned template (open them to fill in). Simple tasks are ticked.
 // Processor + transaction coordinator manage tasks and queue reminders (outbox only, never sent). Tasks are cancelled, never deleted.
-import { html, $, $$, guard, formData, modal, closeModal, options, fmtDate, pill, toast } from '../ui.js?v=202611051010';
-import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611051010';
-import { boxTasks } from '../data/task-board.js?v=202611051010';
+import { html, $, $$, guard, formData, modal, closeModal, options, fmtDate, pill, toast } from '../ui.js?v=202611051059';
+import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611051059';
+import { boxTasks } from '../data/task-board.js?v=202611051059';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
 export const LABEL = { todo: 'to do', in_progress: 'started', done: 'done', blocked: 'blocked', cancelled: 'cancelled' };
 
 export async function render(ctx) {
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611051010')).render(ctx);
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611051059')).render(ctx);
   const { api, user, deal, refresh } = ctx;
-  const tasks = await api.listTasks(deal.id);
+  const allTasks = await api.listTasks(deal.id);
   // BUYER (Nov 4 call): the agreements are to-dos that open the agreement (no Agreements tab for the buyer); the buyer never gets a Listing Agent box (listing agent never shown)
   // SELLER MIRROR (Nov 4): the pure seller gets the same To-do list (agreements as to-dos) and never a Buyer's Agent box (the buyer's agent is never shown to the seller)
-  const { isPureClient, isPureSeller, agreementTasks } = await import('./client-overview.js?v=202611051010'); const pure = user.accountRole && isPureClient(user); const hideBox = pure ? (isPureSeller(user) ? 'buyer-agent' : 'listing-agent') : null;
+  const { isPureClient, isPureSeller, agreementTasks } = await import('./client-overview.js?v=202611051059'); const pure = user.accountRole && isPureClient(user); const hideBox = pure ? (isPureSeller(user) ? 'buyer-agent' : 'listing-agent') : null;
+  // CLIENT TASK PRIVACY (Matt, Nov 5, live40): a buyer / seller only ever sees tasks assigned to them (the adapter already filters; this is the UI guard),
+  // only their own side's box, and "You're all caught up" once nothing is left. Never the other parties' boxes or tasks.
+  const tasks = pure ? allTasks.filter((t) => t.mine) : allTasks; const ownBox = pure ? (isPureSeller(user) ? 'seller' : 'buyer') : null;
   const agTodo = pure ? agreementTasks(deal, await api.listAgreements(deal.id).catch(() => null)) : []; const manage = runsOrders(user) || user.role === 'Transaction Coordinator'; const today = localDate(); const refi = isRefi(deal);
   const open = (t) => ['todo', 'in_progress', 'blocked'].includes(t.status);
   const row = (t) => html`<tr class="${t.status === 'done' || t.status === 'cancelled' ? 'is-done' : ''}">
@@ -27,10 +30,11 @@ export async function render(ctx) {
         ${manage ? html`<button class="ghost" data-edit="${t.id}">Edit</button>` : ''}${manage && open(t) ? html` <button class="ghost" data-remind="${t.id}" title="Queues an email in the outbox. Nothing is sent from this build.">Remind</button>` : ''}</td></tr>`;
   const mineFirst = [...tasks].sort((a, b) => ((b.mine || b.forClient) && open(b)) - ((a.mine || a.forClient) && open(a)));
   const body = html`${pure ? html`<div class="box-title"><h2><span class="h-ico"></span>Agreements to acknowledge</h2></div>${agTodo.length ? html`<table class="tbl striped" data-agreement-todos><tbody>${agTodo.map((a) => html`<tr data-co-agreement="${a.agreement}"><td><strong><a href="${a.href}">${a.title}</a></strong><br><span class="muted small">Opens the agreement to read and acknowledge</span></td><td class="nowrap"><a class="ghost" href="${a.href}">Open</a></td></tr>`)}</tbody></table>` : html`<p class="muted" data-agreement-todos="0">All agreements acknowledged.</p>`}` : ''}<div class="box-title"><h2><span class="h-ico"></span>${pure ? 'To-do list' : 'All Tasks'}</h2>${manage ? html`<button class="m-btn right" id="addtask">+ Add task</button>` : ''}</div>
-    ${tasks.some((t) => t.participantId) ? html`<p data-view-switch><strong>Task list</strong> &middot; <a href="#/deals/${deal.id}/tasks?view=people" data-intake-by-person>Intake by person</a> <span class="muted small">(each buyer, seller and agent with all their intake answers on one page)</span></p>` : ''}
-    ${tasks.length ? html`<p class="muted small" data-side-total>${tasks.length} task(s) on this file, grouped by side (from each task's assigned role).</p>${boxTasks(mineFirst).filter((g) => g.key !== hideBox).map((g) => html`<details class="side-box side-${g.key}" data-sidebox="${g.key}" data-count="${g.tasks.length}" open>
+    ${!pure && tasks.some((t) => t.participantId) ? html`<p data-view-switch><strong>Task list</strong> &middot; <a href="#/deals/${deal.id}/tasks?view=people" data-intake-by-person>Intake by person</a> <span class="muted small">(each buyer, seller and agent with all their intake answers on one page)</span></p>` : ''}
+    ${pure && !tasks.some(open) && !agTodo.length ? html`<div class="notice info" data-all-caught-up>You’re all caught up. There is nothing for you to do on this order right now; we will let you know when there is.</div>` : ''}
+    ${tasks.length ? html`${pure ? '' : html`<p class="muted small" data-side-total>${tasks.length} task(s) on this file, grouped by side (from each task's assigned role).</p>`}${boxTasks(mineFirst).filter((g) => (pure ? g.key === ownBox : g.key !== hideBox)).map((g) => html`<details class="side-box side-${g.key}" data-sidebox="${g.key}" data-count="${g.tasks.length}" open>
       <summary><span class="side-tag">${g.key === 'buyer' && refi ? 'Borrower tasks' : g.label}</span> <span class="side-count">(${g.tasks.length})</span></summary>
-      ${g.tasks.length ? html`<div class="side-scroll"><table class="tbl striped"><thead><tr><th></th><th>Task</th><th>Assigned to</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>${g.tasks.map(row)}</tbody></table></div>` : html`<p class="muted small">None.</p>`}</details>`)}` : html`<p class="muted">No tasks yet.</p>`}
+      ${g.tasks.length ? html`<div class="side-scroll"><table class="tbl striped"><thead><tr><th></th><th>Task</th><th>Assigned to</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>${g.tasks.map(row)}</tbody></table></div>` : html`<p class="muted small">None.</p>`}</details>`)}` : pure ? '' : html`<p class="muted">No tasks yet.</p>`}
     <p class="muted small">Tasks are never deleted; use Edit &rarr; Cancelled to retire one. Reminders are queued in the outbox only and never sent from this build.</p>`;
   return { title: 'Tasks', crumbs: [['All Tasks']], body, mount(root) {
     $$('[data-tick]', root).forEach((c) => c.addEventListener('change', guard(async () => { try { await api.updateTask(c.dataset.tick, { status: c.checked ? 'done' : 'todo' }); } finally { refresh(); } })));
