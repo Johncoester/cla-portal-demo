@@ -3,7 +3,7 @@
  *   - CSV import (parse, column mapping, sample templates with fake data),
  *   - meeting invite preview + .ics file (NOTHING IS SENT: Gmail is not connected),
  *   - the "+ Create New" module list. See docs/CRM-JANINE-NOV3.md. */
-import { US_STATES } from './constants.js?v=202611050803';
+import { US_STATES } from './constants.js?v=202611051010';
 
 // ---------------- ZIP -> county ----------------
 let ZIP_TABLE = null;
@@ -12,7 +12,7 @@ export const countyName = (raw) => String(raw || '').replace(/ County$/, '').rep
 export function parseZipTable(COUNTIES, ZIPS) { const m = new Map();
   String(ZIPS).split(';').forEach((part) => { const i = part.indexOf(':'); if (i < 0) return; m.set(part.slice(0, i), part.slice(i + 1).split(',').map((x) => COUNTIES[parseInt(x, 36)]).filter(Boolean)); });
   return m; }
-export async function loadZipTable() { if (ZIP_TABLE) return ZIP_TABLE; const mod = await import('./zip-county-data.js?v=202611050803'); ZIP_TABLE = parseZipTable(mod.COUNTIES, mod.ZIPS); return ZIP_TABLE; }
+export async function loadZipTable() { if (ZIP_TABLE) return ZIP_TABLE; const mod = await import('./zip-county-data.js?v=202611051010'); ZIP_TABLE = parseZipTable(mod.COUNTIES, mod.ZIPS); return ZIP_TABLE; }
 // [{ state, county, primary }] for a ZIP (5 digits or ZIP+4), primary (largest land share) first; [] when unknown (e.g. a PO-box-only ZIP)
 export function countiesFor(table, zip) { const z = String(zip || '').trim().slice(0, 5); if (!/^\d{5}$/.test(z) || !table) return [];
   return (table.get(z) || []).map((k, i) => { const [state, name] = k.split('|'); return { state, county: countyName(name), primary: i === 0 }; }); }

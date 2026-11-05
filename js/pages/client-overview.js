@@ -2,10 +2,10 @@
 // (Client-Seller). Same data as before (getDeal / getOrderOverview / listTasks / listMessageRecipients / listMyAgents), no new fields.
 // Buyers never see Cash to Close, payoffs or wire details here; the only wire item is the existing Wire instructions button (buyer + staff only, as before).
 // app.js draws this page in the light "client shell" (white top bar, no sidebar) because the view sets clientPage.
-import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney, pill, toast } from '../ui.js?v=202611050803';
-import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611050803';
-import { composeModal } from './compose.js?v=202611050803';
-import { slotText } from './dealclosing.js?v=202611050803';
+import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney, pill, toast } from '../ui.js?v=202611051010';
+import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611051010';
+import { composeModal } from './compose.js?v=202611051010';
+import { slotText } from './dealclosing.js?v=202611051010';
 
 // stage 5 shows as "Wire Fraud Awareness" on the BUYER's view only (display only; the stored stage list is unchanged)
 export const clientStageName = (i, side) => (side === 'buyer' && i === 4 ? 'Wire Fraud Awareness' : STAGES[i]);
@@ -100,10 +100,6 @@ export async function renderClientOverview(ctx, d, here) {
     ${sc ? html`<div class="notice info" data-scheduled-closing><strong>Closing scheduled:</strong> ${slotText(sc.at)} &middot; ${sc.location}${sc.note ? html` &middot; ${sc.note}` : ''} <a href="#/deals/${d.id}/closing">details</a></div>` : ''}
     ${!pure && ag && ag.pending ? html`<div class="notice warn" data-agreements-pending>You have <strong>${ag.pending}</strong> agreement(s) to read and acknowledge (including the Wire Fraud Warning). <a href="#/deals/${d.id}/agreements">Open Agreements</a></div>` : ''}
     ${pure && side === 'buyer' && ov.emdPending ? html`<div class="co-emd" role="status" data-co-emd><span class="co-emd-ic" aria-hidden="true">&#36;</span><span><strong>CLA Title hasn\u2019t received your earnest money deposit yet.</strong>${!refi && d.emdDueDate ? html` It was due ${longDate(d.emdDueDate)}.` : ''} Once it arrives, CLA Title sends you the receipt and this note goes away.</span></div>` : ''}
-    <section class="co-next" data-co-next="${next ? next.id : ''}" data-co-outstanding="${todo.length}"><div class="co-ic" aria-hidden="true">&#10004;</div><div class="co-next-main">
-      <div class="k">${todo.length ? `Your outstanding tasks (${todo.length})` : 'Next step for you'}</div>
-      ${todo.length ? html`<ul class="co-todo">${todo.map((t, i) => html`<li data-co-todo="${t.id}"${t.agreement ? html` data-co-agreement="${t.agreement}"` : ''}><span class="t">${t.title}</span><span class="d">${t.dueDate ? html`Due <span ${i === 0 ? raw('data-co-next-due') : ''}>${longDate(t.dueDate)}</span>` : t.agreement ? 'Read and acknowledge' : 'No due date'}</span><a class="co-btn ${i === 0 ? 'p' : 'g'}" href="${t.href}" ${i === 0 ? raw('data-co-start') : ''}>${i === 0 ? 'Start this step' : 'Open'}</a></li>`)}</ul>`
-        : html`<div class="t">Nothing is needed from you right now</div><div class="d">We will let you know when there is something to do.</div>`}</div></section>
     <section class="co-card" data-co-progress><div class="co-ch">Your closing progress<span class="r">${ov.canRequestUpdate ? html`<button type="button" class="co-btn g" data-co-ask>Ask for an update</button>` : ''}</span></div><div class="co-cb">
       <div class="co-status"><div class="co-ring" style="background:conic-gradient(var(--co-bi) 0 ${pct}%, var(--co-bs) ${pct}% 100%)" data-co-ring="${done}"><div><span><b>${done}/10</b>steps done</span></div></div>
         <div><div class="co-l1" data-co-step>${closed ? 'All 10 steps are done: your file is closed' : `You\u2019re on step ${cur + 1} of 10: ${clientStageName(cur, side)}`}</div><div class="co-l2">${d.status !== 'Open' && !closed ? `File status: ${d.status}. ` : ''}CLA Title &amp; Escrow keeps this up to date as your file moves along.</div>
@@ -111,14 +107,17 @@ export async function renderClientOverview(ctx, d, here) {
       <div class="co-acc">${groups}</div>
       ${ur.length ? html`<div class="co-sec">Your update requests</div><ul class="co-ur" id="update-requests">${ur.map((r) => html`<li data-ur="${r.id}" data-ur-status="${r.status}"><strong>${r.topic}</strong>${r.note ? html` <span class="muted small">${r.note}</span>` : ''} ${r.status === 'answered' ? html`${pill('answered', 'ok')}<br>${r.response}` : pill('waiting for CLA Title', 'warn')}</li>`)}</ul>` : ''}
     </div></section>
-    <div class="co-grid">
-      <section class="co-card" data-co-property><div class="co-ch">${d.street}${canWire ? html`<span class="r"><button type="button" class="co-btn g" id="wirebtn">Wire instructions</button></span>` : ''}</div><div class="co-cb">
+    <section class="co-card" data-co-property><div class="co-ch">${d.street}${canWire ? html`<span class="r"><button type="button" class="co-btn g" id="wirebtn">Wire instructions</button></span>` : ''}</div><div class="co-cb">
         <div class="co-city">${d.city}, ${d.state} ${d.zip} \u00b7 Order # ${d.fileNumber}</div>
         <div class="co-facts" data-co-facts>${fact('Open date', longDate(d.openDate), 'open')}${refi ? '' : fact(side === 'buyer' ? 'Purchase price' : 'Sale price', fmtMoney(d.purchasePrice), 'price')}${side === 'buyer' ? fact('Loan amount', fmtMoney(d.loanAmount), 'loan') : ''}${fact('Settlement date', longDate(d.closingDate) || 'Not set yet', 'settlement')}${refi || side !== 'buyer' ? '' : fact('EMD due', longDate(d.emdDueDate), 'emd-due')}${fact('County', d.county, 'county')}</div>
         <div class="co-agentline"><img src="assets/img/logo-icon.png" alt=""><span>Your settlement agent: <b>CLA Title &amp; Escrow</b></span></div></div></section>
-      <section class="co-card" data-co-team><div class="co-ch">Your closing team${ov.canShareAccess ? html`<span class="r"><button type="button" class="co-btn g" id="shareaccess">Share access</button></span>` : ''}</div><div class="co-cb">${team}
+    <section class="co-next" data-co-next="${next ? next.id : ''}" data-co-outstanding="${todo.length}"><div class="co-ic" aria-hidden="true">&#10004;</div><div class="co-next-main">
+      <div class="k">${todo.length ? `Your outstanding tasks (${todo.length})` : 'Next step for you'}</div>
+      ${todo.length ? html`<ul class="co-todo">${todo.map((t, i) => html`<li data-co-todo="${t.id}"${t.agreement ? html` data-co-agreement="${t.agreement}"` : ''}><span class="t">${t.title}</span><span class="d">${t.dueDate ? html`Due <span ${i === 0 ? raw('data-co-next-due') : ''}>${longDate(t.dueDate)}</span>` : t.agreement ? 'Read and acknowledge' : 'No due date'}</span><a class="co-btn ${i === 0 ? 'p' : 'g'}" href="${t.href}" ${i === 0 ? raw('data-co-start') : ''}>${i === 0 ? 'Start this step' : 'Open'}</a></li>`)}</ul>`
+        : html`<div class="t">Nothing is needed from you right now</div><div class="d">We will let you know when there is something to do.</div>`}</div></section>
+    <section class="co-card" data-co-team><div class="co-ch">Your closing team${ov.canShareAccess ? html`<span class="r"><button type="button" class="co-btn g" id="shareaccess">Share access</button></span>` : ''}</div><div class="co-cb">${team}
         ${ov.canShareAccess && shares.length ? html`<div class="co-sec">You shared access with</div><ul class="co-ur" data-co-shared>${shares.map((z) => html`<li data-co-share="${z.email}">${z.firstName} ${z.lastName} <span class="muted small">${z.email} \u00b7 ${z.permission} \u00b7 recorded in the portal, nothing sent</span></li>`)}</ul>` : ''}</div></section>
-    </div></div>`;
+    </div>`;
   return { title: d.fileNumber, clientPage: { deal: d, side }, crumbs: [...here, ['Overview']], body, mount(root) {
     $$('[data-co-message]', root).forEach((b) => b.addEventListener('click', guard(() => composeModal({ api, deal: d, go: ctx.go, user }, { title: 'New Conversation', to: b.dataset.coMessage, withFiles: true }))));
     const ask = $('[data-co-ask]', root); if (ask) ask.addEventListener('click', () => { const m = modal('Ask for an update', html`<form id="requpdate" class="form-grid" data-request-update><label class="span2">What would you like an update on?<select name="topic" required><option value="">Choose&hellip;</option>${options(ov.updateTopics, '')}</select></label>

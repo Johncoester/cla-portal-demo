@@ -8,12 +8,12 @@
  * Nothing here deletes: dashboards, components and reports are RETIRED (hidden, restorable). Mirrored by migration 30. */
 import { MODULE_CODES, moduleName, SEARCH_MODULES, REPORT_MODULES, DASH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, parseQuery, searchMatch, moduleFields, reportFields,
   RELATED, joinRows, runReport, reportCsv, cleanCriteria, applyCriteria, criteriaText, chartData, measureOf, measureLabel, groupOf, display, dealStageOf, CALL_TYPES,
-  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, BUCKETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611050803';
-import { ensureNov3b } from './crm-nov3b.js?v=202611050803';
-import { DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611050803';
-import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611050803';
-import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611050803';
-import { crmReadOnly, CRM_OWNER_ROLES } from './crm.js?v=202611050803';
+  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, BUCKETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611051010';
+import { ensureNov3b } from './crm-nov3b.js?v=202611051010';
+import { DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611051010';
+import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611051010';
+import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611051010';
+import { crmReadOnly, CRM_OWNER_ROLES } from './crm.js?v=202611051010';
 
 export const SEND_NOTE = 'Not sent: Gmail is not connected yet. The email was saved on this record only.';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

@@ -831,12 +831,9 @@ body.theme-cards .ss-pin { background: var(--tc-side); }
   .co-next { flex-wrap: wrap; } .co-next .co-btn { margin-left: 0; width: 100%; text-align: center; }
   .co-status { flex-direction: column; align-items: flex-start; gap: 14px; }
   .co-grid { grid-template-columns: 1fr; } .co-prow { flex-wrap: wrap; } .co-prow .co-acts { margin-left: 56px; } .co-ya { flex-wrap: wrap; } .co-ya .co-acts { margin-left: 72px; } .co-ch .r .co-btn { padding: 6px 12px; } }
-/* live38 (John, Nov 5 mobile recording): MOBILE order on the client overview (seller + buyer): progress, then the property/address card, then outstanding tasks, then the closing team. Desktop unchanged. */
-@media (max-width: 700px) {
-  .co-page[data-client-overview] { display: flex; flex-direction: column; } .co-page[data-client-overview] > * { order: 0; min-width: 0; }
-  .co-page[data-client-overview] > .co-grid { display: contents; }
-  .co-page[data-client-overview] > [data-co-progress] { order: 1; } .co-page[data-client-overview] [data-co-property] { order: 2; }
-  .co-page[data-client-overview] > [data-co-next] { order: 3; margin-bottom: 20px; } .co-page[data-client-overview] [data-co-team] { order: 4; } }
+/* live39 (John, Nov 5 "change desktop as well"): the client overview renders progress, address, tasks, team in that order on every screen (DOM order, full width), so no mobile reorder is needed. */
+.co-page[data-client-overview] > [data-co-next] { margin-bottom: 20px; }
+@media (min-width: 701px) { .co-page[data-client-overview] [data-co-property] .co-facts { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); } }
 /* buyer page (Nov 4 call): every outstanding task listed first; compact so the page fits mostly on one screen */
 .co-next { align-items: flex-start; padding: 14px 18px; } .co-next-main { flex: 1; min-width: 0; }
 .co-todo { list-style: none; margin: 6px 0 0; padding: 0; } .co-todo li { display: flex; align-items: center; gap: 12px; padding: 7px 0; border-top: 1px solid #e6f1f8; }
