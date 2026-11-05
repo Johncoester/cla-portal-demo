@@ -3,7 +3,7 @@
  *   - CSV import (parse, column mapping, sample templates with fake data),
  *   - meeting invite preview + .ics file (NOTHING IS SENT: Gmail is not connected),
  *   - the "+ Create New" module list. See docs/CRM-JANINE-NOV3.md. */
-import { US_STATES } from './constants.js?v=202611041935';
+import { US_STATES } from './constants.js?v=202611041951';
 
 // ---------------- ZIP -> county ----------------
 let ZIP_TABLE = null;
@@ -12,7 +12,7 @@ export const countyName = (raw) => String(raw || '').replace(/ County$/, '').rep
 export function parseZipTable(COUNTIES, ZIPS) { const m = new Map();
   String(ZIPS).split(';').forEach((part) => { const i = part.indexOf(':'); if (i < 0) return; m.set(part.slice(0, i), part.slice(i + 1).split(',').map((x) => COUNTIES[parseInt(x, 36)]).filter(Boolean)); });
   return m; }
-export async function loadZipTable() { if (ZIP_TABLE) return ZIP_TABLE; const mod = await import('./zip-county-data.js?v=202611041935'); ZIP_TABLE = parseZipTable(mod.COUNTIES, mod.ZIPS); return ZIP_TABLE; }
+export async function loadZipTable() { if (ZIP_TABLE) return ZIP_TABLE; const mod = await import('./zip-county-data.js?v=202611041951'); ZIP_TABLE = parseZipTable(mod.COUNTIES, mod.ZIPS); return ZIP_TABLE; }
 // [{ state, county, primary }] for a ZIP (5 digits or ZIP+4), primary (largest land share) first; [] when unknown (e.g. a PO-box-only ZIP)
 export function countiesFor(table, zip) { const z = String(zip || '').trim().slice(0, 5); if (!/^\d{5}$/.test(z) || !table) return [];
   return (table.get(z) || []).map((k, i) => { const [state, name] = k.split('|'); return { state, county: countyName(name), primary: i === 0 }; }); }
@@ -48,6 +48,14 @@ export const PERSON_IMPORT_FIELDS = [
   ['links.zillowProfile', 'Zillow Profile', ['zillow', 'zillow url', 'zillow link']], ['links.website', 'Website', ['web', 'url']], ['links.linkedin', 'LinkedIn Profile', ['linkedin']],
   ['links.facebookProfile', 'Facebook Profile', ['facebook']], ['links.instagram', 'Instagram Profile', ['instagram']], ['licenseNo', 'Real Estate License #', ['license', 'license number']],
   ['ownerId', 'Owner (name or email of a salesperson)', ['owner', 'lead owner', 'client owner']], ['description', 'Description', ['notes', 'comments']]];
+// Janine, Nov 4 (Mass Import video, 2:46-3:23 and 7:39-7:53): DEFAULT VALUES for fields the spreadsheet does not have ("my spreadsheet doesn't have
+// a column for Role in Company ... I should be able to just assign a default value for that"). A default fills a blank cell (or a skipped / missing
+// column); a value in the file always wins. [key, label, source]: 'user' = a CRM owner, 'state' = a US state, else the CRM Settings pick list
+// ('status' = the module's own Relationship Status list). Stored per import (crm_import_defaults), so the log shows what was applied.
+export const IMPORT_DEFAULT_FIELDS = [['ownerId', 'Owner', 'user'], ['roleInCompany', 'Role in Company', 'roleInCompany'], ['relationshipStatus', 'Relationship Status', 'status'],
+  ['leadSource', 'Lead Source', 'leadSource'], ['state', 'State', 'state']];
+export const IMPORT_DEFAULT_KEYS = IMPORT_DEFAULT_FIELDS.map(([k]) => k);
+export const statusListOf = (module) => (module === 'leads' ? 'leadRelationshipStatus' : 'relationshipStatus');
 export const NOTE_IMPORT_FIELDS = [['email', 'Email (links the note)', ['email address', 'e-mail']], ['firstName', 'First Name', ['first']], ['lastName', 'Last Name', ['last', 'surname']],
   ['fullName', 'Full Name (if no first / last)', ['name', 'lead name', 'client name', 'contact name']], ['noteTitle', 'Note Title', ['title', 'subject']], ['note', 'Note *', ['note', 'body', 'note content', 'notes', 'text']]];
 const norm = (h) => String(h || '').toLowerCase().replace(/\*/g, '').replace(/[^a-z0-9]+/g, ' ').trim();

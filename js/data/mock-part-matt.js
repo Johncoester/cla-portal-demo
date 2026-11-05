@@ -5,9 +5,11 @@
  *    coordinator confirms a scheduled closing, which everyone on the file then sees.
  *  - E-sign (DEMO): processor / coordinator ask specific people to sign a document; each signer gets a 'Sign' task, types their name and
  *    adopts it. Only the signer can sign (an agent cannot sign for a client). Provider seam: esign.js. */
-import { AGREEMENTS, agreementOf } from './agreements.js?v=202611041935';
-import { getProvider, ESIGN_PROVIDER } from './esign.js?v=202611041935';
-import { WIRE_FRAUD_NOTE, CLA_PHONE } from './constants.js?v=202611041935';
+import { AGREEMENTS, agreementOf } from './agreements.js?v=202611041951';
+import { getProvider, ESIGN_PROVIDER } from './esign.js?v=202611041951';
+import { WIRE_FRAUD_NOTE, CLA_PHONE } from './constants.js?v=202611041951';
+import { OFFICE_LOCATION, placeText as placeText0 } from './offices.js?v=202611041951';
+import { closingOfficeChoices, officeById, officeNameOf } from './mock-part-offices.js?v=202611041951';   // Admin > Offices (migration 57): the stored office list
 export function mattP2(x) {
   const { load, save, nid, needUser, isManager, notViewOnly, onDeal, scopeTo, holds, contactOf, isStaffView, personSide, docVisible, log, prof, nameOf, notify, dealProfileIds, clone, now, fail, str, localDate, C } = x;
   const d0 = () => load();
@@ -21,6 +23,13 @@ export function mattP2(x) {
   const whenOk = (v, label) => { const s = str(v, 16); if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s) || isNaN(Date.parse(s))) fail(`${label} needs a date and a time.`);
     if (Date.parse(s) < Date.now()) fail(`${label} must be in the future.`); return s; };
   const locOk = (v) => { const s = str(v, 60); if (!C.CLOSING_LOCATIONS.includes(s)) fail(`Pick where to sign: ${C.CLOSING_LOCATIONS.join(', ')}.`); return s; };
+  // John, Nov 4 meeting (7:17): a 'CLA Title office' closing names WHICH office; it defaults to the office nearest the property (cla-offices.js).
+  // Another place (mobile notary / remote) has no office. Older callers that send no office get the nearest one (or none when nothing is near).
+  // Offices come from Admin > Offices (stored, mock-part-offices.js): only an ACTIVE office can be picked; a retired one stays on closings that already use it.
+  const placeText = (location, officeId) => placeText0(location, officeId, officeNameOf(d0(), officeId));
+  const officeFor = (deal, location, officeId) => { if (location !== OFFICE_LOCATION) { if (officeId) fail('Only a CLA Title office closing names an office.'); return null; }
+    const id = str(officeId, 40); if (id) { const o = officeById(d0(), id); if (!o) fail('Pick one of the CLA Title offices.'); if (!o.active) fail(`${o.name} is retired: pick another office.`); return id; }
+    return closingOfficeChoices(d0(), deal).officeId; };
   const reqOr404 = (id) => arr('signatureRequests').find((r) => r.id === id) || fail('Signature request not found.');
   const docName = (id) => (d0().documents.find((z) => z.id === id) || {}).name || 'document';
   const sigOut = (u, r) => ({ ...clone(r), docName: docName(r.docId), requestedByName: nameOf(r.requestedBy), providerLabel: getProvider(r.provider).label,
@@ -61,31 +70,41 @@ export function mattP2(x) {
         amountNote: 'Your exact amount comes from your Closing Disclosure / settlement statement. Do not use this sample to send money.' };
     },
     // ---------- Closing: proposals from the file, a confirmed scheduled closing from staff ----------
+    // the office list + the default for this property (anyone on the file; offices are public business addresses)
+    async getClosingOfficeDefault(dealId) {
+      let u = needUser(); u = onDeal(u, dealId); const deal = d0().deals.find((z) => z.id === dealId) || fail('Order not found.');
+      return { ...clone(closingOfficeChoices(d0(), deal)), property: { state: deal.state, county: deal.county || '' } };
+    },
     async listClosingProposals(dealId) {
       let u = needUser(); u = onDeal(u, dealId); const staff = isStaffView(u); const side = C.sideOf(u.role);
       return clone(arr('closingProposals').filter((p) => p.dealId === dealId && (staff || (side && p.side === side)))
-        .map((p) => ({ ...p, proposedByName: nameOf(p.proposedBy) })).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+        .map((p) => ({ ...p, officeId: p.officeId || null, officeName: officeNameOf(d0(), p.officeId), officeRetired: !!(p.officeId && officeById(d0(), p.officeId) && !officeById(d0(), p.officeId).active), placeText: placeText(p.location, p.officeId), proposedByName: nameOf(p.proposedBy) })).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
     },
-    async proposeClosing(dealId, { at, location, note } = {}) {
+    async proposeClosing(dealId, { at, location, officeId, note } = {}) {
       let u = needUser(); u = onDeal(u, dealId); notViewOnly(u);
       if (isStaffView(u)) fail('CLA staff confirm the closing directly.');
       const side = C.sideOf(u.role) || fail('Only the agents and clients on this file can propose a closing time.');
-      const p = { id: nid('cp'), dealId, side, proposedBy: u.id, roleLabel: fileText(u.id, dealId), at: whenOk(at, 'The proposed closing'), location: locOk(location), note: str(note, 500), status: 'proposed', createdAt: now() };
-      arr('closingProposals').push(p); const deal = d0().deals.find((z) => z.id === dealId);
-      log(dealId, u.id, 'closing.proposed', 'closing', p.id, `${nameOf(u.id)} (${p.roleLabel}) proposed closing ${p.at.replace('T', ' ')} - ${p.location}`);
+      const deal = d0().deals.find((z) => z.id === dealId); const loc = locOk(location);
+      const p = { id: nid('cp'), dealId, side, proposedBy: u.id, roleLabel: fileText(u.id, dealId), at: whenOk(at, 'The proposed closing'), location: loc, officeId: officeFor(deal, loc, officeId), note: str(note, 500), status: 'proposed', createdAt: now() };
+      arr('closingProposals').push(p);
+      log(dealId, u.id, 'closing.proposed', 'closing', p.id, `${nameOf(u.id)} (${p.roleLabel}) proposed closing ${p.at.replace('T', ' ')} - ${placeText(p.location, p.officeId)}`);
       notify([deal.processorId], { kind: 'settlement', dealId, title: `${nameOf(u.id)} proposed a closing time for ${deal.street}`, link: `#/deals/${dealId}/closing` }, u.id);
       save(); return clone(p);
     },
-    async confirmClosing(dealId, { at, location, note, proposalId } = {}) {
-      let u = needUser(); u = onDeal(u, dealId); if (!isManager(u)) fail('Only the processor or coordinator can confirm the closing.');
+    async confirmClosing(dealId, { at, location, officeId, note, proposalId } = {}) {
+      // John, Nov 4: the Processor, TC, Admins AND the Buyer Agent / Listing Agent on the file may schedule the closing. An agent confirms only
+      // proposals from their own side (the only ones they can see); scheduledClosing.confirmedByRole records the capacity (typed, for reports).
+      let u = needUser(); u = onDeal(u, dealId); const agentRole = isManager(u) ? null : (u.roles || [u.role]).find((r) => ['Buyer Agent', 'Listing Agent'].includes(r));
+      if (!isManager(u) && !agentRole) fail('Only the processor, coordinator or an agent on the file can schedule the closing.');
       const d = d0(); const deal = d.deals.find((z) => z.id === dealId); let p = null;
-      if (proposalId) { p = arr('closingProposals').find((z) => z.id === proposalId && z.dealId === dealId) || fail('Proposal not found.'); }
-      const sc = { at: whenOk(at || (p && p.at), 'The closing'), location: locOk(location || (p && p.location)), note: str(note, 500), confirmedBy: u.id, confirmedAt: now(), proposalId: p ? p.id : null, settlementId: null };
+      if (proposalId) { p = arr('closingProposals').find((z) => z.id === proposalId && z.dealId === dealId && (!agentRole || z.side === C.sideOf(agentRole))) || fail('Proposal not found.'); }
+      const loc = locOk(location || (p && p.location)); const off = location ? officeFor(deal, loc, officeId) : p ? (p.officeId ? officeFor(deal, loc, p.officeId) : officeFor(deal, loc, null)) : officeFor(deal, loc, officeId);   // a proposal at a since-retired office cannot be confirmed as is
+      const sc = { at: whenOk(at || (p && p.at), 'The closing'), location: loc, officeId: off, note: str(note, 500), confirmedBy: u.id, confirmedByRole: agentRole || u.role, confirmedAt: now(), proposalId: p ? p.id : null, settlementId: null };
       if (p) p.status = 'confirmed';
       deal.scheduledClosing = sc; deal.closingDate = sc.at.slice(0, 10);
-      log(dealId, u.id, 'closing.confirmed', 'deal', dealId, `Closing scheduled for ${sc.at.replace('T', ' ')} - ${sc.location}${p ? ` (proposed by ${nameOf(p.proposedBy)})` : ''}`);
-      notify(dealProfileIds(dealId), { kind: 'settlement', dealId, title: `Closing scheduled: ${sc.at.replace('T', ' ')} - ${sc.location} - ${deal.street}`, link: `#/deals/${dealId}/closing` }, u.id);
-      save(); return clone(sc);
+      log(dealId, u.id, 'closing.confirmed', 'deal', dealId, `Closing scheduled for ${sc.at.replace('T', ' ')} - ${placeText(sc.location, sc.officeId)}${p ? ` (proposed by ${nameOf(p.proposedBy)})` : ''}`);
+      notify(dealProfileIds(dealId), { kind: 'settlement', dealId, title: `Closing scheduled: ${sc.at.replace('T', ' ')} - ${placeText(sc.location, sc.officeId)} - ${deal.street}`, link: `#/deals/${dealId}/closing` }, u.id);
+      save(); return { ...clone(sc), officeName: officeNameOf(d0(), sc.officeId) };
     },
     // ---------- E-sign (DEMO provider) ----------
     async listSignatureCandidates(docId) {

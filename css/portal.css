@@ -868,3 +868,23 @@ body .co-shell .co-tabcard .card h3 { color: var(--co-nv); font-weight: 500; }
 /* EMD reminder banner (John, Nov 4): pure buyer only, while the EMD receipt task is open; compact so the overview still fits one screen */
 .co-emd { display: flex; align-items: center; gap: 12px; background: #eaf7fe; border: 1px solid var(--co-bl); border-left: 6px solid var(--co-b); border-radius: 12px; padding: 10px 16px; margin-bottom: 12px; color: #0b2a4a; font-size: 14px; }
 .co-emd-ic { flex: none; width: 26px; height: 26px; border-radius: 50%; background: #fff; border: 1px solid var(--co-bl); display: grid; place-items: center; font-weight: 700; }
+
+/* ADMIN > OFFICES (John, Nov 4). Baby-blue admin card style, same palette variables as theme-cards.css */
+.offices-page .off-intro { max-width: 900px; }
+.off-card { margin-top: var(--s4); } .off-card h3 { margin-top: 0; }
+.off-tbl thead th { background: var(--tc-baby-soft, #e8f6fd); color: var(--tc-on-baby, #0b2a45); border-bottom: 2px solid var(--tc-baby, #89cff0); }
+.off-tbl td { vertical-align: top; } .off-tbl tr.off-retired td { color: #666; background: #fafafa; }
+.off-chip { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; background: var(--tc-baby, #89cff0); color: var(--tc-on-baby, #0b2a45); white-space: nowrap; }
+.off-chip-retired { background: #eee; color: #555; }
+.off-form .off-check { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .off-form .off-check input { width: auto; }
+.off-counties { border: 1px solid var(--tc-baby-line, #bfe6f8); border-radius: 8px; padding: 8px 12px; background: var(--tc-baby-soft, #e8f6fd); }
+.off-counties legend { font-weight: 600; padding: 0 4px; color: var(--tc-on-baby, #0b2a45); }
+.off-county-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; } .off-county-tools input { max-width: 240px; }
+.off-county-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 2px 10px; max-height: 220px; overflow: auto; }
+.off-county { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 400; } .off-county input { width: auto; margin: 0; }
+.field-err { display: block; color: var(--err, #b42318); font-size: 12px; min-height: 0; } .is-invalid { border-color: var(--err, #b42318) !important; }
+/* John, Nov 4: where each buyer / seller will be at closing (light baby-blue question box; staff flag rows) */
+.loc-q { border: 1px solid var(--info-line); background: var(--info-bg); border-radius: var(--r); padding: 10px 14px; margin: 0; }
+.loc-q legend { font-weight: 600; padding: 0 4px; } .loc-q label.inline { display: inline-flex; gap: 6px; align-items: center; margin-right: 16px; font-weight: 400; }
+.loc-q label.inline input { width: auto; } .loc-q [data-loc-no] { margin-top: 6px; } .loc-q select { max-width: 320px; }
+tr.flagged td { background: var(--warn-bg); } [data-location-flags] div + div { margin-top: 4px; }

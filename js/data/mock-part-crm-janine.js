@@ -6,15 +6,15 @@
  *     No email is sent, no calendar is touched.
  *   - Company duplicate lookup for the Company form (live warning with a link to the existing record).
  *   - janineLazyUpgrade: Zillow URL -> Zillow Profile, leads linked to their company. No storage-key bump: lazy, idempotent, lossless. */
-import { parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, buildIcs, INVITE_NOTE } from './crm-janine.js?v=202611041935';
-import { companyKey, CRM_OWNER_ROLES } from './crm.js?v=202611041935';
-import { US_STATE_NAMES } from './constants.js?v=202611041935';
+import { parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, buildIcs, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611041951';
+import { companyKey, CRM_OWNER_ROLES } from './crm.js?v=202611041951';
+import { US_STATE_NAMES } from './constants.js?v=202611041951';
 
 const seenData = new WeakSet();
 // runs on every CRM read (cheap after the first time for one in-memory copy); changes are saved with the next save. Never removes a value.
 export function janineLazyUpgrade(d) {
   if (seenData.has(d)) return d; seenData.add(d);
-  d.crmImports ||= []; d.crmMeetingInvites ||= [];
+  d.crmImports ||= []; d.crmMeetingInvites ||= []; d.crmImportRows ||= [];
   // Zillow URL is retired: its value is copied into Zillow Profile when that is empty; the old value stays on the record (hidden), flagged so it is copied once only
   const move = (r) => { if (!r.zillowUrl || r.zillowMoved) return; r.links ||= {}; if (!r.links.zillowProfile) r.links.zillowProfile = r.zillowUrl; r.zillowMoved = true; };
   (d.crmLeads || []).forEach(move); (d.contacts || []).forEach((c) => { if ('zillowUrl' in c) move(c); });
@@ -48,12 +48,27 @@ export function crmJaninePart(x, ctx) {
     return { header, mapping, records: applyMapping(rows, mapping).records };
   }
 
+  // defaults (Janine, Nov 4): { key: value } -> a checked [{ field, value }] list ('' = no default). Owner must be an active Sales Person / Sales Team user.
+  function cleanDefaults(raw0, kind) {
+    if (kind !== 'records' || !raw0) return [];
+    const raw = Array.isArray(raw0) ? Object.fromEntries(raw0.map((z) => [z.field, z.value])) : raw0;
+    Object.keys(raw).forEach((k) => { if (!IMPORT_DEFAULT_KEYS.includes(k)) fail(`"${k}" cannot have a default value.`); });
+    return IMPORT_DEFAULT_FIELDS.map(([k]) => [k, str(raw[k], 200)]).filter(([, v]) => v).map(([k, v]) => {
+      if (k === 'ownerId') { const p = prof(v); if (!p || p.status !== 'active' || !CRM_OWNER_ROLES.includes(p.role)) fail('The default Owner must be an active Sales Person or Sales Team user.'); }
+      if (k === 'state') { const c = stateCode(v); if (!/^[A-Z]{2}$/.test(c)) fail('Pick a state for the default State.'); return { field: k, value: c }; }
+      return { field: k, value: v }; });
+  }
+  const DEFAULT_LABEL = Object.fromEntries(IMPORT_DEFAULT_FIELDS.map(([k, l]) => [k, l]));
   // one CSV row -> a lead / client, through the normal create rules (required fields, pick lists, one email / phone across leads + clients, links ...)
-  async function createPerson(module, rec, table) {
-    const notes = []; const input = { ...rec };
+  async function createPerson(module, rec0, table, defaults = []) {
+    const notes = []; const rec = { ...rec0 }; let defOwner = '';
+    defaults.forEach(({ field, value }) => { if (String(rec[field] == null ? '' : rec[field]).trim() !== '') return;
+      if (field === 'ownerId') { defOwner = value; notes.push(`Owner: ${nameOf(value)} (default)`); return; }
+      rec[field] = value; notes.push(`${DEFAULT_LABEL[field]}: ${value} (default)`); });
+    const input = { ...rec };
     ['firstName', 'lastName', 'email', 'phone', 'mobile', 'title', 'street', 'city', 'licenseNo', 'description'].forEach((k) => { if (input[k] === undefined) input[k] = ''; });
     input.state = stateCode(rec.state);
-    input.ownerId = ownerByText(rec.ownerId);
+    input.ownerId = defOwner || ownerByText(rec.ownerId);
     if (rec.zip && !str(rec.county, 60)) { const cs = countiesFor(table, rec.zip).filter((c) => !input.state || c.state === input.state);
       if (cs.length) { input.county = cs[0].county; notes.push(cs.length > 1 ? `County ${cs[0].county} from ZIP ${rec.zip} (it spans ${cs.length} counties; the main one was used)` : `County ${cs[0].county} from ZIP ${rec.zip}`); } }
     const co = str(rec.company, 160); delete input.company;
@@ -81,7 +96,7 @@ export function crmJaninePart(x, ctx) {
   async function run(input = {}, commit) {
     const u = admin(); const module = str(input.module, 20); if (!MODULES[module]) fail('Import into Leads or Clients.');
     const kind = input.kind === 'notes' ? 'notes' : 'records'; const fields = kind === 'notes' ? NOTE_IMPORT_FIELDS : PERSON_IMPORT_FIELDS;
-    const { header, mapping, records } = readInput(input, fields);
+    const { header, mapping, records } = readInput(input, fields); const defaults = cleanDefaults(input.defaults, kind);
     if (kind === 'records' && !mapping.includes('lastName')) fail('Map a column to Last Name (required).');
     if (kind === 'notes' && !mapping.includes('note')) fail('Map a column to Note (required).');
     if (kind === 'notes' && !mapping.some((k) => ['email', 'fullName', 'lastName'].includes(k))) fail('Map the Email or the name columns, so each note can find its ' + (module === 'leads' ? 'lead' : 'client') + '.');
@@ -90,19 +105,26 @@ export function crmJaninePart(x, ctx) {
     const out = []; dry.on = !commit;
     try {
       for (let i = 0; i < records.length; i++) { const rec = records[i];
-        try { const r = kind === 'notes' ? await createNote(module, rec, targets) : await createPerson(module, rec, table); out.push({ line: i + 2, status: 'ok', ...r, values: rec }); }
+        try { const r = kind === 'notes' ? await createNote(module, rec, targets) : await createPerson(module, rec, table, defaults); out.push({ line: i + 2, status: 'ok', ...r, values: rec }); }
         catch (e) { out.push({ line: i + 2, status: isDup(e.message) ? 'duplicate' : 'error', message: e.message, values: rec }); } }
     } finally { dry.on = false; if (!commit) x.forget(); }
     const counts = { total: out.length, ok: out.filter((r) => r.status === 'ok').length, duplicates: out.filter((r) => r.status === 'duplicate').length, errors: out.filter((r) => r.status === 'error').length };
     let importId = null;
-    if (commit) { importId = nid('imp'); db().crmImports.push({ id: importId, module, kind, fileName: str(input.fileName, 200), by: u.id, at: now(), ...counts, created: counts.ok }); save(); }
-    return { module, kind, header, mapping, fields: fields.map(([k, l]) => [k, l]), rows: out, counts, importId, committed: !!commit };
+    if (commit) { importId = nid('imp'); db().crmImports.push({ id: importId, module, kind, fileName: str(input.fileName, 200), by: u.id, at: now(), ...counts, created: counts.ok, defaults: defaults.map((z) => ({ ...z })) });
+      // one row per CSV line (typed: line, status, message, the record it made / touched), kept for good like the log itself
+      out.forEach((r) => db().crmImportRows.push({ importId, line: r.line, status: r.status, message: r.message || '', recordId: r.status === 'ok' ? r.id : null, recordName: r.status === 'ok' ? r.name || '' : '' }));
+      save(); }
+    return { module, kind, header, mapping, defaults, fields: fields.map(([k, l]) => [k, l]), rows: out, counts, importId, committed: !!commit };
   }
 
   const api = {
     async previewCrmImport(input) { return run(input, false); },
     async runCrmImport(input) { return run(input, true); },
-    async listCrmImports() { admin(); return db().crmImports.slice().reverse().map((r) => ({ ...r, byName: nameOf(r.by) })); },
+    async listCrmImports() { admin(); const rows = db().crmImportRows || [];
+      return db().crmImports.slice().reverse().map((r) => ({ ...r, defaults: (r.defaults || []).map((z) => ({ ...z, text: z.field === 'ownerId' ? nameOf(z.value) : z.value })), rowCount: rows.filter((z) => z.importId === r.id).length, byName: nameOf(r.by) })); },
+    // the per-row results of one import (Admin / Super admin, like the log)
+    async listCrmImportRows(importId) { admin(); const id = str(importId, 60); if (!db().crmImports.some((r) => r.id === id)) fail('Import not found.');
+      return (db().crmImportRows || []).filter((z) => z.importId === id).sort((a, b) => a.line - b.line).map((z) => ({ ...z })); },
     // Company form: is there already a company with this (normalised) name? Archived ones count too (restore instead).
     async findCrmCompanyDuplicate({ name = '', exceptId = null } = {}) { const u = crmUser(); const a = companyDup(str(name, 160), exceptId); if (!a) return null;
       return { id: a.id, name: a.name, state: a.state || '', archived: !!a.archivedAt, canOpen: seen(u, 'account', a.id), link: `#/crm/accounts/${a.id}` }; },

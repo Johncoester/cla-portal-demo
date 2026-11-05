@@ -3,11 +3,11 @@
  * Target Meter and Funnel (basic); the other Zoho types say "coming soon". Quick Chart builder: Component Name, Module, Measure, Grouping (date
  * fields: By Day / Calendar Week / Month / Quarter / Year), Criteria (ANDed). Hover shows the value; click a bar or slice for the records behind it.
  * Nothing is deleted: dashboards and components are RETIRED (hidden, restorable). Function only (no styling work). */
-import { html, raw, $, $$, guard, toast, modal, closeModal, toText } from '../ui.js?v=202611041935';
-import { DASH_MODULES, moduleName, moduleFields, COMPONENT_TYPES, CHART_TYPES, VISIBILITY, WIDTHS, HEIGHTS, BUCKETS, NUMERIC, isDateType, DATE_PRESETS } from '../data/crm-analytics.js?v=202611041935';
-import { tabs, head } from './crm-kit.js?v=202611041935';
-import { chartSvg, kpiHtml, targetHtml, funnelHtml } from './crm-charts.js?v=202611041935';
-import { criteriaEditor } from './crm-criteria.js?v=202611041935';
+import { html, raw, $, $$, guard, toast, modal, closeModal, toText } from '../ui.js?v=202611041951';
+import { DASH_MODULES, moduleName, moduleFields, COMPONENT_TYPES, CHART_TYPES, VISIBILITY, WIDTHS, HEIGHTS, BUCKETS, NUMERIC, isDateType, DATE_PRESETS } from '../data/crm-analytics.js?v=202611041951';
+import { tabs, head } from './crm-kit.js?v=202611041951';
+import { chartSvg, kpiHtml, targetHtml, funnelHtml } from './crm-charts.js?v=202611041951';
+import { criteriaEditor } from './crm-criteria.js?v=202611041951';
 
 const H = { s: 180, m: 260, l: 380 };
 const opts = (list, cur) => list.map(([k, l]) => html`<option value="${k}" ${String(k) === String(cur) ? raw('selected') : ''}>${l}</option>`);
@@ -19,7 +19,7 @@ function componentBody(c) {
   return raw(chartSvg(d, c.config.chartType, { currency: cur, height: H[c.height] || 260 }));
 }
 // Download (CSV of the component's numbers) is an export, so Admin / Super admin only, like report Export (video 10)
-const compMenu = (c, canEdit, canExport) => (canEdit || canExport ? html`<select data-comp-menu="${c.id}" aria-label="Component menu"><option value="">&#8942;</option>${canEdit ? html`<option value="edit">Edit</option><option value="clone">Clone</option><option value="move">Move to another dashboard</option><option value="retire">Retire (hide)</option>` : ''}${canExport ? html`<option value="download">Download (CSV)</option>` : ''}</select>` : '');
+const compMenu = (c, canEdit, canExport) => (canEdit || canExport ? html`<select data-comp-menu="${c.id}" aria-label="Component menu" style="width:auto;min-width:0"><option value="">&#8942;</option>${canEdit ? html`<option value="edit">Edit</option><option value="clone">Clone</option><option value="move">Move to another dashboard</option><option value="retire">Retire (hide)</option>` : ''}${canExport ? html`<option value="download">Download (CSV)</option>` : ''}</select>` : '');
 const csvCell = (v) => { const s = String(v == null ? '' : v); return /^[=+\-@]/.test(s) ? `"'${s.replace(/"/g, '""')}"` : /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
 function downloadComponent(c) {
   const d = c.data || {}; const lines = [];
@@ -36,12 +36,13 @@ export async function dashboardsPage(c) {
   const { api, params, me, refresh, owners } = c; const list = await api.listCrmDashboards({ includeRetired: true }); const active = list.filter((d) => !d.retired);
   const id = params.id || (active[0] || {}).id; const dash = id ? await api.getCrmDashboard(id) : null;
   const canCreate = me.canEdit; const others = active.filter((d) => d.canEdit && d.id !== (dash || {}).id);
-  const menu = dash ? html`<select data-dash-menu aria-label="Dashboard menu"><option value="">Dashboard &#9662;</option><option value="filters">Filters</option><option value="clone">Clone</option>
+  const menu = dash ? html`<select data-dash-menu aria-label="Dashboard menu" style="width:auto;min-width:0"><option value="">Dashboard &#9662;</option><option value="filters">Filters</option><option value="clone">Clone</option>
     ${dash.canEdit ? html`<option value="details">Edit name and sharing</option><option value="reorder">Reorder and resize</option>` : ''}${dash.canEdit || dash.mine ? html`<option value="${dash.retired ? 'restore' : 'retire'}">${dash.retired ? 'Restore' : 'Retire (hide)'}</option>` : ''}</select>` : '';
-  const body = html`${tabs('dashboards')}${head('Dashboards', me, canCreate ? html`<button class="m-btn" data-new-dash>Create Dashboard</button>` : '')}
+  const body = html`${tabs('dashboards')}${head('Dashboards', me, canCreate ? html`<button class="m-btn right" data-new-dash>Create Dashboard</button>` : '')}
     <div style="display:flex;gap:12px"><div style="min-width:220px" data-dash-list><strong>Dashboards</strong><ul>${active.map((d) => html`<li><a href="#/crm/dashboards/${d.id}" data-dash-link="${d.id}" ${d.id === (dash || {}).id ? raw('aria-current="page"') : ''}>${d.name}</a>${d.builtin ? html` <span class="muted small">(built-in)</span>` : d.visibility === 'me' ? html` <span class="muted small">(only me)</span>` : ''}</li>`)}</ul>
       ${list.some((d) => d.retired) ? html`<details data-retired-dashes><summary class="small">Retired (${list.filter((d) => d.retired).length})</summary><ul>${list.filter((d) => d.retired).map((d) => html`<li><a href="#/crm/dashboards/${d.id}">${d.name}</a></li>`)}</ul></details>` : ''}</div>
-    <div style="flex:1" data-dash="${(dash || {}).id || ''}">${dash ? html`<div style="display:flex;justify-content:space-between;align-items:center"><h3 data-dash-title>${dash.name}${dash.retired ? html` <span class="pill">Retired</span>` : ''}</h3><span>${dash.canEdit && !dash.retired ? html`<button class="ghost" data-add-comp>Add Component</button> ` : ''}${menu}</span></div>
+    <div style="flex:1" data-dash="${(dash || {}).id || ''}">${dash ? html`<div style="display:flex;justify-content:space-between;align-items:center"><h3 data-dash-title>${dash.name}${dash.retired ? html` <span class="pill">Retired</span>` : ''}</h3><span data-dash-tools>${dash.canEdit && !dash.retired ? html`<button class="ghost" data-add-comp>Add Component</button> ${dash.list.length ? html`<button class="ghost" type="button" data-layout-edit>Edit layout</button> ` : ''}` : ''}${menu}</span></div>
+      <div class="notice info" data-layout-bar hidden><strong>Edit layout:</strong> drag a component, or use its arrows and size buttons. <button class="ghost small" type="button" data-layout-cancel>Cancel</button> <button class="m-btn small" type="button" data-layout-save>Save layout</button></div>
       <p class="muted small" data-dash-meta>${dash.description || ''} ${dash.builtin ? 'Built in; shared with everyone with the CRM.' : `Owner ${dash.ownerName} · ${(VISIBILITY.find(([k]) => k === dash.visibility) || [, ''])[1]}${dash.locked ? ' · locked for shared users' : ''}`}
         ${dash.filters && (dash.filters.ownerId || dash.filters.period) ? html` · <strong data-dash-filters>Filtered: ${[dash.filters.ownerId ? `owner ${(owners.find((o) => o.id === dash.filters.ownerId) || { name: dash.filters.ownerId }).name}` : '', dash.filters.period ? `created ${(DATE_PRESETS.find(([k]) => k === dash.filters.period) || [, ''])[1]}` : ''].filter(Boolean).join(', ')}</strong>` : ''}</p>
       <div data-components>${dash.list.length ? dash.list.map((x) => compCard(x, dash.canEdit && !dash.retired, !!me.canConfigure)) : html`<p class="muted" data-no-components>No components yet.${dash.canEdit ? ' Use Add Component.' : ''}</p>`}</div>
@@ -67,6 +68,8 @@ export async function dashboardsPage(c) {
         const m = modal('Move to another dashboard', html`<form data-move-form><label>Dashboard<select name="to">${others.map((d) => html`<option value="${d.id}">${d.name}</option>`)}</select></label><p><button class="ghost" type="button" data-close>Cancel</button> <button class="m-btn">Move</button></p></form>`);
         $('[data-move-form]', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.moveCrmComponent(comp.id, e.target.to.value); closeModal(); toast('Component moved'); refresh(); })); } })));
     $$('[data-restore-comp]', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.retireCrmComponent(b.dataset.restoreComp, false); toast('Component restored'); refresh(); })));
+    // Janine, Nov 4 (Aesthetics video 5:41-6:20): resize / reorder ON the dashboard (like Zoho), not only in the Reorder and resize dialog
+    const le = $('[data-layout-edit]', root); if (le) wireLayout(c, dash, root);
     // drill-down: click a bar / slice / point / row / KPI
     $$('[data-component]', root).forEach((card) => $('[data-comp-body]', card).addEventListener('click', guard(async (e) => { const t = e.target.closest('[data-key]'); if (!t) return;
       const r = await api.crmDrillDown(card.dataset.component, t.dataset.key, t.dataset.key2 != null ? t.dataset.key2 : null); drillDialog(r); })));
@@ -157,4 +160,33 @@ function builder(c, dash, type, comp) {
   $('[data-b-preview-btn]', f).addEventListener('click', guard(async () => { const p = await api.previewCrmComponent({ ...read(), name: f.name.value || 'Preview' });
     $('[data-b-preview]', f).innerHTML = toText(html`<div data-preview>${componentBody({ ...p, height: 'm' })}</div>`); }));
   $('[data-b-save]', f).addEventListener('click', guard(async () => { const v = read(); if (comp) await api.updateCrmComponent(comp.id, v); else await api.addCrmComponent(dash.id, v); closeModal(); toast(comp ? 'Component saved' : 'Component added'); c.refresh(); }));
+}
+
+// in-place layout editing: each card gets move / width / height buttons and is draggable; Save layout stores it (same adapter call as the dialog)
+function wireLayout(c, dash, root) {
+  const box = $('[data-components]', root); const bar = $('[data-layout-bar]', root); let items = null;
+  const W = WIDTHS.map(([k]) => k); const H = HEIGHTS.map(([k]) => k);
+  const tools = (x, i, n) => html`<div class="layout-tools" data-layout-tools="${x.id}" style="display:flex;gap:4px;flex-wrap:wrap;margin:4px 0">
+    <button type="button" class="ghost small" data-lay-move="-1" ${i === 0 ? raw('disabled') : ''} aria-label="Move ${x.name} earlier">&larr;</button><button type="button" class="ghost small" data-lay-move="1" ${i === n - 1 ? raw('disabled') : ''} aria-label="Move ${x.name} later">&rarr;</button>
+    <button type="button" class="ghost small" data-lay-w="-1" ${x.width <= W[0] ? raw('disabled') : ''} aria-label="Narrower">Narrower</button><button type="button" class="ghost small" data-lay-w="1" ${x.width >= W[W.length - 1] ? raw('disabled') : ''} aria-label="Wider">Wider</button>
+    <select data-lay-h aria-label="Height of ${x.name}" style="width:auto;min-width:0">${HEIGHTS.map(([k, l]) => html`<option value="${k}" ${k === x.height ? raw('selected') : ''}>${l}</option>`)}</select>
+    <span class="muted small" data-lay-size>${(WIDTHS.find(([k]) => k === x.width) || [, ''])[1]}</span></div>`;
+  const draw = () => { const cards = Object.fromEntries($$('[data-component]', box).map((el) => [el.dataset.component, el]));
+    items.forEach((x, i) => { const el = cards[x.id]; box.appendChild(el); el.style.width = `calc(${x.width * 33.3}% - 12px)`; el.draggable = true; el.style.outline = '2px dashed var(--line, #9ab)';
+      const old = $('[data-layout-tools]', el); if (old) old.remove(); el.insertAdjacentHTML('afterbegin', toText(tools(x, i, items.length))); }); };
+  const stop = () => { items = null; bar.hidden = true; $$('[data-layout-tools]', box).forEach((t) => t.remove()); $$('[data-component]', box).forEach((el) => { el.draggable = false; el.style.outline = ''; }); };
+  $('[data-layout-edit]', root).addEventListener('click', () => { items = dash.list.map((x) => ({ id: x.id, name: x.name, width: x.width || 1, height: x.height || 'm' })); bar.hidden = false; draw(); });
+  box.addEventListener('click', (e) => { if (!items) return; const t = e.target.closest('[data-lay-move],[data-lay-w]'); if (!t) return; e.stopPropagation();
+    const id = t.closest('[data-layout-tools]').dataset.layoutTools; const i = items.findIndex((x) => x.id === id);
+    if (t.dataset.layMove) { const j = i + Number(t.dataset.layMove); if (j < 0 || j >= items.length) return; [items[i], items[j]] = [items[j], items[i]]; }
+    if (t.dataset.layW) { const k = W.indexOf(items[i].width) + Number(t.dataset.layW); if (k < 0 || k >= W.length) return; items[i].width = W[k]; }
+    draw(); }, true);
+  box.addEventListener('change', (e) => { if (!items || !e.target.matches('[data-lay-h]')) return; const id = e.target.closest('[data-layout-tools]').dataset.layoutTools; const x = items.find((z) => z.id === id); if (H.includes(e.target.value)) x.height = e.target.value; });
+  let dragId = null;
+  box.addEventListener('dragstart', (e) => { if (!items) return; const el = e.target.closest('[data-component]'); dragId = el ? el.dataset.component : null; });
+  box.addEventListener('dragover', (e) => { if (items) e.preventDefault(); });
+  box.addEventListener('drop', (e) => { if (!items || !dragId) return; e.preventDefault(); const el = e.target.closest('[data-component]'); if (!el || el.dataset.component === dragId) return;
+    const from = items.findIndex((x) => x.id === dragId); const [it] = items.splice(from, 1); items.splice(items.findIndex((x) => x.id === el.dataset.component), 0, it); dragId = null; draw(); });
+  $('[data-layout-cancel]', root).addEventListener('click', () => { stop(); c.refresh(); });
+  $('[data-layout-save]', root).addEventListener('click', guard(async () => { await c.api.reorderCrmDashboard(dash.id, items.map(({ id, width, height }) => ({ id, width, height }))); stop(); toast('Layout saved'); c.refresh(); }));
 }

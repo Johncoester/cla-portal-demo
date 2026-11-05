@@ -1,17 +1,17 @@
 // BUYER VIEW, UNCHANGED (John, Nov 4: buyer-specific items are on feature/buyer-overview). A verbatim copy of the live28 File Overview, used ONLY for a
 // Client-Buyer viewing their own order (not an agent there). The order page redesign (deal.js) is for staff / agents / sellers. Delete once buyer overview lands.
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611041935';
-import { GMAIL_OFF } from '../data/automation.js?v=202611041935';
-import { occSelects, yesNo } from './occ-fields.js?v=202611041935';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611041935';
-import { slotText } from './dealclosing.js?v=202611041935';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611041935';
-import { composeModal } from './compose.js?v=202611041935';
-import { moneyShow, moneyClean } from './money-input.js?v=202611041935';
-import { themeOn } from '../theme.js?v=202611041935';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611041951';
+import { GMAIL_OFF } from '../data/automation.js?v=202611041951';
+import { occSelects, yesNo } from './occ-fields.js?v=202611041951';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611041951';
+import { slotText } from './dealclosing.js?v=202611041951';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611041951';
+import { composeModal } from './compose.js?v=202611041951';
+import { moneyShow, moneyClean } from './money-input.js?v=202611041951';
+import { themeOn } from '../theme.js?v=202611041951';
 
-const TABS = { tasks: './dealtasks.js?v=202611041935', inbox: './dealmsgs.js?v=202611041935', documents: './dealdocs.js?v=202611041935', contacts: './dealcontacts.js?v=202611041935', activity: './dealactivity.js?v=202611041935', closing: './dealclosing.js?v=202611041935', agreements: './dealagreements.js?v=202611041935', accounting: './dealaccounting.js?v=202611041935' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611041951', inbox: './dealmsgs.js?v=202611041951', documents: './dealdocs.js?v=202611041951', contacts: './dealcontacts.js?v=202611041951', activity: './dealactivity.js?v=202611041951', closing: './dealclosing.js?v=202611041951', agreements: './dealagreements.js?v=202611041951', accounting: './dealaccounting.js?v=202611041951' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -20,7 +20,7 @@ export async function render(ctx) {
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
   if (tab === 'accounting' && !(api.features || {}).accounting) throw new Error('That page does not exist.');   // John, Nov 3: switchable off for the live portal
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041935' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041951' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
@@ -33,7 +33,7 @@ export async function render(ctx) {
   return { ...v, body: html`${done.html}${cards}${extra.top}${v.body}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
 }
 async function themedSummary({ api, user }, d, ov, inv) {
-  const { orderSummary } = await import('./theme-cards.js?v=202611041935');
+  const { orderSummary } = await import('./theme-cards.js?v=202611041951');
   const staffView = !user.accountRole && user.role !== 'Outside user';
   const canWire = staffView || (user.roles || [user.role]).includes('Client-Buyer');   // SAME rule as the Wire instructions button: CLA staff + the buyer, never an agent
   const tasks = await api.listTasks(d.id).catch(() => []);

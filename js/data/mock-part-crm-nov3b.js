@@ -8,11 +8,12 @@
  * Nothing here deletes: dashboards, components and reports are RETIRED (hidden, restorable). Mirrored by migration 30. */
 import { MODULE_CODES, moduleName, SEARCH_MODULES, REPORT_MODULES, DASH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, parseQuery, searchMatch, moduleFields, reportFields,
   RELATED, joinRows, runReport, reportCsv, cleanCriteria, applyCriteria, criteriaText, chartData, measureOf, measureLabel, groupOf, display, dealStageOf, CALL_TYPES,
-  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, BUCKETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611041935';
-import { ensureNov3b } from './crm-nov3b.js?v=202611041935';
-import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611041935';
-import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611041935';
-import { crmReadOnly, CRM_OWNER_ROLES } from './crm.js?v=202611041935';
+  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, BUCKETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611041951';
+import { ensureNov3b } from './crm-nov3b.js?v=202611041951';
+import { DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611041951';
+import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611041951';
+import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611041951';
+import { crmReadOnly, CRM_OWNER_ROLES } from './crm.js?v=202611041951';
 
 export const SEND_NOTE = 'Not sent: Gmail is not connected yet. The email was saved on this record only.';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -54,7 +55,9 @@ export function crmNov3bPart(x, h) {
       source: q.sourceOfBusiness || '', sourceText: q.sourceOfBusiness ? L(cfg, 'leadSource', q.sourceOfBusiness) : '', salesIds: sales.map((z) => z.salesId),
       clientIds: [...new Set(ps.filter((p) => isClientRole(p.role)).map((p) => p.contactId))],
       _contactIds: [...new Set(ps.map((p) => p.contactId))], _people: people.flatMap((c) => [fullName(c), c.email || '']), _phones: people.map((c) => c.phone || '').filter(Boolean),
-      amountText: q.purchasePrice == null ? '' : display({ type: 'currency', key: 'a' }, { a: q.purchasePrice }), closingDateText: display({ type: 'date', key: 'a' }, { a: q.closingDate }) };
+      amountText: q.purchasePrice == null ? '' : display({ type: 'currency', key: 'a' }, { a: q.purchasePrice }), closingDateText: display({ type: 'date', key: 'a' }, { a: q.closingDate }),
+      // Janine, Nov 4: Disbursement Details (typed; null = not entered)
+      ...Object.fromEntries(DISBURSEMENT_KEYS.map((k) => [k, ((d.dealDisbursements || []).find((z) => z.dealId === q.id) || {})[k] ?? null])) };
   }
   const personOf = (entity, id) => { const d = db(); return entity === 'contact' ? d.contacts.find((c) => c.id === id) : entity === 'lead' ? d.crmLeads.find((l) => l.id === id) : null; };
   function actRow(a, cfg) {
@@ -214,10 +217,15 @@ export function crmNov3bPart(x, h) {
     async searchCrm(q, { module = 'all', limit = 0, remember = false } = {}) {
       const u = crmUser(); const pq = parseQuery(q); const cfg = cfgFor(u); if (!pq.q) return { q: '', groups: [] };
       if (module !== 'all' && !SEARCH_MODULES.includes(module)) fail('Pick a module to search.');
-      const groups = (module === 'all' ? SEARCH_MODULES : [module]).map((m) => { const hits = rowsOf(u, m, cfg).filter((r) => searchMatch(r, pq, SEARCH_KEYS[m]));
-        const list = hits.slice(0, limit > 0 ? limit : SEARCH_MAX).map((r) => ({ id: r.id, link: r._link, title: r.name || r.subject || '', archived: !!r.archived, cells: Object.fromEntries(SEARCH_COLUMNS[m].map(([k]) => [k, r[k] == null ? '' : String(r[k])])),
-          links: { name: r._link, subject: r._link, clientName: r._clientLink || '', contactName: r._contactLink || '', relatedTo: r._relatedLink || '' } }));
-        return { module: m, label: moduleName(m), columns: SEARCH_COLUMNS[m], rows: list, total: hits.length }; }).filter((g) => module !== 'all' || g.total);
+      // Janine, Nov 4 ("I'm able to customize the columns that I want to see"): a person's own columns per module (crmSearchColumns), else Zoho's defaults
+      const mineCols = (m) => { const fields = moduleFields(m, cfg); const keys = (db().crmSearchColumns || []).filter((z) => z.userId === u.id && z.module === m).sort((a, b) => a.position - b.position).map((z) => z.columnKey);
+        const fs = keys.map((k) => fields.find((f) => f.key === k && !f.encrypted)).filter(Boolean); return fs.length ? fs : null; };
+      const groups = (module === 'all' ? SEARCH_MODULES : [module]).map((m) => { const hits = rowsOf(u, m, cfg).filter((r) => searchMatch(r, pq, SEARCH_KEYS[m])); const own = mineCols(m);
+        const cols = own ? own.map((f) => [f.key, f.label]) : SEARCH_COLUMNS[m];
+        const list = hits.slice(0, limit > 0 ? limit : SEARCH_MAX).map((r) => ({ id: r.id, link: r._link, title: r.name || r.subject || '', archived: !!r.archived,
+          cells: Object.fromEntries(own ? own.map((f) => [f.key, display(f, r, cfg) || '']) : SEARCH_COLUMNS[m].map(([k]) => [k, r[k] == null ? '' : String(r[k])])),
+          links: { name: r._link, subject: r._link, clientName: r._clientLink || '', contactName: r._contactLink || '', relatedTo: r._relatedLink || '', ...(own ? Object.fromEntries(own.filter((f) => f.link).map((f) => [f.key, r[f.link] || ''])) : {}) } }));
+        return { module: m, label: moduleName(m), columns: cols, customColumns: !!own, rows: list, total: hits.length }; }).filter((g) => module !== 'all' || g.total);
       if (remember) rememberSearch(u, pq.q);
       return { q: pq.q, phone: !!pq.digits, groups };
     },

@@ -2,10 +2,12 @@
 // (no data, no access rule): the adapter decides WHICH deals a user sees. Deal Name always stays (it opens the deal). Pure, so tests can pass a Map storage.
 export const DEAL_COLS = [['name', 'Deal Name'], ['fileNumber', 'File Number'], ['amount', 'Amount'], ['loanAmount', 'Loan Amount'], ['stage', 'Stage'], ['closingDate', 'Closing Date'],
   ['openDate', 'Open Date'], ['clientName', 'Client Name'], ['contactName', 'Contact Name'], ['ownerName', 'Deal Owner'], ['salesReps', 'Sales Reps'], ['sourceText', 'Source'],
-  ['transactionType', 'Transaction Type'], ['county', 'County']];
+  ['transactionType', 'Transaction Type'], ['county', 'County'],
+  // Janine, Nov 4: Disbursement Details (hidden until a person turns them on)
+  ['disbursementDate', 'Disbursement Date'], ['actualRevenue', 'Actual Revenue']];
 export const LOCKED_COLS = ['name'];
 // shown until the user changes it (the old list's 7 columns + Source)
-export const DEFAULT_HIDDEN = ['fileNumber', 'loanAmount', 'openDate', 'salesReps', 'transactionType', 'county'];
+export const DEFAULT_HIDDEN = ['fileNumber', 'loanAmount', 'openDate', 'salesReps', 'transactionType', 'county', 'disbursementDate', 'actualRevenue'];
 export const colsKey = (userId) => `cla-portal-new:crm-deals-cols:v1:${userId || 'anon'}`;
 const KNOWN = new Set(DEAL_COLS.map(([k]) => k));
 export function loadHidden(storage, userId) {

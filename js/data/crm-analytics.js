@@ -6,7 +6,7 @@
  *  * GROUPING with date buckets (By Day, By Calendar Week, By Month, By Quarter, By Year) and measures (Record Count, Sum / Avg of a number field).
  *  * REPORTS: columns, row groups ("Owner (count)"), aggregate columns (sum, avg, min, max, count), CSV.
  *  * SEARCH: words in name / email, phone by digits only. */
-import { optLabel, activeFields, customDisplay, cfKey } from './crm-config.js?v=202611041935';
+import { optLabel, activeFields, customDisplay, cfKey } from './crm-config.js?v=202611041951';
 
 // ---------- modules ----------
 export const MODULES = [['contacts', 'Clients'], ['leads', 'Leads'], ['accounts', 'Companies'], ['deals', 'Deals'], ['tasks', 'Tasks'], ['meetings', 'Meetings'], ['calls', 'Calls'], ['opportunities', 'Opportunities']];
@@ -42,7 +42,11 @@ const BASE = {
   deals: [F('name', 'Deal Name', 'text', { link: '_link' }), F('fileNumber', 'File Number', 'text', { link: '_link' }), F('propertyAddress', 'Property Address', 'text', { link: '_link' }), F('amount', 'Amount', 'currency'),
     F('loanAmount', 'Loan Amount', 'currency'), F('stage', 'Stage', 'picklist', { options: DEAL_STAGES }), F('closingDate', 'Closing Date', 'date'), F('openDate', 'Open Date', 'date'),
     F('clientName', "Client's Name", 'text', { link: '_clientLink' }), F('contactName', 'Contact Name'), F('ownerId', 'Deal Owner', 'user', { labelKey: 'ownerName' }), F('salesReps', 'Sales Reps'),
-    F('county', 'County'), F('city', 'City'), F('transactionType', 'Transaction Type'), F('lenderName', 'Lender'), F('createdAt', 'Created Time', 'datetime')],
+    F('county', 'County'), F('city', 'City'), F('transactionType', 'Transaction Type'), F('lenderName', 'Lender'), F('createdAt', 'Created Time', 'datetime'),
+    // Janine, Nov 4 (video "Disbursement Details - Deals"): the Disbursement Details section of a deal (crm-disbursement.js; table deal_disbursements)
+    F('disbursementDate', 'Disbursement Date', 'date'), F('actualRevenue', 'Actual Revenue', 'currency'), F('netTitleInsurance', 'Net Title Insurance', 'currency'),
+    F('settlementFee', 'Settlement Fee', 'currency'), F('netEndorsementFee', 'Net Endorsement Fee', 'currency'), F('qualiaFee', 'Qualia Fee', 'currency'), F('shippingFee', 'Shipping Fee', 'currency'),
+    F('nationalTitleResource', 'National Title Resource', 'currency'), F('notaryFee', 'Notary Fee', 'currency'), F('searchesFee', 'Searches', 'currency')],
   tasks: [F('subject', 'Subject', 'text', { link: '_link' }), F('dueDate', 'Due Date', 'date'), F('status', 'Status', 'picklist', { list: 'taskStatus' }), F('priority', 'Priority', 'picklist', { list: 'taskPriority' }),
     F('relatedTo', 'Related To', 'text', { link: '_relatedLink' }), F('contactName', 'Contact Name', 'text', { link: '_contactLink' }), F('ownerId', 'Task Owner', 'user', { labelKey: 'ownerName' }),
     F('closedAt', 'Closed Time', 'datetime'), F('createdBy', 'Created By', 'user', { labelKey: 'createdByName' }), F('createdAt', 'Created Time', 'datetime'), F('modifiedAt', 'Modified Time', 'datetime')],

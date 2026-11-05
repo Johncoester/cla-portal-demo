@@ -1,17 +1,18 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611041935';
-import { GMAIL_OFF } from '../data/automation.js?v=202611041935';
-import { occSelects, yesNo } from './occ-fields.js?v=202611041935';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611041935';
-import { slotText } from './dealclosing.js?v=202611041935';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611041935';
-import { composeModal } from './compose.js?v=202611041935';
-import { moneyShow, moneyClean } from './money-input.js?v=202611041935';
-import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611041935';
-import { themeOn } from '../theme.js?v=202611041935';
-import { renderClientOverview, clientSide, isPureBuyer, clientTabChrome } from './client-overview.js?v=202611041935';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611041951';
+import { GMAIL_OFF } from '../data/automation.js?v=202611041951';
+import { occSelects, yesNo } from './occ-fields.js?v=202611041951';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611041951';
+import { slotText } from './dealclosing.js?v=202611041951';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611041951';
+import { composeModal } from './compose.js?v=202611041951';
+import { moneyShow, moneyClean } from './money-input.js?v=202611041951';
+import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611041951';
+import { themeOn } from '../theme.js?v=202611041951';
+import { renderClientOverview, clientSide, isPureBuyer, clientTabChrome } from './client-overview.js?v=202611041951';
 
-const TABS = { tasks: './dealtasks.js?v=202611041935', inbox: './dealmsgs.js?v=202611041935', documents: './dealdocs.js?v=202611041935', contacts: './dealcontacts.js?v=202611041935', activity: './dealactivity.js?v=202611041935', closing: './dealclosing.js?v=202611041935', agreements: './dealagreements.js?v=202611041935', accounting: './dealaccounting.js?v=202611041935' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611041951', inbox: './dealmsgs.js?v=202611041951', documents: './dealdocs.js?v=202611041951', contacts: './dealcontacts.js?v=202611041951', activity: './dealactivity.js?v=202611041951', closing: './dealclosing.js?v=202611041951', agreements: './dealagreements.js?v=202611041951', accounting: './dealaccounting.js?v=202611041951' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+import { placeText } from '../data/cla-offices.js?v=202611041951';
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -24,28 +25,33 @@ export async function render(ctx) {
   // CLIENT TABS (John, Nov 4: every buyer tab in the light client layout; same for the seller): the tab's own content, under the client file line +
   // pill tabs, drawn in the client shell (app.js: white top bar, CLA logo, no sidebar). The content and its rules are unchanged.
   if (tab !== 'overview' && TABS[tab] && user.accountRole && clientSide(user)) {
-    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041935' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
+    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041951' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
     const top = await clientTabChrome(ctx, deal, tab);
     return { ...v, crumbs: [...here, ...(v.crumbs || [])], clientPage: { deal, side: clientSide(user), tab }, body: html`<div class="co-page co-tabpage" data-client-tab="${tab}">${top}<section class="co-card co-tabcard"><div class="co-cb">${v.body}</div></section></div>` };
   }
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041935' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041951' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   // CLIENT OVERVIEW (John, Nov 4): the buyer / seller get the redesigned overview (client-overview.js) in place of the old overview + card summary (no Cash to Close / payoff mockup figures for clients).
   if (user.accountRole && clientSide(user)) {
     const ov0 = await ctx.api.getOrderOverview(deal.id);
-    return renderClientOverview({ ...ctx, wireModal, shareModal: (o) => shareModal(ctx, deal, ov0, o) }, deal, here);
+    { const co = await renderClientOverview({ ...ctx, wireModal, shareModal: (o) => shareModal(ctx, deal, ov0, o) }, deal, here); const lp = await locPromptHtml(ctx, deal); return lp ? { ...co, body: html`${lp}${co.body}` } : co; }   // John, Nov 4: the buyer / seller closing-location to-do also shows on the client overview
   }
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
   // Francis, Nov 3 (Qualia Connect agent portal): outstanding-task alert, 4-step progress, Order Details, Parties, Activity, Conversations,
   // Request Update / Share Access (agents) and, for staff, the update requests to answer + shared access + the portal invite email
   const ov = await ctx.api.getOrderOverview(deal.id); const ur = await ctx.api.listUpdateRequests(deal.id); const inv = await ctx.api.listSharedAccess(deal.id);
+  // John, Nov 4: a party who will not be in the property's state at closing is flagged to CLA staff on the order page (RON / embassy / out-of-state notary)
+  const locFlags = await ctx.api.closingLocationFlags(deal.id).catch(() => []);
+  const flagHtml = locFlags.length ? html`<div class="notice warn" data-location-flags>${locFlags.map((f) => html`<div data-location-flag="${f.participantId}"><strong>${f.text}</strong> &middot; signing method: ${f.signingLabel} <a href="#/deals/${deal.id}/closing">scheduling</a></div>`)}</div>` : '';
+  // John, Nov 4: a buyer / seller who has not said where they will be at closing (and the closing is not scheduled) gets a to-do card here
+  const promptHtml = await locPromptHtml(ctx, deal);
   // ORDER PAGE REDESIGN (John, Nov 4 meeting; mockups 01-order-page / -mobile): one status bar (the Overview milestones) with the at-a-glance line under
   // it, a bigger address + order number, one Parties list (Call / Email / Copy per person), Notes, Order contacts. The Summary cards, the card-theme
   // Order Summary and the buyer / seller summary block are gone. Same page for every role; the role rules (adapter + canWire) are unchanged.
   const splits = !user.accountRole && user.role !== 'Outside user' && ctx.api.listUnderwriterSplits ? await ctx.api.listUnderwriterSplits().then((r) => (r && r.rows) || []).catch(() => []) : [];   // the state's underwriter (Underwriter row)
   const v = overview(ctx, deal, here, ag, salesStaff, ov, splits); const extra = agentPanels(ctx, deal, ov, ur, inv); const done = placedPanel(deal);
-  return { ...v, noOrderHeader: true, body: html`${done.html}${v.head}${extra.top}${v.body}${extra.bottom}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
+  return { ...v, noOrderHeader: true, body: html`${done.html}${promptHtml}${flagHtml}${v.head}${extra.top}${v.body}${extra.bottom}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
 }
 
 // REDESIGN (John, Nov 3): the confirmation after Place Order. ordernew.js leaves a note in sessionStorage (key below) and opens the new order; the
@@ -111,7 +117,7 @@ function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = [], ov = n
     ${d.unread ? html`<div class="op-actions"><a class="new-msg" href="#/deals/${d.id}/inbox">${d.unread} new message(s)</a></div>` : ''}
     ${d.agentParties && d.agentParties.length ? html`<div class="notice warn" data-agent-party><strong>Agent is a party.</strong> ${d.agentParties.map((p) => `${p.name} is the ${p.label}`).join('; ')} on this file (a licensee buying or selling for themselves). Make sure the licensee disclosure is on file.</div>` : ''}
     ${d.selfRep ? html`<div class="notice info" data-self-rep>You are the <strong>${d.myRoleLabel}</strong> on this file. Your tasks as the client and as the agent are in one list; the history records which capacity you acted in.</div>` : ''}
-    ${sc ? html`<div class="notice info" data-scheduled-closing><strong>Closing scheduled:</strong> ${slotText(sc.at)} &middot; ${sc.location}${sc.note ? html` &middot; ${sc.note}` : ''} <a href="#/deals/${d.id}/closing">details</a></div>` : ''}
+    ${sc ? html`<div class="notice info" data-scheduled-closing><strong>Closing scheduled:</strong> ${slotText(sc.at)} &middot; ${placeText(sc.location, sc.officeId, sc.officeName)}${sc.note ? html` &middot; ${sc.note}` : ''} <a href="#/deals/${d.id}/closing">details</a></div>` : ''}
     ${ag && ag.pending ? html`<div class="notice warn" data-agreements-pending>You have <strong>${ag.pending}</strong> agreement(s) to read and acknowledge (including the Wire Fraud Warning). <a href="#/deals/${d.id}/agreements">Open Agreements</a></div>` : ''}
     ${refi ? html`<p class="notice info" data-refi-note><strong>Refinance.</strong> No purchase price, EMD, sellers or realtors on this order: the people are the borrower(s), salespeople, the Processor and the Lender.</p>` : ''}`;
   const lenderLine = d.lenderName || d.lenderContact || d.lenderEmail || d.lenderPhone ? html`<b>${d.lenderName || d.lenderContact}</b>${d.lenderName && d.lenderContact ? html` &middot; ${d.lenderContact}` : ''}${d.lenderEmail || d.lenderPhone ? html`<br><span class="muted small">${[d.lenderEmail, fmtPhone(d.lenderPhone)].filter(Boolean).join(' \u00b7 ')}</span>` : ''}`
@@ -317,4 +323,10 @@ function shareModal({ api, refresh }, d, ov, { buyer = false } = {}) {
       <p class="muted small span2">Demo build: the share is recorded on this order and shown to CLA Title. No email is sent and no login is created.</p>
       <div class="span2"><button type="button" class="ghost" data-close>Cancel</button> <button class="m-btn" type="submit">Share</button></div></form>`);
       $('#saf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.shareAccess(d.id, formData(e.target)); closeModal(); toast('Access shared (recorded; no email sent)'); refresh(); }));
+}
+
+// John, Nov 4: a buyer / seller who has not said where they will be at closing (and the closing is not scheduled) gets a to-do card (order page + client overview)
+async function locPromptHtml(ctx, deal) {
+  const prompt = await ctx.api.closingLocationPrompt(deal.id).catch(() => []);
+  return prompt.length ? html`<div class="notice info" data-loc-prompt><strong>To do: where will you be at closing?</strong> Please tell us whether you will be in ${(US_STATE_NAMES.find(([c]) => c === prompt[0].propertyState) || [, prompt[0].propertyState])[1]} at the time of closing, so we can plan the signing (in person, remote online notarization or embassy). <a class="m-btn" href="#/deals/${deal.id}/closing">Answer now</a></div>` : '';
 }

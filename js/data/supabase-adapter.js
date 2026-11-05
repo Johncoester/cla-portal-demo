@@ -1,19 +1,22 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611041935';
-import { localDate, fileRoleLabel } from './constants.js?v=202611041935';
-import { featureFlags } from './features.js?v=202611041935';
-import { accountingSupabase } from './supabase-accounting.js?v=202611041935';
-import { payoffsSupabase } from './supabase-payoffs.js?v=202611041935';
-import { modulesSupabase } from './supabase-modules.js?v=202611041935';
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611041935';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611041935';
-import { automationPart } from './automation.js?v=202611041935';
-import { runsOrders as runsOrdersCI } from './constants.js?v=202611041935';
-import { fieldsForRole } from './templates.js?v=202611041935';
-import { crmSupabase } from './supabase-crm.js?v=202611041935';
-import { hrSupabase } from './supabase-hr.js?v=202611041935';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611041951';
+import { localDate, fileRoleLabel } from './constants.js?v=202611041951';
+import { featureFlags } from './features.js?v=202611041951';
+import { accountingSupabase } from './supabase-accounting.js?v=202611041951';
+import { payoffsSupabase } from './supabase-payoffs.js?v=202611041951';
+import { modulesSupabase } from './supabase-modules.js?v=202611041951';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611041951';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611041951';
+import { automationPart } from './automation.js?v=202611041951';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611041951';
+import { fieldsForRole } from './templates.js?v=202611041951';
+import { crmSupabase } from './supabase-crm.js?v=202611041951';
+import { hrSupabase } from './supabase-hr.js?v=202611041951';
+import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611041951';
+import { officesSupabase } from './supabase-offices.js?v=202611041951';
+import { closingLocationSupabase } from './supabase-closing-location.js?v=202611041951';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned; vendor locally before go-live
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -201,13 +204,13 @@ export async function createSupabaseAdapter(cfg) {
     async acknowledgeAgreement(dealId, code) { return { id: ok(await sb.rpc('acknowledge_agreement', { p_deal: dealId, p_code: code })) }; },
     async getWireInstructions(dealId) { const w = camel(ok(await sb.rpc('wire_instructions', { p_deal: dealId }))); return { ...w, amountNote: 'Your exact amount comes from your Closing Disclosure / settlement statement.' }; },
     async listClosingProposals(dealId) { return camel(ok(await sb.from('closing_proposals').select('*').eq('deal_id', dealId).order('created_at', { ascending: false }))).map((p) => ({ ...p, at: String(p.proposedAt).slice(0, 16) })); },
-    async proposeClosing(dealId, { at, location, note }) { return { id: ok(await sb.rpc('propose_closing', { p_deal: dealId, p_at: at, p_location: location, p_note: note || '' })) }; },
-    async confirmClosing(dealId, { at, location, note, proposalId } = {}) { ok(await sb.rpc('confirm_closing', { p_deal: dealId, p_at: at || null, p_location: location || null, p_note: note || '', p_proposal: proposalId || null })); },
+    async proposeClosing(dealId, { at, location, note, officeId }) { return { id: ok(await sb.rpc('propose_closing', { p_deal: dealId, p_at: at, p_location: location, p_note: note || '', p_office: officeId || null })) }; },
+    async confirmClosing(dealId, { at, location, note, proposalId, officeId } = {}) { ok(await sb.rpc('confirm_closing', { p_deal: dealId, p_at: at || null, p_location: location || null, p_note: note || '', p_proposal: proposalId || null, p_office: officeId || null })); },
     // e-sign: the RPCs stand in for the provider (esign.js DemoProvider); a DocuSign / Dropbox Sign Edge Function would call the same tables
     async requestSignature(docId, { signerIds, message }) { return { id: ok(await sb.rpc('request_signature', { p_doc: docId, p_signers: signerIds, p_message: message || '' })) }; },
     async listSignatureRequests(dealId) { return camel(ok(await sb.from('signature_requests').select('*, signers:signature_signers(*)').eq('deal_id', dealId).order('requested_at', { ascending: false }))); },
     async signDocument(requestId, { typedName, adopt }) { return { status: ok(await sb.rpc('sign_document', { p_request: requestId, p_typed_name: typedName, p_adopt: adopt === true || adopt === 'on' })) }; },
-    // SHARE WITH BUYER (John, Nov 4; migration 57): CLA staff open another party's upload to the pure Client-Buyer; documents.shared_with_client(_by/_at) are typed, reportable columns
+    // SHARE WITH BUYER (John, Nov 4; migration 60): CLA staff open another party's upload to the pure Client-Buyer; documents.shared_with_client(_by/_at) are typed, reportable columns
     async shareDocumentWithClient(docId, share = true) { ok(await sb.rpc('share_document_with_client', { p_doc: docId, p_share: share !== false })); return true; },
     async cancelSignatureRequest(id) { ok(await sb.rpc('cancel_signature_request', { p_request: id })); return true; },
   };
@@ -233,6 +236,9 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, agentInviteSupabase({ sb, ok, me }));   // John, Nov 4 (migration 41): agent invites (nothing sent), agent profiles, the clients' agent card
   { const { hrSessionExtras, ...hrApi } = hrSupabase({ sb, ok, me }); Object.assign(a, hrApi);   // HR workspace, Phase 1 (Nov 4, migration 47): the session carries hrRole / hrEmployeeId / hrHasReports
     const gs = a.getSession; a.getSession = async function () { const u = await gs.call(this); return u ? { ...u, ...(await hrSessionExtras()) } : u; }; }
+  Object.assign(a, feedbackNov4Supabase({ sb, ok, me }));
+  Object.assign(a, closingLocationSupabase({ sb, ok }));   // John, Nov 4 (migration 58): where each buyer / seller will be at closing
+  Object.assign(a, officesSupabase({ sb, ok, me }, { listClosingProposals: a.listClosingProposals }));   // John, Nov 4 (migration 57): Admin > Offices + the closing office picker   // John + Janine, Nov 4 (migration 56): closing office default, disbursement, search columns   // John, Nov 4 (migration 41): agent invites (nothing sent), agent profiles, the clients' agent card
   Object.assign(a, automationPart(a, { runsOrders: runsOrdersCI, me }));   // Email sellers and agents: preview only, nothing sent
   return a;
 }

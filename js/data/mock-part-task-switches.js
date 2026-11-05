@@ -3,7 +3,7 @@
  * Added on first use (ensureTaskSwitches) without a storage-key bump: nothing existing changes. Only Admin / Super admin read the list + log and flip a switch.
  * OFF = not created from now on; tasks already on files are kept (never deleted or cancelled) but hidden from everyone except Admin / Super admin
  * (taskShownTo, used by taskVisible in mock-adapter.js). A reason is required to switch a task off. Rows and log entries are never deleted. */
-import { switchableTasks, canManageTaskSwitches, ensureTaskSwitches, taskEnabled, cleanReason } from './task-switches.js?v=202611041935';
+import { switchableTasks, canManageTaskSwitches, ensureTaskSwitches, taskEnabled, cleanReason } from './task-switches.js?v=202611041951';
 
 export function taskSwitchesPart(x) {
   const { load, save, nid, needUser, fail, now, nameOf, clone } = x;

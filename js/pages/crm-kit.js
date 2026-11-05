@@ -1,10 +1,11 @@
 // crm-kit.js : shared CRM screen pieces (John, Nov 2): section tabs, list views (search / filters / sort), selects, activities panel, CSV download.
 // Function first, minimal styling. Every rule is enforced by the adapter (and RLS in migration 22), not by these screens.
-import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pill } from '../ui.js?v=202611041935';
-import { CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611041935';
-import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611041935';
-import { modOn, modBeta, BETA_LABEL } from '../data/modules.js?v=202611041935';   // module switches: Deals hidden when not Live (beta badge for Admins)
-import { createNewMenu } from './crm-janine.js?v=202611041935';
+import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pill } from '../ui.js?v=202611041951';
+import { CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611041951';
+import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611041951';
+import { modOn, modBeta, BETA_LABEL } from '../data/modules.js?v=202611041951';   // module switches: Deals hidden when not Live (beta badge for Admins)
+import { createNewMenu } from './crm-janine.js?v=202611041951';
+import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611041951';
 
 // Nov 2 (Zoho): Home is the CRM landing page; Contacts are shown as Clients and Accounts as Companies (routes keep their internal names); My follow-ups -> Home tasks
 export const SECTIONS = [['home', 'Home'], ['leads', 'Leads'], ['contacts', 'Clients'], ['accounts', 'Companies'], ['deals', 'Deals'], ['pipeline', 'Pipeline'], ['dashboards', 'Dashboards'], ['reports', 'Reports'], ['templates', 'Templates']];   // Nov 3 (b): Deals (the portal's orders), Dashboards (video 9);   // Nov 3: Templates (email templates, every CRM user; Processor read-only)
@@ -27,12 +28,13 @@ export const dis = (me) => (me.canEdit ? '' : raw('disabled'));
 // LIST VIEW. cols: [key, label, (row) => cell, (row) => csv text]. filters: [name, label, [[value, label]], blankLabel]. sorts: [[key, label]].
 // csv: file name -> an "Export CSV" button that downloads the rows currently shown (filters + sort), with the columns shown.
 // exporter(cols, rows) -> { name, csv }: the adapter builds the file and refuses anyone but an Admin / Super admin (John, Nov 3: Clients, Leads, Companies)
-export function listView({ key, rows, cols, filters = [], sorts = [], fields, dflt = {}, sortDefault = 'name:asc', csv = '', exporter = null }) {
-  const body = html`<form class="filter-bar" id="crm-f-${key}" onsubmit="return false">
+// Janine, Nov 4: bar = the custom-view tabs (crm-views.js viewsBar) shown above the filters; saved = { api, listKey } adds Saved Filters chips
+export function listView({ key, rows, cols, filters = [], sorts = [], fields, dflt = {}, sortDefault = 'name:asc', csv = '', exporter = null, bar = '', saved = null }) {
+  const body = html`${bar}<form class="filter-bar" id="crm-f-${key}" onsubmit="return false">
       <label>Search<input name="q" type="search" placeholder="Name, email, company, county, tag" data-crm-search></label>
       ${filters.map(([name, label, opts, blank]) => html`<label>${label}${sel(name, opts, dflt[name] || '', blank)}</label>`)}
       <label>Sort<select name="sort">${sorts.flatMap(([k, l]) => [html`<option value="${k}:asc" ${sortDefault === k + ':asc' ? raw('selected') : ''}>${l} &uarr;</option>`, html`<option value="${k}:desc" ${sortDefault === k + ':desc' ? raw('selected') : ''}>${l} &darr;</option>`])}</select></label>
-    </form>
+    </form>${saved ? savedFiltersHtml(saved.listKey) : ''}
     <div class="table-tools"><span class="muted" data-count></span>${csv ? html` <button class="ghost" type="button" data-list-csv="${key}">Export CSV</button>` : exporter ? html` <span class="muted small" data-csv-admin-only>CSV download: Admins only</span>` : ''}</div>
     <table class="tbl" id="crm-t-${key}"><thead><tr>${cols.map(([, l]) => html`<th>${l}</th>`)}</tr></thead><tbody></tbody></table>`;
   function mount(root) {
@@ -41,6 +43,9 @@ export function listView({ key, rows, cols, filters = [], sorts = [], fields, df
       tb.innerHTML = toText(list.length ? list.map((r) => html`<tr data-row="${r.id}">${cols.map(([c, , fn]) => html`<td data-col="${c}">${fn ? fn(r) : r[c] ?? ''}</td>`)}</tr>`) : html`<tr><td colspan="${cols.length}" class="muted">Nothing matches.</td></tr>`);
       $('[data-count]', root).textContent = `${list.length} of ${rows.length} shown`; };
     f.addEventListener('input', apply); f.addEventListener('change', apply); apply();
+    if (saved) wireSavedFilters(root, saved.api, saved.listKey, { getValues: () => { const v = formData(f); delete v.sort; return v; },
+      setValues: (o) => { [...f.elements].forEach((el) => { if (!el.name || el.name === 'sort') return; el.value = o[el.name] != null ? o[el.name] : ''; }); apply(); },
+      count: (o) => crmFilter(rows, o, fields).length });
     const cb = $(`[data-list-csv="${key}"]`, root); if (cb) cb.addEventListener('click', guard(async () => {
       const text = (c, r) => { const [k, , fn, csvFn] = c; if (csvFn) return csvFn(r); const v = r[k]; if (fn && (v == null || typeof v === 'object')) return toText(fn(r)).replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim(); return v; };
       const out = shown.map((r) => Object.fromEntries(cols.map((c) => [c[0], text(c, r)])));

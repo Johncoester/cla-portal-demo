@@ -13,11 +13,11 @@ export const WORKSPACES = [
   { id: 'hr', label: 'HR', desc: 'Employees, profiles, departments, designations', home: '/hr' },
   { id: 'portal', label: 'Portal', desc: 'Orders and files, open orders, tasks, documents, messages', home: '/dashboard' },
   { id: 'everything', label: 'Everything', desc: 'The full view: every menu and dashboard', home: '/dashboard' },
-  { id: 'admin', label: 'Admin / Settings', desc: 'Users, teams, modules, underwriter splits', home: '/users' },
+  { id: 'admin', label: 'Admin / Settings', desc: 'Users, teams, offices, modules, underwriter splits', home: '/users' },
 ];
 export const wsById = (id) => WORKSPACES.find((w) => w.id === id) || null;
-import { modAccess } from './data/modules.js?v=202611041935';
-import { hrVisibleFor } from './data/hr.js?v=202611041935';
+import { modAccess } from './data/modules.js?v=202611041951';
+import { hrVisibleFor } from './data/hr.js?v=202611041951';
 export const hrVisible = (u) => hrVisibleFor(u, modAccess('hr'));
 export const hrOnly = (u) => !!(u && u.role === 'Employee');   // HR-only login: always the HR workspace, no dropdown
 export const usesWorkspaces = (u) => !!(u && (u.isAdmin || (!hrOnly(u) && hrVisible(u))));
@@ -40,11 +40,11 @@ export function routeWs(route) {
   if (p === 'crm') return 'crm';
   if (p === 'hr') return 'hr';
   if (['deal', 'orders', 'orders/new', 'tasks', 'task-grid', 'library', 'activity', 'templates', 'outbox', 'agent-invites'].includes(p)) return 'portal';   // agent invites live in Portal (+ Everything)
-  if (['users', 'teams', 'modules', 'underwriters'].includes(p)) return 'admin';
+  if (['users', 'teams', 'offices', 'modules', 'underwriters'].includes(p)) return 'admin';
   return null;
 }
 // nav item id -> workspace (navFor ids)
 const NAV_WS = { dashboard: 'portal', orders: 'portal', tasks: 'portal', 'task-grid': 'portal', library: 'portal', activity: 'portal', templates: 'portal', outbox: 'portal', 'agent-invites': 'portal',
   crm: 'crm', 'crm-home': 'crm', 'crm-deals': 'crm', 'crm-contacts': 'crm', 'crm-leads': 'crm', 'crm-calls': 'crm', 'crm-templates': 'crm',
-  'users/new': 'admin', users: 'admin', teams: 'admin', modules: 'admin', underwriters: 'admin' };
+  'users/new': 'admin', users: 'admin', teams: 'admin', offices: 'admin', modules: 'admin', underwriters: 'admin' };
 export const navInWs = (id, ws) => ws === 'everything' || NAV_WS[id] === ws;

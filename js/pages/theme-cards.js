@@ -2,9 +2,10 @@
 // with ?theme=default nothing here is rendered and the pages look as before. FAKE DATA ONLY. Inline SVG icons (no CDN, no icon font).
 // Figures that the portal does not store yet (title search / commitment, cash to close, wire status, payoffs, loan type, rate) are MOCKUP
 // SAMPLES derived from the fake order (sampleFacts below); every one of them carries a visible "sample" tag (SAMPLE) on the page.
-import { html, raw, fmtDate, fmtMoney } from '../ui.js?v=202611041935';
-import { STAGES, isRefi, localDate } from '../data/constants.js?v=202611041935';
-import { phaseOf, PHASES } from '../data/agent-portal.js?v=202611041935';
+import { html, raw, fmtDate, fmtMoney } from '../ui.js?v=202611041951';
+import { STAGES, isRefi, localDate } from '../data/constants.js?v=202611041951';
+import { phaseOf, PHASES } from '../data/agent-portal.js?v=202611041951';
+import { placeText } from '../data/cla-offices.js?v=202611041951';
 
 // ---------- icons: 24x24, thin 1.5 stroke, currentColor ----------
 const P = {
@@ -100,7 +101,7 @@ export function orderSummary({ d, user, ov, inv = [], tasks = [], canWire, staff
     <div class="tc-body">${cols(html`${f('Opened', fmtDate(d.openDate))}${f('Title Status', sm(s.title.status))}`, html`${f('Open Conditions', String(d.openTasks ?? (ov && ov.counts ? ov.counts.tasks : '')), ' data-tc-open-conditions')}${f('Phase', ph.phaseName)}`)}${steps}</div>`);
   // 3. settlement
   const c3 = card('settlement', html`${head(closeOn ? shortDate(closeOn) : 'Not scheduled', closeOn ? html`Settlement <span class="tc-slash">/</span> ${longDate(closeOn)}` : 'Settlement date')}
-    ${cols(html`${f('Closing Location', sc && sc.location ? sc.location : closeOn ? 'CLA Title office (to be confirmed)' : '')}${f('Closing Time', sc ? timeOf(sc.at) : closeOn ? 'To be confirmed' : '')}`,
+    ${cols(html`${f('Closing Location', sc && sc.location ? placeText(sc.location, sc.officeId, sc.officeName) : closeOn ? 'CLA Title office (to be confirmed)' : '')}${f('Closing Time', sc ? timeOf(sc.at) : closeOn ? 'To be confirmed' : '')}`,
       html`${f('Days to Close', toGo == null ? '' : toGo < 0 ? `${-toGo} days ago` : toGo === 0 ? 'Today' : `${toGo} day${toGo === 1 ? '' : 's'}`)}${f('Status', sc ? 'Confirmed' : closeOn ? 'Requested' : 'Not requested')}`)}`);
   // 4. title (sample)
   const c4 = card('title', html`${head(sm(s.title.status), s.title.final ? html`Commitment final <span class="tc-slash">/</span> Title insurance` : 'Title search & commitment', { lock: s.title.final, attr: s.title.final ? ' data-tc-commitment-final' : '' })}

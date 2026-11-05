@@ -9,11 +9,12 @@
  * VIEW AS (Super admin only): inside a locked link whose OWNER is a Super admin (King John), a "View as" dropdown switches the tab to any fake user and
  * back; the route guard then applies to the person being viewed. Any other locked link (Adam Admin included) never gets it, and a stored viewAs on a
  * lock whose owner is not a Super admin is ignored and cleared (app.js). */
-import { runsOrders, isStaff, isOutside } from './constants.js?v=202611041935';
-import { canUseCrm } from './crm.js?v=202611041935';
-import { canInviteAgents } from './agent-profile.js?v=202611041935';
-import { canManageModules } from './modules.js?v=202611041935';
-import { hrSectionAllowed } from './hr.js?v=202611041935';
+import { runsOrders, isStaff, isOutside } from './constants.js?v=202611041951';
+import { canUseCrm } from './crm.js?v=202611041951';
+import { canInviteAgents } from './agent-profile.js?v=202611041951';
+import { canManageModules } from './modules.js?v=202611041951';
+import { hrSectionAllowed } from './hr.js?v=202611041951';
+import { canManageOffices } from './offices.js?v=202611041951';
 
 export const LOCK_KEY = 'cla-portal-new:locked:v1';
 export function devPickerOn(w = (typeof window !== 'undefined' ? window : {})) {
@@ -61,6 +62,7 @@ export function routeAllowed(u, route, { locked = false } = {}) {
   if (['dashboard', 'orders', 'deal', 'profile', 'contact-us'].includes(p)) return true;   // deal access itself is checked per file by the adapter
   if (p === 'crm') return canUseCrm(u);
   if (p === 'users' || p === 'teams') return !!u.isAdmin;
+  if (p === 'offices') return canManageOffices(u);   // John, Nov 4: Admin > Offices (Admin / Super admin only; others get "Not available")
   if (p === 'modules' || p === 'underwriters') return canManageModules(u);
   if (p === 'orders/new' || p === 'task-grid' || p === 'activity') return runsOrders(u) || !!u.isAdmin;
   if (p === 'tasks') return !!u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator';
@@ -76,7 +78,7 @@ const FILE_TABS = ['overview', 'tasks', 'inbox', 'documents', 'closing', 'contac
 const ACCT_VIEWS = ['charges', 'cd', 'cddetails', 'prorations', 'payments', 'ledger', 'alta', 'history', 'payoffs', 'taxes', 'othercontacts'];   // + payoffs / taxes / othercontacts (live28: Qualia Payoffs, Taxes & Prorations, Other Contacts)
 export const SECTIONS = { home: '/dashboard', 'my-tasks': '/dashboard', orders: '/orders', 'place-order': '/orders/new', tasks: '/tasks', 'task-grid': '/task-grid', library: '/library',
   crm: '/crm', 'crm-deals': '/crm/deals', 'crm-leads': '/crm/leads', 'crm-calls': '/crm', 'crm-templates': '/crm/templates', 'crm-pipeline': '/crm/pipeline', 'crm-reports': '/crm/reports',
-  admin: '/users', users: '/users', 'create-user': '/users/new', teams: '/teams', modules: '/modules', underwriters: '/underwriters', 'agent-invites': '/agent-invites',
+  admin: '/users', users: '/users', 'create-user': '/users/new', teams: '/teams', 'admin-offices': '/offices', modules: '/modules', underwriters: '/underwriters', 'agent-invites': '/agent-invites',
   templates: '/templates', outbox: '/outbox', activity: '/activity', profile: '/profile', hr: '/hr', 'my-profile': '/hr/me',
   // HR section links (John, Nov 4: "HR should have a link"). Only pick the first page: app.js still applies hrSectionAllowed + the 'hr' module switch
   // (Super admins only while HR is off; HR managers once Live; an employee only their own profile; HR Settings = Super admin only).

@@ -1,19 +1,19 @@
 // Tasks tab. Intake forms are per-participant copies of a versioned template (open them to fill in). Simple tasks are ticked.
 // Processor + transaction coordinator manage tasks and queue reminders (outbox only, never sent). Tasks are cancelled, never deleted.
-import { html, $, $$, guard, formData, modal, closeModal, options, fmtDate, pill, toast } from '../ui.js?v=202611041935';
-import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611041935';
-import { boxTasks } from '../data/task-board.js?v=202611041935';
+import { html, $, $$, guard, formData, modal, closeModal, options, fmtDate, pill, toast } from '../ui.js?v=202611041951';
+import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611041951';
+import { boxTasks } from '../data/task-board.js?v=202611041951';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
 export const LABEL = { todo: 'to do', in_progress: 'started', done: 'done', blocked: 'blocked', cancelled: 'cancelled' };
 
 export async function render(ctx) {
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611041935')).render(ctx);
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611041951')).render(ctx);
   const { api, user, deal, refresh } = ctx;
   const tasks = await api.listTasks(deal.id);
   // BUYER (Nov 4 call): the agreements are to-dos that open the agreement (no Agreements tab for the buyer); the buyer never gets a Listing Agent box (listing agent never shown)
-  const { isPureBuyer, agreementTasks } = await import('./client-overview.js?v=202611041935'); const pure = user.accountRole && isPureBuyer(user);
+  const { isPureBuyer, agreementTasks } = await import('./client-overview.js?v=202611041951'); const pure = user.accountRole && isPureBuyer(user);
   const agTodo = pure ? agreementTasks(deal, await api.listAgreements(deal.id).catch(() => null)) : []; const manage = runsOrders(user) || user.role === 'Transaction Coordinator'; const today = localDate(); const refi = isRefi(deal);
   const open = (t) => ['todo', 'in_progress', 'blocked'].includes(t.status);
   const row = (t) => html`<tr class="${t.status === 'done' || t.status === 'cancelled' ? 'is-done' : ''}">
