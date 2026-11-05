@@ -1,0 +1,217 @@
+// order > Title (John, Nov 4 2026): the title review, Qualia-style. CLA STAFF ONLY (Processor / TC / Admins edit; Sales read only). FAKE data only.
+// Sections (?v=): Checklist, Notes & Documents, PACER, Search package, Contract, Chain of title, Loan check, Schedule A, Requirements (B-I), Exceptions (B-II),
+// Policies, CPL, Finalize & Package, Summary note. Nothing is ever sent (the lender email is a queued outbox row); no SSN is ever asked for or stored.
+import { html, raw, esc, $, $$, guard, toast, modal, closeModal, options, pill, fmtDate, fmtDateTime, fmtMoney, formData } from '../ui.js?v=202611042116';
+import * as T from '../data/title.js?v=202611042116';
+
+const ld = (iso) => (iso ? fmtDateTime(iso).split(',')[0] : '');   // a timestamp's LOCAL date
+const val = (v) => (v == null ? '' : v);
+const yn = (v) => (v === true ? 'true' : v === false ? 'false' : '');
+// one typed input; t: text | money | date | bool | long | list:<array of strings or [value,label]>
+function fld(name, label, value, t = 'text', ro = false, extra = '') {
+  const dis = ro ? raw(' disabled') : '';
+  if (t === 'bool') return html`<label>${label}<select name="${name}"${dis}>${options([['', '-'], ['true', 'Yes'], ['false', 'No']], yn(value), (o) => o[1], (o) => o[0])}</select></label>`;
+  if (Array.isArray(t)) { const list = t.map((o) => (Array.isArray(o) ? o : [o, o])); return html`<label>${label}<select name="${name}"${dis}>${options([['', '-'], ...list], val(value), (o) => o[1], (o) => o[0])}</select></label>`; }
+  if (t === 'long') return html`<label class="span2">${label}<textarea name="${name}" rows="4"${dis}>${val(value)}</textarea></label>`;
+  if (t === 'money') return html`<label>${label}<input name="${name}" inputmode="decimal" value="${val(value)}"${dis}${raw(extra)}></label>`;
+  if (t === 'date') return html`<label>${label}<input name="${name}" type="date" value="${val(value)}"${dis}></label>`;
+  return html`<label>${label}<input name="${name}" value="${val(value)}"${dis}${raw(extra)}></label>`;
+}
+const saveBtn = (ro, label = 'Save') => (ro ? html`<p class="muted small span2">Read only (Sales).</p>` : html`<div class="span2"><button class="m-btn" type="submit">${label}</button></div>`);
+const md = (t) => raw(T.miniMarkdown(t, esc));
+const statusPill = (s) => pill(T.reviewStatusLabel(s), s === 'clear_to_close' ? 'ok' : s === 'not_started' ? '' : 'warn');
+const stepBtns = (v, key, ro) => { const s = v.steps.find((z) => z.key === key) || { status: 'open' };
+  return html`<span class="tt-step" data-step-row="${key}">${pill(s.status === 'done' ? 'Done' : s.status === 'na' ? 'N/A' : 'Open', s.status === 'done' ? 'ok' : s.status === 'na' ? '' : 'warn')} ${ro ? '' : html`<button type="button" class="ghost small" data-step="${key}" data-st="${s.status === 'done' ? 'open' : 'done'}">${s.status === 'done' ? 'Reopen' : 'Mark done'}</button>${s.status === 'open' ? html` <button type="button" class="ghost small" data-step="${key}" data-st="na">N/A</button>` : ''}`}</span>`; };
+
+export async function render({ api, deal, user, refresh }) {
+  const sec = new URLSearchParams(location.hash.split('?')[1] || '').get('v') || 'overview';
+  const v = await api.getTitle(deal.id); v.progress.pct = v.progress.total ? Math.round((v.progress.done / v.progress.total) * 100) : 0; const ro = !v.canEdit; const r = v.review || {}; const D = v.deal;
+  const go = (s) => `#/deals/${deal.id}/title${s === 'overview' ? '' : `?v=${s}`}`;
+  const head = html`<div class="box-title tt-head" data-title-head><h2><span class="h-ico"></span>Title</h2>
+      <div class="tt-meta"><span>Status ${statusPill(v.status)}</span><span>Reviewer <b>${r.reviewerName || '-'}</b></span><span>Review date <b>${fmtDate(r.reviewDate) || '-'}</b></span>
+      <span>Commitment ${pill(r.commitmentStatus === 'final' ? 'Final' : v.review ? 'Draft' : 'Not started', r.commitmentStatus === 'final' ? 'ok' : '')}</span></div></div>
+    <div class="tt-progress" data-title-progress title="${v.progress.done} of ${v.progress.total} steps"><div class="tt-bar"><span style="width:${v.progress.pct}%"></span></div><span class="small">${v.progress.done} / ${v.progress.total} steps (${v.progress.pct}%)</span>
+      ${ro ? '' : html`<label class="small tt-status">Title review status <select data-status>${options([['auto', 'Automatic'], ...T.REVIEW_STATUSES], r.statusManual ? v.status : 'auto', (o) => o[1], (o) => o[0])}</select></label>`}</div>
+    <p class="muted small">${D.fileNumber} &middot; ${D.street}, ${D.city}, ${D.state} ${D.zip}${D.county ? ` (${D.county})` : ''} &middot; Buyer: ${D.buyers.join(', ') || '-'} &middot; Seller: ${D.sellers.join(', ') || '-'} &middot; CLA staff only: agents and clients never see this tab.</p>
+    ${v.warnings.length ? html`<ul class="tt-warn" data-title-warnings>${v.warnings.map((w) => html`<li class="${w.red ? 'red' : ''}" data-warn="${w.key}">${w.text}</li>`)}</ul>` : ''}
+    <nav class="tt-tabs" data-title-tabs>${T.SECTIONS.map(([k, l]) => html`<a href="${go(k)}" class="${sec === k ? 'active' : ''}" data-sec="${k}">${l}</a>`)}</nav>`;
+  if (!v.review && sec !== 'overview' && sec !== 'notes') return { title: 'Title', crumbs: [['Title']], body: html`${head}<div class="card" data-title-empty><p>The title review has not started on this order.</p>${ro ? '' : html`<button class="m-btn" data-start>Start title review</button>`}</div>`, mount: (root) => mountAll(root) };
+  const body = html`${head}<div class="tt-body" data-title-sec="${sec}">${SECTIONS_UI[sec] ? SECTIONS_UI[sec](v, ro, D, r) : ''}</div>`;
+  return { title: 'Title', crumbs: [['Title']], body, mount: (root) => mountAll(root) };
+
+  function mountAll(root) {
+    const on = (sel, ev, fn) => $$(sel, root).forEach((el) => el.addEventListener(ev, guard((e) => fn(e, el))));
+    const done = (msg) => { if (msg) toast(msg); refresh(); };
+    on('[data-start]', 'click', async () => { await api.startTitleReview(deal.id); done('Title review started'); });
+    on('[data-status]', 'change', async (e, el) => { await api.setTitleReviewStatus(deal.id, el.value); done('Status saved'); });
+    on('[data-step]', 'click', async (e, el) => { await api.setTitleStep(deal.id, el.dataset.step, el.dataset.st); done(); });
+    on('form[data-review]', 'submit', async (e, el) => { e.preventDefault(); await api.saveTitleReview(deal.id, formData(el)); done('Saved'); });
+    on('form[data-loan]', 'submit', async (e, el) => { e.preventDefault(); const f = formData(el); const res = await api.saveTitleLoan(deal.id, f); done(res.diffs.length ? `Saved. Mismatch flagged: ${res.diffs.join('; ')}` : 'Loan check saved'); });
+    on('[data-folders]', 'click', async () => { const n = await api.ensureTitleFolders(deal.id); done(`${n} title folders ready`); });
+    on('select[data-tag]', 'change', async (e, el) => { await api.tagTitleDocument(deal.id, el.dataset.tag, el.value); done('Document filed'); });
+    on('form[data-addoc]', 'submit', async (e, el) => { e.preventDefault(); const f = formData(el); await api.addTitleDocRecord(deal.id, f.kind, f.name); done('Document record added'); });
+    on('form[data-note]', 'submit', async (e, el) => { e.preventDefault(); const f = formData(el); await api.addOrderNote(deal.id, f); done('Note added'); });
+    on('[data-note-res]', 'change', async (e, el) => { await api.setOrderNoteResolved(el.dataset.noteRes, el.checked); done(); });
+    on('form[data-pacer]', 'submit', async (e, el) => { e.preventDefault(); const f = formData(el); f.exactMatch = f.searchType === 'party_name'; if (!f.notes) delete f.notes; await api.savePacerSearch(deal.id, f); done('PACER search recorded (receipt filed in 200 Title › BK Search)'); });
+    on('[data-pacer-del]', 'click', async (e, el) => { if (!confirm('Remove this search? It stays in the history.')) return; await api.retirePacerSearch(el.dataset.pacerDel); done('Removed'); });
+    on('form[data-disc]', 'submit', async (e, el) => { e.preventDefault(); await api.addTitleDiscrepancy(deal.id, formData(el)); done('Discrepancy flagged'); });
+    on('[data-disc-res]', 'click', async (e, el) => { const n = prompt('How was it resolved?'); if (n == null) return; await api.resolveTitleDiscrepancy(el.dataset.discRes, n); done('Resolved'); });
+    on('form[data-chain]', 'submit', async (e, el) => { e.preventDefault(); const f = formData(el); if (!f.id) delete f.id; f.overrideOn = f.overrideOn === 'true'; f.pertainsToProperty = f.pertainsToProperty !== 'false'; await api.saveChainEntry(deal.id, f); done('Chain of title saved'); });
+    on('[data-chain-edit]', 'click', (e, el) => chainModal(v.chain.find((c) => c.id === el.dataset.chainEdit)));
+    on('[data-chain-add]', 'click', () => chainModal(null));
+    on('[data-chain-del]', 'click', async (e, el) => { if (!confirm('Remove this chain entry? It is kept in the history.')) return; await api.retireChainEntry(el.dataset.chainDel); done('Removed'); });
+    on('[data-being]', 'click', async () => { await api.insertBeingClause(deal.id); done('Being clause inserted'); });
+    on('[data-finalize]', 'click', async () => { await api.finalizeCommitment(deal.id); done('Commitment is Final; "Title Commitment" filed in 200 Title'); });
+    on('[data-reopen]', 'click', async () => { if (!confirm('Put the commitment back to Draft?')) return; await api.reopenCommitment(deal.id); done('Back to Draft'); });
+    on('[data-add-item]', 'click', (e, el) => pickerModal(el.dataset.addItem, el.dataset.parent || null));
+    on('[data-item-edit]', 'click', (e, el) => itemModal([...v.requirements, ...v.exceptions].find((z) => z.id === el.dataset.itemEdit)));
+    on('[data-item-move]', 'click', async (e, el) => { await api.moveTitleItem(el.dataset.itemMove, el.dataset.dir); done(); });
+    on('[data-item-del]', 'click', async (e, el) => { const it = [...v.requirements, ...v.exceptions].find((z) => z.id === el.dataset.itemDel); const kids = [...v.requirements, ...v.exceptions].filter((z) => z.parentId === it.id);
+      if (kids.length) { const yes = confirm(`Delete sub-conditions?\n\nOK = delete this item and its ${kids.length} sub-condition(s).\nCancel = keep the sub-conditions (they move to the top level).`); if (!confirm('Delete this item? (Soft delete: kept in the history.)')) return; await api.retireTitleItem(it.id, { withChildren: yes }); }
+      else { if (!confirm('Delete this item? (Soft delete: kept in the history.)')) return; await api.retireTitleItem(it.id, { withChildren: false }); } done('Deleted'); });
+    on('[data-item-status]', 'change', async (e, el) => { await api.updateTitleItem(el.dataset.itemStatus, { status: el.value }); done(); });
+    on('[data-mk-payoff]', 'click', async (e, el) => { const p = await api.createPayoffFromItem(el.dataset.mkPayoff); done(`Payoff ${p.position} created in Payoffs / HOA`); });
+    on('[data-mk-hoa]', 'click', async () => { await api.createHoaPayoffFromTitle(deal.id); done('HOA added to Payoffs / HOA (Other Contacts)'); });
+    on('form[data-cpl]', 'submit', async (e, el) => { e.preventDefault(); const res = await api.issueCpl(deal.id, formData(el)); done(res.warning ? `CPL ${res.cplNumber} issued. ${res.warning}` : `CPL ${res.cplNumber} issued`); });
+    const pp = $('form[data-cpl] [name=protectedParty]', root); if (pp) { const w = $('[data-cpl-warn]', root); const chk = () => { w.hidden = T.cplLenderMatches(pp.value, D.lenderName); }; pp.addEventListener('input', chk); chk(); }
+    on('[data-prelim]', 'click', async () => { await api.filePrelimCd(deal.id); done('Prelim CD filed in 200 Title (not shared)'); });
+    on('[data-buyer-copy]', 'click', async () => { const res = await api.buildBuyerCommitmentCopy(deal.id); done(`Buyers Initial Commitment copy built; e-sign requested from ${res.signatures.map((s) => s.signerName).join(', ')} (nothing sent)`); });
+    on('[data-package]', 'click', async () => { const res = await api.buildTitlePackage(deal.id); done(res.missing.length ? `Title Package built. Missing: ${res.missing.join(', ')}` : 'Title Package built'); });
+    on('[data-send]', 'click', async () => { if (!confirm(`Queue the Title Package to ${D.lenderEmail}? (Test portal: an outbox entry only; nothing is sent.)`)) return; await api.sendTitlePackage(deal.id); done('Queued in the outbox (not sent)'); });
+    on('[data-prefill]', 'click', async () => { const p = await api.prefillTitleSummary(deal.id); const f = $('form[data-summary]', root);
+      Object.entries(p.fields).forEach(([k, x]) => { const i = f.elements[k]; if (i) i.value = x; }); f.elements.curative.value = p.curative.map((c) => `- ${c}`).join('\n'); toast('Filled from the review'); });
+    on('form[data-summary]', 'submit', async (e, el) => { e.preventDefault(); await api.saveTitleSummary(deal.id, formData(el)); done('Summary posted to Notes (General)'); });
+    on('[data-tasks]', 'click', async () => { await api.updateTitleTasks(deal.id); done('"Title - CLEAR TO CLOSE" notes updated'); });
+    on('[data-print]', 'click', () => window.print());
+  }
+
+  function chainModal(c) { const e = c || {};
+    const m = modal(c ? `Chain of title #${c.position}` : 'Add chain of title entry', html`<form data-chain class="form-grid">${c ? html`<input type="hidden" name="id" value="${c.id}">` : ''}
+      ${fld('instrumentType', 'Instrument type', e.instrumentType || 'Deed', T.INSTRUMENT_TYPES)}${fld('documentName', 'Document name', e.documentName)}${fld('grantor', 'Grantor', e.grantor)}${fld('grantee', 'Grantee', e.grantee)}
+      ${fld('documentDate', 'Document date', e.documentDate, 'date')}${fld('recordedDate', 'Recorded date', e.recordedDate, 'date')}${fld('book', 'Book (Liber)', e.book)}${fld('page', 'Page (Folio)', e.page)}
+      ${fld('instrumentNumber', 'Instrument #', e.instrumentNumber)}${fld('certOfTitleNumber', 'Cert of Title #', e.certOfTitleNumber)}${fld('documentNumber', 'Document #', e.documentNumber)}${fld('pertainsToProperty', 'Pertains to the property?', e.pertainsToProperty !== false, 'bool')}
+      ${c ? html`<p class="span2 small"><b>Generated:</b> ${c.generatedText}</p>` : ''}${fld('overrideOn', 'Use my own wording', !!e.overrideOn, 'bool')}${fld('overrideText', 'Override text', e.overrideText, 'long')}
+      <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
+    $('form[data-chain]', m).addEventListener('submit', guard(async (ev) => { ev.preventDefault(); const f = formData(ev.target); if (!f.id) delete f.id; f.overrideOn = f.overrideOn === 'true'; f.pertainsToProperty = f.pertainsToProperty !== 'false'; await api.saveChainEntry(deal.id, f); closeModal(); toast('Chain of title saved'); refresh(); }));
+  }
+  // picker: tabs All / Standard / Groups / Recent / Custom + search (Qualia "Add requirement")
+  async function pickerModal(kind, parentId) { const L = await api.listTitleTemplates(kind); let tab = 'all';
+    const m = modal(kind === 'exception' ? 'Add exception (Schedule B-II)' : 'Add requirement (Schedule B-I)', html`<div class="tt-picker" data-picker-kind="${kind}"><nav class="tt-ptabs">${[['all', 'All'], ['standard', 'Standard'], ['groups', 'Groups'], ['recent', 'Recent'], ['custom', 'Custom']].map(([k, l]) => html`<a href="javascript:void 0" data-ptab="${k}" class="${k === 'all' ? 'active' : ''}">${l}</a>`)}</nav>
+      <input type="search" placeholder="Search templates" data-psearch><div data-plist></div>
+      <form data-custom class="form-grid" hidden><label class="span2">Text (simple markdown: **bold**, *italic*, "- " lists)<textarea name="bodyText" rows="5"></textarea></label><div class="span2"><button class="m-btn" type="submit">Add custom</button></div></form></div>`, { wide: true });
+    const list = $('[data-plist]', m); const q = $('[data-psearch]', m); const custom = $('form[data-custom]', m);
+    const draw = () => { const s = q.value.trim().toLowerCase(); custom.hidden = tab !== 'custom'; if (tab === 'custom') { list.innerHTML = ''; return; }
+      const rows = tab === 'groups' ? L.groups.filter((g) => !s || g.label.toLowerCase().includes(s)).map((g) => html`<li><button type="button" class="ghost" data-pgroup="${g.key}">${g.label}</button> <span class="muted small">${g.items.length} items</span></li>`)
+        : L[tab].filter((t) => !s || (t.label + ' ' + t.preview).toLowerCase().includes(s)).map((t) => html`<li><button type="button" class="ghost" data-pick="${t.key}">${t.label}</button>${t.preview ? html`<div class="muted small">${t.preview.slice(0, 160)}</div>` : ''}</li>`);
+      list.innerHTML = html`<ul class="tt-plist">${rows.length ? rows : html`<li class="muted">Nothing here.</li>`}</ul>`.s; };
+    $$('[data-ptab]', m).forEach((a) => a.addEventListener('click', () => { tab = a.dataset.ptab; $$('[data-ptab]', m).forEach((b) => b.classList.toggle('active', b === a)); draw(); })); q.addEventListener('input', draw); draw();
+    list.addEventListener('click', guard(async (ev) => { const b = ev.target.closest('[data-pick],[data-pgroup]'); if (!b) return;
+      if (b.dataset.pgroup) await api.addTitleGroup(deal.id, kind, b.dataset.pgroup); else { const row = await api.addTitleItem(deal.id, { kind, templateKey: b.dataset.pick, parentId }); closeModal(); refresh(); if ((T.templateOf(kind, row.templateKey) || {}).fields) setTimeout(() => toast('Added. Use Edit to fill the panel (Deed of Trust / Tax / Deed fields).'), 50); return; }
+      closeModal(); toast('Added'); refresh(); }));
+    custom.addEventListener('submit', guard(async (ev) => { ev.preventDefault(); await api.addTitleItem(deal.id, { kind, bodyText: formData(ev.target).bodyText, parentId }); closeModal(); toast('Added'); refresh(); }));
+  }
+  // edit: the template panel (DOT / Tax / Deed / New DOT), the override, status
+  function itemModal(it) { const t = T.templateOf(it.kind, it.templateKey) || {}; const panel = { dot: T.DOT_FIELDS, tax: T.TAX_FIELDS, deed: T.DEED_FIELDS, newdot: T.NEW_DOT_FIELDS }[t.fields] || [];
+    const ty = (x) => (x === 'money' ? 'money' : x === 'date' ? 'date' : x === 'paid' ? [['paid', 'Paid'], ['unpaid', 'Unpaid']] : 'text');
+    const m = modal(`${it.kind === 'exception' ? 'Exception' : 'Requirement'} ${it.number}: ${it.templateLabel}`, html`<form data-item class="form-grid" data-item-form="${it.templateKey || 'custom'}">
+      ${panel.length ? html`<h4 class="span2" data-panel="${t.fields}">${{ dot: 'Deed of Trust', tax: 'Tax information', deed: 'Deed', newdot: 'New Deed of Trust' }[t.fields]} details</h4>${panel.map(([k, l, x]) => fld(k, l, it[k], ty(x)))}${t.fields === 'dot' ? fld('dotNeedsPayoff', 'Needs a payoff?', it.dotNeedsPayoff, 'bool') : ''}` : ''}
+      ${!it.templateKey ? fld('bodyText', 'Text (simple markdown)', it.bodyText, 'long') : html`<div class="span2 small tt-gen"><b>Generated text</b>${md(it.generatedText)}</div>`}
+      ${fld('overrideOn', 'Use my own wording', !!it.overrideOn, 'bool')}${fld('overrideText', 'Override text (simple markdown)', it.overrideText, 'long')}${fld('status', 'Status', it.status, T.ITEM_STATUSES)}
+      <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
+    $('form[data-item]', m).addEventListener('submit', guard(async (ev) => { ev.preventDefault(); const f = formData(ev.target); await api.updateTitleItem(it.id, f); closeModal(); toast('Saved'); refresh(); }));
+  }
+}
+
+// ======================= sections =======================
+const docRow = (z) => html`<tr data-tdoc="${z.kind}"><td>${z.name}</td><td>${z.kindLabel}</td><td class="small">${z.folder}</td><td class="small">${fmtDateTime(z.createdAt)}${z.generated ? ' (generated record)' : ''}${z.linkedHash ? html` <a href="${z.linkedHash}">open source</a>` : ''}</td></tr>`;
+const SECTIONS_UI = {
+  overview(v, ro) { const groups = T.SECTIONS.map(([k, l]) => [k, l, v.steps.filter((s) => s.section === k)]).filter((g) => g[2].length);
+    return html`${!v.review && !ro ? html`<div class="card" data-title-empty><p>The title review has not started on this order.</p><button class="m-btn" data-start>Start title review</button></div>` : ''}
+      <div class="tt-grid">${groups.map(([k, l, steps]) => html`<div class="card tt-card" data-step-group="${k}"><h3><a href="#" onclick="return false">${l}</a></h3><ul class="tt-steps">${steps.map((s) => html`<li class="${s.status}"><span>${s.label}</span>${stepBtns(v, s.key, ro || !v.review)}${s.doneByName ? html`<span class="muted small">${s.doneByName} ${ld(s.doneAt)}</span>` : ''}</li>`)}</ul></div>`)}</div>`; },
+  notes(v, ro) { const N = v.notes;
+    return html`<div class="tt-grid"><div class="card tt-card" data-title-notes><h3>Order notes</h3><p class="small"><b>Order note:</b> ${N.orderNote || '-'}</p>
+      <ul class="tt-notes">${N.sticky.length ? N.sticky.map((n) => html`<li data-onote="${n.category}"><span class="pill">${n.category}</span> <span class="tt-notebody">${n.body}</span><div class="muted small">${n.byName} ${fmtDateTime(n.createdAt)} ${ro ? (n.issueResolved ? '(resolved)' : '') : html`<label class="small"><input type="checkbox" data-note-res="${n.id}" ${n.issueResolved ? raw('checked') : ''}> Issue resolved</label>`}</div></li>`) : html`<li class="muted">No notes yet.</li>`}</ul>
+      ${N.payoff.length ? html`<h4>Payoff notes</h4><ul class="small">${N.payoff.map((p) => html`<li>${p.section}: ${p.body} <span class="muted">${p.byName}</span></li>`)}</ul>` : ''}
+      ${ro ? '' : html`<form data-note class="form-grid"><label>Category<select name="category">${options(T.NOTE_CATEGORIES, 'TITLE')}</select></label><label class="span2">Note<textarea name="body" rows="2"></textarea></label><div class="span2"><button class="m-btn" type="submit">Add note</button></div></form>`}
+      <p>Reviewed order notes ${stepBtns(v, 'notes_reviewed', ro || !v.review)}</p></div>
+      <div class="card tt-card" data-title-docs><h3>Title documents</h3>${ro ? '' : html`<button class="ghost" data-folders>Add the title folders (100 … 700)</button>`}
+      <p class="muted small">${T.TITLE_FOLDERS.join(' · ')}</p>
+      ${v.mdAckRequired ? html`<p class="small ${v.docs.some((d) => d.kind === 'md_ack') ? '' : 'red'}" data-md-ack>Maryland file: the Acknowledgement of Receipt of Commitment – MD is ${v.docs.some((d) => d.kind === 'md_ack') ? 'on file' : 'MISSING'}.</p>` : html`<p class="muted small" data-md-ack-na>Not a Maryland file: no MD acknowledgement needed.</p>`}
+      <table class="tbl striped small"><thead><tr><th>Document</th><th>Kind</th><th>Folder</th><th>Added</th></tr></thead><tbody>${v.docs.length ? v.docs.map(docRow) : html`<tr><td colspan="4" class="muted">No title documents yet.</td></tr>`}</tbody></table>
+      ${ro ? '' : html`<h4>File an order document as a title document</h4><table class="tbl small"><tbody>${v.orderDocs.filter((z) => !z.kind).slice(0, 12).map((z) => html`<tr><td>${z.name}</td><td><select data-tag="${z.id}">${options([['', 'Not a title doc'], ...T.DOC_KINDS.map((k) => [k[0], k[1]])], z.kind, (o) => o[1], (o) => o[0])}</select></td></tr>`)}</tbody></table>
+      <form data-addoc class="form-grid"><label>Kind<select name="kind">${options(T.DOC_KINDS.filter((k) => !v.mdAckRequired ? k[0] !== 'md_ack' : true).map((k) => [k[0], k[1]]), 'eo', (o) => o[1], (o) => o[0])}</select></label><label>Name<input name="name" placeholder="e.g. E&O certificate.pdf"></label><div class="span2"><button class="ghost" type="submit">Add document record</button></div></form>`}
+      <p>Documents organized ${stepBtns(v, 'docs_organized', ro || !v.review)} ${v.mdAckRequired ? html`MD ack ${stepBtns(v, 'md_ack', ro || !v.review)}` : ''} E&O ${stepBtns(v, 'eo_doc', ro || !v.review)}</p></div></div>`; },
+  pacer(v, ro) { return html`<div class="card" data-title-pacer><h3>Bankruptcy search (PACER)</h3><p class="muted small">Record only the party, the search type, the result and the receipt. <b>Never type an SSN here</b>; the SSN search happens inside PACER only.</p>
+      <table class="tbl striped"><thead><tr><th>Party</th><th>Role</th><th>Search</th><th>Result</th><th>Receipt</th><th>By</th><th></th></tr></thead><tbody>${v.pacer.length ? v.pacer.map((z) => html`<tr data-pacer-row><td>${z.partyName}</td><td>${z.partyRole}</td><td>${(T.PACER_SEARCH_TYPES.find((x) => x[0] === z.searchType) || [, ''])[1].split(' (')[0]}</td><td>${z.result === 'no_results' ? pill('No results found', 'ok') : pill('Results found', 'warn')}${z.notes ? html`<div class="small">${z.notes}</div>` : ''}</td><td class="small">${z.documentName}</td><td class="small">${z.searchedByName} ${ld(z.searchedAt)}</td><td>${ro ? '' : html`<button class="ghost small" data-pacer-del="${z.id}">Remove</button>`}</td></tr>`) : html`<tr><td colspan="7" class="muted">No searches yet.</td></tr>`}</tbody></table>
+      ${ro ? '' : html`<div class="tt-grid">${v.pacerParties.map((p) => html`<form class="card tt-card form-grid" data-pacer data-party="${p.name}"><input type="hidden" name="participantId" value="${p.participantId}"><input type="hidden" name="partyRole" value="${p.role}"><h4 class="span2">${p.name} <span class="muted small">(${p.role})</span> ${p.searched ? pill('searched', 'ok') : pill('to search', 'warn')}</h4>
+        ${fld('searchType', 'Search type', T.defaultSearchType ? T.defaultSearchType(p) : 'ssn', T.PACER_SEARCH_TYPES)}${fld('result', 'Result', 'no_results', T.PACER_RESULTS)}${fld('notes', 'Notes (required if results found)', '', 'text')}<div class="span2"><button class="m-btn" type="submit">Record search</button></div></form>`)}</div>`}
+      <p>Buyer ${stepBtns(v, 'pacer_buyer', ro)} Seller ${stepBtns(v, 'pacer_seller', ro)}</p></div>`; },
+  search(v, ro, D, r) { return html`<form data-review class="card form-grid" data-title-search><h3 class="span2">Title order email</h3>${fld('titleOrderEmailNotes', 'What the title order email asks for', r.titleOrderEmailNotes, 'long', ro)}
+      <h3 class="span2">SDAT (property record)</h3>${fld('sdatTaxId', 'Tax ID', r.sdatTaxId, 'text', ro)}${fld('sdatOwnerName', 'Owner name (SDAT)', r.sdatOwnerName, 'text', ro)}${fld('sdatPremisesAddress', 'Premises address', r.sdatPremisesAddress, 'text', ro)}${fld('sdatLegalShort', 'Legal (short)', r.sdatLegalShort, 'text', ro)}${fld('sdatMatches', 'SDAT matches the order?', r.sdatMatches, 'bool', ro)}
+      <h3 class="span2">Tax information</h3>${fld('taxYear', 'Tax year', r.taxYear, 'text', ro)}${fld('taxBaseAnnual', 'Base annual tax', r.taxBaseAnnual, 'money', ro)}${fld('taxFirstHalfStatus', '1st half', r.taxFirstHalfStatus, [['paid', 'Paid'], ['unpaid', 'Unpaid']], ro)}${fld('taxFirstHalfAmount', '1st half amount', r.taxFirstHalfAmount, 'money', ro)}
+      ${fld('taxSecondHalfStatus', '2nd half', r.taxSecondHalfStatus, [['paid', 'Paid'], ['unpaid', 'Unpaid']], ro)}${fld('taxSecondHalfAmount', '2nd half amount', r.taxSecondHalfAmount, 'money', ro)}${fld('taxDueDates', 'Due dates', r.taxDueDates, 'text', ro)}${fld('taxDelinquentAmount', 'Delinquent', r.taxDelinquentAmount, 'money', ro)}${fld('taxPenaltyInterest', 'Penalty / interest', r.taxPenaltyInterest, 'money', ro)}${fld('taxForwardBillTo', 'Forward tax bill to', r.taxForwardBillTo, 'text', ro)}
+      <h3 class="span2">Vesting deed</h3>${fld('vestingOwnerName', 'Owner on the current vesting deed', r.vestingOwnerName, 'text', ro)}<p class="small ${v.ownerMatches === false ? 'red' : ''}" data-owner-match>${v.ownerMatches === false ? `${T.OWNER_MISMATCH}: the portal's seller(s) are ${D.sellers.join(', ') || 'none'}.` : v.ownerMatches ? 'Owner matches the seller(s) in the portal.' : 'Enter the owner to check it against the seller(s).'}</p>
+      ${saveBtn(ro)}<p class="span2">Title order email ${stepBtns(v, 'title_order_email', ro)} SDAT ${stepBtns(v, 'sdat_check', ro)} Tax info ${stepBtns(v, 'tax_info', ro)} Vesting deed ${stepBtns(v, 'vesting_deed', ro)}</p></form>
+      <div class="card" data-title-disc><h3>Discrepancies</h3><table class="tbl striped small"><tbody>${v.discrepancies.length ? v.discrepancies.map((z) => html`<tr class="${z.status === 'open' ? 'red' : ''}" data-disc="${z.discrepancyType}"><td>${z.label}</td><td>${z.description}</td><td>${z.status === 'open' ? (ro ? 'Open' : html`<button class="ghost small" data-disc-res="${z.id}">Resolve</button>`) : html`Resolved by ${z.resolvedByName}: ${z.resolutionNote}`}</td></tr>`) : html`<tr><td class="muted">None.</td></tr>`}</tbody></table>
+      ${ro ? '' : html`<form data-disc class="form-grid"><label>Type<select name="type">${options(T.DISCREPANCY_TYPES, 'other', (o) => o[1], (o) => o[0])}</select></label><label>Description<input name="description"></label><div class="span2"><button class="ghost" type="submit">Flag discrepancy</button></div></form>`}</div>`; },
+  contract(v, ro, D, r) { return html`<form data-review class="card form-grid" data-title-contract><h3 class="span2">Contract review</h3>
+      ${fld('contractBuyerMatch', 'Buyer names match', r.contractBuyerMatch, 'bool', ro)}${fld('contractSellerMatch', 'Seller names match', r.contractSellerMatch, 'bool', ro)}${fld('contractAddressMatch', 'Address matches', r.contractAddressMatch, 'bool', ro)}${fld('contractLegalMatch', 'Legal description matches', r.contractLegalMatch, 'bool', ro)}${fld('contractTaxIdMatch', 'Tax ID matches', r.contractTaxIdMatch, 'bool', ro)}
+      ${fld('propertyType', 'Property type', r.propertyType, T.PROPERTY_TYPES, ro)}${fld('assocType', 'HOA / condo', r.assocType, T.ASSOC_TYPES, ro)}${fld('assocName', 'Association name', r.assocName, 'text', ro)}${fld('assocFee', 'Fee', r.assocFee, 'money', ro)}${fld('assocFeeFrequency', 'Frequency', r.assocFeeFrequency, T.FEE_FREQUENCIES, ro)}
+      <fieldset class="span2"><legend>Fee includes</legend>${[['feeInclWater', 'Water'], ['feeInclSewer', 'Sewer'], ['feeInclHeat', 'Heat'], ['feeInclElectric', 'Electric'], ['feeInclGas', 'Gas'], ['feeInclAc', 'A/C']].map(([k, l]) => fld(k, l, r[k], 'bool', ro))}</fieldset>
+      ${fld('waterType', 'Water', r.waterType, T.WATER_TYPES, ro)}${fld('sewerType', 'Sewer', r.sewerType, T.SEWER_TYPES, ro)}${fld('frontFootBenefit', 'Front foot benefit (FFB)', r.frontFootBenefit, T.YNU, ro)}${fld('groundRent', 'Ground rent', r.groundRent, T.YNU, ro)}${fld('transferTaxSplit', 'Transfer tax split', r.transferTaxSplit, 'text', ro)}
+      ${fld('contractNotes', 'Contract notes', r.contractNotes, 'long', ro)}${saveBtn(ro)}<p class="span2">Contract review ${stepBtns(v, 'contract_review', ro)} ${v.canPayoffs && v.hoaFound ? (v.hoaLinked ? pill('HOA in Payoffs / HOA', 'ok') : html`<button type="button" class="ghost" data-mk-hoa>Create HOA payoff</button>`) : ''}</p></form>`; },
+  chain(v, ro) { return html`<div class="card" data-title-chain><h3>Chain of title</h3><table class="tbl striped small"><thead><tr><th>#</th><th>Instrument</th><th>Grantor → Grantee</th><th>Recorded</th><th>Clause</th><th></th></tr></thead><tbody>
+      ${v.chain.length ? v.chain.map((c) => html`<tr data-chain-row="${c.id}"><td>${c.position}</td><td>${c.instrumentType}</td><td>${c.grantor} → ${c.grantee}</td><td>${fmtDate(c.recordedDate)}</td><td>${c.text}${c.overrideOn ? html` <span class="pill">override</span>` : ''}</td><td class="nowrap">${ro ? '' : html`<button class="ghost small" data-chain-edit="${c.id}">Edit</button> <button class="ghost small" data-chain-del="${c.id}">Remove</button>`}</td></tr>`) : html`<tr><td colspan="6" class="muted">No entries yet.</td></tr>`}</tbody></table>
+      ${ro ? '' : html`<button class="m-btn" data-chain-add>Add entry</button>`}
+      <h4>Being clause (from the vesting deed)</h4><p class="tt-being" data-being-text>${v.being.text || html`<span class="muted">Add a deed to the chain of title.</span>`}</p>
+      ${ro ? '' : html`<form data-review class="form-grid">${fld('beingOverrideOn', 'Use my own being clause', v.being.overrideOn, 'bool')}${fld('beingOverrideText', 'Override text', v.being.overrideText, 'long')}${saveBtn(false, 'Save being clause')}</form>`}
+      <p>Chain of title ${stepBtns(v, 'chain_of_title', ro)}</p></div>`; },
+  loan(v, ro, D, r) { return html`<form data-loan class="card form-grid" data-title-loan><h3 class="span2">Loan check (order vs the title request)</h3><p class="muted small span2">Lender and loan amount are the order's own fields (edited here or in Edit order details). The title request values are typed from the lender's title order.</p>
+      ${fld('lenderName', 'Lender (order)', D.lenderName, 'text', ro)}${fld('trLenderName', 'Lender (title request)', r.trLenderName, 'text', ro)}${fld('loanAmount', 'Loan amount (order)', D.loanAmount, 'money', ro)}${fld('trLoanAmount', 'Loan amount (title request)', r.trLoanAmount, 'money', ro)}
+      ${fld('loanIdNumber', 'Loan ID # (order)', D.loanIdNumber, 'text', ro)}${fld('trLoanIdNumber', 'Loan ID # (title request)', r.trLoanIdNumber, 'text', ro)}${fld('lossPayeeName', 'Loss payee', D.lossPayeeName, 'text', ro)}${fld('usesMers', 'MERS?', D.usesMers, 'bool', ro)}
+      ${fld('fundingType', 'Funding', D.fundingType, T.FUNDING_TYPES, ro)}${fld('firstPaymentDate', 'First payment date', D.firstPaymentDate, 'date', ro)}${fld('interestType', 'Interest type', D.interestType, T.INTEREST_TYPES, ro)}${fld('loanType', 'Loan type', D.loanType, 'text', ro)}
+      ${saveBtn(ro)}<p class="span2">Loan check ${stepBtns(v, 'loan_check', ro)}</p></form>`; },
+  schedulea(v, ro, D, r) { const miss = T.beingClauseMissing(r.legalDescription);
+    return html`<form data-review class="card form-grid" data-title-schedulea><h3 class="span2">Schedule A ${pill(r.commitmentStatus === 'final' ? 'Final' : 'Draft', r.commitmentStatus === 'final' ? 'ok' : '')}</h3>
+      ${fld('underwriter', 'Underwriter', r.underwriter, T.UNDERWRITERS, ro)}${fld('commitmentNumber', 'Commitment #', r.commitmentNumber, 'text', ro)}${fld('commitmentForm', 'Form', r.commitmentForm, T.COMMITMENT_FORMS, ro)}${fld('effectiveDate', 'Effective date', r.effectiveDate, 'date', ro)}${fld('effectiveTime', 'Effective time', r.effectiveTime, 'text', ro)}
+      ${fld('proposedInsured', 'Proposed insured', r.proposedInsured, 'text', ro)}${fld('vestingText', 'Title vested in', r.vestingText, 'text', ro)}
+      <label class="span2">Legal description<textarea name="legalDescription" rows="9" ${ro ? raw('disabled') : ''} data-legal>${val(r.legalDescription)}</textarea></label>
+      ${miss ? html`<p class="span2 red small" data-being-missing>${T.BEING_MISSING}</p>` : html`<p class="span2 small ok" data-being-ok>Ends with the being clause under "${T.INFO_HEADER}"</p>`}
+      ${ro ? '' : html`<div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-being>Insert being clause</button> ${r.commitmentStatus === 'final' ? html`<button type="button" class="ghost" data-reopen>Back to Draft</button>` : html`<button type="button" class="m-btn" data-finalize>Finalize commitment</button>`}</div>`}
+      <p class="span2">Schedule A ${stepBtns(v, 'schedule_a', ro)}</p></form>`; },
+  requirements(v, ro) { return items(v, ro, 'requirement'); },
+  exceptions(v, ro) { return items(v, ro, 'exception'); },
+  policies(v, ro, D, r) { const P = (p, types) => html`<h3 class="span2">${p === 'lender' ? "Lender's policy" : "Owner's policy"}</h3>${fld(`${p}PolicyType`, 'Policy type', r[`${p}PolicyType`], types, ro)}${fld(`${p}PolicyForm`, 'Form', r[`${p}PolicyForm`], T.COMMITMENT_FORMS, ro)}${fld(`${p}PolicyAmount`, 'Amount', r[`${p}PolicyAmount`], 'money', ro)}${fld(`${p}RateType`, 'Rate type', r[`${p}RateType`], T.RATE_TYPES, ro)}${fld(`${p}RateEffectiveDate`, 'Rate effective date', r[`${p}RateEffectiveDate`], 'date', ro)}${fld(`${p}ProposedInsured`, 'Proposed insured', r[`${p}ProposedInsured`], 'text', ro)}`;
+    return html`<form data-review class="card form-grid" data-title-policies>${P('lender', T.LENDER_POLICY_TYPES)}${P('owner', T.OWNER_POLICY_TYPES)}${saveBtn(ro)}<p class="span2">Policy info ${stepBtns(v, 'policy_info', ro)}</p></form>`; },
+  cpl(v, ro, D) { return html`<div class="card" data-title-cpl><h3>Closing Protection Letter</h3>
+      <table class="tbl striped small"><thead><tr><th>CPL #</th><th>For</th><th>Protected party</th><th>Type</th><th>Lender clause</th><th>Cost</th><th>Issued</th></tr></thead><tbody>${v.cpls.length ? v.cpls.map((c) => html`<tr data-cpl-row class="${c.lenderMatch ? '' : 'red'}"><td>${c.cplNumber}</td><td>${c.cplFor}</td><td>${c.protectedParty}${c.lenderMatch ? '' : html` <b>(${T.CPL_LENDER_MISMATCH})</b>`}</td><td>${c.cplType}</td><td>${c.lenderClause}</td><td>${fmtMoney(c.cost)}</td><td>${c.issuedByName} ${ld(c.issuedAt)}</td></tr>`) : html`<tr><td colspan="7" class="muted">No CPL issued yet.</td></tr>`}</tbody></table>
+      ${ro ? '' : html`<form data-cpl class="form-grid"><label>Protected party<input name="protectedParty" value="${D.lenderName}"></label><p class="red small span2" data-cpl-warn hidden>${T.CPL_LENDER_MISMATCH} (order lender: ${D.lenderName || 'none'})</p>
+        ${fld('cplType', 'CPL type', 'Standard', T.CPL_TYPES)}${fld('lenderClause', 'Lender clause', T.LENDER_CLAUSES[0], T.LENDER_CLAUSES)}${fld('cost', 'Cost', T.CPL_DEFAULT_COST, 'money')}${fld('cplFor', 'For', 'buyer', [['buyer', 'Buyer'], ['seller', 'Seller']])}<div class="span2"><button class="m-btn" type="submit">Issue</button></div></form>`}
+      <p>CPL Buyer ${stepBtns(v, 'cpl_buyer', ro)} CPL Seller ${stepBtns(v, 'cpl_seller', ro)}</p></div>`; },
+  finalize(v, ro, D, r) { const has = (k) => v.docs.some((d) => d.kind === k);
+    return html`<div class="tt-grid"><div class="card tt-card" data-title-finalize><h3>Commitment</h3><p>${r.commitmentStatus === 'final' ? html`${pill('Final', 'ok')} ${r.finalizedByName} ${fmtDateTime(r.finalizedAt)}` : pill('Draft')}</p>${ro ? '' : r.commitmentStatus === 'final' ? '' : html`<button class="m-btn" data-finalize>Finalize commitment</button>`}
+      <h3>Prelim CD</h3><p class="small">${has('prelim_cd') ? 'Filed in 200 Title (not shared).' : 'Not filed yet.'}</p>${ro || has('prelim_cd') ? '' : html`<button class="ghost" data-prelim>File Prelim CD</button>`}</div>
+      <div class="card tt-card" data-title-buyercopy><h3>Buyers Initial Commitment copy</h3><p class="small">Merges ${T.buyerCopyKinds(D).map(T.docKindLabel).join(' + ')} and asks the buyer(s) to e-sign (a buyer task; reminders are queued, never sent).</p>
+      <ul class="small">${v.signatures.length ? v.signatures.map((s) => html`<li>${s.signerName}: ${s.status} (${ld(s.requestedAt)})</li>`) : html`<li class="muted">Not requested yet.</li>`}</ul>${ro ? '' : html`<button class="ghost" data-buyer-copy>Build + request e-sign</button>`}</div>
+      <div class="card tt-card" data-title-package><h3>Title Package</h3><p class="small">CPL + Title Commitment + Tax Certificate + E&O + Prelim CD.</p>${v.packageMissing.length ? html`<p class="red small" data-pkg-missing>Missing: ${v.packageMissing.join(', ')}</p>` : html`<p class="small ok">All components on file.</p>`}
+      ${v.packageComponents.length ? html`<ol class="small">${v.packageComponents.map((c) => html`<li class="${c.missing ? 'red' : ''}">${c.label}${c.name ? `: ${c.name}` : ' (missing)'}</li>`)}</ol>` : ''}
+      ${ro ? '' : html`<button class="ghost" data-package>Build Title Package</button> ${v.packageComponents.length ? html`<button class="m-btn" data-send>Send Title Package to lender</button>` : ''}`}
+      ${v.outbox.length ? html`<ul class="small" data-title-outbox>${v.outbox.map((o) => html`<li>${pill(o.status)} to ${o.toName} &lt;${o.toEmail}&gt; ${fmtDateTime(o.createdAt)} (outbox only, not sent)</li>`)}</ul>` : ''}
+      <p class="small">Sent: ${r.packageSentAt ? `${fmtDateTime(r.packageSentAt)} by ${r.packageSentByName}` : '-'}</p></div></div>
+      <p>Finalized ${stepBtns(v, 'finalized', ro)} Prelim CD ${stepBtns(v, 'prelim_cd', ro)} Buyer copy ${stepBtns(v, 'buyer_copy', ro)} Package ${stepBtns(v, 'title_package', ro)} Sent ${stepBtns(v, 'send_package', ro)}</p>`; },
+  summary(v, ro) { const s = v.summary || {};
+    return html`<div class="tt-grid"><form data-summary class="card tt-card form-grid" data-title-summary><h3 class="span2">Title review summary note</h3>${ro ? '' : html`<div class="span2"><button type="button" class="ghost" data-prefill>Fill from the review</button></div>`}
+      ${fld('reviewerFirstName', 'Reviewer (first name)', s.reviewerFirstName, 'text', ro)}${fld('noteDate', 'Date', s.noteDate, 'date', ro)}
+      ${T.SUMMARY_FIELDS.map(([k, l]) => fld(k, l, s[k], 'text', ro))}
+      <label class="span2">CURATIVE (one per line)<textarea name="curative" rows="6" ${ro ? raw('disabled') : ''}>${(s.curative || []).map((c) => `- ${c}`).join('\n')}</textarea></label>
+      ${ro ? '' : html`<div class="span2"><button class="m-btn" type="submit">Post summary note</button> <button type="button" class="ghost" data-tasks>Update "Title - CLEAR TO CLOSE" task</button></div>`}</form>
+      <div class="card tt-card" data-title-summary-text><h3>Last posted note</h3>${s.noteBody ? html`<pre class="tt-pre">${s.noteBody}</pre><p class="muted small">Posted to Notes (General) ${fmtDateTime(s.createdAt)}</p>` : html`<p class="muted">Nothing posted yet.</p>`}<button class="ghost" data-print>Print</button></div></div>
+      <p>Summary note ${stepBtns(v, 'summary_note', ro)} Tasks updated ${stepBtns(v, 'tasks_updated', ro)}</p>`; },
+};
+function items(v, ro, kind) { const list = kind === 'exception' ? v.exceptions : v.requirements; const label = kind === 'exception' ? 'Exceptions (Schedule B-II)' : 'Requirements (Schedule B-I)';
+  return html`<div class="card" data-title-items="${kind}"><h3>${label}</h3>${ro ? '' : html`<button class="m-btn" data-add-item="${kind}">Add ${kind}</button>`}
+    <ol class="tt-items">${list.length ? list.map((it) => html`<li class="tt-item ${it.parentId ? 'sub' : ''} ${it.status}" data-item="${it.templateKey || 'custom'}" data-item-id="${it.id}"><span class="tt-num">${it.parentId ? it.label : `${it.number}.`}</span>
+      <div class="tt-itext">${md(it.text)}<div class="muted small">${it.templateLabel}${it.overrideOn ? ' · override' : ''}${it.hasPayoff ? ' · payoff linked' : ''}</div></div>
+      ${ro ? html`<span>${it.status}</span>` : html`<span class="tt-iact nowrap"><select data-item-status="${it.id}">${options(T.ITEM_STATUSES, it.status, (o) => o[1], (o) => o[0])}</select> <button class="ghost small" data-item-edit="${it.id}">Edit</button> <button class="ghost small" data-item-move="${it.id}" data-dir="up" title="Move up">↑</button><button class="ghost small" data-item-move="${it.id}" data-dir="down" title="Move down">↓</button> ${!it.parentId ? html`<button class="ghost small" data-add-item="${kind}" data-parent="${it.id}">+ sub</button>` : ''} <button class="ghost small" data-item-del="${it.id}">Delete</button>
+        ${it.templateKey === 'dot_release' && v.canPayoffs && !it.hasPayoff ? html` <button class="ghost small" data-mk-payoff="${it.id}">Create payoff</button>` : ''}</span>`}</li>`) : html`<li class="muted">None yet.</li>`}</ol>
+    <p>${kind === 'exception' ? 'Exceptions' : 'Requirements'} ${stepBtns(v, kind === 'exception' ? 'exceptions' : 'requirements', ro)}</p></div>`; }

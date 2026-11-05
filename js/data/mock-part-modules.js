@@ -2,7 +2,7 @@
  * d.moduleSettings = one row per module { module, live, updatedAt, updatedBy }; d.moduleLog = every change { module, label, old, new, at, byId, byName }.
  * Both are added on first use (ensureModules) to v26 data without a storage-key bump: nothing existing changes, nothing is removed.
  * Only Admin / Super admin read the full list + log and flip a switch. Rows and log entries are never deleted. */
-import { MODULES, ALWAYS_ON, BETA_LABEL, moduleById, moduleAvailable, defaultModuleSettings, canManageModules, canSwitchModule, accessMap } from './modules.js?v=202611041951';
+import { MODULES, ALWAYS_ON, BETA_LABEL, moduleById, moduleAvailable, defaultModuleSettings, canManageModules, canSwitchModule, accessMap } from './modules.js?v=202611042116';
 
 export function ensureModules(d) {
   if (!Array.isArray(d.moduleSettings)) d.moduleSettings = [];

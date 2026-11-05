@@ -9,12 +9,13 @@
  * VIEW AS (Super admin only): inside a locked link whose OWNER is a Super admin (King John), a "View as" dropdown switches the tab to any fake user and
  * back; the route guard then applies to the person being viewed. Any other locked link (Adam Admin included) never gets it, and a stored viewAs on a
  * lock whose owner is not a Super admin is ignored and cleared (app.js). */
-import { runsOrders, isStaff, isOutside } from './constants.js?v=202611041951';
-import { canUseCrm } from './crm.js?v=202611041951';
-import { canInviteAgents } from './agent-profile.js?v=202611041951';
-import { canManageModules } from './modules.js?v=202611041951';
-import { hrSectionAllowed } from './hr.js?v=202611041951';
-import { canManageOffices } from './offices.js?v=202611041951';
+import { runsOrders, isStaff, isOutside } from './constants.js?v=202611042116';
+import { titleCanRead } from './title.js?v=202611042116';   // John, Nov 4: order > Title route guard
+import { canUseCrm } from './crm.js?v=202611042116';
+import { canInviteAgents } from './agent-profile.js?v=202611042116';
+import { canManageModules } from './modules.js?v=202611042116';
+import { hrSectionAllowed } from './hr.js?v=202611042116';
+import { canManageOffices } from './offices.js?v=202611042116';
 
 export const LOCK_KEY = 'cla-portal-new:locked:v1';
 export function devPickerOn(w = (typeof window !== 'undefined' ? window : {})) {
@@ -59,6 +60,7 @@ export function routeAllowed(u, route, { locked = false } = {}) {
   // an HR-only login (account role 'Employee') has no orders, CRM or admin: HR and their own Profile Setting only
   if (u.role === 'Employee') return p === 'profile' || p === 'dashboard';   // dashboard = redirected to #/hr by app.js
   if (p === 'deal' && route.params && route.params.tab === 'accounting' && PAYOFF_VIEWS.includes(route.params.v)) return canReachPayoffs(u);
+  if (p === 'deal' && route.params && route.params.tab === 'title') return titleCanRead(u);   // John, Nov 4: the Title module is CLA staff only (never an agent / client / tester link for one)
   if (['dashboard', 'orders', 'deal', 'profile', 'contact-us'].includes(p)) return true;   // deal access itself is checked per file by the adapter
   if (p === 'crm') return canUseCrm(u);
   if (p === 'users' || p === 'teams') return !!u.isAdmin;
@@ -74,7 +76,7 @@ export function routeAllowed(u, route, { locked = false } = {}) {
 // SECTION LINKS (John, Nov 4): &section=<name> (+ optional &file=<deal>) opens one section directly. A section only picks the first page:
 // app.js still runs routeAllowed + the module / feature checks, so a section the person cannot see shows a polite "Not available" in their own portal.
 // The workspace switcher (Admin / Super admin) auto-selects the matching workspace from the route (workspace.js routeWs).
-const FILE_TABS = ['overview', 'tasks', 'inbox', 'documents', 'closing', 'contacts', 'agreements', 'activity', 'accounting'];
+const FILE_TABS = ['overview', 'tasks', 'inbox', 'documents', 'closing', 'contacts', 'agreements', 'activity', 'accounting', 'title'];
 const ACCT_VIEWS = ['charges', 'cd', 'cddetails', 'prorations', 'payments', 'ledger', 'alta', 'history', 'payoffs', 'taxes', 'othercontacts'];   // + payoffs / taxes / othercontacts (live28: Qualia Payoffs, Taxes & Prorations, Other Contacts)
 export const SECTIONS = { home: '/dashboard', 'my-tasks': '/dashboard', orders: '/orders', 'place-order': '/orders/new', tasks: '/tasks', 'task-grid': '/task-grid', library: '/library',
   crm: '/crm', 'crm-deals': '/crm/deals', 'crm-leads': '/crm/leads', 'crm-calls': '/crm', 'crm-templates': '/crm/templates', 'crm-pipeline': '/crm/pipeline', 'crm-reports': '/crm/reports',

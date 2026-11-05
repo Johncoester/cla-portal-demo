@@ -1,18 +1,18 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611041951';
-import { GMAIL_OFF } from '../data/automation.js?v=202611041951';
-import { occSelects, yesNo } from './occ-fields.js?v=202611041951';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611041951';
-import { slotText } from './dealclosing.js?v=202611041951';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611041951';
-import { composeModal } from './compose.js?v=202611041951';
-import { moneyShow, moneyClean } from './money-input.js?v=202611041951';
-import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611041951';
-import { themeOn } from '../theme.js?v=202611041951';
-import { renderClientOverview, clientSide, isPureBuyer, clientTabChrome } from './client-overview.js?v=202611041951';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611042116';
+import { GMAIL_OFF } from '../data/automation.js?v=202611042116';
+import { occSelects, yesNo } from './occ-fields.js?v=202611042116';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611042116';
+import { slotText } from './dealclosing.js?v=202611042116';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611042116';
+import { composeModal } from './compose.js?v=202611042116';
+import { moneyShow, moneyClean } from './money-input.js?v=202611042116';
+import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611042116';
+import { themeOn } from '../theme.js?v=202611042116';
+import { renderClientOverview, clientSide, isPureBuyer, clientTabChrome } from './client-overview.js?v=202611042116';
 
-const TABS = { tasks: './dealtasks.js?v=202611041951', inbox: './dealmsgs.js?v=202611041951', documents: './dealdocs.js?v=202611041951', contacts: './dealcontacts.js?v=202611041951', activity: './dealactivity.js?v=202611041951', closing: './dealclosing.js?v=202611041951', agreements: './dealagreements.js?v=202611041951', accounting: './dealaccounting.js?v=202611041951' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
-import { placeText } from '../data/cla-offices.js?v=202611041951';
+const TABS = { tasks: './dealtasks.js?v=202611042116', inbox: './dealmsgs.js?v=202611042116', documents: './dealdocs.js?v=202611042116', contacts: './dealcontacts.js?v=202611042116', activity: './dealactivity.js?v=202611042116', closing: './dealclosing.js?v=202611042116', agreements: './dealagreements.js?v=202611042116', accounting: './dealaccounting.js?v=202611042116', title: './dealtitle.js?v=202611042116' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+import { placeText } from '../data/cla-offices.js?v=202611042116';
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -21,15 +21,16 @@ export async function render(ctx) {
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
   if (tab === 'accounting' && !(api.features || {}).accounting) throw new Error('That page does not exist.');
+  if (tab === 'title' && !(api.features || {}).title) throw new Error('That page does not exist.');   // John, Nov 4: order > Title behind the `title` flag
   if (tab === 'contacts' && user.accountRole && isPureBuyer(user)) throw new Error('Your closing team is on the Overview.');   // buyer: no Contacts tab (Nov 4 call)   // John, Nov 3: switchable off for the live portal
   // CLIENT TABS (John, Nov 4: every buyer tab in the light client layout; same for the seller): the tab's own content, under the client file line +
   // pill tabs, drawn in the client shell (app.js: white top bar, CLA logo, no sidebar). The content and its rules are unchanged.
   if (tab !== 'overview' && TABS[tab] && user.accountRole && clientSide(user)) {
-    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041951' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
+    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611042116' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
     const top = await clientTabChrome(ctx, deal, tab);
     return { ...v, crumbs: [...here, ...(v.crumbs || [])], clientPage: { deal, side: clientSide(user), tab }, body: html`<div class="co-page co-tabpage" data-client-tab="${tab}">${top}<section class="co-card co-tabcard"><div class="co-cb">${v.body}</div></section></div>` };
   }
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611041951' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611042116' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   // CLIENT OVERVIEW (John, Nov 4): the buyer / seller get the redesigned overview (client-overview.js) in place of the old overview + card summary (no Cash to Close / payoff mockup figures for clients).
   if (user.accountRole && clientSide(user)) {
@@ -37,6 +38,7 @@ export async function render(ctx) {
     { const co = await renderClientOverview({ ...ctx, wireModal, shareModal: (o) => shareModal(ctx, deal, ov0, o) }, deal, here); const lp = await locPromptHtml(ctx, deal); return lp ? { ...co, body: html`${lp}${co.body}` } : co; }   // John, Nov 4: the buyer / seller closing-location to-do also shows on the client overview
   }
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
+  deal.staffOrderNotes = !user.accountRole && api.listOrderNotes ? await ctx.api.listOrderNotes(deal.id).catch(() => []) : [];   // John, Nov 4: staff-only order notes (Title module sticky notes; never clients / agents)
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
   // Francis, Nov 3 (Qualia Connect agent portal): outstanding-task alert, 4-step progress, Order Details, Parties, Activity, Conversations,
   // Request Update / Share Access (agents) and, for staff, the update requests to answer + shared access + the portal invite email
@@ -129,7 +131,7 @@ function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = [], ov = n
       <span class="op-sales">Salespeople: ${(d.salesPeople || []).length ? (d.salesPeople || []).map((s, i) => html`${i ? ', ' : ''}<span class="nowrap" data-sales-person="${s.id}">${s.name}${edit ? html` <button class="ghost" data-rm-sales="${s.id}" title="Remove from this order" aria-label="Remove ${s.name}">&times;</button>` : ''}</span>`) : 'Not specified'}
       ${edit && salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)).length ? html` <select id="addsales" aria-label="Add a salesperson"><option value="">+ Add salesperson&hellip;</option>${options(salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)), '', (s) => `${s.firstName} ${s.lastName} (${s.role})`, (s) => s.id)}</select>` : ''}</span></div>` : ''}
     <div class="box-title"><h2><span class="h-ico"></span>Notes</h2></div>
-    <div class="op-notes" data-notes>${d.notes ? html`<div class="op-note">${d.notes}</div>` : html`<p class="muted">No notes on this order.</p>`}${edit ? html`<button type="button" class="ghost" data-edit-notes>${d.notes ? 'Edit note' : '+ Add note'}</button>` : ''}</div>
+    <div class="op-notes" data-notes>${d.notes ? html`<div class="op-note">${d.notes}</div>` : html`<p class="muted">No notes on this order.</p>`}${(d.staffOrderNotes || []).length ? html`<ul class="tt-notes" data-order-notes>${d.staffOrderNotes.slice(0, 5).map((n) => html`<li data-onote="${n.category}"><span class="pill">${n.category}</span> ${n.body.length > 220 ? n.body.slice(0, 220) + '…' : n.body} <span class="muted small">${n.byName}${n.issueResolved ? ' · resolved' : ''}</span></li>`)}</ul><a class="small" href="#/deals/${d.id}/title?v=notes">All order notes (Title)</a>` : ''}${edit ? html`<button type="button" class="ghost" data-edit-notes>${d.notes ? 'Edit note' : '+ Add note'}</button>` : ''}</div>
     ${edit ? automationSection(d, refi) : ''}
     <div class="box-title"><h2><span class="h-ico"></span>Order Contacts</h2><a class="ghost right" href="#/deals/${d.id}/contacts">All contacts</a></div>
     <div class="card op-contacts-card" data-order-contacts><div><div class="muted small">Lender</div><div data-lender>${lenderLine}</div></div>

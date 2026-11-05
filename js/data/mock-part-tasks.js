@@ -1,8 +1,8 @@
 /* mock adapter: tasks. Templates (versioned definitions) are separate from each participant's task COPY; a copy records templateId + templateVersion.
  * Intake forms: save partial work, validate, mark complete. Reminders are QUEUED in an outbox only and never sent. Tasks are cancelled, never deleted. */
-import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611041951';
-import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611041951';   // Task switch OFF: no new copy (existing copies kept)
-import { maskAccount } from './constants.js?v=202611041951';
+import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611042116';
+import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611042116';   // Task switch OFF: no new copy (existing copies kept)
+import { maskAccount } from './constants.js?v=202611042116';
 export function tasksAndForms(x) {
   const { load, save, nid, needUser, needAdmin, isManager, dealOr404, onDeal, fileRole, fileRoles, holds, dealsFor, log, prof, nameOf, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, dateOrNull, localDate, localDayOf, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
@@ -184,7 +184,7 @@ export function tasksAndForms(x) {
     async listOutbox() {
       let u = needUser(); if (!(u.isAdmin || isManager(u))) fail('The outbox is for staff.');
       const ids = new Set(dealsFor(u).map((q) => q.id));
-      return clone(load().outbox.filter((o) => u.isAdmin || ids.has(o.dealId)).map((o) => ({ ...o, toName: nameOf(o.toProfileId), fileNumber: (load().deals.find((q) => q.id === o.dealId) || {}).fileNumber })).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+      return clone(load().outbox.filter((o) => u.isAdmin || ids.has(o.dealId)).map((o) => ({ ...o, toName: o.toProfileId ? nameOf(o.toProfileId) : (o.toName || o.toEmail || ''), fileNumber: (load().deals.find((q) => q.id === o.dealId) || {}).fileNumber })).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
     },
   };
 }

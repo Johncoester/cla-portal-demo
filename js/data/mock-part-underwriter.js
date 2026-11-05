@@ -1,5 +1,5 @@
 // UNDERWRITER SPLITS, mock adapter (mirrors public.underwriter_splits / _log, migration 38). Rows added lazily (storage stays v26).
-import { DEFAULT_SPLITS, DEFAULT_UNDERWRITER, SPLIT_ADMIN_ONLY, canManageSplits, canReadSplits, cleanState, cleanPct } from './underwriter.js?v=202611041951';
+import { DEFAULT_SPLITS, DEFAULT_UNDERWRITER, SPLIT_ADMIN_ONLY, canManageSplits, canReadSplits, cleanState, cleanPct } from './underwriter.js?v=202611042116';
 export function ensureUnderwriter(d) {
   if (!Array.isArray(d.underwriterSplits)) d.underwriterSplits = DEFAULT_SPLITS.map((r) => ({ ...r, updatedAt: null, updatedBy: null }));
   if (!Array.isArray(d.underwriterSplitLog)) d.underwriterSplitLog = [];
