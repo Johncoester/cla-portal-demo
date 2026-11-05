@@ -1,9 +1,9 @@
 // TC FILE OVERVIEW (John, Nov 5): light, mirrors buyer/seller overview. Order: progress, address/key info, outstanding tasks, contacts.
 // Quick jumps: Contract info, Milestones, EMD & ALTA, Documents/Upload, Messages (all parties). FAKE DATA ONLY.
-import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611052122';
-import { STAGES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611052122';
-import { composeModal } from './compose.js?v=202611052122';
-import { moneyShow, moneyClean } from './money-input.js?v=202611052122';
+import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611052140';
+import { STAGES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611052140';
+import { composeModal } from './compose.js?v=202611052140';
+import { moneyShow, moneyClean } from './money-input.js?v=202611052140';
 const OPEN = ['todo', 'in_progress', 'blocked'];
 const long = (d) => { if (!d) return '—'; const [y, m, dd] = String(d).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
 const href = (d, t = '') => `#/deals/${d.id}${t ? '/' + t : ''}`;
