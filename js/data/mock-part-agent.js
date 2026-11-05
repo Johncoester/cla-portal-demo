@@ -3,8 +3,8 @@
  * Modify / Submit Revision, task-tied messages, Request Update (staff answer it), Share Access (RECORDED only: no email, no login is created),
  * "Complete Requests Now" invite email (preview + outbox only), rich-text messages with file attachments (Share Files), and the outside user's own
  * Activity feed (only things they can already open). Nothing here deletes anything; documents stay permanent. */
-import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, COMMISSION_LABEL, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611042116';
-import { CLA_PHONE, isRefi } from './constants.js?v=202611042116';
+import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, COMMISSION_LABEL, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611042154';
+import { CLA_PHONE, isRefi } from './constants.js?v=202611042154';
 export function agentPortal(x) {
   const { api: root, load, save, nid, needUser, isManager, notViewOnly, dealOr404, onDeal, log, prof, nameOf, ownerOf, taskVisible, threadVisible, unreadIn, docVisible, participantsOf, isStaffView,
     notify, dealProfileIds, dealView, contactOf, clone, now, fail, str, emailOk, C } = x;
@@ -14,7 +14,8 @@ export function agentPortal(x) {
   // SHARE ACCESS (John, Nov 4): the agents on the order AND the buyer on their own file (same flow: recorded on the order, nothing is sent).
   // A buyer's share is scoped to their own file and side: whoever they add could only ever get what the buyer sees there, which never
   // includes the listing agent or anything CLA keeps staff-only. Sellers do not share access (not asked for).
-  const canShare = (u) => isAgentHere(u) || x.holds(u, 'Client-Buyer');
+  // SELLER MIRROR (John, Nov 4): the seller shares access to their own file the same way (seller side; never someone already on the order).
+  const canShare = (u) => isAgentHere(u) || x.holds(u, 'Client-Buyer') || x.holds(u, 'Client-Seller');
   const agentTask = (u, id) => { const t = load().tasks.find((z) => z.id === id && z.kind === 'agent') || fail('Task not found.'); const v = onDeal(u, t.dealId); if (!taskVisible(v, t)) fail('Task not found.'); return [t, v]; };
   // clients this agent may say they represent: the clients on the agent's own side of the order (Client-Buyer for a Buyer Agent ...)
   const clientsFor = (t) => { const d = load(); const role = CLIENT_ROLE_OF[t.assignedRole];
@@ -37,9 +38,9 @@ export function agentPortal(x) {
     // an outside user's feed: their own actions, plus messages in their conversations, uploads they can open and answers to their update requests
     return d.activity.filter((a) => a.dealId === dealId && a.action !== 'document.viewed' && (a.actorId === u.id
       || (a.entity === 'thread' && (() => { const t = d.threads.find((z) => z.id === a.entityId); return t && t.participantIds.includes(u.id); })())
-      || (a.entity === 'document' && (a.action === 'document.uploaded' || (a.action === 'document.shared_client' && x.pureBuyer(u))) && (() => { const z = d.documents.find((q) => q.id === a.entityId); return z && docVisible(u, z); })())
+      || (a.entity === 'document' && (a.action === 'document.uploaded' || (a.action === 'document.shared_client' && x.pureBuyer(u)) || (a.action === 'document.shared_seller' && x.pureSeller(u))) && (() => { const z = d.documents.find((q) => q.id === a.entityId); return z && docVisible(u, z); })())
       || (a.entity === 'update_request' && (() => { const r = d.updateRequests.find((q) => q.id === a.entityId); return r && r.requestedBy === u.id; })())))
-      .filter((a) => !x.hiddenFromBuyer(u, a.actorId, dealId))   // the buyer never sees the listing agent, even as the one who uploaded a file CLA later shared (Nov 4)
+      .filter((a) => !x.hiddenFromClient(u, a.actorId, dealId))   // the buyer never sees the listing agent (the seller never sees the buyer's agent), even as the one who uploaded a file CLA later shared (Nov 4)
       .map((a) => ({ id: a.id, createdAt: a.createdAt, action: a.action, detail: a.detail, actorName: nameOf(a.actorId), actorRole: x.fileRoleText(a.actorId, a.dealId), mine: a.actorId === u.id }))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt)); };
   // documents shared through messages: who can see them follows the normal visibility rules (outside sender: their own side + CLA)
@@ -132,11 +133,12 @@ export function agentPortal(x) {
     },
     // ---------- Share Access (recorded only) ----------
     async shareAccess(dealId, { firstName, lastName, email, permission } = {}) {
-      let u = needUser(); dealOr404(u, dealId); u = onDeal(u, dealId); notViewOnly(u); if (!canShare(u)) fail('Only the agents and the buyer on this order can share access.');
-      const asBuyer = !isAgentHere(u);   // a pure buyer: scoped to the buyer side of their own file
-      const inv = { id: nid('inv'), dealId, firstName: str(firstName, 80), lastName: str(lastName, 80), email: str(email, 200).toLowerCase(), permission: str(permission, 40), side: asBuyer ? 'buyer' : C.sideOf(u.role),
-        invitedAs: asBuyer ? 'Client-Buyer' : u.role, invitedBy: u.id, status: 'recorded', createdAt: now() };
-      if (asBuyer && x.dealProfileIds(dealId).some((pid) => { const p = prof(pid); return p && p.email.toLowerCase() === inv.email && (!C.isOutside(p.role) || x.fileRoles(pid, dealId).some((r) => r !== 'Client-Buyer')); }))
+      let u = needUser(); dealOr404(u, dealId); u = onDeal(u, dealId); notViewOnly(u); if (!canShare(u)) fail('Only the agents and the buyer or seller on this order can share access.');
+      const asBuyer = !isAgentHere(u);   // a pure client (buyer or seller): scoped to their own side of their own file
+      const asRole = x.holds(u, 'Client-Buyer') ? 'Client-Buyer' : 'Client-Seller';
+      const inv = { id: nid('inv'), dealId, firstName: str(firstName, 80), lastName: str(lastName, 80), email: str(email, 200).toLowerCase(), permission: str(permission, 40), side: asBuyer ? C.sideOf(asRole) : C.sideOf(u.role),
+        invitedAs: asBuyer ? asRole : u.role, invitedBy: u.id, status: 'recorded', createdAt: now() };
+      if (asBuyer && x.dealProfileIds(dealId).some((pid) => { const p = prof(pid); return p && p.email.toLowerCase() === inv.email && (!C.isOutside(p.role) || x.fileRoles(pid, dealId).some((r) => r !== asRole)); }))
         fail('That person already works on this order. Pick someone of your own (for example a family member or attorney).');
       if (!inv.firstName || !inv.lastName) fail('First and last name are required.'); if (!emailOk(inv.email)) fail('Enter a valid email address.');
       if (!ORG_PERMISSIONS.includes(inv.permission)) fail('Choose the access to give.');

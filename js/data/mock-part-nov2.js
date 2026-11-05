@@ -7,8 +7,8 @@
  *    file; which tasks exist there comes from their role on THAT file (buyer's-agent vs listing-agent templates). Rows carry the file and myRoles /
  *    myRoleLabel (their role on that file). Never filtered by one role: every file's own per-file rules (scopeTo + taskVisible) still decide what shows.
  *    Mirrored in SQL by public.my_task_list() (migration 45). */
-import { buildTaskGrid, groupOfRole, isOverdue } from './task-board.js?v=202611042116';
-import { fileRoleLabel } from './constants.js?v=202611042116';
+import { buildTaskGrid, groupOfRole, isOverdue } from './task-board.js?v=202611042154';
+import { fileRoleLabel } from './constants.js?v=202611042154';
 
 export function mattNov2(x) {
   const { load, needUser, dealsFor, scopeTo, taskVisible, nameOf, fail, localDate, C } = x;

@@ -1,16 +1,23 @@
 /* mock adapter: contacts, participants, documents (deal files). NOTE: there is no delete for documents, for anyone (Admin included). */
-import { cleanEntity } from './mock-part-nov3b.js?v=202611042116';
-import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611042116';
+import { cleanEntity } from './mock-part-nov3b.js?v=202611042154';
+import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611042154';
 export function contactsTasksDocs(x) {
   const { load, save, nid, needUser, needProcessor, isManager, notViewOnly, seesAll, dealsFor, dealOr404, onDeal, fileRole, log, prof, nameOf, roleOf, fullName, folderOf, docVisible, participantsOf, notify, dealProfileIds, clone, now, fail, str, emailOk, C } = x;
   // u = the deal-scoped viewer (optional). A pure buyer never gets the name, role or id of another party who uploaded a file CLA staff shared with
   // them (e.g. the listing agent): it reads "CLA Title & Escrow" (John, Nov 4). Staff get buyerShareable = the Share-with-buyer switch applies.
   const staffLogin = (pid) => { const p = prof(pid); return !!p && !C.isOutside(p.role); };
-  const docOut = (z, u) => { const masked = !!u && z.dealId && x.pureBuyer(u) && z.uploadedBy !== u.id && !staffLogin(z.uploadedBy);
+  // SELLER MIRROR (Nov 4): a pure seller sees "CLA Title & Escrow" for a buyer-side upload CLA shared with them (their own listing agent's uploads keep his name)
+  const sellerMasked = (z, u) => !!u && !!z.dealId && x.pureSeller(u) && z.uploadedBy !== u.id && !staffLogin(z.uploadedBy) && x.personSide(z.uploadedBy, z.dealId) !== 'seller';
+  const sellerShareable = (z, u, f) => !!u && !!z.dealId && x.isStaffView(u) && !staffLogin(z.uploadedBy) && !x.fileRoles(z.uploadedBy, z.dealId).includes('Client-Seller') && x.personSide(z.uploadedBy, z.dealId) !== 'seller' && !x.isWireDoc(z) && z.visibility !== 'staff' && !(f && f.staffOnly);
+  const docOut = (z, u) => { const masked = (!!u && z.dealId && x.pureBuyer(u) && z.uploadedBy !== u.id && !staffLogin(z.uploadedBy)) || sellerMasked(z, u);
     const f = folderOf(z.folderId);
     return { ...z, wireInstructions: x.isWireDoc(z), dataUrl: undefined, hasContent: !!(z.dataUrl || z.hasFile), uploadedBy: masked ? null : z.uploadedBy,
       uploadedByName: masked ? 'CLA Title & Escrow' : nameOf(z.uploadedBy), uploadedByRole: masked ? 'Shared with you by CLA Title' : x.fileRoleText(z.uploadedBy, z.dealId), folderName: (f || {}).name || '',
       sharedWithClient: z.sharedWithClient === true, sharedWithClientBy: z.sharedWithClientBy || null, sharedWithClientByName: z.sharedWithClientBy ? nameOf(z.sharedWithClientBy) : '', sharedWithClientAt: z.sharedWithClientAt || null,
+      sharedWithSeller: z.sharedWithSeller === true, sharedWithSellerBy: z.sharedWithSellerBy || null, sharedWithSellerByName: z.sharedWithSellerBy ? nameOf(z.sharedWithSellerBy) : '', sharedWithSellerAt: z.sharedWithSellerAt || null,
+      // the client's own "Shared with you by CLA Title" pill: the buyer reads the buyer flag, the seller the seller flag (never the other side's)
+      sharedWithMe: !!u && ((x.pureBuyer(u) && z.sharedWithClient === true) || (x.pureSeller(u) && z.sharedWithSeller === true && sellerMasked(z, u))),
+      sellerShareable: sellerShareable(z, u, f),
       buyerShareable: !!u && !!z.dealId && x.isStaffView(u) && !staffLogin(z.uploadedBy) && !x.fileRoles(z.uploadedBy, z.dealId).includes('Client-Buyer') && z.visibility !== 'staff' && !(f && f.staffOnly) }; };
   // CONTACT TYPE (John, Nov 2): '' / null = not set; otherwise one of the fixed codes. A contact with a CLA staff login has none.
   const ctype = (v, login) => { const s = str(v, 20); if (!s) return null; if (!C.CONTACT_TYPE_CODES.includes(s)) fail('Pick a contact type from the list (Realtor, Lender or Buyer/Seller).');
@@ -122,6 +129,24 @@ export function contactsTasksDocs(x) {
       log(z.dealId, u.id, on ? 'document.shared_client' : 'document.unshared_client', 'document', z.id, on ? `Shared ${z.name} with the buyer` : `Stopped sharing ${z.name} with the buyer`);
       if (on) { const buyers = dealProfileIds(z.dealId).filter((pid) => { const v = x.scopeTo(prof(pid), z.dealId); return x.pureBuyer(v) && docVisible(v, z); });
         notify(buyers, { kind: 'document', dealId: z.dealId, title: `CLA Title shared a document with you: ${z.name}`, link: `#/deals/${z.dealId}/documents` }, u.id); }
+      save(); return clone(docOut(z, u));
+    },
+    // SHARE WITH SELLER (seller mirror, Nov 4): the same staff action for the seller side. Its own typed flag (sharedWithSeller / By / At) so a file
+    // CLA shares with the buyer never reaches the seller (and back). Typical use: the buyer's agent's upload the seller needs (e.g. a signed addendum).
+    async shareDocumentWithSeller(id, share = true) {
+      let u = needUser(); const z = load().documents.find((q) => q.id === id) || fail('Document not found.'); if (!z.dealId) fail('Library files are shared from the Library.');
+      u = onDeal(u, z.dealId); if (!x.isStaffView(u) || !isManager(u) || C.viewOnly(u)) fail('Only CLA Title staff (processor, coordinator or Admin) can share a document with the seller.');
+      const on = share === true || share === 'true' || share === 'on';
+      if (on) { const f = folderOf(z.folderId); if (z.visibility === 'staff' || (f && f.staffOnly)) fail('This file is staff-only. Change "Who can see it" first.');
+        if (x.isWireDoc(z)) fail('Wire instructions are buyer-only and are never shared with the seller.');
+        if (staffLogin(z.uploadedBy)) fail('CLA staff uploads already reach the seller through "Who can see it".');
+        if (x.fileRoles(z.uploadedBy, z.dealId).includes('Client-Seller')) fail('This is the seller\'s own upload.');
+        if (x.personSide(z.uploadedBy, z.dealId) === 'seller') fail('The seller already sees uploads from the seller side.'); }
+      if ((z.sharedWithSeller === true) === on) return clone(docOut(z, u));
+      z.sharedWithSeller = on; if (on) { z.sharedWithSellerBy = u.id; z.sharedWithSellerAt = now(); }
+      log(z.dealId, u.id, on ? 'document.shared_seller' : 'document.unshared_seller', 'document', z.id, on ? `Shared ${z.name} with the seller` : `Stopped sharing ${z.name} with the seller`);
+      if (on) { const sellers = dealProfileIds(z.dealId).filter((pid) => { const v = x.scopeTo(prof(pid), z.dealId); return x.pureSeller(v) && docVisible(v, z); });
+        notify(sellers, { kind: 'document', dealId: z.dealId, title: `CLA Title shared a document with you: ${z.name}`, link: `#/deals/${z.dealId}/documents` }, u.id); }
       save(); return clone(docOut(z, u));
     },
     async getDocumentContent(id) {
