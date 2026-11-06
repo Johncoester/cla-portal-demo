@@ -1,5 +1,5 @@
 /* Typed senders for the queued-only outbox (John, Nov 5). The portal never sends mail. */
-import { isSuperAdmin } from './constants.js?v=202611060027';
+import { isSuperAdmin } from './constants.js?v=202611060220';
 
 export const EMAIL_SENDER_DEFAULTS = Object.freeze({
   hr: { email: 'hr@clatitle.com', displayName: 'CLA Title HR' },

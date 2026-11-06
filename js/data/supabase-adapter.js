@@ -1,33 +1,36 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611060027';
-import { localDate, fileRoleLabel } from './constants.js?v=202611060027';
-import { featureFlags } from './features.js?v=202611060027';
-import { accountingSupabase } from './supabase-accounting.js?v=202611060027';
-import { payoffsSupabase } from './supabase-payoffs.js?v=202611060027';
-import { modulesSupabase } from './supabase-modules.js?v=202611060027';
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611060027';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611060027';
-import { automationPart } from './automation.js?v=202611060027';
-import { runsOrders as runsOrdersCI } from './constants.js?v=202611060027';
-import { fieldsForRole } from './templates.js?v=202611060027';
-import { crmSupabase } from './supabase-crm.js?v=202611060027';
-import { hrSupabase } from './supabase-hr.js?v=202611060027';
-import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611060027';
-import { officesSupabase } from './supabase-offices.js?v=202611060027';
-import { closingLocationSupabase } from './supabase-closing-location.js?v=202611060027';
-import { tcSupabase } from './supabase-tc.js?v=202611060027';
-import { emailSendersSupabase } from './supabase-email-senders.js?v=202611060027';
-import { nov5Supabase } from './supabase-nov5.js?v=202611060027';
-import { propertyAddressOf } from './nov5-rules.js?v=202611060027';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611060220';
+import { localDate, fileRoleLabel } from './constants.js?v=202611060220';
+import { featureFlags } from './features.js?v=202611060220';
+import { accountingSupabase } from './supabase-accounting.js?v=202611060220';
+import { payoffsSupabase } from './supabase-payoffs.js?v=202611060220';
+import { modulesSupabase } from './supabase-modules.js?v=202611060220';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611060220';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611060220';
+import { automationPart } from './automation.js?v=202611060220';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611060220';
+import { fieldsForRole } from './templates.js?v=202611060220';
+import { crmSupabase } from './supabase-crm.js?v=202611060220';
+import { hrSupabase } from './supabase-hr.js?v=202611060220';
+import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611060220';
+import { officesSupabase } from './supabase-offices.js?v=202611060220';
+import { closingLocationSupabase } from './supabase-closing-location.js?v=202611060220';
+import { tcSupabase } from './supabase-tc.js?v=202611060220';
+import { emailSendersSupabase } from './supabase-email-senders.js?v=202611060220';
+import { nov5Supabase } from './supabase-nov5.js?v=202611060220';
+import { propertyAddressOf } from './nov5-rules.js?v=202611060220';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
 
 export async function createSupabaseAdapter(cfg) {
+  if (!cfg || !cfg.url || !cfg.anonKey) throw new Error('Supabase mode needs a project URL and a publishable key. There is no mock fallback.');
+  if (typeof localStorage !== 'undefined') { try { localStorage.removeItem('cla-portal-new:data:v30'); } catch (e) { /* a browser that blocks storage still must not load fixtures */ } }
   const { createClient } = await import(SB);
   const sb = createClient(cfg.url, cfg.anonKey);
+  sb.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') { try { sessionStorage.setItem('cla-portal-recovery', '1'); } catch (e) { /* the reset screen also checks the flag */ } if (!/recovery/.test(location.hash)) location.hash = '#/login'; } });
   const ok = (r) => { if (r.error) throw new Error(r.error.message); return r.data; };
   const camel = (o) => Array.isArray(o) ? o.map(camel) : o && typeof o === 'object'
     ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), camel(v)])) : o;
@@ -50,15 +53,35 @@ export async function createSupabaseAdapter(cfg) {
   const withRole = (d, r, pm) => ({ ...d, myRole: r && r.role, myRoles: (r && r.roles) || [], myRoleLabel: r && r.label, selfRep: !!(r && r.self_rep), agentParties: pm.get(d.id) || [] });
   const me = async () => {
     const { data: { user } } = await sb.auth.getUser(); if (!user) return null;
-    const p = camel(ok(await sb.rpc('my_profile')));   // migration 13: own row incl. phone/email (other people's come masked from deal_contacts)
+    const raw = ok(await sb.rpc('my_profile'));   // profiles row only; user_metadata is never a role
+    if (!raw) return { id: user.id, email: user.email || '', firstName: '', lastName: '', role: '', status: 'unprovisioned', unprovisioned: true, isAdmin: false };
+    const p = camel(raw);
     const rs = p.role === 'Outside user' ? [...(await fileRoles()).values()] : [];
     p.fileRoles = sorted(rs.flatMap((r) => r.roles || [])); p.fileLabels = sorted(rs.map((r) => r.label));
     return p;
   };
   const a = {
-    // ---- auth (real logins after John confirms; the dev picker and ?as= links stay mock-only) ----
+    mode: 'supabase',
+    // ---- auth (real logins; the dev picker and ?as= links are mock-only and ignored in this mode) ----
     async listDevUsers() { return []; },
+    async listDemoPersonas() { return camel(ok(await sb.rpc('list_demo_personas')) || []); },
+    async startDemoView(userId) { return camel(ok(await sb.rpc('start_demo_view', { p_target: userId }))); },
+    async stopDemoView() { return camel(ok(await sb.rpc('stop_demo_view'))); },
+    async demoViewStatus() { return camel(ok(await sb.rpc('demo_view_status')) || { active: false }); },
     async signIn(email, password) { ok(await sb.auth.signInWithPassword({ email, password })); return me(); },
+    async requestPasswordReset(email) { const { error } = await sb.auth.resetPasswordForEmail(String(email || '').trim(), { redirectTo: 'https://johncoester.github.io/cla-portal-demo/' }); if (error) throw new Error(error.message); return { ok: true }; },
+    async updatePassword(password) { const { data, error } = await sb.auth.updateUser({ password: String(password || '') }); if (error) throw new Error(error.message); return data; },
+    async provisionPortalUser(input) { return ok(await sb.rpc('provision_portal_user', { p_user: input.userId, p_role: input.role, p_first: input.firstName, p_last: input.lastName || '' })); },
+    async submitPortalFeedback(body, page) { return ok(await sb.rpc('submit_portal_feedback', { p_body: body, p_page: page || '' })); },
+    async listPortalFeedback() { return ok(await sb.rpc('list_portal_feedback')) || []; },
+    async updateMyProfile(patch = {}) {
+      if (patch.role != null || patch.isAdmin != null || patch.status != null) throw new Error('Role and access are assigned by an administrator.');
+      const row = {};
+      if (patch.firstName != null) row.first_name = String(patch.firstName); if (patch.lastName != null) row.last_name = String(patch.lastName); if (patch.phone != null) row.phone = String(patch.phone);
+      const { data: { user } } = await sb.auth.getUser(); if (!user) throw new Error('Please sign in.');
+      if (Object.keys(row).length) ok(await sb.from('profiles').update(row).eq('id', user.id));
+      return me();
+    },
     async getSession() { return me(); },
     async signOut() { await sb.auth.signOut(); },
     async resetDemoData() {},
@@ -91,7 +114,7 @@ export async function createSupabaseAdapter(cfg) {
     async createDeal(input) {
       // Refinance (John, Nov 3): no purchase price / EMD; migration 32 (private.deal_refi_guard) refuses them, and sellers / realtors / a TC on the file
       const refi = input.transactionType === 'Refinance';
-      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611060027'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
+      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611060220'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
       const { data: { user } } = await sb.auth.getUser(); const num = (v) => (v === '' || v == null ? null : Number(String(v).replace(/[$,\s]/g, '')));
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
         open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : num(input.purchasePrice), loan_amount: num(input.loanAmount),
@@ -169,8 +192,8 @@ export async function createSupabaseAdapter(cfg) {
     async adminSetSalesReps(clientId, salesIds) { ok(await sb.rpc('admin_set_sales_reps', { p_client: clientId, p_sales: salesIds || [] })); return this.listClientSalesReps().then((r) => r.filter((l) => l.clientId === clientId)); },
     async publishTemplateVersion(code, patch) { return ok(await sb.rpc('publish_template_version', { p_code: code, p_title: patch.title, p_description: patch.description, p_due_days: patch.dueDays })); },
     async setTemplateAgentRoles(code, roles) { return { code, agentRoles: ok(await sb.rpc('set_template_agent_roles', { p_code: code, p_roles: roles })) }; },   // migration 9
-    async sendTaskReminder(id) { return { queued: ok(await sb.rpc('queue_task_reminder', { p_task: id })) }; },
-    async queueOverdueReminders() { return { queued: ok(await sb.rpc('queue_overdue_reminders')) }; },
+    async sendTaskReminder() { throw new Error('CLA Portal Live Test does not send email. Nothing was queued.'); },
+    async queueOverdueReminders() { throw new Error('CLA Portal Live Test does not send email. Nothing was queued.'); },
     async listOutbox() { return camel(ok(await sb.from('outbox').select('*').order('created_at', { ascending: false }))); },
     // Matt, Nov 2: my_notifications() adds the order's file number + address (blank once the person can no longer open that order)
     async listNotifications({ limit = 20 } = {}) { return camel(ok(await sb.rpc('my_notifications', { p_limit: limit }))); },
@@ -213,23 +236,25 @@ export async function createSupabaseAdapter(cfg) {
     async proposeClosing(dealId, { at, location, note, officeId }) { return { id: ok(await sb.rpc('propose_closing', { p_deal: dealId, p_at: at, p_location: location, p_note: note || '', p_office: officeId || null })) }; },
     async confirmClosing(dealId, { at, location, note, proposalId, officeId } = {}) { ok(await sb.rpc('confirm_closing', { p_deal: dealId, p_at: at || null, p_location: location || null, p_note: note || '', p_proposal: proposalId || null, p_office: officeId || null })); },
     // e-sign: the RPCs stand in for the provider (esign.js DemoProvider); a DocuSign / Dropbox Sign Edge Function would call the same tables
-    async requestSignature(docId, { signerIds, message }) { return { id: ok(await sb.rpc('request_signature', { p_doc: docId, p_signers: signerIds, p_message: message || '' })) }; },
+    async requestSignature() { throw new Error('E-sign is not enabled on CLA Portal Live Test. Nothing was sent.'); },
     async listSignatureRequests(dealId) { return camel(ok(await sb.from('signature_requests').select('*, signers:signature_signers(*)').eq('deal_id', dealId).order('requested_at', { ascending: false }))); },
-    async signDocument(requestId, { typedName, adopt }) { return { status: ok(await sb.rpc('sign_document', { p_request: requestId, p_typed_name: typedName, p_adopt: adopt === true || adopt === 'on' })) }; },
+    async signDocument() { throw new Error('E-sign is not enabled on CLA Portal Live Test. Nothing was sent.'); },
     // SHARE WITH BUYER (John, Nov 4; migration 60): CLA staff open another party's upload to the pure Client-Buyer; documents.shared_with_client(_by/_at) are typed, reportable columns
     async shareDocumentWithClient(docId, share = true) { ok(await sb.rpc('share_document_with_client', { p_doc: docId, p_share: share !== false })); return true; },
     // SHARE WITH SELLER (seller mirror, Nov 4; migration 65): the same for the pure Client-Seller; documents.shared_with_seller(_by/_at) typed, reportable columns
     async shareDocumentWithSeller(docId, share = true) { ok(await sb.rpc('share_document_with_seller', { p_doc: docId, p_share: share !== false })); return true; },
     async cancelSignatureRequest(id) { ok(await sb.rpc('cancel_signature_request', { p_request: id })); return true; },
   };
-  for (const n of ['pickPerson', 'signInDev', 'updateMyProfile', 'getWorkQueue', 'unreadCount', 'setStage', 'setDealStatus',
+  const NOT_ENABLED = 'This action is not enabled on CLA Portal Live Test. Nothing was sent, queued, or saved as if it had succeeded.';
+  for (const n of ['pickPerson', 'signInDev', 'getWorkQueue', 'unreadCount', 'setStage', 'setDealStatus',
     // addDocument uploads to the private deal-documents bucket (supabase-nov5.js). updateDocumentMeta still needs a column-grant pass.
     'removeParticipant', 'createTask', 'updateDocumentMeta',
-    'adminListUsers', 'adminGetUser', 'adminUpdateUser', 'adminCreateUser',
+    'adminListUsers', 'adminGetUser', 'adminUpdateUser',
     // round 2 still to wire (tables/RPCs exist in migrations 4-6; adminCreateUser needs an Edge Function with the service role)
     'listSalesStaff', 'moveDocument', 'uploadForTask', 'listTaskTemplates', 'listTeams', 'createTeam', 'renameTeam', 'addTeamMember', 'removeTeamMember',
     'listLibrary', 'listDealFolders', 'createFolder', 'renameFolder', 'addLibraryDocument', 'listSettlements',
     'listSignatureCandidates']) a[n] = todo(n);   // migration 14: candidates = deal_contacts() + document visibility (to wire)
+  a.adminCreateUser = async () => { throw new Error('Creating a login is closed here. Add the person in the Supabase dashboard, then an administrator provisions the role. No email is sent.'); };
   // CRM (John, Nov 2; migration 22): only when the `crm` flag is on (default OFF in supabase mode; features.js). The database has its own switch too.
   a.features = featureFlags(cfg);
   Object.assign(a, crmSupabase({ sb, ok, camel, me, flags: a.features }));
@@ -251,5 +276,9 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, tcSupabase({ sb, ok, camel, api: a }));   // John, Nov 5 (migration 71): TC contract / EMD / ALTA / all-parties thread
   Object.assign(a, emailSendersSupabase({ sb, ok, me }));
   Object.assign(a, nov5Supabase({ sb, ok, camel, me }));
+  for (const n of ['createAgentInvite', 'resendAgentInvite', 'acceptAgentInvite']) a[n] = async () => { throw new Error('Invitations are not enabled on CLA Portal Live Test. Nothing was sent.'); };
+  a.previewCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };
+  a.runCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };
+  a.cancelSignatureRequest = async () => { throw new Error(NOT_ENABLED); };
   return a;
 }

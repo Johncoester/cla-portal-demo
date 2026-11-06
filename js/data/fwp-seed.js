@@ -1,5 +1,5 @@
 /* Additive fake fixtures for Funding, Wires and Final Policy. Last-four-only fake bank identifiers. */
-import { FUND_KINDS, FUNDING_CHECK_KEYS, SIGNATURE_CHECKS, STANDARD_LENDER_REMOVALS, STANDARD_EXCEPTION_LABELS, dotException } from './funding-wire-policy.js?v=202611060027';
+import { FUND_KINDS, FUNDING_CHECK_KEYS, SIGNATURE_CHECKS, STANDARD_LENDER_REMOVALS, STANDARD_EXCEPTION_LABELS, dotException } from './funding-wire-policy.js?v=202611060220';
 export function seedFwp(d) {
   if (d.fwpSampleSeeded && d.fundingRecords.some((r)=>r.dealId==='deal-1') && d.policyChecks.some((r)=>r.dealId==='deal-1'&&r.checkKey==='ownerSigned')) return d;
   // Honor the existing additive Title fixture's file-number collision guard.

@@ -68,6 +68,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: var(--s4) 0; }
 .foot-logo { height: 20px; vertical-align: middle; margin-right: 8px; opacity: .8; }
 .welcome-title { font-family: var(--font); color: var(--ink-3); text-transform: none; font-size: var(--fs-sm); font-weight: 500; padding: 0; border: 0; margin: 0 0 var(--s2); }
 .dev-banner { display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box; background: #fff4d6; border: 2px solid #c47b00; color: #6a3d00; font-size: 15px; font-weight: 700; padding: 8px 14px; border-radius: 8px; margin-bottom: 12px; } .dev-banner a { color: #6a3d00; }
+.view-as-banner { background: #163a5f; border-color: #163a5f; color: #fff; } .view-as-banner a { color: #fff; text-decoration: underline; }
 .breadcrumb { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 0; margin: 0 0 var(--s3); color: var(--ink-3); font-size: var(--fs-sm); }
 .breadcrumb li + li::before { content: '\203A'; display: inline-block; margin: 0 6px 0 2px; color: var(--ink-4); }
 .breadcrumb a { color: var(--ink-3); text-decoration: none; } .breadcrumb a:hover { color: var(--navy-600); text-decoration: underline; } .breadcrumb img { height: 13px; vertical-align: -2px; margin-right: 5px; opacity: .6; } .breadcrumb .active { color: var(--ink); font-weight: 500; }

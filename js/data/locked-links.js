@@ -9,14 +9,14 @@
  * VIEW AS (Super admin only): inside a locked link whose OWNER is a Super admin (King John), a "View as" dropdown switches the tab to any fake user and
  * back; the route guard then applies to the person being viewed. Any other locked link (Adam Admin included) never gets it, and a stored viewAs on a
  * lock whose owner is not a Super admin is ignored and cleared (app.js). */
-import { runsOrders, isStaff, isOutside } from './constants.js?v=202611060027';
-import { titleCanRead } from './title.js?v=202611060027';
-import { fwpCanRead } from './funding-wire-policy.js?v=202611060027';   // John, Nov 4: order > Title route guard
-import { canUseCrm } from './crm.js?v=202611060027';
-import { canInviteAgents } from './agent-profile.js?v=202611060027';
-import { canManageModules } from './modules.js?v=202611060027';
-import { hrSectionAllowed } from './hr.js?v=202611060027';
-import { canManageOffices } from './offices.js?v=202611060027';
+import { runsOrders, isStaff, isOutside } from './constants.js?v=202611060220';
+import { titleCanRead } from './title.js?v=202611060220';
+import { fwpCanRead } from './funding-wire-policy.js?v=202611060220';   // John, Nov 4: order > Title route guard
+import { canUseCrm } from './crm.js?v=202611060220';
+import { canInviteAgents } from './agent-profile.js?v=202611060220';
+import { canManageModules } from './modules.js?v=202611060220';
+import { hrSectionAllowed } from './hr.js?v=202611060220';
+import { canManageOffices } from './offices.js?v=202611060220';
 
 export const LOCK_KEY = 'cla-portal-new:locked:v1';
 export function devPickerOn(w = (typeof window !== 'undefined' ? window : {})) {
@@ -72,6 +72,7 @@ export function routeAllowed(u, route, { locked = false } = {}) {
   if (p === 'templates' || p === 'outbox') return runsOrders(u) || !!u.isAdmin || u.role === 'Transaction Coordinator';
   if (p === 'agent-invites') return canInviteAgents(u);
   if (p === 'library') return true;
+  if (p === 'demo') return u.role === 'Super admin' && !!u.isAdmin && (u.status || 'active') === 'active';
   return false;
 }
 // SECTION LINKS (John, Nov 4): &section=<name> (+ optional &file=<deal>) opens one section directly. A section only picks the first page:
