@@ -2,9 +2,9 @@
 //   #/hr/documents        HR Documents: HR managers / Super admins upload company HR documents and share them with all / departments / employees
 //   profile cards         Portal time log (under Portal login), Documents (offer letter, manual, signed policy; signature status recorded by hand),
 //                         "Shared with you" (company documents HR shared with this employee, on My profile)
-import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime, fmtSize } from '../ui.js?v=202611061707';
-import { HR_COMPANY_DOC_CATEGORIES, HR_SHARE_SCOPES, HR_EMP_DOC_TYPES, HR_SIGN_STATUSES, HR_SIGN_PROVIDERS, HR_ESIGN_NOTE, fmtDuration, fullNameOf } from '../data/hr.js?v=202611061707';
-import { ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611061707';
+import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime, fmtSize } from '../ui.js?v=202611061730';
+import { HR_COMPANY_DOC_CATEGORIES, HR_SHARE_SCOPES, HR_EMP_DOC_TYPES, HR_SIGN_STATUSES, HR_SIGN_PROVIDERS, HR_ESIGN_NOTE, fmtDuration, fullNameOf } from '../data/hr.js?v=202611061730';
+import { ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611061730';
 const opt = (list, sel) => list.map(([v, l]) => html`<option value="${v}"${String(v) === String(sel == null ? '' : sel) ? raw(' selected') : ''}>${l}</option>`);
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 const fileOf = async (input) => { const f = input && input.files && input.files[0]; if (!f) throw new Error('Pick a file to upload.'); return { name: f.name, mimeType: f.type, size: f.size, dataUrl: await readFile(f) }; };

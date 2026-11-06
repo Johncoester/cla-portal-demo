@@ -1,7 +1,7 @@
 /* Mock adapter for Funding, Wires and Final Policy. Typed, soft-deleted rows; strict staff gate added in mock-adapter. */
-import * as R from './funding-wire-policy.js?v=202611061707';
-import { seedFwp } from './fwp-seed.js?v=202611061707';
-import { ledgerTotals } from './accounting.js?v=202611061707';
+import * as R from './funding-wire-policy.js?v=202611061730';
+import { seedFwp } from './fwp-seed.js?v=202611061730';
+import { ledgerTotals } from './accounting.js?v=202611061730';
 
 const COLS = ['fundingRecords', 'fundingFunds', 'fundingChecks', 'fundingDisbursements', 'wireRecords', 'wireAuditLog', 'escrowAccounts', 'policyRecords', 'policyChecks', 'policyExceptions', 'policyEndorsementFees', 'policyEscalations', 'fwpLog'];
 export function ensureFwp(d, { seed = false } = {}) {
