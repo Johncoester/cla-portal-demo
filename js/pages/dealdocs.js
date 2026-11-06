@@ -55,14 +55,21 @@ export async function render({ api, user, deal, refresh }) {
   } };
 
   function upload() {
-    const m = modal('Upload a document', html`<form id="uf" class="form-grid"><label class="span2">File * <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB)</span><input type="file" name="file" required></label>
+    const m = modal('Upload a document', html`<form id="uf" class="form-grid" novalidate><label class="span2">File * <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB)</span><input type="file" name="file"></label>
       <label class="span2">Document type<select name="docType"><option value="">Choose&hellip;</option>${options(types, '')}</select></label>
       <label class="span2">Additional instruction<input name="description" maxlength="500"></label>
       <label class="span2">Folder<select name="folderId"><option value="">Unfiled</option>${options(realFolders, folder || '', (f) => f.name, (f) => f.id)}</select></label><label class="span2">Who can see it<select name="visibility">${options(visOpts, visOpts[0], VL)}</select></label>${staffView ? html`<label class="check span2"><input type="checkbox" name="wireInstructions" data-wire-mark> Wire instructions (buyer clients and CLA Title only; agents never see it, whatever "Who can see it" says)</label>` : ''}${isClient(user.role) ? html`<p class="span2 muted small" data-share-note>${user.role === 'Client-Buyer' ? BUYER_SHARE_NOTE : CLIENT_SHARE_NOTE}</p>` : ''}
-      <div class="span2"><button class="m-btn" type="submit">Upload</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
-    $('#uf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); const file = f.file; if (!file || !file.name) throw new Error('Choose a file.');
-      if (file.size > MAX_UPLOAD_BYTES) throw new Error('File is too large for this demo.'); const dataUrl = await readFile(file);
-      await api.addDocument(deal.id, { name: file.name, description: f.description, mimeType: file.type, size: file.size, dataUrl, visibility: f.visibility, folderId: f.folderId || null, docType: f.docType || '', wireInstructions: staffView && !!f.wireInstructions }); closeModal(); toast('Uploaded'); refresh(); }));
+      <p class="span2 err-text" data-upload-err role="alert"></p>
+      <div class="span2"><button class="m-btn" type="submit" data-upload-submit>Upload</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
+    $('#uf', m).addEventListener('submit', async (e) => { e.preventDefault(); const form = e.target; const err = $('[data-upload-err]', form); const btn = $('[data-upload-submit]', form); err.textContent = '';
+      const f = formData(form); const file = f.file; if (!file || !file.name) { err.textContent = 'Choose a file to upload.'; toast('Choose a file to upload.', 'err'); return; }
+      if (file.size > MAX_UPLOAD_BYTES) { err.textContent = 'File is too large for this demo.'; toast(err.textContent, 'err'); return; }
+      if (btn.disabled) return; btn.disabled = true; btn.textContent = 'Uploading…';
+      try {
+        const dataUrl = await readFile(file);
+        await api.addDocument(deal.id, { name: file.name, description: f.description, mimeType: file.type, size: file.size, dataUrl, file, visibility: f.visibility, folderId: f.folderId || null, docType: f.docType || '', wireInstructions: staffView && !!f.wireInstructions });
+        closeModal(); toast('Uploaded'); refresh();
+      } catch (ex) { const msg = ex.message || 'The upload failed.'; err.textContent = msg; toast(msg, 'err'); btn.disabled = false; btn.textContent = 'Upload'; } });
   }
   // E-SIGN (demo): processor / coordinator pick who signs. Only people who can see the document can be asked.
   async function signReq(d) {
