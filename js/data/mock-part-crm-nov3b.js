@@ -52,7 +52,9 @@ export function crmNov3bPart(x, h) {
       loanAmount: q.loanAmount == null ? null : q.loanAmount, stage: dealStageOf(q.status), status: q.status, closingDate: q.closingDate || null, openDate: q.openDate || null,
       clientName: [...new Set(clients.map(fullName))].join(', '), _clientLink: firstClient && contactSeen(u, firstClient) ? `#/crm/contacts/${firstClient.id}` : '',
       contactName: [...new Set(agents.map(fullName))].join(', '), ownerId: sales[0] ? sales[0].salesId : null, ownerName: sales[0] ? nameOf(sales[0].salesId) : '', salesReps: sales.map((s) => nameOf(s.salesId)).join(', '),
-      county: q.county || '', city: q.city, transactionType: q.transactionType || '', lenderName: q.lenderName || '', createdAt: q.createdAt, _link: `#/crm/deals/${q.id}`, _portalLink: `#/deals/${q.id}`,
+      county: q.county || '', city: q.city, transactionType: q.transactionType || '', lenderName: q.lenderName || '', createdAt: q.createdAt || null, modifiedAt: q.updatedAt || null,
+      lastActivityAt: [...(d.crmActivities || []).filter((a) => a.entity === 'deal' && a.entityId === q.id && a.createdAt).map((a) => a.createdAt), ...(d.crmEmails || []).filter((m) => m.entity === 'deal' && m.entityId === q.id && m.createdAt).map((m) => m.createdAt)].reduce((a, b) => (a > b ? a : b), null),
+      _link: `#/crm/deals/${q.id}`, _portalLink: `#/deals/${q.id}`,
       // John, Nov 3: SOURCE = the order's Source of business (the CRM Settings Lead Source list, staff only; Matt Nov 3 b) = who / what sent us the deal
       source: q.sourceOfBusiness || '', sourceText: q.sourceOfBusiness ? (referralLabel(q.sourceOfBusiness, (id) => { const c = cOf(id); return c ? fullName(c) : ''; }) || L(cfg, 'leadSource', q.sourceOfBusiness)) : '', salesIds: sales.map((z) => z.salesId),
       clientIds: [...new Set(ps.filter((p) => isClientRole(p.role)).map((p) => p.contactId))],

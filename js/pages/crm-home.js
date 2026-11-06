@@ -2,7 +2,7 @@
 // Function first, minimal styling. Reminders show in the portal only; nothing is emailed; meetings are never sent as invitations.
 import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611061730';
 import { localDate } from '../data/constants.js?v=202611061730';
-import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY } from '../data/crm.js?v=202611061730';
+import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY, dueTone, daysOverdue, taskOpen } from '../data/crm.js?v=202611061730';
 import { tabs, head } from './crm-kit.js?v=202611061730';
 import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611061730';
 import { inviteBtn, invitePreview } from './crm-janine.js?v=202611061730';
@@ -17,7 +17,7 @@ const TASK_COLS = [['dueDate', 'Due Date'], ['subject', 'Subject'], ['relatedTo'
 const LEADS_PER_PAGE = 5;
 
 // ---------------- HOME ----------------
-export async function homePage({ api, me, params, cfg }) {
+export async function homePage({ api, me, params, cfg, refresh, assignees }) {
   const [tasks, leads, opps, callRem] = await Promise.all([api.listCrmTasks(), api.listCrmLeads(), api.listCrmOpportunities(), api.listCrmCallReminders ? api.listCrmCallReminders().catch(() => []) : []]);   // video 11: call reminders (recorded only)
   const today = localDate(); const todayLeads = leads.filter((l) => !l.archived && localDay(l.createdAt) === today).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   const so = optionsOf(cfg, 'oppStage'); const stages = amountByStage(opps, so.map((o) => o.value), so.filter((o) => o.retired).map((o) => o.value)); const max = Math.max(1, ...stages.map((s) => s.amount));
@@ -27,7 +27,7 @@ export async function homePage({ api, me, params, cfg }) {
     ${reminders.length ? html`<p class="card" data-reminders>${pill('Reminder', 'warn')} ${reminders.length} task reminder(s) due: ${reminders.map((t, i) => html`${i ? ', ' : ''}<a href="#/crm/tasks/${t.id}">${subj(cfg, t.subject)}</a>`)} <span class="muted small">(shown in the portal only; never emailed)</span></p>` : ''}
     ${callRem.length ? html`<p class="card" data-call-reminders>${pill('Reminder', 'warn')} ${callRem.length} call reminder(s) due: ${callRem.map((a, i) => html`${i ? ', ' : ''}<a href="#/crm/calls/${a.id}" data-call-reminder-link="${a.id}">${a.subject}</a> <span class="muted small">(${String(a.callStart || '').replace('T', ' ')})</span>`)} <span class="muted small">(shown in the portal only; nothing is sent)</span></p>` : ''}
     <div class="card" data-home-tasks><h3><select data-task-filter aria-label="Task view">${HOME_TASK_FILTERS.map((f) => html`<option value="${f}">${f}</option>`)}</select> <span class="muted small" data-task-count></span></h3>
-      <table class="tbl" id="home-tasks"><thead><tr>${TASK_COLS.map(([k, l]) => html`<th><a href="#" data-sort="${k}">${l}</a> <span class="muted small" data-sort-mark="${k}"></span></th>`)}</tr></thead><tbody></tbody></table></div>
+      <table class="tbl" id="home-tasks"><thead><tr>${TASK_COLS.map(([k, l]) => html`<th><a href="#" data-sort="${k}">${l}</a> <span class="muted small" data-sort-mark="${k}"></span></th>`)}<th></th></tr></thead><tbody></tbody></table></div>
     <div class="card" data-home-leads><h3>Today's Leads <a class="right small" href="#/crm/leads" data-view-all>View All</a></h3>
       <table class="tbl" id="home-leads"><thead><tr><th>Lead Name</th><th>Company</th><th>Email</th><th>Lead Source</th></tr></thead><tbody></tbody></table>
       <p><button class="ghost" data-leads-prev>&lsaquo; Prev</button> <span class="muted small" data-leads-page></span> <button class="ghost" data-leads-next>Next &rsaquo;</button></p></div>
@@ -40,15 +40,26 @@ export async function homePage({ api, me, params, cfg }) {
     let [sk, sd] = (SS('sort') || 'dueDate:asc').split(':');
     const draw = () => { SS('filter', fsel.value); SS('sort', `${sk}:${sd}`);
       const list = sortTasks(homeTaskFilter(tasks, fsel.value, me.id, today), sk, sd, orderOf(cfg)); SS('order', JSON.stringify(list.map((t) => t.id)));
-      $('#home-tasks tbody', root).innerHTML = toText(list.length ? list.map((t) => html`<tr data-task="${t.id}" class="${t.overdue ? 'overdue' : ''}">
-        <td data-col="dueDate">${fmtDate(t.dueDate)}${t.overdue ? html` ${pill('Overdue', 'bad')}` : ''}</td>
+      const dueCell = (t) => { const tone = dueTone(t.dueDate, today, taskOpen(t)); const late = tone === 'overdue' ? daysOverdue(t.dueDate, today) : 0;
+        return html`<span class="due-${tone}" data-due-tone="${tone}">${t.dueDate ? fmtDate(t.dueDate) : 'No due date'}${late ? html` <span data-days-overdue="${late}">${late} day${late === 1 ? '' : 's'} overdue</span>` : ''}</span>`; };
+      $('#home-tasks tbody', root).innerHTML = toText(list.length ? list.map((t) => html`<tr data-task="${t.id}" class="${dueTone(t.dueDate, today, taskOpen(t)) === 'overdue' ? 'overdue' : ''}">
+        <td data-col="dueDate">${dueCell(t)}</td>
         <td data-col="subject"><a href="#/crm/tasks/${t.id}" data-task-subject>${subj(cfg, t.subject)}</a>${t.reminderDue ? html` ${pill('Reminder', 'warn')}` : ''}</td>
         <td data-col="relatedTo">${t.relatedLink ? html`<a href="${t.relatedLink}">${t.relatedTo}</a>` : t.relatedTo || ''}</td>
         <td data-col="contactName">${t.contactLink && t.contactName ? html`<a href="${t.contactLink}">${t.contactName}</a>` : t.contactName || ''}</td>
-        <td data-col="status">${lbl(cfg, 'taskStatus', t.status)}</td><td data-col="priority">${lbl(cfg, 'taskPriority', t.priority)}</td></tr>`) : html`<tr><td colspan="6" class="muted">No tasks in this view.</td></tr>`);
+        <td data-col="status">${lbl(cfg, 'taskStatus', t.status)}</td><td data-col="priority">${lbl(cfg, 'taskPriority', t.priority)}</td>
+        <td data-col="actions">${me.canEdit && !t.system ? html`<button type="button" class="ghost" data-quick-edit="${t.id}">Edit</button>${t.open ? html` <button type="button" class="ghost" data-quick-close="${t.id}">Close</button>` : ''}` : ''}</td></tr>`) : html`<tr><td colspan="7" class="muted">No tasks in this view.</td></tr>`);
       $('[data-task-count]', root).textContent = `${list.length} task(s)`;
       $$('[data-sort-mark]', root).forEach((s) => { s.innerHTML = s.dataset.sortMark === sk ? (sd === 'asc' ? '&uarr;' : '&darr;') : ''; }); };
     fsel.addEventListener('change', draw);
+    $('#home-tasks', root).addEventListener('click', guard(async (e) => {
+      const edit = e.target.closest('[data-quick-edit]'); const close = e.target.closest('[data-quick-close]');
+      if (!edit && !close) return;
+      const id = (edit || close).dataset.quickEdit || (edit || close).dataset.quickClose;
+      const t = tasks.find((z) => z.id === id); if (!t || !me.canEdit || t.system) return;
+      if (edit) { taskModal(api, { entity: t.entity, entityId: t.entityId, parentName: t.relatedTo || t.contactName, me, assignees: assignees || [], cfg }, t, () => refresh()); return; }
+      await api.closeCrmTask(t.id); toast('Task closed'); refresh();
+    }));
     $$('[data-sort]', root).forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); const k = a.dataset.sort; if (k === sk) sd = sd === 'asc' ? 'desc' : 'asc'; else { sk = k; sd = 'asc'; } draw(); }));
     draw();
     let page = 0; const pages = Math.max(1, Math.ceil(todayLeads.length / LEADS_PER_PAGE));

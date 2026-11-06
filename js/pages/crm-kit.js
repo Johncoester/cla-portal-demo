@@ -29,11 +29,14 @@ export const dis = (me) => (me.canEdit ? '' : raw('disabled'));
 // csv: file name -> an "Export CSV" button that downloads the rows currently shown (filters + sort), with the columns shown.
 // exporter(cols, rows) -> { name, csv }: the adapter builds the file and refuses anyone but an Admin / Super admin (John, Nov 3: Clients, Leads, Companies)
 // Janine, Nov 4: bar = the custom-view tabs (crm-views.js viewsBar) shown above the filters; saved = { api, listKey } adds Saved Filters chips
-export function listView({ key, rows, cols, filters = [], sorts = [], fields, dflt = {}, sortDefault = 'name:asc', csv = '', exporter = null, bar = '', saved = null }) {
+const datePair = (from, to, label) => html`<label>${label} from<input type="date" name="${from}" data-crm-date></label><label>${label} to<input type="date" name="${to}" data-crm-date></label>`;
+export function listView({ key, rows, cols, filters = [], sorts = [], fields, dflt = {}, sortDefault = 'name:asc', csv = '', exporter = null, bar = '', saved = null, dates = false }) {
   const body = html`${bar}<form class="filter-bar" id="crm-f-${key}" onsubmit="return false">
       <label>Search<input name="q" type="search" placeholder="Name, email, company, county, tag" data-crm-search></label>
       ${filters.map(([name, label, opts, blank]) => html`<label>${label}${sel(name, opts, dflt[name] || '', blank)}</label>`)}
+      ${dates ? html`${datePair('createdFrom', 'createdTo', 'Created Time')}${datePair('modifiedFrom', 'modifiedTo', 'Modified Time')}${datePair('activityFrom', 'activityTo', 'Last Activity Time')}` : ''}
       <label>Sort<select name="sort">${sorts.flatMap(([k, l]) => [html`<option value="${k}:asc" ${sortDefault === k + ':asc' ? raw('selected') : ''}>${l} &uarr;</option>`, html`<option value="${k}:desc" ${sortDefault === k + ':desc' ? raw('selected') : ''}>${l} &darr;</option>`])}</select></label>
+      <button type="button" class="ghost" data-crm-reset>Reset</button>
     </form>${saved ? savedFiltersHtml(saved.listKey) : ''}
     <div class="table-tools"><span class="muted" data-count></span>${csv ? html` <button class="ghost" type="button" data-list-csv="${key}">Export CSV</button>` : exporter ? html` <span class="muted small" data-csv-admin-only>CSV download: Admins only</span>` : ''}</div>
     <table class="tbl" id="crm-t-${key}"><thead><tr>${cols.map(([, l]) => html`<th>${l}</th>`)}</tr></thead><tbody></tbody></table>`;
@@ -42,7 +45,12 @@ export function listView({ key, rows, cols, filters = [], sorts = [], fields, df
     const apply = () => { const v = formData(f); const [k, dir] = (v.sort || sortDefault).split(':'); const list = crmSort(crmFilter(rows, v, fields), k, dir); shown = list;
       tb.innerHTML = toText(list.length ? list.map((r) => html`<tr data-row="${r.id}">${cols.map(([c, , fn]) => html`<td data-col="${c}">${fn ? fn(r) : r[c] ?? ''}</td>`)}</tr>`) : html`<tr><td colspan="${cols.length}" class="muted">Nothing matches.</td></tr>`);
       $('[data-count]', root).textContent = `${list.length} of ${rows.length} shown`; };
-    f.addEventListener('input', apply); f.addEventListener('change', apply); apply();
+    f.addEventListener('input', apply); f.addEventListener('change', apply);
+    const resetBtn = $('[data-crm-reset]', f); if (resetBtn) resetBtn.addEventListener('click', () => {
+      [...f.elements].forEach((el) => { if (!el.name) return; el.value = el.name === 'sort' ? sortDefault : (dflt[el.name] || ''); });
+      apply();
+    });
+    apply();
     if (saved) wireSavedFilters(root, saved.api, saved.listKey, { getValues: () => { const v = formData(f); delete v.sort; return v; },
       setValues: (o) => { [...f.elements].forEach((el) => { if (!el.name || el.name === 'sort') return; el.value = o[el.name] != null ? o[el.name] : ''; }); apply(); },
       count: (o) => crmFilter(rows, o, fields).length });

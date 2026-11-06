@@ -69,6 +69,39 @@ export const safeHref = (v) => { try { const s = cleanUrl(v); return s; } catch 
 const p2 = (n) => String(n).padStart(2, '0');
 export const localStamp = (d = new Date()) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
 export const addDaysTo = (ymd, n) => { const [y, m, d] = ymd.split('-').map(Number); const t = new Date(y, m - 1, d + n); return `${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())}`; };
+// Calendar days between two YYYY-MM-DD dates. UTC date parts, so a DST change does not change the count.
+export const daysBetween = (fromYmd, toYmd) => {
+  if (!fromYmd || !toYmd) return null;
+  const [y1, m1, d1] = fromYmd.split('-').map(Number); const [y2, m2, d2] = toYmd.split('-').map(Number);
+  if (![y1, m1, d1, y2, m2, d2].every((n) => Number.isFinite(n))) return null;
+  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000);
+};
+// Local calendar day of a stored timestamp. A date-only value stays that date. Blank stays blank (never invented).
+export function localDayOfStamp(iso) {
+  const s = String(iso || ''); if (!s) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(s); if (isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+}
+export function inLocalRange(iso, from, to) {
+  if (!from && !to) return true;
+  const day = localDayOfStamp(iso);
+  if (!day) return false;
+  if (from && day < from) return false;
+  if (to && day > to) return false;
+  return true;
+}
+// Open tasks only. Undated and completed tasks have no due color.
+export function dueTone(due, today, open) {
+  if (!open || !due) return 'none';
+  if (due < today) return 'overdue';
+  if (due === today) return 'today';
+  return 'future';
+}
+export function daysOverdue(due, today) {
+  const n = daysBetween(due, today);
+  return n != null && n > 0 ? n : 0;
+}
 // next due date of a repeating task. Monthly / quarterly / yearly step 1 / 3 / 12 calendar months and keep the ANCHOR day (the day of the
 // month of the series' first due date), clamped to the month's last day: Jan 31 -> Feb 28 -> Mar 31 (not Mar 28); Feb 29 yearly -> Feb 28 -> ... -> Feb 29.
 // anchorDay defaults to the day of ymd (older callers / tasks without an anchor).
@@ -195,6 +228,9 @@ export function crmFilter(rows, f = {}, fields = ['name', 'email', 'company', 'p
     if (Object.keys(f).some((k) => k.startsWith('cf_') && f[k] && (f[k] === 'none' ? !(r[k] == null || r[k] === '') : String(r[k] ?? '') !== String(f[k])))) return false;
     const arch = f.archived || ''; if (arch === '' && r.archived) return false; if (arch === 'only' && !r.archived) return false;
     if ('converted' in r || f.converted) { const cv = f.converted || ''; if (cv === '' && r.converted) return false; if (cv === 'only' && !r.converted) return false; }
+    if (!inLocalRange(r.createdAt, f.createdFrom, f.createdTo)) return false;
+    if (!inLocalRange(r.modifiedAt, f.modifiedFrom, f.modifiedTo)) return false;
+    if (!inLocalRange(r.lastActivityAt, f.activityFrom, f.activityTo)) return false;
     return true;
   });
 }

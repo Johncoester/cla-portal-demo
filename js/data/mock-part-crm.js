@@ -184,7 +184,14 @@ export function crmPart(x, flags) {
     dealsClosedLastYear: r.dealsClosedLastYear == null ? null : r.dealsClosedLastYear, zillowUrl: r.zillowUrl || '', street: r.street || '', city: r.city || '', state: r.state || '', zip: r.zip || '', county: r.county || '', links: { ...(r.links || {}) } });
 
   // ---------- row shapes ----------
+  const latestStamp = (entity, id) => {
+    const times = []; const d = db();
+    (d.crmActivities || []).forEach((a) => { if (a.entity === entity && a.entityId === id && a.createdAt) times.push(a.createdAt); });
+    (d.crmEmails || []).forEach((m) => { if (m.entity === entity && m.entityId === id && m.createdAt) times.push(m.createdAt); });
+    return times.reduce((a, b) => (a > b ? a : b), null);
+  };
   const leadOut0 = (u, l) => ({ ...clone(l), ...personOut(l), name: `${l.firstName || ''} ${l.lastName || ''}`.trim(), source: l.source || '', leadSource: l.source || '', relationshipStatus: l.status, description: l.notes || '',
+    lastActivityAt: latestStamp('lead', l.id), modifiedAt: l.modifiedAt || null,
     accountId: l.accountId || null, accountName: accName(l.accountId), company: accName(l.accountId) || l.company || '', companyText: l.company || '',   // Janine, Nov 3: Company = a lookup to Companies
     ownerName: ownerName(l.ownerId), converted: !!l.convertedAt, archived: !!l.archivedAt, canEdit: !crmReadOnly(u), modifiedByName: l.modifiedBy ? nameOf(l.modifiedBy) : '',
     convertedContactName: l.convertedContactId ? fullName(contactRow(l.convertedContactId)) : '', custom: visibleCustom(u, 'lead', clone(l.custom || {})) });
@@ -192,10 +199,10 @@ export function crmPart(x, flags) {
     return { id: c.id, name: fullName(c), firstName: c.firstName, lastName: c.lastName, email: c.email, phone: c.phone, company: c.company, contactType: c.contactType || null, hasLogin: !!c.profileId,
       ...personOut(c), leadSource: c.leadSource || '', relationshipStatus: c.relationshipStatus || '', description: c.crmNotes || '',
       ownerId: c.crmOwnerId || null, ownerName: ownerName(c.crmOwnerId), accountId: c.accountId || null, accountName: accName(c.accountId), companyName: accName(c.accountId) || c.company || '',
-      lastContactedOn: c.lastContactedOn || null, tags: c.tags || [], notes: c.crmNotes || '', archived: !!c.crmArchivedAt, fromLeadId: c.crmLeadId || null,
+      lastContactedOn: c.lastContactedOn || null, createdAt: c.createdAt || null, modifiedAt: c.modifiedAt || null, lastActivityAt: latestStamp('contact', c.id), tags: c.tags || [], notes: c.crmNotes || '', archived: !!c.crmArchivedAt, fromLeadId: c.crmLeadId || null,
       salesReps: salesRepsOf(c), linked: linked(u, c), orders: t.orders, volume: t.volume, canEdit: !crmReadOnly(u), custom: visibleCustom(u, 'contact', clone(c.custom || {})) }; };
   const accountOut0 = (u, a) => { const cs = db().contacts.filter((c) => c.accountId === a.id && inCrm(c)); const t = orderTotals(ordersOf(cs.map((c) => c.id)));
-    return { ...clone(a), custom: visibleCustom(u, 'account', clone(a.custom || {})), ownerName: ownerName(a.ownerId), archived: !!a.archivedAt, contacts: cs.filter((c) => contactSeen(u, c)).length, orders: t.orders, volume: t.volume, canEdit: !crmReadOnly(u) }; };
+    return { ...clone(a), custom: visibleCustom(u, 'account', clone(a.custom || {})), ownerName: ownerName(a.ownerId), archived: !!a.archivedAt, createdAt: a.createdAt || null, modifiedAt: a.modifiedAt || null, lastActivityAt: latestStamp('account', a.id), contacts: cs.filter((c) => contactSeen(u, c)).length, orders: t.orders, volume: t.volume, canEdit: !crmReadOnly(u) }; };
   const oppOut0 = (u, o) => ({ ...clone(o), custom: visibleCustom(u, 'opportunity', clone(o.custom || {})), ownerName: ownerName(o.ownerId), contactName: o.contactId ? fullName(contactRow(o.contactId)) : '', accountName: accName(o.accountId), archived: !!o.archivedAt, canEdit: !crmReadOnly(u) });
   const leadOut = (u, l) => withComputed(u, 'lead', l, leadOut0(u, l));
   const contactOut = (u, c) => withComputed(u, 'contact', c, contactOut0(u, c));
