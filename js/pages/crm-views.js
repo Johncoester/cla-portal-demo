@@ -24,6 +24,7 @@ export async function viewsBar(api, module, curId = '') {
         <ul style="list-style:none;padding-left:0">${group('Created by me', list.filter((v) => v.mine))}${group('Shared with me', list.filter((v) => !v.mine))}${list.length ? '' : html`<li class="muted small">No custom views yet.</li>`}</ul>
         <p><a href="#/crm/views/new/${module}" data-new-view="${module}">+ New Custom View</a></p></div></details></div>`;
 }
+const reopen = (hash) => { const cur = (location.hash || '#/').split('?')[0]; location.hash = cur === hash ? hash + '?r=' + Date.now() : hash; };
 export function wireViewsBar(root, api) {
   const q = $('[data-views-q]', root); if (q) q.addEventListener('input', () => { const t = q.value.toLowerCase(); $$('[data-view-pick]', root).forEach((a) => { a.closest('li').hidden = t && !a.textContent.toLowerCase().includes(t); }); });
   const all = $('[data-view-tab="all"]', root);
@@ -35,12 +36,12 @@ export function wireViewsBar(root, api) {
     const deal = $('#deal-filters', root); if (deal && !reset) { deal.q.value = ''; $$('[data-crm-date]', deal).forEach((el) => { el.value = ''; }); const st = deal.querySelector('[name=status]'); if (st) st.value = 'Open'; $$('[data-deal-filter]', deal).forEach((el) => { if (el.name !== 'status') el.value = ''; }); location.hash = '#/crm/deals'; }
   });
   if (!api) return;
-  $$('[data-pin-unpin]', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.pinCrmView(b.dataset.pinUnpin, false); toast('Unpinned. The view is still saved.'); location.hash = location.hash; })));
+  $$('[data-pin-unpin]', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.pinCrmView(b.dataset.pinUnpin, false); toast('Unpinned. The view is still saved.'); reopen((location.hash || '#/').split('?')[0]); })));
   $$('[data-pin-clone]', root).forEach((b) => b.addEventListener('click', guard(async () => { const n = prompt('Name of the copy'); if (!n) return; const cl = await api.cloneCrmView(b.dataset.pinClone, { name: n }); toast('View cloned'); location.hash = `#/crm/views/${cl.id}`; })));
   $$('[data-pin-delete]', root).forEach((b) => b.addEventListener('click', guard(async () => {
     const name = (b.closest('[data-pin-wrap]') && b.closest('[data-pin-wrap]').querySelector('[data-view-tab]') || {}).textContent || 'this view';
     if (!confirm(`Delete the view "${name.trim()}"? This removes the view definition only. Contacts, companies, deals, and tasks stay.`)) return;
-    await api.retireCrmView(b.dataset.pinDelete); toast('View deleted'); const bar = $('[data-views-bar]', root); location.hash = bar ? `#/crm/${bar.dataset.viewsBar}` : '#/crm';
+    await api.retireCrmView(b.dataset.pinDelete); toast('View deleted'); const bar = $('[data-views-bar]', root); reopen(bar ? `#/crm/${bar.dataset.viewsBar}` : '#/crm');
   })));
 }
 // ---------- the view page ----------
