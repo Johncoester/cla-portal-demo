@@ -27,25 +27,12 @@ export async function render({ api, user, params, refresh, go }) {
   const sales = users.filter((u) => isSalesRole(u.role) && u.status === 'active').sort((a, b) => a.lastName.localeCompare(b.lastName));
   if (params.mode === 'new') {
     const body = html`<div class="box-title"><h2><span class="h-ico"></span>Create User</h2></div>
-      <form id="cuf" class="card form-grid"><label>First name *<input name="firstName" required maxlength="80"></label><label>Last name<input name="lastName" maxlength="80"></label>
-        <label>Email *<input name="email" type="email" required></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone maxlength="40"></label>
-        <label>Account type *<select name="role" required><option value="">Choose&hellip;</option>${roleOptions(user, '')}</select></label>${ctypeSel('')}
-        <label data-birthdate-field>Agent birthdate (optional)<input type="date" name="birthdate" max="${new Date().toISOString().slice(0, 10)}" data-birthdate><span class="field-hint">Realtors (agents) only. ${BIRTHDATE_NOTE}</span></label>
-        <p class="muted span2">Agents and clients are <strong>outside users</strong>: they have no fixed role. When the processor adds them to an order, the role picked there (Buyer Agent, Listing Agent, Client-Buyer or Client-Seller) decides what they can see and do <em>on that order</em>. One email = one login, even for someone who is an agent on one file and a buyer on another.</p>
-        <label class="check"><input type="checkbox" name="isAdmin"> Also give Admin access (roles "Admin" and "Super admin" always have it)</label>
-        <label class="check"><input type="checkbox" name="isClient" data-isclient> This person is a client (buyer or seller): link them to salespeople</label>
-        <fieldset class="span2" data-sales-picker><legend>Salespeople for this client (outside users only; pick any number)</legend>${salesPicker(sales, [])}</fieldset>
-        <p class="muted span2">No invitation email is sent. CLA Portal Live Test does not send email.</p>
-        <div class="span2"><button class="m-btn" type="submit">Create user</button> <a class="ghost" href="#/users">Cancel</a></div></form>`;
-    return { title: 'Create User', crumbs: [['User List', '#/users'], ['Create User']], body, mount(root) {
-      const f = $('#cuf', root); const role = $('[name=role]', f);
-      $('[data-isclient]', f).addEventListener('change', (e) => { if (e.target.checked && !role.value) role.value = OUTSIDE; showCt(); });
-      const ct = $('[name=contactType]', f); const showCt = () => { const out = role.value === OUTSIDE; $('[data-ctype-field]', f).hidden = !out; if (!out) ct.value = ''; $('[data-birthdate-field]', f).hidden = !out; if (!out) $('[data-birthdate]', f).value = ''; };
-      role.addEventListener('change', showCt); showCt();
-      f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const fd = formData(e.target); fd.salesIds = new FormData(e.target).getAll('salesIds');
-        const bd = fd.birthdate; delete fd.birthdate; if (bd) cleanBirthdate(bd);   // check before creating anything
-        const nu = await api.adminCreateUser(fd); if (bd && nu && nu.id) await api.setAgentBirthdate(nu.id, bd); toast('User created'); go('/users'); }));
-    } };
+      <div class="card" data-invite-instead><p>Creating a login is closed on this page. Public sign-up stays off, and nothing is emailed.</p>
+        <p><strong>Employees</strong> (including a Sales Person): add them in <a href="#/hr/add">HR</a> and copy the invite link.</p>
+        <p><strong>Agents</strong>: use <a href="#/agent-invites">Agent Invites</a> and copy the link.</p>
+        <p class="muted">After they accept, edit the user here to set the role, status, or salesperson links. A Super admin is still the only person who can grant Super admin.</p>
+        <p><a class="m-btn" href="#/hr/add">Open HR</a> <a class="ghost" href="#/agent-invites">Agent Invites</a> <a class="ghost" href="#/users">Back to User List</a></p></div>`;
+    return { title: 'Create User', crumbs: [['User List', '#/users'], ['Create User']], body };
   }
   if (params.mode === 'edit') {
     const u = users.find((z) => z.id === params.id); if (!u) throw new Error('User not found.');

@@ -21,6 +21,7 @@ import { tcSupabase } from './supabase-tc.js?v=202611060404';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611060404';
 import { nov5Supabase } from './supabase-nov5.js?v=202611060404';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611060404';
+import { staffSupabase } from './supabase-staff.js?v=202611060404';
 import { propertyAddressOf } from './nov5-rules.js?v=202611060404';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
@@ -247,15 +248,9 @@ export async function createSupabaseAdapter(cfg) {
     async cancelSignatureRequest(id) { ok(await sb.rpc('cancel_signature_request', { p_request: id })); return true; },
   };
   const NOT_ENABLED = 'This action is not enabled on CLA Portal Live Test. Nothing was sent, queued, or saved as if it had succeeded.';
-  for (const n of ['pickPerson', 'signInDev', 'getWorkQueue', 'unreadCount', 'setStage', 'setDealStatus',
-    // addDocument uploads to the private deal-documents bucket (supabase-nov5.js). updateDocumentMeta still needs a column-grant pass.
-    'removeParticipant', 'createTask', 'updateDocumentMeta',
-    'adminListUsers', 'adminGetUser', 'adminUpdateUser',
-    // round 2 still to wire (tables/RPCs exist in migrations 4-6; adminCreateUser needs an Edge Function with the service role)
-    'listSalesStaff', 'moveDocument', 'uploadForTask', 'listTaskTemplates', 'listTeams', 'createTeam', 'renameTeam', 'addTeamMember', 'removeTeamMember',
-    'listLibrary', 'listDealFolders', 'createFolder', 'renameFolder', 'addLibraryDocument', 'listSettlements',
-    'listSignatureCandidates']) a[n] = todo(n);   // migration 14: candidates = deal_contacts() + document visibility (to wire)
-  a.adminCreateUser = async () => { throw new Error('Creating a login is closed here. Add the person in the Supabase dashboard, then an administrator provisions the role. No email is sent.'); };
+  Object.assign(a, staffSupabase({ sb, ok, camel, me, api: a }));
+  // Dev-only pickers stay off. E-sign candidate picking stays unwired; signing itself stays disabled below.
+  for (const n of ['pickPerson', 'signInDev', 'listSignatureCandidates']) a[n] = todo(n);
   // CRM (John, Nov 2; migration 22): only when the `crm` flag is on (default OFF in supabase mode; features.js). The database has its own switch too.
   a.features = featureFlags(cfg);
   Object.assign(a, crmSupabase({ sb, ok, camel, me, flags: a.features }));

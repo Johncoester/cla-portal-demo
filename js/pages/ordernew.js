@@ -61,7 +61,9 @@ const zipOk = (z) => !z || /^\d{5}(-\d{4})?$/.test(z);   // same rule as the dat
 
 export async function render({ api, user, go }) {
   if (!runsOrders(user)) throw new Error('Only a Processor or Admin can place orders.');
-  const contacts = await api.listContacts(); const staff = await api.listSalesStaff(); const procs = await api.listProcessors(); const preprocs = await api.listPreprocessors(); const tcs = await api.listCoordinators();
+  const contacts = await api.listContacts();
+  const optional = async (fn) => { try { return (await fn()) || []; } catch (e) { return []; } };
+  const staff = await optional(() => api.listSalesStaff()); const procs = await optional(() => api.listProcessors()); const preprocs = await optional(() => api.listPreprocessors()); const tcs = await optional(() => api.listCoordinators());
   // Matt, Nov 3 (b): Source of business = the CRM Settings "Lead Source" list (Admins edit it there)
   const sources = api.listSourceOptions ? await api.listSourceOptions().catch(() => []) : [];
   // the file's Processor: a Processor defaults to themselves; an Admin / Super admin is not a valid Processor, so they must choose one
@@ -311,7 +313,7 @@ export async function render({ api, user, go }) {
     anRole.addEventListener('change', () => { const r = anRole.value; anFields.hidden = !r; dup.hidden = true;
       $('#an-company-l', root).hidden = !(r === 'Buyer Agent' || r === 'Listing Agent' || r === 'Lender'); $('#an-company-t', root).textContent = r === 'Lender' ? 'Company (lender)' : 'Brokerage / company';
       $('#an-ctype-l', root).hidden = !r || r === 'Sales Person'; $('#an-ctype', root).value = contactTypeForRole(r); $('#an-email-req', root).hidden = r !== 'Sales Person';
-      $('#an-note', root).textContent = r === 'Sales Person' ? 'Creates an active CLA staff login (role Sales Person) and checks them under Salespeople. No email or invite is sent.'
+      $('#an-note', root).textContent = r === 'Sales Person' ? 'A Sales Person login is created in HR. Add the employee there and copy the invite link. Nothing is emailed.'
         : r ? `Adds a contact (no portal login, no email or invite is sent) and ${MULTI[r] ? `adds them to the ${MULTI[r]}s of this order (after any already chosen)` : `puts them in the ${NEW_ROLES.find((x) => x[0] === r)[1]} slot of this order`}.` : ''; });
     $('#addnew', root).addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') e.preventDefault(); });   // Enter here must not submit the order
     const place = (role, c) => {
@@ -330,8 +332,7 @@ export async function render({ api, user, go }) {
             ${okToPick ? html`<button type="button" class="m-btn" id="an-use">Select existing person</button>` : ''}`);
           const use = $('#an-use', root); if (use) use.addEventListener('click', () => { if (!people.some((p) => p.id === hit.id)) people.push(hit); place(role, hit); });
           return; } }
-      if (role === 'Sales Person') { const p = await api.adminCreateUser({ role: 'Sales Person', firstName: first, lastName: v('an-last'), email, phone: v('an-phone') });
-        staff.push(p); place(role, { ...p, profileId: p.id }); return; }
+      if (role === 'Sales Person') throw new Error('A Sales Person login is created in HR. Add the employee and copy the invite link (#/hr/add). Nothing is emailed.');
       const c = await api.createContact({ firstName: first, lastName: v('an-last'), email, phone: v('an-phone'), company: ['Buyer Agent', 'Listing Agent', 'Lender'].includes(role) ? v('an-company') : '', contactType: $('#an-ctype', root).value });
       people.push(c); place(role, c); }));
     txSel.addEventListener('change', applyRefi); applyRefi();

@@ -1,5 +1,5 @@
 /* features.js : FEATURE FLAGS (John, Nov 2). One place decides which optional modules this portal shows.
- *   crm         the Zoho-like CRM (#/crm, docs/CRM.md). ON in mock mode on CLA Portal Live Test, OFF by default in supabase mode until the flag is set.
+ *   crm         the Zoho-like CRM (#/crm). ON in mock mode. In supabase mode it is on only when features.crm is true. The database switch private.features 'crm' must be on as well.
  *   accounting  the order Accounting tab (fee ledger -> ALTA + CD views, docs/ACCOUNTING.md; John, Nov 3). OFF unless the config says
  *               features.accounting === true. Missing / anything else = off, in mock and supabase mode, so CLA Portal Live Test never shows it by accident.
  *   title       the order Title tab (title review: PACER, chain of title, Schedule A / B-I / B-II, CPL, package, summary note; docs/TITLE-MODULE-NOV4.md).

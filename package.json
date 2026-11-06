@@ -1,0 +1,6 @@
+{
+  "name": "cla-portal-demo",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node test/test-supabase-staff.js" }
+}
