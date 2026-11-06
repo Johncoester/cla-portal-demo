@@ -1,0 +1,31 @@
+/* Due dates count from opened, contract, or closing. A missing date stays blank. A client cannot change someone else's due date. */
+import { createMockAdapter } from '../js/data/mock-adapter.js';
+import { taskDueDate } from '../js/data/due-date.js';
+const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+let fail = 0;
+const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
+ok(taskDueDate({ dueAnchor: 'opened', dueDays: 7, openDate: '2026-11-01' }) === '2026-11-08', 'seven days after the file opened');
+ok(taskDueDate({ dueAnchor: 'closing', dueDays: -3, closingDate: '2026-12-01' }) === '2026-11-28', 'three days before closing');
+ok(taskDueDate({ dueAnchor: 'contract', dueDays: 5, openDate: '2026-11-01' }) === null, 'a missing contract date does not invent a due date');
+ok(taskDueDate({ dueAnchor: 'opened', dueDays: 7, openDate: '2026-11-01', override: '2026-11-20' }) === '2026-11-20', 'an override keeps the date set on that copy');
+const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
+await api.signInDev('u-admin');
+const saved = await api.saveTaskTemplate({ code: 'survey_anchor', title: 'Survey anchor', lane: 'portal', audiences: ['buyer'], roles: ['Client-Buyer'], dueDays: -2, dueAnchor: 'closing' });
+ok(saved.dueAnchor === 'closing' && saved.dueDays === -2, 'an admin saves the anchor with the task');
+const deal = await api.createDeal({ street: '4 Anchor Lane', city: 'Rockville', state: 'MD', zip: '20850', openDate: '2026-11-01', closingDate: '2026-12-15', processorId: 'u-proc' });
+await api.addParticipant(deal.id, 'c-buyer', 'Client-Buyer');
+await api.addParticipant(deal.id, 'c-seller', 'Client-Seller');
+const tasks = await api.listTasks(deal.id);
+const survey = tasks.find((t) => t.templateCode === 'survey_anchor');
+ok(survey && survey.dueDate === '2026-12-13' && survey.assignedRole === 'Client-Buyer', 'the buyer copy is due two days before closing');
+ok(!tasks.some((t) => t.templateCode === 'survey_anchor' && t.assignedRole === 'Client-Seller'), 'the buyer audience does not create a seller copy');
+const changed = await api.updateTask(survey.id, { dueDate: '2026-12-01' });
+ok(changed.dueDate === '2026-12-01' && changed.dueOverridden === true, 'a manager can override one copy');
+await api.signInDev('u-buyer');
+const mine = await api.listTasks(deal.id);
+ok(mine.every((t) => t.assignedRole === 'Client-Buyer' || t.ownerId === 'u-buyer'), 'the buyer does not see the seller tasks');
+let refused = false;
+try { await api.updateTask(survey.id, { dueDate: '2026-01-01' }); } catch (e) { refused = /assigned to you|not found|cannot/i.test(e.message); }
+ok(refused, 'the buyer cannot override the due date');
+console.log(fail ? fail + ' failed' : 'due anchors passed');
+if (fail) process.exit(1);

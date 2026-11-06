@@ -20,19 +20,26 @@ export async function taskAdminView({ api, refresh }) {
     <td>${(t.roles || []).join(', ') || '—'}</td>
     <td data-open-count>${t.openCount} open · ${t.copies} total${t.retired ? html` · ${pill('retired', 'warn')}` : t.enabled ? pill('generates', 'ok') : pill('off', '')}</td>
     <td>${t.retired ? '' : html`<button class="ghost" type="button" data-retire-template="${t.code}">Retire</button>`}</td></tr>`;
+  const openNew = new URLSearchParams((location.hash || '').split('?')[1] || '').get('new') === '1';
   const body = html`<section data-task-admin>
     <div class="notice info" data-task-handling><strong>Portal and Production are different.</strong> Title Portal tasks are communications with the parties you select. Title Production tasks default to internal. An audience is not blanket sharing, and it never opens wires, payoffs, or accounting.
       ${OPEN_TASK_HANDLING}</div>
+    <p><button type="button" class="m-btn" data-new-task>+ New task</button></p>
     <table class="tbl" data-task-admin-table><thead><tr><th>Task</th><th>Class</th><th>Audience</th><th>Copies for</th><th>On files</th><th></th></tr></thead><tbody>${data.tasks.map(row)}</tbody></table>
-    <form class="card form-grid" data-task-admin-form id="task-admin-form"><h3 class="span2">Add or edit a task</h3>
+    <form class="card form-grid" data-task-admin-form id="task-admin-form" ${openNew ? '' : 'hidden'}><h3 class="span2">New task</h3>
+      <p class="span2 muted small">A new code adds a task. An existing code saves a new version. Older copies already on files are not changed.</p>
       <label>Code<input name="code" required pattern="[a-z_]{2,40}" data-task-code placeholder="commitment_received"></label>
       <label>Title<input name="title" required data-task-title></label>
       <label>Class<select name="lane" data-task-lane>${LANES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select></label>
-      <label>Due days<input name="dueDays" type="number" min="1" max="90" value="7"></label>
+      <label>Due days<input name="dueDays" type="number" min="-90" max="90" value="7" required data-task-due></label>
+      <label>Count from<select name="dueAnchor" data-task-anchor><option value="opened">File opened</option><option value="contract">Contract date</option><option value="closing">Closing date</option></select></label>
+      <p class="span2 muted small">Positive days are after that date. Negative days are before it. A missing contract or closing date leaves the copy with no due date. A due date changed on one file stays on that copy.</p>
       <label class="span2">Description<textarea name="description" rows="2"></textarea></label>
       <fieldset class="span2"><legend>Who may receive it</legend>${AUDS.map(([v, l]) => html`<label class="chk"><input type="checkbox" name="audiences" value="${v}" data-audience="${v}"> ${l}</label>`)}</fieldset>
       <fieldset class="span2"><legend>Whose copy is created</legend>${ROLES.map((r) => html`<label class="chk"><input type="checkbox" name="roles" value="${r}"> ${r}</label>`)}</fieldset>
-      <div class="span2"><button class="m-btn" type="submit" data-save-template>Save task</button></div></form>
+      <label class="check span2"><input type="checkbox" data-task-on checked> On: create this task on new files</label>
+      <label class="span2" data-off-reason hidden>Why is it off? *<textarea name="offReason" rows="2" maxlength="500" data-off-reason-text placeholder="Required when the task starts off"></textarea></label>
+      <div class="span2"><button class="m-btn" type="submit" data-save-template>Save task</button> <button type="button" class="ghost" data-new-task-cancel>Cancel</button></div></form>
     <div class="card" data-alert-groups><h3>Post-closing alert groups</h3><p class="muted small">Fake demo names only. Email stays blank until a real address is configured. The processor and the assigned team are still notified.</p>
       <ul>${groups.flatMap((g) => g.members.filter((m) => !m.retiredAt).map((m) => html`<li data-alert-member="${m.id}">${g.label}: <strong>${m.displayName}</strong> (${m.assignmentRole}) ${m.email ? m.email : html`<span class="muted">no email configured</span>`}</li>`))}</ul></div>
     <div class="card" data-entity-attorneys><h3>Entity-review attorneys</h3><p class="muted small">Authorization is the profile id and the attorney or backup role. The display name is not checked.</p>
@@ -44,12 +51,24 @@ export async function taskAdminView({ api, refresh }) {
   </section>`;
   return { title: 'Task Templates', crumbs: [['Task Templates', '#/admin/templates'], ['Task admin']], body, mount(root) {
     const form = $('#task-admin-form', root);
+    const showForm = () => { form.hidden = false; const code = $('[data-task-code]', form); if (code) code.focus(); };
+    $('[data-new-task]', root).addEventListener('click', showForm);
+    $('[data-new-task-cancel]', form).addEventListener('click', () => { form.reset(); $('[data-task-on]', form).checked = true; $('[data-off-reason]', form).hidden = true; form.hidden = true; });
+    $('[data-task-on]', form).addEventListener('change', () => { $('[data-off-reason]', form).hidden = $('[data-task-on]', form).checked; });
+    if (openNew) showForm();
     $$('[data-retire-template]', root).forEach((b) => b.addEventListener('click', guard(async () => {
       const why = prompt('Why is this task being retired? Open copies stay open and are not cancelled.'); if (why == null) return;
       await api.retireTaskTemplate(b.dataset.retireTemplate, why); toast('Retired. Open tasks were kept.'); refresh(); })));
     form.addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target);
       const audiences = $$('input[name=audiences]:checked', form).map((el) => el.value);
       const roles = $$('input[name=roles]:checked', form).map((el) => el.value);
-      await api.saveTaskTemplate({ ...f, audiences, roles }); toast('Saved. Older copies are unchanged.'); refresh(); }));
+      const dueDays = Number(f.dueDays);
+      const dueAnchor = f.dueAnchor || 'opened';
+      if (!Number.isInteger(dueDays) || dueDays === 0 || dueDays < -90 || dueDays > 90) throw new Error('Due days must be from -90 to 90, not zero.');
+      const on = $('[data-task-on]', form).checked;
+      if (!on && String(f.offReason || '').trim().length < 3) throw new Error('Say why this task is off (at least 3 characters).');
+      await api.saveTaskTemplate({ ...f, audiences, roles, dueDays, dueAnchor });
+      await api.setTaskEnabled(f.code, on, on ? '' : f.offReason);
+      toast(on ? 'Saved. Older copies are unchanged.' : 'Saved and switched off. It will not be created on new files.'); refresh(); }));
   } };
 }
