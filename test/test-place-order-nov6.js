@@ -26,7 +26,7 @@ const people = await a.listContacts();
 ok(staff.every((s) => SALES_PICK_ROLES.includes(s.role)) && staff.length > 0, 'step 6 sales list is Sales Person or Sales Team');
 ok(!people.filter((c) => staff.some((s) => s.id === c.profileId)).some((c) => /buyer|seller/i.test(c.firstName + c.lastName) && !SALES_PICK_ROLES.includes((staff.find((s) => s.id === c.profileId) || {}).role)), 'sales contacts are the staff rows, not clients');
 const procs = await a.listProcessors();
-ok(procs.every((p) => p.role === 'Processor'), 'mock processor list stays Processor accounts (supabase mode adds Admin there)');
+ok(procs.some((p) => p.role === 'Processor') && procs.every((p) => PROCESSOR_PICK_ROLES.includes(p.role)), 'the processor list is the eligible staff roles, including Processor');
 const tcs = await a.listCoordinators();
 ok(tcs.length >= 2, 'two transaction coordinators are available');
 

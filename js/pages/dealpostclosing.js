@@ -1,6 +1,6 @@
 /* Order > Accounting > Post-Closing: Scanbacks + E-Recording. Staff only, queued only, no integration. */
-import { html, raw, $, $$, guard, formData, toast, options, pill, fmtDate, fmtMoney } from '../ui.js?v=202611061842';
-import * as R from '../data/recording-scanbacks.js?v=202611061842';
+import { html, raw, $, $$, guard, formData, toast, options, pill, fmtDate, fmtMoney } from '../ui.js?v=202611061918';
+import * as R from '../data/recording-scanbacks.js?v=202611061918';
 const yn = (v) => v === true ? 'true' : v === false ? 'false' : '';
 const f = (name, label, value, type = 'text') => html`<label>${label}${type === 'long' ? html`<textarea name="${name}" rows="2">${value || ''}</textarea>` : type === 'bool' ? html`<select name="${name}">${options([['', 'Not set'], ['true', 'Yes'], ['false', 'No']], yn(value), (o) => o[1], (o) => o[0])}</select>` : html`<input name="${name}" type="${type}" value="${value ?? ''}"${type === 'number' ? raw(' step="0.01" min="0"') : ''}>`}</label>`;
 const check = (name, label, v) => html`<label class="check"><input type="checkbox" name="${name}" value="true" ${v ? raw('checked') : ''}> ${label}</label>`;
