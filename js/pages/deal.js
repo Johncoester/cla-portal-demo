@@ -233,8 +233,32 @@ function moneyRow(d, { canWire, staffView, showEmd }) {
 // ---------------- ORDER PAGE REDESIGN (John, Nov 4): ONE Parties list ----------------
 // Rows come from getOrderOverview().parties: the adapter already applies every role rule (opposing side's contact hidden for outside users,
 // the CLA Title sales rep only on agent Parties, no wire / cash-to-close / payoff data at all). CLA staff also see the other people on the file
-// (lender, TC, sales team, HOA, ...). Per person: Call (tel:), Email (mailto: opens the viewer's own mail app; the portal sends nothing), Copy.
+// (lender, TC, sales team, HOA, ...). Per person: Call (tel:), Email (mailto: opens the viewer's own mail app; the portal sends nothing),
+// and a small copy icon beside the phone and beside the email. There is no second Copy button for the whole row.
 const telOf = (ph) => String(ph || '').replace(/[^0-9+]/g, '');
+const COPY_ICON = html`<svg class="op-copy-ico" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect><path d="M5 15V5h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`;
+const copyLabel = (kind) => (kind === 'email' ? 'Copy email address' : 'Copy phone number');
+export function partyCopyButton(kind, value) {
+  const label = copyLabel(kind);
+  return html`<button type="button" class="op-copy" data-copy-field="${value}" data-copy-kind="${kind}" aria-label="${label}" title="${label}">${COPY_ICON}</button>`;
+}
+/* True only when the text actually landed on the clipboard. A denied or missing clipboard is a failure. */
+export async function copyPlainText(text, deps = {}) {
+  const value = String(text == null ? '' : text);
+  const nav = deps.navigator || (typeof navigator !== 'undefined' ? navigator : undefined);
+  const doc = deps.document || (typeof document !== 'undefined' ? document : undefined);
+  const write = nav && nav.clipboard && nav.clipboard.writeText;
+  if (write) { try { await nav.clipboard.writeText(value); return true; } catch (e) { /* older browsers fall through */ } }
+  try {
+    if (!doc || !doc.execCommand || !doc.createElement) return false;
+    const ta = doc.createElement('textarea');
+    ta.value = value; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.left = '-9999px';
+    doc.body.appendChild(ta); ta.select();
+    const ok = doc.execCommand('copy') === true;
+    ta.remove();
+    return ok;
+  } catch (e) { return false; }
+}
 const OVERVIEW_ROLES = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'Processor', 'Preprocessor'];
 // John, Nov 4 meeting: CLA staff also get the ABSTRACTOR and the UNDERWRITER in the same list. Someone added on Contacts with that role shows
 // with their details; otherwise the row still shows (Underwriter = the state's underwriter from Underwriter Splits, Abstractor = not assigned yet).
@@ -252,23 +276,28 @@ export function partyRows(d, ov, staffView, splits = []) {
 function partiesList(d, ov, staffView, { splits = [], edit = false } = {}) {
   const rows = partyRows(d, ov, staffView, splits);
   const avatar = (p) => (p.salesRep && p.profileId ? (p.photo ? html`<img class="party-avatar" src="${p.photo}" alt="" data-sales-photo>` : html`<span class="party-avatar" aria-hidden="true" data-sales-initials>${p.initials}</span>`) : '');
-  const row = (p, i) => { const real = p.name && p.name !== 'Not specified'; const hid = p.contactHidden; const tel = hid ? '' : telOf(p.phone); const em = hid ? '' : p.email || '';
-    const copy = [p.name, p.label + (p.company ? `, ${p.company}` : ''), hid ? HIDDEN_CONTACT : '', tel ? fmtPhone(p.phone) : '', em].filter(Boolean).join('\n');
+  const row = (p, i) => { const hid = p.contactHidden; const tel = hid ? '' : telOf(p.phone); const em = hid ? '' : p.email || '';
     return html`<div class="op-prow${p.salesRep ? ' sales-rep-party' : ''}${p.placeholder ? ' is-placeholder' : ''}" data-party="${p.label}"${p.placeholder ? html` data-party-placeholder` : ''}${p.salesRep ? html` data-sales-rep="${p.profileId || ''}"` : ''} data-party-row="${i}">
       <span class="op-role">${p.label}</span><span class="op-nm">${avatar(p)}${entityLine(p.entity)}<strong>${p.name}</strong>${p.company ? html`<small>${p.company}</small>` : ''}</span>
-      ${hid ? html`<span class="op-ph op-hidden muted small contact-hidden" data-contact-hidden>${HIDDEN_CONTACT}</span><span class="op-em"></span>` : html`<span class="op-ph">${tel ? html`${fmtPhone(p.phone)} <button type="button" class="op-act" data-copy-field="${fmtPhone(p.phone)}" aria-label="Copy ${p.name}'s phone">Copy</button>` : html`<span class="muted">&mdash;</span>`}</span><span class="op-em">${em ? html`${em} <button type="button" class="op-act" data-copy-field="${em}" aria-label="Copy ${p.name}'s email">Copy</button>` : html`<span class="muted">&mdash;</span>`}</span>`}
+      ${hid ? html`<span class="op-ph op-hidden muted small contact-hidden" data-contact-hidden>${HIDDEN_CONTACT}</span><span class="op-em"></span>` : html`<span class="op-ph">${tel ? html`<span class="op-copy-val">${fmtPhone(p.phone)}</span>${partyCopyButton('phone', fmtPhone(p.phone))}` : html`<span class="muted">&mdash;</span>`}</span><span class="op-em">${em ? html`<span class="op-copy-val">${em}</span>${partyCopyButton('email', em)}` : html`<span class="muted">&mdash;</span>`}</span>`}
       <span class="op-acts">${tel ? html`<a class="op-act" href="tel:${tel}" data-call aria-label="Call ${p.name}">&#9742; Call</a>` : html`<span class="op-act is-off" aria-disabled="true">&#9742; Call</span>`}
         ${em ? html`<a class="op-act" href="mailto:${em}" data-email aria-label="Email ${p.name} (opens your mail app)">&#9993; Email</a>` : html`<span class="op-act is-off" aria-disabled="true">&#9993; Email</span>`}
-        ${real ? html`<button type="button" class="op-act" data-copy="${copy}" aria-label="Copy ${p.name}'s contact details">&#10697; Copy</button>` : ''}
         ${p.canMessage ? html`<button type="button" class="op-act" data-message-to="${p.profileId}">Message</button>` : ''}
         ${p.placeholder && edit ? html`<a class="op-act" href="#/deals/${d.id}/contacts" data-add-role="${p.label}" aria-label="Add ${p.label.toLowerCase()} on Contacts">+ Add</a>` : ''}</span></div>`; };
   return html`<div class="op-plist" data-parties data-party-list-all>${rows.length ? rows.map(row) : html`<p class="muted">Nobody on this order yet.</p>`}</div>
     <p class="muted small op-pnote">Call and Email open your phone or mail app. The portal does not send anything.</p>`;
 }
 function mountParties(root) {
-  $$('[data-copy], [data-copy-field]', root).forEach((b) => b.addEventListener('click', guard(async () => { const t = b.dataset.copyField || b.dataset.copy;
-    try { await navigator.clipboard.writeText(t); } catch (e) { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } finally { ta.remove(); } }
-    toast('Copied'); })));
+  $$('[data-copy-field]', root).forEach((b) => b.addEventListener('click', async () => {
+    const kind = b.dataset.copyKind === 'email' ? 'email address' : 'phone number';
+    const label = copyLabel(b.dataset.copyKind === 'email' ? 'email' : 'phone');
+    let ok = false;
+    try { ok = await copyPlainText(b.dataset.copyField); } catch (e) { ok = false; }
+    b.classList.remove('is-copied', 'is-failed');
+    if (!ok) { b.classList.add('is-failed'); b.setAttribute('aria-label', `Could not copy the ${kind}`); toast(`Could not copy the ${kind}.`, 'err'); return; }
+    b.classList.add('is-copied'); b.setAttribute('aria-label', `${kind[0].toUpperCase()}${kind.slice(1)} copied`); toast(`${kind[0].toUpperCase()}${kind.slice(1)} copied`);
+    setTimeout(() => { if (!b.isConnected) return; b.classList.remove('is-copied'); b.setAttribute('aria-label', label); }, 2000);
+  }));
 }
 
 // ---------------- Francis, Nov 3: the Qualia-style overview panels ----------------
