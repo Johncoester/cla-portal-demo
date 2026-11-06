@@ -9,14 +9,14 @@
  * VIEW AS (Super admin only): inside a locked link whose OWNER is a Super admin (King John), a "View as" dropdown switches the tab to any fake user and
  * back; the route guard then applies to the person being viewed. Any other locked link (Adam Admin included) never gets it, and a stored viewAs on a
  * lock whose owner is not a Super admin is ignored and cleared (app.js). */
-import { runsOrders, isStaff, isOutside } from './constants.js?v=202611061842';
-import { titleCanRead } from './title.js?v=202611061842';
-import { fwpCanRead } from './funding-wire-policy.js?v=202611061842';   // John, Nov 4: order > Title route guard
-import { canUseCrm } from './crm.js?v=202611061842';
-import { canInviteAgents } from './agent-profile.js?v=202611061842';
-import { canManageModules } from './modules.js?v=202611061842';
-import { hrSectionAllowed } from './hr.js?v=202611061842';
-import { canManageOffices } from './offices.js?v=202611061842';
+import { runsOrders, isStaff, isOutside } from './constants.js?v=202611061918';
+import { titleCanRead } from './title.js?v=202611061918';
+import { fwpCanRead } from './funding-wire-policy.js?v=202611061918';   // John, Nov 4: order > Title route guard
+import { canUseCrm } from './crm.js?v=202611061918';
+import { canInviteAgents } from './agent-profile.js?v=202611061918';
+import { canManageModules } from './modules.js?v=202611061918';
+import { hrSectionAllowed } from './hr.js?v=202611061918';
+import { canManageOffices } from './offices.js?v=202611061918';
 
 export const LOCK_KEY = 'cla-portal-new:locked:v1';
 export function devPickerOn(w = (typeof window !== 'undefined' ? window : {})) {
@@ -47,8 +47,17 @@ export const tokenFor = (userId) => Object.keys(LINK_TOKENS).find((t) => LINK_TO
 // admins only. Agents, clients and Transaction Coordinators (and Sales) are refused these URLs; TCs keep Caroline's read-only Accounting elsewhere.
 export const PAYOFF_VIEWS = ['payoffs', 'taxes', 'othercontacts'];
 export const canReachPayoffs = (u) => !!u && u.status !== 'removed' && !u.accountRole && (!!u.isAdmin || runsOrders(u));
+/* Task Templates (every tab) and the Task Grid: Admin and Super admin only. A Demo mode session follows the persona being viewed. */
+export function canOpenTaskSetup(u, demo) {
+  if (!u || !u.isAdmin || (u.status || 'active') !== 'active') return false;
+  if (demo && demo.active) {
+    const role = demo.portalRole || demo.role || '';
+    if (role !== 'Admin' && role !== 'Super admin') return false;
+  }
+  return true;
+}
 // ROUTE GUARD (every user, locked or not): a page is reachable only if it belongs to that user's portal (the same rules as the menu in app.js navFor).
-export function routeAllowed(u, route, { locked = false } = {}) {
+export function routeAllowed(u, route, { locked = false, demo = null } = {}) {
   const p = route.page;
   if (p === 'schedule') return true;                                   // public closing-time link
   if (p === 'agent-invite') return !locked;   // one-time agent setup page: never inside a locked test-link session
@@ -67,9 +76,10 @@ export function routeAllowed(u, route, { locked = false } = {}) {
   if (p === 'users' || p === 'teams') return !!u.isAdmin;
   if (p === 'offices') return canManageOffices(u);   // John, Nov 4: Admin > Offices (Admin / Super admin only; others get "Not available")
   if (p === 'modules' || p === 'underwriters') return canManageModules(u);
-  if (p === 'orders/new' || p === 'task-grid' || p === 'activity') return runsOrders(u) || !!u.isAdmin;
+  if (p === 'orders/new' || p === 'activity') return runsOrders(u) || !!u.isAdmin;
+  if (p === 'task-grid' || p === 'templates' || p === 'admin/templates') return canOpenTaskSetup(u, demo);   // Task Templates (all three tabs) and the Task Grid
   if (p === 'tasks') return !!u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator';
-  if (p === 'templates' || p === 'outbox') return runsOrders(u) || !!u.isAdmin || u.role === 'Transaction Coordinator';
+  if (p === 'outbox') return runsOrders(u) || !!u.isAdmin || u.role === 'Transaction Coordinator';
   if (p === 'agent-invites') return canInviteAgents(u);
   if (p === 'library') return true;
   if (p === 'demo') return u.role === 'Super admin' && !!u.isAdmin && (u.status || 'active') === 'active';
@@ -83,10 +93,18 @@ const ACCT_VIEWS = ['charges', 'cd', 'cddetails', 'prorations', 'payments', 'led
 export const SECTIONS = { home: '/dashboard', 'my-tasks': '/dashboard', orders: '/orders', 'place-order': '/orders/new', tasks: '/tasks', 'task-grid': '/task-grid', library: '/library',
   crm: '/crm', 'crm-deals': '/crm/deals', 'crm-leads': '/crm/leads', 'crm-calls': '/crm', 'crm-templates': '/crm/templates', 'crm-pipeline': '/crm/pipeline', 'crm-reports': '/crm/reports',
   admin: '/users', users: '/users', 'create-user': '/users/new', teams: '/teams', 'admin-offices': '/offices', modules: '/modules', underwriters: '/underwriters', 'agent-invites': '/agent-invites',
-  templates: '/templates', outbox: '/outbox', activity: '/activity', profile: '/profile', hr: '/hr', 'my-profile': '/hr/me',
+  templates: '/admin/templates', outbox: '/outbox', activity: '/activity', profile: '/profile', hr: '/hr', 'my-profile': '/hr/me',
   // HR section links (John, Nov 4: "HR should have a link"). Only pick the first page: app.js still applies hrSectionAllowed + the 'hr' module switch
   // (Super admins only while HR is off; HR managers once Live; an employee only their own profile; HR Settings = Super admin only).
   'hr-home': '/hr', 'hr-employees': '/hr/employees', 'hr-managers': '/hr/settings', 'hr-my-profile': '/hr/me' };   // hr: refused for outside users by routeAllowed
+/* Old Task Templates links (#/templates and #/templates?tab=...) keep working. The page now lives under Admin / Settings. */
+export function legacyTemplatesHash(hash) {
+  const body = String(hash || '').replace(/^#/, '');
+  const path = (body.split('?')[0] || '/').replace(/\/+$/, '') || '/';
+  if (path !== '/templates') return null;
+  const q = body.includes('?') ? body.slice(body.indexOf('?')) : '';
+  return '#/admin/templates' + q;
+}
 export function sectionHash(section, file) {
   const f = safeLanding(file); if (typeof section !== 'string') return null;
   if (f && FILE_TABS.includes(section)) return `#/deals/${f}${section === 'overview' ? '' : '/' + section}`;

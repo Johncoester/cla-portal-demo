@@ -1,30 +1,30 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611061842';
-import { localDate, fileRoleLabel } from './constants.js?v=202611061842';
-import { featureFlags } from './features.js?v=202611061842';
-import { accountingSupabase } from './supabase-accounting.js?v=202611061842';
-import { payoffsSupabase } from './supabase-payoffs.js?v=202611061842';
-import { modulesSupabase } from './supabase-modules.js?v=202611061842';
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611061842';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611061842';
-import { automationPart } from './automation.js?v=202611061842';
-import { runsOrders as runsOrdersCI } from './constants.js?v=202611061842';
-import { fieldsForRole } from './templates.js?v=202611061842';
-import { crmSupabase } from './supabase-crm.js?v=202611061842';
-import { hrSupabase } from './supabase-hr.js?v=202611061842';
-import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611061842';
-import { officesSupabase } from './supabase-offices.js?v=202611061842';
-import { closingLocationSupabase } from './supabase-closing-location.js?v=202611061842';
-import { tcSupabase } from './supabase-tc.js?v=202611061842';
-import { emailSendersSupabase } from './supabase-email-senders.js?v=202611061842';
-import { nov5Supabase } from './supabase-nov5.js?v=202611061842';
-import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611061842';
-import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611061842';
-import { staffSupabase } from './supabase-staff.js?v=202611061842';
-import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611061842';
-import { propertyAddressOf } from './nov5-rules.js?v=202611061842';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611061918';
+import { localDate, fileRoleLabel } from './constants.js?v=202611061918';
+import { featureFlags } from './features.js?v=202611061918';
+import { accountingSupabase } from './supabase-accounting.js?v=202611061918';
+import { payoffsSupabase } from './supabase-payoffs.js?v=202611061918';
+import { modulesSupabase } from './supabase-modules.js?v=202611061918';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611061918';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611061918';
+import { automationPart } from './automation.js?v=202611061918';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611061918';
+import { fieldsForRole } from './templates.js?v=202611061918';
+import { crmSupabase } from './supabase-crm.js?v=202611061918';
+import { hrSupabase } from './supabase-hr.js?v=202611061918';
+import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611061918';
+import { officesSupabase } from './supabase-offices.js?v=202611061918';
+import { closingLocationSupabase } from './supabase-closing-location.js?v=202611061918';
+import { tcSupabase } from './supabase-tc.js?v=202611061918';
+import { emailSendersSupabase } from './supabase-email-senders.js?v=202611061918';
+import { nov5Supabase } from './supabase-nov5.js?v=202611061918';
+import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611061918';
+import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611061918';
+import { staffSupabase } from './supabase-staff.js?v=202611061918';
+import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611061918';
+import { propertyAddressOf } from './nov5-rules.js?v=202611061918';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -112,17 +112,17 @@ export async function createSupabaseAdapter(cfg) {
       return withRole(d, roles.get(d.id), pm); },
     // John, Nov 2 (migration 19): several salespeople per order; the Processor and Admins add/remove them (RPCs check the role + file access)
     async listPreprocessors() { return camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status').eq('role', 'Preprocessor').eq('status', 'active').order('first_name'))); },
-    async listProcessors() { return (camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status').in('role', PROCESSOR_PICK_ROLES).eq('status', 'active').order('first_name'))) || [])
-      .filter((p) => !p.isDemo).map((p) => ({ ...p, name: `${p.firstName} ${p.lastName}` })); },
+    async listProcessors() { const u = await me(); return (camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status, is_demo').in('role', PROCESSOR_PICK_ROLES).eq('status', 'active').order('first_name'))) || [])
+      .filter((p) => !!p.isDemo === !!(u && u.isDemo)).map((p) => ({ ...p, name: `${p.firstName} ${p.lastName}` })); },
     // John, Nov 2 (migration 20): Place Order. Open Date (backdating OK, never future), any US state, EMD amount / due date; the DB re-checks all of it.
     async createDeal(input) {
       // Refinance (John, Nov 3): no purchase price / EMD; migration 32 (private.deal_refi_guard) refuses them, and sellers / realtors / a TC on the file
       const refi = input.transactionType === 'Refinance';
-      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611061842'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
+      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611061918'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
       const { data: { user } } = await sb.auth.getUser(); const num = (v) => (v === '' || v == null ? null : Number(String(v).replace(/[$,\s]/g, '')));
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
         open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : num(input.purchasePrice), loan_amount: num(input.loanAmount),
-        emd_amount: refi ? null : num(input.emdAmount), emd_due_date: refi ? null : input.emdDueDate || null, notes: input.notes || '', processor_id: input.processorId || user.id, preprocessor_user_id: input.preprocessorUserId || null, created_by: user.id,
+        emd_amount: refi ? null : num(input.emdAmount), emd_due_date: refi ? null : input.emdDueDate || null, notes: input.notes || '', processor_id: input.processorId || null, preprocessor_user_id: input.preprocessorUserId || null, created_by: user.id,
         lender_name: input.lenderName || '', lender_contact: input.lenderContact || '', lender_phone: input.lenderPhone || '', lender_email: String(input.lenderEmail || '').trim().toLowerCase(),
         primary_residence: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.primaryResidence || ''), first_time_buyer: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.firstTimeBuyer || '') };   // Maryland purchases only (John, Nov 6)
       const d = camel(ok(await sb.from('deals').insert(row).select().single()));
@@ -134,7 +134,7 @@ export async function createSupabaseAdapter(cfg) {
         emdAmount: 'emd_amount', emdDueDate: 'emd_due_date', lenderName: 'lender_name', lenderContact: 'lender_contact', lenderEmail: 'lender_email', lenderPhone: 'lender_phone', notes: 'notes', processorId: 'processor_id', preprocessorUserId: 'preprocessor_user_id', primaryResidence: 'primary_residence', firstTimeBuyer: 'first_time_buyer' };
       const money = new Set(['purchase_price', 'loan_amount', 'emd_amount']); const dates = new Set(['open_date', 'closing_date', 'emd_due_date']); const row = {};
       for (const [k, col] of Object.entries(map)) if (patch[k] !== undefined) { const v = patch[k];
-        row[col] = money.has(col) ? (v === '' || v == null ? null : Number(String(v).replace(/[$,\s]/g, ''))) : dates.has(col) ? (v || null) : v; }
+        row[col] = money.has(col) ? (v === '' || v == null ? null : Number(String(v).replace(/[$,\s]/g, ''))) : dates.has(col) || col === 'processor_id' || col === 'preprocessor_user_id' ? (v || null) : v; }
       if (row.open_date === null) delete row.open_date;
       if (patch.state !== undefined && String(patch.state || '').toUpperCase() !== 'MD') { row.primary_residence = ''; row.first_time_buyer = ''; }
       if (Object.keys(row).length) ok(await sb.from('deals').update(row).eq('id', id));
@@ -228,7 +228,8 @@ export async function createSupabaseAdapter(cfg) {
     // FILE-FIRST combined list (John, Nov 4; migration 45): my tasks on every file I am on, each with my role on that file
     async listMyTasks({ fileStatus = 'Open' } = {}) { return boardRows(ok(await sb.rpc('my_task_list', { p_file_status: fileStatus }))).map((t) => ({ ...t, mine: true, myRoles: t.myRoles || [], myRoleLabel: fileRoleLabel(t.myRoles || []) })); },
     async getTaskGrid({ fileStatus = 'Open' } = {}) {
-      const rows = boardRows(ok(await sb.rpc('task_grid', { p_file_status: fileStatus })));   // raises for anyone but a Processor / Admin
+      const u = await me(); if (!u || !u.isAdmin) throw new Error('Only an Admin or Super admin can open the task grid.');
+      const rows = boardRows(ok(await sb.rpc('task_grid', { p_file_status: fileStatus })));   // hosted task_grid still allows a Processor until that function is edited; the page and this check do not
       let q = sb.from('deals').select('id, file_number, street, city, state, zip, closing_date, status'); if (fileStatus !== 'All') q = q.eq('status', fileStatus);
       const deals = camel(ok(await q)).map((d) => ({ ...d, address: `${d.street}, ${d.city}, ${d.state} ${d.zip}` }));
       return buildTaskGrid(rows, deals, localDate()); },

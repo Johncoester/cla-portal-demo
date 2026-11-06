@@ -1,12 +1,12 @@
 // crm-janine.js : screens for Janine's Nov 3 CRM feedback (John approved). FAKE DATA ONLY. Nothing is emailed or sent anywhere.
 //   "+" Create New menu (every CRM page), #/crm/new/<module>, CSV import (#/crm/import/<leads|contacts>[/notes], Admin / Super admin),
 //   county from the ZIP on the person form, the company duplicate warning, the meeting "Send invite" PREVIEW (.ics), the task Subject type-ahead.
-import { html, raw, $, $$, guard, toast, modal, closeModal, fmtDateTime, pill, toText } from '../ui.js?v=202611061842';
-import { modOn } from '../data/modules.js?v=202611061842';   // module switches (combined nov3g)
-import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, guessMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS } from '../data/crm-janine.js?v=202611061842';
-import { fopts } from './crm-custom.js?v=202611061842';
-import { importStatusChoices } from '../data/nov5-rules.js?v=202611061842';
-import { US_STATES } from '../data/constants.js?v=202611061842';
+import { html, raw, $, $$, guard, toast, modal, closeModal, fmtDateTime, pill, toText } from '../ui.js?v=202611061918';
+import { modOn } from '../data/modules.js?v=202611061918';   // module switches (combined nov3g)
+import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, guessMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS } from '../data/crm-janine.js?v=202611061918';
+import { fopts } from './crm-custom.js?v=202611061918';
+import { importStatusChoices } from '../data/nov5-rules.js?v=202611061918';
+import { US_STATES } from '../data/constants.js?v=202611061918';
 
 // ---------- "+" Create New (Home and every CRM page) ----------
 // combined nov3g: skip modules whose Live switch is off for this user (regular users; Admins testing a beta module still get it)

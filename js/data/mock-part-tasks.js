@@ -1,10 +1,10 @@
 /* mock adapter: tasks. Templates (versioned definitions) are separate from each participant's task COPY; a copy records templateId + templateVersion.
  * Intake forms: save partial work, validate, mark complete. Reminders are QUEUED in an outbox only and never sent. Tasks are cancelled, never deleted. */
-import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611061842';
-import { senderFor } from './email-senders.js?v=202611061842';
-import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611061842';   // Task switch OFF: no new copy (existing copies kept)
-import { templateGenerates, audienceAllowsRole } from './nov5-rules.js?v=202611061842';
-import { maskAccount } from './constants.js?v=202611061842';
+import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611061918';
+import { senderFor } from './email-senders.js?v=202611061918';
+import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611061918';   // Task switch OFF: no new copy (existing copies kept)
+import { templateGenerates, audienceAllowsRole } from './nov5-rules.js?v=202611061918';
+import { maskAccount } from './constants.js?v=202611061918';
 export function tasksAndForms(x) {
   const { load, save, nid, needUser, needAdmin, isManager, dealOr404, onDeal, fileRole, fileRoles, holds, dealsFor, log, prof, nameOf, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, dateOrNull, localDate, localDayOf, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
@@ -159,7 +159,7 @@ export function tasksAndForms(x) {
     },
     // Which agent roles may complete a CLIENT's copy for them. Admin or Processor. Applies to every version of the template (it is a policy, not form content).
     async setTemplateAgentRoles(code, roles) {
-      let u = needUser(); if (!(u.isAdmin || C.runsOrders(u))) fail('Only an Admin or the processor can change who may complete a task.');
+      let u = needUser(); if (!u.isAdmin) fail('Only an Admin or Super admin can change who may complete a task.');
       const d = load(); const vs = d.taskTemplates.filter((t) => t.code === code); if (!vs.length) fail('Template not found.');
       const list = [...new Set(Array.isArray(roles) ? roles : [])]; if (list.some((r) => !AGENT_ROLES.includes(r))) fail('Only Buyer Agent or Listing Agent can be allowed.');
       if (list.length && !vs.some((t) => t.roles.some((r) => C.isClient(r)))) fail('Only client tasks can be completed by an agent.');

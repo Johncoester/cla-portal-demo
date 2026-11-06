@@ -1,7 +1,8 @@
 /* mock adapter, part 1: auth, profile, dashboard, deals. See mock-adapter.js. */
-import { autoCounty } from './county-auto.js?v=202611061842';
-import { checkSource } from './mock-part-nov3b.js?v=202611061842';
-import { isRefi, REFI_BLOCKED_FIELDS } from './constants.js?v=202611061842';
+import { autoCounty } from './county-auto.js?v=202611061918';
+import { checkSource } from './mock-part-nov3b.js?v=202611061918';
+import { isRefi, REFI_BLOCKED_FIELDS } from './constants.js?v=202611061918';
+import { PROCESSOR_PICK_ROLES } from './place-order.js?v=202611061918';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 // John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only
@@ -21,7 +22,9 @@ export function dealsAndAuth(x) {
   const checkSales = (id) => { const p = x.prof(id) || fail('Salesperson not found.'); if (!['Sales Person', 'Sales Team'].includes(p.role)) fail('Only a Sales Person or Sales Team user can be a salesperson on an order.');
     if (p.status !== 'active') fail('Only an active salesperson can be added to an order.'); return p; };
   const checkPreprocessor = (id) => { if (id == null || id === '') return null; const p = x.prof(id) || fail('Preprocessor not found.'); if (p.role !== 'Preprocessor' || p.status !== 'active') fail('The Preprocessor on an order must be an active Preprocessor.'); return p; };
-  const checkProcessor = (id) => { const p = x.prof(id) || fail('Processor not found.'); if (!C.isProcessor(p.role) || p.status !== 'active') fail('The Processor on an order must be an active Processor.'); return p; };
+  const checkProcessor = (id, actor) => { if (id == null || id === '') return null; const p = x.prof(id) || fail('Processor not found.');
+    if (!PROCESSOR_PICK_ROLES.includes(p.role) || p.status !== 'active') fail('The Processor on an order must be an active Processor, Preprocessor, Admin or Super admin.');
+    if (!!p.isDemo !== !!(actor && actor.isDemo)) fail('A real order cannot use a demo Processor, and a demo order cannot use a real Processor.'); return p; };
   const salesList = (inp) => { const v = inp.salesIds !== undefined ? inp.salesIds : inp.salesPersonId; return [...new Set((v == null ? [] : Array.isArray(v) ? v : String(v).split(',')).map((z) => String(z).trim()).filter(Boolean))]; };
   function setSales(u, dealId, ids) { const d = load(); d.dealSalesPeople ||= []; const cur = x.salesOf(dealId).map((s) => s.salesId);
     const add = ids.filter((sid) => !cur.includes(sid)); const drop = cur.filter((sid) => !ids.includes(sid));
@@ -55,7 +58,7 @@ export function dealsAndAuth(x) {
     },
     // Place Order: who can be the file's Processor (John, Nov 2: an Admin placing an order must pick one)
     async listProcessors() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
-      return clone(load().profiles.filter((p) => p.status === 'active' && C.isProcessor(p.role)).map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role }))); },
+      return clone(load().profiles.filter((p) => p.status === 'active' && PROCESSOR_PICK_ROLES.includes(p.role) && !!p.isDemo === !!u.isDemo).map(({ id, firstName, lastName, role, isDemo }) => ({ id, firstName, lastName, role, isDemo: !!isDemo }))); },
     async listPreprocessors() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
       return clone(load().profiles.filter((p) => p.status === 'active' && p.role === 'Preprocessor').map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role }))); },
     // John, Nov 2: who can be a file's Transaction Coordinator = active users whose account role is exactly 'Transaction Coordinator' (with their contact id)
@@ -73,9 +76,7 @@ export function dealsAndAuth(x) {
     async getDeal(id) { const u0 = needUser(); const q = dealOr404(u0, id); const u = x.scopeTo(u0, id); return { ...dealView(u, q), participants: x.participantsOf(id, u) }; },
     async createDeal(input) {
       const u = needProcessor(); const d = load();
-      // the file's Processor: a Processor placing an order is the Processor unless they pick another; an Admin / Super admin must pick one
-      const procId = input.processorId || (C.isProcessor(u.role) ? u.id : fail('Pick the Processor for this order.'));
-      checkProcessor(procId);
+      const proc = checkProcessor(input.processorId || null, u); const procId = proc ? proc.id : null;
       const preprocId = checkPreprocessor(input.preprocessorUserId || null);
       const salesIds = salesList(input); salesIds.forEach(checkSales);
       const street = str(input.street, 200) || fail('Street address is required.');
@@ -93,16 +94,16 @@ export function dealsAndAuth(x) {
         emdAmount: money(input.emdAmount, 'EMD amount'), emdDueDate: dateOrNull(input.emdDueDate, 'EMD due date'),
         // Matt, Nov 3 (b): lender phone + email (and the picked lender's name / company) and the source of business are set at placement
         lenderName: str(input.lenderName, 200), lenderContact: str(input.lenderContact, 200), lenderEmail: str(input.lenderEmail, 200).toLowerCase(), lenderPhone: x.phone(input.lenderPhone, 'Lender phone'),
-        sourceOfBusiness: checkSource(d, input.sourceOfBusiness, '', fail), ...occFields(input, transactionType, fail), notes: str(input.notes, 2000), processorId: procId, preprocessorUserId: preprocId ? preprocId.id : null, createdBy: u.id, createdAt: now() };
+        sourceOfBusiness: checkSource(d, input.sourceOfBusiness, '', fail), ...occFields(input, transactionType, fail), notes: str(input.notes, 2000), processorId: procId, processorUnassigned: !procId, preprocessorUserId: preprocId ? preprocId.id : null, createdBy: u.id, createdAt: now() };
       if (deal.lenderEmail && !emailOk(deal.lenderEmail)) fail('Lender email is not valid.');
       d.deals.push(deal);
-      const pc = contactOf(procId); if (pc) d.participants.push({ id: nid('dp'), dealId: deal.id, contactId: pc.id, role: 'Processor', createdAt: now() });
+      const pc = procId && contactOf(procId); if (pc) d.participants.push({ id: nid('dp'), dealId: deal.id, contactId: pc.id, role: 'Processor', createdAt: now() });
       const prec = preprocId && contactOf(preprocId.id); if (prec) d.participants.push({ id: nid('dp'), dealId: deal.id, contactId: prec.id, role: 'Preprocessor', createdAt: now() });
       x.DEAL_FOLDERS.forEach((name) => d.folders.push({ id: nid('f'), scope: 'deal', dealId: deal.id, name, staffOnly: false, createdBy: u.id, createdAt: now() }));
       // Staff task; participants' intake tasks are copied from the current task templates when each person is added (addParticipant).
       d.tasks.push({ id: nid('t'), dealId: deal.id, participantId: null, templateId: null, templateCode: null, templateVersion: null, kind: 'simple', title: 'Collect executed contract', description: '',
         assignedRole: 'Processor', status: 'todo', dueDate: null, formData: {}, savedAt: null, completedAt: null, completedBy: null, createdBy: u.id, createdAt: now() });
-      log(deal.id, u.id, 'deal.created', 'deal', deal.id, `Order ${deal.fileNumber} opened${procId !== u.id ? ` (Processor: ${nameOf(procId)})` : ''}`);
+      log(deal.id, u.id, 'deal.created', 'deal', deal.id, `Order ${deal.fileNumber} opened${procId ? ` (Processor: ${nameOf(procId)})` : ' (Processor unassigned)'}`);
       setSales(u, deal.id, salesIds);
       save(); return clone(dealView(u, deal));
     },
@@ -126,7 +127,10 @@ export function dealsAndAuth(x) {
       if (patch.primaryResidence !== undefined || patch.firstTimeBuyer !== undefined) Object.assign(q, occFields({ primaryResidence: patch.primaryResidence !== undefined ? patch.primaryResidence : q.primaryResidence, firstTimeBuyer: patch.firstTimeBuyer !== undefined ? patch.firstTimeBuyer : q.firstTimeBuyer }, q.transactionType, fail));   // John, Nov 3 call
       if (patch.sourceOfBusiness !== undefined) q.sourceOfBusiness = checkSource(load(), patch.sourceOfBusiness, q.sourceOfBusiness, fail);   // Matt, Nov 3 (b)
       if (patch.preprocessorUserId !== undefined) { const pre = checkPreprocessor(patch.preprocessorUserId || null); const next = pre ? pre.id : null; if (next !== (q.preprocessorUserId || null)) { q.preprocessorUserId = next; const c = next && contactOf(next); d.participants = d.participants.filter((p) => !(p.dealId === id && p.role === 'Preprocessor')); if (c) d.participants.push({ id: nid('dp'), dealId: id, contactId: c.id, role: 'Preprocessor', createdAt: now() }); log(id, u.id, 'deal.preprocessor', 'deal', id, `Preprocessor ${next ? 'set to ' + nameOf(next) : 'cleared'}`); } }
-      if (patch.processorId) { checkProcessor(patch.processorId); if (patch.processorId !== q.processorId) { q.processorId = patch.processorId; log(id, u.id, 'deal.processor', 'deal', id, `Processor set to ${nameOf(q.processorId)}`); } }
+      if (patch.processorId !== undefined) { const next = checkProcessor(patch.processorId || null, u); const nextId = next ? next.id : null; const prev = q.processorId || null;
+        if (nextId !== prev) { q.processorId = nextId; const prevContact = prev && contactOf(prev); if (prevContact) d.participants = d.participants.filter((p) => !(p.dealId === id && p.role === 'Processor' && p.contactId === prevContact.id));
+          const nc = next && contactOf(next.id); if (nc && !d.participants.some((p) => p.dealId === id && p.role === 'Processor' && p.contactId === nc.id)) d.participants.push({ id: nid('dp'), dealId: id, contactId: nc.id, role: 'Processor', createdAt: now() });
+          log(id, u.id, 'deal.processor', 'deal', id, nextId ? `Processor set to ${nameOf(nextId)}` : 'Processor unassigned'); } }
       if (patch.salesIds !== undefined || patch.salesPersonId !== undefined) { const ids = salesList(patch); ids.forEach((sid) => { if (!x.salesOf(id).some((s) => s.salesId === sid)) checkSales(sid); }); setSales(u, id, ids); }
       log(id, u.id, 'deal.updated', 'deal', id, 'Order details updated'); save(); return clone(dealView(u, q));
     },

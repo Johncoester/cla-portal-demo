@@ -3,8 +3,8 @@
 // alignment (incl. justify), outdent / indent, lists, link (Add Link dialog), remove link, image (Upload from computer / Web URL, width / height px),
 // table, horizontal rule, Insert field (and typing #), Insert Code, Edit HTML, Survey (not available yet). Every HTML that leaves the editor is
 // sanitized (crm-templates.js sanitizeHtml: no scripts, no event handlers, no javascript: links). Function first, minimal styling.
-import { html, raw, $, $$, toast, modal, closeModal, esc } from '../ui.js?v=202611061842';
-import { sanitizeHtml, safeLink, safeImageSrc } from '../data/crm-templates.js?v=202611061842';
+import { html, raw, $, $$, toast, modal, closeModal, esc } from '../ui.js?v=202611061918';
+import { sanitizeHtml, safeLink, safeImageSrc } from '../data/crm-templates.js?v=202611061918';
 
 export const IMAGE_MAX_BYTES = 400_000;   // uploaded images are stored inside the template (demo storage is small); bigger: use a web link
 const FONTS = ['Arial', 'Georgia', 'Times New Roman', 'Verdana', 'Courier New', 'Tahoma'];
