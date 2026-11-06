@@ -960,3 +960,6 @@ fieldset.span2 { display: flex; flex-wrap: wrap; gap: .5rem; border: 1px solid v
 .tc-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
 .tc-page .co-facts { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
 @media (max-width: 700px) { .tc-quick { gap: 6px; } .tc-quick .co-btn { padding: 8px 12px; font-size: 13px; } }
+
+.voice-controls { display: flex; gap: 8px; margin: 12px 0; }
+[data-voice-demo] textarea { width: 100%; }
