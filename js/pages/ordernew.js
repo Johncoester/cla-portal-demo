@@ -15,6 +15,7 @@ import { pickerHtml, mountPicker, personLabel } from './person-picker.js?v=20261
 import { ENTITY_TYPES } from '../data/templates.js?v=202611061858';
 import { moneyClean } from './money-input.js?v=202611061858';
 import { REFERRALS, REFERRAL_ROLE, encodeReferral, showMdQuestions } from '../data/place-order.js?v=202611061858';
+import { orderDraftKey, readOrderDraft, writeOrderDraft, clearOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim } from '../data/order-draft.js?v=202611061858';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
 // Each person becomes their own deal_participants row, so each buyer / seller gets their own copy of the client intake tasks (existing per-person behaviour).
@@ -142,7 +143,7 @@ export async function render({ api, user, go }) {
         'Who at CLA Title works this order, plus notes and any documents you already have.')}
       ${panel('review', html`<div data-review></div>
         <div class="wiz-submit"><button class="m-btn m-btn-lg" type="submit" data-place-order>Place order</button><span class="muted small">Creates the order and adds the people above. No emails, texts or invites are sent.</span></div>`,
-        'Check everything below. Use Edit to change a section; nothing is saved until you press Place order.')}
+        'Check everything below. Use Edit to change a section. Place order creates the file. Save draft does not.')}
       <fieldset id="addnew" class="addnew" data-wiz-home="parties"><legend>Add new user</legend>
         <p class="muted small addnew-hint">Someone not in the lists? Add them here and they are put on this order.</p>
         <button type="button" class="ghost" id="an-open">+ Add new user</button>
@@ -160,7 +161,9 @@ export async function render({ api, user, go }) {
           <div class="span2"><button type="button" class="ghost" id="an-cancel">Close without adding</button></div>
         </div>
       </fieldset>
-      <div class="wiz-nav"><button type="button" class="ghost" data-wiz-back hidden>&larr; Back</button><span class="spacer"></span><span class="muted small" data-wiz-count>Step 1 of ${N}</span><button type="button" class="m-btn" data-wiz-next>Next: ${STEPS[1][1]} &rarr;</button></div>
+      <p class="notice info" data-draft-restored hidden></p>
+      <div class="wiz-nav"><button type="button" class="ghost" data-wiz-back hidden>&larr; Back</button><button type="button" class="ghost" data-save-draft>Save draft</button><span class="spacer"></span><span class="muted small" data-wiz-count>Step 1 of ${N}</span><button type="button" class="m-btn" data-wiz-next>Next: ${STEPS[1][1]} &rarr;</button></div>
+      <p class="muted small" data-draft-note>Save draft keeps the typed answers in this browser for 7 days. It does not create an order and does not assign a Processor. Attached files are not kept. Place order still requires a Processor.</p>
       </div>
     </form>`;
   return { title: 'Place Order', crumbs: [['Orders', '#/orders'], ['Place Order']], body, mount(root) {
@@ -213,7 +216,7 @@ export async function render({ api, user, go }) {
       $('[data-wiz-count]', root).textContent = `Step ${i + 1} of ${list.length}`;
       $('[data-wiz-meter]', root).style.width = `${Math.round(((i + 1) / list.length) * 100)}%`;
       if (cur === 'review') drawReview(); };
-    const show = (k, { focus = true } = {}) => { if (!active().includes(k)) k = 'review'; cur = k; visited.add(k); paint();
+    const show = (k, { focus = true } = {}) => { if (!active().includes(k)) k = 'review'; cur = k; visited.add(k); paint(); persistDraft();
       const top = $('.wiz-progress', root); if (top && top.getBoundingClientRect().top < 0) top.scrollIntoView({ block: 'start' });
       if (focus) { const h = $(`#wiz-h-${k}`, root); if (h) h.focus({ preventScroll: true }); } };
     // ---------- per-step validation ----------
@@ -372,6 +375,35 @@ export async function render({ api, user, go }) {
       const c = await api.createContact({ firstName: first, lastName: v('an-last'), email, phone: v('an-phone'), company: ['Buyer Agent', 'Listing Agent', 'Lender'].includes(role) ? v('an-company') : '', contactType: $('#an-ctype', root).value });
       people.push(c); place(role, c); }));
     txSel.addEventListener('change', applyRefi); applyRefi();
+    const draftKey = orderDraftKey(user);
+    const draftStore = typeof localStorage !== 'undefined' ? localStorage : null;
+    const syncPickers = () => { $$('[data-picker]', root).forEach((el) => { const hid = $('input[type=hidden]', el); const person = people.find((p) => p.id === hid.value);
+      if (!person) return; const q = $('.picker-q', el); const chosen = $('[data-chosen]', el);
+      if (q) q.value = personLabel(person); if (chosen) chosen.textContent = `Selected: ${personLabel(person)}`; el.setAttribute('data-selected', ''); }); };
+    const persistDraft = () => {
+      if (!draftStore || !draftKey || placing) return false;
+      const body = collectOrderFields(form);
+      body.savedAt = new Date().toISOString(); body.step = cur; body.fileNames = rememberedFiles([fileIn, txIn]);
+      try { writeOrderDraft(draftStore, draftKey, body); return true; } catch (e) { return false; }
+    };
+    let draftTimer = 0;
+    const queueDraft = () => { clearTimeout(draftTimer); draftTimer = setTimeout(persistDraft, 400); };
+    form.addEventListener('input', queueDraft); form.addEventListener('change', queueDraft);
+    const saveBtn = $('[data-save-draft]', root);
+    if (saveBtn) saveBtn.addEventListener('click', () => { const okSave = persistDraft(); toast(okSave ? 'Draft saved in this browser only. No order was created and no Processor was assigned.' : 'This browser could not store the draft. Keep this tab open.'); });
+    const prior = draftStore && draftKey ? readOrderDraft(draftStore, draftKey) : null;
+    if (prior) {
+      const restored = applyOrderDraft(form, prior, procs);
+      applyRefi();
+      syncPickers();
+      if (active().includes(prior.step)) cur = prior.step;
+      const note = $('[data-draft-restored]', root);
+      const names = (prior.fileNames || []).join(', ');
+      if (note) { note.hidden = false; note.textContent = `Restored an unplaced draft from this browser${restored.processorDropped ? '. The saved Processor is no longer on the list, so choose one again' : ''}. It is not an order yet.${names ? ' These files were not kept and must be chosen again: ' + names + '.' : ''}`; }
+    }
+    document.addEventListener('click', (e) => { if (form.isConnected && !form.contains(e.target)) persistDraft(); }, true);
+    window.addEventListener('beforeunload', (e) => { if (placing || !form.isConnected) return; const body = collectOrderFields(form); const dirty = Object.values(body.fields).some((v) => String(v || '').trim()) || Object.values(body.checks).some((v) => v.length);
+      if (!dirty) return; e.preventDefault(); e.returnValue = ''; });
     // ---------- submit (only from Review; Enter on an earlier step means Next) ----------
     let placing = false;
     form.addEventListener('submit', guard(async (e) => {
@@ -395,8 +427,10 @@ export async function render({ api, user, go }) {
       if (!showMdQuestions(f.state, refi())) { f.primaryResidence = ''; f.firstTimeBuyer = ''; }
       const input = { ...f, emdAmount: amt, purchasePrice: refi() ? '' : moneyClean(f.purchasePrice), ...(refi() ? { emdDueDate: '' } : {}), loanAmount: moneyClean(f.loanAmount), salesIds: new FormData(e.target).getAll('salesIds'),
         ...(lender ? { lenderName: lender.company || '', lenderContact: personLabel(lender) } : {}) };
+      if (draftStore && draftKey) { const claim = claimOrderDraft(draftStore, draftKey); if (!claim.ok) throw new Error(claim.message); }
       placing = true; const btn = $('[data-place-order]', root); btn.disabled = true; btn.textContent = 'Placing order\u2026';
-      let deal; try { deal = await api.createDeal(input); } catch (err) { placing = false; btn.disabled = false; btn.textContent = 'Place order'; throw err; }
+      let deal; try { deal = await api.createDeal(input); } catch (err) { placing = false; btn.disabled = false; btn.textContent = 'Place order'; if (draftStore && draftKey) releaseOrderClaim(draftStore, draftKey); throw err; }
+      if (draftStore && draftKey) clearOrderDraft(draftStore, draftKey);
       const problems = []; let tasks = 0; const added = {};
       // Buyer 1, Buyer 2, ..., Seller 1, Seller 2, ..., agents, lender, TC, sales team (p:<role> or p:<role>:<n>); the same order as the one-page form
       const entries = [...new FormData(e.target).entries()].filter(([k, x]) => k.startsWith('p:') && x).map(([k, x]) => [k, x, k.slice(2).replace(/:\d+$/, '')])
