@@ -33,8 +33,11 @@ export function contactsTasksDocs(x) {
     },
     async createContact(input) {
       const u = needProcessor(); const d = load();
-      const c = { id: nid('c'), profileId: null, firstName: str(input.firstName, 80) || fail('First name is required.'), lastName: str(input.lastName, 80),
-        email: str(input.email, 200).toLowerCase(), phone: x.phone(input.phone), company: str(input.company, 120), contactType: ctype(input.contactType), createdBy: u.id, createdAt: now() };
+      const companyName = str(input.company, 120);
+      const given = str(input.firstName, 80);
+      if (!given && !companyName) fail('A name or a company name is required.');
+      const c = { id: nid('c'), profileId: null, firstName: given, lastName: str(input.lastName, 80),
+        email: str(input.email, 200).toLowerCase(), phone: x.phone(input.phone), company: companyName, contactType: ctype(input.contactType), createdBy: u.id, createdAt: now() };
       if (c.email && !emailOk(c.email)) fail('Email is not valid.');
       if (c.email && d.contacts.some((z) => z.email === c.email)) fail('A contact with this email already exists.');
       if (c.email && d.profiles.some((z) => z.email === c.email && z.status !== 'removed')) fail('A user with this email already exists.');
@@ -43,7 +46,7 @@ export function contactsTasksDocs(x) {
     async updateContact(id, patch) {
       needProcessor(); const c = load().contacts.find((z) => z.id === id) || fail('Contact not found.');
       ['firstName', 'lastName', 'company'].forEach((k) => { if (patch[k] != null) c[k] = str(patch[k], 120); }); if (patch.phone != null) c.phone = x.phone(patch.phone);
-      if (!c.firstName) fail('First name is required.');
+      if (!c.firstName && !c.company) fail('A name or a company name is required.');
       if (patch.email != null) { const e = str(patch.email, 200).toLowerCase(); if (e && !emailOk(e)) fail('Email is not valid.');
         if (e && e !== c.email && load().contacts.some((z) => z.id !== c.id && z.email === e)) fail('A contact with this email already exists.'); c.email = e; }
       if (patch.contactType !== undefined) { const t = ctype(patch.contactType, c.profileId && prof(c.profileId)); if (t !== (c.contactType || null)) log(null, needUser().id, 'contact.type', 'contact', c.id, `Contact type of ${fullName(c)} set to ${C.contactTypeLabel(t) || 'not set'}`); c.contactType = t; }

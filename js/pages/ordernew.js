@@ -150,9 +150,12 @@ export async function render({ api, user, go }) {
         <div id="an-form" class="form-grid" hidden>
           <label class="span2">Role *<select id="an-role" aria-label="Role"><option value="">Choose the role&hellip;</option>${NEW_ROLES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select></label>
           <div class="span2 form-grid" id="an-fields" hidden>
-            <label>First name *<input id="an-first" maxlength="80"></label><label>Last name<input id="an-last" maxlength="80"></label>
+            <label class="span2" id="an-kind-l" hidden>This buyer or seller is<select id="an-kind" aria-label="Person or entity"><option value="person">A person</option><option value="entity">An entity (LLC, company, trust)</option></select></label>
+            <label id="an-entity-l" hidden>Entity name *<input id="an-entity" maxlength="200" aria-label="Entity name"></label>
+            <label id="an-etype-l" hidden>Entity type<select id="an-etype" aria-label="Entity type"><option value="">Choose&hellip;</option>${ENTITY_TYPES.map((t) => html`<option>${t}</option>`)}</select></label>
+            <label id="an-first-l"><span id="an-first-t">First name *</span><input id="an-first" maxlength="80" aria-label="First name"></label><label id="an-last-l">Last name<input id="an-last" maxlength="80" aria-label="Last name"></label>
             <label>Email<span id="an-email-req" hidden> *</span><input id="an-email" type="email" maxlength="200"></label><label>Phone<input id="an-phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone></label>
-            <label class="span2" id="an-company-l" hidden><span id="an-company-t">Brokerage / company</span><input id="an-company" maxlength="120"></label>
+            <label class="span2" id="an-company-l" hidden><span id="an-company-t">Brokerage / company</span><input id="an-company" maxlength="120" aria-label="Company"></label>
             <label class="span2" id="an-ctype-l" hidden>Contact type <span class="muted small">(for reporting; set from the role, you can change it)</span><select id="an-ctype" aria-label="Contact type"><option value="">(not set)</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select></label>
             <p class="span2 muted small" id="an-note"></p>
             <div class="span2" id="an-dup" hidden></div>
@@ -351,15 +354,22 @@ export async function render({ api, user, go }) {
     // ---------- one "Add new user" place ----------
     const anForm = $('#an-form', root); const anFields = $('#an-fields', root); const dup = $('#an-dup', root);
     const v = (id) => $('#' + id, root).value.trim();
-    const reset = () => { ['an-first', 'an-last', 'an-email', 'an-phone', 'an-company', 'an-ctype'].forEach((id) => { $('#' + id, root).value = ''; }); anRole.value = ''; anFields.hidden = true; dup.hidden = true; dup.innerHTML = ''; };
+    const reset = () => { ['an-first', 'an-last', 'an-email', 'an-phone', 'an-company', 'an-ctype', 'an-entity'].forEach((id) => { const el = $('#' + id, root); if (el) el.value = ''; }); const kind = $('#an-kind', root); if (kind) kind.value = 'person'; anRole.value = ''; anFields.hidden = true; dup.hidden = true; dup.innerHTML = ''; };
+    const paintNew = () => { const r = anRole.value; const entity = (r === 'Client-Buyer' || r === 'Client-Seller') && $('#an-kind', root).value === 'entity'; const lender = r === 'Lender';
+      $('#an-kind-l', root).hidden = !(r === 'Client-Buyer' || r === 'Client-Seller'); $('#an-entity-l', root).hidden = !entity; $('#an-etype-l', root).hidden = !entity;
+      $('#an-first-t', root).textContent = lender ? 'Contact first name (optional)' : entity ? 'Representative first name' : 'First name *';
+      $('#an-last-l', root).firstChild.textContent = lender ? 'Contact last name (optional)' : entity ? 'Representative last name' : 'Last name';
+      $('#an-company-l', root).hidden = !(r === 'Buyer Agent' || r === 'Listing Agent' || r === 'Lender'); $('#an-company-t', root).textContent = lender ? 'Lender company name *' : 'Brokerage / company';
+      $('#an-ctype-l', root).hidden = !r || r === 'Sales Person'; $('#an-ctype', root).value = contactTypeForRole(r); $('#an-email-req', root).hidden = r !== 'Sales Person';
+      $('#an-note', root).textContent = r === 'Sales Person' ? 'A Sales Person login is created in HR. Add the employee there and copy the invite link. Nothing is emailed.'
+        : lender ? 'Adds the lender company as a contact. No portal login is created. A contact person is optional, and this does not change another lender\'s saved record.'
+        : entity ? 'Adds the entity on this order. The representative, if you enter one, is the contact. No portal login is created.'
+        : r ? `Adds a contact (no portal login, no email or invite is sent) and ${MULTI[r] ? `adds them to the ${MULTI[r]}s of this order (after any already chosen)` : `puts them in the ${NEW_ROLES.find((x) => x[0] === r)[1]} slot of this order`}.` : ''; };
     $('#an-open', root).addEventListener('click', () => { anForm.hidden = false; if (cur === 'loan' && !anRole.value) { anRole.value = 'Lender'; anRole.dispatchEvent(new Event('change')); } else anRole.focus(); });
     $$('[data-add-tc]', root).forEach((b) => b.addEventListener('click', () => { $('#addnew', root).dataset.tcTarget = b.dataset.addTc; anForm.hidden = false; anRole.value = 'Transaction Coordinator'; anRole.dispatchEvent(new Event('change')); $('#an-first', root).focus(); }));
     $('#an-cancel', root).addEventListener('click', () => { reset(); anForm.hidden = true; });
-    anRole.addEventListener('change', () => { const r = anRole.value; anFields.hidden = !r; dup.hidden = true;
-      $('#an-company-l', root).hidden = !(r === 'Buyer Agent' || r === 'Listing Agent' || r === 'Lender'); $('#an-company-t', root).textContent = r === 'Lender' ? 'Company (lender)' : 'Brokerage / company';
-      $('#an-ctype-l', root).hidden = !r || r === 'Sales Person'; $('#an-ctype', root).value = contactTypeForRole(r); $('#an-email-req', root).hidden = r !== 'Sales Person';
-      $('#an-note', root).textContent = r === 'Sales Person' ? 'A Sales Person login is created in HR. Add the employee there and copy the invite link. Nothing is emailed.'
-        : r ? `Adds a contact (no portal login, no email or invite is sent) and ${MULTI[r] ? `adds them to the ${MULTI[r]}s of this order (after any already chosen)` : `puts them in the ${NEW_ROLES.find((x) => x[0] === r)[1]} slot of this order`}.` : ''; });
+    anRole.addEventListener('change', () => { anFields.hidden = !anRole.value; dup.hidden = true; paintNew(); });
+    $('#an-kind', root).addEventListener('change', paintNew);
     $('#addnew', root).addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') e.preventDefault(); });   // Enter here must not submit the order
     const place = (role, c) => {
       if (role === 'Sales Person') { const list = $('[data-sales-list]', root); const box = $(`input[name=salesIds][value="${c.profileId || c.id}"]`, list);
@@ -369,18 +379,28 @@ export async function render({ api, user, go }) {
       toast(`${personLabel(c)} added as ${NEW_ROLES.find((x) => x[0] === role)[1]}`); reset(); anForm.hidden = true; };
     $('#an-create', root).addEventListener('click', guard(async () => {
       const role = anRole.value; if (!role) throw new Error('Choose the role first.');
-      const first = v('an-first'); const email = v('an-email').toLowerCase(); if (!first) throw new Error('First name is required.');
+      const entity = (role === 'Client-Buyer' || role === 'Client-Seller') && $('#an-kind', root).value === 'entity';
+      const first = v('an-first'); const email = v('an-email').toLowerCase(); const company = role === 'Lender' || role === 'Buyer Agent' || role === 'Listing Agent' ? v('an-company') : (entity ? v('an-entity') : '');
+      if (role === 'Lender' && !company) throw new Error('Lender company name is required. A contact person is optional.');
+      if (entity && !v('an-entity')) throw new Error('Entity name is required.');
+      if (!entity && role !== 'Lender' && !first) throw new Error('First name is required.');
       if (role === 'Sales Person' && !email) throw new Error('Email is required for a salesperson (it is their login).');
-      // one person per email: offer the existing person instead of a duplicate
+      // one person per email: use the saved contact. A different last name typed here does not overwrite that record and does not create a second login.
       if (email) { const hit = (await api.listContacts(email)).find((c) => (c.email || '').toLowerCase() === email);
         if (hit) { const okToPick = role !== 'Sales Person' || staff.some((s) => s.id === hit.profileId);
-          dup.hidden = false; dup.innerHTML = toText(html`<p class="notice warn" data-dup>A person with this email already exists: <strong>${personLabel(hit)}</strong> (${hit.email}${hit.company ? ', ' + hit.company : ''}). ${okToPick ? 'Select them instead of creating a duplicate.' : 'They are not an active salesperson, so they cannot be added as one.'}</p>
+          const typedLast = v('an-last'); const kept = personLabel(hit);
+          dup.hidden = false; dup.innerHTML = toText(html`<p class="notice warn" data-dup>This email is already saved as <strong>${kept}</strong>. ${typedLast && typedLast.toLowerCase() !== String(hit.lastName || '').toLowerCase() ? 'The last name you typed is not written over that contact. ' : ''}${okToPick ? 'Select them for this order. No second login is created.' : 'They are not an active salesperson, so they cannot be added as one.'}</p>
             ${okToPick ? html`<button type="button" class="m-btn" id="an-use">Select existing person</button>` : ''}`);
-          const use = $('#an-use', root); if (use) use.addEventListener('click', () => { if (!people.some((p) => p.id === hit.id)) people.push(hit); place(role, hit); });
+          const use = $('#an-use', root); if (use) use.addEventListener('click', () => {
+            const ent = entity ? { name: v('an-entity'), type: $('#an-etype', root).value, repName: `${first} ${v('an-last')}`.trim(), repEmail: email, repPhone: v('an-phone') } : null;
+            if (!people.some((p) => p.id === hit.id)) people.push(hit); place(role, hit); if (ent) fillEntity(role, ent); });
           return; } }
       if (role === 'Sales Person') throw new Error('A Sales Person login is created in HR. Add the employee and copy the invite link (#/hr/add). Nothing is emailed.');
-      const c = await api.createContact({ firstName: first, lastName: v('an-last'), email, phone: v('an-phone'), company: ['Buyer Agent', 'Listing Agent', 'Lender'].includes(role) ? v('an-company') : '', contactType: $('#an-ctype', root).value });
-      people.push(c); place(role, c); }));
+      const ent = entity ? { name: v('an-entity'), type: $('#an-etype', root).value, repName: `${first} ${v('an-last')}`.trim(), repEmail: email, repPhone: v('an-phone') } : null;
+      const c = await api.createContact({ firstName: first, lastName: v('an-last'), email, phone: v('an-phone'), company, contactType: $('#an-ctype', root).value });
+      people.push(c); place(role, c); if (ent) fillEntity(role, ent); }));
+    const fillEntity = (role, ent) => { const row = (rows[role] || []).find((r) => r.pk.value); if (!row) return; const pnl = $('[data-entity-panel]', row.el); if (!pnl) return; pnl.hidden = false; const btn = $('[data-ent-toggle]', row.el); if (btn) { btn.setAttribute('aria-pressed', 'true'); btn.textContent = '\u2212 Remove entity'; }
+      const set = (k, val) => { const el = $(`[data-ent="${k}"]`, pnl); if (el && val) el.value = val; }; set('name', ent.name); set('type', ent.type); set('repName', ent.repName); set('repEmail', ent.repEmail); set('repPhone', ent.repPhone); };
     txSel.addEventListener('change', applyRefi); applyRefi();
     const draftKey = orderDraftKey(user);
     const draftStore = typeof localStorage !== 'undefined' ? localStorage : null;

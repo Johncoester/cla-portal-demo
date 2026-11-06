@@ -35,22 +35,28 @@ export async function render({ api, user, deal, refresh }) {
       <p class="muted small span2">One person can hold two roles on an order only when an agent is buying or selling for themselves: add them once as Client-Buyer and once as Buyer Agent (or Client-Seller and Listing Agent).</p>
       <p class="muted small span2" data-tc-note hidden>Only users with the Transaction Coordinator account role can be the Transaction Coordinator. An Admin creates them under Create User.</p>
       <div class="span2">${pickerHtml('contactId', 'Existing contact')}</div>
-      <div class="span2 form-grid" data-newperson><h4 class="span2">&mdash; or a new person &mdash;</h4><label>First name<input name="firstName"></label><label>Last name<input name="lastName"></label><label>Email<input name="email" type="email"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone></label><label>Company / brokerage<input name="company"></label>${ctypeSelect('')}</div>
+      <div class="span2 form-grid" data-newperson><h4 class="span2">&mdash; or a new person &mdash;</h4><label data-fn>First name<input name="firstName"></label><label>Last name<input name="lastName"></label><label>Email<input name="email" type="email"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone></label><label data-co>Company / brokerage<input name="company"></label>${ctypeSelect('')}</div>
       <div class="span2"><button class="m-btn" type="submit">Add</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
     const roleSel = $('[name=role]', m); const isTc = () => roleSel.value === 'Transaction Coordinator';
     const pk = mountPicker($('[data-picker=contactId]', m), () => (isTc() ? all.filter((c) => tcIds.has(c.id)) : all));
     const ctSel = $('[data-newperson] [name=contactType]', m); let ctTouched = false; ctSel.addEventListener('change', () => { ctTouched = true; });
-    roleSel.addEventListener('change', () => { if (!ctTouched) ctSel.value = contactTypeForRole(roleSel.value); const tc = isTc(); $('[data-tc-note]', m).hidden = !tc; $('[data-newperson]', m).hidden = tc; if (tc && pk.value && !tcIds.has(pk.value)) pk.set(null); });
+    const paintRole = () => { const r = roleSel.value; const lender = r === 'Lender'; const person = r === 'Client-Buyer' || r === 'Client-Seller';
+      $('[data-fn]', m).firstChild.textContent = lender ? 'Contact first name (optional)' : person ? 'First name (leave blank for an entity)' : 'First name';
+      $('[data-co]', m).firstChild.textContent = lender ? 'Lender company name' : person ? 'Entity or company name' : 'Company / brokerage'; };
+    roleSel.addEventListener('change', () => { if (!ctTouched) ctSel.value = contactTypeForRole(roleSel.value); const tc = isTc(); $('[data-tc-note]', m).hidden = !tc; $('[data-newperson]', m).hidden = tc; if (tc && pk.value && !tcIds.has(pk.value)) pk.set(null); paintRole(); });
+    paintRole();
     $('#apf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); let id = f.contactId;
       if (!id && pk.typed) throw new Error('Pick a person from the list (or clear the search box and enter a new person).');
       if (!id && isTc()) throw new Error('Pick a Transaction Coordinator from the list.');
+      if (!id && f.role === 'Lender' && !String(f.company || '').trim()) throw new Error('Lender company name is required. A contact person is optional.');
+      if (!id && !String(f.firstName || '').trim() && !String(f.company || '').trim()) throw new Error('Enter a first name, or a company or entity name.');
       if (!id) id = (await api.createContact({ firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone, company: f.company, contactType: f.contactType })).id;
       await api.addParticipant(deal.id, id, f.role); closeModal(); toast('Contact added'); refresh(); }));
   }
   function editContact(c, staff) {
-    const m = modal('Edit contact', html`<form id="ecf" class="form-grid"><label>First name<input name="firstName" required value="${c.firstName}"></label><label>Last name<input name="lastName" value="${c.lastName}"></label>
+    const m = modal('Edit contact', html`<form id="ecf" class="form-grid"><label>First name<input name="firstName" value="${c.firstName}"></label><label>Last name<input name="lastName" value="${c.lastName}"></label>
       <label>Email<input name="email" type="email" value="${c.email}"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${c.phone}"></label><label>Company<input name="company" value="${c.company}"></label>${staff ? html`<p class="muted small">CLA staff have no contact type.</p>` : ctypeSelect(c.contactType || '')}
       <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
-    $('#ecf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); if (staff) delete f.contactType; await api.updateContact(c.id, f); closeModal(); toast('Contact saved'); refresh(); }));
+    $('#ecf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); if (!String(f.firstName || '').trim() && !String(f.company || '').trim()) throw new Error('Enter a first name, or a company or entity name.'); if (staff) delete f.contactType; await api.updateContact(c.id, f); closeModal(); toast('Contact saved'); refresh(); }));
   }
 }

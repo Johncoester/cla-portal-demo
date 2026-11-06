@@ -66,7 +66,7 @@ export function agentPortal(x) {
     async getOrderOverview(dealId) {
       let u = needUser(); const q = dealOr404(u, dealId); u = onDeal(u, dealId); const d = load(); const v = dealView(u, q); const staff = isStaffView(u);
       const ps = participantsOf(dealId, u); const pid = (p) => p.contact && p.contact.profileId;
-      const party = (label, p) => ({ label, name: p ? `${p.contact.firstName} ${p.contact.lastName}`.trim() : 'Not specified', company: p ? p.contact.company || '' : '', email: p ? p.contact.email : '', phone: p ? p.contact.phone : '',
+      const party = (label, p) => ({ label, name: p ? (`${p.contact.firstName || ''} ${p.contact.lastName || ''}`.trim() || p.contact.company || 'Unnamed contact') : 'Not specified', company: p ? p.contact.company || '' : '', email: p ? p.contact.email : '', phone: p ? p.contact.phone : '',
         contactHidden: !!(p && p.contact.contactHidden), entity: p && p.entity ? p.entity : null, profileId: p ? pid(p) || null : null, canMessage: !!(p && pid(p) && pid(p) !== u.id && !C.viewOnly(u) && x.canMessage(u, pid(p), dealId) && (prof(pid(p)) || {}).status === 'active') });
       const all = (role) => ps.filter((p) => p.role === role);
       const proc = prof(q.processorId);
@@ -82,7 +82,7 @@ export function agentPortal(x) {
           profileId: p.id, photo: p.photo || '', initials: `${(p.firstName || '')[0] || ''}${(p.lastName || '')[0] || ''}`.toUpperCase(), salesRep: true,
           canMessage: p.id !== u.id && !C.viewOnly(u) && x.canMessage(u, p.id, dealId) })); };
       const parties = [...all('Client-Buyer').map((p) => party(refi ? 'Borrower' : 'Buyer', p)), ...(all('Client-Buyer').length ? [] : [party(refi ? 'Borrower' : 'Buyer', null)]),
-        { label: 'Settlement Agent', name: proc ? `${proc.firstName} ${proc.lastName}` : 'Not specified', company: 'CLA Title & Escrow', email: proc ? proc.email : '', phone: proc ? proc.phone : '', contactHidden: false, profileId: proc ? proc.id : null,
+        { label: 'Processor', name: proc ? `${proc.firstName} ${proc.lastName}` : 'Not specified', company: 'CLA Title & Escrow', email: proc ? proc.email : '', phone: proc ? proc.phone : '', contactHidden: false, profileId: proc ? proc.id : null,
           canMessage: !!(proc && proc.id !== u.id && !C.viewOnly(u)) },
         { label: 'Title Company', name: 'CLA Title & Escrow', company: '', email: '', phone: CLA_PHONE, contactHidden: false, profileId: null, canMessage: false },
         ...salesReps(),

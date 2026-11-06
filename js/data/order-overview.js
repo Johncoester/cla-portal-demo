@@ -20,7 +20,7 @@ export function buildOrderOverview({ deal, me, tasks = [], documents = [], threa
     const hidden = !!(p && p.contact && p.contact.contactHidden);
     const c = p && p.contact;
     const profileId = c && c.profileId || null;
-    return { label, name: c ? `${c.firstName || ''} ${c.lastName || ''}`.trim() : 'Not specified', company: c && !hidden ? c.company || '' : '',
+    return { label, name: c ? (`${c.firstName || ''} ${c.lastName || ''}`.trim() || c.company || 'Unnamed contact') : 'Not specified', company: c && !hidden ? c.company || '' : '',
       email: c && !hidden ? c.email || '' : '', phone: c && !hidden ? c.phone || '' : '', contactHidden: hidden, entity: p && p.entity ? p.entity : null,
       profileId, canMessage: !!(profileId && profileId !== me.id && !hidden && !readOnly) };
   };
@@ -38,7 +38,7 @@ export function buildOrderOverview({ deal, me, tasks = [], documents = [], threa
     });
   };
   const parties = [...all('Client-Buyer').map((p) => party(refi ? 'Borrower' : 'Buyer', p)), ...(all('Client-Buyer').length ? [] : [party(refi ? 'Borrower' : 'Buyer', null)]),
-    { label: 'Settlement Agent', name: deal.processorName || 'Not specified', company: 'CLA Title & Escrow', email: deal.processorEmail || '', phone: deal.processorPhone || '', contactHidden: false, profileId: deal.processorId || null, canMessage: !!(deal.processorId && deal.processorId !== me.id && !readOnly) },
+    { label: 'Processor', name: deal.processorName || 'Not specified', company: 'CLA Title & Escrow', email: deal.processorEmail || '', phone: deal.processorPhone || '', contactHidden: false, profileId: deal.processorId || null, canMessage: !!(deal.processorId && deal.processorId !== me.id && !readOnly) },
     { label: 'Title Company', name: 'CLA Title & Escrow', company: '', email: '', phone: CLA_PHONE, contactHidden: false, profileId: null, canMessage: false },
     ...salesReps(), ...opt('Buyer Agent', 'Buyer Agent'), ...opt('Listing Agent', 'Listing Agent'),
     ...(refi ? all('Lender').map((p) => party('Lender', p)) : []), ...all('Client-Seller').map((p) => party('Seller', p))];

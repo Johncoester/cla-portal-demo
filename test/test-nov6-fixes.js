@@ -1,0 +1,38 @@
+/* Nov 6 fixes: task open flags, processor label, lender/entity contact, email reuse. Fake data only. */
+import { shapeListedTask } from '../js/data/task-actions.js';
+import { personLabel } from '../js/pages/person-picker.js';
+import { createMockAdapter } from '../js/data/mock-adapter.js';
+let fail = 0;
+const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
+const buyer = { id: 'u-buyer', role: 'Client-Buyer', roles: ['Client-Buyer'] };
+const mine = shapeListedTask({ id: 't', kind: null, templateId: 'tpl', status: 'todo', ownerProfileId: 'u-buyer', participantId: 'p', assignedRole: 'Client-Buyer', title: 'Personal information' }, buyer);
+ok(mine.kind === 'form' && mine.canFill && mine.mine && !mine.notYours, 'a buyer can open their own intake task');
+const other = shapeListedTask({ id: 't2', kind: 'form', status: 'todo', ownerProfileId: 'u-seller', participantId: 'p2', assignedRole: 'Client-Seller' }, buyer);
+ok(!other.canFill && other.notYours, 'a buyer cannot open the seller task');
+ok(personLabel({ firstName: '', lastName: '', company: 'Example Home Loans' }) === 'Example Home Loans', 'a lender with no person name shows the company');
+const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
+await api.signInDev('u-admin');
+const lender = await api.createContact({ firstName: '', lastName: '', company: 'Example Home Loans', email: 'loans@example.test', contactType: 'lender' });
+ok(lender.company === 'Example Home Loans' && lender.firstName === '' && !lender.profileId, 'a lender company is saved without a person name or a login');
+const pat = await api.createContact({ firstName: 'Pat', lastName: 'Smith', email: 'pat@example.test', contactType: 'buyer_seller' });
+let reused = '';
+try { await api.createContact({ firstName: 'Pat', lastName: 'Jones', email: 'pat@example.test' }); } catch (e) { reused = e.message; }
+const again = (await api.listContacts('pat@example.test')).find((c) => c.email === 'pat@example.test');
+ok(/already exists/.test(reused) && again.lastName === 'Smith' && again.id === pat.id, 'the same email keeps the saved last name and does not add a second contact');
+const deal = await api.createDeal({ street: '9 Fix Lane', city: 'Rockville', state: 'MD', zip: '20850', transactionType: 'Purchase', processorId: '' });
+ok(!deal.processorId, 'an order can be saved with Processor unassigned');
+const ann = await api.createContact({ firstName: 'Ann', lastName: 'Buyer', email: 'ann-buyer@example.test', company: '100 Buyer Street' });
+const bob = await api.createContact({ firstName: 'Bob', lastName: 'Seller', email: 'bob-seller@example.test', company: '200 Seller Street' });
+await api.addParticipant(deal.id, ann.id, 'Client-Buyer');
+await api.addParticipant(deal.id, bob.id, 'Client-Seller');
+ann.company = 'CHANGED'; bob.lastName = 'Swapped';
+const ov = await api.getOrderOverview(deal.id);
+const buyerRow = ov.parties.find((p) => p.label === 'Buyer');
+const sellerRow = ov.parties.find((p) => p.label === 'Seller');
+ok(buyerRow.name === 'Ann Buyer' && buyerRow.company === '100 Buyer Street' && sellerRow.name === 'Bob Seller' && sellerRow.company === '200 Seller Street', 'buyer and seller keep their own names and addresses');
+buyerRow.company = 'LEAK'; sellerRow.name = 'Ann Buyer';
+const reloaded = await api.getOrderOverview(deal.id);
+ok(reloaded.parties.find((p) => p.label === 'Buyer').company === '100 Buyer Street' && reloaded.parties.find((p) => p.label === 'Seller').name === 'Bob Seller', 'changing one party row does not change the other or the saved file');
+console.log(fail ? fail + ' failed' : 'nov6 fixes passed');
+if (fail) process.exit(1);

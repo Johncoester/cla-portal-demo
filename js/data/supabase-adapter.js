@@ -25,6 +25,7 @@ import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611062210';
 import { staffSupabase } from './supabase-staff.js?v=202611062210';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611062210';
 import { propertyAddressOf } from './nov5-rules.js?v=202611062210';
+import { shapeListedTask } from './task-actions.js?v=202611062210';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -176,7 +177,8 @@ export async function createSupabaseAdapter(cfg) {
     // contact type (migration 21): contact_directory() / deal_contacts() keep their shape; types come from contact_types(ids)
     async listContacts(search = '') {
       const cs = camel(ok(await sb.rpc('contact_directory', { p_search: search }))) || [];
-      const visible = new Set((camel(ok(await sb.from('profiles').select('id'))) || []).map((p) => p.id));
+      const wanted = [...new Set(cs.map((c) => c.profileId).filter(Boolean))];
+      const visible = new Set(wanted.length ? (camel(ok(await sb.from('profiles').select('id').in('id', wanted))) || []).map((p) => p.id) : []);
       const real = withoutHiddenProfiles(cs, visible);
       const t = await types(real.map((c) => c.id));
       return real.map((c) => ({ ...c, contactType: t.get(c.id) || null }));
@@ -196,7 +198,8 @@ export async function createSupabaseAdapter(cfg) {
     async listTasks(dealId) { const rows = camel(ok(await sb.from('tasks').select(TASK_COLS).eq('deal_id', dealId).order('created_at')));
       // TASK SWITCHES (migration 49): RLS already hides switched-off copies from non-admins; an Admin gets them, marked like the mock (switchedOff)
       const off = rows.some((t) => t.templateCode) ? new Set((ok(await sb.from('task_template_switches').select('code').eq('enabled', false)) || []).map((r) => r.code)) : new Set();
-      return rows.map((t) => ({ ...t, switchedOff: !!t.templateCode && off.has(t.templateCode) })); },
+      const u = await me();
+      return rows.map((t) => shapeListedTask({ ...t, switchedOff: !!t.templateCode && off.has(t.templateCode) }, u)); },
     async getTask(id) {
       const t = camel(ok(await sb.from('tasks').select(TASK_COLS).eq('id', id).single()));
       if (t.kind === 'form') { const r = await sb.rpc('get_task_form', { p_task: id }); if (r.error) t.formHidden = true; else t.formData = r.data || {}; }

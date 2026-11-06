@@ -78,7 +78,7 @@ function signView({ api, deal, t, refresh, go }) {
     ${s ? html`<p>Document: <a href="#" data-open="${s.docId}" class="doc-link">${s.docName}</a> &middot; requested by ${s.requestedByName} on ${fmtDateTime(s.requestedAt)}</p>${s.message ? html`<p class="muted">${s.message}</p>` : ''}
       <p><strong>Signers</strong></p><ul class="plain" id="signers">${who}</ul>
       ${s.canSign ? html`<form id="signf" class="form-grid"><label class="span2">Type your full name to sign *<input name="typedName" autocomplete="off" placeholder="${s.expectedName}"></label>
-        <label class="check span2"><input type="checkbox" name="adopt"> I adopt this typed name as my signature on ${s.docName}.</label>
+        <label class="check span2"><input type="checkbox" name="adopt" required> I have read ${s.docName}. The name I type is my signature for this demo only. It is not a legally binding signature, and nobody else can sign it for me.</label>
         <div class="span2"><button class="m-btn" type="submit">Sign</button></div></form>`
       : s.mine && s.mine.status === 'signed' ? html`<p class="done-by"><strong>You signed this</strong> on ${fmtDateTime(s.mine.signedAt)} as "${s.mine.typedName}".</p>`
       : s.status === 'cancelled' ? html`<p class="muted">This signature request was cancelled.</p>` : html`<p class="muted" data-not-signer>Only ${t.ownerName} can sign this. Agents cannot sign for their clients.</p>`}`

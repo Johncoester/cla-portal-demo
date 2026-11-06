@@ -266,7 +266,7 @@ export const STAFF_EXTRA_ROLES = ['Abstractor', 'Underwriter'];
 export function partyRows(d, ov, staffView, splits = []) {
   const rows = ov ? ov.parties.map((p) => ({ ...p })) : [];
   if (staffView) d.participants.filter((p) => !p.removed && p.contact && !OVERVIEW_ROLES.includes(p.role) && !(p.role === 'Lender' && rows.some((r) => r.label === 'Lender')))
-    .forEach((p) => rows.push({ label: p.role, name: `${p.contact.firstName} ${p.contact.lastName}`.trim(), company: p.contact.company || '', email: p.contact.email || '', phone: p.contact.phone || '', contactHidden: !!p.contact.contactHidden, entity: p.entity || null, profileId: p.contact.profileId || null, canMessage: false }));
+    .forEach((p) => rows.push({ label: p.role, name: `${p.contact.firstName || ''} ${p.contact.lastName || ''}`.trim() || p.contact.company || 'Unnamed contact', company: p.contact.company || '', email: p.contact.email || '', phone: p.contact.phone || '', contactHidden: !!p.contact.contactHidden, entity: p.entity || null, profileId: p.contact.profileId || null, canMessage: false }));
   if (staffView) for (const role of STAFF_EXTRA_ROLES) if (!rows.some((r) => r.label === role)) {
     const sp = role === 'Underwriter' ? (splits || []).find((x) => x.state === String(d.state || '').toUpperCase() && x.underwriter) : null;
     rows.push(sp ? { label: role, name: sp.underwriter, company: `${sp.state} underwriter (Underwriter Splits)`, email: '', phone: '', placeholder: true, fromSplits: true }

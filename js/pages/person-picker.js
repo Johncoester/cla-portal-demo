@@ -6,7 +6,7 @@ import { fmtPhone, contactTypeLabel } from '../data/constants.js?v=202611062210'
 
 const MAX = 25;
 const digits = (s) => String(s || '').replace(/\D/g, '');
-export const personLabel = (c) => `${c.firstName} ${c.lastName}`.trim();
+export const personLabel = (c) => `${c.firstName || ''} ${c.lastName || ''}`.trim() || (c.company || '').trim() || 'Unnamed contact';
 const detail = (c) => [contactTypeLabel(c.contactType), c.email, fmtPhone(c.phone), c.company].filter(Boolean).join(' \u00b7 ');
 // every word typed must match somewhere (name, email, company), or a 3+ digit run must be in the phone number
 export function matchPeople(list, q) {
