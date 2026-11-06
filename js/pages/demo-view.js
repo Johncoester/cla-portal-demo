@@ -1,4 +1,4 @@
-import { html, $, guard } from '../ui.js?v=202611060404';
+import { html, $, guard } from '../ui.js?v=202611061447';
 
 // Super admin only. The list and the session come from the database. Mock identity links are not used here.
 export async function render({ api, go }) {
