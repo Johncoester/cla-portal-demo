@@ -31,7 +31,9 @@ export async function taskAdminView({ api, refresh }) {
       <label>Code<input name="code" required pattern="[a-z_]{2,40}" data-task-code placeholder="commitment_received"></label>
       <label>Title<input name="title" required data-task-title></label>
       <label>Class<select name="lane" data-task-lane>${LANES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select></label>
-      <label>Due days<input name="dueDays" type="number" min="1" max="90" value="7" required data-task-due></label>
+      <label>Due days<input name="dueDays" type="number" min="-90" max="90" value="7" required data-task-due></label>
+      <label>Count from<select name="dueAnchor" data-task-anchor><option value="opened">File opened</option><option value="contract">Contract date</option><option value="closing">Closing date</option></select></label>
+      <p class="span2 muted small">Positive days are after that date. Negative days are before it. A missing contract or closing date leaves the copy with no due date. A due date changed on one file stays on that copy.</p>
       <label class="span2">Description<textarea name="description" rows="2"></textarea></label>
       <fieldset class="span2"><legend>Who may receive it</legend>${AUDS.map(([v, l]) => html`<label class="chk"><input type="checkbox" name="audiences" value="${v}" data-audience="${v}"> ${l}</label>`)}</fieldset>
       <fieldset class="span2"><legend>Whose copy is created</legend>${ROLES.map((r) => html`<label class="chk"><input type="checkbox" name="roles" value="${r}"> ${r}</label>`)}</fieldset>
@@ -61,10 +63,11 @@ export async function taskAdminView({ api, refresh }) {
       const audiences = $$('input[name=audiences]:checked', form).map((el) => el.value);
       const roles = $$('input[name=roles]:checked', form).map((el) => el.value);
       const dueDays = Number(f.dueDays);
-      if (!Number.isInteger(dueDays) || dueDays < 1 || dueDays > 90) throw new Error('Due days must be from 1 to 90.');
+      const dueAnchor = f.dueAnchor || 'opened';
+      if (!Number.isInteger(dueDays) || dueDays === 0 || dueDays < -90 || dueDays > 90) throw new Error('Due days must be from -90 to 90, not zero.');
       const on = $('[data-task-on]', form).checked;
       if (!on && String(f.offReason || '').trim().length < 3) throw new Error('Say why this task is off (at least 3 characters).');
-      await api.saveTaskTemplate({ ...f, audiences, roles, dueDays });
+      await api.saveTaskTemplate({ ...f, audiences, roles, dueDays, dueAnchor });
       await api.setTaskEnabled(f.code, on, on ? '' : f.offReason);
       toast(on ? 'Saved. Older copies are unchanged.' : 'Saved and switched off. It will not be created on new files.'); refresh(); }));
   } };
