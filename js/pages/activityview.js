@@ -1,5 +1,5 @@
 // Shared activity log table with filters (type, person, date range, text). Filters live in the URL query so they survive refresh.
-import { html, $, fmtDateTime, options } from '../ui.js?v=202611061730';
+import { html, $, fmtDateTime, options } from '../ui.js?v=202611061842';
 export async function activityView(api, dealId, base) {
   const q = new URLSearchParams(location.hash.split('?')[1] || ''); const f = { type: q.get('type') || '', actorId: q.get('actor') || '', from: q.get('from') || '', to: q.get('to') || '', q: q.get('q') || '' };
   const r = await api.listActivity(dealId, f);
