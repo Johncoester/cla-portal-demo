@@ -11,7 +11,6 @@ import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611062210
 import { callItemsSupabase } from './supabase-callitems.js?v=202611062210';
 import { automationPart } from './automation.js?v=202611062210';
 import { runsOrders as runsOrdersCI } from './constants.js?v=202611062210';
-import { fieldsForRole } from './templates.js?v=202611062210';
 import { crmSupabase } from './supabase-crm.js?v=202611062210';
 import { hrSupabase } from './supabase-hr.js?v=202611062210';
 import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611062210';
@@ -25,9 +24,10 @@ import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611062210';
 import { staffSupabase } from './supabase-staff.js?v=202611062210';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611062210';
 import { propertyAddressOf } from './nov5-rules.js?v=202611062210';
-import { shapeListedTask } from './task-actions.js?v=202611062210';
+import { fetchHostedTaskList, fetchHostedTask } from './task-actions.js?v=202611062210';
+import { contactInsertRow } from './contact-insert.js?v=202611062210';
+import { withMyAcknowledgements } from './agreement-link.js?v=202611062210';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
-const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
 
 export async function createSupabaseAdapter(cfg) {
@@ -153,8 +153,7 @@ export async function createSupabaseAdapter(cfg) {
       if (patch.salesIds !== undefined) ok(await sb.rpc('set_deal_sales_people', { p_deal: id, p_sales: [].concat(patch.salesIds || []) }));
       return a.getDeal(id); },
     // contacts: unique email (contacts_email_uq); a new contact has no login and no invite is sent
-    async createContact(input) { return camel(ok(await sb.from('contacts').insert({ first_name: input.firstName, last_name: input.lastName || '', email: String(input.email || '').toLowerCase(),
-      phone: input.phone || '', company: input.company || '', contact_type: input.contactType || null }).select().single())); },
+    async createContact(input) { return camel(ok(await sb.from('contacts').insert(contactInsertRow(input)).select().single())); },
     async updateContact(id, patch) { const row = {}; for (const [k, col] of [['firstName', 'first_name'], ['lastName', 'last_name'], ['email', 'email'], ['phone', 'phone'], ['company', 'company'], ['contactType', 'contact_type']])
       if (patch[k] !== undefined) row[col] = k === 'contactType' ? (patch[k] || null) : k === 'email' ? String(patch[k] || '').toLowerCase() : patch[k];
       return camel(ok(await sb.from('contacts').update(row).eq('id', id).select().single())); },
@@ -195,19 +194,8 @@ export async function createSupabaseAdapter(cfg) {
     async listActivity(dealId) { let q = sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(300); q = dealId ? q.eq('deal_id', dealId) : q.is('deal_id', null);
       const items = camel(ok(await q)); return { items, total: items.length, types: [...new Set(items.map((a) => a.action.split('.')[0]))].sort(), actors: [] }; },
     // tasks.form_data is NOT selectable (column grant); answers come from get_task_form for the owner / processor / coordinator / Admin only
-    async listTasks(dealId) { const rows = camel(ok(await sb.from('tasks').select(TASK_COLS).eq('deal_id', dealId).order('created_at')));
-      // TASK SWITCHES (migration 49): RLS already hides switched-off copies from non-admins; an Admin gets them, marked like the mock (switchedOff)
-      const off = rows.some((t) => t.templateCode) ? new Set((ok(await sb.from('task_template_switches').select('code').eq('enabled', false)) || []).map((r) => r.code)) : new Set();
-      const u = await me();
-      return rows.map((t) => shapeListedTask({ ...t, switchedOff: !!t.templateCode && off.has(t.templateCode) }, u)); },
-    async getTask(id) {
-      const t = camel(ok(await sb.from('tasks').select(TASK_COLS).eq('id', id).single()));
-      if (t.kind === 'form') { const r = await sb.rpc('get_task_form', { p_task: id }); if (r.error) t.formHidden = true; else t.formData = r.data || {}; }
-      // Matt, Nov 3: the copy's fields = template fields for its role (settlement type is seller-only); same rule as private.fields_for_role
-      if (t.templateId) { const tp = await sb.from('task_templates').select('id, code, version, title, fields').eq('id', t.templateId).maybeSingle();
-        if (!tp.error && tp.data) { t.template = { id: tp.data.id, code: tp.data.code, version: tp.data.version, title: tp.data.title }; t.fields = fieldsForRole(tp.data.fields || [], t.assignedRole); } }
-      return t;
-    },
+    async listTasks(dealId) { return fetchHostedTaskList(sb, dealId, await me()); },
+    async getTask(id) { return fetchHostedTask(sb, id, await me()); },
     // Matt, Nov 3 (migration 26): entity documents requested from buyers / sellers acting as an entity (person, processor, coordinator, Admin)
     async listEntityDocRequests(dealId) { return camel(ok(await sb.rpc('entity_doc_requests', { p_deal: dealId }))); },
     async saveTaskForm(id, data, { complete = false } = {}) { return ok(await sb.rpc('save_task_form', { p_task: id, p_data: data, p_complete: complete })); },
@@ -252,7 +240,7 @@ export async function createSupabaseAdapter(cfg) {
       const [{ data: { user } }, ags] = [await sb.auth.getUser(), camel(ok(await sb.from('agreements').select('*').order('code')))];
       const mine = camel(ok(await sb.from('agreement_acks').select('*').eq('deal_id', dealId).eq('profile_id', user.id)));
       const roles = (await fileRoles()).get(dealId); const staff = !(roles && roles.roles && roles.roles.length);
-      const out = { agreements: ags.map((g) => { const m = mine.find((k) => k.agreementCode === g.code && k.version === g.version); return { ...g, myAck: m ? { at: m.acknowledgedAt, roleLabel: m.roleLabel } : null }; }), needed: !staff };
+      const out = { agreements: withMyAcknowledgements(ags, mine), needed: !staff };
       out.pending = out.needed ? out.agreements.filter((g) => !g.myAck).length : 0;
       if (staff) { const rows = camel(ok(await sb.rpc('agreement_status', { p_deal: dealId }))) || []; const m = new Map();
         rows.forEach((r) => { if (!m.has(r.profileId)) m.set(r.profileId, { profileId: r.profileId, name: r.name, roleLabel: '', acks: {} }); m.get(r.profileId).acks[r.agreementCode] = r.acknowledgedAt ? { at: r.acknowledgedAt } : null; });
