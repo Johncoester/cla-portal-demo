@@ -1,6 +1,6 @@
 /* crm-saved-filters.js : SAVED FILTERS (Janine, Nov 4 video "Custom View / Filters": Zoho's "Save filter" -> a named chip with its count).
  * Per person; a list key is a module ('contacts' ...) or 'view:<id>'. Used by crm-kit.js listView and crm-views.js. Function only. */
-import { html, toText, $, $$, guard, toast, modal, closeModal } from '../ui.js?v=202611060250';
+import { html, toText, $, $$, guard, toast, modal, closeModal } from '../ui.js?v=202611060404';
 // SAVED FILTER chips (shared by the module lists and the view page). getValues() -> { name: value } of the filter bar; setValues(obj) applies one;
 // count(values) -> how many rows it matches now.
 export function savedFiltersHtml(listKey) {

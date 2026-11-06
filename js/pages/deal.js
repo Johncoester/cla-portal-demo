@@ -1,20 +1,20 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611060250';
-import { GMAIL_OFF } from '../data/automation.js?v=202611060250';
-import { occSelects, yesNo } from './occ-fields.js?v=202611060250';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611060250';
-import { modOn } from '../data/modules.js?v=202611060250';
-import { slotText } from './dealclosing.js?v=202611060250';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611060250';
-import { composeModal } from './compose.js?v=202611060250';
-import { moneyShow, moneyClean } from './money-input.js?v=202611060250';
-import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611060250';
-import { themeOn } from '../theme.js?v=202611060250';
-import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611060250';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611060250';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611060404';
+import { GMAIL_OFF } from '../data/automation.js?v=202611060404';
+import { occSelects, yesNo } from './occ-fields.js?v=202611060404';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611060404';
+import { modOn } from '../data/modules.js?v=202611060404';
+import { slotText } from './dealclosing.js?v=202611060404';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611060404';
+import { composeModal } from './compose.js?v=202611060404';
+import { moneyShow, moneyClean } from './money-input.js?v=202611060404';
+import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611060404';
+import { themeOn } from '../theme.js?v=202611060404';
+import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611060404';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611060404';
 
-const TABS = { tasks: './dealtasks.js?v=202611060250', inbox: './dealmsgs.js?v=202611060250', documents: './dealdocs.js?v=202611060250', contacts: './dealcontacts.js?v=202611060250', activity: './dealactivity.js?v=202611060250', closing: './dealclosing.js?v=202611060250', agreements: './dealagreements.js?v=202611060250', accounting: './dealaccounting.js?v=202611060250', title: './dealtitle.js?v=202611060250', funding: './dealfwp.js?v=202611060250', wires: './dealfwp.js?v=202611060250', policy: './dealfwp.js?v=202611060250' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
-import { placeText } from '../data/cla-offices.js?v=202611060250';
+const TABS = { tasks: './dealtasks.js?v=202611060404', inbox: './dealmsgs.js?v=202611060404', documents: './dealdocs.js?v=202611060404', contacts: './dealcontacts.js?v=202611060404', activity: './dealactivity.js?v=202611060404', closing: './dealclosing.js?v=202611060404', agreements: './dealagreements.js?v=202611060404', accounting: './dealaccounting.js?v=202611060404', title: './dealtitle.js?v=202611060404', funding: './dealfwp.js?v=202611060404', wires: './dealfwp.js?v=202611060404', policy: './dealfwp.js?v=202611060404' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+import { placeText } from '../data/cla-offices.js?v=202611060404';
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -28,16 +28,16 @@ export async function render(ctx) {
   // CLIENT TABS (John, Nov 4: every buyer tab in the light client layout; same for the seller): the tab's own content, under the client file line +
   // pill tabs, drawn in the client shell (app.js: white top bar, CLA logo, no sidebar). The content and its rules are unchanged.
   if (tab !== 'overview' && TABS[tab] && user.role === 'Transaction Coordinator' && !user.accountRole) {
-    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611060250' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
+    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611060404' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
     const top = await tcTabChrome(ctx, deal, tab);
     return { ...v, crumbs: [...here, ...(v.crumbs || [])], tcPage: true, body: html`<div class="co-page tc-page" data-tc-tabpage="${tab}">${top}<section class="co-card co-tabcard"><div class="co-cb">${v.body}</div></section></div>` };
   }
   if (tab !== 'overview' && TABS[tab] && user.accountRole && clientSide(user)) {
-    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611060250' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
+    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611060404' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
     const top = await clientTabChrome(ctx, deal, tab);
     return { ...v, crumbs: [...here, ...(v.crumbs || [])], clientPage: { deal, side: clientSide(user), tab }, body: html`<div class="co-page co-tabpage" data-client-tab="${tab}">${top}<section class="co-card co-tabcard"><div class="co-cb">${v.body}</div></section></div>` };
   }
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611060250' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611060404' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   if (user.role === 'Transaction Coordinator' && !user.accountRole) { return renderTcOverview(ctx, deal); }
   // CLIENT OVERVIEW (John, Nov 4): the buyer / seller get the redesigned overview (client-overview.js) in place of the old overview + card summary (no Cash to Close / payoff mockup figures for clients).

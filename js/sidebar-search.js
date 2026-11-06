@@ -4,7 +4,7 @@
 //   closed by default, open/closed remembered per user (localStorage). Nothing is removed from the menu, only folded.
 // SCOPE: results come ONLY from api.listDeals({ status: 'All' }) (adapter dealsFor scope: agents / clients see their own files, TCs their team's),
 // and partyNames there are already the names this viewer may see. No new access logic here.
-import { html, raw, toText, $, $$ } from './ui.js?v=202611060250';
+import { html, raw, toText, $, $$ } from './ui.js?v=202611060404';
 const MORE_KEY = (u) => `cla-portal-new:nav-more:${u.id}`; const RECENT_KEY = (u) => `cla-portal-new:recent-orders:${u.id}`;
 const ls = () => { try { return localStorage; } catch (e) { return null; } };
 // test hook: window.CLA_NAV_MORE_OPEN (tools/ui-actions.js) keeps the older suites' menu clicks working; a stored choice always wins
