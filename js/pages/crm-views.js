@@ -1,12 +1,12 @@
 /* crm-views.js : CRM CUSTOM VIEWS + SAVED FILTERS screens (Janine, Nov 4 video "Custom View / Filters": Zoho's pinned view tabs above a list,
  * "New Custom View" = criteria + columns + sharing, and "Save filter" chips with counts). Routes: #/crm/views/<id> (a view), #/crm/views/new/<module>,
  * #/crm/views/<id>/edit. The adapter decides which rows a person may see; a view only narrows them. Function first, minimal styling. */
-import { html, raw, toText, $, $$, guard, toast, modal, closeModal } from '../ui.js?v=202611061858';
-import { moduleFields } from '../data/crm-analytics.js?v=202611061858';
-import { VIEW_MODULE_LABEL, VIEW_VISIBILITY, VIEW_DEFAULT_COLUMNS, VIEW_NAME_KEY } from '../data/crm-views.js?v=202611061858';
-import { criteriaEditor } from './crm-criteria.js?v=202611061858';
-import { tabs, head } from './crm-kit.js?v=202611061858';
-import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611061858';
+import { html, raw, toText, $, $$, guard, toast, modal, closeModal } from '../ui.js?v=202611061918';
+import { moduleFields } from '../data/crm-analytics.js?v=202611061918';
+import { VIEW_MODULE_LABEL, VIEW_VISIBILITY, VIEW_DEFAULT_COLUMNS, VIEW_NAME_KEY } from '../data/crm-views.js?v=202611061918';
+import { criteriaEditor } from './crm-criteria.js?v=202611061918';
+import { tabs, head } from './crm-kit.js?v=202611061918';
+import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611061918';
 
 const allLabel = (m) => `All ${VIEW_MODULE_LABEL[m]}`;
 // the row of view tabs above a list: All <module> | pinned views | Views (every view you may use) | + New Custom View

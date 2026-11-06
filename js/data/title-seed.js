@@ -3,7 +3,7 @@
  *  deal-t1 MD-26-90101  MD condo, title review IN PROGRESS (Jordan Sample buys from Pat Example; the vesting deed shows an owner mismatch)
  *  deal-t2 VA-26-90102  VA single-family, FINISHED (Final commitment, issued CPL, package queued earlier)
  *  deal-t3 DC-26-90103  DC rowhouse, title review NOT STARTED */
-import * as T from './title.js?v=202611061858';
+import * as T from './title.js?v=202611061918';
 
 const AT = (day, h = 14) => `2026-${day}T${String(h).padStart(2, '0')}:00:00Z`;
 export function seedTitleSamples(d) {
