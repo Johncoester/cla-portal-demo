@@ -3,7 +3,9 @@
 export async function uploadBytes(file) {
   if (file && (file.body || file.file || file.data)) return file.body || file.file || file.data;
   if (file && file.dataUrl) {
-    const res = await fetch(file.dataUrl);
+    let res;
+    try { res = await fetch(file.dataUrl); }
+    catch (e) { throw new Error('The selected file could not be read. Choose it again.'); }
     if (!res.ok) throw new Error('The selected file could not be read. Choose it again.');
     return await res.blob();
   }
