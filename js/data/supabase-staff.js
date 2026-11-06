@@ -1,14 +1,10 @@
 /* Staff screens that were still throwing "not implemented yet" in supabase mode.
  * Reads and writes go through the existing tables and RLS. This file does not create logins
  * and does not contain a service-role key. Nothing is emailed. */
+import { uploadBytes as blobOf } from './upload-bytes.js?v=202611062001';
 const day = (d) => new Date(d).toISOString().slice(0, 10);
 const plusDays = (n) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const full = (p) => `${p.firstName || ''} ${p.lastName || ''}`.trim();
-const blobOf = async (file) => {
-  if (file && (file.body || file.file || file.data)) return file.body || file.file || file.data;
-  if (file && file.dataUrl) return await (await fetch(file.dataUrl)).blob();
-  throw new Error('Choose a file to upload.');
-};
 const safeName = (n) => String(n || 'upload').replace(/[\\/]/g, '_').slice(0, 200);
 const sideOf = (role) => ({ 'Buyer Agent': 'buyer', 'Client-Buyer': 'buyer', 'Listing Agent': 'seller', 'Client-Seller': 'seller' }[role] || 'staff');
 export const LOGIN_CLOSED = 'Creating a login is closed here. Add the employee in HR and copy the invite link (#/hr/add). Agents use Agent Invites (#/agent-invites). Nothing is emailed.';

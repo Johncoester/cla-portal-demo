@@ -2,6 +2,7 @@
  * RLS and the security-definer RPCs decide access. This file does not embed a project URL or a key.
  * File bytes go to the private deal-documents bucket (migration 3). A missing bucket surfaces as an error; nothing is invented. */
 import { ordinaryCoverageDoc } from './nov5-rules.js?v=202611062001';
+import { uploadBytes } from './upload-bytes.js?v=202611062001';
 
 export function nov5Supabase({ sb, ok, camel, me }) {
   const uid = async () => (await sb.auth.getUser()).data.user;
@@ -41,8 +42,7 @@ export function nov5Supabase({ sb, ok, camel, me }) {
       if (!id) throw new Error('This browser cannot mint a document id.');
       const name = String(file.name || 'upload').replace(/[\\/]/g, '_').slice(0, 200);
       const path = `${dealId}/${id}/${name}`;
-      const body = file.body || file.file || file.data;
-      if (!body) throw new Error('Choose a file to upload.');
+      const body = await uploadBytes(file);
       const up = await sb.storage.from('deal-documents').upload(path, body, { contentType: file.mimeType || 'application/octet-stream', upsert: false });
       if (up.error) throw new Error(up.error.message || 'The document bucket refused the upload.');
       const row = ok(await sb.from('documents').insert({ id, deal_id: dealId, name, description: file.description || '', mime_type: file.mimeType || 'application/octet-stream', size_bytes: file.size || 0, storage_path: path, visibility: file.visibility || 'all', uploaded_by: user.id, doc_type: file.docType || '', wire_instructions: file.wireInstructions === true }).select().single());
