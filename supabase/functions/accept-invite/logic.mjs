@@ -27,8 +27,12 @@ export function checkBody(body) {
   const kind = body.kind;
   const token = typeof body.token === 'string' ? body.token.trim().toLowerCase() : '';
   const password = typeof body.password === 'string' ? body.password : '';
-  if (kind !== 'hr' && kind !== 'agent') return { ok: false, status: 400, error: GENERIC };
+  if (kind !== 'hr' && kind !== 'agent' && kind !== 'client') return { ok: false, status: 400, error: GENERIC };
   if (!/^[0-9a-f]{64}$/.test(token)) return { ok: false, status: 400, error: GENERIC };
+  if (body.existing === true) {
+    if (kind !== 'client') return { ok: false, status: 400, error: GENERIC };
+    return { ok: true, kind, token, password: '', profile: {}, existing: true };
+  }
   if (password.length < 8 || password.length > 72) return { ok: false, status: 400, error: 'Password must be at least 8 characters.' };
   const profile = {};
   if (kind === 'agent' && body.profile && typeof body.profile === 'object') {
@@ -58,6 +62,19 @@ export async function handleAcceptInvite(req, deps) {
     if (!(await deps.gate(await deps.sha256('tok:' + checked.token)))) return json(headers, 429, { error: GENERIC });
     const email = await deps.email(checked.kind, checked.token);
     if (!email || typeof email !== 'string' || !email.includes('@')) return json(headers, 400, { error: GENERIC });
+    if (checked.existing) {
+      const session = typeof deps.sessionUser === 'function' ? await deps.sessionUser(req) : null;
+      const sid = session && session.id;
+      const sem = session && String(session.email || '').toLowerCase();
+      if (!sid || sem !== String(email).toLowerCase()) return json(headers, 400, { error: GENERIC });
+      try {
+        await deps.accept(checked.kind, checked.token, sid, { existing: true });
+      } catch (err) {
+        const msg = err && err.code === '22023' && SAFE_FIELD.has(err.message) ? err.message : GENERIC;
+        return json(headers, 400, { error: msg });
+      }
+      return json(headers, 200, { ok: true, linked: true });
+    }
     let user;
     try {
       user = await deps.createUser({ email, password: checked.password, email_confirm: true });
