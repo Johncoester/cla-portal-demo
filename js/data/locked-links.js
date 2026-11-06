@@ -9,14 +9,14 @@
  * VIEW AS (Super admin only): inside a locked link whose OWNER is a Super admin (King John), a "View as" dropdown switches the tab to any fake user and
  * back; the route guard then applies to the person being viewed. Any other locked link (Adam Admin included) never gets it, and a stored viewAs on a
  * lock whose owner is not a Super admin is ignored and cleared (app.js). */
-import { runsOrders, isStaff, isOutside } from './constants.js?v=202611061730';
-import { titleCanRead } from './title.js?v=202611061730';
-import { fwpCanRead } from './funding-wire-policy.js?v=202611061730';   // John, Nov 4: order > Title route guard
-import { canUseCrm } from './crm.js?v=202611061730';
-import { canInviteAgents } from './agent-profile.js?v=202611061730';
-import { canManageModules } from './modules.js?v=202611061730';
-import { hrSectionAllowed } from './hr.js?v=202611061730';
-import { canManageOffices } from './offices.js?v=202611061730';
+import { runsOrders, isStaff, isOutside } from './constants.js?v=202611061842';
+import { titleCanRead } from './title.js?v=202611061842';
+import { fwpCanRead } from './funding-wire-policy.js?v=202611061842';   // John, Nov 4: order > Title route guard
+import { canUseCrm } from './crm.js?v=202611061842';
+import { canInviteAgents } from './agent-profile.js?v=202611061842';
+import { canManageModules } from './modules.js?v=202611061842';
+import { hrSectionAllowed } from './hr.js?v=202611061842';
+import { canManageOffices } from './offices.js?v=202611061842';
 
 export const LOCK_KEY = 'cla-portal-new:locked:v1';
 export function devPickerOn(w = (typeof window !== 'undefined' ? window : {})) {
