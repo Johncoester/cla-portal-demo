@@ -20,6 +20,7 @@ import { closingLocationSupabase } from './supabase-closing-location.js?v=202611
 import { tcSupabase } from './supabase-tc.js?v=202611061730';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611061730';
 import { nov5Supabase } from './supabase-nov5.js?v=202611061730';
+import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611061730';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611061730';
 import { staffSupabase } from './supabase-staff.js?v=202611061730';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611061730';
@@ -284,6 +285,7 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, tcSupabase({ sb, ok, camel, api: a }));   // John, Nov 5 (migration 71): TC contract / EMD / ALTA / all-parties thread
   Object.assign(a, emailSendersSupabase({ sb, ok, me }));
   Object.assign(a, nov5Supabase({ sb, ok, camel, me }));
+  Object.assign(a, orderOverviewSupabase({ sb, ok, camel, me, api: a }));
   // Staff create and resend invite links here (nothing is emailed). Accepting a link goes through the accept-invite function, not a browser sign-up.
   a.previewCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };
   a.runCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };
