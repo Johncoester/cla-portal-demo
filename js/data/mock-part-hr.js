@@ -79,6 +79,8 @@ export function hrPart(x, flags) {
   function hrRoleOf(u) {
     if (!u || isOutside(u.role) || u.status !== 'active') return null;
     if (isSuperAdmin(u)) return 'super';
+    // A portal Admin (not Super admin) manages the directory once HR is Live, without a separate HR-manager assignment.
+    if (u.isAdmin && access(u) === 'live') return 'hr_manager';
     const e = empOfProfile(u.id); if (!e) return null;
     return isMgr(e.id) ? 'hr_manager' : 'employee';
   }
