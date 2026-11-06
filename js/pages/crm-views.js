@@ -13,16 +13,36 @@ const allLabel = (m) => `All ${VIEW_MODULE_LABEL[m]}`;
 export async function viewsBar(api, module, curId = '') {
   const list = await api.listCrmViews(module); const pinned = list.filter((v) => v.pinned).sort((a, b) => a.pinPosition - b.pinPosition);
   const group = (title, rows) => (rows.length ? html`<li class="muted small"><strong>${title}</strong></li>${rows.map((v) => html`<li><a href="#/crm/views/${v.id}" data-view-pick="${v.id}">${v.name}</a>${v.pinned ? html` <span class="muted small">(pinned)</span>` : ''}</li>`)}` : '');
+  const pinMenu = (v) => html`<details class="view-pin-menu" data-pin-menu="${v.id}"><summary class="ghost" aria-label="Actions for ${v.name}">&#9662;</summary><div role="menu">
+      ${v.canEdit ? html`<a href="#/crm/views/${v.id}/edit" data-pin-edit="${v.id}">Edit</a>` : ''}<button type="button" data-pin-unpin="${v.id}">Unpin</button><button type="button" data-pin-clone="${v.id}">Clone</button>
+      <a href="#/crm/${module}" data-pin-close>Close</a>${v.canEdit ? html`<button type="button" data-pin-delete="${v.id}">Delete</button>` : ''}</div></details>`;
   return html`<div class="crm-views-bar" data-views-bar="${module}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0">
     <a class="${curId ? 'ghost' : 'm-btn'}" href="#/crm/${module}" data-view-tab="all">${allLabel(module)}</a>
-    ${pinned.map((v) => html`<a class="${v.id === curId ? 'm-btn' : 'ghost'}" href="#/crm/views/${v.id}" data-view-tab="${v.id}">${v.name}</a>`)}
+    ${pinned.map((v) => html`<span class="view-pin" data-pin-wrap="${v.id}"><a class="${v.id === curId ? 'm-btn' : 'ghost'}" href="#/crm/views/${v.id}" data-view-tab="${v.id}">${v.name}</a>${pinMenu(v)}</span>`)}
     <details class="more-menu" data-views-menu style="display:inline-block"><summary class="ghost" data-views-menu-btn>Views &#9662; <span class="muted small">(${list.length})</span></summary>
       <div data-views-list style="max-height:320px;overflow:auto;min-width:240px"><input type="search" placeholder="Search views" data-views-q aria-label="Search views" style="width:100%">
         <ul style="list-style:none;padding-left:0">${group('Created by me', list.filter((v) => v.mine))}${group('Shared with me', list.filter((v) => !v.mine))}${list.length ? '' : html`<li class="muted small">No custom views yet.</li>`}</ul>
         <p><a href="#/crm/views/new/${module}" data-new-view="${module}">+ New Custom View</a></p></div></details></div>`;
 }
-export function wireViewsBar(root) {
+const reopen = (hash) => { const cur = (location.hash || '#/').split('?')[0]; location.hash = cur === hash ? hash + '?r=' + Date.now() : hash; };
+export function wireViewsBar(root, api) {
   const q = $('[data-views-q]', root); if (q) q.addEventListener('input', () => { const t = q.value.toLowerCase(); $$('[data-view-pick]', root).forEach((a) => { a.closest('li').hidden = t && !a.textContent.toLowerCase().includes(t); }); });
+  const all = $('[data-view-tab="all"]', root);
+  if (all) all.addEventListener('click', (e) => {
+    const here = (location.hash || '').split('?')[0];
+    if (here !== all.getAttribute('href')) return;
+    e.preventDefault();
+    const reset = $('[data-crm-reset]', root); if (reset) reset.click();
+    const deal = $('#deal-filters', root); if (deal && !reset) { deal.q.value = ''; $$('[data-crm-date]', deal).forEach((el) => { el.value = ''; }); const st = deal.querySelector('[name=status]'); if (st) st.value = 'Open'; $$('[data-deal-filter]', deal).forEach((el) => { if (el.name !== 'status') el.value = ''; }); location.hash = '#/crm/deals'; }
+  });
+  if (!api) return;
+  $$('[data-pin-unpin]', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.pinCrmView(b.dataset.pinUnpin, false); toast('Unpinned. The view is still saved.'); reopen((location.hash || '#/').split('?')[0]); })));
+  $$('[data-pin-clone]', root).forEach((b) => b.addEventListener('click', guard(async () => { const n = prompt('Name of the copy'); if (!n) return; const cl = await api.cloneCrmView(b.dataset.pinClone, { name: n }); toast('View cloned'); location.hash = `#/crm/views/${cl.id}`; })));
+  $$('[data-pin-delete]', root).forEach((b) => b.addEventListener('click', guard(async () => {
+    const name = (b.closest('[data-pin-wrap]') && b.closest('[data-pin-wrap]').querySelector('[data-view-tab]') || {}).textContent || 'this view';
+    if (!confirm(`Delete the view "${name.trim()}"? This removes the view definition only. Contacts, companies, deals, and tasks stay.`)) return;
+    await api.retireCrmView(b.dataset.pinDelete); toast('View deleted'); const bar = $('[data-views-bar]', root); reopen(bar ? `#/crm/${bar.dataset.viewsBar}` : '#/crm');
+  })));
 }
 // ---------- the view page ----------
 export async function viewPage(c) {
@@ -40,7 +60,7 @@ export async function viewPage(c) {
     <div class="table-tools"><span class="muted" data-count></span></div>
     <div class="table-wrap"><table class="tbl" data-view-table="${v.id}"><thead><tr>${r.columns.map((col) => html`<th data-sort="${col.key}"><button type="button" class="th-sort">${col.label} ${arrows}</button></th>`)}</tr></thead><tbody></tbody></table></div>`;
   function mount(root) {
-    wireViewsBar(root); const f = $('[data-view-filter]', root); const tb = $(`[data-view-table="${v.id}"] tbody`, root); let sort = null; let dir = 'asc';
+    wireViewsBar(root, api); const f = $('[data-view-filter]', root); const tb = $(`[data-view-table="${v.id}"] tbody`, root); let sort = null; let dir = 'asc';
     const words = (q) => String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
     const match = (row, q) => { const hay = Object.values(row.cells).map((z) => z.text).join(' ').toLowerCase(); return words(q).every((w) => hay.includes(w)); };
     const apply = () => { let list = r.rows.filter((row) => match(row, f.q.value));
