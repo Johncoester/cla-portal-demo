@@ -1,7 +1,7 @@
 // Supabase order overview. Reads only tables and RPCs that already exist.
 // RLS decides the file, the other side's contact, tasks, documents, threads, activity, and demo world.
 // A failed read is thrown. An empty list is only what the database returned.
-import { buildOrderOverview } from './order-overview.js?v=202611061730';
+import { buildOrderOverview } from './order-overview.js?v=202611061842';
 
 export function orderOverviewSupabase({ sb, ok, camel, me, api }) {
   const names = async (ids) => {
