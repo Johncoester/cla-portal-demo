@@ -1,5 +1,5 @@
 // AGENT BIRTHDATE (John, Nov 3 call): optional date on an agent's setup. Visible to the agent and CLA staff only; nothing requires it.
-import { isStaff } from './constants.js?v=202611061447';
+import { isStaff } from './constants.js?v=202611061707';
 export const BIRTHDATE_NOTE = 'Optional. Seen only by you and CLA Title staff.';
 export const canSeeBirthdate = (viewer, targetId) => !!(viewer && (viewer.id === targetId || viewer.isAdmin || isStaff(viewer.role)));
 export const canSetBirthdate = (viewer, targetId) => !!(viewer && (viewer.id === targetId || viewer.isAdmin));

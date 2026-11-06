@@ -2,8 +2,9 @@
 // the pages and the tests. FAKE DATA ONLY. Mirrored by migration 47 (public.hr_* tables + RLS + RPCs).
 //  WHO (hrRole on the session user):
 //    'super'      a Super admin: everything, incl. assigning / removing HR managers (only a Super admin can). Sees HR even while the module is off (Beta).
-//    'hr_manager' an employee a Super admin made HR manager: the directory (all employees), add / edit / archive, departments, designations,
-//                 invite links, Export + History Export. Only when the HR module is Live.
+//    'hr_manager' an employee a Super admin made HR manager, or a portal Admin once HR is Live: the directory (all employees),
+//                 add / edit / archive, departments, designations, invite links, Export + History Export. Only when the HR module is Live.
+//                 Assigning HR managers and switching the HR module stay Super admin only. A portal Admin cannot grant Super admin.
 //    'employee'   anyone else with an HR employee record: ONLY their own profile ("My profile"), and their direct reports' BASIC fields
 //                 (never pay, address or emergency contact). Edits only phone, address and emergency contact.
 //    null         no HR record (agents, clients, staff not on the HR list): no HR at all.

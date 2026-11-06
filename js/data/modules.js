@@ -8,7 +8,7 @@
 // A module whose CONFIG flag is off (features.crm / features.accounting in config.js) is not available at all: not even Admins see it and the
 // switch is disabled. CLA Portal Live Test is the only portal (config.example.js: accounting false until John turns it on).
 // Core order pages are ALWAYS ON and have no switch (ALWAYS_ON below). Mirrored by migration 35 (public.module_settings + module_settings_log).
-import { isSuperAdmin, isOutside } from './constants.js?v=202611061447';
+import { isSuperAdmin, isOutside } from './constants.js?v=202611061707';
 export const BETA_LABEL = 'Beta, in testing';
 export const MODULES = [
   { id: 'crm', label: 'CRM', flag: 'crm', where: '#/crm', desc: 'The Zoho-style CRM: Home, Leads, Clients, Companies, Pipeline, Reports, Dashboards, Templates.', who: 'CLA staff (Processor read only); never TCs, agents or clients' },

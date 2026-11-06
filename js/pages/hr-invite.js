@@ -2,7 +2,7 @@
 // Mock mode: one click makes the login (account role 'Employee', or links an existing staff login with the same email) and signs them in.
 // Supabase: the page asks for a password and calls the accept-invite function. Public sign-up stays off. Nothing is emailed.
 // Refused inside a locked test-link session (locked-links.js routeAllowed).
-import { html, $, guard, toast, fmtDateTime } from '../ui.js?v=202611061447';
+import { html, $, guard, toast, fmtDateTime } from '../ui.js?v=202611061707';
 export async function render({ api, params, go }) {
   const inv = await api.getHrInvite(params.token);
   const supa = api.mode === 'supabase';
