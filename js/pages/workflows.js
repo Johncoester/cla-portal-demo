@@ -1,8 +1,8 @@
 // Workflows (John, Nov 6). Admin / Super admin define a flowchart of existing task templates.
 // The chart is read-only. Files do not receive these steps yet.
-import { html, raw, $, $$, toText, guard, toast, formData } from '../ui.js?v=202611061447';
-import { DEAL_ROLES, TX_TYPES, US_STATE_NAMES } from '../data/constants.js?v=202611061447';
-import { WORKFLOW_AUDIENCES, addStep, removeStep, moveStep, layoutWorkflow } from '../data/workflows.js?v=202611061447';
+import { html, raw, $, $$, toText, guard, toast, formData } from '../ui.js?v=202611061918';
+import { DEAL_ROLES, TX_TYPES, US_STATE_NAMES } from '../data/constants.js?v=202611061918';
+import { WORKFLOW_AUDIENCES, addStep, removeStep, moveStep, layoutWorkflow } from '../data/workflows.js?v=202611061918';
 
 const audienceLabel = (id) => (WORKFLOW_AUDIENCES.find(([v]) => v === id) || ['', id])[1];
 const blank = () => ({ id: '', name: '', description: '', active: true, audience: 'processing', steps: [], assignments: [] });

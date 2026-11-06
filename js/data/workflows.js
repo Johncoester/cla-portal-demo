@@ -6,7 +6,7 @@
 // A step with dependsOn stays waiting until the copy of that earlier step is done.
 // Two steps that depend on the same earlier step run side by side.
 // Do not call this from createDeal or addParticipant until John asks for it.
-import { DEAL_ROLES, TX_TYPES, US_STATES } from './constants.js?v=202611061447';
+import { DEAL_ROLES, TX_TYPES, US_STATES } from './constants.js?v=202611061918';
 
 export const WORKFLOW_AUDIENCES = [['processing', 'Processing'], ['client', 'Client']];
 const AUDIENCE_IDS = WORKFLOW_AUDIENCES.map(([id]) => id);

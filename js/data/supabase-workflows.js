@@ -1,6 +1,6 @@
 /* Workflows on Supabase. Same shapes as the mock adapter. save_workflow is the only write.
  * The migration is not applied until John says so. list/save will fail on TEST until then. */
-import { canEditWorkflows, canReadWorkflows, matchWorkflow } from './workflows.js?v=202611061447';
+import { canEditWorkflows, canReadWorkflows, matchWorkflow } from './workflows.js?v=202611061918';
 
 const EDIT_MSG = 'Only an Admin or Super admin can edit workflows.';
 const READ_MSG = 'Workflows are for CLA staff.';

@@ -1,5 +1,5 @@
 /* Mock workflows. Definitions only: saving one does not add tasks to a file. */
-import { canReadWorkflows, commitWorkflow, matchWorkflow, presentWorkflows } from './workflows.js?v=202611061447';
+import { canReadWorkflows, commitWorkflow, matchWorkflow, presentWorkflows } from './workflows.js?v=202611061918';
 
 export function workflowsPart(x) {
   const { load, save, needUser, fail, log } = x;
