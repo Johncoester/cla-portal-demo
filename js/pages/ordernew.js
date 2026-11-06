@@ -5,22 +5,24 @@
 //   1 Transaction -> 2 Property -> 3 Buyers & Sellers -> 4 Lender & Loan -> 5 Agents -> 6 Team & Notes -> 7 Review & Submit
 // with a progress bar (click any step to jump to it), per-step validation on Next, a review summary and a confirmation panel on the new order's page.
 // It is still ONE <form id="nof"> with the same field names, ids and data-attributes; only one step is shown at a time. Every rule is unchanged:
-// refinance hides price / EMD / sellers / agents / TC (the Agents step is skipped), Buyer Agent / Listing Agent / Lender are optional, two buyer + two seller
-// rows, entity representative, commas in money fields, source of business (CLA staff only: Place Order is staff-only), wires never shown to agents.
-import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611061447';
-import { occSelects, yesNo } from './occ-fields.js?v=202611061447';
-import { fmtPhone, TX_TYPES, runsOrders, isProcessor, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES } from '../data/constants.js?v=202611061447';
-import { pickerHtml, mountPicker, personLabel } from './person-picker.js?v=202611061447';
-import { ENTITY_TYPES } from '../data/templates.js?v=202611061447';
-import { moneyClean } from './money-input.js?v=202611061447';
+// refinance hides price / EMD / sellers / agents / both transaction coordinators (the Agents step is skipped), Buyer Agent / Listing Agent / Lender are optional,
+// one buyer and one seller to start ("+ Add another" adds the rest), entity representative, commas in money fields, source of business (who referred the file),
+// wires never shown to agents.
+import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611061730';
+import { occSelects, yesNo } from './occ-fields.js?v=202611061730';
+import { fmtPhone, TX_TYPES, runsOrders, isProcessor, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES } from '../data/constants.js?v=202611061730';
+import { pickerHtml, mountPicker, personLabel } from './person-picker.js?v=202611061730';
+import { ENTITY_TYPES } from '../data/templates.js?v=202611061730';
+import { moneyClean } from './money-input.js?v=202611061730';
+import { REFERRALS, REFERRAL_ROLE, encodeReferral, showMdQuestions } from '../data/place-order.js?v=202611061730';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
 // Each person becomes their own deal_participants row, so each buyer / seller gets their own copy of the client intake tasks (existing per-person behaviour).
 export const MULTI = { 'Client-Buyer': 'buyer', 'Client-Seller': 'seller' };
-// Matt, Nov 3 (b): TWO buyer and TWO seller rows by default (the second is optional and may stay blank); "+ Add another" still adds more (3, 4, ...).
+// John, Nov 6: one buyer and one seller to start. "+ Add another buyer / seller" adds the next row (no empty grey box).
 // Each row has its own "+ Add entity": the buyer / seller is an LLC, corporation, partnership or trust -> entity name, type and the Entity Representative
 // (name, title or role, phone, email). Saved on that person's row of the order and pre-filled on their Personal information form (+ Add entity there).
-export const MIN_ROWS = 2;
+export const MIN_ROWS = 1;
 const rowLabel = (label, n) => `${label} ${n}${n > 1 ? ' (optional)' : ''}`;
 const entityPanel = (label) => html`<div class="entity-panel" data-entity-panel hidden><p class="muted small">This ${label.toLowerCase()} is an entity (LLC, corporation, partnership or trust). The person picked above is our contact for it; they confirm the details and attach the entity documents on their Personal information form.</p>
   <div class="form-grid"><label>Entity name *<input data-ent="name" maxlength="200" aria-label="Entity name"></label>
@@ -30,7 +32,7 @@ const entityPanel = (label) => html`<div class="entity-panel" data-entity-panel 
   <label>Representative's phone<input data-ent="repPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone aria-label="Representative's phone"></label>
   <label>Representative's email<input data-ent="repEmail" type="email" maxlength="200" aria-label="Representative's email"></label></div></div>`;
 const partyRow = (role, label, n = 1) => html`<div class="party-row-wrap" data-party-row="${n}"><div class="multi-row">${pickerHtml('p:' + role, rowLabel(label, n))}<button type="button" class="ghost" data-ent-toggle aria-pressed="false" title="This ${label.toLowerCase()} is an LLC, corporation, partnership or trust">+ Add entity</button><button type="button" class="ghost" data-rm-row title="Remove this ${label.toLowerCase()} (before the order is created)" hidden>Remove</button></div>${entityPanel(label)}</div>`;
-const partyBlock = (role, label) => html`<fieldset class="span2 multi-party" data-multi="${role}"><legend>${label}s <span class="muted small">(${label} 1 and ${label} 2 shown; add more with +)</span></legend>
+const partyBlock = (role, label) => html`<fieldset class="span2 multi-party" data-multi="${role}"><legend>${label}s</legend>
   <div class="multi-rows" data-rows>${Array.from({ length: MIN_ROWS }, (_, i) => partyRow(role, label, i + 1))}</div><button type="button" class="ghost" data-add-row="${role}">+ Add another ${MULTI[role]}</button></fieldset>`;
 
 // optional single-person slots: text in the box without a pick is ignored, never an error (Francis, Nov 3: "Buyer Agent field should be optional")
@@ -45,7 +47,7 @@ const SEARCH = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer 
 const ADD_ORDER = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'Lender', 'Transaction Coordinator', 'Sales Team'];
 // the steps (key, title, one-line hint). The Agents step is skipped on a refinance (no realtors, no TC).
 export const STEPS = [
-  ['transaction', 'Transaction', 'Type, source, open date'],
+  ['transaction', 'Transaction', 'Type, open date, contract'],
   ['property', 'Property', 'Address and county'],
   ['parties', 'Buyers & Sellers', 'Who is on the contract'],
   ['loan', 'Lender & Loan', 'Price, loan, EMD, dates'],
@@ -64,14 +66,14 @@ export async function render({ api, user, go }) {
   const contacts = await api.listContacts();
   const optional = async (fn) => { try { return (await fn()) || []; } catch (e) { return []; } };
   const staff = await optional(() => api.listSalesStaff()); const procs = await optional(() => api.listProcessors()); const preprocs = await optional(() => api.listPreprocessors()); const tcs = await optional(() => api.listCoordinators());
-  // Matt, Nov 3 (b): Source of business = the CRM Settings "Lead Source" list (Admins edit it there)
-  const sources = api.listSourceOptions ? await api.listSourceOptions().catch(() => []) : [];
   // the file's Processor: a Processor defaults to themselves; an Admin / Super admin is not a valid Processor, so they must choose one
   const meProc = isProcessor(user.role); const today = localDate();
   // "Add new user" roles. Salesperson creates a staff login, which is Admin-only (John's earlier decision), so only Admins / Super admins see it.
-  const NEW_ROLES = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer Agent'], ['Listing Agent', 'Listing Agent'], ['Lender', 'Lender'], ...(user.isAdmin ? [['Sales Person', 'Salesperson']] : [])];
+  const NEW_ROLES = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer Agent'], ['Listing Agent', 'Listing Agent'], ['Lender', 'Lender'], ['Transaction Coordinator', 'Transaction coordinator'], ...(user.isAdmin ? [['Sales Person', 'Salesperson']] : [])];
   const visOpts = visibilityChoices(user.role, user.isAdmin);
   const salesBox = (s, checked = false) => html`<label class="check"><input type="checkbox" name="salesIds" value="${s.id}" ${checked ? raw('checked') : ''}> ${s.firstName} ${s.lastName} <span class="muted small">(${s.role})</span></label>`;
+  const salesParty = staff.map((s) => contacts.find((c) => c.profileId === s.id)).filter(Boolean);
+  const tcSelect = (name, label) => html`<label>${label}<select name="${name}"><option value="">(none yet)</option>${options(tcs, '', (c) => `${c.firstName} ${c.lastName}${c.company ? ' \u2014 ' + c.company : ''}`, (c) => c.contactId)}</select></label>`;
   const N = STEPS.length;
   const panel = (key, inner, intro) => { const i = STEPS.findIndex((s) => s[0] === key); const [, title] = STEPS[i];
     return html`<section class="wiz-panel" data-wiz-step="${key}" aria-labelledby="wiz-h-${key}" ${i ? raw('hidden') : ''}>
@@ -88,16 +90,21 @@ export async function render({ api, user, go }) {
       <div class="wiz-body card">
       ${panel('transaction', html`<div class="form-grid">
         <label>Transaction type<select name="transactionType">${options(TX_TYPES, 'Purchase')}</select></label>
-        <label>Source of business<select name="sourceOfBusiness" aria-label="Source of business"><option value="">(not set)</option>${options(sources, '', (o) => o.label, (o) => o.value)}</select><span class="field-hint">How this order came to us (CLA staff only). ${user.isAdmin ? html`Edit the list in <a href="#/crm/settings">CRM Settings &rarr; Lead Source</a>.` : 'An Admin edits the list (CRM Settings, Lead Source).'}</span></label>
         <label>Open date *<input name="openDate" type="date" required value="${today}" max="${today}" title="The day the order came in. Can be backdated; not in the future."><span class="field-hint">The day the order came in. Can be backdated, never in the future.</span></label>
-        ${occSelects({}, 'data-refi-hide="occ"')}
-        <p class="span2 notice info" data-refi-note hidden><strong>Refinance:</strong> no purchase price, EMD, sellers or realtors. The people on the order are the borrower(s), salespeople, the Processor and the Lender. Switch back to Purchase to see those fields again.</p></div>`,
+        <fieldset class="span2" id="tx-docs"><legend data-tx-doc-label>Upload sales contract</legend>
+          <label class="dropzone-label">Files <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB each)</span><input type="file" id="tx-files" multiple accept="${ALLOWED_UPLOAD_EXT.map((e) => '.' + e).join(',')}"></label>
+          <div id="tx-filelist"></div>
+          <p class="notice info" data-vis-prompt="tx-vis" hidden>Who can see these files? Choose before you continue.</p>
+          <label>Who can see them<select id="tx-vis" data-vis>${options(visOpts, visOpts[0], (v) => visibilityLabel(v, user.role))}</select></label>
+        </fieldset>
+        <p class="span2 notice info" data-refi-note hidden><strong>Refinance:</strong> no purchase price, EMD, sellers or realtors. The people on the order are the borrower(s), salespeople, the Processor and the Lender. The referral is the Lender. Switch back to Purchase to see those fields again.</p></div>`,
         'What kind of order is this, and when did it come in?')}
       ${panel('property', html`<div class="form-grid">
         <label class="span2">Street address *<input name="street" required maxlength="200" autocomplete="off"></label>
         <label>City *<input name="city" required maxlength="100"></label><label>State *<select name="state" required><option value="">Select state</option>${US_STATE_NAMES.map(([c, n]) => html`<option value="${c}">${n} (${c})</option>`)}</select></label>
         <label>ZIP<input name="zip" maxlength="10" placeholder="20850"></label>
-        <label>County <span class="muted small">(optional; filled in from the ZIP if left blank)</span><input name="county" maxlength="100" placeholder="e.g. Frederick" aria-label="County"></label></div>`,
+        <label>County <span class="muted small">(optional; filled in from the ZIP if left blank)</span><input name="county" maxlength="100" placeholder="e.g. Frederick" aria-label="County"></label>
+        <div class="span2" id="md-occ" hidden><p class="muted small">Maryland purchases only.</p>${occSelects({})}</div></div>`,
         'The address of the property being bought, sold or refinanced.')}
       ${panel('parties', html`<p class="muted small people-optional">People on this order are all optional; you can add or change them later under Contacts. Pick each person from the list, or add someone new with <strong>Add new user</strong> below.</p>
         <div class="form-grid">${partyBlock('Client-Buyer', 'Buyer')}${partyBlock('Client-Seller', 'Seller')}</div>`,
@@ -113,18 +120,22 @@ export async function render({ api, user, go }) {
         <p class="muted small">Filled in from the lender you pick (change them for this order if needed). Optional, like the lender.</p></div>`,
         'Money is typed with commas (485,000). Every amount is optional and can be filled in later.')}
       ${panel('agents', html`<div class="form-grid agents-grid">${pickerHtml('p:Buyer Agent', 'Buyer agent')}${pickerHtml('p:Listing Agent', 'Listing agent')}
-        <label data-refi-hide="tc">Transaction coordinator<select name="p:Transaction Coordinator"><option value="">(none yet)</option>${options(tcs, '', (c) => `${c.firstName} ${c.lastName}${c.company ? ' \u2014 ' + c.company : ''}`, (c) => c.contactId)}</select></label></div>
-        <p class="muted small">The buyer agent, listing agent and transaction coordinator are all optional. Agents never see wire instructions.</p>`,
-        'The realtors on each side and the transaction coordinator.')}
+        <div class="span2" id="sob-block"><label>Source of business<select name="sourceOfBusiness" aria-label="Source of business"><option value="">(not set)</option>${REFERRALS.map(([code, label]) => html`<option value="${code}">${label}</option>`)}</select><span class="field-hint">Who referred this file. On a refinance the only choice is the Lender. An older marketing source already saved on an order stays readable.</span></label>
+          <div id="sob-who" hidden><label>Which contact?<select name="sourceContactId" aria-label="Referral contact"><option value="">(the person on this order)</option></select></label><p class="muted small">Uses the buyer's agent, listing agent or lender already chosen here. Pick someone else if the referral is a different person.</p></div></div>
+        ${tcSelect('p:Transaction Coordinator', "Buyer's transaction coordinator")}<button type="button" class="ghost" data-add-tc="p:Transaction Coordinator">+ Add buyer's transaction coordinator</button>
+        ${tcSelect('p:Transaction Coordinator:2', 'Listing transaction coordinator')}<button type="button" class="ghost" data-add-tc="p:Transaction Coordinator:2">+ Add listing transaction coordinator</button></div>
+        <p class="muted small">Both transaction coordinators are optional and are saved as transaction coordinators on the order. A new person needs a Transaction Coordinator login before they can be the coordinator on the file. Agents never see wire instructions.</p>`,
+        'The realtors on each side, who referred the file, and each side\'s transaction coordinator.')}
       ${panel('team', html`<div class="form-grid">
-        <label>Processor *<select name="processorId" required>${meProc ? '' : html`<option value="">Choose the Processor&hellip;</option>`}${options(procs, meProc ? user.id : '', (s) => `${s.firstName} ${s.lastName}${s.id === user.id ? ' (you)' : ''}`, (s) => s.id)}</select></label><label>Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select></label>
-        <label>Sales team member<select name="p:Sales Team"><option value="">(none yet)</option>${options(contacts, '', (c) => `${c.firstName} ${c.lastName}${c.company ? ' \u2014 ' + c.company : ''}`, (c) => c.id)}</select></label>
+        <label>Processor *<select name="processorId" required>${procs.length && meProc ? '' : html`<option value="">Choose the Processor&hellip;</option>`}${options(procs, meProc ? user.id : '', (s) => `${s.firstName} ${s.lastName}${s.role && s.role !== 'Processor' ? ' (' + s.role + ')' : ''}${s.id === user.id ? ' (you)' : ''}`, (s) => s.id)}</select></label><label>Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select></label>
+        <label>Sales team member<select name="p:Sales Team"><option value="">(none yet)</option>${options(salesParty, '', (c) => `${c.firstName} ${c.lastName}${c.company ? ' \u2014 ' + c.company : ''}`, (c) => c.id)}</select></label>
         <fieldset class="span2" data-sales-picker><legend>Salespeople on this order (check all that apply)</legend><div data-sales-list class="check-grid">${staff.length ? staff.map((s) => salesBox(s)) : html`<p class="muted" data-no-sales>No active salespeople.</p>`}</div></fieldset>
         <label class="span2">Notes<textarea name="notes" rows="3" maxlength="2000" placeholder="Anything the team should know about this order"></textarea></label>
         <fieldset class="span2" id="nof-docs"><legend>Documents (e.g. the sales contract)</legend>
           <label class="dropzone-label">Files <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB each; choose several at once)</span><input type="file" id="nof-files" multiple accept="${ALLOWED_UPLOAD_EXT.map((e) => '.' + e).join(',')}"></label>
           <div id="nof-filelist"></div>
-          <label>Who can see them<select id="nof-vis">${options(visOpts, visOpts[0], (v) => visibilityLabel(v, user.role))}</select></label>
+          <p class="notice info" data-vis-prompt="nof-vis" hidden>Who can see these files? Choose before you continue.</p>
+          <label>Who can see them<select id="nof-vis" data-vis>${options(visOpts, visOpts[0], (v) => visibilityLabel(v, user.role))}</select></label>
           <label class="check"><input type="checkbox" id="nof-wire"> These are wire instructions (buyer clients and CLA Title only; agents never see them)</label>
           <p class="muted small">They are saved to the order's Documents tab when you create the order. Documents are kept permanently and cannot be deleted.</p>
         </fieldset></div>`,
@@ -189,7 +200,14 @@ export async function render({ api, user, go }) {
         tab.classList.toggle('is-current', k === cur); tab.classList.toggle('is-done', visited.has(k) && k !== cur && !bad.has(k)); tab.classList.toggle('is-error', bad.has(k));
         if (k === cur) tab.setAttribute('aria-current', 'step'); else tab.removeAttribute('aria-current'); });
       $$('[data-wiz-step]', root).forEach((p) => { p.hidden = p.dataset.wizStep !== cur; const n = list.indexOf(p.dataset.wizStep); $('[data-wiz-stepno]', p).textContent = `Step ${n + 1} of ${list.length}`; $('h3', p).textContent = stepTitle(p.dataset.wizStep); });
-      $('#addnew', root).hidden = !PEOPLE_STEPS.includes(cur);
+      const add = $('#addnew', root); add.hidden = !PEOPLE_STEPS.includes(cur);
+      if (PEOPLE_STEPS.includes(cur)) { const head = $(`[data-wiz-step="${cur}"] .wiz-panel-head`, root); if (head) head.after(add); }
+      const legend = $('legend', add); const openBtn = $('#an-open', root);
+      if (cur === 'loan') { legend.textContent = 'Add lender'; openBtn.textContent = '+ Add lender'; }
+      else { legend.textContent = 'Add new user'; openBtn.textContent = '+ Add new user'; }
+      const rolePick = $('#an-role', root); const allowed = cur === 'loan' ? ['Lender'] : cur === 'agents' ? ['Buyer Agent', 'Listing Agent', 'Transaction Coordinator', 'Sales Person'] : ['Client-Buyer', 'Client-Seller', 'Sales Person'];
+      if (rolePick) [...rolePick.options].forEach((o) => { if (!o.value) return; const hide = !allowed.includes(o.value) || (refi() && REFI_BLOCKED_ROLES.includes(o.value)); o.hidden = hide; o.disabled = hide; if (o.value === 'Client-Buyer') o.textContent = refi() ? 'Borrower' : 'Buyer'; });
+      if (rolePick && rolePick.value && rolePick.selectedOptions[0] && rolePick.selectedOptions[0].disabled) rolePick.value = cur === 'loan' ? 'Lender' : '';
       $('[data-wiz-back]', root).hidden = i <= 0; const nx = $('[data-wiz-next]', root); nx.hidden = cur === 'review';
       if (cur !== 'review') nx.innerHTML = `Next: ${toText(stepTitle(list[i + 1]))} &rarr;`;
       $('[data-wiz-count]', root).textContent = `Step ${i + 1} of ${list.length}`;
@@ -210,6 +228,7 @@ export async function render({ api, user, go }) {
     const entityOf = (r) => { const pnl = $('[data-entity-panel]', r.el); if (pnl.hidden) return null;   // entity of a buyer / seller row (null when "+ Add entity" is closed or empty)
       const e = Object.fromEntries($$('[data-ent]', pnl).map((i) => [i.dataset.ent, i.value.trim()])); return Object.values(e).some(Boolean) ? e : null; };
     const fileIn = $('#nof-files', root); const fileList = $('#nof-filelist', root);
+    const txIn = $('#tx-files', root); const txList = $('#tx-filelist', root);
     // returns [{ el, msg }] for one step (el = the field to mark, or null)
     const check = (k) => { const p = $(`[data-wiz-step="${k}"]`, root); const errs = [];
       $$('input, select, textarea', p).filter((el) => el.type !== 'hidden' && el.type !== 'file' && !el.closest('[hidden]:not([data-wiz-step])') && el.willValidate && !el.checkValidity())
@@ -230,8 +249,10 @@ export async function render({ api, user, go }) {
         for (const [key, l] of [['purchasePrice', 'Purchase price'], ['loanAmount', 'Loan amount']]) { if (key === 'purchasePrice' && refi()) continue; const v = moneyClean(f[key]);
           if (v && !(isFinite(Number(v)) && Number(v) >= 0)) errs.push({ el: $(`[name=${key}]`, p), msg: `${l} must be a number of 0 or more.` }); }
       }
-      if (k === 'team') for (const file of [...fileIn.files]) { if (file.size > MAX_UPLOAD_BYTES) errs.push({ el: fileIn, msg: `${file.name} is too large for this demo.` });
-        if (!ALLOWED_UPLOAD_EXT.includes((file.name.split('.').pop() || '').toLowerCase())) errs.push({ el: fileIn, msg: `${file.name}: that file type is not allowed.` }); }
+      const fileErr = (input) => { for (const file of [...(input.files || [])]) { if (file.size > MAX_UPLOAD_BYTES) errs.push({ el: input, msg: `${file.name} is too large for this demo.` });
+        if (!ALLOWED_UPLOAD_EXT.includes((file.name.split('.').pop() || '').toLowerCase())) errs.push({ el: input, msg: `${file.name}: that file type is not allowed.` }); } };
+      if (k === 'transaction') fileErr(txIn);
+      if (k === 'team') fileErr(fileIn);
       return errs; };
     const clearMarks = (p) => { $$('[data-ferr]', p).forEach((x) => x.remove()); $$('.has-err', p).forEach((x) => x.classList.remove('has-err')); $$('[aria-invalid]', p).forEach((x) => x.removeAttribute('aria-invalid')); };
     const mark = (k, errs) => { const p = $(`[data-wiz-step="${k}"]`, root); clearMarks(p); const box = $('[data-wiz-errors]', p);
@@ -260,20 +281,21 @@ export async function render({ api, user, go }) {
       const section = (k, title, items) => html`<section class="review-sec" data-review-sec="${k}"><header><h4>${title}</h4><button type="button" class="linkish" data-wiz-goto="${k}">Edit</button></header><dl class="review-dl">${items.map(([dt, dd]) => html`<dt>${dt}</dt><dd>${dd}</dd>`)}</dl></section>`;
       const partyList = (role) => { const out = rows[role].filter((x) => x.pk.value).map((x) => { const e = entityOf(x); return html`<div>${nameOf(x.pk.value)}${e && e.name ? html` <span class="muted small">for ${e.name}${e.type ? ` (${e.type})` : ''}</span>` : ''}</div>`; }); return out.length ? out : dash; };
       const sales = $$('input[name=salesIds]:checked', root).map((b) => b.parentElement.textContent.replace(/\s+/g, ' ').trim());
-      const files = [...fileIn.files];
+      const files = [...fileIn.files]; const txFiles = [...txIn.files]; const mdOn = showMdQuestions(f.state, r);
       const skipped = optionalSkipped();
       $('[data-review]', root).innerHTML = toText(html`
         ${issues.length ? html`<div class="notice warn" data-review-issues><strong>${issues.reduce((n, [, e]) => n + e.length, 0)} thing(s) to fix before placing the order:</strong><ul>${issues.map(([k, e]) => html`<li><a href="#" data-wiz-goto="${k}">${stepTitle(k)}</a>: ${e.map((x) => x.msg).join(' ')}</li>`)}</ul></div>`
           : html`<div class="notice ok-box" data-review-ready><strong>Ready to place.</strong> Everything required is filled in.</div>`}
         ${skipped.length ? html`<div class="notice info" data-review-skipped>Not added (nobody picked from the list): ${skipped.join(', ').toLowerCase()}. You can add them later on the Contacts tab.</div>` : ''}
         <div class="review-grid">
-        ${section('transaction', 'Transaction', [['Transaction type', html`<strong>${f.transactionType}</strong>`], ['Source of business', val(selText($('[name=sourceOfBusiness]', root)))], ['Open date', val(fmtDate(f.openDate))], ...(r ? [] : [['Primary residence', yesNo(f.primaryResidence)], ['First-time buyer', yesNo(f.firstTimeBuyer)]])])}
-        ${section('property', 'Property', [['Address', f.street ? html`${f.street}<br>${[f.city, f.state].filter(Boolean).join(', ')} ${f.zip || ''}` : dash], ['County', val(f.county)]])}
+        ${section('transaction', 'Transaction', [['Transaction type', html`<strong>${f.transactionType}</strong>`], ['Open date', val(fmtDate(f.openDate))], ['Contract / title request', txFiles.length ? txFiles.map((x) => html`<div>${x.name} <span class="muted small">${fmtSize(x.size)}</span></div>`) : dash]])}
+        ${section('property', 'Property', [['Address', f.street ? html`${f.street}<br>${[f.city, f.state].filter(Boolean).join(', ')} ${f.zip || ''}` : dash], ['County', val(f.county)], ...(mdOn ? [['Primary residence', yesNo(f.primaryResidence)], ['First-time buyer', yesNo(f.firstTimeBuyer)]] : [])])}
         ${section('parties', r ? 'Borrowers' : 'Buyers & Sellers', [[r ? 'Borrowers' : 'Buyers', partyList('Client-Buyer')], ...(r ? [] : [['Sellers', partyList('Client-Seller')]])])}
         ${section('loan', 'Lender & Loan', [...(r ? [] : [['Purchase price', val(fmtMoney(moneyClean(f.purchasePrice)))]]), ['Loan amount', val(fmtMoney(moneyClean(f.loanAmount)))],
           ...(r ? [] : [['EMD amount', val(fmtMoney(moneyClean(f.emdAmount)))], ['EMD due date', val(fmtDate(f.emdDueDate))]]), ['Closing date', val(fmtDate(f.closingDate))],
           ['Lender', pickers.Lender.value ? html`${nameOf(pickers.Lender.value)}${f.lenderPhone || f.lenderEmail ? html`<br><span class="muted small">${[f.lenderPhone, f.lenderEmail].filter(Boolean).join(' \u00b7 ')}</span>` : ''}` : dash]])}
-        ${r ? '' : section('agents', 'Agents', [['Buyer agent', val(nameOf(pickers['Buyer Agent'].value))], ['Listing agent', val(nameOf(pickers['Listing Agent'].value))], ['Transaction coordinator', val(selText($('[name="p:Transaction Coordinator"]', root)))]])}
+        ${section(r ? 'loan' : 'agents', 'Source of business', [['Referred by', val(selText($('[name=sourceOfBusiness]', root)) + (f.sourceContactId ? ' — ' + nameOf(f.sourceContactId) : ''))]])}
+        ${r ? '' : section('agents', 'Agents', [['Buyer agent', val(nameOf(pickers['Buyer Agent'].value))], ['Listing agent', val(nameOf(pickers['Listing Agent'].value))], ["Buyer's transaction coordinator", val(selText($('[name="p:Transaction Coordinator"]', root)))], ['Listing transaction coordinator', val(selText($('[name="p:Transaction Coordinator:2"]', root)))]])}
         ${section('team', 'Team & Notes', [['Processor', val(selText($('[name=processorId]', root)).replace(/^Choose the Processor.*$/, ''))], ['Preprocessor', val(selText($('[name=preprocessorUserId]', root)))], ['Salespeople', sales.length ? sales.join(', ') : dash], ['Sales team member', val(selText($('[name="p:Sales Team"]', root)))],
           ['Notes', f.notes ? html`<span class="review-notes">${f.notes.length > 240 ? f.notes.slice(0, 240) + '\u2026' : f.notes}</span>` : dash],
           ['Documents', files.length ? html`${files.map((x, i) => html`<div>${x.name} <span class="muted small">${fmtSize(x.size)}${($(`[data-doctype="${i}"]`, root) || {}).value ? ' \u00b7 ' + $(`[data-doctype="${i}"]`, root).value : ''}</span></div>`)}<span class="muted small">${selText($('#nof-vis', root))}${$('#nof-wire', root).checked ? ' \u00b7 wire instructions (never shown to agents)' : ''}</span>` : dash]])}
@@ -281,7 +303,7 @@ export async function render({ api, user, go }) {
         <div class="card next-box"><h4>What happens when you place the order</h4><ul class="checklist">
           <li>The order opens at stage <strong>Opened</strong> with a new file number, and the Processor gets the <em>Collect executed contract</em> task.</li>
           <li>Each person you added gets their own intake tasks, copied from the current Task Templates.</li>
-          <li>The standard document folders are created${files.length ? ` and your ${files.length} document(s) are saved` : ''}.</li>
+          <li>The standard document folders are created${files.length + txFiles.length ? ` and your ${files.length + txFiles.length} document(s) are saved` : ''}.</li>
           <li>It is recorded in the Activity Log. <strong>No emails, texts or portal invites are sent</strong> (invite people later from Contacts).</li></ul></div>`); };
     // ---------- Refinance: hide / restore ----------
     const anRole = $('#an-role', root);
@@ -291,8 +313,11 @@ export async function render({ api, user, go }) {
       $('[data-multi="Client-Seller"]', root).hidden = on;
       ['Buyer Agent', 'Listing Agent'].forEach((r) => { $(`[data-picker="p:${r}"]`, root).hidden = on; });
       const bf = $('[data-multi="Client-Buyer"]', root); bf.dataset.refi = String(on);
-      $('legend', bf).firstChild.textContent = on ? 'Borrowers ' : 'Buyers '; $('legend span', bf).textContent = on ? '(Borrower 1 and Borrower 2 shown; add more with +)' : '(Buyer 1 and Buyer 2 shown; add more with +)'; $('[data-add-row="Client-Buyer"]', bf).textContent = on ? '+ Add another borrower' : '+ Add another buyer';
-      renumber('Client-Buyer');
+      $('legend', bf).textContent = on ? 'Borrowers' : 'Buyers'; $('[data-add-row="Client-Buyer"]', bf).textContent = on ? '+ Add another borrower' : '+ Add another buyer';
+      const docLabel = $('[data-tx-doc-label]', root); if (docLabel) docLabel.textContent = on ? 'Upload title request' : 'Upload sales contract';
+      const sob = $('#sob-block', root); const loanGrid = $('[data-wiz-step="loan"] .form-grid', root); const agentsGrid = $('.agents-grid', root);
+      if (sob && on && loanGrid) loanGrid.after(sob); else if (sob && agentsGrid) agentsGrid.prepend(sob);
+      renumber('Client-Buyer'); syncMd(); fillSob();
       // Add new user: no seller / realtor roles on a refinance; Buyer reads Borrower
       [...anRole.options].forEach((o) => { if (REFI_BLOCKED_ROLES.includes(o.value)) { o.hidden = on; o.disabled = on; } if (o.value === 'Client-Buyer') o.textContent = on ? 'Borrower' : 'Buyer'; });
       if (on && REFI_BLOCKED_ROLES.includes(anRole.value)) { anRole.value = ''; anRole.dispatchEvent(new Event('change')); }
@@ -302,13 +327,23 @@ export async function render({ api, user, go }) {
     // "Add new user" / "Select existing person" with role Buyer or Seller APPENDS: fills the first empty row, else adds a row
     const placeParty = (role, c) => { const free = rows[role].find((r) => !r.pk.value && !r.pk.typed); (free || addRow(role)).pk.set(c); };
     // ---------- documents chosen at placement: one row per file with its own document type ----------
-    fileIn.addEventListener('change', () => { fileList.innerHTML = toText(html`${[...fileIn.files].map((f, i) => html`<div class="nof-file" data-file="${i}"><strong>${f.name}</strong> <span class="muted small">${fmtSize(f.size)}</span>
-      <label>Document type<select data-doctype="${i}" aria-label="Document type for ${f.name}"><option value="">Choose&hellip;</option>${options(DOC_TYPES, '')}</select></label></div>`)}`); });
+    const armFiles = (input, list, visId, rowsOf) => input.addEventListener('change', () => { list.innerHTML = toText(rowsOf()); const ask = $(`[data-vis-prompt="${visId}"]`, root); if (ask) ask.hidden = !input.files.length; if (input.files.length) { const vis = $('#' + visId, root); if (vis) vis.focus(); } });
+    armFiles(fileIn, fileList, 'nof-vis', () => html`${[...fileIn.files].map((f, i) => html`<div class="nof-file" data-file="${i}"><strong>${f.name}</strong> <span class="muted small">${fmtSize(f.size)}</span>
+      <label>Document type<select data-doctype="${i}" aria-label="Document type for ${f.name}"><option value="">Choose&hellip;</option>${options(DOC_TYPES, '')}</select></label></div>`)}`);
+    armFiles(txIn, txList, 'tx-vis', () => html`${[...txIn.files].map((f) => html`<div class="nof-file"><strong>${f.name}</strong> <span class="muted small">${fmtSize(f.size)}</span></div>`)}`);
+    const syncMd = () => { const box = $('#md-occ', root); const on = showMdQuestions($('[name=state]', root).value, refi()); box.hidden = !on; if (!on) $$('select', box).forEach((s) => { s.value = ''; }); };
+    const fillSob = () => { const sob = $('[name=sourceOfBusiness]', root); const on = refi(); [...sob.options].forEach((o) => { if (o.value) { o.hidden = on && o.value !== 'lender'; o.disabled = o.hidden; } }); if (on && sob.value && sob.value !== 'lender') sob.value = 'lender';
+      const role = REFERRAL_ROLE[sob.value]; const who = $('#sob-who', root); who.hidden = !role; if (!role) return; const picked = pickers[role] && pickers[role].value; const ctype = contactTypeForRole(role);
+      const list = people.filter((c) => c.id === picked || c.contactType === ctype); const choices = list.length ? list : people; const sel = $('[name=sourceContactId]', root); const cur = sel.value;
+      sel.innerHTML = toText(html`<option value="">(the person on this order)</option>${choices.map((c) => html`<option value="${c.id}" ${c.id === (picked || cur) ? raw('selected') : ''}>${personLabel(c)}</option>`)}`); };
+    $('[name=state]', root).addEventListener('change', syncMd); $('[name=sourceOfBusiness]', root).addEventListener('change', fillSob);
+    SEARCH.filter(([role]) => pickers[role]).forEach(([role]) => { const el = $(`[data-picker="p:${role}"]`, root); if (el) el.addEventListener('change', fillSob); });
     // ---------- one "Add new user" place ----------
     const anForm = $('#an-form', root); const anFields = $('#an-fields', root); const dup = $('#an-dup', root);
     const v = (id) => $('#' + id, root).value.trim();
     const reset = () => { ['an-first', 'an-last', 'an-email', 'an-phone', 'an-company', 'an-ctype'].forEach((id) => { $('#' + id, root).value = ''; }); anRole.value = ''; anFields.hidden = true; dup.hidden = true; dup.innerHTML = ''; };
-    $('#an-open', root).addEventListener('click', () => { anForm.hidden = false; anRole.focus(); });
+    $('#an-open', root).addEventListener('click', () => { anForm.hidden = false; if (cur === 'loan' && !anRole.value) { anRole.value = 'Lender'; anRole.dispatchEvent(new Event('change')); } else anRole.focus(); });
+    $$('[data-add-tc]', root).forEach((b) => b.addEventListener('click', () => { $('#addnew', root).dataset.tcTarget = b.dataset.addTc; anForm.hidden = false; anRole.value = 'Transaction Coordinator'; anRole.dispatchEvent(new Event('change')); $('#an-first', root).focus(); }));
     $('#an-cancel', root).addEventListener('click', () => { reset(); anForm.hidden = true; });
     anRole.addEventListener('change', () => { const r = anRole.value; anFields.hidden = !r; dup.hidden = true;
       $('#an-company-l', root).hidden = !(r === 'Buyer Agent' || r === 'Listing Agent' || r === 'Lender'); $('#an-company-t', root).textContent = r === 'Lender' ? 'Company (lender)' : 'Brokerage / company';
@@ -319,6 +354,7 @@ export async function render({ api, user, go }) {
     const place = (role, c) => {
       if (role === 'Sales Person') { const list = $('[data-sales-list]', root); const box = $(`input[name=salesIds][value="${c.profileId || c.id}"]`, list);
         if (box) box.checked = true; else { const nd = $('[data-no-sales]', list); if (nd) nd.remove(); list.insertAdjacentHTML('beforeend', toText(salesBox({ id: c.profileId || c.id, firstName: c.firstName, lastName: c.lastName, role: 'Sales Person' }, true))); } }
+      else if (role === 'Transaction Coordinator') { const name = $('#addnew', root).dataset.tcTarget || 'p:Transaction Coordinator'; const sel = $(`select[name="${CSS.escape(name)}"]`, root); if (sel && ![...sel.options].some((o) => o.value === c.id)) sel.add(new Option(personLabel(c), c.id)); if (sel) sel.value = c.id; }
       else if (MULTI[role]) placeParty(role, c); else pickers[role].set(c);
       toast(`${personLabel(c)} added as ${NEW_ROLES.find((x) => x[0] === role)[1]}`); reset(); anForm.hidden = true; };
     $('#an-create', root).addEventListener('click', guard(async () => {
@@ -354,7 +390,9 @@ export async function render({ api, user, go }) {
       const entities = {};   // hidden input name (p:<role> / p:<role>:<n>) -> entity
       for (const role of Object.keys(MULTI).filter(counts)) rows[role].forEach((r) => { const ent = entityOf(r); if (ent) entities[$('input[type=hidden]', r.pk.el).name] = ent; });
       const lenderPk = pickers.Lender; const lender = lenderPk && lenderPk.value ? people.find((p) => p.id === lenderPk.value) : null;
-      const files = [...fileIn.files];
+      const files = [...fileIn.files]; const txFiles = [...txIn.files];
+      const code = String(f.sourceOfBusiness || ''); f.sourceOfBusiness = code ? encodeReferral(code, REFERRAL_ROLE[code] ? String(f.sourceContactId || '') : '') : ''; delete f.sourceContactId;
+      if (!showMdQuestions(f.state, refi())) { f.primaryResidence = ''; f.firstTimeBuyer = ''; }
       const input = { ...f, emdAmount: amt, purchasePrice: refi() ? '' : moneyClean(f.purchasePrice), ...(refi() ? { emdDueDate: '' } : {}), loanAmount: moneyClean(f.loanAmount), salesIds: new FormData(e.target).getAll('salesIds'),
         ...(lender ? { lenderName: lender.company || '', lenderContact: personLabel(lender) } : {}) };
       placing = true; const btn = $('[data-place-order]', root); btn.disabled = true; btn.textContent = 'Placing order\u2026';
@@ -366,11 +404,11 @@ export async function render({ api, user, go }) {
       for (const [k, x, role] of entries) { if (!counts(role)) continue;   // refinance: hidden seller / realtor / TC boxes are not saved
         try { const res = await api.addParticipant(deal.id, x, role, entities[k] ? { entity: entities[k] } : undefined); tasks += (res && res.tasksCreated) || 0; added[role] = (added[role] || 0) + 1; } catch (err) { problems.push(`${role}: ${err.message}`); } }
       let saved = 0;
-      for (let i = 0; i < files.length; i++) { const file = files[i]; const sel = $(`[data-doctype="${i}"]`, root);
-        try { await api.addDocument(deal.id, { name: file.name, description: '', mimeType: file.type, size: file.size, dataUrl: await readFile(file), visibility: $('#nof-vis', root).value, folderId: null, docType: sel ? sel.value : '', wireInstructions: $('#nof-wire', root).checked }); saved++; }
-        catch (err) { problems.push(`${file.name}: ${err.message}`); } }
+      const uploadOne = async (file, visibility, docType, wire) => { try { await api.addDocument(deal.id, { name: file.name, description: '', mimeType: file.type, size: file.size, dataUrl: await readFile(file), visibility, folderId: null, docType, wireInstructions: wire }); saved++; } catch (err) { problems.push(`${file.name}: ${err.message}`); } };
+      for (const file of txFiles) await uploadOne(file, $('#tx-vis', root).value, refi() ? 'Lender documents' : 'Contract / addendum', false);
+      for (let i = 0; i < files.length; i++) { const sel = $(`[data-doctype="${i}"]`, root); await uploadOne(files[i], $('#nof-vis', root).value, sel ? sel.value : '', $('#nof-wire', root).checked); }
       if (skipped.length) toast(`No ${skipped.join(' / ').toLowerCase()} added (nobody was picked from the list). You can add one later on the Contacts tab.`);
-      toast(`Order ${deal.fileNumber} created${files.length ? ` with ${saved} document(s)` : ''}`);
+      toast(`Order ${deal.fileNumber} created${saved ? ` with ${saved} document(s)` : ''}`);
       if (problems.length) toast('Some items were not added: ' + problems.join(' | '), 'err');
       // the confirmation panel on the new order's page (shown once; deal.js)
       try { sessionStorage.setItem(PLACED_KEY, JSON.stringify({ dealId: deal.id, fileNumber: deal.fileNumber, address: `${deal.street}, ${deal.city}, ${deal.state} ${deal.zip || ''}`.trim(), transactionType: deal.transactionType,

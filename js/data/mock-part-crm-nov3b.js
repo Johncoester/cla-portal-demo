@@ -8,13 +8,14 @@
  * Nothing here deletes: dashboards, components and reports are RETIRED (hidden, restorable). Mirrored by migration 30. */
 import { MODULE_CODES, moduleName, SEARCH_MODULES, REPORT_MODULES, DASH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, parseQuery, searchMatch, moduleFields, reportFields,
   RELATED, joinRows, runReport, reportCsv, cleanCriteria, applyCriteria, criteriaText, chartData, measureOf, measureLabel, groupOf, display, dealStageOf, CALL_TYPES,
-  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, BUCKETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611061447';
-import { ensureNov3b } from './crm-nov3b.js?v=202611061447';
-import { DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611061447';
-import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611061447';
-import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611061447';
-import { crmReadOnly, CRM_OWNER_ROLES } from './crm.js?v=202611061447';
-import { dealDisplayName } from './nov5-rules.js?v=202611061447';
+  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, BUCKETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611061730';
+import { ensureNov3b } from './crm-nov3b.js?v=202611061730';
+import { DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611061730';
+import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611061730';
+import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611061730';
+import { crmReadOnly, CRM_OWNER_ROLES } from './crm.js?v=202611061730';
+import { dealDisplayName } from './nov5-rules.js?v=202611061730';
+import { referralLabel } from './place-order.js?v=202611061730';
 
 export const SEND_NOTE = 'Not sent: Gmail is not connected yet. The email was saved on this record only.';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -53,7 +54,7 @@ export function crmNov3bPart(x, h) {
       contactName: [...new Set(agents.map(fullName))].join(', '), ownerId: sales[0] ? sales[0].salesId : null, ownerName: sales[0] ? nameOf(sales[0].salesId) : '', salesReps: sales.map((s) => nameOf(s.salesId)).join(', '),
       county: q.county || '', city: q.city, transactionType: q.transactionType || '', lenderName: q.lenderName || '', createdAt: q.createdAt, _link: `#/crm/deals/${q.id}`, _portalLink: `#/deals/${q.id}`,
       // John, Nov 3: SOURCE = the order's Source of business (the CRM Settings Lead Source list, staff only; Matt Nov 3 b) = who / what sent us the deal
-      source: q.sourceOfBusiness || '', sourceText: q.sourceOfBusiness ? L(cfg, 'leadSource', q.sourceOfBusiness) : '', salesIds: sales.map((z) => z.salesId),
+      source: q.sourceOfBusiness || '', sourceText: q.sourceOfBusiness ? (referralLabel(q.sourceOfBusiness, (id) => { const c = cOf(id); return c ? fullName(c) : ''; }) || L(cfg, 'leadSource', q.sourceOfBusiness)) : '', salesIds: sales.map((z) => z.salesId),
       clientIds: [...new Set(ps.filter((p) => isClientRole(p.role)).map((p) => p.contactId))],
       _contactIds: [...new Set(ps.map((p) => p.contactId))], _people: people.flatMap((c) => [fullName(c), c.email || '']), _phones: people.map((c) => c.phone || '').filter(Boolean),
       amountText: q.purchasePrice == null ? '' : display({ type: 'currency', key: 'a' }, { a: q.purchasePrice }), closingDateText: display({ type: 'date', key: 'a' }, { a: q.closingDate }),

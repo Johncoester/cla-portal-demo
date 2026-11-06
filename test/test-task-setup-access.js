@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { routeAllowed, canOpenTaskSetup, legacyTemplatesHash, sectionHash } from '../js/data/locked-links.js';
 import { routeWs, navInWs } from '../js/workspace.js';
+import { createMockAdapter } from '../js/data/mock-adapter.js';
 const R = (page) => ({ page, params: {} });
 const admin = { role: 'Admin', isAdmin: true, status: 'active' };
 const superA = { role: 'Super admin', isAdmin: true, status: 'active' };
@@ -25,6 +26,7 @@ ok(!routeAllowed(superA, R('templates'), { demo: { active: true, role: 'Transact
 ok(routeAllowed(superA, R('templates'), { demo: { active: false } }), 'a Demo mode session that is not active keeps Super admin access');
 ok(routeAllowed({ role: 'Processor', isAdmin: false }, R('outbox')) && routeAllowed({ role: 'Transaction Coordinator', isAdmin: false }, R('tasks')), 'outbox and All Tasks stay with the people who had them');
 ok(canOpenTaskSetup(admin) && canOpenTaskSetup(superA) && !canOpenTaskSetup({ role: 'Processor', isAdmin: false }), 'helper matches the route guard');
+ok(canOpenTaskSetup(superA, { active: true, portalRole: 'Admin' }) && canOpenTaskSetup(superA, { active: true, role: 'Super admin' }), 'demo view as an admin keeps Task Templates');
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
 const app = read('../js/app.js');
 ok(app.includes("canOpenTaskSetup(u, demo) && modOn('task-grid')") && app.includes("add('templates', 'Task Templates', '#/admin/templates'"), 'the grid stays guarded and templates points at Admin / Settings');
@@ -32,5 +34,19 @@ ok(app.includes('legacyTemplatesHash(location.hash)'), 'old #/templates URLs red
 ok(app.includes('demo: DEMO_VIEW') && app.includes('You are not authorized to open this page.'), 'a typed URL is refused with a not-authorized message, and Demo mode is part of the guard');
 ok(!read('../js/pages/dashboard.js').includes('#/task-grid'), 'the work queue no longer links the Task Grid');
 ok(read('../js/pages/tasks.js').includes('user.isAdmin ?') && !read('../js/pages/tasks.js').includes('runsOrders'), 'All Tasks links the grid only for an admin');
+const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
+const rejects = async (p, name) => { try { await p(); ok(false, name); } catch (e) { ok(true, name); } };
+await api.signInDev('u-proc');
+await rejects(() => api.getTaskGrid(), 'processor cannot open the task grid');
+await rejects(() => api.setTemplateAgentRoles('personal_info', ['Buyer Agent']), 'processor cannot change who may complete a task');
+const readable = await api.listTaskTemplates();
+ok(readable.length > 0 && readable.some((t) => Array.isArray(t.roles)), 'a processor can still read templates for task forms');
+await api.signInDev('u-admin');
+const grid = await api.getTaskGrid({ fileStatus: 'Open' });
+ok(grid && Array.isArray(grid.rows), 'an admin can open the task grid');
+const before = readable.find((t) => t.code);
+const after = (await api.listTaskTemplates()).find((t) => t.code === before.code);
+ok(after && after.roles.join() === before.roles.join() && (after.audiences || []).join() === (before.audiences || []).join(), 'template roles and audiences are unchanged');
 console.log(fail ? fail + ' failed' : 'task setup access passed');
 if (fail) process.exit(1);
