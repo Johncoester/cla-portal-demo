@@ -19,6 +19,8 @@
  *               accept it for outside users; adminListUsers rows carry it.
  *   tasks:      listTasks, getTask, createTask, updateTask, saveTaskForm(id, data, {complete}), uploadForTask,
  *               listTaskTemplates, publishTemplateVersion (Admin), sendTaskReminder, queueOverdueReminders, listOutbox (queued only, never sent)
+ *   workflows:  listWorkflows (CLA staff read), saveWorkflow (Admin / Super admin), previewWorkflowMatch({role, fileType, state})
+ *               Definitions only. Saving a workflow does not copy tasks onto a file.
  *   documents:  listDocuments, addDocument, moveDocument, updateDocumentMeta, shareDocumentWithClient (staff: share an upload with the buyer), shareDocumentWithSeller (staff: the same for the seller), getDocumentContent, listDealFolders, createFolder, renameFolder,
  *               listLibrary, addLibraryDocument
  *   messages:   listMessageRecipients, listThreads, getThread, createThread, postMessage, markThreadRead

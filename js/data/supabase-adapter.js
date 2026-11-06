@@ -25,6 +25,7 @@ import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611061918';
 import { staffSupabase } from './supabase-staff.js?v=202611061918';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611061918';
 import { propertyAddressOf } from './nov5-rules.js?v=202611061918';
+import { workflowsSupabase } from './supabase-workflows.js?v=202611061918';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -287,6 +288,7 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, emailSendersSupabase({ sb, ok, me }));
   Object.assign(a, nov5Supabase({ sb, ok, camel, me }));
   Object.assign(a, orderOverviewSupabase({ sb, ok, camel, me, api: a }));
+  Object.assign(a, workflowsSupabase({ sb, ok, camel, me }));   // John, Nov 6: workflow definitions. Migration 20261106180000 is not applied until John says so.
   // Staff create and resend invite links here (nothing is emailed). Accepting a link goes through the accept-invite function, not a browser sign-up.
   a.previewCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };
   a.runCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };

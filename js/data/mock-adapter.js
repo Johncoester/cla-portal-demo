@@ -51,6 +51,8 @@ import { recordingPart, ensureRecording } from './mock-part-recording.js?v=20261
 import { fwpCanRead, FWP_STAFF_ONLY } from './funding-wire-policy.js?v=202611061918';
 import { buyerAgentDocDecision, taskReadable, propertyAddressOf } from './nov5-rules.js?v=202611061918';
 import { nov5Part, ensureNov5 } from './mock-part-nov5.js?v=202611061918';
+import { workflowsPart } from './mock-part-workflows.js?v=202611061918';
+import { ensureWorkflows } from './workflows.js?v=202611061918';
 import { fwpPart, ensureFwp } from './mock-part-fwp.js?v=202611061918';
 import { seedFwp as FSEED } from './fwp-seed.js?v=202611061918';   // John, Nov 4: where each buyer / seller will be at closing (migration 58)   // Admin > Offices (John, Nov 4; migration 57)
 
@@ -162,7 +164,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   function loadPrevious() { for (const [k, from] of PREV_KEYS) { const raw = store.getItem(k); if (!raw) continue; try { return [k, upgradeToV29(JSON.parse(raw), from)]; } catch (e) { /* unreadable: try the next */ } } return null; }
   const ensureAll = (data, { fresh = false } = {}) => {
     let d = fresh ? ensureTitle(ensureTc(ensureHr(ensurePayoffs(ensureModules(ensureAccounting(upgradeCalls(ensureMattNov3b(ensureCrmNov3b(ensureWireFlags(ensureAgentPortal(data)))))))))), { seed: !!flags.title }) : ensureTitle(ensureTc(data), { seed: !!flags.title });
-    d = ensurePreprocessorSeed(d); d = ensureEmailSenders(d); d = ensureRealtorName(d); d = ensureRecording(d, { seed: !!flags.accounting }); d = ensureFwp(d, { seed: !!flags.policy || !!flags.funding || !!flags.wires }); return ensureNov5(d);
+    d = ensurePreprocessorSeed(d); d = ensureEmailSenders(d); d = ensureRealtorName(d); d = ensureRecording(d, { seed: !!flags.accounting }); d = ensureFwp(d, { seed: !!flags.policy || !!flags.funding || !!flags.wires }); return ensureWorkflows(ensureNov5(d));
   };
   function load() { if (db) return db; const raw = store.getItem(KEY); if (raw) { db = JSON.parse(raw); const renamed = (db.profiles || []).some((p) => p.id === 'u-multi' && p.lastName === 'Multi-Role'); db = ensureAll(db); const seeded = db.titleSeedAddedNow || db.fwpSampleAddedNow; delete db.titleSeedAddedNow; delete db.fwpSampleAddedNow; if (seeded || renamed) save(); return db; }
     const prev = loadPrevious();
@@ -394,6 +396,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   Object.assign(api, recordingPart(ctx, flags, api));
   Object.assign(api, fwpPart(ctx, flags, api));
   Object.assign(api, nov5Part(ctx));   // Nov 5: task admin, alert groups, entity attorneys, CPL prices, file coverage
+  Object.assign(api, workflowsPart(ctx));   // John, Nov 6: workflow definitions (Admin / Super admin edit). Does not copy tasks onto files.
   Object.assign(api, titlePart(ctx, flags, api));   // John, Nov 4: order > Title (title review; staff only; sends nothing; no SSNs)
   Object.assign(api, tcPortal(ctx, api));
   tcMessageViews(api, ctx);
