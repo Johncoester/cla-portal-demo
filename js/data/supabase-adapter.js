@@ -1,27 +1,27 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611060249';
-import { localDate, fileRoleLabel } from './constants.js?v=202611060249';
-import { featureFlags } from './features.js?v=202611060249';
-import { accountingSupabase } from './supabase-accounting.js?v=202611060249';
-import { payoffsSupabase } from './supabase-payoffs.js?v=202611060249';
-import { modulesSupabase } from './supabase-modules.js?v=202611060249';
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611060249';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611060249';
-import { automationPart } from './automation.js?v=202611060249';
-import { runsOrders as runsOrdersCI } from './constants.js?v=202611060249';
-import { fieldsForRole } from './templates.js?v=202611060249';
-import { crmSupabase } from './supabase-crm.js?v=202611060249';
-import { hrSupabase } from './supabase-hr.js?v=202611060249';
-import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611060249';
-import { officesSupabase } from './supabase-offices.js?v=202611060249';
-import { closingLocationSupabase } from './supabase-closing-location.js?v=202611060249';
-import { tcSupabase } from './supabase-tc.js?v=202611060249';
-import { emailSendersSupabase } from './supabase-email-senders.js?v=202611060249';
-import { nov5Supabase } from './supabase-nov5.js?v=202611060249';
-import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611060249';
-import { propertyAddressOf } from './nov5-rules.js?v=202611060249';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611060250';
+import { localDate, fileRoleLabel } from './constants.js?v=202611060250';
+import { featureFlags } from './features.js?v=202611060250';
+import { accountingSupabase } from './supabase-accounting.js?v=202611060250';
+import { payoffsSupabase } from './supabase-payoffs.js?v=202611060250';
+import { modulesSupabase } from './supabase-modules.js?v=202611060250';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611060250';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611060250';
+import { automationPart } from './automation.js?v=202611060250';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611060250';
+import { fieldsForRole } from './templates.js?v=202611060250';
+import { crmSupabase } from './supabase-crm.js?v=202611060250';
+import { hrSupabase } from './supabase-hr.js?v=202611060250';
+import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611060250';
+import { officesSupabase } from './supabase-offices.js?v=202611060250';
+import { closingLocationSupabase } from './supabase-closing-location.js?v=202611060250';
+import { tcSupabase } from './supabase-tc.js?v=202611060250';
+import { emailSendersSupabase } from './supabase-email-senders.js?v=202611060250';
+import { nov5Supabase } from './supabase-nov5.js?v=202611060250';
+import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611060250';
+import { propertyAddressOf } from './nov5-rules.js?v=202611060250';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -115,7 +115,7 @@ export async function createSupabaseAdapter(cfg) {
     async createDeal(input) {
       // Refinance (John, Nov 3): no purchase price / EMD; migration 32 (private.deal_refi_guard) refuses them, and sellers / realtors / a TC on the file
       const refi = input.transactionType === 'Refinance';
-      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611060249'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
+      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611060250'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
       const { data: { user } } = await sb.auth.getUser(); const num = (v) => (v === '' || v == null ? null : Number(String(v).replace(/[$,\s]/g, '')));
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
         open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : num(input.purchasePrice), loan_amount: num(input.loanAmount),

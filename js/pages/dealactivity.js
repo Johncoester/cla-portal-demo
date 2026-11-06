@@ -1,7 +1,7 @@
 // Activity tab. CLA staff: the full order log with filters (unchanged). Outside users (Francis, Nov 3, Qualia "Activity"): a read-only, time-stamped
 // list of their OWN actions plus messages in their conversations, files they can open and answers to their update requests. The full log stays staff-only.
-import { html, fmtDateTime } from '../ui.js?v=202611060249';
-import { activityView } from './activityview.js?v=202611060249';
+import { html, fmtDateTime } from '../ui.js?v=202611060250';
+import { activityView } from './activityview.js?v=202611060250';
 export async function render({ api, deal, user }) {
   const staff = !user.accountRole && user.role !== 'Outside user';
   if (staff) { const v = await activityView(api, deal.id, `#/deals/${deal.id}/activity`);

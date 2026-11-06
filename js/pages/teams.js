@@ -1,6 +1,6 @@
 // Teams: a transaction coordinator sees the orders of the agents on their team(s). Admin manages teams; a TC can view their own team.
 // Removing someone from a team takes away the access right away.
-import { html, $, $$, guard, formData, options, pill, toast } from '../ui.js?v=202611060249';
+import { html, $, $$, guard, formData, options, pill, toast } from '../ui.js?v=202611060250';
 
 export async function render({ api, user, refresh }) {
   const teams = await api.listTeams(); const admin = user.isAdmin;

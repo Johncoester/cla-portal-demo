@@ -1,22 +1,22 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611060249';
-import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611060249';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611060249';
-import { canUseCrm } from './data/crm.js?v=202611060249';
-import { acctCanRead } from './data/accounting.js?v=202611060249';
-import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611060249';
-import { phaseOf } from './data/agent-portal.js?v=202611060249';
-import { formatMoneyInput } from './pages/money-input.js?v=202611060249';
-import { applyTheme, themeOn } from './theme.js?v=202611060249';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
-import { icon } from './pages/theme-cards.js?v=202611060249';
-import { canInviteAgents } from './data/agent-profile.js?v=202611060249';
-import { yourAgentHtml } from './pages/your-agent.js?v=202611060249';
-import { fwpCanRead } from './data/funding-wire-policy.js?v=202611060249';
-import { titleCanRead } from './data/title.js?v=202611060249';
-import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs } from './data/locked-links.js?v=202611060249';   // John, Nov 4: one locked login link per fake user
-import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611060249';   // John, Nov 4 call: sidebar search + pinned order nav
-import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611060249';
-import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611060249';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
+import { getAdapter } from './data/adapter.js?v=202611060250';
+import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611060250';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611060250';
+import { canUseCrm } from './data/crm.js?v=202611060250';
+import { acctCanRead } from './data/accounting.js?v=202611060250';
+import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611060250';
+import { phaseOf } from './data/agent-portal.js?v=202611060250';
+import { formatMoneyInput } from './pages/money-input.js?v=202611060250';
+import { applyTheme, themeOn } from './theme.js?v=202611060250';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
+import { icon } from './pages/theme-cards.js?v=202611060250';
+import { canInviteAgents } from './data/agent-profile.js?v=202611060250';
+import { yourAgentHtml } from './pages/your-agent.js?v=202611060250';
+import { fwpCanRead } from './data/funding-wire-policy.js?v=202611060250';
+import { titleCanRead } from './data/title.js?v=202611060250';
+import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs } from './data/locked-links.js?v=202611060250';   // John, Nov 4: one locked login link per fake user
+import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611060250';   // John, Nov 4 call: sidebar search + pinned order nav
+import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611060250';
+import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611060250';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
@@ -25,31 +25,31 @@ document.addEventListener('input', (e) => { const el = e.target; if (el instance
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611060249'),
-  dashboard: () => import('./pages/dashboard.js?v=202611060249'),
-  orders: () => import('./pages/orders.js?v=202611060249'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611060249'),
-  deal: () => import('./pages/deal.js?v=202611060249'),
-  users: () => import('./pages/users.js?v=202611060249'),
-  profile: () => import('./pages/profile.js?v=202611060249'),
-  'contact-us': () => import('./pages/contact.js?v=202611060249'),
-  teams: () => import('./pages/teams.js?v=202611060249'),
-  templates: () => import('./pages/templates.js?v=202611060249'),
-  library: () => import('./pages/library.js?v=202611060249'),
-  activity: () => import('./pages/activity.js?v=202611060249'),
-  outbox: () => import('./pages/outbox.js?v=202611060249'),
-  tasks: () => import('./pages/tasks.js?v=202611060249'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611060249'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
-  schedule: () => import('./pages/schedule.js?v=202611060249'),   // public closing-time link (no sign-in needed)
-  crm: () => import('./pages/crm.js?v=202611060249'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
-  modules: () => import('./pages/modules.js?v=202611060249'),
-  'agent-invites': () => import('./pages/agent-invites.js?v=202611060249'),   // John, Nov 4: invite agents (link shown, nothing sent)
-  'agent-invite': () => import('./pages/agent-signup.js?v=202611060249'),     // the agent's one-time setup link (no sign-in)
-  underwriters: () => import('./pages/underwriters.js?v=202611060249'),
-  hr: () => import('./pages/hr.js?v=202611060249'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
-  'hr-invite': () => import('./pages/hr-invite.js?v=202611060249'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
-  offices: () => import('./pages/offices.js?v=202611060249'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
-  demo: () => import('./pages/demo-view.js?v=202611060249'),   // permanent Demo mode: Super admin views a seeded demo user
+  login: () => import('./pages/entry.js?v=202611060250'),
+  dashboard: () => import('./pages/dashboard.js?v=202611060250'),
+  orders: () => import('./pages/orders.js?v=202611060250'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611060250'),
+  deal: () => import('./pages/deal.js?v=202611060250'),
+  users: () => import('./pages/users.js?v=202611060250'),
+  profile: () => import('./pages/profile.js?v=202611060250'),
+  'contact-us': () => import('./pages/contact.js?v=202611060250'),
+  teams: () => import('./pages/teams.js?v=202611060250'),
+  templates: () => import('./pages/templates.js?v=202611060250'),
+  library: () => import('./pages/library.js?v=202611060250'),
+  activity: () => import('./pages/activity.js?v=202611060250'),
+  outbox: () => import('./pages/outbox.js?v=202611060250'),
+  tasks: () => import('./pages/tasks.js?v=202611060250'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611060250'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  schedule: () => import('./pages/schedule.js?v=202611060250'),   // public closing-time link (no sign-in needed)
+  crm: () => import('./pages/crm.js?v=202611060250'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  modules: () => import('./pages/modules.js?v=202611060250'),
+  'agent-invites': () => import('./pages/agent-invites.js?v=202611060250'),   // John, Nov 4: invite agents (link shown, nothing sent)
+  'agent-invite': () => import('./pages/agent-signup.js?v=202611060250'),     // the agent's one-time setup link (no sign-in)
+  underwriters: () => import('./pages/underwriters.js?v=202611060250'),
+  hr: () => import('./pages/hr.js?v=202611060250'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
+  'hr-invite': () => import('./pages/hr-invite.js?v=202611060250'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
+  offices: () => import('./pages/offices.js?v=202611060250'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
+  demo: () => import('./pages/demo-view.js?v=202611060250'),   // permanent Demo mode: Super admin views a seeded demo user
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };
@@ -236,8 +236,8 @@ function demoMenu(u) {
 export async function render() {
   const my = ++rendering; applyTheme(); const root = $('#app'); const api = await getAdapter(); const route = parse(); closeModal();
   PORTAL_MODE = api.mode || 'mock';
-  if (api.demoViewStatus) { try { DEMO_VIEW = await api.demoViewStatus(); } catch (e) { DEMO_VIEW = null; } } else DEMO_VIEW = null;
   let u = await api.getSession();
+  if (u && api.demoViewStatus) { try { DEMO_VIEW = await api.demoViewStatus(); } catch (e) { DEMO_VIEW = null; } } else DEMO_VIEW = null;
   // LOCKED LOGIN LINK (John, Nov 4): ?as=<token> signs in as that one fake user and locks this tab to them (data/locked-links.js)
   const asTok = new URLSearchParams(location.search).get('as');
   if (api.mode === 'supabase') {
@@ -316,7 +316,7 @@ function wireChrome(u) {
   if (stop) stop.addEventListener('click', async (e) => { e.preventDefault(); const api = await getAdapter(); if (api.stopDemoView) { try { await api.stopDemoView(); } catch (err) { toast(err.message); return; } } if (demoTimer) clearTimeout(demoTimer); location.hash = '#/dashboard'; render(); });
   if (demoTimer) clearTimeout(demoTimer);
   if (DEMO_VIEW && DEMO_VIEW.active && DEMO_VIEW.expiresAt) { const ms = new Date(DEMO_VIEW.expiresAt).getTime() - Date.now(); demoTimer = setTimeout(() => render(), Math.min(Math.max(ms + 250, 1000), 30 * 60 * 1000)); }
-  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611060249').then((m) => m.wireHeaderSearch(api)); });
+  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611060250').then((m) => m.wireHeaderSearch(api)); });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');
   if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; });
   document.addEventListener('click', () => { if (dd) dd.hidden = true; }, { once: true });
