@@ -4,7 +4,7 @@
  * Deliberately NOT collected: SSNs (the old portal asked for them; that needs a separate secure decision).
  * DELEGATION: agentRoles = which agent roles may fill a CLIENT's copy for them (only the agent on the client's own side, on that order).
  * Admin / processor change it on the Task Templates page (setTemplateAgentRoles). Personal items can never be delegated: see delegationLocked(). */
-import { isRealDate, phoneOk, fmtPhone, PHONE_MSG, routingOk, accountOk } from './constants.js?v=202611060013';
+import { isRealDate, phoneOk, fmtPhone, PHONE_MSG, routingOk, accountOk } from './constants.js?v=202611060027';
 const yn = ['Yes', 'No'];
 const F = (k, label, type, req = false, extra = {}) => ({ k, label, type, req, ...extra });
 const none = (label) => F('none', label, 'checkbox');
@@ -114,7 +114,7 @@ export const TEMPLATE_DEFS = [
       F('mail_city', 'City', 'text', true, { when: ['method', 'Check sent by FedEx'] }), F('mail_state', 'State', 'state', true, { when: ['method', 'Check sent by FedEx'] }),
       F('mail_zip', 'ZIP', 'zip', true, { when: ['method', 'Check sent by FedEx'] }),
       F('settlement_conditions', 'Conditions for a check at settlement', 'info', false, { when: ['method', 'Check at settlement'],
-        text: 'PLACEHOLDER - CLA Title to supply the real conditions before go-live. Example only: the check is made out to the seller(s) on title, is handed over only after the buyer\'s funds are confirmed, and you must show photo ID to receive it.' }),
+        text: 'PLACEHOLDER - sample wording on CLA Portal Live Test. Example only: the check is made out to the seller(s) on title, is handed over only after the buyer\'s funds are confirmed, and you must show photo ID to receive it.' }),
       F('settlement_ack', 'I understand the conditions for receiving a check at settlement', 'checkbox', true, { when: ['method', 'Check at settlement'] }),
       F('notes', 'Anything else we should know?', 'textarea')] },
 ];

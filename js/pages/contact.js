@@ -1,5 +1,5 @@
 // Contact Us: who to call about a file (shows the processor on each of my orders).
-import { html, esc } from '../ui.js?v=202611060013';
+import { html, esc } from '../ui.js?v=202611060027';
 
 export async function render({ api, user }) {
   const deals = await api.listDeals({ status: 'All' });
@@ -7,6 +7,6 @@ export async function render({ api, user }) {
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>Contact Us</h2></div>
     <p>Questions about your closing? Message your closing team from the Inbox tab on your file, or reach your processor below.</p>
     <table class="tbl"><thead><tr><th>File No</th><th>Property</th><th>Processor</th></tr></thead><tbody>${rows}</tbody></table>
-    <p class="muted">CLA office phone and email will be added here before go-live (fake build: none shown).</p>`;
+    <p class="muted">CLA office phone and email are not shown here. Message your closing team from the file.</p>`;
   return { title: 'Contact Us', crumbs: [['Contact Us']], body };
 }

@@ -172,7 +172,7 @@ export const DOC_TYPES = [...new Set([...GENERAL_DOC_TYPES, ...SELLER_DOC_TYPES]
 export const docTypeChoices = (role) => (sideOf(role) === 'seller' ? SELLER_DOC_TYPES : sideOf(role) === 'buyer' ? GENERAL_DOC_TYPES : DOC_TYPES);
 // CLOSING (item 12): where the client wants to sign
 export const CLOSING_LOCATIONS = ['CLA Title office', 'Mobile notary', 'Remote (online)'];
-// WIRE FRAUD (item 11). PLACEHOLDER number: the real CLA office number goes here before go-live (fake 555 number in this build).
+// WIRE FRAUD (item 11). Placeholder number on CLA Portal Live Test (fake 555 number in this build).
 export const CLA_PHONE = '301-555-0100';
 export const WIRE_FRAUD_NOTE = `Before you send any money, CALL CLA Title at ${CLA_PHONE} (a number you already know - never one from an email) to confirm these instructions. `
   + 'CLA Title will NEVER change wire instructions by email, text or phone. If you get a message saying the instructions changed, it is fraud: do not send money, call us.';

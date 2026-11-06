@@ -1,5 +1,5 @@
 /* mock adapter, auth part: DEV/FAKE sign-in only (pick a fake user from a list, no password).
- * At go-live the Supabase adapter implements signIn(email, password) via Supabase Auth instead. */
+ * After John confirms the login switch, the Supabase adapter implements signIn(email, password). This portal stays CLA Portal Live Test. */
 export function devAuth(x) {
   const { load, me, clone, fail } = x;
   return {

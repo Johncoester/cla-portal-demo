@@ -1,6 +1,6 @@
 /* crm-charts.js : plain SVG charts for CRM dashboards (video 9). No libraries. Function only (no styling work): default colors, native hover tooltips (<title>).
  * Every bar / slice / point / row carries data-key (and data-key2 for a stacked part) so a click opens the drill-down. */
-import { esc } from '../ui.js?v=202611060013';
+import { esc } from '../ui.js?v=202611060027';
 
 const COLORS = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#edc948', '#b07aa1', '#ff9da7', '#9c755f', '#bab0ac'];
 export const color = (i) => COLORS[i % COLORS.length];

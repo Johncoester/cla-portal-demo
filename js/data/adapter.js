@@ -9,7 +9,7 @@
  *   mode                     "mock" | "supabase"
  *   listDevUsers()           -> [{id, firstName, lastName, role, isAdmin}]  mock only; supabase returns [] (dev picker hidden)
  *   signInDev(userId)        mock only: dev/fake login, pick a fake user, no password
- *   signIn(email, password)  supabase only (go-live: real users, real logins)
+ *   signIn(email, password)  supabase mode only, after John confirms that switch on CLA Portal Live Test
  *   signOut(); getSession() -> profile | null; getMyProfile(); updateMyProfile(patch)
  * DATA CONTRACT (same names in both; see the mock-part-*.js files):
  *   deals:      getWorkQueue, listDeals, getDeal, createDeal, updateDeal, setStage, setDealStatus, listSalesStaff, unreadCount
@@ -64,7 +64,7 @@ let cached = null;
 export async function getAdapter() {
   if (cached) return cached;
   const cfg = (typeof window !== 'undefined' && window.CLA_PORTAL_CONFIG) || { mode: 'mock' };
-  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611060013'); cached = await m.createSupabaseAdapter(cfg); }
-  else { const m = await import('./mock-adapter.js?v=202611060013'); cached = m.createMockAdapter(); }
+  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611060027'); cached = await m.createSupabaseAdapter(cfg); }
+  else { const m = await import('./mock-adapter.js?v=202611060027'); cached = m.createMockAdapter(); }
   return cached;
 }

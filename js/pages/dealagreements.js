@@ -1,6 +1,6 @@
 // Agreements tab (Matt, Oct 31): agents and clients acknowledge the Wire Fraud Warning, privacy notice and e-consent, each for themselves.
 // CLA staff see who acknowledged what, and when. The wording is SAMPLE text until CLA supplies the final versions.
-import { html, $$, guard, fmtDateTime, pill, toast } from '../ui.js?v=202611060013';
+import { html, $$, guard, fmtDateTime, pill, toast } from '../ui.js?v=202611060027';
 
 export async function render({ api, deal, refresh }) {
   const r = await api.listAgreements(deal.id);
@@ -14,7 +14,7 @@ export async function render({ api, deal, refresh }) {
       ${r.people.map((p) => html`<tr><td>${p.name}</td><td>${p.roleLabel}</td>${r.agreements.map((a) => html`<td>${p.acks[a.code] ? html`<span class="ok-text">&#10003;</span> ${fmtDateTime(p.acks[a.code].at)}` : html`<span class="muted">not yet</span>`}</td>`)}</tr>`)}</tbody></table>`
       : html`<p class="muted">No agents or clients with a portal login on this file yet.</p>`}` : '';
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>Agreements</h2></div>
-    <p class="muted small">Sample wording for this demo build: CLA Title supplies the final text before go-live.${r.needed ? ' Each person on the file acknowledges for themselves; agents cannot acknowledge for their clients.' : ''}</p>
+    <p class="muted small">Sample wording on CLA Portal Live Test: CLA Title supplies the final text.${r.needed ? ' Each person on the file acknowledges for themselves; agents cannot acknowledge for their clients.' : ''}</p>
     ${staffTable}${r.agreements.map(card)}`;
   return { title: 'Agreements', crumbs: [['Agreements']], body, mount(root) {
     $$('form.ackf', root).forEach((f) => f.addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.acknowledgeAgreement(deal.id, f.dataset.code); toast('Thank you. Your acknowledgement is recorded.'); refresh(); })));

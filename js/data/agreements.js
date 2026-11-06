@@ -1,6 +1,6 @@
 /* AGREEMENTS (Matt, Oct 31, item 10). Every OUTSIDE person on a file (agents and clients) is asked to acknowledge these once per file.
  * Who acknowledged what, and when, is recorded; CLA staff see the status. Mirrored by public.agreements / agreement_acks (migration 14).
- * SAMPLE WORDING: CLA Title must supply the final text before go-live. */
+ * SAMPLE WORDING on CLA Portal Live Test. CLA Title supplies the final text. */
 export const AGREEMENTS = [
   { code: 'wire_fraud', version: 1, title: 'Wire Fraud Warning',
     body: 'SAMPLE TEXT (CLA to supply final wording). Criminals send fake emails that look like they come from title companies, agents and lenders, with changed wire instructions. '
