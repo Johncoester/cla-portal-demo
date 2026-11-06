@@ -29,6 +29,7 @@ import { ensureAgentPortal } from './agent-portal.js?v=202611061447';
 import { agentPortal } from './mock-part-agent.js?v=202611061447';
 import { mattNov3b } from './mock-part-nov3b.js?v=202611061447';
 import { ensureSettings, optLabel } from './crm-config.js?v=202611061447';
+import { referralLabel } from './place-order.js?v=202611061447';
 import { upgradeCalls } from './crm-calls.js?v=202611061447';
 import { accountingPart, ensureAccounting } from './mock-part-accounting.js?v=202611061447';
 import { payoffsPart, ensurePayoffs } from './mock-part-payoffs.js?v=202611061447';
@@ -346,7 +347,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
       .map((p) => { const c = d.contacts.find((z) => z.id === p.contactId); return { contactId: p.contactId, name: c ? fullName(c) : '', label: fileRoleLabel([p.role === 'Client-Buyer' ? 'Buyer Agent' : 'Listing Agent', p.role]) }; });
     const staffView = !isOutside(u.accountRole || u.role) && !isClient(u.role) && !isAgent(u.role);
     // Matt, Nov 3 (b): source of business is CLA-internal (staff only); its label follows renames in CRM Settings -> Lead Source
-    const src = staffView ? (x.sourceOfBusiness || '') : ''; const srcLabel = src ? optLabel(ensureSettings(clone(d.crmSettings || null)), 'leadSource', src) : '';
+    const src = staffView ? (x.sourceOfBusiness || '') : ''; const srcLabel = src ? (referralLabel(src, (id) => { const c = d.contacts.find((z) => z.id === id); return c ? `${c.firstName} ${c.lastName}`.trim() : ''; }) || optLabel(ensureSettings(clone(d.crmSettings || null)), 'leadSource', src)) : '';
     // the scheduled closing names its office from the stored office list (a retired office keeps its name here)
     const sc0 = x.scheduledClosing ? { ...clone(x.scheduledClosing), officeName: x.scheduledClosing.officeId ? ((officeById(d, x.scheduledClosing.officeId) || {}).name || '') : '', officeRetired: !!(x.scheduledClosing.officeId && officeById(d, x.scheduledClosing.officeId) && !officeById(d, x.scheduledClosing.officeId).active) } : x.scheduledClosing;
     // John, Nov 4: deal notes are staff/agent working notes; Client-Buyer / Client-Seller never get them (may name the other side's agent)

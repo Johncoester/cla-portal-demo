@@ -22,6 +22,7 @@ import { emailSendersSupabase } from './supabase-email-senders.js?v=202611061447
 import { nov5Supabase } from './supabase-nov5.js?v=202611061447';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611061447';
 import { staffSupabase } from './supabase-staff.js?v=202611061447';
+import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611061447';
 import { propertyAddressOf } from './nov5-rules.js?v=202611061447';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const TASK_COLS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
@@ -110,8 +111,8 @@ export async function createSupabaseAdapter(cfg) {
       return withRole(d, roles.get(d.id), pm); },
     // John, Nov 2 (migration 19): several salespeople per order; the Processor and Admins add/remove them (RPCs check the role + file access)
     async listPreprocessors() { return camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status').eq('role', 'Preprocessor').eq('status', 'active').order('first_name'))); },
-    async listProcessors() { return camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status').eq('role', 'Processor').eq('status', 'active').order('first_name')))
-      .map((p) => ({ ...p, name: `${p.firstName} ${p.lastName}` })); },
+    async listProcessors() { return (camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status').in('role', PROCESSOR_PICK_ROLES).eq('status', 'active').order('first_name'))) || [])
+      .filter((p) => !p.isDemo).map((p) => ({ ...p, name: `${p.firstName} ${p.lastName}` })); },
     // John, Nov 2 (migration 20): Place Order. Open Date (backdating OK, never future), any US state, EMD amount / due date; the DB re-checks all of it.
     async createDeal(input) {
       // Refinance (John, Nov 3): no purchase price / EMD; migration 32 (private.deal_refi_guard) refuses them, and sellers / realtors / a TC on the file
@@ -122,7 +123,7 @@ export async function createSupabaseAdapter(cfg) {
         open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : num(input.purchasePrice), loan_amount: num(input.loanAmount),
         emd_amount: refi ? null : num(input.emdAmount), emd_due_date: refi ? null : input.emdDueDate || null, notes: input.notes || '', processor_id: input.processorId || user.id, preprocessor_user_id: input.preprocessorUserId || null, created_by: user.id,
         lender_name: input.lenderName || '', lender_contact: input.lenderContact || '', lender_phone: input.lenderPhone || '', lender_email: String(input.lenderEmail || '').trim().toLowerCase(),
-        primary_residence: refi ? '' : String(input.primaryResidence || ''), first_time_buyer: refi ? '' : String(input.firstTimeBuyer || '') };   // John, Nov 3 call (migration 38)   // Matt, Nov 3b: lender phone / email at placement
+        primary_residence: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.primaryResidence || ''), first_time_buyer: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.firstTimeBuyer || '') };   // Maryland purchases only (John, Nov 6)
       const d = camel(ok(await sb.from('deals').insert(row).select().single()));
       if (String(input.sourceOfBusiness || '').trim()) ok(await sb.rpc('set_deal_source', { p_deal: d.id, p_source: input.sourceOfBusiness }));   // migration 31 (staff-only table)
       const ids = [].concat(input.salesIds || []).filter(Boolean); if (ids.length) ok(await sb.rpc('set_deal_sales_people', { p_deal: d.id, p_sales: ids }));
@@ -134,6 +135,7 @@ export async function createSupabaseAdapter(cfg) {
       for (const [k, col] of Object.entries(map)) if (patch[k] !== undefined) { const v = patch[k];
         row[col] = money.has(col) ? (v === '' || v == null ? null : Number(String(v).replace(/[$,\s]/g, ''))) : dates.has(col) ? (v || null) : v; }
       if (row.open_date === null) delete row.open_date;
+      if (patch.state !== undefined && String(patch.state || '').toUpperCase() !== 'MD') { row.primary_residence = ''; row.first_time_buyer = ''; }
       if (Object.keys(row).length) ok(await sb.from('deals').update(row).eq('id', id));
       if (patch.sourceOfBusiness !== undefined) ok(await sb.rpc('set_deal_source', { p_deal: id, p_source: patch.sourceOfBusiness || '' }));
       if (patch.salesIds !== undefined) ok(await sb.rpc('set_deal_sales_people', { p_deal: id, p_sales: [].concat(patch.salesIds || []) }));
@@ -150,14 +152,24 @@ export async function createSupabaseAdapter(cfg) {
       if (opts && opts.entity) ok(await sb.rpc('set_participant_entity', { p_participant: p.id, p_entity: opts.entity })); return { ok: true, id: p.id }; },
     async setParticipantEntity(dealId, participantId, entity) { return ok(await sb.rpc('set_participant_entity', { p_participant: participantId, p_entity: entity || null })); },
     async listSourceOptions() { return ok(await sb.rpc('source_of_business_options')) || []; },
-    async listCoordinators() { return ok(await sb.rpc('coordinator_choices')).map((r) => camel(r)); },
+    async listCoordinators() {
+      const rows = (ok(await sb.rpc('coordinator_choices')) || []).map((r) => camel(r));
+      const visible = new Set((camel(ok(await sb.from('profiles').select('id'))) || []).map((p) => p.id));
+      return rows.filter((r) => visible.has(r.profileId));
+    },
     async addDealSalesPerson(dealId, salesId) { ok(await sb.rpc('add_deal_sales_person', { p_deal: dealId, p_sales: salesId })); return (await a.getDeal(dealId)).salesPeople; },
     async removeDealSalesPerson(dealId, salesId) { ok(await sb.rpc('remove_deal_sales_person', { p_deal: dealId, p_sales: salesId })); return (await a.getDeal(dealId)).salesPeople; },
     // migration 46: the Title Sales Rep card on the agent Parties grid (public work contact only: name, work phone, work email)
     async listSalesRepContacts(dealId) { return (ok(await sb.rpc('agent_sales_rep_contacts', { p_deal: dealId })) || []).map((r) => ({ id: r.sales_id, name: r.name, phone: r.work_phone, email: r.work_email })); },
     async setDealSalesPeople(dealId, salesIds) { ok(await sb.rpc('set_deal_sales_people', { p_deal: dealId, p_sales: salesIds })); return (await a.getDeal(dealId)).salesPeople; },
     // contact type (migration 21): contact_directory() / deal_contacts() keep their shape; types come from contact_types(ids)
-    async listContacts(search = '') { const cs = camel(ok(await sb.rpc('contact_directory', { p_search: search }))); const t = await types(cs.map((c) => c.id)); return cs.map((c) => ({ ...c, contactType: t.get(c.id) || null })); },
+    async listContacts(search = '') {
+      const cs = camel(ok(await sb.rpc('contact_directory', { p_search: search }))) || [];
+      const visible = new Set((camel(ok(await sb.from('profiles').select('id'))) || []).map((p) => p.id));
+      const real = withoutHiddenProfiles(cs, visible);
+      const t = await types(real.map((c) => c.id));
+      return real.map((c) => ({ ...c, contactType: t.get(c.id) || null }));
+    },
     // messaging (migration 13): recipients = CLA staff + own side for outside users; a conversation never mixes the two sides
     // John, Nov 3 (migration 29): wire_recipients = the same list cut to the buyer(s) + staff; wireOk drives the Share Files wire mode
     async listMessageRecipients(dealId, { wire = false } = {}) {

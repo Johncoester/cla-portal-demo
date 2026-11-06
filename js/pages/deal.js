@@ -8,6 +8,7 @@ import { slotText } from './dealclosing.js?v=202611061447';
 import { pickerHtml, mountPicker } from './person-picker.js?v=202611061447';
 import { composeModal } from './compose.js?v=202611061447';
 import { moneyShow, moneyClean } from './money-input.js?v=202611061447';
+import { sourceChoices } from '../data/place-order.js?v=202611061447';
 import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611061447';
 import { themeOn } from '../theme.js?v=202611061447';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611061447';
@@ -175,8 +176,7 @@ async function editModal(api, d, refresh) {
   const v = (k) => d[k] == null ? '' : d[k]; const refi = isRefi(d);
   // Matt, Nov 3 (b): source of business (CRM Settings Lead Source list; a retired / renamed value already on the order stays selectable) + money with commas
   const preprocs = await api.listPreprocessors();
-  const src = api.listSourceOptions ? await api.listSourceOptions().catch(() => []) : []; const srcOpts = [...src];
-  if (d.sourceOfBusiness && !srcOpts.some((o) => o.value === d.sourceOfBusiness)) srcOpts.push({ value: d.sourceOfBusiness, label: d.sourceOfBusinessLabel || d.sourceOfBusiness });
+  const srcOpts = sourceChoices(d.sourceOfBusiness, d.sourceOfBusinessLabel, refi);
   const m = modal('Edit order details', html`<form id="edf" class="form-grid">
     <label class="span2">Street<input name="street" required value="${v('street')}"></label><label>City<input name="city" required value="${v('city')}"></label>
     <label>State<select name="state" required><option value="">Select state</option>${US_STATE_NAMES.map(([c, n]) => html`<option value="${c}" ${c === d.state ? raw('selected') : ''}>${n} (${c})</option>`)}${d.state && !US_STATES.includes(d.state) ? html`<option value="${d.state}" selected>${d.state}</option>` : ''}</select></label><label>ZIP<input name="zip" value="${v('zip')}"></label><label>County<input name="county" maxlength="100" value="${v('county')}" aria-label="County"></label>
@@ -184,7 +184,7 @@ async function editModal(api, d, refresh) {
     ${refi ? html`<p class="span2 muted small" data-refi-edit>Refinance: no purchase price or EMD.${d.purchasePrice != null || d.emdAmount != null || d.emdDueDate ? ' This older order still has one; saving clears it.' : ''}</p><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>`
       : html`<label>Purchase price<input name="purchasePrice" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.purchasePrice)}"></label><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>
     <label>EMD amount<input name="emdAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.emdAmount)}"></label><label>EMD due date<input type="date" name="emdDueDate" value="${v('emdDueDate')}"></label>`}
-    ${refi ? '' : occSelects(d)}
+    ${refi ? '' : html`<div class="span2" data-md-occ ${d.state === 'MD' ? '' : raw('hidden')}>${occSelects(d)}</div>`}
     <h4 class="span2">CLA Title team</h4><label class="span2">Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, d.preprocessorUserId || '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select></label>
     <h4 class="span2">Lender</h4><label>Company<input name="lenderName" value="${v('lenderName')}"></label><label>Contact<input name="lenderContact" value="${v('lenderContact')}"></label>
     <label>Email<input name="lenderEmail" value="${v('lenderEmail')}"></label><label>Phone<input name="lenderPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${v('lenderPhone')}"></label>
@@ -193,6 +193,7 @@ async function editModal(api, d, refresh) {
     <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
   $('#edf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); ['purchasePrice', 'loanAmount', 'emdAmount'].forEach((k) => { if (f[k] !== undefined) f[k] = moneyClean(f[k]); });
     if (refi) { f.purchasePrice = ''; f.emdAmount = ''; f.emdDueDate = ''; }   // a refinance saves no purchase price / EMD (clears what an older order had)
+    if (refi || String(f.state || '').toUpperCase() !== 'MD') { f.primaryResidence = ''; f.firstTimeBuyer = ''; }
     await api.updateDeal(d.id, f); closeModal(); toast('Order saved'); refresh(); }));
 }
 
