@@ -14,6 +14,7 @@ import { yourAgentHtml } from './pages/your-agent.js?v=202611062120';
 import { fwpCanRead } from './data/funding-wire-policy.js?v=202611062120';
 import { titleCanRead } from './data/title.js?v=202611062120';
 import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611062120';   // John, Nov 4: one locked login link per fake user
+import { voiceRouteOk } from './data/voice-demo.js?v=202611062120';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611062120';   // John, Nov 4 call: sidebar search + pinned order nav
 import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611062120';
 import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611062120';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
@@ -51,7 +52,7 @@ const pages = {
   'hr-invite': () => import('./pages/hr-invite.js?v=202611062120'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => import('./pages/offices.js?v=202611062120'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
   demo: () => import('./pages/demo-view.js?v=202611062120'),   // permanent Demo mode: Super admin views a seeded demo user
-  'voice-demo': () => import('./pages/voice-demo.js?v=202611062120'),   // fake locked demo only; Grok voice stays off until a server pass exists
+  'voice-demo': () => import('./pages/voice-demo.js?v=202611062120'),   // signed-in Live Test only; the server allowlist decides who can talk
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };
@@ -227,12 +228,10 @@ function orderHeader(deal) {
     <div class="oh-side"><span class="oh-big-label">Settlement date</span><span class="oh-big">${fmtDate(deal.closingDate) || 'Not set'}</span></div></div>`;
 }
 
-let rendering = 0; let VIEW_AS = null; let DEMO_VIEW = null; let PORTAL_MODE = 'mock'; let demoTimer = null;
+let rendering = 0; let VIEW_AS = null; let DEMO_VIEW = null; let PORTAL_MODE = 'mock'; let demoTimer = null; let VOICE_OK = false; let voiceCheckedFor = '';
 function voiceBanner() {
-  if (PORTAL_MODE === 'supabase' || (DEMO_VIEW && DEMO_VIEW.active)) return '';
-  let lock = null; try { lock = readLock(sessionStorage); } catch (e) { lock = null; }
-  if (!lock || lock.viewAs) return '';
-  return html`<p class="dev-banner" data-voice-entry><a href="#/voice-demo">Voice demo</a> — fake preview only. It cannot open files or send anything.</p>`;
+  if (!VOICE_OK || PORTAL_MODE !== 'supabase' || (DEMO_VIEW && DEMO_VIEW.active)) return '';
+  return html`<p class="dev-banner" data-voice-entry><a href="#/voice-demo">Voice test</a> — pretend file only. It cannot open files or send anything.</p>`;
 }
 function demoBanner() {
   if (!DEMO_VIEW || !DEMO_VIEW.active) return '';
@@ -283,7 +282,11 @@ export async function render() {
   if (u && isClientOnlyUser(u) && route.page === 'dashboard') { location.replace('#/orders'); return; }   // live40 (John, Nov 5): clients land on Open Orders, no My files page   // HR-only login: HR is home
   if (route.page === 'templates') { const moved = legacyTemplatesHash(location.hash); if (moved) { location.replace(moved); return; } }   // old Task Templates links, including ?tab=switches and ?tab=admin
   let mods = {}; if (u && api.getModuleAccess) { try { mods = await api.getModuleAccess(); } catch (e) { mods = {}; } } setModuleMap(mods);   // module switches for this user
-  if (!routeAllowed(u, route, { locked: !!lockedId, demo: DEMO_VIEW })) {   // not part of this user's portal: refused for menu AND typed URLs
+  if (api.mode === 'supabase' && u && !(DEMO_VIEW && DEMO_VIEW.active) && api.requestVoicePass) {
+    if (voiceCheckedFor !== u.id) { voiceCheckedFor = u.id; try { const chk = await api.requestVoicePass('check'); VOICE_OK = !!(chk.ok && chk.data && chk.data.allowed === true); } catch (e) { VOICE_OK = false; } }
+  } else { VOICE_OK = false; if (!u) voiceCheckedFor = ''; }
+  const voiceBlocked = route.page === 'voice-demo' && !voiceRouteOk(u, { locked: !!lockedId, demo: DEMO_VIEW, mode: api.mode });
+  if (voiceBlocked || !routeAllowed(u, route, { locked: !!lockedId, demo: DEMO_VIEW })) {   // not part of this user's portal: refused for menu AND typed URLs
     if (!u) { location.hash = '#/login'; return; }
     const setup = route.page === 'templates' || route.page === 'admin/templates' || route.page === 'task-grid';
     const refused = setup ? 'You are not authorized to open this page.' : route.page === 'crm' ? 'The CRM is for CLA staff only.' : route.page === 'hr' ? 'HR is not available for your account. You are still in your own portal.' : 'That section is not available for your account. You are still in your own portal.';

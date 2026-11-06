@@ -83,7 +83,7 @@ export function routeAllowed(u, route, { locked = false, demo = null } = {}) {
   if (p === 'agent-invites') return canInviteAgents(u);
   if (p === 'library') return true;
   if (p === 'demo') return u.role === 'Super admin' && !!u.isAdmin && (u.status || 'active') === 'active';
-  if (p === 'voice-demo') return !!locked && !(demo && demo.active);
+  if (p === 'voice-demo') return !!u && !locked && !(demo && demo.active);
   return false;
 }
 // SECTION LINKS (John, Nov 4): &section=<name> (+ optional &file=<deal>) opens one section directly. A section only picks the first page:

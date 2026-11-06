@@ -72,6 +72,16 @@ export async function createSupabaseAdapter(cfg) {
     async startDemoView(userId) { return camel(ok(await sb.rpc('start_demo_view', { p_target: userId }))); },
     async stopDemoView() { return camel(ok(await sb.rpc('stop_demo_view'))); },
     async demoViewStatus() { return camel(ok(await sb.rpc('demo_view_status')) || { active: false }); },
+    async requestVoicePass(action) {
+      const res = await sb.functions.invoke('voice-token', { body: { action: action === 'mint' ? 'mint' : 'check' } });
+      if (res.error) {
+        let message = 'Voice is not available on this sign-in.';
+        let status = 0;
+        try { const body = await res.error.context.json(); if (body && typeof body.error === 'string' && body.error.length < 200 && !/xai-|bearer|api[_-]?key/i.test(body.error)) message = body.error; status = res.error.context.status || 0; } catch (e) { /* keep the generic line */ }
+        return { ok: false, status, message };
+      }
+      return { ok: true, status: 200, data: res.data || {} };
+    },
     async signIn(email, password) { ok(await sb.auth.signInWithPassword({ email, password })); return me(); },
     async requestPasswordReset(email) { const { error } = await sb.auth.resetPasswordForEmail(String(email || '').trim(), { redirectTo: 'https://johncoester.github.io/cla-portal-demo/' }); if (error) throw new Error(error.message); return { ok: true }; },
     async updatePassword(password) { const { data, error } = await sb.auth.updateUser({ password: String(password || '') }); if (error) throw new Error(error.message); return data; },
