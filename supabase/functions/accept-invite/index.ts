@@ -1,7 +1,7 @@
 // accept-invite: create a portal login from a one-time HR or agent invite.
 // verify_jwt MUST be false. Deploy with: supabase functions deploy accept-invite --no-verify-jwt
 // The invitee has no session. The invite token is the credential. Public sign-up stays off.
-// CORS allows only https://johncoester.github.io. The service-role key stays in this function's environment.
+// CORS allows only the current Pages origin and https://testportal.clatitle.com. The service-role key stays in this function's environment.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { GENERIC, handleAcceptInvite } from './logic.mjs';
 

@@ -2,6 +2,7 @@
  * Callers cannot name an account. The id comes from the verified Supabase session.
  * No audio or transcript is stored. */
 export const TEST_PROJECT_REF = 'aqcervntopidtcazcmlv';
+export const PORTAL_ORIGINS = ['https://johncoester.github.io', 'https://testportal.clatitle.com'];
 export const TOKEN_SECONDS = 60;
 export const MINT_LIMIT = 4;
 export const MINT_WINDOW_MS = 10 * 60 * 1000;
@@ -36,6 +37,17 @@ export function createMintLog() {
       hits.set(id, list);
     },
   };
+}
+
+export function corsHeaders(origin) {
+  const headers = {
+    'Cache-Control': 'no-store',
+    Vary: 'Origin',
+    'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+  if (PORTAL_ORIGINS.includes(origin)) headers['Access-Control-Allow-Origin'] = origin;
+  return headers;
 }
 
 function json(status, body, headers) {
