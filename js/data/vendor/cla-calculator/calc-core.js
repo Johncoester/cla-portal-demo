@@ -2,7 +2,7 @@
  * READ-ONLY SOURCE: do not edit here. Copied by tools/vendor-cla-calculator.js on 2026-11-04; refresh by re-running it
  * with a newer calculator commit (see docs/CALCULATOR-FEES.md). Only the ES-module wrapper (this header, the import and the export line) is added.
  * sha256 of the copied text: aa835376786dcba5c03ade3e13ad6e07e96a41593d83fa617e5c42ef5390c93b */
-import { CLA_FEES_SNAPSHOT } from './fee-snapshot.js?v=202611062120';
+import { CLA_FEES_SNAPSHOT } from './fee-snapshot.js?v=202611062210';
 // ---- verbatim from cla-calculator index.html ----
 // ---------- config ----------
 const SHEET_ID="1kVBo3hchS-B5-g8NHn5ZSAdAZxXxOjuaHTv6SuXamOM"; // "CLA Fee Tables (Live - Calculator)" (anyone-with-link viewer)

@@ -2,10 +2,10 @@
 // (Client-Seller). Same data as before (getDeal / getOrderOverview / listTasks / listMessageRecipients / listMyAgents), no new fields.
 // Buyers never see Cash to Close, payoffs or wire details here; the only wire item is the existing Wire instructions button (buyer + staff only, as before).
 // app.js draws this page in the light "client shell" (white top bar, no sidebar) because the view sets clientPage.
-import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney, pill, toast } from '../ui.js?v=202611062120';
-import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611062120';
-import { composeModal } from './compose.js?v=202611062120';
-import { slotText } from './dealclosing.js?v=202611062120';
+import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney, pill, toast } from '../ui.js?v=202611062210';
+import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611062210';
+import { composeModal } from './compose.js?v=202611062210';
+import { slotText } from './dealclosing.js?v=202611062210';
 
 // stage 5 shows as "Wire Fraud Awareness" on the BUYER's view only (display only; the stored stage list is unchanged)
 // live40 (John, Nov 5 meeting): the client tracker's step 2 (internal STAGES[1] 'EMD Receipt', key unchanged for reports) reads "Buyer info received" for buyer and seller.

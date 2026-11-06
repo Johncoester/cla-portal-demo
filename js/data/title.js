@@ -5,7 +5,7 @@
  *   - NO SSN IS EVER STORED: the bankruptcy (PACER) search records only the party, the search type, the result and the receipt document.
  *   - Every field is typed (no JSON blobs for anything reported on); rows are soft-deleted (deleted_at), never removed.
  *   - The portal sends nothing: "Send Title Package" only queues an outbox entry + records who / when. */
-import { US_STATE_NAMES } from './constants.js?v=202611062120';
+import { US_STATE_NAMES } from './constants.js?v=202611062210';
 
 export const TITLE_OFF = 'The Title module is turned off on this portal.';
 export const TITLE_STAFF_ONLY = 'The Title module is for CLA staff only.';
