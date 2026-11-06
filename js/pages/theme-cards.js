@@ -2,10 +2,11 @@
 // with ?theme=default nothing here is rendered and the pages look as before. FAKE DATA ONLY. Inline SVG icons (no CDN, no icon font).
 // Figures that the portal does not store yet (title search / commitment, cash to close, wire status, payoffs, loan type, rate) are MOCKUP
 // SAMPLES derived from the fake order (sampleFacts below); every one of them carries a visible "sample" tag (SAMPLE) on the page.
-import { html, raw, fmtDate, fmtMoney } from '../ui.js?v=202611052321';
-import { STAGES, isRefi, localDate } from '../data/constants.js?v=202611052321';
-import { phaseOf, PHASES } from '../data/agent-portal.js?v=202611052321';
-import { placeText } from '../data/cla-offices.js?v=202611052321';
+import { html, raw, fmtDate, fmtMoney } from '../ui.js?v=202611060013';
+import { STAGES, isRefi, localDate } from '../data/constants.js?v=202611060013';
+import { phaseOf, PHASES } from '../data/agent-portal.js?v=202611060013';
+import { placeText } from '../data/cla-offices.js?v=202611060013';
+import { modAccess } from '../data/modules.js?v=202611060013';
 
 // ---------- icons: 24x24, thin 1.5 stroke, currentColor ----------
 const P = {
@@ -104,8 +105,8 @@ export function orderSummary({ d, user, ov, inv = [], tasks = [], canWire, staff
     ${cols(html`${f('Closing Location', sc && sc.location ? placeText(sc.location, sc.officeId, sc.officeName) : closeOn ? 'CLA Title office (to be confirmed)' : '')}${f('Closing Time', sc ? timeOf(sc.at) : closeOn ? 'To be confirmed' : '')}`,
       html`${f('Days to Close', toGo == null ? '' : toGo < 0 ? `${-toGo} days ago` : toGo === 0 ? 'Today' : `${toGo} day${toGo === 1 ? '' : 's'}`)}${f('Status', sc ? 'Confirmed' : closeOn ? 'Requested' : 'Not requested')}`)}`);
   // 4. title (sample)
-  const c4 = card('title', html`${head(sm(s.title.status), s.title.final ? html`Commitment final <span class="tc-slash">/</span> Title insurance` : 'Title search & commitment', { lock: s.title.final, attr: s.title.final ? ' data-tc-commitment-final' : '' })}
-    ${cols(html`${f('Search Date', sm(fmtDate(s.title.searchDate) || 'Pending'))}${f('Commitment Date', sm(fmtDate(s.title.commitmentDate) || 'Not issued'))}`, html`${f('Liens / Judgments', sm(staffView ? s.title.liens : s.title.liens.replace(' (payoff ordered)', '')))}${f('Open Exceptions', sm(String(s.title.exceptions)))}`)}`);
+  const c4 = modAccess('title') === 'live' ? card('title', html`${head(sm(s.title.status), s.title.final ? html`Commitment final <span class="tc-slash">/</span> Title insurance` : 'Title search & commitment', { lock: s.title.final, attr: s.title.final ? ' data-tc-commitment-final' : '' })}
+    ${cols(html`${f('Search Date', sm(fmtDate(s.title.searchDate) || 'Pending'))}${f('Commitment Date', sm(fmtDate(s.title.commitmentDate) || 'Not issued'))}`, html`${f('Liens / Judgments', sm(staffView ? s.title.liens : s.title.liens.replace(' (payoff ordered)', '')))}${f('Open Exceptions', sm(String(s.title.exceptions)))}`)}`) : '';
   // 5. cash to close: ONLY where the existing wire rule allows it (CLA staff + the buyer). Never rendered for agents or sellers.
   const c5 = canWire ? card('cash', html`${head(html`<span class="tc-dim">Cash to Close:</span> ${fmtMoney(s.cash)}${SAMPLE}`, html`Sample estimate <span class="tc-slash">/</span> buyer funds due at settlement`)}
     ${cols(html`${f('Deposits Received', s.emdIn ? `${fmtMoney(s.emdIn)} EMD` : '$0')}${f('Wire Status', sm(s.wire))}`, html`${f('Est. Closing Costs', sm(fmtMoney(s.costs)))}${staffView ? f('Payoffs', sm(s.payoffs)) : f('Wire Instructions', 'Use the Wire instructions button below')}`)}`) : '';

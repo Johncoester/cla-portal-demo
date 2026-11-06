@@ -1,7 +1,7 @@
 // FAKE DATA ONLY. Fictional people, example.test addresses, 555 phone numbers. No real clients, no credentials.
-import { TEMPLATE_DEFS, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611052321';
-import { crmZohoUpgrade } from './crm.js?v=202611052321';
-import { ensureEmailTemplates } from './crm-templates.js?v=202611052321';
+import { TEMPLATE_DEFS, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611060013';
+import { crmZohoUpgrade } from './crm.js?v=202611060013';
+import { ensureEmailTemplates } from './crm-templates.js?v=202611060013';
 export const DEAL_FOLDERS = ['Contract & addenda', 'IDs & personal', 'Lender & payoff', 'HOA', 'Closing'];
 const addDays = (iso, n) => new Date(Date.parse(iso.slice(0, 10) + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 export function buildSeed() {
@@ -131,6 +131,7 @@ export function buildSeed() {
   adhoc('t-2-ba-addendum', 2, 'Upload financing addendum', 'Buyer Agent', 'todo', '2026-10-31', 'Signed financing contingency addendum.');
   adhoc('t-1-la-repairs', 1, 'Upload repair addendum', 'Listing Agent', 'done', '2026-10-20');
   tasks.forEach((t) => Object.keys(t.formData).forEach((k) => t.formData[k] === undefined && delete t.formData[k]));
+  tasks.forEach((t) => { if (/record deed|disburse funds|title commitment|closing protection|wire instruction|preliminary alta|issue final policy/i.test(t.title || '')) t.lane = 'production'; });
   // John, Nov 2: clients linked to salespeople (many-to-many). Ben -> Sam; Sally -> Sam + Tina. The link does not change who can see which file.
   const clientSalesReps = [{ clientId: 'u-buyer', salesId: 'u-sp', createdBy: 'u-admin', createdAt: '2026-10-01T12:00:00Z' },
     { clientId: 'u-seller', salesId: 'u-sp', createdBy: 'u-admin', createdAt: '2026-10-01T12:00:00Z' }, { clientId: 'u-seller', salesId: 'u-team', createdBy: 'u-admin', createdAt: '2026-10-01T12:00:00Z' }];
@@ -151,7 +152,7 @@ function more(deals) {
     { id: 'f-lib-staff', scope: 'library', dealId: null, name: 'Internal procedures (staff)', staffOnly: true, createdBy: 'u-admin', createdAt: '2026-08-01T12:00:00Z' },
   ];
   deals.forEach((d, i) => DEAL_FOLDERS.forEach((name, j) => folders.push({ id: `f-${i + 1}-${j + 1}`, scope: 'deal', dealId: d.id, name, staffOnly: false, createdBy: 'u-proc', createdAt: d.createdAt })));
-  const D = (id, dealId, folderId, name, desc, by, vis, size, at = '2026-10-10T15:00:00Z') => ({ id, dealId, folderId, name, description: desc, mimeType: name.endsWith('.pdf') ? 'application/pdf' : 'text/plain', size, dataUrl: null, uploadedBy: by, visibility: vis, createdAt: at });
+  const D = (id, dealId, folderId, name, desc, by, vis, size, at = '2026-10-10T15:00:00Z') => ({ id, dealId, folderId, name, description: desc, mimeType: name.endsWith('.pdf') ? 'application/pdf' : 'text/plain', size, dataUrl: null, uploadedBy: by, visibility: vis, createdAt: at, sample: true });
   const documents = [
     D('doc-1', 'deal-1', 'f-1-1', 'Purchase Contract (fake).pdf', 'Fully executed contract', 'u-lagent', 'all', 182340),
     D('doc-2', 'deal-1', 'f-1-4', 'HOA Resale Certificate (fake).pdf', 'HOA docs (fake)', 'u-lagent', 'all', 96120),

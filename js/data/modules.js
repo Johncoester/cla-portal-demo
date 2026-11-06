@@ -8,7 +8,7 @@
 // A module whose CONFIG flag is off (features.crm / features.accounting in config.js) is not available at all: not even Admins see it and the
 // switch is disabled. That keeps the real live portal clean (config.example.js: accounting false).
 // Core order pages are ALWAYS ON and have no switch (ALWAYS_ON below). Mirrored by migration 35 (public.module_settings + module_settings_log).
-import { isSuperAdmin, isOutside } from './constants.js?v=202611052321';
+import { isSuperAdmin, isOutside } from './constants.js?v=202611060013';
 export const BETA_LABEL = 'Beta, in testing';
 export const MODULES = [
   { id: 'crm', label: 'CRM', flag: 'crm', where: '#/crm', desc: 'The Zoho-style CRM: Home, Leads, Clients, Companies, Pipeline, Reports, Dashboards, Templates.', who: 'CLA staff (Processor read only); never TCs, agents or clients' },
@@ -18,16 +18,16 @@ export const MODULES = [
   // ONLY Super admins see it (Beta); plain Admins do not. Only a Super admin flips this switch. Live: HR managers get the HR directory, every other
   // employee only their own profile (data/hr.js). Agents and clients never.
   { id: 'hr', label: 'HR', where: 'Workspace > HR', desc: 'HR workspace (Zoho People style): employee directory, profiles, departments, designations, invite links, change history.', who: 'Super admins while in setup; when Live: HR managers (directory) and every employee (My profile only); never agents or clients', defaultLive: false, superOnly: true, noOutside: true },
-  { id: 'accounting', label: 'Accounting', flag: 'accounting', where: 'order > Accounting', desc: 'Order Accounting tab: fee ledger, ALTA Settlement Statement, Closing Disclosure fee pages (TEST - not a legal disclosure).', who: 'Processor / Admin / Super admin edit; Sales and TCs read only; never agents or clients' },
+  { id: 'accounting', label: 'Accounting', flag: 'accounting', where: 'order > Accounting', desc: 'Order Accounting tab: fee ledger, ALTA Settlement Statement, Closing Disclosure fee pages (TEST - not a legal disclosure).', who: 'Processor / Admin / Super admin edit; Sales and TCs read only; never agents or clients', portalDefault: false },
   // PAYOFFS / HOA (John, Nov 5, live40: "I don't see a place to turn off the payoff mod"): the order Payoffs / HOA view (Accounting tab ?v=payoffs, so it needs the
   // accounting config flag and sits under Accounting). Off = Beta: regular users get no Payoffs / HOA nav item, page or data; Admins test it. Title has its own switch.
-  { id: 'payoffs', label: 'Payoffs / HOA', flag: 'accounting', parent: 'accounting', where: 'order > Payoffs / HOA', desc: 'The order Payoffs / HOA tab (payoffs, HOA, FFB, GR)', who: 'CLA staff (Processor edits; Admins); never agents or clients', noOutside: true },
-  { id: 'post-closing', label: 'Post-Closing Scanbacks', flag: 'accounting', parent: 'accounting', where: 'order > Accounting > Post-Closing', desc: 'Buyer / seller scanback intake, document checklist, FA secure-portal queue, agent ALTA outbox, alerts and one-week audit.', who: 'Processor / TC / Admins edit; Sales read only; never agents or clients', noOutside: true },
-  { id: 'e-recording', label: 'E-Recording (Simplifile)', flag: 'accounting', parent: 'accounting', where: 'order > Accounting > Post-Closing', desc: 'Daily disbursement recording queue, instruments, MD intake, affidavits, review, fee/tax balance and recording status. Tracking only.', who: 'Processor / TC / Admins edit; Sales read only; never agents or clients', noOutside: true },
-  { id: 'funding', label: 'Funding', flag: 'accounting', parent: 'accounting', where: 'order > Funding', desc: 'Funding / post-closing and disbursement queue, funds, ALTA checks, checks, FedEx and queued notifications.', who: 'Processors, Funding Team and Admins; never agents, TCs or clients', noOutside: true },
-  { id: 'wires', label: 'Wires', flag: 'accounting', parent: 'accounting', where: 'order > Wires', desc: 'Seller-proceeds wire setup tracking, masked bank identifiers, audit and ledger-post checklist. No real bank wires.', who: 'Processors, Funding Team and Admins; never agents, TCs or clients', noOutside: true },
-  { id: 'policy', label: 'Final Policy', flag: 'policy', where: 'order > Final Policy', desc: 'Final owner/lender policy queue, premium and document checks, issuance, policy filing and completed log.', who: 'Processors, Funding Team and Admins; never agents, TCs or clients', noOutside: true },
-  { id: 'title', label: 'Title', flag: 'title', where: 'order > Title (under Payoffs / HOA)', desc: 'Title review inside an order: order notes, PACER, search package, contract and loan check, chain of title, Schedule A, requirements (B-I), exceptions (B-II), policies, CPL, buyer commitment copy, Title Package, summary note.', who: 'Processor / Transaction Coordinator / Admin / Super admin edit; Sales read only; never agents or clients', noOutside: true },
+  { id: 'payoffs', label: 'Payoffs / HOA', flag: 'accounting', parent: 'accounting', where: 'order > Payoffs / HOA', desc: 'The order Payoffs / HOA tab (payoffs, HOA, FFB, GR)', who: 'CLA staff (Processor edits; Admins); never agents or clients', noOutside: true, portalDefault: false },
+  { id: 'post-closing', label: 'Post-Closing Scanbacks', flag: 'accounting', parent: 'accounting', where: 'order > Accounting > Post-Closing', desc: 'Buyer / seller scanback intake, document checklist, FA secure-portal queue, agent ALTA outbox, alerts and one-week audit.', who: 'Processor / TC / Admins edit; Sales read only; never agents or clients', noOutside: true, portalDefault: false },
+  { id: 'e-recording', label: 'E-Recording (Simplifile)', flag: 'accounting', parent: 'accounting', where: 'order > Accounting > Post-Closing', desc: 'Daily disbursement recording queue, instruments, MD intake, affidavits, review, fee/tax balance and recording status. Tracking only.', who: 'Processor / TC / Admins edit; Sales read only; never agents or clients', noOutside: true, portalDefault: false },
+  { id: 'funding', label: 'Funding', flag: 'accounting', parent: 'accounting', where: 'order > Funding', desc: 'Funding / post-closing and disbursement queue, funds, ALTA checks, checks, FedEx and queued notifications.', who: 'Processors, Funding Team and Admins; never agents, TCs or clients', noOutside: true, portalDefault: false },
+  { id: 'wires', label: 'Wires', flag: 'accounting', parent: 'accounting', where: 'order > Wires', desc: 'Seller-proceeds wire setup tracking, masked bank identifiers, audit and ledger-post checklist. No real bank wires.', who: 'Processors, Funding Team and Admins; never agents, TCs or clients', noOutside: true, portalDefault: false },
+  { id: 'policy', label: 'Final Policy', flag: 'policy', where: 'order > Final Policy', desc: 'Final owner/lender policy queue, premium and document checks, issuance, policy filing and completed log.', who: 'Processors, Funding Team and Admins; never agents, TCs or clients', noOutside: true, portalDefault: false },
+  { id: 'title', label: 'Title', flag: 'title', where: 'order > Title (under Payoffs / HOA)', desc: 'Title review inside an order: order notes, PACER, search package, contract and loan check, chain of title, Schedule A, requirements (B-I), exceptions (B-II), policies, CPL, buyer commitment copy, Title Package, summary note.', who: 'Processor / Transaction Coordinator / Admin / Super admin edit; Sales read only; never agents or clients', noOutside: true, portalDefault: false },
   { id: 'tasks', label: 'All Tasks', where: '#/tasks', desc: 'All tasks across files (filters, sort, Buyer / Seller / Agent groups).', who: 'Admins, CLA staff and TCs' },
   { id: 'task-grid', label: 'Task Grid', where: '#/task-grid', desc: 'Files across, tasks down (Processor / Admin grid).', who: 'Processor and Admins' },
   { id: 'library', label: 'Library', where: '#/library', desc: 'The shared document library (forms and handouts).', who: 'everyone signed in' },
@@ -38,6 +38,14 @@ export const ALWAYS_ON = ['Dashboard / Work Queue', 'Open Orders', 'Place Order'
 export const moduleById = (id) => MODULES.find((m) => m.id === id) || null;
 export const moduleAvailable = (m, features = {}) => !!m && (!m.flag || features[m.flag] === true);
 export const defaultModuleSettings = () => MODULES.map((m) => ({ module: m.id, live: m.defaultLive !== false, updatedAt: null, updatedBy: null }));   // every module starts Live (same as before the switches), except HR (off while it is set up)
+// Production modules stay out of the portal nav until an Admin saves the Live switch. The module code and its data calls stay available.
+export function portalSurface(id, access, settings = []) {
+  const m = moduleById(id);
+  if (!m || m.portalDefault !== false) return access;
+  const s = settings.find((x) => x.module === id);
+  if (s && s.updatedBy) return access;
+  return 'off';
+}
 export const canManageModules = (u) => !!(u && u.isAdmin && (u.status || 'active') === 'active');   // Admin and Super admin (isAdmin is THE admin check)
 // who may flip ONE module's switch: any Admin / Super admin, except a superOnly module (HR): Super admins only
 export const canSwitchModule = (u, m) => canManageModules(u) && (!m || !m.superOnly || isSuperAdmin(u));
@@ -47,7 +55,9 @@ export function moduleAccess(id, u, features = {}, settings = []) {
   if (!moduleAvailable(m, features)) return 'off';
   const parent = m.parent ? moduleAccess(m.parent, u, features, settings) : 'live'; if (parent === 'off') return 'off';
   if (m.noOutside && (!u || isOutside(u.role) || u.accountRole)) return 'off';   // HR: agents and clients never
-  const s = settings.find((x) => x.module === id); const live = s ? s.live !== false : m.defaultLive !== false;
+  const s = settings.find((x) => x.module === id);
+  const untouchedPortal = m.portalDefault === false && (!s || (s.live !== false && !s.updatedBy));
+  const live = untouchedPortal ? true : (s ? s.live !== false : m.defaultLive !== false);
   if (live && parent === 'live') return 'live';
   if (m.superOnly) return isSuperAdmin(u) ? 'beta' : 'off';   // HR in setup: Super admins only (not plain Admins)
   return canManageModules(u) ? 'beta' : 'off';

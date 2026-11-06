@@ -1,8 +1,8 @@
 /* nov5-rules.js : approved Nov 5 rules (John). Pure helpers shared by the mock adapter, the screens and the tests.
  * FAKE DATA ONLY. No real staff emails. Nothing here sends mail or talks to a hosted project.
  * Mirrored in supabase/migrations/20261105000096_nov5_feedback_task_admin.sql. */
-import { findOption, activeOptions } from './crm-config.js?v=202611052321';
-import { statusListOf } from './crm-janine.js?v=202611052321';
+import { findOption, activeOptions } from './crm-config.js?v=202611060013';
+import { statusListOf } from './crm-janine.js?v=202611060013';
 
 export const OPEN_TASK = ['todo', 'in_progress', 'blocked'];
 export const TASK_LANES = ['portal', 'production'];
@@ -151,6 +151,16 @@ export function taskReadable({ user, task, staff, admin, pureClient, holds, owne
   return true;
 }
 export const OPEN_TASK_HANDLING = 'Disabled or retired templates are not used for new files or for people added later. Tasks already on a file, including open ones, keep their status and their answers. They are not cancelled and not deleted. The assigned owner and CLA staff can still see an open one so the work can finish. Other parties do not. Turning the template back on, or publishing a new version, does not rewrite those copies.';
+
+// Title Production lane (Matt, Nov 5). These stay in the data. The portal Tasks tab shows Portal-lane work only.
+export const PRODUCTION_LANE_RE = /title commitment|closing protection|wire instruction|preliminary alta|record deed|disburse funds|issue final policy/i;
+export function taskLaneOf(task) {
+  if (!task) return 'portal';
+  if (task.lane === 'production' || task.lane === 'portal') return task.lane;
+  if (PRODUCTION_LANE_RE.test(task.title || '')) return 'production';
+  return 'portal';
+}
+export const isPortalTask = (task) => taskLaneOf(task) !== 'production';
 
 export function ordinaryCoverageDoc(doc) {
   if (!doc || doc.wireInstructions) return false;

@@ -9,13 +9,18 @@ export function messagesActivity(x) {
   const api = {
     // { wire: true }: only the people who may receive WIRE INSTRUCTIONS (CLA staff + the buyer clients on this file; never an agent). Every row says wireOk.
     async listMessageRecipients(dealId, { wire = false } = {}) {
-      let u = needUser(); u = onDeal(u, dealId); const ids = new Set(participantsOf(dealId, u).map((p) => p.contact && p.contact.profileId).filter(Boolean));
-      ids.add(load().deals.find((z) => z.id === dealId).processorId);
-      if (u.role === 'Transaction Coordinator') ids.add(u.id);
-      // outside users: CLA staff + their own side only (never the other side's agent or client)
-      return clone(load().profiles.filter((p) => ids.has(p.id) && p.id !== u.id && p.status === 'active' && x.canMessage(u, p.id, dealId))
-        .filter((p) => !wire || x.wireAllowed(p.id, dealId))
-        .map(({ id, firstName, lastName }) => ({ id, firstName, lastName, role: x.fileRoleText(id, dealId), side: x.personSide(id, dealId), wireOk: x.wireAllowed(id, dealId) })));
+      let u = needUser(); u = onDeal(u, dealId); const staff = x.isStaffView(u); const seen = new Set(); const rows = [];
+      const add = (id, firstName, lastName, role) => { if (!id || id === u.id || seen.has(id)) return; if (!staff && String(id).startsWith('contact:')) return;
+        if (!String(id).startsWith('contact:') && !x.canMessage(u, id, dealId)) return; if (wire && (String(id).startsWith('contact:') || !x.wireAllowed(id, dealId))) return;
+        seen.add(id); rows.push({ id, firstName, lastName, role: role || x.fileRoleText(id, dealId), side: String(id).startsWith('contact:') ? null : x.personSide(id, dealId), wireOk: String(id).startsWith('contact:') ? false : x.wireAllowed(id, dealId) }); };
+      for (const p of participantsOf(dealId, u)) { if (p.removed || !p.contact) continue; const c = p.contact;
+        add(c.profileId || (staff ? `contact:${c.id}` : null), c.firstName, c.lastName, p.role); }
+      const deal = load().deals.find((z) => z.id === dealId);
+      if (deal) { add(deal.processorId, (load().profiles.find((p) => p.id === deal.processorId) || {}).firstName, (load().profiles.find((p) => p.id === deal.processorId) || {}).lastName, 'Processor');
+        add(deal.preprocessorUserId, (load().profiles.find((p) => p.id === deal.preprocessorUserId) || {}).firstName, (load().profiles.find((p) => p.id === deal.preprocessorUserId) || {}).lastName, 'Preprocessor'); }
+      for (const s of load().dealSalesPeople || []) if (s.dealId === dealId) { const p = load().profiles.find((z) => z.id === s.salesId); if (p) add(p.id, p.firstName, p.lastName, p.role); }
+      if (u.role === 'Transaction Coordinator') add(u.id, u.firstName, u.lastName, u.role);
+      return clone(rows.filter((r) => r.id !== u.id));
     },
     async listThreads(dealId) {
       let u = needUser(); u = onDeal(u, dealId); const d = load();
@@ -33,9 +38,13 @@ export function messagesActivity(x) {
       const allowed = new Set((await api.listMessageRecipients(dealId)).map((p) => p.id)); const ids = [...new Set((participantIds || []).filter((i) => allowed.has(i)))];
       if ((participantIds || []).some((i) => !allowed.has(i) && i !== u.id)) fail('You can message CLA Title staff and people on your own side of this order only.');
       if (!ids.length) fail('Pick at least one recipient on this order.'); if (!str(body, 4000)) fail('Write a message first.');
-      if (x.mixedSides([u.id, ...ids], dealId)) fail('A conversation can include CLA Title staff and ONE side of the order (buyer side or seller side), not both. Start a separate conversation for each side.');
-      x.wireTextGuard([u.id, ...ids], dealId, `${str(subject, 150)}\n${str(body, 4000)}`);
-      const t = { id: nid('th'), dealId, subject: str(subject, 150) || 'New conversation', createdBy: u.id, createdAt: now(), participantIds: [u.id, ...ids] };
+      const profiles = ids.filter((i) => !String(i).startsWith('contact:')); const externals = ids.filter((i) => String(i).startsWith('contact:'));
+      if (externals.length && !x.isStaffView(u)) fail('You can message CLA Title staff and people on your own side of this order only.');
+      if (profiles.length && x.mixedSides([u.id, ...profiles], dealId)) fail('A conversation can include CLA Title staff and ONE side of the order (buyer side or seller side), not both. Start a separate conversation for each side.');
+      x.wireTextGuard([u.id, ...profiles], dealId, `${str(subject, 150)}\n${str(body, 4000)}`);
+      if (externals.length) { for (const id of externals) { const c = d.contacts.find((z) => z.id === id.slice(8)); if (!c) fail('That contact is not on this order.');
+        d.outbox.push({ id: nid('ob'), channel: 'email', status: 'queued', toEmail: c.email || '', toName: `${c.firstName} ${c.lastName}`.trim(), subject: str(subject, 150) || 'New conversation', body: str(body, 4000), dealId, createdBy: u.id, createdAt: now(), sentAt: null }); } }
+      const t = { id: nid('th'), dealId, subject: str(subject, 150) || 'New conversation', createdBy: u.id, createdAt: now(), participantIds: [u.id, ...profiles] };
       d.threads.push(t); d.messages.push({ id: nid('m'), threadId: t.id, authorId: u.id, body: str(body, 4000), createdAt: now() }); d.reads.push({ threadId: t.id, profileId: u.id, at: now() });
       log(dealId, u.id, 'message.thread', 'thread', t.id, `Started conversation: ${t.subject}`);
       notify(t.participantIds, { kind: 'message', dealId, title: `New conversation from ${nameOf(u.id)}: ${t.subject}`, link: `#/deals/${dealId}/inbox/${t.id}` }, u.id); save(); return clone(t);

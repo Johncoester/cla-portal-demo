@@ -2,7 +2,7 @@
  * hosted project (best effort; the mock adapter and the SQL tests are the tested parts).
  *  - public.closing_locations(deal): the rows this user may see (signing_method only for CLA staff)
  *  - public.answer_closing_location(participant, in_state, state, country) / public.set_signing_method(participant, method): RLS + trigger decide. */
-import { cleanLocationAnswer, locationFlag, whereText, signingLabel } from './closing-location.js?v=202611052321';
+import { cleanLocationAnswer, locationFlag, whereText, signingLabel } from './closing-location.js?v=202611060013';
 export function closingLocationSupabase({ sb, ok }) {
   const list = async (dealId) => (ok(await sb.rpc('closing_locations', { p_deal: dealId })) || []).map((r) => {
     const v = { participantId: r.participant_id, dealId, partyRole: r.party_role, name: r.name || '', propertyState: r.property_state, inStateAtClosing: r.in_state_at_closing,

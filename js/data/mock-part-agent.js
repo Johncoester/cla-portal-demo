@@ -3,9 +3,9 @@
  * Modify / Submit Revision, task-tied messages, Request Update (staff answer it), Share Access (RECORDED only: no email, no login is created),
  * "Complete Requests Now" invite email (preview + outbox only), rich-text messages with file attachments (Share Files), and the outside user's own
  * Activity feed (only things they can already open). Nothing here deletes anything; documents stay permanent. */
-import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, COMMISSION_LABEL, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611052321';
-import { senderFor } from './email-senders.js?v=202611052321';
-import { CLA_PHONE, isRefi } from './constants.js?v=202611052321';
+import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, COMMISSION_LABEL, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611060013';
+import { senderFor } from './email-senders.js?v=202611060013';
+import { CLA_PHONE, isRefi } from './constants.js?v=202611060013';
 export function agentPortal(x) {
   const { api: root, load, save, nid, needUser, isManager, notViewOnly, dealOr404, onDeal, log, prof, nameOf, ownerOf, taskVisible, threadVisible, unreadIn, docVisible, participantsOf, isStaffView,
     notify, dealProfileIds, dealView, contactOf, clone, now, fail, str, emailOk, C } = x;
@@ -102,7 +102,7 @@ export function agentPortal(x) {
       // EMD BANNER (John, Nov 4): true for a pure buyer while the file's EMD receipt task is still open (same rule as the bell / outbox reminders); the task itself stays hidden
       const emdPending = x.pureBuyer(u) && d.tasks.some((t) => t.dealId === dealId && t.assignedRole === 'Client-Buyer' && x.EMD_RECEIPT.test(t.title || '') && OPEN.includes(t.status));
       return clone({ progress: progressOut(q), outstanding, emdPending,
-        counts: { tasks: staff ? v.openTasks : outstanding, inbox: v.unread, threads: threads.length, documents: docs.length, activity: act.length },
+        counts: { tasks: staff ? v.openTasks : outstanding, inbox: v.unread, threads: threads.length, documents: docs.filter((z) => !z.sample).length, activity: act.length },
         orderDetails: { propertyAddress: v.address, orderId: q.id, orderType: q.transactionType || 'Purchase', refinance: refi, purchasePrice: refi ? null : q.purchasePrice, loanAmount: q.loanAmount, fileNumber: q.fileNumber, agencyLicenseId: licenseId },
         parties, recentActivity: act.slice(0, 6), conversations: threads.slice(0, 5),
         canRequestUpdate: !staff && !!C.sideOf(u.role) && !C.viewOnly(u), canShareAccess: canShare(u) && !C.viewOnly(u), canAnswerUpdates: staff && (isManager(u) || u.isAdmin),
@@ -199,10 +199,16 @@ export function agentPortal(x) {
         const m = await root.postMessage(threadId, text || '(file shared)'); const mm = load().messages.find((z) => z.id === m.id); mm.bodyHtml = clean; mm.attachmentIds = ids; save(); return clone(msgOut(u, mm)); }
       u = onDeal(u, dealId); notViewOnly(u); const allowed = new Set((await root.listMessageRecipients(dealId)).map((p) => p.id)); const rec = [...new Set(to || [])];
       if (!rec.length) fail('Pick who to send it to.'); if (rec.some((i) => !allowed.has(i))) fail('You can message CLA Title staff and people on your own side of this order only.');
-      if (x.mixedSides([u.id, ...rec], dealId)) fail('A conversation can include CLA Title staff and ONE side of the order, not both.');
-      wireGuard(u, [u.id, ...rec], dealId, files); x.wireTextGuard([u.id, ...rec], dealId, `${str(subject, 150)}\n${text}`);
-      const ids = await attach(u, dealId, files, shareVisibility(u, rec, dealId));
-      const t = await root.createThread(dealId, { subject: str(subject, 150) || ((files || []).length ? 'Shared files' : 'New conversation'), participantIds: rec, body: text || '(file shared)' });
+      const profiles = rec.filter((i) => !String(i).startsWith('contact:')); const externals = rec.filter((i) => String(i).startsWith('contact:'));
+      if (externals.length && !x.isStaffView(u)) fail('You can message CLA Title staff and people on your own side of this order only.');
+      if (externals.length) { const d0 = load(); for (const id of externals) { const c = d0.contacts.find((z) => z.id === id.slice(8)); if (!c) fail('That contact is not on this order.');
+        d0.outbox.push({ id: nid('ob'), channel: 'email', status: 'queued', toEmail: c.email || '', toName: `${c.firstName} ${c.lastName}`.trim(), subject: str(subject, 150) || 'Message', body: text || '(file shared)', dealId, createdBy: u.id, createdAt: now(), sentAt: null }); } save(); }
+      if (!profiles.length) { const d0 = load(); const t0 = { id: nid('th'), dealId, subject: str(subject, 150) || 'New conversation', createdBy: u.id, createdAt: now(), participantIds: [u.id] };
+        d0.threads.push(t0); d0.messages.push({ id: nid('m'), threadId: t0.id, authorId: u.id, body: text || '(queued to a contact without a portal login)', createdAt: now() }); save(); return clone(t0); }
+      if (x.mixedSides([u.id, ...profiles], dealId)) fail('A conversation can include CLA Title staff and ONE side of the order, not both.');
+      wireGuard(u, [u.id, ...profiles], dealId, files); x.wireTextGuard([u.id, ...profiles], dealId, `${str(subject, 150)}\n${text}`);
+      const ids = await attach(u, dealId, files, shareVisibility(u, profiles, dealId));
+      const t = await root.createThread(dealId, { subject: str(subject, 150) || ((files || []).length ? 'Shared files' : 'New conversation'), participantIds: profiles, body: text || '(file shared)' });
       const d = load(); const m = d.messages.filter((z) => z.threadId === t.id)[0]; m.bodyHtml = clean; m.attachmentIds = ids; save(); return clone({ ...t, message: msgOut(u, m) });
     },
     async getThreadDetail(id) { const t = await root.getThread(id); const u = onDeal(needUser(), t.dealId); const d = load();
