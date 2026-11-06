@@ -4,12 +4,12 @@
 // click a line -> "Settings · Line NN" + "Payments · <line>", six payment methods, help rail); colours stay ours (baby-blue cards), no Qualia branding.
 // Every line is still ONE fee on the same ledger (accounting.js), so the ALTA, the CD pages, prorations and CLA rates keep working.
 // TEST ONLY. Wire instructions (bank routing / account numbers) are NEVER stored: the Wire block is a reminder only.
-import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611062001';
-import { splitFor } from '../data/underwriter.js?v=202611062001';
-import { cdDescription } from '../data/accounting.js?v=202611062001';
-import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611062001';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
-import * as Q from '../data/qualia-charges.js?v=202611062001';
-import { modOn } from '../data/modules.js?v=202611062001';   // live40: Payoffs / HOA switch
+import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611062120';
+import { splitFor } from '../data/underwriter.js?v=202611062120';
+import { cdDescription } from '../data/accounting.js?v=202611062120';
+import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611062120';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
+import * as Q from '../data/qualia-charges.js?v=202611062120';
+import { modOn } from '../data/modules.js?v=202611062120';   // live40: Payoffs / HOA switch
 
 const usd = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const cell$ = (n) => (n == null || Number(n) === 0 ? '' : usd(n));

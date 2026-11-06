@@ -1,8 +1,8 @@
 /* [SUPABASE] Agent invites, agent profiles and the "Your agent" card (migration 41). Same names / shapes as mock-part-agent-invite.js.
  * NOT run against a hosted project (best effort; the mock adapter is the tested one). NOTHING IS SENT: the invite RPC returns the token and the page
  * shows the link. Photos go to the private 'agent-photos' bucket at <uid>/avatar.jpg and are shown through short-lived signed URLs. */
-import { cleanAgentProfile, canInviteAgents, cardOf } from './agent-profile.js?v=202611062001';
-import { acceptInviteRemote } from './accept-invite-client.js?v=202611062001';
+import { cleanAgentProfile, canInviteAgents, cardOf } from './agent-profile.js?v=202611062120';
+import { acceptInviteRemote } from './accept-invite-client.js?v=202611062120';
 const inv = (r) => ({ id: r.id, contactId: r.contact_id, dealId: r.deal_id, firstName: r.first_name, lastName: r.last_name, email: r.email, status: r.status === 'pending' && r.expires_at < new Date().toISOString() ? 'expired' : r.status,
   createdAt: r.created_at, expiresAt: r.expires_at, acceptedAt: r.accepted_at, revokedAt: r.revoked_at, resentCount: r.resent_count || 0, createdByName: '' });
 export function agentInviteSupabase({ sb, ok, me }) {
