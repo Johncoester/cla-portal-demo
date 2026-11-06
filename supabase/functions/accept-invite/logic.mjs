@@ -1,6 +1,7 @@
 // Decision logic for accept-invite. No service-role key and no network.
 // index.ts wires the Supabase service client. Node tests call this file directly.
-export const ALLOWED_ORIGIN = 'https://johncoester.github.io';
+export const PORTAL_ORIGINS = ['https://johncoester.github.io', 'https://testportal.clatitle.com'];
+export const ALLOWED_ORIGIN = PORTAL_ORIGINS[0];
 export const GENERIC = 'This invite link is not valid or has expired.';
 export const SAFE_FIELD = new Set([
   'First name, last name and cell phone are required.',
@@ -17,8 +18,8 @@ export function corsFor(origin) {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     Vary: 'Origin',
   };
-  const allow = origin === ALLOWED_ORIGIN;
-  if (allow) headers['Access-Control-Allow-Origin'] = ALLOWED_ORIGIN;
+  const allow = PORTAL_ORIGINS.includes(origin);
+  if (allow) headers['Access-Control-Allow-Origin'] = origin;
   return { allow, headers };
 }
 
