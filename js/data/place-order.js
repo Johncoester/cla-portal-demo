@@ -40,6 +40,18 @@ export function withoutHiddenProfiles(contacts, visibleProfileIds) {
   return (contacts || []).filter((c) => !c.profileId || ids.has(c.profileId));
 }
 export const PROCESSOR_PICK_ROLES = ['Processor', 'Preprocessor', 'Admin', 'Super admin'];
+/* Unassigned is a real choice. A blank id is not filled with the person who is signed in. */
+export function processorChoices(procs, keepId, meId) {
+  const options = [{ value: '', label: 'Unassigned' }];
+  for (const p of procs || []) {
+    if (!p || !p.id) continue;
+    const role = p.role && p.role !== 'Processor' ? ` (${p.role})` : '';
+    const you = meId && p.id === meId ? ' (you)' : '';
+    options.push({ value: p.id, label: `${p.firstName || ''} ${p.lastName || ''}`.trim() + role + you });
+  }
+  const value = keepId && options.some((o) => o.value === keepId) ? keepId : '';
+  return { options, value, dropped: !!(keepId && value !== keepId) };
+}
 export const SALES_PICK_ROLES = ['Sales Person', 'Sales Team'];
 /* Edit order: the four referral choices, plus a value already stored that is not one of them (an older marketing source, or a referral tied to a contact). */
 export function sourceChoices(current, label, refinance) {
