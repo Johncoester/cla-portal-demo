@@ -36,6 +36,7 @@ const pages = {
   teams: () => import('./pages/teams.js?v=202611061447'),
   templates: () => import('./pages/templates.js?v=202611061447'),
   'admin/templates': () => import('./pages/templates.js?v=202611061447'),
+  'admin/workflows': () => import('./pages/workflows.js?v=202611061447'),
   library: () => import('./pages/library.js?v=202611061447'),
   activity: () => import('./pages/activity.js?v=202611061447'),
   outbox: () => import('./pages/outbox.js?v=202611061447'),
@@ -72,6 +73,7 @@ function parse() {
   if (seg[0] === 'deals' && seg[1]) return { page: 'deal', params: { id: seg[1], tab: seg[2] || 'overview', sub: seg[3], v: new URLSearchParams((location.hash || '').split('?')[1] || '').get('v') || '' } };   // v: the Accounting view (route guard: payoffs views)
   if (seg[0] === 'orders' && seg[1] === 'new') return { page: 'orders/new', params: {} };
   if (seg[0] === 'admin' && seg[1] === 'templates') return { page: 'admin/templates', params: {} };
+  if (seg[0] === 'admin' && seg[1] === 'workflows') return { page: 'admin/workflows', params: { id: seg[2] || '' } };
   if (seg[0] === 'users') return { page: 'users', params: { mode: seg[1] || 'list', id: seg[2] } };
   if (seg[0] === 'crm') return { page: 'crm', params: { section: seg[1] || 'home', id: seg[2] || '', sub: seg[3] || '' } };
   if (seg[0] === 'agent-invite') return { page: 'agent-invite', params: { token: seg[1] || '' } };
@@ -110,6 +112,7 @@ export function navFor(u, dealId, unread, features = {}, ws = 'everything', demo
   if (modOn('library')) add('library', 'Library', '#/library', 'documents');
   if (runsOrders(u) || u.isAdmin) add('activity', 'Activity Log', '#/activity', 'activity');
   if (canOpenTaskSetup(u, demo)) add('templates', 'Task Templates', '#/admin/templates', 'task');
+  if (canOpenTaskSetup(u, demo)) add('workflows', 'Workflows', '#/admin/workflows', 'task');
   if (runsOrders(u) || u.isAdmin || u.role === 'Transaction Coordinator') add('outbox', 'Reminder Outbox', '#/outbox', 'inbox');
   if (canInviteAgents(u)) add('agent-invites', 'Agent Invites', '#/agent-invites', 'contact-us');   // John, Nov 4
   if (canManageModules(u)) add('modules', 'Modules', '#/modules', 'documents');
@@ -132,10 +135,10 @@ async function layout(u, view, route, ws = 'everything') {
   let counts = null; if (deal) { try { counts = (await api.getOrderOverview(dealId)).counts; } catch (e) { counts = null; } }
   const cnt = (tab) => { if (!counts) return ''; const n = { tasks: counts.tasks, inbox: counts.inbox, documents: counts.documents, activity: counts.activity }[tab]; return n == null ? '' : html`<span class="tab-count" data-tab-count="${tab}">${n}</span>`; };
   const HR_CUR = { home: 'hr-home', employees: 'hr-employees', employee: 'hr-employees', add: 'hr-add', departments: 'hr-departments', designations: 'hr-designations', me: 'hr-me', team: 'hr-team', settings: 'hr-settings', documents: 'hr-documents' };
-  const navPage = route.page === 'admin/templates' ? 'templates' : route.page;
+  const navPage = route.page === 'admin/templates' ? 'templates' : route.page === 'admin/workflows' ? 'workflows' : route.page;
   const cur = navPage === 'hr' ? (HR_CUR[route.params.section] || '') : navPage === 'crm' && ws === 'crm' ? ({ home: 'crm-home', deals: 'crm-deals', contacts: 'crm-contacts', leads: 'crm-leads', calls: 'crm-calls', templates: 'crm-templates' }[route.params.section] || '') : (navPage === 'dashboard' && ws === null ? 'home' : navPage + (navPage === 'users' && route.params.mode === 'new' ? '/new' : ''));
   // card theme only: an inline SVG icon + the label in a span (shown as a tooltip in the icon-only sidebar); the link text stays the same
-  const tc = themeOn(); const ICO = { 'hr-home': 'dashboard', 'hr-employees': 'users', 'hr-add': 'users/new', 'hr-departments': 'teams', 'hr-designations': 'templates', 'hr-me': 'contacts', 'hr-team': 'teams', 'hr-settings': 'modules', 'hr-documents': 'documents', home: 'dashboard', title: 'documents', 'crm-home': 'crm', 'crm-deals': 'orders', 'crm-contacts': 'contacts', 'crm-leads': 'users/new', 'crm-calls': 'closing', 'crm-templates': 'templates' };   // workspace menu items reuse the card-theme icons
+  const tc = themeOn(); const ICO = { workflows: 'templates', 'hr-home': 'dashboard', 'hr-employees': 'users', 'hr-add': 'users/new', 'hr-departments': 'teams', 'hr-designations': 'templates', 'hr-me': 'contacts', 'hr-team': 'teams', 'hr-settings': 'modules', 'hr-documents': 'documents', home: 'dashboard', title: 'documents', 'crm-home': 'crm', 'crm-deals': 'orders', 'crm-contacts': 'contacts', 'crm-leads': 'users/new', 'crm-calls': 'closing', 'crm-templates': 'templates' };   // workspace menu items reuse the card-theme icons
   const lbl = (id, label) => (tc ? html`${icon(ICO[id] || id)}<span class="nav-label">${label}</span>` : label); const tip = (label, beta) => (tc || beta ? raw(` title="${esc(label)}${beta ? ` (${BETA_LABEL})` : ''}"`) : '');
   const betaTag = (id) => html`<span class="beta-badge" data-beta-badge="${id}" title="${BETA_LABEL}">Beta</span>`;
   const hrTip = (n) => (/^hr-/.test(n.id) ? raw(` title="${esc(n.label)}${n.beta ? ` (${BETA_LABEL})` : ''}" aria-label="${esc(n.label)}" data-tip="${esc(n.label)}" data-hr-nav="${n.id}"`) : tip(n.label, n.beta));   // John, Nov 4: HR icons get hover labels
@@ -279,7 +282,7 @@ export async function render() {
   let mods = {}; if (u && api.getModuleAccess) { try { mods = await api.getModuleAccess(); } catch (e) { mods = {}; } } setModuleMap(mods);   // module switches for this user
   if (!routeAllowed(u, route, { locked: !!lockedId, demo: DEMO_VIEW })) {   // not part of this user's portal: refused for menu AND typed URLs
     if (!u) { location.hash = '#/login'; return; }
-    const setup = route.page === 'templates' || route.page === 'admin/templates' || route.page === 'task-grid';
+    const setup = route.page === 'templates' || route.page === 'admin/templates' || route.page === 'admin/workflows' || route.page === 'task-grid';
     const refused = setup ? 'You are not authorized to open this page.' : route.page === 'crm' ? 'The CRM is for CLA staff only.' : route.page === 'hr' ? 'HR is not available for your account. You are still in your own portal.' : 'That section is not available for your account. You are still in your own portal.';
     root.innerHTML = toText(await layout(u, { body: html`<div class="box-title" data-route-refused><h2>${setup ? 'Not authorized' : 'Not available'}</h2></div><p data-refused-msg>${refused}</p>` }, route, hrOnly(u) ? 'hr' : 'everything')); wireChrome(u); return; }
   let ws = u ? currentWs(u) : 'everything';

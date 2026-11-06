@@ -2,5 +2,5 @@
   "name": "cla-portal-demo",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node test/test-supabase-staff.js" }
+  "scripts": { "test": "node test/test-supabase-staff.js && node test/test-task-setup-access.js && node test/test-workflows.js && bash test/test-workflows-sql.sh" }
 }

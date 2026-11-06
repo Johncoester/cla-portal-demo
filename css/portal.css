@@ -951,3 +951,20 @@ fieldset.span2 { display: flex; flex-wrap: wrap; gap: .5rem; border: 1px solid v
 .tc-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
 .tc-page .co-facts { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
 @media (max-width: 700px) { .tc-quick { gap: 6px; } .tc-quick .co-btn { padding: 8px 12px; font-size: 13px; } }
+
+/* Workflows (Admin / Settings). Boxes and arrows, no canvas library. */
+.wf-layout { display: grid; grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.wf-list { list-style: none; padding: 0; margin: 0; }
+.wf-list a { display: block; padding: 8px 10px; border: 1px solid var(--line, #e3e3e3); border-radius: 6px; margin-bottom: 6px; text-decoration: none; color: inherit; }
+.wf-list a.active { border-color: #1d4f7a; background: #f4f8fb; }
+.wf-chart { display: flex; align-items: center; gap: 8px; overflow-x: auto; max-width: 100%; padding: 8px 0 14px; }
+.wf-col { display: flex; flex-direction: column; gap: 8px; }
+.wf-box { min-width: 150px; max-width: 210px; border: 1px solid #1d4f7a; border-radius: 8px; padding: 8px 10px; background: #fff; }
+.wf-box strong, .wf-box span { display: block; }
+.wf-arrow { flex: 0 0 auto; color: #1d4f7a; }
+.wf-step, .wf-asg { display: grid; grid-template-columns: 2rem 1fr minmax(140px, 200px) auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #eee; }
+.wf-asg { grid-template-columns: 1fr 1fr 1fr auto; }
+.wf-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0 16px; }
+.wf-add label, .wf-step label, .wf-asg label { font-size: 12px; font-weight: 600; }
+.wf-pos { font-weight: 700; color: #1d4f7a; }
+@media (max-width: 900px) { .wf-layout { grid-template-columns: 1fr; } .wf-step, .wf-asg { grid-template-columns: 1fr; } }
