@@ -1,6 +1,6 @@
 /* mock adapter: contacts, participants, documents (deal files). NOTE: there is no delete for documents, for anyone (Admin included). */
-import { cleanEntity } from './mock-part-nov3b.js?v=202611061918';
-import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611061918';
+import { cleanEntity } from './mock-part-nov3b.js?v=202611062001';
+import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611062001';
 export function contactsTasksDocs(x) {
   const { load, save, nid, needUser, needProcessor, isManager, notViewOnly, seesAll, dealsFor, dealOr404, onDeal, fileRole, log, prof, nameOf, roleOf, fullName, folderOf, docVisible, participantsOf, notify, dealProfileIds, clone, now, fail, str, emailOk, C } = x;
   // u = the deal-scoped viewer (optional). A pure buyer never gets the name, role or id of another party who uploaded a file CLA staff shared with

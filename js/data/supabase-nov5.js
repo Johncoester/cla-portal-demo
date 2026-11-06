@@ -1,7 +1,7 @@
 /* supabase-nov5.js : browser adapter for the Nov 5 RPCs plus the document/message reads that were still stubs.
  * RLS and the security-definer RPCs decide access. This file does not embed a project URL or a key.
  * File bytes go to the private deal-documents bucket (migration 3). A missing bucket surfaces as an error; nothing is invented. */
-import { ordinaryCoverageDoc } from './nov5-rules.js?v=202611061918';
+import { ordinaryCoverageDoc } from './nov5-rules.js?v=202611062001';
 
 export function nov5Supabase({ sb, ok, camel, me }) {
   const uid = async () => (await sb.auth.getUser()).data.user;
