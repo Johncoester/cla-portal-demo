@@ -40,7 +40,7 @@ async function processor({ api, open, deals, today }) {
     <div class="two-col"><div class="card"><h3>Needs attention</h3>
       ${rows.length ? html`<table class="tbl"><thead><tr><th>Order</th><th>Property</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : html`<p class="muted">Nothing needs attention.</p>`}</div>
       <div class="card"><h3>Closing in the next 3 weeks</h3>${soon.length ? html`<ul class="plain">${soon}</ul>` : html`<p class="muted">No closings scheduled soon.</p>`}</div></div>
-    <div class="card" data-wq-tasks><h3>Incomplete tasks by Buyer, Seller and Agent</h3><p class="muted small">Every incomplete task on open files. Filter, sort or regroup below; <a href="#/tasks">All Tasks</a> has the same list on its own page, <a href="#/task-grid">Task Grid</a> shows it file by file.</p>
+    <div class="card" data-wq-tasks><h3>Incomplete tasks by Buyer, Seller and Agent</h3><p class="muted small">Every incomplete task on open files. Filter, sort or regroup below; <a href="#/tasks">All Tasks</a> has the same list on its own page.</p>
       ${boardForm(BOARD_DEFAULTS, 'wqboard')}<div data-board-results>${boardResults(tasks, BOARD_DEFAULTS, today)}</div></div>`,
     mount(root) { $('#remind', root).addEventListener('click', guard(async () => { const r = await api.queueOverdueReminders(); toast(`${r.queued} reminder(s) queued in the outbox (nothing is sent)`); }));
       mountBoard($('[data-wq-tasks]', root), tasks, today); } };

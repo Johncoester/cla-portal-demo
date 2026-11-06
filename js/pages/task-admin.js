@@ -42,7 +42,7 @@ export async function taskAdminView({ api, refresh }) {
     <div class="card"><h3>Task admin log</h3><table class="tbl"><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody>
       ${data.log.length ? data.log.slice(0, 12).map((l) => html`<tr><td>${fmtDateTime(l.at)}</td><td>${l.byName}</td><td>${l.action} ${l.code}<br><span class="muted small">${l.detail}</span></td></tr>`) : html`<tr><td colspan="3" class="muted">No task admin changes yet.</td></tr>`}</tbody></table></div>
   </section>`;
-  return { title: 'Task Templates', crumbs: [['Task Templates', '#/templates'], ['Task admin']], body, mount(root) {
+  return { title: 'Task Templates', crumbs: [['Task Templates', '#/admin/templates'], ['Task admin']], body, mount(root) {
     const form = $('#task-admin-form', root);
     $$('[data-retire-template]', root).forEach((b) => b.addEventListener('click', guard(async () => {
       const why = prompt('Why is this task being retired? Open copies stay open and are not cancelled.'); if (why == null) return;

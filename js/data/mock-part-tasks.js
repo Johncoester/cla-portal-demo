@@ -159,7 +159,7 @@ export function tasksAndForms(x) {
     },
     // Which agent roles may complete a CLIENT's copy for them. Admin or Processor. Applies to every version of the template (it is a policy, not form content).
     async setTemplateAgentRoles(code, roles) {
-      let u = needUser(); if (!(u.isAdmin || C.runsOrders(u))) fail('Only an Admin or the processor can change who may complete a task.');
+      let u = needUser(); if (!u.isAdmin) fail('Only an Admin or Super admin can change who may complete a task.');
       const d = load(); const vs = d.taskTemplates.filter((t) => t.code === code); if (!vs.length) fail('Template not found.');
       const list = [...new Set(Array.isArray(roles) ? roles : [])]; if (list.some((r) => !AGENT_ROLES.includes(r))) fail('Only Buyer Agent or Listing Agent can be allowed.');
       if (list.length && !vs.some((t) => t.roles.some((r) => C.isClient(r)))) fail('Only client tasks can be completed by an agent.');
