@@ -7,8 +7,8 @@
  *    file; which tasks exist there comes from their role on THAT file (buyer's-agent vs listing-agent templates). Rows carry the file and myRoles /
  *    myRoleLabel (their role on that file). Never filtered by one role: every file's own per-file rules (scopeTo + taskVisible) still decide what shows.
  *    Mirrored in SQL by public.my_task_list() (migration 45). */
-import { buildTaskGrid, groupOfRole, isOverdue } from './task-board.js?v=202611061842';
-import { fileRoleLabel } from './constants.js?v=202611061842';
+import { buildTaskGrid, groupOfRole, isOverdue } from './task-board.js?v=202611061918';
+import { fileRoleLabel } from './constants.js?v=202611061918';
 
 export function mattNov2(x) {
   const { load, needUser, dealsFor, scopeTo, taskVisible, nameOf, fail, localDate, C } = x;
@@ -29,9 +29,9 @@ export function mattNov2(x) {
     // FILE-FIRST combined list (Nov 4): the caller's own tasks on every file they are on (default: open files), sorted by due date then file number.
     async listMyTasks({ fileStatus = 'Open' } = {}) { const u = needUser();
       return allTasks(u, { fileStatus }).rows.filter((t) => t.mine).sort((p, q) => (p.dueDate || '9999').localeCompare(q.dueDate || '9999') || p.deal.fileNumber.localeCompare(q.deal.fileNumber) || p.title.localeCompare(q.title)); },
-    // Processor (and Admin) only. fileStatus 'Open' (default) or 'All' / a deal status.
+    // Admin and Super admin only (John, Nov 6). fileStatus 'Open' (default) or 'All' / a deal status.
     async getTaskGrid({ fileStatus = 'Open' } = {}) {
-      const u = needUser(); if (!(u.isAdmin || C.runsOrders(u))) fail('Only a Processor or Admin can open the task grid.');
+      const u = needUser(); if (!u.isAdmin) fail('Only an Admin or Super admin can open the task grid.');
       const { deals, rows } = allTasks(u, { fileStatus }); return buildTaskGrid(rows, deals.map(fileOf), localDate());
     },
   };

@@ -1,21 +1,21 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611061842';
-import { GMAIL_OFF } from '../data/automation.js?v=202611061842';
-import { occSelects, yesNo } from './occ-fields.js?v=202611061842';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611061842';
-import { modOn } from '../data/modules.js?v=202611061842';
-import { slotText } from './dealclosing.js?v=202611061842';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611061842';
-import { composeModal } from './compose.js?v=202611061842';
-import { moneyShow, moneyClean } from './money-input.js?v=202611061842';
-import { sourceChoices } from '../data/place-order.js?v=202611061842';
-import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611061842';
-import { themeOn } from '../theme.js?v=202611061842';
-import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611061842';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611061842';
+import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611061918';
+import { GMAIL_OFF } from '../data/automation.js?v=202611061918';
+import { occSelects, yesNo } from './occ-fields.js?v=202611061918';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611061918';
+import { modOn } from '../data/modules.js?v=202611061918';
+import { slotText } from './dealclosing.js?v=202611061918';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611061918';
+import { composeModal } from './compose.js?v=202611061918';
+import { moneyShow, moneyClean } from './money-input.js?v=202611061918';
+import { sourceChoices, processorChoices } from '../data/place-order.js?v=202611061918';
+import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611061918';
+import { themeOn } from '../theme.js?v=202611061918';
+import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611061918';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611061918';
 
-const TABS = { tasks: './dealtasks.js?v=202611061842', inbox: './dealmsgs.js?v=202611061842', documents: './dealdocs.js?v=202611061842', contacts: './dealcontacts.js?v=202611061842', activity: './dealactivity.js?v=202611061842', closing: './dealclosing.js?v=202611061842', agreements: './dealagreements.js?v=202611061842', accounting: './dealaccounting.js?v=202611061842', title: './dealtitle.js?v=202611061842', funding: './dealfwp.js?v=202611061842', wires: './dealfwp.js?v=202611061842', policy: './dealfwp.js?v=202611061842' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
-import { placeText } from '../data/cla-offices.js?v=202611061842';
+const TABS = { tasks: './dealtasks.js?v=202611061918', inbox: './dealmsgs.js?v=202611061918', documents: './dealdocs.js?v=202611061918', contacts: './dealcontacts.js?v=202611061918', activity: './dealactivity.js?v=202611061918', closing: './dealclosing.js?v=202611061918', agreements: './dealagreements.js?v=202611061918', accounting: './dealaccounting.js?v=202611061918', title: './dealtitle.js?v=202611061918', funding: './dealfwp.js?v=202611061918', wires: './dealfwp.js?v=202611061918', policy: './dealfwp.js?v=202611061918' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+import { placeText } from '../data/cla-offices.js?v=202611061918';
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -29,16 +29,16 @@ export async function render(ctx) {
   // CLIENT TABS (John, Nov 4: every buyer tab in the light client layout; same for the seller): the tab's own content, under the client file line +
   // pill tabs, drawn in the client shell (app.js: white top bar, CLA logo, no sidebar). The content and its rules are unchanged.
   if (tab !== 'overview' && TABS[tab] && user.role === 'Transaction Coordinator' && !user.accountRole) {
-    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611061842' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
+    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611061918' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
     const top = await tcTabChrome(ctx, deal, tab);
     return { ...v, crumbs: [...here, ...(v.crumbs || [])], tcPage: true, body: html`<div class="co-page tc-page" data-tc-tabpage="${tab}">${top}<section class="co-card co-tabcard"><div class="co-cb">${v.body}</div></section></div>` };
   }
   if (tab !== 'overview' && TABS[tab] && user.accountRole && clientSide(user)) {
-    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611061842' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
+    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611061918' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
     const top = await clientTabChrome(ctx, deal, tab);
     return { ...v, crumbs: [...here, ...(v.crumbs || [])], clientPage: { deal, side: clientSide(user), tab }, body: html`<div class="co-page co-tabpage" data-client-tab="${tab}">${top}<section class="co-card co-tabcard"><div class="co-cb">${v.body}</div></section></div>` };
   }
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611061842' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611061918' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   if (user.role === 'Transaction Coordinator' && !user.accountRole) { return renderTcOverview(ctx, deal); }
   // CLIENT OVERVIEW (John, Nov 4): the buyer / seller get the redesigned overview (client-overview.js) in place of the old overview + card summary (no Cash to Close / payoff mockup figures for clients).
@@ -175,7 +175,7 @@ async function wireModal(api, d) {
 async function editModal(api, d, refresh) {
   const v = (k) => d[k] == null ? '' : d[k]; const refi = isRefi(d);
   // Matt, Nov 3 (b): source of business (CRM Settings Lead Source list; a retired / renamed value already on the order stays selectable) + money with commas
-  const preprocs = await api.listPreprocessors();
+  const preprocs = await api.listPreprocessors(); const procs = api.listProcessors ? await api.listProcessors() : [];
   const srcOpts = sourceChoices(d.sourceOfBusiness, d.sourceOfBusinessLabel, refi);
   const m = modal('Edit order details', html`<form id="edf" class="form-grid">
     <label class="span2">Street<input name="street" required value="${v('street')}"></label><label>City<input name="city" required value="${v('city')}"></label>
@@ -185,12 +185,20 @@ async function editModal(api, d, refresh) {
       : html`<label>Purchase price<input name="purchasePrice" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.purchasePrice)}"></label><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>
     <label>EMD amount<input name="emdAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.emdAmount)}"></label><label>EMD due date<input type="date" name="emdDueDate" value="${v('emdDueDate')}"></label>`}
     ${refi ? '' : html`<div class="span2" data-md-occ ${d.state === 'MD' ? '' : raw('hidden')}>${occSelects(d)}</div>`}
-    <h4 class="span2">CLA Title team</h4><label class="span2">Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, d.preprocessorUserId || '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select></label>
+    <h4 class="span2">CLA Title team</h4><label class="span2">Processor <button type="button" class="ghost" data-refresh-processors>Refresh list</button><select name="processorId" data-processor-select></select><span class="field-hint">Unassigned is allowed. Refreshing the list does not change the address or the other fields.</span></label>
+    <label class="span2">Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, d.preprocessorUserId || '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select></label>
     <h4 class="span2">Lender</h4><label>Company<input name="lenderName" value="${v('lenderName')}"></label><label>Contact<input name="lenderContact" value="${v('lenderContact')}"></label>
     <label>Email<input name="lenderEmail" value="${v('lenderEmail')}"></label><label>Phone<input name="lenderPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${v('lenderPhone')}"></label>
     <label class="span2">Source of business<select name="sourceOfBusiness" aria-label="Source of business"><option value="">(not set)</option>${options(srcOpts, d.sourceOfBusiness || '', (o) => o.label, (o) => o.value)}</select></label>
     <label class="span2">Notes<textarea name="notes" rows="3">${v('notes')}</textarea></label>
     <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
+  const paintProcessors = (list, keep) => { const sel = $('[name=processorId]', m); const next = processorChoices(list, keep == null ? (sel.value || d.processorId || '') : keep, '');
+    sel.replaceChildren(); for (const o of next.options) { const opt = document.createElement('option'); opt.value = o.value; opt.textContent = o.label; sel.appendChild(opt); }
+    if (keep == null && d.processorId && ![...sel.options].some((o) => o.value === d.processorId)) { const cur = document.createElement('option'); cur.value = d.processorId; cur.textContent = d.processorName || 'Current Processor'; sel.appendChild(cur); }
+    sel.value = [...sel.options].some((o) => o.value === (keep == null ? (d.processorId || '') : next.value)) ? (keep == null ? (d.processorId || '') : next.value) : ''; };
+  paintProcessors(procs, null);
+  $('[data-refresh-processors]', m).addEventListener('click', guard(async () => { const street = $('[name=street]', m).value; const keep = $('[name=processorId]', m).value; paintProcessors(await api.listProcessors(), keep);
+    if ($('[name=street]', m).value !== street) throw new Error('Refreshing the Processor list must not clear the form.'); toast('Processor list updated. The other fields were kept.'); }));
   $('#edf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); ['purchasePrice', 'loanAmount', 'emdAmount'].forEach((k) => { if (f[k] !== undefined) f[k] = moneyClean(f[k]); });
     if (refi) { f.purchasePrice = ''; f.emdAmount = ''; f.emdDueDate = ''; }   // a refinance saves no purchase price / EMD (clears what an older order had)
     if (refi || String(f.state || '').toUpperCase() !== 'MD') { f.primaryResidence = ''; f.firstTimeBuyer = ''; }

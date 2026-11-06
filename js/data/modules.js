@@ -8,7 +8,7 @@
 // A module whose CONFIG flag is off (features.crm / features.accounting in config.js) is not available at all: not even Admins see it and the
 // switch is disabled. CLA Portal Live Test is the only portal (config.example.js: accounting false until John turns it on).
 // Core order pages are ALWAYS ON and have no switch (ALWAYS_ON below). Mirrored by migration 35 (public.module_settings + module_settings_log).
-import { isSuperAdmin, isOutside } from './constants.js?v=202611061842';
+import { isSuperAdmin, isOutside } from './constants.js?v=202611061918';
 export const BETA_LABEL = 'Beta, in testing';
 export const MODULES = [
   { id: 'crm', label: 'CRM', flag: 'crm', where: '#/crm', desc: 'The Zoho-style CRM: Home, Leads, Clients, Companies, Pipeline, Reports, Dashboards, Templates.', who: 'CLA staff (Processor read only); never TCs, agents or clients' },
@@ -29,7 +29,7 @@ export const MODULES = [
   { id: 'policy', label: 'Final Policy', flag: 'policy', where: 'order > Final Policy', desc: 'Final owner/lender policy queue, premium and document checks, issuance, policy filing and completed log.', who: 'Processors, Funding Team and Admins; never agents, TCs or clients', noOutside: true, portalDefault: false },
   { id: 'title', label: 'Title', flag: 'title', where: 'order > Title (under Payoffs / HOA)', desc: 'Title review inside an order: order notes, PACER, search package, contract and loan check, chain of title, Schedule A, requirements (B-I), exceptions (B-II), policies, CPL, buyer commitment copy, Title Package, summary note.', who: 'Processor / Transaction Coordinator / Admin / Super admin edit; Sales read only; never agents or clients', noOutside: true, portalDefault: false },
   { id: 'tasks', label: 'All Tasks', where: '#/tasks', desc: 'All tasks across files (filters, sort, Buyer / Seller / Agent groups).', who: 'Admins, CLA staff and TCs' },
-  { id: 'task-grid', label: 'Task Grid', where: '#/task-grid', desc: 'Files across, tasks down (Processor / Admin grid).', who: 'Processor and Admins' },
+  { id: 'task-grid', label: 'Task Grid', where: '#/task-grid', desc: 'Files down the side, tasks across the top.', who: 'Admin and Super admin' },
   { id: 'library', label: 'Library', where: '#/library', desc: 'The shared document library (forms and handouts).', who: 'everyone signed in' },
 ];
 export const MODULE_IDS = MODULES.map((m) => m.id);

@@ -1,7 +1,7 @@
 // Buyer / seller portal invites (John, Nov 6). A contact is not a login.
 // Staff on the file create a one-time link and copy it. Nothing is emailed.
 // The account role stays Outside user. Buyer / Seller is only the role on that file.
-import { viewOnly } from './constants.js?v=202611061842';
+import { viewOnly } from './constants.js?v=202611061918';
 
 export const CLIENT_PORTAL_ROLES = ['Client-Buyer', 'Client-Seller'];
 export const CLIENT_INVITE_DAYS = 14;

@@ -1,7 +1,7 @@
 // Mock buyer / seller invites. The raw token is returned once and is not stored.
 // Nothing is emailed. Accepting never changes a staff role or isAdmin.
-import { LOCK_KEY } from './locked-links.js?v=202611061842';
-import { canInviteClients, clientInviteStatus, sha256Hex, newInviteToken, CLIENT_PORTAL_ROLES, CLIENT_INVITE_DAYS, CLIENT_INVITE_GENERIC } from './client-invite.js?v=202611061842';
+import { LOCK_KEY } from './locked-links.js?v=202611061918';
+import { canInviteClients, clientInviteStatus, sha256Hex, newInviteToken, CLIENT_PORTAL_ROLES, CLIENT_INVITE_DAYS, CLIENT_INVITE_GENERIC } from './client-invite.js?v=202611061918';
 
 const plusDays = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString();
 const claimed = new Set();

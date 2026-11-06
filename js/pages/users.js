@@ -3,12 +3,12 @@
 // Delete = the account is removed (cannot sign in, leaves teams and salesperson links), but their documents, messages and history stay.
 // Nov 2 (John): filter/search, staff role vs per-file roles for outside users, clients linked to salespeople (many-to-many),
 // Super admin (only a Super admin grants/removes it or deletes/suspends/changes a Super admin).
-import { html, raw, $, $$, guard, formData, pill, toast, fmtDate, options } from '../ui.js?v=202611061842';
-import { cleanBirthdate, BIRTHDATE_NOTE } from '../data/agent-info.js?v=202611061842';
-import { ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, OUTSIDE, isAdminRole, isSuperAdmin, isSalesRole, roleLabel, CONTACT_TYPES, contactTypeLabel, outsideTypeLabel } from '../data/constants.js?v=202611061842';
+import { html, raw, $, $$, guard, formData, pill, toast, fmtDate, options } from '../ui.js?v=202611061918';
+import { cleanBirthdate, BIRTHDATE_NOTE } from '../data/agent-info.js?v=202611061918';
+import { ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, OUTSIDE, isAdminRole, isSuperAdmin, isSalesRole, roleLabel, CONTACT_TYPES, contactTypeLabel, outsideTypeLabel } from '../data/constants.js?v=202611061918';
 // contact type (John, Nov 2): outside users only (agents, clients, lenders); staff have none
 const ctypeSel = (sel, dis = '') => html`<label data-ctype-field>Contact type <span class="muted small">(outside users; for reporting)</span><select name="contactType" ${dis}><option value="">(not set)</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}" ${v === sel ? raw('selected') : ''}>${l}</option>`)}</select></label>`;
-import { USER_ROLE_FILTERS, USER_STATUS_FILTERS, filterUsers } from '../data/user-filter.js?v=202611061842';
+import { USER_ROLE_FILTERS, USER_STATUS_FILTERS, filterUsers } from '../data/user-filter.js?v=202611061918';
 const acct = (r) => (r === OUTSIDE ? 'Realtor / Client (role set per order)' : r);   // display only (live40): the stored value stays 'Outside user'
 const fullName = (u) => `${u.firstName} ${u.lastName}`.trim();
 // account-type options; a plain Admin sees "Super admin" but cannot pick it

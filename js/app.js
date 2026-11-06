@@ -1,22 +1,22 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611061842';
-import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611061842';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611061842';
-import { canUseCrm } from './data/crm.js?v=202611061842';
-import { acctCanRead } from './data/accounting.js?v=202611061842';
-import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611061842';
-import { phaseOf } from './data/agent-portal.js?v=202611061842';
-import { formatMoneyInput } from './pages/money-input.js?v=202611061842';
-import { applyTheme, themeOn } from './theme.js?v=202611061842';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
-import { icon } from './pages/theme-cards.js?v=202611061842';
-import { canInviteAgents } from './data/agent-profile.js?v=202611061842';
-import { yourAgentHtml } from './pages/your-agent.js?v=202611061842';
-import { fwpCanRead } from './data/funding-wire-policy.js?v=202611061842';
-import { titleCanRead } from './data/title.js?v=202611061842';
-import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs } from './data/locked-links.js?v=202611061842';   // John, Nov 4: one locked login link per fake user
-import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611061842';   // John, Nov 4 call: sidebar search + pinned order nav
-import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611061842';
-import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611061842';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
+import { getAdapter } from './data/adapter.js?v=202611061918';
+import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611061918';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611061918';
+import { canUseCrm } from './data/crm.js?v=202611061918';
+import { acctCanRead } from './data/accounting.js?v=202611061918';
+import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611061918';
+import { phaseOf } from './data/agent-portal.js?v=202611061918';
+import { formatMoneyInput } from './pages/money-input.js?v=202611061918';
+import { applyTheme, themeOn } from './theme.js?v=202611061918';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
+import { icon } from './pages/theme-cards.js?v=202611061918';
+import { canInviteAgents } from './data/agent-profile.js?v=202611061918';
+import { yourAgentHtml } from './pages/your-agent.js?v=202611061918';
+import { fwpCanRead } from './data/funding-wire-policy.js?v=202611061918';
+import { titleCanRead } from './data/title.js?v=202611061918';
+import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611061918';   // John, Nov 4: one locked login link per fake user
+import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611061918';   // John, Nov 4 call: sidebar search + pinned order nav
+import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611061918';
+import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611061918';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
@@ -25,32 +25,33 @@ document.addEventListener('input', (e) => { const el = e.target; if (el instance
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611061842'),
-  dashboard: () => import('./pages/dashboard.js?v=202611061842'),
-  orders: () => import('./pages/orders.js?v=202611061842'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611061842'),
-  deal: () => import('./pages/deal.js?v=202611061842'),
-  users: () => import('./pages/users.js?v=202611061842'),
-  profile: () => import('./pages/profile.js?v=202611061842'),
-  'contact-us': () => import('./pages/contact.js?v=202611061842'),
-  teams: () => import('./pages/teams.js?v=202611061842'),
-  templates: () => import('./pages/templates.js?v=202611061842'),
-  library: () => import('./pages/library.js?v=202611061842'),
-  activity: () => import('./pages/activity.js?v=202611061842'),
-  outbox: () => import('./pages/outbox.js?v=202611061842'),
-  tasks: () => import('./pages/tasks.js?v=202611061842'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611061842'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
-  schedule: () => import('./pages/schedule.js?v=202611061842'),   // public closing-time link (no sign-in needed)
-  crm: () => import('./pages/crm.js?v=202611061842'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
-  modules: () => import('./pages/modules.js?v=202611061842'),
-  'agent-invites': () => import('./pages/agent-invites.js?v=202611061842'),   // John, Nov 4: invite agents (link shown, nothing sent)
-  'agent-invite': () => import('./pages/agent-signup.js?v=202611061842'),     // the agent's one-time setup link (no sign-in)
-  underwriters: () => import('./pages/underwriters.js?v=202611061842'),
-  hr: () => import('./pages/hr.js?v=202611061842'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
-  'hr-invite': () => import('./pages/hr-invite.js?v=202611061842'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
-  'client-invite': () => import('./pages/client-invite.js?v=202611061842'),   // buyer / seller one-time login link (nothing emailed)
-  offices: () => import('./pages/offices.js?v=202611061842'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
-  demo: () => import('./pages/demo-view.js?v=202611061842'),   // permanent Demo mode: Super admin views a seeded demo user
+  login: () => import('./pages/entry.js?v=202611061918'),
+  dashboard: () => import('./pages/dashboard.js?v=202611061918'),
+  orders: () => import('./pages/orders.js?v=202611061918'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611061918'),
+  deal: () => import('./pages/deal.js?v=202611061918'),
+  users: () => import('./pages/users.js?v=202611061918'),
+  profile: () => import('./pages/profile.js?v=202611061918'),
+  'contact-us': () => import('./pages/contact.js?v=202611061918'),
+  teams: () => import('./pages/teams.js?v=202611061918'),
+  templates: () => import('./pages/templates.js?v=202611061918'),
+  'admin/templates': () => import('./pages/templates.js?v=202611061918'),
+  library: () => import('./pages/library.js?v=202611061918'),
+  activity: () => import('./pages/activity.js?v=202611061918'),
+  outbox: () => import('./pages/outbox.js?v=202611061918'),
+  tasks: () => import('./pages/tasks.js?v=202611061918'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611061918'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  schedule: () => import('./pages/schedule.js?v=202611061918'),   // public closing-time link (no sign-in needed)
+  crm: () => import('./pages/crm.js?v=202611061918'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  modules: () => import('./pages/modules.js?v=202611061918'),
+  'agent-invites': () => import('./pages/agent-invites.js?v=202611061918'),   // John, Nov 4: invite agents (link shown, nothing sent)
+  'agent-invite': () => import('./pages/agent-signup.js?v=202611061918'),     // the agent's one-time setup link (no sign-in)
+  underwriters: () => import('./pages/underwriters.js?v=202611061918'),
+  hr: () => import('./pages/hr.js?v=202611061918'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
+  'hr-invite': () => import('./pages/hr-invite.js?v=202611061918'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
+  'client-invite': () => import('./pages/client-invite.js?v=202611061918'),   // buyer / seller one-time login link (nothing emailed)
+  offices: () => import('./pages/offices.js?v=202611061918'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
+  demo: () => import('./pages/demo-view.js?v=202611061918'),   // permanent Demo mode: Super admin views a seeded demo user
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };
@@ -71,6 +72,7 @@ function parse() {
   if (!seg.length || seg[0] === 'work-queue') return { page: 'dashboard', params: {} };
   if (seg[0] === 'deals' && seg[1]) return { page: 'deal', params: { id: seg[1], tab: seg[2] || 'overview', sub: seg[3], v: new URLSearchParams((location.hash || '').split('?')[1] || '').get('v') || '' } };   // v: the Accounting view (route guard: payoffs views)
   if (seg[0] === 'orders' && seg[1] === 'new') return { page: 'orders/new', params: {} };
+  if (seg[0] === 'admin' && seg[1] === 'templates') return { page: 'admin/templates', params: {} };
   if (seg[0] === 'users') return { page: 'users', params: { mode: seg[1] || 'list', id: seg[2] } };
   if (seg[0] === 'crm') return { page: 'crm', params: { section: seg[1] || 'home', id: seg[2] || '', sub: seg[3] || '' } };
   if (seg[0] === 'agent-invite') return { page: 'agent-invite', params: { token: seg[1] || '' } };
@@ -96,7 +98,7 @@ export function hrNavFor(u) {
   if (hrCanManage(u)) add('hr-documents', 'HR Documents', '#/hr/documents', 'documents');   // John, Nov 4 HR review: below the Settings gear at the bottom of the sidebar
   return items;
 }
-export function navFor(u, dealId, unread, features = {}, ws = 'everything') {
+export function navFor(u, dealId, unread, features = {}, ws = 'everything', demo = null) {
   if (ws === null) return [{ id: 'home', label: 'Home', href: '#/dashboard', cls: 'orders', beta: false }];   // neutral Home: nothing picked yet
   if (ws === 'hr') return hrNavFor(u);   // the HR workspace has its own menu (not part of Everything)
   const items = [];
@@ -104,17 +106,18 @@ export function navFor(u, dealId, unread, features = {}, ws = 'everything') {
   if (!isClientOnlyUser(u)) add('dashboard', dashLabel(u), '#/dashboard', 'orders');   // live40: no "My files" item for clients
   add('orders', u.role === 'Transaction Coordinator' ? 'Orders' : 'Open Orders', '#/orders', 'orders');
   if ((u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator') && modOn('tasks')) add('tasks', 'All Tasks', '#/tasks', 'task');
-  if ((u.isAdmin || runsOrders(u)) && modOn('task-grid')) add('task-grid', 'Task Grid', '#/task-grid', 'task');
+  if (canOpenTaskSetup(u, demo) && modOn('task-grid')) add('task-grid', 'Task Grid', '#/task-grid', 'task');
   if (u.isAdmin) { add('users/new', 'Create User', '#/users/new', 'documents'); add('users', 'User List', '#/users', 'documents'); add('teams', 'Teams', '#/teams', 'contact-us'); add('offices', 'Offices', '#/offices', 'contact-us'); }   // John, Nov 4: Admin > Offices (Admin / Super admin)
   if (features.crm && canUseCrm(u) && modOn('crm')) add('crm', 'CRM', '#/crm', 'contact-us');   // feature flag + CLA staff only (not TCs, not outside users)
   if (modOn('library')) add('library', 'Library', '#/library', 'documents');
   if (runsOrders(u) || u.isAdmin) add('activity', 'Activity Log', '#/activity', 'activity');
-  if (runsOrders(u) || u.isAdmin || u.role === 'Transaction Coordinator') { add('templates', 'Task Templates', '#/templates', 'task'); add('outbox', 'Reminder Outbox', '#/outbox', 'inbox'); }
+  if (canOpenTaskSetup(u, demo)) add('templates', 'Task Templates', '#/admin/templates', 'task');
+  if (runsOrders(u) || u.isAdmin || u.role === 'Transaction Coordinator') add('outbox', 'Reminder Outbox', '#/outbox', 'inbox');
   if (canInviteAgents(u)) add('agent-invites', 'Agent Invites', '#/agent-invites', 'contact-us');   // John, Nov 4
   if (canManageModules(u)) add('modules', 'Modules', '#/modules', 'documents');
   if (canManageModules(u)) add('underwriters', 'Underwriter Splits', '#/underwriters', 'documents');   // John, Nov 3 call (Admin / Super admin)   // John, Nov 3: the Live switches (Admin / Super admin only)
   let out = items.map((n) => ({ ...n, beta: modBeta(n.id) }));
-  if (ws === 'everything') return out;   // Everything = exactly the full menu of before
+  if (ws === 'everything') return out.filter((n) => navInWs(n.id, ws));   // Everything keeps Portal and the other admin pages. Task Templates is Admin / Settings only.
   if (ws === 'crm') { const i = out.findIndex((n) => n.id === 'crm'); if (i >= 0) {   // the CRM workspace spells out its main sections
     const c = out[i].beta; const sub = [['crm-home', 'CRM Home', '#/crm', 'contact-us', c], ['crm-deals', 'Deals', '#/crm/deals', 'orders', c || modBeta('crm-deals'), 'crm-deals'],
       ['crm-contacts', 'Clients', '#/crm/contacts', 'contact-us', c], ['crm-leads', 'Leads', '#/crm/leads', 'contact-us', c], ['crm-calls', 'Calls', '#/crm/calls', 'task', c || modBeta('calls'), 'calls'],
@@ -131,13 +134,14 @@ async function layout(u, view, route, ws = 'everything') {
   let counts = null; if (deal) { try { counts = (await api.getOrderOverview(dealId)).counts; } catch (e) { counts = null; } }
   const cnt = (tab) => { if (!counts) return ''; const n = { tasks: counts.tasks, inbox: counts.inbox, documents: counts.documents, activity: counts.activity }[tab]; return n == null ? '' : html`<span class="tab-count" data-tab-count="${tab}">${n}</span>`; };
   const HR_CUR = { home: 'hr-home', employees: 'hr-employees', employee: 'hr-employees', add: 'hr-add', departments: 'hr-departments', designations: 'hr-designations', me: 'hr-me', team: 'hr-team', settings: 'hr-settings', documents: 'hr-documents' };
-  const cur = route.page === 'hr' ? (HR_CUR[route.params.section] || '') : route.page === 'crm' && ws === 'crm' ? ({ home: 'crm-home', deals: 'crm-deals', contacts: 'crm-contacts', leads: 'crm-leads', calls: 'crm-calls', templates: 'crm-templates' }[route.params.section] || '') : (route.page === 'dashboard' && ws === null ? 'home' : route.page + (route.page === 'users' && route.params.mode === 'new' ? '/new' : ''));
+  const navPage = route.page === 'admin/templates' ? 'templates' : route.page;
+  const cur = navPage === 'hr' ? (HR_CUR[route.params.section] || '') : navPage === 'crm' && ws === 'crm' ? ({ home: 'crm-home', deals: 'crm-deals', contacts: 'crm-contacts', leads: 'crm-leads', calls: 'crm-calls', templates: 'crm-templates' }[route.params.section] || '') : (navPage === 'dashboard' && ws === null ? 'home' : navPage + (navPage === 'users' && route.params.mode === 'new' ? '/new' : ''));
   // card theme only: an inline SVG icon + the label in a span (shown as a tooltip in the icon-only sidebar); the link text stays the same
   const tc = themeOn(); const ICO = { 'hr-home': 'dashboard', 'hr-employees': 'users', 'hr-add': 'users/new', 'hr-departments': 'teams', 'hr-designations': 'templates', 'hr-me': 'contacts', 'hr-team': 'teams', 'hr-settings': 'modules', 'hr-documents': 'documents', home: 'dashboard', title: 'documents', 'crm-home': 'crm', 'crm-deals': 'orders', 'crm-contacts': 'contacts', 'crm-leads': 'users/new', 'crm-calls': 'closing', 'crm-templates': 'templates' };   // workspace menu items reuse the card-theme icons
   const lbl = (id, label) => (tc ? html`${icon(ICO[id] || id)}<span class="nav-label">${label}</span>` : label); const tip = (label, beta) => (tc || beta ? raw(` title="${esc(label)}${beta ? ` (${BETA_LABEL})` : ''}"`) : '');
   const betaTag = (id) => html`<span class="beta-badge" data-beta-badge="${id}" title="${BETA_LABEL}">Beta</span>`;
   const hrTip = (n) => (/^hr-/.test(n.id) ? raw(` title="${esc(n.label)}${n.beta ? ` (${BETA_LABEL})` : ''}" aria-label="${esc(n.label)}" data-tip="${esc(n.label)}" data-hr-nav="${n.id}"`) : tip(n.label, n.beta));   // John, Nov 4: HR icons get hover labels
-  const core = navFor(u, null, 0, api.features || {}, ws).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}"${hrTip(n)}${n.beta ? raw(' data-beta-nav') : ''}>${lbl(n.id, n.label)}${n.beta ? betaTag(n.id) : ''}</a></li>`);
+  const core = navFor(u, null, 0, api.features || {}, ws, DEMO_VIEW).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}"${hrTip(n)}${n.beta ? raw(' data-beta-nav') : ''}>${lbl(n.id, n.label)}${n.beta ? betaTag(n.id) : ''}</a></li>`);
   const t = route.params.tab; const link = (tab, label, cls, beta) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab && !(tab === 'accounting' && route.params.v === 'payoffs') ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}"${tip(label, beta)}${beta ? raw(' data-beta-nav') : ''}>${lbl(tab, label)}${beta ? betaTag(tab) : ''}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : tab === 'inbox' ? '' : cnt(tab)}</a></li>`;
   // BUYER (Nov 4 call): plain tab names; no Contacts tab (the Overview lists the closing team) and no Agreements tab (they are to-dos now)
   const pureBuyer = deal && ['Client-Buyer', 'Client-Seller'].some((c) => (deal.myRoles || [deal.myRole]).includes(c)) && !(deal.myRoles || [deal.myRole]).some((r) => /Agent$/.test(r));   // seller mirror (Nov 4): a pure seller gets the same plain tabs
@@ -273,10 +277,13 @@ export async function render() {
   if (u && route.page === 'login' && !recovery) { location.hash = '#' + homeFor(u); return; }
   if (u && hrOnly(u) && route.page === 'dashboard') { location.hash = '#/hr'; return; }   // HR-only login: HR is home
   if (u && isClientOnlyUser(u) && route.page === 'dashboard') { location.replace('#/orders'); return; }   // live40 (John, Nov 5): clients land on Open Orders, no My files page   // HR-only login: HR is home
+  if (route.page === 'templates') { const moved = legacyTemplatesHash(location.hash); if (moved) { location.replace(moved); return; } }   // old Task Templates links, including ?tab=switches and ?tab=admin
   let mods = {}; if (u && api.getModuleAccess) { try { mods = await api.getModuleAccess(); } catch (e) { mods = {}; } } setModuleMap(mods);   // module switches for this user
-  if (!routeAllowed(u, route, { locked: !!lockedId })) {   // not part of this user's portal: refused for menu AND typed URLs
+  if (!routeAllowed(u, route, { locked: !!lockedId, demo: DEMO_VIEW })) {   // not part of this user's portal: refused for menu AND typed URLs
     if (!u) { location.hash = '#/login'; return; }
-    root.innerHTML = toText(await layout(u, { body: html`<div class="box-title" data-route-refused><h2>Not available</h2></div><p data-refused-msg>${route.page === 'crm' ? 'The CRM is for CLA staff only.' : route.page === 'hr' ? 'HR is not available for your account. You are still in your own portal.' : 'That section is not available for your account. You are still in your own portal.'}</p>` }, route, hrOnly(u) ? 'hr' : 'everything')); wireChrome(u); return; }
+    const setup = route.page === 'templates' || route.page === 'admin/templates' || route.page === 'task-grid';
+    const refused = setup ? 'You are not authorized to open this page.' : route.page === 'crm' ? 'The CRM is for CLA staff only.' : route.page === 'hr' ? 'HR is not available for your account. You are still in your own portal.' : 'That section is not available for your account. You are still in your own portal.';
+    root.innerHTML = toText(await layout(u, { body: html`<div class="box-title" data-route-refused><h2>${setup ? 'Not authorized' : 'Not available'}</h2></div><p data-refused-msg>${refused}</p>` }, route, hrOnly(u) ? 'hr' : 'everything')); wireChrome(u); return; }
   let ws = u ? currentWs(u) : 'everything';
   if (u && usesWorkspaces(u)) { const rw = routeWs(route);   // deep link: auto-switch to that link's workspace
     if (rw === 'hr') { if (ws !== 'hr' && hrVisible(u)) { setWs(u, 'hr'); ws = 'hr'; } }   // HR is not part of Everything: an HR link always opens HR
@@ -318,7 +325,7 @@ function wireChrome(u) {
   if (stop) stop.addEventListener('click', async (e) => { e.preventDefault(); const api = await getAdapter(); if (api.stopDemoView) { try { await api.stopDemoView(); } catch (err) { toast(err.message); return; } } if (demoTimer) clearTimeout(demoTimer); location.hash = '#/dashboard'; render(); });
   if (demoTimer) clearTimeout(demoTimer);
   if (DEMO_VIEW && DEMO_VIEW.active && DEMO_VIEW.expiresAt) { const ms = new Date(DEMO_VIEW.expiresAt).getTime() - Date.now(); demoTimer = setTimeout(() => render(), Math.min(Math.max(ms + 250, 1000), 30 * 60 * 1000)); }
-  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611061842').then((m) => m.wireHeaderSearch(api)); });
+  getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611061918').then((m) => m.wireHeaderSearch(api)); });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');
   if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; });
   document.addEventListener('click', () => { if (dd) dd.hidden = true; }, { once: true });

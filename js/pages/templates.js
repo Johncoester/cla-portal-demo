@@ -1,16 +1,16 @@
 // Task templates (definitions with versions). Each participant gets a COPY that records the version it was made from.
-// Admin publishes a new version (title / description / due days); existing copies keep their version. Processor and TC can view.
-import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime, pill, modal, closeModal, formData } from '../ui.js?v=202611061842';
-import { canManageTaskSwitches, REASON_MSG } from '../data/task-switches.js?v=202611061842';
-import { taskAdminView } from './task-admin.js?v=202611061842';
-import { runsOrders, isProcessor } from '../data/constants.js?v=202611061842';
+// Admin and Super admin only (route guard). Each tab is the same page: Templates, Task switches, Task admin.
+import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime, pill, modal, closeModal, formData } from '../ui.js?v=202611061918';
+import { canManageTaskSwitches, REASON_MSG } from '../data/task-switches.js?v=202611061918';
+import { taskAdminView } from './task-admin.js?v=202611061918';
+import { runsOrders, isProcessor } from '../data/constants.js?v=202611061918';
 const DELEG = [['', 'No - client only'], ['Buyer Agent', 'Buyer Agent (for the buyer)'], ['Listing Agent', 'Listing Agent (for the seller)'], ['Buyer Agent,Listing Agent', 'Each side\'s agent for their own client']];
 
 export async function render(ctx) {
   // TASK SWITCHES (John, Nov 4; mockup 04): Admin / Super admin get the tabs; #/templates?tab=switches opens the switches
   const tab = new URLSearchParams((location.hash || '').split('?')[1] || '').get('tab') || '';
   const admin = canManageTaskSwitches(ctx.user);
-  const tabs = admin ? html`<nav class="tpl-tabs" role="tablist" data-tpl-tabs><a role="tab" href="#/templates" class="${tab ? '' : 'active'}" aria-selected="${tab ? 'false' : 'true'}">Templates</a><a role="tab" href="#/templates?tab=switches" data-tab-switches class="${tab === 'switches' ? 'active' : ''}" aria-selected="${tab === 'switches' ? 'true' : 'false'}">Task switches</a><a role="tab" href="#/templates?tab=admin" data-tab-task-admin class="${tab === 'admin' ? 'active' : ''}" aria-selected="${tab === 'admin' ? 'true' : 'false'}">Task admin</a></nav>` : '';
+  const tabs = admin ? html`<nav class="tpl-tabs" role="tablist" data-tpl-tabs><a role="tab" href="#/admin/templates" class="${tab ? '' : 'active'}" aria-selected="${tab ? 'false' : 'true'}">Templates</a><a role="tab" href="#/admin/templates?tab=switches" data-tab-switches class="${tab === 'switches' ? 'active' : ''}" aria-selected="${tab === 'switches' ? 'true' : 'false'}">Task switches</a><a role="tab" href="#/admin/templates?tab=admin" data-tab-task-admin class="${tab === 'admin' ? 'active' : ''}" aria-selected="${tab === 'admin' ? 'true' : 'false'}">Task admin</a></nav>` : '';
   const v = admin && tab === 'admin' ? await taskAdminView(ctx) : admin && tab === 'switches' ? await switchesView(ctx) : await templatesView(ctx);
   return { ...v, body: html`<div class="box-title"><h2><span class="h-ico"></span>Task Templates</h2></div>${tabs}${v.body}` };
 }
@@ -54,14 +54,14 @@ async function switchesView({ api, refresh }) {
     <div class="notice info" data-switch-rule><strong>Off = not created on new files; existing tasks are kept, never deleted.</strong> Turning a task off stops it being added to orders from now on
       (new files, and people added later). Copies already on files keep their answers but are hidden from the file's task lists for everyone except Admin / Super admin (shown to you marked &ldquo;Switched off&rdquo;); turning it back on shows them again.
       You are asked why when you switch a task off. Admin / Super admin only. Every change is logged below (who, when, why).</div>
-    <p class="ts-filter small"><a href="#/templates?tab=switches" class="${all ? '' : 'pill info'}" data-filter-loan>Loan-related tasks (${nLoan})</a> &middot; <a href="#/templates?tab=switches&show=all" class="${all ? 'pill info' : ''}" data-filter-all>All tasks (${data.tasks.length})</a></p>
+    <p class="ts-filter small"><a href="#/admin/templates?tab=switches" class="${all ? '' : 'pill info'}" data-filter-loan>Loan-related tasks (${nLoan})</a> &middot; <a href="#/admin/templates?tab=switches&show=all" class="${all ? 'pill info' : ''}" data-filter-all>All tasks (${data.tasks.length})</a></p>
     <table class="tbl" data-task-switch-table><thead><tr><th>Task</th><th>Who gets it</th><th>Type</th><th>On open files</th><th>New files</th></tr></thead><tbody>${rows.map(row)}</tbody></table>
     <div class="card"><h3>Change log</h3><p class="small muted">Who changed which task switch, when, and from what to what. Read only; also written to the Activity Log.</p>
     <table class="tbl" data-task-switch-log><thead><tr><th>When</th><th>Who</th><th>Task</th><th>Change</th><th>Why</th></tr></thead><tbody>
     ${data.log.length ? data.log.map((l) => html`<tr data-task-log-row="${l.code}" data-log-old="${onOff(l.old)}" data-log-new="${onOff(l.new)}"><td class="nowrap">${fmtDateTime(l.at)}</td><td>${l.byName}</td><td>${l.label}</td>
       <td><span class="mod-pill ${l.old ? 'live' : 'beta'}">${onOff(l.old)}</span> &rarr; <span class="mod-pill ${l.new ? 'live' : 'beta'}">${onOff(l.new)}</span></td><td data-log-why>${l.reason || html`<span class="muted">&mdash;</span>`}</td></tr>`)
       : html`<tr><td colspan="5" class="muted">No changes yet. Every task starts On.</td></tr>`}</tbody></table></div></section>`;
-  return { title: 'Task Templates', crumbs: [['Task Templates', '#/templates'], ['Task switches']], body, mount(root) {
+  return { title: 'Task Templates', crumbs: [['Task Templates', '#/admin/templates'], ['Task switches']], body, mount(root) {
     $$('[data-task-switch]', root).forEach((cb) => cb.addEventListener('change', guard(async () => {
       const code = cb.dataset.taskSwitch; const t = data.tasks.find((z) => z.code === code); const on = cb.checked;
       if (on) { cb.disabled = true; try { await api.setTaskEnabled(code, true); } catch (e) { cb.checked = false; cb.disabled = false; throw e; }

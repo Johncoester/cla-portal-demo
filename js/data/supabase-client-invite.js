@@ -1,7 +1,7 @@
 // Buyer / seller invites for Supabase mode. The RPCs live in the unapplied migration
 // 20261106190000_client_portal_invites.sql. This file does not connect by itself and does not send email.
-import { canInviteClients, CLIENT_INVITE_GENERIC } from './client-invite.js?v=202611061842';
-import { acceptInviteRemote } from './accept-invite-client.js?v=202611061842';
+import { canInviteClients, CLIENT_INVITE_GENERIC } from './client-invite.js?v=202611061918';
+import { acceptInviteRemote } from './accept-invite-client.js?v=202611061918';
 
 const shape = (r) => ({
   id: r.id, contactId: r.contact_id, dealId: r.deal_id, role: r.role, email: r.email, firstName: r.first_name, lastName: r.last_name,

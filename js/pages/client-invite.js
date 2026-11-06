@@ -1,7 +1,7 @@
 // Buyer / seller one-time link. Public. Nothing is emailed. Public sign-up stays off.
 // A new login is an Outside user. An existing Outside user can link this file only.
 // The page does not show the token again and does not change a staff role.
-import { html, $, guard, toast, fmtDateTime } from '../ui.js?v=202611061842';
+import { html, $, guard, toast, fmtDateTime } from '../ui.js?v=202611061918';
 const GENERIC = 'This invite link is not valid or has expired.';
 export async function render({ api, params, go }) {
   const inv = await api.getClientInvite(params.token);
