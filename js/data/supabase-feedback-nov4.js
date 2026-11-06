@@ -4,9 +4,9 @@
  *  - Disbursement Details: public.deal_disbursements (Admin writes; trigger writes deal_disbursement_log).
  *  - Search result columns: public.crm_search_columns (each person's own).
  *  - Custom views / saved filters: tables are in place; running a view needs the CRM list queries, so it is not connected yet. */
-import { CLA_OFFICES, OFFICE_LOCATION } from './cla-offices.js?v=202611060220';
-import { DISBURSEMENT_FIELDS, cleanDisbursement } from './crm-disbursement.js?v=202611060220';
-import { SEARCH_COL_MAX } from './crm-views.js?v=202611060220';
+import { CLA_OFFICES, OFFICE_LOCATION } from './cla-offices.js?v=202611060249';
+import { DISBURSEMENT_FIELDS, cleanDisbursement } from './crm-disbursement.js?v=202611060249';
+import { SEARCH_COL_MAX } from './crm-views.js?v=202611060249';
 const NOT_YET = 'Custom views and saved filters are not connected to the live database yet (they work in the demo build). Nothing was saved.';
 const snake = (k) => k.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
 export function feedbackNov4Supabase({ sb, ok, me }) {

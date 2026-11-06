@@ -3,8 +3,8 @@
 // Monthly, paid in advance vs unpaid (arrears). Each proration is a credit on the fee ledger, so it flows into the ALTA (Prorations /
 // Adjustments) and the CD (K / M when paid in advance, L / N when unpaid) and every add / edit / retire is in the edit history.
 // Processor / Admin / Super admin edit; Sales and TCs read only. TEST ONLY.
-import { html, raw, $, $$, guard, formData, toast, toText, fmtDate } from '../ui.js?v=202611060220';
-import { PRORATION_CYCLES, PRORATION_BASES, PRORATION_STATUS, PRORATION_ITEMS, computeProration, prorationRange } from '../data/prorations.js?v=202611060220';
+import { html, raw, $, $$, guard, formData, toast, toText, fmtDate } from '../ui.js?v=202611060249';
+import { PRORATION_CYCLES, PRORATION_BASES, PRORATION_STATUS, PRORATION_ITEMS, computeProration, prorationRange } from '../data/prorations.js?v=202611060249';
 const m2z = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const opt = (v, l, sel) => html`<option value="${v}" ${String(v) === String(sel ?? '') ? raw('selected') : ''}>${l}</option>`;
 const lab = (list, k) => (list.find(([x]) => x === k) || [k, k])[1];

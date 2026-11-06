@@ -1,7 +1,7 @@
-import { raw, html, $, guard, options } from '../ui.js?v=202611060220';
-import { roleLabel, fileRolesLabel, isOutside, accountTypeLabel } from '../data/constants.js?v=202611060220';
-import { devPickerOn, PLAIN_URL_NOTICE } from '../data/locked-links.js?v=202611060220';
-import { clearSessionWs } from '../workspace.js?v=202611060220';
+import { raw, html, $, guard, options } from '../ui.js?v=202611060249';
+import { roleLabel, fileRolesLabel, isOutside, accountTypeLabel } from '../data/constants.js?v=202611060249';
+import { devPickerOn, PLAIN_URL_NOTICE } from '../data/locked-links.js?v=202611060249';
+import { clearSessionWs } from '../workspace.js?v=202611060249';
 
 export async function render({ api, go }) {
   // Supabase mode is a real login. No person picker, no ?as= identity, no sign-up.
@@ -16,7 +16,7 @@ export async function render({ api, go }) {
   // NO PICKER ON THE PUBLIC DEMO (John, Nov 4): without the test-harness flag the plain URL shows only the notice; nobody can pick a fake user here
   if (!devPickerOn()) return { title: '', body: raw(`<div class="login-page" data-test-portal-notice><div class="login-card"><img class="login-logo" src="assets/img/login-logo-new.png" alt="CLA Portal Live Test"><h2 data-site-name="CLA Portal Live Test">CLA Portal Live Test</h2><p class="dev-banner" data-test-environment>TEST ENVIRONMENT &middot; FAKE DATA ONLY</p><p data-notice-text>${PLAIN_URL_NOTICE}</p></div></div>`) };
   const users = await api.listDevUsers();
-  const tpl = await (await fetch('partials/entry.html?v=202611060220')).text();
+  const tpl = await (await fetch('partials/entry.html?v=202611060249')).text();
   const opts = options(users, '', (x) => `${x.firstName} ${x.lastName} \u2014 ${isOutside(x.role) ? accountTypeLabel(x) : roleLabel(x)}`, (x) => x.id);
   const body = raw(tpl.replace('</select>', opts.toString() + '</select>'));
   return { title: 'Welcome', body, mount: (root) => wire(root, api, go) };
