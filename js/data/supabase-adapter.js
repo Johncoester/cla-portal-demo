@@ -277,7 +277,7 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, tcSupabase({ sb, ok, camel, api: a }));   // John, Nov 5 (migration 71): TC contract / EMD / ALTA / all-parties thread
   Object.assign(a, emailSendersSupabase({ sb, ok, me }));
   Object.assign(a, nov5Supabase({ sb, ok, camel, me }));
-  for (const n of ['createAgentInvite', 'resendAgentInvite', 'acceptAgentInvite']) a[n] = async () => { throw new Error('Invitations are not enabled on CLA Portal Live Test. Nothing was sent.'); };
+  // Staff create and resend invite links here (nothing is emailed). Accepting a link goes through the accept-invite function, not a browser sign-up.
   a.previewCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };
   a.runCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };
   a.cancelSignatureRequest = async () => { throw new Error(NOT_ENABLED); };

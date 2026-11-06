@@ -2,6 +2,7 @@
  * NOT run against a hosted project (best effort; the mock adapter is the tested one). NOTHING IS SENT: the invite RPC returns the token and the page
  * shows the link. Photos go to the private 'agent-photos' bucket at <uid>/avatar.jpg and are shown through short-lived signed URLs. */
 import { cleanAgentProfile, canInviteAgents, cardOf } from './agent-profile.js?v=202611060250';
+import { acceptInviteRemote } from './accept-invite-client.js?v=202611060250';
 const inv = (r) => ({ id: r.id, contactId: r.contact_id, dealId: r.deal_id, firstName: r.first_name, lastName: r.last_name, email: r.email, status: r.status === 'pending' && r.expires_at < new Date().toISOString() ? 'expired' : r.status,
   createdAt: r.created_at, expiresAt: r.expires_at, acceptedAt: r.accepted_at, revokedAt: r.revoked_at, resentCount: r.resent_count || 0, createdByName: '' });
 export function agentInviteSupabase({ sb, ok, me }) {
@@ -20,9 +21,11 @@ export function agentInviteSupabase({ sb, ok, me }) {
     async revokeAgentInvite(id) { ok(await sb.rpc('revoke_agent_invite', { p_invite: id })); return { id, status: 'revoked' }; },
     async getAgentInvite(token) { const r = (ok(await sb.rpc('agent_invite_lookup', { p_token: token })) || [])[0] || { status: 'invalid' };
       return { status: r.status, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', expiresAt: r.expires_at, cellPhone: '', brokerage: '' }; },
-    // the agent first creates their sign-in (Supabase Auth sign-up with the invited email), then this links the account
-    async acceptAgentInvite(token, form) { const v = cleanAgentProfile(form); const { data } = await sb.auth.getUser(); if (!data || !data.user) throw new Error('Create your sign-in first (email + password), then finish the form.');
-      const uid = ok(await sb.rpc('accept_agent_invite', { p_token: token, p: toJson(v) })); const path = await upload(uid, v.photo); if (path) ok(await sb.rpc('update_my_agent_profile', { p: { photoPath: path } })); return this.getMyAgentProfile(); },
+    // Public sign-up stays off. The edge function creates the login from the invite email, then this signs in and stores the picture.
+    async acceptAgentInvite(token, form) { const v = cleanAgentProfile(form); const password = String((form && form.password) || ''); if (password.length < 8) throw new Error('Password must be at least 8 characters.');
+      const profile = { ...v }; delete profile.photo; await acceptInviteRemote(sb, { kind: 'agent', token, password, profile });
+      const signed = await sb.auth.signInWithPassword({ email: v.email, password }); if (signed.error) throw new Error('Your login was created. Sign in with the invited email and the password you just chose.');
+      const uid = signed.data && signed.data.user && signed.data.user.id; const path = uid ? await upload(uid, v.photo) : undefined; if (path) ok(await sb.rpc('update_my_agent_profile', { p: { photoPath: path } })); return this.getMyAgentProfile(); },
     async getMyAgentProfile() { const u = await me(); const a = ok(await sb.from('agent_profiles').select('*').eq('profile_id', u.id).maybeSingle()); if (!a) return null;
       const b = ok(await sb.from('agent_private').select('birth_month,birth_day,birthdate').eq('profile_id', u.id).maybeSingle()) || {};
       return { profileId: u.id, firstName: u.firstName, lastName: u.lastName, email: u.email, cellPhone: a.cell_phone, officePhone: a.office_phone, brokerage: a.brokerage, licenseNumber: a.license_number, street: a.street, city: a.city, state: a.state, zip: a.zip,

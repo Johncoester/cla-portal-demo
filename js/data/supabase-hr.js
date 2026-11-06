@@ -4,6 +4,7 @@
  * emergency contact), a guard trigger (HR fields only by an HR manager or Super admin; an HR manager never changes their own HR fields),
  * security-definer RPCs for HR writes, and history triggers. NOTHING IS SENT: invites return a one-time link. No SSNs / government IDs. */
 import { hrFeedbackSupabase } from './supabase-hr-feedback.js?v=202611060250';
+import { acceptInviteRemote } from './accept-invite-client.js?v=202611060250';
 import { HR_INVITE_DAYS, COLUMN_OF, FIELD_LABEL, SELF_FIELDS, HR_FIELDS, basicOf, fullNameOf, nextEmployeeCode, cleanEmployee, cleanSelfPatch, employeesCsv, historyCsv, csvStamp } from './hr.js?v=202611060250';
 
 const FIELD_OF = Object.fromEntries(Object.entries(COLUMN_OF).map(([k, c]) => [c, k]));
@@ -72,9 +73,12 @@ export function hrSupabase({ sb, ok, me }) {
     async createHrInvite(employeeId) { const r = (ok(await sb.rpc('hr_create_invite', { p_employee: employeeId })) || [])[0]; return { employeeId, link: '#/hr-invite/' + r.token, expiresAt: r.expires_at, sent: false, days: HR_INVITE_DAYS }; },
     async getHrInvite(token) { const r = (ok(await sb.rpc('hr_invite_lookup', { p_token: token })) || [])[0] || { status: 'invalid' };
       return { status: r.status, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', expiresAt: r.expires_at }; },
-    // the employee first creates their sign-in (Supabase Auth sign-up with the invited email), then this makes / links the portal login
-    async acceptHrInvite(token) { const { data } = await sb.auth.getUser(); if (!data || !data.user) throw new Error('Create your sign-in first (the invited email + a password), then open this link again.');
-      const id = ok(await sb.rpc('hr_accept_invite', { p_token: token })); return { profileId: data.user.id, employeeId: id }; },
+    // Public sign-up stays off. The edge function creates the login; this page then signs in with the new password.
+    async acceptHrInvite(token, extra = {}) { const password = String((extra && extra.password) || ''); if (password.length < 8) throw new Error('Password must be at least 8 characters.');
+      const looked = await this.getHrInvite(token); if (!looked.email) throw new Error('This invite link is not valid or has expired.');
+      await acceptInviteRemote(sb, { kind: 'hr', token, password }); const signed = await sb.auth.signInWithPassword({ email: looked.email, password });
+      if (signed.error) throw new Error('Your login was created. Sign in with the invited email and the password you just chose.');
+      const { data } = await sb.auth.getUser(); return { profileId: data.user && data.user.id, employeeId: null }; },
     async createHrDepartment(name) { return lk(ok(await sb.from('hr_departments').insert({ name: String(name || '').trim() }).select('*').single())); },
     async archiveHrDepartment(id, archived = true) { return lk(ok(await sb.from('hr_departments').update({ archived_at: archived ? now() : null }).eq('id', id).select('*').single())); },
     async createHrDesignation(name) { return lk(ok(await sb.from('hr_designations').insert({ name: String(name || '').trim() }).select('*').single())); },

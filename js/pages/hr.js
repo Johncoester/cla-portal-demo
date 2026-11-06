@@ -234,7 +234,9 @@ async function profile({ api, user, refresh }, id, mine) {
       await api.archiveHrEmployee(e.id, on); toast(on ? 'Employee archived (kept, not deleted)' : 'Employee restored'); refresh(); }));
     const hx = $('[data-hr-emp-history-export]', root); if (hx) hx.addEventListener('click', guard(async () => { const x = await api.exportHrHistoryCsv({ employeeId: e.id }); download(x.filename.replace('.csv', `-${e.employeeCode}.csv`), x.csv); toast(`Exported ${x.count} history row(s)`); }));
     const ni = $('[data-hr-new-invite]', root); if (ni) ni.addEventListener('click', guard(async () => { const x = await api.createHrInvite(e.id); const box = $('[data-hr-invite-result]', root); box.hidden = false;
-      box.innerHTML = html`<p class="small"><strong>New invite link</strong> (any older link stopped working). Not sent: copy it and send it yourself.</p><div class="ai-link-row"><input readonly value="${abs(x.link)}" data-hr-invite-link aria-label="One-time invite link"></div><p class="muted small">Works once, until ${fmtDateTime(x.expiresAt)}.</p>`.toString(); toast('Invite link made (nothing sent)'); }));
+      box.innerHTML = html`<p class="small"><strong>New invite link</strong> (any older link stopped working). Not sent: copy it and send it yourself.</p><div class="ai-link-row"><input readonly value="${abs(x.link)}" data-hr-invite-link aria-label="One-time invite link"><button type="button" class="m-btn" data-hr-copy>Copy</button></div><p class="muted small">Works once, until ${fmtDateTime(x.expiresAt)}.</p>`.toString();
+      $('[data-hr-copy]', box).addEventListener('click', async () => { const i = $('[data-hr-invite-link]', box); i.select(); try { await navigator.clipboard.writeText(i.value); toast('Link copied'); } catch (er) { toast('Select the link and copy it'); } });
+      toast('Invite link made (nothing sent)'); }));
   } };
 }
 // ---------------- My team (line manager: basic fields only) ----------------

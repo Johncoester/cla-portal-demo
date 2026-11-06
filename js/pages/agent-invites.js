@@ -37,10 +37,12 @@ export async function render({ api, refresh }) {
       $('[data-copy-link]', res).addEventListener('click', async () => { const i = $('[data-invite-link]', res); i.select(); try { await navigator.clipboard.writeText(i.value); toast('Link copied'); } catch (e) { toast('Select the link and copy it'); } }); };
     f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(f).entries());
       const r = await api.createAgentInvite(d.contactId ? { contactId: d.contactId, dealId: d.dealId || null } : { firstName: d.firstName, lastName: d.lastName, email: d.email, dealId: d.dealId || null });
+      const cand = d.contactId ? cands.find((c) => c.contactId === d.contactId) : null;
+      if (cand) { r.firstName = r.firstName || cand.firstName; r.lastName = r.lastName || cand.lastName; r.email = r.email || cand.email; }
       toast('Invite created (nothing sent)'); sessionStorage.setItem('cla-portal-new:last-invite', JSON.stringify(r)); refresh(); }));
     const last = sessionStorage.getItem('cla-portal-new:last-invite'); if (last) { sessionStorage.removeItem('cla-portal-new:last-invite'); try { const r = JSON.parse(last); showLink(r, r.resentCount ? 'New link' : 'Invite link'); } catch (e) { /* ignore */ } }
     $$('[data-show-link]', root).forEach((b) => b.addEventListener('click', () => { const r = list.find((i) => i.id === b.dataset.showLink); showLink(r, 'Invite link'); res.scrollIntoView({ block: 'nearest' }); }));
-    $$('[data-resend]', root).forEach((b) => b.addEventListener('click', guard(async () => { const r = await api.resendAgentInvite(b.dataset.resend); toast('New link made (nothing sent)'); sessionStorage.setItem('cla-portal-new:last-invite', JSON.stringify(r)); refresh(); })));
+    $$('[data-resend]', root).forEach((b) => b.addEventListener('click', guard(async () => { const prev = list.find((i) => i.id === b.dataset.resend) || {}; const r = { ...prev, ...(await api.resendAgentInvite(b.dataset.resend)) }; toast('New link made (nothing sent)'); sessionStorage.setItem('cla-portal-new:last-invite', JSON.stringify(r)); refresh(); })));
     $$('[data-revoke]', root).forEach((b) => b.addEventListener('click', guard(async () => { if (!confirm('Revoke this invite? The link stops working. The invite stays in the list as Revoked.')) return; await api.revokeAgentInvite(b.dataset.revoke); toast('Invite revoked'); refresh(); })));
   } };
 }
