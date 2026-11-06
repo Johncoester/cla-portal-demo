@@ -16,8 +16,8 @@ export const WORKSPACES = [
   { id: 'admin', label: 'Admin / Settings', desc: 'Users, teams, offices, modules, underwriter splits', home: '/users' },
 ];
 export const wsById = (id) => WORKSPACES.find((w) => w.id === id) || null;
-import { modAccess } from './data/modules.js?v=202611061730';
-import { hrVisibleFor } from './data/hr.js?v=202611061730';
+import { modAccess } from './data/modules.js?v=202611061842';
+import { hrVisibleFor } from './data/hr.js?v=202611061842';
 export const hrVisible = (u) => hrVisibleFor(u, modAccess('hr'));
 export const hrOnly = (u) => !!(u && u.role === 'Employee');   // HR-only login: always the HR workspace, no dropdown
 export const usesWorkspaces = (u) => !!(u && (u.isAdmin || (!hrOnly(u) && hrVisible(u))));
