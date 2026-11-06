@@ -53,6 +53,7 @@ export function routeAllowed(u, route, { locked = false } = {}) {
   if (p === 'schedule') return true;                                   // public closing-time link
   if (p === 'agent-invite') return !locked;   // one-time agent setup page: never inside a locked test-link session
   if (p === 'hr-invite') return !locked;      // HR: the employee's one-time login setup page, never inside a locked test-link session
+  if (p === 'client-invite') return !locked;  // buyer / seller one-time link, never inside a locked test-link session
   if (p === 'login') return !locked;
   if (!u) return false;
   // HR WORKSPACE (John + Francis, Nov 4): outside users (agents, clients; every outside tester link) NEVER reach HR. Everyone else needs an HR role

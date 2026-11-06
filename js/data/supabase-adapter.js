@@ -21,6 +21,7 @@ import { tcSupabase } from './supabase-tc.js?v=202611061730';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611061730';
 import { nov5Supabase } from './supabase-nov5.js?v=202611061730';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611061730';
+import { clientInviteSupabase } from './supabase-client-invite.js?v=202611061730';
 import { staffSupabase } from './supabase-staff.js?v=202611061730';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611061730';
 import { propertyAddressOf } from './nov5-rules.js?v=202611061730';
@@ -275,6 +276,7 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, taskSwitchesSupabase({ sb, ok, me }));   // John, Nov 4 (migration 49): Task Templates > Task switches (Admin only)
   Object.assign(a, callItemsSupabase({ sb, ok, me }));   // John, Nov 3 call (migration 38): underwriter splits, agent birthdate
   Object.assign(a, agentInviteSupabase({ sb, ok, me }));   // John, Nov 4 (migration 41): agent invites (nothing sent), agent profiles, the clients' agent card
+  Object.assign(a, clientInviteSupabase({ sb, ok, me }));   // John, Nov 6: buyer / seller invites (unapplied; nothing sent)
   { const { hrSessionExtras, ...hrApi } = hrSupabase({ sb, ok, me }); Object.assign(a, hrApi);   // HR workspace, Phase 1 (Nov 4, migration 47): the session carries hrRole / hrEmployeeId / hrHasReports
     const gs = a.getSession; a.getSession = async function () { const u = await gs.call(this); return u ? { ...u, ...(await hrSessionExtras()) } : u; }; }
   Object.assign(a, feedbackNov4Supabase({ sb, ok, me }));

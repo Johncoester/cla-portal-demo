@@ -48,12 +48,13 @@ const pages = {
   underwriters: () => import('./pages/underwriters.js?v=202611061730'),
   hr: () => import('./pages/hr.js?v=202611061730'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
   'hr-invite': () => import('./pages/hr-invite.js?v=202611061730'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
+  'client-invite': () => import('./pages/client-invite.js?v=202611061730'),   // buyer / seller one-time login link (nothing emailed)
   offices: () => import('./pages/offices.js?v=202611061730'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
   demo: () => import('./pages/demo-view.js?v=202611061730'),   // permanent Demo mode: Super admin views a seeded demo user
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };
-const PUBLIC = new Set(['login', 'schedule', 'agent-invite', 'hr-invite']);
+const PUBLIC = new Set(['login', 'schedule', 'agent-invite', 'hr-invite', 'client-invite']);
 // MODULE SWITCHES (John, Nov 3): which switchable module a route belongs to (data/modules.js). Not Live = beta: only Admins / Super admins get it.
 export function routeModule(route) {
   const p = route.page;
@@ -75,6 +76,7 @@ function parse() {
   if (seg[0] === 'agent-invite') return { page: 'agent-invite', params: { token: seg[1] || '' } };
   if (seg[0] === 'hr') return { page: 'hr', params: { section: seg[1] === 'employees' && seg[2] ? 'employee' : (seg[1] || 'home'), id: seg[1] === 'employees' ? (seg[2] || '') : '' } };
   if (seg[0] === 'hr-invite') return { page: 'hr-invite', params: { token: seg[1] || '' } };
+  if (seg[0] === 'client-invite') return { page: 'client-invite', params: { token: seg[1] || '' } };
   if (seg[0] === 'schedule') return { page: 'schedule', params: { token: seg[1] || '' } };
   return { page: seg[0], params: {} };
 }
@@ -285,7 +287,7 @@ export async function render() {
   const loader = (FLAGGED[route.page] && !(api.features || {})[FLAGGED[route.page]]) || (route.page === 'deal' && route.params.tab === 'accounting' && !(api.features || {}).accounting) || (modId && !modOn(modId)) ? null : pages[route.page];   // a module that is not Live (beta): Page not found for everyone but Admins   // Accounting tab: Page not found when the flag is off
   if (!loader) { root.innerHTML = toText(await layout(u, { body: html`<div class="box-title"><h2>Page not found</h2></div><p>That page does not exist.</p>` }, route, ws)); wireChrome(u); return; }
   const mod = await loader(); let view;
-  try { view = await mod.render({ api, user: u, params: route.params, refresh: render, go }); }
+  try { view = await mod.render({ api, user: u, params: route.params, refresh: render, go, inviteSession: { demoView: !!(DEMO_VIEW && DEMO_VIEW.active) || !!(VIEW_AS && VIEW_AS.viewing), locked: !!lockedId } }); }
   catch (e) { view = { crumbs: [['Not available']], body: html`<div class="box-title"><h2>Not available</h2></div><p class="err-text">${e.message}</p><p><a class="back-btn" href="#${homeFor(u)}">Back</a></p>` }; }
   if (my !== rendering) return;
   if (PUBLIC.has(route.page)) { root.innerHTML = toText(view.body); }

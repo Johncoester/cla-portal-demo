@@ -1,4 +1,5 @@
-// accept-invite: create a portal login from a one-time HR or agent invite.
+// accept-invite: create or link a portal login from a one-time HR, agent, or buyer/seller invite.
+// Buyer/seller (kind client) is in this file for a later deploy. Do not deploy it with this change.
 // verify_jwt MUST be false. Deploy with: supabase functions deploy accept-invite --no-verify-jwt
 // The invitee has no session. The invite token is the credential. Public sign-up stays off.
 // CORS allows only https://johncoester.github.io. The service-role key stays in this function's environment.
@@ -31,6 +32,14 @@ Deno.serve((req: Request) => handleAcceptInvite(req, {
     return { id: r.data.user.id };
   },
   deleteUser: async (id: string) => { await admin.auth.admin.deleteUser(id); },
+  sessionUser: async (req: Request) => {
+    const header = req.headers.get('authorization') || '';
+    const jwt = header.replace(/^Bearer\s+/i, '').trim();
+    if (!jwt || jwt === key) return null;
+    const r = await admin.auth.getUser(jwt);
+    if (r.error || !r.data.user || !r.data.user.email) return null;
+    return { id: r.data.user.id, email: r.data.user.email };
+  },
   accept: async (kind: string, token: string, userId: string, profile: Record<string, unknown>) => {
     const r = await admin.rpc('service_accept_invite', { p_kind: kind, p_token: token, p_user: userId, p: profile });
     if (r.error) {

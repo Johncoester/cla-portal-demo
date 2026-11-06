@@ -1,13 +1,13 @@
 // Calls the accept-invite edge function, then the page signs in with the new password.
 // The publishable key identifies the project. The service-role key is not in this file.
 const GENERIC = 'This invite link is not valid or has expired.';
-export async function acceptInviteRemote(sb, body) {
+export async function acceptInviteRemote(sb, body, { userJwt = null } = {}) {
   const base = String(sb.supabaseUrl || '').replace(/\/$/, '');
   const key = sb.supabaseKey;
   if (!base || !key) throw new Error(GENERIC);
   const res = await fetch(base + '/functions/v1/accept-invite', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey: key, Authorization: 'Bearer ' + key },
+    headers: { 'Content-Type': 'application/json', apikey: key, Authorization: 'Bearer ' + (userJwt || key) },
     body: JSON.stringify(body),
   });
   let payload = {};

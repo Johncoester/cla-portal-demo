@@ -1,0 +1,204 @@
+/* Buyer / seller portal invites. Mock mode plus source checks. No network and no hosted database. */
+import { readFileSync } from 'node:fs';
+import { createMockAdapter } from '../js/data/mock-adapter.js';
+import { sha256Hex, canInviteClients } from '../js/data/client-invite.js';
+import { routeAllowed } from '../js/data/locked-links.js';
+const KEY = 'cla-portal-new:data:v30';
+const LOCK = 'cla-portal-new:locked:v1';
+const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+let pass = 0, fails = 0;
+const ok = (c, name) => { if (c) pass++; else { fails++; console.log('FAIL', name); } };
+const rejects = async (p, name, re) => { try { await p(); ok(false, name); } catch (e) { ok(!re || re.test(e.message), name); } };
+const fresh = () => { const store = mem(); const session = mem(); return { store, session, api: createMockAdapter({ storage: store, sessionStorage: session }) }; };
+const tokenOf = (link) => { ok(/^#\/client-invite\/[0-9a-f]{64}$/.test(link || ''), 'link is a one-time path'); return String(link || '').split('/').pop(); };
+const ids = (rows) => rows.map((d) => d.id).sort();
+
+const secret = 'client-invite-test-pass';
+const { store, session, api: a } = fresh();
+const as = async (id) => { await a.signInDev(id); return a; };
+
+ok(canInviteClients({ role: 'Processor', status: 'active', isAdmin: false }) === true, 'processor may invite');
+ok(canInviteClients({ role: 'Preprocessor', status: 'active' }) === true, 'preprocessor may invite on an assigned file');
+ok(canInviteClients({ role: 'Admin', status: 'active', isAdmin: true }) === true, 'admin may invite');
+ok(canInviteClients({ role: 'Sales Person', status: 'active' }) === false, 'sales cannot invite');
+ok(canInviteClients({ role: 'Transaction Coordinator', status: 'active' }) === false, 'coordinator cannot invite');
+ok(canInviteClients({ role: 'Outside user', status: 'active' }) === false, 'a client cannot invite');
+ok(canInviteClients({ role: 'Processor', status: 'disabled' }) === false, 'disabled cannot invite');
+ok(canInviteClients({ role: 'Processor', status: 'active', isDemo: true }) === false, 'demo person cannot invite');
+ok(canInviteClients({ role: 'Processor', status: 'active' }, { demoView: true }) === false, 'view-as cannot invite');
+ok(canInviteClients({ role: 'Processor', status: 'active' }, { locked: true }) === false, 'locked demo session cannot invite');
+ok(routeAllowed(null, { page: 'client-invite' }, { locked: false }) === true, 'the link page is public');
+ok(routeAllowed({ role: 'Processor', status: 'active' }, { page: 'client-invite' }, { locked: true }) === false, 'a locked session cannot open the link page');
+
+await as('u-proc');
+const beforeUsers = (await a.listDevUsers()).length;
+const contact = await a.createContact({ firstName: 'Nina', lastName: 'No-Login', email: 'nina.no-login@example.test', phone: '410-555-0199', contactType: 'buyer_seller' });
+ok(contact.profileId == null && (await a.listDevUsers()).length === beforeUsers, 'creating a contact does not create a login');
+await rejects(() => a.createClientInvite({ dealId: 'deal-5', contactId: 'c-lender1' }), 'lender is not a buyer or seller', /buyer or seller/);
+await rejects(() => a.createClientInvite({ dealId: 'deal-4', contactId: 'c-lena' }), 'an agent uses the agent invite, not this one', /buyer or seller/);
+
+await a.addParticipant('deal-2', 'c-wbuyer', 'Client-Buyer');
+const buyerLink = await a.createClientInvite({ dealId: 'deal-5', contactId: 'c-wbuyer' });
+const buyerToken = tokenOf(buyerLink.link);
+ok(buyerLink.sent === false, 'buyer invite sends nothing');
+const stored = store.getItem(KEY);
+ok(stored && !stored.includes(buyerToken) && !stored.includes(secret), 'stored data has no token or password');
+ok(stored.includes(await sha256Hex(buyerToken)), 'the hash is what is stored');
+const activity = await a.listActivity('deal-5');
+ok(activity.items.some((x) => /Nothing is emailed/.test(x.detail)) && activity.items.every((x) => !String(x.detail).includes(buyerToken)), 'the activity log has no token');
+await rejects(() => a.createClientInvite({ dealId: 'deal-5', contactId: 'c-wbuyer' }), 'a second invite is refused', /already waiting/);
+
+await a.addDocument('deal-5', { name: 'Wire Instructions.pdf', visibility: 'all', wireInstructions: true, mimeType: 'application/pdf', size: 10 });
+await a.addDocument('deal-5', { name: 'Internal ledger.pdf', visibility: 'staff', mimeType: 'application/pdf', size: 10 });
+await a.addDocument('deal-5', { name: 'Buyer contract.pdf', visibility: 'all', mimeType: 'application/pdf', size: 10 });
+const sellerTask = await a.createTask('deal-5', { title: 'Seller proceeds', assignedRole: 'Client-Seller' });
+const buyerTask = await a.createTask('deal-5', { title: 'Buyer intake', assignedRole: 'Client-Buyer' });
+await a.createTask('deal-5', { title: 'Processor only', assignedRole: 'Processor' });
+
+await rejects(() => a.acceptClientInvite(buyerToken, { email: 'someone.else@example.test', password: secret }), 'email mismatch', /invited email/);
+ok(!(await a.listDevUsers()).some((u) => u.firstName === 'Wendy'), 'mismatch did not create a login');
+await as('u-buyer');
+await rejects(() => a.acceptClientInvite(buyerToken, { existing: true }), 'wrong account cannot accept', /not valid/);
+await as('u-proc');
+ok((await a.getDeal('deal-5')).participants.find((p) => p.contactId === 'c-wbuyer').contact.profileId == null, 'wrong account did not link the contact');
+
+const accepted = await Promise.allSettled([a.acceptClientInvite(buyerToken, { password: secret }), a.acceptClientInvite(buyerToken, { password: secret })]);
+ok(accepted.filter((r) => r.status === 'fulfilled').length === 1 && accepted.filter((r) => r.status === 'rejected').length === 1, 'only one accept wins');
+const wendy = await a.getSession();
+ok(wendy && wendy.role === 'Outside user' && wendy.isAdmin === false && wendy.email === 'wendy.willow-buyer@example.test', 'new login is an outside user');
+const wendyDeals = ids(await a.listDeals());
+ok(wendyDeals.includes('deal-5') && wendyDeals.includes('deal-2') && !wendyDeals.includes('deal-1') && !wendyDeals.includes('deal-4'), 'buyer sees only files that contact is on');
+await rejects(() => a.getDeal('deal-1'), 'other file is hidden', /not found/i);
+await rejects(() => a.listDocuments('deal-1'), 'other file documents are hidden', /not found/i);
+const tasks = await a.listTasks('deal-5');
+ok(tasks.every((t) => t.assignedRole === 'Client-Buyer') && tasks.some((t) => t.id === buyerTask.id) && !tasks.some((t) => t.id === sellerTask.id), 'buyer sees only buyer tasks');
+await rejects(() => a.getTask(sellerTask.id), 'seller task is hidden', /not found/i);
+const docs = await a.listDocuments('deal-5');
+ok(docs.some((d) => /Wire Instructions/.test(d.name)) && docs.some((d) => /Buyer contract/.test(d.name)) && !docs.some((d) => /Internal ledger/.test(d.name)), 'buyer sees the wire file and not the staff file');
+await rejects(() => a.listActivity('deal-5'), 'buyer cannot read the staff log', /staff/i);
+await rejects(() => a.createClientInvite({ dealId: 'deal-5', contactId: 'c-wseller' }), 'buyer cannot invite', /processor or admin|sign in|not found/i);
+await rejects(() => a.acceptClientInvite(buyerToken, {}), 'used link cannot be reused', /not valid/);
+
+await as('u-proc');
+ok((await a.getDeal('deal-5')).participants.find((p) => p.contactId === 'c-wseller').contact.profileId == null, 'the seller contact is still without a login');
+const sellerLink = await a.createClientInvite({ dealId: 'deal-5', contactId: 'c-wseller' });
+const sellerToken = tokenOf(sellerLink.link);
+await a.acceptClientInvite(sellerToken, {});
+const walt = await a.getSession();
+ok(walt.role === 'Outside user' && walt.isAdmin === false, 'seller login is an outside user');
+ok(ids(await a.listDeals()).join() === 'deal-5', 'seller sees only that file');
+const sellerDocs = await a.listDocuments('deal-5');
+ok(!sellerDocs.some((d) => /Wire Instructions|Internal ledger/.test(d.name)) && sellerDocs.some((d) => /Buyer contract/.test(d.name)), 'seller does not see wire or staff files');
+const sellerTasks = await a.listTasks('deal-5');
+ok(sellerTasks.every((t) => t.assignedRole === 'Client-Seller') && !sellerTasks.some((t) => t.id === buyerTask.id), 'seller does not see buyer tasks');
+await rejects(() => a.getDeal('deal-1'), 'seller cannot open another file', /not found/i);
+
+await as('u-proc');
+const revokeLink = await a.createClientInvite({ dealId: 'deal-4', contactId: 'c-cora' });
+const revokeToken = tokenOf(revokeLink.link);
+await a.revokeClientInvite(revokeLink.id);
+await rejects(() => a.acceptClientInvite(revokeToken, {}), 'revoked link is dead', /not valid/);
+const again = await a.createClientInvite({ dealId: 'deal-4', contactId: 'c-cora' });
+const first = tokenOf(again.link);
+const renewed = await a.regenerateClientInvite(again.id);
+const second = tokenOf(renewed.link);
+ok(first !== second, 'a new link is a different token');
+const after = store.getItem(KEY);
+ok(!after.includes(first) && !after.includes(second), 'neither token is stored');
+await rejects(() => a.acceptClientInvite(first, {}), 'the old token is dead', /not valid/);
+await a.acceptClientInvite(second, {});
+ok((await a.getSession()).role === 'Outside user' && (await a.getSession()).isAdmin === false, 'regenerated link still creates an outside user');
+
+await as('u-buyer');
+await rejects(() => a.createClientInvite({ dealId: 'deal-1', contactId: 'c-seller' }), 'buyer actor refused', /processor or admin/);
+await as('u-sp');
+await rejects(() => a.createClientInvite({ dealId: 'deal-1', contactId: 'c-seller' }), 'sales actor refused', /processor or admin/);
+await as('u-tc');
+await rejects(() => a.createClientInvite({ dealId: 'deal-1', contactId: 'c-seller' }), 'coordinator actor refused', /processor or admin/);
+await as('u-preproc');
+await rejects(() => a.createClientInvite({ dealId: 'deal-5', contactId: 'c-wbuyer' }), 'preprocessor off this file is refused', /not found/i);
+const preContact = await a.createContact({ firstName: 'Pat', lastName: 'Client', email: 'pat.client@example.test', phone: '410-555-0188', contactType: 'buyer_seller' });
+await a.addParticipant('deal-1', preContact.id, 'Client-Buyer');
+const preLink = await a.createClientInvite({ dealId: 'deal-1', contactId: preContact.id });
+ok(preLink.sent === false && /^#\/client-invite\/[0-9a-f]{64}$/.test(preLink.link), 'preprocessor can invite on an assigned file');
+
+session.setItem(LOCK, JSON.stringify({ user: 'u-proc' }));
+await as('u-proc');
+await rejects(() => a.createClientInvite({ dealId: 'deal-1', contactId: 'c-seller' }), 'locked session cannot invite', /demo or view-as/);
+session.removeItem(LOCK);
+
+const expired = fresh();
+await expired.api.signInDev('u-proc');
+const exp = await expired.api.createClientInvite({ dealId: 'deal-4', contactId: 'c-cora' });
+const expToken = tokenOf(exp.link);
+const data = JSON.parse(expired.store.getItem(KEY));
+data.clientInvites.find((i) => i.id === exp.id).expiresAt = '2000-01-01T00:00:00.000Z';
+expired.store.setItem(KEY, JSON.stringify(data));
+const expired2 = createMockAdapter({ storage: expired.store, sessionStorage: mem() });
+await rejects(() => expired2.acceptClientInvite(expToken, {}), 'expired link is dead', /not valid/);
+
+const existing = fresh();
+await existing.api.signInDev('u-proc');
+const ex = await existing.api.createClientInvite({ dealId: 'deal-5', contactId: 'c-wbuyer' });
+const exToken = tokenOf(ex.link);
+const body = JSON.parse(existing.store.getItem(KEY));
+body.profiles.push({ id: 'u-wendy-old', email: 'wendy.willow-buyer@example.test', firstName: 'Wendy', lastName: 'Willow-Buyer', phone: '', role: 'Outside user', isAdmin: false, isDemo: false, status: 'active', createdAt: '2026-11-01T00:00:00.000Z' });
+existing.store.setItem(KEY, JSON.stringify(body));
+const existing2 = createMockAdapter({ storage: existing.store, sessionStorage: mem() });
+await rejects(() => existing2.acceptClientInvite(exToken, { password: secret }), 'password path cannot take over an existing login', /not valid/);
+await existing2.signInDev('u-wendy-old');
+await existing2.acceptClientInvite(exToken, { existing: true });
+const linked = await existing2.getSession();
+ok(linked.role === 'Outside user' && linked.isAdmin === false && linked.id === 'u-wendy-old', 'existing outside user keeps that login');
+await existing2.signInDev('u-proc');
+const wendyRow = (await existing2.getDeal('deal-5')).participants.find((p) => p.contactId === 'c-wbuyer');
+ok(wendyRow.contact.profileId === 'u-wendy-old', 'only that contact was linked');
+ok((await existing2.getDeal('deal-5')).participants.find((p) => p.contactId === 'c-wseller').contact.profileId == null, 'the other contact was not linked');
+
+const staff = fresh();
+await staff.api.signInDev('u-proc');
+await rejects(() => staff.api.createClientInvite({ dealId: 'deal-1', contactId: 'c-adam' }), 'staff contact is not a buyer invite', /buyer or seller|already has a portal login/);
+const forced = JSON.parse(staff.store.getItem(KEY));
+const adam = forced.profiles.find((p) => p.id === 'u-adam');
+forced.contacts.find((c) => c.id === 'c-cora').email = adam.email;
+forced.clientInvites = [{ id: 'ci-staff', tokenHash: await sha256Hex('ab'.repeat(32)), contactId: 'c-cora', dealId: 'deal-4', role: 'Client-Seller', email: adam.email, firstName: 'Cora', lastName: 'Seller', phone: '', expiresAt: '2099-01-01T00:00:00.000Z', createdBy: 'u-proc', createdAt: '2026-11-06T00:00:00.000Z', acceptedAt: null, acceptedProfileId: null, revokedAt: null, revokedBy: null }];
+staff.store.setItem(KEY, JSON.stringify(forced));
+const staff2 = createMockAdapter({ storage: staff.store, sessionStorage: mem() });
+await staff2.signInDev('u-adam');
+await rejects(() => staff2.acceptClientInvite('ab'.repeat(32), { existing: true }), 'staff login cannot be taken over', /not valid/);
+const adamNow = await staff2.getSession();
+ok(adamNow.role === 'Admin' && adamNow.isAdmin === true, 'staff role and admin flag stay');
+
+const demo = fresh();
+await demo.api.signInDev('u-proc');
+const demoBody = JSON.parse(demo.store.getItem(KEY));
+demoBody.profiles.find((p) => p.id === 'u-proc').isDemo = true;
+demo.store.setItem(KEY, JSON.stringify(demoBody));
+const demo2 = createMockAdapter({ storage: demo.store, sessionStorage: mem() });
+await demo2.signInDev('u-proc');
+await rejects(() => demo2.createClientInvite({ dealId: 'deal-5', contactId: 'c-wseller' }), 'demo profile cannot invite', /demo or view-as/);
+
+const off = fresh();
+await off.api.signInDev('u-proc');
+const offBody = JSON.parse(off.store.getItem(KEY));
+offBody.profiles.find((p) => p.id === 'u-proc').status = 'disabled';
+off.store.setItem(KEY, JSON.stringify(offBody));
+const offSession = mem();
+offSession.setItem('cla-portal-new:session:v1', 'u-proc');
+const off2 = createMockAdapter({ storage: off.store, sessionStorage: offSession });
+await rejects(() => off2.createClientInvite({ dealId: 'deal-5', contactId: 'c-wseller' }), 'disabled session cannot invite', /sign in/);
+
+const migration = readFileSync(new URL('../supabase/migrations/20261106190000_client_portal_invites.sql', import.meta.url), 'utf8');
+const logic = readFileSync(new URL('../supabase/functions/accept-invite/logic.mjs', import.meta.url), 'utf8');
+const edge = readFileSync(new URL('../supabase/functions/accept-invite/index.ts', import.meta.url), 'utf8');
+const supa = readFileSync(new URL('../js/data/supabase-client-invite.js', import.meta.url), 'utf8');
+const page = readFileSync(new URL('../js/pages/client-invite.js', import.meta.url), 'utf8');
+const contacts = readFileSync(new URL('../js/pages/dealcontacts.js', import.meta.url), 'utf8');
+ok(!/auth\.users|create schema auth|signUp\(/.test(migration + logic + edge + supa), 'no auth schema changes and no public sign-up');
+ok(!/service_role|SERVICE_ROLE/.test(supa + page + contacts), 'the browser files do not carry a service key');
+ok(migration.includes('create_client_invite') && migration.includes('client_invite_lookup') && migration.includes("p_kind = 'client'"), 'migration names the invite functions');
+ok(page.includes('Nothing is emailed') && contacts.includes('data-invite-client') && contacts.includes('data-contact-no-login') && contacts.includes('data-invite-agent'), 'the screen says nothing is emailed and still has agent invites');
+ok(supa.includes("kind: 'client'") && supa.includes('existing: true') && edge.includes('auth.getUser') && edge.includes('auth.admin.createUser'), 'accept uses the supported auth APIs');
+
+console.log(fails ? `FAILED ${fails}` : `ok ${pass}`);
+process.exit(fails ? 1 : 0);

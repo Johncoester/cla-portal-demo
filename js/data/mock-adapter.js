@@ -40,6 +40,7 @@ import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.j
 import { underwriterPart } from './mock-part-underwriter.js?v=202611061730';
 import { agentInfoPart } from './mock-part-agentinfo.js?v=202611061730';
 import { agentInvitePart } from './mock-part-agent-invite.js?v=202611061730';
+import { clientInvitePart } from './mock-part-client-invite.js?v=202611061730';
 import { automationPart } from './automation.js?v=202611061730';
 import { hrPart, ensureHr } from './mock-part-hr.js?v=202611061730';
 import { titlePart, ensureTitle } from './mock-part-title.js?v=202611061730';
@@ -391,6 +392,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   Object.assign(api, officesPart(ctx));       // John, Nov 4: Admin > Offices (add, edit, reorder, retire / reactivate; the closing office picker reads them)   // John, Nov 3 call: per-state underwriter split (Admin edits, logged)
   Object.assign(api, agentInfoPart(ctx));     // John, Nov 3 call: optional agent birthdate (agent + staff only)
   Object.assign(api, agentInvitePart(ctx));   // John, Nov 4: agent invites (link shown, nothing sent), agent profiles, the clients' "Your agent" card
+  Object.assign(api, clientInvitePart(ctx));   // John, Nov 6: buyer / seller invites (link shown once, nothing sent; account stays Outside user)
   Object.assign(api, recordingPart(ctx, flags, api));
   Object.assign(api, fwpPart(ctx, flags, api));
   Object.assign(api, nov5Part(ctx));   // Nov 5: task admin, alert groups, entity attorneys, CPL prices, file coverage
