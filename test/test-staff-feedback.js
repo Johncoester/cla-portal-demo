@@ -129,7 +129,7 @@ check(payload.event === 'cla.feedback.created' && payload.version === 1 && Objec
 let fetched = false;
 const http = handleDispatchHttp({ fetch() { fetched = true; } });
 const edge = await handleStaffFeedbackDispatch();
-check(DISPATCH_HTTP_ENABLED === false && EDGE_OFF === false && !fetched && http.status === 503 && http.body.sent === false && edge.body.reason === 'bridge_unconfigured', 'the HTTP entry cannot send');
+check(DISPATCH_HTTP_ENABLED === false && EDGE_OFF === true && !fetched && http.status === 503 && http.body.sent === false && edge.body.reason === 'bridge_unconfigured', 'the browser cannot send, and the function does not send while the server switch is off');
 const cfg = readBridgeConfig({ STAFF_FEEDBACK_DISPATCH_ENABLED: '', STAFF_FEEDBACK_BRIDGE_URL: '', STAFF_FEEDBACK_BRIDGE_TOKEN: '' });
 check(cfg.enabled === false && cfg.url === '' && cfg.token === '', 'secrets default empty');
 const decision = await dispatchEvent({ eventId: payload.event_id, feedbackId: payload.feedback_id, conversationId: payload.conversation_id, eventName: 'cla.feedback.created', deliveryState: 'pending_dispatch', dispatchAllowed: true }, { enabled: true, url: 'http://insecure.test', token: 'tok' }, async () => ({ status: 200 }));

@@ -4,7 +4,7 @@
  * HTTP 200 from the routine means a run was accepted. It is not a reply.
  * The platform service role, if present, stays inside this process. It is never returned or logged.
  * https://cursor.com/help/grok-bot/routines.md */
-export const DISPATCH_HTTP_ENABLED = false;
+export const DISPATCH_HTTP_ENABLED = true;
 export const TEST_PROJECT_REF = 'aqcervntopidtcazcmlv';
 export const PILOT_IDS = Object.freeze([
   '149e612a-6e14-4ee1-9890-0f29d6f89156',

@@ -16,7 +16,7 @@ const john = { id: JOHN, status: 'active', isDemo: false };
 const row = { eventId: EVENT, feedbackId: FEEDBACK, conversationId: CONVERSATION, eventName: 'cla.feedback.created', deliveryState: 'pending_dispatch', dispatchAllowed: false, attemptCount: 0 };
 const config = { enabled: true, url: 'https://example.test/hook', token: 'sender-secret-value', host: 'example.test', addresses: ['93.184.216.34'] };
 
-check(DISPATCH_HTTP_ENABLED === false && PILOT_IDS.length === 2, 'the entry constant stays off and the pilot list is the two accounts');
+check(DISPATCH_HTTP_ENABLED === true && PILOT_IDS.length === 2, 'the release flag is on and the pilot list is the two accounts');
 check(readBridgeConfig({}).enabled === false && readBridgeConfig({ get: () => '' }).token === '', 'missing function config is off');
 check(!validateWebhookUrl('http://example.test/hook').ok && !validateWebhookUrl('https://127.0.0.1/hook').ok && !validateWebhookUrl('https://169.254.169.254/').ok && !validateWebhookUrl('https://localhost/hook').ok && !validateWebhookUrl('https://10.1.1.1/hook').ok && !validateWebhookUrl('https://user:secret@example.test/hook').ok && !validateWebhookUrl('https://example.test:8443/hook').ok, 'private, local, and non-HTTPS URLs are refused');
 check(validateWebhookUrl('https://example.test/hook', 'example.test', ['93.184.216.34']).ok && !validateWebhookUrl('https://example.test/hook', 'example.test', ['10.0.0.8']).ok && !validateWebhookUrl('https://evil.test/hook', 'example.test', ['93.184.216.34']).ok, 'the host must match the pin and its addresses must be public');
@@ -48,6 +48,8 @@ let actorCalls = 0;
 const off = await handleStaffFeedbackDispatch({ env: { get: () => '' }, getActor: () => { actorCalls += 1; return john; }, transport: async () => { calls += 1; return { status: 200 }; } });
 check(off.status === 503 && off.body.reason === 'bridge_unconfigured' && actorCalls === 0 && calls === 0, 'the HTTP entry does not look up a user or call out while the switch is off');
 const enabledButLocked = await handleStaffFeedbackDispatch({ env: envOn, getActor: () => { actorCalls += 1; return john; }, transport: async () => { calls += 1; return { status: 200 }; } });
+const publishedEntry = await handleStaffFeedbackDispatch({ allowSend: DISPATCH_HTTP_ENABLED, env: { get: () => '' }, getActor: () => { actorCalls += 1; return john; }, transport: async () => { calls += 1; return { status: 200 }; } });
+check(publishedEntry.status === 503 && actorCalls === 0 && calls === 0, 'the published release flag still does not send while the server switch is off');
 check(enabledButLocked.status === 503 && actorCalls === 0 && calls === 0, 'the environment switch alone does not send');
 const preflight = await handleStaffFeedbackDispatch({ method: 'OPTIONS', origin: 'https://testportal.clatitle.com', env: envOn });
 check(preflight.status === 204 && preflight.headers['Access-Control-Allow-Origin'] === 'https://testportal.clatitle.com' && preflight.headers['Access-Control-Allow-Methods'].includes('POST'), 'the TEST portal can preflight');
