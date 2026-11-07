@@ -1,5 +1,5 @@
-import { html, $ } from '../ui.js?v=202611062325';
-import { createVoiceAttempt, createVoiceSession, requestVoice, withTimeout, VOICE_PASS_MS } from '../data/voice-demo.js?v=202611062325';
+import { html, $ } from '../ui.js?v=202611070009';
+import { createVoiceAttempt, createVoiceSession, requestVoice, withTimeout, VOICE_PASS_MS } from '../data/voice-demo.js?v=202611070009';
 
 const live = createVoiceSession({
   WebSocket: typeof WebSocket !== 'undefined' ? WebSocket : null,
