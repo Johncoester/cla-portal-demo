@@ -128,7 +128,7 @@ const payload = buildPayload({ eventId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 
 check(payload.event === 'cla.feedback.created' && payload.version === 1 && Object.keys(payload).length === 5, 'payload contract');
 let fetched = false;
 const http = handleDispatchHttp({ fetch() { fetched = true; } });
-const edge = handleStaffFeedbackDispatch();
+const edge = await handleStaffFeedbackDispatch();
 check(DISPATCH_HTTP_ENABLED === false && EDGE_OFF === false && !fetched && http.status === 503 && http.body.sent === false && edge.body.reason === 'bridge_unconfigured', 'the HTTP entry cannot send');
 const cfg = readBridgeConfig({ STAFF_FEEDBACK_DISPATCH_ENABLED: '', STAFF_FEEDBACK_BRIDGE_URL: '', STAFF_FEEDBACK_BRIDGE_TOKEN: '' });
 check(cfg.enabled === false && cfg.url === '' && cfg.token === '', 'secrets default empty');
