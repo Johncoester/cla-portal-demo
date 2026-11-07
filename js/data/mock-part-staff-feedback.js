@@ -1,6 +1,6 @@
 /* Mock adapter for staff portal feedback. Fake people only. Nothing is sent to the assistant.
  * The test simulation is labeled and is not a real reply. */
-import { addAttachment, addContextFile, attachmentContent, canReportStaffFeedback, createReport, emptyBag, getReport, listReports, publishDraft, replyToReport, reviewStaffReply, setReportStatus, simulateReport } from './staff-feedback.js?v=202611072230';
+import { addAttachment, attachmentContent, canReportStaffFeedback, createReport, emptyBag, getReport, listReports, publishDraft, replyToReport, reviewStaffReply, setReportStatus, simulateReport } from './staff-feedback.js?v=202611080100';
 
 export function staffFeedbackPart(x) {
   const bag = () => { const d = x.load(); d.staffFeedback ||= emptyBag(); return d.staffFeedback; };
@@ -22,7 +22,6 @@ export function staffFeedbackPart(x) {
     async replyStaffFeedback(id, input) { return run(() => replyToReport(bag(), actor(), id, input, { now: x.now, id: x.nid })); },
     async setStaffFeedbackStatus(id, status) { return run(() => setReportStatus(bag(), actor(), id, status, { now: x.now })); },
     async addStaffFeedbackAttachment(id, file) { return run(() => addAttachment(bag(), actor(), id, file, { now: x.now, id: x.nid })); },
-    async addStaffFeedbackContextFile(id, file) { return run(() => addContextFile(bag(), actor(), id, file, { now: x.now, id: x.nid })); },
     async openStaffFeedbackAttachment(id) { return x.clone(attachmentContent(bag(), actor(), id)); },
     async publishStaffFeedbackDraft(id) { return run(() => publishDraft(bag(), actor(), id, { now: x.now })); },
     async reviewStaffFeedbackReply(id) { return run(() => reviewStaffReply(bag(), actor(), id, { now: x.now })); },

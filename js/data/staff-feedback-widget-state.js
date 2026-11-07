@@ -1,6 +1,6 @@
 /* Launcher rules and unsent-draft storage. A draft is keyed by the signed-in person.
  * Reading one person's draft never returns another person's text. */
-import { isFeedbackPilot } from './staff-feedback.js?v=202611072230';
+import { isFeedbackPilot } from './staff-feedback.js?v=202611080100';
 
 export const DRAFT_PREFIX = 'cla-staff-feedback-draft:';
 

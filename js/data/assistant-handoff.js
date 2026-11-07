@@ -14,7 +14,7 @@ export function connectionRequirements() {
     'The owner copies the generated HTTPS URL and sender key from the routine panel into backend function secrets. The key is not put in the repo, the browser, or chat.',
     'Dispatch stays off, and new outbox rows keep dispatch_allowed false, until that installation is reviewed.',
     'The POST body stays the existing five correlation fields. HTTP 200 is recorded as run accepted. It is not a reply and it is not completion.',
-    'Files stay in private storage. The webhook body does not include file bytes. A reviewed read path is required before a file is described as examined.',
+    'A screenshot stays in the existing private image store. The webhook body does not include file bytes, and this pilot does not read attachments.',
     'A sentence in this portal requires a separate authorized write of an unpublished draft. John publishes it. Private chat, Gmail, and other credentials are not a reply channel.',
   ]);
 }

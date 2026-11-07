@@ -3,7 +3,6 @@
  * in the same demo world. Status changes only through setStatus by an admin. Message text never
  * grants a role, a send, or "fixed". The webhook is not called from here. */
 import { dispatchEvent } from './staff-feedback-dispatch.js?v=202611071800';
-import { inspectUpload, MAX_CONTEXT_FILES } from './assistant-files.js?v=202611072230';
 
 export const FEEDBACK_ROLES = Object.freeze(['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin']);
 export const FEEDBACK_STATUSES = Object.freeze(['open', 'needs_info', 'in_review', 'draft_pending', 'in_progress', 'fixed', 'wont_fix', 'reopened']);
@@ -139,7 +138,7 @@ function view(bag, actor, report) {
   const support = canSupportStaffFeedback(actor) && !!actor.isDemo === !!report.isDemo;
   const messages = bag.messages.filter((m) => m.reportId === report.id && m.visibility === 'published').map(publicMessage);
   const drafts = support ? bag.messages.filter((m) => m.reportId === report.id && m.visibility === 'draft_pending').map(publicMessage) : [];
-  const attachments = bag.attachments.filter((a) => a.reportId === report.id).map((a) => ({ id: a.id, fileName: a.fileName, mimeType: a.mimeType, sizeBytes: a.sizeBytes, createdAt: a.createdAt, analysisState: a.analysisState || 'stored_not_analyzed' }));
+  const attachments = bag.attachments.filter((a) => a.reportId === report.id).map((a) => ({ id: a.id, fileName: a.fileName, mimeType: a.mimeType, sizeBytes: a.sizeBytes, createdAt: a.createdAt }));
   return {
     id: report.id, conversationId: report.conversationId, title: report.title, body: report.body, status: report.status,
     statusLabel: STATUS_LABELS[report.status] || report.status, deliveryState: report.deliveryState, deliveryReason: report.deliveryReason,
@@ -240,26 +239,6 @@ export function addAttachment(bag, actor, reportId, file, { now = () => new Date
     id: attachmentId, reportId: report.id, idempotencyKey: key, fileName: meta.name, mimeType: meta.mime, sizeBytes: meta.size,
     storagePath: `reports/${report.id}/${attachmentId}.${meta.ext}`, dataUrl: file.dataUrl || null, createdBy: actor.id, createdAt: now(),
   });
-  report.updatedAt = now();
-  return view(bag, actor, report);
-}
-
-export function addContextFile(bag, actor, reportId, file, { now = () => new Date().toISOString(), id = newId } = {}) {
-  assertReporter(actor);
-  const report = reportOr404(bag, actor, reportId);
-  const key = String(file && file.idempotencyKey || '');
-  if (!UUID.test(key)) fail('Save could not be retried safely. Reload this page.');
-  const prior = bag.attachments.find((a) => a.reportId === report.id && a.idempotencyKey === key);
-  if (prior) return view(bag, actor, report);
-  if (bag.attachments.filter((a) => a.reportId === report.id).length >= MAX_CONTEXT_FILES) fail('Six files is the limit on one report.');
-  const meta = inspectUpload(file);
-  const before = report.status;
-  bag.attachments.push({
-    id: id(), reportId: report.id, idempotencyKey: key, fileName: meta.name, mimeType: meta.mime, sizeBytes: meta.size,
-    storagePath: `reports/${report.id}/${key}.${meta.ext}`, dataUrl: meta.kind === 'image' ? (file.dataUrl || null) : null,
-    durationMs: meta.durationMs, analysisState: meta.analysisState, trusted: false, createdBy: actor.id, createdAt: now(),
-  });
-  report.status = before;
   report.updatedAt = now();
   return view(bag, actor, report);
 }

@@ -1,8 +1,8 @@
-/* Query shape for this bot's existing database connector. Not executed here.
+/* Text read for one future synthetic event. Not executed here.
  * The connector used by this bot is postgres with auth.uid() null. It is not John or Matt.
  * Run this only if that connector is already allowed to SELECT these tables. If it is denied, stop.
  * Do not set role, copy a user token, or use the service role key from this bot.
- * Attachment rows are metadata. They are not the file bytes and they are not analyzed. */
+ * Attachment rows are not selected. Attachment reading is not connected. */
 export const FEEDBACK_READ_SQL = `
 select e.id as event_id, e.feedback_id, e.conversation_id, e.event_name, e.delivery_state as event_state,
        r.reporter_id, r.title, r.body, r.status, r.delivery_state, r.is_demo, r.page_path, r.order_file_number,
@@ -20,10 +20,4 @@ select e.id as event_id, e.feedback_id, e.conversation_id, e.event_name, e.deliv
    and r.is_demo = false
    and p.status = 'active'
    and p.is_demo = false
-`.trim();
-
-export const ATTACHMENT_META_SQL = `
-select id, file_name, mime_type, size_bytes, storage_path
-  from public.staff_feedback_attachments
- where report_id = $1
 `.trim();
