@@ -4,7 +4,8 @@
 --   {"event":"cla.feedback.created","version":1,"event_id":"<outbox uuid>","feedback_id":"<report uuid>","conversation_id":"<conversation uuid>"}
 -- HTTP 200 means a run started. Then the bot loads the row and acks by event_id.
 
--- Pending new reports. Staff replies (event_name cla.feedback.staff_reply) stay saved and are not in this list.
+-- Pending new reports. Pilot rows are inserted with dispatch_allowed false, so this list is empty
+-- until a later reviewed change. Staff replies stay saved and are not in this list.
 select id as event_id, feedback_id, conversation_id, delivery_state, reason
 from public.staff_feedback_outbox
 where event_name = 'cla.feedback.created' and delivery_state = 'pending_dispatch' and dispatch_allowed

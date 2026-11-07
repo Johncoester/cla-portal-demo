@@ -190,7 +190,7 @@ export function createReport(bag, actor, input = {}, { now = () => new Date().to
   bag.messages.push({ id: id(), reportId: report.id, authorId: actor.id, authorKind: 'reporter', authorName: report.reporterName, body, visibility: 'published', simulation: false, createdAt, idempotencyKey: key });
   bag.outbox.push({
     id: report.createdEventId, reportId: report.id, feedbackId: report.id, conversationId: report.conversationId, eventName: 'cla.feedback.created',
-    deliveryState: 'pending_dispatch', dispatchAllowed: true, reason: 'bridge_unconfigured', attemptCount: 0, httpStatus: null, createdAt, reviewedAt: null,
+    deliveryState: 'pending_dispatch', dispatchAllowed: false, reason: 'bridge_unconfigured', attemptCount: 0, httpStatus: null, createdAt, reviewedAt: null,
   });
   return view(bag, actor, report);
 }

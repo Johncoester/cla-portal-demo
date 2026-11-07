@@ -8,6 +8,11 @@
 -- and agents are refused. Status changes only in staff_feedback_set_status.
 -- Message text cannot change status, send mail, or publish code.
 --
+-- Privileged bodies are security definer in schema private, which is not an exposed API schema.
+-- public.staff_feedback_* keeps the same names and arguments and is security invoker only.
+-- A new report's outbox row is pending_dispatch with dispatch_allowed false, so a worker
+-- selecting dispatch_allowed rows does not pick it up. The saved notice stays pending.
+--
 -- Webhook (not called from the browser, and not enabled here):
 --   event cla.feedback.created, version 1, event_id, feedback_id, conversation_id.
 --   No report text, attachments, PII, callback, project id, or SQL in that body.
@@ -130,7 +135,7 @@ revoke all on public.staff_feedback_reports, public.staff_feedback_messages, pub
 grant select on public.staff_feedback_reports, public.staff_feedback_messages, public.staff_feedback_attachments, public.staff_feedback_outbox to authenticated;
 
 create or replace function private.staff_feedback_notice(p_state text, p_reason text) returns text
-language sql immutable set search_path = public as $$
+language sql immutable set search_path = '' as $$
   select case p_state
     when 'saved' then 'Saved in the portal. Not sent to the assistant.'
     when 'pending_dispatch' then 'Saved in the portal. Pending dispatch. Not delivered.' || case p_reason
@@ -159,7 +164,7 @@ insert into private.staff_feedback_pilot (user_id, slot) values
   ('d02722a1-582b-42c0-b3d1-28d25adb758d', 'matt');
 
 create or replace function private.staff_feedback_pilot_ok() returns boolean
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = '' as $$
 declare uid uuid := auth.uid(); st text; demo boolean;
 begin
   if uid is null then return false; end if;
@@ -170,14 +175,12 @@ begin
 end $$;
 revoke all on function private.staff_feedback_pilot_ok() from public, anon, authenticated;
 
-create or replace function public.staff_feedback_pilot_status() returns boolean
-language sql stable security definer set search_path = public as $$
+create or replace function private.staff_feedback_pilot_status() returns boolean
+language sql stable security definer set search_path = '' as $$
   select private.staff_feedback_pilot_ok() $$;
-revoke all on function public.staff_feedback_pilot_status() from public, anon;
-grant execute on function public.staff_feedback_pilot_status() to authenticated;
 
 create or replace function private.staff_feedback_require(p_support boolean default false) returns jsonb
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = '' as $$
 declare r record;
 begin
   if auth.uid() is null then raise exception 'Please sign in.' using errcode = 'P0001'; end if;
@@ -191,7 +194,7 @@ end $$;
 revoke all on function private.staff_feedback_require(boolean) from public, anon, authenticated;
 
 create or replace function private.staff_feedback_visible(p_report uuid) returns boolean
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = '' as $$
   select private.staff_feedback_pilot_ok() and exists (
     select 1 from public.staff_feedback_reports r
     where r.id = p_report and r.is_demo = false
@@ -200,7 +203,7 @@ revoke all on function private.staff_feedback_visible(uuid) from public, anon;
 grant execute on function private.staff_feedback_visible(uuid) to authenticated;
 
 create or replace function private.staff_feedback_payload(p_report uuid) returns jsonb
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = '' as $$
 declare who jsonb; r public.staff_feedback_reports; support boolean;
 begin
   who := private.staff_feedback_require(false);
@@ -226,7 +229,7 @@ end $$;
 revoke all on function private.staff_feedback_payload(uuid) from public, anon, authenticated;
 
 create or replace function private.staff_feedback_clean(p_text text, p_max int, p_label text) returns text
-language plpgsql immutable set search_path = public as $$
+language plpgsql immutable set search_path = '' as $$
 declare s text := btrim(coalesce(p_text, ''));
 begin
   if s = '' then raise exception 'Enter %.', p_label using errcode = 'P0001'; end if;
@@ -236,8 +239,8 @@ begin
 end $$;
 revoke all on function private.staff_feedback_clean(text, int, text) from public, anon, authenticated;
 
-create or replace function public.staff_feedback_create(p_title text, p_body text, p_include_page boolean, p_page text, p_include_order boolean, p_file_number text, p_idempotency uuid) returns jsonb
-language plpgsql security definer set search_path = public as $$
+create or replace function private.staff_feedback_create(p_title text, p_body text, p_include_page boolean, p_page text, p_include_order boolean, p_file_number text, p_idempotency uuid) returns jsonb
+language plpgsql security definer set search_path = '' as $$
 declare who jsonb; existing uuid; title text; body text; page text; deal uuid; file_no text; n int; rid uuid; cid uuid; eid uuid; mid uuid;
 begin
   who := private.staff_feedback_require(false);
@@ -265,12 +268,12 @@ begin
   insert into public.staff_feedback_messages (id, report_id, author_id, author_kind, author_name, body, visibility, idempotency_key)
     values (mid, rid, (who->>'id')::uuid, 'reporter', coalesce(who->>'name', 'CLA staff'), body, 'published', p_idempotency);
   insert into public.staff_feedback_outbox (id, report_id, feedback_id, conversation_id, event_name, delivery_state, dispatch_allowed, reason)
-    values (eid, rid, rid, cid, 'cla.feedback.created', 'pending_dispatch', true, 'bridge_unconfigured');
+    values (eid, rid, rid, cid, 'cla.feedback.created', 'pending_dispatch', false, 'bridge_unconfigured');
   return private.staff_feedback_payload(rid);
 end $$;
 
-create or replace function public.staff_feedback_reply(p_report uuid, p_body text, p_idempotency uuid) returns jsonb
-language plpgsql security definer set search_path = public as $$
+create or replace function private.staff_feedback_reply(p_report uuid, p_body text, p_idempotency uuid) returns jsonb
+language plpgsql security definer set search_path = '' as $$
 declare who jsonb; r public.staff_feedback_reports; body text; mid uuid; eid uuid; kind text;
 begin
   who := private.staff_feedback_require(false);
@@ -288,8 +291,8 @@ begin
   return private.staff_feedback_payload(r.id);
 end $$;
 
-create or replace function public.staff_feedback_set_status(p_report uuid, p_status text) returns jsonb
-language plpgsql security definer set search_path = public as $$
+create or replace function private.staff_feedback_set_status(p_report uuid, p_status text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
 declare who jsonb;
 begin
   who := private.staff_feedback_require(true);
@@ -300,8 +303,8 @@ begin
   return private.staff_feedback_payload(p_report);
 end $$;
 
-create or replace function public.staff_feedback_list() returns jsonb
-language plpgsql stable security definer set search_path = public as $$
+create or replace function private.staff_feedback_list() returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
 declare who jsonb;
 begin
   who := private.staff_feedback_require(false);
@@ -319,12 +322,12 @@ begin
   ), '[]'::jsonb);
 end $$;
 
-create or replace function public.staff_feedback_get(p_report uuid) returns jsonb
-language sql stable security definer set search_path = public as $$
+create or replace function private.staff_feedback_get(p_report uuid) returns jsonb
+language sql stable security definer set search_path = '' as $$
   select private.staff_feedback_payload(p_report) $$;
 
-create or replace function public.staff_feedback_add_attachment(p_report uuid, p_message uuid, p_name text, p_mime text, p_size integer, p_path text, p_idempotency uuid) returns jsonb
-language plpgsql security definer set search_path = public as $$
+create or replace function private.staff_feedback_add_attachment(p_report uuid, p_message uuid, p_name text, p_mime text, p_size integer, p_path text, p_idempotency uuid) returns jsonb
+language plpgsql security definer set search_path = '' as $$
 declare who jsonb; n int;
 begin
   who := private.staff_feedback_require(false);
@@ -347,8 +350,8 @@ begin
   return private.staff_feedback_payload(p_report);
 end $$;
 
-create or replace function public.staff_feedback_attachment_for_download(p_id uuid) returns jsonb
-language plpgsql stable security definer set search_path = public as $$
+create or replace function private.staff_feedback_attachment_for_download(p_id uuid) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
 declare a public.staff_feedback_attachments;
 begin
   perform private.staff_feedback_require(false);
@@ -357,8 +360,8 @@ begin
   return jsonb_build_object('id', a.id, 'file_name', a.file_name, 'mime_type', a.mime_type, 'storage_path', a.storage_path);
 end $$;
 
-create or replace function public.staff_feedback_publish_draft(p_message uuid) returns jsonb
-language plpgsql security definer set search_path = public as $$
+create or replace function private.staff_feedback_publish_draft(p_message uuid) returns jsonb
+language plpgsql security definer set search_path = '' as $$
 declare m public.staff_feedback_messages; who jsonb; status_before text;
 begin
   who := private.staff_feedback_require(true);
@@ -370,8 +373,8 @@ begin
   return private.staff_feedback_payload(m.report_id);
 end $$;
 
-create or replace function public.staff_feedback_review_reply(p_event uuid) returns jsonb
-language plpgsql security definer set search_path = public as $$
+create or replace function private.staff_feedback_review_reply(p_event uuid) returns jsonb
+language plpgsql security definer set search_path = '' as $$
 declare ev public.staff_feedback_outbox; who jsonb;
 begin
   who := private.staff_feedback_require(true);
@@ -383,14 +386,14 @@ begin
 end $$;
 
 create or replace function private.staff_feedback_bot_only() returns void
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = '' as $$
 begin
   if coalesce(auth.role(), '') <> 'service_role' then raise exception 'Portal users cannot acknowledge delivery.' using errcode = 'P0001'; end if;
 end $$;
 revoke all on function private.staff_feedback_bot_only() from public, anon, authenticated;
 
-create or replace function public.staff_feedback_bot_get(p_feedback uuid) returns jsonb
-language plpgsql stable security definer set search_path = public as $$
+create or replace function private.staff_feedback_bot_get(p_feedback uuid) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
 declare r public.staff_feedback_reports;
 begin
   perform private.staff_feedback_bot_only();
@@ -405,17 +408,20 @@ begin
   );
 end $$;
 
-create or replace function public.staff_feedback_mark_run_accepted(p_event uuid, p_http integer) returns jsonb
-language plpgsql security definer set search_path = public as $$
+create or replace function private.staff_feedback_mark_run_accepted(p_event uuid, p_http integer) returns jsonb
+language plpgsql security definer set search_path = '' as $$
 declare ev public.staff_feedback_outbox;
 begin
   perform private.staff_feedback_bot_only();
   select * into ev from public.staff_feedback_outbox where id = p_event and event_name = 'cla.feedback.created';
   if ev.id is null then raise exception 'Event not found.' using errcode = 'P0001'; end if;
+  if not ev.dispatch_allowed then
+    return jsonb_build_object('event_id', ev.id, 'delivery_state', ev.delivery_state, 'reason', ev.reason, 'sent', false, 'bot_read', false, 'run_accepted', false, 'dispatch_allowed', false);
+  end if;
   if ev.delivery_state in ('run_accepted', 'bot_acknowledged', 'replied') then
     return jsonb_build_object('event_id', ev.id, 'delivery_state', ev.delivery_state, 'idempotent', true, 'sent', false, 'bot_read', ev.delivery_state in ('bot_acknowledged', 'replied'));
   end if;
-  if p_http is distinct from 200 or ev.delivery_state <> 'pending_dispatch' or not ev.dispatch_allowed then
+  if p_http is distinct from 200 or ev.delivery_state <> 'pending_dispatch' then
     update public.staff_feedback_outbox set attempt_count = attempt_count + 1, http_status = p_http, reason = case when p_http is null then 'transport_error' else 'transport_rejected' end where id = ev.id;
     return jsonb_build_object('event_id', ev.id, 'delivery_state', 'pending_dispatch', 'sent', false, 'bot_read', false, 'run_accepted', false);
   end if;
@@ -424,8 +430,8 @@ begin
   return jsonb_build_object('event_id', ev.id, 'delivery_state', 'run_accepted', 'sent', false, 'bot_read', false, 'run_accepted', true);
 end $$;
 
-create or replace function public.staff_feedback_bot_ack(p_event uuid) returns jsonb
-language plpgsql security definer set search_path = public as $$
+create or replace function private.staff_feedback_bot_ack(p_event uuid) returns jsonb
+language plpgsql security definer set search_path = '' as $$
 declare ev public.staff_feedback_outbox;
 begin
   perform private.staff_feedback_bot_only();
@@ -440,8 +446,8 @@ begin
   return jsonb_build_object('event_id', ev.id, 'delivery_state', 'bot_acknowledged', 'idempotent', false);
 end $$;
 
-create or replace function public.staff_feedback_bot_draft_reply(p_event uuid, p_body text) returns jsonb
-language plpgsql security definer set search_path = public as $$
+create or replace function private.staff_feedback_bot_draft_reply(p_event uuid, p_body text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
 declare ev public.staff_feedback_outbox; r public.staff_feedback_reports; mid uuid; text_body text;
 begin
   perform private.staff_feedback_bot_only();
@@ -461,6 +467,85 @@ begin
   return jsonb_build_object('event_id', ev.id, 'message_id', mid, 'delivery_state', 'replied', 'status', r.status, 'idempotent', false);
 end $$;
 
+-- Public signatures stay. They do not bypass RLS; the private body does, after its own checks.
+create or replace function public.staff_feedback_pilot_status() returns boolean
+language sql stable security invoker set search_path = '' as $$
+  select private.staff_feedback_pilot_status() $$;
+create or replace function public.staff_feedback_create(p_title text, p_body text, p_include_page boolean, p_page text, p_include_order boolean, p_file_number text, p_idempotency uuid) returns jsonb
+language sql security invoker set search_path = '' as $$
+  select private.staff_feedback_create(p_title, p_body, p_include_page, p_page, p_include_order, p_file_number, p_idempotency) $$;
+create or replace function public.staff_feedback_reply(p_report uuid, p_body text, p_idempotency uuid) returns jsonb
+language sql security invoker set search_path = '' as $$
+  select private.staff_feedback_reply(p_report, p_body, p_idempotency) $$;
+create or replace function public.staff_feedback_set_status(p_report uuid, p_status text) returns jsonb
+language sql security invoker set search_path = '' as $$
+  select private.staff_feedback_set_status(p_report, p_status) $$;
+create or replace function public.staff_feedback_list() returns jsonb
+language sql stable security invoker set search_path = '' as $$
+  select private.staff_feedback_list() $$;
+create or replace function public.staff_feedback_get(p_report uuid) returns jsonb
+language sql stable security invoker set search_path = '' as $$
+  select private.staff_feedback_get(p_report) $$;
+create or replace function public.staff_feedback_add_attachment(p_report uuid, p_message uuid, p_name text, p_mime text, p_size integer, p_path text, p_idempotency uuid) returns jsonb
+language sql security invoker set search_path = '' as $$
+  select private.staff_feedback_add_attachment(p_report, p_message, p_name, p_mime, p_size, p_path, p_idempotency) $$;
+create or replace function public.staff_feedback_attachment_for_download(p_id uuid) returns jsonb
+language sql stable security invoker set search_path = '' as $$
+  select private.staff_feedback_attachment_for_download(p_id) $$;
+create or replace function public.staff_feedback_publish_draft(p_message uuid) returns jsonb
+language sql security invoker set search_path = '' as $$
+  select private.staff_feedback_publish_draft(p_message) $$;
+create or replace function public.staff_feedback_review_reply(p_event uuid) returns jsonb
+language sql security invoker set search_path = '' as $$
+  select private.staff_feedback_review_reply(p_event) $$;
+create or replace function public.staff_feedback_bot_get(p_feedback uuid) returns jsonb
+language sql stable security invoker set search_path = '' as $$
+  select private.staff_feedback_bot_get(p_feedback) $$;
+create or replace function public.staff_feedback_mark_run_accepted(p_event uuid, p_http integer) returns jsonb
+language sql security invoker set search_path = '' as $$
+  select private.staff_feedback_mark_run_accepted(p_event, p_http) $$;
+create or replace function public.staff_feedback_bot_ack(p_event uuid) returns jsonb
+language sql security invoker set search_path = '' as $$
+  select private.staff_feedback_bot_ack(p_event) $$;
+create or replace function public.staff_feedback_bot_draft_reply(p_event uuid, p_body text) returns jsonb
+language sql security invoker set search_path = '' as $$
+  select private.staff_feedback_bot_draft_reply(p_event, p_body) $$;
+
+-- Callers need to resolve the private entry point. Helper bodies stay revoked.
+grant usage on schema private to authenticated, service_role;
+
+revoke all on function private.staff_feedback_pilot_status() from public, anon;
+revoke all on function private.staff_feedback_create(text, text, boolean, text, boolean, text, uuid) from public, anon;
+revoke all on function private.staff_feedback_reply(uuid, text, uuid) from public, anon;
+revoke all on function private.staff_feedback_set_status(uuid, text) from public, anon;
+revoke all on function private.staff_feedback_list() from public, anon;
+revoke all on function private.staff_feedback_get(uuid) from public, anon;
+revoke all on function private.staff_feedback_add_attachment(uuid, uuid, text, text, integer, text, uuid) from public, anon;
+revoke all on function private.staff_feedback_attachment_for_download(uuid) from public, anon;
+revoke all on function private.staff_feedback_publish_draft(uuid) from public, anon;
+revoke all on function private.staff_feedback_review_reply(uuid) from public, anon;
+grant execute on function private.staff_feedback_pilot_status() to authenticated;
+grant execute on function private.staff_feedback_create(text, text, boolean, text, boolean, text, uuid) to authenticated;
+grant execute on function private.staff_feedback_reply(uuid, text, uuid) to authenticated;
+grant execute on function private.staff_feedback_set_status(uuid, text) to authenticated;
+grant execute on function private.staff_feedback_list() to authenticated;
+grant execute on function private.staff_feedback_get(uuid) to authenticated;
+grant execute on function private.staff_feedback_add_attachment(uuid, uuid, text, text, integer, text, uuid) to authenticated;
+grant execute on function private.staff_feedback_attachment_for_download(uuid) to authenticated;
+grant execute on function private.staff_feedback_publish_draft(uuid) to authenticated;
+grant execute on function private.staff_feedback_review_reply(uuid) to authenticated;
+
+revoke all on function private.staff_feedback_bot_get(uuid) from public, anon, authenticated;
+revoke all on function private.staff_feedback_mark_run_accepted(uuid, integer) from public, anon, authenticated;
+revoke all on function private.staff_feedback_bot_ack(uuid) from public, anon, authenticated;
+revoke all on function private.staff_feedback_bot_draft_reply(uuid, text) from public, anon, authenticated;
+grant execute on function private.staff_feedback_bot_get(uuid) to service_role;
+grant execute on function private.staff_feedback_mark_run_accepted(uuid, integer) to service_role;
+grant execute on function private.staff_feedback_bot_ack(uuid) to service_role;
+grant execute on function private.staff_feedback_bot_draft_reply(uuid, text) to service_role;
+
+revoke all on function public.staff_feedback_pilot_status() from public, anon;
+grant execute on function public.staff_feedback_pilot_status() to authenticated;
 revoke all on function public.staff_feedback_create(text, text, boolean, text, boolean, text, uuid) from public, anon;
 revoke all on function public.staff_feedback_reply(uuid, text, uuid) from public, anon;
 revoke all on function public.staff_feedback_set_status(uuid, text) from public, anon;
@@ -499,7 +584,7 @@ create policy staff_feedback_outbox_select on public.staff_feedback_outbox for s
   using ((select private.staff_feedback_visible(report_id)));
 
 create or replace function private.staff_feedback_can_upload_object(p_name text) returns boolean
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = '' as $$
 declare report_id uuid;
 begin
   if p_name !~ '^reports/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpe?g|webp|gif)$' then return false; end if;
@@ -511,7 +596,7 @@ revoke all on function private.staff_feedback_can_upload_object(text) from publi
 grant execute on function private.staff_feedback_can_upload_object(text) to authenticated;
 
 create or replace function private.staff_feedback_can_read_object(p_name text) returns boolean
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = '' as $$
   select exists (
     select 1 from public.staff_feedback_attachments a
     where a.storage_path = p_name and private.staff_feedback_visible(a.report_id)

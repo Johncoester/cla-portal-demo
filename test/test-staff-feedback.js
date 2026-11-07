@@ -44,7 +44,7 @@ check(appSource.includes('data-bots-btn') && appSource.includes('Portal feedback
 const bag = emptyBag();
 const key = '11111111-1111-4111-8111-111111111111';
 const created = createReport(bag, john, { title: 'Orders list', body: 'The file number is missing.', includePage: true, page: 'https://testportal.clatitle.com/index.html?token=secret#/orders?x=1', includeOrder: true, fileNumber: 'MD-26-97183', idempotencyKey: key, status: 'fixed', deliveryState: 'run_accepted' }, { now, id, findOrder });
-check(created.status === 'open' && created.deliveryState === 'pending_dispatch' && created.sent === false && created.runAccepted === false && created.botRead === false, 'a new report is saved pending and not delivered');
+check(created.status === 'open' && created.deliveryState === 'pending_dispatch' && created.sent === false && created.runAccepted === false && created.botRead === false && bag.outbox[0].dispatchAllowed === false, 'a new report is saved pending and not delivered');
 check(created.pagePath === '#/orders' && created.orderFileNumber === 'MD-26-97183' && !JSON.stringify(created).includes('SHOULD NOT COPY') && !JSON.stringify(created).includes('token'), 'consent keeps the path and file number only');
 check(created.notice === deliveryNotice('pending_dispatch', 'bridge_unconfigured'), 'the notice says the webhook is not configured');
 const retry = createReport(bag, john, { title: 'other', body: 'other', idempotencyKey: key }, { now, id, findOrder });
@@ -84,15 +84,23 @@ const unconfigured = await dispatchOutboxEvent(bag, created.createdEventId || ba
 check(calls.length === 0 && unconfigured.deliveryState === 'pending_dispatch' && unconfigured.sent === false && unconfigured.reason === 'bridge_unconfigured', 'unset bridge does not call the webhook');
 const held = await dispatchOutboxEvent(bag, staffEvent.id, { enabled: true, url: 'https://example.test/hook', token: 'super-secret-token' }, transport);
 check(calls.length === 0 && held.reason === 'staff_reply_held' && !JSON.stringify(held).includes('super-secret-token'), 'staff replies are not sent even when a URL exists');
-const accepted = await dispatchOutboxEvent(bag, bag.reports[0].createdEventId, { enabled: true, url: 'https://example.test/hook', token: 'super-secret-token' }, transport);
+const blocked = await dispatchOutboxEvent(bag, bag.reports[0].createdEventId, { enabled: true, url: 'https://example.test/hook', token: 'super-secret-token' }, transport);
+check(calls.length === 0 && blocked.deliveryState === 'pending_dispatch' && blocked.reason === 'bridge_unconfigured' && getReport(bag, john, created.id).notice === deliveryNotice('pending_dispatch', 'bridge_unconfigured'), 'a configured webhook still does not send a pilot report');
+const gate = emptyBag();
+const gated = createReport(gate, john, { title: 'Gate', body: 'Only this test row is marked allowed.', idempotencyKey: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab' }, { now, id, findOrder });
+check(gate.outbox[0].dispatchAllowed === false, 'the test row starts held');
+gate.outbox[0].dispatchAllowed = true;
+const accepted = await dispatchOutboxEvent(gate, gated.createdEventId || gate.reports[0].createdEventId, { enabled: true, url: 'https://example.test/hook', token: 'super-secret-token' }, transport);
 check(calls.length === 1 && accepted.deliveryState === 'run_accepted' && accepted.botRead === false && accepted.sent === false && accepted.httpStatus === 200, 'HTTP 200 means a run started, not read or replied');
 check(Object.keys(calls[0].payload).join(',') === PAYLOAD_KEYS.join(',') && !JSON.stringify(calls[0].payload).includes('file number') && !JSON.stringify(calls[0].payload).includes('MD-26'), 'the payload is only the four ids');
-const again = await dispatchOutboxEvent(bag, bag.reports[0].createdEventId, { enabled: true, url: 'https://example.test/hook', token: 'super-secret-token' }, transport);
+const again = await dispatchOutboxEvent(gate, gate.reports[0].createdEventId, { enabled: true, url: 'https://example.test/hook', token: 'super-secret-token' }, transport);
 check(calls.length === 1 && again.duplicate === true, 'a second accept does not post again');
 check(!JSON.stringify(bag).includes('super-secret-token'), 'the token is not stored');
 
 const down = emptyBag();
 const row = createReport(down, john, { title: 'Net', body: 'Network failed.', idempotencyKey: '88888888-8888-4888-8888-888888888888' }, { now, id, findOrder });
+check(down.outbox[0].dispatchAllowed === false, 'a network test row is also held until the flag is set');
+down.outbox[0].dispatchAllowed = true;
 const rejected = await dispatchOutboxEvent(down, row.createdEventId || down.reports[0].createdEventId, { enabled: true, url: 'https://example.test/hook', token: 'tok' }, async () => { throw new Error('https://example.test/hook tok'); });
 check(rejected.deliveryState === 'pending_dispatch' && rejected.reason === 'transport_error' && rejected.sent === false && !rejected.error.includes('example.test'), 'a transport error stays pending and hides the URL');
 const http500 = await dispatchOutboxEvent(down, down.reports[0].createdEventId, { enabled: true, url: 'https://example.test/hook', token: 'tok' }, async () => ({ status: 500 }));

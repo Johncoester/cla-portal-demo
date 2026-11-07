@@ -1,5 +1,8 @@
 -- Rollback for 20261107180000_staff_feedback_chat.sql.
--- TEST project aqcervntopidtcazcmlv only. Does not drop profiles, deals, auth, or other private helpers.
+-- TEST project aqcervntopidtcazcmlv only. Drops only staff_feedback objects.
+-- Does not drop profiles, deals, auth, storage schema, or other private helpers
+-- such as private.is_admin, private.viewer_is_demo, private.can_access_deal, or private.lock_function_search_paths.
+-- Does not revoke schema usage, because other private helpers may already depend on it.
 -- Run this only to undo that migration. It does not delete storage bytes that were already uploaded;
 -- it removes the bucket row and the policies so the portal can no longer read them.
 
@@ -32,6 +35,21 @@ drop function if exists public.staff_feedback_list();
 drop function if exists public.staff_feedback_set_status(uuid, text);
 drop function if exists public.staff_feedback_reply(uuid, text, uuid);
 drop function if exists public.staff_feedback_create(text, text, boolean, text, boolean, text, uuid);
+
+drop function if exists private.staff_feedback_bot_draft_reply(uuid, text);
+drop function if exists private.staff_feedback_bot_ack(uuid);
+drop function if exists private.staff_feedback_mark_run_accepted(uuid, integer);
+drop function if exists private.staff_feedback_bot_get(uuid);
+drop function if exists private.staff_feedback_review_reply(uuid);
+drop function if exists private.staff_feedback_publish_draft(uuid);
+drop function if exists private.staff_feedback_attachment_for_download(uuid);
+drop function if exists private.staff_feedback_add_attachment(uuid, uuid, text, text, integer, text, uuid);
+drop function if exists private.staff_feedback_get(uuid);
+drop function if exists private.staff_feedback_list();
+drop function if exists private.staff_feedback_set_status(uuid, text);
+drop function if exists private.staff_feedback_reply(uuid, text, uuid);
+drop function if exists private.staff_feedback_create(text, text, boolean, text, boolean, text, uuid);
+drop function if exists private.staff_feedback_pilot_status();
 
 drop function if exists private.staff_feedback_can_read_object(text);
 drop function if exists private.staff_feedback_can_upload_object(text);

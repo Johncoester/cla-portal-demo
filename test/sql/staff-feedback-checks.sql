@@ -27,8 +27,10 @@ begin
   created := public.staff_feedback_create('Orders list', 'The file number is missing on the orders list.', true, '#/orders', true, 'MD-26-97183', 'abababab-abab-4aba-8aba-abababababab');
   if created->>'delivery_state' <> 'pending_dispatch' or (created->>'sent')::boolean or (created->>'run_accepted')::boolean or (created->>'bot_read')::boolean then
     raise exception 'FAIL create must stay pending and not delivered'; end if;
-  if created->>'notice' not like '%Not delivered%' or created->>'notice' not like '%not configured%' then
+  if created->>'notice' not like '%Not delivered%' or created->>'notice' not like '%not configured%' or created->>'notice' not like '%Pending dispatch%' then
     raise exception 'FAIL notice is not honest: %', created->>'notice'; end if;
+  if exists (select 1 from public.staff_feedback_outbox where report_id = (created->>'id')::uuid and event_name = 'cla.feedback.created' and dispatch_allowed) then
+    raise exception 'FAIL a new report is queued for a worker'; end if;
   if created->>'status' <> 'open' or created->>'page_path' <> '#/orders' or created->>'order_file_number' <> 'MD-26-97183' then
     raise exception 'FAIL context was not stored as consented'; end if;
   if created::text ilike '%main street%' or created::text ilike '%@%' then raise exception 'FAIL customer data leaked into the report'; end if;
@@ -213,8 +215,16 @@ do $$
 declare ev uuid := (select id from fb_ids where k = 'event'); rid uuid := (select id from fb_ids where k = 'report'); result jsonb; loaded jsonb;
 begin
   result := public.staff_feedback_mark_run_accepted(ev, 500);
-  if result->>'delivery_state' <> 'pending_dispatch' or (result->>'sent')::boolean or (result->>'run_accepted')::boolean then
-    raise exception 'FAIL transport rejection became success'; end if;
+  if result->>'delivery_state' <> 'pending_dispatch' or (result->>'sent')::boolean or (result->>'run_accepted')::boolean or (result->>'dispatch_allowed')::boolean then
+    raise exception 'FAIL a held report was treated as a failed send'; end if;
+  if (select reason from public.staff_feedback_outbox where id = ev) <> 'bridge_unconfigured' then
+    raise exception 'FAIL a held report changed its notice'; end if;
+  result := public.staff_feedback_mark_run_accepted(ev, 200);
+  if result->>'delivery_state' <> 'pending_dispatch' or (result->>'run_accepted')::boolean or (result->>'sent')::boolean then
+    raise exception 'FAIL HTTP 200 dispatched a report that is not allowed'; end if;
+  if (select delivery_reason from public.staff_feedback_reports where id = rid) <> 'bridge_unconfigured' then
+    raise exception 'FAIL the saved notice changed'; end if;
+  update public.staff_feedback_outbox set dispatch_allowed = true where id = ev;
   result := public.staff_feedback_mark_run_accepted(ev, 200);
   if result->>'delivery_state' <> 'run_accepted' or (result->>'bot_read')::boolean or (result->>'sent')::boolean then
     raise exception 'FAIL HTTP 200 was treated as read or sent'; end if;
@@ -348,7 +358,96 @@ begin
   if (select count(*) from private.staff_feedback_pilot) <> 2 then raise exception 'FAIL allowlist must stay two accounts'; end if;
   if pg_get_functiondef('private.staff_feedback_pilot_ok()'::regprocedure) ~* 'user_metadata|raw_user_meta|email' then
     raise exception 'FAIL pilot check uses email or user metadata'; end if;
+  if exists (
+    select 1 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname like 'staff_feedback_%' and p.prosecdef
+  ) then raise exception 'FAIL a public staff feedback function is security definer'; end if;
+  if not exists (
+    select 1 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'staff_feedback_create' and not p.prosecdef
+  ) then raise exception 'FAIL public wrapper missing'; end if;
+  if exists (
+    select 1 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'private' and p.proname in ('staff_feedback_create', 'staff_feedback_pilot_ok', 'staff_feedback_bot_get') and not p.prosecdef
+  ) then raise exception 'FAIL private body is not security definer'; end if;
 end $$;
+
+-- Forged metadata does not grant access. The id in the token is the other super admin.
+select set_config('request.jwt.claims', '{"role":"authenticated","user_metadata":{"role":"Super admin","email":"johncoester@gmail.com"}}', false);
+select set_config('request.jwt.claim.sub', '33333333-3333-4333-8333-333333333333', false);
+select set_config('request.jwt.claim.role', 'authenticated', false);
+do $$
+begin
+  begin
+    perform public.staff_feedback_create('Forged', 'Metadata is not a login.', false, '', false, '', '20202020-2020-4202-8202-202020202020');
+    raise exception 'FAIL forged metadata created a report';
+  exception when others then
+    if SQLERRM not like '%not available%' then raise; end if;
+  end;
+end $$;
+
+-- Grants: anon cannot call, a signed-in non-pilot cannot, John can, and the private helper stays closed.
+select set_config('request.jwt.claim.sub', '149e612a-6e14-4ee1-9890-0f29d6f89156', false);
+select set_config('request.jwt.claim.role', 'anon', false);
+set role anon;
+do $$
+begin
+  begin
+    perform public.staff_feedback_list();
+    raise exception 'FAIL anon listed reports';
+  exception when insufficient_privilege then
+    null;
+  end;
+end $$;
+reset role;
+
+select set_config('request.jwt.claim.sub', '33333333-3333-4333-8333-333333333333', false);
+select set_config('request.jwt.claim.role', 'authenticated', false);
+set role authenticated;
+do $$
+begin
+  begin
+    if public.staff_feedback_pilot_status() then raise exception 'FAIL other admin pilot status was true'; end if;
+    perform public.staff_feedback_create('Direct', 'Another admin.', false, '', false, '', '21212121-2121-4212-8212-212121212121');
+    raise exception 'FAIL authenticated non-pilot created a report';
+  exception when others then
+    if SQLERRM not like '%not available%' then raise; end if;
+  end;
+  begin
+    perform private.staff_feedback_require(false);
+    raise exception 'FAIL authenticated called the private helper';
+  exception when insufficient_privilege then
+    null;
+  end;
+end $$;
+reset role;
+
+select set_config('request.jwt.claim.sub', '149e612a-6e14-4ee1-9890-0f29d6f89156', false);
+set role authenticated;
+do $$
+declare created jsonb;
+begin
+  if public.staff_feedback_pilot_status() is not true then raise exception 'FAIL active John pilot status'; end if;
+  created := public.staff_feedback_create('John direct', 'Saved from the signed-in role.', false, '', false, '', '23232323-2323-4232-8232-232323232323');
+  if created->>'delivery_state' <> 'pending_dispatch' or created->>'notice' not like '%Pending dispatch%' then
+    raise exception 'FAIL active John could not save: %', created->>'notice'; end if;
+  if exists (select 1 from public.staff_feedback_outbox o join public.staff_feedback_reports r on r.id = o.report_id where r.idempotency_key = '23232323-2323-4232-8232-232323232323' and o.dispatch_allowed) then
+    raise exception 'FAIL John direct report is queued'; end if;
+end $$;
+reset role;
+
+select set_config('request.jwt.claim.sub', 'd02722a1-582b-42c0-b3d1-28d25adb758d', false);
+set role authenticated;
+do $$
+declare listed jsonb;
+begin
+  listed := public.staff_feedback_list();
+  if listed::text not like '%John direct%' then raise exception 'FAIL active Matt could not see John''s report'; end if;
+end $$;
+reset role;
 
 -- Bucket stays private.
 do $$

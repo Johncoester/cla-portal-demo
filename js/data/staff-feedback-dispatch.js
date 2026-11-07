@@ -45,8 +45,12 @@ export async function dispatchEvent(row, config, transport) {
   const eventName = row.eventName || row.event_name || '';
   const allowed = (row.dispatchAllowed ?? row.dispatch_allowed) === true;
   const base = { sent: false, botRead: false, runAccepted: false, transportCalled: false, httpStatus: null };
-  if (eventName !== EVENT_CREATED || !allowed) {
+  if (eventName !== EVENT_CREATED) {
     return { ...base, ok: false, deliveryState: state === 'pending_dispatch' ? 'saved' : state, reason: 'staff_reply_held', error: 'Staff replies are not sent. They stay saved until a later review.' };
+  }
+  if (!allowed) {
+    const reason = row.reason || row.delivery_reason || 'bridge_unconfigured';
+    return { ...base, ok: false, deliveryState: state, reason, error: 'This report is not queued for dispatch. Nothing was sent.' };
   }
   if (TERMINAL.has(state)) {
     return { ...base, ok: true, duplicate: true, deliveryState: state, reason: 'already_accepted', runAccepted: true, botRead: state === 'bot_acknowledged' || state === 'replied', transportCalled: false };
