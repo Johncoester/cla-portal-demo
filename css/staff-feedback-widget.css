@@ -28,12 +28,13 @@
 }
 .claSfFab:hover::after, .claSfFab:focus-visible::after { opacity: 1; }
 .claSfFab.open::after { display: none; }
-.claSfOvl { position: fixed; inset: 0; z-index: 40; background: transparent; color: var(--sfink); }
+.claSfOvl { position: fixed; left: 0; right: 0; bottom: 0; top: var(--topbar-h, 60px); z-index: 40; background: transparent; color: var(--sfink); }
+/* The header, including Workspace and Bots, stays above the panel so Hide and the menu stay reachable. */
+body.cla-sf-open .topbar-main { z-index: 45; }
 .claSfOvl[hidden] { display: none !important; }
 .claSfDlg {
-  position: fixed; right: var(--sfpad-r); bottom: calc(var(--sfpad-b) + var(--sffab) + 14px);
-  width: min(392px, calc(100vw - 2 * var(--sfpad-r)));
-  max-height: calc(100dvh - var(--sfpad-b) - var(--sffab) - 34px);
+  position: fixed; top: 64px; left: 18px; width: min(392px, calc(100vw - 24px));
+  max-height: calc(100dvh - 80px);
   overflow: auto; overscroll-behavior: contain; background: #fff; border-radius: 20px;
   border: 1px solid rgba(0,0,0,.06); box-shadow: 0 24px 60px rgba(0,0,0,.28), 0 4px 14px rgba(0,0,0,.12);
 }
@@ -79,14 +80,12 @@
 .claSfPill { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: #eef1e8; font-size: 11px; font-weight: 700; }
 .claSfImg { max-width: 100%; height: auto; border-radius: 8px; margin-top: 6px; }
 @media (max-width: 700px) {
-  .claSfFab, .claSfOvl { --sffab: 52px; --sfpad-r: max(14px, env(safe-area-inset-right, 0px)); --sfpad-b: max(14px, env(safe-area-inset-bottom, 0px)); }
-  .claSfFab.open { opacity: 0; pointer-events: none; }
-  .claSfFab::after { display: none; }
   .claSfOvl { background: rgba(17,17,17,.5); }
-  .claSfDlg { left: 0; right: 0; bottom: 0; width: 100%; max-height: 90dvh; border-radius: 22px 22px 0 0; }
+  .claSfDlg { left: 0; right: 0; top: auto; bottom: 0; width: 100%; max-height: 86dvh; border-radius: 22px 22px 0 0; }
   .claSfDlg textarea { font-size: 16px; }
   .claSfRow { flex-direction: column-reverse; }
   .claSfRow .claSfBtn { width: 100%; }
+  .bots-dd { position: fixed; left: 8px; right: 8px; top: calc(var(--topbar-h, 60px) + 4px); width: auto; min-width: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .claSfFab, .claSfDlg { transition: none !important; }

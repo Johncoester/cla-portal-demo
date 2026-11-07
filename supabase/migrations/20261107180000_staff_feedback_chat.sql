@@ -2,9 +2,11 @@
 -- Project: aqcervntopidtcazcmlv. Do not run on production. This file is not applied by the commit.
 --
 -- What it stores: a staff report, its thread, screenshot metadata, and an outbox row.
--- Buyers, sellers, agents, and employees are refused. A report is visible to its reporter and to
--- an active Admin or Super admin in the same demo world. Status changes only in
--- staff_feedback_set_status. Message text cannot change status, send mail, or publish code.
+-- Only two verified auth.uid values can use it, and only while that profile is active and not demo:
+--   149e612a-6e14-4ee1-9890-0f29d6f89156 and d02722a1-582b-42c0-b3d1-28d25adb758d.
+-- Role, name, email, and user_metadata are not a way in. Other admins, staff, buyers, sellers,
+-- and agents are refused. Status changes only in staff_feedback_set_status.
+-- Message text cannot change status, send mail, or publish code.
 --
 -- Webhook (not called from the browser, and not enabled here):
 --   event cla.feedback.created, version 1, event_id, feedback_id, conversation_id.
@@ -144,33 +146,55 @@ language sql immutable set search_path = public as $$
   end $$;
 revoke all on function private.staff_feedback_notice(text, text) from public, anon, authenticated;
 
+-- Two verified auth.uid values. Role, name, email, and user_metadata are not consulted.
+create table private.staff_feedback_pilot (
+  user_id uuid primary key,
+  slot text not null unique check (slot in ('john', 'matt'))
+);
+alter table private.staff_feedback_pilot enable row level security;
+alter table private.staff_feedback_pilot force row level security;
+revoke all on table private.staff_feedback_pilot from public, anon, authenticated;
+insert into private.staff_feedback_pilot (user_id, slot) values
+  ('149e612a-6e14-4ee1-9890-0f29d6f89156', 'john'),
+  ('d02722a1-582b-42c0-b3d1-28d25adb758d', 'matt');
+
+create or replace function private.staff_feedback_pilot_ok() returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); st text; demo boolean;
+begin
+  if uid is null then return false; end if;
+  if not exists (select 1 from private.staff_feedback_pilot a where a.user_id = uid) then return false; end if;
+  select p.status, coalesce(p.is_demo, false) into st, demo from public.profiles p where p.id = uid;
+  if st is distinct from 'active' or demo or private.viewer_is_demo() then return false; end if;
+  return true;
+end $$;
+revoke all on function private.staff_feedback_pilot_ok() from public, anon, authenticated;
+
+create or replace function public.staff_feedback_pilot_status() returns boolean
+language sql stable security definer set search_path = public as $$
+  select private.staff_feedback_pilot_ok() $$;
+revoke all on function public.staff_feedback_pilot_status() from public, anon;
+grant execute on function public.staff_feedback_pilot_status() to authenticated;
+
 create or replace function private.staff_feedback_require(p_support boolean default false) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare r record;
 begin
+  if auth.uid() is null then raise exception 'Please sign in.' using errcode = 'P0001'; end if;
+  if not private.staff_feedback_pilot_ok() then raise exception 'Portal feedback is not available for this account.' using errcode = 'P0001'; end if;
   select p.id, p.role, coalesce(p.is_admin, false) as is_admin, coalesce(p.is_demo, false) as is_demo,
          btrim(coalesce(p.first_name, '') || ' ' || coalesce(p.last_name, '')) as name, p.status
     into r from public.profiles p where p.id = auth.uid();
-  if r.id is null then raise exception 'Please sign in.' using errcode = 'P0001'; end if;
-  if r.is_demo is distinct from private.viewer_is_demo() then raise exception 'Leave demo view before sending portal feedback.' using errcode = 'P0001'; end if;
-  if r.status is distinct from 'active' then raise exception 'This account cannot send portal feedback.' using errcode = 'P0001'; end if;
-  if r.role not in ('Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin') then
-    raise exception 'Portal feedback is for CLA staff. Buyers, sellers, and agents use the file inbox.' using errcode = 'P0001'; end if;
-  if p_support and not r.is_admin then raise exception 'Only an Admin or Super admin can change portal feedback.' using errcode = 'P0001'; end if;
-  return jsonb_build_object('id', r.id, 'role', r.role, 'is_admin', r.is_admin, 'is_demo', r.is_demo, 'name', nullif(r.name, ''));
+  if r.id is null or r.status is distinct from 'active' or r.is_demo then raise exception 'Portal feedback is not available for this account.' using errcode = 'P0001'; end if;
+  return jsonb_build_object('id', r.id, 'role', r.role, 'is_admin', true, 'is_demo', false, 'name', nullif(r.name, ''));
 end $$;
 revoke all on function private.staff_feedback_require(boolean) from public, anon, authenticated;
 
 create or replace function private.staff_feedback_visible(p_report uuid) returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists (
+  select private.staff_feedback_pilot_ok() and exists (
     select 1 from public.staff_feedback_reports r
-    join public.profiles p on p.id = auth.uid()
-    where r.id = p_report
-      and r.is_demo is not distinct from private.viewer_is_demo()
-      and p.status = 'active'
-      and p.role in ('Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin')
-      and (r.reporter_id = auth.uid() or coalesce(p.is_admin, false))
+    where r.id = p_report and r.is_demo = false
   ) $$;
 revoke all on function private.staff_feedback_visible(uuid) from public, anon;
 grant execute on function private.staff_feedback_visible(uuid) to authenticated;

@@ -34,14 +34,18 @@ export function deliveryNotice(state, reason) {
   return 'Saved in the portal. Not delivered.';
 }
 
-export function canReportStaffFeedback(u) {
-  if (!u || u.demoViewActive) return false;
+/* Verified auth.uid values. Names, emails, and role are not a way in. */
+export const FEEDBACK_PILOT_IDS = Object.freeze([
+  '149e612a-6e14-4ee1-9890-0f29d6f89156',
+  'd02722a1-582b-42c0-b3d1-28d25adb758d',
+]);
+export function isFeedbackPilot(u, { demoActive = false, viewingAs = false } = {}) {
+  if (!u || demoActive || viewingAs || u.demoViewActive || u.isDemo) return false;
   if ((u.status || 'active') !== 'active') return false;
-  return FEEDBACK_ROLES.includes(u.role);
+  return FEEDBACK_PILOT_IDS.includes(String(u.id || '').toLowerCase());
 }
-export function canSupportStaffFeedback(u) {
-  return canReportStaffFeedback(u) && !!u.isAdmin;
-}
+export function canReportStaffFeedback(u, opts) { return isFeedbackPilot(u, opts); }
+export function canSupportStaffFeedback(u, opts) { return isFeedbackPilot(u, opts); }
 export function newId() {
   if (globalThis.crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -93,20 +97,12 @@ export function emptyBag() {
 function fail(message) { throw new Error(message); }
 
 function assertReporter(actor) {
-  if (!actor || !actor.id) fail('Please sign in.');
-  if (actor.demoViewActive) fail('Leave demo view before sending portal feedback.');
-  if ((actor.status || 'active') !== 'active') fail('This account cannot send portal feedback.');
-  if (!FEEDBACK_ROLES.includes(actor.role)) fail('Portal feedback is for CLA staff. Buyers, sellers, and agents use the file inbox.');
+  if (!isFeedbackPilot(actor)) fail(actor && actor.demoViewActive ? 'Leave demo view before using portal feedback.' : actor && (actor.status || 'active') !== 'active' ? 'This account cannot use portal feedback.' : 'Portal feedback is not available for this account.');
 }
-function assertSupport(actor) {
-  assertReporter(actor);
-  if (!actor.isAdmin) fail('Only an Admin or Super admin can change portal feedback.');
-}
+function assertSupport(actor) { assertReporter(actor); }
 function canSee(actor, row) {
-  if (!actor || !row || !!actor.isDemo !== !!row.isDemo) return false;
-  if (actor.demoViewActive || (actor.status || 'active') !== 'active') return false;
-  if (actor.id === row.reporterId) return FEEDBACK_ROLES.includes(actor.role);
-  return !!actor.isAdmin && FEEDBACK_ROLES.includes(actor.role);
+  if (!isFeedbackPilot(actor) || !row || row.isDemo) return false;
+  return true;
 }
 function reportOr404(bag, actor, id) {
   const row = bag.reports.find((r) => r.id === id);

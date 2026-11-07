@@ -1,6 +1,6 @@
 /* Launcher rules and unsent-draft storage. A draft is keyed by the signed-in person.
  * Reading one person's draft never returns another person's text. */
-import { canReportStaffFeedback } from './staff-feedback.js?v=202611071830';
+import { isFeedbackPilot } from './staff-feedback.js?v=202611071830';
 
 export const DRAFT_PREFIX = 'cla-staff-feedback-draft:';
 
@@ -12,10 +12,8 @@ export function draftKey(userId) {
   return DRAFT_PREFIX + String(userId || '');
 }
 
-export function launcherAllowed(user, { demoActive = false, viewingAs = false } = {}) {
-  if (!user || demoActive || viewingAs || user.demoViewActive) return false;
-  if ((user.status || 'active') !== 'active') return false;
-  return canReportStaffFeedback(user);
+export function launcherAllowed(user, opts = {}) {
+  return isFeedbackPilot(user, opts);
 }
 
 export function saveDraft(storage, userId, draft) {

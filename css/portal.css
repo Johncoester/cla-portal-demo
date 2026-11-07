@@ -576,13 +576,30 @@ tr.bad-row td { background: var(--warn-bg); } .invite-body { white-space: pre-wr
 @media (max-width: 1400px) { .qc-wrap { grid-template-columns: minmax(0, 1fr); } .qc-help { position: static; flex-direction: row; flex-wrap: wrap; } .qc-help-card { flex: 1 1 200px; } }
 
 /* WORKSPACE SWITCHER (John, Nov 4): top-bar dropdown + neutral Home, baby-blue cards */
-.ws-wrap { position: relative; display: inline-flex; align-items: center; margin-left: 18px; margin-right: auto; }
+.topbar-tools { display: inline-flex; align-items: center; gap: 8px; margin-right: auto; flex: 0 0 auto; }
+.ws-wrap { position: relative; display: inline-flex; align-items: center; margin-left: 18px; margin-right: 0; }
+.bots-wrap { position: relative; display: inline-flex; align-items: center; }
+.bots-dd { min-width: 280px; }
 .ws-btn { background: #e6f2ff; color: #0b3a6e; border: 1px solid #b9dcff; border-radius: 20px; padding: 6px 14px; font-size: 14px; cursor: pointer; white-space: nowrap; }
 .ws-btn .ws-k { font-weight: 500; opacity: .75; } .ws-btn:hover { background: #d7eaff; }
 .ws-dd { position: absolute; top: calc(100% + 8px); left: 0; z-index: 60; width: 320px; background: #fff; border: 1px solid #cfe6ff; border-radius: 12px; box-shadow: 0 10px 30px rgba(11,58,110,.18); padding: 6px; }
 .ws-opt { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 8px; padding: 10px 12px; color: #123; cursor: pointer; font-size: 14px; }
 .ws-opt small { display: block; color: #667; font-size: 12px; margin-top: 2px; } .ws-opt:hover { background: #f2f8ff; } .ws-opt.on { background: #e6f2ff; font-weight: 600; }
 .ws-chip { font-size: 11px; background: #e6f2ff; color: #0b3a6e; border-radius: 10px; padding: 1px 8px; margin-left: 4px; font-weight: 500; }
+@media (max-width: 700px) {
+  :root, html body.theme-cards { --topbar-h: 132px; }
+  .topbar-main { height: auto; min-height: var(--topbar-h); }
+  .topbar-inner { flex-wrap: wrap; height: auto; min-height: var(--topbar-h); padding: 6px 8px 8px; gap: 4px 8px; align-content: center; }
+  .brand { order: 1; flex-shrink: 0; }
+  .topbar-right { order: 2; margin-left: auto; min-width: 0; gap: 4px; }
+  .topbar-tools { order: 3; flex: 1 1 100%; margin: 0; gap: 6px; }
+  .ws-wrap { margin-left: 0; }
+  .ws-btn { padding: 8px 10px; font-size: 13px; min-height: 40px; }
+  .user-menu { min-width: 0; }
+  .user-btn { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ws-dd, .bots-dd { width: min(280px, calc(100vw - 16px)); min-width: 0; }
+  .bots-dd { left: auto; right: 0; }
+}
 .due-overdue { color: #b42318; font-weight: 600; } .due-today { color: #b54708; font-weight: 600; } .due-future { color: #067647; font-weight: 600; } .due-none { color: inherit; }
 .view-pin { display: inline-flex; align-items: center; gap: 2px; } .view-pin-menu { position: relative; } .view-pin-menu summary { list-style: none; cursor: pointer; } .view-pin-menu summary::-webkit-details-marker { display: none; }
 .view-pin-menu div[role=menu] { position: absolute; z-index: 30; background: #fff; border: 1px solid #d9d9d9; border-radius: 8px; padding: 6px; min-width: 140px; box-shadow: 0 8px 20px rgba(0,0,0,.12); display: flex; flex-direction: column; align-items: stretch; }

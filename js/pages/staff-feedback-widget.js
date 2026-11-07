@@ -26,6 +26,7 @@ const store = () => (typeof sessionStorage !== 'undefined' ? sessionStorage : nu
 function unmount() {
   const root = document.getElementById(HOST_ID);
   if (root) root.remove();
+  document.body.classList.remove('cla-sf-open');
   document.removeEventListener('keydown', onKey);
   live = null;
   state = { userId: null, open: false, reportId: '' };
@@ -59,22 +60,42 @@ function applyDraft(draft) {
   if (draft.reportId) state = { ...state, reportId: draft.reportId };
 }
 
+function placePanel() {
+  if (!live) return;
+  const btn = document.querySelector('[data-bots-btn]');
+  if (!btn || window.matchMedia('(max-width: 700px)').matches) { live.dlg.style.left = ''; live.dlg.style.top = ''; live.dlg.style.right = ''; return; }
+  const r = btn.getBoundingClientRect();
+  const bar = document.querySelector('.topbar-main');
+  const belowBar = bar ? Math.round(bar.getBoundingClientRect().bottom + 8) : 68;
+  live.dlg.style.top = Math.max(belowBar, Math.round(r.bottom + 8)) + 'px';
+  live.dlg.style.left = Math.max(8, Math.round(r.left)) + 'px';
+  live.dlg.style.right = 'auto';
+}
+function markButton() {
+  document.body.classList.toggle('cla-sf-open', !!state.open);
+  const btn = document.querySelector('[data-bots-btn]');
+  if (!btn) return;
+  btn.setAttribute('aria-expanded', state.open ? 'true' : 'false');
+  const cur = btn.querySelector('[data-bots-current]');
+  if (cur) cur.textContent = state.open ? 'Portal feedback' : 'Choose…';
+}
 function setOpen(open) {
   if (!live) return;
   state = { ...state, open: !!open };
   live.ovl.hidden = !state.open;
-  live.fab.classList.toggle('open', state.open);
-  live.fab.setAttribute('aria-expanded', state.open ? 'true' : 'false');
+  markButton();
   if (state.open) {
     returnFocus = document.activeElement;
+    placePanel();
     live.where.textContent = 'You are on ' + (location.hash.split('?')[0] || '#/');
     const focus = state.reportId ? live.reply : live.body;
     focus.focus();
     document.addEventListener('keydown', onKey);
   } else {
     document.removeEventListener('keydown', onKey);
+    const back = document.querySelector('[data-bots-btn]');
     if (returnFocus && typeof returnFocus.focus === 'function') returnFocus.focus();
-    else live.fab.focus();
+    else if (back) back.focus();
   }
 }
 
@@ -147,11 +168,6 @@ function mount(user, api) {
   unmount();
   state = { userId: user.id, open: false, reportId: '' };
   const root = el('div'); root.id = HOST_ID;
-  const fab = el('button', 'claSfFab'); fab.type = 'button'; fab.id = 'claStaffFeedbackFab';
-  fab.setAttribute('aria-haspopup', 'dialog'); fab.setAttribute('aria-expanded', 'false');
-  fab.setAttribute('aria-label', 'Portal feedback'); fab.setAttribute('data-tip', 'Portal feedback');
-  fab.appendChild(svg('claSfIcoChat', 'M5 4h14a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-6.2l-4.3 3.4c-.6.5-1.5.1-1.5-.7V18H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z'));
-  fab.appendChild(el('span', 'claSfIcoX', '×'));
   const ovl = el('div', 'claSfOvl'); ovl.id = 'claStaffFeedback'; ovl.hidden = true;
   const dlg = el('div', 'claSfDlg'); dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'claSfTitle');
   const x = el('button', 'claSfX', '×'); x.type = 'button'; x.setAttribute('aria-label', 'Close portal feedback');
@@ -193,14 +209,13 @@ function mount(user, api) {
   const list = el('ul'); mine.appendChild(list);
   body.appendChild(notice); body.appendChild(where); body.appendChild(threadWrap); body.appendChild(compose); body.appendChild(mine);
   dlg.appendChild(x); dlg.appendChild(hi); dlg.appendChild(body); ovl.appendChild(dlg);
-  root.appendChild(fab); root.appendChild(ovl); document.body.appendChild(root);
-  live = { fab, ovl, dlg, title, body: message, reply, includePage, includeOrder, page, file, pageWrap, orderWrap, shot, err, notice, where, thread, threadWrap, shots, compose, list };
+  root.appendChild(ovl); document.body.appendChild(root);
+  live = { ovl, dlg, title, body: message, reply, includePage, includeOrder, page, file, pageWrap, orderWrap, shot, err, notice, where, thread, threadWrap, shots, compose, list };
   applyDraft(loadDraft(store(), user.id));
   const keep = () => persist();
   [title, message, reply, page, file].forEach((n) => n.addEventListener('input', keep));
   includePage.addEventListener('change', () => { pageWrap.hidden = !includePage.checked; if (includePage.checked && !page.value) { try { page.value = sanitizePage(location.hash.split('?')[0]); } catch (e) { page.value = ''; } } keep(); });
   includeOrder.addEventListener('change', () => { orderWrap.hidden = !includeOrder.checked; keep(); });
-  fab.addEventListener('click', () => { state = nextWidgetState(state, { type: 'toggle' }); setOpen(state.open); if (state.open) paint(api); });
   x.addEventListener('click', () => setOpen(false));
   ovl.addEventListener('click', (e) => { if (e.target === ovl) setOpen(false); });
   back.addEventListener('click', () => { state = nextWidgetState(state, { type: 'select', reportId: '' }); paint(api); });
@@ -247,6 +262,15 @@ function emptySafe() {
   return { title: '', body: '', reply: live ? live.reply.value : '', includePage: false, includeOrder: false, page: '', fileNumber: '', reportId: state.reportId || '' };
 }
 
+export function openStaffFeedbackPanel() {
+  if (!live) return;
+  state = nextWidgetState(state, { type: 'open' });
+  setOpen(true);
+  if (live.api) paint(live.api);
+}
+export function hideStaffFeedbackPanel() {
+  setOpen(false);
+}
 export function syncStaffFeedbackWidget({ user, demoActive = false, viewingAs = false, getApi } = {}) {
   if (typeof document === 'undefined') return;
   const allowed = launcherAllowed(user, { demoActive, viewingAs });
@@ -257,10 +281,12 @@ export function syncStaffFeedbackWidget({ user, demoActive = false, viewingAs = 
     if (next.switched || !document.getElementById(HOST_ID)) {
       if (state.userId && state.userId !== user.id) persist();
       mount(user, api);
+      live.api = api;
       return;
     }
     state = nextWidgetState(state, { type: 'navigate' });
-    if (live) live.where.textContent = 'You are on ' + (location.hash.split('?')[0] || '#/');
+    live.api = api;
+    if (live) { live.where.textContent = 'You are on ' + (location.hash.split('?')[0] || '#/'); placePanel(); live.ovl.hidden = !state.open; markButton(); }
   };
   run();
 }

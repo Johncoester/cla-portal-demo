@@ -41,6 +41,9 @@ drop function if exists private.staff_feedback_visible(uuid);
 drop function if exists private.staff_feedback_clean(text, int, text);
 drop function if exists private.staff_feedback_require(boolean);
 drop function if exists private.staff_feedback_notice(text, text);
+drop function if exists public.staff_feedback_pilot_status();
+drop function if exists private.staff_feedback_pilot_ok();
+drop table if exists private.staff_feedback_pilot;
 
 drop table if exists public.staff_feedback_outbox;
 drop table if exists public.staff_feedback_attachments;

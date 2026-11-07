@@ -14,8 +14,9 @@ import { yourAgentHtml } from './pages/your-agent.js?v=202611070139';
 import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611070139';
 import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611071800';   // John, Nov 4: one locked login link per fake user
-import { canReportStaffFeedback, canSupportStaffFeedback } from './data/staff-feedback.js?v=202611071830';
-import { syncStaffFeedbackWidget } from './pages/staff-feedback-widget.js?v=202611071830';
+import { isFeedbackPilot } from './data/staff-feedback.js?v=202611071830';
+import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611071915';
+import { botRegistry } from './data/bot-registry.js?v=202611071830';
 import { voiceRouteOk } from './data/voice-demo.js?v=202611071632';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611070139';   // John, Nov 4 call: sidebar search + pinned order nav
 import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611071800';
@@ -117,7 +118,7 @@ export function navFor(u, dealId, unread, features = {}, ws = 'everything', demo
   if (runsOrders(u) || u.isAdmin) add('activity', 'Activity Log', '#/activity', 'activity');
   if (canOpenTaskSetup(u, demo)) add('templates', 'Task Templates', '#/admin/templates', 'task');
   if (runsOrders(u) || u.isAdmin || u.role === 'Transaction Coordinator') add('outbox', 'Reminder Outbox', '#/outbox', 'inbox');
-  if (canSupportStaffFeedback(u) && !(demo && demo.active)) add('staff-feedback', 'Portal feedback', '#/staff-feedback', 'inbox');
+  if (isFeedbackPilot(u, { demoActive: !!(demo && demo.active) }) ) add('staff-feedback', 'Portal feedback', '#/staff-feedback', 'inbox');
   if (canInviteAgents(u)) add('agent-invites', 'Agent Invites', '#/agent-invites', 'contact-us');   // John, Nov 4
   if (canManageModules(u)) add('modules', 'Modules', '#/modules', 'documents');
   if (canManageModules(u)) add('underwriters', 'Underwriter Splits', '#/underwriters', 'documents');   // John, Nov 3 call (Admin / Super admin)   // John, Nov 3: the Live switches (Admin / Super admin only)
@@ -175,7 +176,7 @@ async function layout(u, view, route, ws = 'everything') {
   const topButtons = runsOrders(u) && (ws === 'portal' || ws === 'everything') ? html`<a class="green-btn" href="#/orders/new">Place Order</a>` : '';
   return html`
   <div class="topbar-main"><div class="topbar-inner">
-    <a class="brand" href="#${homeFor(u)}"><img src="assets/img/logo-white.png" alt="CLA Title &amp; Escrow"></a>${usesWorkspaces(u) ? wsMenu(u, ws, api) : hrOnly(u) ? html`<div class="ws-wrap" data-ws-wrap><span class="ws-btn ws-static"><span class="ws-k">Workspace</span> <strong data-ws-current="hr">HR</strong></span></div>` : ''}
+    <a class="brand" href="#${homeFor(u)}"><img src="assets/img/logo-white.png" alt="CLA Title &amp; Escrow"></a><div class="topbar-tools">${usesWorkspaces(u) ? wsMenu(u, ws, api) : hrOnly(u) ? html`<div class="ws-wrap" data-ws-wrap><span class="ws-btn ws-static"><span class="ws-k">Workspace</span> <strong data-ws-current="hr">HR</strong></span></div>` : ''}${botsMenu(u)}</div>
     <div class="topbar-right">${crmSearchOn(u, api) && (ws === 'crm' || ws === 'everything') ? raw(HEADER_SEARCH) : ''}${topButtons}
       <div class="notif-wrap"><button class="bell" data-bell title="${unread} unread notification(s)" aria-label="Notifications"><img src="assets/img/bell_new.png" alt=""><span class="notification-num">${unread}</span></button>
         <div class="notif-dd" hidden><div class="notif-head"><strong>Notifications</strong><button class="linkish" data-readall>Mark all read</button></div><ul class="notif-list"><li class="muted">Loading&hellip;</li></ul></div></div>
@@ -202,6 +203,19 @@ async function layout(u, view, route, ws = 'everything') {
 const wsChoices = (u, api) => (!u.isAdmin ? [{ ...wsById('everything'), label: 'Portal', desc: 'Your usual portal: orders, tasks, documents' + ((api.features || {}).crm && canUseCrm(u) && modOn('crm') ? ', CRM' : '') }, ...(hrVisible(u) ? [wsById('hr')] : [])]
   : WORKSPACES.filter((w) => (w.id !== 'crm' || ((api.features || {}).crm && canUseCrm(u) && modOn('crm'))) && (w.id !== 'hr' || hrVisible(u))));   // no CRM option when the CRM is off
 const wsBetaTag = (id) => (id === 'hr' && modBeta('hr') ? html` <span class="beta-badge" data-ws-beta="hr" title="${BETA_LABEL}">Beta</span>` : '');
+function botsMenu(u) {
+  if (!isFeedbackPilot(u, { demoActive: !!(typeof DEMO_VIEW !== 'undefined' && DEMO_VIEW && DEMO_VIEW.active), viewingAs: !!(typeof VIEW_AS !== 'undefined' && VIEW_AS && VIEW_AS.viewing) })) return '';
+  const bots = botRegistry().filter((b) => b.configured);
+  return html`<div class="bots-wrap" data-bots-wrap><button type="button" class="ws-btn" data-bots-btn aria-haspopup="menu" aria-expanded="false" aria-label="Bots"><span class="ws-k">Bots</span> <strong data-bots-current>Choose…</strong> &#9662;</button>
+    <div class="ws-dd bots-dd" data-bots-dd hidden role="menu">${bots.map((b) => html`<button type="button" class="ws-opt" data-bot-open="${b.id}" role="menuitem"><span class="ws-opt-l">${b.label}</span><small>${b.detail}</small></button>`)}<button type="button" class="ws-opt" data-bots-hide role="menuitem"><span class="ws-opt-l">Hide</span><small>Close the open panel. Open it again from this menu.</small></button></div></div>`;
+}
+function wireBots() {
+  const btn = $('[data-bots-btn]'); const dd = $('[data-bots-dd]'); if (!btn || !dd) return;
+  btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; btn.setAttribute('aria-expanded', dd.hidden ? 'false' : 'true'); });
+  document.addEventListener('click', () => { dd.hidden = true; btn.setAttribute('aria-expanded', 'false'); }, { once: true });
+  $$('[data-bot-open]', dd).forEach((el) => el.addEventListener('click', () => { dd.hidden = true; openStaffFeedbackPanel(); }));
+  const hide = $('[data-bots-hide]', dd); if (hide) hide.addEventListener('click', () => { dd.hidden = true; hideStaffFeedbackPanel(); });
+}
 function wsMenu(u, ws, api) {
   const w = wsChoices(u, api).find((x) => x.id === ws) || wsById(ws); const last = lastWs(u);
   return html`<div class="ws-wrap" data-ws-wrap><button class="ws-btn" data-ws-btn aria-haspopup="true" aria-label="Choose a workspace"><span class="ws-k">Workspace</span> <strong data-ws-current="${ws || 'none'}">${w ? w.label : 'Choose…'}</strong> &#9662;</button>
@@ -343,6 +357,7 @@ function syncFeedback(person) {
 }
 function wireChrome(u) {
   syncFeedback(u);
+  wireBots();
   wireFileNav(); wireViewAs(); startHeartbeat(u);
   const stop = $('[data-view-as-stop]');
   if (stop) stop.addEventListener('click', async (e) => { e.preventDefault(); const api = await getAdapter(); if (api.stopDemoView) { try { await api.stopDemoView(); } catch (err) { toast(err.message); return; } } if (demoTimer) clearTimeout(demoTimer); location.hash = '#/dashboard'; render(); });

@@ -8,14 +8,17 @@ insert into public.profiles (id, first_name, last_name, role, status, is_admin, 
   ('66666666-6666-4666-8666-666666666666', 'Dana', 'Demo', 'Processor', 'active', false, true),
   ('77777777-7777-4777-8777-777777777777', 'Drew', 'Demoadmin', 'Admin', 'active', true, true),
   ('88888888-8888-4888-8888-888888888888', 'Dee', 'Disabled', 'Processor', 'disabled', false, false),
-  ('99999999-9999-4999-8999-999999999999', 'Eve', 'Employee', 'Employee', 'active', false, false);
+  ('99999999-9999-4999-8999-999999999999', 'Eve', 'Employee', 'Employee', 'active', false, false),
+  ('149e612a-6e14-4ee1-9890-0f29d6f89156', 'John', 'Coester', 'Super admin', 'active', true, false),
+  ('d02722a1-582b-42c0-b3d1-28d25adb758d', 'Matt', 'Landsberg', 'Super admin', 'active', true, false),
+  ('abababab-abab-4aba-8aba-ababababab99', 'John', 'Coester', 'Super admin', 'active', true, false);
 insert into public.deals (id, file_number, is_demo) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'MD-26-97183', false),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'MD-26-DEMO', true);
 
 create temp table fb_ids (k text primary key, id uuid);
 
-select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', false);
+select set_config('request.jwt.claim.sub', '149e612a-6e14-4ee1-9890-0f29d6f89156', false);
 select set_config('request.jwt.claim.role', 'authenticated', false);
 
 do $$
@@ -38,12 +41,6 @@ begin
   if exists (select 1 from public.staff_feedback_outbox where report_id = (created->>'id')::uuid and event_name = 'cla.feedback.staff_reply' and (delivery_state <> 'saved' or dispatch_allowed)) then
     raise exception 'FAIL staff reply was queued for dispatch'; end if;
   begin
-    perform public.staff_feedback_set_status((created->>'id')::uuid, 'fixed');
-    raise exception 'FAIL processor set status';
-  exception when others then
-    if SQLERRM not like '%Only an Admin%' then raise; end if;
-  end;
-  begin
     perform public.staff_feedback_create('x', 'y', true, '#/orders?token=abc', false, '', '12121212-1212-4121-8121-121212121212');
     raise exception 'FAIL secret page was accepted';
   exception when others then
@@ -61,7 +58,7 @@ begin
     perform public.staff_feedback_get((select id from fb_ids where k = 'report'));
     raise exception 'FAIL other staff read the report';
   exception when others then
-    if SQLERRM not like '%Report not found%' then raise; end if;
+    if SQLERRM not like '%not available%' then raise; end if;
   end;
 end $$;
 
@@ -72,7 +69,7 @@ begin
     perform public.staff_feedback_create('buyer', 'nope', false, '', false, '', '14141414-1414-4141-8141-141414141414');
     raise exception 'FAIL buyer created a report';
   exception when others then
-    if SQLERRM not like '%CLA staff%' then raise; end if;
+    if SQLERRM not like '%not available%' then raise; end if;
   end;
 end $$;
 
@@ -83,7 +80,7 @@ begin
     perform public.staff_feedback_create('off', 'nope', false, '', false, '', '15151515-1515-4151-8151-151515151515');
     raise exception 'FAIL disabled account created a report';
   exception when others then
-    if SQLERRM not like '%cannot send%' then raise; end if;
+    if SQLERRM not like '%not available%' then raise; end if;
   end;
 end $$;
 
@@ -94,7 +91,7 @@ begin
     perform public.staff_feedback_create('emp', 'nope', false, '', false, '', '16161616-1616-4161-8161-161616161616');
     raise exception 'FAIL employee created a report';
   exception when others then
-    if SQLERRM not like '%CLA staff%' then raise; end if;
+    if SQLERRM not like '%not available%' then raise; end if;
   end;
 end $$;
 
@@ -106,20 +103,47 @@ begin
     perform public.staff_feedback_get((select id from fb_ids where k = 'report'));
     raise exception 'FAIL demo user read a real report';
   exception when others then
-    if SQLERRM not like '%Report not found%' then raise; end if;
+    if SQLERRM not like '%not available%' then raise; end if;
   end;
   begin
     perform public.staff_feedback_create('demo order', 'cross tenant', false, '', true, 'MD-26-97183', '17171717-1717-4171-8171-171717171717');
     raise exception 'FAIL demo user attached a real order';
   exception when others then
-    if SQLERRM not like '%not on your account%' then raise; end if;
+    if SQLERRM not like '%not available%' then raise; end if;
   end;
-  demo := public.staff_feedback_create('Demo only', 'A demo-world report.', false, '', true, 'MD-26-DEMO', '18181818-1818-4181-8181-181818181818');
-  insert into fb_ids values ('demo', (demo->>'id')::uuid);
-  if (demo->>'is_demo')::boolean is not true then raise exception 'FAIL demo flag missing'; end if;
+  begin
+    perform public.staff_feedback_create('Demo only', 'A demo-world report.', false, '', true, 'MD-26-DEMO', '18181818-1818-4181-8181-181818181818');
+    raise exception 'FAIL demo account created a report';
+  exception when others then
+    if SQLERRM not like '%not available%' then raise; end if;
+  end;
 end $$;
 
 select set_config('request.jwt.claim.sub', '33333333-3333-4333-8333-333333333333', false);
+do $$
+begin
+  begin
+    perform public.staff_feedback_list();
+    raise exception 'FAIL other super admin listed reports';
+  exception when others then
+    if SQLERRM not like '%not available%' then raise; end if;
+  end;
+  if exists (select 1 from public.staff_feedback_reports) and private.staff_feedback_visible((select id from fb_ids where k = 'report')) then
+    raise exception 'FAIL other super admin can see a report'; end if;
+end $$;
+
+select set_config('request.jwt.claim.sub', 'abababab-abab-4aba-8aba-ababababab99', false);
+do $$
+begin
+  begin
+    perform public.staff_feedback_create('Same name', 'Name is not authorization.', false, '', false, '', '19191919-1919-4191-8191-191919191919');
+    raise exception 'FAIL lookalike name was accepted';
+  exception when others then
+    if SQLERRM not like '%not available%' then raise; end if;
+  end;
+end $$;
+
+select set_config('request.jwt.claim.sub', 'd02722a1-582b-42c0-b3d1-28d25adb758d', false);
 do $$
 declare listed jsonb; after jsonb; n int;
 begin
@@ -139,22 +163,21 @@ select set_config('request.jwt.claim.sub', '22222222-2222-4222-8222-222222222222
 do $$
 declare own jsonb;
 begin
-  own := public.staff_feedback_create('Sales note', 'Read only staff can still report.', false, '', false, '', '19191919-1919-4191-8191-191919191919');
   begin
-    perform public.staff_feedback_set_status((own->>'id')::uuid, 'fixed');
-    raise exception 'FAIL read-only sales set status';
+    perform public.staff_feedback_create('Sales note', 'Read only staff can still report.', false, '', false, '', '19191919-1919-4191-8191-191919191919');
+    raise exception 'FAIL sales created a report';
   exception when others then
-    if SQLERRM not like '%Only an Admin%' then raise; end if;
+    if SQLERRM not like '%not available%' then raise; end if;
   end;
   begin
     perform public.staff_feedback_get((select id from fb_ids where k = 'report'));
     raise exception 'FAIL sales read another report';
   exception when others then
-    if SQLERRM not like '%Report not found%' then raise; end if;
+    if SQLERRM not like '%not available%' then raise; end if;
   end;
 end $$;
 
-select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', false);
+select set_config('request.jwt.claim.sub', '149e612a-6e14-4ee1-9890-0f29d6f89156', false);
 do $$
 declare rid uuid := (select id from fb_ids where k = 'report'); path text; added jsonb;
 begin
@@ -216,17 +239,18 @@ begin
   if loaded::text not like '%"event"%' then null; end if;
 end $$;
 
-select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', false);
+select set_config('request.jwt.claim.sub', '149e612a-6e14-4ee1-9890-0f29d6f89156', false);
 select set_config('request.jwt.claim.role', 'authenticated', false);
 do $$
 declare seen jsonb;
 begin
   seen := public.staff_feedback_get((select id from fb_ids where k = 'report'));
-  if seen::text like '%This is fixed%' then raise exception 'FAIL reporter saw an unpublished draft'; end if;
+  if (seen->'messages')::text like '%This is fixed%' then raise exception 'FAIL unpublished draft was in the thread'; end if;
+  if jsonb_array_length(seen->'drafts') <> 1 then raise exception 'FAIL pilot could not see the draft pending review'; end if;
   if seen->>'delivery_state' <> 'replied' then raise exception 'FAIL reporter delivery state'; end if;
 end $$;
 
-select set_config('request.jwt.claim.sub', '33333333-3333-4333-8333-333333333333', false);
+select set_config('request.jwt.claim.sub', 'd02722a1-582b-42c0-b3d1-28d25adb758d', false);
 do $$
 declare seen jsonb; mid uuid; ev uuid;
 begin
@@ -262,7 +286,7 @@ end $$;
 reset role;
 
 -- Screenshot row is readable only by someone who can see the report.
-select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', false);
+select set_config('request.jwt.claim.sub', '149e612a-6e14-4ee1-9890-0f29d6f89156', false);
 select set_config('request.jwt.claim.role', 'authenticated', false);
 insert into storage.objects (bucket_id, name) values ('staff-feedback', (select 'reports/' || id::text || '/acacacac-acac-4aca-8aca-acacacacacac.png' from fb_ids where k = 'report'));
 set role authenticated;
@@ -282,6 +306,49 @@ begin
   if n <> 0 then raise exception 'FAIL other staff read the screenshot row'; end if;
 end $$;
 reset role;
+
+select set_config('request.jwt.claim.sub', '33333333-3333-4333-8333-333333333333', false);
+set role authenticated;
+do $$
+declare n int;
+begin
+  select count(*) into n from storage.objects where bucket_id = 'staff-feedback';
+  if n <> 0 then raise exception 'FAIL other super admin read the screenshot row'; end if;
+end $$;
+reset role;
+
+update public.profiles set status = 'disabled' where id = '149e612a-6e14-4ee1-9890-0f29d6f89156';
+select set_config('request.jwt.claim.sub', '149e612a-6e14-4ee1-9890-0f29d6f89156', false);
+select set_config('request.jwt.claim.role', 'authenticated', false);
+do $$
+begin
+  begin
+    perform public.staff_feedback_list();
+    raise exception 'FAIL disabled pilot account listed reports';
+  exception when others then
+    if SQLERRM not like '%not available%' then raise; end if;
+  end;
+end $$;
+update public.profiles set status = 'active' where id = '149e612a-6e14-4ee1-9890-0f29d6f89156';
+
+set role authenticated;
+do $$
+begin
+  begin
+    insert into private.staff_feedback_pilot (user_id, slot) values ('33333333-3333-4333-8333-333333333333', 'ada');
+    raise exception 'FAIL self enroll';
+  exception when insufficient_privilege then
+    null;
+  end;
+end $$;
+reset role;
+
+do $$
+begin
+  if (select count(*) from private.staff_feedback_pilot) <> 2 then raise exception 'FAIL allowlist must stay two accounts'; end if;
+  if pg_get_functiondef('private.staff_feedback_pilot_ok()'::regprocedure) ~* 'user_metadata|raw_user_meta|email' then
+    raise exception 'FAIL pilot check uses email or user metadata'; end if;
+end $$;
 
 -- Bucket stays private.
 do $$
