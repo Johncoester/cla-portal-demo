@@ -14,7 +14,7 @@ import { yourAgentHtml } from './pages/your-agent.js?v=202611070139';
 import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611070139';
 import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611070139';   // John, Nov 4: one locked login link per fake user
-import { voiceRouteOk } from './data/voice-demo.js?v=202611070139';
+import { voiceRouteOk } from './data/voice-demo.js?v=202611071632';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611070139';   // John, Nov 4 call: sidebar search + pinned order nav
 import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611070139';
 import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611070139';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
@@ -52,7 +52,7 @@ const pages = {
   'hr-invite': () => import('./pages/hr-invite.js?v=202611070139'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => import('./pages/offices.js?v=202611070139'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
   demo: () => import('./pages/demo-view.js?v=202611070139'),   // permanent Demo mode: Super admin views a seeded demo user
-  'voice-demo': () => import('./pages/voice-demo.js?v=202611070139'),   // signed-in Live Test only; the server allowlist decides who can talk
+  'voice-demo': () => import('./pages/voice-demo.js?v=202611071632'),   // signed-in Live Test only; the server allowlist decides who can talk
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };

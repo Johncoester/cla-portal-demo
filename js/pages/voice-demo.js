@@ -1,5 +1,5 @@
 import { html, $ } from '../ui.js?v=202611070139';
-import { createVoiceAttempt, createVoiceSession, requestVoice, withTimeout, VOICE_PASS_MS } from '../data/voice-demo.js?v=202611070139';
+import { createVoiceAttempt, createVoiceSession, requestVoice, withTimeout, VOICE_PASS_MS } from '../data/voice-demo.js?v=202611071632';
 
 const live = createVoiceSession({
   WebSocket: typeof WebSocket !== 'undefined' ? WebSocket : null,
@@ -10,6 +10,10 @@ const live = createVoiceSession({
     try { return new Ctx({ sampleRate: 24000 }); } catch (e) { return new Ctx(); }
   },
   timeoutMs: 8000,
+  onAudioError(message) {
+    const status = document.querySelector('[data-voice-status]');
+    if (status) { status.textContent = message; status.className = 'err-text'; }
+  },
   onMessage(ev) {
     const reply = document.querySelector('[data-voice-reply]');
     if (!reply) return;
