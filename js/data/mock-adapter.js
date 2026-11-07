@@ -51,6 +51,7 @@ import { recordingPart, ensureRecording } from './mock-part-recording.js?v=20261
 import { fwpCanRead, FWP_STAFF_ONLY } from './funding-wire-policy.js?v=202611070139';
 import { buyerAgentDocDecision, taskReadable, propertyAddressOf } from './nov5-rules.js?v=202611070139';
 import { nov5Part, ensureNov5 } from './mock-part-nov5.js?v=202611070139';
+import { staffFeedbackPart } from './mock-part-staff-feedback.js?v=202611071800';
 import { fwpPart, ensureFwp } from './mock-part-fwp.js?v=202611070139';
 import { seedFwp as FSEED } from './fwp-seed.js?v=202611070139';   // John, Nov 4: where each buyer / seller will be at closing (migration 58)   // Admin > Offices (John, Nov 4; migration 57)
 
@@ -421,6 +422,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   // will be at closing get the reminder (bell + queued outbox only; once a day; none after they answer or the closing is scheduled). Staff can also run it.
   for (const k of ['proposeClosing', 'createSettlementRequest']) { const f = api[k]; api[k] = async function (dealId, ...a) { const r = await f.call(this, dealId, ...a); api._sweepClosingLocationReminders(dealId); return r; }; }
   { const addP = api.addParticipant; api.addParticipant = async function (...a) { const r = await addP.apply(this, a); ensureAgentPortal(load()); save(); return r; }; }
+  Object.assign(api, staffFeedbackPart(ctx));
   // Every call is all-or-nothing: if it throws (validation error, or browser storage full), drop the in-memory copy so the next call
   // reloads the last SAVED state. Without this a half-applied edit (e.g. a rejected lender email) stayed in memory and broke later saves.
   for (const [k, fn] of Object.entries(api)) if (typeof fn === 'function') api[k] = async function (...a) {

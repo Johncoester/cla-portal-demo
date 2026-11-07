@@ -965,3 +965,19 @@ fieldset.span2 { display: flex; flex-wrap: wrap; gap: .5rem; border: 1px solid v
 
 .voice-controls { display: flex; gap: 8px; margin: 12px 0; }
 [data-voice-demo] textarea { width: 100%; }
+
+/* Staff portal feedback. A report page, not a file tab. */
+.staff-feedback .card { margin: 16px 0; padding: 16px; }
+.staff-feedback-list { list-style: none; padding: 0; margin: 0; }
+.staff-feedback-list li { padding: 10px 0; border-bottom: 1px solid var(--line, #e3e3e3); }
+.staff-feedback-thread { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+.staff-feedback-bubble { border: 1px solid var(--line, #e3e3e3); border-radius: 8px; padding: 10px 12px; background: #fff; }
+.staff-feedback-bubble.simulation { background: #fff8e8; }
+.staff-feedback-bubble.draft { background: #f4f7fb; }
+.staff-feedback-files { list-style: none; padding: 0; }
+.staff-feedback [data-feedback-preview] img { max-width: 100%; height: auto; border: 1px solid var(--line, #e3e3e3); }
+.staff-feedback .m-btn, .staff-feedback .ghost { min-height: 40px; }
+@media (max-width: 700px) {
+  .staff-feedback .form-grid { grid-template-columns: 1fr; }
+  .staff-feedback .m-btn, .staff-feedback .ghost { width: 100%; }
+}
