@@ -62,7 +62,10 @@ export function nov5Supabase({ sb, ok, camel, me }) {
       const body = await uploadBytes(file);
       const up = await sb.storage.from('deal-documents').upload(row.storage_path, body, { contentType: file.mimeType || 'application/octet-stream', upsert: false });
       if (up.error) throw new Error(up.error.message || 'The document bucket refused the upload.');
-      return camel(ok(await sb.from('documents').insert(row).select().single()));
+      // Insert without RETURNING. The select policy re-reads documents and cannot see the row
+      // until the insert commits, so .insert().select() fails with the new-row RLS error.
+      ok(await sb.from('documents').insert(row));
+      return camel(ok(await sb.from('documents').select('*').eq('id', row.id).single()));
     },
     async getDocumentContent(id) {
       const doc = camel(ok(await sb.from('documents').select('id, name, storage_path, mime_type').eq('id', id).single()));

@@ -1,4 +1,5 @@
 /* The hosted contract upload, checked against the TEST policy text. No database connection. */
+import { readFileSync } from 'node:fs';
 import { documentInsertRow } from '../js/data/supabase-nov5.js';
 const DEAL = '81c35d28-8563-4801-b46e-79aa9313dc9b';
 const USER = '00000000-0000-4000-8000-000000000001';
@@ -44,6 +45,9 @@ const demoCheck = (dealVisible, dealIsDemo, viewerIsDemo) => (dealVisible ? deal
 ok(demoCheck(true, false, false) && demoCheck(true, true, true), 'a deal the same person can already open matches demo_scope');
 ok(demoCheck(false, false, false) === false, 'a deal select that returns no row makes the documents demo check fail');
 ok(!viewOnly('Super admin', true) && staffish('Super admin', true), 'Super admin is staff for visibility and is not the view-only sales rule');
+const src = readFileSync(new URL('../js/data/supabase-nov5.js', import.meta.url), 'utf8');
+ok(src.includes("from('documents').insert(row)") && !src.includes(".insert(row).select"), 'the insert is committed before the row is read back');
+ok(src.includes(".select('*').eq('id', row.id)"), 'the saved row is read in a following select');
 
 console.log(fail ? fail + ' failed' : 'document insert gate passed');
 if (fail) process.exit(1);
