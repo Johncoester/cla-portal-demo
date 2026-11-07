@@ -18,7 +18,7 @@ export async function render({ api, user, params, go }) {
   const body = html`<section class="staff-feedback" data-staff-feedback-page="list">
     <div class="box-title"><h2>Portal feedback</h2></div>
     <p class="notice warn" data-feedback-standing role="status">${standingNotice()}</p>
-    <p>This page is for CLA staff to report a bug or a fix in the portal. It is not the inbox on a file. Buyers, sellers, and agents do not see it. Nothing here changes code, sends email, or marks a report fixed by itself.</p>
+    <p>The green Portal feedback button is the usual place to write. This page is the report list. Admins can review every report they are allowed to see. Nothing here changes code, sends email, or marks a report fixed by itself.</p>
     <form class="card form-grid" data-feedback-form>
       <label class="span2">Title <input name="title" maxlength="140" required data-feedback-title placeholder="Example: Orders list hides the file number"></label>
       <label class="span2">What happened <textarea name="body" rows="5" maxlength="4000" required data-feedback-body placeholder="What you did, what you expected, and what you saw."></textarea></label>

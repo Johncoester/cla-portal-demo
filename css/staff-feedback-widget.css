@@ -1,0 +1,94 @@
+/* Staff portal feedback launcher. Visual pattern matches the calculator bubble (green #99c93f, round, panel above it).
+   This is not a live assistant. The header says the note is saved here and is not delivered. */
+.claSfFab, .claSfOvl, .claSfOvl * { box-sizing: border-box; }
+.claSfFab, .claSfOvl {
+  --sf: #99c93f; --sfd: #7ca233; --sfdd: #5b7725; --sfink: #111; --sfmut: #5b6272; --sfline: #e3e8da;
+  --sfpad-r: max(18px, env(safe-area-inset-right, 0px));
+  --sfpad-b: max(18px, env(safe-area-inset-bottom, 0px));
+  --sffab: 56px;
+  font: 14px/1.45 Poppins, Inter, -apple-system, "Segoe UI", system-ui, sans-serif;
+}
+.claSfFab {
+  position: fixed; right: var(--sfpad-r); bottom: var(--sfpad-b); z-index: 40;
+  width: var(--sffab); height: var(--sffab); padding: 0; border: 0; border-radius: 50%; cursor: pointer;
+  display: grid; place-items: center; color: #0b0b0b;
+  background: linear-gradient(145deg, #b4d873 0%, var(--sf) 55%, var(--sfd) 100%);
+  box-shadow: 0 8px 22px rgba(0,0,0,.28), 0 2px 6px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.45);
+}
+.claSfFab:focus-visible { outline: 3px solid #000; outline-offset: 3px; }
+.claSfFab svg, .claSfFab .claSfIcoX { grid-area: 1/1; }
+.claSfFab svg { width: 28px; height: 28px; }
+.claSfFab .claSfIcoX { opacity: 0; font-size: 28px; line-height: 1; font-weight: 700; }
+.claSfFab.open .claSfIcoChat { opacity: 0; }
+.claSfFab.open .claSfIcoX { opacity: 1; }
+.claSfFab::after {
+  content: attr(data-tip); position: absolute; right: calc(100% + 10px); top: 50%; transform: translateY(-50%);
+  background: #111; color: #fff; font-size: 12.5px; font-weight: 600; line-height: 1; padding: 7px 10px; border-radius: 8px;
+  white-space: nowrap; opacity: 0; pointer-events: none;
+}
+.claSfFab:hover::after, .claSfFab:focus-visible::after { opacity: 1; }
+.claSfFab.open::after { display: none; }
+.claSfOvl { position: fixed; inset: 0; z-index: 40; background: transparent; color: var(--sfink); }
+.claSfOvl[hidden] { display: none !important; }
+.claSfDlg {
+  position: fixed; right: var(--sfpad-r); bottom: calc(var(--sfpad-b) + var(--sffab) + 14px);
+  width: min(392px, calc(100vw - 2 * var(--sfpad-r)));
+  max-height: calc(100dvh - var(--sfpad-b) - var(--sffab) - 34px);
+  overflow: auto; overscroll-behavior: contain; background: #fff; border-radius: 20px;
+  border: 1px solid rgba(0,0,0,.06); box-shadow: 0 24px 60px rgba(0,0,0,.28), 0 4px 14px rgba(0,0,0,.12);
+}
+.claSfHi {
+  margin: 0; padding: 18px 48px 16px 18px;
+  background: linear-gradient(135deg, #0c0c0c 0%, #232f0f 55%, var(--sfdd) 140%);
+  color: #fff; border-bottom: 3px solid var(--sf);
+}
+.claSfHi strong { display: block; font-size: 16px; }
+.claSfHi p { margin: 4px 0 0; font-size: 13px; font-weight: 600; line-height: 1.4; }
+.claSfX {
+  position: absolute; top: 10px; right: 10px; z-index: 2; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%;
+  background: rgba(255,255,255,.16); color: #fff; cursor: pointer;
+}
+.claSfX:focus-visible { outline: 3px solid var(--sf); outline-offset: 2px; }
+.claSfBody { padding: 12px 16px 16px; }
+.claSfNotice { margin: 0 0 10px; padding: 8px 10px; border-radius: 10px; background: #fff8e8; border: 1px solid #f0d7a2; color: #6a4b12; font-size: 12.5px; }
+.claSfLbl { display: block; margin: 8px 0 4px; font-size: 12.5px; font-weight: 700; }
+.claSfDlg input[type="text"], .claSfDlg textarea {
+  display: block; width: 100%; font: inherit; padding: 8px 10px; border: 1.5px solid #d5dbca; border-radius: 12px; background: #fafcf6;
+}
+.claSfDlg textarea { min-height: 88px; resize: vertical; }
+.claSfDlg textarea:focus, .claSfDlg input:focus { outline: none; border-color: var(--sf); box-shadow: 0 0 0 3px rgba(153,201,63,.28); background: #fff; }
+.claSfCheck { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0; font-size: 13px; }
+.claSfMeta { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; font-size: 12px; color: var(--sfmut); }
+.claSfErr { margin-top: 8px; color: #8a1c12; font-size: 13px; }
+.claSfErr:empty { display: none; }
+.claSfRow { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+.claSfBtn {
+  background: linear-gradient(145deg, #b4d873, var(--sf)); color: #000; border: 1.5px solid var(--sf); border-radius: 12px;
+  padding: 8px 14px; font-weight: 700; font-family: inherit; cursor: pointer;
+}
+.claSfBtn.o { background: #fff; color: #2a3320; border-color: #d5dbca; }
+.claSfBtn:focus-visible, .claSfMine button:focus-visible { outline: 3px solid #000; outline-offset: 2px; }
+.claSfThread { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.claSfBubble { border: 1px solid var(--sfline); border-radius: 12px; padding: 8px 10px; background: #fff; overflow-wrap: anywhere; }
+.claSfBubble.simulation { background: #fff8e8; }
+.claSfMine { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--sfline); }
+.claSfMine h3 { margin: 0 0 8px; font-size: 11.5px; color: var(--sfmut); text-transform: uppercase; letter-spacing: .06em; }
+.claSfMine ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow: auto; }
+.claSfMine button { width: 100%; text-align: left; border: 1px solid var(--sfline); border-radius: 12px; background: #fbfcf8; padding: 8px 10px; font: inherit; cursor: pointer; }
+.claSfMine button.on { border-color: var(--sf); background: #f4fae8; }
+.claSfPill { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: #eef1e8; font-size: 11px; font-weight: 700; }
+.claSfImg { max-width: 100%; height: auto; border-radius: 8px; margin-top: 6px; }
+@media (max-width: 700px) {
+  .claSfFab, .claSfOvl { --sffab: 52px; --sfpad-r: max(14px, env(safe-area-inset-right, 0px)); --sfpad-b: max(14px, env(safe-area-inset-bottom, 0px)); }
+  .claSfFab.open { opacity: 0; pointer-events: none; }
+  .claSfFab::after { display: none; }
+  .claSfOvl { background: rgba(17,17,17,.5); }
+  .claSfDlg { left: 0; right: 0; bottom: 0; width: 100%; max-height: 90dvh; border-radius: 22px 22px 0 0; }
+  .claSfDlg textarea { font-size: 16px; }
+  .claSfRow { flex-direction: column-reverse; }
+  .claSfRow .claSfBtn { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .claSfFab, .claSfDlg { transition: none !important; }
+}
+@media print { .claSfFab, .claSfOvl { display: none !important; } }

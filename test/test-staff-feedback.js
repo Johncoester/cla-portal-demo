@@ -36,7 +36,7 @@ check(!canReportStaffFeedback(buyer) && !canReportStaffFeedback(seller) && !canR
 check(!routeAllowed(buyer, { page: 'staff-feedback' }, {}) && !routeAllowed(seller, { page: 'staff-feedback' }, {}) && !routeAllowed(agent, { page: 'staff-feedback' }, {}), 'route guard refuses outside users');
 check(routeAllowed(proc, { page: 'staff-feedback' }, {}) && routeAllowed(sales, { page: 'staff-feedback' }, {}) && !routeAllowed(proc, { page: 'staff-feedback' }, { demo: { active: true } }), 'route guard allows active staff and refuses demo view');
 const appSource = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-check(appSource.includes("add('staff-feedback', 'Portal feedback'") && appSource.includes('canReportStaffFeedback(u) && !(demo && demo.active)'), 'the portal menu shows feedback to active staff only');
+check(appSource.includes("add('staff-feedback', 'Portal feedback'") && appSource.includes('canSupportStaffFeedback(u) && !(demo && demo.active)'), 'the report-list menu item is for admins; the launcher is separate');
 
 const bag = emptyBag();
 const key = '11111111-1111-4111-8111-111111111111';
@@ -139,6 +139,24 @@ const text = toText(view.body);
 check(text.includes('&lt;script&gt;') && !text.includes('<script>'), 'message text is escaped');
 check(text.includes('Not delivered') && text.includes('Run test simulation'), 'the screen says saved and labels the simulation');
 check(toText(html`${xss}`) === '&lt;script&gt;alert(1)&lt;/script&gt;', 'the default escaper covers report text');
+
+import { draftKey, launcherAllowed, loadDraft, nextWidgetState, saveDraft } from '../js/data/staff-feedback-widget-state.js';
+import { readFileSync as readWidget } from 'node:fs';
+const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, v), removeItem: (k) => m.delete(k), keys: () => [...m.keys()] }; };
+const box = mem();
+saveDraft(box, 'proc', { title: 'Paula draft', body: 'not sent', includePage: true, page: '#/orders' });
+saveDraft(box, 'admin', { title: 'Ada draft', body: 'other person' });
+check(loadDraft(box, 'proc').title === 'Paula draft' && loadDraft(box, 'proc').body === 'not sent' && !loadDraft(box, 'sales').title, 'a draft stays with that person');
+check(loadDraft(box, 'admin').body === 'other person' && !JSON.stringify(loadDraft(box, 'proc')).includes('Ada'), 'opening one draft does not reveal another person');
+check(draftKey('proc') !== draftKey('admin'), 'draft keys include the person');
+check(launcherAllowed(proc, {}) && !launcherAllowed(buyer, {}) && !launcherAllowed(seller, {}) && !launcherAllowed(agent, {}) && !launcherAllowed(disabled, {}) && !launcherAllowed(proc, { demoActive: true }) && !launcherAllowed(admin, { viewingAs: true }), 'the launcher is staff only and hides for demo view and view-as');
+const openThread = nextWidgetState({ userId: 'proc', open: true, reportId: 'r1' }, { type: 'navigate' });
+check(openThread.open === true && openThread.reportId === 'r1', 'moving between file tabs keeps the open thread');
+const switched = nextWidgetState(openThread, { type: 'sync', allowed: true, userId: 'admin' });
+check(switched.switched === true && switched.open === false && switched.reportId === '' && switched.userId === 'admin', 'a different person does not inherit the open thread');
+const widgetSrc = readWidget(new URL('../js/pages/staff-feedback-widget.js', import.meta.url), 'utf8');
+check(!widgetSrc.includes('Hey! I am John') && !widgetSrc.includes('Thanks, I read every note') && !widgetSrc.includes('innerHTML') && widgetSrc.includes('Not delivered to the assistant'), 'the widget does not pretend to be a live chat');
+check(widgetSrc.includes("shot.type = 'file'") && !widgetSrc.includes('webkitdirectory=') && !widgetSrc.includes('multiple'), 'the widget attaches one screenshot and not a folder');
 
 console.log(fail ? `${fail} failed` : 'staff feedback passed');
 if (fail) process.exit(1);
