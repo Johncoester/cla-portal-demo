@@ -3,7 +3,10 @@
 export const VOICE_NOT_CONFIGURED = 'Grok voice is not configured on the server yet.';
 export const VOICE_DENIED = 'Voice is not available on this sign-in.';
 export const VOICE_PASS_MS = 12000;
+export const VOICE_AUDIO_MS = 4000;
+export const VOICE_MIC_MS = 10000;
 export const VOICE_TIMED_OUT = 'Voice did not answer in time. Nothing was recorded. The microphone was not opened.';
+export const VOICE_AUDIO_TIMED_OUT = 'This browser did not start audio in time. The microphone was not opened.';
 export const VOICE_SIGN_IN = 'This sign-in expired before voice could start. Sign in again, then press Start. The microphone was not opened.';
 const PCM_RATES = new Set([8000, 16000, 22050, 24000, 32000, 44100, 48000]);
 export const VOICE_MODEL = 'grok-voice-latest';
@@ -69,6 +72,17 @@ export function withTimeout(promise, ms = VOICE_PASS_MS) {
   });
 }
 
+export function rejectAfter(promise, ms, message) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const timer = setTimeout(() => { if (!done) { done = true; reject(new Error(message)); } }, ms);
+    Promise.resolve(promise).then(
+      (value) => { if (!done) { done = true; clearTimeout(timer); resolve(value); } },
+      (error) => { if (!done) { done = true; clearTimeout(timer); reject(error); } },
+    );
+  });
+}
+
 export function textTurn(text) {
   const t = String(text == null ? '' : text).trim().slice(0, 500);
   if (!t) throw new Error('Type a message first.');
@@ -117,13 +131,27 @@ function wireMic(state, socket) {
 }
 
 export function createVoiceSession(deps) {
-  const state = { stream: null, chunks: [], socket: null, context: null, source: null, processor: null, mute: null };
+  const state = { stream: null, chunks: [], socket: null, context: null, source: null, processor: null, mute: null, abandoned: false, resumePromise: null };
   let opened = false;
+  const audioWait = deps.audioWaitMs || VOICE_AUDIO_MS;
+  const micWait = deps.micWaitMs || VOICE_MIC_MS;
+  const leave = () => state.abandoned;
   return {
     state,
+    primeAudio() {
+      if (state.abandoned || state.context || !deps.audioContextFactory) return;
+      state.context = deps.audioContextFactory();
+      const resume = state.context && state.context.resume ? state.context.resume() : Promise.resolve();
+      state.resumePromise = Promise.resolve(resume).catch(() => {});
+    },
     async start(token) {
-      if (deps.audioContextFactory && !state.context) state.context = deps.audioContextFactory();
-      if (state.context && state.context.resume) await state.context.resume();
+      acceptEphemeralToken(token);
+      if (leave()) return state;
+      this.primeAudio();
+      if (state.resumePromise) {
+        await rejectAfter(state.resumePromise, audioWait, VOICE_AUDIO_TIMED_OUT);
+        if (leave() || (state.context && state.context.state === 'closed')) return state;
+      }
       const rate = state.context && PCM_RATES.has(state.context.sampleRate) ? state.context.sampleRate : 24000;
       const socket = realtimeSocket(token, deps.WebSocket);
       state.socket = socket;
@@ -131,12 +159,14 @@ export function createVoiceSession(deps) {
       await new Promise((resolve, reject) => {
         const t = setTimeout(() => reject(new Error('Grok voice could not be reached. Nothing was recorded.')), deps.timeoutMs || 8000);
         const fail = () => { clearTimeout(t); reject(new Error('Grok voice could not be reached. Nothing was recorded.')); };
-        socket.addEventListener('open', () => { clearTimeout(t); opened = true; socket.send(JSON.stringify(sessionUpdate(rate))); resolve(); });
+        socket.addEventListener('open', () => { clearTimeout(t); if (leave()) { resolve(); return; } opened = true; socket.send(JSON.stringify(sessionUpdate(rate))); resolve(); });
         socket.addEventListener('error', fail);
         socket.addEventListener('close', () => { if (!opened) fail(); });
       });
-      try { state.stream = await deps.getUserMedia({ audio: { channelCount: 1 } }); }
-      catch (e) { stopMic(state); opened = false; throw new Error('The microphone was not opened. Nothing was recorded.'); }
+      if (leave()) { stopMic(state); opened = false; return state; }
+      try { state.stream = await rejectAfter(deps.getUserMedia({ audio: { channelCount: 1 } }), micWait, 'The microphone was not opened. Nothing was recorded.'); }
+      catch (e) { stopMic(state); opened = false; if (leave()) return state; throw new Error('The microphone was not opened. Nothing was recorded.'); }
+      if (leave()) { stopMic(state); opened = false; return state; }
       wireMic(state, socket);
       return state;
     },
@@ -144,7 +174,7 @@ export function createVoiceSession(deps) {
       if (!state.socket || !opened) throw new Error('Start voice before sending a typed message.');
       for (const msg of textTurn(text)) state.socket.send(JSON.stringify(msg));
     },
-    stop() { opened = false; return stopMic(state); },
+    stop() { state.abandoned = true; opened = false; return stopMic(state); },
   };
 }
 
@@ -155,6 +185,7 @@ export function createVoiceAttempt({ live, show, requestPass }) {
     stop() { generation += 1; return live.stop(); },
     async start() {
       const mine = ++generation;
+      if (live.primeAudio) live.primeAudio();
       show('Connecting…', 'wait');
       const ready = await requestPass();
       if (mine !== generation) return { openedMic: false, cancelled: true };

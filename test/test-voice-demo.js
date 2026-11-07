@@ -83,5 +83,33 @@ await heard.start(token);
 await new Promise((r) => setTimeout(r, 20));
 ok(sentAudio.includes('input_audio_buffer.append') && heard.state.chunks.length === 0, 'microphone samples are sent and are not kept');
 ok(audioAppend(new Float32Array([0])).type === 'input_audio_buffer.append', 'an audio chunk uses the documented append event');
+let micCalls = 0;
+const resumeHang = createVoiceSession({
+  WebSocket: class { constructor() { throw new Error('socket should not open'); } },
+  getUserMedia: async () => { micCalls += 1; return { getTracks() { return []; } }; },
+  audioContextFactory: () => ({ sampleRate: 24000, state: 'suspended', destination: {}, resume: () => new Promise(() => {}), close() {} }),
+  audioWaitMs: 30,
+  timeoutMs: 50,
+});
+let resumeMsg = '';
+try { await resumeHang.start(token); } catch (e) { resumeMsg = e.message; }
+ok(/did not start audio/.test(resumeMsg) && micCalls === 0, 'a pass that returns still cannot wait forever on audio, and the microphone stays closed');
+let socketOpened = false;
+let micAfterStop = 0;
+let lateStream = null;
+const midMic = createVoiceSession({
+  WebSocket: class { constructor() { socketOpened = true; this.listeners = {}; this.readyState = 1; queueMicrotask(() => (this.listeners.open || []).forEach((fn) => fn({}))); } addEventListener(n, fn) { (this.listeners[n] || (this.listeners[n] = [])).push(fn); } send() {} close() { (this.listeners.close || []).forEach((fn) => fn({})); } },
+  getUserMedia: () => new Promise((resolve) => { lateStream = resolve; }),
+  audioContextFactory: () => ({ sampleRate: 24000, state: 'running', destination: {}, resume: () => Promise.resolve(), close() {}, createMediaStreamSource() { return { connect() {} }; }, createGain() { return { gain: { value: 1 }, connect() {} }; }, createScriptProcessor() { return { connect() {}, disconnect() {} }; } }),
+  audioWaitMs: 50,
+  micWaitMs: 40,
+  timeoutMs: 50,
+});
+const mid = midMic.start(token);
+await new Promise((r) => setTimeout(r, 15));
+midMic.stop();
+lateStream({ getTracks() { return [{ stop() { micAfterStop += 1; } }]; } });
+await mid;
+ok(socketOpened === true && micAfterStop === 1, 'Stop during a late microphone answer releases that microphone');
 console.log(fail ? fail + ' failed' : 'voice demo passed');
 if (fail) process.exit(1);
