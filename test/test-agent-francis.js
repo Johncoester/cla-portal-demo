@@ -6,6 +6,11 @@ import { agentInviteDraft, INVITE_DELIVERY } from '../js/data/agent-invite-mail.
 import { planDocumentBatch, uploadDocumentBatch } from '../js/data/document-batch.js';
 import { assertRecipients, messageText } from '../js/data/portal-message.js';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
+import { buildOrderOverview } from '../js/data/order-overview.js';
+import { visibilityChoices } from '../js/data/constants.js';
+import { addToQueue, removeFromQueue, uploadFailureText } from '../js/data/document-queue.js';
+import { explainRecipients } from '../js/data/message-recipients.js';
+import { agentMayInsertDocument } from '../js/data/document-insert-access.js';
 
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
@@ -81,11 +86,57 @@ await api.signInDev('u-bagent');
 const tasks = await api.listTasks('deal-1');
 const comm = tasks.find((t) => t.templateCode === 'commissions' && t.assignedRole === 'Buyer Agent');
 ok(!!comm && comm.mine && comm.status === 'todo', 'the mock buyer agent already counts their unfinished commission');
+await api.signInDev('u-lagent');
+const staffDoc = await api.addDocument('deal-1', { name: 'listing-note.pdf', description: '', mimeType: 'application/pdf', size: 20, dataUrl: 'data:application/pdf;base64,QQ==', visibility: 'staff', docType: '' });
+ok(staffDoc.visibility === 'staff', 'a listing agent can save a file for CLA staff only');
+let buyerSide = '';
+try { await api.addDocument('deal-1', { name: 'nope.pdf', mimeType: 'application/pdf', size: 20, dataUrl: 'data:application/pdf;base64,QQ==', visibility: 'buyer' }); } catch (e) { buyerSide = e.message; }
+ok(/seller side|everyone|only/i.test(buyerSide), 'a listing agent cannot file a document for the buyer side');
+const recipients = await api.listMessageRecipients('deal-1');
+ok(recipients.some((p) => p.role === 'Processor') && !recipients.some((p) => p.role === 'Buyer Agent'), 'a listing agent is offered the processor and not the buyer agent');
 
 const sql = readFileSync(new URL('../supabase/migrations/20261107023000_task_owner_backfill.sql', import.meta.url));
 const hash = createHash('sha256').update(sql).digest('hex');
-ok(/owner_profile_id is null/.test(sql.toString()) && !/enable row level security/i.test(sql.toString()), 'the owner backfill does not change row security');
-console.log('migration-sha256', hash);
+ok(/deal_participants/.test(sql.toString()) && /owner_profile_id is null/.test(sql.toString()) && !/enable row level security/i.test(sql.toString()), 'the owner backfill uses the file-party table and does not change row security');
+console.log('owner-backfill-sha256', hash);
+const insertSql = readFileSync(new URL('../supabase/migrations/20261107024500_agent_document_insert.sql', import.meta.url));
+const insertHash = createHash('sha256').update(insertSql).digest('hex');
+ok(/create policy documents_assigned_agent_insert/.test(insertSql.toString()) && !/drop policy/i.test(insertSql.toString()) && !/disable row level security/i.test(insertSql.toString()), 'the agent upload policy is added and no existing policy is dropped');
+console.log('agent-insert-sha256', insertHash);
+
+const overview = buildOrderOverview({
+  deal: { id: 'deal-1', myRole: 'Listing Agent', myRoles: ['Listing Agent'], street: '1 Oak', city: 'Rockville', state: 'MD', zip: '20850', fileNumber: 'MD-1', transactionType: 'Purchase', participants: [] },
+  me: { id: 'u-list', role: 'Outside user' },
+  tasks: [
+    { id: 'c', dealId: 'deal-1', status: 'todo', mine: true, assignedRole: 'Listing Agent', title: 'Commission information', description: 'Confirm your commission for the settlement statement.', participantId: 'p-list', ownerProfileId: null },
+    { id: 's', dealId: 'deal-1', status: 'todo', mine: false, assignedRole: 'Client-Seller', title: 'How you want your proceeds' },
+  ],
+});
+ok(overview.outstanding === 1 && overview.counts.tasks === 1, 'the Tasks count is the unfinished commission and not the seller form');
+const sellerForm = shapeListedTask({ id: 's', dealId: 'deal-1', participantId: 'p-seller', assignedRole: 'Client-Seller', ownerProfileId: 'u-seller', kind: 'form', status: 'todo', templateId: 'tpl' }, outside, { myParticipantIds: ['p-agent'] });
+ok(!sellerForm.mine && !sellerForm.canFill && sellerForm.notYours, 'a listing agent does not inherit the seller form');
+
+const choices = visibilityChoices('Listing Agent');
+ok(choices[0] === 'staff' && choices.includes('seller') && !choices.includes('buyer'), 'a listing agent can choose CLA staff only and not the buyer side');
+ok(agentMayInsertDocument({ role: 'Listing Agent', onThisFile: true, visibility: 'staff' }) && agentMayInsertDocument({ role: 'Listing Agent', onThisFile: true, visibility: 'seller' }), 'an assigned listing agent may save staff-only or seller-side');
+ok(!agentMayInsertDocument({ role: 'Listing Agent', onThisFile: true, visibility: 'buyer' }) && !agentMayInsertDocument({ role: 'Listing Agent', onThisFile: false, visibility: 'staff' }) && !agentMayInsertDocument({ role: 'Listing Agent', onThisFile: true, visibility: 'staff', wire: true }), 'the other side, another file, and a wire file stay refused');
+
+let queued = addToQueue([], [{ name: 'deed.pdf', size: 10 }]);
+queued = addToQueue(queued.queue, [{ name: 'hoa.pdf', size: 12 }, { name: 'deed.pdf', size: 10 }]);
+ok(queued.queue.map((f) => f.name).join() === 'deed.pdf,hoa.pdf' && queued.skipped.length === 1, 'choosing another file keeps the first');
+ok(removeFromQueue(queued.queue, 0).map((f) => f.name).join() === 'hoa.pdf', 'one selected file can be removed');
+ok(/still here/.test(uploadFailureText('new row violates row-level security policy for table documents')), 'a refused upload says the selection is still there');
+
+const explained = explainRecipients({
+  myRole: 'Listing Agent',
+  participants: [
+    { role: 'Client-Seller', contact: { firstName: 'Sam', lastName: 'Seller', profileId: 'u-seller' } },
+    { role: 'Client-Seller', contact: { firstName: 'Pat', lastName: 'NoLogin', profileId: null } },
+    { role: 'Buyer Agent', contact: { firstName: 'Bea', lastName: 'Buyer', profileId: 'u-buyer-agent' } },
+  ],
+  allowed: [{ id: 'u-proc', firstName: 'Paula', lastName: 'Processor', role: 'Processor' }, { id: 'u-seller', firstName: 'Sam', lastName: 'Seller', role: 'Client-Seller' }],
+});
+ok(explained.selectable.map((p) => p.id).join() === 'u-proc,u-seller' && explained.unavailable.length === 1 && explained.unavailable[0].name === 'Pat NoLogin' && !JSON.stringify(explained).includes('Bea'), 'the other side stays off the list and a same-side person without a login is shown as unavailable');
 
 const adapter = readFileSync(new URL('../js/data/supabase-adapter.js', import.meta.url), 'utf8');
 ok(adapter.includes('a.sendMessage = async') && adapter.includes('assertRecipients') && adapter.includes('sent: false'), 'the hosted adapter has an in-portal sendMessage and does not mark it sent');
