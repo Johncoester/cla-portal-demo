@@ -43,7 +43,8 @@ export function buildOrderOverview({ deal, me, tasks = [], documents = [], threa
     ...salesReps(), ...opt('Buyer Agent', 'Buyer Agent'), ...opt('Listing Agent', 'Listing Agent'),
     ...(refi ? all('Lender').map((p) => party('Lender', p)) : []), ...all('Client-Seller').map((p) => party('Seller', p))];
   const visibleTasks = tasks.filter((t) => t && t.dealId === deal.id);
-  const openMine = visibleTasks.filter((t) => OPEN.includes(t.status) && (t.ownerId === me.id || t.ownerProfileId === me.id || (!t.participantId && (actor.roles || [actor.role]).includes(t.assignedRole))));
+  const owned = (t) => t.ownerId === me.id || t.ownerProfileId === me.id || (!t.participantId && (actor.roles || [actor.role]).includes(t.assignedRole));
+  const openMine = visibleTasks.filter((t) => OPEN.includes(t.status) && (t.mine === true || (t.mine == null && owned(t))));
   const openAll = visibleTasks.filter((t) => OPEN.includes(t.status));
   const outstanding = staff ? openAll.length : openMine.length;
   const docs = documents.filter((z) => z && z.dealId === deal.id && !z.sample);

@@ -126,6 +126,8 @@ export const visibilityChoices = (role, isAdmin = false) => {
   // BUYER (Matt, Nov 4 call): the buyer shares documents with CLA Title ONLY ('staff'), not with their agent or anyone else
   if (role === 'Client-Buyer') return ['staff'];
   if (role === 'Client-Seller') return [side];
+  // An agent may keep a file with CLA staff only. That does not open the other side or a client's private form.
+  if (role === 'Listing Agent' || role === 'Buyer Agent') return ['staff', side, 'all'];
   return side ? ['all', side] : ['all']; };
 // Labels for 'Who can see it'. Clients see their own-side option as 'Share with CLA Title'.
 export const VIS_LABELS = { all: 'Everyone on the file', buyer: 'Buyer side only', seller: 'Seller side only', staff: 'CLA staff only' };

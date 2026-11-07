@@ -46,6 +46,8 @@ async function thread({ api, user, deal, refresh, params }) {
     const f = $('#rf', root); if (!f) return; const ed = mountEditor(f); const send = $('[data-send]', f);
     const fl = mountFiles(f, (b) => { send.disabled = b > 0; send.textContent = b > 0 ? 'Waiting for upload\u2026' : 'Send'; });
     f.addEventListener('submit', guard(async (e) => { e.preventDefault(); if (fl.busy) throw new Error('Wait for the upload to finish.'); if (!ed.text && !fl.files.length) throw new Error('Write a message first.');
-      await api.sendMessage({ threadId: t.id, bodyHtml: ed.html, files: fl.files }); refresh(); }));
+      const sent = await api.sendMessage({ threadId: t.id, bodyHtml: ed.html, files: fl.files });
+      if (sent && sent.failedFiles && sent.failedFiles.length) toast(`${sent.savedFiles.length} file(s) attached. ${sent.failedFiles.map((z) => z.name + ': ' + z.reason).join(' ')} Nothing was emailed.`);
+      refresh(); }));
   } };
 }

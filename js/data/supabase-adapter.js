@@ -2,7 +2,9 @@
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
 import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611070139';
-import { localDate, fileRoleLabel } from './constants.js?v=202611070139';
+import { localDate, fileRoleLabel, viewOnly } from './constants.js?v=202611070139';
+import { assertRecipients, messageText } from './portal-message.js?v=202611070139';
+import { planDocumentBatch } from './document-batch.js?v=202611070139';
 import { featureFlags } from './features.js?v=202611070139';
 import { accountingSupabase } from './supabase-accounting.js?v=202611070139';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
@@ -289,6 +291,56 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, nov5Supabase({ sb, ok, camel, me }));
   Object.assign(a, orderOverviewSupabase({ sb, ok, camel, me, api: a }));
   // Staff create and resend invite links here (nothing is emailed). Accepting a link goes through the accept-invite function, not a browser sign-up.
+  a.sendMessage = async ({ dealId, threadId, subject, to, bodyHtml, files } = {}) => {
+    const user = await me();
+    if (!user || !user.id) throw new Error('Please sign in.');
+    if (viewOnly(user)) throw new Error('This sign-in cannot send messages.');
+    const { text } = messageText(bodyHtml);
+    const incoming = Array.isArray(files) ? files : [];
+    if (!text && !incoming.length) throw new Error('Write a message first.');
+    let thread = threadId || '';
+    if (thread) {
+      const parts = camel(ok(await sb.from('thread_participants').select('profile_id').eq('thread_id', thread))) || [];
+      if (!parts.some((p) => p.profileId === user.id)) throw new Error('You are not part of this conversation.');
+      const row = camel(ok(await sb.from('threads').select('deal_id').eq('id', thread).single()));
+      dealId = row.dealId;
+    } else {
+      const allowed = (await a.listMessageRecipients(dealId)).map((p) => p.id);
+      const ids = assertRecipients(to, allowed);
+      const created = ok(await sb.rpc('create_thread', { p_deal: dealId, p_subject: subject || (incoming.length ? 'Shared files' : 'New conversation'), p_participants: ids, p_body: text || '(file shared)' }));
+      thread = created && created.id ? created.id : created;
+    }
+    const names = [];
+    try { names.push(...((await a.listDocuments(dealId)) || []).map((d) => d.name)); } catch (e) { /* a list the caller cannot read does not add names */ }
+    const plan = planDocumentBatch(incoming, { existingNames: names });
+    const savedFiles = []; const failedFiles = [...plan.rejected];
+    for (const file of plan.accepted) {
+      if (file.wireInstructions && user.role === 'Outside user') { failedFiles.push({ name: file.name, reason: 'Only CLA Title staff can attach wire instructions.' }); continue; }
+      try {
+        const saved = await a.addDocument(dealId, { name: file.name, description: file.description || '', mimeType: file.mimeType || file.type || '', size: file.size || 0, dataUrl: file.dataUrl || null, file, visibility: file.wireInstructions ? 'buyer' : (file.visibility || 'all'), docType: file.docType || '', wireInstructions: !!file.wireInstructions });
+        savedFiles.push({ id: saved.id, name: saved.name || file.name }); names.push(file.name);
+      } catch (e) { failedFiles.push({ name: file.name, reason: e && e.message ? e.message : 'The upload failed.' }); }
+    }
+    if (threadId) {
+      if (!text && !savedFiles.length) throw new Error(failedFiles[0] ? failedFiles[0].reason : 'Write a message first.');
+      const note = savedFiles.length ? `${text || '(file shared)'}\n\nFiles on this order: ${savedFiles.map((f) => f.name).join(', ')}` : text;
+      ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: note.slice(0, 4000), body_html: messageText(bodyHtml).clean || null }));
+    } else if (savedFiles.length) {
+      ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: `Files on this order: ${savedFiles.map((f) => f.name).join(', ')}`.slice(0, 4000) }));
+    }
+    return { id: thread, threadId: thread, sent: false, emailed: false, deliveredInPortal: true, status: 'in_portal', savedFiles, failedFiles };
+  };
+  a.getThreadDetail = async (id) => {
+    const user = await me();
+    const t = await a.getThread(id);
+    const parts = camel(ok(await sb.from('thread_participants').select('profile_id').eq('thread_id', id))) || [];
+    const ids = parts.map((p) => p.profileId).filter(Boolean);
+    if (user && !ids.includes(user.id)) throw new Error('You are not part of this conversation.');
+    const profiles = ids.length ? camel(ok(await sb.from('profiles').select('id, first_name, last_name, role').in('id', ids))) || [] : [];
+    const who = (pid) => profiles.find((p) => p.id === pid);
+    return { ...t, participantIds: ids, participants: ids.map((pid) => { const p = who(pid); return { id: pid, name: p ? `${p.firstName || ''} ${p.lastName || ''}`.trim() : 'Participant', role: p ? p.role : '', wireOk: true }; }),
+      messages: (t.messages || []).map((m) => ({ ...m, authorName: (who(m.authorId) && `${who(m.authorId).firstName || ''} ${who(m.authorId).lastName || ''}`.trim()) || 'Participant', mine: !!(user && m.authorId === user.id), body: m.body || '', attachments: m.attachments || [] })) };
+  };
   a.previewCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };
   a.runCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };
   a.cancelSignatureRequest = async () => { throw new Error(NOT_ENABLED); };
