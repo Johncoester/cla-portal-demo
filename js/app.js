@@ -1,5 +1,5 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611071715';
+import { getAdapter } from './data/adapter.js?v=202611071800';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611070139';
 import { canUseCrm } from './data/crm.js?v=202611070139';
@@ -13,10 +13,13 @@ import { canInviteAgents } from './data/agent-profile.js?v=202611070139';
 import { yourAgentHtml } from './pages/your-agent.js?v=202611070139';
 import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611070139';
-import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611070139';   // John, Nov 4: one locked login link per fake user
+import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611071800';   // John, Nov 4: one locked login link per fake user
+import { isFeedbackPilot } from './data/staff-feedback.js?v=202611071830';
+import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611071915';
+import { botRegistry } from './data/bot-registry.js?v=202611071830';
 import { voiceRouteOk } from './data/voice-demo.js?v=202611071632';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611070139';   // John, Nov 4 call: sidebar search + pinned order nav
-import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611070139';
+import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611071800';
 import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611070139';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
@@ -53,6 +56,7 @@ const pages = {
   offices: () => import('./pages/offices.js?v=202611070139'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
   demo: () => import('./pages/demo-view.js?v=202611070139'),   // permanent Demo mode: Super admin views a seeded demo user
   'voice-demo': () => import('./pages/voice-demo.js?v=202611071632'),   // signed-in Live Test only; the server allowlist decides who can talk
+  'staff-feedback': () => import('./pages/staff-feedback.js?v=202611071800'),
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };
@@ -80,6 +84,7 @@ function parse() {
   if (seg[0] === 'hr') return { page: 'hr', params: { section: seg[1] === 'employees' && seg[2] ? 'employee' : (seg[1] || 'home'), id: seg[1] === 'employees' ? (seg[2] || '') : '' } };
   if (seg[0] === 'hr-invite') return { page: 'hr-invite', params: { token: seg[1] || '' } };
   if (seg[0] === 'schedule') return { page: 'schedule', params: { token: seg[1] || '' } };
+  if (seg[0] === 'staff-feedback') return { page: 'staff-feedback', params: { id: seg[1] || '' } };
   return { page: seg[0], params: {} };
 }
 export const go = (path) => { if (location.hash === '#' + path) render(); else location.hash = path; };
@@ -113,6 +118,7 @@ export function navFor(u, dealId, unread, features = {}, ws = 'everything', demo
   if (runsOrders(u) || u.isAdmin) add('activity', 'Activity Log', '#/activity', 'activity');
   if (canOpenTaskSetup(u, demo)) add('templates', 'Task Templates', '#/admin/templates', 'task');
   if (runsOrders(u) || u.isAdmin || u.role === 'Transaction Coordinator') add('outbox', 'Reminder Outbox', '#/outbox', 'inbox');
+  if (isFeedbackPilot(u, { demoActive: !!(demo && demo.active) }) ) add('staff-feedback', 'Portal feedback', '#/staff-feedback', 'inbox');
   if (canInviteAgents(u)) add('agent-invites', 'Agent Invites', '#/agent-invites', 'contact-us');   // John, Nov 4
   if (canManageModules(u)) add('modules', 'Modules', '#/modules', 'documents');
   if (canManageModules(u)) add('underwriters', 'Underwriter Splits', '#/underwriters', 'documents');   // John, Nov 3 call (Admin / Super admin)   // John, Nov 3: the Live switches (Admin / Super admin only)
@@ -170,7 +176,7 @@ async function layout(u, view, route, ws = 'everything') {
   const topButtons = runsOrders(u) && (ws === 'portal' || ws === 'everything') ? html`<a class="green-btn" href="#/orders/new">Place Order</a>` : '';
   return html`
   <div class="topbar-main"><div class="topbar-inner">
-    <a class="brand" href="#${homeFor(u)}"><img src="assets/img/logo-white.png" alt="CLA Title &amp; Escrow"></a>${usesWorkspaces(u) ? wsMenu(u, ws, api) : hrOnly(u) ? html`<div class="ws-wrap" data-ws-wrap><span class="ws-btn ws-static"><span class="ws-k">Workspace</span> <strong data-ws-current="hr">HR</strong></span></div>` : ''}
+    <a class="brand" href="#${homeFor(u)}"><img src="assets/img/logo-white.png" alt="CLA Title &amp; Escrow"></a><div class="topbar-tools">${usesWorkspaces(u) ? wsMenu(u, ws, api) : hrOnly(u) ? html`<div class="ws-wrap" data-ws-wrap><span class="ws-btn ws-static"><span class="ws-k">Workspace</span> <strong data-ws-current="hr">HR</strong></span></div>` : ''}${botsMenu(u)}</div>
     <div class="topbar-right">${crmSearchOn(u, api) && (ws === 'crm' || ws === 'everything') ? raw(HEADER_SEARCH) : ''}${topButtons}
       <div class="notif-wrap"><button class="bell" data-bell title="${unread} unread notification(s)" aria-label="Notifications"><img src="assets/img/bell_new.png" alt=""><span class="notification-num">${unread}</span></button>
         <div class="notif-dd" hidden><div class="notif-head"><strong>Notifications</strong><button class="linkish" data-readall>Mark all read</button></div><ul class="notif-list"><li class="muted">Loading&hellip;</li></ul></div></div>
@@ -197,6 +203,19 @@ async function layout(u, view, route, ws = 'everything') {
 const wsChoices = (u, api) => (!u.isAdmin ? [{ ...wsById('everything'), label: 'Portal', desc: 'Your usual portal: orders, tasks, documents' + ((api.features || {}).crm && canUseCrm(u) && modOn('crm') ? ', CRM' : '') }, ...(hrVisible(u) ? [wsById('hr')] : [])]
   : WORKSPACES.filter((w) => (w.id !== 'crm' || ((api.features || {}).crm && canUseCrm(u) && modOn('crm'))) && (w.id !== 'hr' || hrVisible(u))));   // no CRM option when the CRM is off
 const wsBetaTag = (id) => (id === 'hr' && modBeta('hr') ? html` <span class="beta-badge" data-ws-beta="hr" title="${BETA_LABEL}">Beta</span>` : '');
+function botsMenu(u) {
+  if (!isFeedbackPilot(u, { demoActive: !!(typeof DEMO_VIEW !== 'undefined' && DEMO_VIEW && DEMO_VIEW.active), viewingAs: !!(typeof VIEW_AS !== 'undefined' && VIEW_AS && VIEW_AS.viewing) })) return '';
+  const bots = botRegistry().filter((b) => b.configured);
+  return html`<div class="bots-wrap" data-bots-wrap><button type="button" class="ws-btn" data-bots-btn aria-haspopup="menu" aria-expanded="false" aria-label="Bots"><span class="ws-k">Bots</span> <strong data-bots-current>Choose…</strong> &#9662;</button>
+    <div class="ws-dd bots-dd" data-bots-dd hidden role="menu">${bots.map((b) => html`<button type="button" class="ws-opt" data-bot-open="${b.id}" role="menuitem"><span class="ws-opt-l">${b.label}</span><small>${b.detail}</small></button>`)}<button type="button" class="ws-opt" data-bots-hide role="menuitem"><span class="ws-opt-l">Hide</span><small>Close the open panel. Open it again from this menu.</small></button></div></div>`;
+}
+function wireBots() {
+  const btn = $('[data-bots-btn]'); const dd = $('[data-bots-dd]'); if (!btn || !dd) return;
+  btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; btn.setAttribute('aria-expanded', dd.hidden ? 'false' : 'true'); });
+  document.addEventListener('click', () => { dd.hidden = true; btn.setAttribute('aria-expanded', 'false'); }, { once: true });
+  $$('[data-bot-open]', dd).forEach((el) => el.addEventListener('click', () => { dd.hidden = true; openStaffFeedbackPanel(); }));
+  const hide = $('[data-bots-hide]', dd); if (hide) hide.addEventListener('click', () => { dd.hidden = true; hideStaffFeedbackPanel(); });
+}
 function wsMenu(u, ws, api) {
   const w = wsChoices(u, api).find((x) => x.id === ws) || wsById(ws); const last = lastWs(u);
   return html`<div class="ws-wrap" data-ws-wrap><button class="ws-btn" data-ws-btn aria-haspopup="true" aria-label="Choose a workspace"><span class="ws-k">Workspace</span> <strong data-ws-current="${ws || 'none'}">${w ? w.label : 'Choose…'}</strong> &#9662;</button>
@@ -254,13 +273,14 @@ export async function render() {
     if (asTok != null) history.replaceState(null, '', location.pathname + location.hash);
   }
   if (u && u.unprovisioned && api.mode === 'supabase') {
+    syncFeedback(null);
     root.innerHTML = toText(html`<div class="login-page" data-unprovisioned><div class="login-card"><h2 data-site-name="CLA Portal Live Test">CLA Portal Live Test</h2><p class="dev-banner" data-test-environment>TEST ENVIRONMENT</p><p>This login is not provisioned. An administrator assigns the role. Registration is closed, and this screen does not create an account.</p><p><a href="#" data-signout>Sign out</a></p></div></div>`);
     const out = root.querySelector('[data-signout]'); if (out) out.addEventListener('click', async (e) => { e.preventDefault(); await api.signOut(); location.hash = '#/login'; location.reload(); });
     return;
   }
   if (asTok != null && api.mode !== 'supabase') { const lk = lockForToken(asTok); let okLink = false;
     if (lk) { try { await api.pickPerson(lk.user); sessionStorage.setItem(LOCK_KEY, JSON.stringify(lk)); okLink = true; } catch (e) { okLink = false; } }
-    if (!okLink) { sessionStorage.removeItem(LOCK_KEY); try { await api.signOut(); } catch (e) { /* none */ } root.innerHTML = toText(html`<div class="box-title" data-bad-link><h2>This test link is not valid</h2></div><p>Ask for a new link.</p>`); return; }
+    if (!okLink) { sessionStorage.removeItem(LOCK_KEY); try { await api.signOut(); } catch (e) { /* none */ } syncFeedback(null); root.innerHTML = toText(html`<div class="box-title" data-bad-link><h2>This test link is not valid</h2></div><p>Ask for a new link.</p>`); return; }
     let land = safeLanding(new URLSearchParams(location.search).get('file')); if (land) { try { await api.getDeal(land); } catch (e) { land = null; } }   // landing only, never wider access
     const qs = new URLSearchParams(location.search); const sec = qs.get('section') ? sectionHash(qs.get('section'), qs.get('file')) : null;   // section links pick the first page only
     if (typeof clearSessionWs === 'function') clearSessionWs();
@@ -274,7 +294,7 @@ export async function render() {
   const lockedId = lock ? effectiveLockUser(lock, VIEW_AS ? VIEW_AS.owner : null) : null;
   if (lockedId && (!u || u.id !== lockedId)) { try { await api.pickPerson(lockedId); } catch (e) { /* removed user */ } u = await api.getSession();
     if (!u || u.id !== lockedId) { root.innerHTML = toText(html`<div class="box-title" data-bad-link><h2>This test link is no longer valid</h2></div>`); return; } }
-  if (!u && !PUBLIC.has(route.page)) { if (route.page === 'deal') sessionStorage.setItem('cla-portal-new:return', location.hash); location.hash = '#/login'; return; }   // invite deep link: back to the order after sign-in
+  if (!u && !PUBLIC.has(route.page)) { syncFeedback(null); if (route.page === 'deal') sessionStorage.setItem('cla-portal-new:return', location.hash); location.hash = '#/login'; return; }   // invite deep link: back to the order after sign-in
   const recovery = api.mode === 'supabase' && sessionStorage.getItem('cla-portal-recovery') === '1';
   if (recovery && route.page !== 'login') { location.hash = '#/login'; return; }
   if (u && route.page === 'login' && !recovery) { location.hash = '#' + homeFor(u); return; }
@@ -304,7 +324,7 @@ export async function render() {
   try { view = await mod.render({ api, user: u, params: route.params, refresh: render, go }); }
   catch (e) { view = { crumbs: [['Not available']], body: html`<div class="box-title"><h2>Not available</h2></div><p class="err-text">${e.message}</p><p><a class="back-btn" href="#${homeFor(u)}">Back</a></p>` }; }
   if (my !== rendering) return;
-  if (PUBLIC.has(route.page)) { root.innerHTML = toText(view.body); }
+  if (PUBLIC.has(route.page)) { root.innerHTML = toText(view.body); syncFeedback(u); }
   else { let shell; try { shell = await layout(u, view, route, ws); } catch (e) { if (/sign in/i.test(e.message || '')) { location.hash = '#/login'; return; } throw e; }   // session ended mid-render
     if (my !== rendering) return; root.innerHTML = toText(shell); wireChrome(u); }
   document.title = (view.title ? view.title + ' | ' : '') + 'CLA Portal Live Test';
@@ -332,7 +352,12 @@ function wireFileNav() {
   apply(false);
   btn.addEventListener('click', (e) => { e.preventDefault(); apply(box.hidden); });
 }
+function syncFeedback(person) {
+  syncStaffFeedbackWidget({ user: person || null, demoActive: !!(DEMO_VIEW && DEMO_VIEW.active), viewingAs: !!(VIEW_AS && VIEW_AS.viewing), getApi: getAdapter });
+}
 function wireChrome(u) {
+  syncFeedback(u);
+  wireBots();
   wireFileNav(); wireViewAs(); startHeartbeat(u);
   const stop = $('[data-view-as-stop]');
   if (stop) stop.addEventListener('click', async (e) => { e.preventDefault(); const api = await getAdapter(); if (api.stopDemoView) { try { await api.stopDemoView(); } catch (err) { toast(err.message); return; } } if (demoTimer) clearTimeout(demoTimer); location.hash = '#/dashboard'; render(); });

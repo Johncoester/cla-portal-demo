@@ -39,12 +39,12 @@ export function routeWs(route) {
   const p = route.page;
   if (p === 'crm') return 'crm';
   if (p === 'hr') return 'hr';
-  if (['deal', 'orders', 'orders/new', 'tasks', 'task-grid', 'library', 'activity', 'outbox', 'agent-invites'].includes(p)) return 'portal';   // agent invites live in Portal (+ Everything). Task Grid stays here.
+  if (['deal', 'orders', 'orders/new', 'tasks', 'task-grid', 'library', 'activity', 'outbox', 'agent-invites', 'staff-feedback'].includes(p)) return 'portal';   // agent invites live in Portal (+ Everything). Task Grid stays here.
   if (p === 'templates' || p === 'admin/templates' || ['users', 'teams', 'offices', 'modules', 'underwriters'].includes(p)) return 'admin';
   return null;
 }
 // nav item id -> workspace (navFor ids)
-const NAV_WS = { dashboard: 'portal', orders: 'portal', tasks: 'portal', 'task-grid': 'portal', library: 'portal', activity: 'portal', outbox: 'portal', 'agent-invites': 'portal',
+const NAV_WS = { dashboard: 'portal', orders: 'portal', tasks: 'portal', 'task-grid': 'portal', library: 'portal', activity: 'portal', outbox: 'portal', 'agent-invites': 'portal', 'staff-feedback': 'portal',
   crm: 'crm', 'crm-home': 'crm', 'crm-deals': 'crm', 'crm-contacts': 'crm', 'crm-leads': 'crm', 'crm-calls': 'crm', 'crm-templates': 'crm',
   'users/new': 'admin', users: 'admin', teams: 'admin', offices: 'admin', modules: 'admin', underwriters: 'admin', templates: 'admin' };
 /* Task Templates is Admin / Settings only. Everything still shows the Portal and the other admin pages, not this one. */

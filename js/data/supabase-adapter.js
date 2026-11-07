@@ -22,6 +22,7 @@ import { nov5Supabase } from './supabase-nov5.js?v=202611071715';
 import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611070139';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611070139';
 import { staffSupabase } from './supabase-staff.js?v=202611070139';
+import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611071800';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611070139';
 import { propertyAddressOf } from './nov5-rules.js?v=202611070139';
 import { fetchHostedTaskList, fetchHostedTask } from './task-actions.js?v=202611070139';
@@ -289,6 +290,7 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, nov5Supabase({ sb, ok, camel, me }));
   Object.assign(a, orderOverviewSupabase({ sb, ok, camel, me, api: a }));
   // Staff create and resend invite links here (nothing is emailed). Accepting a link goes through the accept-invite function, not a browser sign-up.
+  Object.assign(a, staffFeedbackSupabase({ sb, ok, camel }));
   a.previewCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };
   a.runCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };
   a.cancelSignatureRequest = async () => { throw new Error(NOT_ENABLED); };
