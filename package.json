@@ -2,5 +2,5 @@
   "name": "cla-portal-demo",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node test/test-supabase-staff.js && node test/test-staff-feedback.js" }
+  "scripts": { "test": "node test/test-supabase-staff.js && node test/test-staff-feedback.js && node test/test-assistant-handoff.js && node test/test-explicit-dispatch.js && node test/test-dispatch-adapter.js" }
 }

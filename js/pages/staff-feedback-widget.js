@@ -1,6 +1,8 @@
 /* Persistent staff launcher. It lives on document.body, so opening a file tab does not close it or wipe the draft.
- * It is not a live assistant and it does not send the webhook. */
-import { deliveryNotice, newId, sanitizePage, STATUS_LABELS } from '../data/staff-feedback.js?v=202611071830';
+ * Text support, one way. It is not a live chat. A phone or tablet app is not part of this pilot.
+ * The screenshot dropdown is the published image store. The assistant does not read the file. */
+import { deliveryNotice, newId, sanitizePage, STATUS_LABELS } from '../data/staff-feedback.js?v=202611080100';
+import { PENDING_CONNECTION } from '../data/assistant-handoff.js?v=202611080100';
 import { launcherAllowed, loadDraft, nextWidgetState, saveDraft } from '../data/staff-feedback-widget-state.js?v=202611071830';
 
 const ACCEPT = 'image/png,image/jpeg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif';
@@ -151,13 +153,29 @@ async function paint(api) {
     const btn = el('button', 'claSfBtn o', 'View screenshot'); btn.type = 'button';
     btn.addEventListener('click', async () => {
       const file = await api.openStaffFeedbackAttachment(a.id);
-      const img = el('img', 'claSfImg'); img.alt = 'Screenshot';
+      const img = el('img', 'claSfImg'); img.alt = 'Screenshot stored in the portal. The assistant does not read it.';
       img.src = file.dataUrl || URL.createObjectURL(file.blob);
       row.appendChild(img);
     });
     row.appendChild(document.createTextNode((a.fileName || 'Screenshot') + ' '));
     row.appendChild(btn); live.shots.appendChild(row);
   });
+  if (full.deliveryState === 'pending_dispatch') {
+    const send = el('button', 'claSfBtn o', 'Send to the tech assistant'); send.type = 'button';
+    send.addEventListener('click', async () => {
+      live.err.textContent = '';
+      live.notice.textContent = 'Asking the server to send the text…';
+      try {
+        const result = api.requestStaffFeedbackDispatch ? await api.requestStaffFeedbackDispatch(full.id) : { reason: 'bridge_unconfigured', error: 'Dispatch is not enabled. Nothing was sent.' };
+        live.notice.textContent = result.reason === 'run_started'
+          ? 'The routine accepted a run. This is not a reply and it is not delivered.'
+          : result.reason === 'accepted_unrecorded'
+            ? 'The routine may have accepted a run, but the portal could not record it. It was not posted again.'
+            : (result.error || 'Dispatch is not enabled. Nothing was sent.');
+      } catch (ex) { live.err.textContent = ex.message || 'Nothing was sent.'; }
+    });
+    live.shots.appendChild(send);
+  }
   if (full.canSupport) {
     const link = el('a', '', 'Open the report list'); link.href = '#/staff-feedback';
     live.shots.appendChild(link);
@@ -173,7 +191,7 @@ function mount(user, api) {
   const x = el('button', 'claSfX', '×'); x.type = 'button'; x.setAttribute('aria-label', 'Close portal feedback');
   const hi = el('header', 'claSfHi');
   hi.appendChild(el('strong', '', 'Portal feedback')); hi.id = 'claSfTitle';
-  hi.appendChild(el('p', '', 'Saved in this portal. Not delivered to the assistant.'));
+  hi.appendChild(el('p', '', 'Text support, one way. Saved in this portal. Not delivered to the tech assistant. No reply has been received.'));
   const body = el('div', 'claSfBody');
   const notice = el('p', 'claSfNotice'); notice.setAttribute('role', 'status');
   const where = el('p', 'claSfMeta');
@@ -182,10 +200,9 @@ function mount(user, api) {
   const shots = el('div');
   const reply = el('textarea'); reply.maxLength = 4000; reply.setAttribute('aria-label', 'Reply');
   const replyRow = el('div', 'claSfRow');
-  const replyBtn = el('button', 'claSfBtn', 'Save reply'); replyBtn.type = 'button';
-  const sim = el('button', 'claSfBtn o', 'Run test simulation (not delivered)'); sim.type = 'button';
+  const replyBtn = el('button', 'claSfBtn', 'Save follow-up'); replyBtn.type = 'button';
   const back = el('button', 'claSfBtn o', 'New report'); back.type = 'button';
-  replyRow.appendChild(back); replyRow.appendChild(sim); replyRow.appendChild(replyBtn);
+  replyRow.appendChild(back); replyRow.appendChild(replyBtn);
   threadWrap.appendChild(thread); threadWrap.appendChild(shots); threadWrap.appendChild(el('label', 'claSfLbl', 'Reply')); threadWrap.appendChild(reply); threadWrap.appendChild(replyRow);
   const compose = el('form');
   const title = el('input'); title.type = 'text'; title.maxLength = 140; title.setAttribute('aria-label', 'Title');
@@ -202,7 +219,7 @@ function mount(user, api) {
   const pageCheck = el('label', 'claSfCheck'); pageCheck.appendChild(includePage); pageCheck.appendChild(document.createTextNode(' Include the page I name'));
   const orderCheck = el('label', 'claSfCheck'); orderCheck.appendChild(includeOrder); orderCheck.appendChild(document.createTextNode(' Include an order file number I name'));
   compose.appendChild(pageCheck); compose.appendChild(pageWrap); compose.appendChild(orderCheck); compose.appendChild(orderWrap);
-  compose.appendChild(el('p', 'claSfMeta', 'Both boxes start off. One screenshot, not a folder. Customer files are not copied.'));
+  compose.appendChild(el('p', 'claSfMeta', 'Both boxes start off. One screenshot: PNG, JPEG, WEBP, or GIF. The assistant does not read the file.'));
   compose.appendChild(shot); compose.appendChild(err);
   const row = el('div', 'claSfRow'); row.appendChild(save); compose.appendChild(row);
   const mine = el('section', 'claSfMine'); mine.appendChild(el('h3', '', 'My reports'));
@@ -237,7 +254,7 @@ function mount(user, api) {
       pageWrap.hidden = true; orderWrap.hidden = true;
       state = nextWidgetState(state, { type: 'select', reportId: saved.id });
       saveDraft(store(), user.id, emptySafe());
-      notice.textContent = saved.notice || deliveryNotice('pending_dispatch', 'bridge_unconfigured');
+      notice.textContent = (saved.notice || deliveryNotice('pending_dispatch', 'bridge_unconfigured')) + ' ' + PENDING_CONNECTION;
       await paint(api);
     } catch (ex) { err.textContent = ex.message || 'Could not save.'; }
   });
@@ -250,10 +267,6 @@ function mount(user, api) {
       await paint(api);
       if (saved && saved.notice) notice.textContent = saved.notice;
     } catch (ex) { err.textContent = ex.message || 'Could not save.'; }
-  });
-  sim.addEventListener('click', async () => {
-    try { const saved = await api.simulateStaffFeedback(state.reportId); notice.textContent = saved.notice; await paint(api); }
-    catch (ex) { err.textContent = ex.message || 'The test simulation was not run.'; }
   });
   paint(api);
 }
