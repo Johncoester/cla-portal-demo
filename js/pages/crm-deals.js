@@ -1,13 +1,13 @@
 /* crm-deals.js : DEALS in the CRM (Zoho's Deals module) = the portal's orders you can already see. #/crm/deals[/<id>]. Read-only here (orders are run
  * in the portal); a deal has Send Email (saved, NOT sent) and its Emails list. Function only. */
-import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, toast } from '../ui.js?v=202611070009';
-import { crmSort, inLocalRange } from '../data/crm.js?v=202611070009';
-import { DEAL_COLS, LOCKED_COLS, DEFAULT_HIDDEN, loadHidden, saveHidden } from '../data/crm-deal-cols.js?v=202611070009';
-import { tabs, head, money } from './crm-kit.js?v=202611070009';
-import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611070009';
-import { viewsBar, wireViewsBar } from './crm-views.js?v=202611070009';
-import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070009';
-import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070009';
+import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, toast } from '../ui.js?v=202611070139';
+import { crmSort, inLocalRange } from '../data/crm.js?v=202611070139';
+import { DEAL_COLS, LOCKED_COLS, DEFAULT_HIDDEN, loadHidden, saveHidden } from '../data/crm-deal-cols.js?v=202611070139';
+import { tabs, head, money } from './crm-kit.js?v=202611070139';
+import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611070139';
+import { viewsBar, wireViewsBar } from './crm-views.js?v=202611070139';
+import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
+import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070139';
 
 export async function dealsPage(c) { return c.params.id ? dealPage(c) : dealsList(c); }
 

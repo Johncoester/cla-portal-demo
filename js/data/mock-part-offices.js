@@ -3,7 +3,7 @@
  * The 5 starting offices are SAMPLE placeholders ("(sample)"); added lazily to stored data (no storage version bump, like the underwriter splits).
  * Rules (same as SQL): CLA staff read, Admins / Super admins write; NO deletes (an office is retired; a county taken off an office keeps its row
  * with removedAt); at most one active main office per state (setting a new one moves the flag); a county is served by one active office at most. */
-import { SAMPLE_OFFICES, cleanOffice, canManageOffices, OFFICE_ADMIN_ONLY, officeAddress, officeSort, normCounty, nearestOffice, OFFICE_LOCATION } from './offices.js?v=202611070009';
+import { SAMPLE_OFFICES, cleanOffice, canManageOffices, OFFICE_ADMIN_ONLY, officeAddress, officeSort, normCounty, nearestOffice, OFFICE_LOCATION } from './offices.js?v=202611070139';
 const SEED_AT = '2026-11-04T12:00:00Z';
 export function ensureOffices(d) {
   if (!Array.isArray(d.offices)) d.offices = SAMPLE_OFFICES.map(({ counties, ...o }) => ({ ...o, active: true, createdAt: SEED_AT, createdBy: null, updatedAt: SEED_AT, updatedBy: null }));
