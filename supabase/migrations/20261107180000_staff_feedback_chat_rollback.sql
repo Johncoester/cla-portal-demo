@@ -3,17 +3,17 @@
 -- Does not drop profiles, deals, auth, storage schema, or other private helpers
 -- such as private.is_admin, private.viewer_is_demo, private.can_access_deal, or private.lock_function_search_paths.
 -- Does not revoke schema usage, because other private helpers may already depend on it.
--- Run this only to undo that migration. It does not delete storage bytes that were already uploaded;
--- it removes the bucket row and the policies so the portal can no longer read them.
+-- Run this only to undo that migration.
+-- Storage: drop the two feedback policies so the bucket no longer accepts or returns files.
+-- The private staff-feedback bucket row and storage.objects rows stay. This script does not
+-- delete object bytes. Removing uploaded files is a separate Storage API cleanup and needs
+-- its own explicit approval. Do not delete storage.buckets or storage.objects here.
 
 do $storage$
 begin
   if to_regclass('storage.objects') is not null then
     execute 'drop policy if exists staff_feedback_object_insert on storage.objects';
     execute 'drop policy if exists staff_feedback_object_read on storage.objects';
-  end if;
-  if to_regclass('storage.buckets') is not null then
-    delete from storage.buckets where id = 'staff-feedback';
   end if;
 end $storage$;
 

@@ -10,6 +10,8 @@
 --
 -- Privileged bodies are security definer in schema private, which is not an exposed API schema.
 -- public.staff_feedback_* keeps the same names and arguments and is security invoker only.
+-- This file does not call private.lock_function_search_paths(). Each feedback function
+-- sets its own search_path and its own grants. Other functions are left as they are.
 -- A new report's outbox row is pending_dispatch with dispatch_allowed false, so a worker
 -- selecting dispatch_allowed rows does not pick it up. The saved notice stays pending.
 --
@@ -628,5 +630,3 @@ begin
   execute $pol$create policy staff_feedback_object_insert on storage.objects for insert to authenticated with check (
     bucket_id = 'staff-feedback' and private.staff_feedback_can_upload_object(name))$pol$;
 end $storage$;
-
-select private.lock_function_search_paths();
