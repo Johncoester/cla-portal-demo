@@ -3,6 +3,7 @@
  * No audio or transcript is stored. */
 export const TEST_PROJECT_REF = 'aqcervntopidtcazcmlv';
 export const TOKEN_SECONDS = 60;
+export const MINT_TIMEOUT_MS = 8000;
 export const MINT_LIMIT = 4;
 export const MINT_WINDOW_MS = 10 * 60 * 1000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -36,6 +37,32 @@ export function createMintLog() {
       hits.set(id, list);
     },
   };
+}
+
+/* The provider call has to end. A hung mint otherwise leaves Start on Connecting with no microphone and no error. */
+export async function mintClientSecret(fetchImpl, key, ms = MINT_TIMEOUT_MS) {
+  const ctrl = new AbortController();
+  let timer;
+  try {
+    const res = await Promise.race([
+      fetchImpl('https://api.x.ai/v1/realtime/client_secrets', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expires_after: { seconds: TOKEN_SECONDS } }),
+        signal: ctrl.signal,
+      }),
+      new Promise((_, reject) => { timer = setTimeout(() => { ctrl.abort(); reject(new Error('timeout')); }, ms); }),
+    ]);
+    if (!res || !res.ok) return null;
+    const body = await res.json();
+    const value = typeof body.value === 'string' ? body.value : '';
+    if (!value.startsWith('xai-realtime-client-secret-')) return null;
+    return { value, expires_at: body.expires_at };
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function json(status, body, headers) {

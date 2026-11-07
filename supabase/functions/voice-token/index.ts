@@ -4,7 +4,7 @@
  *   VOICE_ALLOWLIST = the two confirmed auth user ids, comma-separated
  * Do not log either secret or the short-lived pass. */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
-import { handleVoiceToken, parseAllowlist, projectRefFromUrl, createMintLog, TOKEN_SECONDS } from './logic.mjs';
+import { handleVoiceToken, parseAllowlist, projectRefFromUrl, createMintLog, mintClientSecret } from './logic.mjs';
 
 const url = Deno.env.get('SUPABASE_URL') ?? '';
 const anon = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
@@ -20,16 +20,7 @@ function headersFor(req: Request) {
 }
 
 async function mint(key: string) {
-  const res = await fetch('https://api.x.ai/v1/realtime/client_secrets', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ expires_after: { seconds: TOKEN_SECONDS } }),
-  });
-  if (!res.ok) return null;
-  const body = await res.json();
-  const value = typeof body.value === 'string' ? body.value : '';
-  if (!value.startsWith('xai-realtime-client-secret-')) return null;
-  return { value, expires_at: body.expires_at };
+  return mintClientSecret(fetch, key);
 }
 
 Deno.serve((req: Request) => {

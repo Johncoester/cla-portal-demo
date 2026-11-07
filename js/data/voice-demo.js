@@ -2,6 +2,10 @@
  * It never holds the xAI key, and it does not read or change a file. */
 export const VOICE_NOT_CONFIGURED = 'Grok voice is not configured on the server yet.';
 export const VOICE_DENIED = 'Voice is not available on this sign-in.';
+export const VOICE_PASS_MS = 12000;
+export const VOICE_TIMED_OUT = 'Voice did not answer in time. Nothing was recorded. The microphone was not opened.';
+export const VOICE_SIGN_IN = 'This sign-in expired before voice could start. Sign in again, then press Start. The microphone was not opened.';
+const PCM_RATES = new Set([8000, 16000, 22050, 24000, 32000, 44100, 48000]);
 export const VOICE_MODEL = 'grok-voice-latest';
 export const VOICE_URL = 'wss://api.x.ai/v1/realtime?model=grok-voice-latest';
 export const DEMO_INSTRUCTIONS = 'You are the voice test on CLA Portal Live Test. Speak only about this pretend file: 145 Main Street, Rockville, purchase, buyer Ben Buyer, file MD-26-97183. These names are fake. Do not ask for a real account, a password, or a document. You cannot email, upload, change a file, or look anyone up. If asked to do any of that, say this test cannot take actions.';
@@ -25,8 +29,44 @@ export function realtimeSocket(token, WebSocketImpl) {
   return new WebSocketImpl(VOICE_URL, [`xai-client-secret.${secret}`]);
 }
 
-export function sessionUpdate() {
-  return { type: 'session.update', session: { voice: 'eve', instructions: DEMO_INSTRUCTIONS, turn_detection: { type: 'server_vad' }, input_audio_format: 'pcm16', output_audio_format: 'pcm16', tools: [] } };
+export function sessionUpdate(sampleRate = 24000) {
+  const rate = PCM_RATES.has(sampleRate) ? sampleRate : 24000;
+  return { type: 'session.update', session: { voice: 'eve', instructions: DEMO_INSTRUCTIONS, turn_detection: { type: 'server_vad' }, audio: { input: { format: { type: 'audio/pcm', rate } }, output: { format: { type: 'audio/pcm', rate } } }, tools: [] } };
+}
+
+export function float32ToBase64Pcm16(samples) {
+  const pcm = new Int16Array(samples.length);
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+  }
+  const bytes = new Uint8Array(pcm.buffer);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+export function audioAppend(samples) {
+  return { type: 'input_audio_buffer.append', audio: float32ToBase64Pcm16(samples) };
+}
+
+export function voicePassText(result) {
+  if (!result) return VOICE_NOT_CONFIGURED;
+  if (result.status === 401) return VOICE_SIGN_IN;
+  if (result.status === 408) return result.message || VOICE_TIMED_OUT;
+  return result.message || VOICE_NOT_CONFIGURED;
+}
+
+/* One budget for the whole pass, including a retry. A late answer is ignored. */
+export function withTimeout(promise, ms = VOICE_PASS_MS) {
+  return new Promise((resolve) => {
+    let done = false;
+    const timer = setTimeout(() => { if (!done) { done = true; resolve({ ok: false, status: 408, message: VOICE_TIMED_OUT }); } }, ms);
+    Promise.resolve(promise).then(
+      (value) => { if (!done) { done = true; clearTimeout(timer); resolve(value); } },
+      () => { if (!done) { done = true; clearTimeout(timer); resolve({ ok: false, status: 0, message: 'Grok voice could not be reached. Nothing was recorded.' }); } },
+    );
+  });
 }
 
 export function textTurn(text) {
@@ -43,7 +83,8 @@ export function stopMic(state) {
   tracks.forEach((t) => { try { t.stop(); } catch (e) { /* already stopped */ } });
   if (state && state.context && state.context.close) { try { state.context.close(); } catch (e) { /* already closed */ } }
   if (state && state.socket && state.socket.close) { try { state.socket.close(); } catch (e) { /* already closed */ } }
-  if (state) { state.stream = null; state.chunks = []; state.socket = null; state.context = null; }
+  ['processor', 'source', 'mute'].forEach((k) => { const n = state && state[k]; if (n && n.disconnect) { try { n.disconnect(); } catch (e) { /* already disconnected */ } } });
+  if (state) { state.stream = null; state.chunks = []; state.socket = null; state.context = null; state.processor = null; state.source = null; state.mute = null; }
   return { retainedChunks: 0, tracksStopped: tracks.length };
 }
 
@@ -53,27 +94,50 @@ export async function requestVoice(ask, action) {
   for (let i = 0; i < 2; i++) {
     try { last = await ask(action); }
     catch (e) { last = { ok: false, status: 0, message: 'Grok voice could not be reached. Nothing was recorded.' }; }
-    if (!last || last.ok || last.status === 401 || last.status === 403 || last.status === 429 || last.status === 503) return last;
+    if (!last || last.ok || last.status === 401 || last.status === 403 || last.status === 408 || last.status === 429 || last.status === 503) return last;
   }
   return last;
 }
 
+function wireMic(state, socket) {
+  const ctx = state.context;
+  if (!ctx || !ctx.createMediaStreamSource || !ctx.createScriptProcessor) return;
+  const source = ctx.createMediaStreamSource(state.stream);
+  const proc = ctx.createScriptProcessor(4096, 1, 1);
+  const mute = ctx.createGain ? ctx.createGain() : null;
+  if (mute && mute.gain) mute.gain.value = 0;
+  proc.onaudioprocess = (ev) => {
+    if (!socket || socket.readyState !== 1 || !ev.inputBuffer) return;
+    const copy = new Float32Array(ev.inputBuffer.getChannelData(0));
+    socket.send(JSON.stringify(audioAppend(copy)));
+  };
+  source.connect(proc);
+  if (mute) { proc.connect(mute); mute.connect(ctx.destination); }
+  state.source = source; state.processor = proc; state.mute = mute;
+}
+
 export function createVoiceSession(deps) {
-  const state = { stream: null, chunks: [], socket: null, context: null };
+  const state = { stream: null, chunks: [], socket: null, context: null, source: null, processor: null, mute: null };
   let opened = false;
   return {
     state,
     async start(token) {
+      if (deps.audioContextFactory && !state.context) state.context = deps.audioContextFactory();
+      if (state.context && state.context.resume) await state.context.resume();
+      const rate = state.context && PCM_RATES.has(state.context.sampleRate) ? state.context.sampleRate : 24000;
       const socket = realtimeSocket(token, deps.WebSocket);
       state.socket = socket;
+      if (deps.onMessage) socket.addEventListener('message', (ev) => deps.onMessage(ev));
       await new Promise((resolve, reject) => {
         const t = setTimeout(() => reject(new Error('Grok voice could not be reached. Nothing was recorded.')), deps.timeoutMs || 8000);
-        socket.addEventListener('open', () => { clearTimeout(t); opened = true; socket.send(JSON.stringify(sessionUpdate())); resolve(); });
-        socket.addEventListener('error', () => { clearTimeout(t); reject(new Error('Grok voice could not be reached. Nothing was recorded.')); });
+        const fail = () => { clearTimeout(t); reject(new Error('Grok voice could not be reached. Nothing was recorded.')); };
+        socket.addEventListener('open', () => { clearTimeout(t); opened = true; socket.send(JSON.stringify(sessionUpdate(rate))); resolve(); });
+        socket.addEventListener('error', fail);
+        socket.addEventListener('close', () => { if (!opened) fail(); });
       });
-      if (deps.onMessage) socket.addEventListener('message', (ev) => deps.onMessage(ev));
       try { state.stream = await deps.getUserMedia({ audio: { channelCount: 1 } }); }
       catch (e) { stopMic(state); opened = false; throw new Error('The microphone was not opened. Nothing was recorded.'); }
+      wireMic(state, socket);
       return state;
     },
     sendText(text) {
@@ -81,5 +145,35 @@ export function createVoiceSession(deps) {
       for (const msg of textTurn(text)) state.socket.send(JSON.stringify(msg));
     },
     stop() { opened = false; return stopMic(state); },
+  };
+}
+
+/* Stop bumps the attempt so a pass that arrives later cannot open the microphone. */
+export function createVoiceAttempt({ live, show, requestPass }) {
+  let generation = 0;
+  return {
+    stop() { generation += 1; return live.stop(); },
+    async start() {
+      const mine = ++generation;
+      show('Connecting…', 'wait');
+      const ready = await requestPass();
+      if (mine !== generation) return { openedMic: false, cancelled: true };
+      if (!ready || !ready.ok || !ready.data || typeof ready.data.value !== 'string') {
+        live.stop();
+        show(voicePassText(ready), 'error');
+        return { openedMic: false, cancelled: false };
+      }
+      try {
+        await live.start(ready.data.value);
+        if (mine !== generation) { live.stop(); return { openedMic: false, cancelled: true }; }
+        show('Connected. The microphone is on. A spoken reply plays only if Grok sends audio. Stop turns the microphone off.', 'live');
+        return { openedMic: true, cancelled: false };
+      } catch (e) {
+        if (mine !== generation) return { openedMic: false, cancelled: true };
+        live.stop();
+        show(e.message || 'Grok voice could not be reached. Nothing was recorded.', 'error');
+        return { openedMic: false, cancelled: false };
+      }
+    },
   };
 }

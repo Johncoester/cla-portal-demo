@@ -1,6 +1,6 @@
 /* Voice is a signed-in Live Test path. The public fake link cannot open it. */
 import { routeAllowed } from '../js/data/locked-links.js';
-import { acceptEphemeralToken, createVoiceSession, realtimeSocket, requestVoice, sessionUpdate, stopMic, textTurn, voiceRouteOk, VOICE_URL, DEMO_INSTRUCTIONS } from '../js/data/voice-demo.js';
+import { acceptEphemeralToken, audioAppend, createVoiceAttempt, createVoiceSession, realtimeSocket, requestVoice, sessionUpdate, stopMic, textTurn, voicePassText, voiceRouteOk, withTimeout, VOICE_SIGN_IN, VOICE_TIMED_OUT, VOICE_URL, DEMO_INSTRUCTIONS } from '../js/data/voice-demo.js';
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
 const buyer = { id: 'u-buyer', role: 'Outside user', status: 'active' };
@@ -44,5 +44,44 @@ ok(stopped.retainedChunks === 0 && stopped.tracksStopped === 1 && mic.tracks[0].
 const store = { n: 0, setItem() { this.n += 1; } };
 stopMic({ stream: null, chunks: ['audio'] });
 ok(store.n === 0 && session.state.chunks.length === 0, 'nothing is written to storage');
+ok(sessionUpdate().session.audio.input.format.type === 'audio/pcm' && sessionUpdate().session.audio.input.format.rate === 24000 && sessionUpdate(44100).session.audio.output.format.rate === 44100, 'the session asks for PCM at a supported rate');
+const hung = await withTimeout(new Promise(() => {}), 25);
+ok(hung.status === 408 && hung.message === VOICE_TIMED_OUT, 'a pass that never returns becomes a visible timeout');
+let timeoutTries = 0;
+const once = await requestVoice(async () => { timeoutTries += 1; return hung; }, 'mint');
+ok(timeoutTries === 1 && once.status === 408, 'a timed-out pass is not asked for again');
+ok(voicePassText({ status: 401, message: 'Sign in is required.' }) === VOICE_SIGN_IN, 'an expired sign-in is not described as if the person had never signed in');
+let opened = false;
+const messages = [];
+const attempt = createVoiceAttempt({
+  live: { async start() { opened = true; }, stop() { return { retainedChunks: 0, tracksStopped: 0 }; } },
+  show(message, state) { messages.push([state, message]); },
+  requestPass: () => withTimeout(new Promise(() => {}), 20),
+});
+const timed = await attempt.start();
+ok(timed.openedMic === false && opened === false && messages.some((m) => m[0] === 'error' && m[1] === VOICE_TIMED_OUT), 'Start shows the timeout and does not open the microphone');
+let lateOpen = false;
+let passWait;
+const late = createVoiceAttempt({
+  live: { async start() { lateOpen = true; }, stop() {} },
+  show() {},
+  requestPass: () => new Promise((resolve) => { passWait = resolve; }),
+});
+const pending = late.start();
+late.stop();
+passWait({ ok: true, data: { value: token } });
+const cancelled = await pending;
+ok(cancelled.cancelled === true && lateOpen === false, 'Stop ignores a pass that arrives afterwards');
+let sentAudio = '';
+const heard = createVoiceSession({
+  WebSocket: class { constructor() { this.listeners = {}; this.readyState = 0; queueMicrotask(() => { this.readyState = 1; (this.listeners.open || []).forEach((fn) => fn({})); }); } addEventListener(n, fn) { (this.listeners[n] || (this.listeners[n] = [])).push(fn); } send(body) { sentAudio = body; } close() {} },
+  getUserMedia: async () => ({ getTracks() { return [{ stop() {} }]; } }),
+  audioContextFactory: () => ({ sampleRate: 24000, destination: {}, resume() {}, createMediaStreamSource() { return { connect() {} }; }, createGain() { return { gain: { value: 1 }, connect() {} }; }, createScriptProcessor() { const node = { connect() {} }; queueMicrotask(() => node.onaudioprocess && node.onaudioprocess({ inputBuffer: { getChannelData: () => new Float32Array([0, 0.5]) } })); return node; } }),
+  timeoutMs: 1000,
+});
+await heard.start(token);
+await new Promise((r) => setTimeout(r, 20));
+ok(sentAudio.includes('input_audio_buffer.append') && heard.state.chunks.length === 0, 'microphone samples are sent and are not kept');
+ok(audioAppend(new Float32Array([0])).type === 'input_audio_buffer.append', 'an audio chunk uses the documented append event');
 console.log(fail ? fail + ' failed' : 'voice demo passed');
 if (fail) process.exit(1);

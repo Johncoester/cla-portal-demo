@@ -1,9 +1,14 @@
 import { html, $ } from '../ui.js?v=202611062325';
-import { createVoiceSession, requestVoice, stopMic, VOICE_NOT_CONFIGURED } from '../data/voice-demo.js?v=202611062325';
+import { createVoiceAttempt, createVoiceSession, requestVoice, withTimeout, VOICE_PASS_MS } from '../data/voice-demo.js?v=202611062325';
 
 const live = createVoiceSession({
   WebSocket: typeof WebSocket !== 'undefined' ? WebSocket : null,
   getUserMedia: (opts) => navigator.mediaDevices.getUserMedia(opts),
+  audioContextFactory: () => {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) throw new Error('This browser cannot play voice audio.');
+    try { return new Ctx({ sampleRate: 24000 }); } catch (e) { return new Ctx(); }
+  },
   timeoutMs: 8000,
   onMessage(ev) {
     const reply = document.querySelector('[data-voice-reply]');
@@ -41,31 +46,25 @@ export async function render({ api } = {}) {
 
 function show(root, message, state) {
   const el = $('[data-voice-status]', root);
-  if (el) { el.textContent = message; el.className = state === 'live' ? 'muted' : 'err-text'; }
+  if (el) { el.textContent = message; el.className = state === 'error' ? 'err-text' : 'muted'; }
   root.setAttribute('data-voice-state', state);
 }
 
-async function pass(api, action) {
-  return requestVoice((next) => api.requestVoicePass(next), action);
-}
-
 function wire(root, api) {
-  const stop = () => { live.stop(); show(root, 'Stopped. The microphone is off and nothing was kept.', 'ready'); };
-  $('[data-voice-start]', root).addEventListener('click', async () => {
-    show(root, 'Connecting…', 'ready');
-    const ready = await pass(api, 'mint');
-    if (!ready || !ready.ok || !ready.data || !ready.data.value) { live.stop(); show(root, (ready && ready.message) || VOICE_NOT_CONFIGURED, 'ready'); return; }
-    try {
-      await live.start(ready.data.value);
-      show(root, 'Connected. Speak, or type below. Stop ends the microphone.', 'live');
-    } catch (e) { live.stop(); show(root, e.message || 'Grok voice could not be reached. Nothing was recorded.', 'ready'); }
+  const attempt = createVoiceAttempt({
+    live,
+    show: (message, state) => show(root, message, state),
+    requestPass: () => withTimeout(requestVoice((next) => api.requestVoicePass(next), 'mint'), VOICE_PASS_MS),
   });
-  $('[data-voice-stop]', root).addEventListener('click', stop);
+  const start = $('[data-voice-start]', root);
+  if (!start) { show(root, 'Start could not be wired. Reload this page.', 'error'); return; }
+  start.addEventListener('click', () => attempt.start());
+  $('[data-voice-stop]', root).addEventListener('click', () => { attempt.stop(); show(root, 'Stopped. The microphone is off and nothing was kept.', 'ready'); });
   $('[data-voice-text]', root).addEventListener('submit', (e) => {
     e.preventDefault();
     try { live.sendText($('[data-voice-input]', root).value); }
     catch (err) { show(root, err.message, root.getAttribute('data-voice-state') === 'live' ? 'live' : 'ready'); }
   });
-  window.addEventListener('pagehide', () => { stopMic(live.state); });
-  window.addEventListener('hashchange', () => { if (!location.hash.startsWith('#/voice-demo')) stopMic(live.state); });
+  window.addEventListener('pagehide', () => { attempt.stop(); });
+  window.addEventListener('hashchange', () => { if (!location.hash.startsWith('#/voice-demo')) attempt.stop(); });
 }
