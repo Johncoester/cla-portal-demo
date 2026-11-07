@@ -4,6 +4,25 @@
 import { ordinaryCoverageDoc } from './nov5-rules.js?v=202611070139';
 import { uploadBytes } from './upload-bytes.js?v=202611070139';
 
+export const SAVED_UNCONFIRMED = 'This file was saved but the list could not be refreshed. It is already stored, so sending it again will not add a second copy.';
+
+/* One id for one chosen file. A later submit of that same file reuses it. A different file gets a new id. */
+export function sameUploadId(slot, file) {
+  const mark = [file && file.name, file && file.size, file && file.lastModified].join('\0');
+  if (!slot.id || slot.mark !== mark) {
+    slot.mark = mark;
+    slot.id = (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID() : '';
+  }
+  return slot.id;
+}
+
+function alreadyKept(error) {
+  if (!error) return false;
+  const code = String(error.code || error.statusCode || error.status || '');
+  const msg = String(error.message || '');
+  return code === '23505' || code === '409' || /already exists|duplicate key/i.test(msg);
+}
+
 /* Columns written by the hosted insert. folder_id is not one of them. */
 export function documentInsertRow({ dealId, file, userId, id }) {
   const name = String(file.name || 'upload').replace(/[\\/]/g, '_').slice(0, 200);
@@ -56,16 +75,18 @@ export function nov5Supabase({ sb, ok, camel, me }) {
     },
     async addDocument(dealId, file) {
       const user = await uid(); if (!user) throw new Error('Please sign in.');
-      const id = (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID() : null;
+      const id = file.id || ((globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID() : null);
       if (!id) throw new Error('This browser cannot mint a document id.');
       const row = documentInsertRow({ dealId, file, userId: user.id, id });
       const body = await uploadBytes(file);
-      const up = await sb.storage.from('deal-documents').upload(row.storage_path, body, { contentType: file.mimeType || 'application/octet-stream', upsert: false });
-      if (up.error) throw new Error(up.error.message || 'The document bucket refused the upload.');
-      // Insert without RETURNING. The select policy re-reads documents and cannot see the row
-      // until the insert commits, so .insert().select() fails with the new-row RLS error.
-      ok(await sb.from('documents').insert(row));
-      return camel(ok(await sb.from('documents').select('*').eq('id', row.id).single()));
+      const bucket = sb.storage.from('deal-documents');
+      const up = await bucket.upload(row.storage_path, body, { contentType: file.mimeType || 'application/octet-stream', upsert: false });
+      if (up.error && !alreadyKept(up.error)) throw new Error(up.error.message || 'The document bucket refused the upload.');
+      const ins = await sb.from('documents').insert(row);
+      if (ins.error && !alreadyKept(ins.error)) throw new Error(ins.error.message);
+      const read = await sb.from('documents').select('*').eq('id', row.id).single();
+      if (read.error) { const err = new Error(SAVED_UNCONFIRMED); err.savedId = row.id; throw err; }
+      return camel(ok({ data: read.data, error: null }));
     },
     async getDocumentContent(id) {
       const doc = camel(ok(await sb.from('documents').select('id, name, storage_path, mime_type').eq('id', id).single()));
