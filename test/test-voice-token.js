@@ -1,5 +1,5 @@
 /* The voice pass is decided on the server. A named email or a fake id in the body does not count. */
-import { handleVoiceToken, mintClientSecret, parseAllowlist, projectRefFromUrl, createMintLog, TEST_PROJECT_REF } from '../supabase/functions/voice-token/logic.mjs';
+import { corsHeaders, handleVoiceToken, mintClientSecret, parseAllowlist, projectRefFromUrl, createMintLog, PORTAL_ORIGINS, TEST_PROJECT_REF } from '../supabase/functions/voice-token/logic.mjs';
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
 const JOHN = '11111111-1111-4111-8111-111111111111';
@@ -76,5 +76,7 @@ ok(slow === null, 'a provider call that never answers does not return a pass');
 let sawBearer = false;
 const fast = await mintClientSecret(async (_url, opts) => { sawBearer = opts.headers.Authorization.startsWith('Bearer '); return { ok: true, json: async () => ({ value: 'xai-realtime-client-secret-shortPass1', expires_at: 5 }) }; }, 'do-not-log-this-key', 1000);
 ok(fast.value.startsWith('xai-realtime-client-secret-') && sawBearer && !JSON.stringify(fast).includes('do-not-log'), 'a normal provider response is a short pass and the key is not returned');
+ok(PORTAL_ORIGINS.join() === 'https://johncoester.github.io,https://testportal.clatitle.com', 'both site origins stay allowed');
+ok(corsHeaders('https://johncoester.github.io')['Access-Control-Allow-Origin'] === 'https://johncoester.github.io' && corsHeaders('https://testportal.clatitle.com')['Access-Control-Allow-Origin'] === 'https://testportal.clatitle.com' && !corsHeaders('https://evil.example')['Access-Control-Allow-Origin'], 'each known origin is echoed and a foreign origin is not');
 console.log(fail ? fail + ' failed' : 'voice token passed');
 if (fail) process.exit(1);

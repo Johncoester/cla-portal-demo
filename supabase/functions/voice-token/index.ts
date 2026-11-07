@@ -4,19 +4,14 @@
  *   VOICE_ALLOWLIST = the two confirmed auth user ids, comma-separated
  * Do not log either secret or the short-lived pass. */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
-import { handleVoiceToken, parseAllowlist, projectRefFromUrl, createMintLog, mintClientSecret } from './logic.mjs';
+import { handleVoiceToken, parseAllowlist, projectRefFromUrl, createMintLog, corsHeaders, mintClientSecret } from './logic.mjs';
 
 const url = Deno.env.get('SUPABASE_URL') ?? '';
 const anon = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 const mints = createMintLog();
-const ALLOWED_ORIGIN = 'https://johncoester.github.io';
 
 function headersFor(req: Request) {
-  const headers: Record<string, string> = { 'Cache-Control': 'no-store', Vary: 'Origin' };
-  if (req.headers.get('Origin') === ALLOWED_ORIGIN) headers['Access-Control-Allow-Origin'] = ALLOWED_ORIGIN;
-  headers['Access-Control-Allow-Headers'] = 'authorization, apikey, content-type, x-client-info';
-  headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS';
-  return headers;
+  return corsHeaders(req.headers.get('Origin') ?? '');
 }
 
 async function mint(key: string) {
