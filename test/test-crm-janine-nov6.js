@@ -1,6 +1,6 @@
 /* Janine Nov 6: template folder counts, image limit wording, mass actions. Fake data only. Nothing is sent. */
 import { folderCounts, imageLimitMessage, INLINE_IMAGE_MAX_BYTES } from '../js/data/crm-templates.js';
-import { dedupeRecipients, fieldPatch, ownerAllowed, pageOf, runEach, selectPage, selectionState, BULK_PAGE_SIZE } from '../js/data/crm-bulk.js';
+import { dedupeRecipients, fieldPatch, ownerAllowed, pageOf, planRelatedEmails, runEach, selectPage, selectionState, BULK_PAGE_SIZE } from '../js/data/crm-bulk.js';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 
 let fail = 0;
@@ -73,6 +73,28 @@ await ro.signInDev('u-proc');
 let refused = '';
 try { await ro.updateCrmLead(open[0].id, { notes: 'no' }); } catch (e) { refused = e.message; }
 ok(/read-only|Processor/i.test(refused), 'a read-only CRM user cannot bulk-update a lead');
+const companySkip = planRelatedEmails('account', [{ id: 'co', name: 'Harbor Realty', email: '' }]);
+ok(companySkip.recipients.length === 0 && /linked to this company/.test(companySkip.skipped[0].reason), 'a company with no linked client email is skipped with that reason');
+const companyMail = planRelatedEmails('account', [{ id: 'co', name: 'Ada Agent', email: 'ada@example.test' }]);
+ok(companyMail.recipients[0].storeEntity === 'account' && companyMail.recipients[0].email === 'ada@example.test', 'a company draft uses the linked client email and stays on the company');
+const oppMail = planRelatedEmails('opportunity', [{ id: 'op', name: 'Referral', email: 'ada@example.test', contactId: 'client-1' }]);
+ok(oppMail.recipients[0].storeEntity === 'contact' && oppMail.recipients[0].storeId === 'client-1', 'an opportunity draft is stored on its client');
+const dealSkip = planRelatedEmails('deal', [{ id: 'deal-x', name: 'Oak', email: '' }]);
+ok(/allowed to use/.test(dealSkip.skipped[0].reason), 'a deal with no permitted email is skipped instead of guessed');
+const accounts = await api.listCrmAccounts();
+const linked = [];
+for (const a of accounts.slice(0, 5)) linked.push(...await api.crmRelatedEmails('account', a.id));
+ok(linked.every((p) => p.email && p.email.includes('@')), 'company recipients are real emails from linked clients');
+const proc = createMockAdapter({ storage: mem(), sessionStorage: mem() });
+await proc.signInDev('u-proc');
+const file = (await proc.listDeals({ status: 'Open' }))[0];
+const portalTask = await proc.createTask(file.id, { title: 'Call the listing agent', dueDate: '2026-12-01', assignedRole: 'Processor', description: 'Call the listing agent' });
+ok(portalTask.dealId === file.id && portalTask.kind === 'simple' && !portalTask.participantId, 'a deal task is a portal task on that order');
+const sales = createMockAdapter({ storage: mem(), sessionStorage: mem() });
+await sales.signInDev('u-sp');
+let salesTask = '';
+try { await sales.createTask(file.id, { title: 'Nope', dueDate: '2026-12-01' }); } catch (e) { salesTask = e.message; }
+ok(/processor or transaction coordinator/.test(salesTask), 'a salesperson cannot create the deal task');
 
 if (fail) { console.log(fail + ' failed'); process.exit(1); }
 console.log('all passed');

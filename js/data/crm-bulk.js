@@ -7,10 +7,11 @@ export const BULK_FIELDS = {
   contact: [['notes', 'Notes']],
   account: [['notes', 'Notes'], ['kind', 'Company type']],
   opportunity: [['notes', 'Notes'], ['stage', 'Stage']],
-  deal: [],
+  deal: [['notes', 'Notes']],
 };
 
-export const BULK_TASK_ENTITIES = ['lead', 'contact', 'account', 'opportunity'];
+export const BULK_TASK_ENTITIES = ['lead', 'contact', 'account', 'opportunity', 'deal'];
+export const EMAIL_DRAFT_ENTITIES = ['lead', 'contact', 'account', 'deal'];
 
 export function pageOf(rows, page, size = BULK_PAGE_SIZE) {
   const list = rows || [];
@@ -30,6 +31,26 @@ export function selectionState(selected, pageRows) {
   const ids = (pageRows || []).map((r) => r.id);
   const on = ids.filter((id) => selected && selected.has(id));
   return { count: selected ? selected.size : 0, pageCount: ids.length, pageOn: on.length, allOnPage: ids.length > 0 && on.length === ids.length, someOnPage: on.length > 0 && on.length < ids.length };
+}
+
+export function planRelatedEmails(module, people) {
+  const rows = people || [];
+  const skipped = [];
+  const ready = [];
+  rows.forEach((r) => {
+    const email = String(r.email || '').trim().toLowerCase();
+    if (module === 'opportunity') {
+      if (r.contactId && email) ready.push({ id: r.contactId, name: r.name || r.id, email, storeEntity: 'contact', storeId: r.contactId });
+      else skipped.push({ id: r.id, name: r.name || r.id, reason: 'This opportunity has no client with an email.' });
+      return;
+    }
+    if (!email) { skipped.push({ id: r.id, name: r.name || r.id, reason: module === 'deal' ? 'No person on this deal has an email you are allowed to use.' : module === 'account' ? 'No client linked to this company has an email you can use.' : 'No email address on this record.' }); return; }
+    ready.push({ id: r.id, name: r.name || r.id, email, storeEntity: module, storeId: r.id });
+  });
+  const plan = dedupeRecipients(ready);
+  plan.skipped = [...skipped, ...plan.skipped];
+  plan.recipients = plan.recipients.map((r) => { const src = ready.find((z) => z.id === r.id && z.email === r.email) || {}; return { ...r, storeEntity: src.storeEntity || module, storeId: src.storeId || r.id }; });
+  return plan;
 }
 
 export function dedupeRecipients(rows) {
