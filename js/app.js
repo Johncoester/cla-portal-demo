@@ -356,8 +356,15 @@ function wireBell() {
   document.addEventListener('click', () => { dd.hidden = true; }, { once: true });
 }
 // UNSAVED CHANGES (Francis, Nov 3: "are you sure you want to leave... continue editing"): a page that sets window.claDirty() = true is asked before leaving
-let lastHash = location.hash; let bounce = false;
-window.addEventListener('hashchange', () => { if (bounce) { bounce = false; return; }
+let lastHash = location.hash; let bounce = false; let fromPop = false;
+window.addEventListener('popstate', () => { fromPop = true; });
+window.addEventListener('hashchange', () => { if (bounce) { bounce = false; fromPop = false; return; }
+  const popped = fromPop; fromPop = false;
+  const here = (location.hash || '').split('?')[0];
+  if (popped && /^#\/crm\/(templates\/.+|signature)$/.test((lastHash || '').split('?')[0]) && (here === '#/crm' || here === '#/crm/home')) {
+    let dest = '#/crm/templates'; try { dest = sessionStorage.getItem('cla-crm-templates-list') || dest; } catch (e) { /* private mode */ }
+    if (!dest.startsWith('#/crm/templates')) dest = '#/crm/templates';
+    history.replaceState(null, '', location.pathname + location.search + dest); lastHash = dest; render(); return; }
   if (typeof window.claDirty === 'function' && window.claDirty() && !confirm('You have unsaved changes. Leave this page? Press Cancel to continue editing.')) { bounce = true; location.hash = lastHash; return; }
   window.claDirty = null; lastHash = location.hash; render(); });
 window.addEventListener('beforeunload', (e) => { if (typeof window.claDirty === 'function' && window.claDirty()) { e.preventDefault(); e.returnValue = ''; } });

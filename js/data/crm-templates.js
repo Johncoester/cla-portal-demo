@@ -17,7 +17,8 @@ const MODULE_ALIASES = { leads: 'lead', clients: 'contact', contacts: 'contact',
 export const TEMPLATE_KINDS = [['html', 'Written email (plain text / HTML)'], ['builder', 'Graphic email (drag-and-drop builder)']];
 export const TEMPLATE_STATUSES = [['active', 'Active'], ['draft', 'Draft']];
 export const ATTACH_EXT = ['pdf', 'png', 'jpg', 'jpeg'];
-export const NAME_MAX = 120, SUBJECT_MAX = 250, BODY_MAX = 600_000, SIGNATURE_MAX = 20_000, MAX_BLOCKS = 60, FOLDER_MAX = 60;
+export const NAME_MAX = 120, SUBJECT_MAX = 250, BODY_MAX = 6_000_000, SIGNATURE_MAX = 6_000_000, MAX_BLOCKS = 60, FOLDER_MAX = 60;
+export const INLINE_IMAGE_MAX_BYTES = 3 * 1024 * 1024;
 
 // ---------------- merge fields ----------------
 const money = (v) => (v == null || v === '' ? '' : '$' + Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 }));
@@ -270,6 +271,18 @@ export function templatesInView(rows, view, meId, { q = '', retired = false, mod
     && (!s || [t.name, t.subject, t.moduleLabel, t.folderName, t.createdByName, t.modifiedByName].some((v) => String(v || '').toLowerCase().includes(s))))
     .sort((a, b) => String(b.modifiedAt).localeCompare(String(a.modifiedAt)));
 }
+export function folderCounts(rows, folderIds, personalId) {
+  const active = (rows || []).filter((t) => t && !t.retired && !t.retiredAt && !t.retired_at);
+  const idOf = (t) => t.folderId || (t.personal_owner ? 'personal:' + t.personal_owner : (t.personalOwner ? 'personal:' + t.personalOwner : t.folder_id || ''));
+  const count = (id) => active.filter((t) => idOf(t) === id).length;
+  return { shared: Object.fromEntries((folderIds || []).map((id) => [id, count(id)])), personal: personalId ? count(personalId) : 0 };
+}
+
+export function imageLimitMessage(size, max = INLINE_IMAGE_MAX_BYTES) {
+  const mb = (n) => (Math.round((Number(n) / (1024 * 1024)) * 10) / 10).toFixed(1).replace(/\.0$/, '');
+  return `That image is ${mb(size)} MB. The limit for an image inside the email is ${mb(max)} MB. Use a smaller image or a web address.`;
+}
+
 export function cleanFolderName(v) {
   const s = String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim();
   if (!s) throw new Error('Give the folder a name.'); if (s.length > FOLDER_MAX) throw new Error(`A folder name can be at most ${FOLDER_MAX} characters.`); return s;

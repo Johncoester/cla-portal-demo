@@ -42,6 +42,7 @@ async function listPage({ api, me, go, refresh }) {
         <th title="${STATS_NOTE}">Opened</th><th title="${STATS_NOTE}">Bounced</th><th title="${STATS_NOTE}">Clicked</th><th></th></tr></thead><tbody></tbody></table>
       <p class="muted small" data-stats-note>Stats: &mdash; (${STATS_NOTE}).</p></div></div>`;
   return { title: 'CRM Templates', crumbs: crumbs(), body, mount(root) {
+    try { sessionStorage.setItem('cla-crm-templates-list', location.hash || '#/crm/templates'); } catch (e) { /* private mode */ }
     const tb = $('[data-tpl-table] tbody', root); const s = $('[data-tpl-search]', root); const mod = $('[data-tpl-module]', root);
     const draw = () => { const list = templatesInView(rows, view, me.id, { q: s.value, retired: showRetired, module: mod.value });
       tb.innerHTML = String(list.length ? html`${list.map((t) => html`<tr data-tpl-row="${t.id}">
@@ -199,15 +200,18 @@ async function editorPage({ api, me, params, go, refresh }) {
 
 // ---------------- signature ----------------
 async function signaturePage({ api, me, refresh }) {
-  const s = await api.getCrmSignature(); const ed = richEditor('sig', s.html, { mini: true }); const es = await api.getCrmEmailSettings();
+  const s = await api.getCrmSignature(); const ed = richEditor('sig', s.html, { mini: true });
+  let es = { primary: me.email || '', aliases: [], sendNote: 'Nothing is sent until email is connected.' };
+  if (typeof api.getCrmEmailSettings === 'function') { try { es = await api.getCrmEmailSettings(); } catch (e) { es = { ...es, unavailable: e.message }; } }
   const body = html`${head('CRM: My Email Signature', { ...me, canEdit: true })}${tabs('templates')}
     <div class="card" data-signature><p class="muted small">Used wherever a template has <code>\${User Signature}</code>. Each person edits their own (the Processor too). ${s.modifiedAt ? `Last saved ${fmtDateTime(s.modifiedAt)}.` : 'Not set yet.'}</p>
       ${ed.body}<p><button class="m-btn" type="button" data-save-signature>Save signature</button> <a class="ghost" href="#/crm/templates">Back to templates</a></p></div>
-    <div class="card" data-email-aliases><h3>From addresses (Send Email)</h3><p class="muted small">Your login email (${es.primary || 'none'}) is always offered. Add up to 5 aliases, one per line. A removed alias is retired, not deleted. ${es.sendNote}</p>
-      <textarea rows="3" data-aliases style="width:100%">${es.aliases.join('\n')}</textarea><p><button class="ghost" type="button" data-save-aliases>Save aliases</button></p></div>`;
+    <div class="card" data-email-aliases><h3>From addresses (Send Email)</h3><p class="muted small">Your login email (${es.primary || 'none'}) is always offered. Add up to 5 aliases, one per line. A removed alias is retired, not deleted. ${es.sendNote}${es.unavailable ? ` ${es.unavailable}` : ''}</p>
+      <textarea rows="3" data-aliases style="width:100%">${(es.aliases || []).join('\n')}</textarea>${typeof api.saveCrmEmailAliases === 'function' ? html`<p><button class="ghost" type="button" data-save-aliases>Save aliases</button></p>` : html`<p class="muted small">Aliases cannot be saved on this portal yet. The signature above can.</p>`}</div>`;
   return { title: 'My signature', crumbs: [['CRM', '#/crm'], ['Templates', '#/crm/templates'], ['My signature']], body, mount(root) {
+    try { sessionStorage.setItem('cla-crm-templates-list', '#/crm/templates'); } catch (e) { /* private mode */ }
     const ctl = ed.mount(root); $('[data-save-signature]', root).addEventListener('click', guard(async () => { await api.saveCrmSignature(ctl.getHtml()); toast('Signature saved'); refresh(); }));
-    $('[data-save-aliases]', root).addEventListener('click', guard(async () => { await api.saveCrmEmailAliases($('[data-aliases]', root).value.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean)); toast('Aliases saved'); refresh(); })); } };
+    const al = $('[data-save-aliases]', root); if (al) al.addEventListener('click', guard(async () => { await api.saveCrmEmailAliases($('[data-aliases]', root).value.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean)); toast('Aliases saved'); refresh(); })); } };
 }
 
 // ---------------- compose from a record ----------------

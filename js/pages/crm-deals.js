@@ -8,6 +8,8 @@ import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compo
 import { viewsBar, wireViewsBar } from './crm-views.js?v=202611070139';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
 import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070139';
+import { pageOf, selectionState, selectPage, BULK_PAGE_SIZE } from '../data/crm-bulk.js?v=202611070139';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611070139';
 
 export async function dealsPage(c) { return c.params.id ? dealPage(c) : dealsList(c); }
 
@@ -38,22 +40,31 @@ async function dealsList(c) {
       <label>Last Activity Time from<input type="date" name="activityFrom" data-crm-date></label><label>Last Activity Time to<input type="date" name="activityTo" data-crm-date></label>
       <button type="button" class="ghost" data-crm-reset>Reset</button>
     </form>${savedFiltersHtml('deals')}
-    <div class="table-tools"><span class="muted" data-count></span> <details class="col-chooser" data-col-chooser><summary>Columns</summary>
+    ${me.canEdit ? bulkBar('deal') : ''}
+    <div class="table-tools"><span class="muted" data-count></span> <span data-bulk-pager></span> <details class="col-chooser" data-col-chooser><summary>Columns</summary>
       <div class="col-list">${DEAL_COLS.map(([k, l]) => html`<label class="check"><input type="checkbox" data-col-toggle="${k}" ${hidden.includes(k) ? '' : raw('checked')} ${LOCKED_COLS.includes(k) ? raw('disabled') : ''}> ${l}</label>`)}</div>
       <p class="muted small">Remembered for you on this browser.</p><button type="button" class="ghost" data-cols-reset>Default columns</button></details></div>
-    <table class="tbl" id="crm-t-deals" data-deals-table><thead><tr>${DEAL_COLS.map(([k, l]) => html`<th data-col="${k}" data-sort="${k}"><button type="button" class="th-sort" title="Sort by ${l}">${l} ${arrows}</button></th>`)}</tr></thead><tbody></tbody></table>`;
+    <table class="tbl" id="crm-t-deals" data-deals-table><thead><tr>${me.canEdit ? html`<th><input type="checkbox" data-bulk-page aria-label="Select all on this page"></th>` : ''}${DEAL_COLS.map(([k, l]) => html`<th data-col="${k}" data-sort="${k}"><button type="button" class="th-sort" title="Sort by ${l}">${l} ${arrows}</button></th>`)}</tr></thead><tbody></tbody></table>`;
   function mount(root) {
     const f = $('#deal-filters', root); const tb = $('[data-deals-table] tbody', root); let sort = 'closingDate'; let dir = 'desc';
+    let selected = new Set(); let page = 1; let sig = ''; let viewRows = [];
     // a changed Status / Owner / Client / Source asks the adapter again (it applies the access rule); the URL keeps them so Back / refresh keep the view
     $$('[data-deal-filter]', f).forEach((s) => s.addEventListener('change', () => { const p = new URLSearchParams(); const v = formData(f);
       if (v.status && v.status !== 'Open') p.set('status', v.status); ['owner', 'client', 'source'].forEach((k) => { if (v[k]) p.set(k, v[k]); });
       const qs = p.toString(); location.hash = '#/crm/deals' + (qs ? '?' + qs : ''); }));
     const showCols = () => { $$('[data-col]', root).forEach((el) => { el.hidden = hidden.includes(el.dataset.col); }); };
     const apply = () => { const words = String(f.q.value || '').toLowerCase().split(/\s+/).filter(Boolean); const v = formData(f);
+      const nextSig = JSON.stringify({ ...v, sort, dir }); if (nextSig !== sig) { if (sig) { selected = new Set(); page = 1; } sig = nextSig; }
       const list = crmSort(rows.filter((r) => { const hay = [r.name, r.fileNumber, r.propertyAddress, r.clientName, r.contactName, r.ownerName, r.salesReps, r.sourceText].join(' ').toLowerCase();
         return words.every((w) => hay.includes(w)) && inLocalRange(r.createdAt, v.createdFrom, v.createdTo) && inLocalRange(r.modifiedAt, v.modifiedFrom, v.modifiedTo) && inLocalRange(r.lastActivityAt, v.activityFrom, v.activityTo); }), sort, dir);
-      tb.innerHTML = toText(list.length ? list.map((r) => html`<tr data-row="${r.id}">${DEAL_COLS.map(([k]) => html`<td data-col="${k}">${cell[k] ? cell[k](r) : r[k] ?? ''}</td>`)}</tr>`) : html`<tr><td colspan="${DEAL_COLS.length}" class="muted">Nothing matches.</td></tr>`);
-      $('[data-count]', root).textContent = `${list.length} of ${rows.length} shown`; showCols();
+      const view = me.canEdit ? pageOf(list, page, BULK_PAGE_SIZE) : { rows: list, page: 1, pages: 1 }; page = view.page; viewRows = view.rows;
+      const span = DEAL_COLS.length + (me.canEdit ? 1 : 0);
+      tb.innerHTML = toText(view.rows.length ? view.rows.map((r) => html`<tr data-row="${r.id}">${me.canEdit ? html`<td><input type="checkbox" data-bulk-row value="${r.id}" aria-label="Select ${r.name || 'deal'}" ${selected.has(r.id) ? raw('checked') : ''}></td>` : ''}${DEAL_COLS.map(([k]) => html`<td data-col="${k}">${cell[k] ? cell[k](r) : r[k] ?? ''}</td>`)}</tr>`) : html`<tr><td colspan="${span}" class="muted">Nothing matches.</td></tr>`);
+      $('[data-count]', root).textContent = me.canEdit && list.length > BULK_PAGE_SIZE ? `${view.rows.length} on this page, ${list.length} of ${rows.length} match` : `${list.length} of ${rows.length} shown`;
+      const box = $('[data-bulk-page]', root); if (box) { const st = selectionState(selected, view.rows); box.checked = st.allOnPage; box.indeterminate = st.someOnPage; }
+      const pg = $('[data-bulk-pager]', root); if (pg) pg.innerHTML = toText(view.pages > 1 ? html`<button type="button" class="ghost" data-bulk-prev ${view.page <= 1 ? raw('disabled') : ''}>Previous</button> Page ${view.page} of ${view.pages} <button type="button" class="ghost" data-bulk-next ${view.page >= view.pages ? raw('disabled') : ''}>Next</button>` : html``);
+      const barEl = $('[data-bulk-bar]', root); if (barEl) { barEl.hidden = selected.size === 0; const n = $('[data-bulk-count]', barEl); if (n) n.textContent = `${selected.size} selected`; }
+      showCols();
       $$('th[data-sort]', root).forEach((th) => { const on = th.dataset.sort === sort; if (on) th.setAttribute('aria-sort', dir === 'asc' ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort');
         $('.up', th).classList.toggle('on', on && dir === 'asc'); $('.dn', th).classList.toggle('on', on && dir === 'desc'); }); };
     f.q.addEventListener('input', apply); $$('[data-crm-date]', f).forEach((el) => el.addEventListener('change', apply));
@@ -77,6 +88,13 @@ async function dealsList(c) {
     $$('[data-col-toggle]', root).forEach((cb) => cb.addEventListener('change', () => { const k = cb.dataset.colToggle; hidden = saveHidden(storage, me.id || fl.me.id, cb.checked ? hidden.filter((z) => z !== k) : [...hidden, k]); showCols(); }));
     $('[data-cols-reset]', root).addEventListener('click', () => { hidden = saveHidden(storage, me.id || fl.me.id, DEFAULT_HIDDEN); $$('[data-col-toggle]', root).forEach((cb) => { cb.checked = !hidden.includes(cb.dataset.colToggle); }); showCols(); });
     apply();
+    if (me.canEdit) {
+      const box = $('[data-bulk-page]', root);
+      if (box) box.addEventListener('change', () => { selected = selectPage(selected, viewRows, box.checked); apply(); });
+      tb.addEventListener('change', (e) => { const el = e.target; if (!el.matches || !el.matches('[data-bulk-row]')) return; if (el.checked) selected.add(el.value); else selected.delete(el.value); apply(); });
+      root.addEventListener('click', (e) => { const t = e.target; if (t.matches && t.matches('[data-bulk-prev]')) { page -= 1; selected = new Set(); apply(); } if (t.matches && t.matches('[data-bulk-next]')) { page += 1; selected = new Set(); apply(); } });
+      wireBulk(root, { module: 'deal', api, me, owners: [], getPageRows: () => viewRows.filter((r) => selected.has(r.id)), clear: () => { selected = new Set(); apply(); }, refresh: c.refresh });
+    }
   }
   return { title: 'Deals', crumbs: [['CRM', '#/crm'], ['Deals']], body, mount };
 }
