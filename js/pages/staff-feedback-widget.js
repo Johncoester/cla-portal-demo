@@ -1,9 +1,11 @@
 /* Persistent staff launcher. It lives on document.body, so opening a file tab does not close it or wipe the draft.
  * It is not a live assistant and it does not send the webhook. */
-import { deliveryNotice, newId, sanitizePage, STATUS_LABELS } from '../data/staff-feedback.js?v=202611071830';
+import { deliveryNotice, newId, sanitizePage, STATUS_LABELS } from '../data/staff-feedback.js?v=202611072230';
+import { PENDING_CONNECTION } from '../data/assistant-handoff.js?v=202611072230';
+import { inspectUpload, readWithProgress, supportedTypesText } from '../data/assistant-files.js?v=202611072230';
 import { launcherAllowed, loadDraft, nextWidgetState, saveDraft } from '../data/staff-feedback-widget-state.js?v=202611071830';
 
-const ACCEPT = 'image/png,image/jpeg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif';
+const ACCEPT = '.png,.jpg,.jpeg,.webp,.gif,.pdf,.docx,.txt,.mp3,.m4a,.wav,.mp4,.webm';
 const HOST_ID = 'claStaffFeedbackRoot';
 let state = { userId: null, open: false, reportId: '' };
 let live = null;
@@ -148,14 +150,21 @@ async function paint(api) {
   (full.messages || []).forEach((m) => bubble(live.thread, m));
   (full.attachments || []).forEach((a) => {
     const row = el('p');
-    const btn = el('button', 'claSfBtn o', 'View screenshot'); btn.type = 'button';
+    const image = String(a.mimeType || '').startsWith('image/');
+    const btn = el('button', 'claSfBtn o', image ? 'View thumbnail' : 'Download'); btn.type = 'button';
     btn.addEventListener('click', async () => {
       const file = await api.openStaffFeedbackAttachment(a.id);
-      const img = el('img', 'claSfImg'); img.alt = 'Screenshot';
-      img.src = file.dataUrl || URL.createObjectURL(file.blob);
-      row.appendChild(img);
+      if (image) {
+        const img = el('img', 'claSfImg'); img.alt = 'Stored screenshot, not analyzed';
+        img.src = file.dataUrl || URL.createObjectURL(file.blob);
+        row.appendChild(img);
+        return;
+      }
+      const url = file.dataUrl || URL.createObjectURL(file.blob);
+      const link = el('a', '', 'Download stored file'); link.href = url; link.download = file.fileName || 'evidence';
+      row.appendChild(link);
     });
-    row.appendChild(document.createTextNode((a.fileName || 'Screenshot') + ' '));
+    row.appendChild(document.createTextNode((a.fileName || 'File') + ' — Stored. Not analyzed. '));
     row.appendChild(btn); live.shots.appendChild(row);
   });
   if (full.canSupport) {
@@ -173,7 +182,7 @@ function mount(user, api) {
   const x = el('button', 'claSfX', '×'); x.type = 'button'; x.setAttribute('aria-label', 'Close portal feedback');
   const hi = el('header', 'claSfHi');
   hi.appendChild(el('strong', '', 'Portal feedback')); hi.id = 'claSfTitle';
-  hi.appendChild(el('p', '', 'Saved in this portal. Not delivered to the assistant.'));
+  hi.appendChild(el('p', '', 'Saved in this portal. Not delivered to the tech assistant. No reply has been received.'));
   const body = el('div', 'claSfBody');
   const notice = el('p', 'claSfNotice'); notice.setAttribute('role', 'status');
   const where = el('p', 'claSfMeta');
@@ -182,10 +191,9 @@ function mount(user, api) {
   const shots = el('div');
   const reply = el('textarea'); reply.maxLength = 4000; reply.setAttribute('aria-label', 'Reply');
   const replyRow = el('div', 'claSfRow');
-  const replyBtn = el('button', 'claSfBtn', 'Save reply'); replyBtn.type = 'button';
-  const sim = el('button', 'claSfBtn o', 'Run test simulation (not delivered)'); sim.type = 'button';
+  const replyBtn = el('button', 'claSfBtn', 'Save follow-up'); replyBtn.type = 'button';
   const back = el('button', 'claSfBtn o', 'New report'); back.type = 'button';
-  replyRow.appendChild(back); replyRow.appendChild(sim); replyRow.appendChild(replyBtn);
+  replyRow.appendChild(back); replyRow.appendChild(replyBtn);
   threadWrap.appendChild(thread); threadWrap.appendChild(shots); threadWrap.appendChild(el('label', 'claSfLbl', 'Reply')); threadWrap.appendChild(reply); threadWrap.appendChild(replyRow);
   const compose = el('form');
   const title = el('input'); title.type = 'text'; title.maxLength = 140; title.setAttribute('aria-label', 'Title');
@@ -194,7 +202,9 @@ function mount(user, api) {
   const pageWrap = el('label', 'claSfLbl', 'Page'); const page = el('input'); page.type = 'text'; page.maxLength = 200; pageWrap.appendChild(page); pageWrap.hidden = true;
   const includeOrder = el('input'); includeOrder.type = 'checkbox';
   const orderWrap = el('label', 'claSfLbl', 'File number'); const file = el('input'); file.type = 'text'; file.maxLength = 40; orderWrap.appendChild(file); orderWrap.hidden = true;
-  const shot = el('input'); shot.type = 'file'; shot.accept = ACCEPT; shot.setAttribute('aria-label', 'Screenshot');
+  const shot = el('input'); shot.type = 'file'; shot.accept = ACCEPT; shot.setAttribute('aria-label', 'Evidence file');
+  const progress = el('p', 'claSfMeta'); progress.setAttribute('role', 'status');
+  const cancel = el('button', 'claSfBtn o', 'Cancel upload'); cancel.type = 'button'; cancel.hidden = true;
   const err = el('div', 'claSfErr'); err.setAttribute('role', 'alert');
   const save = el('button', 'claSfBtn', 'Save report'); save.type = 'submit';
   compose.appendChild(el('label', 'claSfLbl', 'Title')); compose.appendChild(title);
@@ -202,44 +212,80 @@ function mount(user, api) {
   const pageCheck = el('label', 'claSfCheck'); pageCheck.appendChild(includePage); pageCheck.appendChild(document.createTextNode(' Include the page I name'));
   const orderCheck = el('label', 'claSfCheck'); orderCheck.appendChild(includeOrder); orderCheck.appendChild(document.createTextNode(' Include an order file number I name'));
   compose.appendChild(pageCheck); compose.appendChild(pageWrap); compose.appendChild(orderCheck); compose.appendChild(orderWrap);
-  compose.appendChild(el('p', 'claSfMeta', 'Both boxes start off. One screenshot, not a folder. Customer files are not copied.'));
-  compose.appendChild(shot); compose.appendChild(err);
+  compose.appendChild(el('p', 'claSfMeta', supportedTypesText() + ' A file is evidence, not a permission to deploy, delete, or send. Saving stores it. It is not analyzed.'));
+  compose.appendChild(shot); compose.appendChild(progress); compose.appendChild(cancel); compose.appendChild(err);
   const row = el('div', 'claSfRow'); row.appendChild(save); compose.appendChild(row);
   const mine = el('section', 'claSfMine'); mine.appendChild(el('h3', '', 'My reports'));
   const list = el('ul'); mine.appendChild(list);
   body.appendChild(notice); body.appendChild(where); body.appendChild(threadWrap); body.appendChild(compose); body.appendChild(mine);
   dlg.appendChild(x); dlg.appendChild(hi); dlg.appendChild(body); ovl.appendChild(dlg);
   root.appendChild(ovl); document.body.appendChild(root);
-  live = { ovl, dlg, title, body: message, reply, includePage, includeOrder, page, file, pageWrap, orderWrap, shot, err, notice, where, thread, threadWrap, shots, compose, list };
+  live = { ovl, dlg, title, body: message, reply, includePage, includeOrder, page, file, pageWrap, orderWrap, shot, progress, cancel, err, notice, where, thread, threadWrap, shots, compose, list };
   applyDraft(loadDraft(store(), user.id));
   const keep = () => persist();
   [title, message, reply, page, file].forEach((n) => n.addEventListener('input', keep));
   includePage.addEventListener('change', () => { pageWrap.hidden = !includePage.checked; if (includePage.checked && !page.value) { try { page.value = sanitizePage(location.hash.split('?')[0]); } catch (e) { page.value = ''; } } keep(); });
   includeOrder.addEventListener('change', () => { orderWrap.hidden = !includeOrder.checked; keep(); });
-  x.addEventListener('click', () => setOpen(false));
+  let checked = null;
+  let uploadAbort = null;
+  const mediaLength = (picked, kind) => new Promise((resolve, reject) => {
+    if (kind !== 'audio' && kind !== 'video') { resolve(null); return; }
+    const url = URL.createObjectURL(picked);
+    const node = document.createElement(kind === 'video' ? 'video' : 'audio');
+    node.preload = 'metadata';
+    node.onloadedmetadata = () => { const ms = Math.round(node.duration * 1000); URL.revokeObjectURL(url); resolve(ms); };
+    node.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not confirm the length. It was not saved.')); };
+    node.src = url;
+  });
+  shot.addEventListener('change', async () => {
+    err.textContent = ''; checked = null;
+    const picked = shot.files && shot.files[0];
+    if (!picked) { progress.textContent = ''; progress.dataset.filePhase = 'idle'; return; }
+    progress.dataset.filePhase = 'reading'; progress.textContent = 'Reading the file…'; cancel.hidden = false;
+    const ctrl = new AbortController(); uploadAbort = ctrl;
+    cancel.onclick = () => ctrl.abort();
+    try {
+      const buf = await readWithProgress(picked, () => new FileReader(), { onProgress: (s) => { progress.textContent = 'Reading the file… ' + s.progress + '%'; }, signal: ctrl.signal });
+      progress.dataset.filePhase = 'checking'; progress.textContent = 'Checking the file type…';
+      const bytes = new Uint8Array(buf);
+      const ext = (picked.name.split('.').pop() || '').toLowerCase();
+      const kind = ['mp3', 'm4a', 'wav'].includes(ext) ? 'audio' : ['mp4', 'webm'].includes(ext) ? 'video' : '';
+      const durationMs = await mediaLength(picked, kind);
+      const meta = inspectUpload({ name: picked.name, mimeType: picked.type, size: picked.size, bytes, durationMs, webkitRelativePath: picked.webkitRelativePath });
+      let dataUrl = null;
+      if (meta.kind === 'image') dataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(picked); });
+      checked = { meta, dataUrl, bytes };
+      progress.dataset.filePhase = 'ready'; progress.textContent = meta.name + ' — Ready to store. Not analyzed.';
+    } catch (ex) {
+      shot.value = ''; checked = null; progress.dataset.filePhase = 'error'; progress.textContent = '';
+      err.textContent = ex.message || 'That file was not accepted.';
+    } finally { cancel.hidden = true; uploadAbort = null; }
+  });
+  x.addEventListener('click', () => { if (uploadAbort) uploadAbort.abort(); setOpen(false); });
   ovl.addEventListener('click', (e) => { if (e.target === ovl) setOpen(false); });
   back.addEventListener('click', () => { state = nextWidgetState(state, { type: 'select', reportId: '' }); paint(api); });
   compose.addEventListener('submit', async (e) => {
     e.preventDefault(); err.textContent = '';
     const idem = newId();
     try {
+      if (shot.files && shot.files[0] && !checked) throw new Error('The file type was not checked. It was not saved.');
+      progress.dataset.filePhase = 'saving'; progress.textContent = 'Saving the file…';
       const saved = await api.createStaffFeedback({
         title: title.value, body: message.value, includePage: includePage.checked, page: includePage.checked ? page.value : '',
         includeOrder: includeOrder.checked, fileNumber: includeOrder.checked ? file.value : '', idempotencyKey: idem,
       });
-      const picked = shot.files && shot.files[0];
-      if (picked) {
-        if (picked.webkitRelativePath || shot.hasAttribute('webkitdirectory')) throw new Error('Choose one screenshot. Folder upload is not available.');
-        const dataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the screenshot.')); r.readAsDataURL(picked); });
-        await api.addStaffFeedbackAttachment(saved.id, { name: picked.name, mimeType: picked.type, size: picked.size, dataUrl, idempotencyKey: newId() });
+      if (checked) {
+        const saveFile = api.addStaffFeedbackContextFile || api.addStaffFeedbackAttachment;
+        await saveFile.call(api, saved.id, { name: checked.meta.name, mimeType: checked.meta.mime, size: checked.meta.size, bytes: checked.bytes, dataUrl: checked.dataUrl, durationMs: checked.meta.durationMs, idempotencyKey: newId() });
       }
-      title.value = ''; message.value = ''; includePage.checked = false; includeOrder.checked = false; page.value = ''; file.value = ''; shot.value = '';
+      title.value = ''; message.value = ''; includePage.checked = false; includeOrder.checked = false; page.value = ''; file.value = ''; shot.value = ''; checked = null;
       pageWrap.hidden = true; orderWrap.hidden = true;
+      progress.dataset.filePhase = 'stored'; progress.textContent = 'Stored. Not analyzed.';
       state = nextWidgetState(state, { type: 'select', reportId: saved.id });
       saveDraft(store(), user.id, emptySafe());
-      notice.textContent = saved.notice || deliveryNotice('pending_dispatch', 'bridge_unconfigured');
+      notice.textContent = (saved.notice || deliveryNotice('pending_dispatch', 'bridge_unconfigured')) + ' ' + PENDING_CONNECTION;
       await paint(api);
-    } catch (ex) { err.textContent = ex.message || 'Could not save.'; }
+    } catch (ex) { progress.dataset.filePhase = 'error'; err.textContent = ex.message || 'Could not save.'; }
   });
   replyBtn.addEventListener('click', async () => {
     err.textContent = '';
@@ -250,10 +296,6 @@ function mount(user, api) {
       await paint(api);
       if (saved && saved.notice) notice.textContent = saved.notice;
     } catch (ex) { err.textContent = ex.message || 'Could not save.'; }
-  });
-  sim.addEventListener('click', async () => {
-    try { const saved = await api.simulateStaffFeedback(state.reportId); notice.textContent = saved.notice; await paint(api); }
-    catch (ex) { err.textContent = ex.message || 'The test simulation was not run.'; }
   });
   paint(api);
 }

@@ -170,7 +170,7 @@ check(openThread.open === true && openThread.reportId === 'r1', 'moving between 
 const switched = nextWidgetState(openThread, { type: 'sync', allowed: true, userId: 'admin' });
 check(switched.switched === true && switched.open === false && switched.reportId === '' && switched.userId === 'admin', 'a different person does not inherit the open thread');
 const widgetSrc = readWidget(new URL('../js/pages/staff-feedback-widget.js', import.meta.url), 'utf8');
-check(!widgetSrc.includes('Hey! I am John') && !widgetSrc.includes('Thanks, I read every note') && !widgetSrc.includes('innerHTML') && widgetSrc.includes('Not delivered to the assistant'), 'the widget does not pretend to be a live chat');
+check(!widgetSrc.includes('Hey! I am John') && !widgetSrc.includes('Thanks, I read every note') && !widgetSrc.includes('innerHTML') && widgetSrc.includes('Not delivered to the tech assistant') && widgetSrc.includes('Not analyzed'), 'the widget does not pretend to be a live chat');
 check(widgetSrc.includes("shot.type = 'file'") && !widgetSrc.includes('webkitdirectory=') && !widgetSrc.includes('multiple') && !widgetSrc.includes('claSfFab'), 'the widget attaches one screenshot and has no corner button');
 check(widgetSrc.includes('cla-sf-open') && widgetSrc.includes('topbar-main'), 'the open panel leaves the header Bots menu clickable');
 

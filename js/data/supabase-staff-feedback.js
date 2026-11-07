@@ -1,6 +1,6 @@
 /* Supabase adapter for staff portal feedback. RPCs enforce the rules. The browser has no webhook URL or Bearer key.
  * Test simulation is refused here so a hosted session cannot pretend the assistant replied. */
-import { screenshotMeta } from './staff-feedback.js?v=202611071800';
+import { screenshotMeta } from './staff-feedback.js?v=202611072230';
 
 const uid = () => (globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : '');
 const safeName = (n) => String(n || 'screenshot').replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 80);
