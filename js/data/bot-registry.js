@@ -5,7 +5,7 @@ export function botRegistry() {
     {
       id: 'portal-feedback',
       label: 'Portal feedback',
-      detail: 'Saved in this portal. Not delivered to the assistant.',
+      detail: 'Text support, one way. Save a note, then send it.',
       configured: true,
     },
   ];

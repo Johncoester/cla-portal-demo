@@ -1,6 +1,6 @@
 /* Supabase adapter for staff portal feedback. RPCs enforce the rules. The browser has no webhook URL or Bearer key.
  * Test simulation is refused here so a hosted session cannot pretend the assistant replied. */
-import { screenshotMeta } from './staff-feedback.js?v=202611080100';
+import { screenshotMeta } from './staff-feedback.js?v=202611080250';
 
 const uid = () => (globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : '');
 const safeName = (n) => String(n || 'screenshot').replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 80);
@@ -39,9 +39,11 @@ export function staffFeedbackSupabase({ sb, ok, camel }) {
     async simulateStaffFeedback() { throw new Error('Test simulation is only available in the local demo. Nothing was sent.'); },
     async requestStaffFeedbackDispatch(id) {
       const res = await sb.functions.invoke('staff-feedback-dispatch', { body: { explicit: true, feedback_id: id } });
-      const data = res && res.data || {};
-      if (res.error) return { sent: false, replied: false, runAccepted: false, recorded: false, reason: 'bridge_unconfigured', error: 'Dispatch is not enabled. Nothing was sent.' };
-      return { sent: false, replied: false, runAccepted: data.runAccepted === true, recorded: data.recorded === true, reason: data.reason || 'bridge_unconfigured', error: data.error || '' };
+      const data = res && res.data && typeof res.data === 'object' ? res.data : {};
+      const error = typeof data.error === 'string' ? data.error : '';
+      if (data.reason || error) return { sent: false, replied: false, runAccepted: data.runAccepted === true, recorded: data.recorded === true, reason: data.reason || '', error };
+      if (res && res.error) return { sent: false, replied: false, runAccepted: false, recorded: false, reason: 'send_not_accepted', error: 'The server did not accept the send. It was not marked delivered.' };
+      return { sent: false, replied: false, runAccepted: data.runAccepted === true, recorded: data.recorded === true, reason: data.reason || 'send_not_accepted', error };
     },
   };
 }

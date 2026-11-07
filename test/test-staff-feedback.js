@@ -46,7 +46,7 @@ const key = '11111111-1111-4111-8111-111111111111';
 const created = createReport(bag, john, { title: 'Orders list', body: 'The file number is missing.', includePage: true, page: 'https://testportal.clatitle.com/index.html?token=secret#/orders?x=1', includeOrder: true, fileNumber: 'MD-26-97183', idempotencyKey: key, status: 'fixed', deliveryState: 'run_accepted' }, { now, id, findOrder });
 check(created.status === 'open' && created.deliveryState === 'pending_dispatch' && created.sent === false && created.runAccepted === false && created.botRead === false && bag.outbox[0].dispatchAllowed === false, 'a new report is saved pending and not delivered');
 check(created.pagePath === '#/orders' && created.orderFileNumber === 'MD-26-97183' && !JSON.stringify(created).includes('SHOULD NOT COPY') && !JSON.stringify(created).includes('token'), 'consent keeps the path and file number only');
-check(created.notice === deliveryNotice('pending_dispatch', 'bridge_unconfigured'), 'the notice says the webhook is not configured');
+check(created.notice === deliveryNotice('pending_dispatch', 'bridge_unconfigured') && !/bearer|not configured/i.test(created.notice), 'a saved report is not delivered and does not claim the server key is missing');
 const retry = createReport(bag, john, { title: 'other', body: 'other', idempotencyKey: key }, { now, id, findOrder });
 check(retry.id === created.id && bag.reports.length === 1 && bag.outbox.length === 1, 'retrying the same save does not duplicate the report');
 check(boom(() => createReport(bag, buyer, { title: 'x', body: 'y', idempotencyKey: '22222222-2222-4222-8222-222222222222' }, { now, id, findOrder })).includes('not available'), 'a buyer cannot create');

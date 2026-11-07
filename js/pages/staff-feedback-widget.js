@@ -1,9 +1,8 @@
 /* Persistent staff launcher. It lives on document.body, so opening a file tab does not close it or wipe the draft.
  * Text support, one way. It is not a live chat. A phone or tablet app is not part of this pilot.
  * The screenshot dropdown is the published image store. The assistant does not read the file. */
-import { deliveryNotice, newId, sanitizePage, STATUS_LABELS } from '../data/staff-feedback.js?v=202611080100';
-import { PENDING_CONNECTION } from '../data/assistant-handoff.js?v=202611080100';
-import { launcherAllowed, loadDraft, nextWidgetState, saveDraft } from '../data/staff-feedback-widget-state.js?v=202611071830';
+import { COMPOSE_NOTICE, newId, reportNotice, sanitizePage, STATUS_LABELS } from '../data/staff-feedback.js?v=202611080250';
+import { launcherAllowed, loadDraft, nextWidgetState, saveDraft } from '../data/staff-feedback-widget-state.js?v=202611080250';
 
 const ACCEPT = 'image/png,image/jpeg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif';
 const HOST_ID = 'claStaffFeedbackRoot';
@@ -141,12 +140,12 @@ async function paint(api) {
   live.threadWrap.hidden = !current;
   live.compose.hidden = !!current;
   if (!current) {
-    live.notice.textContent = deliveryNotice('pending_dispatch', 'bridge_unconfigured');
+    live.notice.textContent = COMPOSE_NOTICE;
     return;
   }
   let full = current;
   try { full = await api.getStaffFeedback(current.id); } catch (e) { full = current; }
-  live.notice.textContent = full.notice || deliveryNotice(full.deliveryState, full.deliveryReason);
+  live.notice.textContent = reportNotice(full);
   (full.messages || []).forEach((m) => bubble(live.thread, m));
   (full.attachments || []).forEach((a) => {
     const row = el('p');
@@ -167,11 +166,12 @@ async function paint(api) {
       live.notice.textContent = 'Asking the server to send the text…';
       try {
         const result = api.requestStaffFeedbackDispatch ? await api.requestStaffFeedbackDispatch(full.id) : { reason: 'bridge_unconfigured', error: 'Dispatch is not enabled. Nothing was sent.' };
+        const safeError = /bearer|webhook url|token|eyJ/i.test(String(result.error || '')) ? '' : (result.error || '');
         live.notice.textContent = result.reason === 'run_started'
           ? 'The routine accepted a run. This is not a reply and it is not delivered.'
           : result.reason === 'accepted_unrecorded'
             ? 'The routine may have accepted a run, but the portal could not record it. It was not posted again.'
-            : (result.error || 'Dispatch is not enabled. Nothing was sent.');
+            : (safeError || 'The server did not accept the send. It was not marked delivered.');
       } catch (ex) { live.err.textContent = ex.message || 'Nothing was sent.'; }
     });
     live.shots.appendChild(send);
@@ -254,7 +254,7 @@ function mount(user, api) {
       pageWrap.hidden = true; orderWrap.hidden = true;
       state = nextWidgetState(state, { type: 'select', reportId: saved.id });
       saveDraft(store(), user.id, emptySafe());
-      notice.textContent = (saved.notice || deliveryNotice('pending_dispatch', 'bridge_unconfigured')) + ' ' + PENDING_CONNECTION;
+      notice.textContent = reportNotice(saved);
       await paint(api);
     } catch (ex) { err.textContent = ex.message || 'Could not save.'; }
   });

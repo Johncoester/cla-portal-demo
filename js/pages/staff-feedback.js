@@ -1,13 +1,13 @@
 /* Portal feedback for CLA staff. Not the file inbox. Screenshots stay on this page.
  * Delivery copy comes from the saved state. A test simulation is labeled and is not the assistant. */
 import { html, raw, $, $$, guard, toast, fmtDateTime, fmtSize } from '../ui.js?v=202611071800';
-import { FEEDBACK_STATUSES, STATUS_LABELS, canReportStaffFeedback, canSupportStaffFeedback, deliveryNotice, newId, sanitizePage } from '../data/staff-feedback.js?v=202611080100';
+import { FEEDBACK_STATUSES, STATUS_LABELS, canReportStaffFeedback, canSupportStaffFeedback, COMPOSE_NOTICE, newId, reportNotice, sanitizePage } from '../data/staff-feedback.js?v=202611080250';
 
 const ACCEPT = 'image/png,image/jpeg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the screenshot.')); r.readAsDataURL(f); });
 
 function standingNotice() {
-  return deliveryNotice('pending_dispatch', 'bridge_unconfigured');
+  return COMPOSE_NOTICE;
 }
 
 export async function render({ api, user, params, go }) {
@@ -32,7 +32,7 @@ export async function render({ api, user, params, go }) {
       <div class="span2"><button class="m-btn" type="submit" data-feedback-save>Save report</button></div>
     </form>
     <div class="card"><h3>Your reports${support ? ' and staff reports you can review' : ''}</h3>
-      ${rows.length ? html`<ul class="staff-feedback-list" data-feedback-list>${rows.map((r) => html`<li data-feedback-row="${r.id}"><a href="#/staff-feedback/${r.id}"><strong>${r.title}</strong></a> <span class="pill" data-feedback-status="${r.status}">${r.statusLabel}</span><br><span class="muted small" data-feedback-row-notice>${r.notice}</span></li>`)}</ul>` : html`<p class="muted" data-feedback-empty>No reports yet.</p>`}
+      ${rows.length ? html`<ul class="staff-feedback-list" data-feedback-list>${rows.map((r) => html`<li data-feedback-row="${r.id}"><a href="#/staff-feedback/${r.id}"><strong>${r.title}</strong></a> <span class="pill" data-feedback-status="${r.status}">${r.statusLabel}</span><br><span class="muted small" data-feedback-row-notice>${reportNotice(r)}</span></li>`)}</ul>` : html`<p class="muted" data-feedback-empty>No reports yet.</p>`}
     </div>
   </section>`;
   return { title: 'Portal feedback', crumbs: [['Portal feedback']], body, mount(root) { wireForm(root, { api, go }); } };
@@ -44,7 +44,7 @@ async function detail({ api, user, id, go }) {
   const body = html`<section class="staff-feedback" data-staff-feedback-page="detail" data-feedback-id="${report.id}">
     <div class="box-title"><h2>${report.title}</h2></div>
     <p><a class="back-btn" href="#/staff-feedback">All portal feedback</a></p>
-    <p class="notice ${report.deliveryState === 'simulated' ? 'warn' : 'info'}" data-feedback-notice role="status">${report.notice}</p>
+    <p class="notice ${report.deliveryState === 'simulated' ? 'warn' : 'info'}" data-feedback-notice role="status">${reportNotice(report)}</p>
     <p><span class="pill" data-feedback-status="${report.status}">${report.statusLabel}</span> <span class="muted small">${report.reporterName} · ${report.reporterRole} · ${fmtDateTime(report.createdAt)}</span></p>
     ${report.pagePath ? html`<p data-feedback-page>Page: <code>${report.pagePath}</code></p>` : html`<p class="muted" data-feedback-page>No page was included.</p>`}
     ${report.orderFileNumber ? html`<p data-feedback-order>Order file number: <strong>${report.orderFileNumber}</strong></p>` : html`<p class="muted" data-feedback-order>No order was included.</p>`}
@@ -87,7 +87,7 @@ function wireForm(root, { api, go }) {
       includeOrder: orderBox.checked, fileNumber: orderBox.checked ? form.fileNumber.value : '', idempotencyKey: idem,
     });
     if (picked) await api.addStaffFeedbackAttachment(saved.id, { name: picked.name, mimeType: picked.type, size: picked.size, dataUrl: await readFile(picked), idempotencyKey: newId() });
-    toast(saved.notice || standingNotice());
+    toast(reportNotice(saved));
     go(`/staff-feedback/${saved.id}`);
   }));
 }

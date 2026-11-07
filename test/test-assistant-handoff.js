@@ -1,7 +1,7 @@
 /* Local checks for the disabled handoff and the published image screenshot. No network and no hosted rows. */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { addAttachment, createReport, emptyBag, getReport } from '../js/data/staff-feedback.js';
-import { HANDOFF_ENABLED, RETURN_PATH_ENABLED, PENDING_CONNECTION, attemptHandoff, classifyAcceptance, classifyReturn, connectionRequirements, noteEffect } from '../js/data/assistant-handoff.js';
+import { HANDOFF_ENABLED, RETURN_PATH_ENABLED, attemptHandoff, classifyAcceptance, classifyReturn, connectionRequirements, noteEffect } from '../js/data/assistant-handoff.js';
 
 let fail = 0;
 const check = (cond, message) => { if (cond) console.log('ok', message); else { fail++; console.log('FAIL', message); } };
@@ -44,7 +44,7 @@ const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const accounting = readFileSync(new URL('../js/data/accounting.js', import.meta.url), 'utf8');
 check(widget.includes('Text support, one way') && widget.includes('image/png') && widget.includes('addStaffFeedbackAttachment') && !widget.includes('assistant-files') && !widget.includes('api.x.ai') && !widget.includes('fetch('), 'the panel is text support and keeps the image dropdown');
 check(page.includes('image/png,image/jpeg,image/webp,image/gif') && !page.includes('.pdf'), 'the report page screenshot dropdown stays images');
-check(widget.includes('PENDING_CONNECTION') && PENDING_CONNECTION.includes('Not delivered'), 'the panel says the note is still pending');
+check(widget.includes('COMPOSE_NOTICE') && widget.includes('reportNotice') && !widget.includes('Bearer key'), 'the panel does not claim the server key is missing');
 check(app.includes('data-bots-btn') && app.includes('accounting') && accounting.includes('Accounting is turned off'), 'the Bots menu and Accounting module are still present');
 
 console.log(fail ? `${fail} failed` : 'assistant handoff passed');
