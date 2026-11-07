@@ -4,6 +4,7 @@ import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from
 import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611070139';
 import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611070139';
 import { themeOn } from '../theme.js?v=202611070139';
+import { pendingMine } from '../data/task-actions.js?v=202611070139';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>${d.fileTitle ? html` <span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}`;
 // CARD THEME (default look): a tile that repeats one of the four dashboard cards (open orders = "in Pipeline" count, overdue tasks) is not drawn;
@@ -129,7 +130,9 @@ export const myTaskList = (tasks) => { const open = tasks.filter((t) => ['todo',
       <td data-my-task-role>${t.myRoleLabel || ''}</td><td class="nowrap ${t.overdue ? 'warn' : ''}">${t.dueDate ? fmtDate(t.dueDate) : html`<span class="muted">-</span>`}</td></tr>`)}</tbody></table>`
       : html`<p class="muted">Nothing needed from you right now.</p>`}</div>`; };
 async function outside({ api, deals, all }) {
-  const mine = api.listMyTasks ? await api.listMyTasks({ fileStatus: 'Open' }) : [];
+  const fromFiles = pendingMine(all.filter((t) => !t.deal || t.deal.status === 'Open'));
+  const rpc = api.listMyTasks ? await api.listMyTasks({ fileStatus: 'Open' }).catch(() => []) : [];
+  const mine = fromFiles.length ? fromFiles : rpc;
   const mineOpen = (d) => all.filter((t) => t.deal.id === d.id && t.mine && ['todo', 'in_progress', 'blocked'].includes(t.status)).length;
   const sections = GROUPS.map(([role, label]) => { const list = deals.filter((d) => groupOf(d) === role); if (!list.length) return '';
     const isC = isClient(role); const shown = isC ? list.filter((d) => d.status === 'Open') : list;

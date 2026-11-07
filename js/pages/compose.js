@@ -56,6 +56,6 @@ export async function composeModal({ api, deal, go, user }, { title = 'New Conve
   $('#cmpf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); if (fl && fl.busy) throw new Error('Wait for the upload to finish.'); const f = e.target;
     if (!f.to.value) throw new Error('Pick who to send it to.'); if (!ed.text && !(fl && fl.files.length)) throw new Error('Write a message or add a file.');
     const t = await api.sendMessage({ dealId: deal.id, to: [f.to.value], subject: f.subject.value, bodyHtml: ed.html, files: fl ? fl.files.map((z) => ({ ...z, wireInstructions: !!(mark && mark.checked) })) : [] });
-    closeModal(); toast(fl && fl.files.length ? 'Files shared' : 'Message sent'); go(`/deals/${deal.id}/inbox/${t.id}`); }));
+    closeModal(); toast(t && t.failedFiles && t.failedFiles.length ? `${(t.savedFiles || []).length} file(s) shared. ${t.failedFiles.length} not uploaded. Nothing was emailed.` : (fl && fl.files.length ? 'Files shared' : 'Message saved in the portal. Nothing was emailed.')); go(`/deals/${deal.id}/inbox/${t.id}`); }));
   return m;
 }

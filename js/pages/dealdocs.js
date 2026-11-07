@@ -1,6 +1,7 @@
 // Documents tab with folders. Upload, open/download, file into folders, edit description/visibility. There is NO delete: documents are kept permanently.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDateTime, fmtSize, pill, toast } from '../ui.js?v=202611070139';
 import { composeModal } from './compose.js?v=202611070139';
+import { uploadDocumentBatch } from '../data/document-batch.js?v=202611070139';
 import { runsOrders, viewOnly, DOC_VISIBILITY, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isViewOnly, isClient, visibilityChoices, visibilityLabel, CLIENT_SHARE_NOTE, BUYER_SHARE_NOTE, DOC_TYPES, docTypeChoices } from '../data/constants.js?v=202611070139';
 const icon = (n) => (/\.pdf$/i.test(n) ? 'pdf_icon.png' : /\.docx?$/i.test(n) ? 'word_icon.png' : /\.(xlsx?|csv)$/i.test(n) ? 'excel_icon.png' : 'image_icon.png');
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
@@ -55,20 +56,28 @@ export async function render({ api, user, deal, refresh }) {
   } };
 
   function upload() {
-    const m = modal('Upload a document', html`<form id="uf" class="form-grid" novalidate><label class="span2">File * <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB)</span><input type="file" name="file"></label>
+    const m = modal('Upload documents', html`<form id="uf" class="form-grid" novalidate><label class="span2">Files * <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB each. Each file keeps the type, folder, and who can see it chosen below.)</span><input type="file" name="file" multiple data-upload-files></label>
       <label class="span2">Document type<select name="docType"><option value="">Choose&hellip;</option>${options(types, '')}</select></label>
       <label class="span2">Additional instruction<input name="description" maxlength="500"></label>
       <label class="span2">Folder<select name="folderId"><option value="">Unfiled</option>${options(realFolders, folder || '', (f) => f.name, (f) => f.id)}</select></label><label class="span2">Who can see it<select name="visibility">${options(visOpts, visOpts[0], VL)}</select></label>${staffView ? html`<label class="check span2"><input type="checkbox" name="wireInstructions" data-wire-mark> Wire instructions (buyer clients and CLA Title only; agents never see it, whatever "Who can see it" says)</label>` : ''}${isClient(user.role) ? html`<p class="span2 muted small" data-share-note>${user.role === 'Client-Buyer' ? BUYER_SHARE_NOTE : CLIENT_SHARE_NOTE}</p>` : ''}
       <p class="span2 err-text" data-upload-err role="alert"></p>
       <div class="span2"><button class="m-btn" type="submit" data-upload-submit>Upload</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
     $('#uf', m).addEventListener('submit', async (e) => { e.preventDefault(); const form = e.target; const err = $('[data-upload-err]', form); const btn = $('[data-upload-submit]', form); err.textContent = '';
-      const f = formData(form); const file = f.file; if (!file || !file.name) { err.textContent = 'Choose a file to upload.'; toast('Choose a file to upload.', 'err'); return; }
-      if (file.size > MAX_UPLOAD_BYTES) { err.textContent = 'File is too large for this demo.'; toast(err.textContent, 'err'); return; }
+      const f = formData(form); const picked = [...(form.querySelector('[data-upload-files]').files || [])];
+      if (!picked.length) { err.textContent = 'Choose a file to upload.'; toast('Choose a file to upload.', 'err'); return; }
       if (btn.disabled) return; btn.disabled = true; btn.textContent = 'Uploading…';
+      const names = docs.map((d) => d.name);
       try {
-        const dataUrl = await readFile(file);
-        await api.addDocument(deal.id, { name: file.name, description: f.description, mimeType: file.type, size: file.size, dataUrl, file, visibility: f.visibility, folderId: f.folderId || null, docType: f.docType || '', wireInstructions: staffView && !!f.wireInstructions });
-        closeModal(); toast('Uploaded'); refresh();
+        const result = await uploadDocumentBatch(picked, async (file) => {
+          const dataUrl = await readFile(file);
+          return api.addDocument(deal.id, { name: file.name, description: f.description, mimeType: file.type, size: file.size, dataUrl, file, visibility: f.visibility, folderId: f.folderId || null, docType: f.docType || '', wireInstructions: staffView && !!f.wireInstructions });
+        }, names);
+        const lines = result.failed.map((z) => `${z.name}: ${z.reason}`);
+        if (result.saved.length && !result.failed.length) { closeModal(); toast(`${result.saved.length} uploaded`); refresh(); return; }
+        err.textContent = `${result.saved.length} uploaded. ${result.failed.length} not uploaded. ${lines.join(' ')}`;
+        toast(err.textContent, result.saved.length ? 'ok' : 'err');
+        btn.disabled = false; btn.textContent = 'Upload';
+        if (result.saved.length) refresh();
       } catch (ex) { const msg = ex.message || 'The upload failed.'; err.textContent = msg; toast(msg, 'err'); btn.disabled = false; btn.textContent = 'Upload'; } });
   }
   // E-SIGN (demo): processor / coordinator pick who signs. Only people who can see the document can be asked.
