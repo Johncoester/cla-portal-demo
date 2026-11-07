@@ -24,6 +24,7 @@ export function qcNav(deal, view, sec, base, showPayoffs = true) {
   const a = (href, label, on, attrs = '', chip = '') => html`<a class="qc-nav-link ${on ? 'on' : ''}" href="${href}"${raw(attrs)}>${chip ? html`<span class="qc-chip">${chip}</span>` : ''}<span>${label}</span></a>`;
   return html`<nav class="qc-nav acct-noprint" data-acct-tabs data-qc-nav aria-label="Accounting sections">
     <div class="qc-nav-group">General</div>
+    ${a(`${base}?v=contract`, 'Contract figures', view === 'contract', ' data-acct-tab="contract"')}
     ${a(`#/deals/${deal.id}/overview`, 'Basic Info', false, ' data-qc-nav-basic')}${a(`#/deals/${deal.id}/contacts`, 'Contacts', false, ' data-qc-nav-contacts')}
     ${showPayoffs ? html`${a(`${base}?v=othercontacts`, 'Other Contacts', view === 'othercontacts', ' data-acct-tab="othercontacts"')}
     ${a(`${base}?v=taxes`, 'Taxes & Prorations', view === 'taxes', ' data-acct-tab="taxes"')}${modOn('payoffs') ? a(`${base}?v=payoffs`, 'Payoffs', view === 'payoffs', ' data-acct-tab="payoffs"') : ''}` : ''}

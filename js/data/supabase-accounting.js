@@ -4,7 +4,8 @@
  * (staff only, Sales read-only, no deletes, refinance has no seller side, every change logged in accounting_fee_log). Nothing is sent. */
 // Caroline, Nov 4 (migration 39): prorations, CD details (accounting_cd_details + accounting_cd_log), prepaids / escrow lines, TCs read-only.
 import { cleanCdDetails, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA, cdFieldLabel } from './cd-pages.js?v=202611070139';
-import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, cleanFee, allEntries, ledgerTotals, altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration, feeChanges } from './accounting.js?v=202611070139';
+import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, cleanFee, allEntries, ledgerTotals, altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration, feeChanges } from './accounting.js?v=202611071751';
+import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractMismatch, assertContractPersisted, exactlyOneRow, ESTIMATE_POSTURE } from './contract-terms.js?v=202611071820';
 // CLA RATES (migration 36): calculated fees carry calc_source = 'cla-rates' + calc_key / calc_fields / rate_source / calculation / calc_inputs /
 // calc_version / calc_at; the trigger keeps `overridden` (a person changed what the calculation set). The engine loads lazily (flag off = never).
 const engine = () => import('./fee-engine.js?v=202611070139');
@@ -99,11 +100,44 @@ export function accountingSupabase({ sb, ok, flags }) {
     async listAccountingLog(dealId) { on(); await access(dealId); const rows = ok(await sb.from('accounting_fee_log').select('*').eq('deal_id', dealId).order('changed_at', { ascending: false })) || [];
       const cdRows = (ok(await sb.from('accounting_cd_log').select('*').eq('deal_id', dealId).order('changed_at', { ascending: false })) || []).map((l) => ({ id: l.id, dealId: l.deal_id, feeId: 'cd', description: 'Closing Disclosure details', action: l.action, at: l.changed_at, byId: l.changed_by, byName: '', cd: true,
         changes: (l.changes || []).map((c) => ({ field: c.field, label: cdFieldLabel(c.field), old: c.old, new: c.new })) }));
-      return [...cdRows, ...rows.map((l) => ({ id: l.id, dealId: l.deal_id, feeId: l.fee_id, description: (l.new_row || {}).description || '', action: l.action, at: l.changed_at, byId: l.changed_by, byName: '',
+      let contractRows = [];
+      try { contractRows = (ok(await sb.from('accounting_contract_terms_log').select('*').eq('deal_id', dealId).order('changed_at', { ascending: false })) || []).map((l) => ({ id: l.id, dealId: l.deal_id, feeId: 'contract', description: 'Contract figures (estimate, not a ledger line)', action: l.action, at: l.changed_at, byId: l.changed_by, byName: '', via: 'Contract figures', changes: l.changes || [] })); }
+      catch (e) { if (!/schema cache|could not find the table|does not exist/i.test(e.message || '')) throw e; }
+      return [...contractRows, ...cdRows, ...rows.map((l) => ({ id: l.id, dealId: l.deal_id, feeId: l.fee_id, description: (l.new_row || {}).description || '', action: l.action, at: l.changed_at, byId: l.changed_by, byName: '',
         ...((l.changes || []).some((c) => /^calc_|^calculation$|^rate_source$/.test(c.field)) ? { via: 'CLA rates' } : {}),
         ...((l.changes || []).some((c) => c.field === 'preset_key' && /^cdcalc:/.test(String(c.new || ''))) || /^cdcalc:/.test(String((l.new_row || {}).preset_key || '')) ? { via: CDCALC_VIA } : {}),
         changes: (l.changes || []).map((c) => ({ field: c.field, old: c.old, new: c.new })) }))].sort((x, y) => String(y.at).localeCompare(String(x.at))); },
     async getAltaStatement(dealId, view = 'combined') { on(); await access(dealId); const d = await deal(dealId); return altaStatement(d, (await fees(dealId)).filter((f) => !f.retired), view); },
     async getClosingDisclosure(dealId) { on(); await access(dealId); const d = await deal(dealId); return closingDisclosure(d, (await fees(dealId)).filter((f) => !f.retired)); },
+    async getContractTerms(dealId) {
+      on(); const accessName = await access(dealId);
+      let rec;
+      try { rec = ok(await sb.from('accounting_contract_terms').select('*').eq('deal_id', dealId).maybeSingle()); }
+      catch (e) {
+        if (/schema cache|could not find the table|does not exist/i.test(e.message || '')) {
+          const blank = blankContract(dealId, accessName === 'edit');
+          blank.blocked = 'Contract figures are not on this database yet. Nothing was saved.';
+          return blank;
+        }
+        throw e;
+      }
+      if (!rec) return blankContract(dealId, accessName === 'edit');
+      const parsed = fromContractRow(rec);
+      return { dealId, saved: true, canEdit: accessName === 'edit', posture: ESTIMATE_POSTURE, blocked: '', fields: parsed.fields, flags: parsed.flags, updatedAt: parsed.updatedAt };
+    },
+    async saveContractTerms(dealId, input) {
+      on(); await editor(dealId); const clean = cleanContractTerms(input);
+      const existing = ok(await sb.from('accounting_contract_terms').select('*').eq('deal_id', dealId).maybeSingle());
+      const prev = existing ? fromContractRow(existing) : { fields: blankContract(dealId).fields, flags: {} };
+      if (existing && !contractMismatch(clean, prev)) return { dealId, saved: true, canEdit: true, posture: ESTIMATE_POSTURE, blocked: '', fields: prev.fields, flags: prev.flags, updatedAt: prev.updatedAt };
+      const payload = toContractRow(clean);
+      const wrote = existing
+        ? ok(await sb.from('accounting_contract_terms').update(payload).eq('deal_id', dealId).select('*'))
+        : ok(await sb.from('accounting_contract_terms').insert({ deal_id: dealId, ...payload }).select('*').single());
+      const row = exactlyOneRow(wrote);
+      const back = fromContractRow(row);
+      assertContractPersisted(clean, back);
+      return { dealId, saved: true, canEdit: true, posture: ESTIMATE_POSTURE, blocked: '', fields: back.fields, flags: back.flags, updatedAt: back.updatedAt };
+    },
   };
 }
