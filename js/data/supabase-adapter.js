@@ -324,11 +324,11 @@ export async function createSupabaseAdapter(cfg) {
     if (threadId) {
       if (!text && !savedFiles.length) throw new Error(failedFiles[0] ? failedFiles[0].reason : 'Write a message first.');
       const note = savedFiles.length ? `${text || '(file shared)'}\n\nFiles on this order: ${savedFiles.map((f) => f.name).join(', ')}` : text;
-      ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: note.slice(0, 4000) }));
+      ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: note.slice(0, 4000), body_html: messageText(bodyHtml).clean || null }));
     } else if (savedFiles.length) {
       ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: `Files on this order: ${savedFiles.map((f) => f.name).join(', ')}`.slice(0, 4000) }));
     }
-    return { id: thread, threadId: thread, sent: false, savedFiles, failedFiles };
+    return { id: thread, threadId: thread, sent: false, emailed: false, deliveredInPortal: true, status: 'in_portal', savedFiles, failedFiles };
   };
   a.getThreadDetail = async (id) => {
     const user = await me();

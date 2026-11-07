@@ -30,6 +30,7 @@ run "$ROOT/test/disposable-owner-checks.sql"
 run "$ROOT/supabase/migrations/20261107024500_agent_document_insert.sql"
 run "$ROOT/test/disposable-rls-cases.sql"
 run "$ROOT/test/disposable-message-visibility.sql"
+run "$ROOT/test/portal-thread-replay.sql"
 echo "---- results ----"
 psql -d cla_disposable -c "select name, ok, detail from public.rls_results order by ok, name;"
 FAILS=$(psql -d cla_disposable -tA -c "select count(*) from public.rls_results where not ok;")
