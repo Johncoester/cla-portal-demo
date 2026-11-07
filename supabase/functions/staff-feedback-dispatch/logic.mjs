@@ -1,8 +1,8 @@
-/* Trusted server dispatcher. Not deployed.
- * Defaults off: STAFF_FEEDBACK_DISPATCH_ENABLED must be the string true, and the
- * URL and sender key must be in the function environment. The browser cannot supply them.
+/* Trusted server dispatcher for the TEST webhook pilot.
+ * STAFF_FEEDBACK_DISPATCH_ENABLED must be the string true, and the URL and sender key
+ * must be in the function environment. The browser cannot supply them.
  * HTTP 200 from the routine means a run was accepted. It is not a reply.
- * The platform service role, if present, stays inside this process. It is never returned or logged.
+ * JWT verification stays on. The platform service role, if present, stays inside this process.
  * https://cursor.com/help/grok-bot/routines.md */
 export const DISPATCH_HTTP_ENABLED = true;
 export const TEST_PROJECT_REF = 'aqcervntopidtcazcmlv';
@@ -55,13 +55,36 @@ export function corsHeaders(origin) {
   return headers;
 }
 
+function addressIsPublic(addr) {
+  const host = String(addr || '').toLowerCase();
+  if (!host || host === '::' || host === '::1' || host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80')) return false;
+  if (host.includes(':') && host.includes('.')) return false;
+  if (host.includes(':')) return true;
+  return !ipv4Private(host);
+}
+
 export function addressesArePublic(list) {
   if (!Array.isArray(list) || !list.length) return false;
-  return list.every((addr) => {
-    const host = String(addr || '').toLowerCase();
-    if (!host || host === '::1' || host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80')) return false;
-    return !ipv4Private(host);
-  });
+  return list.every(addressIsPublic);
+}
+
+/* Deno.resolveDns adapter. A missing AAAA record is empty. Any other failure returns no addresses. */
+export async function resolveHostAddresses(hostname, resolveDns) {
+  const name = String(hostname || '').trim().replace(/\.+$/, '').toLowerCase();
+  if (!name || typeof resolveDns !== 'function') return [];
+  const collect = async (kind) => {
+    try {
+      const rows = await resolveDns(name, kind);
+      return Array.isArray(rows) ? rows.map((item) => String(item)) : [];
+    } catch (err) {
+      if (err && (err.name === 'NotFound' || err.code === 'NotFound')) return [];
+      return null;
+    }
+  };
+  const v4 = await collect('A');
+  const v6 = await collect('AAAA');
+  if (v4 === null || v6 === null) return [];
+  return v4.concat(v6);
 }
 
 export function validateWebhookUrl(raw, hostPin, addresses) {
@@ -146,6 +169,35 @@ export async function recordAcceptance(eventId, claimId, env, fetchImpl) {
   return { ok: !!(body && body.ok === true && body.delivery_state === 'run_accepted') };
 }
 
+const STORED_OUTCOMES = new Set(['accepted_unrecorded', 'outcome_unknown', 'transport_rejected']);
+
+/* Persists a non-reply outcome with the same claim. It does not post the webhook. */
+export async function recordDispatchOutcome(eventId, claimId, outcome, httpStatus, env, fetchImpl) {
+  if (!STORED_OUTCOMES.has(outcome) || !UUID.test(String(eventId || '')) || !UUID.test(String(claimId || ''))) return { ok: false };
+  try {
+    const body = await serviceRpc('staff_feedback_finish_dispatch', {
+      p_event: eventId, p_claim: claimId, p_outcome: outcome, p_http: Number.isInteger(httpStatus) ? httpStatus : null,
+    }, env, fetchImpl);
+    return { ok: !!(body && body.ok === true && body.outcome === outcome) };
+  } catch (e) {
+    return { ok: false };
+  }
+}
+
+/* Native Response. A 204 has no body. CORS headers from the handler are kept. */
+export function toDispatchResponse(result) {
+  const headers = new Headers(result && result.headers || {});
+  headers.set('Cache-Control', 'no-store');
+  const status = result && Number(result.status) || 500;
+  if (status === 101 || status === 204 || status === 205 || status === 304) {
+    headers.delete('Content-Type');
+    return new Response(null, { status, headers });
+  }
+  if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  const payload = result && result.body != null ? result.body : {};
+  return new Response(JSON.stringify(payload), { status, headers });
+}
+
 export function buildPayload(row) {
   const payload = {
     event: 'cla.feedback.created',
@@ -225,16 +277,20 @@ export function claimPending(rows, eventId, claimId, now, leaseMs = LEASE_MS) {
   return { claimed: true, row };
 }
 
-export function productionDeps(req) {
-  const env = globalThis.Deno && globalThis.Deno.env;
-  const fetchImpl = globalThis.fetch;
+export function productionDeps(req, platform = globalThis) {
+  const deno = platform.Deno;
+  const env = deno && deno.env;
+  const fetchImpl = platform.fetch;
+  const resolveDns = deno && typeof deno.resolveDns === 'function' ? deno.resolveDns.bind(deno) : null;
   return {
     request: req,
     env,
     getActor: () => lookupVerifiedUser(req, env, fetchImpl),
     loadEvent: (id) => loadOutboxEvent(id, env, fetchImpl, req.headers.get('authorization') || ''),
-    claim: async (eventId) => { const claimId = globalThis.crypto.randomUUID(); return { ...(await claimDispatch(eventId, claimId, env, fetchImpl)), claimId }; },
+    claim: async (eventId) => { const claimId = platform.crypto.randomUUID(); return { ...(await claimDispatch(eventId, claimId, env, fetchImpl)), claimId }; },
     recordAcceptance: (eventId, claimId) => recordAcceptance(eventId, claimId, env, fetchImpl),
+    recordOutcome: ({ eventId, claimId, outcome, http }) => recordDispatchOutcome(eventId, claimId, outcome, http, env, fetchImpl),
+    resolveHost: (host) => resolveHostAddresses(host, resolveDns),
     transport: (call) => fetchImpl(call.url, { method: 'POST', redirect: 'error', headers: { Authorization: call.authorization, 'Content-Type': 'application/json' }, body: JSON.stringify(call.payload) }),
   };
 }
@@ -269,21 +325,27 @@ export async function handleStaffFeedbackDispatch(deps = {}) {
     }
     return withCors(deps, reason === 'needs_reconciliation' ? 409 : 409, { sent: false, replied: false, runAccepted: false, reason, error: 'This report is already reserved or needs reconciliation. It was not posted again.' });
   }
-  const pinned = { ...config, host: envGet(deps.env, 'STAFF_FEEDBACK_BRIDGE_HOST'), addresses: deps.resolveHost ? await deps.resolveHost(envGet(deps.env, 'STAFF_FEEDBACK_BRIDGE_HOST')) : null };
+  let addresses = null;
+  if (deps.resolveHost) {
+    try { addresses = await deps.resolveHost(envGet(deps.env, 'STAFF_FEEDBACK_BRIDGE_HOST')); } catch (e) { addresses = null; }
+  }
+  const pinned = { ...config, host: envGet(deps.env, 'STAFF_FEEDBACK_BRIDGE_HOST'), addresses };
   const result = await explicitDispatch({ actor, row, config: pinned, transport: deps.transport, explicit: true });
   if (result.reason === 'outcome_unknown') {
-    if (deps.recordOutcome) await deps.recordOutcome({ eventId: row.eventId, outcome: 'outcome_unknown' });
+    if (deps.recordOutcome) await deps.recordOutcome({ eventId: row.eventId, claimId: claim.claimId, outcome: 'outcome_unknown' });
     return withCors(deps, 504, { sent: false, replied: false, runAccepted: false, recorded: false, reason: 'outcome_unknown', error: 'The portal could not tell whether the routine started. It will not post again until that is reconciled.' }, { transportCalled: true });
   }
   if (result.persist === 'mark_run_accepted') {
     const recorded = deps.recordAcceptance ? await deps.recordAcceptance(row.eventId || row.event_id, claim.claimId) : { ok: false };
     if (!recorded || !recorded.ok) {
-      if (deps.recordOutcome) await deps.recordOutcome({ eventId: row.eventId, outcome: 'accepted_unrecorded', http: 200 });
+      if (deps.recordOutcome) await deps.recordOutcome({ eventId: row.eventId, claimId: claim.claimId, outcome: 'accepted_unrecorded', http: 200 });
       return withCors(deps, 503, { sent: false, replied: false, runAccepted: true, recorded: false, reason: 'accepted_unrecorded', error: 'The routine accepted a run, but the portal could not record it. It was not posted again.' }, { transportCalled: true });
     }
     return withCors(deps, 200, { sent: false, replied: false, runAccepted: true, recorded: true, botRead: false, deliveryState: 'run_accepted', reason: 'run_started' }, { transportCalled: true });
   }
-  if (deps.recordOutcome) await deps.recordOutcome({ eventId: row.eventId, outcome: result.reason });
+  if (deps.recordOutcome && (result.reason === 'transport_rejected' || result.reason === 'outcome_unknown' || result.reason === 'accepted_unrecorded')) {
+    await deps.recordOutcome({ eventId: row.eventId, claimId: claim.claimId, outcome: result.reason, http: result.httpStatus });
+  }
   const status = result.reason === 'not_pilot' ? 403 : result.reason === 'not_eligible' ? 409 : 503;
   return withCors(deps, status, { sent: false, replied: false, runAccepted: false, recorded: false, deliveryState: result.deliveryState, reason: result.reason, httpStatus: result.httpStatus, error: 'The routine was not accepted. Nothing was marked delivered.' }, { transportCalled: !!result.transportCalled });
 }
