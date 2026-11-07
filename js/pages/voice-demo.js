@@ -10,6 +10,10 @@ const live = createVoiceSession({
     try { return new Ctx({ sampleRate: 24000 }); } catch (e) { return new Ctx(); }
   },
   timeoutMs: 8000,
+  onAudioError(message) {
+    const status = document.querySelector('[data-voice-status]');
+    if (status) { status.textContent = message; status.className = 'err-text'; }
+  },
   onMessage(ev) {
     const reply = document.querySelector('[data-voice-reply]');
     if (!reply) return;

@@ -1,6 +1,7 @@
 /* Voice is a signed-in Live Test path. The public fake link cannot open it. */
+import { readFileSync } from 'node:fs';
 import { routeAllowed } from '../js/data/locked-links.js';
-import { acceptEphemeralToken, audioAppend, createVoiceAttempt, createVoiceSession, realtimeSocket, requestVoice, sessionUpdate, stopMic, textTurn, voicePassText, voiceRouteOk, withTimeout, VOICE_SIGN_IN, VOICE_TIMED_OUT, VOICE_URL, DEMO_INSTRUCTIONS } from '../js/data/voice-demo.js';
+import { acceptEphemeralToken, audioAppend, createVoiceAttempt, createVoiceSession, isSpokenAudioEvent, pcm16Base64ToFloat32, realtimeSocket, requestVoice, sessionUpdate, stopMic, textTurn, voicePassText, voiceRouteOk, withTimeout, VOICE_SIGN_IN, VOICE_TIMED_OUT, VOICE_URL, DEMO_INSTRUCTIONS } from '../js/data/voice-demo.js';
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
 const buyer = { id: 'u-buyer', role: 'Outside user', status: 'active' };
@@ -111,5 +112,42 @@ midMic.stop();
 lateStream({ getTracks() { return [{ stop() { micAfterStop += 1; } }]; } });
 await mid;
 ok(socketOpened === true && micAfterStop === 1, 'Stop during a late microphone answer releases that microphone');
+const pcm = (bytes) => btoa(String.fromCharCode.apply(null, bytes));
+const half = pcm16Base64ToFloat32(pcm([0x00, 0x40]));
+const neg = pcm16Base64ToFloat32(pcm([0x00, 0x80]));
+ok(half && half.length === 1 && Math.abs(half[0] - 0.5) < 0.0001, 'a spoken PCM chunk is little-endian 16-bit audio');
+ok(neg && neg.length === 1 && neg[0] === -1, 'a negative PCM sample stays negative');
+ok(pcm16Base64ToFloat32('not base64') == null, 'a broken audio chunk is refused');
+ok(isSpokenAudioEvent({ type: 'response.output_audio.delta' }) && isSpokenAudioEvent({ type: 'response.audio.delta' }) && !isSpokenAudioEvent({ type: 'response.output_audio_transcript.delta' }), 'only the spoken audio events are played');
+let voiceSock = null;
+const played = [];
+const shown = [];
+const audioErrors = [];
+let contexts = 0;
+const speaker = createVoiceSession({
+  WebSocket: class { constructor() { voiceSock = this; this.listeners = {}; this.readyState = 1; queueMicrotask(() => (this.listeners.open || []).forEach((fn) => fn({}))); } addEventListener(n, fn) { (this.listeners[n] || (this.listeners[n] = [])).push(fn); } send() {} close() { this.closed = true; } },
+  getUserMedia: async () => ({ getTracks() { return [{ stop() {} }]; } }),
+  audioContextFactory() { contexts += 1; return { sampleRate: 24000, state: 'running', destination: { name: 'speakers' }, currentTime: 0, resume() { this.resumed = true; return Promise.resolve(); }, close() { this.state = 'closed'; }, createMediaStreamSource() { return { connect() {}, disconnect() {} }; }, createGain() { return { gain: { value: 1 }, connect() {}, disconnect() {} }; }, createScriptProcessor() { return { connect() {}, disconnect() {} }; }, createBuffer(ch, len, rate) { return { channels: ch, length: len, sampleRate: rate, duration: len / rate, copyToChannel(data) { this.data = data; } }; }, createBufferSource() { const src = { connect(dest) { src.dest = dest; }, start(t) { src.at = t; played.push(src); }, stop() { src.stopped = true; } }; return src; } }; },
+  onMessage(ev) { shown.push(JSON.parse(ev.data).type); },
+  onAudioError(message) { audioErrors.push(message); },
+  timeoutMs: 1000,
+});
+await speaker.start(token);
+const say = (event) => (voiceSock.listeners.message || []).forEach((fn) => fn({ data: JSON.stringify(event) }));
+say({ type: 'response.output_audio_transcript.delta', delta: 'The closing is Tuesday.' });
+say({ type: 'response.output_audio.delta', delta: pcm([0x00, 0x40]) });
+say({ type: 'response.audio.delta', delta: pcm([0x00, 0x40, 0x00, 0x40]) });
+ok(contexts === 1 && shown.includes('response.output_audio_transcript.delta') && played.length === 2, 'the transcript stays text and both audio event names are scheduled on the Start context');
+ok(played[0].dest.name === 'speakers' && played[0].buffer.sampleRate === 24000 && Math.abs(played[0].buffer.data[0] - 0.5) < 0.0001 && played[0].at === 0, 'the first spoken chunk plays at the configured rate');
+ok(played[1].at === played[0].buffer.duration && played[1].at > 0, 'the next chunk waits so the words do not play on top of each other');
+say({ type: 'input_audio_buffer.speech_started' });
+ok(played[0].stopped === true && played[1].stopped === true, 'a new spoken turn stops audio that was already queued');
+say({ type: 'response.output_audio.delta', delta: '@@@' });
+say({ type: 'response.output_audio.delta', delta: '@@@' });
+ok(audioErrors.length === 1 && played.length === 2, 'one bad chunk is reported once and is not played');
+const stoppedSpeaker = speaker.stop();
+ok(stoppedSpeaker.retainedChunks === 0 && voiceSock.closed === true && speaker.state.context == null, 'Stop still drops the microphone and does not keep the audio');
+const pageSrc = readFileSync(new URL('../js/pages/voice-demo.js', import.meta.url), 'utf8');
+ok(pageSrc.includes("/transcript/i.test(event.type || '')") && pageSrc.includes('onAudioError') && !pageSrc.includes('speechSynthesis'), 'the page still shows transcript text and does not speak with the browser voice');
 console.log(fail ? fail + ' failed' : 'voice demo passed');
 if (fail) process.exit(1);

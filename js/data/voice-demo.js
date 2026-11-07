@@ -53,6 +53,68 @@ export function audioAppend(samples) {
   return { type: 'input_audio_buffer.append', audio: float32ToBase64Pcm16(samples) };
 }
 
+/* Grok speaks as base64 PCM16 little-endian on these two event names. The transcript events are text only. */
+export function isSpokenAudioEvent(event) {
+  const type = event && event.type;
+  return type === 'response.output_audio.delta' || type === 'response.audio.delta';
+}
+
+export function pcm16Base64ToFloat32(b64) {
+  if (typeof b64 !== 'string' || !b64) return new Float32Array(0);
+  let bin = '';
+  try { bin = atob(b64); } catch (e) { return null; }
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i) & 255;
+  const n = Math.floor(bytes.length / 2);
+  const view = new DataView(bytes.buffer);
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) out[i] = view.getInt16(i * 2, true) / 32768;
+  return out;
+}
+
+function stopPlayback(state) {
+  (state && state.playing || []).forEach((src) => { try { if (src.stop) src.stop(); } catch (e) { /* already ended */ } });
+  if (state) { state.playing = []; state.nextPlay = 0; }
+}
+
+function queueSpokenPcm(state, samples) {
+  const ctx = state && state.context;
+  const rate = state && state.outputRate || 24000;
+  if (!ctx || ctx.state === 'closed' || !samples || !samples.length || !ctx.createBuffer || !ctx.createBufferSource) return false;
+  try {
+    if (ctx.state === 'suspended' && ctx.resume) ctx.resume();
+    const buffer = ctx.createBuffer(1, samples.length, rate);
+    if (buffer.copyToChannel) buffer.copyToChannel(samples, 0);
+    else buffer.getChannelData(0).set(samples);
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(ctx.destination);
+    const now = typeof ctx.currentTime === 'number' ? ctx.currentTime : 0;
+    const startAt = Math.max(now, state.nextPlay || 0);
+    src.start(startAt);
+    const dur = typeof buffer.duration === 'number' ? buffer.duration : samples.length / rate;
+    state.nextPlay = startAt + dur;
+    (state.playing || (state.playing = [])).push(src);
+    return true;
+  } catch (e) { return false; }
+}
+
+function noteAudioFailure(state, deps) {
+  if (!state || state.audioErrorSent) return;
+  state.audioErrorSent = true;
+  if (deps && deps.onAudioError) deps.onAudioError('This browser could not play the spoken reply. The typed reply is still shown. Stop turns the microphone off.');
+}
+
+function playSocketMessage(state, deps, ev) {
+  let event = null;
+  try { event = JSON.parse(ev && ev.data); } catch (e) { return; }
+  if (!event) return;
+  if (event.type === 'input_audio_buffer.speech_started') { stopPlayback(state); return; }
+  if (!isSpokenAudioEvent(event)) return;
+  const samples = pcm16Base64ToFloat32(event.delta);
+  if (samples == null || (samples.length && !queueSpokenPcm(state, samples))) noteAudioFailure(state, deps);
+}
+
 export function voicePassText(result) {
   if (!result) return VOICE_NOT_CONFIGURED;
   if (result.status === 401) return VOICE_SIGN_IN;
@@ -98,7 +160,8 @@ export function stopMic(state) {
   if (state && state.context && state.context.close) { try { state.context.close(); } catch (e) { /* already closed */ } }
   if (state && state.socket && state.socket.close) { try { state.socket.close(); } catch (e) { /* already closed */ } }
   ['processor', 'source', 'mute'].forEach((k) => { const n = state && state[k]; if (n && n.disconnect) { try { n.disconnect(); } catch (e) { /* already disconnected */ } } });
-  if (state) { state.stream = null; state.chunks = []; state.socket = null; state.context = null; state.processor = null; state.source = null; state.mute = null; }
+  stopPlayback(state);
+  if (state) { state.stream = null; state.chunks = []; state.socket = null; state.context = null; state.processor = null; state.source = null; state.mute = null; state.outputRate = 0; }
   return { retainedChunks: 0, tracksStopped: tracks.length };
 }
 
@@ -153,9 +216,10 @@ export function createVoiceSession(deps) {
         if (leave() || (state.context && state.context.state === 'closed')) return state;
       }
       const rate = state.context && PCM_RATES.has(state.context.sampleRate) ? state.context.sampleRate : 24000;
+      state.outputRate = rate;
       const socket = realtimeSocket(token, deps.WebSocket);
       state.socket = socket;
-      if (deps.onMessage) socket.addEventListener('message', (ev) => deps.onMessage(ev));
+      socket.addEventListener('message', (ev) => { if (deps.onMessage) deps.onMessage(ev); playSocketMessage(state, deps, ev); });
       await new Promise((resolve, reject) => {
         const t = setTimeout(() => reject(new Error('Grok voice could not be reached. Nothing was recorded.')), deps.timeoutMs || 8000);
         const fail = () => { clearTimeout(t); reject(new Error('Grok voice could not be reached. Nothing was recorded.')); };
@@ -197,7 +261,7 @@ export function createVoiceAttempt({ live, show, requestPass }) {
       try {
         await live.start(ready.data.value);
         if (mine !== generation) { live.stop(); return { openedMic: false, cancelled: true }; }
-        show('Connected. The microphone is on. A spoken reply plays only if Grok sends audio. Stop turns the microphone off.', 'live');
+        show('Connected. The microphone is on. A spoken reply plays in this browser when Grok sends audio. Stop turns the microphone off.', 'live');
         return { openedMic: true, cancelled: false };
       } catch (e) {
         if (mine !== generation) return { openedMic: false, cancelled: true };
