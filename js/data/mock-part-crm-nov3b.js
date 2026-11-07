@@ -267,6 +267,14 @@ export function crmNov3bPart(x, h) {
       return { ...row, people, notes: q.notes || '', emails: d.crmEmails.filter((m) => m.entity === 'deal' && m.entityId === q.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(emailOut), canEdit: !crmReadOnly(u) }; },
     // ---------- email (NOTHING IS SENT) ----------
     async getCrmEmailSettings() { const u = crmUser(); const p = prof(u.id) || {}; return { primary: String(p.email || '').toLowerCase(), aliases: aliasesOf(u), from: fromOptions(u), sendNote: GMAIL_NOTE }; },
+    async crmRelatedEmails(entity, id) {
+      const u = crmUser(); const e = String(entity || '');
+      if (e === 'lead' || e === 'contact') { const r = recordFor(u, e, id); return r.email ? [{ name: r.name, email: r.email, contactId: e === 'contact' ? r.id : '' }] : []; }
+      if (e === 'account') return db().contacts.filter((c) => c.accountId === id && c.email && contactSeen(u, c) && !c.crmArchivedAt).map((c) => ({ name: fullName(c), email: c.email, contactId: c.id }));
+      if (e === 'opportunity') { const o = entityOf(u, 'opportunity', id); const c = o.contactId && db().contacts.find((z) => z.id === o.contactId); return c && c.email && contactSeen(u, c) ? [{ name: fullName(c), email: c.email, contactId: c.id }] : []; }
+      if (e === 'deal') { const d = await api.getCrmDeal(id); return (d.people || []).filter((p) => p.email).map((p) => ({ name: p.name, email: p.email, contactId: '' })); }
+      return [];
+    },
     // the From aliases (video 7 "aliases from settings"): a removed alias is retired (kept, no longer offered), never deleted
     async saveCrmEmailAliases(list) { const u = crmUser(); const mine = String((prof(u.id) || {}).email || '').toLowerCase(); const a = emailList(list, 'From aliases').filter((e) => e !== mine); if (a.length > 5) fail('At most 5 aliases.');
       const all = (db().crmEmailAliases[u.id] ||= []); all.forEach((z) => { if (!a.includes(z.email) && !z.retiredAt) z.retiredAt = now(); if (a.includes(z.email)) z.retiredAt = null; });

@@ -166,6 +166,25 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async listCrmDeals(f = {}) { const rows = await rpc('crm_deals', { p_status: f.status || null, p_owner: f.ownerId || null, p_client: f.clientId || null, p_source: f.source || null });
       return (rows || []).map((r) => ({ ...r, _link: `#/crm/deals/${r.id}`, _portalLink: `#/deals/${r.id}`, _clientLink: '' })); },
     async listCrmDealFilters() { return rpc('crm_deal_filters'); },
+    async crmRelatedEmails(entity, id) {
+      on(); const e = String(entity || '');
+      if (e === 'lead') { const rows = await this.listCrmLeads(); const r = rows.find((z) => z.id === id); return r && r.email ? [{ name: r.name, email: r.email, contactId: '' }] : []; }
+      if (e === 'contact') { const rows = await this.listCrmContacts(); const r = rows.find((z) => z.id === id); return r && r.email ? [{ name: r.name, email: r.email, contactId: r.id }] : []; }
+      if (e === 'account') { const rows = await this.listCrmContacts(); return rows.filter((r) => r.accountId === id && r.email).map((r) => ({ name: r.name, email: r.email, contactId: r.id })); }
+      if (e === 'opportunity') { const rows = await this.listCrmOpportunities(); const r = rows.find((z) => z.id === id); if (!r || !r.contactId) return []; const people = await this.listCrmContacts(); const c = people.find((z) => z.id === r.contactId); return c && c.email ? [{ name: c.name, email: c.email, contactId: c.id }] : []; }
+      if (e === 'deal') { const rows = ok(await sb.rpc('deal_contacts', { p_deal: id })) || []; return rows.filter((r) => r.email && !r.contact_hidden).map((r) => ({ name: `${r.first_name || ''} ${r.last_name || ''}`.trim(), email: r.email, contactId: r.contact_id || '' })); }
+      return [];
+    },
+    async saveCrmEmail(input = {}) {
+      on(); const u = await me(); const entity = String(input.entity || '');
+      if (!['lead', 'contact', 'account', 'deal'].includes(entity)) throw new Error('Email drafts are stored for a lead, client, company, or deal. An opportunity draft is stored on its client.');
+      const to = [...new Set((Array.isArray(input.to) ? input.to : String(input.to || '').split(/[,;\s]+/)).map((e) => String(e).trim().toLowerCase()).filter(Boolean))];
+      if (!to.length) throw new Error('Add at least one To address.');
+      const subject = String(input.subject || '').replace(/[\r\n]/g, ' ').trim();
+      if (!subject) throw new Error('Subject is required.');
+      const row = ok(await sb.from('crm_emails').insert({ entity, entity_id: input.entityId, from_email: String(u.email || '').toLowerCase(), to_emails: to, cc_emails: [], bcc_emails: [], subject: subject.slice(0, 250), body_html: String(input.html || '').slice(0, 200000), status: 'drafted', scheduled_at: null, created_by: u.id }).select('id, status').single());
+      return { id: row.id, status: 'drafted', emailed: false };
+    },
   };
   // Nov 3 (migration 27): email templates. Nothing is ever sent.
   Object.assign(api, crmTemplatesSupabase({ sb, ok, camel, me, on, one, self: api }));

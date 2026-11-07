@@ -1,7 +1,7 @@
 /* [SUPABASE] CRM EMAIL TEMPLATES for supabase-crm.js (Nov 3, migration 27). Same names / shapes as mock-part-crm-templates.js.
  * NOT run against a hosted project (best effort; the mock adapter is the tested one). NOTHING IS SENT: sendCrmTestEmail always refuses.
  * Template files need the private CRM storage bucket, which is not set up yet (as for record attachments), so uploads refuse here. */
-import { MODULE_CODES, moduleLabel, GMAIL_NOTE, mergeFieldsFor, renderTemplate, sanitizeHtml, cleanBlocks, cssColor, personalFolderId, isPersonalFolder, cleanFolderName } from './crm-templates.js?v=202611070139';
+import { MODULE_CODES, moduleLabel, GMAIL_NOTE, mergeFieldsFor, renderTemplate, sanitizeHtml, cleanBlocks, cssColor, personalFolderId, isPersonalFolder, cleanFolderName, folderCounts } from './crm-templates.js?v=202611070139';
 import { canUseCrm, crmReadOnly } from './crm.js?v=202611070139';
 import { localDate } from './constants.js?v=202611070139';
 
@@ -31,11 +31,24 @@ export function crmTemplatesSupabase({ sb, ok, camel, me, on, one, self }) {
     const r = renderTemplate(t, row0, cfg, { firstName: u.firstName, lastName: u.lastName, email: u.email, phone: u.phone, role: u.role }, await sig(u));
     return { ...r, to: row0 ? row0.email || '' : '', recordName: row0 ? row0.name || '' : '', attachments: t.attachments || [], template: { id: t.id, name: t.name, module: t.module, moduleLabel: moduleLabel(t.module) }, sendNote: GMAIL_NOTE }; }
   const api = {
-    async listCrmEmailFolders() { const u = await who(); const fs = await folders(); return { canCreate: !!u.isAdmin, folders: [...fs.map((f) => ({ id: f.id, name: f.name, kind: 'shared', count: 0 })), { id: personalFolderId(u.id), name: `${u.firstName || ''} ${u.lastName || ''}`.trim(), kind: 'personal', count: 0 }] }; },
+    async listCrmEmailFolders() { const u = await who(); const fs = await folders();
+      const slim = ok(await sb.from('crm_email_templates').select('folder_id, personal_owner, retired_at')) || [];
+      const counts = folderCounts(slim, fs.map((f) => f.id), personalFolderId(u.id));
+      return { canCreate: !!u.isAdmin, folders: [...fs.map((f) => ({ id: f.id, name: f.name, kind: 'shared', count: counts.shared[f.id] || 0 })), { id: personalFolderId(u.id), name: `${u.firstName || ''} ${u.lastName || ''}`.trim(), kind: 'personal', count: counts.personal }] }; },
     async createCrmEmailFolder(name) { await who(); return camel(await one(sb.from('crm_email_folders').insert({ name: cleanFolderName(name) }))); },
     async renameCrmEmailFolder(id, name) { await who(); return camel(await one(sb.from('crm_email_folders').update({ name: cleanFolderName(name) }).eq('id', id))); },
-    async listCrmEmailTemplates() { const u = await who(); const [fs, fv] = await Promise.all([folders(), favIds(u)]); const rows = ok(await sb.from('crm_email_templates').select('*')) || [];
-      return Promise.all(rows.map((t) => out(u, t, fs, fv))); },
+    async listCrmEmailTemplates() { const u = await who();
+      const [fs, fv, people, rows, links] = await Promise.all([folders(), favIds(u), self.listCrmAssignees().catch(() => []),
+        ok(await sb.from('crm_email_templates').select('id, name, module, folder_id, personal_owner, subject, kind, status, retired_at, created_by, created_at, modified_by, modified_at')) || [],
+        ok(await sb.from('crm_email_template_files').select('template_id, attachment_id, attached_at, detached_at')) || []]);
+      const nameOf = (id) => { const p = (people || []).find((z) => z.id === id); return p ? p.name : ''; };
+      const byTpl = new Map();
+      links.forEach((l) => { const list = byTpl.get(l.template_id) || []; list.push(l); byTpl.set(l.template_id, list); });
+      return rows.map((t) => { const fid = folderIdOf(t); const atts = (byTpl.get(t.id) || []).map((l) => ({ id: l.attachment_id, name: '', size: 0, mimeType: '', attachedAt: l.attached_at, detached: !!l.detached_at, detachedAt: l.detached_at }));
+        return { id: t.id, name: t.name, module: t.module, moduleLabel: moduleLabel(t.module), folderId: fid, folderName: isPersonalFolder(fid) ? (u.id === t.personal_owner ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : 'Personal') : (fs.find((z) => z.id === fid) || {}).name || '',
+          personal: isPersonalFolder(fid), subject: t.subject, kind: t.kind, body: '', blocks: [], pageBg: '', status: t.status, retired: !!t.retired_at, retiredAt: t.retired_at,
+          createdBy: t.created_by, createdAt: t.created_at, modifiedBy: t.modified_by, modifiedAt: t.modified_at, createdByName: nameOf(t.created_by), modifiedByName: nameOf(t.modified_by),
+          favorite: fv.includes(t.id), canEdit: !crmReadOnly(u) && (u.isAdmin || t.created_by === u.id), attachments: atts.filter((a) => !a.detached), detachedAttachments: atts.filter((a) => a.detached), stats: { opened: null, bounced: null, clicked: null } }; }); },
     async getCrmEmailTemplate(id) { const u = await who(); return out(u, await row(id), await folders(), await favIds(u)); },
     async createCrmEmailTemplate(v = {}) { const u = await who(); if (!MODULE_CODES.includes(v.module)) throw new Error('Choose the module (Leads, Clients, Companies or Opportunities).');
       const t = await one(sb.from('crm_email_templates').insert({ module: v.module, kind: v.kind === 'builder' ? 'builder' : 'html', ...tIn(v), ...where(u, v.folderId) })); return out(u, t, await folders(), []); },
@@ -49,6 +62,8 @@ export function crmTemplatesSupabase({ sb, ok, camel, me, on, one, self }) {
     async addCrmTemplateAttachment() { on(); throw new Error('CRM attachments are not set up on this portal yet.'); },
     async detachCrmTemplateAttachment(id, fileId, detached = true) { const u = await who(); ok(await sb.from('crm_email_template_files').update({ detached_at: detached ? new Date().toISOString() : null }).eq('template_id', id).eq('attachment_id', fileId));
       return out(u, await row(id), await folders(), await favIds(u)); },
+    async getCrmEmailSettings() { const u = await who(); const primary = String(u.email || '').toLowerCase(); return { primary, aliases: [], from: primary ? [primary] : [], sendNote: GMAIL_NOTE }; },
+    async saveCrmEmailAliases() { await who(); throw new Error('From aliases are not stored on this portal yet. Your email signature can still be saved.'); },
     async getCrmSignature() { const u = await who(); const s = ok(await sb.from('crm_user_signatures').select('*').eq('user_id', u.id).maybeSingle()) || {}; return { html: s.html || '', modifiedAt: s.modified_at || null }; },
     async saveCrmSignature(h) { const u = await who(); const r = await one(sb.from('crm_user_signatures').upsert({ user_id: u.id, html: sanitizeHtml(h || '') })); return { html: r.html, modifiedAt: r.modified_at }; },
     async crmMergeFields(module) { await who(); return mergeFieldsFor(module, await self.getCrmSettings()); },

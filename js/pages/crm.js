@@ -94,10 +94,10 @@ const pk = (cfg, key, field, label) => [field, label, (r) => lbl(cfg, key, r[fie
 const when = (v) => (v ? fmtDateTime(v) : html`<span class="muted">—</span>`);
 const TIME_COLS = [['createdAt', 'Created Time', (r) => when(r.createdAt), (r) => r.createdAt || ''], ['modifiedAt', 'Modified Time', (r) => when(r.modifiedAt), (r) => r.modifiedAt || ''], ['lastActivityAt', 'Last Activity Time', (r) => when(r.lastActivityAt), (r) => r.lastActivityAt || '']];
 const TIME_SORTS = [['createdAt', 'Created Time'], ['modifiedAt', 'Modified Time'], ['lastActivityAt', 'Last Activity Time']];
-async function leadsList({ api, me, owners, go, cfg }) {
+async function leadsList({ api, me, owners, go, cfg, refresh }) {
   const rows = (await api.listCrmLeads()).map((r) => flattenCustom(cfg, 'lead', r)); const accounts = me.canEdit ? await api.listCrmAccounts() : [];
   const H = (k) => hiddenField(cfg, 'person', k);
-  const bar = await viewsBar(api, 'leads'); const lv = listView({ bar, saved: { api, listKey: 'leads' }, dates: true, key: 'leads', rows, fields: ['name', 'email', 'company', 'phone', 'leadSource', 'notes', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'lead')], sortDefault: 'createdAt:desc', csv: me.canConfigure ? 'crm-leads.csv' : '', exporter: (cols, out) => api.exportCrmList('leads', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
+  const bar = await viewsBar(api, 'leads'); const lv = listView({ bar, saved: { api, listKey: 'leads' }, dates: true, key: 'leads', rows, bulk: me.canEdit ? { module: 'lead', api, me, owners, refresh } : null, fields: ['name', 'email', 'company', 'phone', 'leadSource', 'notes', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'lead')], sortDefault: 'createdAt:desc', csv: me.canConfigure ? 'crm-leads.csv' : '', exporter: (cols, out) => api.exportCrmList('leads', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
    
     cols: [['name', 'Lead Name', (r) => html`${link('leads', r)}${r.converted ? html` ${pill('Converted', 'ok')}` : ''}${r.archived ? html` ${pill('Archived')}` : ''}`, (r) => r.name], ['company', 'Company', (r) => (r.accountId ? html`<a href="#/crm/accounts/${r.accountId}" data-lead-company>${r.accountName}</a>` : r.company || muted('—')), (r) => r.company], ['email', 'Email'], ['phone', 'Phone'],
       ...(H('leadSource') ? [] : [pk(cfg, 'leadSource', 'leadSource', 'Lead Source')]), ...(H('relationshipStatus') ? [] : [pk(cfg, 'leadRelationshipStatus', 'relationshipStatus', 'Relationship Status')]),
@@ -142,10 +142,10 @@ async function leadPage({ api, me, owners, assignees, params, refresh, go, cfg }
 }
 
 // ---------------- CLIENTS (Zoho list: Client Name, Company Name, Role in Company, Email, Mobile, Lead Source, Status, Client Owner) ----------------
-async function contactsList({ api, me, owners, go, cfg }) {
+async function contactsList({ api, me, owners, go, cfg, refresh }) {
   const rows = (await api.listCrmContacts()).map((r) => flattenCustom(cfg, 'contact', r)); const accounts = me.canEdit ? await api.listCrmAccounts() : [];
   const H = (k) => hiddenField(cfg, 'person', k);
-  const bar = await viewsBar(api, 'contacts'); const lv = listView({ bar, saved: { api, listKey: 'contacts' }, dates: true, key: 'contacts', rows, fields: ['name', 'email', 'companyName', 'phone', 'mobile', 'tags', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'contact')], csv: me.canConfigure ? 'crm-clients.csv' : '', exporter: (cols, out) => api.exportCrmList('contacts', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
+  const bar = await viewsBar(api, 'contacts'); const lv = listView({ bar, saved: { api, listKey: 'contacts' }, dates: true, key: 'contacts', rows, bulk: me.canEdit ? { module: 'contact', api, me, owners, refresh } : null, fields: ['name', 'email', 'companyName', 'phone', 'mobile', 'tags', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'contact')], csv: me.canConfigure ? 'crm-clients.csv' : '', exporter: (cols, out) => api.exportCrmList('contacts', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
    
     cols: [['name', 'Client Name', (r) => html`${link('contacts', r)}${r.archived ? html` ${pill('Archived')}` : ''}${r.hasLogin ? html` <span class="muted small">(portal login)</span>` : ''}`, (r) => r.name],
       ['companyName', 'Company Name', (r) => (r.accountId ? html`<a href="#/crm/accounts/${r.accountId}">${r.accountName}</a>` : r.company), (r) => r.companyName], ...(H('roleInCompany') ? [] : [pk(cfg, 'roleInCompany', 'roleInCompany', 'Role in Company')]), ['email', 'Email'],
@@ -180,9 +180,9 @@ async function contactPage({ api, me, owners, assignees, params, refresh, cfg })
 }
 
 // ---------------- COMPANIES ----------------
-async function accountsList({ api, me, owners, go, cfg }) {
+async function accountsList({ api, me, owners, go, cfg, refresh }) {
   const rows = (await api.listCrmAccounts()).map((a) => flattenCustom(cfg, 'account', { ...a, place: [a.city, a.state].filter(Boolean).join(', ') }));
-  const bar = await viewsBar(api, 'accounts'); const lv = listView({ bar, saved: { api, listKey: 'accounts' }, dates: true, key: 'accounts', rows, fields: ['name', 'city', 'website', 'notes', ...cfSearch(cfg, 'account')], csv: me.canConfigure ? 'crm-companies.csv' : '', exporter: (cols, out) => api.exportCrmList('accounts', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
+  const bar = await viewsBar(api, 'accounts'); const lv = listView({ bar, saved: { api, listKey: 'accounts' }, dates: true, key: 'accounts', rows, bulk: me.canEdit ? { module: 'account', api, me, owners, refresh } : null, fields: ['name', 'city', 'website', 'notes', ...cfSearch(cfg, 'account')], csv: me.canConfigure ? 'crm-companies.csv' : '', exporter: (cols, out) => api.exportCrmList('accounts', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
    
     cols: [['name', 'Company Name', (r) => html`${link('accounts', r)}${r.archived ? html` ${pill('Archived')}` : ''}`, (r) => r.name], pk(cfg, 'accountKind', 'kind', 'Type'), ...(hiddenField(cfg, 'account', 'city') ? [] : [['place', 'City']]), ['ownerName', 'Company Owner', (r) => r.ownerName || muted('Unassigned'), (r) => r.ownerName],
       ['contacts', 'Clients'], ['orders', 'Orders'], ['volume', 'Volume', (r) => money(r.volume), (r) => r.volume], ...TIME_COLS, ...cfCols(cfg, 'account')],
