@@ -9,7 +9,8 @@
  * VIEW AS (Super admin only): inside a locked link whose OWNER is a Super admin (King John), a "View as" dropdown switches the tab to any fake user and
  * back; the route guard then applies to the person being viewed. Any other locked link (Adam Admin included) never gets it, and a stored viewAs on a
  * lock whose owner is not a Super admin is ignored and cleared (app.js). */
-import { runsOrders, isStaff, isOutside } from './constants.js?v=202611070139';
+import { runsOrders, isStaff, isOutside } from './constants.js?v=202611071800';
+import { canReportStaffFeedback } from './staff-feedback.js?v=202611071800';
 import { titleCanRead } from './title.js?v=202611070139';
 import { fwpCanRead } from './funding-wire-policy.js?v=202611070139';   // John, Nov 4: order > Title route guard
 import { canUseCrm } from './crm.js?v=202611070139';
@@ -84,6 +85,7 @@ export function routeAllowed(u, route, { locked = false, demo = null } = {}) {
   if (p === 'library') return true;
   if (p === 'demo') return u.role === 'Super admin' && !!u.isAdmin && (u.status || 'active') === 'active';
   if (p === 'voice-demo') return !!u && !locked && !(demo && demo.active);
+  if (p === 'staff-feedback') return canReportStaffFeedback(u) && !(demo && demo.active);
   return false;
 }
 // SECTION LINKS (John, Nov 4): &section=<name> (+ optional &file=<deal>) opens one section directly. A section only picks the first page:
