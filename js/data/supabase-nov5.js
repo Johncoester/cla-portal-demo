@@ -4,6 +4,24 @@
 import { ordinaryCoverageDoc } from './nov5-rules.js?v=202611070139';
 import { uploadBytes } from './upload-bytes.js?v=202611070139';
 
+/* Columns written by the hosted insert. folder_id is not one of them. */
+export function documentInsertRow({ dealId, file, userId, id }) {
+  const name = String(file.name || 'upload').replace(/[\\/]/g, '_').slice(0, 200);
+  return {
+    id,
+    deal_id: dealId,
+    name,
+    description: file.description || '',
+    mime_type: file.mimeType || 'application/octet-stream',
+    size_bytes: file.size || 0,
+    storage_path: `${dealId}/${id}/${name}`,
+    visibility: file.visibility || 'all',
+    uploaded_by: userId,
+    doc_type: file.docType || '',
+    wire_instructions: file.wireInstructions === true,
+  };
+}
+
 export function nov5Supabase({ sb, ok, camel, me }) {
   const uid = async () => (await sb.auth.getUser()).data.user;
   return {
@@ -40,13 +58,11 @@ export function nov5Supabase({ sb, ok, camel, me }) {
       const user = await uid(); if (!user) throw new Error('Please sign in.');
       const id = (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID() : null;
       if (!id) throw new Error('This browser cannot mint a document id.');
-      const name = String(file.name || 'upload').replace(/[\\/]/g, '_').slice(0, 200);
-      const path = `${dealId}/${id}/${name}`;
+      const row = documentInsertRow({ dealId, file, userId: user.id, id });
       const body = await uploadBytes(file);
-      const up = await sb.storage.from('deal-documents').upload(path, body, { contentType: file.mimeType || 'application/octet-stream', upsert: false });
+      const up = await sb.storage.from('deal-documents').upload(row.storage_path, body, { contentType: file.mimeType || 'application/octet-stream', upsert: false });
       if (up.error) throw new Error(up.error.message || 'The document bucket refused the upload.');
-      const row = ok(await sb.from('documents').insert({ id, deal_id: dealId, name, description: file.description || '', mime_type: file.mimeType || 'application/octet-stream', size_bytes: file.size || 0, storage_path: path, visibility: file.visibility || 'all', uploaded_by: user.id, doc_type: file.docType || '', wire_instructions: file.wireInstructions === true }).select().single());
-      return camel(row);
+      return camel(ok(await sb.from('documents').insert(row).select().single()));
     },
     async getDocumentContent(id) {
       const doc = camel(ok(await sb.from('documents').select('id, name, storage_path, mime_type').eq('id', id).single()));
