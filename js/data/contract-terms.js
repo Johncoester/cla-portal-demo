@@ -188,6 +188,15 @@ export function assertContractPersisted(expected, actual) {
   if (!actual || bad) fail(CONTRACT_NOT_SAVED);
   return actual;
 }
+// A save is real only when the database returns exactly one row. Zero rows and two or more rows are a failed save.
+export function exactlyOneRow(wrote) {
+  if (Array.isArray(wrote)) {
+    if (wrote.length !== 1 || wrote[0] == null || typeof wrote[0] !== 'object') fail(CONTRACT_NOT_SAVED);
+    return wrote[0];
+  }
+  if (wrote == null || typeof wrote !== 'object') fail(CONTRACT_NOT_SAVED);
+  return wrote;
+}
 const flagTextOf = (v) => (v ? `${v.basis}, provisional${v.source ? ', ' + v.source : ''}` : null);
 export function contractChanges(before, after) {
   const out = [];

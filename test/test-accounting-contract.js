@@ -1,7 +1,7 @@
 /* TEST contract figures. Fake orders only. Blank stays null. Nothing is posted as a receipt, payoff, or Closing Disclosure. */
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { accountingSupabase } from '../js/data/supabase-accounting.js';
-import { cleanContractTerms, illustrative, CONTRACT_NOT_SAVED } from '../js/data/contract-terms.js';
+import { cleanContractTerms, illustrative, exactlyOneRow, CONTRACT_NOT_SAVED } from '../js/data/contract-terms.js';
 import { autoEntries, ledgerTotals } from '../js/data/accounting.js';
 
 const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
@@ -22,6 +22,10 @@ ok(await rejects(() => Promise.resolve().then(() => cleanContractTerms({ emdRece
 ok(await rejects(() => Promise.resolve().then(() => cleanContractTerms({ posture: 'verified' })), /estimate/), 'the sheet cannot be marked as a verified ledger');
 ok(await rejects(() => Promise.resolve().then(() => cleanContractTerms({ loanAmountBasis: 'derived' })), /enter the figure/), 'a marker without a figure is refused');
 ok(await rejects(() => Promise.resolve().then(() => cleanContractTerms({ emdReceived: true })), /cannot post a receipt/), 'a receipt flag is refused');
+ok(exactlyOneRow([{ sale_price: 1 }]).sale_price === 1 && exactlyOneRow({ sale_price: 2 }).sale_price === 2, 'one returned row is kept');
+ok((() => { try { exactlyOneRow([]); return false; } catch (e) { return e.message === CONTRACT_NOT_SAVED; } })(), 'zero returned rows fail');
+ok((() => { try { exactlyOneRow([{ sale_price: 1 }, { sale_price: 2 }]); return false; } catch (e) { return e.message === CONTRACT_NOT_SAVED; } })(), 'two returned rows fail');
+ok((() => { try { exactlyOneRow(null); return false; } catch (e) { return e.message === CONTRACT_NOT_SAVED; } })(), 'a missing row fails');
 ok(autoEntries({ purchasePrice: 485000, loanAmount: 388000, emdAmount: 10000 }).length === 0, 'order price, loan, and deposit are not ledger lines');
 ok(ledgerTotals({ purchasePrice: 485000, loanAmount: 388000, emdAmount: 10000 }, []).receipts === 0, 'those order figures are not funds in');
 
@@ -40,6 +44,15 @@ ok(!fees.entries.some((e) => e.auto) && fees.totals.receipts === 0, 'the fee led
 const cd = await adapter.getClosingDisclosure('deal-1');
 const labels = ['K', 'L', 'M', 'N'].flatMap((k) => ((cd.summaries[k] || {}).rows || []).map((r) => r.label));
 ok(!labels.some((l) => /Sale Price|Deposit|Loan Amount/.test(l)), 'the Closing Disclosure does not list the contract promises');
+const feeCount = (await adapter.getAccounting('deal-1')).entries.length;
+await adapter.updateDeal('deal-1', { purchasePrice: '100', loanAmount: '80', emdAmount: '5' });
+const edited = await adapter.getAccounting('deal-1');
+ok(edited.entries.length === feeCount && edited.totals.receipts === 0 && !edited.entries.some((e) => e.auto), 'editing the order price, loan, and EMD does not post ledger funds');
+const opened = await adapter.createDeal({ street: '1 Fixture Lane', city: 'Rockville', state: 'MD', zip: '20850', openDate: '2026-11-01', purchasePrice: '500', loanAmount: '400', emdAmount: '25' });
+const fresh = await adapter.getAccounting(opened.id);
+const freshCd = await adapter.getClosingDisclosure(opened.id);
+const freshLabels = ['K', 'L', 'M', 'N'].flatMap((k) => ((freshCd.summaries[k] || {}).rows || []).map((r) => r.label));
+ok(opened.purchasePrice === 500 && fresh.entries.length === 0 && fresh.totals.receipts === 0 && !freshLabels.some((l) => /Sale Price|Deposit|Loan Amount/.test(l)), 'opening an order does not post its price, loan, or EMD onto the ledger');
 ok((await adapter.getContractTerms('deal-2')).saved === false && (await adapter.getContractTerms('deal-2')).fields.loanAmount === null, 'another order stays blank');
 const badBefore = await adapter.getContractTerms('deal-1');
 ok(await rejects(() => adapter.saveContractTerms('deal-1', { salePrice: 'nope' }), /blank or an amount/), 'a bad amount is refused');
@@ -105,8 +118,29 @@ const blocked = accountingSupabase({ sb: fakeSb({ run(s) {
   return { data: null, error: null };
 } }), ok: okFn, flags: { accounting: true } });
 let threw = false;
-try { await blocked.saveContractTerms(dealId, { salePrice: '12', salePriceBasis: 'explicit' }); } catch (e) { threw = e.message === CONTRACT_NOT_SAVED; }
+try { const saved = await blocked.saveContractTerms(dealId, { salePrice: '12', salePriceBasis: 'explicit' }); threw = !(saved && saved.saved === true); } catch (e) { threw = e.message === CONTRACT_NOT_SAVED; }
 ok(threw, 'an update that changes no row is not reported as saved');
+const prior = { deal_id: dealId, posture: 'estimate', sale_price: 10, loan_amount: null, emd_receipt: 'unknown', field_flags: { salePrice: { basis: 'explicit', provisional: true, source: '' } }, warranty_payer: '', hoa_name: '', condo_name: '', deferred_schedule: '', deferred_payee: '', tax_period: '', emd_holder: '', source_note: '', internal_note: '' };
+const many = accountingSupabase({ sb: fakeSb({ run(s) {
+  if (s.op === 'select') return { data: prior, error: null };
+  if (s.op === 'update') return { data: [{ ...prior, sale_price: 12 }, { ...prior, sale_price: 99 }], error: null };
+  return { data: null, error: null };
+} }), ok: okFn, flags: { accounting: true } });
+let manyFailed = false;
+try { const saved = await many.saveContractTerms(dealId, { salePrice: '12', salePriceBasis: 'explicit' }); manyFailed = !(saved && saved.saved === true); } catch (e) { manyFailed = e.message === CONTRACT_NOT_SAVED; }
+ok(manyFailed, 'an update that returns two rows is not reported as saved');
+const missingInsert = accountingSupabase({ sb: fakeSb({ run(s) {
+  if (s.op === 'select') return { data: null, error: null };
+  if (s.op === 'insert') return { data: null, error: null };
+  return { data: null, error: null };
+} }), ok: okFn, flags: { accounting: true } });
+ok(await rejects(() => missingInsert.saveContractTerms(dealId, { salePrice: '12', salePriceBasis: 'explicit' }), new RegExp(CONTRACT_NOT_SAVED)), 'an insert that returns no row is not reported as saved');
+const manyInsert = accountingSupabase({ sb: fakeSb({ run(s) {
+  if (s.op === 'select') return { data: null, error: null };
+  if (s.op === 'insert') return { data: [{ ...prior, sale_price: 12 }, { ...prior, sale_price: 99 }], error: null };
+  return { data: null, error: null };
+} }), ok: okFn, flags: { accounting: true } });
+ok(await rejects(() => manyInsert.saveContractTerms(dealId, { salePrice: '12', salePriceBasis: 'explicit' }), new RegExp(CONTRACT_NOT_SAVED)), 'an insert that returns two rows is not reported as saved');
 const denied = accountingSupabase({ sb: fakeSb({ run() { return { data: null, error: { message: 'new row violates row-level security policy' } }; } }), ok: okFn, flags: { accounting: true } });
 ok(await rejects(() => denied.saveContractTerms(dealId, { salePrice: '12' }), /row-level security/), 'a database refusal is returned as a failure');
 const switchedOff = accountingSupabase({ sb: fakeSb({ access: 'off', run() { return { data: { deal_id: dealId }, error: null }; } }), ok: okFn, flags: { accounting: true } });

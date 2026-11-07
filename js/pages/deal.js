@@ -14,7 +14,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611070139';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611071715';
 
-const TABS = { tasks: './dealtasks.js?v=202611070139', inbox: './dealmsgs.js?v=202611070139', documents: './dealdocs.js?v=202611071715', contacts: './dealcontacts.js?v=202611070139', activity: './dealactivity.js?v=202611070139', closing: './dealclosing.js?v=202611070139', agreements: './dealagreements.js?v=202611070139', accounting: './dealaccounting.js?v=202611071751', title: './dealtitle.js?v=202611070139', funding: './dealfwp.js?v=202611070139', wires: './dealfwp.js?v=202611070139', policy: './dealfwp.js?v=202611070139' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611070139', inbox: './dealmsgs.js?v=202611070139', documents: './dealdocs.js?v=202611071715', contacts: './dealcontacts.js?v=202611070139', activity: './dealactivity.js?v=202611070139', closing: './dealclosing.js?v=202611070139', agreements: './dealagreements.js?v=202611070139', accounting: './dealaccounting.js?v=202611071820', title: './dealtitle.js?v=202611070139', funding: './dealfwp.js?v=202611070139', wires: './dealfwp.js?v=202611070139', policy: './dealfwp.js?v=202611070139' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 import { placeText } from '../data/cla-offices.js?v=202611070139';
 
 export async function render(ctx) {

@@ -5,7 +5,7 @@
 // Caroline, Nov 4 (migration 39): prorations, CD details (accounting_cd_details + accounting_cd_log), prepaids / escrow lines, TCs read-only.
 import { cleanCdDetails, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA, cdFieldLabel } from './cd-pages.js?v=202611070139';
 import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, cleanFee, allEntries, ledgerTotals, altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration, feeChanges } from './accounting.js?v=202611071751';
-import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractMismatch, assertContractPersisted, CONTRACT_NOT_SAVED, ESTIMATE_POSTURE } from './contract-terms.js?v=202611071751';
+import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractMismatch, assertContractPersisted, exactlyOneRow, ESTIMATE_POSTURE } from './contract-terms.js?v=202611071820';
 // CLA RATES (migration 36): calculated fees carry calc_source = 'cla-rates' + calc_key / calc_fields / rate_source / calculation / calc_inputs /
 // calc_version / calc_at; the trigger keeps `overridden` (a person changed what the calculation set). The engine loads lazily (flag off = never).
 const engine = () => import('./fee-engine.js?v=202611070139');
@@ -134,8 +134,7 @@ export function accountingSupabase({ sb, ok, flags }) {
       const wrote = existing
         ? ok(await sb.from('accounting_contract_terms').update(payload).eq('deal_id', dealId).select('*'))
         : ok(await sb.from('accounting_contract_terms').insert({ deal_id: dealId, ...payload }).select('*').single());
-      const row = Array.isArray(wrote) ? wrote[0] : wrote;
-      if (!row) throw new Error(CONTRACT_NOT_SAVED);
+      const row = exactlyOneRow(wrote);
       const back = fromContractRow(row);
       assertContractPersisted(clean, back);
       return { dealId, saved: true, canEdit: true, posture: ESTIMATE_POSTURE, blocked: '', fields: back.fields, flags: back.flags, updatedAt: back.updatedAt };

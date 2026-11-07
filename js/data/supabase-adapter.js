@@ -4,7 +4,7 @@
 import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611070139';
 import { localDate, fileRoleLabel } from './constants.js?v=202611070139';
 import { featureFlags } from './features.js?v=202611070139';
-import { accountingSupabase } from './supabase-accounting.js?v=202611071751';
+import { accountingSupabase } from './supabase-accounting.js?v=202611071820';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
 import { modulesSupabase } from './supabase-modules.js?v=202611070139';
 import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611070139';
