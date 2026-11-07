@@ -4,7 +4,8 @@
  * Sales Person / Sales Team read the orders they can see; Transaction Coordinators, agents and clients get nothing.
  * Every add / edit / retire / restore is logged in d.accountingLog (who, when, field, old, new). Fees are RETIRED, never deleted. */
 import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, acctCanRead, acctCanEdit, cleanFee, feeChanges, allEntries, ledgerTotals,
-  altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration } from './accounting.js?v=202611070139';
+  altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration } from './accounting.js?v=202611071751';
+import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractChanges, contractMismatch, assertContractPersisted, CONTRACT_NOT_SAVED } from './contract-terms.js?v=202611071751';
 // Caroline Kim, Nov 4 2026: prorations from the settlement date, the rest of the CD (details, prepaids F, initial escrow G), TCs read-only.
 import { cleanCdDetails, cdDetailChanges, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA } from './cd-pages.js?v=202611070139';
 const PRORATION_VIA = 'Settlement date change (prorations re-saved)';
@@ -14,7 +15,7 @@ const engine = () => import('./fee-engine.js?v=202611070139');
 const VIA = 'CLA rates';
 
 // accountingCd (Caroline, Nov 4): one record of manual Closing Disclosure entries per order; added lazily, so the storage key stays v26
-export function ensureAccounting(d) { if (!Array.isArray(d.accountingFees)) d.accountingFees = []; if (!Array.isArray(d.accountingLog)) d.accountingLog = []; if (!Array.isArray(d.accountingCd)) d.accountingCd = []; return d; }
+export function ensureAccounting(d) { if (!Array.isArray(d.accountingFees)) d.accountingFees = []; if (!Array.isArray(d.accountingLog)) d.accountingLog = []; if (!Array.isArray(d.accountingCd)) d.accountingCd = []; if (!Array.isArray(d.accountingContractTerms)) d.accountingContractTerms = []; return d; }
 
 export function accountingPart(x, flags) {
   const { load, save, nid, needUser, dealsFor, fail, now, nameOf, clone } = x;
@@ -123,5 +124,27 @@ export function accountingPart(x, flags) {
     async listAccountingLog(dealId) { reader(dealId); return clone(db().accountingLog.filter((l) => l.dealId === dealId)).reverse(); },
     async getAltaStatement(dealId, view = 'combined') { const { deal } = reader(dealId); return altaStatement(deal, feesOf(dealId), view); },
     async getClosingDisclosure(dealId) { const { deal } = reader(dealId); return closingDisclosure(deal, feesOf(dealId)); },
+    async getContractTerms(dealId) {
+      const { u } = reader(dealId); const row = db().accountingContractTerms.find((x) => x.deal_id === dealId);
+      if (!row) return blankContract(dealId, acctCanEdit(u));
+      const parsed = fromContractRow(row);
+      return { dealId, saved: true, canEdit: acctCanEdit(u), posture: 'estimate', blocked: '', fields: parsed.fields, flags: parsed.flags, updatedAt: row.updated_at || null };
+    },
+    async saveContractTerms(dealId, input) {
+      const { u, deal } = editor(dealId); const clean = cleanContractTerms(input);
+      const price = deal.purchasePrice; const loan = deal.loanAmount; const emd = deal.emdAmount; const received = deal.emdReceived;
+      const list = db().accountingContractTerms; const prevRow = list.find((x) => x.deal_id === dealId);
+      const prev = prevRow ? fromContractRow(prevRow) : { fields: blankContract(dealId).fields, flags: {} };
+      if (prevRow && !contractMismatch(clean, prev)) return { dealId, saved: true, canEdit: true, posture: 'estimate', blocked: '', fields: prev.fields, flags: prev.flags, updatedAt: prevRow.updated_at || null };
+      const stored = { deal_id: dealId, ...toContractRow(clean), updated_at: now() };
+      if (prevRow) Object.assign(prevRow, stored); else list.push(stored);
+      const changes = contractChanges(prev, clean);
+      if (changes.length) db().accountingLog.push({ id: nid('alog'), dealId, feeId: 'contract', description: 'Contract figures (estimate, not a ledger line)', action: 'edited', at: now(), byId: u.id, byName: nameOf(u.id), changes, via: 'Contract figures' });
+      save();
+      const again = fromContractRow(db().accountingContractTerms.find((x) => x.deal_id === dealId) || {});
+      assertContractPersisted(clean, again);
+      if (deal.purchasePrice !== price || deal.loanAmount !== loan || deal.emdAmount !== emd || deal.emdReceived !== received) fail(CONTRACT_NOT_SAVED);
+      return { dealId, saved: true, canEdit: true, posture: 'estimate', blocked: '', fields: again.fields, flags: again.flags, updatedAt: stored.updated_at };
+    },
   };
 }

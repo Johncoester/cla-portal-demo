@@ -147,14 +147,12 @@ export const isOverridden = (f) => isCalculated(f) && CALC_FIELDS.some((k) => !s
 // what the page and the statements see: the stored fee + overridden (derived)
 export const withCalcFlags = (f) => (isCalculated(f) ? { ...f, overridden: isOverridden(f) } : f);
 
-// ---------- auto entries from the order (not stored; always in step with the order) ----------
+// ---------- order figures are not ledger lines ----------
+// A contract sale price, loan, or earnest-money promise is not funds received and not a Closing Disclosure line.
+// Those amounts are entered on Contract figures (an estimate). This stays empty so a filled order cannot post them by itself.
 export function autoEntries(deal) {
-  if (!deal) return []; const refi = isRefiDeal(deal); const out = []; const pp = Number(deal.purchasePrice ?? deal.purchase_price) || 0; const la = Number(deal.loanAmount ?? deal.loan_amount) || 0; const emd = Number(deal.emdAmount ?? deal.emd_amount) || 0;
-  const base = { auto: true, kind: 'credit', altaSection: 'financial', cdLine: '', payee: '', note: 'From the order (change it on File Overview).', split: null, timing: 'at', poc: false, titlePrefix: false, retired: false };
-  if (!refi && pp > 0) out.push({ ...base, id: 'auto-salesPrice', autoKey: 'salesPrice', description: 'Sale Price of Property', amount: round2(pp), from: 'buyer', to: 'seller', cdSection: 'K', cdLine: '01' });
-  if (!refi && emd > 0) out.push({ ...base, id: 'auto-deposit', autoKey: 'deposit', description: 'Deposit (earnest money)', amount: round2(emd), from: 'deposit', to: 'buyer', cdSection: 'L', cdLine: '01' });
-  if (la > 0) out.push({ ...base, id: 'auto-loanAmount', autoKey: 'loanAmount', description: 'Loan Amount', amount: round2(la), from: 'lender', to: 'buyer', cdSection: 'L', cdLine: '02' });
-  return out;
+  if (!deal) return [];
+  return [];
 }
 // PRORATIONS follow the order's CURRENT settlement date (Caroline, Nov 4: "calculated automatically from the settlement date"): the statements
 // use the live calculation; prorationStale says the saved amount / date differ (an editor re-saves it, which logs the change).

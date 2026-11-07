@@ -8,12 +8,13 @@ import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/under
 import { prorationsView } from './dealaccounting-prorations.js?v=202611070139';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
 import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611070139'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
 import { render as postClosingRender } from './dealpostclosing.js?v=202611070139';
-import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611070139';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611071751';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611070139';
 import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611070139';
-import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611070139';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611071751';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { contractView } from './dealaccounting-contract.js?v=202611071751';
 
-const VIEWS = [['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
+const VIEWS = [['contract', 'Contract figures'], ['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
 // negative amounts (the escrow aggregate adjustment) show as -$x.xx
 const m2 = (n) => (n == null || Number(n) === 0 ? '' : (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const m2z = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -24,14 +25,15 @@ const names = (deal, role) => deal.participants.filter((p) => p.role === role &&
 export async function render({ api, deal, user }) {
   if (!(api.features || {}).accounting || !modOn('accounting')) throw new Error('That page does not exist.');   // config flag off, or not Live (beta) for this user
   if (!acctCanRead(user) || user.accountRole) throw new Error('Accounting is for CLA staff only.');
-  const q = new URLSearchParams(location.hash.split('?')[1] || ''); const view = VIEWS.some(([k]) => k === q.get('v')) ? q.get('v') : q.get('calc') === '1' || q.get('retired') === '1' ? 'ledger' : 'charges';   // Qualia: Accounting opens on Charges
+  const q = new URLSearchParams(location.hash.split('?')[1] || ''); const view = VIEWS.some(([k]) => k === q.get('v')) ? q.get('v') : q.get('calc') === '1' || q.get('retired') === '1' ? 'ledger' : 'contract';
   if (PAYOFF_VIEWS.includes(view) && !canReachPayoffs(user)) throw new Error('That section is not available for your account.');   // live28: same rule as the route guard
   const showRetired = q.get('retired') === '1'; const base = `#/deals/${deal.id}/accounting`;
   const acc = await api.getAccounting(deal.id, { includeRetired: showRetired });
   const T = acc.totals; const B = acc.refi ? 'Borrower' : 'Buyer / borrower';
   const nav = qcNav(deal, view, q.get('s') || 'A', base, canReachPayoffs(user));   // live28: Payoffs / Taxes / Other Contacts links for Processors + admins only   // Qualia-style left nav: General · Closing › Charges A-N · Preview · CLA tools
-  const head = html`<div class="acct-head acct-noprint"><div><p class="eyebrow">Accounting</p><h2 class="page-title">Fees, ALTA &amp; Closing Disclosure</h2>
-      <p class="muted small">One fee ledger for this order. The ALTA Settlement Statement and the Closing Disclosure fee pages are built from it. Sales price, deposit and loan amount come from the order.</p></div>
+  const noLines = !acc.entries.length;
+  const head = html`<div class="acct-head acct-noprint"><div><p class="eyebrow">Accounting</p><h2 class="page-title">Contract figures</h2>
+      <p class="muted small">TEST contract figures are estimates. They are not funds received, not a payoff, and not a Closing Disclosure. The fee ledger is a separate worksheet and does not copy the order price, deposit, or loan.</p></div>
     <div class="acct-head-side"><span class="pill warn" data-test-mark>${TEST_MARK}</span>${acc.canEdit ? '' : html`<span class="pill" data-acct-readonly>Read only</span>`}</div></div>`;
   // summary tiles: the classic stat cards, or (card theme, the default look) Loan-Summary style cards: grey card, white inset head with one big baby-blue value.
   // Same data-* hooks either way (data-acct-totals, data-due-buyer, data-due-seller, data-balance, data-balance-diff).
@@ -40,7 +42,9 @@ export async function render({ api, deal, user }) {
     ? html`<div class="tc-card acct-tile ${cls}"${raw(attrs)}><div class="tc-head"><div class="tc-big acct-tile-big ${valCls}">${value}</div><div class="tc-sub">${label}</div></div><div class="acct-tile-foot">${sub}</div></div>`
     : html`<div class="stat-card ${cls}"${raw(attrs)}><div class="stat-label">${label}</div><div class="stat-value ${valCls}">${value}</div><div class="stat-sub">${sub}</div></div>`);
   const val = (hook, v) => html`<span ${raw(hook)}>${v}</span>`;
-  const balance = html`<div class="${tc ? 'acct-tiles' : 'stat-row acct-stats'} acct-noprint" data-acct-totals>
+  const balance = noLines
+    ? html`<p class="notice info acct-noprint" data-acct-totals data-balance="none">No verified ledger lines. Contract figures are not posted here, and a blank is not zero.</p>`
+    : html`<div class="${tc ? 'acct-tiles' : 'stat-row acct-stats'} acct-noprint" data-acct-totals>
       ${tile(`${B} ${T.dueToBuyer > 0 ? 'refund' : 'due at closing'}`, val('data-due-buyer', m2z(T.dueToBuyer > 0 ? T.dueToBuyer : T.dueFromBuyer)), html`Debits ${m2z(T.buyerDebits)} &middot; credits ${m2z(T.buyerCredits)}`)}
       ${acc.refi ? '' : tile(`Seller ${T.dueFromSeller > 0 ? 'owes at closing' : 'proceeds'}`, val('data-due-seller', m2z(T.dueFromSeller > 0 ? T.dueFromSeller : T.dueToSeller)), html`Debits ${m2z(T.sellerDebits)} &middot; credits ${m2z(T.sellerCredits)}`)}
       ${tile('Paid by others / outside closing', m2z(T.paidByLender + T.paidByOther), html`POC / before closing ${m2z(T.paidOutsideClosing)}`)}
@@ -49,7 +53,8 @@ export async function render({ api, deal, user }) {
     ${T.issues.length ? html`<div class="notice warn acct-noprint" data-balance-issues><strong>Out of balance.</strong><ul>${T.issues.map((i) => html`<li>${i}</li>`)}</ul></div>` : ''}
     ${(T.warnings || []).length ? html`<div class="notice info acct-noprint" data-acct-warnings><ul>${T.warnings.map((i) => html`<li>${i}</li>`)}</ul></div>` : ''}`;
   let v;
-  if (view === 'postclosing') v = await postClosingRender({ api, deal, user, refresh: () => location.reload() });
+  if (view === 'contract') v = await contractView(api, deal);
+  else if (view === 'postclosing') v = await postClosingRender({ api, deal, user, refresh: () => location.reload() });
   else if (view === 'charges') v = await chargesView(api, deal, acc, q, base);
   else if (view === 'payoffs') v = await payoffsView(api, deal, acc, q, base, user);
   else if (view === 'taxes') v = await taxesView(api, deal, acc, q, base);
