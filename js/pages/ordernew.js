@@ -16,6 +16,7 @@ import { ENTITY_TYPES } from '../data/templates.js?v=202611070139';
 import { moneyClean } from './money-input.js?v=202611070139';
 import { REFERRALS, REFERRAL_ROLE, encodeReferral, showMdQuestions, processorChoices } from '../data/place-order.js?v=202611070139';
 import { orderDraftKey, readOrderDraft, writeOrderDraft, clearOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim } from '../data/order-draft.js?v=202611070139';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611071715';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
 // Each person becomes their own deal_participants row, so each buyer / seller gets their own copy of the client intake tasks (existing per-person behaviour).
@@ -465,7 +466,8 @@ export async function render({ api, user, go }) {
       for (const [k, x, role] of entries) { if (!counts(role)) continue;   // refinance: hidden seller / realtor / TC boxes are not saved
         try { const res = await api.addParticipant(deal.id, x, role, entities[k] ? { entity: entities[k] } : undefined); tasks += (res && res.tasksCreated) || 0; added[role] = (added[role] || 0) + 1; } catch (err) { problems.push(`${role}: ${err.message}`); } }
       let saved = 0;
-      const uploadOne = async (file, visibility, docType, wire) => { try { await api.addDocument(deal.id, { name: file.name, description: '', mimeType: file.type, size: file.size, dataUrl: await readFile(file), visibility, folderId: null, docType, wireInstructions: wire }); saved++; } catch (err) { problems.push(`${file.name}: ${err.message}`); } };
+      const uploadIds = new WeakMap();
+      const uploadOne = async (file, visibility, docType, wire) => { try { let slot = uploadIds.get(file); if (!slot) uploadIds.set(file, slot = {}); const id = sameUploadId(slot, file); await api.addDocument(deal.id, { id, name: file.name, description: '', mimeType: file.type, size: file.size, dataUrl: await readFile(file), visibility, folderId: null, docType, wireInstructions: wire }); saved++; } catch (err) { problems.push(`${file.name}: ${err.message}`); } };
       for (const file of txFiles) await uploadOne(file, $('#tx-vis', root).value, refi() ? 'Lender documents' : 'Contract / addendum', false);
       for (let i = 0; i < files.length; i++) { const sel = $(`[data-doctype="${i}"]`, root); await uploadOne(files[i], $('#nof-vis', root).value, sel ? sel.value : '', $('#nof-wire', root).checked); }
       if (skipped.length) toast(`No ${skipped.join(' / ').toLowerCase()} added (nobody was picked from the list). You can add one later on the Contacts tab.`);

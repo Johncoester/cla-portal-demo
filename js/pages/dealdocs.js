@@ -1,5 +1,6 @@
 // Documents tab with folders. Upload, open/download, file into folders, edit description/visibility. There is NO delete: documents are kept permanently.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDateTime, fmtSize, pill, toast } from '../ui.js?v=202611070139';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611071715';
 import { composeModal } from './compose.js?v=202611070139';
 import { runsOrders, viewOnly, DOC_VISIBILITY, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isViewOnly, isClient, visibilityChoices, visibilityLabel, CLIENT_SHARE_NOTE, BUYER_SHARE_NOTE, DOC_TYPES, docTypeChoices } from '../data/constants.js?v=202611070139';
 const icon = (n) => (/\.pdf$/i.test(n) ? 'pdf_icon.png' : /\.docx?$/i.test(n) ? 'word_icon.png' : /\.(xlsx?|csv)$/i.test(n) ? 'excel_icon.png' : 'image_icon.png');
@@ -67,7 +68,8 @@ export async function render({ api, user, deal, refresh }) {
       if (btn.disabled) return; btn.disabled = true; btn.textContent = 'Uploading…';
       try {
         const dataUrl = await readFile(file);
-        await api.addDocument(deal.id, { name: file.name, description: f.description, mimeType: file.type, size: file.size, dataUrl, file, visibility: f.visibility, folderId: f.folderId || null, docType: f.docType || '', wireInstructions: staffView && !!f.wireInstructions });
+        const id = sameUploadId(form._upload || (form._upload = {}), file);
+        await api.addDocument(deal.id, { id, name: file.name, description: f.description, mimeType: file.type, size: file.size, dataUrl, file, visibility: f.visibility, folderId: f.folderId || null, docType: f.docType || '', wireInstructions: staffView && !!f.wireInstructions });
         closeModal(); toast('Uploaded'); refresh();
       } catch (ex) { const msg = ex.message || 'The upload failed.'; err.textContent = msg; toast(msg, 'err'); btn.disabled = false; btn.textContent = 'Upload'; } });
   }
