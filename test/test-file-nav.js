@@ -1,0 +1,21 @@
+/* Inside a file the portal menu starts closed for every role. File tabs stay. The button only opens that menu. */
+import { readFileSync } from 'node:fs';
+const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+const css = readFileSync(new URL('../css/portal.css', import.meta.url), 'utf8');
+const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+let fail = 0;
+const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
+ok(app.includes('const fileNav = !!deal'), 'every role starts with the portal menu closed inside a file');
+ok(!app.includes('const orderOnly'), 'admins are no longer left with the portal menu open inside a file');
+ok(app.includes('data-file-nav-toggle') && app.includes('aria-expanded="false"') && app.includes('aria-controls="global-nav"'), 'the show/hide control is a named button');
+ok(app.includes('id="global-nav" data-global-nav hidden'), 'the portal menu is hidden until the button opens it');
+ok(app.includes('apply(false)'), 'each visit starts closed');
+ok(app.includes("btn.textContent = open ? 'Hide portal menu' : 'Show portal menu'"), 'the button says what it will do');
+ok(app.includes('data-order-only-nav'), 'the existing order-page marker stays');
+ok(app.includes('${dealNav}'), 'file tabs stay in the sidebar');
+ok(css.includes('.nav-global-wrap') && css.includes('.file-nav-toggle'), 'the collapsed menu has its own spacing');
+ok(css.includes('[hidden] { display: none !important; }'), 'a hidden menu stays hidden');
+ok(html.includes('js/app.js?v=202611071612') && html.includes('css/portal.css?v=202611071612'), 'the published page loads the updated shell');
+ok(html.includes('testportal.clatitle.com') === false && readFileSync(new URL('../CNAME', import.meta.url), 'utf8').trim() === 'testportal.clatitle.com', 'the custom domain file is unchanged');
+console.log(fail ? fail + ' failed' : 'file nav passed');
+if (fail) process.exit(1);
