@@ -19,14 +19,26 @@ export const SIMULATION_TEXT = 'TEST SIMULATION. This is not the assistant. Noth
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export const COMPOSE_NOTICE = 'Nothing is sent from this form. Save the note, then send that saved report. This browser does not send by itself.';
+export const PENDING_SEND_NOTICE = 'Saved in the portal. Not delivered. Use Send to the tech assistant. That send is not a reply.';
+
+/* The browser cannot know the server switch. A pending row is waiting for an explicit send. */
+export function reportNotice(row) {
+  if (!row) return COMPOSE_NOTICE;
+  const state = row.deliveryState || row.delivery_state || '';
+  const reason = row.deliveryReason || row.delivery_reason || '';
+  if (state === 'pending_dispatch') {
+    if (reason === 'transport_error' || reason === 'transport_rejected') return 'Saved in the portal. Not delivered. The last send was not accepted.';
+    return PENDING_SEND_NOTICE;
+  }
+  const notice = row.notice || deliveryNotice(state, reason);
+  if (/bearer|webhook url|not configured/i.test(String(notice))) return deliveryNotice(state, '');
+  return notice;
+}
+
 export function deliveryNotice(state, reason) {
   if (state === 'saved') return 'Saved in the portal. Not sent to the assistant.';
-  if (state === 'pending_dispatch') {
-    const tail = reason === 'bridge_unconfigured' ? ' The webhook URL and Bearer key are not configured.'
-      : reason === 'transport_error' ? ' The last send failed. It was not marked delivered.'
-        : reason === 'transport_rejected' ? ' The webhook did not accept it. It was not marked delivered.' : '';
-    return `Saved in the portal. Pending dispatch. Not delivered.${tail}`;
-  }
+  if (state === 'pending_dispatch') return reportNotice({ deliveryState: state, deliveryReason: reason });
   if (state === 'run_accepted') return 'The webhook returned 200. A run was started. The assistant has not read this, and this is not a reply.';
   if (state === 'bot_acknowledged') return 'The assistant has read this report. No reply has been published.';
   if (state === 'replied') return 'A draft reply is waiting for support review. It is not published, and this report is not marked fixed.';
