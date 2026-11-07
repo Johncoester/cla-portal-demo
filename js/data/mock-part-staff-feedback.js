@@ -27,6 +27,7 @@ export function staffFeedbackPart(x) {
     async publishStaffFeedbackDraft(id) { return run(() => publishDraft(bag(), actor(), id, { now: x.now })); },
     async reviewStaffFeedbackReply(id) { return run(() => reviewStaffReply(bag(), actor(), id, { now: x.now })); },
     async simulateStaffFeedback(id) { return run(() => simulateReport(bag(), actor(), id, { now: x.now, id: x.nid })); },
+    async requestStaffFeedbackDispatch() { return { sent: false, replied: false, runAccepted: false, recorded: false, reason: 'bridge_unconfigured', error: 'Dispatch is not enabled. Nothing was sent.', exactlyOnce: false }; },
     staffFeedbackAllowed: canReportStaffFeedback,
   };
 }

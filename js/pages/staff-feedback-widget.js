@@ -167,6 +167,23 @@ async function paint(api) {
     row.appendChild(document.createTextNode((a.fileName || 'File') + ' — Stored. Not analyzed. '));
     row.appendChild(btn); live.shots.appendChild(row);
   });
+  if (full.deliveryState === 'pending_dispatch') {
+    const send = el('button', 'claSfBtn o', 'Send to the tech assistant'); send.type = 'button';
+    send.addEventListener('click', async () => {
+      live.err.textContent = '';
+      live.progress.dataset.filePhase = 'sending'; live.progress.textContent = 'Asking the server to send…';
+      try {
+        const result = api.requestStaffFeedbackDispatch ? await api.requestStaffFeedbackDispatch(full.id) : { reason: 'bridge_unconfigured', error: 'Dispatch is not enabled. Nothing was sent.' };
+        live.progress.dataset.filePhase = result.reason || 'bridge_unconfigured';
+        live.notice.textContent = result.reason === 'run_started'
+          ? 'The routine accepted a run. This is not a reply and it is not delivered.'
+          : result.reason === 'accepted_unrecorded'
+            ? 'The routine may have accepted a run, but the portal could not record it. It was not posted again.'
+            : (result.error || 'Dispatch is not enabled. Nothing was sent.');
+      } catch (ex) { live.progress.dataset.filePhase = 'error'; live.err.textContent = ex.message || 'Nothing was sent.'; }
+    });
+    live.shots.appendChild(send);
+  }
   if (full.canSupport) {
     const link = el('a', '', 'Open the report list'); link.href = '#/staff-feedback';
     live.shots.appendChild(link);

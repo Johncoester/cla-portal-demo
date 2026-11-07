@@ -37,5 +37,11 @@ export function staffFeedbackSupabase({ sb, ok, camel }) {
     async publishStaffFeedbackDraft(id) { return one('staff_feedback_publish_draft', { p_message: id }); },
     async reviewStaffFeedbackReply(id) { return one('staff_feedback_review_reply', { p_event: id }); },
     async simulateStaffFeedback() { throw new Error('Test simulation is only available in the local demo. Nothing was sent.'); },
+    async requestStaffFeedbackDispatch(id) {
+      const res = await sb.functions.invoke('staff-feedback-dispatch', { body: { explicit: true, feedback_id: id } });
+      const data = res && res.data || {};
+      if (res.error) return { sent: false, replied: false, runAccepted: false, recorded: false, reason: 'bridge_unconfigured', error: 'Dispatch is not enabled. Nothing was sent.' };
+      return { sent: false, replied: false, runAccepted: data.runAccepted === true, recorded: data.recorded === true, reason: data.reason || 'bridge_unconfigured', error: data.error || '' };
+    },
   };
 }
