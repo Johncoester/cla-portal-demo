@@ -8,15 +8,19 @@ const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); 
 
 export async function render({ api, user, deal, refresh }) {
   const q = new URLSearchParams(location.hash.split('?')[1] || ''); const tab = ['received', 'sent', 'all'].includes(q.get('t')) ? q.get('t') : 'all';
-  const folder = q.has('f') ? q.get('f') : null; const docs = await api.listDocuments(deal.id, folder === null ? {} : { folderId: folder }); const folders = await api.listDealFolders(deal.id);
+  const folder = q.has('f') ? q.get('f') : null;
+  const [docs, folders, sigs, ents] = await Promise.all([
+    api.listDocuments(deal.id, folder === null ? {} : { folderId: folder }),
+    api.listDealFolders(deal.id),
+    api.listSignatureRequests(deal.id),
+    api.listEntityDocRequests(deal.id).catch(() => []),
+  ]);
   const manage = runsOrders(user) || user.role === 'Transaction Coordinator'; const realFolders = folders.filter((f) => !f.virtual);
   const href = (t, f) => `#/deals/${deal.id}/documents?t=${t}${f === null ? '' : '&f=' + encodeURIComponent(f)}`;
   const portalDocs = docs.filter((d) => !d.sample);
   const shown = portalDocs.filter((d) => tab === 'all' || (tab === 'sent') === (d.uploadedBy === user.id));
   const staffView = !user.accountRole && user.role !== 'Outside user'; const types = staffView ? DOC_TYPES : docTypeChoices(user.role);   // Matt: seller document types
-  const sigs = await api.listSignatureRequests(deal.id);
   // Matt, Nov 3: entity documents requested from a buyer / seller acting as an entity (shown to the person, the processor, the coordinator and Admin)
-  const ents = await api.listEntityDocRequests(deal.id).catch(() => []);
   const entBlock = ents.length ? html`<div class="box-title"><h2><span class="h-ico"></span>Requested entity documents</h2></div>
     <table class="tbl striped" id="entity-docs"><thead><tr><th>Buyer / seller</th><th>Entity</th><th>Authorized signer</th><th>Requested documents</th></tr></thead><tbody>${ents.map((e) => html`<tr data-entity-task="${e.taskId}">
       <td>${e.ownerName || e.role}<br><span class="muted small">${e.role === 'Client-Seller' ? 'Seller' : 'Buyer'} &middot; <a href="#/deals/${deal.id}/tasks/${e.taskId}">${e.taskTitle}</a></span></td>

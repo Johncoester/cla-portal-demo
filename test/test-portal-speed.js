@@ -1,5 +1,5 @@
 /* Fake latency only. No hosted project, no secrets, no webhook. */
-import { gatherReads, mapLimit, profileFlight, routeTokens } from '../js/data/read-batch.js';
+import { gatherReads, mapLimit, navigationReads, profileFlight, routeTokens } from '../js/data/read-batch.js';
 import { readFileSync } from 'node:fs';
 
 let fail = 0;
@@ -81,15 +81,33 @@ const staleRole = await adminP;
 const freshRole = await demoP;
 check(staleRole == null && freshRole && freshRole.isDemo === true, 'a same-person demo change discards the older profile read');
 
+const nav = navigationReads();
+let dealFetches = 0;
+nav.begin('person-a');
+const dealOnce = () => nav.share('person-a', 'deal:file', async () => { dealFetches += 1; await wait(20); return { id: 'file', who: 'person-a' }; });
+const [dealA, dealB] = await Promise.all([dealOnce(), dealOnce()]);
+check(dealA.id === 'file' && dealB === dealA && dealFetches === 1, 'one navigation reads a file once when the page and the shell both ask');
+nav.begin('person-b');
+const other = await nav.share('person-b', 'deal:file', async () => { dealFetches += 1; return { id: 'file', who: 'person-b' }; });
+check(other.who === 'person-b' && dealFetches === 2, 'the next person does not receive the first person\'s file');
+nav.clear();
+const afterSignOut = await nav.share('person-b', 'deal:file', async () => { dealFetches += 1; return { id: 'file', who: 'fresh' }; });
+check(afterSignOut.who === 'fresh' && dealFetches === 3, 'sign-out drops the shared file read');
+let failed = 0;
+nav.begin('person-a');
+await nav.share('person-a', 'deal:bad', async () => { failed += 1; throw new Error('down'); }).catch(() => null);
+await nav.share('person-a', 'deal:bad', async () => { failed += 1; return 'recovered'; });
+check(failed === 2, 'a failed file read is not reused');
+
 const dash = readFileSync(new URL('../js/pages/dashboard.js', import.meta.url), 'utf8');
 check(!dash.includes('for (const d of deals) tasksByDeal'), 'the dashboard does not walk every order for tasks before choosing the view');
 check(dash.includes('needsTasks') && dash.includes('getWorkQueue({ deals })'), 'a processor reuses the order list already loaded');
 const adapter = readFileSync(new URL('../js/data/supabase-adapter.js', import.meta.url), 'utf8');
-check(adapter.includes('gatherReads') && adapter.includes('profile.clear()') && adapter.includes('supabase-staff.js?v=202611081930'), 'order reads overlap, sign-out drops the profile, and the staff module stamp is current');
+check(adapter.includes('gatherReads') && adapter.includes('profile.clear()') && adapter.includes('nav.clear()') && adapter.includes('supabase-staff.js?v=202611081950'), 'order reads overlap, sign-out drops the profile, and the staff module stamp is current');
 const appSrc = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-check(appSrc.includes("adapter.js?v=202611081930") && !appSrc.includes('modsEarly'), 'the shell loads the current adapter and does not reuse an early module map');
+check(appSrc.includes("adapter.js?v=202611081950") && !appSrc.includes('modsEarly'), 'the shell loads the current adapter and does not reuse an early module map');
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-check(app.includes('Loading this page.') && app.includes('data-loading-note') && app.includes('Promise.all'), 'a route shows a loading line and overlaps the shell reads');
+check(app.includes('Loading this page.') && app.includes('data-loading-note') && app.includes('#view') && !app.includes('getOrderOverview(dealId).then'), 'a file tab clears the open page before the next read and does not wait on a second overview');
 const widget = readFileSync(new URL('../js/pages/staff-feedback-widget.js', import.meta.url), 'utf8');
 check(widget.includes('armReplyWatch') && widget.includes('dataset.sentAt') && widget.includes('Nothing back in this thread yet'), 'a sent thread checks again for a saved reply without inventing one');
 

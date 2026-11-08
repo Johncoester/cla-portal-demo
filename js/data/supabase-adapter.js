@@ -21,14 +21,14 @@ import { emailSendersSupabase } from './supabase-email-senders.js?v=202611070139
 import { nov5Supabase } from './supabase-nov5.js?v=202611071715';
 import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611071845';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611070139';
-import { staffSupabase } from './supabase-staff.js?v=202611081930';
+import { staffSupabase } from './supabase-staff.js?v=202611081950';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611080400';
 import { propertyAddressOf } from './nov5-rules.js?v=202611070139';
-import { fetchHostedTaskList, fetchHostedTask } from './task-actions.js?v=202611070139';
+import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList } from './task-actions.js?v=202611070139';
 import { contactInsertRow } from './contact-insert.js?v=202611070139';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611070139';
-import { gatherReads, profileFlight } from './read-batch.js?v=202611081930';
+import { gatherReads, navigationReads, profileFlight } from './read-batch.js?v=202611081950';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
 
@@ -37,7 +37,12 @@ export async function createSupabaseAdapter(cfg) {
   if (typeof localStorage !== 'undefined') { try { localStorage.removeItem('cla-portal-new:data:v30'); } catch (e) { /* a browser that blocks storage still must not load fixtures */ } }
   const { createClient } = await import(SB);
   const sb = createClient(cfg.url, cfg.anonKey);
-  sb.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') { try { sessionStorage.setItem('cla-portal-recovery', '1'); } catch (e) { /* the reset screen also checks the flag */ } if (!/recovery/.test(location.hash)) location.hash = '#/login'; } });
+  let authGen = 0;
+  let routeUser = null;
+  sb.auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') authGen += 1;
+    if (event === 'PASSWORD_RECOVERY') { try { sessionStorage.setItem('cla-portal-recovery', '1'); } catch (e) { /* the reset screen also checks the flag */ } if (!/recovery/.test(location.hash)) location.hash = '#/login'; }
+  });
   const ok = (r) => { if (r.error) throw new Error(r.error.message); return r.data; };
   const camel = (o) => Array.isArray(o) ? o.map(camel) : o && typeof o === 'object'
     ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), camel(v)])) : o;
@@ -59,10 +64,23 @@ export async function createSupabaseAdapter(cfg) {
   const types = async (ids) => new Map(ids.length ? (ok(await sb.rpc('contact_types', { p_ids: [...new Set(ids)] })) || []).map((r) => [r.contact_id, r.contact_type]) : []);
   const withRole = (d, r, pm) => ({ ...d, myRole: r && r.role, myRoles: (r && r.roles) || [], myRoleLabel: r && r.label, selfRep: !!(r && r.self_rep), agentParties: pm.get(d.id) || [] });
   const profile = profileFlight();
-  const me = async () => {
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) { profile.clear(); return null; }
-    return profile.load(user, async (who) => {
+  const nav = navigationReads();
+  const primed = new Map();
+  let openingNav = false;
+  const fileRead = (key, fn) => {
+    const owner = nav.userId();
+    if (!owner) {
+      if (!primed.has(key)) primed.set(key, Promise.resolve().then(fn));
+      return primed.get(key);
+    }
+    return nav.share(owner, key, fn);
+  };
+  const openNav = (id) => {
+    nav.begin(id);
+    for (const [key, promise] of primed) nav.seed(id, key, promise);
+    primed.clear();
+  };
+  const meFrom = (who) => profile.load(who, async () => {
       const raw = ok(await sb.rpc('my_profile'));   // profiles row only; user_metadata is never a role
       if (!raw) return { id: who.id, email: who.email || '', firstName: '', lastName: '', role: '', status: 'unprovisioned', unprovisioned: true, isAdmin: false };
       const p = camel(raw);
@@ -70,7 +88,57 @@ export async function createSupabaseAdapter(cfg) {
       p.fileRoles = sorted(rs.flatMap((r) => r.roles || [])); p.fileLabels = sorted(rs.map((r) => r.label));
       return p;
     });
+  const me = async () => {
+    if (routeUser && routeUser.id && nav.userId() === routeUser.id) return routeUser;
+    const { data: { user } } = await sb.auth.getUser();
+if (!user) { profile.clear(); nav.clear(); primed.clear(); routeUser = null; return null; }
+      if (nav.userId() !== user.id) {
+      profile.begin();
+      if (!openingNav) openNav(user.id);
+      routeUser = null;
+    }
+    const loaded = await meFrom(user);
+    if (loaded && loaded.id === user.id) routeUser = loaded;
+    return loaded;
   };
+  async function fetchDeal(id) {
+    const got = await gatherReads({
+      roles: fileRoles,
+      parties: parties,
+      row: async () => camel(ok(await sb.from('deals').select('*').eq('id', id).single())),
+      contacts: async () => ok(await sb.rpc('deal_contacts', { p_deal: id })) || [],
+      sales: () => salesMap(id),
+      titles: () => titles(id),
+      entities: async () => ok(await sb.rpc('deal_entities', { p_deal: id })) || [],
+      source: async () => ok(await sb.rpc('deal_source', { p_deal: id })) || [],
+    });
+    const d = got.row;
+    d.participants = got.contacts.map((r) => ({ id: r.participant_id, dealId: r.deal_id, contactId: r.contact_id, role: r.role,
+      contact: { id: r.contact_id, profileId: r.profile_id, firstName: r.first_name, lastName: r.last_name, company: r.company, email: r.email, phone: r.phone, contactHidden: r.contact_hidden } }));
+    const ct = await types(d.participants.map((p) => p.contactId)); d.participants.forEach((p) => { p.contact.contactType = ct.get(p.contactId) || null; });
+    Object.assign(d, salesFields(got.sales.get(id))); d.county = d.county || ''; d.fileTitle = got.titles.get(id) || '';
+    const ents = new Map(got.entities.map((r) => [r.participant_id, { name: r.name, type: r.entity_type || '', repName: r.rep_name || '', repTitle: r.rep_title || '', repPhone: r.rep_phone || '', repEmail: r.rep_email || '' }]));
+    d.participants.forEach((p) => { p.entity = ents.get(p.id) || null; });
+    const src = got.source[0]; d.sourceOfBusiness = src ? src.value : ''; d.sourceOfBusinessLabel = src ? src.label : '';
+    return withRole(d, got.roles.get(d.id), got.parties);
+  }
+  async function fetchFileShell(id) {
+    const row = camel(ok(await sb.from('deals').select('*').eq('id', id).single()));
+    row.address = `${row.street}, ${row.city}, ${row.state} ${row.zip}`;
+    row.participants = [];
+    row.salesPeople = [];
+    row.salesPersonIds = [];
+    row.county = row.county || '';
+    row.fileTitle = '';
+    row.sourceOfBusiness = '';
+    row.sourceOfBusinessLabel = '';
+    if (routeUser && routeUser.role === 'Outside user') {
+      const roles = await fileRoles();
+      return withRole(row, roles.get(row.id), new Map());
+    }
+    return withRole(row, null, new Map());
+  }
+  const rawDocs = async (id) => camel(ok(await sb.from('documents').select('*').eq('deal_id', id)));
   const a = {
     mode: 'supabase',
     // ---- auth (real logins; the dev picker and ?as= links are mock-only and ignored in this mode) ----
@@ -101,10 +169,20 @@ export async function createSupabaseAdapter(cfg) {
       if (patch.firstName != null) row.first_name = String(patch.firstName); if (patch.lastName != null) row.last_name = String(patch.lastName); if (patch.phone != null) row.phone = String(patch.phone);
       const { data: { user } } = await sb.auth.getUser(); if (!user) throw new Error('Please sign in.');
       if (Object.keys(row).length) ok(await sb.from('profiles').update(row).eq('id', user.id));
-      return me();
+      profile.begin(); routeUser = null; return me();
     },
-    async getSession() { profile.begin(); return me(); },
-    async signOut() { profile.clear(); await sb.auth.signOut(); },
+    async getSession() {
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) { profile.clear(); nav.clear(); primed.clear(); routeUser = null; return null; }
+      if (!routeUser || routeUser.id !== user.id || nav.userId() !== user.id) {
+        profile.begin();
+        openNav(user.id);
+        routeUser = await meFrom(user);
+      }
+      return routeUser;
+    },
+    authGeneration() { return authGen; },
+    async signOut() { profile.clear(); nav.clear(); primed.clear(); routeUser = null; await sb.auth.signOut(); },
     async resetDemoData() {},
     async getMyProfile() { return me(); },
     // John, Nov 2 (migration 23): file titles from deal_file_titles(p_deal) = the buyers' / sellers' last names the caller may see, in the order added
@@ -126,27 +204,9 @@ export async function createSupabaseAdapter(cfg) {
         address: `${d.street}, ${d.city}, ${d.state} ${d.zip}`, displayName: propertyAddressOf(d), county: d.county || '', fileTitle: got.titles.get(d.id) || '', partyNames: (ex.get(d.id) || {}).party_names || [], overdueTasks: (ex.get(d.id) || {}).overdue_tasks || 0, ...salesFields(got.sales.get(d.id)) }));
     },
     // participants come from deal_contacts() (migration 13): the other side's agent/client keep their names but phone/email are blank for outside users
-    async getDeal(id) {
-      const got = await gatherReads({
-        roles: fileRoles,
-        parties: parties,
-        row: async () => camel(ok(await sb.from('deals').select('*').eq('id', id).single())),
-        contacts: async () => ok(await sb.rpc('deal_contacts', { p_deal: id })) || [],
-        sales: () => salesMap(id),
-        titles: () => titles(id),
-        entities: async () => ok(await sb.rpc('deal_entities', { p_deal: id })) || [],
-        source: async () => ok(await sb.rpc('deal_source', { p_deal: id })) || [],
-      });
-      const d = got.row;
-      d.participants = got.contacts.map((r) => ({ id: r.participant_id, dealId: r.deal_id, contactId: r.contact_id, role: r.role,
-        contact: { id: r.contact_id, profileId: r.profile_id, firstName: r.first_name, lastName: r.last_name, company: r.company, email: r.email, phone: r.phone, contactHidden: r.contact_hidden } }));
-      const ct = await types(d.participants.map((p) => p.contactId)); d.participants.forEach((p) => { p.contact.contactType = ct.get(p.contactId) || null; });
-      Object.assign(d, salesFields(got.sales.get(id))); d.county = d.county || ''; d.fileTitle = got.titles.get(id) || '';
-      const ents = new Map(got.entities.map((r) => [r.participant_id, { name: r.name, type: r.entity_type || '', repName: r.rep_name || '', repTitle: r.rep_title || '', repPhone: r.rep_phone || '', repEmail: r.rep_email || '' }]));
-      d.participants.forEach((p) => { p.entity = ents.get(p.id) || null; });
-      const src = got.source[0]; d.sourceOfBusiness = src ? src.value : ''; d.sourceOfBusinessLabel = src ? src.label : '';
-      return withRole(d, got.roles.get(d.id), got.parties);
-    },
+    async getDeal(id) { return fetchDeal(id); },
+    async readDeal(id) { return fileRead('deal:' + id, () => fetchDeal(id)); },
+    async readFileShell(id) { return fileRead('shell:' + id, () => fetchFileShell(id)); },
     // John, Nov 2 (migration 19): several salespeople per order; the Processor and Admins add/remove them (RPCs check the role + file access)
     async listPreprocessors() { return camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status').eq('role', 'Preprocessor').eq('status', 'active').order('first_name'))); },
     async listProcessors() { const u = await me(); return (camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status, is_demo').in('role', PROCESSOR_PICK_ROLES).eq('status', 'active').order('first_name'))) || [])
@@ -220,7 +280,14 @@ export async function createSupabaseAdapter(cfg) {
     async listActivity(dealId) { let q = sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(300); q = dealId ? q.eq('deal_id', dealId) : q.is('deal_id', null);
       const items = camel(ok(await q)); return { items, total: items.length, types: [...new Set(items.map((a) => a.action.split('.')[0]))].sort(), actors: [] }; },
     // tasks.form_data is NOT selectable (column grant); answers come from get_task_form for the owner / processor / coordinator / Admin only
-    async listTasks(dealId) { return fetchHostedTaskList(sb, dealId, await me()); },
+    async listTasks(dealId) {
+      const raw = fileRead('taskrows:' + dealId, () => fetchHostedTaskRows(sb, dealId));
+      const u = routeUser || await me();
+      if (!u) throw new Error('Please sign in.');
+      if (nav.userId() && nav.userId() !== u.id) throw new Error('Please sign in.');
+      const got = await raw;
+      return mapHostedTaskList(got.rows, u, got.off);
+    },
     async getTask(id) { return fetchHostedTask(sb, id, await me()); },
     // Matt, Nov 3 (migration 26): entity documents requested from buyers / sellers acting as an entity (person, processor, coordinator, Admin)
     async listEntityDocRequests(dealId) { return camel(ok(await sb.rpc('entity_doc_requests', { p_deal: dealId }))); },
@@ -249,7 +316,7 @@ export async function createSupabaseAdapter(cfg) {
     async getSchedulingLink(tok) { return ok(await sb.rpc('scheduling_get', { p_token: tok })); },   // anon OK
     async respondSettlement(tok, { picks, note, name }) { ok(await sb.rpc('scheduling_respond', { p_token: tok, p_picks: picks.map((i) => i + 1), p_name: name, p_note: note || '' })); },
     async updateTask(id, patch) { return ok(await sb.rpc('set_task_status', { p_task: id, p_status: patch.status })); },
-    async listDocuments(dealId) { return camel(ok(await sb.from('documents').select('*').eq('deal_id', dealId))); },
+    async listDocuments(dealId) { return fileRead('docs:' + dealId, () => rawDocs(dealId)); },
     // ---- Matt, Nov 2 (migration 16): cross-file task list + Processor / Admin task grid. task_board / task_grid are SECURITY INVOKER (RLS decides). ----
     async listAllTasks({ fileStatus = 'All' } = {}) { return boardRows(ok(await sb.rpc('task_board', { p_file_status: fileStatus }))); },
     // FILE-FIRST combined list (John, Nov 4; migration 45): my tasks on every file I am on, each with my role on that file
@@ -305,7 +372,23 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, callItemsSupabase({ sb, ok, me }));   // John, Nov 3 call (migration 38): underwriter splits, agent birthdate
   Object.assign(a, agentInviteSupabase({ sb, ok, me }));   // John, Nov 4 (migration 41): agent invites (nothing sent), agent profiles, the clients' agent card
   { const { hrSessionExtras, ...hrApi } = hrSupabase({ sb, ok, me }); Object.assign(a, hrApi);   // HR workspace, Phase 1 (Nov 4, migration 47): the session carries hrRole / hrEmployeeId / hrHasReports
-    const gs = a.getSession; a.getSession = async function () { const u = await gs.call(this); return u ? { ...u, ...(await hrSessionExtras()) } : u; }; }
+    const gs = a.getSession; a.getSession = async function () { const u = await gs.call(this); if (!u) return u; return { ...u, ...(await nav.share(u.id, 'hr-extras', () => hrSessionExtras())) }; };
+    a.beginNavigation = async function (hint) {
+      openingNav = true;
+      try {
+        profile.begin();
+        routeUser = null;
+        primed.clear();
+        warmFile(hint);
+        const { data: { user } } = await sb.auth.getUser();
+        if (!user) { profile.clear(); nav.clear(); primed.clear(); routeUser = null; return { user: null, hr: Promise.resolve({}), demo: Promise.resolve(null) }; }
+        openNav(user.id);
+        const hr = nav.share(user.id, 'hr-extras', () => hrSessionExtras());
+        const demo = nav.share(user.id, 'demo', () => a.demoViewStatus().catch(() => null));
+        routeUser = await meFrom(user);
+        return { user: routeUser, hr, demo };
+      } finally { openingNav = false; }
+    }; }
   Object.assign(a, feedbackNov4Supabase({ sb, ok, me }));
   Object.assign(a, closingLocationSupabase({ sb, ok }));   // John, Nov 4 (migration 58): where each buyer / seller will be at closing
   Object.assign(a, officesSupabase({ sb, ok, me }, { listClosingProposals: a.listClosingProposals }));   // John, Nov 4 (migration 57): Admin > Offices + the closing office picker   // John + Janine, Nov 4 (migration 56): closing office default, disbursement, search columns   // John, Nov 4 (migration 41): agent invites (nothing sent), agent profiles, the clients' agent card
@@ -313,11 +396,40 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, tcSupabase({ sb, ok, camel, api: a }));   // John, Nov 5 (migration 71): TC contract / EMD / ALTA / all-parties thread
   Object.assign(a, emailSendersSupabase({ sb, ok, me }));
   Object.assign(a, nov5Supabase({ sb, ok, camel, me }));
-  Object.assign(a, orderOverviewSupabase({ sb, ok, camel, me, api: a }));
+  Object.assign(a, orderOverviewSupabase({ sb, ok, camel, me: async () => routeUser || me(), api: a }));
+  a.readOverview = (dealId) => fileRead('overview:' + dealId, () => a.getOrderOverview(dealId));
   // Staff create and resend invite links here (nothing is emailed). Accepting a link goes through the accept-invite function, not a browser sign-up.
   Object.assign(a, staffFeedbackSupabase({ sb, ok, camel }));
   a.previewCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };
   a.runCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };
   a.cancelSignatureRequest = async () => { throw new Error(NOT_ENABLED); };
+  const shareRead = (name) => {
+    const orig = a[name] && a[name].bind(a);
+    if (!orig) return;
+    a[name] = (id, ...rest) => (rest.length || id == null ? orig(id, ...rest) : fileRead(name + ':' + id, () => orig(id)));
+  };
+  ['listThreads', 'listActivity', 'listDealFolders', 'listSignatureRequests', 'listEntityDocRequests'].forEach(shareRead);
+  function warmFile(hint) {
+    if (!hint || !hint.dealId || hint.gated) return;
+    const id = hint.dealId;
+    const tab = hint.tab || 'overview';
+    if (tab === 'overview') {
+      fileRead('deal:' + id, () => fetchDeal(id));
+      fileRead('taskrows:' + id, () => fetchHostedTaskRows(sb, id));
+      fileRead('docs:' + id, () => rawDocs(id));
+      if (a.listThreads) a.listThreads(id).catch(() => null);
+      if (a.listActivity) a.listActivity(id).catch(() => null);
+      if (a.readOverview) a.readOverview(id).catch(() => null);
+      return;
+    }
+    fileRead('shell:' + id, () => fetchFileShell(id));
+    if (tab === 'tasks') fileRead('taskrows:' + id, () => fetchHostedTaskRows(sb, id));
+    if (tab === 'documents') {
+      fileRead('docs:' + id, () => rawDocs(id));
+      if (a.listDealFolders) a.listDealFolders(id).catch(() => null);
+      if (a.listSignatureRequests) a.listSignatureRequests(id).catch(() => null);
+      if (a.listEntityDocRequests) a.listEntityDocRequests(id).catch(() => null);
+    }
+  }
   return a;
 }

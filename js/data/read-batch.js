@@ -36,6 +36,35 @@ export function routeTokens() {
 
 /* One profile read per navigation, shared by the calls that follow it.
  * A different person, a sign-out, or the next navigation drops it. */
+/* One snapshot of the heavy file reads for the person this navigation already signed in.
+ * The next navigation, a sign-out, or another person drops it. A failed read is not kept. */
+export function navigationReads() {
+  let generation = 0;
+  let owner = '';
+  let box = new Map();
+  return {
+    begin(id) {
+      generation += 1;
+      owner = id || '';
+      box = new Map();
+    },
+    clear() { this.begin(''); },
+    userId() { return owner; },
+    share(id, key, fn) {
+      if (!id || id !== owner) return Promise.resolve().then(fn);
+      if (!box.has(key)) this.seed(id, key, Promise.resolve().then(fn));
+      return box.get(key);
+    },
+    seed(id, key, promise) {
+      if (!id || id !== owner || box.has(key)) return;
+      const ticket = generation;
+      const p = Promise.resolve(promise);
+      p.catch(() => { if (ticket === generation && box.get(key) === p) box.delete(key); });
+      box.set(key, p);
+    },
+  };
+}
+
 export function profileFlight() {
   let flight = null;
   let userId = null;

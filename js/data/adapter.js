@@ -60,11 +60,14 @@
  *               {entity: {name, type, repName, repTitle, repPhone, repEmail}}) for a buyer / seller entity; setParticipantEntity(dealId, participantId, entity|null).
  *               getDeal participants carry entity (rep phone / email blank for the other side's outside users). No API change for the task grid.
  */
-let cached = null;
-export async function getAdapter() {
-  if (cached) return cached;
+let loading = null;
+export function getAdapter() {
+  if (!loading) loading = loadAdapter();
+  return loading;
+}
+async function loadAdapter() {
   const cfg = (typeof window !== 'undefined' && window.CLA_PORTAL_CONFIG) || { mode: 'mock' };
-  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611081930'); cached = await m.createSupabaseAdapter(cfg); }
-  else { const m = await import('./mock-adapter.js?v=202611080400'); cached = m.createMockAdapter(); }
-  return cached;
+  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611081950'); return m.createSupabaseAdapter(cfg); }
+  const m = await import('./mock-adapter.js?v=202611080400');
+  return m.createMockAdapter();
 }

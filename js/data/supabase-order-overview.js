@@ -12,16 +12,19 @@ export function orderOverviewSupabase({ sb, ok, camel, me, api }) {
   };
   return {
     async getOrderOverview(dealId) {
-      const user = await me();
-      if (!user || !user.id) throw new Error('Please sign in.');
-      const deal = await api.getDeal(dealId);
-      if (!deal || !deal.id) throw new Error('Order not found.');
-      const [tasks, documents, threads, activity] = await Promise.all([
+      const userP = me();
+      const dealP = api.readDeal ? api.readDeal(dealId) : api.getDeal(dealId);
+      const listsP = Promise.all([
         api.listTasks(dealId),
         api.listDocuments(dealId),
         api.listThreads(dealId),
         api.listActivity(dealId),
       ]);
+      const user = await userP;
+      if (!user || !user.id) throw new Error('Please sign in.');
+      const deal = await dealP;
+      if (!deal || !deal.id) throw new Error('Order not found.');
+      const [tasks, documents, threads, activity] = await listsP;
       if (!Array.isArray(tasks) || !Array.isArray(documents) || !Array.isArray(threads) || !activity || !Array.isArray(activity.items)) {
         throw new Error('Order overview could not be loaded.');
       }
@@ -52,7 +55,7 @@ export function orderOverviewSupabase({ sb, ok, camel, me, api }) {
     async listUpdateRequests(dealId) {
       const user = await me();
       if (!user || !user.id) throw new Error('Please sign in.');
-      const deal = await api.getDeal(dealId);
+      const deal = await (api.readDeal ? api.readDeal(dealId) : api.getDeal(dealId));
       if (!deal || !deal.id) throw new Error('Order not found.');
       const rows = camel(ok(await sb.from('update_requests').select('*').eq('deal_id', dealId).order('created_at', { ascending: false }))) || [];
       const who = await names(rows.flatMap((r) => [r.requestedBy, r.respondedBy]));
@@ -61,7 +64,7 @@ export function orderOverviewSupabase({ sb, ok, camel, me, api }) {
     async listSharedAccess(dealId) {
       const user = await me();
       if (!user || !user.id) throw new Error('Please sign in.');
-      const deal = await api.getDeal(dealId);
+      const deal = await (api.readDeal ? api.readDeal(dealId) : api.getDeal(dealId));
       if (!deal || !deal.id) throw new Error('Order not found.');
       const rows = camel(ok(await sb.from('access_invites').select('*').eq('deal_id', dealId).order('created_at', { ascending: false }))) || [];
       const who = await names(rows.map((r) => r.invitedBy));
