@@ -10,10 +10,9 @@
 // wires never shown to agents.
 import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611070139';
 import { occSelects, yesNo } from './occ-fields.js?v=202611070139';
-import { fmtPhone, TX_TYPES, runsOrders, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES } from '../data/constants.js?v=202611070139';
+import { fmtPhone, TX_TYPES, runsOrders, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount } from '../data/constants.js?v=202611082250';
 import { pickerHtml, mountPicker, personLabel } from './person-picker.js?v=202611070139';
 import { ENTITY_TYPES } from '../data/templates.js?v=202611070139';
-import { moneyClean } from './money-input.js?v=202611070139';
 import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611071845';
 import { orderDraftKey, readOrderDraft, writeOrderDraft, clearOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim } from '../data/order-draft.js?v=202611070139';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611071715';
@@ -268,9 +267,10 @@ export async function render({ api, user, go }) {
           if (!e.name) errs.push({ el: $('[data-ent="name"]', r.el), msg: `${lab}: entity name is required (or remove the entity).` }); });
       }
       if (k === 'loan') {
-        const amt = refi() ? '' : moneyClean(f.emdAmount); if (amt && !(isFinite(Number(amt)) && Number(amt) >= 0)) errs.push({ el: $('[name=emdAmount]', p), msg: 'EMD amount must be a number of 0 or more.' });
-        for (const [key, l] of [['purchasePrice', 'Purchase price'], ['loanAmount', 'Loan amount']]) { if (key === 'purchasePrice' && refi()) continue; const v = moneyClean(f[key]);
-          if (v && !(isFinite(Number(v)) && Number(v) >= 0)) errs.push({ el: $(`[name=${key}]`, p), msg: `${l} must be a number of 0 or more.` }); }
+        const refused = (v) => { try { moneyAmount(v); return false; } catch (err) { return true; } };
+        if (!refi() && refused(f.emdAmount)) errs.push({ el: $('[name=emdAmount]', p), msg: 'EMD amount must be a number of 0 or more.' });
+        for (const [key, l] of [['purchasePrice', 'Purchase price'], ['loanAmount', 'Loan amount']]) { if (key === 'purchasePrice' && refi()) continue;
+          if (refused(f[key])) errs.push({ el: $(`[name=${key}]`, p), msg: `${l} must be a number of 0 or more.` }); }
       }
       const fileErr = (input) => { for (const file of [...(input.files || [])]) { if (file.size > MAX_UPLOAD_BYTES) errs.push({ el: input, msg: `${file.name} is too large for this demo.` });
         if (!ALLOWED_UPLOAD_EXT.includes((file.name.split('.').pop() || '').toLowerCase())) errs.push({ el: input, msg: `${file.name}: that file type is not allowed.` }); } };
@@ -314,8 +314,8 @@ export async function render({ api, user, go }) {
         ${section('transaction', 'Transaction', [['Transaction type', html`<strong>${f.transactionType}</strong>`], ['Open date', val(fmtDate(f.openDate))], ['Contract / title request', txFiles.length ? txFiles.map((x) => html`<div>${x.name} <span class="muted small">${fmtSize(x.size)}</span></div>`) : dash]])}
         ${section('property', 'Property', [['Address', f.street ? html`${f.street}<br>${[f.city, f.state].filter(Boolean).join(', ')} ${f.zip || ''}` : dash], ['County', val(f.county)], ...(mdOn ? [['Primary residence', yesNo(f.primaryResidence)], ['First-time buyer', yesNo(f.firstTimeBuyer)]] : [])])}
         ${section('parties', r ? 'Borrowers' : 'Buyers & Sellers', [[r ? 'Borrowers' : 'Buyers', partyList('Client-Buyer')], ...(r ? [] : [['Sellers', partyList('Client-Seller')]])])}
-        ${section('loan', 'Lender & Loan', [...(r ? [] : [['Purchase price', val(fmtMoney(moneyClean(f.purchasePrice)))]]), ['Loan amount', val(fmtMoney(moneyClean(f.loanAmount)))],
-          ...(r ? [] : [['EMD amount', val(fmtMoney(moneyClean(f.emdAmount)))], ['EMD due date', val(fmtDate(f.emdDueDate))]]), ['Closing date', val(fmtDate(f.closingDate))],
+        ${section('loan', 'Lender & Loan', [...(r ? [] : [['Purchase price', val(fmtMoney(moneyAmount(f.purchasePrice)))]]), ['Loan amount', val(fmtMoney(moneyAmount(f.loanAmount)))],
+          ...(r ? [] : [['EMD amount', val(fmtMoney(moneyAmount(f.emdAmount)))], ['EMD due date', val(fmtDate(f.emdDueDate))]]), ['Closing date', val(fmtDate(f.closingDate))],
           ['Lender', pickers.Lender.value ? html`${nameOf(pickers.Lender.value)}${f.lenderPhone || f.lenderEmail ? html`<br><span class="muted small">${[f.lenderPhone, f.lenderEmail].filter(Boolean).join(' \u00b7 ')}</span>` : ''}` : dash]])}
         ${section('parties', 'Source of business', [['Referred by', val((() => { const picked = $$('[name=referralSource]', root).find((el) => el.checked && el.value); return picked ? (picked.getAttribute('aria-label') || '').replace(/^Referral source:\s*/, '') : ''; })())]])}
         ${r ? '' : section('agents', 'Agents', [['Buyer agent', val(nameOf(pickers['Buyer Agent'].value))], ['Listing agent', val(nameOf(pickers['Listing Agent'].value))], ["Buyer's transaction coordinator", val(selText($('[name="p:Transaction Coordinator"]', root)))], ['Listing transaction coordinator', val(selText($('[name="p:Transaction Coordinator:2"]', root)))]])}
@@ -462,7 +462,7 @@ export async function render({ api, user, go }) {
       for (const [label, pk] of allPickers()) if (pk.typed && !pk.value) { if (OPTIONAL_SLOTS.includes(label)) skipped.push(label); else throw new Error(`${label}: pick a person from the list (or clear the box, or use "Add new user").`); }
       if (refi()) { REFI_HIDE.forEach((k) => { delete f[k]; }); }   // hidden on a refinance: never checked, never saved
       // Matt, Nov 3 (b): amounts are shown with commas (485,000) and sent clean (485000)
-      const amt = refi() ? '' : moneyClean(f.emdAmount);
+      const amt = refi() ? '' : moneyAmount(f.emdAmount);
       const entities = {};   // hidden input name (p:<role> / p:<role>:<n>) -> entity
       for (const role of Object.keys(MULTI).filter(counts)) rows[role].forEach((r) => { const ent = entityOf(r); if (ent) entities[$('input[type=hidden]', r.pk.el).name] = ent; });
       const lenderPk = pickers.Lender; const lender = lenderPk && lenderPk.value ? people.find((p) => p.id === lenderPk.value) : null;
@@ -472,7 +472,7 @@ export async function render({ api, user, go }) {
       const referral = referralFromForm({ value: pickedReferral ? pickedReferral.value : '', picks, refinance: refi() });
       f.sourceOfBusiness = ''; delete f.sourceContactId;
       if (!showMdQuestions(f.state, refi())) { f.primaryResidence = ''; f.firstTimeBuyer = ''; }
-      const input = { ...f, emdAmount: amt, purchasePrice: refi() ? '' : moneyClean(f.purchasePrice), ...(refi() ? { emdDueDate: '' } : {}), loanAmount: moneyClean(f.loanAmount), salesIds: new FormData(e.target).getAll('salesIds'),
+      const input = { ...f, emdAmount: amt, purchasePrice: refi() ? '' : moneyAmount(f.purchasePrice), ...(refi() ? { emdDueDate: '' } : {}), loanAmount: moneyAmount(f.loanAmount), salesIds: new FormData(e.target).getAll('salesIds'),
         ...(lender ? { lenderName: lender.company || '', lenderContact: personLabel(lender) } : {}) };
       if (draftStore && draftKey) { const claim = claimOrderDraft(draftStore, draftKey); if (!claim.ok) throw new Error(claim.message); }
       placing = true; const btn = $('[data-place-order]', root); btn.disabled = true; btn.textContent = 'Placing order\u2026';

@@ -2,7 +2,7 @@
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
 import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611070139';
-import { localDate, fileRoleLabel } from './constants.js?v=202611070139';
+import { localDate, fileRoleLabel, moneyAmount } from './constants.js?v=202611082250';
 import { featureFlags } from './features.js?v=202611070139';
 import { accountingSupabase } from './supabase-accounting.js?v=202611071820';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
@@ -10,7 +10,7 @@ import { modulesSupabase } from './supabase-modules.js?v=202611082100';
 import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611070139';
 import { callItemsSupabase } from './supabase-callitems.js?v=202611070139';
 import { automationPart } from './automation.js?v=202611070139';
-import { runsOrders as runsOrdersCI } from './constants.js?v=202611070139';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611082250';
 import { crmSupabase } from './supabase-crm.js?v=202611070139';
 import { hrSupabase } from './supabase-hr.js?v=202611070139';
 import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611070139';
@@ -253,10 +253,10 @@ export async function createSupabaseAdapter(cfg) {
       // Refinance (John, Nov 3): no purchase price / EMD; migration 32 (private.deal_refi_guard) refuses them, and sellers / realtors / a TC on the file
       const refi = input.transactionType === 'Refinance';
       if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611070139'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
-      const { data: { user } } = await sb.auth.getUser(); const num = (v) => (v === '' || v == null ? null : Number(String(v).replace(/[$,\s]/g, '')));
+      const { data: { user } } = await sb.auth.getUser();
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
-        open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : num(input.purchasePrice), loan_amount: num(input.loanAmount),
-        emd_amount: refi ? null : num(input.emdAmount), emd_due_date: refi ? null : input.emdDueDate || null, notes: input.notes || '', processor_id: input.processorId || null, preprocessor_user_id: input.preprocessorUserId || null, created_by: user.id,
+        open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : moneyAmount(input.purchasePrice), loan_amount: moneyAmount(input.loanAmount),
+        emd_amount: refi ? null : moneyAmount(input.emdAmount), emd_due_date: refi ? null : input.emdDueDate || null, notes: input.notes || '', processor_id: input.processorId || null, preprocessor_user_id: input.preprocessorUserId || null, created_by: user.id,
         lender_name: input.lenderName || '', lender_contact: input.lenderContact || '', lender_phone: input.lenderPhone || '', lender_email: String(input.lenderEmail || '').trim().toLowerCase(),
         primary_residence: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.primaryResidence || ''), first_time_buyer: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.firstTimeBuyer || '') };   // Maryland purchases only (John, Nov 6)
       const d = camel(ok(await sb.from('deals').insert(row).select().single()));
@@ -268,7 +268,7 @@ export async function createSupabaseAdapter(cfg) {
         emdAmount: 'emd_amount', emdDueDate: 'emd_due_date', lenderName: 'lender_name', lenderContact: 'lender_contact', lenderEmail: 'lender_email', lenderPhone: 'lender_phone', notes: 'notes', processorId: 'processor_id', preprocessorUserId: 'preprocessor_user_id', primaryResidence: 'primary_residence', firstTimeBuyer: 'first_time_buyer' };
       const money = new Set(['purchase_price', 'loan_amount', 'emd_amount']); const dates = new Set(['open_date', 'closing_date', 'emd_due_date']); const row = {};
       for (const [k, col] of Object.entries(map)) if (patch[k] !== undefined) { const v = patch[k];
-        row[col] = money.has(col) ? (v === '' || v == null ? null : Number(String(v).replace(/[$,\s]/g, ''))) : dates.has(col) || col === 'processor_id' || col === 'preprocessor_user_id' ? (v || null) : v; }
+        row[col] = money.has(col) ? moneyAmount(v) : dates.has(col) || col === 'processor_id' || col === 'preprocessor_user_id' ? (v || null) : v; }
       if (row.open_date === null) delete row.open_date;
       if (patch.state !== undefined && String(patch.state || '').toUpperCase() !== 'MD') { row.primary_residence = ''; row.first_time_buyer = ''; }
       if (Object.keys(row).length) ok(await sb.from('deals').update(row).eq('id', id));

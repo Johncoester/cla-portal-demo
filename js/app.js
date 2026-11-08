@@ -1,8 +1,8 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611082200';
+import { getAdapter } from './data/adapter.js?v=202611082250';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611082240';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611070139';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611082250';
 import { canUseCrm } from './data/crm.js?v=202611070139';
 import { acctCanRead } from './data/accounting.js?v=202611070139';
 import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611070139';
@@ -24,10 +24,7 @@ import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=20261107
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
-// MONEY FORMAT (Matt, Nov 3 (b)): every <input data-money> shows commas while typing (485,000); pages send the clean number (money-input.js).
-// This helper is not part of opening a file. If its script fails, the page still starts and the box stays unformatted.
-let formatMoneyInput = () => {};
-import('./pages/money-input.js?v=202611070139').then((m) => { if (m && typeof m.formatMoneyInput === 'function') formatMoneyInput = m.formatMoneyInput; }).catch(() => {});
+// MONEY FORMAT (Matt, Nov 3 (b)): every <input data-money> shows commas while typing (485,000). The save does not depend on this display.
 document.addEventListener('input', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) formatMoneyInput(el); });
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 

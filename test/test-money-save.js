@@ -1,0 +1,92 @@
+/* Contract money is saved by the same rules whether or not the display formatter ran. No hosted project and no secrets. */
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { parseHTML } from '/tmp/domtest/node_modules/linkedom/worker.js';
+import { moneyAmount } from '../js/data/constants.js';
+import { formatMoneyInput } from '../js/pages/money-input.js';
+import { tcSupabase } from '../js/data/supabase-tc.js';
+import { toText } from '../js/ui.js';
+import { renderTcOverview } from '../js/pages/tc-overview.js';
+
+const { window, document } = parseHTML('<!doctype html><html><body><div id="app"></div></body></html>');
+globalThis.window = window; globalThis.document = document;
+globalThis.HTMLElement = window.HTMLElement; globalThis.Node = window.Node;
+globalThis.FormData = window.FormData || globalThis.FormData;
+window.HTMLElement = window.HTMLElement;
+class MiniFormData { constructor(form) { this.map = new Map(); form.querySelectorAll('input, select, textarea').forEach((el) => { if (!el.name || el.type === 'file' || el.disabled) return; if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) return; this.map.set(el.name, el.value); }); } entries() { return this.map.entries(); } }
+globalThis.FormData = MiniFormData; window.FormData = MiniFormData;
+const realSetTimeout = globalThis.setTimeout;
+globalThis.setTimeout = (fn, ms) => realSetTimeout(fn, ms || 0);
+window.setTimeout = globalThis.setTimeout;
+
+let fail = 0;
+const check = (cond, msg) => { if (cond) console.log('ok', msg); else { fail += 1; console.log('FAIL', msg); } };
+const cents = (n) => Math.round(Number(n) * 100);
+
+check(moneyAmount('') === null && moneyAmount('  ') === null && moneyAmount(null) === null, 'a blank amount clears');
+check(moneyAmount('0') === 0 && moneyAmount('0.00') === 0 && moneyAmount('$0') === 0, 'zero stays zero');
+check(cents(moneyAmount('12.3.4')) === 1234 && cents(moneyAmount('1,234.50')) === 123450 && cents(moneyAmount('$1,234.5')) === 123450, 'commas, a dollar sign, and an extra dot follow the typing rules');
+check(cents(moneyAmount('1,234.567')) === 123456 && cents(moneyAmount(1234.567)) === 123456, 'a third decimal digit is dropped, not rounded up');
+for (const bad of ['abc', 'Infinity', 'NaN', Number.NaN, Number.POSITIVE_INFINITY]) {
+  let threw = false; try { moneyAmount(bad); } catch (err) { threw = true; }
+  check(threw, 'refuses ' + bad);
+}
+
+const rpc = [];
+const dealRow = { id: 'file-1', purchasePrice: null, contractDate: null, listingCommissionPct: null, listingCommissionAmount: null, buyerCommissionPct: null, buyerCommissionAmount: null, sellerConcessions: null, emdAmount: null, emdHolder: '', closingDate: null, status: 'Open', stage: 1, openDate: '2026-01-01', emdReceived: false, emdReceivedDate: null, emdReceivedAmount: null, altaReceived: false, altaReceivedDate: null, altaDocumentId: null };
+const sb = { rpc(name, args) { rpc.push({ name, args: JSON.parse(JSON.stringify(args)) }); return Promise.resolve({ data: true, error: null }); }, from() { return { select() { return this; }, eq() { return this; }, single() { return Promise.resolve({ data: { ...dealRow }, error: null }); } }; } };
+const ok = (row) => { if (row && row.error) throw new Error(row.error.message || 'failed'); return row.data; };
+const participants = [{ id: 'p1', role: 'Client-Buyer', removed: false, contact: { firstName: 'Ann', lastName: 'Lee', email: 'a@b.c', phone: '3015550100' } }];
+const tc = tcSupabase({ sb, ok, camel: (row) => row, api: { getDeal: async () => ({ participants }), listTasks: async () => [] } });
+const saved = async (raw) => { const before = rpc.length; const out = await tc.updateContractInfo('file-1', { purchasePrice: raw, contractDate: '2026-02-01', listingCommissionPct: '2.5', listingCommissionAmount: '0', buyerCommissionPct: '', buyerCommissionAmount: '', sellerConcessions: '', emdAmount: '0.00', emdHolder: 'CLA', closingDate: '' }); return { args: rpc[rpc.length - 1].args, calls: rpc.length - before, out }; };
+
+const loaded = await saved('12.3.4');
+check(loaded.calls === 1 && cents(loaded.args.p_purchase_price) === 1234 && loaded.args.p_emd_amount === 0 && loaded.args.p_listing_commission_pct === 2.5 && loaded.args.p_buyer_commission_pct === null, 'the contract RPC stores 12.34, a real zero, and a percent');
+const wide = await saved('1,234.567');
+check(cents(wide.args.p_purchase_price) === 123456, 'the contract RPC stores 1234.56 from 1,234.567');
+let refused = 0; const beforeRefuse = rpc.length;
+try { await tc.updateContractInfo('file-1', { purchasePrice: 'abc' }); } catch (err) { refused += 1; }
+check(refused === 1 && rpc.length === beforeRefuse, 'a word is not sent to the contract RPC');
+const emd = [];
+const emdSb = { ...sb, rpc(name, args) { emd.push(JSON.parse(JSON.stringify(args))); return Promise.resolve({ data: true, error: null }); } };
+const emdApi = tcSupabase({ sb: emdSb, ok, camel: (row) => row, api: { getDeal: async () => ({ participants }), listTasks: async () => [] } });
+await emdApi.updateEmdAlta('file-1', { received: true, receivedAmount: '12.3.4' });
+check(cents(emd[0].p_emd_received_amount) === 1234, 'EMD received amount uses the same cents rule');
+
+const d = { id: 'file-1', fileNumber: 'MD-26-97216', street: '1 Main', city: 'Baltimore', state: 'MD', zip: '21201', status: 'Open', stage: 1 };
+const view = await renderTcOverview({ api: { listTasks: async () => [], getDeal: async () => ({ participants }), getMilestones: tc.getMilestones.bind(tc), getEmdAlta: tc.getEmdAlta.bind(tc), getContractInfo: tc.getContractInfo.bind(tc), updateContractInfo: tc.updateContractInfo.bind(tc), updateClientContact: async () => ({}), updateEmdAlta: tc.updateEmdAlta.bind(tc) }, user: { firstName: 'Pat' }, refresh() {} }, d);
+const host = document.createElement('div'); host.innerHTML = toText(view.body); document.body.appendChild(host); view.mount(host);
+const submit = async (raw, format) => {
+  if (!document.querySelector('#tc-ci')) host.querySelector('[data-tc-action="contract"]').click();
+  const box = document.querySelector('#tc-ci [name=purchasePrice]');
+  box.value = raw; if (format) formatMoneyInput(box);
+  document.querySelector('#tc-ci').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await new Promise((r) => realSetTimeout(r, 30));
+};
+const at = rpc.length;
+await submit('12.3.4', true);
+const withFormat = rpc[rpc.length - 1];
+await submit('12.3.4', false);
+const withoutFormat = rpc[rpc.length - 1];
+check(withFormat && withoutFormat && cents(withFormat.args.p_purchase_price) === 1234 && cents(withoutFormat.args.p_purchase_price) === 1234 && rpc.length === at + 2, 'typing 12.3.4 saves 12.34 with the formatter and without it');
+await submit('1,234.567', false);
+check(cents(rpc[rpc.length - 1].args.p_purchase_price) === 123456, 'typing 1,234.567 saves 1234.56 without the formatter');
+const savedNote = document.querySelector('#toasts'); if (savedNote) savedNote.textContent = '';
+await submit('abc', false);
+const notes = (document.querySelector('#toasts') || { textContent: '' }).textContent;
+check(!!document.querySelector('#modal') && notes.includes('Enter an amount') && !notes.includes('Contract info and client details saved') && rpc.length === at + 3, 'a refused amount stays in the open form and is not announced as saved');
+if (savedNote) savedNote.textContent = '';
+await submit('12.00', false);
+check((document.querySelector('#toasts') || { textContent: '' }).textContent.includes('Contract info and client details saved') && cents(rpc[rpc.length - 1].args.p_purchase_price) === 1200, 'a valid contract save is still announced');
+
+const heldDir = '/tmp/held-money-5f500';
+mkdirSync(heldDir + '/js/data', { recursive: true });
+for (const file of ['js/data/supabase-tc.js', 'js/data/constants.js']) writeFileSync(heldDir + '/' + file, execFileSync('git', ['show', '5f500bca9964b0688fdb4e2fe57db01531a36ccf:' + file]));
+const held = await import('file:///tmp/held-money-5f500/js/data/supabase-tc.js');
+const heldRpc = [];
+const heldTc = held.tcSupabase({ sb: { rpc(name, args) { heldRpc.push(JSON.parse(JSON.stringify(args))); return Promise.resolve({ data: true, error: null }); }, from: sb.from }, ok, camel: (row) => row, api: { getDeal: async () => ({ participants }), listTasks: async () => [] } });
+await heldTc.updateContractInfo('file-1', { purchasePrice: '12.3.4', listingCommissionAmount: '', buyerCommissionAmount: '', sellerConcessions: '', emdAmount: '' });
+check(heldRpc[0].p_purchase_price === null, 'the held builder turns 12.3.4 into a null write');
+
+console.log(fail ? fail + ' failed' : 'money save passed');
+process.exit(fail ? 1 : 0);
