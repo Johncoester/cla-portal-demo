@@ -189,6 +189,8 @@ export const WIRE_BUYER_ONLY = 'Wire instructions go to the buyer only (and CLA 
 // MONEY (Matt, Nov 3 (b)). Display commas are optional. A save does not wait for that script.
 // Blank clears the amount. A real zero stays zero. Extra dots collapse the way the box does while typing (12.3.4 is 12.34).
 // Cents are the first two decimal digits, not a rounded third digit (1,234.567 is 1234.56). Letters, NaN, and Infinity are refused.
+// A JS number cannot keep two decimal places at $2^46: 70368744177664.01 is stored as 70368744177664.02.
+// Amounts at or above $2^45 (35184372088832) are refused before a write. Below that, the cents do not change.
 export const moneyClean = (v) => String(v == null ? '' : v).replace(/[$,\s]/g, '');
 export function moneyTyping(v) {
   const s = String(v == null ? '' : v).replace(/[^\d.]/g, ''); if (!s) return '';
@@ -205,15 +207,21 @@ export function formatMoneyInput(el) {
   try { if (document.activeElement === el) el.setSelectionRange(i, i); } catch (e) { /* type=number etc. */ }
 }
 const MONEY_MSG = 'Enter an amount using digits, such as 1234.56.';
+const MAX_MONEY_CENTS = 3518437208883200;
+const MAX_MONEY_DIGITS = String(MAX_MONEY_CENTS);
 function centsToAmount(cents) {
-  if (!Number.isSafeInteger(cents) || cents < 0) throw new Error(MONEY_MSG);
-  return cents / 100;
+  if (!Number.isSafeInteger(cents) || cents < 0 || cents >= MAX_MONEY_CENTS) throw new Error(MONEY_MSG);
+  const amount = cents / 100;
+  if (Math.round(amount * 100) !== cents) throw new Error(MONEY_MSG);
+  const [whole, frac] = amount.toFixed(2).split('.');
+  if (Number(whole) * 100 + Number(frac) !== cents) throw new Error(MONEY_MSG);
+  return amount;
 }
 function amountFromTyped(typed) {
   if (!/^\d+(\.\d{0,2})?$/.test(typed)) throw new Error(MONEY_MSG);
   const [ints, dec = ''] = typed.split('.');
-  const centsDigits = (ints.replace(/^0+/, '') || '0') + (dec + '00').slice(0, 2);
-  if (centsDigits.length > 16) throw new Error(MONEY_MSG);
+  const centsDigits = ((ints.replace(/^0+/, '') || '0') + (dec + '00').slice(0, 2)).replace(/^0+(?=\d)/, '');
+  if (centsDigits.length > MAX_MONEY_DIGITS.length || (centsDigits.length === MAX_MONEY_DIGITS.length && centsDigits >= MAX_MONEY_DIGITS)) throw new Error(MONEY_MSG);
   return centsToAmount(Number(centsDigits));
 }
 export function moneyAmount(v) {

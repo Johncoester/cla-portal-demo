@@ -32,7 +32,13 @@ for (const sample of ['', '0', '0.00', '12.34', '12.3.4', '1,234.50', '1,234.567
   const once = moneyAmount(sample);
   check(moneyAmount(once) === once, 'saving ' + JSON.stringify(sample) + ' again does not change it');
 }
-for (const bad of ['1000000000000000000000', 1e21, 1e-7]) {
+for (const sample of ['0.29', '1.1', '1.01', '1000000.29', '35184372088831.99']) {
+  const once = moneyAmount(sample);
+  const again = moneyAmount(once);
+  const wire = JSON.parse(JSON.stringify(once));
+  check(cents(once) === cents(sample) && again === once && cents(again) === cents(once) && cents(wire) === cents(once), 'cents stay put for ' + sample);
+}
+for (const bad of ['70368744177664.01', 70368744177664.01, '35184372088832.00', '35184372088832.01', '35184372088832.02', '1000000000000000000000', 1e21, 1e-7]) {
   let threw = false; try { moneyAmount(bad); } catch (err) { threw = true; }
   check(threw && moneyAmount('12.34') === 12.34, 'refuses an amount that is not a safe number of cents: ' + bad);
 }
@@ -103,6 +109,25 @@ const beforeHuge = rpc.length;
 await submit('1000000000000000000000', false);
 const hugeNotes = (document.querySelector('#toasts') || { textContent: '' }).textContent;
 check(!!document.querySelector('#modal') && rpc.length === beforeHuge && hugeNotes.includes('Enter an amount') && !hugeNotes.includes('Contract info and client details saved'), 'an oversized amount stays in the form and is not written');
+const beforeDrift = rpc.length;
+if (toastBox) toastBox.textContent = '';
+await submit('70368744177664.01', false);
+const driftNotes = (document.querySelector('#toasts') || { textContent: '' }).textContent;
+check(!!document.querySelector('#modal') && rpc.length === beforeDrift && driftNotes.includes('Enter an amount') && !driftNotes.includes('Contract info and client details saved'), '70368744177664.01 is not written when the formatter did not run');
+if (toastBox) toastBox.textContent = '';
+await submit('70368744177664.01', true);
+const driftFmt = (document.querySelector('#toasts') || { textContent: '' }).textContent;
+check(!!document.querySelector('#modal') && rpc.length === beforeDrift && driftFmt.includes('Enter an amount'), '70368744177664.01 is not written after the formatter runs');
+const box = document.querySelector('#tc-ci [name=purchasePrice]');
+box.value = '70368744177664.01';
+box.dispatchEvent(new window.Event('focusout', { bubbles: true }));
+document.querySelector('#tc-ci').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+await new Promise((r) => realSetTimeout(r, 30));
+check(rpc.length === beforeDrift && !!document.querySelector('#modal'), 'blur then submit does not write 70368744177664.01');
+let driftRpc = 0;
+try { await tc.updateContractInfo('file-1', { purchasePrice: '70368744177664.01' }); } catch (err) { driftRpc += 1; }
+try { await tc.updateContractInfo('file-1', { purchasePrice: 70368744177664.01 }); } catch (err) { driftRpc += 1; }
+check(driftRpc === 2 && rpc.length === beforeDrift, 'the contract RPC refuses the drifted amount as a string and as a number');
 
 const { createSupabaseAdapter } = await import('../js/data/supabase-adapter.js');
 const writes = [];
@@ -116,6 +141,9 @@ let placeRefused = '';
 try { await adapter.createDeal({ street: '1 Main', city: 'Baltimore', state: 'MD', zip: '21201', transactionType: 'Purchase', purchasePrice: '1000000000000000000000', loanAmount: '0', emdAmount: '' }); }
 catch (err) { placeRefused = err.message; }
 check(placeRefused.includes('amount') && !writes.some((w) => w.op === 'insert'), 'place order does not insert an oversized price');
+try { await adapter.createDeal({ street: '1 Main', city: 'Baltimore', state: 'MD', zip: '21201', transactionType: 'Purchase', purchasePrice: '70368744177664.01', loanAmount: '0.29', emdAmount: '1.01' }); }
+catch (err) { placeRefused = err.message; }
+check(placeRefused.includes('amount') && !writes.some((w) => w.op === 'insert'), 'place order does not insert 70368744177664.01');
 writes.length = 0;
 await adapter.createDeal({ street: '1 Main', city: 'Baltimore', state: 'MD', zip: '21201', transactionType: 'Purchase', purchasePrice: '12.3.4', loanAmount: '0', emdAmount: '1,234.567' }).catch(() => {});
 const placed = writes.find((w) => w.op === 'insert');
@@ -124,6 +152,8 @@ writes.length = 0;
 let editRefused = '';
 try { await adapter.updateDeal('file-1', { loanAmount: 1e21 }); } catch (err) { editRefused = err.message; }
 check(editRefused.includes('amount') && writes.length === 0, 'a file edit does not write 1e21');
+try { await adapter.updateDeal('file-1', { purchasePrice: '70368744177664.01' }); } catch (err) { editRefused = err.message; }
+check(editRefused.includes('amount') && writes.length === 0, 'a file edit does not write 70368744177664.01');
 await adapter.updateDeal('file-1', { purchasePrice: '-12.34', loanAmount: '1abc2', emdAmount: '' }).catch(() => {});
 const edited = writes.find((w) => w.op === 'update');
 check(edited && edited.row.purchase_price === 12.34 && edited.row.loan_amount === 12 && edited.row.emd_amount === null, 'a file edit keeps the existing letter and sign rules and a blank clear');
