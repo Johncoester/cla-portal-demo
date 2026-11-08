@@ -112,6 +112,17 @@ export function identitySlot() {
   };
 }
 
+/* A session restore fires SIGNED_IN before anyone is confirmed. That must not look like a sign-out.
+ * A different person, or SIGNED_OUT, drops the remembered identity and pending reads. */
+export function authEventAction(event, nextId, heldId, ownerId) {
+  if (event === 'SIGNED_OUT') return 'drop';
+  if (event !== 'SIGNED_IN' && event !== 'USER_UPDATED') return 'keep';
+  if (heldId && heldId !== nextId) return 'drop';
+  if (ownerId && ownerId !== nextId) return 'drop';
+  if (event === 'USER_UPDATED' && nextId && (heldId === nextId || ownerId === nextId)) return 'refresh';
+  return 'keep';
+}
+
 export function profileFlight() {
   let flight = null;
   let userId = null;

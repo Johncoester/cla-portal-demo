@@ -149,6 +149,8 @@ const ov0 = Date.now();
 const ovView = await dealRender({ api: ovApi, user: staff, params: { id: 'deal-1', tab: 'overview' }, refresh() {}, go() {} });
 const ovMs = Date.now() - ov0;
 check(ovView && ovView.body && ovMarks.length >= 8 && ovMs < 90, 'the overview starts its file reads together');
+const overviewNeeds = ['agreements', 'notes', 'sales', 'overview', 'updates', 'access', 'flags', 'prompt', 'splits', 'demo'];
+check(overviewNeeds.every((name) => ovMarks.includes(name)) && !ovMarks.includes('listDeals') && !ovMarks.includes('getWorkQueue'), 'overview waits on the sections it shows and not on the order list');
 
 let shellCalls = 0;
 let fullCalls = 0;

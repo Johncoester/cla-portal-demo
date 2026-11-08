@@ -28,7 +28,7 @@ import { propertyAddressOf } from './nov5-rules.js?v=202611070139';
 import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList } from './task-actions.js?v=202611082000';
 import { contactInsertRow } from './contact-insert.js?v=202611070139';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611070139';
-import { gatherReads, identitySlot, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611082000';
+import { authEventAction, gatherReads, identitySlot, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611082010';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
 
@@ -68,8 +68,12 @@ export async function createSupabaseAdapter(cfg) {
     nav.clear();
     early.clear();
   }
-  sb.auth.onAuthStateChange((event) => {
-    if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') dropAuth();
+  sb.auth.onAuthStateChange((event, session) => {
+    const nextId = session && session.user && session.user.id || '';
+    const held = ident.current();
+    const action = authEventAction(event, nextId, held && held.id || '', nav.userId());
+    if (action === 'drop') dropAuth();
+    else if (action === 'refresh') { profile.begin(); ident.forget(); }
     if (event === 'PASSWORD_RECOVERY') { try { sessionStorage.setItem('cla-portal-recovery', '1'); } catch (e) { /* the reset screen also checks the flag */ } if (!/recovery/.test(location.hash)) location.hash = '#/login'; }
   });
   const fileRead = (key, fn) => early.read(nav.userId(), key, fn, nav);
@@ -142,7 +146,7 @@ export async function createSupabaseAdapter(cfg) {
     async listDemoPersonas() { return camel(ok(await sb.rpc('list_demo_personas')) || []); },
     async startDemoView(userId) { return camel(ok(await sb.rpc('start_demo_view', { p_target: userId }))); },
     async stopDemoView() { return camel(ok(await sb.rpc('stop_demo_view'))); },
-    async demoViewStatus() { return camel(ok(await sb.rpc('demo_view_status')) || { active: false }); },
+    async demoViewStatus() { return fileRead('demo', async () => camel(ok(await sb.rpc('demo_view_status')) || { active: false })); },
     async requestVoicePass(action) {
       const res = await sb.functions.invoke('voice-token', { body: { action: action === 'mint' ? 'mint' : 'check' } });
       if (res.error) {
@@ -388,7 +392,7 @@ export async function createSupabaseAdapter(cfg) {
         if (!user) { profile.clear(); nav.clear(); early.clear(); ident.forget(); return empty; }
         if (!early.adopt(nav, user.id, ticket, ident.generation())) return empty;
         const hr = nav.share(user.id, 'hr-extras', () => hrSessionExtras());
-        const demo = nav.share(user.id, 'demo', () => a.demoViewStatus().catch(() => null));
+        const demo = a.demoViewStatus().catch(() => null);
         const loaded = await meFrom(user);
         const kept = ident.hold(loaded && loaded.id === user.id ? loaded : null, ticket);
         if (!kept) return empty;
