@@ -15,7 +15,7 @@ import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611070139';
 import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611080400';   // John, Nov 4: one locked login link per fake user
 import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080400';
-import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611080400';
+import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611081900';
 import { botRegistry } from './data/bot-registry.js?v=202611080400';
 import { voiceRouteOk } from './data/voice-demo.js?v=202611071632';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611070139';   // John, Nov 4 call: sidebar search + pinned order nav
@@ -30,7 +30,7 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611070139'),
-  dashboard: () => import('./pages/dashboard.js?v=202611070139'),
+  dashboard: () => import('./pages/dashboard.js?v=202611081900'),
   orders: () => import('./pages/orders.js?v=202611070139'),
   'orders/new': () => import('./pages/ordernew.js?v=202611080400'),
   deal: () => import('./pages/deal.js?v=202611080400'),
@@ -133,11 +133,14 @@ export function navFor(u, dealId, unread, features = {}, ws = 'everything', demo
 }
 
 async function layout(u, view, route, ws = 'everything') {
-  const api = await getAdapter(); const unread = await api.notificationCount();
-  const dealId = route.page === 'deal' ? route.params.id : null; let deal = null;
-  if (dealId) { try { deal = await api.getDeal(dealId); } catch (e) { deal = null; } }
-  // Francis, Nov 3: a count badge on every order tab (Tasks = outstanding for you, Inbox = unread, Documents, Activity)
-  let counts = null; if (deal) { try { counts = (await api.getOrderOverview(dealId)).counts; } catch (e) { counts = null; } }
+  const api = await getAdapter();
+  const dealId = route.page === 'deal' ? route.params.id : null;
+  const [unread, deal, counts, agentsLoaded] = await Promise.all([
+    api.notificationCount(),
+    dealId ? api.getDeal(dealId).catch(() => null) : null,
+    dealId && api.getOrderOverview ? api.getOrderOverview(dealId).then((o) => (o && o.counts) || null).catch(() => null) : null,
+    isOutside(u.role) && api.listMyAgents ? api.listMyAgents(dealId ? { dealId } : {}).catch(() => []) : [],
+  ]);
   const cnt = (tab) => { if (!counts) return ''; const n = { tasks: counts.tasks, inbox: counts.inbox, documents: counts.documents, activity: counts.activity }[tab]; return n == null ? '' : html`<span class="tab-count" data-tab-count="${tab}">${n}</span>`; };
   const HR_CUR = { home: 'hr-home', employees: 'hr-employees', employee: 'hr-employees', add: 'hr-add', departments: 'hr-departments', designations: 'hr-designations', me: 'hr-me', team: 'hr-team', settings: 'hr-settings', documents: 'hr-documents' };
   const navPage = route.page === 'admin/templates' ? 'templates' : route.page;
@@ -157,7 +160,7 @@ async function layout(u, view, route, ws = 'everything') {
   const fileNav = !!deal;
   const contact = isStaff(u.role) || hrOnly(u) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us"${tip('Contact Us')}>${lbl('contact-us', 'Contact Us')}</a></li>`;
   // John, Nov 4: the clients' "Your agent" card (buyer -> buyer's agent, seller -> listing agent); empty for staff and agents
-  let agents = []; if (isOutside(u.role) && api.listMyAgents) { try { agents = await api.listMyAgents(deal ? { dealId: deal.id } : {}); } catch (e) { agents = []; } }
+  const agents = agentsLoaded;
   const agentCard = yourAgentHtml(agents);
   const sidebarHead = deal ? html`<a class="logo-home-link" href="#/deals/${deal.id}"><div class="order-heading-left"><span>${deal.fileNumber}</span></div><div class="map-div"><img class="map-pin" src="assets/img/map-icon-new.png" alt=""><p>${deal.street}<br>${deal.city}, ${deal.state}, ${deal.zip}</p></div></a>` : '';
   // John, Nov 4 call: order search in the sidebar (not in the CRM-only workspace or the neutral Home); inside an order non-admins get order-only items
@@ -261,11 +264,32 @@ function demoMenu(u) {
   return PORTAL_MODE === 'supabase' && u && u.role === 'Super admin' && u.isAdmin && !(DEMO_VIEW && DEMO_VIEW.active)
     ? html`<li><a href="#/demo" data-demo-mode>Demo mode</a></li>` : '';
 }
+function showLoading(root) {
+  if (!root) return;
+  root.setAttribute('aria-busy', 'true');
+  root.setAttribute('data-route-loading', '1');
+  if (!root.querySelector('[data-loading-note]')) {
+    const note = document.createElement('p');
+    note.className = 'dev-banner';
+    note.setAttribute('data-loading-note', '');
+    note.setAttribute('role', 'status');
+    note.textContent = 'Loading this page.';
+    if (root.childElementCount) root.prepend(note);
+    else root.appendChild(note);
+  }
+}
 export async function render() {
-  const my = ++rendering; applyTheme(); const root = $('#app'); const api = await getAdapter(); const route = parse(); closeModal();
+  const my = ++rendering; applyTheme(); const root = $('#app'); showLoading(root); const api = await getAdapter(); const route = parse(); closeModal();
   PORTAL_MODE = api.mode || 'mock';
   let u = await api.getSession();
-  if (u && api.demoViewStatus) { try { DEMO_VIEW = await api.demoViewStatus(); } catch (e) { DEMO_VIEW = null; } } else DEMO_VIEW = null;
+  let modsEarly = null;
+  if (u) {
+    const jobs = [];
+    if (api.demoViewStatus) jobs.push(api.demoViewStatus().then((v) => { DEMO_VIEW = v; }).catch(() => { DEMO_VIEW = null; }));
+    else DEMO_VIEW = null;
+    if (api.getModuleAccess) jobs.push(api.getModuleAccess().then((m) => { modsEarly = m || {}; }).catch(() => { modsEarly = {}; }));
+    await Promise.all(jobs);
+  } else DEMO_VIEW = null;
   // LOCKED LOGIN LINK (John, Nov 4): ?as=<token> signs in as that one fake user and locks this tab to them (data/locked-links.js)
   const asTok = new URLSearchParams(location.search).get('as');
   if (api.mode === 'supabase') {
@@ -301,7 +325,7 @@ export async function render() {
   if (u && hrOnly(u) && route.page === 'dashboard') { location.hash = '#/hr'; return; }   // HR-only login: HR is home
   if (u && isClientOnlyUser(u) && route.page === 'dashboard') { location.replace('#/orders'); return; }   // live40 (John, Nov 5): clients land on Open Orders, no My files page   // HR-only login: HR is home
   if (route.page === 'templates') { const moved = legacyTemplatesHash(location.hash); if (moved) { location.replace(moved); return; } }   // old Task Templates links, including ?tab=switches and ?tab=admin
-  let mods = {}; if (u && api.getModuleAccess) { try { mods = await api.getModuleAccess(); } catch (e) { mods = {}; } } setModuleMap(mods);   // module switches for this user
+  const mods = modsEarly || {}; setModuleMap(mods);   // module switches for this user
   if (api.mode === 'supabase' && u && !(DEMO_VIEW && DEMO_VIEW.active) && api.requestVoicePass) {
     if (voiceCheckedFor !== u.id) { voiceCheckedFor = u.id; try { const chk = await api.requestVoicePass('check'); VOICE_OK = !!(chk.ok && chk.data && chk.data.allowed === true); } catch (e) { VOICE_OK = false; } }
   } else { VOICE_OK = false; if (!u) voiceCheckedFor = ''; }

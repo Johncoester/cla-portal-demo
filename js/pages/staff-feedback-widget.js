@@ -8,6 +8,7 @@ let state = { userId: null, open: false, reportId: '' };
 let composing = false;
 let live = null;
 let returnFocus = null;
+let watchToken = 0;
 
 const el = (tag, cls, text) => {
   const node = document.createElement(tag);
@@ -18,6 +19,7 @@ const el = (tag, cls, text) => {
 const store = () => (typeof sessionStorage !== 'undefined' ? sessionStorage : null);
 
 function unmount() {
+  watchToken += 1;
   const root = document.getElementById(HOST_ID);
   if (root) root.remove();
   document.body.classList.remove('cla-sf-open');
@@ -136,6 +138,22 @@ async function paint(api, dispatch) {
   live.quiet.textContent = quietCopy(full, dispatch);
   live.quiet.hidden = !live.quiet.textContent;
   live.thread.scrollTop = live.thread.scrollHeight;
+  if (live.thread.dataset) live.thread.dataset.checkedAt = String(Date.now());
+}
+
+function armReplyWatch(api, reportId) {
+  const token = ++watchToken;
+  const started = Date.now();
+  if (live && live.thread.dataset) live.thread.dataset.sentAt = String(started);
+  const tick = async () => {
+    if (token !== watchToken || !live || !state.open || state.reportId !== reportId) return;
+    await paint(api);
+    if (token !== watchToken || !live) return;
+    const waiting = /Nothing back in this thread yet/.test(live.quiet.textContent || '');
+    if (!waiting || Date.now() - started > 90000) return;
+    setTimeout(tick, 5000);
+  };
+  setTimeout(tick, 5000);
 }
 
 function mount(user, api) {
@@ -195,6 +213,7 @@ function mount(user, api) {
       message.value = ''; persist();
       const result = api.requestStaffFeedbackDispatch ? await api.requestStaffFeedbackDispatch(state.reportId, eventId || undefined) : { error: 'The server did not accept the send. It was not marked delivered.' };
       await paint(api, result);
+      if (result && (result.reason === 'run_started' || result.reason === 'accepted_unrecorded')) armReplyWatch(api, state.reportId);
     } catch (ex) { err.textContent = ex.message || 'The message was not sent.'; }
     finally { send.disabled = false; }
   });
