@@ -1,5 +1,5 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611082000';
+import { getAdapter } from './data/adapter.js?v=202611082010';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611070139';
 import { canUseCrm } from './data/crm.js?v=202611070139';
@@ -30,10 +30,10 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611070139'),
-  dashboard: () => import('./pages/dashboard.js?v=202611082000'),
+  dashboard: () => import('./pages/dashboard.js?v=202611082010'),
   orders: () => import('./pages/orders.js?v=202611070139'),
   'orders/new': () => import('./pages/ordernew.js?v=202611080400'),
-  deal: () => import('./pages/deal.js?v=202611082000'),
+  deal: () => import('./pages/deal.js?v=202611082010'),
   users: () => import('./pages/users.js?v=202611070139'),
   profile: () => import('./pages/profile.js?v=202611070139'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
@@ -89,6 +89,13 @@ function parse() {
 }
 export const go = (path) => { if (location.hash === '#' + path) render(); else location.hash = path; };
 export const homeFor = (u) => (u && u.role === 'Employee' ? '/hr' : isClientOnlyUser(u) ? '/orders' : '/dashboard');   // live40: clients land on Open Orders   // an HR-only login lives in HR
+const RETURN_KEY = 'cla-portal-new:return';
+export function savedFileReturn() {
+  let back = '';
+  try { back = sessionStorage.getItem(RETURN_KEY) || ''; } catch (e) { back = ''; }
+  try { sessionStorage.removeItem(RETURN_KEY); } catch (e) { /* already gone */ }
+  return /^#\/deals\/[\w-]+(\/[\w-]+)?$/.test(back) ? back : '';
+}
 export const dashLabel = (u) => isClientOnlyUser(u) ? 'Open Orders' : u.isAdmin ? 'Admin' : ({ 'Processor': 'Work Queue', 'Preprocessor': 'Work Queue', 'Sales Person': 'Team Dashboard', 'Sales Team': 'Team Dashboard', 'Transaction Coordinator': 'Dashboard', 'Buyer Agent': 'Transactions', 'Listing Agent': 'Transactions', 'Client-Buyer': 'My Closing', 'Client-Seller': 'My Closing', 'Outside user': 'My Files' }[u.role]);
 
 // HR workspace menu (data/hr.js decides who gets what): HR managers / Super admins the Zoho-style sections, everyone else My profile (+ My team)
@@ -371,10 +378,10 @@ export async function render() {
   if (lockedId && (!u || u.id !== lockedId)) { try { await api.pickPerson(lockedId); } catch (e) { /* removed user */ } u = await api.getSession();
     if (my !== rendering) return;
     if (!u || u.id !== lockedId) { root.innerHTML = toText(html`<div class="box-title" data-bad-link><h2>This test link is no longer valid</h2></div>`); return; } }
-  if (!u && !PUBLIC.has(route.page)) { syncFeedback(null); if (route.page === 'deal') sessionStorage.setItem('cla-portal-new:return', location.hash); location.hash = '#/login'; return; }   // invite deep link: back to the order after sign-in
+  if (!u && !PUBLIC.has(route.page)) { syncFeedback(null); if (route.page === 'deal') { try { sessionStorage.setItem(RETURN_KEY, location.hash); } catch (e) { /* the next signed-in render stays on home */ } } location.hash = '#/login'; return; }   // invite deep link: back to the order after sign-in
   const recovery = api.mode === 'supabase' && sessionStorage.getItem('cla-portal-recovery') === '1';
   if (recovery && route.page !== 'login') { location.hash = '#/login'; return; }
-  if (u && route.page === 'login' && !recovery) { location.hash = '#' + homeFor(u); return; }
+  if (u && route.page === 'login' && !recovery) { const back = savedFileReturn(); location.hash = back || ('#' + homeFor(u)); return; }
   if (u && hrOnly(u) && route.page === 'dashboard') { location.hash = '#/hr'; return; }   // HR-only login: HR is home
   if (u && isClientOnlyUser(u) && route.page === 'dashboard') { location.replace('#/orders'); return; }   // live40 (John, Nov 5): clients land on Open Orders, no My files page   // HR-only login: HR is home
   if (route.page === 'templates') { const moved = legacyTemplatesHash(location.hash); if (moved) { location.replace(moved); return; } }   // old Task Templates links, including ?tab=switches and ?tab=admin

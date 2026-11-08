@@ -55,6 +55,7 @@ api.getOrderOverview = async () => {
 const app = await import('../js/app.js');
 
 const release = async (name) => {
+  for (let i = 0; i < 50 && !started.some((x) => x.name === name && !x.done); i += 1) await wait(10);
   const item = started.find((x) => x.name === name && !x.done);
   if (!item) throw new Error('missing ' + name + ' ' + started.map((x) => x.name + (x.done ? ':done' : '')).join(','));
   item.done = true;
@@ -149,6 +150,8 @@ const ov0 = Date.now();
 const ovView = await dealRender({ api: ovApi, user: staff, params: { id: 'deal-1', tab: 'overview' }, refresh() {}, go() {} });
 const ovMs = Date.now() - ov0;
 check(ovView && ovView.body && ovMarks.length >= 8 && ovMs < 90, 'the overview starts its file reads together');
+const overviewNeeds = ['agreements', 'notes', 'sales', 'overview', 'updates', 'access', 'flags', 'prompt', 'splits', 'demo'];
+check(overviewNeeds.every((name) => ovMarks.includes(name)) && !ovMarks.includes('listDeals') && !ovMarks.includes('getWorkQueue'), 'overview waits on the sections it shows and not on the order list');
 
 let shellCalls = 0;
 let fullCalls = 0;

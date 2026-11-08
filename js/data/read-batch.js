@@ -68,7 +68,9 @@ export function navigationReads() {
 
 /* Reads started before the signed-in person is confirmed.
  * A rejection is marked seen immediately and still rejects for the caller.
- * Adoption happens only for the same auth generation that confirmed the person. */
+ * A read is reused only when it started for the same person who is confirmed,
+ * and only in the auth generation that confirmed them. An unknown owner is
+ * dropped and the caller reads again. */
 export function speculativeReads() {
   let primed = new Map();
   const tracked = (fn) => {
@@ -79,15 +81,20 @@ export function speculativeReads() {
   return {
     clear() { primed = new Map(); },
     read(owner, key, fn, nav) {
-      if (owner) return nav.share(owner, key, fn);
-      if (!primed.has(key)) primed.set(key, tracked(fn));
-      return primed.get(key);
+      const known = owner || '';
+      if (known && nav && nav.userId() === known) return nav.share(known, key, fn);
+      const existing = primed.get(key);
+      if (existing && existing.owner === known) return existing.promise;
+      const entry = { owner: known, promise: tracked(fn) };
+      primed.set(key, entry);
+      return entry.promise;
     },
     adopt(nav, id, ticket, generation) {
       if (!id || ticket !== generation) { primed = new Map(); return false; }
-      nav.begin(id);
-      for (const [key, promise] of primed) nav.seed(id, key, promise);
+      const kept = [...primed].filter(([, entry]) => entry.owner === id);
       primed = new Map();
+      nav.begin(id);
+      for (const [key, entry] of kept) nav.seed(id, key, entry.promise);
       return true;
     },
   };
@@ -110,6 +117,19 @@ export function identitySlot() {
       return person;
     },
   };
+}
+
+/* The first observed id while nobody is confirmed is the session restore: keep the route.
+ * A different id on any later event, a sign-out, a repeat SIGNED_IN of a confirmed person,
+ * or USER_UPDATED drops the profile, the demo check, and reads that are not that person's. */
+export function authEventAction(event, nextId, heldId, ownerId, pendingId = '') {
+  if (event === 'SIGNED_OUT') return 'drop';
+  if (pendingId && nextId && pendingId !== nextId) return 'drop';
+  if (heldId && nextId && heldId !== nextId) return 'drop';
+  if (ownerId && nextId && ownerId !== nextId) return 'drop';
+  if (event === 'USER_UPDATED') return 'drop';
+  if (event === 'SIGNED_IN' && ((heldId && heldId === nextId) || (ownerId && ownerId === nextId))) return 'drop';
+  return 'keep';
 }
 
 export function profileFlight() {

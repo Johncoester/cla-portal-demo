@@ -35,6 +35,22 @@ const second = await nav.share('person-b', 'deal:file', async () => { fetches +=
 const firstResult = await first;
 check(adopted === false && second.who === 'second' && fetches === 1 && firstResult.who === 'first', 'a speculative read from before an auth change is not adopted');
 
+const ownedNav = navigationReads();
+const ownedSpec = speculativeReads();
+const owned = ownedSpec.read('person-a', 'shell:file', async () => ({ street: 'PRIVATE-FOR-A' }), ownedNav);
+const adoptedOwned = ownedSpec.adopt(ownedNav, 'person-a', 0, 0);
+let ownedAgain = 0;
+const reused = await ownedNav.share('person-a', 'shell:file', async () => { ownedAgain += 1; return { street: 'other' }; });
+check(adoptedOwned === true && reused.street === 'PRIVATE-FOR-A' && ownedAgain === 0 && (await owned).street === 'PRIVATE-FOR-A', 'a speculative read is reused only for the owner it started with');
+
+const unknownNav = navigationReads();
+const unknownSpec = speculativeReads();
+const unknown = unknownSpec.read('', 'shell:file', async () => ({ street: 'PRIVATE-FOR-A' }), unknownNav);
+const adoptedUnknown = unknownSpec.adopt(unknownNav, 'person-b', 0, 0);
+let unknownAgain = 0;
+const refetched = await unknownNav.share('person-b', 'shell:file', async () => { unknownAgain += 1; return { street: 'PRIVATE-FOR-B' }; });
+check(adoptedUnknown === true && refetched.street === 'PRIVATE-FOR-B' && unknownAgain === 1 && (await unknown).street === 'PRIVATE-FOR-A', 'an unowned speculative read is dropped and read again for the confirmed person');
+
 import { parseHTML } from '/tmp/domtest/node_modules/linkedom/worker.js';
 const { window, document } = parseHTML('<!doctype html><html><body><div id="app"></div></body></html>');
 const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k), clear: () => m.clear(), key: (i) => [...m.keys()][i], get length() { return m.size; } }; };
