@@ -21,14 +21,14 @@ import { emailSendersSupabase } from './supabase-email-senders.js?v=202611070139
 import { nov5Supabase } from './supabase-nov5.js?v=202611071715';
 import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611071845';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611070139';
-import { staffSupabase } from './supabase-staff.js?v=202611070139';
+import { staffSupabase } from './supabase-staff.js?v=202611081930';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611080400';
 import { propertyAddressOf } from './nov5-rules.js?v=202611070139';
 import { fetchHostedTaskList, fetchHostedTask } from './task-actions.js?v=202611070139';
 import { contactInsertRow } from './contact-insert.js?v=202611070139';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611070139';
-import { gatherReads, profileFlight } from './read-batch.js?v=202611081900';
+import { gatherReads, profileFlight } from './read-batch.js?v=202611081930';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
 

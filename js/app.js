@@ -1,5 +1,5 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611080400';
+import { getAdapter } from './data/adapter.js?v=202611081930';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611070139';
 import { canUseCrm } from './data/crm.js?v=202611070139';
@@ -15,7 +15,7 @@ import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611070139';
 import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611080400';   // John, Nov 4: one locked login link per fake user
 import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080400';
-import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611081900';
+import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611081930';
 import { botRegistry } from './data/bot-registry.js?v=202611080400';
 import { voiceRouteOk } from './data/voice-demo.js?v=202611071632';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611070139';   // John, Nov 4 call: sidebar search + pinned order nav
@@ -30,7 +30,7 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611070139'),
-  dashboard: () => import('./pages/dashboard.js?v=202611081900'),
+  dashboard: () => import('./pages/dashboard.js?v=202611081930'),
   orders: () => import('./pages/orders.js?v=202611070139'),
   'orders/new': () => import('./pages/ordernew.js?v=202611080400'),
   deal: () => import('./pages/deal.js?v=202611080400'),
@@ -282,14 +282,10 @@ export async function render() {
   const my = ++rendering; applyTheme(); const root = $('#app'); showLoading(root); const api = await getAdapter(); const route = parse(); closeModal();
   PORTAL_MODE = api.mode || 'mock';
   let u = await api.getSession();
-  let modsEarly = null;
-  if (u) {
-    const jobs = [];
-    if (api.demoViewStatus) jobs.push(api.demoViewStatus().then((v) => { DEMO_VIEW = v; }).catch(() => { DEMO_VIEW = null; }));
-    else DEMO_VIEW = null;
-    if (api.getModuleAccess) jobs.push(api.getModuleAccess().then((m) => { modsEarly = m || {}; }).catch(() => { modsEarly = {}; }));
-    await Promise.all(jobs);
-  } else DEMO_VIEW = null;
+  if (my !== rendering) return;
+  if (u && api.demoViewStatus) { try { DEMO_VIEW = await api.demoViewStatus(); } catch (e) { DEMO_VIEW = null; } } else DEMO_VIEW = null;
+  if (my !== rendering) return;
+  if (u && DEMO_VIEW && DEMO_VIEW.active) { u = await api.getSession(); if (my !== rendering) return; }
   // LOCKED LOGIN LINK (John, Nov 4): ?as=<token> signs in as that one fake user and locks this tab to them (data/locked-links.js)
   const asTok = new URLSearchParams(location.search).get('as');
   if (api.mode === 'supabase') {
@@ -325,7 +321,18 @@ export async function render() {
   if (u && hrOnly(u) && route.page === 'dashboard') { location.hash = '#/hr'; return; }   // HR-only login: HR is home
   if (u && isClientOnlyUser(u) && route.page === 'dashboard') { location.replace('#/orders'); return; }   // live40 (John, Nov 5): clients land on Open Orders, no My files page   // HR-only login: HR is home
   if (route.page === 'templates') { const moved = legacyTemplatesHash(location.hash); if (moved) { location.replace(moved); return; } }   // old Task Templates links, including ?tab=switches and ?tab=admin
-  const mods = modsEarly || {}; setModuleMap(mods);   // module switches for this user
+  if (my !== rendering) return;
+  let mods = {};
+  if (u && api.getModuleAccess) {
+    const stamp = { id: u.id, role: u.role || '', demo: !!u.isDemo };
+    try { mods = await api.getModuleAccess() || {}; } catch (e) { mods = {}; }
+    if (my !== rendering) return;
+    let now = null;
+    try { now = await api.getSession(); } catch (e) { now = null; }
+    if (my !== rendering) return;
+    if (!now || now.id !== stamp.id || (now.role || '') !== stamp.role || !!now.isDemo !== stamp.demo) return render();
+  }
+  setModuleMap(mods);   // module switches for the person now signed in, after view-as and the locked link
   if (api.mode === 'supabase' && u && !(DEMO_VIEW && DEMO_VIEW.active) && api.requestVoicePass) {
     if (voiceCheckedFor !== u.id) { voiceCheckedFor = u.id; try { const chk = await api.requestVoicePass('check'); VOICE_OK = !!(chk.ok && chk.data && chk.data.allowed === true); } catch (e) { VOICE_OK = false; } }
   } else { VOICE_OK = false; if (!u) voiceCheckedFor = ''; }

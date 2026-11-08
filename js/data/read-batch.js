@@ -10,6 +10,22 @@ export function gatherReads(named) {
   });
 }
 
+/* At most `limit` calls at once. Used for per-file reads so a long order list cannot open one request per file all at once. */
+export async function mapLimit(items, limit, fn) {
+  const list = items || [];
+  const out = new Array(list.length);
+  let cursor = 0;
+  const workers = Math.max(1, Math.min(limit, list.length));
+  if (!list.length) return out;
+  await Promise.all(Array.from({ length: workers }, async () => {
+    while (cursor < list.length) {
+      const i = cursor++;
+      out[i] = await fn(list[i], i);
+    }
+  }));
+  return out;
+}
+
 export function routeTokens() {
   let current = 0;
   return {
@@ -23,16 +39,21 @@ export function routeTokens() {
 export function profileFlight() {
   let flight = null;
   let userId = null;
+  let seq = 0;
   return {
-    begin() { flight = null; },
-    clear() { flight = null; userId = null; },
+    begin() { seq += 1; flight = null; },
+    clear() { seq += 1; flight = null; userId = null; },
     load(user, fetcher) {
       if (!user || !user.id) { this.clear(); return Promise.resolve(null); }
       if (userId !== user.id) { flight = null; userId = user.id; }
       if (!flight) {
         const id = user.id;
-        flight = Promise.resolve().then(() => fetcher(user)).catch((err) => {
-          if (userId === id) flight = null;
+        const ticket = seq;
+        flight = Promise.resolve().then(() => fetcher(user)).then((profile) => {
+          if (ticket !== seq || userId !== id) return null;
+          return profile;
+        }).catch((err) => {
+          if (ticket === seq && userId === id) flight = null;
           throw err;
         });
       }

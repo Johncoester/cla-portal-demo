@@ -1,5 +1,5 @@
 /* Fake latency only. No hosted project, no secrets, no webhook. */
-import { gatherReads, profileFlight, routeTokens } from '../js/data/read-batch.js';
+import { gatherReads, mapLimit, profileFlight, routeTokens } from '../js/data/read-batch.js';
 import { readFileSync } from 'node:fs';
 
 let fail = 0;
@@ -51,6 +51,13 @@ const results = await Promise.all([first, second]);
 console.log('TIMING route race', JSON.stringify({ results, painted }));
 check(results[0] === 'stale' && painted === 'orders', 'a slow route does not replace the newer page');
 
+let peak = 0; let active = 0;
+const limited = await mapLimit([1, 2, 3, 4, 5, 6, 7, 8], 4, async (n) => {
+  active += 1; peak = Math.max(peak, active); await wait(20); active -= 1; return n;
+});
+console.log('TIMING capped file reads', JSON.stringify({ count: limited.length, peak }));
+check(limited.join(',') === '1,2,3,4,5,6,7,8' && peak <= 4, 'per-file reads stay capped at four at a time');
+
 const flight = profileFlight();
 let fetches = 0;
 const loadA = () => flight.load({ id: 'john' }, async () => { fetches += 1; await wait(30); return { id: 'john', name: 'John' }; });
@@ -63,11 +70,24 @@ flight.clear();
 const matt = await flight.load({ id: 'matt' }, async () => { fetches += 1; return { id: 'matt', name: 'Matt' }; });
 check(matt.id === 'matt' && matt.name === 'Matt', 'sign-out then another person does not reuse the first profile');
 
+let releaseRole;
+const roleGate = new Promise((resolve) => { releaseRole = resolve; });
+const roles = profileFlight();
+const adminP = roles.load({ id: 'same' }, async () => { await roleGate; return { id: 'same', role: 'Admin', isDemo: false }; });
+roles.begin();
+const demoP = roles.load({ id: 'same' }, async () => ({ id: 'same', role: 'Admin', isDemo: true }));
+releaseRole();
+const staleRole = await adminP;
+const freshRole = await demoP;
+check(staleRole == null && freshRole && freshRole.isDemo === true, 'a same-person demo change discards the older profile read');
+
 const dash = readFileSync(new URL('../js/pages/dashboard.js', import.meta.url), 'utf8');
 check(!dash.includes('for (const d of deals) tasksByDeal'), 'the dashboard does not walk every order for tasks before choosing the view');
 check(dash.includes('needsTasks') && dash.includes('getWorkQueue({ deals })'), 'a processor reuses the order list already loaded');
 const adapter = readFileSync(new URL('../js/data/supabase-adapter.js', import.meta.url), 'utf8');
-check(adapter.includes('gatherReads') && adapter.includes('profile.clear()'), 'order reads overlap and sign-out drops the profile flight');
+check(adapter.includes('gatherReads') && adapter.includes('profile.clear()') && adapter.includes('supabase-staff.js?v=202611081930'), 'order reads overlap, sign-out drops the profile, and the staff module stamp is current');
+const appSrc = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+check(appSrc.includes("adapter.js?v=202611081930") && !appSrc.includes('modsEarly'), 'the shell loads the current adapter and does not reuse an early module map');
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 check(app.includes('Loading this page.') && app.includes('data-loading-note') && app.includes('Promise.all'), 'a route shows a loading line and overlaps the shell reads');
 const widget = readFileSync(new URL('../js/pages/staff-feedback-widget.js', import.meta.url), 'utf8');

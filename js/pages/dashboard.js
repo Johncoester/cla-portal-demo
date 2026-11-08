@@ -4,6 +4,7 @@ import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from
 import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611070139';
 import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611070139';
 import { themeOn } from '../theme.js?v=202611070139';
+import { mapLimit } from '../data/read-batch.js?v=202611081930';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>${d.fileTitle ? html` <span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}`;
 // CARD THEME (default look): a tile that repeats one of the four dashboard cards (open orders = "in Pipeline" count, overdue tasks) is not drawn;
@@ -15,7 +16,7 @@ export async function render(ctx) {
   const { api, user } = ctx;
   const deals = await api.listDeals({ status: 'All' });
   const needsTasks = !(user.isAdmin || runsOrders(user));
-  const lists = needsTasks ? await Promise.all(deals.map((d) => api.listTasks(d.id).then((ts) => ts.map((t) => ({ ...t, deal: d }))))) : [];
+  const lists = needsTasks ? await mapLimit(deals, 4, (d) => api.listTasks(d.id).then((ts) => ts.map((t) => ({ ...t, deal: d })))) : [];
   const all = lists.flat();
   const open = deals.filter((d) => d.status === 'Open'); const today = localDate();
   const pick = user.isAdmin ? admin : runsOrders(user) ? processor : user.role === 'Transaction Coordinator' ? coordinator : isAgent(user.role) ? agent : isClient(user.role) ? client : isOutside(user.role) ? outside : team;
@@ -61,7 +62,7 @@ async function coordinator({ api, user, open, all, today }) {
   const mine = all.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status) && t.deal.status === 'Open' && (t.assignedRole === user.role || t.mine))
     .sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'));
   const summaries = {};
-  await Promise.all(open.map(async (d) => { try { summaries[d.id] = await api.getTcFileSummary(d.id); } catch (e) { summaries[d.id] = null; } }));
+  await mapLimit(open, 4, async (d) => { try { summaries[d.id] = await api.getTcFileSummary(d.id); } catch (e) { summaries[d.id] = null; } });
   const tasks = mine.map((t) => html`<tr data-tc-task="${t.id}"><td><a href="#/deals/${t.deal.id}/tasks${['form', 'sign', 'agent'].includes(t.kind) ? '/' + t.id : ''}">${t.title}</a></td><td><a href="#/deals/${t.deal.id}">${t.deal.fileNumber}</a><br><span class="muted small">${t.deal.address}</span></td><td class="${t.dueDate && t.dueDate < today ? 'bad-text' : ''}">${t.dueDate ? fmtDate(t.dueDate) : '—'}</td><td>${pill(t.status, t.status === 'blocked' ? 'warn' : 'info')}</td></tr>`);
   const files = open.slice().sort((a, b) => (a.closingDate || '9999').localeCompare(b.closingDate || '9999')).map((d) => {
     const s = summaries[d.id]; const e = s && s.emdAlta;
