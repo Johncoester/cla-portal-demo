@@ -12,11 +12,10 @@ export function modulesSupabase({ sb, ok, me, flags }) {
   return {
     async getModuleAccess() {
       const setP = settings();
-      try {
-        const u = await me();
-        if (!u) throw new Error('Please sign in.');
-        return accessMap(u, flags, await setP);
-      } catch (err) { setP.catch(() => {}); throw err; }
+      setP.catch(() => {});
+      const u = await me();
+      if (!u) throw new Error('Please sign in.');
+      return accessMap(u, flags, await setP);
     },
     async listModules() {
       const u = await admin(); const set = await settings(); const acc = accessMap(u, flags, set);

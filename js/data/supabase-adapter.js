@@ -395,6 +395,7 @@ export async function createSupabaseAdapter(cfg) {
           nav.clear();
           const hinted = pendingAuthId;
           const earlyProfile = hinted ? meFrom({ id: hinted }) : null;
+          if (earlyProfile) earlyProfile.catch(() => {});
           warmFile(hint);
           const { data: { user } } = await sb.auth.getUser();
           if (ticket !== ident.generation()) { early.clear(); continue; }
@@ -402,6 +403,7 @@ export async function createSupabaseAdapter(cfg) {
           if (!early.adopt(nav, user.id, ticket, ident.generation())) { early.clear(); continue; }
           const mods = a.getModuleAccess ? a.getModuleAccess().then((m) => m || {}).catch(() => ({})) : Promise.resolve({});
           const hr = nav.share(user.id, 'hr-extras', () => hrSessionExtras());
+          hr.catch(() => {});
           const demo = a.demoViewStatus().catch(() => null);
           let loaded = earlyProfile && user.id === hinted ? await earlyProfile : null;
           if (!loaded || loaded.id !== user.id) { profile.begin(); loaded = await meFrom(user); }

@@ -1,5 +1,6 @@
 /* Real adapter, fake client. Event order is controlled. No hosted project and no secrets. */
 import { createSupabaseAdapter } from '../js/data/supabase-adapter.js';
+import { modulesSupabase } from '../js/data/supabase-modules.js';
 
 let fail = 0;
 const check = (cond, msg) => { if (cond) console.log('ok', msg); else { fail += 1; console.log('FAIL', msg); } };
@@ -343,6 +344,67 @@ async function ownedWarmReadIsKept() {
   check(warmed === afterFirst + 1 && reads.length === warmed && shell.street === 'PRIVATE-FOR-A' && nav.user.id === 'A', 'a file read started for the confirmed person is kept for that navigation');
 }
 
+async function speculativeFailuresStayVisible() {
+  const errors = [];
+  const onErr = (err) => { errors.push(err && err.message || String(err)); };
+  process.on('unhandledRejection', onErr);
+  try {
+    let resolveUser = null;
+    const hooks = {
+      getUser() { return new Promise((r) => { resolveUser = r; }); },
+      single() { return { data: { id: 'file-1', street: 'PRIVATE-FOR-A' }, error: null }; },
+      rpc(name) { if (name === 'my_profile') throw new Error('EARLY_PROFILE_FAILED'); return { data: [], error: null }; },
+    };
+    globalThis.__fakeSB = client(hooks);
+    const api = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE-NOT-A-KEY' });
+    hooks.cb('INITIAL_SESSION', { user: { id: 'A' } });
+    const pending = api.beginNavigation();
+    pending.catch(() => {});
+    await wait(30);
+    check(errors.length === 0, 'an early profile failure is handled while getUser is still pending');
+    hooks.cb('SIGNED_OUT', null);
+    resolveUser({ data: { user: null } });
+    await wait(0);
+    resolveUser({ data: { user: null } });
+    await pending;
+    check(errors.length === 0, 'an abandoned profile failure stays handled after the navigation is invalidated');
+
+    errors.length = 0;
+    const failingUser = {
+      getUser() { return Promise.reject(new Error('GET_USER_FAILED')); },
+      single() { return { data: null, error: null }; },
+      rpc(name) { if (name === 'my_profile') throw new Error('EARLY_PROFILE_FAILED'); return { data: [], error: null }; },
+    };
+    globalThis.__fakeSB = client(failingUser);
+    const api2 = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE-NOT-A-KEY' });
+    failingUser.cb('INITIAL_SESSION', { user: { id: 'A' } });
+    let seen = '';
+    try { await api2.beginNavigation(); } catch (err) { seen = err.message; }
+    await wait(30);
+    check(errors.length === 0 && seen === 'GET_USER_FAILED', 'a getUser failure still surfaces while the early profile failure stays handled');
+
+    errors.length = 0;
+    let confirm = null;
+    const modules = modulesSupabase({
+      sb: { from() { return { select() { return Promise.reject(new Error('MODULE_SETTINGS_FAILED')); } }; } },
+      ok: (row) => { if (row && row.error) throw new Error(row.error.message); return row && row.data; },
+      me: () => new Promise((resolve) => { confirm = resolve; }),
+      flags: {},
+    });
+    const access = modules.getModuleAccess();
+    access.catch(() => {});
+    await wait(30);
+    check(errors.length === 0, 'a settings failure is handled while the profile read is still pending');
+    confirm({ id: 'A', role: 'Processor' });
+    let caller = '';
+    try { await access; } catch (err) { caller = err.message; }
+    check(caller === 'MODULE_SETTINGS_FAILED' && errors.length === 0, 'the caller still receives the settings failure');
+  } finally {
+    process.off('unhandledRejection', onErr);
+  }
+}
+
+await speculativeFailuresStayVisible();
 await profileOverlapsConfirmation();
 await mismatchedProfileRefetches();
 await ownedWarmReadIsKept();
