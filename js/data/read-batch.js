@@ -90,7 +90,7 @@ export function speculativeReads() {
       return entry.promise;
     },
     adopt(nav, id, ticket, generation) {
-      if (!id || ticket !== generation) { primed = new Map(); return false; }
+      if (!id || ticket !== generation) return false;
       const kept = [...primed].filter(([, entry]) => entry.owner === id);
       primed = new Map();
       nav.begin(id);
@@ -111,7 +111,7 @@ export function identitySlot() {
     forget() { user = null; at = -1; },
     current() { return at === gen ? user : null; },
     hold(person, ticket) {
-      if (ticket !== gen || !person || !person.id) { user = null; at = -1; return null; }
+      if (ticket !== gen || !person || !person.id) return null;
       user = person;
       at = ticket;
       return person;

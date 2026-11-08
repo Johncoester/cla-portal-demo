@@ -28,7 +28,7 @@ import { propertyAddressOf } from './nov5-rules.js?v=202611070139';
 import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList } from './task-actions.js?v=202611082000';
 import { contactInsertRow } from './contact-insert.js?v=202611070139';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611070139';
-import { authEventAction, gatherReads, identitySlot, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611082010';
+import { authEventAction, gatherReads, identitySlot, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611082200';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
 
@@ -107,18 +107,24 @@ export async function createSupabaseAdapter(cfg) {
   const me = async () => {
     for (let attempt = 0; attempt < 4; attempt += 1) {
       const ticket = ident.generation();
+      const navAt = openNavId;
       const cached = ident.current();
       if (cached && cached.id && nav.userId() === cached.id) return cached;
       const { data: { user } } = await fetchAuthUser();
-      if (ticket !== ident.generation()) continue;
-      if (!user) { profile.clear(); nav.clear(); early.clear(); ident.forget(); return null; }
+      if (ticket !== ident.generation() || openNavId !== navAt) continue;
+      if (!user) {
+        if (ticket !== ident.generation() || openNavId !== navAt) return null;
+        profile.clear(); nav.clear(); early.clear(); ident.forget();
+        return null;
+      }
       if (nav.userId() !== user.id) {
+        if (ticket !== ident.generation() || openNavId !== navAt) continue;
         profile.begin();
         ident.forget();
         if (!openingNav && !early.adopt(nav, user.id, ticket, ident.generation())) continue;
       }
       const loaded = await meFrom(user);
-      if (ticket !== ident.generation() || !loaded || loaded.id !== user.id) continue;
+      if (ticket !== ident.generation() || openNavId !== navAt || !loaded || loaded.id !== user.id) continue;
       return ident.hold(loaded, ticket);
     }
     return null;
@@ -195,15 +201,21 @@ export async function createSupabaseAdapter(cfg) {
     },
     async getSession() {
       const ticket = ident.generation();
+      const navAt = openNavId;
       const { data: { user } } = await sb.auth.getUser();
-      if (ticket !== ident.generation()) return null;
-      if (!user) { profile.clear(); nav.clear(); early.clear(); ident.forget(); return null; }
+      if (ticket !== ident.generation() || openNavId !== navAt) return null;
+      if (!user) {
+        if (ticket !== ident.generation() || openNavId !== navAt) return null;
+        profile.clear(); nav.clear(); early.clear(); ident.forget();
+        return null;
+      }
       const cached = ident.current();
       if (cached && cached.id === user.id && nav.userId() === user.id) return cached;
+      if (ticket !== ident.generation() || openNavId !== navAt) return null;
       profile.begin();
       if (!openingNav && !early.adopt(nav, user.id, ticket, ident.generation())) return null;
       const loaded = await meFrom(user);
-      if (ticket !== ident.generation() || !loaded || loaded.id !== user.id) return null;
+      if (ticket !== ident.generation() || openNavId !== navAt || !loaded || loaded.id !== user.id) return null;
       return ident.hold(loaded, ticket);
     },
     authGeneration() { return ident.generation(); },
@@ -428,21 +440,34 @@ export async function createSupabaseAdapter(cfg) {
           ]);
           if (raced.stopped || openNavId !== myNav) return empty;
           const { data: { user } } = raced.result;
+          if (openNavId !== myNav) return empty;
           if (ticket !== ident.generation()) { early.clear(); continue; }
           if (!user) { profile.clear(); nav.clear(); early.clear(); ident.forget(); return empty; }
-          if (!early.adopt(nav, user.id, ticket, ident.generation())) { early.clear(); continue; }
+          if (!early.adopt(nav, user.id, ticket, ident.generation())) {
+            if (openNavId !== myNav) return empty;
+            early.clear();
+            continue;
+          }
           const mods = a.getModuleAccess ? a.getModuleAccess().then((m) => m || {}).catch(() => ({})) : Promise.resolve({});
           const hr = nav.share(user.id, 'hr-extras', () => hrSessionExtras());
           hr.catch(() => {});
           const demo = a.demoViewStatus().catch(() => null);
           let loaded = earlyProfile && user.id === hinted ? await earlyProfile : null;
-          if (!loaded || loaded.id !== user.id) { profile.begin(); loaded = await meFrom(user); }
+          if (openNavId !== myNav) return empty;
           if (ticket !== ident.generation()) { nav.clear(); early.clear(); ident.forget(); continue; }
-          const kept = ident.hold(loaded && loaded.id === user.id ? loaded : null, ticket);
-          if (!kept) continue;
+          if (!loaded || loaded.id !== user.id) {
+            profile.begin();
+            loaded = await meFrom(user);
+            if (openNavId !== myNav) return empty;
+            if (ticket !== ident.generation()) { nav.clear(); early.clear(); ident.forget(); continue; }
+          }
+          if (openNavId !== myNav) return empty;
+          if (!loaded || loaded.id !== user.id) { ident.forget(); continue; }
+          const kept = ident.hold(loaded, ticket);
+          if (!kept) { if (openNavId !== myNav) return empty; continue; }
           return { user: kept, hr, demo, mods };
         }
-        early.clear();
+        if (openNavId === myNav) early.clear();
         return empty;
       } finally {
         navStops.delete(myNav);

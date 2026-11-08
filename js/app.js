@@ -1,5 +1,5 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611082150';
+import { getAdapter } from './data/adapter.js?v=202611082200';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611070139';
 import { canUseCrm } from './data/crm.js?v=202611070139';
@@ -330,6 +330,13 @@ export async function render() {
   const api = await getAdapter(); const route = parse(); closeModal();
   PORTAL_MODE = api.mode || 'mock';
   const authAt = api.authGeneration ? api.authGeneration() : null;
+  const replaced = () => my !== rendering;
+  const personMoved = () => authAt != null && api.authGeneration && api.authGeneration() !== authAt;
+  const keepCurrent = () => {
+    if (replaced()) return false;
+    if (personMoved()) { render(); return false; }
+    return true;
+  };
   const fileHint = route.page === 'deal' ? { dealId: route.params.id, tab: route.params.tab || 'overview', gated: !!routeModule(route) } : null;
   let navStart = null;
   let u = null;
@@ -368,6 +375,7 @@ export async function render() {
     let land = safeLanding(new URLSearchParams(location.search).get('file')); if (land) { try { await api.getDeal(land); } catch (e) { land = null; } }   // landing only, never wider access
     const qs = new URLSearchParams(location.search); const sec = qs.get('section') ? sectionHash(qs.get('section'), qs.get('file')) : null;   // section links pick the first page only
     if (typeof clearSessionWs === 'function') clearSessionWs();
+    if (replaced()) return;
     history.replaceState(null, '', location.pathname + (sec || (land ? `#/deals/${land}` : (location.hash || '#/dashboard')))); return render(); }   // re-render on the landing route (replaceState fires no hashchange)
   const lock = api.mode === 'supabase' ? null : readLock(sessionStorage); VIEW_AS = null;
   // VIEW AS (Super admin locked link only, John Nov 4): the owner of the link decides; a stored viewAs on anyone else's lock is dropped
@@ -379,6 +387,7 @@ export async function render() {
   if (lockedId && (!u || u.id !== lockedId)) { try { await api.pickPerson(lockedId); } catch (e) { /* removed user */ } u = await api.getSession();
     if (my !== rendering) return;
     if (!u || u.id !== lockedId) { root.innerHTML = toText(html`<div class="box-title" data-bad-link><h2>This test link is no longer valid</h2></div>`); return; } }
+  if (replaced()) return;
   if (!u && !PUBLIC.has(route.page)) { syncFeedback(null); if (route.page === 'deal') { try { sessionStorage.setItem(RETURN_KEY, location.hash); } catch (e) { /* the next signed-in render stays on home */ } } location.hash = '#/login'; return; }   // invite deep link: back to the order after sign-in
   const recovery = api.mode === 'supabase' && sessionStorage.getItem('cla-portal-recovery') === '1';
   if (recovery && route.page !== 'login') { location.hash = '#/login'; return; }
@@ -412,13 +421,13 @@ export async function render() {
     }
   }
   const [mods, extra] = await Promise.all([modP, hrP, voiceP]);
-  if (my !== rendering) return;
+  if (replaced()) return;
   if (extra && u) u = { ...u, ...extra };
-  if (authAt != null && api.authGeneration && api.authGeneration() !== authAt) return render();
+  if (!keepCurrent()) return;
   if (u && api.getModuleAccess && authAt == null) {
     let now = null;
     try { now = await api.getSession(); } catch (e) { now = null; }
-    if (my !== rendering) return;
+    if (!keepCurrent()) return;
     if (!now || now.id !== stamp.id || (now.role || '') !== stamp.role || !!now.isDemo !== stamp.demo) return render();
   }
   setModuleMap(mods);   // module switches for the person now signed in, after view-as and the locked link
@@ -454,17 +463,16 @@ export async function render() {
   const modId = u ? routeModule(route) : null;
   const loader = (FLAGGED[route.page] && !(api.features || {})[FLAGGED[route.page]]) || (route.page === 'deal' && route.params.tab === 'accounting' && !(api.features || {}).accounting) || (modId && !modOn(modId)) ? null : pages[route.page];   // a module that is not Live (beta): Page not found for everyone but Admins   // Accounting tab: Page not found when the flag is off
   if (!loader) { const missingShell = await layout(u, { body: html`<div class="box-title"><h2>Page not found</h2></div><p>That page does not exist.</p>` }, route, ws); if (my !== rendering) return; root.innerHTML = toText(missingShell); wireChrome(u); settle(); return; }
-  const personLeft = () => authAt != null && api.authGeneration && api.authGeneration() !== authAt;
   const mod = await loader(); let view;
   try { view = await mod.render({ api, user: u, params: route.params, refresh: render, go }); }
   catch (e) {
-    if (my !== rendering || personLeft()) { root.removeAttribute('data-content-ready'); return render(); }
+    if (!keepCurrent()) return;
     view = { crumbs: [['Not available']], body: html`<div class="box-title"><h2>Not available</h2></div><p class="err-text">${e.message}</p><p><a class="back-btn" href="#${homeFor(u)}">Back</a></p>` };
   }
-  if (my !== rendering || personLeft()) { root.removeAttribute('data-content-ready'); return render(); }
+  if (!keepCurrent()) return;
   if (PUBLIC.has(route.page)) { root.innerHTML = toText(view.body); syncFeedback(u); }
-  else { let shell; try { shell = await layout(u, view, route, ws, { unread: unreadP }); } catch (e) { if (/sign in/i.test(e.message || '')) { location.hash = '#/login'; return; } throw e; }   // session ended mid-render
-    if (my !== rendering || personLeft()) { root.removeAttribute('data-content-ready'); return render(); }
+  else { let shell; try { shell = await layout(u, view, route, ws, { unread: unreadP }); } catch (e) { if (replaced()) return; if (personMoved()) return render(); if (/sign in/i.test(e.message || '')) { location.hash = '#/login'; return; } throw e; }   // session ended mid-render
+    if (!keepCurrent()) return;
     root.innerHTML = toText(shell); wireChrome(u); }
   settle();
   document.title = (view.title ? view.title + ' | ' : '') + 'CLA Portal Live Test';

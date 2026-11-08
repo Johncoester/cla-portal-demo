@@ -572,6 +572,44 @@ async function oldNavigationDoesNotClearNewFlight() {
   check(beforeReject === 2 && observed === 2 && nav.user && nav.user.id === 'B' && person && person.id === 'B', 'an old navigation does not drop the newer sign-in check');
 }
 
+async function obsoleteProfileDoesNotDropNewerPerson() {
+  for (const switchPerson of [false, true]) {
+    let who = 'A';
+    let releaseOld = null;
+    let userCalls = 0;
+    let profileCalls = 0;
+    const hooks = {
+      getUser() { userCalls += 1; return Promise.resolve({ data: { user: { id: who } } }); },
+      single() { return { data: { id: 'file-1', street: 'PRIVATE-FOR-' + who }, error: null }; },
+      rpc(name) {
+        if (name === 'my_profile') {
+          profileCalls += 1;
+          const owner = who;
+          if (profileCalls === 1) return new Promise((resolve) => { releaseOld = () => resolve({ data: { id: owner, role: 'Processor', is_demo: false }, error: null }); });
+          return { data: { id: who, role: 'Processor', is_demo: false }, error: null };
+        }
+        if (name === 'demo_view_status') return { data: { active: false }, error: null };
+        return { data: [], error: null };
+      },
+    };
+    globalThis.__fakeSB = client(hooks);
+    const api = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE-NOT-A-KEY' });
+    hooks.cb('INITIAL_SESSION', { user: { id: 'A' } });
+    const old = api.beginNavigation();
+    await wait(0);
+    if (switchPerson) { who = 'B'; hooks.cb('SIGNED_IN', { user: { id: 'B' } }); }
+    const newer = await api.beginNavigation();
+    await newer.hr; await newer.mods; await newer.demo;
+    const before = userCalls;
+    releaseOld();
+    await old;
+    await wait(0);
+    const person = await api.getMyProfile();
+    check(newer.user && newer.user.id === who && userCalls === before && person && person.id === who, switchPerson ? 'an old profile does not drop the person confirmed after the switch' : 'an old profile does not ask for the signed-in person again');
+  }
+}
+
+await obsoleteProfileDoesNotDropNewerPerson();
 await overlappingNavigationsAskTwice();
 await oldNavigationDoesNotClearNewFlight();
 await oneFreshUserPerNavigation();
