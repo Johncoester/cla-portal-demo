@@ -404,6 +404,120 @@ async function speculativeFailuresStayVisible() {
   }
 }
 
+async function oneFreshUserPerNavigation() {
+  const run = async (tab) => {
+    const counter = { calls: 0 };
+    const tables = [];
+    const hooks = {
+      getUser() { counter.calls += 1; return Promise.resolve({ data: { user: { id: 'A' } } }); },
+      single() { tables.push('deals'); return { data: { id: 'file-1', street: 'PRIVATE-FOR-A' }, error: null }; },
+      rpc(name) {
+        if (name === 'my_profile') return { data: { id: 'A', role: 'Processor', is_demo: false }, error: null };
+        if (name === 'demo_view_status') return { data: { active: false }, error: null };
+        return { data: [], error: null };
+      },
+      from(name) {
+        tables.push(name);
+        return { select() { return Promise.resolve({ data: [], error: null }); }, eq() { return this; }, order() { return this; }, is() { return this; }, in() { return this; },
+          async single() { return { data: { id: 'file-1', street: 'PRIVATE-FOR-A' }, error: null }; },
+          async maybeSingle() { return { data: null, error: null }; } };
+      },
+    };
+    globalThis.__fakeSB = client(hooks);
+    const api = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE-NOT-A-KEY' });
+    hooks.cb('INITIAL_SESSION', { user: { id: 'A' } });
+    const nav = await api.beginNavigation({ dealId: 'file-1', tab });
+    await nav.hr; await nav.demo; const mods = await nav.mods;
+    return { counter, nav, mods, tables, api, hooks };
+  };
+  const tasks = await run('tasks');
+  check(tasks.counter.calls === 1 && tasks.nav.user && tasks.nav.user.role === 'Processor' && tasks.mods && typeof tasks.mods === 'object', 'a tasks navigation asks who is signed in once and still reads the profile');
+  const again = await tasks.api.beginNavigation({ dealId: 'file-1', tab: 'tasks' });
+  await again.hr; await again.mods;
+  check(tasks.counter.calls === 2 && again.user && again.user.id === 'A', 'the next navigation asks who is signed in again');
+  const docs = await run('documents');
+  check(docs.counter.calls === 1 && docs.tables.includes('folders') && docs.nav.user.role === 'Processor', 'a documents navigation asks who is signed in once and still reads folders');
+}
+
+async function signOutDropsInFlightUser() {
+  const pending = [];
+  let calls = 0;
+  const hooks = {
+    getUser() { calls += 1; return new Promise((r) => pending.push(r)); },
+    single() { return { data: { id: 'file-1', street: 'PRIVATE-FOR-A' }, error: null }; },
+    rpc(name) {
+      if (name === 'my_profile') return { data: { id: 'A', role: 'Processor', is_demo: false }, error: null };
+      return { data: [], error: null };
+    },
+  };
+  globalThis.__fakeSB = client(hooks);
+  const api = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE-NOT-A-KEY' });
+  hooks.cb('INITIAL_SESSION', { user: { id: 'A' } });
+  const navP = api.beginNavigation({ dealId: 'file-1', tab: 'tasks' });
+  await wait(0);
+  const first = calls;
+  hooks.cb('SIGNED_OUT', null);
+  pending[0]({ data: { user: { id: 'A' } } });
+  await wait(0);
+  pending[pending.length - 1]({ data: { user: null } });
+  const nav = await navP;
+  check(first === 1 && calls > first && !nav.user, 'a sign-out drops the in-flight person and the next check asks again');
+}
+
+async function lateUserADoesNotReplaceB() {
+  const pending = [];
+  const hooks = {
+    getUser() { return new Promise((r) => pending.push(r)); },
+    single() { return { data: { id: 'file-1', street: 'PRIVATE-FOR-B' }, error: null }; },
+    rpc(name) {
+      if (name === 'my_profile') return { data: { id: 'B', role: 'Client-Buyer', is_demo: false }, error: null };
+      if (name === 'demo_view_status') return { data: { active: false }, error: null };
+      return { data: [], error: null };
+    },
+  };
+  globalThis.__fakeSB = client(hooks);
+  const api = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE-NOT-A-KEY' });
+  hooks.cb('INITIAL_SESSION', { user: { id: 'A' } });
+  const navP = api.beginNavigation({ dealId: 'file-1', tab: 'tasks' });
+  await wait(0);
+  hooks.cb('SIGNED_IN', { user: { id: 'B' } });
+  pending[0]({ data: { user: { id: 'A' } } });
+  await wait(0);
+  pending[pending.length - 1]({ data: { user: { id: 'B' } } });
+  const nav = await navP;
+  await nav.hr; await nav.demo;
+  check(nav.user && nav.user.id === 'B' && nav.user.role === 'Client-Buyer' && pending.length >= 2, 'a late sign-in result for A is not kept after B is confirmed');
+}
+
+async function rejectedAuthIsNotReused() {
+  let calls = 0;
+  const hooks = {
+    getUser() {
+      calls += 1;
+      if (calls === 1) return Promise.reject(new Error('GET_USER_FAILED'));
+      return Promise.resolve({ data: { user: { id: 'A' } } });
+    },
+    single() { return { data: { id: 'file-1', street: 'PRIVATE-FOR-A' }, error: null }; },
+    rpc(name) {
+      if (name === 'my_profile') return { data: { id: 'A', role: 'Processor', is_demo: false }, error: null };
+      if (name === 'demo_view_status') return { data: { active: false }, error: null };
+      return { data: [], error: null };
+    },
+  };
+  globalThis.__fakeSB = client(hooks);
+  const api = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE-NOT-A-KEY' });
+  hooks.cb('INITIAL_SESSION', { user: { id: 'A' } });
+  let seen = '';
+  try { await api.beginNavigation({ dealId: 'file-1', tab: 'tasks' }); } catch (err) { seen = err.message; }
+  const nav = await api.beginNavigation({ dealId: 'file-1', tab: 'tasks' });
+  await nav.hr; await nav.mods;
+  check(seen === 'GET_USER_FAILED' && calls === 2 && nav.user && nav.user.role === 'Processor', 'a rejected sign-in check is not reused for the next navigation');
+}
+
+await oneFreshUserPerNavigation();
+await signOutDropsInFlightUser();
+await lateUserADoesNotReplaceB();
+await rejectedAuthIsNotReused();
 await speculativeFailuresStayVisible();
 await profileOverlapsConfirmation();
 await mismatchedProfileRefetches();

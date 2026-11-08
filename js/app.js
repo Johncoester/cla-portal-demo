@@ -1,5 +1,5 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611082100';
+import { getAdapter } from './data/adapter.js?v=202611082140';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611070139';
 import { canUseCrm } from './data/crm.js?v=202611070139';
@@ -275,6 +275,7 @@ function showRouteLoading(root) {
   if (!root) return;
   root.setAttribute('aria-busy', 'true');
   root.setAttribute('data-route-loading', '1');
+  root.removeAttribute('data-content-ready');
   const note = document.createElement('p');
   note.className = 'dev-banner';
   note.setAttribute('data-loading-note', '');
@@ -422,7 +423,22 @@ export async function render() {
   }
   setModuleMap(mods);   // module switches for the person now signed in, after view-as and the locked link
   const voiceBlocked = route.page === 'voice-demo' && !voiceRouteOk(u, { locked: !!lockedId, demo: DEMO_VIEW, mode: api.mode });
-  const settle = () => { if (my !== rendering) return; root.removeAttribute('aria-busy'); root.removeAttribute('data-route-loading'); if (u && u.id) root.setAttribute('data-route-user', u.id); else root.removeAttribute('data-route-user'); if (u && route.page === 'deal') { root.setAttribute('data-route-deal', route.params.id); rememberCounts(api, route.params.id, u.id, my); } else root.removeAttribute('data-route-deal'); };
+  const settle = () => {
+    if (my !== rendering) return;
+    root.removeAttribute('aria-busy');
+    root.removeAttribute('data-route-loading');
+    root.removeAttribute('data-content-ready');
+    const tab = route.page === 'deal' ? (route.params.tab || 'overview') : '';
+    const view = root.querySelector('#view') || root;
+    const failed = !!(view.querySelector('.err-text, [data-route-refused]'));
+    const genNow = api.authGeneration ? api.authGeneration() : null;
+    const samePerson = !!u && !!u.id && (authAt == null || genNow === authAt);
+    const text = view.textContent || '';
+    const drew = tab === 'tasks' ? text.includes('All Tasks') : tab === 'documents' ? text.includes('Documents & Files') : false;
+    if (!failed && samePerson && drew && (tab === 'tasks' || tab === 'documents')) root.setAttribute('data-content-ready', tab);
+    if (u && u.id) root.setAttribute('data-route-user', u.id); else root.removeAttribute('data-route-user');
+    if (u && route.page === 'deal') { root.setAttribute('data-route-deal', route.params.id); rememberCounts(api, route.params.id, u.id, my); } else root.removeAttribute('data-route-deal');
+  };
   if (voiceBlocked || !routeAllowed(u, route, { locked: !!lockedId, demo: DEMO_VIEW })) {   // not part of this user's portal: refused for menu AND typed URLs
     if (!u) { location.hash = '#/login'; return; }
     const setup = route.page === 'templates' || route.page === 'admin/templates' || route.page === 'task-grid';

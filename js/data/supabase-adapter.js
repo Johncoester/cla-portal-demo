@@ -62,8 +62,21 @@ export async function createSupabaseAdapter(cfg) {
   const nav = navigationReads();
   const early = speculativeReads();
   let openingNav = false;
+  let authUserFlight = null;
+  let authUserFlightGen = -1;
+  function fetchAuthUser() {
+    const ticket = ident.generation();
+    if (authUserFlight && authUserFlightGen === ticket) return authUserFlight;
+    const flight = sb.auth.getUser();
+    authUserFlight = flight;
+    authUserFlightGen = ticket;
+    flight.catch(() => { if (authUserFlight === flight) { authUserFlight = null; authUserFlightGen = -1; } });
+    return flight;
+  }
   function dropAuth() {
     ident.invalidate();
+    authUserFlight = null;
+    authUserFlightGen = -1;
     profile.clear();
     nav.clear();
     early.clear();
@@ -92,7 +105,7 @@ export async function createSupabaseAdapter(cfg) {
       const ticket = ident.generation();
       const cached = ident.current();
       if (cached && cached.id && nav.userId() === cached.id) return cached;
-      const { data: { user } } = await sb.auth.getUser();
+      const { data: { user } } = await fetchAuthUser();
       if (ticket !== ident.generation()) continue;
       if (!user) { profile.clear(); nav.clear(); early.clear(); ident.forget(); return null; }
       if (nav.userId() !== user.id) {
@@ -396,8 +409,9 @@ export async function createSupabaseAdapter(cfg) {
           const hinted = pendingAuthId;
           const earlyProfile = hinted ? meFrom({ id: hinted }) : null;
           if (earlyProfile) earlyProfile.catch(() => {});
+          const userFlight = fetchAuthUser();
           warmFile(hint);
-          const { data: { user } } = await sb.auth.getUser();
+          const { data: { user } } = await userFlight;
           if (ticket !== ident.generation()) { early.clear(); continue; }
           if (!user) { profile.clear(); nav.clear(); early.clear(); ident.forget(); return empty; }
           if (!early.adopt(nav, user.id, ticket, ident.generation())) { early.clear(); continue; }
@@ -414,7 +428,10 @@ export async function createSupabaseAdapter(cfg) {
         }
         early.clear();
         return empty;
-      } finally { openingNav = false; }
+      } finally {
+        openingNav = false;
+        if (authUserFlightGen === ident.generation()) { authUserFlight = null; authUserFlightGen = -1; }
+      }
     }; }
   Object.assign(a, feedbackNov4Supabase({ sb, ok, me }));
   Object.assign(a, closingLocationSupabase({ sb, ok }));   // John, Nov 4 (migration 58): where each buyer / seller will be at closing
