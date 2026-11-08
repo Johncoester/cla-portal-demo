@@ -11,6 +11,8 @@ do $$ begin
   end if;
 end $$;
 
+drop function if exists public.staff_feedback_inspect_prepared(integer);
+drop function if exists private.staff_feedback_inspect_prepared(integer);
 drop function if exists public.staff_feedback_receiver_read(uuid, uuid, uuid);
 drop function if exists private.staff_feedback_receiver_read(uuid, uuid, uuid);
 drop function if exists public.staff_feedback_record_assistant_reply(uuid, text, uuid);

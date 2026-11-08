@@ -143,9 +143,11 @@ language plpgsql stable security definer set search_path = '' as $$
 declare who text := coalesce(auth.role(), '');
 begin
   if auth.uid() is not null then return false; end if;
-  if current_user in ('anon', 'authenticated') then return false; end if;
-  if who in ('service_role', '') then return true; end if;
-  if current_user in ('postgres', 'supabase_admin', 'service_role') then return true; end if;
+  if current_user not in ('postgres', 'supabase_admin', 'service_role') then return false; end if;
+  if who in ('service_role', 'postgres', '') then return true; end if;
+  -- The disposable harness reports anon when the JWT role claim is unset.
+  if who = 'anon' and nullif(current_setting('request.jwt.claim.role', true), '') is null
+     and current_user in ('postgres', 'supabase_admin') then return true; end if;
   return false;
 end $$;
 revoke all on function private.staff_feedback_receiver_session_ok() from public, anon, authenticated;
@@ -300,6 +302,38 @@ create or replace function public.staff_feedback_receiver_read(p_event uuid, p_f
 language sql security invoker set search_path = '' as $$
   select private.staff_feedback_receiver_read(p_event, p_feedback, p_conversation) $$;
 
+create or replace function private.staff_feedback_inspect_prepared(p_limit integer) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare lim int := least(greatest(coalesce(p_limit, 20), 1), 50);
+begin
+  if not private.staff_feedback_receiver_session_ok() then
+    raise exception 'The portal user cannot inspect prepared replies.' using errcode = 'P0001';
+  end if;
+  return jsonb_build_object('ok', true, 'limit', lim, 'rows', coalesce((
+    select jsonb_agg(item order by item->>'prepared_at', item->>'idempotency_key')
+    from (
+      select jsonb_build_object(
+        'event_id', e.id, 'feedback_id', e.feedback_id, 'conversation_id', e.conversation_id,
+        'event_name', e.event_name, 'delivery_state', e.delivery_state, 'dispatch_outcome', e.dispatch_outcome,
+        'reply_enabled', e.reply_enabled, 'idempotency_key', s.idempotency_key, 'body', s.body, 'state', s.state,
+        'prepared_at', s.created_at,
+        'reason', case when e.dispatch_outcome = 'outcome_unknown' then 'needs_operator_review' else 'awaiting_acceptance' end
+      ) as item
+      from private.staff_feedback_reply_slot s
+      join public.staff_feedback_outbox e on e.id = s.event_id
+      join public.staff_feedback_reports r on r.id = s.report_id and r.is_demo = false
+      where s.state = 'prepared'
+        and r.reporter_id in ('149e612a-6e14-4ee1-9890-0f29d6f89156'::uuid, 'd02722a1-582b-42c0-b3d1-28d25adb758d'::uuid)
+      order by s.created_at asc, s.idempotency_key asc
+      limit lim
+    ) listed
+  ), '[]'::jsonb));
+end $$;
+
+create or replace function public.staff_feedback_inspect_prepared(p_limit integer) returns jsonb
+language sql security invoker set search_path = '' as $$
+  select private.staff_feedback_inspect_prepared(p_limit) $$;
+
 revoke all on function private.staff_feedback_add_turn(uuid, text, uuid) from public, anon;
 revoke all on function public.staff_feedback_add_turn(uuid, text, uuid) from public, anon;
 grant execute on function private.staff_feedback_add_turn(uuid, text, uuid) to authenticated;
@@ -309,10 +343,14 @@ revoke all on function private.staff_feedback_record_assistant_reply(uuid, text,
 revoke all on function public.staff_feedback_record_assistant_reply(uuid, text, uuid) from public, anon, authenticated;
 revoke all on function private.staff_feedback_receiver_read(uuid, uuid, uuid) from public, anon, authenticated;
 revoke all on function public.staff_feedback_receiver_read(uuid, uuid, uuid) from public, anon, authenticated;
+revoke all on function private.staff_feedback_inspect_prepared(integer) from public, anon, authenticated;
+revoke all on function public.staff_feedback_inspect_prepared(integer) from public, anon, authenticated;
 grant execute on function private.staff_feedback_record_assistant_reply(uuid, text, uuid) to service_role;
 grant execute on function public.staff_feedback_record_assistant_reply(uuid, text, uuid) to service_role;
 grant execute on function private.staff_feedback_receiver_read(uuid, uuid, uuid) to service_role;
 grant execute on function public.staff_feedback_receiver_read(uuid, uuid, uuid) to service_role;
+grant execute on function private.staff_feedback_inspect_prepared(integer) to service_role;
+grant execute on function public.staff_feedback_inspect_prepared(integer) to service_role;
 grant usage on schema private to service_role;
 
 create or replace function private.staff_feedback_create(p_title text, p_body text, p_include_page boolean, p_page text, p_include_order boolean, p_file_number text, p_idempotency uuid) returns jsonb

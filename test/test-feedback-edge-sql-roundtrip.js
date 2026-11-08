@@ -112,6 +112,14 @@ const unknownReply = JSON.parse(asConnector(`select public.staff_feedback_record
 const unknownState = sql(`select delivery_state || '|' || dispatch_outcome from public.staff_feedback_outbox where id = '${unknownEvent}'`);
 console.log('DB result: unknown outcome reply', unknownReply, unknownState);
 check(unknownReply.state === 'prepared' && unknownReply.reason === 'outcome_unknown' && unknownReply.completed === false && unknownState === 'pending_dispatch|outcome_unknown', 'an unknown send is not treated as accepted');
+const inspected = JSON.parse(asConnector(`select public.staff_feedback_inspect_prepared(20)::text`));
+const unknownRow = (inspected.rows || []).find((row) => row.event_id === unknownEvent);
+console.log('DB result: prepared inspection', unknownRow && { reason: unknownRow.reason, outcome: unknownRow.dispatch_outcome, state: unknownRow.delivery_state, key: unknownRow.idempotency_key });
+const unknownAfterInspect = sql(`select delivery_state || '|' || dispatch_outcome from public.staff_feedback_outbox where id = '${unknownEvent}'`);
+check(unknownRow && unknownRow.reason === 'needs_operator_review' && unknownRow.body === 'I will not guess.' && unknownRow.dispatch_outcome === 'outcome_unknown' && unknownAfterInspect === 'pending_dispatch|outcome_unknown', 'inspection lists the unknown reply and does not accept it');
+const signedRole = (() => { try { sql(`select public.staff_feedback_inspect_prepared(5) from (select set_config('request.jwt.claim.sub', '', true), set_config('request.jwt.claim.role', 'authenticated', true)) cfg`); return 'allowed'; } catch (e) { return String(e.stderr || e.message); } })();
+console.log('DB result: authenticated claim on postgres', signedRole.includes('cannot inspect'));
+check(signedRole.includes('cannot inspect'), 'a postgres session with an authenticated role claim cannot inspect');
 
 const heldReport = JSON.parse(asUser(`select public.staff_feedback_create('Held 200', 'The 200 was not stored.', false, '', false, '', '26262626-2626-4262-8262-262626262626')::text`));
 const heldEvent = sql(`select id::text from public.staff_feedback_outbox where feedback_id = '${heldReport.id}' and event_name = 'cla.feedback.created'`);
