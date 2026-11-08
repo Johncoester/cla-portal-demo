@@ -153,6 +153,31 @@ check(ovView && ovView.body && ovMarks.length >= 8 && ovMs < 90, 'the overview s
 const overviewNeeds = ['agreements', 'notes', 'sales', 'overview', 'updates', 'access', 'flags', 'prompt', 'splits', 'demo'];
 check(overviewNeeds.every((name) => ovMarks.includes(name)) && !ovMarks.includes('listDeals') && !ovMarks.includes('getWorkQueue'), 'overview waits on the sections it shows and not on the order list');
 
+const earlyMarks = [];
+let releaseFile;
+const fileHeld = new Promise((r) => { releaseFile = r; });
+const earlyOv = {
+  readDeal: () => fileHeld.then(() => file),
+  getDeal: () => fileHeld.then(() => file),
+  listAgreements: async () => { earlyMarks.push('agreements'); return { pending: 0 }; },
+  listOrderNotes: async () => { earlyMarks.push('notes'); return []; },
+  listSalesStaff: async () => { earlyMarks.push('sales'); return []; },
+  readOverview: async () => { earlyMarks.push('overview'); return { counts: {}, parties: [], outstanding: 0, progress: { phaseName: 'Open' }, orderDetails: {}, recentActivity: [], conversations: [], canRequestUpdate: false, canShareAccess: false, canAnswerUpdates: false, updateTopics: [], permissions: [] }; },
+  listUpdateRequests: async () => { earlyMarks.push('updates'); return []; },
+  listSharedAccess: async () => { earlyMarks.push('access'); return []; },
+  closingLocationFlags: async () => { earlyMarks.push('flags'); return []; },
+  closingLocationPrompt: async () => { earlyMarks.push('prompt'); return []; },
+  listUnderwriterSplits: async () => { earlyMarks.push('splits'); return { rows: [] }; },
+  demoViewStatus: async () => { earlyMarks.push('demo'); return { active: false }; },
+  features: {},
+};
+const earlyView = dealRender({ api: earlyOv, user: staff, params: { id: 'deal-1', tab: 'overview' }, refresh() {}, go() {} });
+await wait(20);
+check(overviewNeeds.every((name) => earlyMarks.includes(name)), 'overview section reads start before the file read finishes');
+releaseFile();
+const earlyDone = await earlyView;
+check(earlyDone && earlyDone.body && String(earlyDone.body).includes('145 Main Street'), 'overview still waits for the file and the sections before it is ready');
+
 let shellCalls = 0;
 let fullCalls = 0;
 const shellDeal = { ...file, participants: [] };

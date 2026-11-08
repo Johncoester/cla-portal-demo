@@ -1,5 +1,5 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611082010';
+import { getAdapter } from './data/adapter.js?v=202611082100';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611070139';
 import { canUseCrm } from './data/crm.js?v=202611070139';
@@ -33,7 +33,7 @@ const pages = {
   dashboard: () => import('./pages/dashboard.js?v=202611082010'),
   orders: () => import('./pages/orders.js?v=202611070139'),
   'orders/new': () => import('./pages/ordernew.js?v=202611080400'),
-  deal: () => import('./pages/deal.js?v=202611082010'),
+  deal: () => import('./pages/deal.js?v=202611082100'),
   users: () => import('./pages/users.js?v=202611070139'),
   profile: () => import('./pages/profile.js?v=202611070139'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
@@ -387,7 +387,9 @@ export async function render() {
   if (route.page === 'templates') { const moved = legacyTemplatesHash(location.hash); if (moved) { location.replace(moved); return; } }   // old Task Templates links, including ?tab=switches and ?tab=admin
   if (my !== rendering) return;
   const stamp = u ? { id: u.id, role: u.role || '', demo: !!u.isDemo } : null;
-  const modP = (u && api.getModuleAccess) ? api.getModuleAccess().then((m) => m || {}).catch(() => ({})) : Promise.resolve({});
+  const modP = navStart
+    ? navStart.then((s) => (s && s.mods) || ((u && api.getModuleAccess) ? api.getModuleAccess().then((m) => m || {}).catch(() => ({})) : {}))
+    : ((u && api.getModuleAccess) ? api.getModuleAccess().then((m) => m || {}).catch(() => ({})) : Promise.resolve({}));
   const hrP = navStart ? navStart.then((s) => (s && s.hr) || {}).catch(() => ({})) : Promise.resolve(null);
   let voiceP = Promise.resolve();
   if (api.mode === 'supabase' && u && !(DEMO_VIEW && DEMO_VIEW.active) && api.requestVoicePass) {
@@ -396,12 +398,17 @@ export async function render() {
   const earlyMod = u ? routeModule(route) : null;
   const earlyFile = !!(u && route.page === 'deal' && !earlyMod && routeAllowed(u, route, { locked: !!lockedId, demo: DEMO_VIEW }));
   const unreadP = u && api.notificationCount ? api.notificationCount().catch(() => 0) : Promise.resolve(0);
-  if (earlyFile && api.readDeal) {
+  if (earlyFile) {
     const id = route.params.id; const tab = route.params.tab || 'overview';
-    api.readDeal(id).catch(() => null);
-    if (tab === 'tasks' && api.listTasks) api.listTasks(id).catch(() => null);
-    if (tab === 'documents' && api.listDocuments) api.listDocuments(id).catch(() => null);
-    if (tab === 'overview' && api.readOverview) api.readOverview(id).catch(() => null);
+    const staffShell = tab !== 'overview' && api.readFileShell && u.role !== 'Outside user';
+    if (staffShell) {
+      api.readFileShell(id).catch(() => null);
+      if (tab === 'tasks' && api.listTasks) api.listTasks(id).catch(() => null);
+      if (tab === 'documents' && api.listDocuments) api.listDocuments(id).catch(() => null);
+    } else if (api.readDeal) {
+      api.readDeal(id).catch(() => null);
+      if (tab === 'overview' && api.readOverview) api.readOverview(id).catch(() => null);
+    }
   }
   const [mods, extra] = await Promise.all([modP, hrP, voiceP]);
   if (my !== rendering) return;

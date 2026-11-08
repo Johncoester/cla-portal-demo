@@ -10,7 +10,14 @@ export function modulesSupabase({ sb, ok, me, flags }) {
   const settings = async () => (ok(await sb.from('module_settings').select('module,live,updated_at,updated_by')) || []).map(fromRow);
   const admin = async () => { const u = await me(); if (!canManageModules(u)) throw new Error('Only an Admin or Super admin can see or change modules.'); return u; };
   return {
-    async getModuleAccess() { const u = await me(); if (!u) throw new Error('Please sign in.'); return accessMap(u, flags, await settings()); },
+    async getModuleAccess() {
+      const setP = settings();
+      try {
+        const u = await me();
+        if (!u) throw new Error('Please sign in.');
+        return accessMap(u, flags, await setP);
+      } catch (err) { setP.catch(() => {}); throw err; }
+    },
     async listModules() {
       const u = await admin(); const set = await settings(); const acc = accessMap(u, flags, set);
       const log = ok(await sb.from('module_settings_log').select('id,module,old_live,new_live,changed_by,changed_by_name,changed_at').order('changed_at', { ascending: false })) || [];
