@@ -1,5 +1,6 @@
 /* Real adapter, fake client. Event order is controlled. No hosted project and no secrets. */
 import { createSupabaseAdapter } from '../js/data/supabase-adapter.js';
+import { modulesSupabase } from '../js/data/supabase-modules.js';
 
 let fail = 0;
 const check = (cond, msg) => { if (cond) console.log('ok', msg); else { fail += 1; console.log('FAIL', msg); } };
@@ -13,6 +14,7 @@ function client(hooks) {
       async signOut() { hooks.who = ''; return { error: null }; },
     },
     from(name) {
+      if (hooks.from) return hooks.from(name);
       return { select() { return this; }, eq() { return this; }, order() { return this; },
         async single() { return hooks.single(name); },
         async maybeSingle() { return { data: null, error: null }; } };
@@ -242,6 +244,170 @@ async function ownedRestore() {
   check(nav.user && nav.user.id === 'A' && nav.user.role === 'Processor' && shell.street === 'PRIVATE-FOR-A' && reads.length === 1 && api.authGeneration() === 0, 'a restore whose owner is already known keeps that one file row');
 }
 
+async function profileOverlapsConfirmation() {
+  let resolveUser = null;
+  let releaseProfile = null;
+  let profileCalls = 0;
+  let settingsWhileProfileOpen = false;
+  const hooks = {
+    getUser() { if (resolveUser) return Promise.resolve({ data: { user: { id: 'A' } } }); return new Promise((r) => { resolveUser = () => r({ data: { user: { id: 'A' } } }); }); },
+    single() { return { data: { id: 'file-1', street: 'PRIVATE-FOR-A' }, error: null }; },
+    rpc(name) {
+      if (name === 'my_profile') {
+        profileCalls += 1;
+        return new Promise((r) => { releaseProfile = () => r({ data: { id: 'A', role: 'Processor', is_demo: false }, error: null }); });
+      }
+      if (name === 'demo_view_status') return { data: { active: false }, error: null };
+      return { data: [], error: null };
+    },
+    from(name) {
+      if (name === 'module_settings') {
+        return { select() { settingsWhileProfileOpen = typeof releaseProfile === 'function'; return Promise.resolve({ data: [], error: null }); } };
+      }
+      return { select() { return this; }, eq() { return this; }, order() { return this; }, async single() { return { data: null, error: null }; }, async maybeSingle() { return { data: null, error: null }; } };
+    },
+  };
+  globalThis.__fakeSB = client(hooks);
+  const api = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE-NOT-A-KEY' });
+  hooks.cb('INITIAL_SESSION', { user: { id: 'A' } });
+  const pending = api.beginNavigation({ dealId: 'file-1', tab: 'contacts' });
+  await wait(0);
+  check(profileCalls === 1 && typeof resolveUser === 'function', 'the profile read starts before the signed-in person is confirmed');
+  const confirm = resolveUser;
+  confirm();
+  await wait(0);
+  check(settingsWhileProfileOpen === true && profileCalls === 1, 'module settings start while that profile read is still open');
+  releaseProfile();
+  const nav = await pending;
+  await nav.hr; await nav.demo; await nav.mods;
+  check(nav.user && nav.user.id === 'A' && nav.user.role === 'Processor' && profileCalls === 1, 'the matching profile is the one that is kept');
+}
+
+async function mismatchedProfileRefetches() {
+  let resolveUser = null;
+  let who = 'A';
+  let profileCalls = 0;
+  const hooks = {
+    getUser() { if (resolveUser) return Promise.resolve({ data: { user: { id: who } } }); return new Promise((r) => { resolveUser = r; }); },
+    single() { return { data: { id: 'file-1', street: 'PRIVATE-FOR-' + who }, error: null }; },
+    rpc(name) {
+      if (name === 'my_profile') { profileCalls += 1; return { data: { id: who, role: who === 'B' ? 'Client-Buyer' : 'Processor', is_demo: false }, error: null }; }
+      if (name === 'demo_view_status') return { data: { active: false }, error: null };
+      return { data: [], error: null };
+    },
+  };
+  globalThis.__fakeSB = client(hooks);
+  const api = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE-NOT-A-KEY' });
+  hooks.cb('INITIAL_SESSION', { user: { id: 'A' } });
+  const pending = api.beginNavigation({ dealId: 'file-1', tab: 'contacts' });
+  await wait(0);
+  who = 'B';
+  resolveUser({ data: { user: { id: 'B' } } });
+  const nav = await pending;
+  await nav.hr; await nav.demo;
+  const shell = await api.readFileShell('file-1');
+  check(nav.user && nav.user.id === 'B' && nav.user.role === 'Client-Buyer' && profileCalls >= 2 && shell.street === 'PRIVATE-FOR-B', 'a profile read for A is not kept when the confirmed person is B');
+}
+
+async function ownedWarmReadIsKept() {
+  let who = 'A';
+  const reads = [];
+  let holdUser = false;
+  let resolveUser = null;
+  const hooks = {
+    getUser() {
+      if (!holdUser) return Promise.resolve({ data: { user: { id: who } } });
+      return new Promise((r) => { resolveUser = () => r({ data: { user: { id: who } } }); });
+    },
+    single() { reads.push(who); return { data: { id: 'file-1', street: 'PRIVATE-FOR-' + who }, error: null }; },
+    rpc(name) {
+      if (name === 'my_profile') return { data: { id: who, role: 'Processor', is_demo: false }, error: null };
+      if (name === 'demo_view_status') return { data: { active: false }, error: null };
+      return { data: [], error: null };
+    },
+  };
+  globalThis.__fakeSB = client(hooks);
+  const api = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE-NOT-A-KEY' });
+  hooks.cb('INITIAL_SESSION', { user: { id: 'A' } });
+  const first = await api.beginNavigation({ dealId: 'file-1', tab: 'contacts' });
+  await first.hr; await first.demo;
+  await api.readFileShell('file-1');
+  const afterFirst = reads.length;
+  holdUser = true;
+  const second = api.beginNavigation({ dealId: 'file-1', tab: 'contacts' });
+  await wait(0);
+  const warmed = reads.length;
+  resolveUser();
+  const nav = await second;
+  await nav.hr; await nav.demo;
+  const shell = await api.readFileShell('file-1');
+  check(warmed === afterFirst + 1 && reads.length === warmed && shell.street === 'PRIVATE-FOR-A' && nav.user.id === 'A', 'a file read started for the confirmed person is kept for that navigation');
+}
+
+async function speculativeFailuresStayVisible() {
+  const errors = [];
+  const onErr = (err) => { errors.push(err && err.message || String(err)); };
+  process.on('unhandledRejection', onErr);
+  try {
+    let resolveUser = null;
+    const hooks = {
+      getUser() { return new Promise((r) => { resolveUser = r; }); },
+      single() { return { data: { id: 'file-1', street: 'PRIVATE-FOR-A' }, error: null }; },
+      rpc(name) { if (name === 'my_profile') throw new Error('EARLY_PROFILE_FAILED'); return { data: [], error: null }; },
+    };
+    globalThis.__fakeSB = client(hooks);
+    const api = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE-NOT-A-KEY' });
+    hooks.cb('INITIAL_SESSION', { user: { id: 'A' } });
+    const pending = api.beginNavigation();
+    pending.catch(() => {});
+    await wait(30);
+    check(errors.length === 0, 'an early profile failure is handled while getUser is still pending');
+    hooks.cb('SIGNED_OUT', null);
+    resolveUser({ data: { user: null } });
+    await wait(0);
+    resolveUser({ data: { user: null } });
+    await pending;
+    check(errors.length === 0, 'an abandoned profile failure stays handled after the navigation is invalidated');
+
+    errors.length = 0;
+    const failingUser = {
+      getUser() { return Promise.reject(new Error('GET_USER_FAILED')); },
+      single() { return { data: null, error: null }; },
+      rpc(name) { if (name === 'my_profile') throw new Error('EARLY_PROFILE_FAILED'); return { data: [], error: null }; },
+    };
+    globalThis.__fakeSB = client(failingUser);
+    const api2 = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE-NOT-A-KEY' });
+    failingUser.cb('INITIAL_SESSION', { user: { id: 'A' } });
+    let seen = '';
+    try { await api2.beginNavigation(); } catch (err) { seen = err.message; }
+    await wait(30);
+    check(errors.length === 0 && seen === 'GET_USER_FAILED', 'a getUser failure still surfaces while the early profile failure stays handled');
+
+    errors.length = 0;
+    let confirm = null;
+    const modules = modulesSupabase({
+      sb: { from() { return { select() { return Promise.reject(new Error('MODULE_SETTINGS_FAILED')); } }; } },
+      ok: (row) => { if (row && row.error) throw new Error(row.error.message); return row && row.data; },
+      me: () => new Promise((resolve) => { confirm = resolve; }),
+      flags: {},
+    });
+    const access = modules.getModuleAccess();
+    access.catch(() => {});
+    await wait(30);
+    check(errors.length === 0, 'a settings failure is handled while the profile read is still pending');
+    confirm({ id: 'A', role: 'Processor' });
+    let caller = '';
+    try { await access; } catch (err) { caller = err.message; }
+    check(caller === 'MODULE_SETTINGS_FAILED' && errors.length === 0, 'the caller still receives the settings failure');
+  } finally {
+    process.off('unhandledRejection', onErr);
+  }
+}
+
+await speculativeFailuresStayVisible();
+await profileOverlapsConfirmation();
+await mismatchedProfileRefetches();
+await ownedWarmReadIsKept();
 await startupSwitch();
 await delayedOldRead();
 await initialThenOther();

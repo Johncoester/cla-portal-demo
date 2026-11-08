@@ -18,11 +18,33 @@ import { gatherReads } from '../data/read-batch.js?v=202611082010';
 const TABS = { tasks: './dealtasks.js?v=202611082000', inbox: './dealmsgs.js?v=202611070139', documents: './dealdocs.js?v=202611082000', contacts: './dealcontacts.js?v=202611070139', activity: './dealactivity.js?v=202611070139', closing: './dealclosing.js?v=202611070139', agreements: './dealagreements.js?v=202611070139', accounting: './dealaccounting.js?v=202611071820', title: './dealtitle.js?v=202611070139', funding: './dealfwp.js?v=202611070139', wires: './dealfwp.js?v=202611070139', policy: './dealfwp.js?v=202611070139' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 import { placeText } from '../data/cla-offices.js?v=202611070139';
 
+function staffSections(ctx, dealId) {
+  const { api } = ctx;
+  const user = ctx.user;
+  const readOverview = (id) => (ctx.api.readOverview ? ctx.api.readOverview(id) : ctx.api.getOrderOverview(id));
+  return gatherReads({
+    ag: () => ctx.api.listAgreements(dealId).catch(() => ({ pending: 0 })),
+    notes: () => (!user.accountRole && api.listOrderNotes ? ctx.api.listOrderNotes(dealId).catch(() => []) : Promise.resolve([])),
+    salesStaff: () => (runsOrders(user) ? ctx.api.listSalesStaff().catch(() => []) : Promise.resolve([])),
+    ov: () => readOverview(dealId),
+    ur: () => ctx.api.listUpdateRequests(dealId),
+    inv: () => ctx.api.listSharedAccess(dealId),
+    locFlags: () => ctx.api.closingLocationFlags(dealId).catch(() => []),
+    promptHtml: () => locPromptHtml(ctx, { id: dealId }),
+    splits: () => (!user.accountRole && user.role !== 'Outside user' && ctx.api.listUnderwriterSplits ? ctx.api.listUnderwriterSplits().then((r) => (r && r.rows) || []).catch(() => []) : Promise.resolve([])),
+    demoLocked: () => (ctx.api.demoViewStatus ? ctx.api.demoViewStatus().then((d) => !!((d || {}).active)).catch(() => true) : Promise.resolve(false)),
+  });
+}
+
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
   const tabName = params.tab || 'overview';
   const staffShell = tabName !== 'overview' && api.readFileShell && ctx.user && ctx.user.role !== 'Outside user';
-  const deal = await (staffShell ? api.readFileShell(params.id) : (api.readDeal ? api.readDeal(params.id) : api.getDeal(params.id)));
+  const staffOverview = tabName === 'overview' && ctx.user && !ctx.user.accountRole && ctx.user.role !== 'Outside user' && ctx.user.role !== 'Transaction Coordinator';
+  const dealP = staffShell ? api.readFileShell(params.id) : (api.readDeal ? api.readDeal(params.id) : api.getDeal(params.id));
+  let earlySections = null;
+  if (staffOverview) { try { earlySections = staffSections(ctx, params.id); } catch (e) { earlySections = Promise.reject(e); } if (earlySections) earlySections.catch(() => {}); }
+  const deal = await dealP;
   // per-file roles: on this order an outside user acts as their role HERE (deal.myRole), e.g. Buyer Agent here, Client-Buyer elsewhere
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
@@ -49,20 +71,8 @@ export async function render(ctx) {
     const ov0 = await ctx.api.getOrderOverview(deal.id);
     { const co = await renderClientOverview({ ...ctx, wireModal, shareModal: (o) => shareModal(ctx, deal, ov0, o) }, deal, here); const lp = await locPromptHtml(ctx, deal); const body = lp ? { ...co, body: html`${lp}${co.body}` } : co; return { ...body, deal }; }   // John, Nov 4: the buyer / seller closing-location to-do also shows on the client overview
   }
-  const readOverview = (id) => (ctx.api.readOverview ? ctx.api.readOverview(id) : ctx.api.getOrderOverview(id));
-  // These reads do not depend on each other. The order header already has this file. Running them together is the overview wait.
-  const pack = await gatherReads({
-    ag: () => ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 })),
-    notes: () => (!user.accountRole && api.listOrderNotes ? ctx.api.listOrderNotes(deal.id).catch(() => []) : Promise.resolve([])),
-    salesStaff: () => (runsOrders(user) ? ctx.api.listSalesStaff().catch(() => []) : Promise.resolve([])),
-    ov: () => readOverview(deal.id),
-    ur: () => ctx.api.listUpdateRequests(deal.id),
-    inv: () => ctx.api.listSharedAccess(deal.id),
-    locFlags: () => ctx.api.closingLocationFlags(deal.id).catch(() => []),
-    promptHtml: () => locPromptHtml(ctx, deal),
-    splits: () => (!user.accountRole && user.role !== 'Outside user' && ctx.api.listUnderwriterSplits ? ctx.api.listUnderwriterSplits().then((r) => (r && r.rows) || []).catch(() => []) : Promise.resolve([])),
-    demoLocked: () => (ctx.api.demoViewStatus ? ctx.api.demoViewStatus().then((d) => !!((d || {}).active)).catch(() => true) : Promise.resolve(false)),
-  });
+  // The sections need the file id, not the party rows. They run with the file read, and the page still waits for every section.
+  const pack = await (earlySections || staffSections(ctx, deal.id));
   const { ag, salesStaff, ov, ur, inv, locFlags, promptHtml, splits, demoLocked } = pack;
   deal.staffOrderNotes = pack.notes;   // John, Nov 4: staff-only order notes (Title module sticky notes; never clients / agents)
   const flagHtml = locFlags.length ? html`<div class="notice warn" data-location-flags>${locFlags.map((f) => html`<div data-location-flag="${f.participantId}"><strong>${f.text}</strong> &middot; signing method: ${f.signingLabel} <a href="#/deals/${deal.id}/closing">scheduling</a></div>`)}</div>` : '';

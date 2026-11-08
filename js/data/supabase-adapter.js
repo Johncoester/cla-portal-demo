@@ -6,7 +6,7 @@ import { localDate, fileRoleLabel } from './constants.js?v=202611070139';
 import { featureFlags } from './features.js?v=202611070139';
 import { accountingSupabase } from './supabase-accounting.js?v=202611071820';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
-import { modulesSupabase } from './supabase-modules.js?v=202611070139';
+import { modulesSupabase } from './supabase-modules.js?v=202611082100';
 import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611070139';
 import { callItemsSupabase } from './supabase-callitems.js?v=202611070139';
 import { automationPart } from './automation.js?v=202611070139';
@@ -385,25 +385,32 @@ export async function createSupabaseAdapter(cfg) {
     const gs = a.getSession; a.getSession = async function () { const u = await gs.call(this); if (!u) return u; return { ...u, ...(await nav.share(u.id, 'hr-extras', () => hrSessionExtras())) }; };
     a.beginNavigation = async function (hint) {
       openingNav = true;
-      const empty = { user: null, hr: Promise.resolve({}), demo: Promise.resolve(null) };
+      const empty = { user: null, hr: Promise.resolve({}), demo: Promise.resolve(null), mods: Promise.resolve({}) };
       try {
         for (let attempt = 0; attempt < 4; attempt += 1) {
           const ticket = ident.generation();
           profile.begin();
           ident.forget();
           early.clear();
+          nav.clear();
+          const hinted = pendingAuthId;
+          const earlyProfile = hinted ? meFrom({ id: hinted }) : null;
+          if (earlyProfile) earlyProfile.catch(() => {});
           warmFile(hint);
           const { data: { user } } = await sb.auth.getUser();
           if (ticket !== ident.generation()) { early.clear(); continue; }
           if (!user) { profile.clear(); nav.clear(); early.clear(); ident.forget(); return empty; }
           if (!early.adopt(nav, user.id, ticket, ident.generation())) { early.clear(); continue; }
+          const mods = a.getModuleAccess ? a.getModuleAccess().then((m) => m || {}).catch(() => ({})) : Promise.resolve({});
           const hr = nav.share(user.id, 'hr-extras', () => hrSessionExtras());
+          hr.catch(() => {});
           const demo = a.demoViewStatus().catch(() => null);
-          const loaded = await meFrom(user);
+          let loaded = earlyProfile && user.id === hinted ? await earlyProfile : null;
+          if (!loaded || loaded.id !== user.id) { profile.begin(); loaded = await meFrom(user); }
           if (ticket !== ident.generation()) { nav.clear(); early.clear(); ident.forget(); continue; }
           const kept = ident.hold(loaded && loaded.id === user.id ? loaded : null, ticket);
           if (!kept) continue;
-          return { user: kept, hr, demo };
+          return { user: kept, hr, demo, mods };
         }
         early.clear();
         return empty;
