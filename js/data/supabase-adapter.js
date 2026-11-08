@@ -74,11 +74,11 @@ export async function createSupabaseAdapter(cfg) {
     const held = ident.current();
     const action = authEventAction(event, nextId, held && held.id || '', nav.userId(), pendingAuthId);
     if (event === 'SIGNED_OUT') pendingAuthId = '';
-    else if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && nextId) pendingAuthId = nextId;
+    else if (nextId) pendingAuthId = nextId;
     if (action === 'drop') dropAuth();
     if (event === 'PASSWORD_RECOVERY') { try { sessionStorage.setItem('cla-portal-recovery', '1'); } catch (e) { /* the reset screen also checks the flag */ } if (!/recovery/.test(location.hash)) location.hash = '#/login'; }
   });
-  const fileRead = (key, fn) => early.read(nav.userId(), key, fn, nav);
+  const fileRead = (key, fn) => early.read(nav.userId() || pendingAuthId, key, fn, nav);
   const meFrom = (who) => profile.load(who, async () => {
       const raw = ok(await sb.rpc('my_profile'));   // profiles row only; user_metadata is never a role
       if (!raw) return { id: who.id, email: who.email || '', firstName: '', lastName: '', role: '', status: 'unprovisioned', unprovisioned: true, isAdmin: false };

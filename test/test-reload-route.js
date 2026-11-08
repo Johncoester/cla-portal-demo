@@ -12,6 +12,9 @@ check(authEventAction('SIGNED_IN', 'person-b', 'person-a', 'person-a', 'person-a
 check(authEventAction('USER_UPDATED', 'person-a', 'person-a', 'person-a', 'person-a') === 'drop', 'an update of the same person drops the old profile and demo snapshot');
 check(authEventAction('SIGNED_IN', 'person-a', 'person-a', 'person-a', 'person-a') === 'drop', 'signing in again as the confirmed person drops the old permission snapshot');
 check(authEventAction('INITIAL_SESSION', 'person-a', '', '', '') === 'keep', 'the initial session event keeps the route');
+check(authEventAction('SIGNED_IN', 'person-b', '', '', 'person-a') === 'drop', 'a sign-in for someone else after the initial session drops the first owner');
+check(authEventAction('TOKEN_REFRESHED', 'person-a', 'person-a', 'person-a', 'person-a') === 'keep', 'a token refresh for the same person keeps the route');
+check(authEventAction('INITIAL_SESSION', 'person-b', '', '', 'person-a') === 'drop', 'a second initial session for someone else drops the first owner');
 
 import { parseHTML } from '/tmp/domtest/node_modules/linkedom/worker.js';
 const { window, document } = parseHTML('<!doctype html><html><body><div id="app"></div></body></html>');
