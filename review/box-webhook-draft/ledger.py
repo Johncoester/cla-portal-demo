@@ -80,7 +80,7 @@ def check_reply_args(a):
     if body.strip() == "" or len(body) > 4000: raise Invalid("body missing or too long")
 
 def main(argv=None):
-    p = argparse.ArgumentParser(); p.add_argument("cmd", choices=["status","check","claim","finish","prepare","record-write"])
+    p = argparse.ArgumentParser(); p.add_argument("cmd", choices=["status","check","claim","finish","prepare","record-write","recover-body"])
     p.add_argument("--db", default=os.path.join(BASE, "pilot_ledger.sqlite3"))
     p.add_argument("--project", default=PROJECT)
     for k in ["event-id","feedback-id","conversation-id","reporter-id","event-type","version","expected-version","response-key","body","message-id"]: p.add_argument("--"+k)
@@ -92,11 +92,24 @@ def main(argv=None):
         if a.cmd == "status":
             if a.event_id:
                 validate(a, False); r = row(c,a); rep = reply_of(c,a) if r else None
-                extra = {"reply_state": rep[2], "response_key": rep[0], "body": rep[1], "message_id": rep[3]} if rep else {}
+                extra = {"reply_state": rep[2], "response_key": rep[0], "message_id": rep[3]} if rep else {}
                 out(result="status", state=r[5] if r else "absent", **extra); return 0
             out(result="status", counts=dict(c.execute("SELECT status,count(*) FROM events GROUP BY status").fetchall())); return 0
         validate(a)
         if a.cmd == "prepare": check_reply_args(a)
+        if a.cmd == "recover-body":
+            c.execute("BEGIN IMMEDIATE")
+            try:
+                r = row(c,a)
+                if r and not same(r,a): c.execute("ROLLBACK"); out(result="conflict", state=r[5], repost=False); return 20
+                rep = reply_of(c,a) if r else None
+                c.execute("ROLLBACK")
+                if not rep: raise Invalid("no prepared reply")
+                out(result="recover-body", response_key=rep[0], body=rep[1], reply_state=rep[2], repost=False); return 0
+            except sqlite3.DatabaseError:
+                try: c.execute("ROLLBACK")
+                except Exception: pass
+                raise
         c.execute("BEGIN IMMEDIATE")
         try:
             r = row(c,a)

@@ -8,7 +8,7 @@ HTTP 200 means a run was accepted. It is not a reply. HTTP is not exactly-once.
 Store event_id and ignore a later wake with the same id. That duplicate does not read again and does not deliver the note into chat again.
 outcome_unknown stays unknown. Do not post again. Compare the routine history for that event_id. Inspection does not accept it.
 accepted_unrecorded with a stored HTTP 200: do not post again. The assistant write may record that 200 and then publish the same response key and body.
-A prepared reply keeps that key and body. Retry only the write.
+A prepared reply keeps that key and body. A retry is the portal write again with the same key and body, then record-write. record-write does not send. Status does not print the body. recover-body prints it only when asked.
 
 The connector is postgres and bypasses row security. auth.uid() must be null. Use only the three statements below. Do not update tables directly, do not impersonate a pilot, and do not read attachment bytes, storage paths, or order columns.
 
