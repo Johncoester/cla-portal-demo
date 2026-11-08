@@ -207,6 +207,73 @@ export function createReport(bag, actor, input = {}, { now = () => new Date().to
   return view(bag, actor, report);
 }
 
+export function conversationTitle(text) {
+  const line = String(text || '').trim().split('\n')[0].replace(/\s+/g, ' ');
+  return (line || 'Portal conversation').slice(0, 80);
+}
+
+export function addFollowUp(bag, actor, reportId, input = {}, { now = () => new Date().toISOString(), id = newId } = {}) {
+  assertReporter(actor);
+  const report = reportOr404(bag, actor, reportId);
+  if (actor.id !== report.reporterId) fail('Report not found.');
+  const key = String(input.idempotencyKey || '');
+  if (!UUID.test(key)) fail('Save could not be retried safely. Reload this page.');
+  const prior = bag.messages.find((m) => m.reportId === report.id && m.idempotencyKey === key);
+  if (prior) {
+    const ev = bag.outbox.find((e) => e.messageId === prior.id && e.eventName === 'cla.feedback.follow_up');
+    return { ...view(bag, actor, report), turnEventId: ev ? ev.id : null };
+  }
+  const body = cleanText(input.body, MAX_BODY, 'a message');
+  const createdAt = now();
+  const messageId = id();
+  const eventId = id();
+  if (eventId === report.id) fail('That message was not found.');
+  bag.messages.push({ id: messageId, reportId: report.id, authorId: actor.id, authorKind: 'reporter', authorName: nameOf(actor), body, visibility: 'published', simulation: false, createdAt, idempotencyKey: key });
+  bag.outbox.push({ id: eventId, reportId: report.id, feedbackId: report.id, conversationId: report.conversationId, messageId, eventName: 'cla.feedback.follow_up', deliveryState: 'pending_dispatch', dispatchAllowed: false, reason: 'bridge_unconfigured', attemptCount: 0, httpStatus: null, createdAt, outcome: null });
+  report.updatedAt = createdAt;
+  return { ...view(bag, actor, report), turnEventId: eventId };
+}
+
+/* Local demo only. It does not call the tech assistant. */
+export function noteLocalDemoDispatch(bag, actor, reportId, eventId) {
+  assertReporter(actor);
+  const report = reportOr404(bag, actor, reportId);
+  const ev = eventId
+    ? bag.outbox.find((e) => e.id === eventId && e.feedbackId === report.id && (e.eventName === 'cla.feedback.created' || e.eventName === 'cla.feedback.follow_up'))
+    : bag.outbox.find((e) => e.feedbackId === report.id && e.eventName === 'cla.feedback.created');
+  if (!ev || ev.id === report.id) fail('That message was not found.');
+  if (ev.outcome === 'outcome_unknown' || ev.outcome === 'accepted_unrecorded') {
+    return { sent: false, replied: false, runAccepted: false, recorded: true, localDemo: true, reason: ev.outcome, error: 'Local demo only. Nothing was sent again.' };
+  }
+  if (ev.deliveryState === 'pending_dispatch') {
+    ev.deliveryState = 'run_accepted';
+    ev.reason = 'run_started';
+    ev.dispatchAllowed = true;
+    report.deliveryState = 'run_accepted';
+    report.deliveryReason = 'run_started';
+  }
+  return { sent: false, replied: false, runAccepted: ev.deliveryState === 'run_accepted', recorded: true, localDemo: true, reason: 'run_started', error: '' };
+}
+
+/* Local demo only. The bubble is marked and is not a reply from the tech assistant. */
+export function recordLocalDemoReply(bag, actor, reportId, input = {}, { now = () => new Date().toISOString(), id = newId } = {}) {
+  assertReporter(actor);
+  const report = reportOr404(bag, actor, reportId);
+  const ev = input.eventId
+    ? bag.outbox.find((e) => e.id === input.eventId && e.feedbackId === report.id)
+    : [...bag.outbox].reverse().find((e) => e.feedbackId === report.id && e.deliveryState === 'run_accepted');
+  if (!ev || ev.deliveryState !== 'run_accepted') fail('A local demo reply needs a locally accepted turn.');
+  const key = String(input.idempotencyKey || '');
+  if (!UUID.test(key)) fail('Save could not be retried safely. Reload this page.');
+  const prior = bag.messages.find((m) => m.reportId === report.id && m.idempotencyKey === key);
+  if (prior) return view(bag, actor, report);
+  bag.messages.push({
+    id: id(), reportId: report.id, authorId: null, authorKind: 'bot', authorName: 'Local demo',
+    body: cleanText(input.body, MAX_BODY, 'a reply'), visibility: 'published', simulation: true, createdAt: now(), idempotencyKey: key,
+  });
+  return view(bag, actor, report);
+}
+
 export function replyToReport(bag, actor, reportId, input = {}, { now = () => new Date().toISOString(), id = newId } = {}) {
   assertReporter(actor);
   const report = reportOr404(bag, actor, reportId);

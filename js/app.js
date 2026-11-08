@@ -1,5 +1,5 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611080250';
+import { getAdapter } from './data/adapter.js?v=202611080400';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611070139';
 import { canUseCrm } from './data/crm.js?v=202611070139';
@@ -13,10 +13,10 @@ import { canInviteAgents } from './data/agent-profile.js?v=202611070139';
 import { yourAgentHtml } from './pages/your-agent.js?v=202611070139';
 import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611070139';
-import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611080250';   // John, Nov 4: one locked login link per fake user
-import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080250';
-import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611080250';
-import { botRegistry } from './data/bot-registry.js?v=202611080250';
+import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611080400';   // John, Nov 4: one locked login link per fake user
+import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080400';
+import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611080400';
+import { botRegistry } from './data/bot-registry.js?v=202611080400';
 import { voiceRouteOk } from './data/voice-demo.js?v=202611071632';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611070139';   // John, Nov 4 call: sidebar search + pinned order nav
 import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611071800';
@@ -56,7 +56,7 @@ const pages = {
   offices: () => import('./pages/offices.js?v=202611070139'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
   demo: () => import('./pages/demo-view.js?v=202611070139'),   // permanent Demo mode: Super admin views a seeded demo user
   'voice-demo': () => import('./pages/voice-demo.js?v=202611071632'),   // signed-in Live Test only; the server allowlist decides who can talk
-  'staff-feedback': () => import('./pages/staff-feedback.js?v=202611080250'),
+  'staff-feedback': () => import('./pages/staff-feedback.js?v=202611080400'),
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };

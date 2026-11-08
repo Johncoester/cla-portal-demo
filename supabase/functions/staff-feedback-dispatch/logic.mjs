@@ -137,16 +137,26 @@ export async function lookupVerifiedUser(req, env, fetchImpl) {
 /* The browser sends the report id. Create assigns a different outbox id, stores that id on
  * report.created_event_id, and sets outbox.feedback_id to the report id. Looking up outbox.id
  * with the report id finds nothing and the function returns 404 before claim. */
-export async function loadOutboxEvent(feedbackId, env, fetchImpl, userHeader) {
+export async function loadOutboxEvent(feedbackId, env, fetchImpl, userHeader, eventId) {
   if (!UUID.test(String(feedbackId || ''))) return null;
   const origin = projectHostOk(env);
   const anon = envGet(env, 'SUPABASE_ANON_KEY');
   if (!origin || !anon || !fetchImpl || !userHeader) return null;
   const select = 'id,feedback_id,conversation_id,delivery_state,dispatch_allowed,attempt_count,event_name';
-  const res = await fetchImpl(`${origin}/rest/v1/staff_feedback_outbox?feedback_id=eq.${feedbackId}&event_name=eq.cla.feedback.created&select=${select}`, { headers: { Authorization: userHeader, apikey: anon } });
+  const specific = UUID.test(String(eventId || ''));
+  const filter = specific
+    ? `id=eq.${eventId}&feedback_id=eq.${feedbackId}&event_name=in.(cla.feedback.created,cla.feedback.follow_up)`
+    : `feedback_id=eq.${feedbackId}&event_name=eq.cla.feedback.created`;
+  const res = await fetchImpl(`${origin}/rest/v1/staff_feedback_outbox?${filter}&select=${select}`, { headers: { Authorization: userHeader, apikey: anon } });
   if (!res || !res.ok) return null;
   const rows = await res.json();
-  const matches = Array.isArray(rows) ? rows.filter((row) => row && row.feedback_id === feedbackId && row.event_name === 'cla.feedback.created' && UUID.test(String(row.id || ''))) : [];
+  const matches = Array.isArray(rows) ? rows.filter((row) => {
+    if (!row || row.feedback_id !== feedbackId || !UUID.test(String(row.id || ''))) return false;
+    if (specific && row.id !== eventId) return false;
+    if (!specific && row.event_name !== 'cla.feedback.created') return false;
+    if (row.event_name !== 'cla.feedback.created' && row.event_name !== 'cla.feedback.follow_up') return false;
+    return true;
+  }) : [];
   if (matches.length !== 1) return null;
   const row = matches[0];
   return { eventId: row.id, feedbackId: row.feedback_id, conversationId: row.conversation_id, deliveryState: row.delivery_state, dispatchAllowed: row.dispatch_allowed === true, attemptCount: row.attempt_count || 0, eventName: row.event_name };
@@ -290,7 +300,7 @@ export function productionDeps(req, platform = globalThis) {
     request: req,
     env,
     getActor: () => lookupVerifiedUser(req, env, fetchImpl),
-    loadEvent: (id) => loadOutboxEvent(id, env, fetchImpl, req.headers.get('authorization') || ''),
+    loadEvent: (id, eventId) => loadOutboxEvent(id, env, fetchImpl, req.headers.get('authorization') || '', eventId),
     claim: async (eventId) => { const claimId = platform.crypto.randomUUID(); return { ...(await claimDispatch(eventId, claimId, env, fetchImpl)), claimId }; },
     recordAcceptance: (eventId, claimId) => recordAcceptance(eventId, claimId, env, fetchImpl),
     recordOutcome: ({ eventId, claimId, outcome, http }) => recordDispatchOutcome(eventId, claimId, outcome, http, env, fetchImpl),
@@ -317,7 +327,8 @@ export async function handleStaffFeedbackDispatch(deps = {}) {
   const actor = deps.getActor ? await deps.getActor() : null;
   if (!actor || !actor.id) return withCors(deps, 401, { sent: false, replied: false, reason: 'sign_in_required', error: 'Sign in is required.' });
   const feedbackId = String(requestBody.feedback_id || requestBody.feedbackId || '');
-  const row = deps.loadEvent ? await deps.loadEvent(feedbackId) : null;
+  const requestedEvent = String(requestBody.event_id || requestBody.eventId || '');
+  const row = deps.loadEvent ? await deps.loadEvent(feedbackId, UUID.test(requestedEvent) ? requestedEvent : '') : null;
   if (!row) return withCors(deps, 404, { sent: false, replied: false, reason: 'event_not_found', error: 'That report event was not found.' });
   if (!deps.claim) return withCors(deps, 503, { sent: false, replied: false, reason: 'claim_unconfigured', error: 'Dispatch cannot reserve this report yet. Nothing was called.' });
   const claim = await deps.claim(row.eventId || row.event_id);

@@ -1,6 +1,6 @@
 /* Mock adapter for staff portal feedback. Fake people only. Nothing is sent to the assistant.
  * The test simulation is labeled and is not a real reply. */
-import { addAttachment, attachmentContent, canReportStaffFeedback, createReport, emptyBag, getReport, listReports, publishDraft, replyToReport, reviewStaffReply, setReportStatus, simulateReport } from './staff-feedback.js?v=202611080250';
+import { addAttachment, addFollowUp, attachmentContent, canReportStaffFeedback, createReport, emptyBag, getReport, listReports, noteLocalDemoDispatch, publishDraft, recordLocalDemoReply, replyToReport, reviewStaffReply, setReportStatus, simulateReport } from './staff-feedback.js?v=202611080400';
 
 export function staffFeedbackPart(x) {
   const bag = () => { const d = x.load(); d.staffFeedback ||= emptyBag(); return d.staffFeedback; };
@@ -26,7 +26,9 @@ export function staffFeedbackPart(x) {
     async publishStaffFeedbackDraft(id) { return run(() => publishDraft(bag(), actor(), id, { now: x.now })); },
     async reviewStaffFeedbackReply(id) { return run(() => reviewStaffReply(bag(), actor(), id, { now: x.now })); },
     async simulateStaffFeedback(id) { return run(() => simulateReport(bag(), actor(), id, { now: x.now, id: x.nid })); },
-    async requestStaffFeedbackDispatch() { return { sent: false, replied: false, runAccepted: false, recorded: false, reason: 'bridge_unconfigured', error: 'Dispatch is not enabled. Nothing was sent.', exactlyOnce: false }; },
+    async addStaffFeedbackTurn(id, input) { return run(() => addFollowUp(bag(), actor(), id, input, { now: x.now, id: x.nid })); },
+    async requestStaffFeedbackDispatch(id, eventId) { return run(() => noteLocalDemoDispatch(bag(), actor(), id, eventId)); },
+    async recordLocalDemoReply(id, input) { return run(() => recordLocalDemoReply(bag(), actor(), id, input, { now: x.now, id: x.nid })); },
     staffFeedbackAllowed: canReportStaffFeedback,
   };
 }

@@ -42,9 +42,9 @@ const widget = readFileSync(new URL('../js/pages/staff-feedback-widget.js', impo
 const page = readFileSync(new URL('../js/pages/staff-feedback.js', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const accounting = readFileSync(new URL('../js/data/accounting.js', import.meta.url), 'utf8');
-check(widget.includes('Text support, one way') && widget.includes('image/png') && widget.includes('addStaffFeedbackAttachment') && !widget.includes('assistant-files') && !widget.includes('api.x.ai') && !widget.includes('fetch('), 'the panel is text support and keeps the image dropdown');
+check(!widget.includes('image/png') && !widget.includes('addStaffFeedbackAttachment') && !widget.includes('assistant-files') && !widget.includes('api.x.ai') && !widget.includes('fetch('), 'the conversation panel does not add a file chooser or a model call');
 check(page.includes('image/png,image/jpeg,image/webp,image/gif') && !page.includes('.pdf'), 'the report page screenshot dropdown stays images');
-check(widget.includes('COMPOSE_NOTICE') && widget.includes('reportNotice') && !widget.includes('Bearer key'), 'the panel does not claim the server key is missing');
+check(widget.includes('Tech assistant') && widget.includes('Send') && widget.includes('only after it is saved') && !widget.includes('Bearer key') && !widget.includes('Save report') && !widget.includes('I am online'), 'the panel speaks as this assistant and does not claim to be live');
 check(app.includes('data-bots-btn') && app.includes('accounting') && accounting.includes('Accounting is turned off'), 'the Bots menu and Accounting module are still present');
 
 console.log(fail ? `${fail} failed` : 'assistant handoff passed');

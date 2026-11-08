@@ -75,6 +75,15 @@ check(result.status === 200 && result.body.reason === 'run_started' && result.bo
 check(lookups.length === 1 && param(lookups[0], 'feedback_id') === `eq.${REPORT}` && param(lookups[0], 'event_name') === 'eq.cla.feedback.created' && param(lookups[0], 'id') === '', 'the pre-claim read filters the created event by report id');
 check(claims.length === 1 && claims[0].p_event === EVENT && claims[0].p_event !== REPORT, 'the claim reserves the outbox id');
 check(posts.length === 1 && posts[0].event_id === EVENT && posts[0].feedback_id === REPORT && posts[0].conversation_id === CONVERSATION && posts[0].version === 1 && !JSON.stringify(result).includes('sender-secret-value'), 'the webhook payload uses both ids and hides the sender key');
+const FOLLOW = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+const followUrls = [];
+const follow = await loadOutboxEvent(REPORT, env, async (url) => {
+  followUrls.push(url);
+  const params = new URL(url).searchParams;
+  if (params.get('id') !== `eq.${FOLLOW}` || params.get('feedback_id') !== `eq.${REPORT}`) return { ok: true, json: async () => [] };
+  return { ok: true, json: async () => ([{ id: FOLLOW, feedback_id: REPORT, conversation_id: CONVERSATION, delivery_state: 'pending_dispatch', dispatch_allowed: false, attempt_count: 0, event_name: 'cla.feedback.follow_up' }]) };
+}, 'Bearer user-jwt', FOLLOW);
+check(follow && follow.eventId === FOLLOW && follow.feedbackId === REPORT && follow.eventName === 'cla.feedback.follow_up' && !followUrls.some((url) => new URL(url).searchParams.get('id') === `eq.${REPORT}`), 'a follow-up is loaded by its own event id and the report id together');
 
 console.log(fail ? `${fail} failed` : 'outbox id lookup passed');
 if (fail) process.exit(1);

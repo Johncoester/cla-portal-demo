@@ -1,12 +1,11 @@
-/* Persistent staff launcher. It lives on document.body, so opening a file tab does not close it or wipe the draft.
- * Text support, one way. It is not a live chat. A phone or tablet app is not part of this pilot.
- * The screenshot dropdown is the published image store. The assistant does not read the file. */
-import { COMPOSE_NOTICE, newId, reportNotice, sanitizePage, STATUS_LABELS } from '../data/staff-feedback.js?v=202611080250';
-import { launcherAllowed, loadDraft, nextWidgetState, saveDraft } from '../data/staff-feedback-widget-state.js?v=202611080250';
+/* Portal conversation. One composer, one explicit Send, and replies only after they are saved.
+ * A phone app can use the same thread later. This panel does not read order files or attachment bytes. */
+import { conversationTitle, newId } from '../data/staff-feedback.js?v=202611080400';
+import { launcherAllowed, loadDraft, nextWidgetState, saveDraft } from '../data/staff-feedback-widget-state.js?v=202611080400';
 
-const ACCEPT = 'image/png,image/jpeg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif';
 const HOST_ID = 'claStaffFeedbackRoot';
 let state = { userId: null, open: false, reportId: '' };
+let composing = false;
 let live = null;
 let returnFocus = null;
 
@@ -16,12 +15,6 @@ const el = (tag, cls, text) => {
   if (text != null) node.textContent = text;
   return node;
 };
-const svg = (cls, path) => {
-  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true'); if (cls) s.setAttribute('class', cls);
-  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  p.setAttribute('d', path); p.setAttribute('fill', 'currentColor'); s.appendChild(p); return s;
-};
 const store = () => (typeof sessionStorage !== 'undefined' ? sessionStorage : null);
 
 function unmount() {
@@ -29,48 +22,35 @@ function unmount() {
   if (root) root.remove();
   document.body.classList.remove('cla-sf-open');
   document.removeEventListener('keydown', onKey);
+  if (typeof window !== 'undefined') delete window.__claLocalDemoReply;
   live = null;
+  composing = false;
   state = { userId: null, open: false, reportId: '' };
 }
 
 function readForm() {
   if (!live) return null;
-  return {
-    title: live.title.value, body: live.body.value, reply: live.reply.value,
-    includePage: live.includePage.checked, includeOrder: live.includeOrder.checked,
-    page: live.page.value, fileNumber: live.file.value, reportId: state.reportId || '',
-  };
+  return { title: '', body: live.body.value, reply: '', includePage: false, includeOrder: false, page: '', fileNumber: '', reportId: state.reportId || '' };
 }
-
 function persist() {
   if (!live || !state.userId) return;
   saveDraft(store(), state.userId, readForm());
 }
-
-function applyDraft(draft) {
-  if (!live || !draft) return;
-  live.title.value = draft.title || '';
-  live.body.value = draft.body || '';
-  live.reply.value = draft.reply || '';
-  live.includePage.checked = !!draft.includePage;
-  live.includeOrder.checked = !!draft.includeOrder;
-  live.page.value = draft.page || '';
-  live.file.value = draft.fileNumber || '';
-  live.pageWrap.hidden = !draft.includePage;
-  live.orderWrap.hidden = !draft.includeOrder;
-  if (draft.reportId) state = { ...state, reportId: draft.reportId };
-}
-
 function placePanel() {
   if (!live) return;
+  if (window.matchMedia('(max-width: 700px)').matches) {
+    live.dlg.style.left = ''; live.dlg.style.top = ''; live.dlg.style.width = ''; live.dlg.style.right = '';
+    return;
+  }
   const btn = document.querySelector('[data-bots-btn]');
-  if (!btn || window.matchMedia('(max-width: 700px)').matches) { live.dlg.style.left = ''; live.dlg.style.top = ''; live.dlg.style.right = ''; return; }
-  const r = btn.getBoundingClientRect();
   const bar = document.querySelector('.topbar-main');
-  const belowBar = bar ? Math.round(bar.getBoundingClientRect().bottom + 8) : 68;
-  live.dlg.style.top = Math.max(belowBar, Math.round(r.bottom + 8)) + 'px';
-  live.dlg.style.left = Math.max(8, Math.round(r.left)) + 'px';
-  live.dlg.style.right = 'auto';
+  const below = bar ? Math.round(bar.getBoundingClientRect().bottom + 10) : 72;
+  const width = Math.min(460, window.innerWidth - 24);
+  let left = btn ? Math.round(btn.getBoundingClientRect().left) : 16;
+  left = Math.max(12, Math.min(left, window.innerWidth - width - 12));
+  live.dlg.style.top = below + 'px';
+  live.dlg.style.left = left + 'px';
+  live.dlg.style.width = width + 'px';
 }
 function markButton() {
   document.body.classList.toggle('cla-sf-open', !!state.open);
@@ -78,7 +58,7 @@ function markButton() {
   if (!btn) return;
   btn.setAttribute('aria-expanded', state.open ? 'true' : 'false');
   const cur = btn.querySelector('[data-bots-current]');
-  if (cur) cur.textContent = state.open ? 'Portal feedback' : 'Choose…';
+  if (cur) cur.textContent = state.open ? 'Tech assistant' : 'Choose…';
 }
 function setOpen(open) {
   if (!live) return;
@@ -88,9 +68,7 @@ function setOpen(open) {
   if (state.open) {
     returnFocus = document.activeElement;
     placePanel();
-    live.where.textContent = 'You are on ' + (location.hash.split('?')[0] || '#/');
-    const focus = state.reportId ? live.reply : live.body;
-    focus.focus();
+    live.body.focus();
     document.addEventListener('keydown', onKey);
   } else {
     document.removeEventListener('keydown', onKey);
@@ -99,180 +77,136 @@ function setOpen(open) {
     else if (back) back.focus();
   }
 }
-
 function onKey(e) {
   if (!live || !state.open) return;
   if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false); return; }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); live.form.requestSubmit(); return; }
   if (e.key !== 'Tab') return;
-  const nodes = [...live.dlg.querySelectorAll('button, textarea, input, a, select')].filter((n) => !n.disabled && n.offsetParent !== null);
+  const nodes = [...live.dlg.querySelectorAll('button, textarea, input, a, summary')].filter((n) => !n.disabled && n.offsetParent !== null);
   if (!nodes.length) return;
   const first = nodes[0]; const last = nodes[nodes.length - 1];
   if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 }
 
-function bubble(parent, message) {
-  const box = el('article', 'claSfBubble' + (message.simulation ? ' simulation' : ''));
-  box.appendChild(el('p', 'claSfMeta', (message.authorName || 'Staff') + (message.simulation ? ' · Test simulation' : '')));
-  const text = el('p'); text.textContent = message.body || ''; box.appendChild(text);
-  parent.appendChild(box);
+function bubble(message) {
+  const assistant = message.authorKind === 'bot';
+  const demo = !!message.simulation;
+  const box = el('article', 'claSfBubble ' + (assistant ? 'assistant' : 'user') + (demo ? ' demo' : ''));
+  box.appendChild(el('p', 'claSfWho', assistant ? (demo ? 'Local demo · Not a real reply' : 'Tech assistant') : 'You'));
+  const text = el('p', 'claSfText'); text.textContent = message.body || ''; box.appendChild(text);
+  return box;
 }
 
-async function paint(api) {
+function quietCopy(full, dispatch) {
+  if (dispatch && dispatch.localDemo) return 'Local demo only. This was not sent to me.';
+  if (dispatch && dispatch.reason === 'run_started') return 'Sent. Nothing back in this thread yet.';
+  if (dispatch && dispatch.reason === 'accepted_unrecorded') return 'That may have been sent. It was not sent again.';
+  if (dispatch && dispatch.error && !/bearer|webhook url|token|eyJ/i.test(dispatch.error)) return "That didn't send. It's still here.";
+  const messages = full && full.messages || [];
+  if (messages.some((m) => m.authorKind === 'bot' && !m.simulation)) return '';
+  if (messages.some((m) => m.simulation)) return 'That note above is a local demo, not me.';
+  if (full && full.deliveryState === 'run_accepted') return 'Sent. Nothing back in this thread yet.';
+  if (full && full.deliveryState === 'pending_dispatch' && messages.length) return 'Not sent.';
+  return '';
+}
+
+async function paint(api, dispatch) {
   if (!live) return;
   let rows = [];
   try { rows = (await api.listStaffFeedback()) || []; } catch (e) { rows = []; }
   const mine = rows.filter((r) => r.mine);
-  live.list.textContent = '';
-  if (!mine.length) live.list.appendChild(el('li', '', 'No reports yet.'));
-  mine.forEach((r) => {
-    const li = el('li');
-    const btn = el('button'); btn.type = 'button';
-    btn.appendChild(el('strong', '', r.title || 'Report'));
-    btn.appendChild(el('span', 'claSfPill', r.statusLabel || STATUS_LABELS[r.status] || r.status || ''));
-    if (r.id === state.reportId) btn.classList.add('on');
-    btn.addEventListener('click', () => { state = nextWidgetState(state, { type: 'select', reportId: r.id }); paint(api); });
-    li.appendChild(btn); live.list.appendChild(li);
-  });
+  if (!state.reportId && !composing && mine[0]) state = { ...state, reportId: mine[0].id };
   live.thread.textContent = '';
-  live.shots.textContent = '';
   const current = mine.find((r) => r.id === state.reportId) || null;
-  live.threadWrap.hidden = !current;
-  live.compose.hidden = !!current;
-  if (!current) {
-    live.notice.textContent = COMPOSE_NOTICE;
-    return;
-  }
   let full = current;
-  try { full = await api.getStaffFeedback(current.id); } catch (e) { full = current; }
-  live.notice.textContent = reportNotice(full);
-  (full.messages || []).forEach((m) => bubble(live.thread, m));
-  (full.attachments || []).forEach((a) => {
-    const row = el('p');
-    const btn = el('button', 'claSfBtn o', 'View screenshot'); btn.type = 'button';
-    btn.addEventListener('click', async () => {
-      const file = await api.openStaffFeedbackAttachment(a.id);
-      const img = el('img', 'claSfImg'); img.alt = 'Screenshot stored in the portal. The assistant does not read it.';
-      img.src = file.dataUrl || URL.createObjectURL(file.blob);
-      row.appendChild(img);
-    });
-    row.appendChild(document.createTextNode((a.fileName || 'Screenshot') + ' '));
-    row.appendChild(btn); live.shots.appendChild(row);
+  if (current) { try { full = await api.getStaffFeedback(current.id); } catch (e) { full = current; } }
+  const messages = (full && full.messages || []).slice().sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+  if (!messages.length) live.thread.appendChild(el('p', 'claSfEmpty', 'Nothing here yet. Send a message when you want me to see it.'));
+  messages.forEach((m) => live.thread.appendChild(bubble(m)));
+  if (full && (full.attachments || []).length) live.thread.appendChild(el('p', 'claSfFile', (full.attachments.length === 1 ? '1 screenshot is' : full.attachments.length + ' screenshots are') + ' stored with this conversation. This thread does not open the file.'));
+  const older = mine.filter((r) => r.id !== state.reportId);
+  live.history.hidden = !state.reportId;
+  live.historyList.textContent = '';
+  older.forEach((r) => {
+    const btn = el('button', 'claSfHistBtn', r.title || 'Earlier conversation'); btn.type = 'button';
+    btn.addEventListener('click', () => { composing = false; state = nextWidgetState(state, { type: 'select', reportId: r.id }); paint(api); });
+    live.historyList.appendChild(btn);
   });
-  if (full.deliveryState === 'pending_dispatch') {
-    const send = el('button', 'claSfBtn o', 'Send to the tech assistant'); send.type = 'button';
-    send.addEventListener('click', async () => {
-      live.err.textContent = '';
-      live.notice.textContent = 'Asking the server to send the text…';
-      try {
-        const result = api.requestStaffFeedbackDispatch ? await api.requestStaffFeedbackDispatch(full.id) : { reason: 'bridge_unconfigured', error: 'Dispatch is not enabled. Nothing was sent.' };
-        const safeError = /bearer|webhook url|token|eyJ/i.test(String(result.error || '')) ? '' : (result.error || '');
-        live.notice.textContent = result.reason === 'run_started'
-          ? 'The routine accepted a run. This is not a reply and it is not delivered.'
-          : result.reason === 'accepted_unrecorded'
-            ? 'The routine may have accepted a run, but the portal could not record it. It was not posted again.'
-            : (safeError || 'The server did not accept the send. It was not marked delivered.');
-      } catch (ex) { live.err.textContent = ex.message || 'Nothing was sent.'; }
-    });
-    live.shots.appendChild(send);
-  }
-  if (full.canSupport) {
-    const link = el('a', '', 'Open the report list'); link.href = '#/staff-feedback';
-    live.shots.appendChild(link);
-  }
+  live.quiet.textContent = quietCopy(full, dispatch);
+  live.quiet.hidden = !live.quiet.textContent;
+  live.thread.scrollTop = live.thread.scrollHeight;
 }
 
 function mount(user, api) {
   unmount();
   state = { userId: user.id, open: false, reportId: '' };
+  composing = false;
   const root = el('div'); root.id = HOST_ID;
   const ovl = el('div', 'claSfOvl'); ovl.id = 'claStaffFeedback'; ovl.hidden = true;
   const dlg = el('div', 'claSfDlg'); dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'claSfTitle');
-  const x = el('button', 'claSfX', '×'); x.type = 'button'; x.setAttribute('aria-label', 'Close portal feedback');
+  const mark = el('div', 'claSfMark');
+  const x = el('button', 'claSfX', 'Close'); x.type = 'button'; x.setAttribute('aria-label', 'Close');
   const hi = el('header', 'claSfHi');
-  hi.appendChild(el('strong', '', 'Portal feedback')); hi.id = 'claSfTitle';
-  hi.appendChild(el('p', '', 'Text support, one way. Saved in this portal. Not delivered to the tech assistant. No reply has been received.'));
+  hi.appendChild(el('p', 'claSfKicker', 'CLA'));
+  hi.appendChild(el('strong', '', 'Tech assistant')); hi.id = 'claSfTitle';
+  hi.appendChild(el('p', '', 'You can talk to me here about this portal. I see what you send. A reply shows in this thread only after it is saved.'));
   const body = el('div', 'claSfBody');
-  const notice = el('p', 'claSfNotice'); notice.setAttribute('role', 'status');
-  const where = el('p', 'claSfMeta');
-  const threadWrap = el('div');
-  const thread = el('div', 'claSfThread');
-  const shots = el('div');
-  const reply = el('textarea'); reply.maxLength = 4000; reply.setAttribute('aria-label', 'Reply');
-  const replyRow = el('div', 'claSfRow');
-  const replyBtn = el('button', 'claSfBtn', 'Save follow-up'); replyBtn.type = 'button';
-  const back = el('button', 'claSfBtn o', 'New report'); back.type = 'button';
-  replyRow.appendChild(back); replyRow.appendChild(replyBtn);
-  threadWrap.appendChild(thread); threadWrap.appendChild(shots); threadWrap.appendChild(el('label', 'claSfLbl', 'Reply')); threadWrap.appendChild(reply); threadWrap.appendChild(replyRow);
-  const compose = el('form');
-  const title = el('input'); title.type = 'text'; title.maxLength = 140; title.setAttribute('aria-label', 'Title');
-  const message = el('textarea'); message.maxLength = 4000; message.setAttribute('aria-label', 'What happened');
-  const includePage = el('input'); includePage.type = 'checkbox';
-  const pageWrap = el('label', 'claSfLbl', 'Page'); const page = el('input'); page.type = 'text'; page.maxLength = 200; pageWrap.appendChild(page); pageWrap.hidden = true;
-  const includeOrder = el('input'); includeOrder.type = 'checkbox';
-  const orderWrap = el('label', 'claSfLbl', 'File number'); const file = el('input'); file.type = 'text'; file.maxLength = 40; orderWrap.appendChild(file); orderWrap.hidden = true;
-  const shot = el('input'); shot.type = 'file'; shot.accept = ACCEPT; shot.setAttribute('aria-label', 'Screenshot');
+  const history = el('details', 'claSfHistory');
+  const summary = el('summary', '', 'Earlier conversations');
+  const historyList = el('div', 'claSfHistList');
+  const fresh = el('button', 'claSfHistBtn', 'Start a new conversation'); fresh.type = 'button';
+  history.appendChild(summary); history.appendChild(historyList); history.appendChild(fresh);
+  const thread = el('div', 'claSfThread'); thread.setAttribute('role', 'log'); thread.setAttribute('aria-live', 'polite'); thread.setAttribute('aria-relevant', 'additions');
+  const quiet = el('p', 'claSfQuiet'); quiet.setAttribute('role', 'status');
+  const form = el('form', 'claSfCompose');
+  const message = el('textarea'); message.maxLength = 4000; message.setAttribute('aria-label', 'Message'); message.placeholder = 'Message me';
   const err = el('div', 'claSfErr'); err.setAttribute('role', 'alert');
-  const save = el('button', 'claSfBtn', 'Save report'); save.type = 'submit';
-  compose.appendChild(el('label', 'claSfLbl', 'Title')); compose.appendChild(title);
-  compose.appendChild(el('label', 'claSfLbl', 'What happened')); compose.appendChild(message);
-  const pageCheck = el('label', 'claSfCheck'); pageCheck.appendChild(includePage); pageCheck.appendChild(document.createTextNode(' Include the page I name'));
-  const orderCheck = el('label', 'claSfCheck'); orderCheck.appendChild(includeOrder); orderCheck.appendChild(document.createTextNode(' Include an order file number I name'));
-  compose.appendChild(pageCheck); compose.appendChild(pageWrap); compose.appendChild(orderCheck); compose.appendChild(orderWrap);
-  compose.appendChild(el('p', 'claSfMeta', 'Both boxes start off. One screenshot: PNG, JPEG, WEBP, or GIF. The assistant does not read the file.'));
-  compose.appendChild(shot); compose.appendChild(err);
-  const row = el('div', 'claSfRow'); row.appendChild(save); compose.appendChild(row);
-  const mine = el('section', 'claSfMine'); mine.appendChild(el('h3', '', 'My reports'));
-  const list = el('ul'); mine.appendChild(list);
-  body.appendChild(notice); body.appendChild(where); body.appendChild(threadWrap); body.appendChild(compose); body.appendChild(mine);
-  dlg.appendChild(x); dlg.appendChild(hi); dlg.appendChild(body); ovl.appendChild(dlg);
-  root.appendChild(ovl); document.body.appendChild(root);
-  live = { ovl, dlg, title, body: message, reply, includePage, includeOrder, page, file, pageWrap, orderWrap, shot, err, notice, where, thread, threadWrap, shots, compose, list };
-  applyDraft(loadDraft(store(), user.id));
-  const keep = () => persist();
-  [title, message, reply, page, file].forEach((n) => n.addEventListener('input', keep));
-  includePage.addEventListener('change', () => { pageWrap.hidden = !includePage.checked; if (includePage.checked && !page.value) { try { page.value = sanitizePage(location.hash.split('?')[0]); } catch (e) { page.value = ''; } } keep(); });
-  includeOrder.addEventListener('change', () => { orderWrap.hidden = !includeOrder.checked; keep(); });
+  const row = el('div', 'claSfRow');
+  const send = el('button', 'claSfBtn', 'Send'); send.type = 'submit'; send.setAttribute('aria-label', 'Send message');
+  row.appendChild(send);
+  form.appendChild(message); form.appendChild(err); form.appendChild(row);
+  body.appendChild(history); body.appendChild(thread); body.appendChild(quiet); body.appendChild(form);
+  dlg.appendChild(mark); dlg.appendChild(x); dlg.appendChild(hi); dlg.appendChild(body);
+  ovl.appendChild(dlg); root.appendChild(ovl); document.body.appendChild(root);
+  live = { ovl, dlg, body: message, err, quiet, thread, history, historyList, form, api };
+  const draft = loadDraft(store(), user.id);
+  if (draft && draft.body) message.value = draft.body;
+  message.addEventListener('input', persist);
   x.addEventListener('click', () => setOpen(false));
   ovl.addEventListener('click', (e) => { if (e.target === ovl) setOpen(false); });
-  back.addEventListener('click', () => { state = nextWidgetState(state, { type: 'select', reportId: '' }); paint(api); });
-  compose.addEventListener('submit', async (e) => {
+  fresh.addEventListener('click', () => { composing = true; state = nextWidgetState(state, { type: 'select', reportId: '' }); message.focus(); paint(api); });
+  form.addEventListener('submit', async (e) => {
     e.preventDefault(); err.textContent = '';
-    const idem = newId();
+    const text = message.value.trim();
+    if (!text) { err.textContent = 'Write a message before sending.'; return; }
+    send.disabled = true;
     try {
-      const saved = await api.createStaffFeedback({
-        title: title.value, body: message.value, includePage: includePage.checked, page: includePage.checked ? page.value : '',
-        includeOrder: includeOrder.checked, fileNumber: includeOrder.checked ? file.value : '', idempotencyKey: idem,
-      });
-      const picked = shot.files && shot.files[0];
-      if (picked) {
-        if (picked.webkitRelativePath || shot.hasAttribute('webkitdirectory')) throw new Error('Choose one screenshot. Folder upload is not available.');
-        const dataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the screenshot.')); r.readAsDataURL(picked); });
-        await api.addStaffFeedbackAttachment(saved.id, { name: picked.name, mimeType: picked.type, size: picked.size, dataUrl, idempotencyKey: newId() });
+      let saved;
+      let eventId = '';
+      if (!state.reportId) {
+        saved = await api.createStaffFeedback({ title: conversationTitle(text), body: text, includePage: false, includeOrder: false, idempotencyKey: newId() });
+        composing = false;
+        state = nextWidgetState(state, { type: 'select', reportId: saved.id });
+      } else {
+        saved = await api.addStaffFeedbackTurn(state.reportId, { body: text, idempotencyKey: newId() });
+        eventId = saved.turnEventId || '';
       }
-      title.value = ''; message.value = ''; includePage.checked = false; includeOrder.checked = false; page.value = ''; file.value = ''; shot.value = '';
-      pageWrap.hidden = true; orderWrap.hidden = true;
-      state = nextWidgetState(state, { type: 'select', reportId: saved.id });
-      saveDraft(store(), user.id, emptySafe());
-      notice.textContent = reportNotice(saved);
-      await paint(api);
-    } catch (ex) { err.textContent = ex.message || 'Could not save.'; }
+      message.value = ''; persist();
+      const result = api.requestStaffFeedbackDispatch ? await api.requestStaffFeedbackDispatch(state.reportId, eventId || undefined) : { error: 'The server did not accept the send. It was not marked delivered.' };
+      await paint(api, result);
+    } catch (ex) { err.textContent = ex.message || 'The message was not sent.'; }
+    finally { send.disabled = false; }
   });
-  replyBtn.addEventListener('click', async () => {
-    err.textContent = '';
-    try {
-      const saved = await api.replyStaffFeedback(state.reportId, { body: reply.value, idempotencyKey: newId() });
-      reply.value = ''; persist();
-      notice.textContent = 'Reply saved. Not sent to the assistant.';
+  if (api.recordLocalDemoReply && typeof window !== 'undefined') {
+    window.__claLocalDemoReply = async (text) => {
+      if (!state.reportId) return null;
+      const saved = await api.recordLocalDemoReply(state.reportId, { body: text, idempotencyKey: newId() });
       await paint(api);
-      if (saved && saved.notice) notice.textContent = saved.notice;
-    } catch (ex) { err.textContent = ex.message || 'Could not save.'; }
-  });
+      return saved;
+    };
+  }
   paint(api);
-}
-
-function emptySafe() {
-  return { title: '', body: '', reply: live ? live.reply.value : '', includePage: false, includeOrder: false, page: '', fileNumber: '', reportId: state.reportId || '' };
 }
 
 export function openStaffFeedbackPanel() {
@@ -281,9 +215,7 @@ export function openStaffFeedbackPanel() {
   setOpen(true);
   if (live.api) paint(live.api);
 }
-export function hideStaffFeedbackPanel() {
-  setOpen(false);
-}
+export function hideStaffFeedbackPanel() { setOpen(false); }
 export function syncStaffFeedbackWidget({ user, demoActive = false, viewingAs = false, getApi } = {}) {
   if (typeof document === 'undefined') return;
   const allowed = launcherAllowed(user, { demoActive, viewingAs });
@@ -294,12 +226,11 @@ export function syncStaffFeedbackWidget({ user, demoActive = false, viewingAs = 
     if (next.switched || !document.getElementById(HOST_ID)) {
       if (state.userId && state.userId !== user.id) persist();
       mount(user, api);
-      live.api = api;
       return;
     }
     state = nextWidgetState(state, { type: 'navigate' });
     live.api = api;
-    if (live) { live.where.textContent = 'You are on ' + (location.hash.split('?')[0] || '#/'); placePanel(); live.ovl.hidden = !state.open; markButton(); }
+    if (live) { placePanel(); live.ovl.hidden = !state.open; markButton(); }
   };
   run();
 }

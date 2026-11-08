@@ -1,6 +1,6 @@
 /* Supabase adapter for staff portal feedback. RPCs enforce the rules. The browser has no webhook URL or Bearer key.
  * Test simulation is refused here so a hosted session cannot pretend the assistant replied. */
-import { screenshotMeta } from './staff-feedback.js?v=202611080250';
+import { screenshotMeta } from './staff-feedback.js?v=202611080400';
 
 const uid = () => (globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : '');
 const safeName = (n) => String(n || 'screenshot').replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 80);
@@ -37,8 +37,13 @@ export function staffFeedbackSupabase({ sb, ok, camel }) {
     async publishStaffFeedbackDraft(id) { return one('staff_feedback_publish_draft', { p_message: id }); },
     async reviewStaffFeedbackReply(id) { return one('staff_feedback_review_reply', { p_event: id }); },
     async simulateStaffFeedback() { throw new Error('Test simulation is only available in the local demo. Nothing was sent.'); },
-    async requestStaffFeedbackDispatch(id) {
-      const res = await sb.functions.invoke('staff-feedback-dispatch', { body: { explicit: true, feedback_id: id } });
+    async addStaffFeedbackTurn(id, input = {}) {
+      return one('staff_feedback_add_turn', { p_report: id, p_body: input.body || '', p_idempotency: input.idempotencyKey });
+    },
+    async requestStaffFeedbackDispatch(id, eventId) {
+      const body = { explicit: true, feedback_id: id };
+      if (eventId) body.event_id = eventId;
+      const res = await sb.functions.invoke('staff-feedback-dispatch', { body });
       const data = res && res.data && typeof res.data === 'object' ? res.data : {};
       const error = typeof data.error === 'string' ? data.error : '';
       if (data.reason || error) return { sent: false, replied: false, runAccepted: data.runAccepted === true, recorded: data.recorded === true, reason: data.reason || '', error };
