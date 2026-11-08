@@ -134,17 +134,21 @@ export async function lookupVerifiedUser(req, env, fetchImpl) {
   return { id, status: 'active', isDemo: false };
 }
 
-export async function loadOutboxEvent(eventId, env, fetchImpl, userHeader) {
-  if (!UUID.test(String(eventId || ''))) return null;
+/* The browser sends the report id. Create assigns a different outbox id, stores that id on
+ * report.created_event_id, and sets outbox.feedback_id to the report id. Looking up outbox.id
+ * with the report id finds nothing and the function returns 404 before claim. */
+export async function loadOutboxEvent(feedbackId, env, fetchImpl, userHeader) {
+  if (!UUID.test(String(feedbackId || ''))) return null;
   const origin = projectHostOk(env);
   const anon = envGet(env, 'SUPABASE_ANON_KEY');
   if (!origin || !anon || !fetchImpl || !userHeader) return null;
   const select = 'id,feedback_id,conversation_id,delivery_state,dispatch_allowed,attempt_count,event_name';
-  const res = await fetchImpl(`${origin}/rest/v1/staff_feedback_outbox?id=eq.${eventId}&select=${select}`, { headers: { Authorization: userHeader, apikey: anon } });
+  const res = await fetchImpl(`${origin}/rest/v1/staff_feedback_outbox?feedback_id=eq.${feedbackId}&event_name=eq.cla.feedback.created&select=${select}`, { headers: { Authorization: userHeader, apikey: anon } });
   if (!res || !res.ok) return null;
   const rows = await res.json();
-  const row = Array.isArray(rows) ? rows[0] : null;
-  if (!row) return null;
+  const matches = Array.isArray(rows) ? rows.filter((row) => row && row.feedback_id === feedbackId && row.event_name === 'cla.feedback.created' && UUID.test(String(row.id || ''))) : [];
+  if (matches.length !== 1) return null;
+  const row = matches[0];
   return { eventId: row.id, feedbackId: row.feedback_id, conversationId: row.conversation_id, deliveryState: row.delivery_state, dispatchAllowed: row.dispatch_allowed === true, attemptCount: row.attempt_count || 0, eventName: row.event_name };
 }
 

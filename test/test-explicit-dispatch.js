@@ -86,11 +86,14 @@ const user = await lookupVerifiedUser({ headers: { get: () => 'Bearer user-jwt' 
   return { ok: true, json: async () => ([{ status: 'active', is_demo: false }]) };
 });
 check(user.id === JOHN && user.status === 'active' && !JSON.stringify(user).includes(fakeKey) && seen.every((url) => url.startsWith(origin)), 'identity comes from the verified user, and the service key is not returned');
-const loaded = await loadOutboxEvent(EVENT, env, async (url, opts) => {
+const loaded = await loadOutboxEvent(FEEDBACK, env, async (url, opts) => {
   check(!opts.headers.Authorization.includes(fakeKey), 'the outbox read uses the user token');
+  const params = new URL(url).searchParams;
+  check(params.get('feedback_id') === `eq.${FEEDBACK}` && params.get('event_name') === 'eq.cla.feedback.created' && !params.get('id'), 'the outbox read uses the report id, not the outbox id');
+  if (params.get('feedback_id') !== `eq.${FEEDBACK}` || params.get('event_name') !== 'eq.cla.feedback.created') return { ok: true, json: async () => [] };
   return { ok: true, json: async () => ([{ id: EVENT, feedback_id: FEEDBACK, conversation_id: CONVERSATION, delivery_state: 'pending_dispatch', dispatch_allowed: false, attempt_count: 0, event_name: 'cla.feedback.created' }]) };
 }, 'Bearer user-jwt');
-check(loaded.feedbackId === FEEDBACK && loaded.dispatchAllowed === false, 'the pilot read path returns the correlation ids');
+check(loaded && loaded.eventId === EVENT && loaded.feedbackId === FEEDBACK && loaded.eventId !== FEEDBACK && loaded.dispatchAllowed === false, 'the pilot read path returns the outbox id and the report id separately');
 const marked = [];
 const saved = await recordAcceptance(EVENT, 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', env, async (url) => { marked.push(url); return { ok: true, json: async () => ({ ok: true, delivery_state: 'run_accepted' }) }; });
 const falseOk = await recordAcceptance(EVENT, 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', env, async () => ({ ok: true, json: async () => ({ ok: false }) }));
