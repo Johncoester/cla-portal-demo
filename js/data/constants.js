@@ -186,3 +186,61 @@ export const isWireDocName = (name) => WIRE_DOC_RE.test(String(name == null ? ''
 // that includes someone who may not get wire instructions. Mirrored by private.wire_text (migration 29).
 export const looksLikeWireDetails = (t) => { const s = String(t == null ? '' : t); return /\bwir(?:e|ed|ing)\b/i.test(s) && (/\b(?:routing|aba)\b/i.test(s) || /\baccount\s*(?:no\.?|number|num|#)/i.test(s) || /(?<!\d)\d{9}(?!\d)/.test(s)); };
 export const WIRE_BUYER_ONLY = 'Wire instructions go to the buyer only (and CLA Title staff). Real estate agents never receive them.';
+// MONEY (Matt, Nov 3 (b)). Display commas are optional. A save does not wait for that script.
+// Blank clears the amount. A real zero stays zero. Extra dots collapse the way the box does while typing (12.3.4 is 12.34).
+// Cents are the first two decimal digits, not a rounded third digit (1,234.567 is 1234.56). Letters, NaN, and Infinity are refused.
+// A JS number cannot keep two decimal places at $2^46: 70368744177664.01 is stored as 70368744177664.02.
+// Amounts at or above $2^45 (35184372088832) are refused before a write. Below that, the cents do not change.
+export const moneyClean = (v) => String(v == null ? '' : v).replace(/[$,\s]/g, '');
+export function moneyTyping(v) {
+  const s = String(v == null ? '' : v).replace(/[^\d.]/g, ''); if (!s) return '';
+  const dot = s.indexOf('.'); const intPart = (dot < 0 ? s : s.slice(0, dot)).replace(/^0+(?=\d)/, ''); const dec = dot < 0 ? null : s.slice(dot + 1).replace(/\./g, '').slice(0, 2);
+  const grouped = (intPart || (dec != null ? '0' : '')).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return dec == null ? grouped : `${grouped}.${dec}`;
+}
+export const moneyShow = (n) => { if (n == null || n === '') return ''; const v = Number(n); if (!isFinite(v)) return String(n);
+  const cents = Math.round(v * 100) % 100 !== 0; return v.toLocaleString('en-US', { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: 2 }); };
+export function formatMoneyInput(el) {
+  const before = el.value; const next = moneyTyping(before); if (next === before) return;
+  const pos = el.selectionStart == null ? before.length : el.selectionStart; const keep = before.slice(0, pos).replace(/[^\d.]/g, '').length;
+  el.value = next; let i = 0, n = 0; while (i < next.length && n < keep) { if (/[\d.]/.test(next[i])) n++; i++; }
+  try { if (document.activeElement === el) el.setSelectionRange(i, i); } catch (e) { /* type=number etc. */ }
+}
+const MONEY_MSG = 'Enter an amount using digits, such as 1234.56.';
+const MAX_MONEY_CENTS = 3518437208883200;
+const MAX_MONEY_DIGITS = String(MAX_MONEY_CENTS);
+function centsToAmount(cents) {
+  if (!Number.isSafeInteger(cents) || cents < 0 || cents >= MAX_MONEY_CENTS) throw new Error(MONEY_MSG);
+  const amount = cents / 100;
+  if (Math.round(amount * 100) !== cents) throw new Error(MONEY_MSG);
+  const [whole, frac] = amount.toFixed(2).split('.');
+  if (Number(whole) * 100 + Number(frac) !== cents) throw new Error(MONEY_MSG);
+  return amount;
+}
+function amountFromTyped(typed) {
+  if (!/^\d+(\.\d{0,2})?$/.test(typed)) throw new Error(MONEY_MSG);
+  const [ints, dec = ''] = typed.split('.');
+  const centsDigits = ((ints.replace(/^0+/, '') || '0') + (dec + '00').slice(0, 2)).replace(/^0+(?=\d)/, '');
+  if (centsDigits.length > MAX_MONEY_DIGITS.length || (centsDigits.length === MAX_MONEY_DIGITS.length && centsDigits >= MAX_MONEY_DIGITS)) throw new Error(MONEY_MSG);
+  return centsToAmount(Number(centsDigits));
+}
+export function moneyAmount(v) {
+  if (typeof v === 'number') {
+    if (!Number.isFinite(v)) throw new Error(MONEY_MSG);
+    const abs = Math.abs(v);
+    const cents = Math.round(abs * 100);
+    if (!Number.isSafeInteger(cents) || (abs !== 0 && cents === 0) || Math.abs(abs - cents / 100) > 1e-6) throw new Error(MONEY_MSG);
+    return centsToAmount(cents);
+  }
+  if (v == null) return null;
+  const raw = String(v); if (raw.trim() === '') return null;
+  const typed = moneyTyping(raw).replace(/,/g, '').replace(/\.$/, '');
+  if (typed === '' || typed === '.') throw new Error(MONEY_MSG);
+  return amountFromTyped(typed);
+}
+export function plainNumber(v) {
+  if (v === '' || v == null) return null;
+  const n = typeof v === 'number' ? v : Number(String(v).replace(/[$,\s]/g, ''));
+  if (!Number.isFinite(n)) throw new Error('Enter a valid number.');
+  return n;
+}

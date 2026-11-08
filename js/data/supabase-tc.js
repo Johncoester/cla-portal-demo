@@ -2,7 +2,7 @@
  * (best effort; the mock adapter and the SQL tests are the tested parts).
  *  - public.update_tc_contract / update_tc_client_contact / update_tc_emd_alta / create_all_parties_thread
  *  - typed columns on deals (contract, commissions, EMD received, signed ALTA); threads.staff_coordinated */
-import { STAGES } from './constants.js?v=202611070139';
+import { STAGES, moneyAmount, plainNumber } from './constants.js?v=202611082250';
 export function tcSupabase({ sb, ok, camel, api }) {
   const dealRow = async (id) => camel(ok(await sb.from('deals').select('*').eq('id', id).single()));
   const milestones = (q) => STAGES.map((name, i) => ({ index: i, name,
@@ -23,15 +23,14 @@ export function tcSupabase({ sb, ok, camel, api }) {
           email: p.contact.email || '', phone: p.contact.phone || '' })) };
     },
     async updateContractInfo(id, patch = {}) {
-      const num = (v) => (v === '' || v == null ? null : Number(String(v).replace(/[$,\s]/g, '')));
       ok(await sb.rpc('update_tc_contract', {
-        p_deal: id, p_purchase_price: patch.purchasePrice !== undefined ? num(patch.purchasePrice) : null,
-        p_contract_date: patch.contractDate || null, p_listing_commission_pct: patch.listingCommissionPct !== undefined ? num(patch.listingCommissionPct) : null,
-        p_listing_commission_amount: patch.listingCommissionAmount !== undefined ? num(patch.listingCommissionAmount) : null,
-        p_buyer_commission_pct: patch.buyerCommissionPct !== undefined ? num(patch.buyerCommissionPct) : null,
-        p_buyer_commission_amount: patch.buyerCommissionAmount !== undefined ? num(patch.buyerCommissionAmount) : null,
-        p_seller_concessions: patch.sellerConcessions !== undefined ? num(patch.sellerConcessions) : null,
-        p_emd_amount: patch.emdAmount !== undefined ? num(patch.emdAmount) : null, p_emd_holder: patch.emdHolder != null ? patch.emdHolder : null,
+        p_deal: id, p_purchase_price: patch.purchasePrice !== undefined ? moneyAmount(patch.purchasePrice) : null,
+        p_contract_date: patch.contractDate || null, p_listing_commission_pct: patch.listingCommissionPct !== undefined ? plainNumber(patch.listingCommissionPct) : null,
+        p_listing_commission_amount: patch.listingCommissionAmount !== undefined ? moneyAmount(patch.listingCommissionAmount) : null,
+        p_buyer_commission_pct: patch.buyerCommissionPct !== undefined ? plainNumber(patch.buyerCommissionPct) : null,
+        p_buyer_commission_amount: patch.buyerCommissionAmount !== undefined ? moneyAmount(patch.buyerCommissionAmount) : null,
+        p_seller_concessions: patch.sellerConcessions !== undefined ? moneyAmount(patch.sellerConcessions) : null,
+        p_emd_amount: patch.emdAmount !== undefined ? moneyAmount(patch.emdAmount) : null, p_emd_holder: patch.emdHolder != null ? patch.emdHolder : null,
         p_closing_date: patch.closingDate || null,
         p_clear_contract_date: patch.contractDate === '' || patch.contractDate === null,
         p_clear_closing_date: patch.closingDate === '' || patch.closingDate === null }));
@@ -45,10 +44,9 @@ export function tcSupabase({ sb, ok, camel, api }) {
     async getMilestones(id) { return milestones(await dealRow(id)); },
     async getEmdAlta(id) { return emdAlta(await dealRow(id)); },
     async updateEmdAlta(id, p = {}) {
-      const num = (v) => (v === '' || v == null ? null : Number(String(v).replace(/[$,\s]/g, '')));
       ok(await sb.rpc('update_tc_emd_alta', {
         p_deal: id, p_emd_received: p.received === undefined ? null : !!(p.received === true || p.received === 'yes' || p.received === 'true' || p.received === 'on'),
-        p_emd_received_date: p.receivedDate || null, p_emd_received_amount: p.receivedAmount !== undefined ? num(p.receivedAmount) : null,
+        p_emd_received_date: p.receivedDate || null, p_emd_received_amount: p.receivedAmount !== undefined ? moneyAmount(p.receivedAmount) : null,
         p_alta_received: p.altaReceived === undefined && !p.altaDocumentId ? null : !!(p.altaReceived === true || p.altaReceived === 'yes' || p.altaReceived === 'true' || p.altaReceived === 'on' || p.altaDocumentId),
         p_alta_received_date: p.altaReceivedDate || null, p_alta_document_id: p.altaDocumentId || null }));
       return this.getEmdAlta(id);

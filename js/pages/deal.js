@@ -1,21 +1,20 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
 import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611070139';
-import { GMAIL_OFF } from '../data/automation.js?v=202611070139';
+import { GMAIL_OFF } from '../data/automation.js?v=202611082250';
 import { occSelects, yesNo } from './occ-fields.js?v=202611070139';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi } from '../data/constants.js?v=202611070139';
-import { modOn } from '../data/modules.js?v=202611070139';
-import { slotText } from './dealclosing.js?v=202611070139';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611070139';
-import { composeModal } from './compose.js?v=202611070139';
-import { moneyShow, moneyClean } from './money-input.js?v=202611070139';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611082250';
+import { modOn } from '../data/modules.js?v=202611082250';
+import { slotText } from './dealclosing.js?v=202611082250';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611082250';
+import { composeModal } from './compose.js?v=202611082250';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611071845';
-import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611070139';
+import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611082250';
 import { themeOn } from '../theme.js?v=202611070139';
-import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611070139';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611071715';
+import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611082250';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611082250';
 import { gatherReads } from '../data/read-batch.js?v=202611082010';
-import { prefetchDealTab } from './deal-tab.js?v=202611082240';
-import { placeText } from '../data/cla-offices.js?v=202611070139';
+import { prefetchDealTab } from './deal-tab.js?v=202611082250';
+import { placeText } from '../data/cla-offices.js?v=202611082250';
 
 function staffSections(ctx, dealId) {
   const { api } = ctx;
@@ -214,7 +213,7 @@ async function editModal(api, d, refresh) {
   paintProcessors(procs, null);
   $('[data-refresh-processors]', m).addEventListener('click', guard(async () => { const street = $('[name=street]', m).value; const keep = $('[name=processorId]', m).value; paintProcessors(await api.listProcessors(), keep);
     if ($('[name=street]', m).value !== street) throw new Error('Refreshing the Processor list must not clear the form.'); toast('Processor list updated. The other fields were kept.'); }));
-  $('#edf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); ['purchasePrice', 'loanAmount', 'emdAmount'].forEach((k) => { if (f[k] !== undefined) f[k] = moneyClean(f[k]); });
+  $('#edf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); ['purchasePrice', 'loanAmount', 'emdAmount'].forEach((k) => { if (f[k] !== undefined) f[k] = moneyAmount(f[k]); });
     if (refi) { f.purchasePrice = ''; f.emdAmount = ''; f.emdDueDate = ''; }   // a refinance saves no purchase price / EMD (clears what an older order had)
     if (refi || String(f.state || '').toUpperCase() !== 'MD') { f.primaryResidence = ''; f.firstTimeBuyer = ''; }
     await api.updateDeal(d.id, f); closeModal(); toast('Order saved'); refresh(); }));

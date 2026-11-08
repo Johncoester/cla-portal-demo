@@ -1,10 +1,9 @@
 // TC FILE OVERVIEW (John, Nov 5): light, mirrors buyer/seller overview. Order: progress, address/key info, outstanding tasks, contacts.
 // Quick jumps: Contract info, Milestones, EMD & ALTA, Documents/Upload, Messages (all parties). FAKE DATA ONLY.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611070139';
-import { STAGES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611070139';
-import { composeModal } from './compose.js?v=202611070139';
-import { moneyShow, moneyClean } from './money-input.js?v=202611070139';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611071715';
+import { STAGES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, moneyShow, moneyAmount } from '../data/constants.js?v=202611082250';
+import { composeModal } from './compose.js?v=202611082250';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611082250';
 const OPEN = ['todo', 'in_progress', 'blocked'];
 const long = (d) => { if (!d) return '—'; const [y, m, dd] = String(d).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
 const href = (d, t = '') => `#/deals/${d.id}${t ? '/' + t : ''}`;
@@ -59,7 +58,7 @@ export async function renderTcOverview(ctx, d) {
         <label>EMD amount<input name="emdAmount" data-money inputmode="decimal" value="${moneyShow(ci.emdAmount)}"></label><label>EMD holder<input name="emdHolder" value="${ci.emdHolder}"></label>
         <h4 class="span2">Clients</h4>${clients.map((c) => html`<fieldset class="span2" data-client="${c.participantId}"><legend>${c.role === 'Client-Buyer' ? 'Buyer' : 'Seller'}</legend><div class="form-grid"><label>First name<input name="firstName" required value="${c.firstName}"></label><label>Last name<input name="lastName" value="${c.lastName}"></label><label>Email<input type="email" name="email" value="${c.email}"></label><label>Phone<input name="phone" type="tel" value="${c.phone}"></label></div></fieldset>`)}
         <div class="span2"><button class="m-btn" type="submit">Save contract info</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
-      $('#tc-ci', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); ['purchasePrice', 'listingCommissionAmount', 'buyerCommissionAmount', 'sellerConcessions', 'emdAmount'].forEach((k) => { f[k] = moneyClean(f[k]); });
+      $('#tc-ci', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); ['purchasePrice', 'listingCommissionAmount', 'buyerCommissionAmount', 'sellerConcessions', 'emdAmount'].forEach((k) => { f[k] = moneyAmount(f[k]); });
         await api.updateContractInfo(d.id, f); for (const c of clients) { const box = $(`[data-client="${c.participantId}"]`, e.target); await api.updateClientContact(d.id, c.participantId, { firstName: $('[name=firstName]', box).value, lastName: $('[name=lastName]', box).value, email: $('[name=email]', box).value, phone: $('[name=phone]', box).value }); }
         closeModal(); toast('Contract info and client details saved'); refresh(); }));
     }
@@ -73,7 +72,7 @@ export async function renderTcOverview(ctx, d) {
       $('#tc-emd', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); let docId = null; const file = f.altaFile;
         if (file && file.name) { if (file.size > MAX_UPLOAD_BYTES) throw new Error('File is too large for this demo.'); const dataUrl = await readFile(file);
           const doc = await api.addDocument(d.id, { id: sameUploadId(e.target._upload || (e.target._upload = {}), file), name: file.name, description: 'Signed ALTA / settlement statement', mimeType: file.type, size: file.size, dataUrl, visibility: 'staff', docType: 'Settlement statement', folderId: null }); docId = doc.id; }
-        await api.updateEmdAlta(d.id, { received: !!f.received, receivedDate: f.receivedDate, receivedAmount: moneyClean(f.receivedAmount), altaReceived: !!f.altaReceived || !!docId, altaReceivedDate: f.altaReceivedDate, altaDocumentId: docId || undefined }); closeModal(); toast('EMD & ALTA saved'); refresh(); }));
+        await api.updateEmdAlta(d.id, { received: !!f.received, receivedDate: f.receivedDate, receivedAmount: moneyAmount(f.receivedAmount), altaReceived: !!f.altaReceived || !!docId, altaReceivedDate: f.altaReceivedDate, altaDocumentId: docId || undefined }); closeModal(); toast('EMD & ALTA saved'); refresh(); }));
     }
     function uploadModal() {
       const m = modal('Upload miscellaneous document', html`<form id="tc-up" class="form-grid"><label class="span2">File *<input type="file" name="file" required></label><label class="span2">Type<select name="docType" required><option value="">Choose…</option>${options([...new Set(['Contract / addendum', 'Other', ...DOC_TYPES])], '')}</select></label><label class="span2">Note<input name="description" maxlength="500"></label><label class="span2">Who can see it<select name="visibility"><option value="staff">CLA Title staff only</option><option value="all">All parties</option><option value="buyer">Buyer side + CLA</option><option value="seller">Seller side + CLA</option></select></label><div class="span2"><button class="m-btn" type="submit">Upload document</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
