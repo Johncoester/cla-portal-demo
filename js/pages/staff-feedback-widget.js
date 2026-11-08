@@ -121,7 +121,7 @@ async function paint(api, dispatch) {
   const current = mine.find((r) => r.id === state.reportId) || null;
   let full = current;
   if (current) { try { full = await api.getStaffFeedback(current.id); } catch (e) { full = current; } }
-  const messages = (full && full.messages || []).slice().sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+  const messages = (full && full.messages || []).slice().sort((a, b) => (Number(a.turnOrd) || 0) - (Number(b.turnOrd) || 0) || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
   if (!messages.length) live.thread.appendChild(el('p', 'claSfEmpty', 'Nothing here yet. Send a message when you want me to see it.'));
   messages.forEach((m) => live.thread.appendChild(bubble(m)));
   if (full && (full.attachments || []).length) live.thread.appendChild(el('p', 'claSfFile', (full.attachments.length === 1 ? '1 screenshot is' : full.attachments.length + ' screenshots are') + ' stored with this conversation. This thread does not open the file.'));
