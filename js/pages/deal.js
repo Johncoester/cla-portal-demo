@@ -14,8 +14,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611070139';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611071715';
 import { gatherReads } from '../data/read-batch.js?v=202611082010';
-
-const TABS = { tasks: './dealtasks.js?v=202611082000', inbox: './dealmsgs.js?v=202611070139', documents: './dealdocs.js?v=202611082000', contacts: './dealcontacts.js?v=202611070139', activity: './dealactivity.js?v=202611070139', closing: './dealclosing.js?v=202611070139', agreements: './dealagreements.js?v=202611070139', accounting: './dealaccounting.js?v=202611071820', title: './dealtitle.js?v=202611070139', funding: './dealfwp.js?v=202611070139', wires: './dealfwp.js?v=202611070139', policy: './dealfwp.js?v=202611070139' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+import { prefetchDealTab } from './deal-tab.js?v=202611082240';
 import { placeText } from '../data/cla-offices.js?v=202611070139';
 
 function staffSections(ctx, dealId) {
@@ -42,6 +41,7 @@ export async function render(ctx) {
   const staffShell = tabName !== 'overview' && api.readFileShell && ctx.user && ctx.user.role !== 'Outside user';
   const staffOverview = tabName === 'overview' && ctx.user && !ctx.user.accountRole && ctx.user.role !== 'Outside user' && ctx.user.role !== 'Transaction Coordinator';
   const dealP = staffShell ? api.readFileShell(params.id) : (api.readDeal ? api.readDeal(params.id) : api.getDeal(params.id));
+  const tabP = prefetchDealTab(tabName, params.sub);
   let earlySections = null;
   if (staffOverview) { try { earlySections = staffSections(ctx, params.id); } catch (e) { earlySections = Promise.reject(e); } if (earlySections) earlySections.catch(() => {}); }
   const deal = await dealP;
@@ -53,17 +53,17 @@ export async function render(ctx) {
   if (tab === 'contacts' && user.accountRole && isPureClient(user)) throw new Error('Your closing team is on the Overview.');   // buyer (Nov 4 call) and seller (mirror): no Contacts tab. Accounting stays behind its module switch on CLA Portal Live Test.
   // CLIENT TABS (John, Nov 4: every buyer tab in the light client layout; same for the seller): the tab's own content, under the client file line +
   // pill tabs, drawn in the client shell (app.js: white top bar, CLA logo, no sidebar). The content and its rules are unchanged.
-  if (tab !== 'overview' && TABS[tab] && user.role === 'Transaction Coordinator' && !user.accountRole) {
-    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611082000' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
+  if (tabP && user.role === 'Transaction Coordinator' && !user.accountRole) {
+    const mod = await tabP; const v = await mod.render({ ...ctx, deal });
     const top = await tcTabChrome(ctx, deal, tab);
     return { ...v, deal, crumbs: [...here, ...(v.crumbs || [])], tcPage: true, body: html`<div class="co-page tc-page" data-tc-tabpage="${tab}">${top}<section class="co-card co-tabcard"><div class="co-cb">${v.body}</div></section></div>` };
   }
-  if (tab !== 'overview' && TABS[tab] && user.accountRole && clientSide(user)) {
-    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611082000' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
+  if (tabP && user.accountRole && clientSide(user)) {
+    const mod = await tabP; const v = await mod.render({ ...ctx, deal });
     const top = await clientTabChrome(ctx, deal, tab);
     return { ...v, deal, crumbs: [...here, ...(v.crumbs || [])], clientPage: { deal, side: clientSide(user), tab }, body: html`<div class="co-page co-tabpage" data-client-tab="${tab}">${top}<section class="co-card co-tabcard"><div class="co-cb">${v.body}</div></section></div>` };
   }
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611082000' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, deal, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tabP) { const mod = await tabP; const v = await mod.render({ ...ctx, deal }); return { ...v, deal, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   if (user.role === 'Transaction Coordinator' && !user.accountRole) { const tc = await renderTcOverview(ctx, deal); return tc && typeof tc === 'object' ? { ...tc, deal } : tc; }
   // CLIENT OVERVIEW (John, Nov 4): the buyer / seller get the redesigned overview (client-overview.js) in place of the old overview + card summary (no Cash to Close / payoff mockup figures for clients).
