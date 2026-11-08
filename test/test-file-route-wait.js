@@ -55,6 +55,7 @@ api.getOrderOverview = async () => {
 const app = await import('../js/app.js');
 
 const release = async (name) => {
+  for (let i = 0; i < 50 && !started.some((x) => x.name === name && !x.done); i += 1) await wait(10);
   const item = started.find((x) => x.name === name && !x.done);
   if (!item) throw new Error('missing ' + name + ' ' + started.map((x) => x.name + (x.done ? ':done' : '')).join(','));
   item.done = true;
