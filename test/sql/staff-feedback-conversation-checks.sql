@@ -66,11 +66,9 @@ begin
   again := public.staff_feedback_record_assistant_reply(ev, 'Too soon.', '11111111-1111-4111-8111-111111111111');
   if reply->>'state' <> 'written' or (reply->>'completed')::boolean is not true or (again->>'idempotent')::boolean is not true or again->>'message_id' <> reply->>'message_id' then
     raise exception 'FAIL the same response key and body were not idempotent'; end if;
-  begin
-    perform public.staff_feedback_record_assistant_reply(ev, 'A different reply.', '11111111-1111-4111-8111-111111111111');
-    raise exception 'FAIL a different body reused the response key';
-  exception when sqlstate 'P0001' then null;
-  end;
+  reply := public.staff_feedback_record_assistant_reply(ev, 'A different reply.', '11111111-1111-4111-8111-111111111111');
+  if (reply->>'conflict')::boolean is not true or (reply->>'ok')::boolean or (reply->>'completed')::boolean then
+    raise exception 'FAIL a different body reused the response key'; end if;
   if (select count(*) from public.staff_feedback_messages where report_id = (created->>'id')::uuid and author_kind = 'bot') <> 1 then
     raise exception 'FAIL the conflicting body was stored'; end if;
   if (select body from public.staff_feedback_messages where id = (reply->>'message_id')::uuid) <> 'Too soon.' then

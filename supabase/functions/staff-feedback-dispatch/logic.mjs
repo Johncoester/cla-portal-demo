@@ -173,7 +173,7 @@ async function serviceRpc(name, args, env, fetchImpl) {
 
 export async function claimDispatch(eventId, claimId, env, fetchImpl) {
   const body = await serviceRpc('staff_feedback_claim_dispatch', { p_event: eventId, p_claim: claimId }, env, fetchImpl);
-  if (!body || body.claimed !== true) return { claimed: false, reason: body && body.reason || 'in_progress' };
+  if (!body || body.claimed !== true) return { claimed: false, reason: body && body.reason || 'in_progress', claimId: body && body.claim_id || null };
   return { claimed: true, claimId, reason: 'claimed' };
 }
 
@@ -213,8 +213,9 @@ export function toDispatchResponse(result) {
 }
 
 export function buildPayload(row) {
+  const eventName = row.eventName || row.event_name || 'cla.feedback.created';
   const payload = {
-    event: 'cla.feedback.created',
+    event: eventName,
     version: 1,
     event_id: row.eventId || row.event_id,
     feedback_id: row.feedbackId || row.feedback_id,
@@ -222,7 +223,7 @@ export function buildPayload(row) {
   };
   if (Object.keys(payload).join(',') !== PAYLOAD_KEYS.join(',')) throw new Error('payload');
   for (const key of PAYLOAD_KEYS) {
-    if (key === 'event' && payload.event !== 'cla.feedback.created') throw new Error('payload');
+    if (key === 'event' && eventName !== 'cla.feedback.created' && eventName !== 'cla.feedback.follow_up') throw new Error('payload');
     if (key === 'version' && payload.version !== 1) throw new Error('payload');
     if (key !== 'event' && key !== 'version' && !UUID.test(String(payload[key] || ''))) throw new Error('payload');
   }
@@ -237,7 +238,8 @@ function hidden(reason, extra = {}) {
 export async function explicitDispatch({ actor, row, config, transport, explicit = false } = {}) {
   if (!explicit) return hidden('not_explicit');
   if (!isDispatchPilot(actor)) return hidden('not_pilot', { deliveryState: row && row.deliveryState || 'pending_dispatch' });
-  if (!row || (row.eventName || row.event_name) !== 'cla.feedback.created') return hidden('not_a_created_event');
+  const eventName = row && (row.eventName || row.event_name);
+  if (eventName !== 'cla.feedback.created' && eventName !== 'cla.feedback.follow_up') return hidden('not_a_created_event');
   const state = row.deliveryState || row.delivery_state || 'pending_dispatch';
   if (TERMINAL.has(state)) {
     return { ok: true, sent: false, replied: false, runAccepted: true, botRead: false, transportCalled: false, httpStatus: null, deliveryState: state, reason: 'already_accepted', duplicate: true, dispatchAllowed: row.dispatchAllowed === true, exactlyOnce: false };
@@ -280,7 +282,7 @@ const LEASE_MS = 120000;
 /* In-memory CAS used by tests. The database function is the installed claim. */
 export function claimPending(rows, eventId, claimId, now, leaseMs = LEASE_MS) {
   const row = rows.find((r) => (r.eventId || r.id) === eventId);
-  if (!row || row.deliveryState !== 'pending_dispatch' || row.eventName !== 'cla.feedback.created') return { claimed: false, reason: 'not_eligible' };
+  if (!row || row.deliveryState !== 'pending_dispatch' || (row.eventName !== 'cla.feedback.created' && row.eventName !== 'cla.feedback.follow_up')) return { claimed: false, reason: 'not_eligible' };
   if (row.outcome === 'accepted_unrecorded') return { claimed: false, reason: 'accepted_unrecorded', row };
   if (row.outcome === 'outcome_unknown') return { claimed: false, reason: 'needs_reconciliation', row };
   if (row.claimId && row.claimedAt && now - row.claimedAt < leaseMs && row.claimId !== claimId) return { claimed: false, reason: 'in_progress' };
@@ -301,7 +303,11 @@ export function productionDeps(req, platform = globalThis) {
     env,
     getActor: () => lookupVerifiedUser(req, env, fetchImpl),
     loadEvent: (id, eventId) => loadOutboxEvent(id, env, fetchImpl, req.headers.get('authorization') || '', eventId),
-    claim: async (eventId) => { const claimId = platform.crypto.randomUUID(); return { ...(await claimDispatch(eventId, claimId, env, fetchImpl)), claimId }; },
+    claim: async (eventId) => {
+      const claimId = platform.crypto.randomUUID();
+      const result = await claimDispatch(eventId, claimId, env, fetchImpl);
+      return { ...result, claimId: result.claimed ? claimId : (result.claimId || null) };
+    },
     recordAcceptance: (eventId, claimId) => recordAcceptance(eventId, claimId, env, fetchImpl),
     recordOutcome: ({ eventId, claimId, outcome, http }) => recordDispatchOutcome(eventId, claimId, outcome, http, env, fetchImpl),
     resolveHost: (host) => resolveHostAddresses(host, resolveDns),

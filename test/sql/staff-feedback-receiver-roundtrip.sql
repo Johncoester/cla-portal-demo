@@ -41,11 +41,8 @@ begin
   replay := public.staff_feedback_record_assistant_reply(ev, 'I see the test message.', '13131313-1313-4131-8131-131313131313');
   if written->>'state' <> 'written' or (written->>'completed')::boolean is not true or replay->>'message_id' <> written->>'message_id' then
     raise exception 'FAIL same body replay'; end if;
-  begin
-    perform public.staff_feedback_record_assistant_reply(ev, 'A different answer.', '13131313-1313-4131-8131-131313131313');
-    raise exception 'FAIL different body was accepted';
-  exception when sqlstate 'P0001' then null;
-  end;
+  if (public.staff_feedback_record_assistant_reply(ev, 'A different answer.', '13131313-1313-4131-8131-131313131313')->>'conflict')::boolean is not true then
+    raise exception 'FAIL different body was accepted'; end if;
   perform set_config('request.jwt.claim.sub', '149e612a-6e14-4ee1-9890-0f29d6f89156', true);
   perform set_config('request.jwt.claim.role', 'authenticated', true);
   turn := public.staff_feedback_add_turn((created->>'id')::uuid, 'Please check the next row too.', '14141414-1414-4141-8141-141414141414');

@@ -223,13 +223,18 @@ export function addFollowUp(bag, actor, reportId, input = {}, { now = () => new 
     const ev = bag.outbox.find((e) => e.messageId === prior.id && e.eventName === 'cla.feedback.follow_up');
     return { ...view(bag, actor, report), turnEventId: ev ? ev.id : null };
   }
+  if (report.status === 'fixed' || report.status === 'wont_fix') fail('This conversation is closed.');
+  const recent = bag.outbox.filter((e) => e.reportId === report.id && e.eventName === 'cla.feedback.follow_up');
+  if (recent.length >= 20) fail('This conversation has reached the message limit.');
+  const cutoff = Date.now() - 10 * 60 * 1000;
+  if (recent.filter((e) => Date.parse(e.createdAt) > cutoff).length >= 8) fail('Send the next message in a few minutes.');
   const body = cleanText(input.body, MAX_BODY, 'a message');
   const createdAt = now();
   const messageId = id();
   const eventId = id();
   if (eventId === report.id) fail('That message was not found.');
   bag.messages.push({ id: messageId, reportId: report.id, authorId: actor.id, authorKind: 'reporter', authorName: nameOf(actor), body, visibility: 'published', simulation: false, createdAt, idempotencyKey: key });
-  bag.outbox.push({ id: eventId, reportId: report.id, feedbackId: report.id, conversationId: report.conversationId, messageId, eventName: 'cla.feedback.follow_up', deliveryState: 'pending_dispatch', dispatchAllowed: false, reason: 'bridge_unconfigured', attemptCount: 0, httpStatus: null, createdAt, outcome: null });
+  bag.outbox.push({ id: eventId, reportId: report.id, feedbackId: report.id, conversationId: report.conversationId, messageId, eventName: 'cla.feedback.follow_up', deliveryState: 'pending_dispatch', dispatchAllowed: false, reason: 'pending_explicit', replyEnabled: true, attemptCount: 0, httpStatus: null, createdAt, outcome: null });
   report.updatedAt = createdAt;
   return { ...view(bag, actor, report), turnEventId: eventId };
 }
