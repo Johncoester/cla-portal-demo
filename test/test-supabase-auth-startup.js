@@ -514,6 +514,66 @@ async function rejectedAuthIsNotReused() {
   check(seen === 'GET_USER_FAILED' && calls === 2 && nav.user && nav.user.role === 'Processor', 'a rejected sign-in check is not reused for the next navigation');
 }
 
+async function overlappingNavigationsAskTwice() {
+  const pending = [];
+  let calls = 0;
+  const hooks = {
+    getUser() { calls += 1; return new Promise((r) => pending.push(r)); },
+    single() { return { data: { id: 'file-1', street: 'PRIVATE-FOR-A' }, error: null }; },
+    rpc(name) {
+      if (name === 'my_profile') return { data: { id: 'A', role: 'Processor', is_demo: false }, error: null };
+      if (name === 'demo_view_status') return { data: { active: false }, error: null };
+      return { data: [], error: null };
+    },
+  };
+  globalThis.__fakeSB = client(hooks);
+  const api = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE-NOT-A-KEY' });
+  hooks.cb('INITIAL_SESSION', { user: { id: 'A' } });
+  const first = api.beginNavigation({ dealId: 'file-1', tab: 'tasks' });
+  await wait(0);
+  const second = api.beginNavigation({ dealId: 'file-1', tab: 'documents' });
+  await wait(0);
+  const atSecond = calls;
+  pending.forEach((resolve) => resolve({ data: { user: { id: 'A' } } }));
+  const results = await Promise.all([first, second]);
+  check(atSecond === 2 && results[1].user && results[1].user.id === 'A', 'a second navigation does not reuse the first navigation\'s sign-in check');
+}
+
+async function oldNavigationDoesNotClearNewFlight() {
+  const pending = [];
+  let who = 'A';
+  const hooks = {
+    getUser() { return new Promise((resolve, reject) => pending.push({ resolve, reject })); },
+    single() { return { data: { id: 'file-1', street: 'PRIVATE-FOR-' + who }, error: null }; },
+    rpc(name) {
+      if (name === 'my_profile') return { data: { id: who, role: 'Processor', is_demo: false }, error: null };
+      if (name === 'demo_view_status') return { data: { active: false }, error: null };
+      return { data: [], error: null };
+    },
+  };
+  globalThis.__fakeSB = client(hooks);
+  const api = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE-NOT-A-KEY' });
+  hooks.cb('INITIAL_SESSION', { user: { id: 'A' } });
+  const first = api.beginNavigation({ dealId: 'file-1', tab: 'tasks' });
+  first.catch(() => {});
+  await wait(0);
+  who = 'B';
+  hooks.cb('SIGNED_IN', { user: { id: 'B' } });
+  const second = api.beginNavigation({ dealId: 'file-1', tab: 'tasks' });
+  await wait(0);
+  const beforeReject = pending.length;
+  pending[0].reject(new Error('OLD_A_AUTH_FAILED'));
+  try { await first; } catch (err) { /* the old navigation can end without a person */ }
+  const profile = api.getMyProfile();
+  await wait(0);
+  const observed = pending.length;
+  pending.slice(1).forEach((item) => item.resolve({ data: { user: { id: 'B' } } }));
+  const [nav, person] = await Promise.all([second, profile]);
+  check(beforeReject === 2 && observed === 2 && nav.user && nav.user.id === 'B' && person && person.id === 'B', 'an old navigation does not drop the newer sign-in check');
+}
+
+await overlappingNavigationsAskTwice();
+await oldNavigationDoesNotClearNewFlight();
 await oneFreshUserPerNavigation();
 await signOutDropsInFlightUser();
 await lateUserADoesNotReplaceB();

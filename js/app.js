@@ -1,5 +1,5 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611082140';
+import { getAdapter } from './data/adapter.js?v=202611082150';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611070139';
 import { canUseCrm } from './data/crm.js?v=202611070139';
@@ -454,13 +454,18 @@ export async function render() {
   const modId = u ? routeModule(route) : null;
   const loader = (FLAGGED[route.page] && !(api.features || {})[FLAGGED[route.page]]) || (route.page === 'deal' && route.params.tab === 'accounting' && !(api.features || {}).accounting) || (modId && !modOn(modId)) ? null : pages[route.page];   // a module that is not Live (beta): Page not found for everyone but Admins   // Accounting tab: Page not found when the flag is off
   if (!loader) { const missingShell = await layout(u, { body: html`<div class="box-title"><h2>Page not found</h2></div><p>That page does not exist.</p>` }, route, ws); if (my !== rendering) return; root.innerHTML = toText(missingShell); wireChrome(u); settle(); return; }
+  const personLeft = () => authAt != null && api.authGeneration && api.authGeneration() !== authAt;
   const mod = await loader(); let view;
   try { view = await mod.render({ api, user: u, params: route.params, refresh: render, go }); }
-  catch (e) { view = { crumbs: [['Not available']], body: html`<div class="box-title"><h2>Not available</h2></div><p class="err-text">${e.message}</p><p><a class="back-btn" href="#${homeFor(u)}">Back</a></p>` }; }
-  if (my !== rendering) return;
+  catch (e) {
+    if (my !== rendering || personLeft()) { root.removeAttribute('data-content-ready'); return render(); }
+    view = { crumbs: [['Not available']], body: html`<div class="box-title"><h2>Not available</h2></div><p class="err-text">${e.message}</p><p><a class="back-btn" href="#${homeFor(u)}">Back</a></p>` };
+  }
+  if (my !== rendering || personLeft()) { root.removeAttribute('data-content-ready'); return render(); }
   if (PUBLIC.has(route.page)) { root.innerHTML = toText(view.body); syncFeedback(u); }
   else { let shell; try { shell = await layout(u, view, route, ws, { unread: unreadP }); } catch (e) { if (/sign in/i.test(e.message || '')) { location.hash = '#/login'; return; } throw e; }   // session ended mid-render
-    if (my !== rendering) return; root.innerHTML = toText(shell); wireChrome(u); }
+    if (my !== rendering || personLeft()) { root.removeAttribute('data-content-ready'); return render(); }
+    root.innerHTML = toText(shell); wireChrome(u); }
   settle();
   document.title = (view.title ? view.title + ' | ' : '') + 'CLA Portal Live Test';
   if (view.mount) view.mount($('#view') || root, { api, user: u, refresh: render, go });

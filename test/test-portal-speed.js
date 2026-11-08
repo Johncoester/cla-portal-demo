@@ -106,7 +106,7 @@ const adapter = readFileSync(new URL('../js/data/supabase-adapter.js', import.me
 check(adapter.includes('gatherReads') && adapter.includes('profile.clear()') && adapter.includes('nav.clear()') && adapter.includes('read-batch.js?v=202611082010') && adapter.includes('supabase-staff.js?v=202611082000'), 'order reads overlap, sign-out drops the profile, and the staff module stamp is current');
 check(adapter.includes('task-actions.js?v=202611082000') && adapter.includes('supabase-order-overview.js?v=202611082000') && !adapter.includes('task-actions.js?v=202611070139') && !adapter.includes('supabase-order-overview.js?v=202611071845'), 'the changed hosted modules are imported at the current stamp');
 const appSrc = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-check(appSrc.includes("adapter.js?v=202611082140") && appSrc.includes("deal.js?v=202611082100") && appSrc.includes("dashboard.js?v=202611082010") && !appSrc.includes('modsEarly'), 'the shell loads the current adapter and does not reuse an early module map');
+check(appSrc.includes("adapter.js?v=202611082150") && appSrc.includes("deal.js?v=202611082100") && appSrc.includes("dashboard.js?v=202611082010") && !appSrc.includes('modsEarly'), 'the shell loads the current adapter and does not reuse an early module map');
 const taskPage = readFileSync(new URL('../js/pages/dealtasks.js', import.meta.url), 'utf8');
 const dealPage = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
 check(taskPage.includes('task-actions.js?v=202611082000') && dealPage.includes('dealtasks.js?v=202611082000'), 'the tasks tab loads the current task module');

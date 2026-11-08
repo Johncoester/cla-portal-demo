@@ -43,4 +43,7 @@ for(let i=0;i<100&&!finishTasks;i++)await wait(5);
 if(!finishTasks)throw Error('task renderer did not start');
 gen++;await api.signOut();finishTasks([]);await wait(80);
 const root=document.querySelector('#app');console.log('After identity invalidation/signout during task render: session=',await api.getSession(),'marker=',root.getAttribute('data-content-ready'),'taskContent=',document.body.textContent.includes('All Tasks'));
-process.exit(root.getAttribute('data-content-ready')==null?0:1);
+const view=root.querySelector('#view');
+const drawn=!!(view&&view.textContent.includes('All Tasks'));
+console.log('tasks view kept after sign-out', drawn);
+process.exit(root.getAttribute('data-content-ready')==null&&!drawn?0:1);

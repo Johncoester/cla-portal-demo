@@ -62,21 +62,25 @@ export async function createSupabaseAdapter(cfg) {
   const nav = navigationReads();
   const early = speculativeReads();
   let openingNav = false;
+  let navSerial = 0;
+  let openNavId = 0;
   let authUserFlight = null;
-  let authUserFlightGen = -1;
+  let authUserFlightOwner = 0;
+  const navStops = new Map();
   function fetchAuthUser() {
-    const ticket = ident.generation();
-    if (authUserFlight && authUserFlightGen === ticket) return authUserFlight;
+    const owner = openNavId;
+    if (owner && authUserFlight && authUserFlightOwner === owner) return authUserFlight;
     const flight = sb.auth.getUser();
+    if (!owner) { flight.catch(() => {}); return flight; }
     authUserFlight = flight;
-    authUserFlightGen = ticket;
-    flight.catch(() => { if (authUserFlight === flight) { authUserFlight = null; authUserFlightGen = -1; } });
+    authUserFlightOwner = owner;
+    flight.catch(() => { if (authUserFlight === flight) { authUserFlight = null; authUserFlightOwner = 0; } });
     return flight;
   }
   function dropAuth() {
     ident.invalidate();
     authUserFlight = null;
-    authUserFlightGen = -1;
+    authUserFlightOwner = 0;
     profile.clear();
     nav.clear();
     early.clear();
@@ -397,10 +401,17 @@ export async function createSupabaseAdapter(cfg) {
   { const { hrSessionExtras, ...hrApi } = hrSupabase({ sb, ok, me }); Object.assign(a, hrApi);   // HR workspace, Phase 1 (Nov 4, migration 47): the session carries hrRole / hrEmployeeId / hrHasReports
     const gs = a.getSession; a.getSession = async function () { const u = await gs.call(this); if (!u) return u; return { ...u, ...(await nav.share(u.id, 'hr-extras', () => hrSessionExtras())) }; };
     a.beginNavigation = async function (hint) {
+      const myNav = ++navSerial;
+      const stopOlder = navStops.get(openNavId);
+      openNavId = myNav;
+      if (stopOlder) stopOlder();
+      let stopMine = () => {};
+      const stopped = new Promise((resolve) => { stopMine = () => resolve(true); navStops.set(myNav, stopMine); });
       openingNav = true;
       const empty = { user: null, hr: Promise.resolve({}), demo: Promise.resolve(null), mods: Promise.resolve({}) };
       try {
         for (let attempt = 0; attempt < 4; attempt += 1) {
+          if (openNavId !== myNav) return empty;
           const ticket = ident.generation();
           profile.begin();
           ident.forget();
@@ -411,7 +422,12 @@ export async function createSupabaseAdapter(cfg) {
           if (earlyProfile) earlyProfile.catch(() => {});
           const userFlight = fetchAuthUser();
           warmFile(hint);
-          const { data: { user } } = await userFlight;
+          const raced = await Promise.race([
+            userFlight.then((result) => ({ result })),
+            stopped.then(() => ({ stopped: true })),
+          ]);
+          if (raced.stopped || openNavId !== myNav) return empty;
+          const { data: { user } } = raced.result;
           if (ticket !== ident.generation()) { early.clear(); continue; }
           if (!user) { profile.clear(); nav.clear(); early.clear(); ident.forget(); return empty; }
           if (!early.adopt(nav, user.id, ticket, ident.generation())) { early.clear(); continue; }
@@ -429,8 +445,9 @@ export async function createSupabaseAdapter(cfg) {
         early.clear();
         return empty;
       } finally {
-        openingNav = false;
-        if (authUserFlightGen === ident.generation()) { authUserFlight = null; authUserFlightGen = -1; }
+        navStops.delete(myNav);
+        if (openNavId === myNav) { openNavId = 0; openingNav = false; }
+        if (authUserFlightOwner === myNav) { authUserFlight = null; authUserFlightOwner = 0; }
       }
     }; }
   Object.assign(a, feedbackNov4Supabase({ sb, ok, me }));

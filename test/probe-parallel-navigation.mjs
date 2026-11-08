@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import { createSupabaseAdapter } from '../js/data/supabase-adapter.js';
+let calls = 0, cb, resolveUser;
+globalThis.__fakeSB = { auth: { onAuthStateChange(fn) { cb = fn; }, getUser() { calls += 1; return new Promise((r) => { resolveUser = r; }); } }, rpc: async (n) => ({ data: n === 'my_profile' ? { id: 'A', role: 'Processor' } : n === 'demo_view_status' ? { active: false } : [], error: null }), from() { return { select() { return Promise.resolve({ data: [], error: null }); } }; } };
+const api = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE' });
+cb('INITIAL_SESSION', { user: { id: 'A' } });
+const first = api.beginNavigation();
+await new Promise((r) => setTimeout(r, 0));
+console.log('after navigation 1 getUser calls', calls);
+const second = api.beginNavigation();
+await new Promise((r) => setTimeout(r, 0));
+const atSecond = calls;
+console.log('after navigation 2 getUser calls', atSecond, 'expected separate check=2');
+resolveUser({ data: { user: { id: 'A' } } });
+const results = await Promise.all([first, second]);
+console.log('returned owners', results.map((x) => x.user && x.user.id));
+assert.equal(atSecond, 2, 'new concurrent navigation must not reuse previous navigation auth check');
