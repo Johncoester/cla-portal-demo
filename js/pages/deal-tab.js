@@ -1,5 +1,5 @@
 /* File-tab modules. Loading one evaluates local helpers only. It does not check who is signed in and it does not read a file. */
-const TABS = {
+const TABS = Object.assign(Object.create(null), {
   tasks: './dealtasks.js?v=202611082000',
   inbox: './dealmsgs.js?v=202611070139',
   documents: './dealdocs.js?v=202611082000',
@@ -12,15 +12,35 @@ const TABS = {
   funding: './dealfwp.js?v=202611070139',
   wires: './dealfwp.js?v=202611070139',
   policy: './dealfwp.js?v=202611070139',
-};
+});
 const TASK_FORM = './dealtaskform.js?v=202611082000';
 
+function ownSpec(tab) {
+  if (typeof tab !== 'string' || !Object.prototype.hasOwnProperty.call(TABS, tab)) return '';
+  const spec = TABS[tab];
+  return typeof spec === 'string' && spec ? spec : '';
+}
+
 export function dealTabSpec(tab, sub) {
-  if (!tab || tab === 'overview' || !TABS[tab]) return '';
-  return tab === 'tasks' && sub ? TASK_FORM : TABS[tab];
+  const spec = ownSpec(tab);
+  if (!spec) return '';
+  return tab === 'tasks' && sub ? TASK_FORM : spec;
+}
+
+let loadTab = (spec) => import(spec);
+
+export function useDealTabLoader(next) {
+  const prev = loadTab;
+  loadTab = typeof next === 'function' ? next : prev;
+  return () => { loadTab = prev; };
 }
 
 export function prefetchDealTab(tab, sub) {
   const spec = dealTabSpec(tab, sub);
-  return spec ? import(spec) : null;
+  if (!spec) return null;
+  let flight;
+  try { flight = Promise.resolve(loadTab(spec)); }
+  catch (err) { flight = Promise.reject(err); }
+  flight.catch(() => {});
+  return flight;
 }
