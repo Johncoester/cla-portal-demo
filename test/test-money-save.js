@@ -26,7 +26,16 @@ const cents = (n) => Math.round(Number(n) * 100);
 check(moneyAmount('') === null && moneyAmount('  ') === null && moneyAmount(null) === null, 'a blank amount clears');
 check(moneyAmount('0') === 0 && moneyAmount('0.00') === 0 && moneyAmount('$0') === 0, 'zero stays zero');
 check(cents(moneyAmount('12.3.4')) === 1234 && cents(moneyAmount('1,234.50')) === 123450 && cents(moneyAmount('$1,234.5')) === 123450, 'commas, a dollar sign, and an extra dot follow the typing rules');
-check(cents(moneyAmount('1,234.567')) === 123456 && cents(moneyAmount(1234.567)) === 123456, 'a third decimal digit is dropped, not rounded up');
+check(cents(moneyAmount('1,234.567')) === 123456, 'a third decimal digit is dropped, not rounded up');
+check(moneyAmount('1e3') === 13 && moneyAmount('1abc2') === 12 && moneyAmount('-12.34') === 12.34, 'letter and sign stripping stays as it was');
+for (const sample of ['', '0', '0.00', '12.34', '12.3.4', '1,234.50', '1,234.567', '-12.34', '1e3', '1abc2']) {
+  const once = moneyAmount(sample);
+  check(moneyAmount(once) === once, 'saving ' + JSON.stringify(sample) + ' again does not change it');
+}
+for (const bad of ['1000000000000000000000', 1e21, 1e-7]) {
+  let threw = false; try { moneyAmount(bad); } catch (err) { threw = true; }
+  check(threw && moneyAmount('12.34') === 12.34, 'refuses an amount that is not a safe number of cents: ' + bad);
+}
 for (const bad of ['abc', 'Infinity', 'NaN', Number.NaN, Number.POSITIVE_INFINITY]) {
   let threw = false; try { moneyAmount(bad); } catch (err) { threw = true; }
   check(threw, 'refuses ' + bad);
@@ -87,6 +96,37 @@ const heldRpc = [];
 const heldTc = held.tcSupabase({ sb: { rpc(name, args) { heldRpc.push(JSON.parse(JSON.stringify(args))); return Promise.resolve({ data: true, error: null }); }, from: sb.from }, ok, camel: (row) => row, api: { getDeal: async () => ({ participants }), listTasks: async () => [] } });
 await heldTc.updateContractInfo('file-1', { purchasePrice: '12.3.4', listingCommissionAmount: '', buyerCommissionAmount: '', sellerConcessions: '', emdAmount: '' });
 check(heldRpc[0].p_purchase_price === null, 'the held builder turns 12.3.4 into a null write');
+await heldTc.updateContractInfo('file-1', { purchasePrice: '1000000000000000000000', listingCommissionAmount: '', buyerCommissionAmount: '', sellerConcessions: '', emdAmount: '' });
+check(heldRpc[1].p_purchase_price === 1e21 && heldRpc[1].p_purchase_price !== 121, 'the held builder sends the huge amount as 1e21, not 121');
+const toastBox = document.querySelector('#toasts'); if (toastBox) toastBox.textContent = '';
+const beforeHuge = rpc.length;
+await submit('1000000000000000000000', false);
+const hugeNotes = (document.querySelector('#toasts') || { textContent: '' }).textContent;
+check(!!document.querySelector('#modal') && rpc.length === beforeHuge && hugeNotes.includes('Enter an amount') && !hugeNotes.includes('Contract info and client details saved'), 'an oversized amount stays in the form and is not written');
+
+const { createSupabaseAdapter } = await import('../js/data/supabase-adapter.js');
+const writes = [];
+globalThis.__fakeSB = {
+  auth: { onAuthStateChange(fn) { fn('INITIAL_SESSION', { user: { id: 'u1' } }); }, getUser() { return Promise.resolve({ data: { user: { id: 'u1' } }, error: null }); }, async signOut() { return { error: null }; } },
+  from(table) { return { insert(row) { writes.push({ op: 'insert', table, row }); return this; }, update(row) { writes.push({ op: 'update', table, row }); return this; }, select() { return this; }, eq() { return this; }, order() { return this; }, in() { return this; }, is() { return this; }, async single() { return { data: { id: 'file-1', street: '1 Main', city: 'Baltimore', state: 'MD', zip: '21201' }, error: null }; }, async maybeSingle() { return { data: null, error: null }; } }; },
+  async rpc() { return { data: [], error: null }; },
+};
+const adapter = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE' });
+let placeRefused = '';
+try { await adapter.createDeal({ street: '1 Main', city: 'Baltimore', state: 'MD', zip: '21201', transactionType: 'Purchase', purchasePrice: '1000000000000000000000', loanAmount: '0', emdAmount: '' }); }
+catch (err) { placeRefused = err.message; }
+check(placeRefused.includes('amount') && !writes.some((w) => w.op === 'insert'), 'place order does not insert an oversized price');
+writes.length = 0;
+await adapter.createDeal({ street: '1 Main', city: 'Baltimore', state: 'MD', zip: '21201', transactionType: 'Purchase', purchasePrice: '12.3.4', loanAmount: '0', emdAmount: '1,234.567' }).catch(() => {});
+const placed = writes.find((w) => w.op === 'insert');
+check(placed && cents(placed.row.purchase_price) === 1234 && placed.row.loan_amount === 0 && cents(placed.row.emd_amount) === 123456, 'place order stores 12.34, zero, and 1234.56');
+writes.length = 0;
+let editRefused = '';
+try { await adapter.updateDeal('file-1', { loanAmount: 1e21 }); } catch (err) { editRefused = err.message; }
+check(editRefused.includes('amount') && writes.length === 0, 'a file edit does not write 1e21');
+await adapter.updateDeal('file-1', { purchasePrice: '-12.34', loanAmount: '1abc2', emdAmount: '' }).catch(() => {});
+const edited = writes.find((w) => w.op === 'update');
+check(edited && edited.row.purchase_price === 12.34 && edited.row.loan_amount === 12 && edited.row.emd_amount === null, 'a file edit keeps the existing letter and sign rules and a blank clear');
 
 console.log(fail ? fail + ' failed' : 'money save passed');
 process.exit(fail ? 1 : 0);

@@ -1,31 +1,31 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611070139';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611082250';
 import { localDate, fileRoleLabel, moneyAmount } from './constants.js?v=202611082250';
 import { featureFlags } from './features.js?v=202611070139';
 import { accountingSupabase } from './supabase-accounting.js?v=202611071820';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
-import { modulesSupabase } from './supabase-modules.js?v=202611082100';
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611070139';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611070139';
-import { automationPart } from './automation.js?v=202611070139';
+import { modulesSupabase } from './supabase-modules.js?v=202611082250';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611082250';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611082250';
+import { automationPart } from './automation.js?v=202611082250';
 import { runsOrders as runsOrdersCI } from './constants.js?v=202611082250';
-import { crmSupabase } from './supabase-crm.js?v=202611070139';
+import { crmSupabase } from './supabase-crm.js?v=202611082250';
 import { hrSupabase } from './supabase-hr.js?v=202611070139';
-import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611070139';
-import { officesSupabase } from './supabase-offices.js?v=202611070139';
-import { closingLocationSupabase } from './supabase-closing-location.js?v=202611070139';
-import { tcSupabase } from './supabase-tc.js?v=202611070139';
-import { emailSendersSupabase } from './supabase-email-senders.js?v=202611070139';
-import { nov5Supabase } from './supabase-nov5.js?v=202611071715';
-import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611082000';
-import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611070139';
+import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611082250';
+import { officesSupabase } from './supabase-offices.js?v=202611082250';
+import { closingLocationSupabase } from './supabase-closing-location.js?v=202611082250';
+import { tcSupabase } from './supabase-tc.js?v=202611082250';
+import { emailSendersSupabase } from './supabase-email-senders.js?v=202611082250';
+import { nov5Supabase } from './supabase-nov5.js?v=202611082250';
+import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611082250';
+import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611082250';
 import { staffSupabase } from './supabase-staff.js?v=202611082000';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611080400';
-import { propertyAddressOf } from './nov5-rules.js?v=202611070139';
-import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList } from './task-actions.js?v=202611082000';
+import { propertyAddressOf } from './nov5-rules.js?v=202611082250';
+import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList } from './task-actions.js?v=202611082250';
 import { contactInsertRow } from './contact-insert.js?v=202611070139';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611070139';
 import { authEventAction, gatherReads, identitySlot, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611082200';
@@ -252,7 +252,7 @@ export async function createSupabaseAdapter(cfg) {
     async createDeal(input) {
       // Refinance (John, Nov 3): no purchase price / EMD; migration 32 (private.deal_refi_guard) refuses them, and sellers / realtors / a TC on the file
       const refi = input.transactionType === 'Refinance';
-      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611070139'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
+      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611082250'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
       const { data: { user } } = await sb.auth.getUser();
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
         open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : moneyAmount(input.purchasePrice), loan_amount: moneyAmount(input.loanAmount),

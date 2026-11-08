@@ -205,14 +205,30 @@ export function formatMoneyInput(el) {
   try { if (document.activeElement === el) el.setSelectionRange(i, i); } catch (e) { /* type=number etc. */ }
 }
 const MONEY_MSG = 'Enter an amount using digits, such as 1234.56.';
+function centsToAmount(cents) {
+  if (!Number.isSafeInteger(cents) || cents < 0) throw new Error(MONEY_MSG);
+  return cents / 100;
+}
+function amountFromTyped(typed) {
+  if (!/^\d+(\.\d{0,2})?$/.test(typed)) throw new Error(MONEY_MSG);
+  const [ints, dec = ''] = typed.split('.');
+  const centsDigits = (ints.replace(/^0+/, '') || '0') + (dec + '00').slice(0, 2);
+  if (centsDigits.length > 16) throw new Error(MONEY_MSG);
+  return centsToAmount(Number(centsDigits));
+}
 export function moneyAmount(v) {
-  if (typeof v === 'number') { if (!Number.isFinite(v)) throw new Error(MONEY_MSG); return moneyAmount(String(v)); }
+  if (typeof v === 'number') {
+    if (!Number.isFinite(v)) throw new Error(MONEY_MSG);
+    const abs = Math.abs(v);
+    const cents = Math.round(abs * 100);
+    if (!Number.isSafeInteger(cents) || (abs !== 0 && cents === 0) || Math.abs(abs - cents / 100) > 1e-6) throw new Error(MONEY_MSG);
+    return centsToAmount(cents);
+  }
   if (v == null) return null;
   const raw = String(v); if (raw.trim() === '') return null;
   const typed = moneyTyping(raw).replace(/,/g, '').replace(/\.$/, '');
   if (typed === '' || typed === '.') throw new Error(MONEY_MSG);
-  const n = Number(typed); if (!Number.isFinite(n)) throw new Error(MONEY_MSG);
-  return n;
+  return amountFromTyped(typed);
 }
 export function plainNumber(v) {
   if (v === '' || v == null) return null;

@@ -7,9 +7,9 @@
  *    adopts it. Only the signer can sign (an agent cannot sign for a client). Provider seam: esign.js. */
 import { AGREEMENTS, agreementOf } from './agreements.js?v=202611070139';
 import { getProvider, ESIGN_PROVIDER } from './esign.js?v=202611070139';
-import { WIRE_FRAUD_NOTE, CLA_PHONE } from './constants.js?v=202611070139';
-import { OFFICE_LOCATION, placeText as placeText0 } from './offices.js?v=202611070139';
-import { closingOfficeChoices, officeById, officeNameOf } from './mock-part-offices.js?v=202611070139';   // Admin > Offices (migration 57): the stored office list
+import { WIRE_FRAUD_NOTE, CLA_PHONE } from './constants.js?v=202611082250';
+import { OFFICE_LOCATION, placeText as placeText0 } from './offices.js?v=202611082250';
+import { closingOfficeChoices, officeById, officeNameOf } from './mock-part-offices.js?v=202611082250';   // Admin > Offices (migration 57): the stored office list
 export function mattP2(x) {
   const { load, save, nid, needUser, isManager, notViewOnly, onDeal, scopeTo, holds, contactOf, isStaffView, personSide, docVisible, log, prof, nameOf, notify, dealProfileIds, clone, now, fail, str, localDate, C } = x;
   const d0 = () => load();

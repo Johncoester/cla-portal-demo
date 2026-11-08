@@ -1,7 +1,7 @@
 // User List filter/search (Admin users page, John Nov 2). Pure functions so they are unit-tested (test/test-mock-admin-nov2.js).
 // Input rows come from adminListUsers(): { firstName, lastName, email, phone, role, isAdmin, status, files: [{ role, fileNumber }],
 // salesReps: [{ name }], clients: [{ name }], teams: [name], isClient }.
-import { STAFF_ACCOUNT_ROLES, OUTSIDE, OUTSIDE_FILE_ROLES, outsideTypeLabel } from './constants.js?v=202611070139';
+import { STAFF_ACCOUNT_ROLES, OUTSIDE, OUTSIDE_FILE_ROLES, outsideTypeLabel } from './constants.js?v=202611082250';
 
 // [value, label] for the Role filter: staff account roles, any outside user, each per-file role, clients, Admin access
 export const USER_ROLE_FILTERS = [

@@ -2,7 +2,7 @@
 // contacts / CRM, see each invite's status (pending, accepted, expired, revoked) and Resend (new link) or Revoke (retired, never deleted).
 // NOTHING IS SENT: the portal sends no email. The one-time link is shown on screen to copy.
 import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611070139';
-import { STATUS_LABEL, NO_EMAIL_NOTE } from '../data/agent-profile.js?v=202611070139';
+import { STATUS_LABEL, NO_EMAIL_NOTE } from '../data/agent-profile.js?v=202611082250';
 const PILL = { pending: 'warn', accepted: 'ok', expired: 'bad', revoked: '' };
 const abs = (link) => location.href.split('#')[0] + link;
 export async function render({ api, refresh }) {
