@@ -74,20 +74,25 @@ create table public.activity_log (
 create or replace function private.viewer_is_demo() returns boolean
 language sql stable security definer set search_path = pg_catalog, public as $$
   select coalesce((select is_demo from public.profiles where id = auth.uid()), false) $$;
+-- Captured live shape: me_role requires an active profile. is_processor is role or admin only.
+-- can_access_deal lets that Processor or Admin through without comparing deals.is_demo to the viewer.
+-- A stronger stub would hide the cross-world write. Do not add demo isolation here.
 create or replace function private.me_role() returns text
 language sql stable security definer set search_path = pg_catalog, public as $$
-  select role from public.profiles where id = auth.uid() $$;
+  select role from public.profiles where id = auth.uid() and status = 'active' $$;
 create or replace function private.is_processor() returns boolean
 language sql stable security definer set search_path = pg_catalog, public as $$
   select exists (
     select 1 from public.profiles p
     where p.id = auth.uid() and p.status = 'active'
-      and p.role in ('Processor', 'Preprocessor', 'Admin', 'Super admin')) $$;
+      and (p.role in ('Processor', 'Preprocessor', 'Admin', 'Super admin') or p.is_admin)) $$;
 create or replace function private.can_access_deal(p_deal uuid) returns boolean
 language sql stable security definer set search_path = pg_catalog, public as $$
-  select exists (
-    select 1 from public.deals d
-    where d.id = p_deal and d.is_demo is not distinct from private.viewer_is_demo()) $$;
+  select exists (select 1 from public.deals d where d.id = p_deal)
+     and (private.is_processor() or exists (
+       select 1 from public.deal_participants dp
+       join public.contacts c on c.id = dp.contact_id
+       where dp.deal_id = p_deal and c.profile_id = auth.uid())) $$;
 create or replace function private.crm_user() returns boolean
 language sql stable security definer set search_path = pg_catalog, public as $$
   select exists (

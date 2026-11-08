@@ -8,7 +8,9 @@ insert into public.profiles (id, first_name, last_name, role, status, is_demo) v
   ('33333333-3333-3333-3333-333333333333', 'Sam', 'Sales', 'Sales Person', 'active', false),
   ('44444444-4444-4444-4444-444444444444', 'Terry', 'Coordinator', 'Transaction Coordinator', 'active', false),
   ('55555555-5555-5555-5555-555555555555', 'Dana', 'Demo', 'Processor', 'active', true),
-  ('66666666-6666-6666-6666-666666666666', 'Gary', 'Gone', 'Outside user', 'removed', false);
+  ('66666666-6666-6666-6666-666666666666', 'Gary', 'Gone', 'Outside user', 'removed', false),
+  ('77777777-7777-7777-7777-777777777777', 'Adam', 'Admin', 'Admin', 'active', false),
+  ('88888888-8888-8888-8888-888888888888', 'Dee', 'DemoAdmin', 'Admin', 'active', true);
 
 insert into public.deals (id, file_number, is_demo) values
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1', 'MD-LIVE-1', false),
@@ -23,7 +25,8 @@ insert into public.contacts (id, first_name, last_name, profile_id, is_demo) val
   ('c1111111-1111-1111-1111-111111111116', 'Linda', 'Lender', null, false),
   ('c1111111-1111-1111-1111-111111111117', 'Gary', 'Gone', '66666666-6666-6666-6666-666666666666', false),
   ('c1111111-1111-1111-1111-111111111118', 'Paula', 'Processor', '11111111-1111-1111-1111-111111111111', false),
-  ('c2222222-2222-2222-2222-222222222222', 'Dana', 'DemoBuyer', null, true);
+  ('c2222222-2222-2222-2222-222222222222', 'Dana', 'DemoBuyer', null, true),
+  ('c2222222-2222-2222-2222-222222222223', 'Dee', 'DemoSeller', null, true);
 
 insert into public.deal_participants (deal_id, contact_id, role) values
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1', 'c1111111-1111-1111-1111-111111111111', 'Client-Buyer'),
@@ -34,7 +37,9 @@ insert into public.deal_participants (deal_id, contact_id, role) values
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1', 'c1111111-1111-1111-1111-111111111116', 'Lender'),
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1', 'c1111111-1111-1111-1111-111111111117', 'Client-Buyer'),
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1', 'c1111111-1111-1111-1111-111111111118', 'Processor'),
-  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', 'c2222222-2222-2222-2222-222222222222', 'Client-Buyer');
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', 'c2222222-2222-2222-2222-222222222222', 'Client-Buyer'),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', 'c2222222-2222-2222-2222-222222222223', 'Client-Seller'),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', 'c1111111-1111-1111-1111-111111111112', 'Client-Buyer');
 
 insert into public.crm_picklist_options (list_key, value, label, retired, position) values
   ('leadSource', 'Existing Client or Agent', 'Existing Client or Agent', false, 1),
@@ -134,16 +139,76 @@ do $$ begin
   exception when sqlstate '23514' then null; end;
 end $$;
 
--- Other world, and roles that must not write.
+-- The live helpers grant a Processor or Admin every existing order. Prove the stub does that,
+-- then prove set_deal_source still refuses the other demo world before clear, a bare code,
+-- a marketing value, a contact, the same stored value, or a reassign.
 do $$ begin
-  begin
-    perform public.referral_as('11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', 'buyer:c2222222-2222-2222-2222-222222222222');
-    raise exception 'real processor wrote a demo order';
-  exception when sqlstate 'P0002' then null; end;
-  begin
-    perform public.referral_as('55555555-5555-5555-5555-555555555555', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1', 'buyer:c1111111-1111-1111-1111-111111111112');
-    raise exception 'demo processor wrote a real order';
-  exception when sqlstate 'P0002' then null; end;
+  perform set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', true);
+  if not private.is_processor() then raise exception 'real processor should pass is_processor'; end if;
+  if not private.can_access_deal('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2') then
+    raise exception 'harness can_access_deal is stronger than the live helper'; end if;
+  perform set_config('request.jwt.claim.sub', '55555555-5555-5555-5555-555555555555', true);
+  if not private.is_processor() then raise exception 'demo processor should pass is_processor'; end if;
+  if not private.can_access_deal('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1') then
+    raise exception 'harness can_access_deal is stronger than the live helper'; end if;
+  if position('is_demo' in pg_get_functiondef('private.can_access_deal(uuid)'::regprocedure)) > 0 then
+    raise exception 'harness can_access_deal checks is_demo'; end if;
+  if position('is_demo' in pg_get_functiondef('private.is_processor()'::regprocedure)) > 0 then
+    raise exception 'harness is_processor checks is_demo'; end if;
+end $$;
+
+select public.referral_as('55555555-5555-5555-5555-555555555555', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', 'Google Ads');
+select public.referral_as('55555555-5555-5555-5555-555555555555', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', '');
+select public.referral_as('55555555-5555-5555-5555-555555555555', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', 'lender');
+select public.referral_as('55555555-5555-5555-5555-555555555555', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', 'buyer:c2222222-2222-2222-2222-222222222222');
+select public.referral_as('55555555-5555-5555-5555-555555555555', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', 'buyer:c2222222-2222-2222-2222-222222222222');
+select public.referral_as('88888888-8888-8888-8888-888888888888', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', 'seller:c2222222-2222-2222-2222-222222222223');
+do $$ begin
+  if (select source from public.deal_business_sources where deal_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2') <> 'seller:c2222222-2222-2222-2222-222222222223' then
+    raise exception 'demo admin could not reassign inside the demo world'; end if;
+end $$;
+
+do $$
+declare actor uuid; sample text; kept text;
+begin
+  foreach actor in array array[
+    '11111111-1111-1111-1111-111111111111'::uuid,
+    '77777777-7777-7777-7777-777777777777'::uuid] loop
+    kept := (select source from public.deal_business_sources where deal_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2');
+    foreach sample in array array['', 'lender', 'homeowner', 'Google Ads', 'buyer:c2222222-2222-2222-2222-222222222222', 'buyer:c1111111-1111-1111-1111-111111111112', kept, 'seller:c2222222-2222-2222-2222-222222222223'] loop
+      begin
+        perform public.referral_as(actor, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', sample);
+        raise exception 'real staff % wrote demo order with %', actor, sample;
+      exception when sqlstate 'P0002' then null; end;
+      if (select source from public.deal_business_sources where deal_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2') is distinct from kept then
+        raise exception 'real staff changed the demo source with %', sample; end if;
+    end loop;
+  end loop;
+  foreach actor in array array[
+    '55555555-5555-5555-5555-555555555555'::uuid,
+    '88888888-8888-8888-8888-888888888888'::uuid] loop
+    kept := (select source from public.deal_business_sources where deal_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1');
+    foreach sample in array array['', 'lender', 'homeowner', 'Google Ads', 'buyer:c1111111-1111-1111-1111-111111111112', 'buyer:c2222222-2222-2222-2222-222222222222', kept, 'seller:c1111111-1111-1111-1111-111111111113'] loop
+      begin
+        perform public.referral_as(actor, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1', sample);
+        raise exception 'demo staff % wrote real order with %', actor, sample;
+      exception when sqlstate 'P0002' then null; end;
+      if (select source from public.deal_business_sources where deal_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1') is distinct from kept then
+        raise exception 'demo staff changed the real source with %', sample; end if;
+    end loop;
+  end loop;
+end $$;
+
+-- Same world still accepts the same value and a reassign.
+select public.referral_as('11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1', 'buyer:c1111111-1111-1111-1111-111111111111');
+select public.referral_as('77777777-7777-7777-7777-777777777777', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1', 'buyer:c1111111-1111-1111-1111-111111111112');
+do $$ begin
+  if (select source from public.deal_business_sources where deal_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1') <> 'buyer:c1111111-1111-1111-1111-111111111112' then
+    raise exception 'real admin could not reassign inside the real world'; end if;
+end $$;
+
+-- Roles that must not write.
+do $$ begin
   begin
     perform public.referral_as('22222222-2222-2222-2222-222222222222', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1', 'buyer:c1111111-1111-1111-1111-111111111112');
     raise exception 'buyer wrote the source';

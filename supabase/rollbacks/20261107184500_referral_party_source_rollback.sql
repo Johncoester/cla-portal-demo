@@ -2,6 +2,7 @@
 -- Restores the Nov 6 source functions. Does not delete deal_business_sources and does not rewrite stored values.
 -- A buyer:<id> or seller:<id> saved after the forward migration remains stored. set_deal_source will refuse a new one
 -- until the forward migration is applied again. Read labels for those codes fall back to the Lead Source lookup.
+-- This restore is the November 6 function. It does not keep the deal-demo guard added in the forward file.
 
 create or replace function private.business_source_label(p_source text) returns text
 language sql stable security definer set search_path = pg_catalog, public as $$

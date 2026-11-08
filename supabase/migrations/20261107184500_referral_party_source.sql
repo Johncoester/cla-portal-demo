@@ -28,10 +28,18 @@ revoke all on function private.business_source_label(text) from public, anon, au
 
 create or replace function public.set_deal_source(p_deal uuid, p_source text) returns text
 language plpgsql security definer set search_path = pg_catalog, public as $$
-declare cur text; v text := btrim(coalesce(p_source, '')); code text; who text; party_role text;
+declare cur text; v text := btrim(coalesce(p_source, '')); code text; who text; party_role text; deal_demo boolean;
 begin
+  -- Stays security definer, matching the hosted function. Postgres will not turn an existing
+  -- security-definer function into an invoker with CREATE OR REPLACE, and dropping the RPC is a wider change.
+  -- private.is_processor and private.can_access_deal do not compare deals.is_demo with the viewer.
+  -- This read bypasses RLS, so the order's own flag is checked before clear, an unchanged value, a bare code, or a contact.
   if not private.is_processor() then raise exception 'Only a Processor or Admin can do this.' using errcode = '42501'; end if;
-  if not exists (select 1 from public.deals where id = p_deal) or not private.can_access_deal(p_deal) then raise exception 'Order not found.' using errcode = 'P0002'; end if;
+  select d.is_demo into deal_demo from public.deals d where d.id = p_deal;
+  if not found
+     or coalesce(deal_demo, false) is distinct from private.viewer_is_demo()
+     or not private.can_access_deal(p_deal) then
+    raise exception 'Order not found.' using errcode = 'P0002'; end if;
   select source into cur from public.deal_business_sources where deal_id = p_deal;
   if v = '' then update public.deal_business_sources set source = '', set_by = auth.uid(), set_at = now() where deal_id = p_deal and source <> ''; return ''; end if;
   if v is distinct from cur then
