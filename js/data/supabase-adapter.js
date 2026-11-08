@@ -68,12 +68,14 @@ export async function createSupabaseAdapter(cfg) {
     nav.clear();
     early.clear();
   }
+  let pendingAuthId = '';
   sb.auth.onAuthStateChange((event, session) => {
     const nextId = session && session.user && session.user.id || '';
     const held = ident.current();
-    const action = authEventAction(event, nextId, held && held.id || '', nav.userId());
+    const action = authEventAction(event, nextId, held && held.id || '', nav.userId(), pendingAuthId);
+    if (event === 'SIGNED_OUT') pendingAuthId = '';
+    else if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && nextId) pendingAuthId = nextId;
     if (action === 'drop') dropAuth();
-    else if (action === 'refresh') { profile.begin(); ident.forget(); }
     if (event === 'PASSWORD_RECOVERY') { try { sessionStorage.setItem('cla-portal-recovery', '1'); } catch (e) { /* the reset screen also checks the flag */ } if (!/recovery/.test(location.hash)) location.hash = '#/login'; }
   });
   const fileRead = (key, fn) => early.read(nav.userId(), key, fn, nav);
@@ -86,20 +88,23 @@ export async function createSupabaseAdapter(cfg) {
       return p;
     });
   const me = async () => {
-    const ticket = ident.generation();
-    const cached = ident.current();
-    if (cached && cached.id && nav.userId() === cached.id) return cached;
-    const { data: { user } } = await sb.auth.getUser();
-    if (ticket !== ident.generation()) return null;
-    if (!user) { profile.clear(); nav.clear(); early.clear(); ident.forget(); return null; }
-    if (nav.userId() !== user.id) {
-      profile.begin();
-      ident.forget();
-      if (!openingNav && !early.adopt(nav, user.id, ticket, ident.generation())) return null;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const ticket = ident.generation();
+      const cached = ident.current();
+      if (cached && cached.id && nav.userId() === cached.id) return cached;
+      const { data: { user } } = await sb.auth.getUser();
+      if (ticket !== ident.generation()) continue;
+      if (!user) { profile.clear(); nav.clear(); early.clear(); ident.forget(); return null; }
+      if (nav.userId() !== user.id) {
+        profile.begin();
+        ident.forget();
+        if (!openingNav && !early.adopt(nav, user.id, ticket, ident.generation())) continue;
+      }
+      const loaded = await meFrom(user);
+      if (ticket !== ident.generation() || !loaded || loaded.id !== user.id) continue;
+      return ident.hold(loaded, ticket);
     }
-    const loaded = await meFrom(user);
-    if (ticket !== ident.generation() || !loaded || loaded.id !== user.id) return ident.hold(null, ticket);
-    return ident.hold(loaded, ticket);
+    return null;
   };
   async function fetchDeal(id) {
     const got = await gatherReads({
@@ -380,23 +385,28 @@ export async function createSupabaseAdapter(cfg) {
     const gs = a.getSession; a.getSession = async function () { const u = await gs.call(this); if (!u) return u; return { ...u, ...(await nav.share(u.id, 'hr-extras', () => hrSessionExtras())) }; };
     a.beginNavigation = async function (hint) {
       openingNav = true;
-      const ticket = ident.generation();
       const empty = { user: null, hr: Promise.resolve({}), demo: Promise.resolve(null) };
       try {
-        profile.begin();
-        ident.forget();
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          const ticket = ident.generation();
+          profile.begin();
+          ident.forget();
+          early.clear();
+          warmFile(hint);
+          const { data: { user } } = await sb.auth.getUser();
+          if (ticket !== ident.generation()) { early.clear(); continue; }
+          if (!user) { profile.clear(); nav.clear(); early.clear(); ident.forget(); return empty; }
+          if (!early.adopt(nav, user.id, ticket, ident.generation())) { early.clear(); continue; }
+          const hr = nav.share(user.id, 'hr-extras', () => hrSessionExtras());
+          const demo = a.demoViewStatus().catch(() => null);
+          const loaded = await meFrom(user);
+          if (ticket !== ident.generation()) { nav.clear(); early.clear(); ident.forget(); continue; }
+          const kept = ident.hold(loaded && loaded.id === user.id ? loaded : null, ticket);
+          if (!kept) continue;
+          return { user: kept, hr, demo };
+        }
         early.clear();
-        warmFile(hint);
-        const { data: { user } } = await sb.auth.getUser();
-        if (ticket !== ident.generation()) { early.clear(); return empty; }
-        if (!user) { profile.clear(); nav.clear(); early.clear(); ident.forget(); return empty; }
-        if (!early.adopt(nav, user.id, ticket, ident.generation())) return empty;
-        const hr = nav.share(user.id, 'hr-extras', () => hrSessionExtras());
-        const demo = a.demoViewStatus().catch(() => null);
-        const loaded = await meFrom(user);
-        const kept = ident.hold(loaded && loaded.id === user.id ? loaded : null, ticket);
-        if (!kept) return empty;
-        return { user: kept, hr, demo };
+        return empty;
       } finally { openingNav = false; }
     }; }
   Object.assign(a, feedbackNov4Supabase({ sb, ok, me }));

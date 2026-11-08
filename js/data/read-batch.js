@@ -112,14 +112,17 @@ export function identitySlot() {
   };
 }
 
-/* A session restore fires SIGNED_IN before anyone is confirmed. That must not look like a sign-out.
- * A different person, or SIGNED_OUT, drops the remembered identity and pending reads. */
-export function authEventAction(event, nextId, heldId, ownerId) {
+/* The first SIGNED_IN while nobody is confirmed is the session restore: keep the route.
+ * A later id, a sign-out, a repeat sign-in of a confirmed person, or USER_UPDATED drops
+ * the profile, the demo check, and any read not yet tied to the confirmed person. */
+export function authEventAction(event, nextId, heldId, ownerId, pendingId = '') {
   if (event === 'SIGNED_OUT') return 'drop';
   if (event !== 'SIGNED_IN' && event !== 'USER_UPDATED') return 'keep';
+  if (pendingId && nextId && pendingId !== nextId) return 'drop';
   if (heldId && heldId !== nextId) return 'drop';
   if (ownerId && ownerId !== nextId) return 'drop';
-  if (event === 'USER_UPDATED' && nextId && (heldId === nextId || ownerId === nextId)) return 'refresh';
+  if (event === 'USER_UPDATED') return 'drop';
+  if ((heldId && heldId === nextId) || (ownerId && ownerId === nextId)) return 'drop';
   return 'keep';
 }
 

@@ -5,11 +5,13 @@ let fail = 0;
 const check = (cond, msg) => { if (cond) console.log('ok', msg); else { fail += 1; console.log('FAIL', msg); } };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-check(authEventAction('SIGNED_IN', 'person-a', '', '') === 'keep', 'a session restore does not drop a navigation that has not confirmed anyone');
-check(authEventAction('SIGNED_OUT', 'person-a', 'person-a', 'person-a') === 'drop', 'sign-out drops the remembered person');
-check(authEventAction('SIGNED_IN', 'person-b', 'person-a', 'person-a') === 'drop', 'a different person drops the previous file reads');
-check(authEventAction('USER_UPDATED', 'person-a', 'person-a', 'person-a') === 'refresh', 'the same person updating does not look signed out');
-check(authEventAction('INITIAL_SESSION', 'person-a', '', '') === 'keep', 'the initial session event keeps the route');
+check(authEventAction('SIGNED_IN', 'person-a', '', '', '') === 'keep', 'the first session restore does not drop a navigation that has not confirmed anyone');
+check(authEventAction('SIGNED_IN', 'person-b', '', '', 'person-a') === 'drop', 'a second person during startup drops reads that already ran');
+check(authEventAction('SIGNED_OUT', 'person-a', 'person-a', 'person-a', 'person-a') === 'drop', 'sign-out drops the remembered person');
+check(authEventAction('SIGNED_IN', 'person-b', 'person-a', 'person-a', 'person-a') === 'drop', 'a different person drops the previous file reads');
+check(authEventAction('USER_UPDATED', 'person-a', 'person-a', 'person-a', 'person-a') === 'drop', 'an update of the same person drops the old profile and demo snapshot');
+check(authEventAction('SIGNED_IN', 'person-a', 'person-a', 'person-a', 'person-a') === 'drop', 'signing in again as the confirmed person drops the old permission snapshot');
+check(authEventAction('INITIAL_SESSION', 'person-a', '', '', '') === 'keep', 'the initial session event keeps the route');
 
 import { parseHTML } from '/tmp/domtest/node_modules/linkedom/worker.js';
 const { window, document } = parseHTML('<!doctype html><html><body><div id="app"></div></body></html>');
