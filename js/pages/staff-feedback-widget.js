@@ -8,6 +8,8 @@ let state = { userId: null, open: false, reportId: '' };
 let composing = false;
 let live = null;
 let returnFocus = null;
+let watchToken = 0;
+let paintGen = 0;
 
 const el = (tag, cls, text) => {
   const node = document.createElement(tag);
@@ -18,6 +20,8 @@ const el = (tag, cls, text) => {
 const store = () => (typeof sessionStorage !== 'undefined' ? sessionStorage : null);
 
 function unmount() {
+  watchToken += 1;
+  paintGen += 1;
   const root = document.getElementById(HOST_ID);
   if (root) root.remove();
   document.body.classList.remove('cla-sf-open');
@@ -111,31 +115,87 @@ function quietCopy(full, dispatch) {
   return '';
 }
 
-async function paint(api, dispatch) {
-  if (!live) return;
-  let rows = [];
-  try { rows = (await api.listStaffFeedback()) || []; } catch (e) { rows = []; }
+function attached(node) {
+  if (!node) return false;
+  if (node.isConnected === false) return false;
+  if (node.isConnected === true) return true;
+  let cur = node;
+  while (cur) {
+    if (cur === document.body || cur.tag === 'BODY') return true;
+    cur = cur.parentNode || cur.parent || null;
+  }
+  return false;
+}
+function stillPaint(host, userId, gen, scope) {
+  return !!(host && live === host && attached(host.root) && state.userId === userId && paintGen === gen
+    && (!scope || (state.open && state.reportId === scope.reportId)));
+}
+
+async function paint(api, dispatch, scope) {
+  const gen = ++paintGen;
+  const host = live;
+  const userId = state.userId;
+  if (!stillPaint(host, userId, gen, scope)) return { ok: false };
+  let rows;
+  try { rows = (await api.listStaffFeedback()) || []; }
+  catch (e) { return { ok: false, error: true }; }
+  if (!stillPaint(host, userId, gen, scope)) return { ok: false };
   const mine = rows.filter((r) => r.mine);
-  if (!state.reportId && !composing && mine[0]) state = { ...state, reportId: mine[0].id };
-  live.thread.textContent = '';
-  const current = mine.find((r) => r.id === state.reportId) || null;
+  if (!scope && !state.reportId && !composing && mine[0]) state = { ...state, reportId: mine[0].id };
+  if (!stillPaint(host, userId, gen, scope)) return { ok: false };
+  const reportId = scope ? scope.reportId : state.reportId;
+  const current = mine.find((r) => r.id === reportId) || null;
   let full = current;
-  if (current) { try { full = await api.getStaffFeedback(current.id); } catch (e) { full = current; } }
+  if (current) {
+    try { full = await api.getStaffFeedback(current.id); }
+    catch (e) { return { ok: false, error: true }; }
+  }
+  if (!stillPaint(host, userId, gen, scope)) return { ok: false };
   const messages = (full && full.messages || []).slice().sort((a, b) => (Number(a.turnOrd) || 0) - (Number(b.turnOrd) || 0) || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
-  if (!messages.length) live.thread.appendChild(el('p', 'claSfEmpty', 'Nothing here yet. Send a message when you want me to see it.'));
-  messages.forEach((m) => live.thread.appendChild(bubble(m)));
-  if (full && (full.attachments || []).length) live.thread.appendChild(el('p', 'claSfFile', (full.attachments.length === 1 ? '1 screenshot is' : full.attachments.length + ' screenshots are') + ' stored with this conversation. This thread does not open the file.'));
-  const older = mine.filter((r) => r.id !== state.reportId);
-  live.history.hidden = !state.reportId;
-  live.historyList.textContent = '';
+  host.thread.textContent = '';
+  if (!messages.length) host.thread.appendChild(el('p', 'claSfEmpty', 'Nothing here yet. Send a message when you want me to see it.'));
+  messages.forEach((m) => host.thread.appendChild(bubble(m)));
+  if (full && (full.attachments || []).length) host.thread.appendChild(el('p', 'claSfFile', (full.attachments.length === 1 ? '1 screenshot is' : full.attachments.length + ' screenshots are') + ' stored with this conversation. This thread does not open the file.'));
+  const older = mine.filter((r) => r.id !== reportId);
+  host.history.hidden = !reportId;
+  host.historyList.textContent = '';
   older.forEach((r) => {
     const btn = el('button', 'claSfHistBtn', r.title || 'Earlier conversation'); btn.type = 'button';
     btn.addEventListener('click', () => { composing = false; state = nextWidgetState(state, { type: 'select', reportId: r.id }); paint(api); });
-    live.historyList.appendChild(btn);
+    host.historyList.appendChild(btn);
   });
-  live.quiet.textContent = quietCopy(full, dispatch);
-  live.quiet.hidden = !live.quiet.textContent;
-  live.thread.scrollTop = live.thread.scrollHeight;
+  host.quiet.textContent = quietCopy(full, dispatch);
+  host.quiet.hidden = !host.quiet.textContent;
+  host.thread.scrollTop = host.thread.scrollHeight;
+  if (host.thread.dataset) host.thread.dataset.checkedAt = String(Date.now());
+  return { ok: true, waiting: /Nothing back in this thread yet/.test(host.quiet.textContent || '') };
+}
+
+function armReplyWatch(api, reportId) {
+  const token = ++watchToken;
+  const host = live;
+  const userId = state.userId;
+  const started = Date.now();
+  if (!host || !attached(host.root)) return;
+  if (host.thread.dataset) host.thread.dataset.sentAt = String(started);
+  let errors = 0;
+  const alive = () => token === watchToken && live === host && attached(host.root) && state.open && state.userId === userId && state.reportId === reportId;
+  const tick = async () => {
+    if (!alive()) return;
+    let result;
+    try { result = await paint(api, null, { reportId }); }
+    catch (e) { result = { error: true }; }
+    if (!alive()) return;
+    if (!result || result.error || !result.ok) {
+      errors += 1;
+      if (errors > 2 || Date.now() - started > 90000) return;
+      setTimeout(tick, 5000);
+      return;
+    }
+    if (!result.waiting || Date.now() - started > 90000) return;
+    setTimeout(tick, 5000);
+  };
+  setTimeout(tick, 5000);
 }
 
 function mount(user, api) {
@@ -169,7 +229,7 @@ function mount(user, api) {
   body.appendChild(history); body.appendChild(thread); body.appendChild(quiet); body.appendChild(form);
   dlg.appendChild(mark); dlg.appendChild(x); dlg.appendChild(hi); dlg.appendChild(body);
   ovl.appendChild(dlg); root.appendChild(ovl); document.body.appendChild(root);
-  live = { ovl, dlg, body: message, err, quiet, thread, history, historyList, form, api };
+  live = { root, ovl, dlg, body: message, err, quiet, thread, history, historyList, form, api };
   const draft = loadDraft(store(), user.id);
   if (draft && draft.body) message.value = draft.body;
   message.addEventListener('input', persist);
@@ -181,22 +241,29 @@ function mount(user, api) {
     const text = message.value.trim();
     if (!text) { err.textContent = 'Write a message before sending.'; return; }
     send.disabled = true;
+    const host = live;
+    const userId = state.userId;
     try {
       let saved;
       let eventId = '';
       if (!state.reportId) {
         saved = await api.createStaffFeedback({ title: conversationTitle(text), body: text, includePage: false, includeOrder: false, idempotencyKey: newId() });
+        if (live !== host || state.userId !== userId) return;
         composing = false;
         state = nextWidgetState(state, { type: 'select', reportId: saved.id });
       } else {
         saved = await api.addStaffFeedbackTurn(state.reportId, { body: text, idempotencyKey: newId() });
         eventId = saved.turnEventId || '';
       }
+      if (live !== host || state.userId !== userId) return;
       message.value = ''; persist();
       const result = api.requestStaffFeedbackDispatch ? await api.requestStaffFeedbackDispatch(state.reportId, eventId || undefined) : { error: 'The server did not accept the send. It was not marked delivered.' };
-      await paint(api, result);
-    } catch (ex) { err.textContent = ex.message || 'The message was not sent.'; }
-    finally { send.disabled = false; }
+      if (live !== host || state.userId !== userId) return;
+      const painted = await paint(api, result);
+      if (live !== host || !attached(host.root) || state.userId !== userId) return;
+      if (painted && painted.ok && result && (result.reason === 'run_started' || result.reason === 'accepted_unrecorded')) armReplyWatch(api, state.reportId);
+    } catch (ex) { if (live === host && host.err) host.err.textContent = ex.message || 'The message was not sent.'; }
+    finally { if (live === host && attached(host.root)) send.disabled = false; }
   });
   if (api.recordLocalDemoReply && typeof window !== 'undefined') {
     window.__claLocalDemoReply = async (text) => {

@@ -134,8 +134,8 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
       if (r.error) throw new Error(r.error.message);
       return true;
     },
-    async getWorkQueue() {
-      const deals = await api.listDeals({ status: 'All' });
+    async getWorkQueue(already = null) {
+      const deals = already && already.deals ? already.deals : await api.listDeals({ status: 'All' });
       const open = deals.filter((d) => d.status === 'Open');
       const ids = open.map((d) => d.id);
       const tasks = ids.length ? camel(ok(await sb.from('tasks').select('id, deal_id, status, due_date, assigned_role').in('deal_id', ids))) || [] : [];

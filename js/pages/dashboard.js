@@ -4,6 +4,7 @@ import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from
 import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611070139';
 import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611070139';
 import { themeOn } from '../theme.js?v=202611070139';
+import { mapLimit } from '../data/read-batch.js?v=202611081930';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>${d.fileTitle ? html` <span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}`;
 // CARD THEME (default look): a tile that repeats one of the four dashboard cards (open orders = "in Pipeline" count, overdue tasks) is not drawn;
@@ -14,8 +15,9 @@ const bar = (d) => html`<div class="progress" title="${d.stageName}"><div style=
 export async function render(ctx) {
   const { api, user } = ctx;
   const deals = await api.listDeals({ status: 'All' });
-  const tasksByDeal = {}; for (const d of deals) tasksByDeal[d.id] = await api.listTasks(d.id);
-  const all = Object.entries(tasksByDeal).flatMap(([id, ts]) => ts.map((t) => ({ ...t, deal: deals.find((d) => d.id === id) })));
+  const needsTasks = !(user.isAdmin || runsOrders(user));
+  const lists = needsTasks ? await mapLimit(deals, 4, (d) => api.listTasks(d.id).then((ts) => ts.map((t) => ({ ...t, deal: d })))) : [];
+  const all = lists.flat();
   const open = deals.filter((d) => d.status === 'Open'); const today = localDate();
   const pick = user.isAdmin ? admin : runsOrders(user) ? processor : user.role === 'Transaction Coordinator' ? coordinator : isAgent(user.role) ? agent : isClient(user.role) ? client : isOutside(user.role) ? outside : team;
   const v = await pick({ ...ctx, deals, open, all, today });
@@ -26,7 +28,7 @@ export async function render(ctx) {
 }
 
 async function processor({ api, open, deals, today }) {
-  const wq = await api.getWorkQueue();
+  const wq = await api.getWorkQueue({ deals });
   const tasks = await api.listAllTasks({ fileStatus: 'All' });   // Matt, Nov 2: default view = incomplete tasks grouped by Buyer / Seller / Agent
   const rows = wq.needsAttention.map((r) => html`<tr><td>${dealLink(r.deal)} &middot; ${r.deal.stageName}</td><td>${r.deal.address}</td>
     <td>${r.overdue ? pill(r.overdue + ' overdue', 'bad') : ''} ${r.blocked ? pill(r.blocked + ' blocked', 'warn') : ''} ${r.waitingOnClients ? pill(r.waitingOnClients + ' waiting on clients', 'info') : ''}</td>
@@ -60,7 +62,7 @@ async function coordinator({ api, user, open, all, today }) {
   const mine = all.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status) && t.deal.status === 'Open' && (t.assignedRole === user.role || t.mine))
     .sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'));
   const summaries = {};
-  for (const d of open) { try { summaries[d.id] = await api.getTcFileSummary(d.id); } catch (e) { summaries[d.id] = null; } }
+  await mapLimit(open, 4, async (d) => { try { summaries[d.id] = await api.getTcFileSummary(d.id); } catch (e) { summaries[d.id] = null; } });
   const tasks = mine.map((t) => html`<tr data-tc-task="${t.id}"><td><a href="#/deals/${t.deal.id}/tasks${['form', 'sign', 'agent'].includes(t.kind) ? '/' + t.id : ''}">${t.title}</a></td><td><a href="#/deals/${t.deal.id}">${t.deal.fileNumber}</a><br><span class="muted small">${t.deal.address}</span></td><td class="${t.dueDate && t.dueDate < today ? 'bad-text' : ''}">${t.dueDate ? fmtDate(t.dueDate) : '—'}</td><td>${pill(t.status, t.status === 'blocked' ? 'warn' : 'info')}</td></tr>`);
   const files = open.slice().sort((a, b) => (a.closingDate || '9999').localeCompare(b.closingDate || '9999')).map((d) => {
     const s = summaries[d.id]; const e = s && s.emdAlta;
@@ -100,7 +102,7 @@ async function client({ user, deals, all }) {
 }
 
 async function admin({ api, user, deals }) {
-  const users = await api.adminListUsers(); const teams = await api.listTeams(); const log = await api.listActivity(null, { type: 'user' });
+  const [users, teams, log] = await Promise.all([api.adminListUsers(), api.listTeams(), api.listActivity(null, { type: 'user' })]);
   const count = (st) => users.filter((u) => u.status === st).length;
   const rows = log.items.slice(0, 8).map((a) => html`<tr><td class="nowrap">${fmtDateTime(a.createdAt)}</td><td>${a.actorName}</td><td>${a.detail}</td></tr>`);
   return { title: 'Admin', body: html`

@@ -21,13 +21,14 @@ import { emailSendersSupabase } from './supabase-email-senders.js?v=202611070139
 import { nov5Supabase } from './supabase-nov5.js?v=202611071715';
 import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611071845';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611070139';
-import { staffSupabase } from './supabase-staff.js?v=202611070139';
+import { staffSupabase } from './supabase-staff.js?v=202611081930';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611080400';
 import { propertyAddressOf } from './nov5-rules.js?v=202611070139';
 import { fetchHostedTaskList, fetchHostedTask } from './task-actions.js?v=202611070139';
 import { contactInsertRow } from './contact-insert.js?v=202611070139';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611070139';
+import { gatherReads, profileFlight } from './read-batch.js?v=202611081930';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
 
@@ -57,14 +58,18 @@ export async function createSupabaseAdapter(cfg) {
   const salesFields = (xs = []) => ({ salesPeople: xs, salesPersonIds: xs.map((x) => x.id), salesPersonName: xs.map((x) => x.name).join(', ') });
   const types = async (ids) => new Map(ids.length ? (ok(await sb.rpc('contact_types', { p_ids: [...new Set(ids)] })) || []).map((r) => [r.contact_id, r.contact_type]) : []);
   const withRole = (d, r, pm) => ({ ...d, myRole: r && r.role, myRoles: (r && r.roles) || [], myRoleLabel: r && r.label, selfRep: !!(r && r.self_rep), agentParties: pm.get(d.id) || [] });
+  const profile = profileFlight();
   const me = async () => {
-    const { data: { user } } = await sb.auth.getUser(); if (!user) return null;
-    const raw = ok(await sb.rpc('my_profile'));   // profiles row only; user_metadata is never a role
-    if (!raw) return { id: user.id, email: user.email || '', firstName: '', lastName: '', role: '', status: 'unprovisioned', unprovisioned: true, isAdmin: false };
-    const p = camel(raw);
-    const rs = p.role === 'Outside user' ? [...(await fileRoles()).values()] : [];
-    p.fileRoles = sorted(rs.flatMap((r) => r.roles || [])); p.fileLabels = sorted(rs.map((r) => r.label));
-    return p;
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) { profile.clear(); return null; }
+    return profile.load(user, async (who) => {
+      const raw = ok(await sb.rpc('my_profile'));   // profiles row only; user_metadata is never a role
+      if (!raw) return { id: who.id, email: who.email || '', firstName: '', lastName: '', role: '', status: 'unprovisioned', unprovisioned: true, isAdmin: false };
+      const p = camel(raw);
+      const rs = p.role === 'Outside user' ? [...(await fileRoles()).values()] : [];
+      p.fileRoles = sorted(rs.flatMap((r) => r.roles || [])); p.fileLabels = sorted(rs.map((r) => r.label));
+      return p;
+    });
   };
   const a = {
     mode: 'supabase',
@@ -98,30 +103,50 @@ export async function createSupabaseAdapter(cfg) {
       if (Object.keys(row).length) ok(await sb.from('profiles').update(row).eq('id', user.id));
       return me();
     },
-    async getSession() { return me(); },
-    async signOut() { await sb.auth.signOut(); },
+    async getSession() { profile.begin(); return me(); },
+    async signOut() { profile.clear(); await sb.auth.signOut(); },
     async resetDemoData() {},
     async getMyProfile() { return me(); },
     // John, Nov 2 (migration 23): file titles from deal_file_titles(p_deal) = the buyers' / sellers' last names the caller may see, in the order added
     // ---- examples of the pattern ----
     // status tabs (Open / Closed / On Hold / Cancelled / All): filter server-side, same contract as the mock (status missing or 'All' = every order)
     // Matt, Nov 2: + partyNames (search by name) and overdueTasks (filter) from deal_list_extras() (migration 16; RLS-scoped like the rest)
-    async listDeals({ status } = {}) { const [roles, pm] = [await fileRoles(), await parties()]; let q = sb.from('deals').select('*'); if (status && status !== 'All') q = q.eq('status', status);
-      const ex = new Map((ok(await sb.rpc('deal_list_extras')) || []).map((r) => [r.deal_id, r])); const sp = await salesMap();
-      const ft = await titles();   // John, Nov 2 (migration 23): 'Buyers / Sellers' last names
-      return camel(ok(await q.order('open_date', { ascending: false }).order('file_number', { ascending: false }))).map((d) => ({ ...withRole(d, roles.get(d.id), pm),
-        address: `${d.street}, ${d.city}, ${d.state} ${d.zip}`, displayName: propertyAddressOf(d), county: d.county || '', fileTitle: ft.get(d.id) || '', partyNames: (ex.get(d.id) || {}).party_names || [], overdueTasks: (ex.get(d.id) || {}).overdue_tasks || 0, ...salesFields(sp.get(d.id)) })); },
+    async listDeals({ status } = {}) {
+      let q = sb.from('deals').select('*'); if (status && status !== 'All') q = q.eq('status', status);
+      const got = await gatherReads({
+        roles: fileRoles,
+        parties: parties,
+        extras: async () => ok(await sb.rpc('deal_list_extras')) || [],
+        sales: () => salesMap(),
+        titles: () => titles(),
+        rows: async () => camel(ok(await q.order('open_date', { ascending: false }).order('file_number', { ascending: false }))) || [],
+      });
+      const ex = new Map(got.extras.map((r) => [r.deal_id, r]));
+      return got.rows.map((d) => ({ ...withRole(d, got.roles.get(d.id), got.parties),
+        address: `${d.street}, ${d.city}, ${d.state} ${d.zip}`, displayName: propertyAddressOf(d), county: d.county || '', fileTitle: got.titles.get(d.id) || '', partyNames: (ex.get(d.id) || {}).party_names || [], overdueTasks: (ex.get(d.id) || {}).overdue_tasks || 0, ...salesFields(got.sales.get(d.id)) }));
+    },
     // participants come from deal_contacts() (migration 13): the other side's agent/client keep their names but phone/email are blank for outside users
-    async getDeal(id) { const [roles, pm] = [await fileRoles(), await parties()]; const d = camel(ok(await sb.from('deals').select('*').eq('id', id).single()));
-      d.participants = (ok(await sb.rpc('deal_contacts', { p_deal: id })) || []).map((r) => ({ id: r.participant_id, dealId: r.deal_id, contactId: r.contact_id, role: r.role,
+    async getDeal(id) {
+      const got = await gatherReads({
+        roles: fileRoles,
+        parties: parties,
+        row: async () => camel(ok(await sb.from('deals').select('*').eq('id', id).single())),
+        contacts: async () => ok(await sb.rpc('deal_contacts', { p_deal: id })) || [],
+        sales: () => salesMap(id),
+        titles: () => titles(id),
+        entities: async () => ok(await sb.rpc('deal_entities', { p_deal: id })) || [],
+        source: async () => ok(await sb.rpc('deal_source', { p_deal: id })) || [],
+      });
+      const d = got.row;
+      d.participants = got.contacts.map((r) => ({ id: r.participant_id, dealId: r.deal_id, contactId: r.contact_id, role: r.role,
         contact: { id: r.contact_id, profileId: r.profile_id, firstName: r.first_name, lastName: r.last_name, company: r.company, email: r.email, phone: r.phone, contactHidden: r.contact_hidden } }));
       const ct = await types(d.participants.map((p) => p.contactId)); d.participants.forEach((p) => { p.contact.contactType = ct.get(p.contactId) || null; });
-      Object.assign(d, salesFields((await salesMap(id)).get(id))); d.county = d.county || ''; d.fileTitle = (await titles(id)).get(id) || '';
-      // Matt, Nov 3b (migration 31): buyer / seller entities (rep phone / email blank for the other side) + Source of business (CLA staff only; empty otherwise)
-      const ents = new Map((ok(await sb.rpc('deal_entities', { p_deal: id })) || []).map((r) => [r.participant_id, { name: r.name, type: r.entity_type || '', repName: r.rep_name || '', repTitle: r.rep_title || '', repPhone: r.rep_phone || '', repEmail: r.rep_email || '' }]));
+      Object.assign(d, salesFields(got.sales.get(id))); d.county = d.county || ''; d.fileTitle = got.titles.get(id) || '';
+      const ents = new Map(got.entities.map((r) => [r.participant_id, { name: r.name, type: r.entity_type || '', repName: r.rep_name || '', repTitle: r.rep_title || '', repPhone: r.rep_phone || '', repEmail: r.rep_email || '' }]));
       d.participants.forEach((p) => { p.entity = ents.get(p.id) || null; });
-      const src = (ok(await sb.rpc('deal_source', { p_deal: id })) || [])[0]; d.sourceOfBusiness = src ? src.value : ''; d.sourceOfBusinessLabel = src ? src.label : '';
-      return withRole(d, roles.get(d.id), pm); },
+      const src = got.source[0]; d.sourceOfBusiness = src ? src.value : ''; d.sourceOfBusinessLabel = src ? src.label : '';
+      return withRole(d, got.roles.get(d.id), got.parties);
+    },
     // John, Nov 2 (migration 19): several salespeople per order; the Processor and Admins add/remove them (RPCs check the role + file access)
     async listPreprocessors() { return camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status').eq('role', 'Preprocessor').eq('status', 'active').order('first_name'))); },
     async listProcessors() { const u = await me(); return (camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status, is_demo').in('role', PROCESSOR_PICK_ROLES).eq('status', 'active').order('first_name'))) || [])
