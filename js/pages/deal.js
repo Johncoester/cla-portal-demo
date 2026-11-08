@@ -13,13 +13,16 @@ import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611070139';
 import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611070139';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611071715';
+import { gatherReads } from '../data/read-batch.js?v=202611082000';
 
-const TABS = { tasks: './dealtasks.js?v=202611070139', inbox: './dealmsgs.js?v=202611070139', documents: './dealdocs.js?v=202611071715', contacts: './dealcontacts.js?v=202611070139', activity: './dealactivity.js?v=202611070139', closing: './dealclosing.js?v=202611070139', agreements: './dealagreements.js?v=202611070139', accounting: './dealaccounting.js?v=202611071820', title: './dealtitle.js?v=202611070139', funding: './dealfwp.js?v=202611070139', wires: './dealfwp.js?v=202611070139', policy: './dealfwp.js?v=202611070139' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611082000', inbox: './dealmsgs.js?v=202611070139', documents: './dealdocs.js?v=202611082000', contacts: './dealcontacts.js?v=202611070139', activity: './dealactivity.js?v=202611070139', closing: './dealclosing.js?v=202611070139', agreements: './dealagreements.js?v=202611070139', accounting: './dealaccounting.js?v=202611071820', title: './dealtitle.js?v=202611070139', funding: './dealfwp.js?v=202611070139', wires: './dealfwp.js?v=202611070139', policy: './dealfwp.js?v=202611070139' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 import { placeText } from '../data/cla-offices.js?v=202611070139';
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
-  const deal = await api.getDeal(params.id);
+  const tabName = params.tab || 'overview';
+  const staffShell = tabName !== 'overview' && api.readFileShell && ctx.user && ctx.user.role !== 'Outside user';
+  const deal = await (staffShell ? api.readFileShell(params.id) : (api.readDeal ? api.readDeal(params.id) : api.getDeal(params.id)));
   // per-file roles: on this order an outside user acts as their role HERE (deal.myRole), e.g. Buyer Agent here, Client-Buyer elsewhere
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
@@ -29,42 +32,42 @@ export async function render(ctx) {
   // CLIENT TABS (John, Nov 4: every buyer tab in the light client layout; same for the seller): the tab's own content, under the client file line +
   // pill tabs, drawn in the client shell (app.js: white top bar, CLA logo, no sidebar). The content and its rules are unchanged.
   if (tab !== 'overview' && TABS[tab] && user.role === 'Transaction Coordinator' && !user.accountRole) {
-    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611070139' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
+    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611082000' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
     const top = await tcTabChrome(ctx, deal, tab);
-    return { ...v, crumbs: [...here, ...(v.crumbs || [])], tcPage: true, body: html`<div class="co-page tc-page" data-tc-tabpage="${tab}">${top}<section class="co-card co-tabcard"><div class="co-cb">${v.body}</div></section></div>` };
+    return { ...v, deal, crumbs: [...here, ...(v.crumbs || [])], tcPage: true, body: html`<div class="co-page tc-page" data-tc-tabpage="${tab}">${top}<section class="co-card co-tabcard"><div class="co-cb">${v.body}</div></section></div>` };
   }
   if (tab !== 'overview' && TABS[tab] && user.accountRole && clientSide(user)) {
-    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611070139' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
+    const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611082000' : TABS[tab]); const v = await mod.render({ ...ctx, deal });
     const top = await clientTabChrome(ctx, deal, tab);
-    return { ...v, crumbs: [...here, ...(v.crumbs || [])], clientPage: { deal, side: clientSide(user), tab }, body: html`<div class="co-page co-tabpage" data-client-tab="${tab}">${top}<section class="co-card co-tabcard"><div class="co-cb">${v.body}</div></section></div>` };
+    return { ...v, deal, crumbs: [...here, ...(v.crumbs || [])], clientPage: { deal, side: clientSide(user), tab }, body: html`<div class="co-page co-tabpage" data-client-tab="${tab}">${top}<section class="co-card co-tabcard"><div class="co-cb">${v.body}</div></section></div>` };
   }
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611070139' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611082000' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, deal, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
-  if (user.role === 'Transaction Coordinator' && !user.accountRole) { return renderTcOverview(ctx, deal); }
+  if (user.role === 'Transaction Coordinator' && !user.accountRole) { const tc = await renderTcOverview(ctx, deal); return tc && typeof tc === 'object' ? { ...tc, deal } : tc; }
   // CLIENT OVERVIEW (John, Nov 4): the buyer / seller get the redesigned overview (client-overview.js) in place of the old overview + card summary (no Cash to Close / payoff mockup figures for clients).
   if (user.accountRole && clientSide(user)) {
     const ov0 = await ctx.api.getOrderOverview(deal.id);
-    { const co = await renderClientOverview({ ...ctx, wireModal, shareModal: (o) => shareModal(ctx, deal, ov0, o) }, deal, here); const lp = await locPromptHtml(ctx, deal); return lp ? { ...co, body: html`${lp}${co.body}` } : co; }   // John, Nov 4: the buyer / seller closing-location to-do also shows on the client overview
+    { const co = await renderClientOverview({ ...ctx, wireModal, shareModal: (o) => shareModal(ctx, deal, ov0, o) }, deal, here); const lp = await locPromptHtml(ctx, deal); const body = lp ? { ...co, body: html`${lp}${co.body}` } : co; return { ...body, deal }; }   // John, Nov 4: the buyer / seller closing-location to-do also shows on the client overview
   }
-  const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
-  deal.staffOrderNotes = !user.accountRole && api.listOrderNotes ? await ctx.api.listOrderNotes(deal.id).catch(() => []) : [];   // John, Nov 4: staff-only order notes (Title module sticky notes; never clients / agents)
-  const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
-  // Francis, Nov 3 (Qualia Connect agent portal): outstanding-task alert, 4-step progress, Order Details, Parties, Activity, Conversations,
-  // Request Update / Share Access (agents) and, for staff, the update requests to answer + shared access + the portal invite email
-  const ov = await ctx.api.getOrderOverview(deal.id); const ur = await ctx.api.listUpdateRequests(deal.id); const inv = await ctx.api.listSharedAccess(deal.id);
-  // John, Nov 4: a party who will not be in the property's state at closing is flagged to CLA staff on the order page (RON / embassy / out-of-state notary)
-  const locFlags = await ctx.api.closingLocationFlags(deal.id).catch(() => []);
+  const readOverview = (id) => (ctx.api.readOverview ? ctx.api.readOverview(id) : ctx.api.getOrderOverview(id));
+  // These reads do not depend on each other. The order header already has this file. Running them together is the overview wait.
+  const pack = await gatherReads({
+    ag: () => ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 })),
+    notes: () => (!user.accountRole && api.listOrderNotes ? ctx.api.listOrderNotes(deal.id).catch(() => []) : Promise.resolve([])),
+    salesStaff: () => (runsOrders(user) ? ctx.api.listSalesStaff().catch(() => []) : Promise.resolve([])),
+    ov: () => readOverview(deal.id),
+    ur: () => ctx.api.listUpdateRequests(deal.id),
+    inv: () => ctx.api.listSharedAccess(deal.id),
+    locFlags: () => ctx.api.closingLocationFlags(deal.id).catch(() => []),
+    promptHtml: () => locPromptHtml(ctx, deal),
+    splits: () => (!user.accountRole && user.role !== 'Outside user' && ctx.api.listUnderwriterSplits ? ctx.api.listUnderwriterSplits().then((r) => (r && r.rows) || []).catch(() => []) : Promise.resolve([])),
+    demoLocked: () => (ctx.api.demoViewStatus ? ctx.api.demoViewStatus().then((d) => !!((d || {}).active)).catch(() => true) : Promise.resolve(false)),
+  });
+  const { ag, salesStaff, ov, ur, inv, locFlags, promptHtml, splits, demoLocked } = pack;
+  deal.staffOrderNotes = pack.notes;   // John, Nov 4: staff-only order notes (Title module sticky notes; never clients / agents)
   const flagHtml = locFlags.length ? html`<div class="notice warn" data-location-flags>${locFlags.map((f) => html`<div data-location-flag="${f.participantId}"><strong>${f.text}</strong> &middot; signing method: ${f.signingLabel} <a href="#/deals/${deal.id}/closing">scheduling</a></div>`)}</div>` : '';
-  // John, Nov 4: a buyer / seller who has not said where they will be at closing (and the closing is not scheduled) gets a to-do card here
-  const promptHtml = await locPromptHtml(ctx, deal);
-  // ORDER PAGE REDESIGN (John, Nov 4 meeting; mockups 01-order-page / -mobile): one status bar (the Overview milestones) with the at-a-glance line under
-  // it, a bigger address + order number, one Parties list (Call / Email / Copy per person), Notes, Order contacts. The Summary cards, the card-theme
-  // Order Summary and the buyer / seller summary block are gone. Same page for every role; the role rules (adapter + canWire) are unchanged.
-  const splits = !user.accountRole && user.role !== 'Outside user' && ctx.api.listUnderwriterSplits ? await ctx.api.listUnderwriterSplits().then((r) => (r && r.rows) || []).catch(() => []) : [];   // the state's underwriter (Underwriter row)
-  let demoLocked = false;
-  if (ctx.api.demoViewStatus) { try { demoLocked = !!((await ctx.api.demoViewStatus()) || {}).active; } catch (e) { demoLocked = true; } }
   const v = overview({ ...ctx, demoLocked }, deal, here, ag, salesStaff, ov, splits); const extra = agentPanels(ctx, deal, ov, ur, inv); const done = placedPanel(deal);
-  return { ...v, noOrderHeader: true, body: html`${done.html}${promptHtml}${flagHtml}${v.head}${extra.top}${v.body}${extra.bottom}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
+  return { ...v, deal, noOrderHeader: true, body: html`${done.html}${promptHtml}${flagHtml}${v.head}${extra.top}${v.body}${extra.bottom}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
 }
 
 // REDESIGN (John, Nov 3): the confirmation after Place Order. ordernew.js leaves a note in sessionStorage (key below) and opens the new order; the

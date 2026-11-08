@@ -36,6 +36,82 @@ export function routeTokens() {
 
 /* One profile read per navigation, shared by the calls that follow it.
  * A different person, a sign-out, or the next navigation drops it. */
+/* One snapshot of the heavy file reads for the person this navigation already signed in.
+ * The next navigation, a sign-out, or another person drops it. A failed read is not kept. */
+export function navigationReads() {
+  let generation = 0;
+  let owner = '';
+  let box = new Map();
+  return {
+    begin(id) {
+      generation += 1;
+      owner = id || '';
+      box = new Map();
+    },
+    clear() { this.begin(''); },
+    userId() { return owner; },
+    share(id, key, fn) {
+      if (!id || id !== owner) return Promise.resolve().then(fn);
+      if (!box.has(key)) this.seed(id, key, Promise.resolve().then(fn));
+      return box.get(key);
+    },
+    seed(id, key, promise) {
+      if (!id || id !== owner || box.has(key)) return;
+      const ticket = generation;
+      const p = Promise.resolve(promise);
+      p.catch(() => { if (ticket === generation && box.get(key) === p) box.delete(key); });
+      box.set(key, p);
+    },
+    generation() { return generation; },
+  };
+}
+
+/* Reads started before the signed-in person is confirmed.
+ * A rejection is marked seen immediately and still rejects for the caller.
+ * Adoption happens only for the same auth generation that confirmed the person. */
+export function speculativeReads() {
+  let primed = new Map();
+  const tracked = (fn) => {
+    const p = Promise.resolve().then(fn);
+    p.catch(() => {});
+    return p;
+  };
+  return {
+    clear() { primed = new Map(); },
+    read(owner, key, fn, nav) {
+      if (owner) return nav.share(owner, key, fn);
+      if (!primed.has(key)) primed.set(key, tracked(fn));
+      return primed.get(key);
+    },
+    adopt(nav, id, ticket, generation) {
+      if (!id || ticket !== generation) { primed = new Map(); return false; }
+      nav.begin(id);
+      for (const [key, promise] of primed) nav.seed(id, key, promise);
+      primed = new Map();
+      return true;
+    },
+  };
+}
+
+/* The person remembered for this navigation. An auth change drops them. */
+export function identitySlot() {
+  let gen = 0;
+  let user = null;
+  let at = -1;
+  return {
+    generation() { return gen; },
+    invalidate() { gen += 1; user = null; at = -1; },
+    forget() { user = null; at = -1; },
+    current() { return at === gen ? user : null; },
+    hold(person, ticket) {
+      if (ticket !== gen || !person || !person.id) { user = null; at = -1; return null; }
+      user = person;
+      at = ticket;
+      return person;
+    },
+  };
+}
+
 export function profileFlight() {
   let flight = null;
   let userId = null;

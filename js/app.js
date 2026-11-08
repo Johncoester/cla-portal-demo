@@ -1,5 +1,5 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611081930';
+import { getAdapter } from './data/adapter.js?v=202611082000';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611070139';
 import { canUseCrm } from './data/crm.js?v=202611070139';
@@ -15,7 +15,7 @@ import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611070139';
 import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611080400';   // John, Nov 4: one locked login link per fake user
 import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080400';
-import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611081930';
+import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611082000';
 import { botRegistry } from './data/bot-registry.js?v=202611080400';
 import { voiceRouteOk } from './data/voice-demo.js?v=202611071632';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611070139';   // John, Nov 4 call: sidebar search + pinned order nav
@@ -30,10 +30,10 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611070139'),
-  dashboard: () => import('./pages/dashboard.js?v=202611081930'),
+  dashboard: () => import('./pages/dashboard.js?v=202611082000'),
   orders: () => import('./pages/orders.js?v=202611070139'),
   'orders/new': () => import('./pages/ordernew.js?v=202611080400'),
-  deal: () => import('./pages/deal.js?v=202611080400'),
+  deal: () => import('./pages/deal.js?v=202611082000'),
   users: () => import('./pages/users.js?v=202611070139'),
   profile: () => import('./pages/profile.js?v=202611070139'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
@@ -43,7 +43,7 @@ const pages = {
   library: () => import('./pages/library.js?v=202611070139'),
   activity: () => import('./pages/activity.js?v=202611070139'),
   outbox: () => import('./pages/outbox.js?v=202611070139'),
-  tasks: () => import('./pages/tasks.js?v=202611070139'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => import('./pages/tasks.js?v=202611082000'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611070139'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js?v=202611070139'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611070139'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
@@ -132,16 +132,16 @@ export function navFor(u, dealId, unread, features = {}, ws = 'everything', demo
   return out.filter((n) => navInWs(n.id, ws));
 }
 
-async function layout(u, view, route, ws = 'everything') {
+async function layout(u, view, route, ws = 'everything', prep = {}) {
   const api = await getAdapter();
   const dealId = route.page === 'deal' ? route.params.id : null;
-  const [unread, deal, counts, agentsLoaded] = await Promise.all([
-    api.notificationCount(),
-    dealId ? api.getDeal(dealId).catch(() => null) : null,
-    dealId && api.getOrderOverview ? api.getOrderOverview(dealId).then((o) => (o && o.counts) || null).catch(() => null) : null,
+  const dealRead = (view && view.deal) ? view.deal : (prep.deal !== undefined ? prep.deal : (dealId ? (api.readDeal ? api.readDeal(dealId) : api.getDeal(dealId)).catch(() => null) : null));
+  const [unread, deal, agentsLoaded] = await Promise.all([
+    prep.unread !== undefined ? prep.unread : api.notificationCount(),
+    dealRead,
     isOutside(u.role) && api.listMyAgents ? api.listMyAgents(dealId ? { dealId } : {}).catch(() => []) : [],
   ]);
-  const cnt = (tab) => { if (!counts) return ''; const n = { tasks: counts.tasks, inbox: counts.inbox, documents: counts.documents, activity: counts.activity }[tab]; return n == null ? '' : html`<span class="tab-count" data-tab-count="${tab}">${n}</span>`; };
+  const cnt = (tab) => html`<span class="tab-count" data-tab-count="${tab}" hidden></span>`;
   const HR_CUR = { home: 'hr-home', employees: 'hr-employees', employee: 'hr-employees', add: 'hr-add', departments: 'hr-departments', designations: 'hr-designations', me: 'hr-me', team: 'hr-team', settings: 'hr-settings', documents: 'hr-documents' };
   const navPage = route.page === 'admin/templates' ? 'templates' : route.page;
   const cur = navPage === 'hr' ? (HR_CUR[route.params.section] || '') : navPage === 'crm' && ws === 'crm' ? ({ home: 'crm-home', deals: 'crm-deals', contacts: 'crm-contacts', leads: 'crm-leads', calls: 'crm-calls', templates: 'crm-templates' }[route.params.section] || '') : (navPage === 'dashboard' && ws === null ? 'home' : navPage + (navPage === 'users' && route.params.mode === 'new' ? '/new' : ''));
@@ -264,28 +264,84 @@ function demoMenu(u) {
   return PORTAL_MODE === 'supabase' && u && u.role === 'Super admin' && u.isAdmin && !(DEMO_VIEW && DEMO_VIEW.active)
     ? html`<li><a href="#/demo" data-demo-mode>Demo mode</a></li>` : '';
 }
-function showLoading(root) {
+function showRouteLoading(root) {
   if (!root) return;
   root.setAttribute('aria-busy', 'true');
   root.setAttribute('data-route-loading', '1');
-  if (!root.querySelector('[data-loading-note]')) {
-    const note = document.createElement('p');
-    note.className = 'dev-banner';
-    note.setAttribute('data-loading-note', '');
-    note.setAttribute('role', 'status');
-    note.textContent = 'Loading this page.';
-    if (root.childElementCount) root.prepend(note);
-    else root.appendChild(note);
-  }
+  const note = document.createElement('p');
+  note.className = 'dev-banner';
+  note.setAttribute('data-loading-note', '');
+  note.setAttribute('role', 'status');
+  note.textContent = 'Loading this page.';
+  const view = root.querySelector('#view');
+  const host = view || root;
+  host.textContent = '';
+  host.appendChild(note);
+  if (view) { view.setAttribute('aria-busy', 'true'); markOpenFileTab(root); }
+}
+function markOpenFileTab(root) {
+  const route = parse();
+  if (!route || route.page !== 'deal' || !route.params || !route.params.id) return;
+  const tab = route.params.tab || 'overview';
+  const id = route.params.id;
+  root.querySelectorAll('a.nav-link').forEach((a) => {
+    const href = a.getAttribute('href') || '';
+    if (href.indexOf('#/deals/' + id) !== 0) return;
+    const path = href.split('?')[0].replace(/^#\/?/, '').split('/').filter(Boolean);
+    const linkTab = path[2] || 'overview';
+    const v = new URLSearchParams(href.split('?')[1] || '').get('v') || '';
+    a.classList.toggle('active', linkTab === tab && (tab !== 'accounting' || v === (route.params.v || '')));
+  });
+}
+function nextPaint() {
+  return new Promise((resolve) => {
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve());
+    else setTimeout(resolve, 0);
+  });
+}
+function rememberCounts(api, dealId, userId, token) {
+  const read = api.readOverview || api.getOrderOverview;
+  if (!read || !dealId || !userId) return;
+  Promise.resolve().then(() => read.call(api, dealId)).then((overview) => {
+    if (token !== rendering) return;
+    const root = $('#app');
+    if (!root || root.getAttribute('data-route-user') !== userId || root.getAttribute('data-route-deal') !== dealId) return;
+    const counts = (overview && overview.counts) || {};
+    ['tasks', 'inbox', 'documents', 'activity'].forEach((tab) => {
+      const slot = root.querySelector('[data-tab-count="' + tab + '"]');
+      if (!slot) return;
+      const n = counts[tab];
+      if (n == null) { slot.hidden = true; slot.textContent = ''; return; }
+      slot.hidden = false;
+      slot.textContent = String(n);
+    });
+  }).catch(() => {});
 }
 export async function render() {
-  const my = ++rendering; applyTheme(); const root = $('#app'); showLoading(root); const api = await getAdapter(); const route = parse(); closeModal();
+  const my = ++rendering; applyTheme(); const root = $('#app'); showRouteLoading(root); await nextPaint(); if (my !== rendering) return;
+  const api = await getAdapter(); const route = parse(); closeModal();
   PORTAL_MODE = api.mode || 'mock';
-  let u = await api.getSession();
-  if (my !== rendering) return;
-  if (u && api.demoViewStatus) { try { DEMO_VIEW = await api.demoViewStatus(); } catch (e) { DEMO_VIEW = null; } } else DEMO_VIEW = null;
-  if (my !== rendering) return;
-  if (u && DEMO_VIEW && DEMO_VIEW.active) { u = await api.getSession(); if (my !== rendering) return; }
+  const authAt = api.authGeneration ? api.authGeneration() : null;
+  const fileHint = route.page === 'deal' ? { dealId: route.params.id, tab: route.params.tab || 'overview', gated: !!routeModule(route) } : null;
+  let navStart = null;
+  let u = null;
+  if (api.beginNavigation) {
+    navStart = api.beginNavigation(fileHint);
+    const started = await navStart;
+    if (my !== rendering) return;
+    u = started && started.user || null;
+    DEMO_VIEW = started ? await started.demo : null;
+    if (my !== rendering) return;
+  } else {
+    u = await api.getSession();
+    if (my !== rendering) return;
+    DEMO_VIEW = (u && api.demoViewStatus) ? await api.demoViewStatus().then((d) => d || null).catch(() => null) : null;
+    if (my !== rendering) return;
+  }
+  if (u && DEMO_VIEW && DEMO_VIEW.active) {
+    if (api.beginNavigation) { const again = await api.beginNavigation(fileHint); if (my !== rendering) return; u = again && again.user || null; navStart = Promise.resolve(again); }
+    else { u = await api.getSession(); if (my !== rendering) return; }
+  }
   // LOCKED LOGIN LINK (John, Nov 4): ?as=<token> signs in as that one fake user and locks this tab to them (data/locked-links.js)
   const asTok = new URLSearchParams(location.search).get('as');
   if (api.mode === 'supabase') {
@@ -313,6 +369,7 @@ export async function render() {
     if (canViewAs(owner)) VIEW_AS = { owner, people, viewing: lock.viewAs || null }; }
   const lockedId = lock ? effectiveLockUser(lock, VIEW_AS ? VIEW_AS.owner : null) : null;
   if (lockedId && (!u || u.id !== lockedId)) { try { await api.pickPerson(lockedId); } catch (e) { /* removed user */ } u = await api.getSession();
+    if (my !== rendering) return;
     if (!u || u.id !== lockedId) { root.innerHTML = toText(html`<div class="box-title" data-bad-link><h2>This test link is no longer valid</h2></div>`); return; } }
   if (!u && !PUBLIC.has(route.page)) { syncFeedback(null); if (route.page === 'deal') sessionStorage.setItem('cla-portal-new:return', location.hash); location.hash = '#/login'; return; }   // invite deep link: back to the order after sign-in
   const recovery = api.mode === 'supabase' && sessionStorage.getItem('cla-portal-recovery') === '1';
@@ -322,42 +379,59 @@ export async function render() {
   if (u && isClientOnlyUser(u) && route.page === 'dashboard') { location.replace('#/orders'); return; }   // live40 (John, Nov 5): clients land on Open Orders, no My files page   // HR-only login: HR is home
   if (route.page === 'templates') { const moved = legacyTemplatesHash(location.hash); if (moved) { location.replace(moved); return; } }   // old Task Templates links, including ?tab=switches and ?tab=admin
   if (my !== rendering) return;
-  let mods = {};
-  if (u && api.getModuleAccess) {
-    const stamp = { id: u.id, role: u.role || '', demo: !!u.isDemo };
-    try { mods = await api.getModuleAccess() || {}; } catch (e) { mods = {}; }
-    if (my !== rendering) return;
+  const stamp = u ? { id: u.id, role: u.role || '', demo: !!u.isDemo } : null;
+  const modP = (u && api.getModuleAccess) ? api.getModuleAccess().then((m) => m || {}).catch(() => ({})) : Promise.resolve({});
+  const hrP = navStart ? navStart.then((s) => (s && s.hr) || {}).catch(() => ({})) : Promise.resolve(null);
+  let voiceP = Promise.resolve();
+  if (api.mode === 'supabase' && u && !(DEMO_VIEW && DEMO_VIEW.active) && api.requestVoicePass) {
+    if (voiceCheckedFor !== u.id) { voiceCheckedFor = u.id; voiceP = api.requestVoicePass('check').then((chk) => { VOICE_OK = !!(chk.ok && chk.data && chk.data.allowed === true); }).catch(() => { VOICE_OK = false; }); }
+  } else { VOICE_OK = false; if (!u) voiceCheckedFor = ''; }
+  const earlyMod = u ? routeModule(route) : null;
+  const earlyFile = !!(u && route.page === 'deal' && !earlyMod && routeAllowed(u, route, { locked: !!lockedId, demo: DEMO_VIEW }));
+  const unreadP = u && api.notificationCount ? api.notificationCount().catch(() => 0) : Promise.resolve(0);
+  if (earlyFile && api.readDeal) {
+    const id = route.params.id; const tab = route.params.tab || 'overview';
+    api.readDeal(id).catch(() => null);
+    if (tab === 'tasks' && api.listTasks) api.listTasks(id).catch(() => null);
+    if (tab === 'documents' && api.listDocuments) api.listDocuments(id).catch(() => null);
+    if (tab === 'overview' && api.readOverview) api.readOverview(id).catch(() => null);
+  }
+  const [mods, extra] = await Promise.all([modP, hrP, voiceP]);
+  if (my !== rendering) return;
+  if (extra && u) u = { ...u, ...extra };
+  if (authAt != null && api.authGeneration && api.authGeneration() !== authAt) return render();
+  if (u && api.getModuleAccess && authAt == null) {
     let now = null;
     try { now = await api.getSession(); } catch (e) { now = null; }
     if (my !== rendering) return;
     if (!now || now.id !== stamp.id || (now.role || '') !== stamp.role || !!now.isDemo !== stamp.demo) return render();
   }
   setModuleMap(mods);   // module switches for the person now signed in, after view-as and the locked link
-  if (api.mode === 'supabase' && u && !(DEMO_VIEW && DEMO_VIEW.active) && api.requestVoicePass) {
-    if (voiceCheckedFor !== u.id) { voiceCheckedFor = u.id; try { const chk = await api.requestVoicePass('check'); VOICE_OK = !!(chk.ok && chk.data && chk.data.allowed === true); } catch (e) { VOICE_OK = false; } }
-  } else { VOICE_OK = false; if (!u) voiceCheckedFor = ''; }
   const voiceBlocked = route.page === 'voice-demo' && !voiceRouteOk(u, { locked: !!lockedId, demo: DEMO_VIEW, mode: api.mode });
+  const settle = () => { if (my !== rendering) return; root.removeAttribute('aria-busy'); root.removeAttribute('data-route-loading'); if (u && u.id) root.setAttribute('data-route-user', u.id); else root.removeAttribute('data-route-user'); if (u && route.page === 'deal') { root.setAttribute('data-route-deal', route.params.id); rememberCounts(api, route.params.id, u.id, my); } else root.removeAttribute('data-route-deal'); };
   if (voiceBlocked || !routeAllowed(u, route, { locked: !!lockedId, demo: DEMO_VIEW })) {   // not part of this user's portal: refused for menu AND typed URLs
     if (!u) { location.hash = '#/login'; return; }
     const setup = route.page === 'templates' || route.page === 'admin/templates' || route.page === 'task-grid';
     const refused = setup ? 'You are not authorized to open this page.' : route.page === 'crm' ? 'The CRM is for CLA staff only.' : route.page === 'hr' ? 'HR is not available for your account. You are still in your own portal.' : 'That section is not available for your account. You are still in your own portal.';
-    root.innerHTML = toText(await layout(u, { body: html`<div class="box-title" data-route-refused><h2>${setup ? 'Not authorized' : 'Not available'}</h2></div><p data-refused-msg>${refused}</p>` }, route, hrOnly(u) ? 'hr' : 'everything')); wireChrome(u); return; }
+    const refusedShell = await layout(u, { body: html`<div class="box-title" data-route-refused><h2>${setup ? 'Not authorized' : 'Not available'}</h2></div><p data-refused-msg>${refused}</p>` }, route, hrOnly(u) ? 'hr' : 'everything');
+    if (my !== rendering) return; root.innerHTML = toText(refusedShell); wireChrome(u); settle(); return; }
   let ws = u ? currentWs(u) : 'everything';
   if (u && usesWorkspaces(u)) { const rw = routeWs(route);   // deep link: auto-switch to that link's workspace
     if (rw === 'hr') { if (ws !== 'hr' && hrVisible(u)) { setWs(u, 'hr'); ws = 'hr'; } }   // HR is not part of Everything: an HR link always opens HR
     else if (rw && ws !== 'everything' && ws !== rw) { const t = u.isAdmin ? rw : 'everything'; setWs(u, t); ws = t; }   // a non-admin leaving HR goes back to their usual portal
     if (route.page === 'dashboard' && ws && ws !== 'portal' && ws !== 'everything') { location.hash = '#' + wsById(ws).home; return; }
-    if (route.page === 'dashboard' && ws === null) { const v = neutralHome(u, api); if (my !== rendering) return; root.innerHTML = toText(await layout(u, v, route, ws)); wireChrome(u); document.title = 'Home | CLA Portal Live Test'; return; } }
+    if (route.page === 'dashboard' && ws === null) { const v = neutralHome(u, api); if (my !== rendering) return; const homeShell = await layout(u, v, route, ws); if (my !== rendering) return; root.innerHTML = toText(homeShell); wireChrome(u); document.title = 'Home | CLA Portal Live Test'; settle(); return; } }
   const modId = u ? routeModule(route) : null;
   const loader = (FLAGGED[route.page] && !(api.features || {})[FLAGGED[route.page]]) || (route.page === 'deal' && route.params.tab === 'accounting' && !(api.features || {}).accounting) || (modId && !modOn(modId)) ? null : pages[route.page];   // a module that is not Live (beta): Page not found for everyone but Admins   // Accounting tab: Page not found when the flag is off
-  if (!loader) { root.innerHTML = toText(await layout(u, { body: html`<div class="box-title"><h2>Page not found</h2></div><p>That page does not exist.</p>` }, route, ws)); wireChrome(u); return; }
+  if (!loader) { const missingShell = await layout(u, { body: html`<div class="box-title"><h2>Page not found</h2></div><p>That page does not exist.</p>` }, route, ws); if (my !== rendering) return; root.innerHTML = toText(missingShell); wireChrome(u); settle(); return; }
   const mod = await loader(); let view;
   try { view = await mod.render({ api, user: u, params: route.params, refresh: render, go }); }
   catch (e) { view = { crumbs: [['Not available']], body: html`<div class="box-title"><h2>Not available</h2></div><p class="err-text">${e.message}</p><p><a class="back-btn" href="#${homeFor(u)}">Back</a></p>` }; }
   if (my !== rendering) return;
   if (PUBLIC.has(route.page)) { root.innerHTML = toText(view.body); syncFeedback(u); }
-  else { let shell; try { shell = await layout(u, view, route, ws); } catch (e) { if (/sign in/i.test(e.message || '')) { location.hash = '#/login'; return; } throw e; }   // session ended mid-render
+  else { let shell; try { shell = await layout(u, view, route, ws, { unread: unreadP }); } catch (e) { if (/sign in/i.test(e.message || '')) { location.hash = '#/login'; return; } throw e; }   // session ended mid-render
     if (my !== rendering) return; root.innerHTML = toText(shell); wireChrome(u); }
+  settle();
   document.title = (view.title ? view.title + ' | ' : '') + 'CLA Portal Live Test';
   if (view.mount) view.mount($('#view') || root, { api, user: u, refresh: render, go });
 }

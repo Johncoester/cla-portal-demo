@@ -80,7 +80,7 @@ export function assembleHostedTask(rawRow, user, { template = null, formRpc = nu
   return t;
 }
 
-export async function fetchHostedTaskList(sb, dealId, user) {
+export async function fetchHostedTaskRows(sb, dealId) {
   const res = await sb.from('tasks').select(HOSTED_TASK_COLUMNS).eq('deal_id', dealId).order('created_at');
   if (res.error) throw new Error(res.error.message);
   const rows = res.data || [];
@@ -90,7 +90,12 @@ export async function fetchHostedTaskList(sb, dealId, user) {
     if (sw.error) throw new Error(sw.error.message);
     off = (sw.data || []).map((r) => r.code);
   }
-  return mapHostedTaskList(rows, user, off);
+  return { rows, off };
+}
+
+export async function fetchHostedTaskList(sb, dealId, user) {
+  const got = await fetchHostedTaskRows(sb, dealId);
+  return mapHostedTaskList(got.rows, user, got.off);
 }
 
 export async function fetchHostedTask(sb, id, user) {
