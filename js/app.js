@@ -1,5 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { getAdapter } from './data/adapter.js?v=202611082200';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611082230';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611070139';
 import { canUseCrm } from './data/crm.js?v=202611070139';
@@ -33,7 +34,7 @@ const pages = {
   dashboard: () => import('./pages/dashboard.js?v=202611082010'),
   orders: () => import('./pages/orders.js?v=202611070139'),
   'orders/new': () => import('./pages/ordernew.js?v=202611080400'),
-  deal: () => import('./pages/deal.js?v=202611082100'),
+  deal: () => import('./pages/deal.js?v=202611082230'),
   users: () => import('./pages/users.js?v=202611070139'),
   profile: () => import('./pages/profile.js?v=202611070139'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
@@ -338,6 +339,7 @@ export async function render() {
     return true;
   };
   const fileHint = route.page === 'deal' ? { dealId: route.params.id, tab: route.params.tab || 'overview', gated: !!routeModule(route) } : null;
+  if (fileHint && !fileHint.gated) prefetchDealTab(fileHint.tab, route.params.sub);
   let navStart = null;
   let u = null;
   if (api.beginNavigation) {
