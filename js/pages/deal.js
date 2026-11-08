@@ -7,15 +7,17 @@ import { modOn } from '../data/modules.js?v=202611070139';
 import { slotText } from './dealclosing.js?v=202611070139';
 import { pickerHtml, mountPicker } from './person-picker.js?v=202611070139';
 import { composeModal } from './compose.js?v=202611070139';
-import { moneyShow, moneyClean } from './money-input.js?v=202611070139';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611071845';
 import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611070139';
 import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611070139';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611071715';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611082250';
 import { gatherReads } from '../data/read-batch.js?v=202611082010';
 import { prefetchDealTab } from './deal-tab.js?v=202611082240';
 import { placeText } from '../data/cla-offices.js?v=202611070139';
+let moneyShow = (n) => (n == null || n === '' ? '' : String(n));
+let moneyClean = (v) => String(v == null ? '' : v).replace(/[$,\s]/g, '');
+import('./money-input.js?v=202611070139').then((m) => { if (m && typeof m.moneyShow === 'function') moneyShow = m.moneyShow; if (m && typeof m.moneyClean === 'function') moneyClean = m.moneyClean; }).catch(() => {});
 
 function staffSections(ctx, dealId) {
   const { api } = ctx;

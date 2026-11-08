@@ -7,7 +7,6 @@ import { canUseCrm } from './data/crm.js?v=202611070139';
 import { acctCanRead } from './data/accounting.js?v=202611070139';
 import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611070139';
 import { phaseOf } from './data/agent-portal.js?v=202611070139';
-import { formatMoneyInput } from './pages/money-input.js?v=202611070139';
 import { applyTheme, themeOn } from './theme.js?v=202611070139';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
 import { icon } from './pages/theme-cards.js?v=202611070139';
 import { canInviteAgents } from './data/agent-profile.js?v=202611070139';
@@ -25,7 +24,10 @@ import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=20261107
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
-// MONEY FORMAT (Matt, Nov 3 (b)): every <input data-money> shows commas while typing (485,000); pages send the clean number (money-input.js)
+// MONEY FORMAT (Matt, Nov 3 (b)): every <input data-money> shows commas while typing (485,000); pages send the clean number (money-input.js).
+// This helper is not part of opening a file. If its script fails, the page still starts and the box stays unformatted.
+let formatMoneyInput = () => {};
+import('./pages/money-input.js?v=202611070139').then((m) => { if (m && typeof m.formatMoneyInput === 'function') formatMoneyInput = m.formatMoneyInput; }).catch(() => {});
 document.addEventListener('input', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) formatMoneyInput(el); });
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
@@ -34,7 +36,7 @@ const pages = {
   dashboard: () => import('./pages/dashboard.js?v=202611082010'),
   orders: () => import('./pages/orders.js?v=202611070139'),
   'orders/new': () => import('./pages/ordernew.js?v=202611080400'),
-  deal: () => import('./pages/deal.js?v=202611082240'),
+  deal: () => import('./pages/deal.js?v=202611082250'),
   users: () => import('./pages/users.js?v=202611070139'),
   profile: () => import('./pages/profile.js?v=202611070139'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
