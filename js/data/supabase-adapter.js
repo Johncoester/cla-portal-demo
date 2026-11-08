@@ -19,16 +19,16 @@ import { closingLocationSupabase } from './supabase-closing-location.js?v=202611
 import { tcSupabase } from './supabase-tc.js?v=202611070139';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611070139';
 import { nov5Supabase } from './supabase-nov5.js?v=202611071715';
-import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611071845';
+import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611082000';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611070139';
-import { staffSupabase } from './supabase-staff.js?v=202611081950';
+import { staffSupabase } from './supabase-staff.js?v=202611082000';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611080400';
 import { propertyAddressOf } from './nov5-rules.js?v=202611070139';
-import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList } from './task-actions.js?v=202611070139';
+import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList } from './task-actions.js?v=202611082000';
 import { contactInsertRow } from './contact-insert.js?v=202611070139';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611070139';
-import { gatherReads, navigationReads, profileFlight } from './read-batch.js?v=202611081950';
+import { gatherReads, identitySlot, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611082000';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
 
@@ -37,12 +37,7 @@ export async function createSupabaseAdapter(cfg) {
   if (typeof localStorage !== 'undefined') { try { localStorage.removeItem('cla-portal-new:data:v30'); } catch (e) { /* a browser that blocks storage still must not load fixtures */ } }
   const { createClient } = await import(SB);
   const sb = createClient(cfg.url, cfg.anonKey);
-  let authGen = 0;
-  let routeUser = null;
-  sb.auth.onAuthStateChange((event) => {
-    if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') authGen += 1;
-    if (event === 'PASSWORD_RECOVERY') { try { sessionStorage.setItem('cla-portal-recovery', '1'); } catch (e) { /* the reset screen also checks the flag */ } if (!/recovery/.test(location.hash)) location.hash = '#/login'; }
-  });
+  const ident = identitySlot();
   const ok = (r) => { if (r.error) throw new Error(r.error.message); return r.data; };
   const camel = (o) => Array.isArray(o) ? o.map(camel) : o && typeof o === 'object'
     ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), camel(v)])) : o;
@@ -65,21 +60,19 @@ export async function createSupabaseAdapter(cfg) {
   const withRole = (d, r, pm) => ({ ...d, myRole: r && r.role, myRoles: (r && r.roles) || [], myRoleLabel: r && r.label, selfRep: !!(r && r.self_rep), agentParties: pm.get(d.id) || [] });
   const profile = profileFlight();
   const nav = navigationReads();
-  const primed = new Map();
+  const early = speculativeReads();
   let openingNav = false;
-  const fileRead = (key, fn) => {
-    const owner = nav.userId();
-    if (!owner) {
-      if (!primed.has(key)) primed.set(key, Promise.resolve().then(fn));
-      return primed.get(key);
-    }
-    return nav.share(owner, key, fn);
-  };
-  const openNav = (id) => {
-    nav.begin(id);
-    for (const [key, promise] of primed) nav.seed(id, key, promise);
-    primed.clear();
-  };
+  function dropAuth() {
+    ident.invalidate();
+    profile.clear();
+    nav.clear();
+    early.clear();
+  }
+  sb.auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') dropAuth();
+    if (event === 'PASSWORD_RECOVERY') { try { sessionStorage.setItem('cla-portal-recovery', '1'); } catch (e) { /* the reset screen also checks the flag */ } if (!/recovery/.test(location.hash)) location.hash = '#/login'; }
+  });
+  const fileRead = (key, fn) => early.read(nav.userId(), key, fn, nav);
   const meFrom = (who) => profile.load(who, async () => {
       const raw = ok(await sb.rpc('my_profile'));   // profiles row only; user_metadata is never a role
       if (!raw) return { id: who.id, email: who.email || '', firstName: '', lastName: '', role: '', status: 'unprovisioned', unprovisioned: true, isAdmin: false };
@@ -89,17 +82,20 @@ export async function createSupabaseAdapter(cfg) {
       return p;
     });
   const me = async () => {
-    if (routeUser && routeUser.id && nav.userId() === routeUser.id) return routeUser;
+    const ticket = ident.generation();
+    const cached = ident.current();
+    if (cached && cached.id && nav.userId() === cached.id) return cached;
     const { data: { user } } = await sb.auth.getUser();
-if (!user) { profile.clear(); nav.clear(); primed.clear(); routeUser = null; return null; }
-      if (nav.userId() !== user.id) {
+    if (ticket !== ident.generation()) return null;
+    if (!user) { profile.clear(); nav.clear(); early.clear(); ident.forget(); return null; }
+    if (nav.userId() !== user.id) {
       profile.begin();
-      if (!openingNav) openNav(user.id);
-      routeUser = null;
+      ident.forget();
+      if (!openingNav && !early.adopt(nav, user.id, ticket, ident.generation())) return null;
     }
     const loaded = await meFrom(user);
-    if (loaded && loaded.id === user.id) routeUser = loaded;
-    return loaded;
+    if (ticket !== ident.generation() || !loaded || loaded.id !== user.id) return ident.hold(null, ticket);
+    return ident.hold(loaded, ticket);
   };
   async function fetchDeal(id) {
     const got = await gatherReads({
@@ -132,7 +128,7 @@ if (!user) { profile.clear(); nav.clear(); primed.clear(); routeUser = null; ret
     row.fileTitle = '';
     row.sourceOfBusiness = '';
     row.sourceOfBusinessLabel = '';
-    if (routeUser && routeUser.role === 'Outside user') {
+    if (ident.current() && ident.current().role === 'Outside user') {
       const roles = await fileRoles();
       return withRole(row, roles.get(row.id), new Map());
     }
@@ -169,20 +165,23 @@ if (!user) { profile.clear(); nav.clear(); primed.clear(); routeUser = null; ret
       if (patch.firstName != null) row.first_name = String(patch.firstName); if (patch.lastName != null) row.last_name = String(patch.lastName); if (patch.phone != null) row.phone = String(patch.phone);
       const { data: { user } } = await sb.auth.getUser(); if (!user) throw new Error('Please sign in.');
       if (Object.keys(row).length) ok(await sb.from('profiles').update(row).eq('id', user.id));
-      profile.begin(); routeUser = null; return me();
+      profile.begin(); ident.forget(); return me();
     },
     async getSession() {
+      const ticket = ident.generation();
       const { data: { user } } = await sb.auth.getUser();
-      if (!user) { profile.clear(); nav.clear(); primed.clear(); routeUser = null; return null; }
-      if (!routeUser || routeUser.id !== user.id || nav.userId() !== user.id) {
-        profile.begin();
-        openNav(user.id);
-        routeUser = await meFrom(user);
-      }
-      return routeUser;
+      if (ticket !== ident.generation()) return null;
+      if (!user) { profile.clear(); nav.clear(); early.clear(); ident.forget(); return null; }
+      const cached = ident.current();
+      if (cached && cached.id === user.id && nav.userId() === user.id) return cached;
+      profile.begin();
+      if (!openingNav && !early.adopt(nav, user.id, ticket, ident.generation())) return null;
+      const loaded = await meFrom(user);
+      if (ticket !== ident.generation() || !loaded || loaded.id !== user.id) return null;
+      return ident.hold(loaded, ticket);
     },
-    authGeneration() { return authGen; },
-    async signOut() { profile.clear(); nav.clear(); primed.clear(); routeUser = null; await sb.auth.signOut(); },
+    authGeneration() { return ident.generation(); },
+    async signOut() { dropAuth(); await sb.auth.signOut(); },
     async resetDemoData() {},
     async getMyProfile() { return me(); },
     // John, Nov 2 (migration 23): file titles from deal_file_titles(p_deal) = the buyers' / sellers' last names the caller may see, in the order added
@@ -282,10 +281,12 @@ if (!user) { profile.clear(); nav.clear(); primed.clear(); routeUser = null; ret
     // tasks.form_data is NOT selectable (column grant); answers come from get_task_form for the owner / processor / coordinator / Admin only
     async listTasks(dealId) {
       const raw = fileRead('taskrows:' + dealId, () => fetchHostedTaskRows(sb, dealId));
-      const u = routeUser || await me();
-      if (!u) throw new Error('Please sign in.');
+      const ticket = ident.generation();
+      const u = ident.current() || await me();
+      if (!u || ticket !== ident.generation()) throw new Error('Please sign in.');
       if (nav.userId() && nav.userId() !== u.id) throw new Error('Please sign in.');
       const got = await raw;
+      if (ticket !== ident.generation() || (nav.userId() && nav.userId() !== u.id)) throw new Error('Please sign in.');
       return mapHostedTaskList(got.rows, u, got.off);
     },
     async getTask(id) { return fetchHostedTask(sb, id, await me()); },
@@ -375,18 +376,23 @@ if (!user) { profile.clear(); nav.clear(); primed.clear(); routeUser = null; ret
     const gs = a.getSession; a.getSession = async function () { const u = await gs.call(this); if (!u) return u; return { ...u, ...(await nav.share(u.id, 'hr-extras', () => hrSessionExtras())) }; };
     a.beginNavigation = async function (hint) {
       openingNav = true;
+      const ticket = ident.generation();
+      const empty = { user: null, hr: Promise.resolve({}), demo: Promise.resolve(null) };
       try {
         profile.begin();
-        routeUser = null;
-        primed.clear();
+        ident.forget();
+        early.clear();
         warmFile(hint);
         const { data: { user } } = await sb.auth.getUser();
-        if (!user) { profile.clear(); nav.clear(); primed.clear(); routeUser = null; return { user: null, hr: Promise.resolve({}), demo: Promise.resolve(null) }; }
-        openNav(user.id);
+        if (ticket !== ident.generation()) { early.clear(); return empty; }
+        if (!user) { profile.clear(); nav.clear(); early.clear(); ident.forget(); return empty; }
+        if (!early.adopt(nav, user.id, ticket, ident.generation())) return empty;
         const hr = nav.share(user.id, 'hr-extras', () => hrSessionExtras());
         const demo = nav.share(user.id, 'demo', () => a.demoViewStatus().catch(() => null));
-        routeUser = await meFrom(user);
-        return { user: routeUser, hr, demo };
+        const loaded = await meFrom(user);
+        const kept = ident.hold(loaded && loaded.id === user.id ? loaded : null, ticket);
+        if (!kept) return empty;
+        return { user: kept, hr, demo };
       } finally { openingNav = false; }
     }; }
   Object.assign(a, feedbackNov4Supabase({ sb, ok, me }));
@@ -396,7 +402,7 @@ if (!user) { profile.clear(); nav.clear(); primed.clear(); routeUser = null; ret
   Object.assign(a, tcSupabase({ sb, ok, camel, api: a }));   // John, Nov 5 (migration 71): TC contract / EMD / ALTA / all-parties thread
   Object.assign(a, emailSendersSupabase({ sb, ok, me }));
   Object.assign(a, nov5Supabase({ sb, ok, camel, me }));
-  Object.assign(a, orderOverviewSupabase({ sb, ok, camel, me: async () => routeUser || me(), api: a }));
+  Object.assign(a, orderOverviewSupabase({ sb, ok, camel, me: async () => ident.current() || me(), api: a }));
   a.readOverview = (dealId) => fileRead('overview:' + dealId, () => a.getOrderOverview(dealId));
   // Staff create and resend invite links here (nothing is emailed). Accepting a link goes through the accept-invite function, not a browser sign-up.
   Object.assign(a, staffFeedbackSupabase({ sb, ok, camel }));

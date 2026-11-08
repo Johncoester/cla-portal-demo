@@ -1,5 +1,5 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611081950';
+import { getAdapter } from './data/adapter.js?v=202611082000';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping } from './data/constants.js?v=202611070139';
 import { canUseCrm } from './data/crm.js?v=202611070139';
@@ -15,7 +15,7 @@ import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611070139';
 import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611080400';   // John, Nov 4: one locked login link per fake user
 import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080400';
-import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611081950';
+import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611082000';
 import { botRegistry } from './data/bot-registry.js?v=202611080400';
 import { voiceRouteOk } from './data/voice-demo.js?v=202611071632';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611070139';   // John, Nov 4 call: sidebar search + pinned order nav
@@ -30,10 +30,10 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611070139'),
-  dashboard: () => import('./pages/dashboard.js?v=202611081950'),
+  dashboard: () => import('./pages/dashboard.js?v=202611082000'),
   orders: () => import('./pages/orders.js?v=202611070139'),
   'orders/new': () => import('./pages/ordernew.js?v=202611080400'),
-  deal: () => import('./pages/deal.js?v=202611081950'),
+  deal: () => import('./pages/deal.js?v=202611082000'),
   users: () => import('./pages/users.js?v=202611070139'),
   profile: () => import('./pages/profile.js?v=202611070139'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
@@ -43,7 +43,7 @@ const pages = {
   library: () => import('./pages/library.js?v=202611070139'),
   activity: () => import('./pages/activity.js?v=202611070139'),
   outbox: () => import('./pages/outbox.js?v=202611070139'),
-  tasks: () => import('./pages/tasks.js?v=202611070139'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => import('./pages/tasks.js?v=202611082000'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611070139'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js?v=202611070139'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611070139'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
@@ -369,6 +369,7 @@ export async function render() {
     if (canViewAs(owner)) VIEW_AS = { owner, people, viewing: lock.viewAs || null }; }
   const lockedId = lock ? effectiveLockUser(lock, VIEW_AS ? VIEW_AS.owner : null) : null;
   if (lockedId && (!u || u.id !== lockedId)) { try { await api.pickPerson(lockedId); } catch (e) { /* removed user */ } u = await api.getSession();
+    if (my !== rendering) return;
     if (!u || u.id !== lockedId) { root.innerHTML = toText(html`<div class="box-title" data-bad-link><h2>This test link is no longer valid</h2></div>`); return; } }
   if (!u && !PUBLIC.has(route.page)) { syncFeedback(null); if (route.page === 'deal') sessionStorage.setItem('cla-portal-new:return', location.hash); location.hash = '#/login'; return; }   // invite deep link: back to the order after sign-in
   const recovery = api.mode === 'supabase' && sessionStorage.getItem('cla-portal-recovery') === '1';
@@ -412,16 +413,17 @@ export async function render() {
     if (!u) { location.hash = '#/login'; return; }
     const setup = route.page === 'templates' || route.page === 'admin/templates' || route.page === 'task-grid';
     const refused = setup ? 'You are not authorized to open this page.' : route.page === 'crm' ? 'The CRM is for CLA staff only.' : route.page === 'hr' ? 'HR is not available for your account. You are still in your own portal.' : 'That section is not available for your account. You are still in your own portal.';
-    root.innerHTML = toText(await layout(u, { body: html`<div class="box-title" data-route-refused><h2>${setup ? 'Not authorized' : 'Not available'}</h2></div><p data-refused-msg>${refused}</p>` }, route, hrOnly(u) ? 'hr' : 'everything')); wireChrome(u); settle(); return; }
+    const refusedShell = await layout(u, { body: html`<div class="box-title" data-route-refused><h2>${setup ? 'Not authorized' : 'Not available'}</h2></div><p data-refused-msg>${refused}</p>` }, route, hrOnly(u) ? 'hr' : 'everything');
+    if (my !== rendering) return; root.innerHTML = toText(refusedShell); wireChrome(u); settle(); return; }
   let ws = u ? currentWs(u) : 'everything';
   if (u && usesWorkspaces(u)) { const rw = routeWs(route);   // deep link: auto-switch to that link's workspace
     if (rw === 'hr') { if (ws !== 'hr' && hrVisible(u)) { setWs(u, 'hr'); ws = 'hr'; } }   // HR is not part of Everything: an HR link always opens HR
     else if (rw && ws !== 'everything' && ws !== rw) { const t = u.isAdmin ? rw : 'everything'; setWs(u, t); ws = t; }   // a non-admin leaving HR goes back to their usual portal
     if (route.page === 'dashboard' && ws && ws !== 'portal' && ws !== 'everything') { location.hash = '#' + wsById(ws).home; return; }
-    if (route.page === 'dashboard' && ws === null) { const v = neutralHome(u, api); if (my !== rendering) return; root.innerHTML = toText(await layout(u, v, route, ws)); wireChrome(u); document.title = 'Home | CLA Portal Live Test'; settle(); return; } }
+    if (route.page === 'dashboard' && ws === null) { const v = neutralHome(u, api); if (my !== rendering) return; const homeShell = await layout(u, v, route, ws); if (my !== rendering) return; root.innerHTML = toText(homeShell); wireChrome(u); document.title = 'Home | CLA Portal Live Test'; settle(); return; } }
   const modId = u ? routeModule(route) : null;
   const loader = (FLAGGED[route.page] && !(api.features || {})[FLAGGED[route.page]]) || (route.page === 'deal' && route.params.tab === 'accounting' && !(api.features || {}).accounting) || (modId && !modOn(modId)) ? null : pages[route.page];   // a module that is not Live (beta): Page not found for everyone but Admins   // Accounting tab: Page not found when the flag is off
-  if (!loader) { root.innerHTML = toText(await layout(u, { body: html`<div class="box-title"><h2>Page not found</h2></div><p>That page does not exist.</p>` }, route, ws)); wireChrome(u); settle(); return; }
+  if (!loader) { const missingShell = await layout(u, { body: html`<div class="box-title"><h2>Page not found</h2></div><p>That page does not exist.</p>` }, route, ws); if (my !== rendering) return; root.innerHTML = toText(missingShell); wireChrome(u); settle(); return; }
   const mod = await loader(); let view;
   try { view = await mod.render({ api, user: u, params: route.params, refresh: render, go }); }
   catch (e) { view = { crumbs: [['Not available']], body: html`<div class="box-title"><h2>Not available</h2></div><p class="err-text">${e.message}</p><p><a class="back-btn" href="#${homeFor(u)}">Back</a></p>` }; }
