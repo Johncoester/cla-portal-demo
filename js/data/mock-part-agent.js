@@ -66,8 +66,9 @@ export function agentPortal(x) {
     async getOrderOverview(dealId) {
       let u = needUser(); const q = dealOr404(u, dealId); u = onDeal(u, dealId); const d = load(); const v = dealView(u, q); const staff = isStaffView(u);
       const ps = participantsOf(dealId, u); const pid = (p) => p.contact && p.contact.profileId;
-      const party = (label, p) => ({ label, name: p ? (`${p.contact.firstName || ''} ${p.contact.lastName || ''}`.trim() || p.contact.company || 'Unnamed contact') : 'Not specified', company: p ? p.contact.company || '' : '', email: p ? p.contact.email : '', phone: p ? p.contact.phone : '',
-        contactHidden: !!(p && p.contact.contactHidden), entity: p && p.entity ? p.entity : null, profileId: p ? pid(p) || null : null, canMessage: !!(p && pid(p) && pid(p) !== u.id && !C.viewOnly(u) && x.canMessage(u, pid(p), dealId) && (prof(pid(p)) || {}).status === 'active') });
+      const party = (label, p) => { const hidden = !!(p && p.contact && p.contact.contactHidden);
+        return { label, name: p ? (`${p.contact.firstName || ''} ${p.contact.lastName || ''}`.trim() || p.contact.company || 'Unnamed contact') : 'Not specified', company: p ? p.contact.company || '' : '', email: p && !hidden ? p.contact.email || '' : '', phone: p && !hidden ? p.contact.phone || '' : '',
+        contactHidden: hidden, entity: p && p.entity ? p.entity : null, contactId: !p || hidden ? '' : (p.contactId || (p.contact && p.contact.id) || ''), profileId: p ? pid(p) || null : null, canMessage: !!(p && pid(p) && pid(p) !== u.id && !C.viewOnly(u) && x.canMessage(u, pid(p), dealId) && (prof(pid(p)) || {}).status === 'active') }; };
       const all = (role) => ps.filter((p) => p.role === role);
       const proc = prof(q.processorId);
       // Refinance (John, Nov 3): the borrower(s), the settlement agent and the lender only; no realtor or seller placeholders (an older refinance that still has one shows it)

@@ -8,7 +8,7 @@ import { slotText } from './dealclosing.js?v=202611070139';
 import { pickerHtml, mountPicker } from './person-picker.js?v=202611070139';
 import { composeModal } from './compose.js?v=202611070139';
 import { moneyShow, moneyClean } from './money-input.js?v=202611070139';
-import { sourceChoices, processorChoices } from '../data/place-order.js?v=202611070139';
+import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611071845';
 import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611070139';
 import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611070139';
@@ -61,7 +61,9 @@ export async function render(ctx) {
   // it, a bigger address + order number, one Parties list (Call / Email / Copy per person), Notes, Order contacts. The Summary cards, the card-theme
   // Order Summary and the buyer / seller summary block are gone. Same page for every role; the role rules (adapter + canWire) are unchanged.
   const splits = !user.accountRole && user.role !== 'Outside user' && ctx.api.listUnderwriterSplits ? await ctx.api.listUnderwriterSplits().then((r) => (r && r.rows) || []).catch(() => []) : [];   // the state's underwriter (Underwriter row)
-  const v = overview(ctx, deal, here, ag, salesStaff, ov, splits); const extra = agentPanels(ctx, deal, ov, ur, inv); const done = placedPanel(deal);
+  let demoLocked = false;
+  if (ctx.api.demoViewStatus) { try { demoLocked = !!((await ctx.api.demoViewStatus()) || {}).active; } catch (e) { demoLocked = true; } }
+  const v = overview({ ...ctx, demoLocked }, deal, here, ag, salesStaff, ov, splits); const extra = agentPanels(ctx, deal, ov, ur, inv); const done = placedPanel(deal);
   return { ...v, noOrderHeader: true, body: html`${done.html}${promptHtml}${flagHtml}${v.head}${extra.top}${v.body}${extra.bottom}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
 }
 
@@ -97,11 +99,11 @@ export const HIDDEN_CONTACT = 'Contact through CLA Title';
 export const entityLine = (e) => (e ? html`<div class="entity-line small" data-entity="${e.name}">Entity: <strong>${e.name}</strong>${e.type ? ` (${e.type})` : ''}${e.repName || e.repTitle || e.repPhone || e.repEmail ? html`<br>Entity Representative: ${[e.repName, e.repTitle].filter(Boolean).join(', ') || '\u2014'}${e.repPhone || e.repEmail ? html`<br><span class="muted">${[fmtPhone(e.repPhone), e.repEmail].filter(Boolean).join(' \u00b7 ')}</span>` : ''}` : ''}</div>` : '');
 const person = (p) => (p ? html`<div class="person" data-person="${p.contactId}">${entityLine(p.entity)}<strong>${p.contact.firstName} ${p.contact.lastName}${p.removed ? ' (removed)' : ''}</strong>${p.contact.contactHidden ? html`<br><span class="muted contact-hidden">${HIDDEN_CONTACT}</span>` : html`<br><span class="muted">${p.contact.email}</span><br><span class="muted">${fmtPhone(p.contact.phone)}</span>`}${p.contact.company ? html`<br><span class="muted">${p.contact.company}</span>` : ''}</div>` : html`<div class="muted">Not specified</div>`);
 
-function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = [], ov = null, splits = []) {
+function overview({ api, user, refresh, demoLocked }, d, crumbs, ag, salesStaff = [], ov = null, splits = []) {
   const staffView = !user.accountRole && user.role !== 'Outside user';
   const canWire = staffView || (user.roles || [user.role]).includes('Client-Buyer');   // Matt, Oct 31: buyer only (plus CLA staff)
   const sc = d.scheduledClosing;
-  const by = (role) => d.participants.find((p) => p.role === role); const all = (role) => d.participants.filter((p) => p.role === role); const edit = runsOrders(user);
+  const by = (role) => d.participants.find((p) => p.role === role); const all = (role) => d.participants.filter((p) => p.role === role); const edit = runsOrders(user) && !demoLocked;
   // REFINANCE (John, Nov 3): no purchase price, EMD, sellers or realtors; the borrower(s) are the Client-Buyer rows. An older refinance that still has a
   // seller / agent / price keeps showing it (nothing is hidden that is on the file), but nothing new can be added.
   const refi = isRefi(d); const B = refi ? 'Borrower' : 'Buyer';
@@ -135,7 +137,7 @@ function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = [], ov = n
     : by('Lender') ? html`<b>${by('Lender').contact.firstName} ${by('Lender').contact.lastName}</b>${by('Lender').contact.company ? html`<br><span class="muted small">${by('Lender').contact.company}</span>` : ''}` : Number(d.loanAmount) ? html`<b>Not yet entered</b>` : html`<b>None (cash)</b>`;
   const body = html`
     <div class="box-title"><h2><span class="h-ico"></span>Parties</h2><a class="ghost right" href="#/deals/${d.id}/contacts">All contacts</a></div>
-    ${partiesList(d, ov, staffView, { splits, edit })}
+    ${partiesList(d, ov, staffView, { splits, edit, source: staffView ? (d.sourceOfBusiness || '') : '', sourceLabel: staffView ? (d.sourceOfBusinessLabel || '') : '' })}
     ${staffView ? html`<div class="op-party-tools" data-party-tools>${edit ? html`<button type="button" class="ghost" data-add-party="Client-Buyer">+ Add ${B.toLowerCase()}</button>${!refi ? html` <button type="button" class="ghost" data-add-party="Client-Seller">+ Add seller</button>` : ''}` : ''}
       <span class="op-sales">Salespeople: ${(d.salesPeople || []).length ? (d.salesPeople || []).map((s, i) => html`${i ? ', ' : ''}<span class="nowrap" data-sales-person="${s.id}">${s.name}${edit ? html` <button class="ghost" data-rm-sales="${s.id}" title="Remove from this order" aria-label="Remove ${s.name}">&times;</button>` : ''}</span>`) : 'Not specified'}
       ${edit && salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)).length ? html` <select id="addsales" aria-label="Add a salesperson"><option value="">+ Add salesperson&hellip;</option>${options(salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)), '', (s) => `${s.firstName} ${s.lastName} (${s.role})`, (s) => s.id)}</select>` : ''}</span></div>` : ''}
@@ -157,7 +159,7 @@ function overview({ api, user, refresh }, d, crumbs, ag, salesStaff = [], ov = n
     const wb = $('#wirebtn', root); if (wb) wb.addEventListener('click', guard(() => wireModal(api, d)));
     $$('[data-add-party]', root).forEach((b) => b.addEventListener('click', guard(() => addPartyModal(api, d, b.dataset.addParty, refresh))));
     const en = $('[data-edit-notes]', root); if (en) en.addEventListener('click', guard(() => editModal(api, d, refresh)));
-    mountParties(root);
+    mountParties(root, { api, d, refresh, canEdit: edit && staffView });
   } };
 }
 
@@ -176,7 +178,7 @@ async function editModal(api, d, refresh) {
   const v = (k) => d[k] == null ? '' : d[k]; const refi = isRefi(d);
   // Matt, Nov 3 (b): source of business (CRM Settings Lead Source list; a retired / renamed value already on the order stays selectable) + money with commas
   const preprocs = await api.listPreprocessors(); const procs = api.listProcessors ? await api.listProcessors() : [];
-  const srcOpts = sourceChoices(d.sourceOfBusiness, d.sourceOfBusinessLabel, refi);
+  const srcOpts = sourceChoices(d.sourceOfBusiness, d.sourceOfBusinessLabel, refi, referralContacts(d.participants));
   const m = modal('Edit order details', html`<form id="edf" class="form-grid">
     <label class="span2">Street<input name="street" required value="${v('street')}"></label><label>City<input name="city" required value="${v('city')}"></label>
     <label>State<select name="state" required><option value="">Select state</option>${US_STATE_NAMES.map(([c, n]) => html`<option value="${c}" ${c === d.state ? raw('selected') : ''}>${n} (${c})</option>`)}${d.state && !US_STATES.includes(d.state) ? html`<option value="${d.state}" selected>${d.state}</option>` : ''}</select></label><label>ZIP<input name="zip" value="${v('zip')}"></label><label>County<input name="county" maxlength="100" value="${v('county')}" aria-label="County"></label>
@@ -266,28 +268,45 @@ export const STAFF_EXTRA_ROLES = ['Abstractor', 'Underwriter'];
 export function partyRows(d, ov, staffView, splits = []) {
   const rows = ov ? ov.parties.map((p) => ({ ...p })) : [];
   if (staffView) d.participants.filter((p) => !p.removed && p.contact && !OVERVIEW_ROLES.includes(p.role) && !(p.role === 'Lender' && rows.some((r) => r.label === 'Lender')))
-    .forEach((p) => rows.push({ label: p.role, name: `${p.contact.firstName || ''} ${p.contact.lastName || ''}`.trim() || p.contact.company || 'Unnamed contact', company: p.contact.company || '', email: p.contact.email || '', phone: p.contact.phone || '', contactHidden: !!p.contact.contactHidden, entity: p.entity || null, profileId: p.contact.profileId || null, canMessage: false }));
+    .forEach((p) => rows.push({ label: p.role, name: `${p.contact.firstName || ''} ${p.contact.lastName || ''}`.trim() || p.contact.company || 'Unnamed contact', company: p.contact.company || '', email: p.contact.email || '', phone: p.contact.phone || '', contactId: p.contact.contactHidden ? '' : (p.contactId || ''), contactHidden: !!p.contact.contactHidden, entity: p.entity || null, profileId: p.contact.profileId || null, canMessage: false }));
   if (staffView) for (const role of STAFF_EXTRA_ROLES) if (!rows.some((r) => r.label === role)) {
     const sp = role === 'Underwriter' ? (splits || []).find((x) => x.state === String(d.state || '').toUpperCase() && x.underwriter) : null;
     rows.push(sp ? { label: role, name: sp.underwriter, company: `${sp.state} underwriter (Underwriter Splits)`, email: '', phone: '', placeholder: true, fromSplits: true }
       : { label: role, name: 'Not specified', company: role === 'Abstractor' ? 'No abstractor on this order yet' : 'No underwriter on this order yet', email: '', phone: '', placeholder: true }); }
   return rows;
 }
-function partiesList(d, ov, staffView, { splits = [], edit = false } = {}) {
+function referralCell(row, state, canEdit) {
+  if (!state || !state.control) return html`<span class="op-ref"></span>`;
+  const meta = referralPartyByCode(state.code);
+  const who = state.contactId ? `${meta.label} — ${state.name}` : `${meta.label}, no person on this row`;
+  if (!state.contactId || state.disabled) return html`<label class="op-ref referral-source is-off"><input type="radio" disabled aria-label="Referral source: ${who}"> <span>Referral source</span></label>`;
+  const value = encodeReferral(state.code, state.contactId);
+  if (!canEdit) {
+    return html`<span class="op-ref${state.checked ? ' is-current' : ''}"${state.checked ? html` data-referral-current="${value}"` : ''}><input type="radio" disabled ${state.checked ? raw('checked') : ''} aria-label="Referral source: ${who}"> <span>Referral source</span></span>`;
+  }
+  return html`<label class="op-ref referral-source"><input type="radio" name="fileReferral" value="${value}" data-referral-source="${value}" aria-label="Referral source: ${who}" ${state.checked ? raw('checked') : ''}> <span>Referral source</span></label>`;
+}
+function partiesList(d, ov, staffView, { splits = [], edit = false, source = '', sourceLabel = '' } = {}) {
   const rows = partyRows(d, ov, staffView, splits);
+  const referral = staffView ? fileReferralState({ source, sourceLabel, rows, canEdit: edit }) : null;
   const avatar = (p) => (p.salesRep && p.profileId ? (p.photo ? html`<img class="party-avatar" src="${p.photo}" alt="" data-sales-photo>` : html`<span class="party-avatar" aria-hidden="true" data-sales-initials>${p.initials}</span>`) : '');
   const row = (p, i) => { const hid = p.contactHidden; const tel = hid ? '' : telOf(p.phone); const em = hid ? '' : p.email || '';
+    const ref = referral ? referralCell(p, referral.rows[i], edit) : '';
     return html`<div class="op-prow${p.salesRep ? ' sales-rep-party' : ''}${p.placeholder ? ' is-placeholder' : ''}" data-party="${p.label}"${p.placeholder ? html` data-party-placeholder` : ''}${p.salesRep ? html` data-sales-rep="${p.profileId || ''}"` : ''} data-party-row="${i}">
       <span class="op-role">${p.label}</span><span class="op-nm">${avatar(p)}${entityLine(p.entity)}<strong>${p.name}</strong>${p.company ? html`<small>${p.company}</small>` : ''}</span>
       ${hid ? html`<span class="op-ph op-hidden muted small contact-hidden" data-contact-hidden>${HIDDEN_CONTACT}</span><span class="op-em"></span>` : html`<span class="op-ph">${tel ? html`<span class="op-copy-val">${fmtPhone(p.phone)}</span>${partyCopyButton('phone', fmtPhone(p.phone))}` : html`<span class="muted">&mdash;</span>`}</span><span class="op-em">${em ? html`<span class="op-copy-val">${em}</span>${partyCopyButton('email', em)}` : html`<span class="muted">&mdash;</span>`}</span>`}
       <span class="op-acts">${tel ? html`<a class="op-act" href="tel:${tel}" data-call aria-label="Call ${p.name}">&#9742; Call</a>` : html`<span class="op-act is-off" aria-disabled="true">&#9742; Call</span>`}
         ${em ? html`<a class="op-act" href="mailto:${em}" data-email aria-label="Email ${p.name} (opens your mail app)">&#9993; Email</a>` : html`<span class="op-act is-off" aria-disabled="true">&#9993; Email</span>`}
         ${p.canMessage ? html`<button type="button" class="op-act" data-message-to="${p.profileId}">Message</button>` : ''}
-        ${p.placeholder && edit ? html`<a class="op-act" href="#/deals/${d.id}/contacts" data-add-role="${p.label}" aria-label="Add ${p.label.toLowerCase()} on Contacts">+ Add</a>` : ''}</span></div>`; };
-  return html`<div class="op-plist" data-parties data-party-list-all>${rows.length ? rows.map(row) : html`<p class="muted">Nobody on this order yet.</p>`}</div>
+        ${p.placeholder && edit ? html`<a class="op-act" href="#/deals/${d.id}/contacts" data-add-role="${p.label}" aria-label="Add ${p.label.toLowerCase()} on Contacts">+ Add</a>` : ''}</span>${ref}</div>`; };
+  const legacy = referral && referral.legacy ? html`<p class="op-ref-legacy" data-referral-unmatched>Referral source: ${referral.unmatched}. This value is not tied to one person on the file.</p>` : '';
+  const clear = referral && edit ? html`<label class="referral-source op-ref-clear"><input type="radio" name="fileReferral" value="" data-referral-clear aria-label="Referral source: Not set" ${referral.clearChecked ? raw('checked') : ''}> Not set</label>` : '';
+  const hint = referral ? html`<p class="muted small" data-referral-hint>Referral source is one person: a buyer, seller, buyer agent, listing agent, or lender. It is not the CLA salesperson and it does not change a contact's Lead Source.</p>` : '';
+  return html`<div class="op-plist" data-parties data-party-list-all${referral ? raw(' data-referral-on') : ''}>${rows.length ? rows.map(row) : html`<p class="muted">Nobody on this order yet.</p>`}</div>
+    ${staffView && edit ? html`<div class="op-ref-tools" data-referral-tools>${clear}</div>` : ''}${legacy}${hint}
     <p class="muted small op-pnote">Call and Email open your phone or mail app. The portal does not send anything.</p>`;
 }
-function mountParties(root) {
+function mountParties(root, { api, d, refresh, canEdit } = {}) {
   $$('[data-copy-field]', root).forEach((b) => b.addEventListener('click', async () => {
     const kind = b.dataset.copyKind === 'email' ? 'email address' : 'phone number';
     const label = copyLabel(b.dataset.copyKind === 'email' ? 'email' : 'phone');
@@ -297,6 +316,24 @@ function mountParties(root) {
     if (!ok) { b.classList.add('is-failed'); b.setAttribute('aria-label', `Could not copy the ${kind}`); toast(`Could not copy the ${kind}.`, 'err'); return; }
     b.classList.add('is-copied'); b.setAttribute('aria-label', `${kind[0].toUpperCase()}${kind.slice(1)} copied`); toast(`${kind[0].toUpperCase()}${kind.slice(1)} copied`);
     setTimeout(() => { if (!b.isConnected) return; b.classList.remove('is-copied'); b.setAttribute('aria-label', label); }, 2000);
+  }));
+  if (!canEdit || !api || !d) return;
+  const group = () => $$('[name=fileReferral]', root);
+  const restore = (value) => { const els = group();
+    if (!value) { els.forEach((el) => { el.checked = el.value === ''; }); return; }
+    const hit = els.some((el) => el.value === value);
+    els.forEach((el) => { el.checked = hit ? el.value === value : false; }); };
+  group().forEach((input) => input.addEventListener('change', async () => {
+    if (!input.checked) return;
+    const previous = d.sourceOfBusiness || '';
+    const next = input.value || '';
+    const result = await applyReferralChange({ previous, next, write: async (value) => {
+      const saved = await api.updateDeal(d.id, { sourceOfBusiness: value });
+      return saved && saved.sourceOfBusiness != null ? saved.sourceOfBusiness : value;
+    } });
+    if (!result.ok) { restore(previous); toast(result.error, 'err'); return; }
+    toast(result.value ? 'Referral source saved' : 'Referral source cleared');
+    refresh();
   }));
 }
 
