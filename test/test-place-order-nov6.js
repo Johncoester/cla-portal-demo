@@ -31,13 +31,16 @@ const tcs = await a.listCoordinators();
 ok(tcs.length >= 2, 'two transaction coordinators are available');
 
 const buyer = encodeReferral('buyer_agent', 'c-bagent');
-const md = await a.createDeal({ ...ORDER, transactionType: 'Purchase', purchasePrice: '485000', loanAmount: '388000', emdAmount: '10000', emdDueDate: '2026-11-20', closingDate: '2026-12-01', primaryResidence: 'yes', firstTimeBuyer: 'yes', sourceOfBusiness: buyer, notes: 'Nov 6 purchase', salesIds: [] });
+const md = await a.createDeal({ ...ORDER, transactionType: 'Purchase', purchasePrice: '485000', loanAmount: '388000', emdAmount: '10000', emdDueDate: '2026-11-20', closingDate: '2026-12-01', primaryResidence: 'yes', firstTimeBuyer: 'yes', sourceOfBusiness: '', notes: 'Nov 6 purchase', salesIds: [] });
 ok(md.state === 'MD' && md.primaryResidence === 'yes' && md.firstTimeBuyer === 'yes', 'step 2 saves Maryland answers');
-ok(md.sourceOfBusiness === buyer && md.sourceOfBusinessLabel === "Buyer's agent — Bianca Buyer-Agent", 'step 5 saves the buyer agent referral');
+ok(md.sourceOfBusiness === '', 'opening does not assign a referral before the people are on the order');
 ok(md.transactionType === 'Purchase' && md.openDate === '2026-11-01' && md.purchasePrice === 485000, 'steps 1 and 4 save type, open date and loan amounts');
+await rejects(() => a.createDeal({ ...ORDER, street: '3 Early Source Rd', sourceOfBusiness: buyer }), 'NEG a contact referral before that person is on the order', /on this order/);
 await a.addParticipant(md.id, 'c-buyer', 'Client-Buyer');
 await a.addParticipant(md.id, 'c-seller', 'Client-Seller');
 await a.addParticipant(md.id, 'c-bagent', 'Buyer Agent');
+const sourced = await a.updateDeal(md.id, { sourceOfBusiness: buyer });
+ok(sourced.sourceOfBusiness === buyer && sourced.sourceOfBusinessLabel === "Buyer's agent — Bianca Buyer-Agent", 'the buyer agent referral saves after that person is on the order');
 await a.addParticipant(md.id, 'c-lagent', 'Listing Agent');
 await a.addParticipant(md.id, 'c-lender1', 'Lender');
 await a.addParticipant(md.id, tcs[0].contactId, 'Transaction Coordinator');
@@ -62,7 +65,7 @@ const adapter = readFileSync(new URL('../js/data/supabase-adapter.js', import.me
 for (const bit of ['Upload sales contract', 'Upload title request', 'Add lender', "Buyer's transaction coordinator", 'Listing transaction coordinator', '+ Add another ${MULTI[role]}', "'Client-Seller': 'seller'", 'Who can see these files', 'id="tx-files"', 'id="tx-vis"', 'id="sob-block"', 'options(salesParty', 'MIN_ROWS = 1', 'data-add-tc']) ok(page.includes(bit), 'wizard has ' + bit);
 ok(!/name="p:Sales Team"[\s\S]{0,180}options\(contacts/.test(page), 'sales team member is not the full contact list');
 ok(adapter.includes('withoutHiddenProfiles') && adapter.includes('PROCESSOR_PICK_ROLES') && adapter.includes("!== 'MD'"), 'supabase adapter filters demo contacts, widens the processor list, and keeps occupancy for Maryland');
-ok(REFERRALS.length === 4, 'four referral choices');
+ok(REFERRALS.map(([code]) => code).join() === 'buyer,seller,buyer_agent,listing_agent,lender,homeowner', 'buyer and seller are referral choices and homeowner stays');
 
 console.log(fails ? `place-order-nov6: ${fails} failed` : `place-order-nov6: ${pass} passed`);
 if (fails) process.exit(1);

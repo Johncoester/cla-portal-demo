@@ -22,6 +22,7 @@ export function buildOrderOverview({ deal, me, tasks = [], documents = [], threa
     const profileId = c && c.profileId || null;
     return { label, name: c ? (`${c.firstName || ''} ${c.lastName || ''}`.trim() || c.company || 'Unnamed contact') : 'Not specified', company: c && !hidden ? c.company || '' : '',
       email: c && !hidden ? c.email || '' : '', phone: c && !hidden ? c.phone || '' : '', contactHidden: hidden, entity: p && p.entity ? p.entity : null,
+      contactId: hidden ? '' : (p && (p.contactId || (c && c.id)) || ''),
       profileId, canMessage: !!(profileId && profileId !== me.id && !hidden && !readOnly) };
   };
   const all = (role) => (deal.participants || []).filter((p) => p.role === role && !p.removed);

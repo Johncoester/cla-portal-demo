@@ -15,7 +15,7 @@ import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=2026110701
 import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611070139';
 import { crmReadOnly, CRM_OWNER_ROLES } from './crm.js?v=202611070139';
 import { dealDisplayName } from './nov5-rules.js?v=202611070139';
-import { referralLabel } from './place-order.js?v=202611070139';
+import { referralLabel, REFERRALS } from './place-order.js?v=202611071845';
 
 export const SEND_NOTE = 'Not sent: Gmail is not connected yet. The email was saved on this record only.';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -251,7 +251,7 @@ export function crmNov3bPart(x, h) {
       const status = str(f.status, 20); if (status && status !== 'All' && !C.DEAL_STATUSES.includes(status)) fail('Unknown status.');
       const client = str(f.clientId, 60); const src = str(f.source, 60);
       return rowsOf(u, 'deals').filter((r) => (!status || status === 'All' || r.status === status) && (!owner || (owner === 'none' ? !r.salesIds.length : r.salesIds.includes(owner)))
-        && (!client || r.clientIds.includes(client)) && (!src || (src === 'none' ? !r.source : r.source === src))); },
+        && (!client || r.clientIds.includes(client)) && (!src || (src === 'none' ? !r.source : r.source === src || r.source.startsWith(src + ':')))); },
     // the filter choices for the viewer: Deal Owner and Client only for the 'all' scope (a Sales Person filters by Source); Source = the Lead Source list
     // (active options, plus a retired one still on a visible deal)
     async listCrmDealFilters() { const u = crmUser(); const scope = dealScope(u); const rows = rowsOf(u, 'deals'); const d = db(); const cfg = cfgFor(u);
@@ -260,7 +260,8 @@ export function crmNov3bPart(x, h) {
       const clients = scope === 'all' ? [...new Set(rows.flatMap((r) => r.clientIds))].map((id) => d.contacts.find((c) => c.id === id)).filter(Boolean)
         .map((c) => ({ id: c.id, name: fullName(c) })).sort((a, b) => a.name.localeCompare(b.name)) : [];
       const used = new Set(rows.map((r) => r.source).filter(Boolean));
-      const sources = optionsOf(cfg, 'leadSource').filter((o) => !o.retired || used.has(o.value)).map((o) => ({ value: o.value, label: o.label + (o.retired ? ' (retired)' : '') }));
+      const leadSources = optionsOf(cfg, 'leadSource').filter((o) => !o.retired || used.has(o.value)).map((o) => ({ value: o.value, label: o.label + (o.retired ? ' (retired)' : '') }));
+      const sources = [...REFERRALS.map(([value, label]) => ({ value, label })), ...leadSources.filter((o) => !REFERRALS.some(([value]) => value === o.value))];
       return { scope, role: u.role, me: { id: u.id, name: nameOf(u.id) }, owners, clients, sources, statuses: ['Open', ...C.DEAL_STATUSES.filter((z) => z !== 'Open'), 'All'] }; },
     async getCrmDeal(id) { const u = crmUser(); const q = crmDealsFor(u).find((z) => z.id === str(id, 60)) || fail('Deal not found.'); const row = dealRow(u, q, cfgFor(u)); const d = db();
       const people = d.participants.filter((p) => p.dealId === q.id).map((p) => { const c = d.contacts.find((z) => z.id === p.contactId) || {}; return { role: p.role, name: fullName(c), email: c.email || '', link: c.id && contactSeen(u, c) ? `#/crm/contacts/${c.id}` : '' }; });

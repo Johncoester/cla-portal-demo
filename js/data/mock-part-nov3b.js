@@ -5,14 +5,21 @@
  * Order fields (sourceOfBusiness, lenderPhone / lenderEmail at placement) and buyer / seller entities live in createDeal / updateDeal / addParticipant.
  * Mirrored in SQL by public.source_of_business_options() (migration 31). */
 import { ensureSettings, activeOptions, optionsOf } from './crm-config.js?v=202611070139';
-import { parseReferral } from './place-order.js?v=202611070139';
+import { parseReferral } from './place-order.js?v=202611071845';
 import { ENTITY_TYPES, entityPrefill } from './templates.js?v=202611070139';
 
 export const sourceOptionsOf = (d) => activeOptions(ensureSettings(JSON.parse(JSON.stringify(d.crmSettings || null))), 'leadSource').map((o) => ({ value: o.value, label: o.label }));
 // a source value is OK when blank, unchanged, or an ACTIVE Lead Source option; returns the stored value
 export function checkSource(d, v, current, fail) {
   const s = String(v == null ? '' : v).trim(); if (!s || s === (current || '')) return s;
-  if (parseReferral(s)) return s;
+  const ref = parseReferral(s);
+  if (ref) {
+    if (ref.code === 'homeowner') return 'homeowner';
+    if (!ref.contactId) return ref.code;
+    const c = (d.contacts || []).find((z) => z.id === ref.contactId);
+    if (!c) fail('Source of business: pick one from the list.');
+    return `${ref.code}:${ref.contactId}`;
+  }
   const all = optionsOf(ensureSettings(JSON.parse(JSON.stringify(d.crmSettings || null))), 'leadSource');
   const o = all.find((z) => z.value === s) || all.find((z) => z.label.toLowerCase() === s.toLowerCase());
   if (!o || o.retired) fail('Source of business: pick one from the list.'); return o.value;
