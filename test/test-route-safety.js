@@ -11,6 +11,9 @@ check(ident.hold({ id: 'person-a', role: 'Super admin' }, ticket).id === 'person
 ident.invalidate();
 check(ident.current() == null, 'an auth change drops the remembered person');
 check(ident.hold({ id: 'person-a', role: 'Super admin' }, ticket) == null, 'an older generation cannot store a person after the auth change');
+const newer = ident.generation();
+check(ident.hold({ id: 'person-b', role: 'Processor' }, newer).id === 'person-b', 'the generation after the change can store its own person');
+check(ident.hold({ id: 'person-a', role: 'Super admin' }, ticket) == null && ident.current() && ident.current().id === 'person-b', 'an older generation does not drop the person confirmed after it');
 
 let unhandled = 0;
 const onUnhandled = () => { unhandled += 1; };

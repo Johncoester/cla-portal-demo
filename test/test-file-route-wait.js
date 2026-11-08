@@ -66,18 +66,19 @@ const viewText = () => (document.querySelector('#view') || document.body).textCo
 
 await wait(10);
 check(document.querySelector('[data-loading-note]') && viewText().includes('Loading this page.'), 'the first file page shows the loading line before the file read');
+check(!document.querySelector('[data-content-ready]'), 'the loading line is not marked ready');
 check(!viewText().includes('Documents & Files'), 'documents are not claimed before the file read');
 await release('deal');
 await release('documents');
 await release('overview');
 await wait(30);
-check(viewText().includes('Documents & Files'), 'documents render after their own read');
+check(viewText().includes('Documents & Files') && document.querySelector('#app').getAttribute('data-content-ready') === 'documents', 'documents render after their own read');
 
 started.length = 0;
 location.hash = '#/deals/deal-1/tasks';
 const toTasks = app.render();
 await wait(15);
-check(viewText().includes('Loading this page.'), 'a file tab shows the loading line in the open page');
+check(viewText().includes('Loading this page.') && !document.querySelector('[data-content-ready]'), 'a file tab shows the loading line in the open page');
 check(!viewText().includes('Documents & Files'), 'the documents page is cleared when Tasks is chosen');
 check(!viewText().includes('All Tasks'), 'tasks are not claimed while the file is still loading');
 await release('deal');
@@ -85,7 +86,7 @@ await wait(10);
 check(!viewText().includes('All Tasks'), 'tasks stay behind their own read');
 await release('tasks');
 await wait(20);
-check(viewText().includes('All Tasks'), 'tasks render without waiting for the order overview');
+check(viewText().includes('All Tasks') && document.querySelector('#app').getAttribute('data-content-ready') === 'tasks', 'tasks render without waiting for the order overview');
 check(started.some((x) => x.name === 'overview' && !x.done), 'the overview count is still loading after the tasks page is visible');
 const staleOverview = started.find((x) => x.name === 'overview' && !x.done);
 

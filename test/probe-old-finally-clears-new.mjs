@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import { createSupabaseAdapter } from '../js/data/supabase-adapter.js';
+let cb, who = 'A';
+const pending = [];
+globalThis.__fakeSB = { auth: { onAuthStateChange(fn) { cb = fn; }, getUser() { return new Promise((resolve, reject) => pending.push({ resolve, reject })); } }, rpc: async (n) => ({ data: n === 'my_profile' ? { id: who, role: 'Processor' } : n === 'demo_view_status' ? { active: false } : [], error: null }), from() { return { select() { return Promise.resolve({ data: [], error: null }); } }; } };
+const api = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE' });
+cb('INITIAL_SESSION', { user: { id: 'A' } });
+const first = api.beginNavigation();
+first.catch(() => {});
+await new Promise((r) => setTimeout(r, 0));
+who = 'B';
+cb('SIGNED_IN', { user: { id: 'B' } });
+const second = api.beginNavigation();
+await new Promise((r) => setTimeout(r, 0));
+assert.equal(pending.length, 2);
+pending[0].reject(Error('OLD_A_AUTH_FAILED'));
+try { await first; } catch (err) { /* the old navigation can end without a person */ }
+const sameB = api.getMyProfile();
+await new Promise((r) => setTimeout(r, 0));
+const observed = pending.length;
+console.log('after OLD A rejects, B same-navigation caller caused total checks=', observed, 'expected=2');
+for (const p of pending.slice(1)) p.resolve({ data: { user: { id: 'B' } } });
+await Promise.all([second, sameB]);
+assert.equal(observed, 2, 'old navigation finally must not clear newer B flight');
