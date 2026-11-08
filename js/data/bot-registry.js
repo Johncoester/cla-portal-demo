@@ -4,8 +4,8 @@ export function botRegistry() {
   return [
     {
       id: 'portal-feedback',
-      label: 'Portal feedback',
-      detail: 'Text support, one way. Save a note, then send it.',
+      label: 'Tech assistant',
+      detail: 'Talk to me about this portal.',
       configured: true,
     },
   ];

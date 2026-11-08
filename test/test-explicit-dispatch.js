@@ -41,6 +41,12 @@ const failed = await explicitDispatch({ actor: john, row, config, explicit: true
 check(failed.reason === 'outcome_unknown' && failed.deliveryState === 'pending_dispatch' && failed.replied === false && failed.dispatchAllowed === false && failed.attemptCount === 1 && !failed.error && !JSON.stringify(failed).includes('sender-secret-value'), 'a lost response is unknown, not a clean retry, and hides the URL and key');
 const rejected = await explicitDispatch({ actor: john, row: { ...row, attemptCount: 1 }, config, explicit: true, transport: async () => ({ status: 500 }) });
 check(rejected.reason === 'transport_rejected' && rejected.httpStatus === 500 && rejected.attemptCount === 2 && rejected.runAccepted === false && rejected.replied === false, 'a non-200 stays pending and counts the retry');
+const followSent = [];
+const followRow = { ...row, eventId: 'ffffffff-ffff-4fff-8fff-ffffffffffff', eventName: 'cla.feedback.follow_up', dispatchAllowed: false };
+const followAccepted = await explicitDispatch({ actor: john, row: followRow, config, explicit: true, transport: async (req) => { followSent.push(req); return { status: 200 }; } });
+check(followSent.length === 1 && followSent[0].payload.event === 'cla.feedback.follow_up' && followSent[0].payload.event_id === followRow.eventId && followAccepted.persist === 'mark_run_accepted', 'a follow-up event is posted with its own event name');
+const staffReply = await explicitDispatch({ actor: john, row: { ...row, eventName: 'cla.feedback.staff_reply' }, config, explicit: true, transport: async () => { followSent.push('staff'); return { status: 200 }; } });
+check(followSent.length === 1 && staffReply.reason === 'not_a_created_event' && staffReply.transportCalled === false, 'a staff reply event is still not posted');
 
 const envOn = { get: (name) => ({ STAFF_FEEDBACK_DISPATCH_ENABLED: 'true', STAFF_FEEDBACK_BRIDGE_URL: 'https://example.test/hook', STAFF_FEEDBACK_BRIDGE_HOST: 'example.test', STAFF_FEEDBACK_BRIDGE_TOKEN: 'sender-secret-value' }[name] || '') };
 const ready = { allowSend: true, resolveHost: async () => ['93.184.216.34'], claim: async () => ({ claimed: true, claimId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' }) };

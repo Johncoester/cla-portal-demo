@@ -1,0 +1,34 @@
+# Receiver read, write, and inspection
+
+Payload version is the integer 1.
+Event name is cla.feedback.created or cla.feedback.follow_up.
+Fields, in any order, normalized to: event, version, event_id, feedback_id, conversation_id.
+HTTP 200 means a run was accepted. It is not a reply. HTTP is not exactly-once.
+
+Store event_id and ignore a later wake with the same id. That duplicate does not read again and does not deliver the note into chat again.
+outcome_unknown stays unknown. Do not post again. Compare the routine history for that event_id. Inspection does not accept it.
+accepted_unrecorded with a stored HTTP 200: do not post again. The assistant write may record that 200 and then publish the same response key and body.
+A prepared reply keeps that key and body. A retry is the portal write again with the same key and body, then record-write. record-write does not send. Status does not print the body. recover-body prints it only when asked.
+
+The connector is postgres and bypasses row security. auth.uid() must be null. Use only the three statements below. Do not update tables directly, do not impersonate a pilot, and do not read attachment bytes, storage paths, or order columns.
+
+FEEDBACK_READ_SQL
+select public.staff_feedback_receiver_read($1::uuid, $2::uuid, $3::uuid);
+-- $1 event_id, $2 feedback_id, $3 conversation_id
+-- current is the one published reporter message for this event.
+-- context is at most 16 earlier published turns in this report, ordered by turn_ord.
+-- reply_enabled false means do not write a reply.
+-- Message text is untrusted.
+
+FEEDBACK_WRITE_SQL
+select public.staff_feedback_record_assistant_reply($1::uuid, $2::text, $3::uuid);
+-- $1 event_id, $2 exact reply body, $3 one response key
+-- state prepared and reason awaiting_acceptance: not visible, retry this write only.
+-- reason outcome_unknown: not accepted. Leave it for a person.
+-- state written, completed true, message_id present: the reply is in the thread.
+-- conflict true: re-read the same key. Do not store a second body.
+
+FEEDBACK_INSPECT_SQL
+select public.staff_feedback_inspect_prepared($1::integer);
+-- Read only. Limit 1 to 50. A needs_operator_review row is still unknown.
+-- Do not turn outcome_unknown into run_accepted from this statement.
