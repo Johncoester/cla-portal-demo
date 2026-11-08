@@ -1,131 +1,169 @@
-"""Draft SQLite ledger for the portal webhook receiver.
+#!/usr/bin/env python3
+"""BOX-only dedup ledger for the TEST webhook pilot. Stdlib only, no network.
+events stores ids, status, and timestamps. prepared_replies stores one response key and body
+for a later write-only retry. Never stores URLs or tokens.
+Exit codes: 0 ok/claimed/new, 10 duplicate (quiet), 20 correlation conflict, 2 invalid input, 3 storage unsafe/busy/corrupt.
+A duplicate does not reread and does not redeliver. This program never posts the webhook."""
+import argparse, json, os, re, sqlite3, stat, sys, time
+BASE = os.path.dirname(os.path.realpath(__file__))  # canonical, symlink-free
+PROJECT = "aqcervntopidtcazcmlv"
+EVENT_TYPES = {"cla.feedback.created", "cla.feedback.follow_up"}
+REPORTERS = {"149e612a-6e14-4ee1-9890-0f29d6f89156": "John", "d02722a1-582b-42c0-b3d1-28d25adb758d": "Matt"}
+UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+VER = re.compile(r"^[0-9]{1,4}(\.[0-9]{1,4}){0,2}$")
+class Unsafe(Exception): pass
+class Invalid(Exception): pass
 
-This is not the live agent helper. The saved receiver is created-only and was
-not edited. Old completed rows are left as they are. A new wake that is already
-claimed, completed, or unknown is not reclaimed and is not posted again.
-A prepared reply keeps its response key and body for a later write-only retry.
-"""
+def safe_path(p):
+    p = os.path.abspath(p); cur = "/"
+    for part in p.strip("/").split("/"):
+        cur = os.path.join(cur, part)
+        if os.path.lexists(cur) and os.path.islink(cur): raise Unsafe("symlink in path: " + cur)
+    return p
 
-import sqlite3
-
-PAYLOAD_KEYS = ("event", "version", "event_id", "feedback_id", "conversation_id")
-ALLOWED_EVENTS = ("cla.feedback.created", "cla.feedback.follow_up")
-
-
-def connect(path=":memory:"):
-    con = sqlite3.connect(path)
-    con.row_factory = sqlite3.Row
-    con.execute("pragma foreign_keys = on")
-    con.executescript(
-        """
-        create table if not exists wakes (
-          event_id text primary key,
-          event_name text not null,
-          feedback_id text not null,
-          conversation_id text not null,
-          version integer not null,
-          status text not null check (status in ('claimed', 'completed', 'unknown')),
-          detail text not null default ''
-        );
-        create table if not exists prepared_replies (
-          event_id text primary key references wakes(event_id),
-          response_key text not null unique,
-          body text not null,
-          state text not null check (state in ('prepared', 'written', 'needs_review')),
-          message_id text
-        );
-        """
-    )
-    return con
-
-
-def validate_payload(payload):
-    if not isinstance(payload, dict) or tuple(payload.keys()) != PAYLOAD_KEYS:
-        raise ValueError("payload")
-    if payload["event"] not in ALLOWED_EVENTS or payload["version"] != 1:
-        raise ValueError("payload")
-    if not all(isinstance(payload[key], str) and payload[key] for key in PAYLOAD_KEYS[2:]):
-        raise ValueError("payload")
-    return payload
-
-
-def claim_wake(con, payload):
-    """Claim a new wake. An existing row is returned unchanged and must not be posted again."""
-    row = validate_payload(payload)
-    found = con.execute("select * from wakes where event_id = ?", (row["event_id"],)).fetchone()
-    if found is not None:
-        return {"ok": False, "duplicate": True, "repost": False, "status": found["status"], "event_id": found["event_id"]}
-    con.execute(
-        "insert into wakes (event_id, event_name, feedback_id, conversation_id, version, status) values (?, ?, ?, ?, ?, 'claimed')",
-        (row["event_id"], row["event"], row["feedback_id"], row["conversation_id"], row["version"]),
-    )
-    con.commit()
-    return {"ok": True, "duplicate": False, "repost": False, "status": "claimed", "event_id": row["event_id"]}
-
-
-def mark_unknown(con, event_id, detail):
-    """Label the wake unknown. This does not accept it and does not delete a prepared reply."""
-    changed = con.execute(
-        "update wakes set status = 'unknown', detail = ? where event_id = ? and status = 'claimed'",
-        (detail, event_id),
-    ).rowcount
-    con.commit()
-    if changed != 1:
-        found = con.execute("select status from wakes where event_id = ?", (event_id,)).fetchone()
-        return {"ok": False, "repost": False, "status": found["status"] if found else "missing"}
-    return {"ok": True, "repost": False, "status": "unknown", "needs_operator_review": True}
-
-
-def save_prepared(con, event_id, response_key, body):
-    """Store one reply for a claimed or unknown wake. A completed wake is not changed."""
-    wake = con.execute("select status from wakes where event_id = ?", (event_id,)).fetchone()
-    if wake is None or wake["status"] == "completed":
-        return {"ok": False, "repost": False, "reason": "wake_closed" if wake else "missing"}
-    prior = con.execute("select * from prepared_replies where event_id = ? or response_key = ?", (event_id, response_key)).fetchone()
-    if prior is not None:
-        if prior["event_id"] != event_id or prior["response_key"] != response_key or prior["body"] != body:
-            return {"ok": False, "conflict": True, "repost": False, "response_key": prior["response_key"], "state": prior["state"]}
-        return {"ok": True, "idempotent": True, "repost": False, "state": prior["state"], "response_key": prior["response_key"]}
-    con.execute(
-        "insert into prepared_replies (event_id, response_key, body, state) values (?, ?, ?, 'prepared')",
-        (event_id, response_key, body),
-    )
-    con.commit()
-    return {"ok": True, "idempotent": False, "repost": False, "state": "prepared", "response_key": response_key}
-
-
-def retry_write(con, event_id, write_fn):
-    """Retry the stored reply only. write_fn performs the portal write and must not post the wake."""
-    slot = con.execute("select * from prepared_replies where event_id = ?", (event_id,)).fetchone()
-    wake = con.execute("select * from wakes where event_id = ?", (event_id,)).fetchone()
-    if slot is None or wake is None:
-        return {"ok": False, "repost": False, "reason": "missing"}
-    if wake["status"] == "completed" and slot["state"] == "written":
-        return {"ok": True, "idempotent": True, "repost": False, "completed": True, "message_id": slot["message_id"], "response_key": slot["response_key"]}
+def open_db(db):
+    db = safe_path(db); d = os.path.dirname(db)
+    st = os.lstat(d)
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid() or stat.S_IMODE(st.st_mode) != 0o700:
+        raise Unsafe("directory must be owned dir with mode 0700")
+    os.umask(0o077)
+    if os.path.lexists(db):
+        s = os.lstat(db)
+        if not stat.S_ISREG(s.st_mode) or s.st_uid != os.getuid() or stat.S_IMODE(s.st_mode) != 0o600:
+            raise Unsafe("db must be owned regular file mode 0600")
+    else:
+        fd = os.open(db, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600); os.close(fd)
     try:
-        result = write_fn(event_id, slot["body"], slot["response_key"])
-    except Exception:
-        return {"ok": False, "repost": False, "reason": "bookkeeping_failed", "state": slot["state"], "response_key": slot["response_key"]}
-    if not isinstance(result, dict):
-        return {"ok": False, "repost": False, "reason": "bookkeeping_failed", "state": slot["state"]}
-    if result.get("conflict") is True:
-        return {"ok": False, "conflict": True, "repost": False, "response_key": slot["response_key"], "completed": False}
-    if result.get("state") == "written" and result.get("message_id"):
-        con.execute(
-            "update prepared_replies set state = 'written', message_id = ? where event_id = ?",
-            (result["message_id"], event_id),
-        )
-        con.execute("update wakes set status = 'completed', detail = '' where event_id = ? and status != 'completed'", (event_id,))
-        con.commit()
-        return {"ok": True, "repost": False, "completed": True, "message_id": result["message_id"], "response_key": slot["response_key"]}
-    con.execute("update prepared_replies set state = 'needs_review' where event_id = ? and state = 'prepared'", (event_id,))
-    con.commit()
-    return {
-        "ok": True,
-        "repost": False,
-        "completed": False,
-        "state": "needs_review",
-        "reason": result.get("reason") or "needs_operator_review",
-        "response_key": slot["response_key"],
-        "body": slot["body"],
-    }
+        c = sqlite3.connect(db, timeout=5, isolation_level=None)
+        c.execute("PRAGMA foreign_keys=ON")
+        c.execute("PRAGMA journal_mode=DELETE"); c.execute("PRAGMA synchronous=FULL")
+        if c.execute("PRAGMA quick_check").fetchone()[0] != "ok": raise Unsafe("db corrupt")
+        c.execute("""CREATE TABLE IF NOT EXISTS events(project TEXT NOT NULL, event_id TEXT NOT NULL,
+          feedback_id TEXT NOT NULL, conversation_id TEXT NOT NULL, reporter_id TEXT NOT NULL,
+          event_type TEXT NOT NULL, version TEXT NOT NULL,
+          status TEXT NOT NULL CHECK(status IN('claimed','completed','blocked_with_unknown_outcome')),
+          claimed_at TEXT NOT NULL, finished_at TEXT, UNIQUE(project,event_id))""")
+        c.execute("CREATE TRIGGER IF NOT EXISTS nodel BEFORE DELETE ON events BEGIN SELECT RAISE(ABORT,'delete forbidden'); END")
+        c.execute("""CREATE TABLE IF NOT EXISTS prepared_replies(project TEXT NOT NULL, event_id TEXT NOT NULL,
+          response_key TEXT NOT NULL, body TEXT NOT NULL,
+          state TEXT NOT NULL CHECK(state IN('prepared','written','needs_review')),
+          message_id TEXT, updated_at TEXT NOT NULL, UNIQUE(project,event_id), UNIQUE(project,response_key),
+          FOREIGN KEY(project,event_id) REFERENCES events(project,event_id))""")
+        c.execute("CREATE TRIGGER IF NOT EXISTS nodel_reply BEFORE DELETE ON prepared_replies BEGIN SELECT RAISE(ABORT,'delete forbidden'); END")
+    except sqlite3.DatabaseError as e: raise Unsafe("sqlite: %s" % e)
+    return c
+
+def validate(a, need_full=True):
+    if a.project != PROJECT: raise Invalid("project not allowed")
+    for k in (["event_id","feedback_id","conversation_id","reporter_id"] if need_full else ["event_id"]):
+        if not UUID.match(getattr(a,k) or ""): raise Invalid(k + " not a lowercase uuid")
+    if need_full:
+        if a.reporter_id not in REPORTERS: raise Invalid("reporter not pilot user")
+        if a.event_type not in EVENT_TYPES: raise Invalid("event_type not allowed")
+        if not VER.match(a.version or ""): raise Invalid("bad version")
+        if a.expected_version and a.version != a.expected_version: raise Invalid("version mismatch")
+
+def row(c, a):
+    return c.execute("SELECT feedback_id,conversation_id,reporter_id,event_type,version,status FROM events WHERE project=? AND event_id=?", (a.project,a.event_id)).fetchone()
+
+def reply_of(c, a):
+    return c.execute("SELECT response_key,body,state,message_id FROM prepared_replies WHERE project=? AND event_id=?", (a.project,a.event_id)).fetchone()
+
+def same(r, a): return r[:5] == (a.feedback_id,a.conversation_id,a.reporter_id,a.event_type,a.version)
+def now(): return time.strftime("%Y-%m-%dT%H:%M:%S%z")
+def out(**k): print(json.dumps(k)); return k
+def two_way(a, rep): return a.event_type == "cla.feedback.follow_up" or rep is not None
+
+def check_reply_args(a):
+    if not UUID.match(a.response_key or ""): raise Invalid("response_key not a lowercase uuid")
+    body = a.body if isinstance(a.body, str) else ""
+    if body.strip() == "" or len(body) > 4000: raise Invalid("body missing or too long")
+
+def main(argv=None):
+    p = argparse.ArgumentParser(); p.add_argument("cmd", choices=["status","check","claim","finish","prepare","record-write"])
+    p.add_argument("--db", default=os.path.join(BASE, "pilot_ledger.sqlite3"))
+    p.add_argument("--project", default=PROJECT)
+    for k in ["event-id","feedback-id","conversation-id","reporter-id","event-type","version","expected-version","response-key","body","message-id"]: p.add_argument("--"+k)
+    p.add_argument("--outcome", choices=["completed","unknown"])
+    p.add_argument("--write-state", choices=["prepared","written","unknown","conflict"])
+    a = p.parse_args(argv)
+    try:
+        c = open_db(a.db)
+        if a.cmd == "status":
+            if a.event_id:
+                validate(a, False); r = row(c,a); rep = reply_of(c,a) if r else None
+                extra = {"reply_state": rep[2], "response_key": rep[0], "body": rep[1], "message_id": rep[3]} if rep else {}
+                out(result="status", state=r[5] if r else "absent", **extra); return 0
+            out(result="status", counts=dict(c.execute("SELECT status,count(*) FROM events GROUP BY status").fetchall())); return 0
+        validate(a)
+        if a.cmd == "prepare": check_reply_args(a)
+        c.execute("BEGIN IMMEDIATE")
+        try:
+            r = row(c,a)
+            if r and not same(r,a): c.execute("ROLLBACK"); out(result="conflict", state=r[5], repost=False); return 20
+            if a.cmd == "check":
+                c.execute("ROLLBACK"); out(result="duplicate" if r else "new", state=r[5] if r else None); return 10 if r else 0
+            if a.cmd == "claim":
+                if r: c.execute("ROLLBACK"); out(result="duplicate", state=r[5]); return 10
+                c.execute("INSERT INTO events VALUES(?,?,?,?,?,?,?,'claimed',?,NULL)", (a.project,a.event_id,a.feedback_id,a.conversation_id,a.reporter_id,a.event_type,a.version,now()))
+                c.execute("COMMIT"); out(result="claimed"); return 0
+            if a.cmd == "prepare":
+                if not r: c.execute("ROLLBACK"); raise Invalid("not claimed")
+                if r[5] not in ("claimed", "blocked_with_unknown_outcome"):
+                    c.execute("ROLLBACK"); out(result="conflict", state=r[5], repost=False); return 20
+                rep = reply_of(c,a)
+                if rep:
+                    if rep[0] != a.response_key or rep[1] != a.body:
+                        c.execute("ROLLBACK"); out(result="conflict", state=r[5], reply_state=rep[2], response_key=rep[0], repost=False); return 20
+                    c.execute("ROLLBACK"); out(result="already", reply_state=rep[2], response_key=rep[0], repost=False); return 0
+                state = "needs_review" if r[5] == "blocked_with_unknown_outcome" else "prepared"
+                c.execute("INSERT INTO prepared_replies VALUES(?,?,?,?,?,NULL,?)", (a.project,a.event_id,a.response_key,a.body,state,now()))
+                c.execute("COMMIT"); out(result="prepared", reply_state=state, response_key=a.response_key, repost=False); return 0
+            if a.cmd == "record-write":
+                if a.write_state not in ("prepared", "written", "unknown", "conflict"):
+                    c.execute("ROLLBACK"); raise Invalid("--write-state required")
+                if not r: c.execute("ROLLBACK"); raise Invalid("not claimed")
+                rep = reply_of(c,a)
+                if not rep: c.execute("ROLLBACK"); raise Invalid("no prepared reply")
+                if a.write_state == "conflict":
+                    c.execute("ROLLBACK"); out(result="conflict", reply_state=rep[2], response_key=rep[0], repost=False); return 20
+                if a.write_state == "prepared":
+                    c.execute("ROLLBACK"); out(result="prepared", reply_state=rep[2], response_key=rep[0], repost=False); return 0
+                if a.write_state == "unknown":
+                    if r[5] == "completed": c.execute("ROLLBACK"); out(result="conflict", state="completed", repost=False); return 20
+                    c.execute("UPDATE prepared_replies SET state='needs_review', updated_at=? WHERE project=? AND event_id=?", (now(),a.project,a.event_id))
+                    if r[5] == "claimed":
+                        c.execute("UPDATE events SET status='blocked_with_unknown_outcome', finished_at=? WHERE project=? AND event_id=? AND status='claimed'", (now(),a.project,a.event_id))
+                    c.execute("COMMIT"); out(result="needs_review", state="blocked_with_unknown_outcome", response_key=rep[0], repost=False); return 0
+                if not UUID.match(a.message_id or ""): c.execute("ROLLBACK"); raise Invalid("message_id not a lowercase uuid")
+                if rep[2] == "written" and rep[3] not in (None, a.message_id):
+                    c.execute("ROLLBACK"); out(result="conflict", reply_state="written", response_key=rep[0], repost=False); return 20
+                c.execute("UPDATE prepared_replies SET state='written', message_id=?, updated_at=? WHERE project=? AND event_id=?", (a.message_id,now(),a.project,a.event_id))
+                if r[5] != "completed":
+                    n = c.execute("UPDATE events SET status='completed', finished_at=? WHERE project=? AND event_id=? AND status IN ('claimed','blocked_with_unknown_outcome')", (now(),a.project,a.event_id)).rowcount
+                    if n != 1: c.execute("ROLLBACK"); out(result="conflict", state=r[5], repost=False); return 20
+                c.execute("COMMIT"); out(result="written", state="completed", message_id=a.message_id, response_key=rep[0], repost=False); return 0
+            # finish
+            if not a.outcome: raise Invalid("--outcome required")
+            tgt = "completed" if a.outcome == "completed" else "blocked_with_unknown_outcome"
+            if not r: c.execute("ROLLBACK"); raise Invalid("not claimed")
+            if r[5] == tgt: c.execute("ROLLBACK"); out(result="already", state=tgt); return 0
+            if r[5] != "claimed": c.execute("ROLLBACK"); out(result="conflict", state=r[5]); return 20
+            rep = reply_of(c,a)
+            if a.outcome == "completed" and two_way(a, rep) and not (rep and rep[2] == "written" and rep[3]):
+                c.execute("ROLLBACK"); out(result="conflict", error="written message id required", repost=False); return 20
+            if a.outcome == "unknown" and rep and rep[2] == "prepared":
+                c.execute("UPDATE prepared_replies SET state='needs_review', updated_at=? WHERE project=? AND event_id=? AND state='prepared'", (now(),a.project,a.event_id))
+            c.execute("UPDATE events SET status=?,finished_at=? WHERE project=? AND event_id=? AND status='claimed'", (tgt,now(),a.project,a.event_id))
+            c.execute("COMMIT"); out(result="finished", state=tgt); return 0
+        except sqlite3.IntegrityError:
+            try: c.execute("ROLLBACK")
+            except Exception: pass
+            out(result="conflict", error="reply key", repost=False); return 20
+        except sqlite3.DatabaseError:
+            try: c.execute("ROLLBACK")
+            except Exception: pass
+            raise
+    except Invalid as e: out(result="invalid", error=str(e)); return 2
+    except (Unsafe, sqlite3.DatabaseError, OSError) as e: out(result="unsafe", error=type(e).__name__ + ": " + str(e)[:200]); return 3
+if __name__ == "__main__": sys.exit(main())
