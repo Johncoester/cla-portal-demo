@@ -39,6 +39,8 @@ async function dealsList(c) {
       <label>Created Time from<input type="date" name="createdFrom" data-crm-date></label><label>Created Time to<input type="date" name="createdTo" data-crm-date></label>
       <label>Modified Time from<input type="date" name="modifiedFrom" data-crm-date></label><label>Modified Time to<input type="date" name="modifiedTo" data-crm-date></label>
       <label>Last Activity Time from<input type="date" name="activityFrom" data-crm-date></label><label>Last Activity Time to<input type="date" name="activityTo" data-crm-date></label>
+      <label>Open Date from<input type="date" name="openFrom" data-crm-date></label><label>Open Date to<input type="date" name="openTo" data-crm-date></label>
+      <label>Closing Date from<input type="date" name="closingFrom" data-crm-date></label><label>Closing Date to<input type="date" name="closingTo" data-crm-date></label>
       <button type="button" class="ghost" data-crm-reset>Reset</button>
     </form>${savedFiltersHtml('deals')}
     ${canBulk ? bulkBar('deal') : ''}
@@ -57,7 +59,7 @@ async function dealsList(c) {
     const apply = () => { const words = String(f.q.value || '').toLowerCase().split(/\s+/).filter(Boolean); const v = formData(f);
       const nextSig = JSON.stringify({ ...v, sort, dir }); if (nextSig !== sig) { if (sig) { selected = new Set(); page = 1; } sig = nextSig; }
       const list = crmSort(rows.filter((r) => { const hay = [r.name, r.fileNumber, r.propertyAddress, r.clientName, r.contactName, r.ownerName, r.salesReps, r.sourceText].join(' ').toLowerCase();
-        return words.every((w) => hay.includes(w)) && inLocalRange(r.createdAt, v.createdFrom, v.createdTo) && inLocalRange(r.modifiedAt, v.modifiedFrom, v.modifiedTo) && inLocalRange(r.lastActivityAt, v.activityFrom, v.activityTo); }), sort, dir);
+        return words.every((w) => hay.includes(w)) && inLocalRange(r.createdAt, v.createdFrom, v.createdTo) && inLocalRange(r.modifiedAt, v.modifiedFrom, v.modifiedTo) && inLocalRange(r.lastActivityAt, v.activityFrom, v.activityTo) && inLocalRange(r.openDate, v.openFrom, v.openTo) && inLocalRange(r.closingDate, v.closingFrom, v.closingTo); }), sort, dir);
       const view = canBulk ? pageOf(list, page, BULK_PAGE_SIZE) : { rows: list, page: 1, pages: 1 }; page = view.page; viewRows = view.rows;
       const span = DEAL_COLS.length + (canBulk ? 1 : 0);
       tb.innerHTML = toText(view.rows.length ? view.rows.map((r) => html`<tr data-row="${r.id}">${canBulk ? html`<td><input type="checkbox" data-bulk-row value="${r.id}" aria-label="Select ${r.name || 'deal'}" ${selected.has(r.id) ? raw('checked') : ''}></td>` : ''}${DEAL_COLS.map(([k]) => html`<td data-col="${k}">${cell[k] ? cell[k](r) : r[k] ?? ''}</td>`)}</tr>`) : html`<tr><td colspan="${span}" class="muted">Nothing matches.</td></tr>`);

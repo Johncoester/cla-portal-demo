@@ -192,7 +192,10 @@ export function feedbackNov4Supabase({ sb, ok, me }) {
       return list; },
     async listCrmShareTargets() {
       const u = await need();
-      const users = (await pack(sb.rpc('crm_assignees'))).map((p) => ({ id: p.id, name: p.name || '', role: p.role || '' }));
+      let raw = [];
+      try { raw = await pack(sb.rpc('crm_assignees')); } catch { raw = []; }
+      if (!Array.isArray(raw)) raw = [];
+      const users = raw.map((p) => ({ id: p.id, name: p.name || '', role: p.role || '' }));
       if (!users.some((z) => z.id === u.id)) users.push({ id: u.id, name: personName(u), role: u.role || '' });
       users.sort((a, b) => a.name.localeCompare(b.name));
       return { users, roles: SHARE_ROLES, departments: DEPARTMENTS.map(([id, name, roles]) => ({ id, name, roles })) };

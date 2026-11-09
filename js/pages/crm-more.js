@@ -1,7 +1,7 @@
 // crm-more.js : CRM pipeline (Kanban + list) and Reports (John, Nov 2; follow-ups moved to CRM Home tasks). Function only, minimal styling.
 import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611070139';
 import { localDate } from '../data/constants.js?v=202611090935';
-import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort } from '../data/crm.js?v=202611070139';
+import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort, inLocalRange } from '../data/crm.js?v=202611070139';
 import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv } from './crm-kit.js?v=202611091240';
 import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611070139';
 import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611070139';
@@ -15,13 +15,17 @@ export async function pipelinePage({ api, me, owners, refresh, go, cfg }) {
   const p = q(); const board = p.get('board') === 'partners' ? 'partners' : 'opps'; const view = p.get('view') === 'list' ? 'list' : 'board'; const owner = p.get('owner') || '';
   // columns = the configured list in its order (CRM Settings). A retired stage / status keeps its column while records still use it; values no longer in the list get one too.
   let items = board === 'opps' ? await api.listCrmOpportunities() : (await api.listCrmContacts()).map((c) => ({ ...c, stage: c.relationshipStatus || '' }));
-  items = items.filter((i) => !i.archived && (!owner || (owner === 'none' ? !i.ownerId : i.ownerId === owner)));
+  const createdFrom = p.get('createdFrom') || ''; const createdTo = p.get('createdTo') || ''; const modifiedFrom = p.get('modifiedFrom') || ''; const modifiedTo = p.get('modifiedTo') || '';
+  const extraFrom = p.get('extraFrom') || ''; const extraTo = p.get('extraTo') || '';
+  items = items.filter((i) => !i.archived && (!owner || (owner === 'none' ? !i.ownerId : i.ownerId === owner))
+    && inLocalRange(i.createdAt, createdFrom, createdTo) && inLocalRange(i.modifiedAt, modifiedFrom, modifiedTo)
+    && inLocalRange(board === 'opps' ? i.expectedClose : (i.lastContactedOn || i.lastActivityAt), extraFrom, extraTo));
   const listKey = board === 'opps' ? 'oppStage' : 'relationshipStatus';
   const used = new Set(items.map((i) => i.stage || ''));
   const stages = [...optionsOf(cfg, listKey).filter((o) => !o.retired || used.has(o.value)).map((o) => [o.value, o.retired ? `${o.label} (retired)` : o.label, o.retired]),
     ...[...used].filter((v) => v && !optionsOf(cfg, listKey).some((o) => o.value === v)).map((v) => [v, v, true]), ...(board === 'opps' ? [] : [['', 'Not set', true]])];
   const contacts = board === 'opps' && me.canEdit ? (await api.listCrmContacts()).filter((c) => !c.archived) : []; const accounts = board === 'opps' && me.canEdit ? (await api.listCrmAccounts()).filter((a) => !a.archived) : [];
-  const url = (o) => { const n = new URLSearchParams({ board, view, owner, ...o }); [...n.keys()].forEach((k) => { if (!n.get(k)) n.delete(k); }); return '#/crm/pipeline?' + n; };
+  const url = (o) => { const n = new URLSearchParams({ board, view, owner, createdFrom, createdTo, modifiedFrom, modifiedTo, extraFrom, extraTo, ...o }); [...n.keys()].forEach((k) => { if (!n.get(k)) n.delete(k); }); return '#/crm/pipeline?' + n; };
   const mover = (i) => (me.canEdit ? html`<label class="small">Move to <select data-move="${i.id}">${stages.filter(([v, , ret]) => (v && !ret) || v === (i.stage || '')).map(([v, l]) => html`<option value="${v}" ${v === (i.stage || '') ? raw('selected') : ''}>${l}</option>`)}</select></label>` : '');
   const cfs = board === 'opps' ? activeFields(cfg, 'opportunity') : [];
   const sub = (i) => (board === 'opps' ? html`${i.accountName || ''}${i.contactName ? html`${i.accountName ? ' · ' : ''}${i.contactName}` : ''}${i.estVolume ? html`<br>Est. ${fmtMoney(i.estVolume)}/yr` : ''}${i.expectedClose ? html` · by ${fmtDate(i.expectedClose)}` : ''}${cfs.filter((f) => (i.custom || {})[f.id] != null && (i.custom || {})[f.id] !== '').map((f) => html`<br><span data-cf-val="${f.id}">${f.label}: ${cfValue(f, i.custom[f.id])}</span>`)}`
@@ -36,10 +40,14 @@ export async function pipelinePage({ api, me, owners, refresh, go, cfg }) {
   const body = html`${head('CRM: Pipeline', me, me.canEdit && board === 'opps' ? html`<button class="m-btn right" data-new-opp>+ New opportunity</button>` : '')}${tabs('pipeline')}
     <div class="filter-bar"><span>Board: <a class="${board === 'opps' ? 'active-link' : ''}" href="${url({ board: 'opps' })}" data-board-link="opps">Opportunities</a> · <a class="${board === 'partners' ? 'active-link' : ''}" href="${url({ board: 'partners' })}" data-board-link="partners">Referral partners (clients by Relationship Status)</a></span>
       <span>View: <a href="${url({ view: 'board' })}" data-view-link="board">Board</a> · <a href="${url({ view: 'list' })}" data-view-link="list">List</a></span>
-      <label>Owner<select data-pipe-owner><option value="">Any owner</option><option value="none" ${owner === 'none' ? raw('selected') : ''}>Unassigned</option>${owners.map((o) => html`<option value="${o.id}" ${o.id === owner ? raw('selected') : ''}>${o.name}</option>`)}</select></label></div>
+      <label>Owner<select data-pipe-owner><option value="">Any owner</option><option value="none" ${owner === 'none' ? raw('selected') : ''}>Unassigned</option>${owners.map((o) => html`<option value="${o.id}" ${o.id === owner ? raw('selected') : ''}>${o.name}</option>`)}</select></label>
+      <label>Created from<input type="date" data-pipe-date="createdFrom" value="${createdFrom}"></label><label>to<input type="date" data-pipe-date="createdTo" value="${createdTo}"></label>
+      <label>Modified from<input type="date" data-pipe-date="modifiedFrom" value="${modifiedFrom}"></label><label>to<input type="date" data-pipe-date="modifiedTo" value="${modifiedTo}"></label>
+      <label>${board === 'opps' ? 'Expected close' : 'Last contacted'} from<input type="date" data-pipe-date="extraFrom" value="${extraFrom}"></label><label>to<input type="date" data-pipe-date="extraTo" value="${extraTo}"></label></div>
     ${view === 'board' ? boardHtml : listHtml}`;
   return { title: 'CRM Pipeline', crumbs: crumbs('Pipeline'), body, mount(root) { wireCompose(root, api, me, refresh);
     $('[data-pipe-owner]', root).addEventListener('change', (e) => { location.hash = url({ owner: e.target.value }); });
+    $$('[data-pipe-date]', root).forEach((el) => el.addEventListener('change', () => { const o = {}; $$('[data-pipe-date]', root).forEach((z) => { o[z.dataset.pipeDate] = z.value; }); location.hash = url(o); }));
     $$('[data-move]', root).forEach((s) => s.addEventListener('change', guard(async () => {
       if (board === 'opps') await api.moveCrmOpportunity(s.dataset.move, s.value); else await api.updateCrmContact(s.dataset.move, { relationshipStatus: s.value });
       toast('Moved to ' + (stages.find(([v]) => v === s.value) || [, 'Not set'])[1]); refresh(); })));

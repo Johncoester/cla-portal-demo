@@ -41,7 +41,20 @@ async function recNav(list, id, base) {
   return html`<span data-rec-nav>${p ? html`<a class="ghost" href="#/crm/${base}/${p.id}" data-rec-prev title="Previous: ${p.name}" aria-label="Previous record">&lsaquo;</a>` : html`<span class="ghost muted" aria-hidden="true">&lsaquo;</span>`} <span class="muted small">${i + 1} of ${rows.length}</span> ${n ? html`<a class="ghost" href="#/crm/${base}/${n.id}" data-rec-next title="Next: ${n.name}" aria-label="Next record">&rsaquo;</a>` : html`<span class="ghost muted" aria-hidden="true">&rsaquo;</span>`}</span>`;
 }
 
+const crmBack = (params) => {
+  const s = (params && params.section) || 'home';
+  if (s === 'views') { const mod = params.id === 'new' ? params.sub : ''; return ['contacts', 'leads', 'accounts', 'deals'].includes(mod) ? `/crm/${mod}` : '/crm'; }
+  if (['leads', 'contacts', 'accounts', 'deals', 'pipeline', 'reports', 'dashboards', 'templates', 'settings', 'search'].includes(s)) return `/crm/${s}`;
+  return '/crm';
+};
 export async function render(ctx) {
+  try { return await renderCrm(ctx); }
+  catch (e) {
+    const back = crmBack(ctx.params);
+    return { title: 'Not available', crumbs: [['CRM', '#/crm'], ['Not available']], body: html`<div class="box-title" data-crm-unavailable><h2>Not available</h2></div><p class="err-text">${e.message}</p><p><a class="back-btn" href="#${back}" data-crm-back>Back</a></p>` };
+  }
+}
+async function renderCrm(ctx) {
   const { api, params } = ctx; const me = await api.crmMe(); setCrmAdmin(me.canConfigure); setCrmMe(me);
   const [owners, assignees, cfg] = await Promise.all([api.listCrmOwners(), api.listCrmAssignees(), api.getCrmSettings()]); const c = { ...ctx, me, owners, assignees, cfg };
   // Nov 3 (b): choices for User and Lookup custom fields (only loaded when such a field exists)
