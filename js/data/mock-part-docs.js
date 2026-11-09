@@ -1,6 +1,7 @@
 /* mock adapter: contacts, participants, documents (deal files). NOTE: there is no delete for documents, for anyone (Admin included). */
 import { cleanEntity } from './mock-part-nov3b.js?v=202611092320';
 import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611090935';
+import { acceptDocType } from './document-type.js?v=202611100945';
 export function contactsTasksDocs(x) {
   const { load, save, nid, needUser, needProcessor, isManager, notViewOnly, seesAll, dealsFor, dealOr404, onDeal, fileRole, log, prof, nameOf, roleOf, fullName, folderOf, docVisible, participantsOf, notify, dealProfileIds, clone, now, fail, str, emailOk, C } = x;
   // u = the deal-scoped viewer (optional). A pure buyer never gets the name, role or id of another party who uploaded a file CLA staff shared with
@@ -168,7 +169,8 @@ export function contactsTasksDocs(x) {
     fail(`You can share a file with everyone on the order${C.sideOf(u.role) ? ` or your own side (${C.sideOf(u.role)} side)` : ''} only.`); };
   // shared by deal uploads, task ID uploads and the Library
   // DOCUMENT TYPE (Matt, Oct 31): optional; sellers choose from the seller list (payoff statement, HOA docs, deed ...), the buyer side from the general list, staff from all.
-  const docTypeOf = (u, v) => { const s = str(v, 60); if (!s) return ''; const ok = x.isStaffView(u) ? C.DOC_TYPES : C.docTypeChoices(u.role); if (!ok.includes(s)) fail('Pick a document type from the list.'); return s; };
+  // Listed types and a short free-text label (Miscellaneous/Other) are both stored in docType.
+  const docTypeOf = (_u, v) => acceptDocType(v);
   x.docTypeOf = docTypeOf;
   x.newDoc = (u, { name, description, mimeType, size, dataUrl, visibility, docType, wireInstructions }) => {
     const full = String(name == null ? '' : name).trim().replace(/[\\/]/g, '_'); if (!full) fail('A file name is required.');
