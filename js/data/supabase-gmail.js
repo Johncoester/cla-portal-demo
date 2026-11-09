@@ -1,7 +1,7 @@
 /* [SUPABASE] Gmail phase 1 (John, Nov 9; migration 20261109200000). The edge functions do all Google work; the page never holds a token.
  *   gmail-oauth-start (start | disconnect), gmail-send (also dryRun), gmail-sync (Check for replies). Reads: gmail_my_context(), deal_emails (RLS).
  * File email templates (migration 20261109220000): Admin > Email Templates + "Use template" on a file Email tab. Not CRM templates. */
-import { SEED_SHARED as FILE_EMAIL_SEED, cleanTemplateInput } from './file-email-templates.js?v=202611092200';
+import { SEED_SHARED as FILE_EMAIL_SEED, cleanTemplateInput, participantsFromContacts } from './file-email-templates.js?v=202611092210';
 
 export function gmailSupabase({ sb, ok, camel }) {
   const call = async (name, body) => {
@@ -73,6 +73,23 @@ export function gmailSupabase({ sb, ok, camel }) {
       const me = await uid();
       return camel(ok(await sb.from('email_templates').update({ active: !!active, updated_by: me, updated_at: new Date().toISOString() }).eq('id', id).select('*').single()));
     },
+    // Email tab uses readFileShell (participants: []). Load parties + processor profile email for template merge only — does not change the shell or reintroduce processor enrichment on every deal read.
+    async loadDealEmailContext(dealId) {
+      const [contacts, entities, dealRow] = await Promise.all([
+        sb.rpc('deal_contacts', { p_deal: dealId }),
+        sb.rpc('deal_entities', { p_deal: dealId }),
+        sb.from('deals').select('processor_id').eq('id', dealId).maybeSingle(),
+      ]);
+      const participants = participantsFromContacts(ok(contacts) || [], ok(entities) || []);
+      const deal = camel(ok(dealRow)) || {};
+      let processorEmail = ''; let processorName = '';
+      if (deal.processorId) {
+        const p = camel(ok(await sb.from('profiles').select('email, first_name, last_name').eq('id', deal.processorId).maybeSingle())) || {};
+        processorEmail = String(p.email || '').trim();
+        processorName = `${p.firstName || ''} ${p.lastName || ''}`.trim();
+      }
+      return { participants, processorEmail, processorName, processorId: deal.processorId || null };
+    },
   };
 }
 
@@ -88,5 +105,6 @@ export function gmailMock() {
     async listFileEmailTemplates({ includeInactive = false } = {}) { return store.filter((t) => includeInactive || t.active).map((t) => ({ ...t })); },
     async getFileEmailTemplate(id) { const t = store.find((x) => x.id === id); if (!t) throw new Error('Template not found.'); return { ...t }; },
     createFileEmailTemplate: off, updateFileEmailTemplate: off, duplicateFileEmailTemplate: off, setFileEmailTemplateActive: off,
+    async loadDealEmailContext() { return { participants: [], processorEmail: '', processorName: '', processorId: null }; },
   };
 }

@@ -1,6 +1,6 @@
 /* File-level email templates (John, Nov 9): Admins build shared templates under Admin > Email Templates;
- * processors and other staff SELECT them on a file's Email tab (use, not author). Separate from CRM templates.
- * Merge tokens use {{field}}. gmail-send still appends the signature and the [CLA #file - address] subject tag. */
+ * staff SELECT them on a file's Email tab. Separate from CRM templates. Merge tokens use {{field}}.
+ * gmail-send still appends the signature and the [CLA #file - address] subject tag. */
 export const FILE_TEMPLATE_FIELDS = [
   ['recipient_first_name', 'Recipient first name (from To)'],
   ['recipient_names', 'Recipient full names (from To)'],
@@ -20,6 +20,7 @@ export const FILE_TEMPLATE_FIELDS = [
   ['listing_agent_first_name', 'Listing agent first name'],
   ['processor_name', 'Processor name'],
   ['processor_email', 'Processor email'],
+  ['processor_line', 'Processor name (email) — omits empty parentheses'],
   ['sender_name', 'Sender name'],
   ['today', 'Today'],
 ];
@@ -33,7 +34,7 @@ export const DEFAULT_RECIPIENT_ROLES = [
   ['Transaction Coordinator', 'TC'],
 ];
 export const DEFAULT_RECIPIENT_ROLE_KEYS = DEFAULT_RECIPIENT_ROLES.map(([k]) => k);
-// Common document-type / name / folder match keys Admins can pick (matched loosely against docType, name, folderName)
+export const ROLE_LABEL = Object.fromEntries(DEFAULT_RECIPIENT_ROLES);
 export const ATTACH_DOC_MATCH_OPTIONS = [
   'Contract / addendum', 'Contract', 'Photo ID', 'Lender documents', 'Homeowners insurance',
   'Earnest money receipt', 'Settlement statement', 'Payoff statement', 'HOA documents', 'Deed', 'Survey', 'W-9 / 1099-S information', 'Other',
@@ -42,9 +43,6 @@ export const ATTACH_DOC_MATCH_OPTIONS = [
 const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = (v) => { if (v == null || v === '') return ''; const n = Number(v); return Number.isFinite(n) ? '$' + n.toLocaleString('en-US', { maximumFractionDigits: 2 }) : ''; };
 const mdy = (v) => { const s = String(v || '').slice(0, 10); const m = s.split('-'); return m.length === 3 && m[0] ? `${m[1]}/${m[2]}/${m[0]}` : ''; };
-const parties = (deal, role) => (deal.participants || []).filter((p) => !p.removed && p.role === role && p.contact);
-const fullNames = (list) => list.map((p) => `${p.contact.firstName || ''} ${p.contact.lastName || ''}`.trim() || (p.contact.email || '')).filter(Boolean);
-const firstNames = (list) => list.map((p) => String(p.contact.firstName || '').trim()).filter(Boolean);
 const joinNames = (list) => list.length <= 2 ? list.join(' and ') : list.slice(0, -1).join(', ') + ', and ' + list[list.length - 1];
 const firstOf = (list) => list[0] || '';
 const addr = (deal) => {
@@ -55,60 +53,94 @@ const addr = (deal) => {
   return [street, [city, state, zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
 };
 
-/** Resolve To addresses against people on the file (and free-typed names). */
+/** Normalize a deal party into first/last/email/display, matching Parties/Contacts shapes (individual, full-name-in-one-field, entity/LLC + rep). */
+export function partyPerson(p) {
+  if (!p || p.removed || !p.contact) return null;
+  const c = p.contact;
+  if (c.contactHidden) return { first: '', last: '', email: '', full: '', hidden: true, role: p.role };
+  const ent = p.entity || null;
+  let first = String(c.firstName || c.first_name || '').trim();
+  let last = String(c.lastName || c.last_name || '').trim();
+  let email = String(c.email || '').trim().toLowerCase();
+  // Entity / LLC buyer or seller: prefer the representative's name + email; fall back to entity name for display
+  if (ent && (ent.name || ent.repName || ent.rep_name)) {
+    const rep = String(ent.repName || ent.rep_name || '').trim();
+    if (rep) {
+      const parts = rep.split(/\s+/).filter(Boolean);
+      first = parts[0] || first;
+      last = parts.slice(1).join(' ') || last;
+    }
+    const re = String(ent.repEmail || ent.rep_email || '').trim().toLowerCase();
+    if (re) email = re;
+  }
+  // "Warren Spencer" stored entirely in firstName (or lastName)
+  if (first && !last && /\s/.test(first)) { const parts = first.split(/\s+/).filter(Boolean); first = parts[0] || ''; last = parts.slice(1).join(' '); }
+  if (!first && last && /\s/.test(last)) { const parts = last.split(/\s+/).filter(Boolean); first = parts[0] || ''; last = parts.slice(1).join(' '); }
+  if (!first && last) { first = last; last = ''; }
+  const entityName = ent ? String(ent.name || '').trim() : '';
+  const full = `${first} ${last}`.trim() || entityName || email;
+  return { first, last, email, full, entityName, role: p.role, hidden: false };
+}
+
+const partiesOf = (deal, role) => (deal.participants || []).map(partyPerson).filter((p) => p && !p.hidden && p.role === role);
+
 export function resolveRecipients(deal = {}, toEmails = []) {
   const wanted = (toEmails || []).map((e) => String(e || '').trim().toLowerCase()).filter(Boolean);
   const byEmail = new Map();
-  for (const p of (deal.participants || [])) {
-    if (p.removed || !p.contact || !p.contact.email) continue;
-    const email = String(p.contact.email).trim().toLowerCase();
-    if (!byEmail.has(email)) byEmail.set(email, {
-      email, role: p.role,
-      firstName: String(p.contact.firstName || '').trim(),
-      lastName: String(p.contact.lastName || '').trim(),
-      name: `${p.contact.firstName || ''} ${p.contact.lastName || ''}`.trim() || email,
-    });
+  for (const p of (deal.participants || []).map(partyPerson).filter(Boolean)) {
+    if (p.hidden || !p.email) continue;
+    if (!byEmail.has(p.email)) byEmail.set(p.email, p);
   }
-  const resolved = wanted.map((email) => byEmail.get(email) || { email, role: '', firstName: '', lastName: '', name: email });
-  const known = resolved.filter((r) => r.firstName);
-  const firsts = known.map((r) => r.firstName);
+  const resolved = wanted.map((email) => byEmail.get(email) || { email, first: '', last: '', full: email, role: '' });
+  const withFirst = resolved.filter((r) => r.first);
+  const firsts = withFirst.map((r) => r.first);
   const warnings = [];
   if (wanted.length > 1) warnings.push(`To has ${wanted.length} addresses; {{recipient_first_name}} uses the first matched first name` + (firsts[0] ? ` (${firsts[0]})` : '') + '.');
   if (wanted.length && !firsts.length) warnings.push('No first name found for the To address(es) on this file; {{recipient_first_name}} is blank.');
   return {
     recipients: resolved,
     recipient_first_name: firsts[0] || '',
-    recipient_names: joinNames(known.map((r) => r.name).filter(Boolean) || wanted),
+    recipient_names: joinNames(withFirst.map((r) => r.full).filter(Boolean) || wanted),
     warnings,
   };
 }
 
-export function mergeValues(deal = {}, sender = {}, { today = null, toEmails = [] } = {}) {
+export function processorLine(name, email) {
+  const n = String(name || '').trim();
+  const e = String(email || '').trim();
+  if (n && e) return `${n} (${e})`;
+  return n || e || '';
+}
+
+export function mergeValues(deal = {}, sender = {}, { today = null, toEmails = [], processorEmail = null } = {}) {
   const day = today || new Date().toLocaleDateString('en-CA');
-  const buyers = parties(deal, 'Client-Buyer');
-  const sellers = parties(deal, 'Client-Seller');
-  const ba = parties(deal, 'Buyer Agent');
-  const la = parties(deal, 'Listing Agent');
+  const buyers = partiesOf(deal, 'Client-Buyer');
+  const sellers = partiesOf(deal, 'Client-Seller');
+  const ba = partiesOf(deal, 'Buyer Agent');
+  const la = partiesOf(deal, 'Listing Agent');
   const rec = resolveRecipients(deal, toEmails);
+  const pName = String(deal.processorName || '').trim();
+  const pEmail = String(processorEmail != null ? processorEmail : (deal.processorEmail || '')).trim();
   return {
     recipient_first_name: rec.recipient_first_name,
     recipient_names: rec.recipient_names,
     file_number: String(deal.fileNumber || ''),
     property_address: addr(deal),
-    buyer_names: joinNames(fullNames(buyers)),
-    buyer_first_name: firstOf(firstNames(buyers)),
-    seller_names: joinNames(fullNames(sellers)),
-    seller_first_name: firstOf(firstNames(sellers)),
+    buyer_names: joinNames(buyers.map((p) => p.full).filter(Boolean)),
+    buyer_first_name: firstOf(buyers.map((p) => p.first).filter(Boolean)),
+    seller_names: joinNames(sellers.map((p) => p.full || p.entityName).filter(Boolean)),
+    seller_first_name: firstOf(sellers.map((p) => p.first).filter(Boolean)),
     closing_date: mdy(deal.closingDate),
     contract_price: money(deal.purchasePrice),
     loan_amount: money(deal.loanAmount),
     lender: String(deal.lenderName || ''),
-    buyer_agent: joinNames(fullNames(ba)),
-    buyer_agent_first_name: firstOf(firstNames(ba)),
-    listing_agent: joinNames(fullNames(la)),
-    listing_agent_first_name: firstOf(firstNames(la)),
-    processor_name: String(deal.processorName || ''),
-    processor_email: String(deal.processorEmail || ''),
+    buyer_agent: joinNames(ba.map((p) => p.full).filter(Boolean)),
+    buyer_agent_first_name: firstOf(ba.map((p) => p.first).filter(Boolean)),
+    listing_agent: joinNames(la.map((p) => p.full).filter(Boolean)),
+    listing_agent_first_name: firstOf(la.map((p) => p.first).filter(Boolean)),
+    processor_name: pName,
+    processor_email: pEmail,
+    processor_line: processorLine(pName, pEmail),
     sender_name: `${sender.firstName || ''} ${sender.lastName || ''}`.trim() || String(sender.name || ''),
     today: mdy(day),
     _recipientWarnings: rec.warnings,
@@ -125,14 +157,29 @@ export function renderMerge(src, values, { mode = 'html' } = {}) {
     if (v == null || v === '') { if (!missing.includes(k)) missing.push(k); return ''; }
     return mode === 'html' ? esc(v).replace(/\r?\n/g, '<br>') : String(v);
   });
-  return { out, unknown, missing };
+  return { out: polishMerged(out, mode), unknown, missing };
 }
 
-/** Match file documents to template attach keys (doc type, name, or folder). */
+/** Drop dangling "Hello ," / empty "()" left by blank merge fields. */
+export function polishMerged(src, mode = 'html') {
+  let s = String(src == null ? '' : src);
+  // "Hello ," / "Hi ," from a blank {{*_first_name}} → "Hello there," / "Hi there,"
+  s = s.replace(/\b(Hi|Hello)\s+,/gi, (_, g) => `${g} there,`);
+  // empty parentheses from "Name ({{processor_email}})" when email blank
+  s = s.replace(/\s*\(\s*\)/g, '');
+  if (mode === 'html') s = s.replace(/([^>]) {2,}/g, '$1 ');
+  else s = s.replace(/ {2,}/g, ' ');
+  return s;
+}
+
+const isWireName = (n) => /\bwir(e|ed|es|ing)\b|wire[_ -]?instruction/i.test(String(n || ''));
+const docKey = (d) => `${String(d.name || '').toLowerCase()}|${Number(d.size || d.sizeBytes || 0)}`;
+
 export function matchAttachDocuments(docs = [], attachKeys = []) {
   const keys = (attachKeys || []).map((k) => String(k || '').trim()).filter(Boolean);
   if (!keys.length) return { matched: [], missingKeys: [], notices: [] };
   const matched = []; const missingKeys = [];
+  const seen = new Set();
   const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   for (const key of keys) {
     const nk = norm(key);
@@ -141,45 +188,52 @@ export function matchAttachDocuments(docs = [], attachKeys = []) {
       const blob = norm([d.docType, d.name, d.folderName, d.description].filter(Boolean).join(' '));
       if (!nk || !blob) return false;
       if (blob.includes(nk)) return true;
-      // "Contract" also matches "Contract / addendum"
       const parts = nk.split(' ').filter(Boolean);
       return parts.length && parts.every((p) => blob.includes(p));
     });
     if (!hits.length) missingKeys.push(key);
-    for (const h of hits) if (!matched.some((m) => m.id === h.id)) matched.push(h);
+    for (const h of hits) {
+      const k = docKey(h);
+      if (seen.has(k) || matched.some((m) => m.id === h.id)) continue; // dedupe identical name+size (and same id)
+      seen.add(k);
+      matched.push(h);
+    }
   }
   const notices = [];
   if (missingKeys.length) notices.push(`No document on this file matches: ${missingKeys.join(', ')}. Attach manually if needed.`);
   if (matched.length) notices.push(`Auto-attached ${matched.length} document${matched.length === 1 ? '' : 's'} from the template (${matched.map((d) => d.name).join(', ')}). Uncheck any you do not want.`);
   return { matched, missingKeys, notices };
 }
-const isWireName = (n) => /\bwir(e|ed|es|ing)\b|wire[_ -]?instruction/i.test(String(n || ''));
 
-/** Suggest To emails from template default roles on the file. */
 export function defaultRecipientEmails(deal = {}, roles = []) {
   const want = new Set((roles || []).filter((r) => DEFAULT_RECIPIENT_ROLE_KEYS.includes(r)));
-  if (!want.size) return [];
-  const seen = new Set(); const out = [];
-  for (const p of (deal.participants || [])) {
-    if (p.removed || !want.has(p.role) || !p.contact || !p.contact.email || p.contact.contactHidden) continue;
-    const email = String(p.contact.email).trim().toLowerCase();
-    if (seen.has(email)) continue; seen.add(email); out.push(email);
+  if (!want.size) return { emails: [], missingRoles: [], warnings: [] };
+  const seen = new Set(); const emails = [];
+  const found = new Set();
+  for (const person of (deal.participants || []).map(partyPerson).filter(Boolean)) {
+    if (person.hidden || !want.has(person.role) || !person.email) continue;
+    found.add(person.role);
+    if (seen.has(person.email)) continue;
+    seen.add(person.email); emails.push(person.email);
   }
-  return out;
+  const missingRoles = [...want].filter((r) => !found.has(r));
+  const warnings = missingRoles.map((r) => `No ${ROLE_LABEL[r] || r} with an email on this file.`);
+  return { emails, missingRoles, warnings };
 }
 
 export function applyFileTemplate(t, deal, sender, opts = {}) {
   const toEmails = opts.toEmails || [];
-  const vals = mergeValues(deal, sender, { ...opts, toEmails });
+  const defaultRoles = t.defaultRecipientRoles || t.default_recipient_roles || [];
+  const suggested = opts.applyDefaultRecipients === false ? { emails: [], warnings: [] } : defaultRecipientEmails(deal, defaultRoles);
+  const toForMerge = toEmails.length ? toEmails : suggested.emails;
+  const vals = mergeValues(deal, sender, { ...opts, toEmails: toForMerge, processorEmail: opts.processorEmail });
   const subj = renderMerge(t.subject || '', vals, { mode: 'text' });
   const body = renderMerge(t.bodyHtml || t.body_html || '', vals, { mode: 'html' });
-  const attachKeys = t.attachDocTypes || t.attach_doc_types || [];
-  const attach = matchAttachDocuments(opts.documents || [], attachKeys);
-  const defaultRoles = t.defaultRecipientRoles || t.default_recipient_roles || [];
-  const suggestedTo = opts.applyDefaultRecipients === false ? [] : defaultRecipientEmails(deal, defaultRoles);
-  const warnings = [...(vals._recipientWarnings || [])];
+  const attach = matchAttachDocuments(opts.documents || [], t.attachDocTypes || t.attach_doc_types || []);
+  const warnings = [...(vals._recipientWarnings || []), ...(suggested.warnings || [])];
   if (subj.unknown.length || body.unknown.length) warnings.push('Unknown fields removed: ' + [...new Set([...subj.unknown, ...body.unknown])].join(', '));
-  if (subj.missing.length || body.missing.length) warnings.push('Blank on this file: ' + [...new Set([...subj.missing, ...body.missing])].map((k) => '{{' + k + '}}').join(', '));
+  const missingVisible = [...new Set([...subj.missing, ...body.missing])].filter((k) => k !== 'processor_email' || !vals.processor_line);
+  if (missingVisible.length) warnings.push('Blank on this file: ' + missingVisible.map((k) => '{{' + k + '}}').join(', '));
   warnings.push(...attach.notices);
   return {
     subject: subj.out.replace(/[\r\n]+/g, ' ').trim(),
@@ -188,7 +242,7 @@ export function applyFileTemplate(t, deal, sender, opts = {}) {
     missing: [...new Set([...subj.missing, ...body.missing])],
     templateKey: t.id ? String(t.id).slice(0, 60) : (t.key || null),
     attachDocumentIds: attach.matched.map((d) => d.id),
-    suggestedTo,
+    suggestedTo: suggested.emails,
     warnings,
   };
 }
@@ -206,7 +260,6 @@ export function cleanTemplateInput(v = {}) {
   const attachDocTypes = [].concat(v.attachDocTypes || v.attach_doc_types || []).map((x) => String(x || '').trim()).filter(Boolean).slice(0, 12);
   const defaultRecipientRoles = [].concat(v.defaultRecipientRoles || v.default_recipient_roles || [])
     .map((x) => String(x || '').trim()).filter((r) => DEFAULT_RECIPIENT_ROLE_KEYS.includes(r)).slice(0, 8);
-  // Admins build shared templates only (John, Nov 9 2:57 PM)
   return { name, subject, bodyHtml, scope: 'shared', category, active, attachDocTypes, defaultRecipientRoles };
 }
 
@@ -216,10 +269,31 @@ export function canManageFileTemplates(u) {
 export function canEditFileTemplate(u, t) {
   return canManageFileTemplates(u) && t && t.scope === 'shared';
 }
-/** Staff who can send from a file may SELECT templates; only Admins author them. */
 export function canSelectFileTemplates(u) {
   if (!u || u.accountRole || u.role === 'Outside user' || u.role === 'Employee') return false;
   return ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin'].includes(u.role) || !!u.isAdmin;
+}
+
+/** Shape deal_contacts + deal_entities rows the way getDeal builds participants (for Email shell deals that have participants: []). */
+export function participantsFromContacts(contacts = [], entities = []) {
+  const ents = new Map((entities || []).map((r) => [r.participant_id || r.participantId, {
+    name: r.name, type: r.entity_type || r.entityType || '',
+    repName: r.rep_name || r.repName || '', repTitle: r.rep_title || r.repTitle || '',
+    repPhone: r.rep_phone || r.repPhone || '', repEmail: r.rep_email || r.repEmail || '',
+  }]));
+  return (contacts || []).map((r) => {
+    const id = r.participant_id || r.participantId || r.id;
+    return {
+      id, dealId: r.deal_id || r.dealId, contactId: r.contact_id || r.contactId, role: r.role, removed: !!r.removed,
+      contact: {
+        id: r.contact_id || r.contactId, profileId: r.profile_id || r.profileId,
+        firstName: r.first_name || r.firstName || '', lastName: r.last_name || r.lastName || '',
+        company: r.company || '', email: r.email || '', phone: r.phone || '',
+        contactHidden: !!(r.contact_hidden || r.contactHidden),
+      },
+      entity: ents.get(id) || null,
+    };
+  });
 }
 
 export const SEED_SHARED = [
@@ -229,7 +303,7 @@ export const SEED_SHARED = [
     attachDocTypes: [], defaultRecipientRoles: ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent'] },
   { key: 'order-opened', name: 'Order opened / welcome', category: 'Opening',
     subject: 'Welcome — we opened {{file_number}}',
-    bodyHtml: '<p>Hello {{buyer_first_name}},</p><p>We have opened your file <strong>{{file_number}}</strong> for {{property_address}}. Your processor is {{processor_name}} ({{processor_email}}).</p><p>We will be in touch with next steps. If anything looks wrong on the order, reply here.</p><p>Thank you,</p>',
+    bodyHtml: '<p>Hello {{buyer_first_name}},</p><p>We have opened your file <strong>{{file_number}}</strong> for {{property_address}}. Your processor is {{processor_line}}.</p><p>We will be in touch with next steps. If anything looks wrong on the order, reply here.</p><p>Thank you,</p>',
     attachDocTypes: ['Contract'], defaultRecipientRoles: ['Client-Buyer'] },
   { key: 'closing-scheduled', name: 'Closing scheduled', category: 'Closing',
     subject: 'Closing scheduled for {{file_number}}',

@@ -3,8 +3,8 @@
 // Documents (staff only). The server refuses every address that is not a test address on Live Test, and never emails wire details.
 import { html, raw, esc, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611070139';
 import { editorHtml, mountEditor } from './compose.js?v=202611090935';
-import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, hasSignature, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611092200';
-import { applyFileTemplate } from '../data/file-email-templates.js?v=202611092200';
+import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, hasSignature, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611091801';
+import { applyFileTemplate } from '../data/file-email-templates.js?v=202611092210';
 const ROLE = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent', 'Transaction Coordinator': 'TC' };
 const list = (s) => String(s || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
 const isWire = (d) => d.wireInstructions || /\bwir(e|ed|es|ing)\b|wire[_ -]?instruction/i.test(d.name || '');
@@ -56,7 +56,20 @@ export async function render({ api, deal, user, refresh: reload }) {
 // compose: From = your connected Gmail; To / Cc / Bcc; file parties to click in; subject; message; attach file documents (never wire instructions)
 export async function composeEmailModal({ api, deal, user, gmail, done }, pre = {}) {
   const docs = (await api.listDocuments(deal.id).catch(() => [])).filter((d) => d.hasContent !== false);
-  const parties = introRecipients(deal).concat((deal.participants || []).filter((p) => !p.removed && p.contact && p.contact.email && !p.contact.contactHidden && !Object.keys(ROLE).includes(p.role))
+  // Email tab uses readFileShell (participants: []). Load parties + processor profile email for templates / party chips only.
+  let mergeDeal = deal;
+  if (api.loadDealEmailContext && (!(deal.participants && deal.participants.length) || !deal.processorEmail)) {
+    try {
+      const ctx = await api.loadDealEmailContext(deal.id);
+      mergeDeal = {
+        ...deal,
+        participants: (deal.participants && deal.participants.length) ? deal.participants : (ctx.participants || []),
+        processorEmail: deal.processorEmail || ctx.processorEmail || '',
+        processorName: deal.processorName || ctx.processorName || deal.processorName || '',
+      };
+    } catch (e) { /* keep the shell deal; warnings will explain missing parties */ }
+  }
+  const parties = introRecipients(mergeDeal).concat((mergeDeal.participants || []).filter((p) => !p.removed && p.contact && p.contact.email && !p.contact.contactHidden && !Object.keys(ROLE).includes(p.role))
     .map((p) => ({ name: `${p.contact.firstName || ''} ${p.contact.lastName || ''}`.trim(), email: String(p.contact.email).toLowerCase(), role: p.role })));
   const templates = (api.listFileEmailTemplates ? (await api.listFileEmailTemplates({ includeInactive: false }).catch(() => [])) : []).filter((t) => t.scope === 'shared' && t.active !== false);
   const tplOpts = templates.map((t) => html`<option value="${t.id}">${t.name}${t.category ? ` (${t.category})` : ''}</option>`);
@@ -87,18 +100,17 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     const t = templates.find((x) => x.id === tplSel.value); if (!t) return;
     const sender = { firstName: gmail.firstName || user.firstName, lastName: gmail.lastName || user.lastName };
     const toNow = list($('[data-mail-to]', m).value);
-    const applied = applyFileTemplate(t, deal, sender, { toEmails: toNow, documents: docs, applyDefaultRecipients: toNow.length === 0 });
+    const opts = { toEmails: toNow, documents: docs, applyDefaultRecipients: toNow.length === 0, processorEmail: mergeDeal.processorEmail };
+    const applied = applyFileTemplate(t, mergeDeal, sender, opts);
     if (applied.suggestedTo && applied.suggestedTo.length && toNow.length === 0) $('[data-mail-to]', m).value = applied.suggestedTo.join(', ');
-    // re-merge recipient_first_name after To fill
     const to2 = list($('[data-mail-to]', m).value);
-    const applied2 = applyFileTemplate(t, deal, sender, { toEmails: to2, documents: docs, applyDefaultRecipients: false });
+    const applied2 = applyFileTemplate(t, mergeDeal, sender, { toEmails: to2, documents: docs, applyDefaultRecipients: false, processorEmail: mergeDeal.processorEmail });
     $('[data-mail-subject]', m).value = applied2.subject;
     ed.box.innerHTML = applied2.html || '<p><br></p>';
     chosenTemplateKey = applied2.templateKey;
-    // auto-check matched documents; leave others as they were
     const want = new Set(applied2.attachDocumentIds || []);
     $$('[data-mail-doc]', m).forEach((c) => { if (want.has(c.value)) c.checked = true; });
-    showWarn(applied2.warnings);
+    showWarn([...(applied.warnings || []).filter((w) => /No .+ with an email/.test(w)), ...applied2.warnings]);
   };
   if (tplSel) {
     tplSel.addEventListener('change', applyChosen);
