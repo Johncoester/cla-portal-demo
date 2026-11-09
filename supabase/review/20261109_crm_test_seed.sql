@@ -14,10 +14,10 @@
 --   activities: subject and body
 -- Title, website, and opportunity name are not mass-update fields, so a Notes
 -- mass update does not remove the only copy of the marker.
--- Names are fake (TEST Lead Avery Example). Emails are @example.com.
+-- Names are fake (TEST Lead Avery Example). Row emails are @example.com.
 -- Phones are 555-01xx. Addresses are Example streets in MD, VA, DC, and FL.
--- Owners stay null unless that column is NOT NULL. Then one existing active
--- Sales Person or Sales Team profile is used. No profile is inserted.
+-- owner_id is John's profile, looked up at runtime (email johncoester@gmail.com,
+-- id starting 149e612a). No profile is inserted and no other person is hard-coded.
 -- Dates are Eastern calendar days so Created / Modified filters
 -- and overdue task colors have rows in the last 7 days, the last 30 days, and older.
 -- last_activity_at is not written and is not required. TEST has no such column
@@ -35,21 +35,22 @@ declare
   missing text;
   extra text;
   chk text;
+  clean text;
+  depth int;
+  i int;
+  ch text;
+  list_src text;
   lits text[];
   rel regclass;
   col text;
   val text;
-  v_owner uuid;
+  v_john uuid;
   v_actor uuid;
   lookup text;
   n int;
   insert_cols text;
   select_cols text;
   have_demo boolean;
-  lead_owner_required boolean;
-  account_owner_required boolean;
-  opp_owner_required boolean;
-  activity_owner_required boolean;
   actor_required boolean;
 begin
   if to_regclass('public.profiles') is null
@@ -69,6 +70,15 @@ begin
     )
   ) then
     raise exception 'refusing: this database does not have the CLA Portal Live Test staff profiles (project aqcervntopidtcazcmlv).';
+  end if;
+
+  select p.id into v_john
+  from public.profiles p
+  where p.email = 'johncoester@gmail.com'
+    and left(p.id::text, 8) = '149e612a'
+  limit 1;
+  if v_john is null then
+    raise exception 'refusing: John''s profile was not found (email johncoester@gmail.com, id starting 149e612a).';
   end if;
 
   if (select data_type from information_schema.columns
@@ -190,26 +200,49 @@ begin
       ('public.crm_activities'::regclass, 'entity', 'opportunity')
     ) as v(rel, col, val)
   loop
+    -- Only a simple allowed-value check counts: col = ANY (ARRAY[...]) or col IN (...).
+    -- A check that merely mentions the column (call-only fields, field pairings) is ignored.
     for chk in
       select pg_get_constraintdef(c.oid)
       from pg_constraint c
       where c.conrelid = rel and c.contype = 'c'
         and pg_get_constraintdef(c.oid) ~* ('\m' || col || '\M')
     loop
+      clean := regexp_replace(chk, '::\s*(character varying|double precision|timestamp with time zone|timestamp without time zone|[A-Za-z_][A-Za-z0-9_.]*)(\s*\[\s*\])?', '', 'g');
+      clean := regexp_replace(clean, '\s+', ' ', 'g');
+      clean := btrim(clean);
+      clean := regexp_replace(clean, '^CHECK\s*', '', 'i');
+      clean := btrim(clean);
+      loop
+        exit when length(clean) < 2 or left(clean, 1) <> '(' or right(clean, 1) <> ')';
+        depth := 0;
+        for i in 1..length(clean) loop
+          ch := substr(clean, i, 1);
+          if ch = '(' then depth := depth + 1;
+          elsif ch = ')' then depth := depth - 1;
+          end if;
+          exit when depth = 0 and i < length(clean);
+        end loop;
+        exit when depth <> 0 or i < length(clean);
+        clean := btrim(substr(clean, 2, length(clean) - 2));
+      end loop;
+      clean := regexp_replace(clean, '^\(([A-Za-z_][A-Za-z0-9_]*)\)', '\1');
+      list_src := null;
+      if clean ~* ('^' || col || '\s*=\s*ANY\s*\(.*ARRAY\s*\[') then
+        list_src := substring(clean from 'ARRAY\s*\[(.*)\]');
+      elsif clean ~* ('^' || col || '\s+IN\s*\(') then
+        list_src := substring(clean from 'IN\s*\((.*)\)');
+      end if;
+      if list_src is null then
+        continue;
+      end if;
       select coalesce(array_agg(distinct m[1]), array[]::text[]) into lits
-      from regexp_matches(chk, '''([^'']+)''', 'g') as m;
-      if coalesce(cardinality(lits), 0) >= 2 and not (val = any (lits)) then
+      from regexp_matches(list_src, '''([^'']*)''', 'g') as m;
+      if coalesce(cardinality(lits), 0) >= 1 and not (val = any (lits)) then
         raise exception 'refusing: % % check does not allow % (%).', rel::text, col, val, chk;
       end if;
     end loop;
   end loop;
-
-  select
-    exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'crm_leads' and column_name = 'owner_id' and is_nullable = 'NO' and column_default is null and is_generated = 'NEVER'),
-    exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'crm_accounts' and column_name = 'owner_id' and is_nullable = 'NO' and column_default is null and is_generated = 'NEVER'),
-    exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'crm_opportunities' and column_name = 'owner_id' and is_nullable = 'NO' and column_default is null and is_generated = 'NEVER'),
-    exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'crm_activities' and column_name = 'owner_id' and is_nullable = 'NO' and column_default is null and is_generated = 'NEVER')
-  into lead_owner_required, account_owner_required, opp_owner_required, activity_owner_required;
 
   actor_required := exists (
     select 1 from information_schema.columns
@@ -223,16 +256,6 @@ begin
     select 1 from information_schema.columns
     where table_schema = 'public' and table_name = 'profiles' and column_name = 'is_demo'
   );
-
-  if lead_owner_required or account_owner_required or opp_owner_required or activity_owner_required then
-    lookup := 'select p.id from public.profiles p where p.status = ''active'' and p.role in (''Sales Person'', ''Sales Team'')';
-    if have_demo then lookup := lookup || ' and coalesce(p.is_demo, false) = false'; end if;
-    lookup := lookup || ' order by p.id limit 1';
-    execute lookup into v_owner;
-    if v_owner is null then
-      raise exception 'refusing: an owner is required and no active Sales Person or Sales Team profile exists.';
-    end if;
-  end if;
 
   if actor_required then
     lookup := 'select p.id from public.profiles p where p.status = ''active'' and p.role in (''Sales Person'', ''Sales Team'', ''Processor'', ''Preprocessor'', ''Admin'', ''Super admin'', ''Transaction Coordinator'')';
@@ -348,10 +371,10 @@ begin
       update _crm_seed_activities set priority = 'Normal' where priority is null;
     end if;
 
-    if lead_owner_required then update _crm_seed_leads set owner_id = v_owner; end if;
-    if account_owner_required then update _crm_seed_accounts set owner_id = v_owner; end if;
-    if opp_owner_required then update _crm_seed_opps set owner_id = v_owner; end if;
-    if activity_owner_required then update _crm_seed_activities set owner_id = v_owner; end if;
+    update _crm_seed_leads set owner_id = v_john;
+    update _crm_seed_accounts set owner_id = v_john;
+    update _crm_seed_opps set owner_id = v_john;
+    update _crm_seed_activities set owner_id = v_john;
     if actor_required then
       update _crm_seed_leads set created_by = v_actor, modified_by = v_actor;
       update _crm_seed_accounts set created_by = v_actor, modified_by = v_actor;
@@ -495,6 +518,15 @@ begin
      or (select count(*) from public.crm_activities where position('TEST-SEED-CRM' in coalesce(body, '')) > 0 and kind = 'task' and status not in ('Completed', 'done') and due_date = today) < 1
      or (select count(*) from public.crm_activities where position('TEST-SEED-CRM' in coalesce(body, '')) > 0 and kind = 'task' and status not in ('Completed', 'done') and due_date > today) < 1 then
     raise exception 'readback: open tasks are missing a past, today, or future due date.';
+  end if;
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'crm_activities' and column_name = 'owner_id'
+  ) then
+    if (select count(*) from public.crm_activities where position('TEST-SEED-CRM' in coalesce(body, '')) > 0 and owner_id = v_john) <> 10
+       or (select count(*) from public.crm_activities where position('TEST-SEED-CRM' in coalesce(body, '')) > 0 and kind = 'task' and owner_id = v_john and due_date is not null) < 5 then
+      raise exception 'readback: seeded activities must be owned by John, and every task needs that owner and a due date.';
+    end if;
   end if;
 end
 $seed$;
