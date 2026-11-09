@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611100130';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611100915';
+import { getAdapter } from './data/adapter.js?v=202611100930';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611100930';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611090935';
 import { canUseCrm } from './data/crm.js?v=202611100100';
@@ -33,10 +33,10 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611100005'),
-  dashboard: () => import('./pages/dashboard.js?v=202611100915'),
-  orders: () => import('./pages/orders.js?v=202611091600'),
+  dashboard: () => import('./pages/dashboard.js?v=202611100930'),
+  orders: () => import('./pages/orders.js?v=202611100930'),
   'orders/new': () => import('./pages/ordernew.js?v=202611092350'),
-  deal: () => import('./pages/deal.js?v=202611100915'),
+  deal: () => import('./pages/deal.js?v=202611100930'),
   users: () => import('./pages/users.js?v=202611090935'),
   profile: () => import('./pages/profile.js?v=202611100005'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
@@ -46,7 +46,7 @@ const pages = {
   library: () => import('./pages/library.js?v=202611091030'),
   activity: () => import('./pages/activity.js?v=202611070139'),
   outbox: () => import('./pages/outbox.js?v=202611090935'),
-  tasks: () => import('./pages/tasks.js?v=202611100915'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => import('./pages/tasks.js?v=202611100930'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611091600'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js?v=202611090935'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611091240'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
@@ -168,7 +168,7 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
   const betaTag = (id) => html`<span class="beta-badge" data-beta-badge="${id}" title="${BETA_LABEL}">Beta</span>`;
   const hrTip = (n) => (/^hr-/.test(n.id) ? raw(` title="${esc(n.label)}${n.beta ? ` (${BETA_LABEL})` : ''}" aria-label="${esc(n.label)}" data-tip="${esc(n.label)}" data-hr-nav="${n.id}"`) : tip(n.label, n.beta));   // John, Nov 4: HR icons get hover labels
   const core = navFor(u, null, 0, api.features || {}, ws, DEMO_VIEW).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}"${hrTip(n)}${n.beta ? raw(' data-beta-nav') : ''}>${lbl(n.id, n.label)}${n.beta ? betaTag(n.id) : ''}</a></li>`);
-  const t = route.params.tab; const link = (tab, label, cls, beta) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab && !(tab === 'accounting' && route.params.v === 'payoffs') ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}"${tip(label, beta)}${beta ? raw(' data-beta-nav') : ''}>${lbl(tab, label)}${beta ? betaTag(tab) : ''}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : tab === 'inbox' ? '' : cnt(tab)}</a></li>`;
+  const t = route.params.tab; const link = (tab, label, cls, beta) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab && !(tab === 'accounting' && route.params.v === 'payoffs') ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}"${tip(label, beta)}${beta ? raw(' data-beta-nav') : ''}>${lbl(tab, label)}${beta ? betaTag(tab) : ''}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : cnt(tab)}</a></li>`;
   // BUYER (Nov 4 call): plain tab names; no Contacts tab (the Overview lists the closing team) and no Agreements tab (they are to-dos now)
   const pureBuyer = deal && ['Client-Buyer', 'Client-Seller'].some((c) => (deal.myRoles || [deal.myRole]).includes(c)) && !(deal.myRoles || [deal.myRole]).some((r) => /Agent$/.test(r));   // seller mirror (Nov 4): a pure seller gets the same plain tabs
   const dealNav = deal && pureBuyer ? html`<li class="nav-sep">This file</li>${link('overview', 'Overview', 'orders')}${link('tasks', 'To-do list', 'task')}${link('inbox', 'Messages', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing appointment', 'task')}${link('activity', 'Activity', 'activity')}`
@@ -320,7 +320,7 @@ function nextPaint() {
 function rememberCounts(api, dealId, userId, token) {
   const read = api.readOverview || api.getOrderOverview;
   if (!read || !dealId || !userId) return;
-  Promise.resolve().then(() => read.call(api, dealId)).then((overview) => {
+  Promise.resolve().then(() => read.call(api, dealId)).then(async (overview) => {
     if (token !== rendering) return;
     const root = $('#app');
     if (!root || root.getAttribute('data-route-user') !== userId || root.getAttribute('data-route-deal') !== dealId) return;
@@ -329,10 +329,24 @@ function rememberCounts(api, dealId, userId, token) {
       const slot = root.querySelector('[data-tab-count="' + tab + '"]');
       if (!slot) return;
       const n = counts[tab];
-      if (n == null) { slot.hidden = true; slot.textContent = ''; return; }
+      if (n == null || (tab === 'inbox' && !(Number(n) > 0))) { slot.hidden = true; slot.textContent = ''; return; }
       slot.hidden = false;
       slot.textContent = String(n);
     });
+    const routeNow = parse();
+    const onEmail = routeNow.page === 'deal' && routeNow.params && routeNow.params.id === dealId && routeNow.params.tab === 'email';
+    let emailN = counts.email;
+    if (onEmail && api.fileEmailUnreadCount) {
+      try { emailN = await api.fileEmailUnreadCount(dealId); } catch (e) { emailN = 0; }
+    }
+    if (token !== rendering) return;
+    const still = $('#app');
+    if (!still || still.getAttribute('data-route-user') !== userId || still.getAttribute('data-route-deal') !== dealId) return;
+    const emailSlot = still.querySelector('[data-tab-count="email"]');
+    if (emailSlot) {
+      if (!(Number(emailN) > 0)) { emailSlot.hidden = true; emailSlot.textContent = ''; }
+      else { emailSlot.hidden = false; emailSlot.textContent = String(emailN); }
+    }
   }).catch(() => {});
 }
 export async function render() {

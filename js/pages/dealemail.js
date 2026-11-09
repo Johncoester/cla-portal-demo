@@ -5,6 +5,7 @@ import { html, raw, esc, $, $$, guard, modal, closeModal, toast, fmtDateTime, fm
 import { editorHtml, mountEditor } from './compose.js?v=202611090935';
 import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, hasSignature, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611091801';
 import { applyFileTemplate } from '../data/file-email-templates.js?v=202611092210';
+import { countUnreadEmails, emailMatchesQuery, isUnreadFileEmail } from '../data/file-email-unread.js?v=202611100930';
 const ROLE = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent', 'Transaction Coordinator': 'TC' };
 const list = (s) => String(s || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
 const isWire = (d) => d.wireInstructions || /\bwir(e|ed|es|ing)\b|wire[_ -]?instruction/i.test(d.name || '');
@@ -12,20 +13,34 @@ const reSubject = (s) => (/^re:/i.test(String(s || '').trim()) ? String(s).trim(
 
 export async function render({ api, deal, user, refresh: reload }) {
   if (!canUseGmail(user) || !api.listDealEmails) throw new Error('That page does not exist.');
-  const [g, emails] = await Promise.all([api.getGmailStatus().catch(() => ({ available: false })), api.listDealEmails(deal.id).catch(() => [])]);
+  const [g, emails, cursor] = await Promise.all([
+    api.getGmailStatus().catch(() => ({ available: false })),
+    api.listDealEmails(deal.id).catch(() => []),
+    api.emailReadCursor ? api.emailReadCursor(deal.id).catch(() => ({ readAt: '' })) : Promise.resolve({ readAt: '' }),
+  ]);
+  const userId = user && user.id || '';
+  const readAt = cursor && cursor.readAt || '';
+  const unreadN = countUnreadEmails(emails, { userId, readAt });
+  // Viewing the tab marks the file read for this person. The count above is what was unread when the page opened.
+  // A missing deal_email_reads table is remembered in this browser instead; a failed mark does not block the list.
+  if (api.markDealEmailsRead) { try { await api.markDealEmailsRead(deal.id); } catch (e) { /* list still shows */ } }
   const threads = new Map();
   for (const e of emails) { const k = `${e.mailboxEmail}|${e.gmailThreadId}`; if (!threads.has(k)) threads.set(k, []); threads.get(k).push(e); }
   const groups = [...threads.values()].map((ms) => ms.sort((a, b) => String(a.sentAt).localeCompare(String(b.sentAt))));
   groups.sort((a, b) => String(b[b.length - 1].sentAt).localeCompare(String(a[a.length - 1].sentAt)));
-  const row = (e) => html`<li class="mail-msg" data-mail-msg="${e.id}" data-mail-dir="${e.direction}">
+  const row = (e) => {
+    const fresh = isUnreadFileEmail(e, { userId, readAt });
+    return html`<li class="mail-msg${fresh ? ' unread' : ''}" data-mail-msg="${e.id}" data-mail-dir="${e.direction}"${fresh ? raw(' data-mail-unread="1"') : ''}>
       <div class="small">${e.direction === 'in' ? pill('Received', 'info') : pill('Sent', 'ok')} <strong>${e.fromName || e.fromEmail}</strong> &lt;${e.fromEmail}&gt; to ${(e.toEmails || []).join(', ')}${(e.ccEmails || []).length ? html`, cc ${(e.ccEmails || []).join(', ')}` : ''}
-        <span class="muted">${fmtDateTime(e.sentAt)}</span>${e.templateKey === 'intro' ? html` ${pill('Introduction', '')}` : e.templateKey ? html` ${pill('Template', '')}` : ''}</div>
+        <span class="muted">${fmtDateTime(e.sentAt)}</span>${fresh ? html` ${pill('New', 'info')}` : ''}${e.templateKey === 'intro' ? html` ${pill('Introduction', '')}` : e.templateKey ? html` ${pill('Template', '')}` : ''}</div>
       <div class="small muted">${e.snippet}</div>
       ${(e.attachmentNames || []).length ? html`<div class="small" data-mail-attachments>Attachments: ${(e.attachmentNames || []).join(', ')} <a href="#/deals/${deal.id}/documents">Documents</a></div>` : ''}
       <button type="button" class="linkish small" data-mail-show="${e.id}">Show message</button> ${g.connected ? html`<button type="button" class="linkish small" data-mail-reply="${e.id}">Reply</button>` : ''}
       <div data-mail-body="${e.id}" hidden></div></li>`;
-  const body = html`<div class="box-title"><h2><span class="h-ico"></span>Email</h2></div>
+  };
+  const body = html`<div class="box-title"><h2><span class="h-ico"></span>Email${unreadN ? html` <span class="nav-badge" data-mail-unread-count>${unreadN} unread</span>` : ''}</h2></div>
     <div class="card" data-email-tab>
+      <label>Search email on this file<input type="search" data-mail-search placeholder="Subject, from, or message" aria-label="Search email on this file"></label>
       ${g.connected ? html`<p data-mail-from>Sending from <strong>${g.mailbox}</strong>${g.status === 'needs_reconnect' ? html` <span class="pill bad">connect again on <a href="#/profile">Profile Setting</a></span>` : ''}</p>`
         : html`<div class="notice warn" data-mail-connect>Connect your @clatitle.com Gmail first: <a href="#/profile">Profile Setting &gt; Gmail</a>. You can still check an email below (nothing is sent).</div>`}
       <p class="small muted" data-mail-allowlist>${TEST_ALLOWLIST_NOTE} Subjects get ${fileTag(deal.fileNumber, deal)} so replies are easy to find.</p>
@@ -33,9 +48,28 @@ export async function render({ api, deal, user, refresh: reload }) {
         ${g.connected ? html`<button type="button" class="ghost" data-mail-sync>Check for replies</button>` : ''}</p>
     </div>
     ${groups.length ? groups.map((ms) => html`<div class="card mail-thread" data-mail-thread="${ms[0].gmailThreadId}"><h3 class="small">${ms[ms.length - 1].subject} <span class="muted">(${ms.length} message${ms.length === 1 ? '' : 's'}, ${ms[0].mailboxEmail})</span></h3><ul class="plain">${ms.map(row)}</ul></div>`)
-      : html`<p class="muted" data-mail-none>No email on this file yet.</p>`}`;
+      : html`<p class="muted" data-mail-none>No email on this file yet.</p>`}
+    <p class="muted" data-mail-search-empty hidden>No email matches that search.</p>`;
   return { title: 'Email', crumbs: [['Email']], body, mount(root) {
     const byId = new Map(emails.map((e) => [e.id, e]));
+    const search = $('[data-mail-search]', root);
+    const applySearch = () => {
+      const query = search ? search.value : '';
+      let shown = 0;
+      $$('[data-mail-thread]', root).forEach((card) => {
+        let hit = 0;
+        $$('[data-mail-msg]', card).forEach((li) => {
+          const keep = emailMatchesQuery(byId.get(li.dataset.mailMsg), query);
+          li.hidden = !keep;
+          if (keep) hit += 1;
+        });
+        card.hidden = hit === 0;
+        if (hit) shown += 1;
+      });
+      const empty = $('[data-mail-search-empty]', root);
+      if (empty) empty.hidden = shown > 0 || !String(query || '').trim();
+    };
+    if (search) { search.addEventListener('input', applySearch); search.addEventListener('search', applySearch); }
     $$('[data-mail-show]', root).forEach((b) => b.addEventListener('click', () => {
       const box = $(`[data-mail-body="${b.dataset.mailShow}"]`, root); const e = byId.get(b.dataset.mailShow);
       if (box.hidden && !box.firstChild) { const f = document.createElement('iframe'); f.setAttribute('sandbox', ''); f.setAttribute('referrerpolicy', 'no-referrer'); f.className = 'mail-frame';

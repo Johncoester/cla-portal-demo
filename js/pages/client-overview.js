@@ -48,9 +48,10 @@ export async function clientTabChrome({ api, user }, d, active) {
   const pure = isPureClient(user);
   const [ov, tasks, ag] = await Promise.all([api.getOrderOverview(d.id).catch(() => ({ counts: {} })), pure ? api.listTasks(d.id).catch(() => []) : [], api.listAgreements(d.id).catch(() => null)]);
   const todo = pure ? tasks.filter((t) => t.mine && OPEN.includes(t.status)).length + agreementTasks(d, ag).length : 0; const cnt = ov.counts || {};
+  const msgN = d.unread || cnt.inbox || 0;
   const what = isRefi(d) ? 'refinance' : clientSide(user) === 'buyer' ? 'home purchase' : 'home sale';
   return html`<h1 class="co-greet co-greet-sm" data-co-greet>Your ${what}</h1><p class="co-sub co-file" data-co-file>${d.street}, ${d.city}, ${d.state} ${d.zip} \u00b7 Order ${d.fileNumber}</p>
-    ${clientNav(d, user, active, { todo, tasks: cnt.tasks, msg: d.unread || 0, docs: cnt.documents, ag: ag && ag.pending })}`;
+    ${clientNav(d, user, active, { todo, tasks: cnt.tasks, msg: msgN, docs: cnt.documents, ag: ag && ag.pending })}`;
 }
 
 export async function renderClientOverview(ctx, d, here) {
@@ -98,7 +99,7 @@ export async function renderClientOverview(ctx, d, here) {
   const sc = d.scheduledClosing;
   // live40 (John, Nov 5 meeting): Settlement date = the scheduled closing once there is one; until then the proposed date from order entry (closingDate), labeled "(proposed)"
   const settleFact = sc && sc.at ? fact('Settlement date', longDate(String(sc.at).slice(0, 10)), 'settlement') : d.closingDate ? fact('Settlement date (proposed)', longDate(d.closingDate), 'settlement') : fact('Settlement date', 'Not set yet', 'settlement');
-  const msgCount = d.unread || 0; const cnt = ov.counts || {};
+  const cnt = ov.counts || {}; const msgCount = d.unread || cnt.inbox || 0;
   const body = html`<div class="co-page" data-client-overview="${side}">
     <h1 class="co-greet" data-co-greet>Hi ${user.firstName}, here\u2019s your ${what}</h1><p class="co-sub">${d.street}, ${d.city}, ${d.state} ${d.zip} \u00b7 Order ${d.fileNumber}</p>
     ${clientNav(d, user, 'overview', { todo: todo.length, tasks: cnt.tasks, msg: msgCount, docs: cnt.documents, ag: ag && ag.pending })}

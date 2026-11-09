@@ -10,10 +10,10 @@ import { composeModal } from './compose.js?v=202611090935';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611092320';
 import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611090935';
 import { themeOn } from '../theme.js?v=202611070139';
-import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611100005';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611091311';
+import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611100930';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611100930';
 import { gatherReads } from '../data/read-batch.js?v=202611082010';
-import { prefetchDealTab } from './deal-tab.js?v=202611100915';
+import { prefetchDealTab } from './deal-tab.js?v=202611100930';
 import { placeText } from '../data/cla-offices.js?v=202611090935';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 
@@ -128,11 +128,14 @@ function overview({ api, user, refresh, demoLocked }, d, crumbs, ag, salesStaff 
   const stage = Math.max(0, Math.min(STAGES.length - 1, Number(d.stage) || 0)); const today = localDate();
   const toGo = d.closingDate ? Math.round((Date.parse(d.closingDate + 'T12:00:00') - Date.parse(today + 'T12:00:00')) / 864e5) : null;
   const openN = ov ? (staffView ? ov.counts.tasks : ov.outstanding) : d.openTasks;
+  const portalN = Number(d.unread) || (ov && ov.counts && Number(ov.counts.inbox)) || 0;
+  const emailN = (ov && ov.counts && Number(ov.counts.email)) || 0;
   const glance = html`<div class="op-glance" data-glance><span class="muted">At a glance:</span>
     ${showPrice ? html`<span data-purchase-price>Purchase <b>${fmtMoney(d.purchasePrice) || '\u2014'}</b></span>` : ''}<span data-loan-amount>Loan <b>${fmtMoney(d.loanAmount) || '\u2014'}</b></span>
     ${showEmd ? html`<span data-emd-amount>EMD <b>${d.emdAmount == null || d.emdAmount === '' ? '\u2014' : fmtMoney(d.emdAmount)}</b></span><span data-emd-due>EMD due <b>${fmtDate(d.emdDueDate) || '\u2014'}</b></span>` : ''}
     <span data-settlement>Settlement <b>${fmtDate(d.closingDate) || 'not set'}</b>${toGo != null && toGo >= 0 ? ` (${toGo === 0 ? 'today' : `${toGo} day${toGo === 1 ? '' : 's'}`})` : ''}</span>
     ${openN != null ? html`<span data-open-tasks><a href="#/deals/${d.id}/tasks"><b>${openN}</b> ${staffView ? 'open task' : 'task'}${openN === 1 ? '' : 's'}${staffView ? '' : ' for you'}</a></span>` : ''}
+    ${emailN ? html`<span data-email-unread><a href="#/deals/${d.id}/email"><b>${emailN}</b> unread email${emailN === 1 ? '' : 's'}</a></span>` : ''}
     ${edit && !refi ? html`<span data-occ-primary>Primary residence <b>${yesNo(d.primaryResidence)}</b></span><span data-occ-fthb>First-time buyer <b>${yesNo(d.firstTimeBuyer)}</b></span>` : ''}
     ${edit ? html`<button class="icon-edit" id="editdeal" title="Edit order details" aria-label="Edit order details">&#9998;</button>` : ''}</div>`;
   const head = html`<section class="op-status" data-status-bar aria-label="Order status">
@@ -143,7 +146,7 @@ function overview({ api, user, refresh, demoLocked }, d, crumbs, ag, salesStaff 
     <div class="op-title deal-head"><h1 class="op-address" data-op-address>${d.street}, ${d.city}, ${d.state} ${d.zip}</h1><span class="op-order-no order-no" data-op-order-no>Order # ${d.fileNumber}</span>${d.fileTitle ? html` <span class="file-title" data-file-title>${d.fileTitle}</span>` : ''}${d.agentParties && d.agentParties.length ? html` <span class="pill warn agent-party">Agent is a party</span>` : ''}</div>
     <p class="op-sub muted" data-op-sub>${d.transactionType || 'Purchase'}${d.county ? html` &middot; <span data-county-head>${d.county} County</span>` : ''}<span data-county hidden>${d.county || '\u2014'}</span> &middot; Opened ${fmtDate(d.openDate)} &middot; Processor ${d.processorId ? html`<span data-processor-name>${d.processorName || 'assigned'}</span>` : staffView ? html`<span class="pill warn" data-unassigned-processor title="Assign one with Edit order details">Unassigned</span>` : 'not set'}${d.preprocessorName ? html` &middot; Preprocessor ${d.preprocessorName}` : ''}${d.tcUserId ? html` &middot; TC <span data-tc-name>${d.tcName || 'assigned'}</span>` : staffView ? html` &middot; TC <span class="muted" data-tc-none>not assigned</span>` : ''}${staffView && (claRepresentationWritesEnabled(api) || d.claRepresentation) ? html` &middot; <span data-cla-representation>CLA represents: ${d.claRepresentationLabel || 'Not recorded'}</span>` : ''}${staffView ? html` &middot; <span data-source-of-business>Source of business: ${d.sourceOfBusinessLabel || 'Not set'}</span>` : ''}${ov && ov.orderDetails.agencyLicenseId ? html` &middot; Agency License ID <span data-license>${ov.orderDetails.agencyLicenseId}</span>` : ''}</p>
     ${moneyRow(d, { canWire, staffView, showEmd })}
-    ${d.unread ? html`<div class="op-actions"><a class="new-msg" href="#/deals/${d.id}/inbox">${d.unread} new message(s)</a></div>` : ''}
+    ${portalN ? html`<div class="op-actions"><a class="new-msg" href="#/deals/${d.id}/inbox" data-portal-unread="${portalN}">${portalN} new message(s)</a></div>` : ''}
     ${d.agentParties && d.agentParties.length ? html`<div class="notice warn" data-agent-party><strong>Agent is a party.</strong> ${d.agentParties.map((p) => `${p.name} is the ${p.label}`).join('; ')} on this file (a licensee buying or selling for themselves). Make sure the licensee disclosure is on file.</div>` : ''}
     ${d.selfRep ? html`<div class="notice info" data-self-rep>You are the <strong>${d.myRoleLabel}</strong> on this file. Your tasks as the client and as the agent are in one list; the history records which capacity you acted in.</div>` : ''}
     ${sc ? html`<div class="notice info" data-scheduled-closing><strong>Closing scheduled:</strong> ${slotText(sc.at)} &middot; ${placeText(sc.location, sc.officeId, sc.officeName)}${sc.note ? html` &middot; ${sc.note}` : ''} <a href="#/deals/${d.id}/closing">details</a></div>` : ''}
