@@ -26,6 +26,7 @@ ok(seed.includes('aqcervntopidtcazcmlv') && /raise exception 'refusing:/.test(se
 ok(seed.includes('TEST-SEED-CRM') && seed.includes('149e612a-6e14-4ee1-9890-0f29d6f89156'), 'the seed carries the marker and the known TEST staff id');
 ok(!/create\s+policy|enable\s+row\s+level\s+security|drop\s+policy|insert\s+into\s+public\.profiles/i.test(seed), 'the seed does not change RLS, policies, or profiles');
 ok(!seed.includes('supabase/migrations/20261109_crm_test_seed.sql'), 'the seed is not named as a migration');
+ok(!seed.replace(/--[^\n]*/g, '').includes('last_activity_at'), 'the seed SQL does not require or write last_activity_at');
 
 ok(deletes.length === 4 && deletes.every((sql) => sql.includes('TEST-SEED-CRM')), 'the rollback has four deletes and each one requires the marker');
 ok(deleteAt('crm_activities') < deleteAt('crm_opportunities') && deleteAt('crm_opportunities') < deleteAt('crm_leads') && deleteAt('crm_leads') < deleteAt('crm_accounts'), 'the rollback deletes activities, opportunities, leads, then companies');

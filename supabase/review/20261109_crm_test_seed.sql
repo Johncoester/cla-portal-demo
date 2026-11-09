@@ -18,8 +18,10 @@
 -- Phones are 555-01xx. Addresses are Example streets in MD, VA, DC, and FL.
 -- Owners stay null unless that column is NOT NULL. Then one existing active
 -- Sales Person or Sales Team profile is used. No profile is inserted.
--- Dates are Eastern calendar days so Created / Modified / Last Activity filters
+-- Dates are Eastern calendar days so Created / Modified filters
 -- and overdue task colors have rows in the last 7 days, the last 30 days, and older.
+-- last_activity_at is not written and is not required. TEST has no such column
+-- on crm_leads, crm_accounts, or crm_opportunities.
 -- Idempotent: a second run inserts nothing when the marker counts are already 10/5/5/10.
 -- One transaction. lock_timeout 3s, same guard style as the hoist and representation migrations.
 -- Rollback: supabase/review/20261109_crm_test_seed_rollback.sql
@@ -79,7 +81,7 @@ begin
   from unnest(array[
     'id', 'first_name', 'last_name', 'company', 'email', 'phone', 'source', 'status', 'notes',
     'role_in_company', 'title', 'contact_type', 'crm_street', 'crm_city', 'crm_state', 'crm_zip', 'crm_county',
-    'account_id', 'created_at', 'modified_at', 'last_activity_at'
+    'account_id', 'created_at', 'modified_at'
   ]) as need(col)
   where not exists (
     select 1 from information_schema.columns c
@@ -91,7 +93,7 @@ begin
 
   select string_agg(need.col, ', ' order by need.col) into missing
   from unnest(array[
-    'id', 'name', 'kind', 'phone', 'website', 'city', 'state', 'notes', 'created_at', 'modified_at', 'last_activity_at'
+    'id', 'name', 'kind', 'phone', 'website', 'city', 'state', 'notes', 'created_at', 'modified_at'
   ]) as need(col)
   where not exists (
     select 1 from information_schema.columns c
@@ -103,7 +105,7 @@ begin
 
   select string_agg(need.col, ', ' order by need.col) into missing
   from unnest(array[
-    'id', 'name', 'stage', 'notes', 'account_id', 'est_volume', 'expected_close', 'created_at', 'modified_at', 'last_activity_at'
+    'id', 'name', 'stage', 'notes', 'account_id', 'est_volume', 'expected_close', 'created_at', 'modified_at'
   ]) as need(col)
   where not exists (
     select 1 from information_schema.columns c
@@ -323,25 +325,6 @@ begin
 
     if exists (
       select 1 from information_schema.columns
-      where table_schema = 'public' and table_name = 'crm_leads' and column_name = 'last_activity_at' and is_nullable = 'NO'
-    ) then
-      update _crm_seed_leads set activity_off = created_off where activity_off is null;
-    end if;
-    if exists (
-      select 1 from information_schema.columns
-      where table_schema = 'public' and table_name = 'crm_accounts' and column_name = 'last_activity_at' and is_nullable = 'NO'
-    ) then
-      update _crm_seed_accounts set activity_off = created_off where activity_off is null;
-    end if;
-    if exists (
-      select 1 from information_schema.columns
-      where table_schema = 'public' and table_name = 'crm_opportunities' and column_name = 'last_activity_at' and is_nullable = 'NO'
-    ) then
-      update _crm_seed_opps set activity_off = created_off where activity_off is null;
-    end if;
-
-    if exists (
-      select 1 from information_schema.columns
       where table_schema = 'public' and table_name = 'crm_leads' and column_name = 'account_id' and is_nullable = 'NO'
     ) then
       update _crm_seed_leads set account_id = 'c3e0c3e0-0002-4000-8000-000000000001' where account_id is null;
@@ -380,7 +363,7 @@ begin
     from information_schema.columns c
     where c.table_schema = 'public' and c.table_name = 'crm_accounts'
       and c.is_nullable = 'NO' and c.column_default is null and coalesce(c.is_generated, 'NEVER') = 'NEVER' and coalesce(c.is_identity, 'NO') = 'NO'
-      and c.column_name not in ('id', 'name', 'kind', 'phone', 'website', 'city', 'state', 'notes', 'created_at', 'modified_at', 'last_activity_at', 'owner_id', 'created_by', 'modified_by');
+      and c.column_name not in ('id', 'name', 'kind', 'phone', 'website', 'city', 'state', 'notes', 'created_at', 'modified_at', 'owner_id', 'created_by', 'modified_by');
     if extra is not null then
       raise exception 'refusing: crm_accounts has required columns this seed does not fill: %', extra;
     end if;
@@ -391,7 +374,7 @@ begin
       and c.column_name not in (
         'id', 'first_name', 'last_name', 'company', 'email', 'phone', 'source', 'status', 'notes',
         'role_in_company', 'title', 'contact_type', 'crm_street', 'crm_city', 'crm_state', 'crm_zip', 'crm_county',
-        'account_id', 'created_at', 'modified_at', 'last_activity_at', 'owner_id', 'created_by', 'modified_by'
+        'account_id', 'created_at', 'modified_at', 'owner_id', 'created_by', 'modified_by'
       );
     if extra is not null then
       raise exception 'refusing: crm_leads has required columns this seed does not fill: %', extra;
@@ -400,7 +383,7 @@ begin
     from information_schema.columns c
     where c.table_schema = 'public' and c.table_name = 'crm_opportunities'
       and c.is_nullable = 'NO' and c.column_default is null and coalesce(c.is_generated, 'NEVER') = 'NEVER' and coalesce(c.is_identity, 'NO') = 'NO'
-      and c.column_name not in ('id', 'name', 'stage', 'notes', 'account_id', 'est_volume', 'expected_close', 'created_at', 'modified_at', 'last_activity_at', 'owner_id', 'created_by', 'modified_by');
+      and c.column_name not in ('id', 'name', 'stage', 'notes', 'account_id', 'est_volume', 'expected_close', 'created_at', 'modified_at', 'owner_id', 'created_by', 'modified_by');
     if extra is not null then
       raise exception 'refusing: crm_opportunities has required columns this seed does not fill: %', extra;
     end if;
@@ -413,7 +396,7 @@ begin
       raise exception 'refusing: crm_activities has required columns this seed does not fill: %', extra;
     end if;
 
-    -- User triggers are paused only so historical created/modified/last-activity
+    -- User triggers are paused only so historical created/modified
     -- timestamps are stored. Foreign keys stay on. Triggers are turned back on
     -- before the readback, and a rollback restores them if this script stops.
     alter table public.crm_accounts disable trigger user;
@@ -423,7 +406,7 @@ begin
 
     select string_agg(quote_ident(col), ', ' order by col), string_agg('src.' || quote_ident(col), ', ' order by col)
       into insert_cols, select_cols
-    from unnest(array['id', 'name', 'kind', 'phone', 'website', 'city', 'state', 'notes', 'owner_id', 'created_by', 'modified_by', 'created_at', 'modified_at', 'last_activity_at']) as col
+    from unnest(array['id', 'name', 'kind', 'phone', 'website', 'city', 'state', 'notes', 'owner_id', 'created_by', 'modified_by', 'created_at', 'modified_at']) as col
     where exists (
       select 1 from information_schema.columns c
       where c.table_schema = 'public' and c.table_name = 'crm_accounts' and c.column_name = col and c.is_generated = 'NEVER'
@@ -431,8 +414,7 @@ begin
     execute 'insert into public.crm_accounts (' || insert_cols || ') select ' || select_cols || ' from ('
       || 'select id, name, kind, phone, website, city, state, notes, owner_id, created_by, modified_by, '
       || 'timezone(''America/New_York'', ($1::date - created_off) + time ''15:00'') as created_at, '
-      || 'timezone(''America/New_York'', ($1::date - modified_off) + time ''15:00'') as modified_at, '
-      || 'case when activity_off is null then null else timezone(''America/New_York'', ($1::date - activity_off) + time ''15:00'') end as last_activity_at '
+      || 'timezone(''America/New_York'', ($1::date - modified_off) + time ''15:00'') as modified_at '
       || 'from _crm_seed_accounts) src'
       using today;
 
@@ -441,7 +423,7 @@ begin
     from unnest(array[
       'id', 'first_name', 'last_name', 'company', 'email', 'phone', 'source', 'status', 'notes',
       'role_in_company', 'title', 'contact_type', 'crm_street', 'crm_city', 'crm_state', 'crm_zip', 'crm_county',
-      'account_id', 'owner_id', 'created_by', 'modified_by', 'created_at', 'modified_at', 'last_activity_at'
+      'account_id', 'owner_id', 'created_by', 'modified_by', 'created_at', 'modified_at'
     ]) as col
     where exists (
       select 1 from information_schema.columns c
@@ -451,14 +433,13 @@ begin
       || 'select id, first_name, last_name, company, email, phone, source, status, notes, role_in_company, title, contact_type, '
       || 'crm_street, crm_city, crm_state, crm_zip, crm_county, account_id, owner_id, created_by, modified_by, '
       || 'timezone(''America/New_York'', ($1::date - created_off) + time ''15:00'') as created_at, '
-      || 'timezone(''America/New_York'', ($1::date - modified_off) + time ''15:00'') as modified_at, '
-      || 'case when activity_off is null then null else timezone(''America/New_York'', ($1::date - activity_off) + time ''15:00'') end as last_activity_at '
+      || 'timezone(''America/New_York'', ($1::date - modified_off) + time ''15:00'') as modified_at '
       || 'from _crm_seed_leads) src'
       using today;
 
     select string_agg(quote_ident(col), ', ' order by col), string_agg('src.' || quote_ident(col), ', ' order by col)
       into insert_cols, select_cols
-    from unnest(array['id', 'name', 'stage', 'notes', 'account_id', 'est_volume', 'expected_close', 'owner_id', 'created_by', 'modified_by', 'created_at', 'modified_at', 'last_activity_at']) as col
+    from unnest(array['id', 'name', 'stage', 'notes', 'account_id', 'est_volume', 'expected_close', 'owner_id', 'created_by', 'modified_by', 'created_at', 'modified_at']) as col
     where exists (
       select 1 from information_schema.columns c
       where c.table_schema = 'public' and c.table_name = 'crm_opportunities' and c.column_name = col and c.is_generated = 'NEVER'
@@ -466,8 +447,7 @@ begin
     execute 'insert into public.crm_opportunities (' || insert_cols || ') select ' || select_cols || ' from ('
       || 'select id, name, stage, notes, account_id, est_volume, expected_close, owner_id, created_by, modified_by, '
       || 'timezone(''America/New_York'', ($1::date - created_off) + time ''15:00'') as created_at, '
-      || 'timezone(''America/New_York'', ($1::date - modified_off) + time ''15:00'') as modified_at, '
-      || 'case when activity_off is null then null else timezone(''America/New_York'', ($1::date - activity_off) + time ''15:00'') end as last_activity_at '
+      || 'timezone(''America/New_York'', ($1::date - modified_off) + time ''15:00'') as modified_at '
       || 'from _crm_seed_opps) src'
       using today;
 
@@ -508,17 +488,8 @@ begin
   if (select count(*) from public.crm_leads where position('TEST-SEED-CRM' in coalesce(title, '')) > 0 and (created_at at time zone 'America/New_York')::date between today - 7 and today) < 3
      or (select count(*) from public.crm_leads where position('TEST-SEED-CRM' in coalesce(title, '')) > 0 and (created_at at time zone 'America/New_York')::date between today - 30 and today - 8) < 2
      or (select count(*) from public.crm_leads where position('TEST-SEED-CRM' in coalesce(title, '')) > 0 and (created_at at time zone 'America/New_York')::date < today - 30) < 2
-     or (select count(*) from public.crm_leads where position('TEST-SEED-CRM' in coalesce(title, '')) > 0 and (modified_at at time zone 'America/New_York')::date between today - 7 and today) < 2
-     or (select count(*) from public.crm_leads where position('TEST-SEED-CRM' in coalesce(title, '')) > 0 and (last_activity_at at time zone 'America/New_York')::date between today - 7 and today) < 2
-     or (select count(*) from public.crm_leads where position('TEST-SEED-CRM' in coalesce(title, '')) > 0 and (last_activity_at at time zone 'America/New_York')::date between today - 30 and today - 8) < 1
-     or (select count(*) from public.crm_leads where position('TEST-SEED-CRM' in coalesce(title, '')) > 0 and (last_activity_at at time zone 'America/New_York')::date < today - 30) < 1 then
-    raise exception 'readback: lead created, modified, and last-activity dates are not spread across 7 days, 30 days, and older.';
-  end if;
-  if exists (
-    select 1 from information_schema.columns
-    where table_schema = 'public' and table_name = 'crm_leads' and column_name = 'last_activity_at' and is_nullable = 'YES'
-  ) and (select count(*) from public.crm_leads where position('TEST-SEED-CRM' in coalesce(title, '')) > 0 and last_activity_at is null) < 1 then
-    raise exception 'readback: expected a seed lead with a blank last activity.';
+     or (select count(*) from public.crm_leads where position('TEST-SEED-CRM' in coalesce(title, '')) > 0 and (modified_at at time zone 'America/New_York')::date between today - 7 and today) < 2 then
+    raise exception 'readback: lead created and modified dates are not spread across 7 days, 30 days, and older.';
   end if;
   if (select count(*) from public.crm_activities where position('TEST-SEED-CRM' in coalesce(body, '')) > 0 and kind = 'task' and status not in ('Completed', 'done') and due_date < today) < 2
      or (select count(*) from public.crm_activities where position('TEST-SEED-CRM' in coalesce(body, '')) > 0 and kind = 'task' and status not in ('Completed', 'done') and due_date = today) < 1
