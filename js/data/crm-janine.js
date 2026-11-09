@@ -35,9 +35,14 @@ export function parseCsv(text) {
 }
 const CSV_CELL = (v) => { const s = v == null ? '' : String(v); return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
 export const toCsvText = (rows) => rows.map((r) => r.map(CSV_CELL).join(',')).join('\r\n') + '\r\n';
-export const IMPORT_MAX_ROWS = 2000, IMPORT_MAX_BYTES = 2_000_000, IMPORT_CHUNK_ROWS = 500;
+export const IMPORT_MAX_ROWS = 10000, IMPORT_MAX_BYTES = 2_000_000, IMPORT_CHUNK_ROWS = 500;
+export const IMPORT_RESUME_PREFIX = 'cla-crm-import:';
 
-// 1-based data-row ranges. 2000 rows is four chunks of 500.
+export function importTooBigMessage(rowCount) {
+  return `This file has ${rowCount} rows. An import can take at most ${IMPORT_MAX_ROWS} rows. Split the file into smaller files and import each one.`;
+}
+
+// 1-based data-row ranges. 10000 rows is twenty chunks of 500.
 export function importChunkRanges(rowCount, size = IMPORT_CHUNK_ROWS) {
   const n = Math.max(0, Number(rowCount) || 0);
   const step = Math.max(1, Number(size) || IMPORT_CHUNK_ROWS);
@@ -67,10 +72,33 @@ export function leadRequiredMessages(values, defaults = []) {
 // Commit stopped on a later chunk. Earlier chunks are already stored.
 export function importPartialReport({ saved = [], failed, message }) {
   const range = (part) => `rows ${part.from}-${part.to}`;
+  const savedRows = saved.reduce((n, part) => n + (part.count || (part.to - part.from + 1)), 0);
   const failLine = `Chunk ${failed.chunk} (${range(failed)}) failed: ${message}`;
-  if (!saved.length) return `Import stopped. ${failLine} Nothing was saved.`;
+  if (!saved.length) return `Import stopped. ${failLine} Rows saved so far: 0. Nothing was saved.`;
   const kept = saved.map((part) => `chunk ${part.chunk} (${range(part)})`).join(', ');
-  return `Import stopped. ${failLine} Saved: ${kept}. The earlier chunks were saved.`;
+  return `Import stopped. ${failLine} Rows saved so far: ${savedRows} (${kept}). The earlier chunks were saved.`;
+}
+
+export function importResumeKey(importId) { return IMPORT_RESUME_PREFIX + importId; }
+export function saveImportResume(storage, state) {
+  if (!storage || !state || !state.importId) return;
+  storage.setItem(importResumeKey(state.importId), JSON.stringify(state));
+  storage.setItem(IMPORT_RESUME_PREFIX + 'active', String(state.importId));
+}
+export function loadImportResume(storage, importId) {
+  if (!storage || !importId) return null;
+  try { return JSON.parse(storage.getItem(importResumeKey(importId)) || 'null'); } catch (e) { return null; }
+}
+
+// Error rows as a CSV: row number, the original field values, then the message.
+export function importErrorCsv(rows, fields = []) {
+  const errors = (rows || []).filter((r) => r && r.status === 'error');
+  const pairs = fields.length ? fields.map((f) => (Array.isArray(f) ? [f[0], f[1]] : [f, f])) : [];
+  const keys = pairs.length ? pairs.map(([k]) => k) : [...new Set(errors.flatMap((r) => Object.keys(r.values || {})))];
+  const labels = pairs.length ? pairs.map(([, l]) => l) : keys;
+  const header = ['Row', ...labels, 'Error'];
+  const body = errors.map((r) => [r.line, ...keys.map((k) => (r.values && r.values[k] != null ? r.values[k] : '')), r.message || '']);
+  return toCsvText([header, ...body]);
 }
 
 // import targets: [key, label, aliases]. The same list for Leads and Clients (Company on a lead = a lookup to an existing company by name).

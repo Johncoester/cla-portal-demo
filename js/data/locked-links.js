@@ -12,14 +12,14 @@ import { canManageFileTemplates } from './file-email-templates.js?v=202611092210
  * lock whose owner is not a Super admin is ignored and cleared (app.js). */
 import { runsOrders, isStaff, isOutside } from './constants.js?v=202611100245';
 import { canReportStaffFeedback } from './staff-feedback.js?v=202611080400';
-import { titleCanRead } from './title.js?v=202611100600';
+import { titleCanRead } from './title.js?v=202611100700';
 import { fwpCanRead } from './funding-wire-policy.js?v=202611070139';   // John, Nov 4: order > Title route guard
 import { canUseCrm } from './crm.js?v=202611100230';
 import { canManageRoleAccess } from './role-access.js?v=202611100100';
-import { canInviteAgents } from './agent-profile.js?v=202611100600';
-import { canManageModules } from './modules.js?v=202611100600';
+import { canInviteAgents } from './agent-profile.js?v=202611100700';
+import { canManageModules } from './modules.js?v=202611100700';
 import { hrSectionAllowed } from './hr.js?v=202611100100';
-import { canManageOffices } from './offices.js?v=202611100600';
+import { canManageOffices } from './offices.js?v=202611100700';
 
 export const LOCK_KEY = 'cla-portal-new:locked:v1';
 export function devPickerOn(w = (typeof window !== 'undefined' ? window : {})) {

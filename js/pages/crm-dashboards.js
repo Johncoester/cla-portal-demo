@@ -4,10 +4,10 @@
  * fields: By Day / Calendar Week / Month / Quarter / Year), Criteria (ANDed). Hover shows the value; click a bar or slice for the records behind it.
  * Nothing is deleted: dashboards and components are RETIRED (hidden, restorable). Function only (no styling work). */
 import { html, raw, $, $$, guard, toast, modal, closeModal, toText } from '../ui.js?v=202611100245';
-import { DASH_MODULES, moduleName, moduleFields, COMPONENT_TYPES, CHART_TYPES, VISIBILITY, WIDTHS, HEIGHTS, BUCKETS, NUMERIC, isDateType, DATE_PRESETS } from '../data/crm-analytics.js?v=202611100600';
-import { tabs, head } from './crm-kit.js?v=202611100600';
-import { chartSvg, kpiHtml, targetHtml, funnelHtml } from './crm-charts.js?v=202611100600';
-import { criteriaEditor } from './crm-criteria.js?v=202611100600';
+import { DASH_MODULES, moduleName, moduleFields, COMPONENT_TYPES, CHART_TYPES, VISIBILITY, WIDTHS, HEIGHTS, BUCKETS, NUMERIC, isDateType, DATE_PRESETS } from '../data/crm-analytics.js?v=202611100700';
+import { tabs, head } from './crm-kit.js?v=202611100700';
+import { chartSvg, kpiHtml, targetHtml, funnelHtml } from './crm-charts.js?v=202611100700';
+import { criteriaEditor } from './crm-criteria.js?v=202611100700';
 
 const H = { s: 180, m: 260, l: 380 };
 const opts = (list, cur) => list.map(([k, l]) => html`<option value="${k}" ${String(k) === String(cur) ? raw('selected') : ''}>${l}</option>`);

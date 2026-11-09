@@ -4,9 +4,9 @@
 // SAMPLES derived from the fake order (sampleFacts below); every one of them carries a visible "sample" tag (SAMPLE) on the page.
 import { html, raw, fmtDate, fmtMoney } from '../ui.js?v=202611100245';
 import { STAGES, isRefi, localDate } from '../data/constants.js?v=202611100245';
-import { phaseOf, PHASES } from '../data/agent-portal.js?v=202611100600';
-import { placeText } from '../data/cla-offices.js?v=202611100600';
-import { modAccess } from '../data/modules.js?v=202611100600';
+import { phaseOf, PHASES } from '../data/agent-portal.js?v=202611100700';
+import { placeText } from '../data/cla-offices.js?v=202611100700';
+import { modAccess } from '../data/modules.js?v=202611100700';
 
 // ---------- icons: 24x24, thin 1.5 stroke, currentColor ----------
 const P = {

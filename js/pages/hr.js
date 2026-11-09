@@ -10,8 +10,8 @@
 import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime } from '../ui.js?v=202611100245';
 import { hrCanManage, hrIsSuper, filterEmployees, initials, fullNameOf, COUNTRIES, EMPLOYMENT_TYPES, EMPLOYMENT_STATUSES, PAY_TYPES, PAY_CURRENCIES, WORK_LOCATIONS, portalRoleForDesignation, EMPLOYEE_ROLE_FILTER,
   HR_INVITE_DAYS, FIELD_LABEL, labelOf, jobTitleOf } from '../data/hr.js?v=202611100100';
-import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100600';
-import { companyDocsPage, employeeDocsCard, sharedDocsCard, portalTimeCard, wireEmployeeDocs, wireSharedDocs } from './hr-feedback.js?v=202611100600';
+import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100700';
+import { companyDocsPage, employeeDocsCard, sharedDocsCard, portalTimeCard, wireEmployeeDocs, wireSharedDocs } from './hr-feedback.js?v=202611100700';
 const PILL = { active: 'ok', on_leave: 'warn', separated: 'bad' };
 const INV = { pending: ['Invite pending', 'warn'], expired: ['Invite expired', 'bad'], revoked: ['Invite revoked', ''], none: ['No login yet', ''], accepted: ['Has login', 'ok'] };
 const abs = (link) => location.href.split('#')[0] + link;

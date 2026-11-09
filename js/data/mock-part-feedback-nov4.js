@@ -5,7 +5,7 @@
  *  * SEARCH RESULT COLUMNS: each person picks the columns of each module's table on the search results page.
  *  * DISBURSEMENT DETAILS on a deal (Admin / Super admin edit; logged).
  * Nothing is deleted: views and saved filters are RETIRED (hidden). Mirrored by migration 56. */
-import { moduleFields, cleanCriteria, applyCriteria, display, SEARCH_COLUMNS, SEARCH_MODULES } from './crm-analytics.js?v=202611100600';
+import { moduleFields, cleanCriteria, applyCriteria, display, SEARCH_COLUMNS, SEARCH_MODULES } from './crm-analytics.js?v=202611100700';
 import { VIEW_MODULES, VIEW_DEFAULT_COLUMNS, PINS_MAX, nameOk, cleanColumns, cleanFilterValues, SEARCH_COL_MAX } from './crm-views.js?v=202611070139';
 import { cleanDisbursement, DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611070139';
 import { crmReadOnly } from './crm.js?v=202611100230';

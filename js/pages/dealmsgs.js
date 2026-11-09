@@ -3,8 +3,8 @@ import { html, $, $$, guard, formData, modal, closeModal, fmtDateTime, pill, toa
 import { downloadNamed } from '../data/file-open.js?v=202611100245';
 import { viewOnly, isViewOnly, runsOrders, WIRE_FRAUD_NOTE } from '../data/constants.js?v=202611100245';
 import { raw } from '../ui.js?v=202611100245';
-import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611100600';
-import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611100600';
+import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611100700';
+import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611100700';
 
 export async function render(ctx) {
   const { api, user, deal, refresh, params } = ctx; const notViewOnly = !viewOnly(user);

@@ -1,10 +1,10 @@
 // Contacts tab: everyone on this file. Processor can add people (existing or new), edit them, and unlink them from the order.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill } from '../ui.js?v=202611100245';
 import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole } from '../data/constants.js?v=202611100245';
-import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611100600';
-import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611100600';
-import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100600';
-import { copyPlainText } from './deal.js?v=202611100600';
+import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611100700';
+import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611100700';
+import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100700';
+import { copyPlainText } from './deal.js?v=202611100700';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
 export function contactCopyMessage(copied, kind) {

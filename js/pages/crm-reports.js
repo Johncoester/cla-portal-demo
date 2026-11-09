@@ -3,11 +3,11 @@
  * Aggregate Columns, Filters (AND / OR), sort. Run, Save, Edit, Clone, Export (CSV: Admin / Super admin only), Send Email (saved, NOT sent).
  * Shared with everyone unless restricted to users / roles. Nothing is deleted: reports are RETIRED (hidden, restorable). Function only. */
 import { html, raw, $, $$, guard, toast, modal, closeModal, toText, fmtDateTime } from '../ui.js?v=202611100245';
-import { REPORT_MODULES, RELATED, moduleName, reportFields, AGG_FNS, NUMERIC, BUCKETS, isDateType } from '../data/crm-analytics.js?v=202611100600';
-import { tabs, head } from './crm-kit.js?v=202611100600';
-import { criteriaEditor } from './crm-criteria.js?v=202611100600';
-import { composeOverlay } from './crm-compose.js?v=202611100600';
-import { fmtNum } from './crm-charts.js?v=202611100600';
+import { REPORT_MODULES, RELATED, moduleName, reportFields, AGG_FNS, NUMERIC, BUCKETS, isDateType } from '../data/crm-analytics.js?v=202611100700';
+import { tabs, head } from './crm-kit.js?v=202611100700';
+import { criteriaEditor } from './crm-criteria.js?v=202611100700';
+import { composeOverlay } from './crm-compose.js?v=202611100700';
+import { fmtNum } from './crm-charts.js?v=202611100700';
 
 const opts = (list, cur) => list.map(([k, l]) => html`<option value="${k}" ${String(k) === String(cur) ? raw('selected') : ''}>${l}</option>`);
 const download = (name, text) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); };

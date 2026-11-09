@@ -3,7 +3,7 @@
  * RLS (HR admins read every employee, an employee reads only their own row), column grants (an employee UPDATEs only phone / address /
  * emergency contact), a guard trigger (HR fields only by an HR manager or Super admin; an HR manager never changes their own HR fields),
  * security-definer RPCs for HR writes, and history triggers. NOTHING IS SENT: invites return a one-time link. No SSNs / government IDs. */
-import { hrFeedbackSupabase } from './supabase-hr-feedback.js?v=202611100600';
+import { hrFeedbackSupabase } from './supabase-hr-feedback.js?v=202611100700';
 import { acceptInviteRemote } from './accept-invite-client.js?v=202611070139';
 import { HR_INVITE_DAYS, COLUMN_OF, FIELD_LABEL, SELF_FIELDS, HR_FIELDS, basicOf, fullNameOf, nextEmployeeCode, cleanEmployee, cleanSelfPatch, employeesCsv, historyCsv, csvStamp } from './hr.js?v=202611100100';
 

@@ -3,13 +3,13 @@
 import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, toast } from '../ui.js?v=202611100245';
 import { crmSort, inLocalRange } from '../data/crm.js?v=202611100230';
 import { DEAL_COLS, LOCKED_COLS, DEFAULT_HIDDEN, loadHidden, saveHidden } from '../data/crm-deal-cols.js?v=202611070139';
-import { tabs, head, money, wireRowOpen } from './crm-kit.js?v=202611100600';
-import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611100600';
-import { viewsBar, wireViewsBar } from './crm-views.js?v=202611100600';
-import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611100600';
+import { tabs, head, money, wireRowOpen } from './crm-kit.js?v=202611100700';
+import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611100700';
+import { viewsBar, wireViewsBar } from './crm-views.js?v=202611100700';
+import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611100700';
 import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070139';
 import { pageOf, selectionState, selectPage, BULK_PAGE_SIZE } from '../data/crm-bulk.js?v=202611090905';
-import { bulkBar, wireBulk } from './crm-bulk.js?v=202611100600';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611100700';
 
 export async function dealsPage(c) { return c.params.id ? dealPage(c) : dealsList(c); }
 

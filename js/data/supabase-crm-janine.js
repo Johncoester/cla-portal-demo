@@ -5,10 +5,10 @@
  * asks crm_import_batch to apply the database rules, 500 rows at a time.
  * Preview rolls back inside each call (P0004). A commit reuses one batch id.
  * Nothing is emailed. */
-import { buildIcs, INVITE_NOTE, parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, leadRequiredMessages, importPartialReport, loadZipTable, countiesFor, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611100600';
+import { buildIcs, INVITE_NOTE, parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, importTooBigMessage, leadRequiredMessages, importPartialReport, importErrorCsv, saveImportResume, loadZipTable, countiesFor, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611100700';
 import { US_STATE_NAMES, US_STATES } from './constants.js?v=202611100245';
-import { ensureSettings, findOption } from './crm-config.js?v=202611100600';
-import { resolveImportedStatus } from './nov5-rules.js?v=202611100600';
+import { ensureSettings, findOption } from './crm-config.js?v=202611100700';
+import { resolveImportedStatus } from './nov5-rules.js?v=202611100700';
 import { LINK_KEYS } from './crm.js?v=202611100230';
 
 const DEFAULT_LABEL = Object.fromEntries(IMPORT_DEFAULT_FIELDS.map(([k, l]) => [k, l]));
@@ -26,7 +26,7 @@ function readInput(input, fields) {
   if (text != null && text.length > IMPORT_MAX_BYTES) throw new Error(`The file is too large (at most ${IMPORT_MAX_BYTES / 1e6} MB).`);
   const rows = Array.isArray(input.rows) ? input.rows.map((r) => r.map((c) => String(c == null ? '' : c))) : parseCsv(text || '');
   if (rows.length < 2) throw new Error('The file needs a header row and at least one row of data.');
-  if (rows.length - 1 > IMPORT_MAX_ROWS) throw new Error(`At most ${IMPORT_MAX_ROWS} rows per import.`);
+  if (rows.length - 1 > IMPORT_MAX_ROWS) throw new Error(importTooBigMessage(rows.length - 1));
   const header = rows[0].map((h) => clip(h, 80));
   const keys = fields.map(([k]) => k);
   const mapping = Array.isArray(input.mapping) ? header.map((_, i) => {
@@ -127,6 +127,23 @@ function addCounts(a, b) {
   };
 }
 
+// One retry for a statement timeout, a dropped network call, or a 5xx.
+// Validation errors and the preview code are not retried.
+function retryableImportError(error) {
+  if (!error) return false;
+  const code = String(error.code || '');
+  if (code === 'P0004' || code === 'P0001' || code === 'P0002' || code === '42501') return false;
+  const status = Number(error.status || error.statusCode || 0);
+  if (code === '57014' || (status >= 500 && status < 600)) return true;
+  return /failed to fetch|networkerror|network error|load failed|timeout/i.test(String(error.message || ''));
+}
+
+function resumeStorage(input) {
+  if (input && input.storage) return input.storage;
+  try { if (typeof sessionStorage !== 'undefined') return sessionStorage; } catch (e) { /* private mode */ }
+  return null;
+}
+
 export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
   const admin = async () => {
     on();
@@ -180,13 +197,39 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
       return { line, values, prepNotes };
     });
     const ranges = importChunkRanges(payload.length, IMPORT_CHUNK_ROWS);
+    const fieldPairs = fields.map(([k, l]) => [k, l]);
     let rows = [];
     let counts = { total: 0, ok: 0, duplicates: 0, errors: 0 };
-    let importId = null;
+    let importId = input.importId || null;
+    const startChunk = Number(input.startChunk) || 1;
     const saved = [];
     const progress = typeof input.onProgress === 'function' ? input.onProgress : null;
+    const store = resumeStorage(input);
+    let recorded = new Set();
+    if (commit && importId) {
+      try {
+        const existing = await rpc('crm_list_import_rows', { p_import: importId });
+        (Array.isArray(existing) ? existing : []).forEach((r) => { if (r && r.line != null) recorded.add(Number(r.line)); });
+      } catch (e) { recorded = new Set(); }
+    }
+    const finish = (extra) => ({
+      module, kind, header, mapping, defaults,
+      fields: fieldPairs,
+      rows,
+      counts,
+      importId,
+      committed: !!commit,
+      errorCsv: importErrorCsv(rows, fieldPairs),
+      ...extra,
+    });
     for (const range of ranges) {
       const slice = payload.slice(range.from - 1, range.to);
+      const already = commit && slice.length > 0 && slice.every((row) => recorded.has(row.line));
+      if (range.chunk < startChunk || already) {
+        saved.push(range);
+        if (progress) progress({ chunk: range.chunk, chunks: ranges.length, from: range.from, to: range.to, done: range.to, total: payload.length, skipped: true });
+        continue;
+      }
       const local = [];
       const remote = [];
       slice.forEach((row) => {
@@ -197,10 +240,10 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
           values: display.get(row.line) || {},
         });
       });
-      if (progress) progress({ chunk: range.chunk, chunks: ranges.length, from: range.from, to: range.to });
+      if (progress) progress({ chunk: range.chunk, chunks: ranges.length, from: range.from, to: range.to, done: range.from - 1, total: payload.length });
       let body = { rows: [], counts: { total: 0, ok: 0, duplicates: 0, errors: 0 }, importId: null };
       if (remote.length) {
-        const res = await sb.rpc('crm_import_batch', {
+        const args = {
           p_commit: !!commit,
           p_module: module,
           p_kind: kind,
@@ -209,21 +252,37 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
           p_rows: remote,
           p_import: importId,
           p_chunk: range.chunk,
-        });
+        };
+        let res;
+        try {
+          res = await sb.rpc('crm_import_batch', args);
+          if (res && res.error && retryableImportError(res.error)) res = await sb.rpc('crm_import_batch', args);
+        } catch (e) {
+          if (!retryableImportError(e)) throw e;
+          try { res = await sb.rpc('crm_import_batch', args); } catch (again) { res = { data: null, error: again }; }
+        }
         if (res.error && res.error.code === 'P0004') {
           body = previewBody(res.error);
           if (!body) throw new Error(res.error.message || 'Import preview failed.');
         } else if (res.error || !res.data) {
           const message = (res.error && res.error.message) || 'Import failed.';
           if (!commit) throw new Error(message);
-          const err = new Error(importPartialReport({ saved, failed: range, message }));
-          err.partial = { saved, failed: range, message, code: (res.error && res.error.code) || '' };
+          const partial = { saved, failed: range, message, code: (res.error && res.error.code) || '', importId, rowsSaved: saved.reduce((n, part) => n + part.count, 0), startChunk: range.chunk };
+          const err = new Error(importPartialReport(partial));
+          err.partial = partial;
+          if (commit && importId) {
+            saveImportResume(store, {
+              importId, module, kind, fileName: clip(input.fileName, 200), csv: input.csv, mapping: input.mapping, defaults: input.defaults,
+              startChunk: range.chunk, message, rowsSaved: partial.rowsSaved,
+            });
+          }
           throw err;
         } else {
           body = res.data;
         }
         if (commit && body.importId) importId = body.importId;
         saved.push(range);
+        slice.forEach((row) => recorded.add(row.line));
       }
       const remoteRows = (body.rows || []).map((r) => ({
         line: r.line,
@@ -240,15 +299,18 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
       counts = addCounts(counts, addCounts(body.counts || { total: remoteRows.length, ok: 0, duplicates: 0, errors: 0 }, {
         total: local.length, ok: 0, duplicates: 0, errors: local.length,
       }));
+      if (progress) progress({ chunk: range.chunk, chunks: ranges.length, from: range.from, to: range.to, done: range.to, total: payload.length });
     }
-    return {
-      module, kind, header, mapping, defaults,
-      fields: fields.map(([k, l]) => [k, l]),
-      rows,
-      counts,
-      importId,
-      committed: !!commit,
-    };
+    if (commit && importId) {
+      try {
+        const storage = store;
+        if (storage) {
+          storage.removeItem('cla-crm-import:' + importId);
+          if (storage.getItem('cla-crm-import:active') === String(importId)) storage.removeItem('cla-crm-import:active');
+        }
+      } catch (e) { /* a finished import can forget its resume note */ }
+    }
+    return finish();
   }
 
   return {

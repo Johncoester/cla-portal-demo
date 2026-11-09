@@ -12,9 +12,9 @@
 --
 -- public.crm_import_batch checks private.is_admin() once, then inserts
 -- the rows of this call in the same transaction. One call is at most 500
--- rows. The browser sends a file as sequential chunks and passes the batch
--- id from the first committed chunk so every chunk lands on one crm_imports
--- row. Totals on that row accumulate. Leads go through crm_leads, so
+-- rows. A file is at most 10000 rows (20 chunks). The browser sends those
+-- chunks in order and passes the batch id from the first committed chunk
+-- so every chunk lands on one crm_imports row. Totals on that row accumulate. Leads go through crm_leads, so
 -- crm_row_guard, crm_owner_check, crm_person_dup, and crm_settings_row
 -- still run. Clients go through the existing public.crm_create_contact(p jsonb).
 -- Notes go through crm_activities, so crm_row_guard still runs.
@@ -256,8 +256,8 @@ begin
   if p_chunk is null then
     p_chunk := 1;
   end if;
-  if p_chunk < 1 or p_chunk > 4 then
-    raise exception 'Chunk % is outside 1 to 4. A file is at most 2000 rows, sent 500 at a time.', p_chunk using errcode = 'P0001';
+  if p_chunk < 1 or p_chunk > 20 then
+    raise exception 'Chunk % is outside 1 to 20. A file is at most 10000 rows, sent 500 at a time.', p_chunk using errcode = 'P0001';
   end if;
   if v_n > 500 then
     raise exception 'At most 500 rows per import call.' using errcode = 'P0001';
@@ -575,8 +575,8 @@ begin
     if v_batch_module is distinct from p_module or v_batch_kind is distinct from p_kind then
       raise exception 'This chunk does not match the import it was added to.' using errcode = 'P0001';
     end if;
-    if coalesce(v_prev_total, 0) + v_n > 2000 then
-      raise exception 'A file is at most 2000 rows.' using errcode = 'P0001';
+    if coalesce(v_prev_total, 0) + v_n > 10000 then
+      raise exception 'A file is at most 10000 rows. Split the file and import each part.' using errcode = 'P0001';
     end if;
     update public.crm_imports
     set created = created + v_ok,

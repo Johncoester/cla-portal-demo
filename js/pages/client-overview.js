@@ -4,9 +4,9 @@
 // app.js draws this page in the light "client shell" (white top bar, no sidebar) because the view sets clientPage.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney, pill, toast } from '../ui.js?v=202611100245';
 import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611100245';
-import { composeModal } from './compose.js?v=202611100600';
-import { slotText } from './dealclosing.js?v=202611100600';
-import { yourAgentHtml } from './your-agent.js?v=202611100600';
+import { composeModal } from './compose.js?v=202611100700';
+import { slotText } from './dealclosing.js?v=202611100700';
+import { yourAgentHtml } from './your-agent.js?v=202611100700';
 
 // stage 5 shows as "Wire Fraud Awareness" on the BUYER's view only (display only; the stored stage list is unchanged)
 // live40 (John, Nov 5 meeting): the client tracker's step 2 (internal STAGES[1] 'EMD Receipt', key unchanged for reports) reads "Buyer info received" for buyer and seller.

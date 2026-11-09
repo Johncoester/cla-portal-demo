@@ -6,7 +6,7 @@ import { canUseCrm, crmReadOnly } from './crm.js?v=202611100230';
 import {
   MODULE_CODES, SEARCH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, moduleName, moduleFields, reportFields,
   parseQuery, searchMatch, chartData, runReport, reportCsv, dashboardVisible, dashboardEditable, reportVisible,
-} from './crm-analytics.js?v=202611100600';
+} from './crm-analytics.js?v=202611100700';
 
 const RECENT = new Map();
 const row = (o) => o || {};

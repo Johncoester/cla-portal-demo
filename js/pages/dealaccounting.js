@@ -3,16 +3,16 @@
 // view. Processor / Admin / Super admin edit; Sales Person / Sales Team read only. TEST ONLY: "TEST - not a legal disclosure" on every page and print.
 import { html, raw, $, $$, guard, formData, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611100245';
 import { themeOn } from '../theme.js?v=202611100245';
-import { modOn } from '../data/modules.js?v=202611100600';
-import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611100600';
-import { prorationsView } from './dealaccounting-prorations.js?v=202611100600';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
-import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611100600'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
-import { render as postClosingRender } from './dealpostclosing.js?v=202611100600';
-import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611100600';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { modOn } from '../data/modules.js?v=202611100700';
+import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611100700';
+import { prorationsView } from './dealaccounting-prorations.js?v=202611100700';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
+import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611100700'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
+import { render as postClosingRender } from './dealpostclosing.js?v=202611100700';
+import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611100700';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611100100';
-import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611100600';
-import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611100600';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
-import { contractView } from './dealaccounting-contract.js?v=202611100600';
+import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611100700';
+import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611100700';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { contractView } from './dealaccounting-contract.js?v=202611100700';
 
 const VIEWS = [['contract', 'Contract figures'], ['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
 // negative amounts (the escrow aggregate adjustment) show as -$x.xx

@@ -2,8 +2,8 @@
 // Links are shown here to copy. Nothing is emailed from this build.
 import { html, raw, $, $$, guard, formData, modal, closeModal, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611100245';
 import { runsOrders, viewOnly, isProcessor, isClient, sideOf, isViewOnly, CLOSING_LOCATIONS } from '../data/constants.js?v=202611100245';
-import { placeText, OFFICE_LOCATION } from '../data/cla-offices.js?v=202611100600';
-import { SIGNING_METHODS, COUNTRIES, stateName, sideWord, canManageClosingLocations, canScheduleClosing } from '../data/closing-location.js?v=202611100600';
+import { placeText, OFFICE_LOCATION } from '../data/cla-offices.js?v=202611100700';
+import { SIGNING_METHODS, COUNTRIES, stateName, sideWord, canManageClosingLocations, canScheduleClosing } from '../data/closing-location.js?v=202611100700';
 import { US_STATE_NAMES } from '../data/constants.js?v=202611100245';
 // John, Nov 4: "Will you be in <state> at the time of closing?" (Yes / No -> another US state or a country outside the US). One block per party.
 export function locFields(r, pre = '') { const st = stateName(r.propertyState) || "the property's state"; const no = r.inStateAtClosing === false; const abroad = no && !!r.closingLocationCountry;

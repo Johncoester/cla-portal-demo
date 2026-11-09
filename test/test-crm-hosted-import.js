@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { crmJanineSupabase } from '../js/data/supabase-crm-janine.js';
-import { IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, leadRequiredMessages, sampleCsv } from '../js/data/crm-janine.js';
+import { IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, importTooBigMessage, leadRequiredMessages, sampleCsv, importErrorCsv, loadImportResume } from '../js/data/crm-janine.js';
 import { importRowHref } from '../js/pages/crm-janine.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -42,6 +42,7 @@ ok(sql.includes('Postgres logs can keep that text'), 'the preview comment says r
 ok(rollback.includes('drop function if exists public.crm_import_batch') && rollback.includes('crm-hosted-import 20261110020000') && !rollback.includes('drop table public.crm_imports'), 'rollback drops the functions and only the objects this migration added');
 ok(sql.includes('p_import uuid') && sql.includes('p_chunk integer') && rollback.includes('crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer)'), 'chunks share one batch id');
 ok(batch.includes('v_n > 500') && batch.includes('At most 500 rows per import call.'), 'a call of more than 500 rows is refused');
+ok(batch.includes('p_chunk > 20') && batch.includes('at most 10000 rows'), 'the server still caps each call at 500 and a file at 10000');
 ok(batch.includes('total = total + v_total') && batch.includes('created = created + v_ok') && batch.includes('errors = errors + v_err'), 'chunk totals accumulate on the one import row');
 const p0004At = batch.indexOf("when sqlstate 'P0004'");
 const othersAt = batch.indexOf('when others');
@@ -51,10 +52,15 @@ ok(!sql.includes('crm_person_dup') || sql.includes('crm_person_dup') && !/create
 
 const calls = [];
 let failChunk = 0;
+let chunkFailsLeft = null;
+let failStatus = 0;
 const sb = { rpc: async (name, args) => {
   calls.push({ name, args });
   if (name !== 'crm_import_batch') return { data: null, error: { message: 'unexpected ' + name } };
-  if (failChunk && args.p_chunk === failChunk) return { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } };
+  if (failChunk && args.p_chunk === failChunk && chunkFailsLeft !== 0) {
+    if (chunkFailsLeft != null) chunkFailsLeft -= 1;
+    return { data: null, error: failStatus ? { status: failStatus, message: 'upstream' } : { code: '57014', message: 'canceling statement due to statement timeout' } };
+  }
   const rows = args.p_rows.length > 2
     ? args.p_rows.map((r) => ({ line: r.line, status: 'ok', message: '', id: '11111111-1111-4111-8111-111111111111', name: 'Casey Sample', link: '#/crm/leads/11111111-1111-4111-8111-111111111111', notes: r.prepNotes || [] }))
     : args.p_rows.map((r, i) => i === 0
@@ -106,7 +112,7 @@ ok(msg.includes('too large'), 'an oversized file is refused');
 const wide = ['Last Name', ...Array.from({ length: IMPORT_MAX_ROWS + 1 }, (_, i) => 'Person ' + i)].join('\n');
 msg = '';
 try { await api.runCrmImport({ module: 'leads', csv: wide, fileName: 'leads.csv' }); } catch (e) { msg = e.message; }
-ok(msg.includes(String(IMPORT_MAX_ROWS)) && calls.length === 0, 'more than 2000 rows is refused before the database');
+ok(msg.includes(String(IMPORT_MAX_ROWS)) && msg.includes('Split the file') && calls.length === 0, 'more than 10000 rows is refused before preview');
 
 msg = '';
 try { await api.previewCrmImport({ module: 'leads', csv: SAMPLE, defaults: { ownerId: '00000000-0000-4000-8000-000000000099' }, fileName: 'leads.csv' }); } catch (e) { msg = e.message; }
@@ -152,7 +158,7 @@ ok(IMPORT_CHUNK_ROWS === 500 && importChunkRanges(2000).length === 4 && importCh
 ok(importChunkRanges(501).map((c) => c.count).join(',') === '500,1', 'a remainder stays in its own chunk');
 const leadTemplate = sampleCsv('leads');
 ok(leadTemplate.includes('Role in Company') && leadTemplate.includes('Relationship Status') && leadTemplate.includes('State'), 'the lead template includes Role in Company, Relationship Status, and State');
-ok(page.includes('data-import-progress') && page.includes('Chunk ${p.chunk} of ${p.chunks}') && page.includes('data-import-partial'), 'the import screen shows chunk progress and a partial-failure report');
+ok(page.includes('data-import-progress') && page.includes('Chunk ${p.chunk} of ${p.chunks}') && page.includes('data-import-partial') && page.includes('data-import-bar') && page.includes("Don't close this tab") && page.includes('beforeunload') && page.includes('data-import-resume') && page.includes('Download error CSV'), 'the import screen shows progress, a stay-open warning, resume, and an error CSV');
 ok(leadRequiredMessages({ lastName: 'Sample' }).join(' ') === 'Role in Company is required. Relationship Status is required. State is required.', 'each missing lead field has its own message');
 ok(leadRequiredMessages({ lastName: 'Sample', state: 'MD' }, [{ field: 'roleInCompany', value: 'Realtor' }, { field: 'relationshipStatus', value: 'Hot Prospect' }]).length === 0, 'defaults fill the required lead fields');
 
@@ -168,7 +174,7 @@ msg = '';
 let partial = null;
 try { await api.runCrmImport({ module: 'leads', csv: leadFile(1000), fileName: 'leads-1000.csv' }); } catch (e) { msg = e.message; partial = e.partial; }
 failChunk = 0;
-ok(calls.length === 2 && calls[0].args.p_commit === true && calls[0].args.p_import == null && calls[1].args.p_import === '22222222-2222-4222-8222-222222222222' && calls[1].args.p_chunk === 2, 'a commit sends the next chunk under the first batch id');
+ok(calls.length === 3 && calls[0].args.p_commit === true && calls[0].args.p_import == null && calls[1].args.p_chunk === 2 && calls[2].args.p_chunk === 2 && calls[2].args.p_import === '22222222-2222-4222-8222-222222222222', 'a timed-out chunk is retried once under the first batch id, then the import stops');
 ok(partial && partial.saved.length === 1 && partial.saved[0].from === 1 && partial.saved[0].to === 500 && partial.failed.from === 501 && partial.failed.to === 1000, 'the partial-failure report names the saved and failed row ranges');
 ok(msg.includes('rows 1-500') && msg.includes('rows 501-1000') && msg.includes('statement timeout') && msg.includes('The earlier chunks were saved.'), 'the partial-failure text names the chunks, the ranges, and the error');
 
@@ -181,7 +187,7 @@ sb.rpc = async (name, args) => {
 msg = '';
 try { await api.previewCrmImport({ module: 'leads', csv: SAMPLE, fileName: 'leads.csv' }); } catch (e) { msg = e.message; }
 sb.rpc = held;
-ok(calls.length === 1 && msg === 'canceling statement due to statement timeout', 'P0004 is the only code treated as a preview');
+ok(calls.length === 2 && msg === 'canceling statement due to statement timeout', 'a timeout is retried once and is not treated as a preview');
 
 calls.length = 0;
 const missingLead = await api.previewCrmImport({ module: 'leads', csv: 'Last Name\nSample\n', fileName: 'leads.csv' });
@@ -189,6 +195,47 @@ ok(calls.length === 0 && missingLead.rows.length === 1 && missingLead.rows[0].st
 calls.length = 0;
 const filledLead = await api.previewCrmImport({ module: 'leads', csv: 'Last Name\nSample\n', fileName: 'leads.csv', defaults: { roleInCompany: 'Realtor', relationshipStatus: 'Hot Prospect', state: 'MD' } });
 ok(calls.length === 1 && filledLead.rows[0].status === 'ok' && filledLead.counts.errors === 0, 'a default Role, Relationship Status, and State lets the lead through');
+ok(missingLead.errorCsv.includes('Row') && missingLead.errorCsv.includes('Sample') && missingLead.errorCsv.includes('Role in Company is required.') && missingLead.errorCsv.includes('State is required.'), 'the error CSV has the row number, the original fields, and the message');
+ok(importErrorCsv([{ status: 'error', line: 4, values: { lastName: 'Sample' }, message: 'State is required.' }], [['lastName', 'Last Name']]).includes('Last Name') && importErrorCsv([{ status: 'ok', line: 2, values: { lastName: 'Ok' }, message: '' }]).split('\n').filter(Boolean).length === 1, 'the error CSV keeps error rows only');
+
+const progress = [];
+const tenKFile = ['Last Name,Email,Role in Company,Relationship Status,State,Description', ...Array.from({ length: 10000 }, (_, i) => `Person${i},person${i}@example.test,Realtor,Hot Prospect,MD,TEST-SEED-CRM-IMPORT`)].join('\n');
+ok(tenKFile.includes('TEST-SEED-CRM-IMPORT') && tenKFile.includes('@example.test') && !/@(?!example\.test)/.test(tenKFile), 'the 10000-row file is fake and marked TEST-SEED-CRM-IMPORT');
+calls.length = 0;
+const tenk = await api.previewCrmImport({ module: 'leads', csv: tenKFile, fileName: 'leads-10000.csv', onProgress: (p) => progress.push(p) });
+ok(calls.length === 20 && calls.every((c, i) => c.args.p_chunk === i + 1 && c.args.p_rows.length === 500 && c.args.p_commit === false), '10000 rows are twenty preview calls of 500');
+ok(tenk.counts.total === 10000 && tenk.counts.ok === 10000 && tenk.counts.errors === 0, 'a 10000-row preview sums every chunk');
+ok(progress.some((p) => p.chunk === 1 && p.chunks === 20 && p.total === 10000) && progress.some((p) => p.chunk === 20 && p.done === 10000), 'progress reports rows done, the total, and chunk n of N');
+
+calls.length = 0;
+msg = '';
+try { await api.previewCrmImport({ module: 'leads', csv: leadFile(IMPORT_MAX_ROWS + 1), fileName: 'too-big.csv' }); } catch (e) { msg = e.message; }
+ok(msg === importTooBigMessage(IMPORT_MAX_ROWS + 1) && calls.length === 0, '10001 rows are rejected before preview and the message says to split the file');
+
+calls.length = 0;
+failChunk = 1;
+chunkFailsLeft = 1;
+failStatus = 503;
+const retried = await api.runCrmImport({ module: 'leads', csv: leadFile(2), fileName: 'retry.csv' });
+failChunk = 0; chunkFailsLeft = null; failStatus = 0;
+ok(calls.length === 2 && calls[0].args.p_chunk === 1 && calls[1].args.p_chunk === 1 && retried.committed === true, 'a 5xx is retried once and then the chunk is kept');
+
+const mem = new Map();
+const storage = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) };
+calls.length = 0;
+failChunk = 2;
+chunkFailsLeft = null;
+msg = '';
+partial = null;
+try { await api.runCrmImport({ module: 'leads', csv: leadFile(1000), fileName: 'leads-resume.csv', storage }); } catch (e) { msg = e.message; partial = e.partial; }
+failChunk = 0;
+const stored = loadImportResume(storage, partial && partial.importId);
+ok(stored && stored.importId === '22222222-2222-4222-8222-222222222222' && stored.startChunk === 2 && storage.getItem('cla-crm-import:active') === stored.importId, 'a failed import keeps resume state in sessionStorage under the import id');
+ok(partial.rowsSaved === 500 && msg.includes('Rows saved so far: 500'), 'the stop report names how many rows were saved');
+calls.length = 0;
+const resumed = await api.runCrmImport({ module: 'leads', csv: leadFile(1000), fileName: 'leads-resume.csv', importId: stored.importId, startChunk: stored.startChunk, storage });
+ok(calls.length === 1 && calls[0].args.p_chunk === 2 && calls[0].args.p_import === stored.importId && calls.every((c) => c.args.p_chunk !== 1), 'resume continues at the unsaved chunk and does not resend the saved chunk');
+ok(resumed.committed === true && resumed.counts.total === 500, 'resume imports only the rows that were not saved yet');
 
 console.log(fail ? fail + ' failed' : 'crm hosted import passed');
 if (fail) process.exit(1);

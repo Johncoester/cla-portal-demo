@@ -5,11 +5,11 @@
 import { CRM_OFF } from './features.js?v=202611070139';
 import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611100230';
 import { localDate, runsOrders as runsOrdersCI } from './constants.js?v=202611100245';
-import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611100600';
-import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611100600';
-import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611100600';
-import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611100600';
-import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611100600';
+import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611100700';
+import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611100700';
+import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611100700';
+import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611100700';
+import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611100700';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };
