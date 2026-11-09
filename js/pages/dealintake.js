@@ -7,8 +7,8 @@
 import { html, $, $$, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611070139';
 import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611090935';
 import { localDate, fmtPhone, isRefi } from '../data/constants.js?v=202611090935';
-import { CLS, LABEL } from './dealtasks.js?v=202611091345';
-import { entityLine } from './deal.js?v=202611091450';
+import { CLS, LABEL } from './dealtasks.js?v=202611091504';
+import { entityLine } from './deal.js?v=202611091504';
 
 const ORDER = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent'];
 const ROLE_NAME = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent' };

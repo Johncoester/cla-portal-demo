@@ -5,7 +5,7 @@
  * Order fields (sourceOfBusiness, lenderPhone / lenderEmail at placement) and buyer / seller entities live in createDeal / updateDeal / addParticipant.
  * Mirrored in SQL by public.source_of_business_options() (migration 31). */
 import { ensureSettings, activeOptions, optionsOf } from './crm-config.js?v=202611070139';
-import { parseReferral } from './place-order.js?v=202611071845';
+import { parseReferral } from './place-order.js?v=202611091504';
 import { ENTITY_TYPES, entityPrefill } from './templates.js?v=202611090935';
 
 export const sourceOptionsOf = (d) => activeOptions(ensureSettings(JSON.parse(JSON.stringify(d.crmSettings || null))), 'leadSource').map((o) => ({ value: o.value, label: o.label }));

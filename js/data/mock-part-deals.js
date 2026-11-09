@@ -2,7 +2,7 @@
 import { autoCounty } from './county-auto.js?v=202611090935';
 import { checkSource } from './mock-part-nov3b.js?v=202611090935';
 import { isRefi, REFI_BLOCKED_FIELDS } from './constants.js?v=202611090935';
-import { PROCESSOR_PICK_ROLES, referralWriteError } from './place-order.js?v=202611071845';
+import { PROCESSOR_PICK_ROLES, referralWriteError } from './place-order.js?v=202611091504';
 import { claRepresentationCode } from './cla-representation.js?v=202611090950';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };

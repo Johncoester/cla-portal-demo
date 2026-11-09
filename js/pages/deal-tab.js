@@ -1,10 +1,10 @@
 /* File-tab modules. Loading one evaluates local helpers only. It does not check who is signed in and it does not read a file. */
 const TABS = Object.assign(Object.create(null), {
-  tasks: './dealtasks.js?v=202611091345',
+  tasks: './dealtasks.js?v=202611091504',
   inbox: './dealmsgs.js?v=202611091030',
   email: './dealemail.js?v=202611091345',   // John, Nov 9: Gmail phase 1 (staff only; the tab module refuses everyone else)
   documents: './dealdocs.js?v=202611091030',
-  contacts: './dealcontacts.js?v=202611091400',
+  contacts: './dealcontacts.js?v=202611091504',
   activity: './dealactivity.js?v=202611070139',
   closing: './dealclosing.js?v=202611090935',
   agreements: './dealagreements.js?v=202611070139',
@@ -14,7 +14,7 @@ const TABS = Object.assign(Object.create(null), {
   wires: './dealfwp.js?v=202611090935',
   policy: './dealfwp.js?v=202611090935',
 });
-const TASK_FORM = './dealtaskform.js?v=202611091345';
+const TASK_FORM = './dealtaskform.js?v=202611091504';
 
 function ownSpec(tab) {
   if (typeof tab !== 'string' || !Object.prototype.hasOwnProperty.call(TABS, tab)) return '';
