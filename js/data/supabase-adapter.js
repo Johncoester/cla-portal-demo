@@ -291,7 +291,7 @@ export async function createSupabaseAdapter(cfg) {
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
         open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : moneyAmount(input.purchasePrice), loan_amount: moneyAmount(input.loanAmount),
         emd_amount: refi ? null : moneyAmount(input.emdAmount), emd_due_date: refi ? null : input.emdDueDate || null, notes: input.notes || '', processor_id: input.processorId || null, preprocessor_user_id: input.preprocessorUserId || null, created_by: user.id,
-        lender_name: input.lenderName || '', lender_contact: input.lenderContact || '', lender_phone: input.lenderPhone || '', lender_email: String(input.lenderEmail || '').trim().toLowerCase(),
+        lender_name: input.lenderName || '', lender_contact: input.lenderContact || '', lender_phone: input.lenderPhone || '', lender_email: String(input.lenderEmail || '').trim().toLowerCase(), loss_payee_name: input.lossPayeeName || '',
         primary_residence: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.primaryResidence || ''), first_time_buyer: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.firstTimeBuyer || '') };   // Maryland purchases only (John, Nov 6)
       if (input.tcUserId) row.tc_user_id = input.tcUserId;   // John, Nov 9: blank = the database auto-assigns (a TC who opens it, else the agents' team TC)
       if (input.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(input.claRepresentation);   // Both / Buyer only / Seller only; absent = not recorded
@@ -301,7 +301,7 @@ export async function createSupabaseAdapter(cfg) {
       return { ...d, address: `${d.street}, ${d.city}, ${d.state} ${d.zip}` }; },
     async updateDeal(id, patch) {
       const map = { street: 'street', city: 'city', state: 'state', zip: 'zip', county: 'county', openDate: 'open_date', closingDate: 'closing_date', purchasePrice: 'purchase_price', loanAmount: 'loan_amount',
-        emdAmount: 'emd_amount', emdDueDate: 'emd_due_date', lenderName: 'lender_name', lenderContact: 'lender_contact', lenderEmail: 'lender_email', lenderPhone: 'lender_phone', notes: 'notes', processorId: 'processor_id', preprocessorUserId: 'preprocessor_user_id', tcUserId: 'tc_user_id', primaryResidence: 'primary_residence', firstTimeBuyer: 'first_time_buyer' };
+        emdAmount: 'emd_amount', emdDueDate: 'emd_due_date', lenderName: 'lender_name', lenderContact: 'lender_contact', lenderEmail: 'lender_email', lenderPhone: 'lender_phone', lossPayeeName: 'loss_payee_name', notes: 'notes', processorId: 'processor_id', preprocessorUserId: 'preprocessor_user_id', tcUserId: 'tc_user_id', primaryResidence: 'primary_residence', firstTimeBuyer: 'first_time_buyer' };
       const money = new Set(['purchase_price', 'loan_amount', 'emd_amount']); const dates = new Set(['open_date', 'closing_date', 'emd_due_date']); const row = {};
       for (const [k, col] of Object.entries(map)) if (patch[k] !== undefined) { const v = patch[k];
         row[col] = money.has(col) ? moneyAmount(v) : dates.has(col) || col === 'processor_id' || col === 'preprocessor_user_id' || col === 'tc_user_id' ? (v || null) : v; }

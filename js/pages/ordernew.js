@@ -11,7 +11,7 @@
 import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611070139';
 import { occSelects, yesNo } from './occ-fields.js?v=202611070139';
 import { fmtPhone, TX_TYPES, runsOrders, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount } from '../data/constants.js?v=202611090935';
-import { pickerHtml, mountPicker, personLabel } from './person-picker.js?v=202611090935';
+import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611091355';
 import { ENTITY_TYPES } from '../data/templates.js?v=202611090935';
 import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611071845';
 import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
@@ -116,21 +116,23 @@ export async function render({ api, user, go }) {
         <label>County <span class="muted small">(optional; filled in from the ZIP if left blank)</span><input name="county" maxlength="100" placeholder="e.g. Frederick" aria-label="County"></label>
         <div class="span2" id="md-occ" hidden><p class="muted small">Maryland purchases only.</p>${occSelects({})}</div></div>`,
         'The address of the property being bought, sold or refinanced.')}
-      ${panel('parties', html`<p class="muted small people-optional">People on this order are all optional; you can add or change them later under Contacts. Pick each person from the list, or add someone new with <strong>Add new user</strong> below.</p>
+      ${panel('parties', html`<p class="muted small people-optional">People on this order are all optional; you can add or change them later under Contacts. Type a name and pick a match, or choose <strong>Add "…" as a new person</strong> in the list. <strong>Add new user</strong> below still works for full details (email, entity, lender company).</p>
         <div class="span2" id="sob-block" data-referral-bar><fieldset class="referral-bar"><legend>Referral source</legend>
           <label class="referral-source"><input type="radio" name="referralSource" value="" checked data-referral-clear aria-label="Referral source: Not set"> Not set</label>
           <p class="muted small" data-referral-status>Referral source: Not set. Mark one buyer, seller, buyer agent, listing agent, or lender. Nobody is selected for you. This is not the CLA salesperson and it does not change a contact's Lead Source.</p></fieldset></div>
         <div class="form-grid">${partyBlock('Client-Buyer', 'Buyer')}${partyBlock('Client-Seller', 'Seller')}</div>`,
-        'Type a name, email, phone or company and pick the person. A buyer or seller that is an LLC, corporation, partnership or trust: use + Add entity.')}
+        'Type a name and pick a match, or add them from the list when there is no match. A buyer or seller that is an LLC, corporation, partnership or trust: use + Add entity.')}
       ${panel('loan', html`<h4 class="wiz-sub">Amounts and dates</h4><div class="form-grid">
         <label data-refi-hide="purchasePrice">Purchase price<input name="purchasePrice" inputmode="decimal" placeholder="485,000" data-money autocomplete="off"></label><label>Loan amount<input name="loanAmount" inputmode="decimal" placeholder="388,000" data-money autocomplete="off"></label>
         <label data-refi-hide="emdAmount">EMD amount<input name="emdAmount" inputmode="decimal" placeholder="10,000" aria-label="EMD amount (earnest money deposit)" data-money autocomplete="off"></label><label data-refi-hide="emdDueDate">EMD due date<input name="emdDueDate" type="date"></label>
         <label>Closing date<input name="closingDate" type="date"></label></div>
         <h4 class="wiz-sub">Lender <span class="muted small">(optional)</span></h4>
         <div class="lender-block" data-lender-block>${pickerWithReferral('Lender', 'Lender')}
-        <div class="form-grid"><label>Lender phone<input name="lenderPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone aria-label="Lender phone"></label>
-        <label>Lender email<input name="lenderEmail" type="email" maxlength="200" aria-label="Lender email"></label></div>
-        <p class="muted small">Filled in from the lender you pick (change them for this order if needed). Optional, like the lender.</p></div>`,
+        <div class="form-grid"><label class="span2">Lender company name<input name="lenderName" maxlength="200" aria-label="Lender company name" placeholder="Company name (required when adding a new lender)"></label>
+        <label>Lender phone<input name="lenderPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone aria-label="Lender phone"></label>
+        <label>Lender email<input name="lenderEmail" type="email" maxlength="200" aria-label="Lender email"></label>
+        <label class="span2">Loss payee <span class="muted small">(optional)</span><input name="lossPayeeName" maxlength="200" aria-label="Loss payee" placeholder="Often the lender company, ISAOA/ATIMA"></label></div>
+        <p class="muted small">Company name, phone and email fill in from the lender you pick (change them for this order if needed). Optional, like the lender. Mortgage brokerage and extra lender contacts are not on this step yet.</p></div>`,
         'Money is typed with commas (485,000). Every amount is optional and can be filled in later.')}
       ${panel('agents', html`<div class="form-grid agents-grid">${pickerWithReferral('Buyer Agent', 'Buyer agent')}${pickerWithReferral('Listing Agent', 'Listing agent')}
         ${tcSelect('p:Transaction Coordinator', "Buyer's transaction coordinator")}<button type="button" class="ghost" data-add-tc="p:Transaction Coordinator">+ Add buyer's transaction coordinator</button>
@@ -191,9 +193,36 @@ export async function render({ api, user, go }) {
     const txSel = $('[name=transactionType]', root); const refi = () => isRefi(txSel.value);
     const labelOf = (role) => (role === 'Client-Buyer' && refi() ? 'Borrower' : SEARCH.find((x) => x[0] === role)[1]);
     // Matt, Nov 3 (b): picking a lender fills Lender phone / email (only boxes still empty; the processor can change them for this order)
-    const fillLender = (c) => { if (!c) return; const ph = $('[name=lenderPhone]', root); const em = $('[name=lenderEmail]', root);
-      if (ph && !ph.value.trim() && c.phone) ph.value = fmtPhone(c.phone); if (em && !em.value.trim() && c.email) em.value = c.email; };
-    const pickers = Object.fromEntries(SEARCH.filter(([role]) => !MULTI[role]).map(([role]) => [role, mountPicker($(`[data-picker="p:${role}"]`, root), () => people, { onSet: (c) => { if (role === 'Lender') fillLender(c); syncReferral(); } })]));
+    const fillLender = (c) => { if (!c) return; const ph = $('[name=lenderPhone]', root); const em = $('[name=lenderEmail]', root); const co = $('[name=lenderName]', root); const lp = $('[name=lossPayeeName]', root);
+      if (ph && !ph.value.trim() && c.phone) ph.value = fmtPhone(c.phone); if (em && !em.value.trim() && c.email) em.value = c.email;
+      if (co && !co.value.trim() && c.company) co.value = c.company;
+      if (lp && !lp.value.trim() && c.company) lp.value = c.company; };
+    // Francis, Nov 9: create a contact from the typed name in the picker (Buyers & Sellers / Agents / Lender).
+    // Buyers/sellers/agents: first + last from the typed words. Lender: a company-ish typed string becomes company-only;
+    // an officer name (2+ words without company keywords) becomes a person; company can still be set in Lender company name.
+    const quickCreate = async (role, typed) => {
+      const name = String(typed || '').trim(); if (!name) throw new Error('Type a name first.');
+      const { firstName, lastName } = splitPersonName(name);
+      const contactType = contactTypeForRole(role) || 'buyer_seller';
+      let input;
+      if (role === 'Lender') {
+        const companyish = !lastName || /\b(llc|inc|corp|bank|mortgage|lending|loan|capital|financial|credit)\b/i.test(name);
+        input = companyish
+          ? { firstName: '', lastName: '', company: name, email: '', phone: '', contactType: 'lender' }
+          : { firstName, lastName, company: ($('[name=lenderName]', root) || {}).value || '', email: '', phone: '', contactType: 'lender' };
+      } else {
+        input = { firstName: firstName || name, lastName, email: '', phone: '', company: '', contactType };
+      }
+      const c = await api.createContact(input);
+      if (!people.some((x) => x.id === c.id)) people.push(c);
+      return c;
+    };
+    const pickerOpts = (role) => ({
+      createVerb: role === 'Lender' ? 'lender' : (MULTI[role] ? MULTI[role] : 'person'),
+      onSet: (c) => { if (role === 'Lender') fillLender(c); syncReferral(); },
+      onCreate: (typed) => quickCreate(role, typed),
+    });
+    const pickers = Object.fromEntries(SEARCH.filter(([role]) => !MULTI[role]).map(([role]) => [role, mountPicker($(`[data-picker="p:${role}"]`, root), () => people, pickerOpts(role))]));
     // ---------- several buyers / sellers ----------
     const rows = {};   // role -> [{ pk, el }] in screen order
     const renumber = (role) => { rows[role].forEach(({ pk, el }, i) => { const nm = i ? `p:${role}:${i + 1}` : `p:${role}`; pk.el.dataset.picker = nm; $('input[type=hidden]', pk.el).name = nm; el.dataset.partyRow = String(i + 1);
@@ -201,7 +230,7 @@ export async function render({ api, user, go }) {
       // Matt, Nov 3 (b): always at least two rows (leave the second blank if there is only one). Any row can be removed; the rest move up and a
       // blank row is added back at the end. The last row of a two-row set has no Remove (removing it would only put an empty row back).
       rows[role].forEach(({ el }, i) => { $('[data-rm-row]', el).hidden = rows[role].length <= MIN_ROWS && i === rows[role].length - 1; }); };
-    const hookRow = (role, el) => { const r = { el, pk: mountPicker($('.picker', el), () => people, { onSet: () => syncReferral() }) }; rows[role].push(r);
+    const hookRow = (role, el) => { const r = { el, pk: mountPicker($('.picker', el), () => people, pickerOpts(role)) }; rows[role].push(r);
       const tg = $('[data-ent-toggle]', el); const pnl = $('[data-entity-panel]', el);
       tg.addEventListener('click', () => { const on = pnl.hidden; pnl.hidden = !on; tg.setAttribute('aria-pressed', String(on)); tg.textContent = on ? '\u2212 Remove entity' : '+ Add entity'; if (on) $('[data-ent="name"]', pnl).focus(); });
       $('[data-rm-row]', el).addEventListener('click', () => { rows[role] = rows[role].filter((z) => z !== r); el.remove(); renumber(role); while (rows[role].length < MIN_ROWS) addRow(role); }); renumber(role); return r; };
@@ -266,7 +295,7 @@ export async function render({ api, user, go }) {
       if (k === 'transaction' && repOn && !$$('[name=claRepresentation]', p).some((el) => el.checked)) errs.push({ el: $('[name=claRepresentation]', p), msg: 'Choose who CLA represents: Both buyer and seller, Buyer only, or Seller only.' });
       if (k === 'property' && !zipOk(String(f.zip || '').trim())) errs.push({ el: $('[name=zip]', p), msg: 'ZIP must be 5 digits (or ZIP+4).' });
       if (k === 'parties') {
-        for (const role of Object.keys(MULTI).filter(counts)) rows[role].forEach((r, i) => { if (r.pk.typed && !r.pk.value) errs.push({ el: $('.picker-q', r.pk.el), msg: `${labelOf(role)}: pick a person from the list (or clear the box, or use "Add new user").` }); });
+        for (const role of Object.keys(MULTI).filter(counts)) rows[role].forEach((r, i) => { if (r.pk.typed && !r.pk.value) errs.push({ el: $('.picker-q', r.pk.el), msg: `${labelOf(role)}: pick a person from the list, choose Add as a new person, clear the box, or use "Add new user".` }); });
         for (const role of Object.keys(MULTI).filter(counts)) { const ids = rows[role].map((r) => r.pk.value).filter(Boolean); const twice = ids.find((id, i) => ids.indexOf(id) !== i);
           if (twice) errs.push({ el: null, msg: `${personLabel(people.find((pp) => pp.id === twice) || { firstName: 'That person', lastName: '' })} is listed twice as ${labelOf(role)}.` }); }
         for (const role of Object.keys(MULTI).filter(counts)) rows[role].forEach((r, i) => { const e = entityOf(r); if (!e) return; const lab = rowLabel(labelOf(role), i + 1).replace(/ \(optional\)$/, '');
@@ -323,7 +352,7 @@ export async function render({ api, user, go }) {
         ${section('parties', r ? 'Borrowers' : 'Buyers & Sellers', [[r ? 'Borrowers' : 'Buyers', partyList('Client-Buyer')], ...(r ? [] : [['Sellers', partyList('Client-Seller')]])])}
         ${section('loan', 'Lender & Loan', [...(r ? [] : [['Purchase price', val(fmtMoney(moneyAmount(f.purchasePrice)))]]), ['Loan amount', val(fmtMoney(moneyAmount(f.loanAmount)))],
           ...(r ? [] : [['EMD amount', val(fmtMoney(moneyAmount(f.emdAmount)))], ['EMD due date', val(fmtDate(f.emdDueDate))]]), ['Closing date', val(fmtDate(f.closingDate))],
-          ['Lender', pickers.Lender.value ? html`${nameOf(pickers.Lender.value)}${f.lenderPhone || f.lenderEmail ? html`<br><span class="muted small">${[f.lenderPhone, f.lenderEmail].filter(Boolean).join(' \u00b7 ')}</span>` : ''}` : dash]])}
+                    ['Lender', (pickers.Lender.value || f.lenderName) ? html`${f.lenderName ? html`<strong>${f.lenderName}</strong>${pickers.Lender.value ? html` · ${nameOf(pickers.Lender.value)}` : ''}` : nameOf(pickers.Lender.value)}${f.lenderPhone || f.lenderEmail || f.lossPayeeName ? html`<br><span class="muted small">${[f.lenderPhone, f.lenderEmail, f.lossPayeeName && ('Loss payee: ' + f.lossPayeeName)].filter(Boolean).join(' · ')}</span>` : ''}` : dash]])}
         ${section('parties', 'Source of business', [['Referred by', val((() => { const picked = $$('[name=referralSource]', root).find((el) => el.checked && el.value); return picked ? (picked.getAttribute('aria-label') || '').replace(/^Referral source:\s*/, '') : ''; })())]])}
         ${r ? '' : section('agents', 'Agents', [['Buyer agent', val(nameOf(pickers['Buyer Agent'].value))], ['Listing agent', val(nameOf(pickers['Listing Agent'].value))], ["Buyer's transaction coordinator", val(selText($('[name="p:Transaction Coordinator"]', root)))], ['Listing transaction coordinator', val(selText($('[name="p:Transaction Coordinator:2"]', root)))]])}
         ${section('team', 'Team & Notes', [['Processor', val(selText($('[name=processorId]', root)).replace(/^Choose the Processor.*$/, ''))], ['Preprocessor', val(selText($('[name=preprocessorUserId]', root)))], ['Salespeople', sales.length ? sales.join(', ') : dash], ['Sales team member', val(selText($('[name="p:Sales Team"]', root)))],
@@ -467,7 +496,7 @@ export async function render({ api, user, go }) {
       // half-typed name, "none", "N/A", browser autofill) never blocks the order: the order is created without that person and a note says so.
       // Buyers and sellers still have to be picked from the list (or the box cleared) so a client is never dropped by accident.
       const skipped = [];
-      for (const [label, pk] of allPickers()) if (pk.typed && !pk.value) { if (OPTIONAL_SLOTS.includes(label)) skipped.push(label); else throw new Error(`${label}: pick a person from the list (or clear the box, or use "Add new user").`); }
+      for (const [label, pk] of allPickers()) if (pk.typed && !pk.value) { if (OPTIONAL_SLOTS.includes(label)) skipped.push(label); else throw new Error(`${label}: pick a person from the list, choose Add as a new person, clear the box, or use "Add new user".`); }
       if (refi()) { REFI_HIDE.forEach((k) => { delete f[k]; }); }   // hidden on a refinance: never checked, never saved
       // Matt, Nov 3 (b): amounts are shown with commas (485,000) and sent clean (485000)
       const amt = refi() ? '' : moneyAmount(f.emdAmount);
@@ -481,7 +510,11 @@ export async function render({ api, user, go }) {
       f.sourceOfBusiness = ''; delete f.sourceContactId;
       if (!showMdQuestions(f.state, refi())) { f.primaryResidence = ''; f.firstTimeBuyer = ''; }
       const input = representationPayload(api, { ...f, emdAmount: amt, purchasePrice: refi() ? '' : moneyAmount(f.purchasePrice), ...(refi() ? { emdDueDate: '' } : {}), loanAmount: moneyAmount(f.loanAmount), salesIds: new FormData(e.target).getAll('salesIds'),
-        ...(lender ? { lenderName: lender.company || '', lenderContact: personLabel(lender) } : {}) });
+        lenderName: (f.lenderName || (lender && lender.company) || '').trim(),
+        lenderContact: lender ? personLabel(lender) : '',
+        lenderPhone: (f.lenderPhone || '').trim(),
+        lenderEmail: (f.lenderEmail || '').trim(),
+        lossPayeeName: (f.lossPayeeName || '').trim() });
       if (draftStore && draftKey) { const claim = claimOrderDraft(draftStore, draftKey); if (!claim.ok) throw new Error(claim.message); }
       placing = true; const btn = $('[data-place-order]', root); btn.disabled = true; btn.textContent = 'Placing order\u2026';
       let deal; try { deal = await api.createDeal(input); } catch (err) { placing = false; btn.disabled = false; btn.textContent = 'Place order'; if (draftStore && draftKey) releaseOrderClaim(draftStore, draftKey); throw err; }
