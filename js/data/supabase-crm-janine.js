@@ -4,11 +4,11 @@
  * CSV import parses in the browser (same limits and mapping as the demo) and
  * asks crm_import_batch to apply the database rules once per file. Preview
  * rolls back inside that call. Nothing is emailed. */
-import { buildIcs, INVITE_NOTE, parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611090935';
-import { US_STATE_NAMES, US_STATES } from './constants.js?v=202611090935';
-import { ensureSettings, findOption } from './crm-config.js?v=202611070139';
-import { resolveImportedStatus } from './nov5-rules.js?v=202611090935';
-import { LINK_KEYS } from './crm.js?v=202611070139';
+import { buildIcs, INVITE_NOTE, parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611100020';
+import { US_STATE_NAMES, US_STATES } from './constants.js?v=202611100020';
+import { ensureSettings, findOption } from './crm-config.js?v=202611100020';
+import { resolveImportedStatus } from './nov5-rules.js?v=202611100020';
+import { LINK_KEYS } from './crm.js?v=202611100020';
 
 const DEFAULT_LABEL = Object.fromEntries(IMPORT_DEFAULT_FIELDS.map(([k, l]) => [k, l]));
 const clip = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
