@@ -1,6 +1,6 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
-import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611070139';
-import { GMAIL_OFF } from '../data/automation.js?v=202611090935';
+import { html, raw, toText, esc, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611070139';
+import { TEST_ALLOWLIST_NOTE, isAllowedTestRecipient, textToHtml } from '../data/gmail-email.js?v=202611091311';
 import { occSelects, yesNo } from './occ-fields.js?v=202611070139';
 import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611090935';
 import { modOn } from '../data/modules.js?v=202611090935';
@@ -11,9 +11,9 @@ import { sourceChoices, processorChoices, fileReferralState, referralContacts, r
 import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611090935';
 import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611090935';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611091030';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611091311';
 import { gatherReads } from '../data/read-batch.js?v=202611082010';
-import { prefetchDealTab } from './deal-tab.js?v=202611091240';
+import { prefetchDealTab } from './deal-tab.js?v=202611091311';
 import { placeText } from '../data/cla-offices.js?v=202611090935';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 
@@ -399,22 +399,36 @@ function automationSection(d, refi) {
     <div class="card automation-card" data-automation><div class="automation-row"><div><strong>Email sellers and agents</strong>
       <p class="small muted">Prepares one email per seller, listing agent and buyer's agent on this order, from a CRM email template when one fits (name or subject mentions sellers / agents), otherwise a built-in message.
       Wire instructions are never included: they go to the buyer only, and real estate agents never receive them.</p>
-      <p class="small" data-gmail-off><span class="pill warn">Not sending yet</span> ${GMAIL_OFF}</p></div>
+      <p class="small" data-gmail-on><span class="pill info">Gmail</span> Sends from your own @clatitle.com Gmail once it is connected (Profile Setting &gt; Gmail). CLA Portal Live Test sends to test addresses only.</p></div>
       <button type="button" class="m-btn" data-email-sellers-agents ${refi ? raw('disabled title="A refinance has no sellers or agents"') : ''}>Email sellers and agents</button></div></div>`;
 }
 async function automationModal(api, d) {
-  const P = await api.previewSellerAgentEmails(d.id);
-  modal('Email sellers and agents (preview)', html`<div class="notice warn" data-gmail-off-modal><strong>Preview only.</strong> ${P.note} Nothing has been sent.</div>
+  const [P, g] = await Promise.all([api.previewSellerAgentEmails(d.id), api.getGmailStatus ? api.getGmailStatus().catch(() => ({ connected: false })) : { connected: false }]);
+  const on = !!(g && g.connected && g.status === 'connected'); const sendable = P.messages.filter((m) => m.email);
+  // John, Nov 9 (Gmail phase 1): Send goes out one email per person from the user's own Gmail through gmail-send (the server refuses non-test addresses on Live Test)
+  const m = modal('Email sellers and agents', html`${on ? html`<div class="notice info" data-gmail-on-modal>Sends one email per person from <strong>${g.mailbox}</strong>. ${TEST_ALLOWLIST_NOTE}</div>`
+      : html`<div class="notice warn" data-gmail-off-modal><strong>Preview only.</strong> Connect your Gmail on <a href="#/profile">Profile Setting</a> to send. Nothing has been sent.</div>`}
     <p class="small muted" data-wire-rule>${P.wireRule}</p>
-    ${P.messages.length ? P.messages.map((m) => html`<div class="card preview-msg" data-preview-msg="${m.role}" data-preview-agent="${m.agent ? '1' : '0'}">
-      <div class="small"><strong>To:</strong> ${m.name} &lt;${m.email || 'no email on file'}&gt; &middot; ${m.roleLabel}${m.noEmail ? html` <span class="pill bad">no email</span>` : ''}</div>
-      <div class="small"><strong>Template:</strong> <span data-preview-template>${m.template}</span>${m.fromCrm ? html` <span class="pill info">CRM template</span>` : ''}</div>
-      <div class="small"><strong>Subject:</strong> <span data-preview-subject>${m.subject}</span></div>
-      <pre class="preview-body" data-preview-body>${m.body}</pre>
-      ${m.notes.length ? html`<ul class="small notice info" data-preview-notes>${m.notes.map((n) => html`<li>${n}</li>`)}</ul>` : ''}</div>`)
+    ${P.messages.length ? P.messages.map((x) => html`<div class="card preview-msg" data-preview-msg="${x.role}" data-preview-agent="${x.agent ? '1' : '0'}">
+      <div class="small"><strong>To:</strong> ${x.name} &lt;${x.email || 'no email on file'}&gt; &middot; ${x.roleLabel}${x.noEmail ? html` <span class="pill bad">no email</span>` : ''}${x.email && !isAllowedTestRecipient(x.email) ? html` <span class="pill warn">not a test address: Live Test will refuse it</span>` : ''}</div>
+      <div class="small"><strong>Template:</strong> <span data-preview-template>${x.template}</span>${x.fromCrm ? html` <span class="pill info">CRM template</span>` : ''}</div>
+      <div class="small"><strong>Subject:</strong> <span data-preview-subject>${x.subject}</span></div>
+      <pre class="preview-body" data-preview-body>${x.body}</pre>
+      ${x.notes.length ? html`<ul class="small notice info" data-preview-notes>${x.notes.map((n) => html`<li>${n}</li>`)}</ul>` : ''}
+      <div class="small" data-send-result="${x.participantId}"></div></div>`)
       : html`<p class="muted" data-preview-none>No sellers or agents on this order yet.</p>`}
-    <div><button type="button" class="m-btn" disabled title="${P.note}" data-send-disabled>Send (${P.messages.length})</button> <button type="button" class="ghost" data-close>Close</button>
-      <span class="small muted">${P.note}</span></div>`, { wide: true });
+    <div><button type="button" class="m-btn" ${on && sendable.length ? '' : raw(`disabled title="${on ? 'Nobody here has an email on file' : 'Connect Gmail first'}"`)} data-send-sellers-agents>Send (${sendable.length})</button> <button type="button" class="ghost" data-close>Close</button></div>`, { wide: true });
+  const btn = $('[data-send-sellers-agents]', m);
+  if (btn && on) btn.addEventListener('click', guard(async () => {
+    if (!confirm(`Send ${sendable.length} email(s) from ${g.mailbox}?`)) return;
+    btn.disabled = true; let sent = 0;
+    for (const x of sendable) {
+      const box = $(`[data-send-result="${x.participantId}"]`, m);
+      try { await api.sendDealEmail({ dealId: d.id, to: [x.email], subject: x.subject, html: textToHtml(x.body), templateKey: x.agent ? 'agent-update' : 'seller-update' }); sent++; box.innerHTML = '<span class="pill ok">sent</span>'; }
+      catch (e) { box.innerHTML = `<span class="pill bad">not sent</span> ${esc(e.message)}`; }
+    }
+    toast(`${sent} of ${sendable.length} sent`, sent === sendable.length ? 'ok' : 'err');
+  }));
 }
 
 // Share Access (agents on the order; recorded only, nothing is sent). Shared by the agent overview and the client overview.

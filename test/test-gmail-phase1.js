@@ -1,0 +1,141 @@
+/* Gmail phase 1 (John, Nov 9): the gmail-* edge function logic with fake Google + fake database. No network, no secrets. */
+import { isAllowedTestRecipient, parseAddressList, subjectWithTag, sanitizeHtml, buildMime, b64url, b64urlToText, hasWireDetails, parseGmailMessage, authUrl, SCOPES, REDIRECT_URI, extOk } from '../supabase/functions/_shared/gmail-core.mjs';
+import { handleOauthStart, handleOauthCallback, handleSend, handleSync } from '../supabase/functions/_shared/gmail-handlers.mjs';
+let fail = 0;
+const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
+const JOHN = '149e612a-6e14-4ee1-9890-0f29d6f89156'; const DEAL = 'f2c086d7-8043-46c4-99b1-03ee5b061897';
+const SECRET = 'client-secret-do-not-leak'; const REFRESH = 'refresh-token-do-not-leak';
+
+// ---- allowlist ----
+for (const a of ['clatestportal@gmail.com', 'clatestportal+buyer@gmail.com', 'CLAtestportal+Seller.1@gmail.com', 'fsantos@clatitle.com', 'jcoester-6jkr3p@mail.grokbot.com']) ok(isAllowedTestRecipient(a), `allowed on Live Test: ${a}`);
+for (const a of ['someone@gmail.com', 'clatestportal+x@gmail.com.evil.com', 'x@clatitle.com.evil.com', 'x@sub.clatitle.com', 'clatestportal+@gmail.com', 'c.latestportal@gmail.com', 'jcoester@mail.grokbot.com', 'buyer@example.com', 'a@clatitle.co']) ok(!isAllowedTestRecipient(a), `refused on Live Test: ${a}`);
+const pl = parseAddressList('Pat <PAT@clatitle.com>, pat@clatitle.com; not an address');
+ok(pl.ok.length === 1 && pl.ok[0] === 'pat@clatitle.com' && pl.bad.length === 1, 'address list: names stripped, duplicates merged, junk reported');
+ok(subjectWithTag('Introduction', 'MD-26-97207') === 'Introduction [CLA #MD-26-97207]', 'subject gets the [CLA #order] tag');
+ok(subjectWithTag('Re: Introduction [CLA #MD-26-97207]', 'MD-26-97207') === 'Re: Introduction [CLA #MD-26-97207]', 'the tag is not doubled');
+ok(!/[\r\n]/.test(subjectWithTag('Hi\r\nBcc: evil@x.com', '1')), 'no line breaks survive in a subject (header injection)');
+const clean = sanitizeHtml('<p onclick="x()">Hi</p><script>alert(1)</script><img src="javascript:alert(1)" onerror=alert(1)><a href="https://ok.test">ok</a><iframe src="https://x"></iframe>');
+ok(!/script|onclick|onerror|javascript:|iframe/i.test(clean) && clean.includes('https://ok.test'), 'sanitize removes scripts, handlers, javascript: links and iframes');
+ok(hasWireDetails('Routing number 021000021, account number 12345678') && !hasWireDetails('Never wire money without calling our office first.'), 'wire check: bank numbers refused, a wire-fraud warning is fine');
+ok(extOk('a.pdf') && !extOk('a.exe') && !extOk('.pdf'), 'attachment types match the portal upload list');
+const u = new URL(authUrl({ clientId: 'cid', state: 'st', challenge: 'ch', loginHint: 'me@clatitle.com' }));
+ok(u.searchParams.get('scope') === SCOPES.join(' ') && !/gmail\.modify|mail\.google\.com/.test(u.searchParams.get('scope')), 'consent asks for gmail.send + gmail.readonly only');
+ok(u.searchParams.get('code_challenge_method') === 'S256' && u.searchParams.get('redirect_uri') === REDIRECT_URI && u.searchParams.get('hd') === 'clatitle.com' && u.searchParams.get('access_type') === 'offline', 'PKCE S256, exact redirect, clatitle.com accounts, offline access');
+
+// ---- MIME ----
+const raw = buildMime({ from: 'me@clatitle.com', fromName: 'Me Person', to: ['clatestportal+b@gmail.com'], cc: [], bcc: ['x@clatitle.com'], subject: 'Héllo [CLA #1]', html: '<p>Hi</p>', text: 'Hi', attachments: [{ name: 'a.pdf', mime: 'application/pdf', bytes: new Uint8Array([37, 80, 68, 70]) }], inReplyTo: '<m1@mail>', seed: 's1' });
+ok(/^From: "Me Person" <me@clatitle\.com>\r\n/.test(raw) && raw.includes('Bcc: x@clatitle.com') && raw.includes('Subject: =?UTF-8?B?') && raw.includes('In-Reply-To: <m1@mail>'), 'MIME headers: From, Bcc, encoded subject, reply headers');
+ok(raw.includes('Content-Disposition: attachment; filename="a.pdf"') && raw.includes('JVBERg=='), 'MIME carries the attachment bytes');
+ok(b64urlToText(b64url('ü?>>')) === 'ü?>>', 'base64url round trip');
+const pm = parseGmailMessage({ id: 'g1', threadId: 't1', labelIds: ['INBOX'], payload: { headers: [{ name: 'From', value: '"Buyer, Pat" <clatestportal+b@gmail.com>' }, { name: 'To', value: 'me@clatitle.com' }, { name: 'Subject', value: 'Re: x' }],
+  parts: [{ mimeType: 'text/html', body: { data: b64url('<p>Thanks</p><script>x</script>') } }, { filename: 'c.pdf', mimeType: 'application/pdf', body: { attachmentId: 'att1', size: 4 } }] } });
+ok(pm.from === 'clatestportal+b@gmail.com' && pm.fromName === 'Buyer, Pat' && pm.html === '<p>Thanks</p>' && pm.attachments[0].attachmentId === 'att1', 'incoming message parsed (quoted name with comma, html sanitized, attachment found)');
+
+// ---- fake deps ----
+function fakeDeps(over = {}) {
+  const calls = { svc: [], fetch: [], stored: [] };
+  const db = { states: new Map(), account: null, threads: [{ gmail_thread_id: 'tLinked', deal_id: DEAL, linked_at: new Date().toISOString() }], known: [], syncToken: 'x'.repeat(64) };
+  const ctx = { uid: JOHN, viewAs: false, allowed: true, role: 'Super admin', email: 'johncoester@gmail.com', firstName: 'John', lastName: 'Coester', mailbox: 'john@clatitle.com', mailboxStatus: 'connected', signatureHtml: '<p>John Coester<br>CLA Title</p>' };
+  const google = over.google || ((url, init) => {
+    if (url.includes('oauth2.googleapis.com/token')) return { status: 200, body: { access_token: 'ya29.access', refresh_token: REFRESH, scope: SCOPES.slice(2).join(' ') + ' openid https://www.googleapis.com/auth/userinfo.email', id_token: 'h.' + b64url(JSON.stringify({ email: 'john@clatitle.com', email_verified: true, hd: 'clatitle.com' })) + '.s' } };
+    if (url.includes('/revoke')) return { status: 200, body: {} };
+    if (url.endsWith('/profile')) return { status: 200, body: { emailAddress: 'john@clatitle.com', historyId: '900' } };
+    if (url.includes('/messages/send')) return { status: 200, body: { id: 'gSent1', threadId: 'tNew' } };
+    if (url.includes('format=metadata')) return { status: 200, body: { payload: { headers: [{ name: 'Message-ID', value: '<sent1@mail.gmail.com>' }] } } };
+    if (url.includes('/history?')) return { status: 200, body: { historyId: '950', history: [{ messagesAdded: [{ message: { id: 'mIn', threadId: 'tLinked', labelIds: ['INBOX'] } }, { message: { id: 'mOther', threadId: 'tUNLINKED', labelIds: ['INBOX'] } }, { message: { id: 'mKnown', threadId: 'tLinked', labelIds: ['SENT'] } }] }] } };
+    if (url.includes('/messages/mIn/attachments/att1')) return { status: 200, body: { data: b64url('%PDF') } };
+    if (url.includes('/messages/mIn?format=full')) return { status: 200, body: { id: 'mIn', threadId: 'tLinked', labelIds: ['INBOX'], internalDate: '1794000000000', snippet: 'Thanks', payload: { headers: [{ name: 'From', value: 'clatestportal+b@gmail.com' }, { name: 'Subject', value: 'Re: Intro [CLA #MD-26-97207]' }], parts: [{ mimeType: 'text/plain', body: { data: b64url('Thanks!') } }, { filename: 'reply.pdf', mimeType: 'application/pdf', body: { attachmentId: 'att1', size: 4 } }, { filename: 'virus.exe', mimeType: 'application/octet-stream', body: { attachmentId: 'att2', size: 4 } }] } } };
+    return { status: 404, body: { error: 'not found' } };
+  });
+  const deps = {
+    projectRef: 'aqcervntopidtcazcmlv', clientId: 'cid.apps.googleusercontent.com', clientSecret: SECRET, headers: {}, now: () => Date.now(), newId: () => '00000000-0000-4000-8000-00000000000' + (calls.stored.length + 1),
+    fetch: async (url, init = {}) => { calls.fetch.push({ url, body: init.body || '' }); const r = google(url, init); return { ok: r.status < 300, status: r.status, json: async () => r.body }; },
+    getUser: async () => ({ id: JOHN }), myContext: async () => ctx,
+    svc: async (fn, args) => { calls.svc.push({ fn, args });
+      if (fn === 'gmail_svc_begin_oauth') { db.states.set(args.p_state_hash, args); return null; }
+      if (fn === 'gmail_svc_take_oauth') { const s = db.states.get(args.p_state_hash); db.states.delete(args.p_state_hash); return s ? [{ profile_id: s.p_profile, code_verifier: s.p_verifier }] : []; }
+      if (fn === 'gmail_svc_token') return [{ email: 'john@clatitle.com', refresh_token: REFRESH, history_id: '800', status: 'connected' }];
+      if (fn === 'gmail_svc_linked_threads') return db.threads;
+      if (fn === 'gmail_svc_known_messages') return args.p_ids.filter((x) => x === 'mKnown');
+      if (fn === 'gmail_svc_check_sync_token') return args.p_token === db.syncToken;
+      if (fn === 'gmail_svc_connected_accounts') return [{ profile_id: JOHN, email: 'john@clatitle.com' }];
+      if (fn === 'gmail_svc_disconnect') return 'john@clatitle.com';
+      if (fn === 'gmail_svc_record') return 'rec-1';
+      return null; },
+    userDeal: async (id) => (id === DEAL ? { id: DEAL, file_number: 'MD-26-97207' } : null),
+    userDocs: async (dealId, ids) => ids.map((id) => ({ id, deal_id: dealId, name: id === 'wire' ? 'Wire Instructions.pdf' : 'Contract.pdf', mime_type: 'application/pdf', size_bytes: 4, storage_path: `${dealId}/${id}/Contract.pdf`, wire_instructions: false })).filter((d) => d.id !== 'other'),
+    userDocBytes: async () => new Uint8Array([37, 80, 68, 70]),
+    userEmail: async (id) => (id === 'e1' ? { id: 'e1', deal_id: DEAL, mailbox_email: 'john@clatitle.com', gmail_thread_id: 'tLinked', rfc_message_id: '<orig@mail>' } : null),
+    storeAttachment: async (path, bytes, mime) => { calls.stored.push({ path, size: bytes.length, mime }); },
+    ...over.deps,
+  };
+  if (over.ctx) Object.assign(ctx, over.ctx);
+  return { deps, calls, db, ctx };
+}
+const post = (body, headers = {}) => new Request('https://fn.test', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+const leaks = (calls, txt) => txt.includes(SECRET) || txt.includes(REFRESH) || txt.includes('ya29.');
+
+// ---- start / status / disconnect ----
+{ const f = fakeDeps({ deps: { getUser: async () => null } }); const r = await handleOauthStart(post({ action: 'start' }), f.deps); ok(r.status === 401 && !f.calls.svc.length, 'start: no session -> 401'); }
+{ const f = fakeDeps({ ctx: { allowed: false, role: 'Employee' } }); const r = await handleOauthStart(post({ action: 'start' }), f.deps); ok(r.status === 403 && !f.calls.svc.length, 'start: an HR-only Employee is refused'); }
+{ const f = fakeDeps({ ctx: { viewAs: true } }); const r = await handleOauthStart(post({ action: 'start' }), f.deps); ok(r.status === 403, 'start: refused while viewing as someone else'); }
+{ const f = fakeDeps({ deps: { projectRef: 'bxixxgcqxmtzkrolywas' } }); const r = await handleOauthStart(post({ action: 'start' }), f.deps); ok(r.status === 503, 'start: any project other than Live Test refuses'); }
+{ const f = fakeDeps(); const r = await handleOauthStart(post({ action: 'start' }), f.deps); const j = await r.json(); const q = new URL(j.url).searchParams; const saved = f.calls.svc.find((c) => c.fn === 'gmail_svc_begin_oauth').args;
+  ok(r.status === 200 && q.get('state') && saved.p_state_hash !== q.get('state') && /^[0-9a-f]{64}$/.test(saved.p_state_hash) && saved.p_profile === JOHN && saved.p_verifier.length >= 43, 'start: state stored only as a hash, bound to the signed-in user, PKCE verifier kept server-side');
+  ok(!JSON.stringify(j).includes(SECRET) && !j.url.includes(saved.p_verifier), 'start: no secret and no verifier in the response');
+  // callback with that state
+  const cb = await handleOauthCallback(new Request(`https://fn.test/?state=${encodeURIComponent(q.get('state'))}&code=abc`), f.deps);
+  ok(cb.status === 302 && cb.headers.get('Location') === 'https://testportal.clatitle.com/#/profile?gmail=connected', 'callback: good consent -> back to Profile, connected');
+  const tokenCall = f.calls.fetch.find((c) => c.url.includes('/token')); ok(tokenCall && tokenCall.body.includes('code_verifier=' + saved.p_verifier) && tokenCall.body.includes('redirect_uri=' + encodeURIComponent(REDIRECT_URI)), 'callback: code exchanged with the PKCE verifier and the exact redirect');
+  const con = f.calls.svc.find((c) => c.fn === 'gmail_svc_connect'); ok(con && con.args.p_refresh === REFRESH && con.args.p_email === 'john@clatitle.com' && con.args.p_history === '900' && con.args.p_profile === JOHN, 'callback: refresh token handed to Vault storage for the login that pressed Connect');
+  const again = await handleOauthCallback(new Request(`https://fn.test/?state=${encodeURIComponent(q.get('state'))}&code=abc`), f.deps);
+  ok(again.headers.get('Location').endsWith('gmail=expired'), 'callback: a state works once (replay -> expired)'); }
+{ const f = fakeDeps(); const r = await handleOauthCallback(new Request('https://fn.test/?state=forged&code=abc'), f.deps); ok(r.headers.get('Location').endsWith('gmail=expired') && !f.calls.fetch.length, 'callback: unknown state -> expired, Google never called'); }
+async function cbWith(google) { const f = fakeDeps({ google }); const s = await (await handleOauthStart(post({ action: 'start' }), f.deps)).json(); const st = new URL(s.url).searchParams.get('state');
+  const r = await handleOauthCallback(new Request(`https://fn.test/?state=${encodeURIComponent(st)}&code=abc`), f.deps); return { loc: r.headers.get('Location'), f }; }
+{ 
+  const mk = (patch) => (url) => { if (url.includes('/token')) return { status: 200, body: { access_token: 'ya29.a', refresh_token: REFRESH, scope: SCOPES.join(' '), id_token: 'h.' + b64url(JSON.stringify(patch)) + '.s' } }; if (url.includes('/revoke')) return { status: 200, body: {} }; if (url.endsWith('/profile')) return { status: 200, body: { emailAddress: patch.email, historyId: '1' } }; return { status: 404, body: {} }; };
+  const w = await cbWith(mk({ email: 'john@gmail.com', email_verified: true }));
+  ok(w.loc.endsWith('gmail=wrong_domain') && w.f.calls.fetch.some((c) => c.url.includes('/revoke')) && !w.f.calls.svc.some((c) => c.fn === 'gmail_svc_connect'), 'callback: a non-clatitle.com Google account is refused and its token revoked');
+  const s = await cbWith((url) => (url.includes('/token') ? { status: 200, body: { access_token: 'ya29.a', refresh_token: REFRESH, scope: 'openid email https://www.googleapis.com/auth/gmail.send', id_token: 'h.' + b64url(JSON.stringify({ email: 'j@clatitle.com', email_verified: true, hd: 'clatitle.com' })) + '.s' } } : { status: 200, body: {} }));
+  ok(s.loc.endsWith('gmail=missing_scope') && s.f.calls.fetch.some((c) => c.url.includes('/revoke')), 'callback: unticked read permission -> refused and revoked'); }
+{ const f = fakeDeps(); const s = await (await handleOauthStart(post({ action: 'start' }), f.deps)).json(); const st = new URL(s.url).searchParams.get('state');
+  const r = await handleOauthCallback(new Request(`https://fn.test/?state=${encodeURIComponent(st)}&error=access_denied`), f.deps); ok(r.headers.get('Location').endsWith('gmail=denied') && !f.calls.fetch.length, 'callback: user pressed Cancel -> denied'); }
+{ const f = fakeDeps(); const r = await handleOauthStart(post({ action: 'disconnect' }), f.deps); const j = await r.json();
+  ok(j.disconnected && j.revoked && f.calls.fetch.some((c) => c.url.includes('/revoke') && c.body.includes(encodeURIComponent(REFRESH))) && f.calls.svc.some((c) => c.fn === 'gmail_svc_disconnect'), 'disconnect: token revoked at Google, then Vault secret deleted'); }
+
+// ---- send ----
+const sendBody = (o = {}) => ({ dealId: DEAL, to: 'clatestportal+buyer@gmail.com', subject: 'Introduction', html: '<p>Hello</p>', ...o });
+{ const f = fakeDeps(); const r = await handleSend(post(sendBody({ to: 'realbuyer@gmail.com, clatestportal+b@gmail.com', cc: 'agent@remax.com' })), f.deps); const j = await r.json();
+  ok(r.status === 403 && j.refused.join() === 'realbuyer@gmail.com,agent@remax.com' && !f.calls.fetch.length && !f.calls.svc.some((c) => c.fn === 'gmail_svc_token'), 'send: non-test recipients refused server-side before any token or Google call');
+  ok(f.calls.svc.some((c) => c.fn === 'gmail_svc_audit' && c.args.p_action === 'mail.refused'), 'send: the refusal is audited'); }
+{ const f = fakeDeps(); const r = await handleSend(post(sendBody({ bcc: 'boss@gmail.com', dryRun: true })), f.deps); ok(r.status === 403 && !f.calls.svc.length && !f.calls.fetch.length, 'send dry run: refusal reported, nothing written, Google never called'); }
+{ const f = fakeDeps({ ctx: { mailbox: null, mailboxStatus: null } }); const r = await handleSend(post(sendBody({ dryRun: true, documentIds: ['d1'] })), f.deps); const j = await r.json();
+  ok(r.status === 200 && j.dryRun && j.connected === false && j.subject === 'Introduction [CLA #MD-26-97207]' && j.attachments.length === 1 && !f.calls.fetch.length && !f.calls.svc.length, 'send dry run: allowed recipients pass, tag added, no Google call, works before connecting'); }
+{ const f = fakeDeps({ ctx: { mailbox: null, mailboxStatus: null } }); const r = await handleSend(post(sendBody()), f.deps); ok(r.status === 409 && !f.calls.fetch.length, 'send: not connected -> 409, nothing sent'); }
+{ const f = fakeDeps(); const r = await handleSend(post(sendBody({ dealId: 'not-mine' })), f.deps); ok(r.status === 404, 'send: a file the user cannot open -> 404'); }
+{ const f = fakeDeps(); const r = await handleSend(post(sendBody({ html: '<p>Routing 021000021 account number 99887766</p>' })), f.deps); ok(r.status === 400 && !f.calls.fetch.length, 'send: wire / bank numbers in the body are refused'); }
+{ const f = fakeDeps(); const r = await handleSend(post(sendBody({ documentIds: ['wire'] })), f.deps); ok(r.status === 400 && !f.calls.fetch.length, 'send: wire instructions cannot be attached'); }
+{ const f = fakeDeps(); const r = await handleSend(post(sendBody({ documentIds: ['other'] })), f.deps); ok(r.status === 400, 'send: a document the user cannot open (or from another file) is refused'); }
+{ const f = fakeDeps(); const r = await handleSend(post(sendBody({ documentIds: ['d1'], replyToEmailId: 'e1', cc: 'fsantos@clatitle.com', templateKey: 'intro' })), f.deps); const j = await r.json();
+  const s = f.calls.fetch.find((c) => c.url.includes('/messages/send')); const sb = JSON.parse(s.body); const mime = b64urlToText(sb.raw);
+  ok(r.status === 200 && j.ok && sb.threadId === 'tLinked' && mime.includes('In-Reply-To: <orig@mail>'), 'send: a reply stays in the Gmail thread');
+  const html = Buffer.from(mime.split('text/html; charset="UTF-8"')[1].split('\r\n\r\n')[1].split('--')[0].replace(/\r\n/g, ''), 'base64').toString();
+  ok(mime.startsWith('From: "John Coester" <john@clatitle.com>') && html.includes('John Coester<br>CLA Title') && mime.includes('Contract.pdf'), 'send: from the user\'s own address, portal signature added, file document attached');
+  const rec = f.calls.svc.find((c) => c.fn === 'gmail_svc_record').args.p; ok(rec.direction === 'out' && rec.gmail_thread_id === 'tNew' && rec.rfc_message_id === '<sent1@mail.gmail.com>' && rec.subject.endsWith('[CLA #MD-26-97207]') && rec.template_key === 'intro' && rec.sent_by === JOHN, 'send: recorded on the file with thread id, Message-ID, tag and template');
+  ok(!leaks(f.calls, JSON.stringify(j)), 'send: no secret or token in the response'); }
+{ const f = fakeDeps({ google: (url) => (url.includes('/token') ? { status: 400, body: { error: 'invalid_grant' } } : { status: 404, body: {} }) }); const r = await handleSend(post(sendBody()), f.deps);
+  ok(r.status === 409 && f.calls.svc.some((c) => c.fn === 'gmail_svc_update_account' && c.args.p_status === 'needs_reconnect'), 'send: revoked Google access -> asks to reconnect, nothing sent'); }
+
+// ---- sync ----
+{ const f = fakeDeps({ deps: { getUser: async () => null } }); const r = await handleSync(post({}, { 'x-gmail-sync-token': 'y'.repeat(64) }), f.deps); ok(r.status === 401 && !f.calls.fetch.length, 'sync: wrong cron token -> 401'); }
+{ const f = fakeDeps({ deps: { getUser: async () => null } }); const r = await handleSync(post({}), f.deps); ok(r.status === 401, 'sync: no token and no session -> 401'); }
+{ const f = fakeDeps(); const r = await handleSync(post({}, { 'x-gmail-sync-token': 'x'.repeat(64) }), f.deps); const j = await r.json();
+  ok(r.status === 200 && j.stored === 1, 'sync: one new reply stored');
+  ok(!f.calls.fetch.some((c) => c.url.includes('mOther')), 'sync: a message in a thread NOT linked to a file is never opened');
+  ok(!f.calls.fetch.some((c) => c.url.includes('/messages/mKnown')), 'sync: a message already on the file is skipped');
+  const rec = f.calls.svc.find((c) => c.fn === 'gmail_svc_record').args.p; ok(rec.direction === 'in' && rec.deal_id === DEAL && rec.documents.length === 1 && rec.documents[0].path.startsWith(DEAL + '/') && rec.attachment_names.some((n) => /virus\.exe \(not saved/.test(n)), 'sync: reply attachment saved to the file documents; a disallowed type is not saved');
+  ok(f.calls.stored.length === 1 && f.calls.svc.some((c) => c.fn === 'gmail_svc_update_account' && c.args.p_history === '950'), 'sync: cursor moves forward after everything was handled'); }
+
+console.log(fail ? `${fail} FAILED` : 'all gmail phase 1 checks passed');
+if (fail) process.exit(1);
