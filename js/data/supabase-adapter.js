@@ -165,7 +165,9 @@ export async function createSupabaseAdapter(cfg) {
       procs: () => processorNames(),
     });
     const d = got.row;
-    Object.assign(d, processorFields(d, await withProcessorNames([d], new Map(got.procs))));
+    // John, Nov 9: the file's Transaction Coordinator (deals.tc_user_id) is looked up with the same one-shot by-id name read
+    const nm = await withProcessorNames([d, { processorId: d.tcUserId || null }], new Map(got.procs));
+    Object.assign(d, processorFields(d, nm)); d.tcUserId = d.tcUserId || null; d.tcName = d.tcUserId ? (nm.get(d.tcUserId) || '') : '';
     d.participants = got.contacts.map((r) => ({ id: r.participant_id, dealId: r.deal_id, contactId: r.contact_id, role: r.role,
       contact: { id: r.contact_id, profileId: r.profile_id, firstName: r.first_name, lastName: r.last_name, company: r.company, email: r.email, phone: r.phone, contactHidden: r.contact_hidden } }));
     const ct = await types(d.participants.map((p) => p.contactId)); d.participants.forEach((p) => { p.contact.contactType = ct.get(p.contactId) || null; });
@@ -180,7 +182,7 @@ export async function createSupabaseAdapter(cfg) {
   async function fetchFileShell(id) {
     const [raw, names] = await Promise.all([sb.from('deals').select('*').eq('id', id).single(), processorNames()]);
     const row = camel(ok(raw));
-    Object.assign(row, processorFields(row, names));
+    Object.assign(row, processorFields(row, names)); row.tcUserId = row.tcUserId || null; row.tcName = row.tcUserId ? (names.get(row.tcUserId) || '') : '';
     row.address = `${row.street}, ${row.city}, ${row.state} ${row.zip}`;
     row.participants = [];
     row.salesPeople = [];
@@ -290,6 +292,7 @@ export async function createSupabaseAdapter(cfg) {
         emd_amount: refi ? null : moneyAmount(input.emdAmount), emd_due_date: refi ? null : input.emdDueDate || null, notes: input.notes || '', processor_id: input.processorId || null, preprocessor_user_id: input.preprocessorUserId || null, created_by: user.id,
         lender_name: input.lenderName || '', lender_contact: input.lenderContact || '', lender_phone: input.lenderPhone || '', lender_email: String(input.lenderEmail || '').trim().toLowerCase(),
         primary_residence: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.primaryResidence || ''), first_time_buyer: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.firstTimeBuyer || '') };   // Maryland purchases only (John, Nov 6)
+      if (input.tcUserId) row.tc_user_id = input.tcUserId;   // John, Nov 9: blank = the database auto-assigns (a TC who opens it, else the agents' team TC)
       if (input.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(input.claRepresentation);   // Both / Buyer only / Seller only; absent = not recorded
       const d = camel(ok(await sb.from('deals').insert(row).select().single()));
       if (String(input.sourceOfBusiness || '').trim()) ok(await sb.rpc('set_deal_source', { p_deal: d.id, p_source: input.sourceOfBusiness }));   // migration 31 (staff-only table)
@@ -297,10 +300,10 @@ export async function createSupabaseAdapter(cfg) {
       return { ...d, address: `${d.street}, ${d.city}, ${d.state} ${d.zip}` }; },
     async updateDeal(id, patch) {
       const map = { street: 'street', city: 'city', state: 'state', zip: 'zip', county: 'county', openDate: 'open_date', closingDate: 'closing_date', purchasePrice: 'purchase_price', loanAmount: 'loan_amount',
-        emdAmount: 'emd_amount', emdDueDate: 'emd_due_date', lenderName: 'lender_name', lenderContact: 'lender_contact', lenderEmail: 'lender_email', lenderPhone: 'lender_phone', notes: 'notes', processorId: 'processor_id', preprocessorUserId: 'preprocessor_user_id', primaryResidence: 'primary_residence', firstTimeBuyer: 'first_time_buyer' };
+        emdAmount: 'emd_amount', emdDueDate: 'emd_due_date', lenderName: 'lender_name', lenderContact: 'lender_contact', lenderEmail: 'lender_email', lenderPhone: 'lender_phone', notes: 'notes', processorId: 'processor_id', preprocessorUserId: 'preprocessor_user_id', tcUserId: 'tc_user_id', primaryResidence: 'primary_residence', firstTimeBuyer: 'first_time_buyer' };
       const money = new Set(['purchase_price', 'loan_amount', 'emd_amount']); const dates = new Set(['open_date', 'closing_date', 'emd_due_date']); const row = {};
       for (const [k, col] of Object.entries(map)) if (patch[k] !== undefined) { const v = patch[k];
-        row[col] = money.has(col) ? moneyAmount(v) : dates.has(col) || col === 'processor_id' || col === 'preprocessor_user_id' ? (v || null) : v; }
+        row[col] = money.has(col) ? moneyAmount(v) : dates.has(col) || col === 'processor_id' || col === 'preprocessor_user_id' || col === 'tc_user_id' ? (v || null) : v; }
       if (row.open_date === null) delete row.open_date;
       if (patch.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(patch.claRepresentation);   // '' = not recorded (null)
       if (patch.state !== undefined && String(patch.state || '').toUpperCase() !== 'MD') { row.primary_residence = ''; row.first_time_buyer = ''; }
