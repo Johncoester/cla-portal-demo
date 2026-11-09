@@ -35,7 +35,43 @@ export function parseCsv(text) {
 }
 const CSV_CELL = (v) => { const s = v == null ? '' : String(v); return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
 export const toCsvText = (rows) => rows.map((r) => r.map(CSV_CELL).join(',')).join('\r\n') + '\r\n';
-export const IMPORT_MAX_ROWS = 2000, IMPORT_MAX_BYTES = 2_000_000;
+export const IMPORT_MAX_ROWS = 2000, IMPORT_MAX_BYTES = 2_000_000, IMPORT_CHUNK_ROWS = 500;
+
+// 1-based data-row ranges. 2000 rows is four chunks of 500.
+export function importChunkRanges(rowCount, size = IMPORT_CHUNK_ROWS) {
+  const n = Math.max(0, Number(rowCount) || 0);
+  const step = Math.max(1, Number(size) || IMPORT_CHUNK_ROWS);
+  const out = [];
+  for (let from = 1; from <= n; from += step) {
+    const to = Math.min(from + step - 1, n);
+    out.push({ chunk: out.length + 1, from, to, count: to - from + 1 });
+  }
+  return out;
+}
+
+// A lead row needs these. A default fills a blank cell. Messages are per field.
+export const LEAD_REQUIRED_FIELDS = [
+  ['roleInCompany', 'Role in Company is required.'],
+  ['relationshipStatus', 'Relationship Status is required.'],
+  ['state', 'State is required.'],
+];
+export function leadRequiredMessages(values, defaults = []) {
+  const filled = (key) => {
+    const own = String(values && values[key] != null ? values[key] : '').trim();
+    if (own) return true;
+    return (defaults || []).some((d) => d && d.field === key && String(d.value == null ? '' : d.value).trim());
+  };
+  return LEAD_REQUIRED_FIELDS.filter(([key]) => !filled(key)).map(([, message]) => message);
+}
+
+// Commit stopped on a later chunk. Earlier chunks are already stored.
+export function importPartialReport({ saved = [], failed, message }) {
+  const range = (part) => `rows ${part.from}-${part.to}`;
+  const failLine = `Chunk ${failed.chunk} (${range(failed)}) failed: ${message}`;
+  if (!saved.length) return `Import stopped. ${failLine} Nothing was saved.`;
+  const kept = saved.map((part) => `chunk ${part.chunk} (${range(part)})`).join(', ');
+  return `Import stopped. ${failLine} Saved: ${kept}. The earlier chunks were saved.`;
+}
 
 // import targets: [key, label, aliases]. The same list for Leads and Clients (Company on a lead = a lookup to an existing company by name).
 export const PERSON_IMPORT_FIELDS = [
@@ -73,7 +109,10 @@ export function sampleCsv(kind) {
     ['casey.sample@example.test', 'Casey', 'Sample', 'Intro call', 'Talked about closing in Rockville. FAKE sample note.'],
     ['', 'Robin', 'Template', 'Follow up', 'No email on file, matched by name. FAKE sample note.']]);
   const st = kind === 'contacts' ? 'Prospecting' : 'Hot Prospect';
-  return toCsvText([['First Name', 'Last Name', 'Email', 'Phone', 'Company', 'Role in Company', 'Lead Source', 'Relationship Status', 'Street', 'City', 'State', 'Zip Code', 'County', 'Zillow Profile', 'Description'],
+  const role = kind === 'leads' ? 'Role in Company *' : 'Role in Company';
+  const status = kind === 'leads' ? 'Relationship Status *' : 'Relationship Status';
+  const state = kind === 'leads' ? 'State *' : 'State';
+  return toCsvText([['First Name', 'Last Name', 'Email', 'Phone', 'Company', role, 'Lead Source', status, 'Street', 'City', state, 'Zip Code', 'County', 'Zillow Profile', 'Description'],
     ['Casey', 'Sample', 'casey.sample@example.test', '301-555-0101', 'Harbor Realty (fake)', 'Realtor', 'Business Group', st, '1 Fake St', 'Rockville', 'MD', '20852', '', 'https://www.zillow.com/profile/casey-sample-fake', 'FAKE sample row'],
     ['Robin', 'Template', 'robin.template@example.test', '703-555-0102', '', 'Loan Officer', 'Warm Call', kind === 'contacts' ? 'Potential/Warm' : 'Voicemail 1', '2 Example Ave', 'Arlington', 'VA', '22201', '', '', 'FAKE: county comes from the ZIP'],
     ['Jordan', 'Placeholder', 'jordan.placeholder@example.test', '', '', 'Team Lead', '', kind === 'contacts' ? 'Prospecting' : 'Open to Meet', '', 'Miami', 'FL', '33130', '', '', 'FAKE sample row']]);

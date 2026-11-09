@@ -3,7 +3,7 @@
 //   county from the ZIP on the person form, the company duplicate warning, the meeting "Send invite" PREVIEW (.ics), the task Subject type-ahead.
 import { html, raw, $, $$, guard, toast, modal, closeModal, fmtDateTime, pill, toText } from '../ui.js?v=202611070139';
 import { modOn } from '../data/modules.js?v=202611090935';   // module switches (combined nov3g)
-import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, guessMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS } from '../data/crm-janine.js?v=202611090935';
+import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, guessMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS } from '../data/crm-janine.js?v=202611090935';
 import { fopts } from './crm-custom.js?v=202611070139';
 import { importStatusChoices } from '../data/nov5-rules.js?v=202611090935';
 import { US_STATES } from '../data/constants.js?v=202611090935';
@@ -109,7 +109,8 @@ export function importRowHref(row, committed) {
 // Janine, Nov 4: default values for fields the file does not have (or leaves blank). A value in the file always wins.
 function defaultsCard(module, owners, cfg) {
   const opts = (src) => (src === 'user' ? owners.map((o) => [o.id, o.name]) : src === 'state' ? US_STATES.map((s) => [s, s]) : src === 'status' ? importStatusChoices(cfg, module) : fopts(cfg, src));
-  return html`<fieldset data-import-defaults><legend>Default values <span class="muted small">(optional; used when a row's cell is blank or the column is not in the file)</span></legend>
+  const leadNote = module === 'leads' ? ' Role in Company, Relationship Status, and State are required on every lead. Set a default here to fill every blank row, or put the value in the file.' : '';
+  return html`<fieldset data-import-defaults><legend>Default values <span class="muted small">(a value in the file wins.${leadNote})</span></legend>
     <div class="filter-bar">${IMPORT_DEFAULT_FIELDS.map(([k, l, src]) => html`<label>${l}<select data-import-default="${k}" aria-label="Default ${l}"><option value="">(no default)</option>${opts(src).map(([v, t]) => html`<option value="${v}">${t}</option>`)}</select></label>`)}</div></fieldset>`;
 }
 export async function importPage({ api, me, params, owners = [], cfg = {} }, { tabs, head }) {
@@ -125,13 +126,13 @@ export async function importPage({ api, me, params, owners = [], cfg = {} }, { t
     ${testBanner}
     <div class="card" data-import="${module}:${kind}"><h3>1. Upload a CSV</h3>
       <p class="muted small">${kind === 'notes' ? `Each note is linked to an existing ${M === 'Leads' ? 'lead' : 'client'} by email, else by first + last name (one match only).` : `Each row becomes a ${M === 'Leads' ? 'lead' : 'client'}, checked like the Create form: Last Name, Role in Company, Relationship Status and State are required; one email / phone across Leads and Clients. A blank County is filled from the ZIP.`}
-        Up to ${IMPORT_MAX_ROWS} rows (${IMPORT_MAX_BYTES / 1e6} MB). Nothing is emailed.</p>
+        Up to ${IMPORT_MAX_ROWS} rows, ${IMPORT_CHUNK_ROWS} at a time (${IMPORT_MAX_BYTES / 1e6} MB). Nothing is emailed.</p>
       <p><button class="ghost" type="button" data-sample-csv="${tmplName}">Download sample template (fake data)</button>
         <a class="ghost" href="#/crm/import/${module}${kind === 'notes' ? '' : '/notes'}" data-import-other>${kind === 'notes' ? `Import ${M} instead` : 'Import Notes instead'}</a> <a class="ghost" href="#/crm/${module}">Back to ${M}</a></p>
       <input type="file" accept=".csv,text/csv" data-import-file> <span class="muted small" data-import-fname></span></div>
     <div class="card" data-import-map hidden><h3>2. Map the columns</h3><table class="tbl"><thead><tr><th>Column in the file</th><th>First value</th><th>Field in the CRM</th></tr></thead><tbody data-map-rows></tbody></table>
       ${kind === 'records' ? defaultsCard(module, owners, cfg) : ''}
-      <p><button class="m-btn" type="button" data-import-preview>Preview</button></p><p class="err-text" data-import-err></p></div>
+      <p><button class="m-btn" type="button" data-import-preview>Preview</button></p><p class="muted small" data-import-progress hidden></p><p class="err-text" data-import-err></p></div>
     <div class="card" data-import-prev hidden><h3>3. Preview <span class="muted small">(nothing saved yet)</span></h3><p data-prev-counts></p><div class="table-wrap"><table class="tbl" data-prev-table></table></div>
       <p><button class="m-btn" type="button" data-import-run>Import the valid rows</button> <span class="muted small">Rows with an error or a duplicate are skipped.</span></p></div>
     <div class="card" data-import-summary hidden><h3>4. Summary</h3><div data-summary-body></div></div>
@@ -158,15 +159,24 @@ export async function importPage({ api, me, params, owners = [], cfg = {} }, { t
         <td>${x.status === 'ok' ? html`${pill(r.committed ? 'Created' : 'OK', 'ok')}${importRowHref(x, r.committed) ? html` <a href="${importRowHref(x, r.committed)}">${x.name}</a>` : ''}${(x.notes || []).length ? html`<br><span class="muted small">${x.notes.join('; ')}</span>` : ''}` : html`${pill(x.status === 'duplicate' ? 'Duplicate' : 'Error', x.status === 'duplicate' ? 'warn' : 'bad')} <span class="small">${x.message}</span>`}</td>
         ${cols.map(([k]) => html`<td>${(x.values || {})[k] || ''}</td>`)}</tr>`)}</tbody>`; };
     const counts = (c, done) => `${c.total} row(s): ${c.ok} ${done ? 'created' : 'ready'}, ${c.duplicates} duplicate(s), ${c.errors} error(s).`;
+    const showProgress = (p) => { const el = $('[data-import-progress]', root); if (!el) return; el.hidden = false; el.textContent = `Chunk ${p.chunk} of ${p.chunks} (rows ${p.from}-${p.to}).`; };
     $('[data-import-preview]', root).addEventListener('click', guard(async () => { const er = $('[data-import-err]', root); er.textContent = '';
-      try { const r = await api.previewCrmImport({ module, kind, csv: text, mapping: mapping(), fileName, defaults: defaults() });
+      try { const r = await api.previewCrmImport({ module, kind, csv: text, mapping: mapping(), fileName, defaults: defaults(), onProgress: showProgress });
         $('[data-prev-counts]', root).textContent = counts(r.counts, false); $('[data-prev-table]', root).innerHTML = toText(table(r)); $('[data-import-prev]', root).hidden = false; $('[data-import-run]', root).disabled = !r.counts.ok;
       } catch (e) { er.textContent = e.message; throw e; } }));
     $('[data-import-run]', root).addEventListener('click', guard(async () => {
-      const r = await api.runCrmImport({ module, kind, csv: text, mapping: mapping(), fileName, defaults: defaults() });
-      $('[data-summary-body]', root).innerHTML = toText(html`<p data-summary-counts><strong>${counts(r.counts, true)}</strong></p><table class="tbl" data-summary-table>${table(r)}</table>
-        <p><a class="m-btn" href="#/crm/${module}">Open ${M}</a></p>`);
-      $('[data-import-summary]', root).hidden = false; $('[data-import-prev]', root).hidden = true; toast(`Imported ${r.counts.ok} row(s)`); }));
+      try {
+        const r = await api.runCrmImport({ module, kind, csv: text, mapping: mapping(), fileName, defaults: defaults(), onProgress: showProgress });
+        $('[data-summary-body]', root).innerHTML = toText(html`<p data-summary-counts><strong>${counts(r.counts, true)}</strong></p><table class="tbl" data-summary-table>${table(r)}</table>
+          <p><a class="m-btn" href="#/crm/${module}">Open ${M}</a></p>`);
+        $('[data-import-summary]', root).hidden = false; $('[data-import-prev]', root).hidden = true; toast(`Imported ${r.counts.ok} row(s)`);
+      } catch (e) {
+        if (e.partial) {
+          $('[data-summary-body]', root).innerHTML = toText(html`<p class="err-text" data-import-partial>${e.message}</p>`);
+          $('[data-import-summary]', root).hidden = false;
+        }
+        throw e;
+      } }));
   } };
 }
 export { closeModal };

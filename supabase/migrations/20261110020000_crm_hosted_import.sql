@@ -11,12 +11,17 @@
 -- are absent, and it creates public.crm_import_rows only when absent.
 --
 -- public.crm_import_batch checks private.is_admin() once, then inserts
--- every row in this same transaction. Leads go through crm_leads, so
+-- the rows of this call in the same transaction. One call is at most 500
+-- rows. The browser sends a file as sequential chunks and passes the batch
+-- id from the first committed chunk so every chunk lands on one crm_imports
+-- row. Totals on that row accumulate. Leads go through crm_leads, so
 -- crm_row_guard, crm_owner_check, crm_person_dup, and crm_settings_row
 -- still run. Clients go through the existing public.crm_create_contact(p jsonb).
 -- Notes go through crm_activities, so crm_row_guard still runs.
--- A preview raises P0004 after those inserts. That rolls the transaction
--- back, so nothing is saved, and the row results travel in the error detail.
+-- A preview raises P0004 (assert_failure) after those inserts. WHEN OTHERS
+-- does not catch assert_failure, so the preview is recognized by that code.
+-- The raise rolls the transaction back, so nothing is saved, and the row
+-- results travel in the error detail.
 -- No session_replication_role change, no new RLS policy, and no change to
 -- private.* helpers or to deals, tasks, or profiles policies.
 
@@ -156,13 +161,19 @@ begin
 end
 $pre$;
 
+-- Earlier draft of this same unapplied migration used six arguments.
+drop function if exists public.crm_import_batch(boolean, text, text, text, jsonb, jsonb);
+drop function if exists public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer);
+
 create or replace function public.crm_import_batch(
   p_commit boolean,
   p_module text,
   p_kind text,
   p_file_name text,
   p_defaults jsonb,
-  p_rows jsonb
+  p_rows jsonb,
+  p_import uuid default null,
+  p_chunk integer default 1
 ) returns jsonb
 language plpgsql
 security definer
@@ -220,6 +231,10 @@ declare
   v_err int := 0;
   v_total int := 0;
   v_import uuid;
+  v_batch_module text;
+  v_batch_kind text;
+  v_batch_by uuid;
+  v_prev_total int;
   v_result jsonb;
   v_row_status text;
 begin
@@ -238,8 +253,14 @@ begin
     raise exception 'The file needs a header row and at least one row of data.' using errcode = 'P0001';
   end if;
   v_n := jsonb_array_length(p_rows);
-  if v_n > 2000 then
-    raise exception 'At most 2000 rows per import.' using errcode = 'P0001';
+  if p_chunk is null then
+    p_chunk := 1;
+  end if;
+  if p_chunk < 1 or p_chunk > 4 then
+    raise exception 'Chunk % is outside 1 to 4. A file is at most 2000 rows, sent 500 at a time.', p_chunk using errcode = 'P0001';
+  end if;
+  if v_n > 500 then
+    raise exception 'At most 500 rows per import call.' using errcode = 'P0001';
   end if;
   if (select count(distinct (value->>'line')::int) from jsonb_array_elements(p_rows)) is distinct from v_n then
     raise exception 'Each import row needs its own line number.' using errcode = 'P0001';
@@ -340,6 +361,17 @@ begin
         end if;
         if v_zip <> '' and v_zip !~ '^[0-9]{5}(-[0-9]{4})?$' then
           raise exception 'Zip Code must be 5 digits (or ZIP+4).' using errcode = 'P0001';
+        end if;
+        if p_module = 'leads' then
+          if v_role = '' then
+            raise exception 'Role in Company is required.' using errcode = 'P0001';
+          end if;
+          if v_status = '' then
+            raise exception 'Relationship Status is required.' using errcode = 'P0001';
+          end if;
+          if v_state = '' then
+            raise exception 'State is required.' using errcode = 'P0001';
+          end if;
         end if;
         v_owner_text := btrim(coalesce(v_rec->>'ownerId', ''));
         if v_owner_text <> '' then
@@ -486,7 +518,12 @@ begin
       v_out_rows := v_out_rows || jsonb_build_array(jsonb_build_object(
         'line', v_line, 'status', 'ok', 'message', '', 'id', v_new, 'name', coalesce(v_name, ''), 'link', v_link, 'notes', v_notes
       ));
-    exception when others then
+    exception
+      when sqlstate 'P0004' then
+        -- assert_failure. WHEN OTHERS does not catch it. A preview must leave
+        -- this row and roll the chunk back, so name the code and re-raise.
+        raise;
+      when others then
       get stacked diagnostics v_msg = message_text, v_state_code = returned_sqlstate;
       if v_state_code = '23505' or v_msg ~* 'already (used|exists|a client)|duplicate' then
         v_row_status := 'duplicate';
@@ -518,10 +555,37 @@ begin
       using errcode = 'P0004', detail = v_result::text;
   end if;
 
-  insert into public.crm_imports (module, kind, file_name, created_by, created, duplicates, errors, total, defaults)
-  values (
-    p_module, p_kind, left(btrim(coalesce(p_file_name, '')), 200), v_uid, v_ok, v_dup, v_err, v_total, p_defaults
-  ) returning id into v_import;
+  if p_import is null then
+    insert into public.crm_imports (module, kind, file_name, created_by, created, duplicates, errors, total, defaults)
+    values (
+      p_module, p_kind, left(btrim(coalesce(p_file_name, '')), 200), v_uid, v_ok, v_dup, v_err, v_total, p_defaults
+    ) returning id into v_import;
+  else
+    select i.module, i.kind, i.created_by, i.total
+      into v_batch_module, v_batch_kind, v_batch_by, v_prev_total
+    from public.crm_imports i
+    where i.id = p_import
+    for update;
+    if not found then
+      raise exception 'Import batch not found.' using errcode = 'P0002';
+    end if;
+    if v_batch_by is distinct from v_uid then
+      raise exception 'Only the admin who started this import can add a chunk.' using errcode = '42501';
+    end if;
+    if v_batch_module is distinct from p_module or v_batch_kind is distinct from p_kind then
+      raise exception 'This chunk does not match the import it was added to.' using errcode = 'P0001';
+    end if;
+    if coalesce(v_prev_total, 0) + v_n > 2000 then
+      raise exception 'A file is at most 2000 rows.' using errcode = 'P0001';
+    end if;
+    update public.crm_imports
+    set created = created + v_ok,
+        duplicates = duplicates + v_dup,
+        errors = errors + v_err,
+        total = total + v_total
+    where id = p_import;
+    v_import := p_import;
+  end if;
 
   insert into public.crm_import_rows (import_id, line, status, message, record_id, record_name)
   select v_import, (r->>'line')::int, r->>'status', left(coalesce(r->>'message', ''), 500),
@@ -617,17 +681,17 @@ begin
 end
 $fn$;
 
-revoke all on function public.crm_import_batch(boolean, text, text, text, jsonb, jsonb) from public;
+revoke all on function public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer) from public;
 revoke all on function public.crm_list_imports() from public;
 revoke all on function public.crm_list_import_rows(uuid) from public;
-grant execute on function public.crm_import_batch(boolean, text, text, text, jsonb, jsonb) to authenticated;
+grant execute on function public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer) to authenticated;
 grant execute on function public.crm_list_imports() to authenticated;
 grant execute on function public.crm_list_import_rows(uuid) to authenticated;
 
 do $anon$
 begin
   if exists (select 1 from pg_roles where rolname = 'anon') then
-    revoke all on function public.crm_import_batch(boolean, text, text, text, jsonb, jsonb) from anon;
+    revoke all on function public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer) from anon;
     revoke all on function public.crm_list_imports() from anon;
     revoke all on function public.crm_list_import_rows(uuid) from anon;
   end if;

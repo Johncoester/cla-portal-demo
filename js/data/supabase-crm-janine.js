@@ -2,9 +2,10 @@
  * Company duplicate check, meeting invite PREVIEW (+ .ics), import log.
  * NOTHING is sent: an invite is a preview row + an .ics built in the browser.
  * CSV import parses in the browser (same limits and mapping as the demo) and
- * asks crm_import_batch to apply the database rules once per file. Preview
- * rolls back inside that call. Nothing is emailed. */
-import { buildIcs, INVITE_NOTE, parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611100230';
+ * asks crm_import_batch to apply the database rules, 500 rows at a time.
+ * Preview rolls back inside each call (P0004). A commit reuses one batch id.
+ * Nothing is emailed. */
+import { buildIcs, INVITE_NOTE, parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, leadRequiredMessages, importPartialReport, loadZipTable, countiesFor, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611100230';
 import { US_STATE_NAMES, US_STATES } from './constants.js?v=202611100230';
 import { ensureSettings, findOption } from './crm-config.js?v=202611100230';
 import { resolveImportedStatus } from './nov5-rules.js?v=202611100230';
@@ -107,16 +108,23 @@ async function cleanDefaults(self, raw0, kind, module) {
   });
 }
 
+// P0004 is assert_failure. Only that code is a preview. A timeout or any
+// other error is a failure, even when its text happens to contain JSON.
 function previewBody(error) {
-  if (!error) return null;
-  const details = error.details || error.detail || '';
-  if (error.code === 'P0004' && details) {
-    try { return JSON.parse(details); } catch { /* the message below may still carry it */ }
-  }
-  const msg = String(error.message || '');
-  const m = msg.match(/^CRM_IMPORT_PREVIEW\s+(\{[\s\S]*\})$/);
-  if (m) return JSON.parse(m[1]);
-  return null;
+  if (!error || error.code !== 'P0004') return null;
+  const details = error.details != null ? error.details : error.detail;
+  if (details && typeof details === 'object') return details;
+  if (typeof details !== 'string' || !details.trim().startsWith('{')) return null;
+  try { return JSON.parse(details); } catch { return null; }
+}
+
+function addCounts(a, b) {
+  return {
+    total: (a.total || 0) + (b.total || 0),
+    ok: (a.ok || 0) + (b.ok || 0),
+    duplicates: (a.duplicates || 0) + (b.duplicates || 0),
+    errors: (a.errors || 0) + (b.errors || 0),
+  };
 }
 
 export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
@@ -171,33 +179,75 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
       }
       return { line, values, prepNotes };
     });
-    const res = await sb.rpc('crm_import_batch', {
-      p_commit: !!commit,
-      p_module: module,
-      p_kind: kind,
-      p_file_name: clip(input.fileName, 200),
-      p_defaults: defaults,
-      p_rows: payload,
-    });
-    const body = res.error ? previewBody(res.error) : res.data;
-    if (!body) throw new Error((res.error && res.error.message) || 'Import failed. Nothing was saved.');
-    const rows = (body.rows || []).map((r) => ({
-      line: r.line,
-      status: r.status,
-      message: r.message || '',
-      id: r.id || null,
-      name: r.name || '',
-      link: r.link || '',
-      notes: Array.isArray(r.notes) ? r.notes : [],
-      values: display.get(r.line) || {},
-    }));
+    const ranges = importChunkRanges(payload.length, IMPORT_CHUNK_ROWS);
+    let rows = [];
+    let counts = { total: 0, ok: 0, duplicates: 0, errors: 0 };
+    let importId = null;
+    const saved = [];
+    const progress = typeof input.onProgress === 'function' ? input.onProgress : null;
+    for (const range of ranges) {
+      const slice = payload.slice(range.from - 1, range.to);
+      const local = [];
+      const remote = [];
+      slice.forEach((row) => {
+        const missing = module === 'leads' && kind === 'records' ? leadRequiredMessages(row.values, defaults) : [];
+        if (!missing.length) { remote.push(row); return; }
+        local.push({
+          line: row.line, status: 'error', message: missing.join(' '), id: null, name: '', link: '', notes: [],
+          values: display.get(row.line) || {},
+        });
+      });
+      if (progress) progress({ chunk: range.chunk, chunks: ranges.length, from: range.from, to: range.to });
+      let body = { rows: [], counts: { total: 0, ok: 0, duplicates: 0, errors: 0 }, importId: null };
+      if (remote.length) {
+        const res = await sb.rpc('crm_import_batch', {
+          p_commit: !!commit,
+          p_module: module,
+          p_kind: kind,
+          p_file_name: clip(input.fileName, 200),
+          p_defaults: defaults,
+          p_rows: remote,
+          p_import: importId,
+          p_chunk: range.chunk,
+        });
+        if (res.error && res.error.code === 'P0004') {
+          body = previewBody(res.error);
+          if (!body) throw new Error(res.error.message || 'Import preview failed.');
+        } else if (res.error || !res.data) {
+          const message = (res.error && res.error.message) || 'Import failed.';
+          if (!commit) throw new Error(message);
+          const err = new Error(importPartialReport({ saved, failed: range, message }));
+          err.partial = { saved, failed: range, message, code: (res.error && res.error.code) || '' };
+          throw err;
+        } else {
+          body = res.data;
+        }
+        if (commit && body.importId) importId = body.importId;
+        saved.push(range);
+      }
+      const remoteRows = (body.rows || []).map((r) => ({
+        line: r.line,
+        status: r.status,
+        message: r.message || '',
+        id: r.id || null,
+        name: r.name || '',
+        link: r.link || '',
+        notes: Array.isArray(r.notes) ? r.notes : [],
+        values: display.get(r.line) || {},
+      }));
+      const chunkRows = remoteRows.concat(local).sort((a, b) => a.line - b.line);
+      rows = rows.concat(chunkRows);
+      counts = addCounts(counts, addCounts(body.counts || { total: remoteRows.length, ok: 0, duplicates: 0, errors: 0 }, {
+        total: local.length, ok: 0, duplicates: 0, errors: local.length,
+      }));
+    }
     return {
       module, kind, header, mapping, defaults,
       fields: fields.map(([k, l]) => [k, l]),
       rows,
-      counts: body.counts || { total: rows.length, ok: 0, duplicates: 0, errors: rows.length },
-      importId: body.importId || null,
-      committed: !!commit && !res.error,
+      counts,
+      importId,
+      committed: !!commit,
     };
   }
 

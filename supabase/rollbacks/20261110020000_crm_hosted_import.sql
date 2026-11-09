@@ -10,6 +10,7 @@ begin;
 set local lock_timeout = '3s';
 set local search_path = pg_catalog, public, extensions;
 
+drop function if exists public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer);
 drop function if exists public.crm_import_batch(boolean, text, text, text, jsonb, jsonb);
 drop function if exists public.crm_list_imports();
 drop function if exists public.crm_list_import_rows(uuid);

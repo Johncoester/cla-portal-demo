@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { crmJanineSupabase } from '../js/data/supabase-crm-janine.js';
-import { IMPORT_MAX_ROWS, IMPORT_MAX_BYTES } from '../js/data/crm-janine.js';
+import { IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, leadRequiredMessages, sampleCsv } from '../js/data/crm-janine.js';
 import { importRowHref } from '../js/pages/crm-janine.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -13,9 +13,9 @@ let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail += 1; console.log('FAIL', m); } };
 
 const SAMPLE = [
-  'First Name,Last Name,Email,Phone,Company,State,Zip Code,Description',
-  'Casey,Sample,casey.sample@example.test,301-555-0101,Harbor Realty (fake),Maryland,20852,TEST-SEED-CRM-IMPORT',
-  'Robin,Template,robin.template@example.test,703-555-0102,,VA,22201,TEST-SEED-CRM-IMPORT duplicate check',
+  'First Name,Last Name,Email,Phone,Company,Role in Company,Relationship Status,State,Zip Code,Description',
+  'Casey,Sample,casey.sample@example.test,301-555-0101,Harbor Realty (fake),Realtor,Hot Prospect,Maryland,20852,TEST-SEED-CRM-IMPORT',
+  'Robin,Template,robin.template@example.test,703-555-0102,,Loan Officer,Voicemail 1,VA,22201,TEST-SEED-CRM-IMPORT duplicate check',
 ].join('\n');
 const OWNER = '149e612a-0000-4000-8000-000000000001';
 
@@ -40,15 +40,29 @@ ok(sql.includes('public.crm_import_rows') && sql.includes("errcode = 'P0004'"), 
 ok(/insert into public\.crm_imports \([^)]*\btotal\b/.test(sql) && sql.includes('v_total'), 'the import log stores the row total');
 ok(sql.includes('Postgres logs can keep that text'), 'the preview comment says row results can land in the database log');
 ok(rollback.includes('drop function if exists public.crm_import_batch') && rollback.includes('crm-hosted-import 20261110020000') && !rollback.includes('drop table public.crm_imports'), 'rollback drops the functions and only the objects this migration added');
+ok(sql.includes('p_import uuid') && sql.includes('p_chunk integer') && rollback.includes('crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer)'), 'chunks share one batch id');
+ok(batch.includes('v_n > 500') && batch.includes('At most 500 rows per import call.'), 'a call of more than 500 rows is refused');
+ok(batch.includes('total = total + v_total') && batch.includes('created = created + v_ok') && batch.includes('errors = errors + v_err'), 'chunk totals accumulate on the one import row');
+const p0004At = batch.indexOf("when sqlstate 'P0004'");
+const othersAt = batch.indexOf('when others');
+ok(p0004At > 0 && othersAt > p0004At, 'P0004 is handled by its code, ahead of when others');
+ok(batch.includes('Role in Company is required.') && batch.includes('Relationship Status is required.') && batch.includes('State is required.'), 'the database requires Role in Company, Relationship Status, and State on a lead');
+ok(!sql.includes('crm_person_dup') || sql.includes('crm_person_dup') && !/create or replace function private\.crm_person_dup/.test(sql), 'the import does not replace private.crm_person_dup');
 
 const calls = [];
+let failChunk = 0;
 const sb = { rpc: async (name, args) => {
   calls.push({ name, args });
   if (name !== 'crm_import_batch') return { data: null, error: { message: 'unexpected ' + name } };
-  const rows = args.p_rows.map((r, i) => i === 0
-    ? { line: r.line, status: 'ok', message: '', id: '11111111-1111-4111-8111-111111111111', name: 'Casey Sample', link: '#/crm/leads/11111111-1111-4111-8111-111111111111', notes: r.prepNotes || [] }
-    : { line: r.line, status: 'duplicate', message: 'This email is already used by Lead Robin Template (owner Casey Owner). Duplicates are not allowed.', id: null, name: '', link: '', notes: [] });
-  const body = { rows, counts: { total: rows.length, ok: 1, duplicates: rows.length - 1, errors: 0 }, importId: args.p_commit ? '22222222-2222-4222-8222-222222222222' : null };
+  if (failChunk && args.p_chunk === failChunk) return { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } };
+  const rows = args.p_rows.length > 2
+    ? args.p_rows.map((r) => ({ line: r.line, status: 'ok', message: '', id: '11111111-1111-4111-8111-111111111111', name: 'Casey Sample', link: '#/crm/leads/11111111-1111-4111-8111-111111111111', notes: r.prepNotes || [] }))
+    : args.p_rows.map((r, i) => i === 0
+      ? { line: r.line, status: 'ok', message: '', id: '11111111-1111-4111-8111-111111111111', name: 'Casey Sample', link: '#/crm/leads/11111111-1111-4111-8111-111111111111', notes: r.prepNotes || [] }
+      : { line: r.line, status: 'duplicate', message: 'This email is already used by Lead Robin Template (owner Casey Owner). Duplicates are not allowed.', id: null, name: '', link: '', notes: [] });
+  const okN = rows.filter((r) => r.status === 'ok').length;
+  const dupN = rows.filter((r) => r.status === 'duplicate').length;
+  const body = { rows, counts: { total: rows.length, ok: okN, duplicates: dupN, errors: 0 }, importId: args.p_commit ? (args.p_import || '22222222-2222-4222-8222-222222222222') : null };
   if (!args.p_commit) return { data: null, error: { code: 'P0004', message: 'Import preview only. Nothing was saved.', details: JSON.stringify(body) } };
   return { data: body, error: null };
 } };
@@ -133,6 +147,48 @@ ok(detail.length === 1 && detail[0].status === 'ok' && detail[0].recordName === 
 msg = '';
 try { await api.listCrmImportRows('33333333-3333-4333-8333-333333333333'); } catch (e) { msg = e.message; }
 ok(msg === 'Import not found.', 'an unknown import has no rows');
+
+ok(IMPORT_CHUNK_ROWS === 500 && importChunkRanges(2000).length === 4 && importChunkRanges(2000).every((c) => c.count === 500), '2000 rows split into four chunks of 500');
+ok(importChunkRanges(501).map((c) => c.count).join(',') === '500,1', 'a remainder stays in its own chunk');
+const leadTemplate = sampleCsv('leads');
+ok(leadTemplate.includes('Role in Company') && leadTemplate.includes('Relationship Status') && leadTemplate.includes('State'), 'the lead template includes Role in Company, Relationship Status, and State');
+ok(page.includes('data-import-progress') && page.includes('Chunk ${p.chunk} of ${p.chunks}') && page.includes('data-import-partial'), 'the import screen shows chunk progress and a partial-failure report');
+ok(leadRequiredMessages({ lastName: 'Sample' }).join(' ') === 'Role in Company is required. Relationship Status is required. State is required.', 'each missing lead field has its own message');
+ok(leadRequiredMessages({ lastName: 'Sample', state: 'MD' }, [{ field: 'roleInCompany', value: 'Realtor' }, { field: 'relationshipStatus', value: 'Hot Prospect' }]).length === 0, 'defaults fill the required lead fields');
+
+const leadFile = (n) => ['Last Name,Role in Company,Relationship Status,State', ...Array.from({ length: n }, (_, i) => `Person${i},Realtor,Hot Prospect,MD`)].join('\n');
+calls.length = 0;
+const big = await api.previewCrmImport({ module: 'leads', csv: leadFile(2000), fileName: 'leads-2000.csv' });
+ok(calls.length === 4 && calls.every((c, i) => c.name === 'crm_import_batch' && c.args.p_commit === false && c.args.p_chunk === i + 1 && c.args.p_rows.length === 500 && c.args.p_import == null), '2000 rows are four preview calls of 500');
+ok(big.counts.total === 2000 && big.counts.ok === 2000 && big.counts.errors === 0 && big.committed === false, 'preview totals are the sum of the chunks');
+
+calls.length = 0;
+failChunk = 2;
+msg = '';
+let partial = null;
+try { await api.runCrmImport({ module: 'leads', csv: leadFile(1000), fileName: 'leads-1000.csv' }); } catch (e) { msg = e.message; partial = e.partial; }
+failChunk = 0;
+ok(calls.length === 2 && calls[0].args.p_commit === true && calls[0].args.p_import == null && calls[1].args.p_import === '22222222-2222-4222-8222-222222222222' && calls[1].args.p_chunk === 2, 'a commit sends the next chunk under the first batch id');
+ok(partial && partial.saved.length === 1 && partial.saved[0].from === 1 && partial.saved[0].to === 500 && partial.failed.from === 501 && partial.failed.to === 1000, 'the partial-failure report names the saved and failed row ranges');
+ok(msg.includes('rows 1-500') && msg.includes('rows 501-1000') && msg.includes('statement timeout') && msg.includes('The earlier chunks were saved.'), 'the partial-failure text names the chunks, the ranges, and the error');
+
+calls.length = 0;
+const held = sb.rpc;
+sb.rpc = async (name, args) => {
+  calls.push({ name, args });
+  return { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout', details: JSON.stringify({ rows: [{ line: 2, status: 'ok' }], counts: { total: 1, ok: 1, duplicates: 0, errors: 0 } }) } };
+};
+msg = '';
+try { await api.previewCrmImport({ module: 'leads', csv: SAMPLE, fileName: 'leads.csv' }); } catch (e) { msg = e.message; }
+sb.rpc = held;
+ok(calls.length === 1 && msg === 'canceling statement due to statement timeout', 'P0004 is the only code treated as a preview');
+
+calls.length = 0;
+const missingLead = await api.previewCrmImport({ module: 'leads', csv: 'Last Name\nSample\n', fileName: 'leads.csv' });
+ok(calls.length === 0 && missingLead.rows.length === 1 && missingLead.rows[0].status === 'error' && missingLead.rows[0].message.includes('Role in Company is required.') && missingLead.rows[0].message.includes('Relationship Status is required.') && missingLead.rows[0].message.includes('State is required.'), 'a lead row reports each missing required field and is not sent');
+calls.length = 0;
+const filledLead = await api.previewCrmImport({ module: 'leads', csv: 'Last Name\nSample\n', fileName: 'leads.csv', defaults: { roleInCompany: 'Realtor', relationshipStatus: 'Hot Prospect', state: 'MD' } });
+ok(calls.length === 1 && filledLead.rows[0].status === 'ok' && filledLead.counts.errors === 0, 'a default Role, Relationship Status, and State lets the lead through');
 
 console.log(fail ? fail + ' failed' : 'crm hosted import passed');
 if (fail) process.exit(1);
