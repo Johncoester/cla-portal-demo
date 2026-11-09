@@ -3,7 +3,7 @@
 // Documents (staff only). The server refuses every address that is not a test address on Live Test, and never emails wire details.
 import { html, raw, esc, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611070139';
 import { editorHtml, mountEditor } from './compose.js?v=202611090935';
-import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, hasSignature, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611091345';
+import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, hasSignature, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611091801';
 const ROLE = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent', 'Transaction Coordinator': 'TC' };
 const list = (s) => String(s || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
 const isWire = (d) => d.wireInstructions || /\bwir(e|ed|es|ing)\b|wire[_ -]?instruction/i.test(d.name || '');
@@ -27,7 +27,7 @@ export async function render({ api, deal, user, refresh: reload }) {
     <div class="card" data-email-tab>
       ${g.connected ? html`<p data-mail-from>Sending from <strong>${g.mailbox}</strong>${g.status === 'needs_reconnect' ? html` <span class="pill bad">connect again on <a href="#/profile">Profile Setting</a></span>` : ''}</p>`
         : html`<div class="notice warn" data-mail-connect>Connect your @clatitle.com Gmail first: <a href="#/profile">Profile Setting &gt; Gmail</a>. You can still check an email below (nothing is sent).</div>`}
-      <p class="small muted" data-mail-allowlist>${TEST_ALLOWLIST_NOTE} Subjects get ${fileTag(deal.fileNumber)} so replies are easy to find.</p>
+      <p class="small muted" data-mail-allowlist>${TEST_ALLOWLIST_NOTE} Subjects get ${fileTag(deal.fileNumber, deal)} so replies are easy to find.</p>
       <p><button type="button" class="m-btn" data-mail-new>New email</button> <button type="button" class="m-btn" data-mail-intro>Introduction email</button>
         ${g.connected ? html`<button type="button" class="ghost" data-mail-sync>Check for replies</button>` : ''}</p>
     </div>
@@ -63,7 +63,7 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     <label>Cc<input name="cc" value="${(pre.cc || []).join(', ')}" data-mail-cc></label><label>Bcc<input name="bcc" data-mail-bcc></label>
     ${parties.length ? html`<div class="span2 small">On this file: ${parties.map((p) => html`<button type="button" class="ghost small" data-mail-add="${p.email}" title="${p.email}">+ ${p.name || p.email} (${ROLE[p.role] || p.role})${isAllowedTestRecipient(p.email) ? '' : raw(' <span class="pill warn">not a test address</span>')}</button> `)}</div>` : ''}
     <label class="span2">Subject<input name="subject" maxlength="250" value="${pre.subject || ''}" data-mail-subject></label>
-    <p class="span2 small muted">${fileTag(deal.fileNumber)} is added to the subject. Your portal signature is added at the bottom.</p>
+    <p class="span2 small muted">${fileTag(deal.fileNumber, deal)} is added to the subject. Your portal signature is added at the bottom.</p>
     <div class="span2" data-mail-editor>${editorHtml('mail-rte')}</div>
     ${docs.length ? html`<fieldset class="span2" data-mail-docs><legend class="small">Attach documents from this file</legend>${docs.map((d) => html`<label class="small">${isWire(d)
       ? html`<input type="checkbox" disabled> ${d.name} <span class="pill bad">wire instructions are never emailed</span>` : html`<input type="checkbox" value="${d.id}" data-mail-doc> ${d.name} <span class="muted">${fmtSize(d.size || 0)}</span>`}</label><br>`)}</fieldset>` : ''}

@@ -2,7 +2,7 @@
 // signature the portal adds to every email you send (the Gmail API does not add your Gmail signature, so the portal imports it: John, Nov 9 2:06 PM).
 import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611070139';
 import { editorHtml, mountEditor } from './compose.js?v=202611090935';
-import { GMAIL_RESULT, TEST_ALLOWLIST_NOTE } from '../data/gmail-email.js?v=202611091345';
+import { GMAIL_RESULT, TEST_ALLOWLIST_NOTE } from '../data/gmail-email.js?v=202611091801';
 export function sigSourceLine(g) {
   const when = g.signatureSyncedAt ? ` (imported ${fmtDateTime(g.signatureSyncedAt)})` : '';
   if (g.signatureSource === 'gmail') return htmlToTextLen(g.signatureHtml) ? `Your Gmail signature${when}.` : `Your Gmail has no signature${when}. Add one in Gmail, then Refresh from Gmail, or type one below.`;
