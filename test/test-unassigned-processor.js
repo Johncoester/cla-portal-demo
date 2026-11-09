@@ -8,8 +8,6 @@ const rejects = async (p, re) => { try { await p(); return false; } catch (e) { 
 const ORDER = { street: '9 Unassigned Lane', city: 'Rockville', state: 'MD', zip: '20850', openDate: '2026-11-01' };
 const choices = processorChoices([{ id: 'u-new', firstName: 'Nina', lastName: 'New', role: 'Processor' }], 'u-old', 'u-admin');
 ok(choices.options[0].label === 'Unassigned' && choices.dropped && choices.value === '', 'a Processor who is not on the list is dropped and nobody is invented');
-const withEmail = processorChoices([{ id: 'u-1', firstName: 'Test', lastName: 'Processor', email: 'p1@test', role: 'Processor' }, { id: 'u-2', firstName: 'TEST', lastName: 'PROCESSOR01', email: 'p2@test', role: 'Processor' }], '', '');
-ok(withEmail.options[0].value === '' && withEmail.options.some((o) => o.label.includes('p1@test')) && withEmail.options.some((o) => o.label.includes('p2@test')), 'Unassigned first; emails distinguish processors in the list');
 ok(processorChoices([{ id: 'u-new', firstName: 'Nina', lastName: 'New', role: 'Processor' }], 'u-new', 'u-new').value === 'u-new', 'a Processor who is still eligible stays selected');
 
 const store = mem();

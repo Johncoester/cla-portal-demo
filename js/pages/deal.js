@@ -7,13 +7,13 @@ import { modOn } from '../data/modules.js?v=202611090935';
 import { slotText } from './dealclosing.js?v=202611090935';
 import { pickerHtml, mountPicker } from './person-picker.js?v=202611090935';
 import { composeModal } from './compose.js?v=202611090935';
-import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611091420';
+import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611091450';
 import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611090935';
 import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611090935';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611091311';
 import { gatherReads } from '../data/read-batch.js?v=202611082010';
-import { prefetchDealTab } from './deal-tab.js?v=202611091400';
+import { prefetchDealTab } from './deal-tab.js?v=202611091450';
 import { placeText } from '../data/cla-offices.js?v=202611090935';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 
@@ -38,10 +38,7 @@ function staffSections(ctx, dealId) {
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
   const tabName = params.tab || 'overview';
-  // Francis, Nov 9: Contacts (and Edit-order party lists) need deal.participants. readFileShell leaves participants [].
-  // Keep the shell for tabs that only need the file header (tasks, documents, …).
-  const NEEDS_PARTIES = tabName === 'overview' || tabName === 'contacts';
-  const staffShell = !NEEDS_PARTIES && api.readFileShell && ctx.user && ctx.user.role !== 'Outside user';
+  const staffShell = tabName !== 'overview' && api.readFileShell && ctx.user && ctx.user.role !== 'Outside user';
   const staffOverview = tabName === 'overview' && ctx.user && !ctx.user.accountRole && ctx.user.role !== 'Outside user' && ctx.user.role !== 'Transaction Coordinator';
   const dealP = staffShell ? api.readFileShell(params.id) : (api.readDeal ? api.readDeal(params.id) : api.getDeal(params.id));
   const tabP = prefetchDealTab(tabName, params.sub);
