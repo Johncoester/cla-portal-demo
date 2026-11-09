@@ -60,11 +60,27 @@ export function parseAddressList(input) {
 }
 
 export const oneLine = (s, max = 250) => String(s == null ? '' : s).replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, max);
-export const fileTag = (fileNumber) => `[CLA #${oneLine(fileNumber, 60) || 'order'}]`;
-export function subjectWithTag(subject, fileNumber) {
-  const tag = fileTag(fileNumber); const s = oneLine(subject, 250);
-  if (s.toLowerCase().includes(tag.toLowerCase())) return s;
-  return oneLine(`${s} ${tag}`, 300);
+// "123 Main St, Rockville MD 20850" — comma after street only; empty parts omitted (John, Nov 9)
+export function formatPropertyAddress(deal = {}) {
+  const street = oneLine(deal && deal.street, 120);
+  const city = oneLine(deal && deal.city, 80);
+  const state = oneLine(deal && deal.state, 20);
+  const zip = oneLine(deal && deal.zip, 20);
+  const cityStateZip = [city, state, zip].filter(Boolean).join(' ');
+  return [street, cityStateZip].filter(Boolean).join(', ');
+}
+// [CLA #MD-26-97218] or [CLA #MD-26-97218 - 123 Main St, Rockville MD 20850]
+export const fileTag = (fileNumber, address) => {
+  const num = oneLine(fileNumber, 60) || 'order';
+  const addr = oneLine(typeof address === 'string' ? address : formatPropertyAddress(address || {}), 160);
+  return addr ? `[CLA #${num} - ${addr}]` : `[CLA #${num}]`;
+};
+// Match any existing tag for this file number (with or without address) so replies and old subjects are not re-tagged.
+export function subjectWithTag(subject, fileNumber, address) {
+  const num = oneLine(fileNumber, 60) || 'order';
+  const s = oneLine(subject, 250);
+  if (s.toLowerCase().includes(`[cla #${num.toLowerCase()}`)) return s;
+  return oneLine(`${s} ${fileTag(num, address)}`, 300);
 }
 
 /* Remove active content. Stored mail is also shown only inside a sandboxed iframe. */

@@ -38,7 +38,7 @@ export function buildDeps(req: Request) {
       return data;
     },
     async userDeal(id: string) {
-      const { data } = await asUser.from('deals').select('id, file_number, street, city, state').eq('id', id).maybeSingle();
+      const { data } = await asUser.from('deals').select('id, file_number, street, city, state, zip').eq('id', id).maybeSingle();
       return data || null;
     },
     async userDocs(dealId: string, ids: string[]) {

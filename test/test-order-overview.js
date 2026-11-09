@@ -20,6 +20,13 @@ const agent = buildOrderOverview({ deal: { ...deal, myRole: 'Buyer Agent', myRol
 ok((agent.parties.find((p) => p.salesRep) || {}).name === 'Sam Salesperson' && agent.parties.find((p) => p.label === 'Processor').name === 'Paula Processor' && agent.parties.find((p) => p.label === 'Processor').canMessage === true && agent.parties.find((p) => p.label === 'Listing Agent').canMessage === false, 'the person chosen as Processor stays Processor, and a hidden contact cannot be messaged');
 const refi = buildOrderOverview({ deal: { ...deal, transactionType: 'Refinance', purchasePrice: 100 }, me: { id: 'u-proc', role: 'Processor', isAdmin: false }, tasks: [], documents: [], threads: [], activity: [] });
 ok(refi.orderDetails.purchasePrice === null && refi.orderDetails.refinance === true, 'a refinance overview does not present a purchase price');
+const staffTasks = [
+  { id: 's1', dealId: 'deal-1', title: 'Staff review', assignedRole: 'Processor', status: 'todo', mine: true },
+  { id: 's2', dealId: 'deal-1', title: 'Buyer form', assignedRole: 'Client-Buyer', status: 'todo', mine: false },
+  { id: 's3', dealId: 'deal-1', title: 'Seller form', assignedRole: 'Client-Seller', status: 'todo' },
+];
+const staffOv = buildOrderOverview({ deal: { ...deal, myRole: null, myRoles: [], processorName: 'Paula', processorId: 'u-proc' }, me: { id: 'u-proc', role: 'Processor' }, tasks: staffTasks, documents: [], threads: [], activity: [] });
+ok(staffOv.outstanding === 1 && staffOv.counts.tasks === 3, 'staff outstanding is mine; counts.tasks stays all open on the file');
 let threw = false; try { buildOrderOverview({ deal: null, me: { id: 'u' } }); } catch (e) { threw = /not found/i.test(e.message); }
 ok(threw, 'a missing order is an error');
 

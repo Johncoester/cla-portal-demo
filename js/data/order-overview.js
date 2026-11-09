@@ -47,7 +47,8 @@ export function buildOrderOverview({ deal, me, tasks = [], documents = [], threa
   const owned = (t) => t.ownerId === me.id || t.ownerProfileId === me.id || (!t.participantId && (actor.roles || [actor.role]).includes(t.assignedRole));
   const openMine = visibleTasks.filter((t) => OPEN.includes(t.status) && (t.mine === true || (t.mine == null && owned(t))));
   const openAll = visibleTasks.filter((t) => OPEN.includes(t.status));
-  const outstanding = staff ? openAll.length : openMine.length;
+  // Francis, Nov 9: "You have N outstanding" is always tasks for this login. Staff header "N open tasks" still uses all open on the file.
+  const outstanding = openMine.length;
   const docs = documents.filter((z) => z && z.dealId === deal.id && !z.sample);
   const conversations = (threads || []).map((t) => {
     const ms = t.messages || []; const last = ms[ms.length - 1];
@@ -56,7 +57,7 @@ export function buildOrderOverview({ deal, me, tasks = [], documents = [], threa
   const act = (activity || []).map((a) => ({ id: a.id, createdAt: a.createdAt, action: a.action, detail: a.detail, actorName: a.actorName || '' }));
   const emdPending = pureBuyer && visibleTasks.some((t) => t.assignedRole === 'Client-Buyer' && EMD_RECEIPT.test(t.title || '') && OPEN.includes(t.status));
   return { progress: phaseOf(deal), outstanding, emdPending,
-    counts: { tasks: outstanding, inbox: conversations.reduce((n, t) => n + (t.unread || 0), 0), threads: conversations.length, documents: docs.length, activity: act.length },
+    counts: { tasks: staff ? openAll.length : outstanding, inbox: conversations.reduce((n, t) => n + (t.unread || 0), 0), threads: conversations.length, documents: docs.length, activity: act.length },
     orderDetails: { propertyAddress: deal.address || [deal.street, [deal.city, deal.state, deal.zip].filter(Boolean).join(' ')].filter(Boolean).join(', '), orderId: deal.id, orderType: deal.transactionType || 'Purchase', refinance: refi, purchasePrice: refi ? null : deal.purchasePrice, loanAmount: deal.loanAmount, fileNumber: deal.fileNumber, agencyLicenseId: '' },
     parties, recentActivity: act.slice(0, 6), conversations: conversations.slice(0, 5),
     canRequestUpdate: !staff && !!sideOf(actor.role) && !readOnly, canShareAccess: (agentHere || (actor.roles || [actor.role]).includes('Client-Buyer') || (actor.roles || [actor.role]).includes('Client-Seller')) && !readOnly,
