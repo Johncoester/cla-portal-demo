@@ -1,9 +1,9 @@
 // Contacts tab: everyone on this file. Processor can add people (existing or new), edit them, and unlink them from the order.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill } from '../ui.js?v=202611070139';
 import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole } from '../data/constants.js?v=202611090935';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611090935';
+import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611091616';
 import { canInviteAgents } from '../data/agent-profile.js?v=202611090935';
-import { copyPlainText } from './deal.js?v=202611092320';
+import { copyPlainText } from './deal.js?v=202611091616';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
 export function contactCopyMessage(copied, kind) {
@@ -40,18 +40,43 @@ export async function render({ api, user, deal, refresh }) {
     const cf = $('#ctfilter [name=ctype]', root); cf.addEventListener('change', () => { $$('[data-contact-row]', root).forEach((tr) => { tr.hidden = !!cf.value && tr.dataset.rowCtype !== cf.value; }); });
   } };
 
-  // John, Nov 2: the existing-contact dropdown is a type-to-search picker (name / email / phone / brokerage). For the Transaction Coordinator role only
-  // active users whose account role is 'Transaction Coordinator' are offered, and "new person" is off (a TC needs a TC login, made by an Admin).
+  // John, Nov 2: type-to-search picker (name / email / phone / brokerage). Transaction Coordinator: only active TC logins; no new person
+  // (a TC needs a TC login, made by an Admin). Francis, Nov 9: same Place Order inline "Add … as a new person" when there is no match,
+  // so adding a party on an already-opened file no longer dead-ends on "clear the search box".
   async function addPerson() {
-    const all = await api.listContacts(); const tcs = await api.listCoordinators(); const tcIds = new Set(tcs.map((t) => t.contactId));
+    const people = await api.listContacts(); const tcs = await api.listCoordinators(); const tcIds = new Set(tcs.map((t) => t.contactId));
     const m = modal('Add contact to this order', html`<form id="apf" class="form-grid"><label class="span2">Role on this order<select name="role">${options(isRefi(deal) ? PARTICIPANT_ROLES.filter((r) => !REFI_BLOCKED_ROLES.includes(r)) : PARTICIPANT_ROLES, 'Other')}</select></label>${isRefi(deal) ? html`<p class="muted small span2" data-refi-roles>Refinance: no seller, realtor or transaction coordinator roles. Add the borrower as Client-Buyer.</p>` : ''}
       <p class="muted small span2">One person can hold two roles on an order only when an agent is buying or selling for themselves: add them once as Client-Buyer and once as Buyer Agent (or Client-Seller and Listing Agent).</p>
       <p class="muted small span2" data-tc-note hidden>Only users with the Transaction Coordinator account role can be the Transaction Coordinator. An Admin creates them under Create User.</p>
-      <div class="span2">${pickerHtml('contactId', 'Existing contact')}</div>
-      <div class="span2 form-grid" data-newperson><h4 class="span2">&mdash; or a new person &mdash;</h4><label data-fn>First name<input name="firstName"></label><label>Last name<input name="lastName"></label><label>Email<input name="email" type="email"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone></label><label data-co>Company / brokerage<input name="company"></label>${ctypeSelect('')}</div>
+      <p class="muted small span2">Type a name and pick a match, or choose <strong>Add "…" as a new person</strong> in the list. Use the fields below when you already have email, phone or company details.</p>
+      <div class="span2">${pickerHtml('contactId', 'Contact')}</div>
+      <div class="span2 form-grid" data-newperson><h4 class="span2">&mdash; or enter full details &mdash;</h4><label data-fn>First name<input name="firstName"></label><label>Last name<input name="lastName"></label><label>Email<input name="email" type="email"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone></label><label data-co>Company / brokerage<input name="company"></label>${ctypeSelect('')}</div>
       <div class="span2"><button class="m-btn" type="submit">Add</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
     const roleSel = $('[name=role]', m); const isTc = () => roleSel.value === 'Transaction Coordinator';
-    const pk = mountPicker($('[data-picker=contactId]', m), () => (isTc() ? all.filter((c) => tcIds.has(c.id)) : all));
+    // Same quick-create rules as Place Order (ordernew.js): split the typed name; lender company-ish strings become company-only.
+    const quickCreate = async (typed) => {
+      const name = String(typed || '').trim(); if (!name) throw new Error('Type a name first.');
+      const role = roleSel.value;
+      const { firstName, lastName } = splitPersonName(name);
+      const contactType = contactTypeForRole(role) || '';
+      let input;
+      if (role === 'Lender') {
+        const companyish = !lastName || /\b(llc|inc|corp|bank|mortgage|lending|loan|capital|financial|credit)\b/i.test(name);
+        input = companyish
+          ? { firstName: '', lastName: '', company: name, email: '', phone: '', contactType: 'lender' }
+          : { firstName, lastName, company: '', email: '', phone: '', contactType: 'lender' };
+      } else {
+        input = { firstName: firstName || name, lastName, email: '', phone: '', company: '', contactType };
+      }
+      const c = await api.createContact(input);
+      if (!people.some((x) => x.id === c.id)) people.push(c);
+      return c;
+    };
+    const pk = mountPicker($('[data-picker=contactId]', m), () => (isTc() ? people.filter((c) => tcIds.has(c.id)) : people), {
+      createVerb: () => (roleSel.value === 'Lender' ? 'lender' : 'person'),
+      allowCreate: () => !isTc(),
+      onCreate: quickCreate,
+    });
     const ctSel = $('[data-newperson] [name=contactType]', m); let ctTouched = false; ctSel.addEventListener('change', () => { ctTouched = true; });
     const paintRole = () => { const r = roleSel.value; const lender = r === 'Lender'; const person = r === 'Client-Buyer' || r === 'Client-Seller';
       $('[data-fn]', m).firstChild.textContent = lender ? 'Contact first name (optional)' : person ? 'First name (leave blank for an entity)' : 'First name';
@@ -59,7 +84,7 @@ export async function render({ api, user, deal, refresh }) {
     roleSel.addEventListener('change', () => { if (!ctTouched) ctSel.value = contactTypeForRole(roleSel.value); const tc = isTc(); $('[data-tc-note]', m).hidden = !tc; $('[data-newperson]', m).hidden = tc; if (tc && pk.value && !tcIds.has(pk.value)) pk.set(null); paintRole(); });
     paintRole();
     $('#apf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); let id = f.contactId;
-      if (!id && pk.typed) throw new Error('Pick a person from the list (or clear the search box and enter a new person).');
+      if (!id && pk.typed) throw new Error('Pick a person from the list, choose Add as a new person, or clear the search box and enter full details below.');
       if (!id && isTc()) throw new Error('Pick a Transaction Coordinator from the list.');
       if (!id && f.role === 'Lender' && !String(f.company || '').trim()) throw new Error('Lender company name is required. A contact person is optional.');
       if (!id && !String(f.firstName || '').trim() && !String(f.company || '').trim()) throw new Error('Enter a first name, or a company or entity name.');

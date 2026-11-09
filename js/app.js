@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { getAdapter } from './data/adapter.js?v=202611092340';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611092320';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611091616';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611090935';
 import { canUseCrm } from './data/crm.js?v=202611070139';
@@ -34,8 +34,8 @@ const pages = {
   login: () => import('./pages/entry.js?v=202611091730'),
   dashboard: () => import('./pages/dashboard.js?v=202611092320'),
   orders: () => import('./pages/orders.js?v=202611091600'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611092320'),
-  deal: () => import('./pages/deal.js?v=202611092320'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611091616'),
+  deal: () => import('./pages/deal.js?v=202611091616'),
   users: () => import('./pages/users.js?v=202611090935'),
   profile: () => import('./pages/profile.js?v=202611091801'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),

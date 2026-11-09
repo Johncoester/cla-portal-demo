@@ -6,12 +6,12 @@ import { GMAIL_OFF } from '../data/automation.js?v=202611091345';
 import { occSelects, yesNo } from './occ-fields.js?v=202611070139';
 import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611090935';
 import { slotText } from './dealclosing.js?v=202611090935';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611090935';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611091616';
 import { composeModal } from './compose.js?v=202611090935';
 import { sourceChoices } from '../data/place-order.js?v=202611092320';
 import { themeOn } from '../theme.js?v=202611070139';
 
-const TABS = { tasks: './dealtasks.js?v=202611092320', inbox: './dealmsgs.js?v=202611091030', documents: './dealdocs.js?v=202611091030', contacts: './dealcontacts.js?v=202611092320', activity: './dealactivity.js?v=202611070139', closing: './dealclosing.js?v=202611090935', agreements: './dealagreements.js?v=202611070139', accounting: './dealaccounting.js?v=202611091730' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611092320', inbox: './dealmsgs.js?v=202611091030', documents: './dealdocs.js?v=202611091030', contacts: './dealcontacts.js?v=202611091616', activity: './dealactivity.js?v=202611070139', closing: './dealclosing.js?v=202611090935', agreements: './dealagreements.js?v=202611070139', accounting: './dealaccounting.js?v=202611091730' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;

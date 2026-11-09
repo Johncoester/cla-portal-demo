@@ -34,17 +34,21 @@ export const pickerHtml = (name, label, { hint = 'Type a name, email, phone or b
 // el = the .picker element; source() = the current list of people to search (may change, e.g. after "Add new user")
 // onCreate(typed) optional: when the typed text has no match and the user picks "Add …", called with the typed string;
 //   may return a contact (or a Promise of one). When it returns a contact, the picker selects it.
-export function mountPicker(el, source, { onSet, onCreate, createVerb = 'person' } = {}) {   // onSet(contact) after a pick (Matt, Nov 3 (b): Lender fills its phone / email)
+export function mountPicker(el, source, { onSet, onCreate, createVerb = 'person', allowCreate } = {}) {   // onSet(contact) after a pick (Matt, Nov 3 (b): Lender fills its phone / email)
+  // allowCreate() optional: Contacts hides inline create for Transaction Coordinator (needs an Admin-made TC login).
+  // createVerb may be a string or () => string so the Contacts role dropdown can switch lender vs person.
   const q = $('.picker-q', el); const hid = $('input[type=hidden]', el); const ul = $('.picker-list', el); const chosen = $('[data-chosen]', el);
   let hits = []; let active = -1; let creating = false;
   const close = () => { ul.hidden = true; q.setAttribute('aria-expanded', 'false'); active = -1; };
   const typed = () => q.value.trim();
+  const createOk = () => !!onCreate && (typeof allowCreate !== 'function' || allowCreate());
+  const verb = () => (typeof createVerb === 'function' ? createVerb() : createVerb);
   const draw = () => {
-    const all = matchPeople(source(), q.value); hits = all.slice(0, MAX); const canCreate = !!onCreate && !!typed() && !hits.length;
+    const all = matchPeople(source(), q.value); hits = all.slice(0, MAX); const canCreate = createOk() && !!typed() && !hits.length;
     active = hits.length || canCreate ? Math.max(0, Math.min(active, (hits.length || 1) - 1)) : -1;
     const createRow = canCreate
-      ? html`<li role="option" data-create="1" aria-selected="${active === 0 ? 'true' : 'false'}" class="${active === 0 ? 'active' : ''}"><strong>Add "${typed()}" as a new ${createVerb}</strong> <span class="muted small">Creates a contact and puts them on this order</span></li>`
-      : (!hits.length ? html`<li class="muted small" data-none>No match.${onCreate ? '' : ' Use "Add new user" below to add this person.'}</li>` : '');
+      ? html`<li role="option" data-create="1" aria-selected="${active === 0 ? 'true' : 'false'}" class="${active === 0 ? 'active' : ''}"><strong>Add "${typed()}" as a new ${verb()}</strong> <span class="muted small">Creates a contact and puts them on this order</span></li>`
+      : (!hits.length ? html`<li class="muted small" data-none>No match.${createOk() ? '' : (onCreate ? ' Pick someone from the list.' : ' Use "Add new user" below to add this person.')}</li>` : '');
     ul.innerHTML = toText(hits.length ? html`${hits.map((c, i) => html`<li role="option" data-id="${c.id}" aria-selected="${i === active ? 'true' : 'false'}" class="${i === active ? 'active' : ''}"><strong>${personLabel(c)}</strong> <span class="muted small">${detail(c)}</span></li>`)}${all.length > MAX ? html`<li class="muted small" data-more>${all.length - MAX} more &mdash; keep typing to narrow down</li>` : ''}`
       : createRow);
     ul.hidden = false; q.setAttribute('aria-expanded', 'true'); };
@@ -65,12 +69,12 @@ export function mountPicker(el, source, { onSet, onCreate, createVerb = 'person'
   q.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault(); if (ul.hidden) draw();
-      const n = hits.length || (onCreate && typed() ? 1 : 0); if (!n) return;
+      const n = hits.length || (createOk() && typed() ? 1 : 0); if (!n) return;
       active = (active + (e.key === 'ArrowDown' ? 1 : -1) + n) % n; draw();
     } else if (e.key === 'Enter') {
       e.preventDefault(); if (ul.hidden) return;
       if (hits[active]) set(hits[active]);
-      else if (!hits.length && onCreate && typed()) create().catch((err) => toast(err.message || String(err), 'err'));
+      else if (!hits.length && createOk() && typed()) create().catch((err) => toast(err.message || String(err), 'err'));
     } else if (e.key === 'Escape') { if (!ul.hidden) { e.preventDefault(); close(); } } });
   ul.addEventListener('mousedown', (e) => {
     const createLi = e.target.closest('li[data-create]');
