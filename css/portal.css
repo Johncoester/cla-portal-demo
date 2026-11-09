@@ -818,6 +818,37 @@ body.theme-cards .ss-pin { background: var(--tc-side); }
 .side-listing-agent { --sb-bg: #fdf5ec; --sb-line: #f0d6b8; --sb-tag: #f8e3cc; --sb-ink: #4a2a07; }
 .side-other { --sb-bg: #f5f6f7; --sb-line: #d6dadf; --sb-tag: #e4e7ea; --sb-ink: #22292f; }
 
+/* Matt, Nov 9: file Tasks status cue. Done is green, open is navy, overdue is red. Cancelled stays gray. Scoped so other tables keep the old gray strikethrough. */
+.file-tasks .tbl.striped tbody tr.is-done td { background: var(--ok-bg); color: var(--ink); }
+.file-tasks .tbl.striped tbody tr.is-done td:first-child { box-shadow: inset 3px 0 0 var(--ok); }
+.file-tasks .tbl.striped tbody tr.is-done strong { text-decoration: none; color: var(--ok); }
+.file-tasks .tbl.striped tbody tr.is-done:hover td { background: #d7f0e2; }
+.file-tasks .tbl.striped tbody tr.is-open td { background: var(--navy-50); }
+.file-tasks .tbl.striped tbody tr.is-open td:first-child { box-shadow: inset 3px 0 0 var(--navy-600); }
+.file-tasks .tbl.striped tbody tr.is-open:hover td { background: var(--navy-100); }
+.file-tasks .tbl.striped tbody tr.is-overdue td { background: var(--bad-bg); }
+.file-tasks .tbl.striped tbody tr.is-overdue td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
+.file-tasks .tbl.striped tbody tr.is-overdue:hover td { background: #fbd9d6; }
+.file-tasks .tbl.striped tbody tr.is-cancelled td { background: var(--surface-2); color: var(--ink-4); }
+.file-tasks .tbl.striped tbody tr.is-cancelled strong { text-decoration: line-through; color: var(--ink-4); }
+
+/* Processor / coordinator file Tasks: tighter rows, sticky side headers, intake edit under the row. Buyer and seller lists are not this layout. */
+.file-tasks-dense .box-title { margin: 4px 0; }
+.file-tasks-dense .task-expand-bar, .file-tasks-dense .side-expand { margin: 2px 0 6px; }
+.file-tasks-dense .side-box { margin: 0 0 6px; padding: 0 8px 2px; border-radius: 8px; }
+.file-tasks-dense .side-box > summary { position: sticky; top: var(--topbar-h); z-index: 6; background: var(--sb-bg); margin: 0 -8px; padding: 4px 8px; border-bottom: 1px solid var(--sb-line); }
+.file-tasks-dense .side-tag { font-size: 13px; padding: 1px 8px; }
+.file-tasks-dense .tbl { margin-bottom: 4px; }
+.file-tasks-dense .tbl th, .file-tasks-dense .tbl td { padding: 3px 8px; }
+.file-tasks-dense .tbl td { font-size: 12.5px; vertical-align: top; }
+.file-tasks-dense .pill { padding: 0 8px; font-size: 11px; }
+.file-tasks-dense .ghost { padding: 2px 8px; }
+.file-tasks-dense .task-line { line-height: 1.3; }
+.file-tasks-dense .task-desc { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; max-width: 40rem; }
+.file-tasks-dense .intake-edit { margin: 6px 0 4px; padding: 8px 10px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
+.file-tasks-dense .intake-edit .form-grid { margin: 0; }
+.file-tasks-dense .intake-edit-note { margin: 0 0 6px; }
+
 /* ===== CLIENT OVERVIEW (John, Nov 4: approved buyer mockup, "make it live"). Buyer / seller File Overview only; every class is co-* so nothing else changes. ===== */
 .co-shell { --co-b: #89cff0; --co-bs: #e8f6fd; --co-bl: #bfe6f8; --co-bi: #1f6fa3; --co-nv: #0b2a45; font-family: Roboto, Arial, sans-serif; background: #f4f9fc; color: #1d2b36; min-height: 100vh; }
 .co-shell h1, .co-shell h2, .co-shell h3 { font-family: Roboto, Arial, sans-serif; }
