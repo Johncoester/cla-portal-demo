@@ -427,12 +427,12 @@ begin
     alter table public.crm_opportunities disable trigger user;
     alter table public.crm_activities disable trigger user;
 
-    select string_agg(quote_ident(col), ', ' order by col), string_agg('src.' || quote_ident(col), ', ' order by col)
+    select string_agg(quote_ident(u.colname), ', ' order by u.colname), string_agg('src.' || quote_ident(u.colname), ', ' order by u.colname)
       into insert_cols, select_cols
-    from unnest(array['id', 'name', 'kind', 'phone', 'website', 'city', 'state', 'notes', 'owner_id', 'created_by', 'modified_by', 'created_at', 'modified_at']) as col
+    from unnest(array['id', 'name', 'kind', 'phone', 'website', 'city', 'state', 'notes', 'owner_id', 'created_by', 'modified_by', 'created_at', 'modified_at']) as u(colname)
     where exists (
       select 1 from information_schema.columns c
-      where c.table_schema = 'public' and c.table_name = 'crm_accounts' and c.column_name = col and c.is_generated = 'NEVER'
+      where c.table_schema = 'public' and c.table_name = 'crm_accounts' and c.column_name = u.colname and c.is_generated = 'NEVER'
     );
     execute 'insert into public.crm_accounts (' || insert_cols || ') select ' || select_cols || ' from ('
       || 'select id, name, kind, phone, website, city, state, notes, owner_id, created_by, modified_by, '
@@ -441,16 +441,16 @@ begin
       || 'from _crm_seed_accounts) src'
       using today;
 
-    select string_agg(quote_ident(col), ', ' order by col), string_agg('src.' || quote_ident(col), ', ' order by col)
+    select string_agg(quote_ident(u.colname), ', ' order by u.colname), string_agg('src.' || quote_ident(u.colname), ', ' order by u.colname)
       into insert_cols, select_cols
     from unnest(array[
       'id', 'first_name', 'last_name', 'company', 'email', 'phone', 'source', 'status', 'notes',
       'role_in_company', 'title', 'contact_type', 'crm_street', 'crm_city', 'crm_state', 'crm_zip', 'crm_county',
       'account_id', 'owner_id', 'created_by', 'modified_by', 'created_at', 'modified_at'
-    ]) as col
+    ]) as u(colname)
     where exists (
       select 1 from information_schema.columns c
-      where c.table_schema = 'public' and c.table_name = 'crm_leads' and c.column_name = col and c.is_generated = 'NEVER'
+      where c.table_schema = 'public' and c.table_name = 'crm_leads' and c.column_name = u.colname and c.is_generated = 'NEVER'
     );
     execute 'insert into public.crm_leads (' || insert_cols || ') select ' || select_cols || ' from ('
       || 'select id, first_name, last_name, company, email, phone, source, status, notes, role_in_company, title, contact_type, '
@@ -460,12 +460,12 @@ begin
       || 'from _crm_seed_leads) src'
       using today;
 
-    select string_agg(quote_ident(col), ', ' order by col), string_agg('src.' || quote_ident(col), ', ' order by col)
+    select string_agg(quote_ident(u.colname), ', ' order by u.colname), string_agg('src.' || quote_ident(u.colname), ', ' order by u.colname)
       into insert_cols, select_cols
-    from unnest(array['id', 'name', 'stage', 'notes', 'account_id', 'est_volume', 'expected_close', 'owner_id', 'created_by', 'modified_by', 'created_at', 'modified_at']) as col
+    from unnest(array['id', 'name', 'stage', 'notes', 'account_id', 'est_volume', 'expected_close', 'owner_id', 'created_by', 'modified_by', 'created_at', 'modified_at']) as u(colname)
     where exists (
       select 1 from information_schema.columns c
-      where c.table_schema = 'public' and c.table_name = 'crm_opportunities' and c.column_name = col and c.is_generated = 'NEVER'
+      where c.table_schema = 'public' and c.table_name = 'crm_opportunities' and c.column_name = u.colname and c.is_generated = 'NEVER'
     );
     execute 'insert into public.crm_opportunities (' || insert_cols || ') select ' || select_cols || ' from ('
       || 'select id, name, stage, notes, account_id, est_volume, expected_close, owner_id, created_by, modified_by, '
@@ -474,12 +474,12 @@ begin
       || 'from _crm_seed_opps) src'
       using today;
 
-    select string_agg(quote_ident(col), ', ' order by col), string_agg('src.' || quote_ident(col), ', ' order by col)
+    select string_agg(quote_ident(u.colname), ', ' order by u.colname), string_agg('src.' || quote_ident(u.colname), ', ' order by u.colname)
       into insert_cols, select_cols
-    from unnest(array['id', 'entity', 'entity_id', 'kind', 'subject', 'body', 'status', 'priority', 'due_date', 'occurred_on', 'owner_id', 'created_by', 'modified_by', 'created_at', 'modified_at']) as col
+    from unnest(array['id', 'entity', 'entity_id', 'kind', 'subject', 'body', 'status', 'priority', 'due_date', 'occurred_on', 'owner_id', 'created_by', 'modified_by', 'created_at', 'modified_at']) as u(colname)
     where exists (
       select 1 from information_schema.columns c
-      where c.table_schema = 'public' and c.table_name = 'crm_activities' and c.column_name = col and c.is_generated = 'NEVER'
+      where c.table_schema = 'public' and c.table_name = 'crm_activities' and c.column_name = u.colname and c.is_generated = 'NEVER'
     );
     execute 'insert into public.crm_activities (' || insert_cols || ') select ' || select_cols || ' from ('
       || 'select id, entity, entity_id, kind, subject, body, status, priority, due_date, occurred_on, owner_id, created_by, modified_by, '

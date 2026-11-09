@@ -14,6 +14,7 @@ set local lock_timeout = '3s';
 do $rollback$
 declare
   n int;
+  blocked boolean;
 begin
   if to_regclass('public.profiles') is null
      or to_regclass('public.crm_leads') is null
@@ -66,26 +67,38 @@ begin
     raise exception 'refusing: a non-seed lead or opportunity still points at a TEST-SEED-CRM company. It was not deleted.';
   end if;
 
-  if to_regclass('public.crm_emails') is not null and exists (
-    select 1 from public.crm_emails e
-    where (
-      exists (select 1 from public.crm_leads l where e.entity = 'lead' and e.entity_id::text = l.id::text and position('TEST-SEED-CRM' in coalesce(l.title, '') || ' ' || coalesce(l.notes, '')) > 0)
-      or exists (select 1 from public.crm_accounts c where e.entity = 'account' and e.entity_id::text = c.id::text and position('TEST-SEED-CRM' in coalesce(c.website, '') || ' ' || coalesce(c.notes, '')) > 0)
-      or exists (select 1 from public.crm_opportunities o where e.entity = 'opportunity' and e.entity_id::text = o.id::text and position('TEST-SEED-CRM' in coalesce(o.name, '') || ' ' || coalesce(o.notes, '')) > 0)
-    )
-  ) then
-    raise exception 'refusing: a CRM email still points at a TEST-SEED-CRM row. Emails are not deleted.';
+  -- Plan the email and attachment probes only when those tables exist. A missing
+  -- relation in the same statement as to_regclass is still planned and errors.
+  if to_regclass('public.crm_emails') is not null then
+    execute $q$
+      select exists (
+        select 1 from public.crm_emails e
+        where (
+          exists (select 1 from public.crm_leads l where e.entity = 'lead' and e.entity_id::text = l.id::text and position('TEST-SEED-CRM' in coalesce(l.title, '') || ' ' || coalesce(l.notes, '')) > 0)
+          or exists (select 1 from public.crm_accounts c where e.entity = 'account' and e.entity_id::text = c.id::text and position('TEST-SEED-CRM' in coalesce(c.website, '') || ' ' || coalesce(c.notes, '')) > 0)
+          or exists (select 1 from public.crm_opportunities o where e.entity = 'opportunity' and e.entity_id::text = o.id::text and position('TEST-SEED-CRM' in coalesce(o.name, '') || ' ' || coalesce(o.notes, '')) > 0)
+        )
+      )
+    $q$ into blocked;
+    if blocked then
+      raise exception 'refusing: a CRM email still points at a TEST-SEED-CRM row. Emails are not deleted.';
+    end if;
   end if;
 
-  if to_regclass('public.crm_attachments') is not null and exists (
-    select 1 from public.crm_attachments f
-    where (
-      exists (select 1 from public.crm_leads l where f.entity = 'lead' and f.entity_id::text = l.id::text and position('TEST-SEED-CRM' in coalesce(l.title, '') || ' ' || coalesce(l.notes, '')) > 0)
-      or exists (select 1 from public.crm_accounts c where f.entity = 'account' and f.entity_id::text = c.id::text and position('TEST-SEED-CRM' in coalesce(c.website, '') || ' ' || coalesce(c.notes, '')) > 0)
-      or exists (select 1 from public.crm_opportunities o where f.entity = 'opportunity' and f.entity_id::text = o.id::text and position('TEST-SEED-CRM' in coalesce(o.name, '') || ' ' || coalesce(o.notes, '')) > 0)
-    )
-  ) then
-    raise exception 'refusing: a CRM attachment still points at a TEST-SEED-CRM row. Attachments are not deleted.';
+  if to_regclass('public.crm_attachments') is not null then
+    execute $q$
+      select exists (
+        select 1 from public.crm_attachments f
+        where (
+          exists (select 1 from public.crm_leads l where f.entity = 'lead' and f.entity_id::text = l.id::text and position('TEST-SEED-CRM' in coalesce(l.title, '') || ' ' || coalesce(l.notes, '')) > 0)
+          or exists (select 1 from public.crm_accounts c where f.entity = 'account' and f.entity_id::text = c.id::text and position('TEST-SEED-CRM' in coalesce(c.website, '') || ' ' || coalesce(c.notes, '')) > 0)
+          or exists (select 1 from public.crm_opportunities o where f.entity = 'opportunity' and f.entity_id::text = o.id::text and position('TEST-SEED-CRM' in coalesce(o.name, '') || ' ' || coalesce(o.notes, '')) > 0)
+        )
+      )
+    $q$ into blocked;
+    if blocked then
+      raise exception 'refusing: a CRM attachment still points at a TEST-SEED-CRM row. Attachments are not deleted.';
+    end if;
   end if;
 
   delete from public.crm_activities
