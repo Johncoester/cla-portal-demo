@@ -1,6 +1,7 @@
 /* mock adapter: contacts, participants, documents (deal files). NOTE: there is no delete for documents, for anyone (Admin included). */
 import { cleanEntity } from './mock-part-nov3b.js?v=202611092320';
 import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611090935';
+import { assertContactSaved, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611100500';
 export function contactsTasksDocs(x) {
   const { load, save, nid, needUser, needProcessor, isManager, notViewOnly, seesAll, dealsFor, dealOr404, onDeal, fileRole, log, prof, nameOf, roleOf, fullName, folderOf, docVisible, participantsOf, notify, dealProfileIds, clone, now, fail, str, emailOk, C } = x;
   // u = the deal-scoped viewer (optional). A pure buyer never gets the name, role or id of another party who uploaded a file CLA staff shared with
@@ -51,7 +52,7 @@ export function contactsTasksDocs(x) {
         if (e && e !== c.email && load().contacts.some((z) => z.id !== c.id && z.email === e)) fail('A contact with this email already exists.'); c.email = e; }
       if (patch.contactType !== undefined) { const t = ctype(patch.contactType, c.profileId && prof(c.profileId)); if (t !== (c.contactType || null)) log(null, needUser().id, 'contact.type', 'contact', c.id, `Contact type of ${fullName(c)} set to ${C.contactTypeLabel(t) || 'not set'}`); c.contactType = t; }
       const p = c.profileId && prof(c.profileId); if (p) { p.firstName = c.firstName; p.lastName = c.lastName; p.phone = c.phone; }
-      save(); return clone(c);
+      save(); return assertContactSaved(patch, clone(c));
     },
     // Matt, Nov 3 (b): opts.entity = a buyer / seller who is an entity (name, type, Entity Representative); see cleanEntity
     async addParticipant(dealId, contactId, role, opts = {}) {
@@ -59,7 +60,8 @@ export function contactsTasksDocs(x) {
       if (!C.PARTICIPANT_ROLES.includes(role)) fail('Unknown role.');
       if (isRefi(deal) && REFI_BLOCKED_ROLES.includes(role)) fail(refiRoleMsg(role));   // John, Nov 3: refinance = borrower(s), salespeople, Processor, Lender (migration 32)
       const c = d.contacts.find((z) => z.id === contactId) || fail('Contact not found.');
-      if (d.participants.some((p) => p.dealId === dealId && p.contactId === contactId && p.role === role)) fail('That person already has this role on the order.');
+      const onFile = d.participants.filter((p) => p.dealId === dealId && p.role === role).map((p) => ({ role: p.role, contactId: p.contactId, contact: d.contacts.find((z) => z.id === p.contactId) || {} }));
+      if (sameParty(onFile, c, role)) fail(duplicatePartyMessage(c, role));
       // per-file roles: an outside user's login takes its permissions from this row, so keep it unambiguous
       const login = c.profileId && prof(c.profileId);
       if (login && login.status !== 'removed' && C.isOutside(login.role)) {

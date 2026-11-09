@@ -3,7 +3,7 @@ import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
 import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611090935';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611090935';
-import { CLS, LABEL } from './dealtasks.js?v=202611100200';
+import { CLS, LABEL } from './dealtasks.js?v=202611100500';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 export async function render(c0) {
@@ -93,4 +93,4 @@ function signView({ api, deal, t, refresh, go }) {
 }
 
 // Francis, Nov 3: agent tasks (kind 'agent') have their own page
-async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611100200'); return m.render(c); }
+async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611100500'); return m.render(c); }
