@@ -3,8 +3,7 @@
 // Nov 9: Create and Resend email the invite from the inviter's own connected Gmail (gmail-send); the one-time link is also shown to copy.
 import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611070139';
 import { STATUS_LABEL } from '../data/agent-profile.js?v=202611100005';
-import { agentInviteDraft } from '../data/agent-invite-mail.js?v=202611090935';
-import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100130';
+import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100200';
 const PILL = { pending: 'warn', accepted: 'ok', expired: 'bad', revoked: '' };
 const abs = (link) => location.href.split('#')[0] + link;
 export async function render({ api, refresh }) {
@@ -34,9 +33,8 @@ export async function render({ api, refresh }) {
   return { title: 'Agent Invites', crumbs: [['Agent Invites']], body, mount(root) {
     const f = $('[data-invite-form]', root); const res = $('[data-invite-result]', root); const cSel = $('[data-invite-contact]', f);
     const toggle = () => { $('[data-invite-new]', f).hidden = !!cSel.value; }; cSel.addEventListener('change', toggle); toggle();
-    const showLink = (r, what) => { const draft = r.draft || agentInviteDraft({ ...r, link: r.link ? abs(r.link) : '' }); res.hidden = false; res.innerHTML = html`${r.sendResult ? inviteSendNotice(r.sendResult) : ''}<p><strong>${what}</strong> for ${r.firstName} ${r.lastName} (${draft.to || r.email}).</p>
+    const showLink = (r, what) => { res.hidden = false; res.innerHTML = html`${r.sendResult ? inviteSendNotice(r.sendResult) : ''}<p><strong>${what}</strong> for ${r.firstName} ${r.lastName} (${r.email}).</p>
       <div class="ai-link-row"><input readonly value="${abs(r.link)}" data-invite-link aria-label="One-time invite link"><button type="button" class="m-btn" data-copy-link>Copy</button></div>
-      <div data-invite-draft ${r.sendResult && r.sendResult.sent ? raw('hidden') : ''}><p><strong>Invitation email (not sent)</strong></p><p>To: <span data-invite-to>${draft.to}</span></p><p>Subject: ${draft.subject}</p><p data-invite-body>${draft.body}</p><p class="notice warn" data-invite-delivery>${draft.delivery}</p></div>
       <p class="muted small">Works once, until ${fmtDateTime(r.expiresAt)}. Resend makes a new link, emails it again, and the old one stops working.</p>`.toString();
       $('[data-copy-link]', res).addEventListener('click', async () => { const i = $('[data-invite-link]', res); i.select(); try { await navigator.clipboard.writeText(i.value); toast('Link copied'); } catch (e) { toast('Select the link and copy it'); } }); };
     f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(f).entries());

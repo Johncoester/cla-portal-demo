@@ -44,7 +44,7 @@ setV('[data-invite-contact]', ''); setV('[name="firstName"]', 'Al'); setV('[name
 f.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); await tick();
 ok(asked.length === 3 && refreshed, 'Agent Invites: Create invite link emails it');
 await renderAI();
-ok(document.querySelector('[data-invite-sent="yes"]') && document.querySelector('[data-invite-draft]').hasAttribute('hidden'), 'after create: emailed notice, the not-sent draft is hidden');
+ok(document.querySelector('[data-invite-sent="yes"]') && !document.querySelector('[data-invite-draft]') && !/Email delivery is paused|Invitation email \(not sent\)/.test(document.body.textContent), 'after create: emailed notice, no stale "not sent" draft block');
 ok(!!document.querySelector('[data-invite-emailed]'), 'list has an Emailed column');
 const rb = document.querySelector('[data-resend]');
 if (rb) { rb.dispatchEvent(new window.Event('click', { bubbles: true })); await tick(); ok(asked.length === 4, 'Resend emails the new link'); } else ok(false, 'a Resend button is shown');
@@ -53,4 +53,23 @@ api.listAgentInvites = async () => (await realList()).map((i, n) => (n === 0 ? {
 await renderAI();
 const cells = [...document.querySelectorAll('[data-invite-emailed]')].map((c) => c.textContent);
 ok(/Emailed/.test(cells[0]) && /2/.test(cells[0]) && /Not emailed/.test(cells[1] || ''), 'Emailed column shows date and count, or Not emailed');
+// Nov 9 6:04 PM: a refused / failed send shows the real reason once, and no stale draft block
+answer = { sent: false, to: 'clatestportal+a8@gmail.com', error: 'Not sent. CLA Portal Live Test only sends to test addresses.' };
+p = await ai.render({ api, refresh: () => {} }); document.body.innerHTML = toText(p.body); p.mount(document.body);
+const f2 = document.querySelector('[data-invite-form]'); const setV2 = (sel, v) => f2.querySelector(sel).setAttribute('value', v);
+setV2('[name="firstName"]', 'Bo'); setV2('[name="lastName"]', 'Agent'); setV2('[name="email"]', 'clatestportal+a8@gmail.com');
+f2.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); await tick(); await renderAI();
+const t2 = document.querySelector('[data-invite-result]').textContent;
+ok(/Not emailed: Not sent\. CLA Portal Live Test only sends to test addresses\. Until then/.test(t2) && !/\.\./.test(t2) && !document.querySelector('[data-invite-draft]'), 'failed send: real reason, single period, no draft block');
+// a tab opened before the update (old data layer, new page): says reload, not a vague error
+const { autoSendInvite, inviteSendNotice } = await import('../js/data/invite-send.js');
+const stale = await autoSendInvite({}, 'agent', '#/agent-invite/' + 'b'.repeat(64));
+const st = toText(inviteSendNotice(stale));
+ok(stale.stale && /updated while this page was open/.test(st) && /Reload the page/.test(st) && /Resend on Agent Invites/.test(st) && !/\.\./.test(st), 'stale tab: tells you to reload and Resend');
+const hrStale = toText(inviteSendNotice(await autoSendInvite({}, 'hr', '#/hr-invite/' + 'b'.repeat(64))));
+ok(/Make a new invite link/.test(hrStale), 'stale tab (HR): points at the HR new-link button');
+const bad = toText(inviteSendNotice(await autoSendInvite({ sendInviteEmail: async () => ({ sent: true }) }, 'agent', '#/agent-invite/xyz')));
+ok(/not in the expected form/.test(bad) && /Use Resend on Agent Invites/.test(bad), 'malformed link: specific reason');
+const conn = toText(inviteSendNotice({ sent: false, connectGmail: true, error: 'Connect Gmail first (Profile Setting > Gmail).' }));
+ok(!/\.\./.test(conn) && /Connect Gmail to send automatically/.test(conn), 'connect-Gmail notice has no double period');
 console.log(fail ? `FAIL ${fail}` : 'all invite auto-email UI checks passed'); process.exit(fail ? 1 : 0);
