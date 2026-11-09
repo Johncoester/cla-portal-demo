@@ -4,11 +4,11 @@
  * With the browser flag off every method refuses before calling the database. Meetings never send invitations; nothing is emailed. */
 import { CRM_OFF } from './features.js?v=202611070139';
 import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611070139';
-import { localDate } from './constants.js?v=202611082250';
+import { localDate } from './constants.js?v=202611090935';
 import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611070139';
-import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611090905';
+import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611090935';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611070139';
-import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611082250';
+import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611090935';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };

@@ -2,7 +2,7 @@
 // Searches name, email, phone (digits) and company / brokerage as you type; arrow keys + Enter or a click select; Escape closes.
 // Only the first MAX matches are drawn, so it stays fast with thousands of contacts. The chosen contact id goes into a hidden input (name = the field).
 import { html, toText, $ } from '../ui.js?v=202611070139';
-import { fmtPhone, contactTypeLabel } from '../data/constants.js?v=202611082250';
+import { fmtPhone, contactTypeLabel } from '../data/constants.js?v=202611090935';
 
 const MAX = 25;
 const digits = (s) => String(s || '').replace(/\D/g, '');
