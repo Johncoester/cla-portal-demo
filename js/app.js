@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611091140';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611091140';
+import { getAdapter } from './data/adapter.js?v=202611091730';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611091730';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611090935';
 import { canUseCrm } from './data/crm.js?v=202611070139';
@@ -13,15 +13,15 @@ import { canInviteAgents } from './data/agent-profile.js?v=202611090935';
 import { yourAgentHtml } from './pages/your-agent.js?v=202611090935';
 import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611090935';
-import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611090935';   // John, Nov 4: one locked login link per fake user
+import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611091730';   // John, Nov 4: one locked login link per fake user
 import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080400';
 import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611082000';
 import { botRegistry } from './data/bot-registry.js?v=202611080400';
 import { voiceRouteOk } from './data/voice-demo.js?v=202611091110';
 import { mountVoiceChrome, prepareVoiceShell, stopVoiceNow, voiceMenuHtml } from './pages/voice-panel.js?v=202611091110';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611070139';   // John, Nov 4 call: sidebar search + pinned order nav
-import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611090935';
-import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611070139';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
+import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611091730';
+import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611091730';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
@@ -30,11 +30,11 @@ document.addEventListener('input', (e) => { const el = e.target; if (el instance
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611090935'),
-  dashboard: () => import('./pages/dashboard.js?v=202611091140'),
-  orders: () => import('./pages/orders.js?v=202611090935'),
+  login: () => import('./pages/entry.js?v=202611091730'),
+  dashboard: () => import('./pages/dashboard.js?v=202611091730'),
+  orders: () => import('./pages/orders.js?v=202611091600'),
   'orders/new': () => import('./pages/ordernew.js?v=202611091030'),
-  deal: () => import('./pages/deal.js?v=202611091140'),
+  deal: () => import('./pages/deal.js?v=202611091730'),
   users: () => import('./pages/users.js?v=202611090935'),
   profile: () => import('./pages/profile.js?v=202611090935'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
@@ -44,15 +44,15 @@ const pages = {
   library: () => import('./pages/library.js?v=202611091030'),
   activity: () => import('./pages/activity.js?v=202611070139'),
   outbox: () => import('./pages/outbox.js?v=202611090935'),
-  tasks: () => import('./pages/tasks.js?v=202611091140'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611090935'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  tasks: () => import('./pages/tasks.js?v=202611091730'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611091600'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js?v=202611090935'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611090935'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => import('./pages/modules.js?v=202611090935'),
   'agent-invites': () => import('./pages/agent-invites.js?v=202611090935'),   // John, Nov 4: invite agents (link shown, nothing sent)
   'agent-invite': () => import('./pages/agent-signup.js?v=202611090935'),     // the agent's one-time setup link (no sign-in)
   underwriters: () => import('./pages/underwriters.js?v=202611070139'),
-  hr: () => import('./pages/hr.js?v=202611090935'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
+  hr: () => import('./pages/hr.js?v=202611091730'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
   'hr-invite': () => import('./pages/hr-invite.js?v=202611070139'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => import('./pages/offices.js?v=202611090935'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
   demo: () => import('./pages/demo-view.js?v=202611070139'),   // permanent Demo mode: Super admin views a seeded demo user
@@ -174,7 +174,8 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
   const agentCard = yourAgentHtml(agents);
   const sidebarHead = deal ? html`<a class="logo-home-link" href="#/deals/${deal.id}"><div class="order-heading-left"><span>${deal.fileNumber}</span></div><div class="map-div"><img class="map-pin" src="assets/img/map-icon-new.png" alt=""><p>${deal.street}<br>${deal.city}, ${deal.state}, ${deal.zip}</p></div></a>` : '';
   // John, Nov 4 call: order search in the sidebar (not in the CRM-only workspace or the neutral Home); inside an order non-admins get order-only items
-  const sideSearchOn = !deal && ws !== null && ws !== 'crm'; if (deal) noteRecent(u, deal.id);
+  // Francis Nov 9: HR-only logins (and anyone in the HR workspace) get flat HR links — no More fold and no order search that always comes back empty.
+  const sideSearchOn = !deal && ws !== null && ws !== 'crm' && ws !== 'hr' && !hrOnly(u); if (deal) noteRecent(u, deal.id);
   // CLIENT SHELL (John, Nov 4): the buyer / seller File Overview AND every file tab (To-do list, Messages, Documents, Closing appointment, Activity; the seller's
   // tabs too) use a light shell: white top bar with the CLA logo and a baby-blue rule, pill tabs in the page, no sidebar. Tab pages keep the "Your agent" card.
   if (view.tcPage || view.clientPage) return html`<div class="co-shell" data-client-shell${view.tcPage ? ' data-tc-shell' : ''}>

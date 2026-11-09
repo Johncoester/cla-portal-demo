@@ -2,16 +2,23 @@
 // Transaction Coordinator = Dashboard; Buyer/Listing Agent = Transactions; clients = My Closing.
 import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js?v=202611070139';
 import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611090935';
-import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611091140';
+import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611091730';
 import { themeOn } from '../theme.js?v=202611070139';
 import { mapLimit } from '../data/read-batch.js?v=202611082010';
 import { pendingMine } from '../data/task-actions.js?v=202611090935';
+import { unassignedOpen } from '../data/processor-assign.js?v=202611091600';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>${d.fileTitle ? html` <span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}`;
 // CARD THEME (default look): a tile that repeats one of the four dashboard cards (open orders = "in Pipeline" count, overdue tasks) is not drawn;
 // the tiles with figures the cards do not show stay. With ?theme=default every tile is drawn as before.
 const stat = (label, value, sub, cls = '', dup = false) => (dup && themeOn() ? '' : html`<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value ${cls}">${value}</div><div class="stat-sub">${sub}</div></div>`);
 const bar = (d) => html`<div class="progress" title="${d.stageName}"><div style="width:${Math.round(((d.stage + 1) / STAGES.length) * 100)}%"></div></div>`;
+
+// John, Nov 9: open files with no Processor (the AI opener left it blank, or the Processor is out). Assign one from Edit order details on the file.
+const UNASSIGNED_LINK = '#/orders?s=Open&p=unassigned';
+const unassignedCard = (open) => { const list = unassignedOpen(open);
+  return html`<div class="card" data-unassigned-files><h3>Unassigned files <span class="pill ${list.length ? 'warn' : 'ok'}" data-unassigned-count>${list.length}</span></h3>
+    ${list.length ? html`<p class="muted small">Open files with no Processor. Open one and use Edit order details to assign a Processor; they get an in-app notification.</p><ul class="plain">${list.slice(0, 8).map((d) => html`<li>${dealLink(d)} <span class="pill warn">Unassigned</span> <span class="muted">${d.address}</span></li>`)}</ul>${list.length > 8 ? html`<p class="muted small">and ${list.length - 8} more</p>` : ''}<a class="ghost" href="${UNASSIGNED_LINK}">See all unassigned in Orders</a>` : html`<p class="muted">Every open file has a Processor.</p>`}</div>`; };
 
 export async function render(ctx) {
   const { api, user } = ctx;
@@ -39,7 +46,8 @@ async function processor({ api, open, deals, today }) {
     <div class="page-head"><div><div class="eyebrow">PROCESSOR</div><h2 class="page-title">Work queue</h2><div class="muted">${wq.assigned} open &middot; ${wq.totalAssigned} total assigned</div></div>
       <div><button class="ghost" id="remind">Queue reminders for overdue tasks</button> <a class="ghost" href="#/outbox">Outbox</a> <a class="m-btn" href="#/orders/new">+ New order</a></div></div>
     <div class="stat-row">${stat('Open orders', wq.assigned, wq.totalAssigned + ' total', '', true)}${stat('Waiting on clients', wq.blockedOnClients, 'client tasks open', 'warn')}
-      ${stat('Overdue tasks', wq.overdueTasks, 'past due date', wq.overdueTasks ? 'bad' : '', true)}${stat('Unread messages', wq.unreadMessages, 'across open orders')}</div>
+      ${stat('Overdue tasks', wq.overdueTasks, 'past due date', wq.overdueTasks ? 'bad' : '', true)}${stat('Unread messages', wq.unreadMessages, 'across open orders')}${stat('Unassigned', unassignedOpen(open).length, html`<a href="${UNASSIGNED_LINK}">open files with no Processor</a>`, unassignedOpen(open).length ? 'warn' : '')}</div>
+    ${unassignedCard(open)}
     <div class="two-col"><div class="card"><h3>Needs attention</h3>
       ${rows.length ? html`<table class="tbl"><thead><tr><th>Order</th><th>Property</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : html`<p class="muted">Nothing needs attention.</p>`}</div>
       <div class="card"><h3>Closing in the next 3 weeks</h3>${soon.length ? html`<ul class="plain">${soon}</ul>` : html`<p class="muted">No closings scheduled soon.</p>`}</div></div>
@@ -102,7 +110,7 @@ async function client({ user, deals, all }) {
   return { title: 'My closing', body: html`<div class="page-head"><div><div class="eyebrow">${user.role === 'Client-Buyer' ? 'BUYER' : 'SELLER'}</div><h2 class="page-title">My closing</h2></div></div>${blocks.length ? blocks : html`<p class="muted">You have no open closings.</p>`}` };
 }
 
-async function admin({ api, user, deals }) {
+async function admin({ api, user, deals, open }) {
   const [users, teams, log] = await Promise.all([api.adminListUsers(), api.listTeams(), api.listActivity(null, { type: 'user' })]);
   const count = (st) => users.filter((u) => u.status === st).length;
   const rows = log.items.slice(0, 8).map((a) => html`<tr><td class="nowrap">${fmtDateTime(a.createdAt)}</td><td>${a.actorName}</td><td>${a.detail}</td></tr>`);
@@ -110,7 +118,8 @@ async function admin({ api, user, deals }) {
     <div class="page-head"><div><div class="eyebrow">${user.role === 'Admin' ? 'ADMIN' : html`ADMIN &middot; ${user.role.toUpperCase()}`}</div><h2 class="page-title">Admin overview</h2><div class="muted">Admins (role Admin, or the Admin flag on another role) manage users and teams and can see every order and file.</div></div>
       <div><a class="ghost" href="#/teams">Teams</a> <a class="m-btn" href="#/users/new">+ Create user</a></div></div>
     <div class="stat-row">${stat('Active users', count('active'), users.length + ' accounts')}${stat('Disabled', count('disabled'), 'cannot sign in', count('disabled') ? 'warn' : '')}
-      ${stat('Removed', count('removed'), 'history kept')}${stat('Teams', teams.length, 'coordinator access')}${stat('Orders', deals.length, 'all visible to Admin')}</div>
+      ${stat('Removed', count('removed'), 'history kept')}${stat('Teams', teams.length, 'coordinator access')}${stat('Orders', deals.length, 'all visible to Admin')}${stat('Unassigned', unassignedOpen(open).length, html`<a href="${UNASSIGNED_LINK}">open files with no Processor</a>`, unassignedOpen(open).length ? 'warn' : '')}</div>
+    ${unassignedCard(open)}
     <div class="two-col"><div class="card"><h3>Recent user changes</h3>${rows.length ? html`<table class="tbl"><tbody>${rows}</tbody></table>` : html`<p class="muted">None yet.</p>`}<a class="ghost" href="#/activity?type=user">Full log</a></div>
       <div class="card"><h3>Teams</h3><ul class="plain">${teams.map((t) => html`<li><strong>${t.name}</strong><br><span class="muted">${t.members.map((m) => `${m.name} (${m.memberRole})`).join(', ') || 'No members'}</span></li>`)}</ul></div></div>` };
 }

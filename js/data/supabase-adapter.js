@@ -1,7 +1,7 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611090935';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611091600';
 import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611090935';
 import { assertRecipients, messageText } from './portal-message.js?v=202611090935';
 import { planDocumentBatch } from './document-batch.js?v=202611090935';
@@ -14,7 +14,7 @@ import { callItemsSupabase } from './supabase-callitems.js?v=202611090935';
 import { automationPart } from './automation.js?v=202611090935';
 import { runsOrders as runsOrdersCI } from './constants.js?v=202611090935';
 import { crmSupabase } from './supabase-crm.js?v=202611090935';
-import { hrSupabase } from './supabase-hr.js?v=202611070139';
+import { hrSupabase } from './supabase-hr.js?v=202611091730';
 import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611090935';
 import { officesSupabase } from './supabase-offices.js?v=202611090935';
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611090935';
@@ -26,6 +26,7 @@ import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611090935';
 import { staffSupabase } from './supabase-staff.js?v=202611082000';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611080400';
+import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
 import { propertyAddressOf } from './nov5-rules.js?v=202611090935';
 import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611090935';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
@@ -61,6 +62,22 @@ export async function createSupabaseAdapter(cfg) {
   const salesMap = async (dealId) => { const m = new Map(); (ok(await sb.rpc('deal_sales_list', dealId ? { p_deal: dealId } : {})) || []).forEach((r) => {
     if (!m.has(r.deal_id)) m.set(r.deal_id, []); m.get(r.deal_id).push({ id: r.sales_id, name: r.name, role: r.role, addedAt: r.added_at }); }); return m; };
   const salesFields = (xs = []) => ({ salesPeople: xs, salesPersonIds: xs.map((x) => x.id), salesPersonName: xs.map((x) => x.name).join(', ') });
+  // John, Nov 9: real Processor names on hosted orders (deals rows only carry processor_id). One small staff-name read, shared for 5 minutes
+  // and run alongside the other list reads; a Processor whose role later changed is looked up once by id. A failed read just leaves names blank.
+  let procNames = null; let procNamesAt = 0;
+  const processorNames = () => {
+    if (!procNames || Date.now() - procNamesAt > 300000) {
+      procNamesAt = Date.now();
+      procNames = Promise.resolve().then(() => sb.from('profiles').select('id, first_name, last_name').in('role', PROCESSOR_PICK_ROLES))
+        .then((r) => { if (r.error) { procNames = null; return new Map(); } return new Map((r.data || []).map((p) => [p.id, nameOfProfile(p)])); }, () => { procNames = null; return new Map(); });
+    }
+    return procNames;
+  };
+  const withProcessorNames = async (deals, names) => {
+    const miss = missingProcessorIds(deals, names);
+    if (miss.length) { try { const r = await sb.from('profiles').select('id, first_name, last_name').in('id', miss); (r.data || []).forEach((p) => names.set(p.id, nameOfProfile(p))); } catch (e) { /* names stay blank */ } }
+    return names;
+  };
   const types = async (ids) => new Map(ids.length ? (ok(await sb.rpc('contact_types', { p_ids: [...new Set(ids)] })) || []).map((r) => [r.contact_id, r.contact_type]) : []);
   const withRole = (d, r, pm) => ({ ...d, myRole: r && r.role, myRoles: (r && r.roles) || [], myRoleLabel: r && r.label, selfRep: !!(r && r.self_rep), agentParties: pm.get(d.id) || [] });
   const profile = profileFlight();
@@ -84,6 +101,7 @@ export async function createSupabaseAdapter(cfg) {
   }
   function dropAuth() {
     ident.invalidate();
+    procNames = null;
     authUserFlight = null;
     authUserFlightOwner = 0;
     profile.clear();
@@ -144,8 +162,10 @@ export async function createSupabaseAdapter(cfg) {
       titles: () => titles(id),
       entities: async () => ok(await sb.rpc('deal_entities', { p_deal: id })) || [],
       source: async () => ok(await sb.rpc('deal_source', { p_deal: id })) || [],
+      procs: () => processorNames(),
     });
     const d = got.row;
+    Object.assign(d, processorFields(d, await withProcessorNames([d], new Map(got.procs))));
     d.participants = got.contacts.map((r) => ({ id: r.participant_id, dealId: r.deal_id, contactId: r.contact_id, role: r.role,
       contact: { id: r.contact_id, profileId: r.profile_id, firstName: r.first_name, lastName: r.last_name, company: r.company, email: r.email, phone: r.phone, contactHidden: r.contact_hidden } }));
     const ct = await types(d.participants.map((p) => p.contactId)); d.participants.forEach((p) => { p.contact.contactType = ct.get(p.contactId) || null; });
@@ -158,7 +178,9 @@ export async function createSupabaseAdapter(cfg) {
     return withRole(d, got.roles.get(d.id), got.parties);
   }
   async function fetchFileShell(id) {
-    const row = camel(ok(await sb.from('deals').select('*').eq('id', id).single()));
+    const [raw, names] = await Promise.all([sb.from('deals').select('*').eq('id', id).single(), processorNames()]);
+    const row = camel(ok(raw));
+    Object.assign(row, processorFields(row, names));
     row.address = `${row.street}, ${row.city}, ${row.state} ${row.zip}`;
     row.participants = [];
     row.salesPeople = [];
@@ -241,11 +263,13 @@ export async function createSupabaseAdapter(cfg) {
         extras: async () => ok(await sb.rpc('deal_list_extras')) || [],
         sales: () => salesMap(),
         titles: () => titles(),
+        procs: () => processorNames(),
         rows: async () => camel(ok(await q.order('open_date', { ascending: false }).order('file_number', { ascending: false }))) || [],
       });
       const ex = new Map(got.extras.map((r) => [r.deal_id, r]));
+      const pn = await withProcessorNames(got.rows, new Map(got.procs));
       return got.rows.map((d) => ({ ...withRole(d, got.roles.get(d.id), got.parties),
-        address: `${d.street}, ${d.city}, ${d.state} ${d.zip}`, displayName: propertyAddressOf(d), county: d.county || '', fileTitle: got.titles.get(d.id) || '', partyNames: (ex.get(d.id) || {}).party_names || [], overdueTasks: (ex.get(d.id) || {}).overdue_tasks || 0, ...salesFields(got.sales.get(d.id)) }));
+        address: `${d.street}, ${d.city}, ${d.state} ${d.zip}`, displayName: propertyAddressOf(d), county: d.county || '', fileTitle: got.titles.get(d.id) || '', partyNames: (ex.get(d.id) || {}).party_names || [], overdueTasks: (ex.get(d.id) || {}).overdue_tasks || 0, ...salesFields(got.sales.get(d.id)), ...processorFields(d, pn) }));
     },
     // participants come from deal_contacts() (migration 13): the other side's agent/client keep their names but phone/email are blank for outside users
     async getDeal(id) { return fetchDeal(id); },
