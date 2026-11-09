@@ -224,7 +224,7 @@ const html = readFileSync(path.join(root, 'index.html'), 'utf8');
 const appSrc = readFileSync(path.join(root, 'js/app.js'), 'utf8');
 const adapterSrc = readFileSync(path.join(root, 'js/data/adapter.js'), 'utf8');
 const heavySrc = readFileSync(path.join(root, 'js/data/supabase-adapter.js'), 'utf8');
-check(html.includes('js/app.js?v=202611090250') && !html.includes('boot-marks') && appSrc.includes("adapter.js?v=202611090250") && appSrc.includes("pages/tasks.js?v=202611090250") && appSrc.includes("pages/taskgrid.js?v=202611090250") && adapterSrc.includes("supabase-adapter.js?v=202611090250"), 'the changed imports keep their cache query');
+check(html.includes('js/app.js?v=202611090905') && !html.includes('boot-marks') && appSrc.includes("adapter.js?v=202611090905") && appSrc.includes("pages/tasks.js?v=202611090250") && appSrc.includes("pages/taskgrid.js?v=202611090250") && adapterSrc.includes("supabase-adapter.js?v=202611090905"), 'the changed imports keep their cache query');
 check(appSrc.includes("api.listAllTasks({ fileStatus: 'All' })") && heavySrc.includes("nav.share(u.id, 'grid:' + fs") && heavySrc.includes('Promise.all([sb.rpc(\'task_grid\''), 'the board overlap stays and the grid read shares one flight');
 const money = {
   'js/data/constants.js': '9572d16f9e92bd33db5d131ce7c1acb8ab005110b14727ee50357586b5e3eea2',

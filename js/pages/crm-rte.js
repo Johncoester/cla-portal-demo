@@ -4,9 +4,9 @@
 // table, horizontal rule, Insert field (and typing #), Insert Code, Edit HTML, Survey (not available yet). Every HTML that leaves the editor is
 // sanitized (crm-templates.js sanitizeHtml: no scripts, no event handlers, no javascript: links). Function first, minimal styling.
 import { html, raw, $, $$, toast, modal, closeModal, esc } from '../ui.js?v=202611070139';
-import { sanitizeHtml, safeLink, safeImageSrc } from '../data/crm-templates.js?v=202611070139';
+import { sanitizeHtml, safeLink, safeImageSrc, INLINE_IMAGE_MAX_BYTES, imageLimitMessage } from '../data/crm-templates.js?v=202611090905';
 
-export const IMAGE_MAX_BYTES = 400_000;   // uploaded images are stored inside the template (demo storage is small); bigger: use a web link
+export const IMAGE_MAX_BYTES = INLINE_IMAGE_MAX_BYTES;
 const FONTS = ['Arial', 'Georgia', 'Times New Roman', 'Verdana', 'Courier New', 'Tahoma'];
 const SIZES = [['1', '10 px'], ['2', '13 px'], ['3', '16 px'], ['4', '18 px'], ['5', '24 px'], ['6', '32 px'], ['7', '48 px']];
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
@@ -44,7 +44,7 @@ export function imageDialog(done, { title = 'Insert Image' } = {}) {
   const m = modal(title, html`<form id="img-form" class="form-grid" novalidate>
     <div class="span2"><label class="check"><input type="radio" name="from" value="upload" checked data-img-from="upload"> Upload from computer</label>
       <label class="check"><input type="radio" name="from" value="url" data-img-from="url"> Web URL</label></div>
-    <label class="span2" data-img-upload>Image file (PNG, JPG, GIF, WEBP; up to ${Math.round(IMAGE_MAX_BYTES / 1000)} KB)<input type="file" name="file" accept="image/png,image/jpeg,image/gif,image/webp" data-img-file></label>
+    <label class="span2" data-img-upload>Image file (PNG, JPG, GIF, WEBP; up to 3 MB)<input type="file" name="file" accept="image/png,image/jpeg,image/gif,image/webp" data-img-file></label>
     <label class="span2" data-img-urlrow hidden>Image URL<input name="url" maxlength="1000" placeholder="https://" data-img-url></label>
     <label>Width (px)<input name="width" type="number" min="1" max="1200" placeholder="auto" data-img-w></label>
     <label>Height (px)<input name="height" type="number" min="1" max="2000" placeholder="auto" data-img-h></label>
@@ -54,7 +54,7 @@ export function imageDialog(done, { title = 'Insert Image' } = {}) {
   const f = $('#img-form', m);
   $$('[data-img-from]', f).forEach((r) => r.addEventListener('change', () => { const up = f.from.value === 'upload'; $('[data-img-upload]', f).hidden = !up; $('[data-img-urlrow]', f).hidden = up; }));
   f.addEventListener('submit', async (e) => { e.preventDefault(); const err = $('[data-form-err]', f); err.textContent = ''; let src = '';
-    try { if (f.from.value === 'upload') { const file = f.file.files[0]; if (!file) throw new Error('Choose an image file.'); if (file.size > IMAGE_MAX_BYTES) throw new Error(`That image is over ${Math.round(IMAGE_MAX_BYTES / 1000)} KB; use a smaller one or a web URL.`);
+    try { if (f.from.value === 'upload') { const file = f.file.files[0]; if (!file) throw new Error('Choose an image file.'); if (file.size > IMAGE_MAX_BYTES) throw new Error(imageLimitMessage(file.size, IMAGE_MAX_BYTES));
         src = safeImageSrc(await readFile(file)); if (!src) throw new Error('Only PNG, JPG, GIF or WEBP images.'); }
       else { src = safeImageSrc(f.url.value); if (!src) throw new Error('Enter an http(s) image address.'); } } catch (x) { err.textContent = x.message; return; }
     const w = Math.round(Number(f.width.value)) || 0, h = Math.round(Number(f.height.value)) || 0; closeModal(); done({ src, width: w > 0 ? Math.min(w, 1200) : 0, height: h > 0 ? Math.min(h, 2000) : 0, alt: f.alt.value.trim() }); });

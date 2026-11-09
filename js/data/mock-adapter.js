@@ -6,7 +6,7 @@
 import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, localDate, localDayOf, isRealDate,
   isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
   phoneOk, fmtPhone, PHONE_MSG, fileTitleOf, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611082250';
-import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611082250';
+import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611090905';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
 import { delegationLocked, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611082250';
 import { dealsAndAuth } from './mock-part-deals.js?v=202611082250';
@@ -20,10 +20,10 @@ import { closingSchedule } from './mock-part-schedule.js?v=202611070139';
 import { notificationsPart } from './mock-part-notify.js?v=202611070139';
 import { mattP2 } from './mock-part-matt.js?v=202611082250';
 import { mattNov2 } from './mock-part-nov2.js?v=202611082250';
-import { crmPart } from './mock-part-crm.js?v=202611082250';
+import { crmPart } from './mock-part-crm.js?v=202611090905';
 import { featureFlags } from './features.js?v=202611070139';
 import { crmZohoUpgrade } from './crm.js?v=202611070139';
-import { ensureEmailTemplates } from './crm-templates.js?v=202611070139';
+import { ensureEmailTemplates } from './crm-templates.js?v=202611090905';
 import { ensureNov3b as ensureCrmNov3b } from './crm-nov3b.js?v=202611070139';
 import { ensureAgentPortal } from './agent-portal.js?v=202611082250';
 import { agentPortal } from './mock-part-agent.js?v=202611082250';

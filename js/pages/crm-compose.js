@@ -2,8 +2,8 @@
  * NOTHING IS SENT: Gmail is not connected. "Send" saves the email on the record as "Drafted (not sent)"; "Schedule" saves it as "Scheduled (not sent)".
  * Both stay on the record's Emails list for good (never deleted). Function only (no styling work). */
 import { html, raw, $, $$, guard, toast, modal, closeModal, fmtDateTime, fmtSize, toText } from '../ui.js?v=202611070139';
-import { richEditor, readFile } from './crm-rte.js?v=202611070139';
-import { moduleLabel } from '../data/crm-templates.js?v=202611070139';
+import { richEditor, readFile } from './crm-rte.js?v=202611090905';
+import { moduleLabel } from '../data/crm-templates.js?v=202611090905';
 
 const EMOJI = ['🙂', '😀', '👍', '🎉', '🏠', '🔑', '📅', '✅', '📞', '✉️'];
 const TEMPLATE_ENTITIES = ['lead', 'contact', 'account', 'opportunity'];

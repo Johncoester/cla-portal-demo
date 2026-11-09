@@ -6,6 +6,8 @@ import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611070139';
 import { modOn, modBeta, BETA_LABEL } from '../data/modules.js?v=202611082250';   // module switches: Deals hidden when not Live (beta badge for Admins)
 import { createNewMenu } from './crm-janine.js?v=202611082250';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
+import { pageOf, selectionState, selectPage, BULK_PAGE_SIZE } from '../data/crm-bulk.js?v=202611090905';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611090905';
 
 // Nov 2 (Zoho): Home is the CRM landing page; Contacts are shown as Clients and Accounts as Companies (routes keep their internal names); My follow-ups -> Home tasks
 export const SECTIONS = [['home', 'Home'], ['leads', 'Leads'], ['contacts', 'Clients'], ['accounts', 'Companies'], ['deals', 'Deals'], ['pipeline', 'Pipeline'], ['dashboards', 'Dashboards'], ['reports', 'Reports'], ['templates', 'Templates']];   // Nov 3 (b): Deals (the portal's orders), Dashboards (video 9);   // Nov 3: Templates (email templates, every CRM user; Processor read-only)
@@ -30,7 +32,7 @@ export const dis = (me) => (me.canEdit ? '' : raw('disabled'));
 // exporter(cols, rows) -> { name, csv }: the adapter builds the file and refuses anyone but an Admin / Super admin (John, Nov 3: Clients, Leads, Companies)
 // Janine, Nov 4: bar = the custom-view tabs (crm-views.js viewsBar) shown above the filters; saved = { api, listKey } adds Saved Filters chips
 const datePair = (from, to, label) => html`<label>${label} from<input type="date" name="${from}" data-crm-date></label><label>${label} to<input type="date" name="${to}" data-crm-date></label>`;
-export function listView({ key, rows, cols, filters = [], sorts = [], fields, dflt = {}, sortDefault = 'name:asc', csv = '', exporter = null, bar = '', saved = null, dates = false }) {
+export function listView({ key, rows, cols, filters = [], sorts = [], fields, dflt = {}, sortDefault = 'name:asc', csv = '', exporter = null, bar = '', saved = null, dates = false, bulk = null }) {
   const body = html`${bar}<form class="filter-bar" id="crm-f-${key}" onsubmit="return false">
       <label>Search<input name="q" type="search" placeholder="Name, email, company, county, tag" data-crm-search></label>
       ${filters.map(([name, label, opts, blank]) => html`<label>${label}${sel(name, opts, dflt[name] || '', blank)}</label>`)}
@@ -38,19 +40,36 @@ export function listView({ key, rows, cols, filters = [], sorts = [], fields, df
       <label>Sort<select name="sort">${sorts.flatMap(([k, l]) => [html`<option value="${k}:asc" ${sortDefault === k + ':asc' ? raw('selected') : ''}>${l} &uarr;</option>`, html`<option value="${k}:desc" ${sortDefault === k + ':desc' ? raw('selected') : ''}>${l} &darr;</option>`])}</select></label>
       <button type="button" class="ghost" data-crm-reset>Reset</button>
     </form>${saved ? savedFiltersHtml(saved.listKey) : ''}
-    <div class="table-tools"><span class="muted" data-count></span>${csv ? html` <button class="ghost" type="button" data-list-csv="${key}">Export CSV</button>` : exporter ? html` <span class="muted small" data-csv-admin-only>CSV download: Admins only</span>` : ''}</div>
-    <table class="tbl" id="crm-t-${key}"><thead><tr>${cols.map(([, l]) => html`<th>${l}</th>`)}</tr></thead><tbody></tbody></table>`;
+    ${bulk ? bulkBar(bulk.module) : ''}
+    <div class="table-tools"><span class="muted" data-count></span>${bulk ? html` <span data-bulk-pager></span>` : ''}${csv ? html` <button class="ghost" type="button" data-list-csv="${key}">Export CSV</button>` : exporter ? html` <span class="muted small" data-csv-admin-only>CSV download: Admins only</span>` : ''}</div>
+    <table class="tbl" id="crm-t-${key}"><thead><tr>${bulk ? html`<th><input type="checkbox" data-bulk-page aria-label="Select all on this page"></th>` : ''}${cols.map(([, l]) => html`<th>${l}</th>`)}</tr></thead><tbody></tbody></table>`;
   function mount(root) {
     const f = $(`#crm-f-${key}`, root); const tb = $(`#crm-t-${key} tbody`, root); let shown = rows;
-    const apply = () => { const v = formData(f); const [k, dir] = (v.sort || sortDefault).split(':'); const list = crmSort(crmFilter(rows, v, fields), k, dir); shown = list;
-      tb.innerHTML = toText(list.length ? list.map((r) => html`<tr data-row="${r.id}">${cols.map(([c, , fn]) => html`<td data-col="${c}">${fn ? fn(r) : r[c] ?? ''}</td>`)}</tr>`) : html`<tr><td colspan="${cols.length}" class="muted">Nothing matches.</td></tr>`);
-      $('[data-count]', root).textContent = `${list.length} of ${rows.length} shown`; };
+    let selected = new Set(); let page = 1; let sig = '';
+    const paintBar = () => { const barEl = $('[data-bulk-bar]', root); if (!barEl) return; barEl.hidden = selected.size === 0; const n = $('[data-bulk-count]', barEl); if (n) n.textContent = `${selected.size} selected`; };
+    const apply = () => { const v = formData(f); const nextSig = JSON.stringify(v); if (bulk && nextSig !== sig) { if (sig) { selected = new Set(); page = 1; } sig = nextSig; }
+      const [k, dir] = (v.sort || sortDefault).split(':'); const list = crmSort(crmFilter(rows, v, fields), k, dir); shown = list;
+      const view = bulk ? pageOf(list, page, BULK_PAGE_SIZE) : { rows: list, page: 1, pages: 1, total: list.length }; page = view.page;
+      const span = cols.length + (bulk ? 1 : 0);
+      tb.innerHTML = toText(view.rows.length ? view.rows.map((r) => html`<tr data-row="${r.id}">${bulk ? html`<td><input type="checkbox" data-bulk-row value="${r.id}" aria-label="Select ${r.name || 'record'}" ${selected.has(r.id) ? raw('checked') : ''}></td>` : ''}${cols.map(([c, , fn]) => html`<td data-col="${c}">${fn ? fn(r) : r[c] ?? ''}</td>`)}</tr>`) : html`<tr><td colspan="${span}" class="muted">Nothing matches.</td></tr>`);
+      $('[data-count]', root).textContent = bulk && list.length > BULK_PAGE_SIZE ? `${view.rows.length} on this page, ${list.length} of ${rows.length} match` : `${list.length} of ${rows.length} shown`;
+      const box = $('[data-bulk-page]', root); if (box) { const st = selectionState(selected, view.rows); box.checked = st.allOnPage; box.indeterminate = st.someOnPage; }
+      const pg = $('[data-bulk-pager]', root); if (pg) pg.innerHTML = toText(view.pages > 1 ? html`<button type="button" class="ghost" data-bulk-prev ${view.page <= 1 ? raw('disabled') : ''}>Previous</button> Page ${view.page} of ${view.pages} <button type="button" class="ghost" data-bulk-next ${view.page >= view.pages ? raw('disabled') : ''}>Next</button>` : html``);
+      paintBar(); };
     f.addEventListener('input', apply); f.addEventListener('change', apply);
     const resetBtn = $('[data-crm-reset]', f); if (resetBtn) resetBtn.addEventListener('click', () => {
       [...f.elements].forEach((el) => { if (!el.name) return; el.value = el.name === 'sort' ? sortDefault : (dflt[el.name] || ''); });
       apply();
     });
     apply();
+    if (bulk) {
+      const box = $('[data-bulk-page]', root);
+      if (box) box.addEventListener('change', () => { selected = selectPage(selected, pageOf(shown, page, BULK_PAGE_SIZE).rows, box.checked); apply(); });
+      tb.addEventListener('change', (e) => { const el = e.target; if (!el.matches || !el.matches('[data-bulk-row]')) return; if (el.checked) selected.add(el.value); else selected.delete(el.value);
+        const st = selectionState(selected, pageOf(shown, page, BULK_PAGE_SIZE).rows); box.checked = st.allOnPage; box.indeterminate = st.someOnPage; paintBar(); });
+      root.addEventListener('click', (e) => { const t = e.target; if (t.matches && t.matches('[data-bulk-prev]')) { page -= 1; selected = new Set(); apply(); } if (t.matches && t.matches('[data-bulk-next]')) { page += 1; selected = new Set(); apply(); } });
+      wireBulk(root, { ...bulk, getPageRows: () => pageOf(shown, page, BULK_PAGE_SIZE).rows.filter((r) => selected.has(r.id)), clear: () => { selected = new Set(); apply(); } });
+    }
     if (saved) wireSavedFilters(root, saved.api, saved.listKey, { getValues: () => { const v = formData(f); delete v.sort; return v; },
       setValues: (o) => { [...f.elements].forEach((el) => { if (!el.name || el.name === 'sort') return; el.value = o[el.name] != null ? o[el.name] : ''; }); apply(); },
       count: (o) => crmFilter(rows, o, fields).length });

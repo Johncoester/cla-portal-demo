@@ -151,6 +151,6 @@ const pageSrc = readFileSync(new URL('../js/pages/voice-demo.js', import.meta.ur
 ok(pageSrc.includes("/transcript/i.test(event.type || '')") && pageSrc.includes('onAudioError') && !pageSrc.includes('speechSynthesis'), 'the page still shows transcript text and does not speak with the browser voice');
 const appSrc = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const htmlSrc = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-ok(htmlSrc.includes('js/app.js?v=202611090250') && appSrc.includes("voice-demo.js?v=202611071632") && appSrc.includes("pages/voice-demo.js?v=202611071632") && pageSrc.includes("voice-demo.js?v=202611071632"), 'the shell and both voice imports use the new playback stamp');
+ok(htmlSrc.includes('js/app.js?v=202611090905') && appSrc.includes("voice-demo.js?v=202611071632") && appSrc.includes("pages/voice-demo.js?v=202611071632") && pageSrc.includes("voice-demo.js?v=202611071632"), 'the shell and both voice imports use the new playback stamp');
 console.log(fail ? fail + ' failed' : 'voice demo passed');
 if (fail) process.exit(1);
