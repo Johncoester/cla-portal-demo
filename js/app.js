@@ -35,7 +35,7 @@ const pages = {
   login: () => import('./pages/entry.js?v=202611100005'),
   dashboard: () => import('./pages/dashboard.js?v=202611100200'),
   orders: () => import('./pages/orders.js?v=202611091600'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611092350'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611100730'),
   deal: () => import('./pages/deal.js?v=202611100200'),
   users: () => import('./pages/users.js?v=202611090935'),
   profile: () => import('./pages/profile.js?v=202611100005'),
