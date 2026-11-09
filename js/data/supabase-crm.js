@@ -4,7 +4,7 @@
  * With the browser flag off every method refuses before calling the database. Meetings never send invitations; nothing is emailed. */
 import { CRM_OFF } from './features.js?v=202611070139';
 import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611070139';
-import { localDate } from './constants.js?v=202611090935';
+import { localDate, runsOrders as runsOrdersCI } from './constants.js?v=202611090935';
 import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611070139';
 import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611090935';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611070139';
@@ -166,6 +166,38 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async listCrmDeals(f = {}) { const rows = await rpc('crm_deals', { p_status: f.status || null, p_owner: f.ownerId || null, p_client: f.clientId || null, p_source: f.source || null });
       return (rows || []).map((r) => ({ ...r, _link: `#/crm/deals/${r.id}`, _portalLink: `#/deals/${r.id}`, _clientLink: '' })); },
     async listCrmDealFilters() { return rpc('crm_deal_filters'); },
+    // One crm_deals call (the same scope as the list). One deal_contacts call for this deal only. No per-row helper.
+    async getCrmDeal(id) {
+      on(); const want = String(id || '').trim(); if (!want) throw new Error('Deal not found.');
+      let raw = await rpc('crm_deals', { p_status: 'All', p_owner: null, p_client: null, p_source: null });
+      if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = []; } }
+      const row = (Array.isArray(raw) ? raw : []).find((r) => r && r.id === want); if (!row) throw new Error('Deal not found.');
+      let people = [];
+      try {
+        const contacts = await rpc('deal_contacts', { p_deal: want }) || [];
+        people = (Array.isArray(contacts) ? contacts : []).filter((r) => r && !r.removed).map((r) => ({
+          role: r.role || '', name: `${r.first_name || ''} ${r.last_name || ''}`.trim(), email: r.contact_hidden ? '' : (r.email || ''),
+          link: r.contact_id ? `#/crm/contacts/${r.contact_id}` : '' }));
+      } catch { people = []; }
+      if (!people.length) {
+        if (row.clientName) people.push({ role: 'Client', name: row.clientName, email: '', link: '' });
+        if (row.contactName) people.push({ role: 'Agent', name: row.contactName, email: '', link: '' });
+      }
+      const emails = await this.listCrmEmails('deal', want); const u = await me();
+      return { ...row, _link: `#/crm/deals/${row.id}`, _portalLink: `#/deals/${row.id}`, people, emails: Array.isArray(emails) ? emails : [], notes: row.notes || '', canEdit: !crmReadOnly(u) };
+    },
+    async listCrmEmails(entity, id) {
+      on(); const e = String(entity || ''); const rid = String(id || '');
+      if (!['lead', 'contact', 'account', 'deal', 'opportunity'].includes(e) || !rid) return [];
+      try {
+        const rows = ok(await sb.from('crm_emails').select('id, from_email, to_emails, cc_emails, bcc_emails, subject, body_html, status, scheduled_at, created_at').eq('entity', e).eq('entity_id', rid).order('created_at', { ascending: false })) || [];
+        return rows.map((r) => { const row = camel(r); const status = row.status || 'drafted'; const list = (v) => (Array.isArray(v) ? v : []);
+          return { id: row.id, subject: row.subject || '', to: list(row.toEmails), cc: list(row.ccEmails), bcc: list(row.bccEmails), from: row.fromEmail || '',
+            status, statusLabel: status === 'scheduled' ? 'Scheduled (not sent)' : 'Drafted (not sent)', scheduledAt: row.scheduledAt || null, createdAt: row.createdAt || null,
+            createdByName: '', attachments: [], html: row.bodyHtml || '', notice: 'Not sent: Gmail is not connected yet. The email was saved on this record only.' }; });
+      } catch { return []; }
+    },
+    async noteCrmRecent() { on(); return { ok: true }; },
     async crmRelatedEmails(entity, id) {
       on(); const e = String(entity || '');
       if (e === 'lead') { const rows = await this.listCrmLeads(); const r = rows.find((z) => z.id === id); return r && r.email ? [{ name: r.name, email: r.email, contactId: '' }] : []; }
