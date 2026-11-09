@@ -2,7 +2,7 @@
 // and the adapter refuses their calls). Pick lists, custom fields, built-in fields. Nothing here deletes stored data. Function first.
 import { html, raw, $, $$, guard, formData, toast, modal, closeModal, pill } from '../ui.js?v=202611070139';
 import { PICKLISTS, picklistDef, optionsOf, isLocked, FIELD_TYPES, fieldTypeLabel, CF_ENTITIES, SECTIONS_FOR, sectionLabel, PERSON_FIELDS, ACCOUNT_FIELDS, PROTECTED_FIELDS } from '../data/crm-config.js?v=202611070139';
-import { tabs, head, sel } from './crm-kit.js?v=202611091240';
+import { tabs, head, sel } from './crm-kit.js?v=202611100230';
 import { OPTION_TYPES, CHAR_TYPES, UNIQUE_TYPES, ENCRYPT_TYPES, LOOKUP_TARGETS, ROLLUP_RELATED, ROLLUP_FNS, PERM_ROLES, COMPUTED_TYPES, sectionsOf, DEFAULT_TYPES } from '../data/crm-fields.js?v=202611070139';
 
 const q = () => new URLSearchParams(location.hash.split('?')[1] || '');

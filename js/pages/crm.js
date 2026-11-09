@@ -8,18 +8,18 @@ import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, a
 import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-janine.js?v=202611100230';
 import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611070139';
 import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611070139';
-import { settingsPage } from './crm-settings.js?v=202611091240';
+import { settingsPage } from './crm-settings.js?v=202611100230';
 import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611100230';
-import { pipelinePage, reportsPage } from './crm-more.js?v=202611091240';
+import { pipelinePage, reportsPage } from './crm-more.js?v=202611100230';
 import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611100230';
-import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611091240';
+import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611100230';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611090905';
-import { searchPage } from './crm-search.js?v=202611091240';
-import { dashboardsPage } from './crm-dashboards.js?v=202611091240';
-import { reportsHome } from './crm-reports.js?v=202611091240';
-import { dealsPage } from './crm-deals.js?v=202611091240';
-import { callPage, callModal } from './crm-calls.js?v=202611091240';
-import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611091240';
+import { searchPage } from './crm-search.js?v=202611100230';
+import { dashboardsPage } from './crm-dashboards.js?v=202611100230';
+import { reportsHome } from './crm-reports.js?v=202611100230';
+import { dealsPage } from './crm-deals.js?v=202611100230';
+import { callPage, callModal } from './crm-calls.js?v=202611100230';
+import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611100230';
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
 const archivedOpts = [['only', 'Archived only'], ['all', 'Active + archived']];

@@ -9,7 +9,7 @@ import { sel, pairs, ownerSel } from './crm-kit.js?v=202611100230';
 import { CONVERTED_STATUS } from '../data/crm.js?v=202611070139';
 import { fieldsInSection, builtinRequired, activeOptions, defaultOption } from '../data/crm-config.js?v=202611070139';
 import { optSel, lbl, lblOrDash, hiddenField, cfInputs, cfRows, cfExtraSections } from './crm-custom.js?v=202611070139';
-import { activityBoard, wireCalls } from './crm-calls.js?v=202611091240';
+import { activityBoard, wireCalls } from './crm-calls.js?v=202611100230';
 import { wireZipCounty, wireSubjectTypeahead, inviteBtn, invitePreview } from './crm-janine.js?v=202611100230';
 
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
