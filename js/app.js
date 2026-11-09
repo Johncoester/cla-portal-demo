@@ -1,5 +1,5 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611091430';
+import { getAdapter } from './data/adapter.js?v=202611091440';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611091430';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611090935';
@@ -37,7 +37,7 @@ const pages = {
   'orders/new': () => import('./pages/ordernew.js?v=202611091355'),
   deal: () => import('./pages/deal.js?v=202611091430'),
   users: () => import('./pages/users.js?v=202611090935'),
-  profile: () => import('./pages/profile.js?v=202611091345'),
+  profile: () => import('./pages/profile.js?v=202611091440'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
   teams: () => import('./pages/teams.js?v=202611070139'),
   templates: () => import('./pages/templates.js?v=202611090935'),

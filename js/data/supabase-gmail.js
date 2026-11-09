@@ -14,7 +14,8 @@ export function gmailSupabase({ sb, ok, camel }) {
     async getGmailStatus() {
       const c = ok(await sb.rpc('gmail_my_context')) || {};
       return { available: true, allowed: !!c.allowed, viewAs: !!c.viewAs, connected: !!c.mailbox, mailbox: c.mailbox || null, status: c.mailboxStatus || null,
-        signatureHtml: c.signatureHtml || '', lastSyncAt: c.lastSyncAt || null, firstName: c.firstName || '', lastName: c.lastName || '', role: c.role || '' };
+        signatureHtml: c.signatureHtml || '', lastSyncAt: c.lastSyncAt || null, firstName: c.firstName || '', lastName: c.lastName || '', role: c.role || '',
+        signatureSource: c.signatureSource || '', signatureSyncedAt: c.signatureSyncedAt || null, signatureScope: !!c.signatureScope };
     },
     async connectGmail() {
       const r = await call('gmail-oauth-start', { action: 'start' });
@@ -22,6 +23,8 @@ export function gmailSupabase({ sb, ok, camel }) {
       return r.url;
     },
     async disconnectGmail() { return call('gmail-oauth-start', { action: 'disconnect' }); },
+    // Refresh from Gmail: the edge function reads your current Gmail signature (read-only) and stores it as the portal signature
+    async refreshGmailSignature() { return call('gmail-oauth-start', { action: 'refresh_signature' }); },
     async saveGmailSignature(htmlText) { ok(await sb.rpc('gmail_set_signature', { p_html: String(htmlText || '') })); return true; },
     async listDealEmails(dealId) { return camel(ok(await sb.from('deal_emails').select('*').eq('deal_id', dealId).order('sent_at', { ascending: false }).limit(300))) || []; },
     async sendDealEmail(input = {}) {
@@ -34,6 +37,6 @@ export function gmailSupabase({ sb, ok, camel }) {
 // mock / demo mode: Gmail is never connected there
 export function gmailMock() {
   const off = async () => { throw new Error('Gmail works on CLA Portal Live Test only.'); };
-  return { async getGmailStatus() { return { available: false, allowed: false, connected: false }; }, connectGmail: off, disconnectGmail: off, saveGmailSignature: off,
+  return { async getGmailStatus() { return { available: false, allowed: false, connected: false }; }, connectGmail: off, disconnectGmail: off, saveGmailSignature: off, refreshGmailSignature: off,
     async listDealEmails() { return []; }, sendDealEmail: off, checkGmailReplies: off };
 }
