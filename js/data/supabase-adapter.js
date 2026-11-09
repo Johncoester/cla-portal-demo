@@ -20,9 +20,9 @@ import { officesSupabase } from './supabase-offices.js?v=202611090935';
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611090935';
 import { tcSupabase } from './supabase-tc.js?v=202611090935';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611090935';
-import { gmailSupabase } from './supabase-gmail.js?v=202611091440';
+import { gmailSupabase } from './supabase-gmail.js?v=202611092210';
 import { nov5Supabase } from './supabase-nov5.js?v=202611091030';
-import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611091450';
+import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611092230';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611090935';
 import { staffSupabase } from './supabase-staff.js?v=202611082000';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
@@ -431,9 +431,12 @@ export async function createSupabaseAdapter(cfg) {
     // NOTE: there is intentionally no deleteDocument anywhere.
     // ---- Matt, Oct 31, priority 2 (migration 14) ----
     async listAgreements(dealId) {
-      const [{ data: { user } }, ags] = [await sb.auth.getUser(), camel(ok(await sb.from('agreements').select('*').order('code')))];
-      const mine = camel(ok(await sb.from('agreement_acks').select('*').eq('deal_id', dealId).eq('profile_id', user.id)));
-      const roles = (await fileRoles()).get(dealId); const staff = !(roles && roles.roles && roles.roles.length);
+      // Francis, Nov 9: staff = account role (Processor/TC/Admin…), not "no file roles". A Processor with a
+      // deal_contacts row must still see the ack status table and must not be asked to acknowledge.
+      const [u, ags] = [await me(), camel(ok(await sb.from('agreements').select('*').order('code')))];
+      if (!u || !u.id) throw new Error('Please sign in.');
+      const mine = camel(ok(await sb.from('agreement_acks').select('*').eq('deal_id', dealId).eq('profile_id', u.id)));
+      const staff = u.role !== 'Outside user' && !u.accountRole;
       const out = { agreements: withMyAcknowledgements(ags, mine), needed: !staff };
       out.pending = out.needed ? out.agreements.filter((g) => !g.myAck).length : 0;
       if (staff) { const rows = camel(ok(await sb.rpc('agreement_status', { p_deal: dealId }))) || []; const m = new Map();

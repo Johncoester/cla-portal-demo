@@ -1,5 +1,5 @@
 /* Gmail phase 1 (John, Nov 9): the gmail-* edge function logic with fake Google + fake database. No network, no secrets. */
-import { isAllowedTestRecipient, parseAddressList, subjectWithTag, sanitizeHtml, buildMime, b64url, b64urlToText, hasWireDetails, parseGmailMessage, authUrl, SCOPES, REDIRECT_URI, extOk, SETTINGS_SCOPE, pickSendAsSignature, withSignature, hasSettingsScope } from '../supabase/functions/_shared/gmail-core.mjs';
+import { isAllowedTestRecipient, parseAddressList, subjectWithTag, formatPropertyAddress, fileTag, sanitizeHtml, buildMime, b64url, b64urlToText, hasWireDetails, parseGmailMessage, authUrl, SCOPES, REDIRECT_URI, extOk, SETTINGS_SCOPE, pickSendAsSignature, withSignature, hasSettingsScope } from '../supabase/functions/_shared/gmail-core.mjs';
 import { handleOauthStart, handleOauthCallback, handleSend, handleSync } from '../supabase/functions/_shared/gmail-handlers.mjs';
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
@@ -11,8 +11,15 @@ for (const a of ['clatestportal@gmail.com', 'clatestportal+buyer@gmail.com', 'CL
 for (const a of ['someone@gmail.com', 'clatestportal+x@gmail.com.evil.com', 'x@clatitle.com.evil.com', 'x@sub.clatitle.com', 'clatestportal+@gmail.com', 'c.latestportal@gmail.com', 'jcoester@mail.grokbot.com', 'buyer@example.com', 'a@clatitle.co']) ok(!isAllowedTestRecipient(a), `refused on Live Test: ${a}`);
 const pl = parseAddressList('Pat <PAT@clatitle.com>, pat@clatitle.com; not an address');
 ok(pl.ok.length === 1 && pl.ok[0] === 'pat@clatitle.com' && pl.bad.length === 1, 'address list: names stripped, duplicates merged, junk reported');
+ok(formatPropertyAddress({ street: '123 Main St', city: 'Rockville', state: 'MD', zip: '20850' }) === '123 Main St, Rockville MD 20850', 'address format: street, city state zip');
+ok(formatPropertyAddress({ street: '3650 Southwest 13th Street', city: 'Miami', state: 'FL', zip: '33145' }) === '3650 Southwest 13th Street, Miami FL 33145', 'address format with longer street');
+ok(formatPropertyAddress({}) === '' && formatPropertyAddress({ city: 'Rockville' }) === 'Rockville', 'missing address parts omitted gracefully');
+ok(fileTag('MD-26-97218') === '[CLA #MD-26-97218]', 'tag without address stays file-number only');
+ok(fileTag('MD-26-97218', { street: '123 Main St', city: 'Rockville', state: 'MD', zip: '20850' }) === '[CLA #MD-26-97218 - 123 Main St, Rockville MD 20850]', 'tag with address');
 ok(subjectWithTag('Introduction', 'MD-26-97207') === 'Introduction [CLA #MD-26-97207]', 'subject gets the [CLA #order] tag');
-ok(subjectWithTag('Re: Introduction [CLA #MD-26-97207]', 'MD-26-97207') === 'Re: Introduction [CLA #MD-26-97207]', 'the tag is not doubled');
+ok(subjectWithTag('Testing', 'MD-26-97218', { street: '123 Main St', city: 'Rockville', state: 'MD', zip: '20850' }) === 'Testing [CLA #MD-26-97218 - 123 Main St, Rockville MD 20850]', 'subject gets file + address tag');
+ok(subjectWithTag('Re: Introduction [CLA #MD-26-97207]', 'MD-26-97207', { street: '1 Main' }) === 'Re: Introduction [CLA #MD-26-97207]', 'old subject without address is not re-tagged');
+ok(subjectWithTag('Re: Testing [CLA #MD-26-97218 - 123 Main St, Rockville MD 20850]', 'MD-26-97218', { street: 'Other' }) === 'Re: Testing [CLA #MD-26-97218 - 123 Main St, Rockville MD 20850]', 'address tag is not doubled on reply');
 ok(!/[\r\n]/.test(subjectWithTag('Hi\r\nBcc: evil@x.com', '1')), 'no line breaks survive in a subject (header injection)');
 const clean = sanitizeHtml('<p onclick="x()">Hi</p><script>alert(1)</script><img src="javascript:alert(1)" onerror=alert(1)><a href="https://ok.test">ok</a><iframe src="https://x"></iframe>');
 ok(!/script|onclick|onerror|javascript:|iframe/i.test(clean) && clean.includes('https://ok.test'), 'sanitize removes scripts, handlers, javascript: links and iframes');
@@ -64,7 +71,7 @@ function fakeDeps(over = {}) {
       if (fn === 'gmail_svc_disconnect') return 'john@clatitle.com';
       if (fn === 'gmail_svc_record') return 'rec-1';
       return null; },
-    userDeal: async (id) => (id === DEAL ? { id: DEAL, file_number: 'MD-26-97207' } : null),
+    userDeal: async (id) => (id === DEAL ? { id: DEAL, file_number: 'MD-26-97207', street: '10423 John Glenn Street #502', city: 'Lanham', state: 'MD', zip: '20706' } : null),
     userDocs: async (dealId, ids) => ids.map((id) => ({ id, deal_id: dealId, name: id === 'wire' ? 'Wire Instructions.pdf' : 'Contract.pdf', mime_type: 'application/pdf', size_bytes: 4, storage_path: `${dealId}/${id}/Contract.pdf`, wire_instructions: false })).filter((d) => d.id !== 'other'),
     userDocBytes: async () => new Uint8Array([37, 80, 68, 70]),
     userEmail: async (id) => (id === 'e1' ? { id: 'e1', deal_id: DEAL, mailbox_email: 'john@clatitle.com', gmail_thread_id: 'tLinked', rfc_message_id: '<orig@mail>' } : null),
@@ -113,7 +120,7 @@ const sendBody = (o = {}) => ({ dealId: DEAL, to: 'clatestportal+buyer@gmail.com
   ok(f.calls.svc.some((c) => c.fn === 'gmail_svc_audit' && c.args.p_action === 'mail.refused'), 'send: the refusal is audited'); }
 { const f = fakeDeps(); const r = await handleSend(post(sendBody({ bcc: 'boss@gmail.com', dryRun: true })), f.deps); ok(r.status === 403 && !f.calls.svc.length && !f.calls.fetch.length, 'send dry run: refusal reported, nothing written, Google never called'); }
 { const f = fakeDeps({ ctx: { mailbox: null, mailboxStatus: null } }); const r = await handleSend(post(sendBody({ dryRun: true, documentIds: ['d1'] })), f.deps); const j = await r.json();
-  ok(r.status === 200 && j.dryRun && j.connected === false && j.subject === 'Introduction [CLA #MD-26-97207]' && j.attachments.length === 1 && !f.calls.fetch.length && !f.calls.svc.length, 'send dry run: allowed recipients pass, tag added, no Google call, works before connecting'); }
+  ok(r.status === 200 && j.dryRun && j.connected === false && j.subject === 'Introduction [CLA #MD-26-97207 - 10423 John Glenn Street #502, Lanham MD 20706]' && j.attachments.length === 1 && !f.calls.fetch.length && !f.calls.svc.length, 'send dry run: allowed recipients pass, tag added, no Google call, works before connecting'); }
 { const f = fakeDeps({ ctx: { mailbox: null, mailboxStatus: null } }); const r = await handleSend(post(sendBody()), f.deps); ok(r.status === 409 && !f.calls.fetch.length, 'send: not connected -> 409, nothing sent'); }
 { const f = fakeDeps(); const r = await handleSend(post(sendBody({ dealId: 'not-mine' })), f.deps); ok(r.status === 404, 'send: a file the user cannot open -> 404'); }
 { const f = fakeDeps(); const r = await handleSend(post(sendBody({ html: '<p>Routing 021000021 account number 99887766</p>' })), f.deps); ok(r.status === 400 && !f.calls.fetch.length, 'send: wire / bank numbers in the body are refused'); }
@@ -124,7 +131,7 @@ const sendBody = (o = {}) => ({ dealId: DEAL, to: 'clatestportal+buyer@gmail.com
   ok(r.status === 200 && j.ok && sb.threadId === 'tLinked' && mime.includes('In-Reply-To: <orig@mail>'), 'send: a reply stays in the Gmail thread');
   const html = Buffer.from(mime.split('text/html; charset="UTF-8"')[1].split('\r\n\r\n')[1].split('--')[0].replace(/\r\n/g, ''), 'base64').toString();
   ok(mime.startsWith('From: "John Coester" <john@clatitle.com>') && html.includes('John Coester<br>CLA Title') && mime.includes('Contract.pdf'), 'send: from the user\'s own address, portal signature added, file document attached');
-  const rec = f.calls.svc.find((c) => c.fn === 'gmail_svc_record').args.p; ok(rec.direction === 'out' && rec.gmail_thread_id === 'tNew' && rec.rfc_message_id === '<sent1@mail.gmail.com>' && rec.subject.endsWith('[CLA #MD-26-97207]') && rec.template_key === 'intro' && rec.sent_by === JOHN, 'send: recorded on the file with thread id, Message-ID, tag and template');
+  const rec = f.calls.svc.find((c) => c.fn === 'gmail_svc_record').args.p; ok(rec.direction === 'out' && rec.gmail_thread_id === 'tNew' && rec.rfc_message_id === '<sent1@mail.gmail.com>' && rec.subject.endsWith('[CLA #MD-26-97207 - 10423 John Glenn Street #502, Lanham MD 20706]') && rec.template_key === 'intro' && rec.sent_by === JOHN, 'send: recorded on the file with thread id, Message-ID, tag and template');
   ok(!leaks(f.calls, JSON.stringify(j)), 'send: no secret or token in the response'); }
 { const f = fakeDeps({ google: (url) => (url.includes('/token') ? { status: 400, body: { error: 'invalid_grant' } } : { status: 404, body: {} }) }); const r = await handleSend(post(sendBody()), f.deps);
   ok(r.status === 409 && f.calls.svc.some((c) => c.fn === 'gmail_svc_update_account' && c.args.p_status === 'needs_reconnect'), 'send: revoked Google access -> asks to reconnect, nothing sent'); }
