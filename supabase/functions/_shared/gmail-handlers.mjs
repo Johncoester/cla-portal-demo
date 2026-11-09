@@ -5,10 +5,11 @@
  *   deps.svc(fn, args) -> data                      service-role RPC (gmail_svc_*), throws on error
  *   deps.userDeal(id), deps.userDocs(dealId, ids), deps.userDocBytes(path), deps.userEmail(id)   reads AS THE USER (RLS decides)
  *   deps.storeAttachment(path, bytes, mime)         service-role upload to deal-documents
+ *   deps.userRpc(fn, args) -> data                 RPC AS THE USER (their JWT), throws with the database message (invite_send_info)
  *   deps.newId() -> uuid, deps.now() -> ms */
 import { TEST_PROJECT_REF, PORTAL_ORIGIN, REDIRECT_URI, GMAIL_ROLES, MAX_RECIPIENTS, MAX_DOCS, MAX_ATTACH_BYTES, MAX_SAVE_BYTES, MAX_BODY_CHARS, TEST_ALLOWLIST_NOTE,
   isAllowedTestRecipient, parseAddressList, subjectWithTag, formatPropertyAddress, sanitizeHtml, htmlToText, hasWireDetails, isWireName, extOk, safeName, buildMime, b64url, b64urlToBytes,
-  parseGmailMessage, randomToken, sha256Hex, pkceChallenge, authUrl, decodeJwtPayload, missingScopes, oneLine, json, hasSettingsScope, pickSendAsSignature, withSignature } from './gmail-core.mjs';
+  parseGmailMessage, randomToken, sha256Hex, pkceChallenge, authUrl, decodeJwtPayload, missingScopes, oneLine, json, hasSettingsScope, pickSendAsSignature, withSignature, isEmail, INVITE_TOKEN_RE, inviteEmailContent } from './gmail-core.mjs';
 
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -137,6 +138,7 @@ export async function handleSend(req, deps) {
   const g = await staffGate(deps); if (g.res) return g.res;
   const { user, ctx } = g; const H = deps.headers;
   let b = {}; try { b = await req.json(); } catch (e) { return json(400, { error: 'Send a JSON body.' }, H); }
+  if (b.invite) return inviteSend(b.invite, user, ctx, deps);
   const dryRun = b.dryRun === true;
   const deal = b.dealId ? await deps.userDeal(String(b.dealId)) : null;
   if (!deal) return json(404, { error: 'You cannot open that file.' }, H);
@@ -200,6 +202,43 @@ export async function handleSend(req, deps) {
     subject, body_html: html, snippet: htmlToText(bodyHtml).slice(0, 200), sent_at: new Date(deps.now()).toISOString(), attachment_document_ids: docs.map((d) => d.id),
     attachment_names: docs.map((d) => d.name), template_key: oneLine(b.templateKey, 60) || null, sent_by: user.id } });
   return json(200, { ok: true, id, gmailMessageId: sent.body.id, threadId: sent.body.threadId, ...preview, from: tok.email }, H);
+}
+
+/* ---------------- portal invite email (John, Nov 9) ----------------
+ * body { invite: { kind: 'agent' | 'hr', token } }. kind 'agent' = agent and buyer / seller invites (agent_invites), 'hr' = staff invites.
+ * The recipient, names and file come from invite_send_info() run AS THE INVITER (it checks they may invite and that the token is pending);
+ * the browser only proves it holds the one-time token. Sent from the inviter's own connected Gmail with their signature. Live Test still
+ * refuses non-test addresses. The result (or the error) is stored on the invite row by invite_svc_mark_sent (service role).
+ * The email body is NOT copied into deal_emails: it holds a one-time sign-up link that other people on the file must not see. */
+async function inviteSend(inv, user, ctx, deps) {
+  const H = deps.headers;
+  const kind = inv && inv.kind === 'hr' ? 'hr' : inv && inv.kind === 'agent' ? 'agent' : '';
+  const token = String((inv && inv.token) || '').trim().toLowerCase();
+  if (!kind || !INVITE_TOKEN_RE.test(token)) return json(400, { error: 'That is not a valid invite link.' }, H);
+  let info = null;
+  try { info = await deps.userRpc('invite_send_info', { p_kind: kind, p_token: token }); }
+  catch (e) { return json(403, { error: oneLine(e && e.message, 200) || 'You cannot send this invite.' }, H); }
+  if (!info || !isEmail(info.email)) return json(400, { error: 'This invite has no valid email address.' }, H);
+  const fromName = `${ctx.firstName || ''} ${ctx.lastName || ''}`.trim();
+  const mail = inviteEmailContent(info, { token, inviterName: fromName });
+  const mark = async (messageId, error) => { try { await deps.svc('invite_svc_mark_sent', { p_kind: kind, p_token: token, p_profile: user.id, p_to: mail.to, p_message_id: messageId, p_error: error }); } catch (e) { /* the send result still goes back to the page */ } };
+  if (!isAllowedTestRecipient(mail.to)) { await mark(null, 'Not sent: Live Test only emails test addresses.'); return json(403, { error: `Not sent. ${TEST_ALLOWLIST_NOTE}`, refused: [mail.to], to: mail.to }, H); }
+  if (!ctx.mailbox) return json(409, { error: 'Connect Gmail to send invites automatically (Profile Setting > Gmail).', connectGmail: true, to: mail.to }, H);
+  if (ctx.mailboxStatus !== 'connected') return json(409, { error: 'Your Gmail needs to be connected again to send invites (Profile Setting > Gmail).', connectGmail: true, to: mail.to }, H);
+  const tok = rowOf(await deps.svc('gmail_svc_token', { p_profile: user.id }));
+  if (!tok || !tok.refresh_token) return json(409, { error: 'Connect Gmail to send invites automatically (Profile Setting > Gmail).', connectGmail: true, to: mail.to }, H);
+  let access;
+  try { access = await accessTokenFor(deps, tok.refresh_token); }
+  catch (e) {
+    if (e instanceof ReconnectError) { await deps.svc('gmail_svc_update_account', { p_profile: user.id, p_status: 'needs_reconnect', p_error: e.message, p_history: null, p_synced: false }); return json(409, { error: e.message, connectGmail: true, to: mail.to }, H); }
+    await mark(null, 'Google did not answer.'); return json(502, { error: 'Google did not answer. The invite was not emailed.', to: mail.to }, H);
+  }
+  const html = withSignature(mail.html, ctx.signatureHtml || '');
+  const raw = buildMime({ from: tok.email, fromName, to: [mail.to], cc: [], bcc: [], subject: mail.subject, html, text: htmlToText(html), attachments: [], seed: deps.newId() });
+  const sent = await gmail(deps, access, '/messages/send', { method: 'POST', body: JSON.stringify({ raw: b64url(raw) }) });
+  if (!sent.ok || !sent.body || !sent.body.id) { await mark(null, `Gmail refused the send (HTTP ${sent.status}).`); return json(502, { error: `Gmail did not send it (HTTP ${sent.status}). The invite was not emailed.`, to: mail.to }, H); }
+  await mark(sent.body.id, null);
+  return json(200, { ok: true, sent: true, to: mail.to, from: tok.email, subject: mail.subject, gmailMessageId: sent.body.id }, H);
 }
 
 /* ---------------- gmail-sync (cron every 3 minutes, or "Check for replies") ---------------- */

@@ -4,7 +4,7 @@
 import { cleanAgentProfile, canInviteAgents, cardOf } from './agent-profile.js?v=202611100005';
 import { acceptInviteRemote } from './accept-invite-client.js?v=202611070139';
 const inv = (r) => ({ id: r.id, contactId: r.contact_id, dealId: r.deal_id, firstName: r.first_name, lastName: r.last_name, email: r.email, status: r.status === 'pending' && r.expires_at < new Date().toISOString() ? 'expired' : r.status,
-  createdAt: r.created_at, expiresAt: r.expires_at, acceptedAt: r.accepted_at, revokedAt: r.revoked_at, resentCount: r.resent_count || 0, inviteKind: r.invite_kind || 'agent', createdByName: '' });
+  createdAt: r.created_at, expiresAt: r.expires_at, acceptedAt: r.accepted_at, revokedAt: r.revoked_at, resentCount: r.resent_count || 0, inviteKind: r.invite_kind || 'agent', sentAt: r.sent_at || null, sentTo: r.sent_to || '', sendCount: r.send_count || 0, sendError: r.send_error || '', createdByName: '' });
 export function agentInviteSupabase({ sb, ok, me }) {
   const signed = async (path) => { if (!path) return ''; const r = await sb.storage.from('agent-photos').createSignedUrl(path, 3600); return (r.data && r.data.signedUrl) || ''; };
   const upload = async (uid, dataUrl) => { if (!dataUrl || !/^data:image\/jpeg/.test(dataUrl)) return undefined; const blob = await (await fetch(dataUrl)).blob(); const path = `${uid}/avatar.jpg`;

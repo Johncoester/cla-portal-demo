@@ -9,7 +9,8 @@
 // The adapter refuses anything the person may not do; the page only hides what they cannot use.
 import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime } from '../ui.js?v=202611070139';
 import { hrCanManage, hrIsSuper, filterEmployees, initials, fullNameOf, COUNTRIES, EMPLOYMENT_TYPES, EMPLOYMENT_STATUSES, PAY_TYPES, PAY_CURRENCIES, WORK_LOCATIONS, portalRoleForDesignation, EMPLOYEE_ROLE_FILTER,
-  HR_NO_EMAIL_NOTE, HR_INVITE_DAYS, FIELD_LABEL, labelOf, jobTitleOf } from '../data/hr.js?v=202611091730';
+  HR_INVITE_DAYS, FIELD_LABEL, labelOf, jobTitleOf } from '../data/hr.js?v=202611091730';
+import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100130';
 import { companyDocsPage, employeeDocsCard, sharedDocsCard, portalTimeCard, wireEmployeeDocs, wireSharedDocs } from './hr-feedback.js?v=202611091730';
 const PILL = { active: 'ok', on_leave: 'warn', separated: 'bad' };
 const INV = { pending: ['Invite pending', 'warn'], expired: ['Invite expired', 'bad'], revoked: ['Invite revoked', ''], none: ['No login yet', ''], accepted: ['Has login', 'ok'] };
@@ -144,11 +145,12 @@ async function addForm({ api, user, go }) {
     desig.addEventListener('change', showRole); showRole();
     $('[data-hr-country]', root).addEventListener('change', (e) => { const l = $('[data-hr-loc]', root); if (!l.value) l.value = e.target.value === 'PH' ? 'Remote (Philippines)' : ''; });
     f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(f).entries());
-      const r = await api.createHrEmployee(d); toast('Employee added' + (r.invite ? ' (invite link made, nothing sent)' : ' and linked to their existing login'));
+      const r = await api.createHrEmployee(d); const sendR = r.invite ? await autoSendInvite(api, 'hr', r.invite.link) : null;   // Nov 9: emailed from the HR user's Gmail
+      toast('Employee added' + (r.invite ? (sendR.sent ? ` and invite emailed to ${sendR.to}` : ' (invite link made, not emailed)') : ' and linked to their existing login'));
       const box = $('[data-hr-invite-result]', root); box.hidden = false;
-      box.innerHTML = (r.invite ? html`<p><strong>Invite link</strong> for ${r.employee.firstName} ${r.employee.lastName} (${r.employee.email}). Not sent: copy it and send it yourself.</p>
+      box.innerHTML = (r.invite ? html`${inviteSendNotice(sendR)}<p><strong>Invite link</strong> for ${r.employee.firstName} ${r.employee.lastName} (${r.employee.email}).</p>
         <div class="ai-link-row"><input readonly value="${abs(r.invite.link)}" data-hr-invite-link aria-label="One-time invite link"><button type="button" class="m-btn" data-hr-copy>Copy</button></div>
-        <p class="muted small">Works once, for ${HR_INVITE_DAYS} days (until ${fmtDateTime(r.invite.expiresAt)}). ${HR_NO_EMAIL_NOTE}</p>`
+        <p class="muted small">Works once, for ${HR_INVITE_DAYS} days (until ${fmtDateTime(r.invite.expiresAt)}).</p>`
         : html`<p><strong>${r.employee.firstName} ${r.employee.lastName}</strong> already has a portal login with that email, so it is linked now. No invite needed.</p>`)
         + html`<p><a class="ghost" href="#/hr/employees/${r.employee.id}" data-hr-open-new>Open the profile</a> <a class="ghost" href="#/hr/add" data-hr-add-another>Add another</a></p>`.toString();
       const cp = $('[data-hr-copy]', box); if (cp) cp.addEventListener('click', async () => { const i = $('[data-hr-invite-link]', box); i.select(); try { await navigator.clipboard.writeText(i.value); toast('Link copied'); } catch (er) { toast('Select the link and copy it'); } });
@@ -203,7 +205,7 @@ async function profile({ api, user, refresh }, id, mine) {
   const selfNote = !hr && !basic ? html`<p class="notice small" data-hr-self-note>You can edit your <strong>phone, address and emergency contact</strong>. HR keeps your job title, department, designation, pay, status, date of joining, reporting manager, work location and employee ID up to date.</p>` : '';
   const timeLog = (hr || basic || mine) && r.timeLog ? portalTimeCard(r.timeLog) : '';
   const invite = hr ? html`<div class="card hr-sec${timeLog ? ' hr-sec-wide' : ''}" data-hr-login><h3>Portal login</h3>${e.profileId ? html`<p><span class="pill ok">Has login</span></p>${timeLog}`
-    : html`<p><span class="pill ${INV[e.inviteStatus] ? INV[e.inviteStatus][1] : ''}" data-hr-invite-status="${e.inviteStatus}">${(INV[e.inviteStatus] || [e.inviteStatus])[0]}</span>${e.inviteExpiresAt ? html` <span class="muted small">${e.inviteStatus === 'expired' ? 'expired' : 'expires'} ${fmtDateTime(e.inviteExpiresAt)}</span>` : ''}</p>
+    : html`<p><span class="pill ${INV[e.inviteStatus] ? INV[e.inviteStatus][1] : ''}" data-hr-invite-status="${e.inviteStatus}">${(INV[e.inviteStatus] || [e.inviteStatus])[0]}</span>${e.inviteExpiresAt ? html` <span class="muted small">${e.inviteStatus === 'expired' ? 'expired' : 'expires'} ${fmtDateTime(e.inviteExpiresAt)}</span>` : ''}${e.inviteSentAt ? html` <span class="muted small" data-hr-invite-emailed>&middot; emailed ${fmtDateTime(e.inviteSentAt)}${e.inviteSentTo ? ` to ${e.inviteSentTo}` : ''}</span>` : ''}</p>
       ${e.archivedAt ? '' : html`<button class="ghost" data-hr-new-invite>${e.inviteStatus === 'none' ? 'Create invite link' : 'Make a new invite link'}</button>`}<div class="ai-link hr-invite-box" data-hr-invite-result hidden></div>`}
     ${e.isHrManager ? html`<p class="small"><span class="pill hr-chip">HR manager</span>${hrIsSuper(user) ? html` <a href="#/hr/settings">Change in HR Settings</a>` : ''}</p>` : ''}</div>` : '';
   const modeKey = 'cla-portal-new:hr-edit'; const editing = editable && sessionStorage.getItem(modeKey) === e.id;
@@ -236,10 +238,10 @@ async function profile({ api, user, refresh }, id, mine) {
       if (on && !confirm(`Archive ${e.firstName} ${e.lastName}? They leave the directory and lose HR access. Nothing is deleted; you can restore them.`)) return;
       await api.archiveHrEmployee(e.id, on); toast(on ? 'Employee archived (kept, not deleted)' : 'Employee restored'); refresh(); }));
     const hx = $('[data-hr-emp-history-export]', root); if (hx) hx.addEventListener('click', guard(async () => { const x = await api.exportHrHistoryCsv({ employeeId: e.id }); download(x.filename.replace('.csv', `-${e.employeeCode}.csv`), x.csv); toast(`Exported ${x.count} history row(s)`); }));
-    const ni = $('[data-hr-new-invite]', root); if (ni) ni.addEventListener('click', guard(async () => { const x = await api.createHrInvite(e.id); const box = $('[data-hr-invite-result]', root); box.hidden = false;
-      box.innerHTML = html`<p class="small"><strong>New invite link</strong> (any older link stopped working). Not sent: copy it and send it yourself.</p><div class="ai-link-row"><input readonly value="${abs(x.link)}" data-hr-invite-link aria-label="One-time invite link"><button type="button" class="m-btn" data-hr-copy>Copy</button></div><p class="muted small">Works once, until ${fmtDateTime(x.expiresAt)}.</p>`.toString();
+    const ni = $('[data-hr-new-invite]', root); if (ni) ni.addEventListener('click', guard(async () => { const x = await api.createHrInvite(e.id); const sendR = await autoSendInvite(api, 'hr', x.link); const box = $('[data-hr-invite-result]', root); box.hidden = false;
+      box.innerHTML = html`${inviteSendNotice(sendR)}<p class="small"><strong>New invite link</strong> (any older link stopped working).</p><div class="ai-link-row"><input readonly value="${abs(x.link)}" data-hr-invite-link aria-label="One-time invite link"><button type="button" class="m-btn" data-hr-copy>Copy</button></div><p class="muted small">Works once, until ${fmtDateTime(x.expiresAt)}.</p>`.toString();
       $('[data-hr-copy]', box).addEventListener('click', async () => { const i = $('[data-hr-invite-link]', box); i.select(); try { await navigator.clipboard.writeText(i.value); toast('Link copied'); } catch (er) { toast('Select the link and copy it'); } });
-      toast('Invite link made (nothing sent)'); }));
+      toast(inviteToast(sendR)); }));
   } };
 }
 // ---------------- My team (line manager: basic fields only) ----------------

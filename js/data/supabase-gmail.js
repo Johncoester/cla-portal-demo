@@ -9,7 +9,7 @@ export function gmailSupabase({ sb, ok, camel }) {
     if (res.error) {
       let msg = 'The Gmail service did not answer. Nothing was sent.'; let extra = {};
       try { const j = await res.error.context.json(); if (j && typeof j.error === 'string' && j.error.length < 600) { msg = j.error; extra = j; } } catch (e) { /* keep the generic line */ }
-      const err = new Error(msg); err.refused = Array.isArray(extra.refused) ? extra.refused : []; throw err;
+      const err = new Error(msg); err.refused = Array.isArray(extra.refused) ? extra.refused : []; err.connectGmail = extra.connectGmail === true; err.to = typeof extra.to === 'string' ? extra.to : ''; throw err;
     }
     return res.data || {};
   };
@@ -35,6 +35,12 @@ export function gmailSupabase({ sb, ok, camel }) {
         documentIds: input.documentIds || [], templateKey: input.templateKey || null, replyToEmailId: input.replyToEmailId || null, dryRun: input.dryRun === true });
     },
     async checkGmailReplies() { return call('gmail-sync', { mode: 'user' }); },
+    // Portal invite email (Nov 9): gmail-send builds the email from the invite row and sends it from the inviter's own Gmail. Never throws:
+    // the page always gets an outcome and keeps the copy link on screen when it was not sent.
+    async sendInviteEmail({ kind, token } = {}) {
+      try { const r = await call('gmail-send', { invite: { kind, token } }); return { sent: r.sent === true, to: r.to || '', from: r.from || '', subject: r.subject || '' }; }
+      catch (e) { return { sent: false, to: e.to || '', error: e.message, connectGmail: !!e.connectGmail, refused: e.refused || [] }; }
+    },
     async listFileEmailTemplates({ includeInactive = false } = {}) {
       let q = sb.from('email_templates').select('*').order('name');
       if (!includeInactive) q = q.eq('active', true);
@@ -102,6 +108,7 @@ export function gmailMock() {
     async getGmailStatus() { return { available: false, allowed: false, connected: false }; },
     connectGmail: off, disconnectGmail: off, saveGmailSignature: off, refreshGmailSignature: off,
     async listDealEmails() { return []; }, sendDealEmail: off, checkGmailReplies: off,
+    async sendInviteEmail() { return { sent: false, error: 'Demo: nothing is emailed. Copy the link instead.', demo: true }; },
     async listFileEmailTemplates({ includeInactive = false } = {}) { return store.filter((t) => includeInactive || t.active).map((t) => ({ ...t })); },
     async getFileEmailTemplate(id) { const t = store.find((x) => x.id === id); if (!t) throw new Error('Template not found.'); return { ...t }; },
     createFileEmailTemplate: off, updateFileEmailTemplate: off, duplicateFileEmailTemplate: off, setFileEmailTemplateActive: off,

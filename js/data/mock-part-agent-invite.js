@@ -30,7 +30,7 @@ export function agentInvitePart(x) {
   const linkOf = (inv) => '#/agent-invite/' + inv.token;
   const row = (inv, withLink) => { const st = inviteStatus(inv, now()); return { id: inv.id, contactId: inv.contactId, dealId: inv.dealId, fileNumber: ((db().deals.find((z) => z.id === inv.dealId) || {}).fileNumber) || '',
     firstName: inv.firstName, lastName: inv.lastName, email: inv.email, status: st, createdAt: inv.createdAt, createdByName: x.nameOf(inv.createdBy), expiresAt: inv.expiresAt, acceptedAt: inv.acceptedAt,
-    revokedAt: inv.revokedAt, resentCount: inv.resentCount || 0, inviteKind: inv.inviteKind || 'agent', ...(withLink && st === 'pending' ? { link: linkOf(inv) } : {}) }; };
+    revokedAt: inv.revokedAt, resentCount: inv.resentCount || 0, inviteKind: inv.inviteKind || 'agent', sentAt: inv.sentAt || null, sentTo: inv.sentTo || '', sendCount: inv.sendCount || 0, sendError: inv.sendError || '', ...(withLink && st === 'pending' ? { link: linkOf(inv) } : {}) }; };
   const tcScope = () => true;   // TCs cannot invite at all (needInviter refuses them), so every inviter sees every invite
   const byToken = (t) => db().agentInvites.find((i) => i.token && i.token === String(t || ''));
   const mdOf = (pid) => { const d = db(); const v = d.agentBirthMD[pid]; if (v) { const [m, dd] = v.split('-').map(Number); return { birthMonth: m, birthDay: dd }; } return monthDayFromBirthdate((d.agentBirthdates || {})[pid]); };
