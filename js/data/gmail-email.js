@@ -33,7 +33,12 @@ export function introRecipients(deal) {
     .filter((r) => (seen.has(r.email) ? false : seen.add(r.email)));
 }
 // Introduction email (John, Nov 9): the processor / salesperson introduces themselves as the point of contact. No wire details, ever.
-export function introTemplate(deal, me, recipients = []) {
+// a portal signature counts only when it has visible text (the server appends it under the same rule)
+export const hasSignature = (sigHtml) => String(sigHtml || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;|&#160;/g, ' ').trim().length > 0;
+// one sign-off only (John, Nov 9): with a portal signature the body ends at "Thank you," and the signature carries the name;
+// without one the body signs with the sender's name itself
+export const signOffHtml = (myName, signature) => (signature ? '<p>Thank you,</p>' : `<p>Thank you,<br>${esc(myName)}<br>CLA Title &amp; Escrow</p>`);
+export function introTemplate(deal, me, recipients = [], { signature = false } = {}) {
   const addr = deal.address || [deal.street, deal.city, deal.state].filter(Boolean).join(', ');
   const first = recipients.map((r) => (r.name || '').split(' ')[0]).filter(Boolean);
   const hi = first.length ? `Hi ${first.length > 2 ? 'everyone' : first.join(' and ')},` : 'Hello,';
@@ -41,6 +46,6 @@ export function introTemplate(deal, me, recipients = []) {
   return { key: 'intro', subject: `Introduction: ${addr || 'your closing'} (order ${deal.fileNumber || ''})`.replace(/ \(order \)$/, ''),
     html: `<p>${esc(hi)}</p><p>My name is ${esc(myName)}, and I am your ${esc(ROLE_WORD[me.role] || 'contact')} at CLA Title &amp; Escrow for ${esc(addr || 'this transaction')} (order ${esc(deal.fileNumber || '')}). I will be your point of contact from now until closing.</p>`
       + `<p>Please reply to this email with any questions, and send any documents we ask for the same way. ${deal.closingDate ? `We currently have closing on ${esc(String(deal.closingDate).slice(5, 7))}/${esc(String(deal.closingDate).slice(8, 10))}/${esc(String(deal.closingDate).slice(0, 4))}.` : ''}</p>`
-      + '<p><strong>Wire fraud warning:</strong> CLA Title &amp; Escrow will never email you wire instructions or ask you to change them by email. Before sending any money, call our office at a phone number you already know.</p><p>Thank you,</p>' };
+      + '<p><strong>Wire fraud warning:</strong> CLA Title &amp; Escrow will never email you wire instructions or ask you to change them by email. Before sending any money, call our office at a phone number you already know.</p>' + signOffHtml(myName, signature) };
 }
 export const textToHtml = (t) => esc(t).replace(/\r?\n/g, '<br>');

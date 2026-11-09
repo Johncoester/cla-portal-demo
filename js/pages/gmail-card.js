@@ -2,7 +2,7 @@
 // signature the portal adds to every email you send (the Gmail API does not add your Gmail signature).
 import { html, raw, $, guard, toast, fmtDateTime } from '../ui.js?v=202611070139';
 import { editorHtml, mountEditor } from './compose.js?v=202611090935';
-import { GMAIL_RESULT, TEST_ALLOWLIST_NOTE } from '../data/gmail-email.js?v=202611091311';
+import { GMAIL_RESULT, TEST_ALLOWLIST_NOTE } from '../data/gmail-email.js?v=202611091345';
 export function gmailCardHtml(g, note) {
   if (!g || !g.available || !g.allowed) return '';
   const res = GMAIL_RESULT[note];

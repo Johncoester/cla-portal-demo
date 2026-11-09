@@ -1,6 +1,6 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
 import { html, raw, toText, esc, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611070139';
-import { TEST_ALLOWLIST_NOTE, isAllowedTestRecipient, textToHtml } from '../data/gmail-email.js?v=202611091311';
+import { TEST_ALLOWLIST_NOTE, isAllowedTestRecipient, textToHtml, hasSignature } from '../data/gmail-email.js?v=202611091345';
 import { occSelects, yesNo } from './occ-fields.js?v=202611070139';
 import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611090935';
 import { modOn } from '../data/modules.js?v=202611090935';
@@ -13,7 +13,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611090935';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611091311';
 import { gatherReads } from '../data/read-batch.js?v=202611082010';
-import { prefetchDealTab } from './deal-tab.js?v=202611091311';
+import { prefetchDealTab } from './deal-tab.js?v=202611091345';
 import { placeText } from '../data/cla-offices.js?v=202611090935';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 
@@ -403,8 +403,10 @@ function automationSection(d, refi) {
       <button type="button" class="m-btn" data-email-sellers-agents ${refi ? raw('disabled title="A refinance has no sellers or agents"') : ''}>Email sellers and agents</button></div></div>`;
 }
 async function automationModal(api, d) {
-  const [P, g] = await Promise.all([api.previewSellerAgentEmails(d.id), api.getGmailStatus ? api.getGmailStatus().catch(() => ({ connected: false })) : { connected: false }]);
-  const on = !!(g && g.connected && g.status === 'connected'); const sendable = P.messages.filter((m) => m.email);
+  const g = api.getGmailStatus ? await api.getGmailStatus().catch(() => ({ connected: false })) : { connected: false };
+  const on = !!(g && g.connected && g.status === 'connected');
+  // one sign-off only: when the portal signature goes on the email, the built-in body leaves the name to it
+  const P = await api.previewSellerAgentEmails(d.id, { portalSignature: on && hasSignature(g.signatureHtml) }); const sendable = P.messages.filter((m) => m.email);
   // John, Nov 9 (Gmail phase 1): Send goes out one email per person from the user's own Gmail through gmail-send (the server refuses non-test addresses on Live Test)
   const m = modal('Email sellers and agents', html`${on ? html`<div class="notice info" data-gmail-on-modal>Sends one email per person from <strong>${g.mailbox}</strong>. ${TEST_ALLOWLIST_NOTE}</div>`
       : html`<div class="notice warn" data-gmail-off-modal><strong>Preview only.</strong> Connect your Gmail on <a href="#/profile">Profile Setting</a> to send. Nothing has been sent.</div>`}

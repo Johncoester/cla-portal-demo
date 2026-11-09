@@ -40,7 +40,7 @@ import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.j
 import { underwriterPart } from './mock-part-underwriter.js?v=202611070139';
 import { agentInfoPart } from './mock-part-agentinfo.js?v=202611090935';
 import { agentInvitePart } from './mock-part-agent-invite.js?v=202611090935';
-import { automationPart } from './automation.js?v=202611090935';
+import { automationPart } from './automation.js?v=202611091345';
 import { gmailMock } from './supabase-gmail.js?v=202611091311';
 import { hrPart, ensureHr } from './mock-part-hr.js?v=202611091800';
 import { titlePart, ensureTitle } from './mock-part-title.js?v=202611090935';
