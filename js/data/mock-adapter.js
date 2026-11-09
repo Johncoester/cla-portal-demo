@@ -9,7 +9,7 @@ import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, 
 import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611090935';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
 import { delegationLocked, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611090935';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611092340';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611100715';
 import { devAuth } from './mock-part-auth.js?v=202611070139';
 import { contactsTasksDocs } from './mock-part-docs.js?v=202611092320';
 import { tasksAndForms } from './mock-part-tasks.js?v=202611090935';
@@ -365,6 +365,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
       processorName: x.processorId ? nameOf(x.processorId) : 'Unassigned', processorUnassigned: !x.processorId,
       tcUserId: x.tcUserId || null, tcName: x.tcUserId ? nameOf(x.tcUserId) : '',
       preprocessorUserId: x.preprocessorUserId || null, preprocessorName: x.preprocessorUserId ? nameOf(x.preprocessorUserId) : '',
+      closerName: staffView ? (x.closerName || '') : '', closerProfileId: staffView ? (x.closerProfileId || null) : null,
       // John, Nov 2: several salespeople per file. salesPersonName stays as the joined names (older callers).
       salesPeople: salesOf(x.id).map((s) => ({ id: s.salesId, name: nameOf(s.salesId), role: (prof(s.salesId) || {}).role, addedAt: s.addedAt })),
       salesPersonIds: salesOf(x.id).map((s) => s.salesId), salesPersonName: salesOf(x.id).map((s) => nameOf(s.salesId)).join(', ') };
