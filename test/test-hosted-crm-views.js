@@ -185,13 +185,9 @@ const edited = await api.updateCrmView(unpinned.id, { name: 'Janine renamed', cr
 ok(edited.name === 'Janine renamed' && edited.id === unpinned.id, 'the owner can rename the view that is still saved');
 
 current = proc;
-ok(await rejects(() => api.createCrmView({ module: 'leads', name: 'Processor shared', visibility: 'all', criteria: [] }), /read-only/), 'a processor cannot share a view with everyone');
-const mine = await api.createCrmView({ module: 'leads', name: 'Processor private', criteria: [] });
-ok(mine.pinned === true && mine.canEdit === false, 'a processor can keep a private view and cannot edit it');
-const procBar = toText(await viewsBar(api, 'leads'));
-const procDoc = parseHTML(`<div>${procBar}</div>`).document;
-const procMenu = procDoc.querySelector(`[data-pin-menu="${mine.id}"]`);
-ok(procMenu && procMenu.querySelector('[data-pin-unpin]') && procMenu.querySelector('[data-pin-clone]') && procMenu.querySelector('[data-pin-close]') && !procMenu.querySelector('[data-pin-edit]') && !procMenu.querySelector('[data-pin-delete]'), 'a read-only pin menu has Unpin, Clone, and Close, and not Edit or Delete');
+ok(await rejects(() => api.createCrmView({ module: 'leads', name: 'Processor shared', visibility: 'all', criteria: [] }), /CLA staff only/), 'a processor cannot open CRM views');
+ok(await rejects(() => api.createCrmView({ module: 'leads', name: 'Processor private', criteria: [] }), /CLA staff only/), 'a processor cannot keep a private CRM view');
+ok(await rejects(() => api.listCrmViews('leads'), /CLA staff only/), 'a processor cannot list CRM views');
 
 console.log(fail ? fail + ' failed' : 'hosted crm views passed');
 if (fail) process.exit(1);

@@ -4,9 +4,9 @@
 import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, fmtMoney, fmtSize, modal, closeModal, pill } from '../ui.js?v=202611070139';
 import { CONTACT_TYPES, contactTypeLabel, US_STATE_NAMES, localDate } from '../data/constants.js?v=202611090935';
 import { ROLES_IN_COMPANY, LEAD_SOURCES, RELATIONSHIP_STATUSES, LINK_FIELDS, safeHref, TASK_SUBJECTS, TASK_STATUSES, TASK_PRIORITIES, REPEAT_EVERY, MEETING_TYPES, relatedLists,
-  activityKindLabel, ACTIVITY_KINDS, entityLabel, localStamp } from '../data/crm.js?v=202611070139';
+  activityKindLabel, ACTIVITY_KINDS, entityLabel, localStamp } from '../data/crm.js?v=202611092340';
 import { sel, pairs, ownerSel } from './crm-kit.js?v=202611091240';
-import { CONVERTED_STATUS } from '../data/crm.js?v=202611070139';
+import { CONVERTED_STATUS } from '../data/crm.js?v=202611092340';
 import { fieldsInSection, builtinRequired, activeOptions, defaultOption } from '../data/crm-config.js?v=202611070139';
 import { optSel, lbl, lblOrDash, hiddenField, cfInputs, cfRows, cfExtraSections } from './crm-custom.js?v=202611070139';
 import { activityBoard, wireCalls } from './crm-calls.js?v=202611091240';

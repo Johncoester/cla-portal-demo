@@ -3,7 +3,7 @@ import { getAdapter } from './data/adapter.js?v=202611092340';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611092350';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611090935';
-import { canUseCrm } from './data/crm.js?v=202611070139';
+import { canUseCrm } from './data/crm.js?v=202611092340';
 import { canUseGmail } from './data/gmail-email.js?v=202611091801';
 import { acctCanRead } from './data/accounting.js?v=202611070139';
 import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611090935';
@@ -124,7 +124,7 @@ export function navFor(u, dealId, unread, features = {}, ws = 'everything', demo
   if ((u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator') && modOn('tasks')) add('tasks', 'All Tasks', '#/tasks', 'task');
   if (canOpenTaskSetup(u, demo) && modOn('task-grid')) add('task-grid', 'Task Grid', '#/task-grid', 'task');
   if (u.isAdmin) { add('users/new', 'Create User', '#/users/new', 'documents'); add('users', 'User List', '#/users', 'documents'); add('teams', 'Teams', '#/teams', 'contact-us'); add('offices', 'Offices', '#/offices', 'contact-us'); }   // John, Nov 4: Admin > Offices (Admin / Super admin)
-  if (features.crm && canUseCrm(u) && modOn('crm')) add('crm', 'CRM', '#/crm', 'contact-us');   // feature flag + CLA staff only (not TCs, not outside users)
+  if (features.crm && canUseCrm(u) && modOn('crm')) add('crm', 'CRM', '#/crm', 'contact-us');   // feature flag + Admin, Sales Person, Sales Team (not Processor, Preprocessor, TC, or outside users)
   if (modOn('library')) add('library', 'Library', '#/library', 'documents');
   if (runsOrders(u) || u.isAdmin) add('activity', 'Activity Log', '#/activity', 'activity');
   if (canOpenTaskSetup(u, demo)) add('templates', 'Task Templates', '#/admin/templates', 'task');

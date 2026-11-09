@@ -1,7 +1,7 @@
 /* crm-deals.js : DEALS in the CRM (Zoho's Deals module) = the portal's orders you can already see. #/crm/deals[/<id>]. Read-only here (orders are run
  * in the portal); a deal has Send Email (saved, NOT sent) and its Emails list. Function only. */
 import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, toast } from '../ui.js?v=202611070139';
-import { crmSort, inLocalRange } from '../data/crm.js?v=202611070139';
+import { crmSort, inLocalRange } from '../data/crm.js?v=202611092340';
 import { DEAL_COLS, LOCKED_COLS, DEFAULT_HIDDEN, loadHidden, saveHidden } from '../data/crm-deal-cols.js?v=202611070139';
 import { tabs, head, money, wireRowOpen } from './crm-kit.js?v=202611091240';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611090905';

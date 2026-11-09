@@ -36,7 +36,7 @@ ok(!(await api.listCrmViews('leads')).some((v) => v.id === view.id), 'delete rem
 ok((await api.listCrmLeads()).length === leads.length, 'deleting a view does not delete leads');
 await api.signInDev('u-proc');
 let refused = false;
-try { const mine = await api.listCrmTasks(); const t = mine.find((z) => z.open); await api.closeCrmTask(t.id); } catch (e) { refused = /read-only|Processor/i.test(e.message); }
+try { const mine = await api.listCrmTasks(); const t = mine.find((z) => z.open); await api.closeCrmTask(t.id); } catch (e) { refused = /CLA staff only/.test(e.message); }
 ok(refused, 'a processor cannot close a CRM task');
 console.log(fail ? fail + ' failed' : 'janine crm passed');
 if (fail) process.exit(1);

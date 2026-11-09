@@ -72,7 +72,7 @@ const ro = createMockAdapter({ storage: mem(), sessionStorage: mem() });
 await ro.signInDev('u-proc');
 let refused = '';
 try { await ro.updateCrmLead(open[0].id, { notes: 'no' }); } catch (e) { refused = e.message; }
-ok(/read-only|Processor/i.test(refused), 'a read-only CRM user cannot bulk-update a lead');
+ok(/CLA staff only/.test(refused), 'a processor cannot change a CRM lead');
 const companySkip = planRelatedEmails('account', [{ id: 'co', name: 'Harbor Realty', email: '' }]);
 ok(companySkip.recipients.length === 0 && /linked to this company/.test(companySkip.skipped[0].reason), 'a company with no linked client email is skipped with that reason');
 const companyMail = planRelatedEmails('account', [{ id: 'co', name: 'Ada Agent', email: 'ada@example.test' }]);

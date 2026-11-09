@@ -87,8 +87,9 @@ const { api, calls } = hosted();
 const who = await api.crmMe();
 check(who.scope === 'own' && who.canEdit === true && who.id === 'u-sales', 'crmMe runs for a sales person');
 const proc = crmSupabase({ sb: hosted().calls && client(() => []).sb, ok: okFn, camel, me: async () => ({ id: 'u-proc', role: 'Processor', isAdmin: false, email: 'p@example.test', firstName: 'Pat', lastName: 'Proc' }), flags: { crm: true } });
-const procWho = await proc.crmMe();
-check(procWho.scope === 'all' && procWho.canEdit === false, 'crmMe marks a processor read-only with every deal');
+let procMsg = '';
+try { await proc.crmMe(); } catch (e) { procMsg = e.message; }
+check(procMsg === 'The CRM is for CLA staff only.', 'a processor is not a CRM user');
 
 const opened = await api.getCrmDeal(DEAL);
 check(opened.fileNumber === 'MD-26-97215' && opened._portalLink === `#/deals/${DEAL}` && opened._link === `#/crm/deals/${DEAL}`, 'the deal detail uses the list row and the portal order link');
