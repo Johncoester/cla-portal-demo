@@ -367,10 +367,14 @@ export async function createSupabaseAdapter(cfg) {
     async listMyTasks({ fileStatus = 'Open' } = {}) { return boardRows(ok(await sb.rpc('my_task_list', { p_file_status: fileStatus }))).map((t) => ({ ...t, mine: true, myRoles: t.myRoles || [], myRoleLabel: fileRoleLabel(t.myRoles || []) })); },
     async getTaskGrid({ fileStatus = 'Open' } = {}) {
       const u = await me(); if (!u || !u.isAdmin) throw new Error('Only an Admin or Super admin can open the task grid.');
-      const rows = boardRows(ok(await sb.rpc('task_grid', { p_file_status: fileStatus })));   // hosted task_grid still allows a Processor until that function is edited; the page and this check do not
-      let q = sb.from('deals').select('id, file_number, street, city, state, zip, closing_date, status'); if (fileStatus !== 'All') q = q.eq('status', fileStatus);
-      const deals = camel(ok(await q)).map((d) => ({ ...d, address: `${d.street}, ${d.city}, ${d.state} ${d.zip}` }));
-      return buildTaskGrid(rows, deals, localDate()); },
+      const fs = fileStatus || 'Open';
+      return nav.share(u.id, 'grid:' + fs, async () => {
+        let q = sb.from('deals').select('id, file_number, street, city, state, zip, closing_date, status'); if (fs !== 'All') q = q.eq('status', fs);
+        const [rawRows, rawDeals] = await Promise.all([sb.rpc('task_grid', { p_file_status: fs }), q]);
+        const rows = boardRows(ok(rawRows));
+        const deals = camel(ok(rawDeals)).map((d) => ({ ...d, address: `${d.street}, ${d.city}, ${d.state} ${d.zip}` }));
+        return buildTaskGrid(rows, deals, localDate());
+      }); },
     // NOTE: there is intentionally no deleteDocument anywhere.
     // ---- Matt, Oct 31, priority 2 (migration 14) ----
     async listAgreements(dealId) {
