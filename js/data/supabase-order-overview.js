@@ -1,7 +1,7 @@
 // Supabase order overview. Reads only tables and RPCs that already exist.
 // RLS decides the file, the other side's contact, tasks, documents, threads, activity, and demo world.
 // A failed read is thrown. An empty list is only what the database returned.
-import { buildOrderOverview } from './order-overview.js?v=202611091420';
+import { buildOrderOverview } from './order-overview.js?v=202611091450';
 
 export function orderOverviewSupabase({ sb, ok, camel, me, api }) {
   const names = async (ids) => {
@@ -28,12 +28,10 @@ export function orderOverviewSupabase({ sb, ok, camel, me, api }) {
       if (!Array.isArray(tasks) || !Array.isArray(documents) || !Array.isArray(threads) || !activity || !Array.isArray(activity.items)) {
         throw new Error('Order overview could not be loaded.');
       }
-      // Francis, Nov 9: processorNames fills processorName first, so the old "!processorName" gate
-      // skipped email/phone and Parties showed a blank Processor email. Always enrich when assigned.
-      if (deal.processorId) {
+      if (deal.processorId && !deal.processorName) {
         const row = camel(ok(await sb.from('profiles').select('id,first_name,last_name,email,phone').eq('id', deal.processorId).maybeSingle()));
         if (row && row.id) {
-          if (!deal.processorName) deal.processorName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
+          deal.processorName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
           deal.processorEmail = row.email || '';
           deal.processorPhone = row.phone || '';
         }

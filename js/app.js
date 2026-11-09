@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611091440';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611091430';
+import { getAdapter } from './data/adapter.js?v=202611091450';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611091450';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611090935';
 import { canUseCrm } from './data/crm.js?v=202611070139';
@@ -35,7 +35,7 @@ const pages = {
   dashboard: () => import('./pages/dashboard.js?v=202611091345'),
   orders: () => import('./pages/orders.js?v=202611091600'),
   'orders/new': () => import('./pages/ordernew.js?v=202611091355'),
-  deal: () => import('./pages/deal.js?v=202611091430'),
+  deal: () => import('./pages/deal.js?v=202611091450'),
   users: () => import('./pages/users.js?v=202611090935'),
   profile: () => import('./pages/profile.js?v=202611091440'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
@@ -416,8 +416,7 @@ export async function render() {
   const unreadP = u && api.notificationCount ? api.notificationCount().catch(() => 0) : Promise.resolve(0);
   if (earlyFile) {
     const id = route.params.id; const tab = route.params.tab || 'overview';
-    // Francis, Nov 9: Contacts needs participants; shell would paint an empty Contacts tab.
-    const staffShell = tab !== 'overview' && tab !== 'contacts' && api.readFileShell && u.role !== 'Outside user';
+    const staffShell = tab !== 'overview' && api.readFileShell && u.role !== 'Outside user';
     if (staffShell) {
       api.readFileShell(id).catch(() => null);
       if (tab === 'tasks' && api.listTasks) api.listTasks(id).catch(() => null);
