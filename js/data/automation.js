@@ -25,13 +25,14 @@ export function pickTemplate(templates, kind) {
   return (templates || []).filter((t) => t && !t.retiredAt && (t.status || 'active') === 'active' && (t.kind || 'html') === 'html' && re.test(`${t.name} ${t.subject}`) && !hasWireInfo(`${t.name}`))
     .sort((a, b) => String(a.name).localeCompare(String(b.name)))[0] || null;
 }
-function values(deal, p, sender) {
+function values(deal, p, sender, portalSignature = false) {
   const c = p.contact || {}; const first = c.firstName || ''; const last = c.lastName || '';
   return { 'Order.File Number': deal.fileNumber || '', 'Order.Address': deal.address || [deal.street, deal.city, deal.state].filter(Boolean).join(', '),
     'Order.Closing Date': fmtD(deal.closingDate), 'Order.Purchase Price': money(deal.purchasePrice), 'Order.Transaction Type': deal.transactionType || '',
     'Recipient.First Name': first, 'Recipient.Last Name': last, 'Recipient.Full Name': `${first} ${last}`.trim(), 'Recipient.Role': (roleWord[p.role] || p.role).toLowerCase(),
     'Contacts.First Name': first, 'Contacts.Last Name': last, 'Contacts.Full Name': `${first} ${last}`.trim(), 'Contacts.Email': c.email || '',
-    'User.Full Name': sender || 'CLA Title & Escrow', 'User Signature': `${sender || 'CLA Title & Escrow'}\nCLA Title & Escrow` };
+    'User.Full Name': sender || 'CLA Title & Escrow', // one sign-off only: when the portal signature will be appended, ${User Signature} leaves the name to it
+    'User Signature': portalSignature ? 'Thank you,' : `${sender || 'CLA Title & Escrow'}\nCLA Title & Escrow` };
 }
 // merge: known fields only; a field whose NAME is wire-ish never resolves (blocked), unknown fields are removed (reported)
 export function mergeSafe(src, vals) {
@@ -43,8 +44,8 @@ export function mergeSafe(src, vals) {
   return { text: out, blocked, unknown };
 }
 const dropWireLines = (t) => { const lines = String(t).split('\n'); const kept = lines.filter((l) => !hasWireInfo(l)); return { text: kept.join('\n').replace(/\n{3,}/g, '\n\n').trim(), dropped: lines.length - kept.length }; };
-export function buildMessage(deal, p, template, sender) {
-  const kind = p.role === 'Client-Seller' ? 'seller' : 'agent'; const t = template || DEFAULTS[kind]; const vals = values(deal, p, sender);
+export function buildMessage(deal, p, template, sender, portalSignature = false) {
+  const kind = p.role === 'Client-Seller' ? 'seller' : 'agent'; const t = template || DEFAULTS[kind]; const vals = values(deal, p, sender, portalSignature);
   const s = mergeSafe(plain(t.subject), vals); const b = mergeSafe(plain(t.body != null ? t.body : t.html), vals);
   const subj = dropWireLines(s.text.replace(/\n/g, ' ')); const body = dropWireLines(b.text);
   let subject = subj.text || `Order ${deal.fileNumber}`; let text = body.text; const notes = [];
@@ -57,20 +58,20 @@ export function buildMessage(deal, p, template, sender) {
     template: template ? template.name : DEFAULTS[kind].name, fromCrm: !!template, subject, body: text, notes, noEmail: !c.email };
 }
 // one message per seller / agent on the order (removed participants skipped; a self-represented seller + listing agent gets one message)
-export function buildSellerAgentPreview({ deal, templates = [], sender = '' }) {
+export function buildSellerAgentPreview({ deal, templates = [], sender = '', portalSignature = false }) {
   const seen = new Set(); const msgs = [];
   const parts = (deal.participants || []).filter((p) => !p.removed && AUTOMATION_ROLES.includes(p.role))
     .sort((a, b) => AUTOMATION_ROLES.indexOf(a.role) - AUTOMATION_ROLES.indexOf(b.role));
   const tpl = { seller: pickTemplate(templates, 'seller'), agent: pickTemplate(templates, 'agent') };
-  for (const p of parts) { const key = p.contactId || p.id; if (seen.has(key)) continue; seen.add(key); msgs.push(buildMessage(deal, p, p.role === 'Client-Seller' ? tpl.seller : tpl.agent, sender)); }
+  for (const p of parts) { const key = p.contactId || p.id; if (seen.has(key)) continue; seen.add(key); msgs.push(buildMessage(deal, p, p.role === 'Client-Seller' ? tpl.seller : tpl.agent, sender, portalSignature)); }
   return { dealId: deal.id, fileNumber: deal.fileNumber, messages: msgs, sent: 0, note: GMAIL_OFF, wireRule: WIRE_BUYER_ONLY,
     templatesUsed: [...new Set(msgs.filter((m) => m.fromCrm).map((m) => m.template))] };
 }
 // adapter method shared by the mock and Supabase adapters (reads only; sends nothing). Processor / Admin (whoever runs orders) only.
 export function automationPart(api, { runsOrders, me }) {
-  return { async previewSellerAgentEmails(dealId) {
+  return { async previewSellerAgentEmails(dealId, { portalSignature = false } = {}) {
     const u = await me(); if (!u || !runsOrders(u)) throw new Error('Only the Processor or an Admin can prepare emails to sellers and agents.');
     const deal = await api.getDeal(dealId); let templates = []; try { templates = await api.listCrmEmailTemplates(); } catch (e) { templates = []; }
-    return buildSellerAgentPreview({ deal, templates, sender: `${u.firstName || ''} ${u.lastName || ''}`.trim() });
+    return buildSellerAgentPreview({ deal, templates, sender: `${u.firstName || ''} ${u.lastName || ''}`.trim(), portalSignature: !!portalSignature });
   } };
 }

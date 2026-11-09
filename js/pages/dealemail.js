@@ -3,7 +3,7 @@
 // Documents (staff only). The server refuses every address that is not a test address on Live Test, and never emails wire details.
 import { html, raw, esc, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611070139';
 import { editorHtml, mountEditor } from './compose.js?v=202611090935';
-import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611091311';
+import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, hasSignature, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611091345';
 const ROLE = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent', 'Transaction Coordinator': 'TC' };
 const list = (s) => String(s || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
 const isWire = (d) => d.wireInstructions || /\bwir(e|ed|es|ing)\b|wire[_ -]?instruction/i.test(d.name || '');
@@ -42,7 +42,7 @@ export async function render({ api, deal, user, refresh: reload }) {
       box.hidden = !box.hidden; b.textContent = box.hidden ? 'Show message' : 'Hide message'; }));
     const refresh = () => { if (typeof reload === 'function') reload(); else location.reload(); };
     $('[data-mail-new]', root).addEventListener('click', guard(() => composeEmailModal({ api, deal, user, gmail: g, done: refresh })));
-    $('[data-mail-intro]', root).addEventListener('click', guard(() => { const rs = introRecipients(deal); const t = introTemplate(deal, { firstName: g.firstName || user.firstName, lastName: g.lastName || user.lastName, role: user.role }, rs);
+    $('[data-mail-intro]', root).addEventListener('click', guard(() => { const rs = introRecipients(deal); const t = introTemplate(deal, { firstName: g.firstName || user.firstName, lastName: g.lastName || user.lastName, role: user.role }, rs, { signature: hasSignature(g.signatureHtml) });
       return composeEmailModal({ api, deal, user, gmail: g, done: refresh }, { to: rs.map((r) => r.email), subject: t.subject, html: t.html, templateKey: t.key }); }));
     $$('[data-mail-reply]', root).forEach((b) => b.addEventListener('click', guard(() => { const e = byId.get(b.dataset.mailReply);
       const to = e.direction === 'in' ? [e.fromEmail] : (e.toEmails || []);

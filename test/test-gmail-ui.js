@@ -1,5 +1,6 @@
 /* Gmail phase 1 (John, Nov 9): page-side rules + Email tab / Profile card markup with a fake adapter. No network. */
-import { canUseGmail, isAllowedTestRecipient as pageAllow, introRecipients, introTemplate, GMAIL_RESULT } from '../js/data/gmail-email.js';
+import { canUseGmail, isAllowedTestRecipient as pageAllow, introRecipients, introTemplate, GMAIL_RESULT, hasSignature } from '../js/data/gmail-email.js';
+import { buildSellerAgentPreview } from '../js/data/automation.js';
 import { isAllowedTestRecipient as serverAllow, hasWireDetails, GMAIL_ROLES as SERVER_ROLES } from '../supabase/functions/_shared/gmail-core.mjs';
 import { GMAIL_ROLES } from '../js/data/gmail-email.js';
 import { toText } from '../js/ui.js';
@@ -24,6 +25,15 @@ ok(rs.map((r) => r.email).join() === 'clatestportal+buyer@gmail.com,clatestporta
 const t = introTemplate(deal, { firstName: 'Anchie', lastName: 'Santos', role: 'Processor' }, rs);
 ok(t.key === 'intro' && /Introduction: 1 Main St, Annapolis, MD/.test(t.subject) && t.html.includes('Anchie Santos') && t.html.includes('your processor') && t.html.includes('point of contact') && t.html.includes('Hi Pat and Lee,'), 'introduction email: who I am, my role, point of contact');
 ok(!hasWireDetails(t.html) && /never email you wire instructions/.test(t.html), 'introduction carries the wire-fraud warning and no wire details');
+// one sign-off only: with a portal signature the body stops at "Thank you," (the signature carries the name); without one the body signs itself
+const tSig = introTemplate(deal, { firstName: 'Anchie', lastName: 'Santos', role: 'Processor' }, rs, { signature: true });
+ok(tSig.html.endsWith('<p>Thank you,</p>') && (tSig.html.match(/Anchie Santos/g) || []).length === 1, 'introduction with a portal signature: "Thank you," then the signature, no second name block');
+ok(t.html.endsWith('<p>Thank you,<br>Anchie Santos<br>CLA Title &amp; Escrow</p>'), 'introduction without a signature signs with the sender name');
+ok(hasSignature('<p>Anchie</p>') && !hasSignature('<p><br></p>') && !hasSignature('') && !hasSignature('&nbsp;'), 'an empty signature does not count');
+const aDeal = { id: 'd1', fileNumber: 'MD-1', address: '1 Main St', participants: [{ id: 'p1', role: 'Client-Seller', contact: { firstName: 'Sue', email: 's@x.com' } }, { id: 'p2', role: 'Listing Agent', contact: { firstName: 'Al', email: 'a@x.com' } }] };
+const plainP = buildSellerAgentPreview({ deal: aDeal, sender: 'Anchie Santos' }); const sigP = buildSellerAgentPreview({ deal: aDeal, sender: 'Anchie Santos', portalSignature: true });
+ok(plainP.messages.every((m) => m.body.endsWith('Anchie Santos\nCLA Title & Escrow')), 'seller / agent default body signs with the sender when no portal signature');
+ok(sigP.messages.length === 2 && sigP.messages.every((m) => m.body.endsWith('Thank you,') && !m.body.includes('Anchie Santos') && !m.body.includes('CLA Title & Escrow\n')), 'seller / agent default body leaves the name to the portal signature');
 ok(Object.keys(GMAIL_RESULT).join() === 'connected,denied,expired,wrong_domain,missing_scope,in_use,failed', 'every callback result has a message');
 ok(dealTabSpec('email').startsWith('./dealemail.js'), 'file tab "email" is registered');
 const off = toText(gmailCardHtml({ available: true, allowed: true, connected: false }, ''));

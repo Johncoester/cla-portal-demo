@@ -3,7 +3,7 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, p
 import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole } from '../data/constants.js?v=202611090935';
 import { pickerHtml, mountPicker } from './person-picker.js?v=202611090935';
 import { canInviteAgents } from '../data/agent-profile.js?v=202611090935';
-import { copyPlainText } from './deal.js?v=202611091311';
+import { copyPlainText } from './deal.js?v=202611091345';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
 export function contactCopyMessage(copied, kind) {
