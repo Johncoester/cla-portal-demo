@@ -7,11 +7,12 @@ export const REDIRECT_URI = 'https://aqcervntopidtcazcmlv.supabase.co/functions/
 export const WORKSPACE_DOMAIN = 'clatitle.com';
 export const SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
 export const READ_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
-// gmail.settings.basic (John, Nov 9 2:06 PM): used READ-ONLY, to import the person's current Gmail signature (users.settings.sendAs.list).
-// It is optional: a connect without it still works and Profile Setting asks to reconnect to import the signature.
+// Signature import (John, Nov 9 2:06 PM): users.settings.sendAs.list accepts gmail.readonly, which Connect already asks for, so no extra
+// permission is requested (gmail.settings.basic would also allow CHANGING Gmail settings). Any of these lets the portal read the signature.
 export const SETTINGS_SCOPE = 'https://www.googleapis.com/auth/gmail.settings.basic';
-export const SCOPES = ['openid', 'email', SEND_SCOPE, READ_SCOPE, SETTINGS_SCOPE];
-export const hasSettingsScope = (granted) => String(granted || '').split(/\s+/).includes(SETTINGS_SCOPE);
+export const SIGNATURE_READ_SCOPES = [READ_SCOPE, SETTINGS_SCOPE, 'https://www.googleapis.com/auth/gmail.modify', 'https://mail.google.com/'];
+export const SCOPES = ['openid', 'email', SEND_SCOPE, READ_SCOPE];
+export const hasSettingsScope = (granted) => { const g = String(granted || '').split(/\s+/); return SIGNATURE_READ_SCOPES.some((x) => g.includes(x)); };
 // the signature Gmail adds for the default send-as address (else the primary one), sanitized like any email body
 export function pickSendAsSignature(body) {
   const list = (body && Array.isArray(body.sendAs)) ? body.sendAs : [];
