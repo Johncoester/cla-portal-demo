@@ -6,6 +6,7 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney
 import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611090935';
 import { composeModal } from './compose.js?v=202611090935';
 import { slotText } from './dealclosing.js?v=202611090935';
+import { yourAgentHtml } from './your-agent.js?v=202611090935';
 
 // stage 5 shows as "Wire Fraud Awareness" on the BUYER's view only (display only; the stored stage list is unchanged)
 // live40 (John, Nov 5 meeting): the client tracker's step 2 (internal STAGES[1] 'EMD Receipt', key unchanged for reports) reads "Buyer info received" for buyer and seller.
@@ -86,7 +87,7 @@ export async function renderClientOverview(ctx, d, here) {
   const mySide = [...ps.filter((p) => p.role === myRole && p.contactId !== (meC && meC.contactId)).map((p) => [p, L[myRole]]), ...ps.filter((p) => p.role === 'Transaction Coordinator' && !claTc(p)).map((p) => [p, 'Transaction coordinator']), ...(side === 'buyer' ? ps.filter((p) => p.role === 'Lender').map((p) => [p, 'Lender']) : [])];
   const other = pure ? [] : [...ps.filter((p) => p.role === otherAgentRole).map((p) => row(p, L[otherAgentRole])), ...ps.filter((p) => p.role === otherRole).map((p) => row(p, L[otherRole], { via: true }))];
   // "Your agent" for both (seller mirror, Nov 4): the buyer's agent for the buyer, the listing agent for the seller. Neither ever sees the other side's agent (adapter drops the row).
-  const team = html`${ownAgents.map((p) => row(p, 'Your agent', { big: true }))}
+  const team = html`${(myAgents && myAgents.length) ? '' : ownAgents.map((p) => row(p, 'Your agent', { big: true }))}
     ${claRows.length ? html`<div class="co-sec">CLA Title &amp; Escrow</div>${claRows.map(([p, c]) => row(p, c, { cla: true }))}` : ''}
     ${mySide.length || meC ? html`<div class="co-sec">Your side</div>${mySide.map(([p, c]) => row(p, c))}${meC ? row(meC, selfAgent ? `${L[myRole]} + ${L[ownAgentRole]}` : L[myRole], { you: true }) : ''}` : ''}
     ${other.length ? html`<div class="co-sec">Other side of the deal</div>${other}` : ''}`;
@@ -101,6 +102,7 @@ export async function renderClientOverview(ctx, d, here) {
   const body = html`<div class="co-page" data-client-overview="${side}">
     <h1 class="co-greet" data-co-greet>Hi ${user.firstName}, here\u2019s your ${what}</h1><p class="co-sub">${d.street}, ${d.city}, ${d.state} ${d.zip} \u00b7 Order ${d.fileNumber}</p>
     ${clientNav(d, user, 'overview', { todo: todo.length, tasks: cnt.tasks, msg: msgCount, docs: cnt.documents, ag: ag && ag.pending })}
+    ${myAgents && myAgents.length ? html`<div class="agent-inline co-your-agent" data-co-your-agent>${yourAgentHtml(myAgents)}</div>` : ''}
     ${d.selfRep ? html`<div class="notice info" data-self-rep>You are the <strong>${d.myRoleLabel}</strong> on this file. Your tasks as the client and as the agent are in one list; the history records which capacity you acted in.</div>` : ''}
     ${sc ? html`<div class="notice info" data-scheduled-closing><strong>Closing scheduled:</strong> ${slotText(sc.at)} &middot; ${sc.location}${sc.note ? html` &middot; ${sc.note}` : ''} <a href="#/deals/${d.id}/closing">details</a></div>` : ''}
     ${!pure && ag && ag.pending ? html`<div class="notice warn" data-agreements-pending>You have <strong>${ag.pending}</strong> agreement(s) to read and acknowledge (including the Wire Fraud Warning). <a href="#/deals/${d.id}/agreements">Open Agreements</a></div>` : ''}

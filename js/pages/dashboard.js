@@ -138,12 +138,13 @@ export const myTaskList = (tasks) => { const open = tasks.filter((t) => ['todo',
     ${open.length ? html`<table class="table"><thead><tr><th>Task</th><th>File</th><th>My role on this file</th><th>Due</th></tr></thead><tbody>${open.map((t) => html`<tr data-my-task="${t.id}" data-my-task-deal="${t.deal.id}">
       <td><a href="${taskHref(t)}" data-my-task-link>${t.title}</a> ${t.status === 'in_progress' ? pill('started', 'info') : ''}</td>
       <td><a href="#/deals/${t.deal.id}">${t.deal.fileNumber}</a><br><span class="muted small">${t.deal.address}</span></td>
-      <td data-my-task-role>${t.myRoleLabel || ''}</td><td class="nowrap ${t.overdue ? 'warn' : ''}">${t.dueDate ? fmtDate(t.dueDate) : html`<span class="muted">-</span>`}</td></tr>`)}</tbody></table>`
+      <td data-my-task-role>${t.myRoleLabel || (t.deal && t.deal.myRoleLabel) || ''}</td><td class="nowrap ${t.overdue ? 'warn' : ''}">${t.dueDate ? fmtDate(t.dueDate) : html`<span class="muted">-</span>`}</td></tr>`)}</tbody></table>`
       : html`<p class="muted">Nothing needed from you right now.</p>`}</div>`; };
 async function outside({ api, deals, all }) {
   const fromFiles = pendingMine(all.filter((t) => !t.deal || t.deal.status === 'Open'));
   const rpc = api.listMyTasks ? await api.listMyTasks({ fileStatus: 'Open' }).catch(() => []) : [];
-  const mine = fromFiles.length ? fromFiles : rpc;
+  // Prefer listMyTasks (carries myRoleLabel per file). fromFiles lacked it, so the agent home "My role on this file" column was blank.
+  const mine = (rpc.length ? rpc : fromFiles).map((t) => ({ ...t, myRoleLabel: t.myRoleLabel || (t.deal && t.deal.myRoleLabel) || '' }));
   const mineOpen = (d) => all.filter((t) => t.deal.id === d.id && t.mine && ['todo', 'in_progress', 'blocked'].includes(t.status)).length;
   const sections = GROUPS.map(([role, label]) => { const list = deals.filter((d) => groupOf(d) === role); if (!list.length) return '';
     const isC = isClient(role); const shown = isC ? list.filter((d) => d.status === 'Open') : list;
