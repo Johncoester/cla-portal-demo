@@ -19,6 +19,8 @@ const SAMPLE = [
 const OWNER = '149e612a-0000-4000-8000-000000000001';
 
 ok(SAMPLE.includes('TEST-SEED-CRM-IMPORT') && !SAMPLE.includes('@gmail') && !/@(?!example\.test)/.test(SAMPLE), 'the sample CSV is fake and marked TEST-SEED-CRM-IMPORT');
+const adapter = read('js/data/supabase-adapter.js');
+ok(!adapter.includes('External CRM import is not authorized') && !adapter.includes('a.previewCrmImport') && !adapter.includes('a.runCrmImport'), 'the hosted adapter no longer blocks CSV import');
 
 const page = read('js/pages/crm-janine.js');
 const deniedAt = page.indexOf('data-import-denied');
