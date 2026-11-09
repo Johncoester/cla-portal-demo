@@ -1,5 +1,8 @@
 /* [SUPABASE] Gmail phase 1 (John, Nov 9; migration 20261109200000). The edge functions do all Google work; the page never holds a token.
- *   gmail-oauth-start (start | disconnect), gmail-send (also dryRun), gmail-sync (Check for replies). Reads: gmail_my_context(), deal_emails (RLS). */
+ *   gmail-oauth-start (start | disconnect), gmail-send (also dryRun), gmail-sync (Check for replies). Reads: gmail_my_context(), deal_emails (RLS).
+ * File email templates (migration 20261109220000): Admin > Email Templates + "Use template" on a file Email tab. Not CRM templates. */
+import { SEED_SHARED as FILE_EMAIL_SEED, cleanTemplateInput } from './file-email-templates.js?v=202611092200';
+
 export function gmailSupabase({ sb, ok, camel }) {
   const call = async (name, body) => {
     const res = await sb.functions.invoke(name, { body });
@@ -10,6 +13,7 @@ export function gmailSupabase({ sb, ok, camel }) {
     }
     return res.data || {};
   };
+  const uid = async () => (await sb.auth.getUser()).data.user.id;
   return {
     async getGmailStatus() {
       const c = ok(await sb.rpc('gmail_my_context')) || {};
@@ -23,7 +27,6 @@ export function gmailSupabase({ sb, ok, camel }) {
       return r.url;
     },
     async disconnectGmail() { return call('gmail-oauth-start', { action: 'disconnect' }); },
-    // Refresh from Gmail: the edge function reads your current Gmail signature (read-only) and stores it as the portal signature
     async refreshGmailSignature() { return call('gmail-oauth-start', { action: 'refresh_signature' }); },
     async saveGmailSignature(htmlText) { ok(await sb.rpc('gmail_set_signature', { p_html: String(htmlText || '') })); return true; },
     async listDealEmails(dealId) { return camel(ok(await sb.from('deal_emails').select('*').eq('deal_id', dealId).order('sent_at', { ascending: false }).limit(300))) || []; },
@@ -32,11 +35,58 @@ export function gmailSupabase({ sb, ok, camel }) {
         documentIds: input.documentIds || [], templateKey: input.templateKey || null, replyToEmailId: input.replyToEmailId || null, dryRun: input.dryRun === true });
     },
     async checkGmailReplies() { return call('gmail-sync', { mode: 'user' }); },
+    async listFileEmailTemplates({ includeInactive = false } = {}) {
+      let q = sb.from('email_templates').select('*').order('name');
+      if (!includeInactive) q = q.eq('active', true);
+      return camel(ok(await q)) || [];
+    },
+    async getFileEmailTemplate(id) {
+      const row = camel(ok(await sb.from('email_templates').select('*').eq('id', id).maybeSingle()));
+      if (!row) throw new Error('Template not found.');
+      return row;
+    },
+    async createFileEmailTemplate(input = {}) {
+      const v = cleanTemplateInput(input); const id = await uid();
+      const row = { name: v.name, subject: v.subject, body_html: v.bodyHtml, scope: 'shared', category: v.category || '', active: v.active,
+        owner_profile_id: null, attach_doc_types: v.attachDocTypes || [], default_recipient_roles: v.defaultRecipientRoles || [],
+        created_by: id, updated_by: id, updated_at: new Date().toISOString() };
+      return camel(ok(await sb.from('email_templates').insert(row).select('*').single()));
+    },
+    async updateFileEmailTemplate(id, input = {}) {
+      const v = cleanTemplateInput(input); const me = await uid();
+      const patch = { name: v.name, subject: v.subject, body_html: v.bodyHtml, category: v.category || '', active: v.active, scope: 'shared',
+        owner_profile_id: null, attach_doc_types: v.attachDocTypes || [], default_recipient_roles: v.defaultRecipientRoles || [],
+        updated_by: me, updated_at: new Date().toISOString() };
+      return camel(ok(await sb.from('email_templates').update(patch).eq('id', id).select('*').single()));
+    },
+    async duplicateFileEmailTemplate(id, { name } = {}) {
+      const src = camel(ok(await sb.from('email_templates').select('*').eq('id', id).maybeSingle()));
+      if (!src) throw new Error('Template not found.');
+      const me = await uid();
+      const row = { name: String(name || `Copy of ${src.name}`).slice(0, 120), subject: src.subject || '', body_html: src.bodyHtml || '',
+        scope: 'shared', owner_profile_id: null, category: src.category || '', active: true,
+        attach_doc_types: src.attachDocTypes || src.attach_doc_types || [], default_recipient_roles: src.defaultRecipientRoles || src.default_recipient_roles || [],
+        created_by: me, updated_by: me, updated_at: new Date().toISOString() };
+      return camel(ok(await sb.from('email_templates').insert(row).select('*').single()));
+    },
+    async setFileEmailTemplateActive(id, active = false) {
+      const me = await uid();
+      return camel(ok(await sb.from('email_templates').update({ active: !!active, updated_by: me, updated_at: new Date().toISOString() }).eq('id', id).select('*').single()));
+    },
   };
 }
-// mock / demo mode: Gmail is never connected there
+
 export function gmailMock() {
   const off = async () => { throw new Error('Gmail works on CLA Portal Live Test only.'); };
-  return { async getGmailStatus() { return { available: false, allowed: false, connected: false }; }, connectGmail: off, disconnectGmail: off, saveGmailSignature: off, refreshGmailSignature: off,
-    async listDealEmails() { return []; }, sendDealEmail: off, checkGmailReplies: off };
+  const store = FILE_EMAIL_SEED.map((t, i) => ({ id: `fet-seed-${i + 1}`, name: t.name, subject: t.subject, bodyHtml: t.bodyHtml, scope: 'shared',
+    ownerProfileId: null, category: t.category || '', active: true, attachDocTypes: t.attachDocTypes || [], defaultRecipientRoles: t.defaultRecipientRoles || [],
+    seedKey: t.key, createdAt: '2026-11-09T00:00:00Z', updatedAt: '2026-11-09T00:00:00Z' }));
+  return {
+    async getGmailStatus() { return { available: false, allowed: false, connected: false }; },
+    connectGmail: off, disconnectGmail: off, saveGmailSignature: off, refreshGmailSignature: off,
+    async listDealEmails() { return []; }, sendDealEmail: off, checkGmailReplies: off,
+    async listFileEmailTemplates({ includeInactive = false } = {}) { return store.filter((t) => includeInactive || t.active).map((t) => ({ ...t })); },
+    async getFileEmailTemplate(id) { const t = store.find((x) => x.id === id); if (!t) throw new Error('Template not found.'); return { ...t }; },
+    createFileEmailTemplate: off, updateFileEmailTemplate: off, duplicateFileEmailTemplate: off, setFileEmailTemplateActive: off,
+  };
 }

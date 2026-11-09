@@ -3,7 +3,8 @@
 // Documents (staff only). The server refuses every address that is not a test address on Live Test, and never emails wire details.
 import { html, raw, esc, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611070139';
 import { editorHtml, mountEditor } from './compose.js?v=202611090935';
-import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, hasSignature, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611091801';
+import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, hasSignature, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611092200';
+import { applyFileTemplate } from '../data/file-email-templates.js?v=202611092200';
 const ROLE = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent', 'Transaction Coordinator': 'TC' };
 const list = (s) => String(s || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
 const isWire = (d) => d.wireInstructions || /\bwir(e|ed|es|ing)\b|wire[_ -]?instruction/i.test(d.name || '');
@@ -18,7 +19,7 @@ export async function render({ api, deal, user, refresh: reload }) {
   groups.sort((a, b) => String(b[b.length - 1].sentAt).localeCompare(String(a[a.length - 1].sentAt)));
   const row = (e) => html`<li class="mail-msg" data-mail-msg="${e.id}" data-mail-dir="${e.direction}">
       <div class="small">${e.direction === 'in' ? pill('Received', 'info') : pill('Sent', 'ok')} <strong>${e.fromName || e.fromEmail}</strong> &lt;${e.fromEmail}&gt; to ${(e.toEmails || []).join(', ')}${(e.ccEmails || []).length ? html`, cc ${(e.ccEmails || []).join(', ')}` : ''}
-        <span class="muted">${fmtDateTime(e.sentAt)}</span>${e.templateKey === 'intro' ? html` ${pill('Introduction', '')}` : ''}</div>
+        <span class="muted">${fmtDateTime(e.sentAt)}</span>${e.templateKey === 'intro' ? html` ${pill('Introduction', '')}` : e.templateKey ? html` ${pill('Template', '')}` : ''}</div>
       <div class="small muted">${e.snippet}</div>
       ${(e.attachmentNames || []).length ? html`<div class="small" data-mail-attachments>Attachments: ${(e.attachmentNames || []).join(', ')} <a href="#/deals/${deal.id}/documents">Documents</a></div>` : ''}
       <button type="button" class="linkish small" data-mail-show="${e.id}">Show message</button> ${g.connected ? html`<button type="button" class="linkish small" data-mail-reply="${e.id}">Reply</button>` : ''}
@@ -57,11 +58,16 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
   const docs = (await api.listDocuments(deal.id).catch(() => [])).filter((d) => d.hasContent !== false);
   const parties = introRecipients(deal).concat((deal.participants || []).filter((p) => !p.removed && p.contact && p.contact.email && !p.contact.contactHidden && !Object.keys(ROLE).includes(p.role))
     .map((p) => ({ name: `${p.contact.firstName || ''} ${p.contact.lastName || ''}`.trim(), email: String(p.contact.email).toLowerCase(), role: p.role })));
+  const templates = (api.listFileEmailTemplates ? (await api.listFileEmailTemplates({ includeInactive: false }).catch(() => [])) : []).filter((t) => t.scope === 'shared' && t.active !== false);
+  const tplOpts = templates.map((t) => html`<option value="${t.id}">${t.name}${t.category ? ` (${t.category})` : ''}</option>`);
+  let chosenTemplateKey = pre.templateKey || null;
   const m = modal(pre.replyToEmailId ? 'Reply' : pre.templateKey === 'intro' ? 'Introduction email' : 'New email', html`<form data-mail-compose onsubmit="return false" class="form-grid">
     <label class="span2">From<input value="${gmail.connected ? gmail.mailbox : 'Connect Gmail on Profile Setting first'}" disabled data-mail-compose-from></label>
     <label class="span2">To<input name="to" value="${(pre.to || []).join(', ')}" placeholder="name@example.com, ..." data-mail-to></label>
     <label>Cc<input name="cc" value="${(pre.cc || []).join(', ')}" data-mail-cc></label><label>Bcc<input name="bcc" data-mail-bcc></label>
     ${parties.length ? html`<div class="span2 small">On this file: ${parties.map((p) => html`<button type="button" class="ghost small" data-mail-add="${p.email}" title="${p.email}">+ ${p.name || p.email} (${ROLE[p.role] || p.role})${isAllowedTestRecipient(p.email) ? '' : raw(' <span class="pill warn">not a test address</span>')}</button> `)}</div>` : ''}
+    ${templates.length && !pre.replyToEmailId ? html`<label class="span2">Use template<select data-mail-template><option value="">(blank — no template)</option>${tplOpts}</select></label>
+      <div class="span2 notice warn" data-mail-tpl-warn hidden></div>` : ''}
     <label class="span2">Subject<input name="subject" maxlength="250" value="${pre.subject || ''}" data-mail-subject></label>
     <p class="span2 small muted">${fileTag(deal.fileNumber, deal)} is added to the subject. Your portal signature is added at the bottom.</p>
     <div class="span2" data-mail-editor>${editorHtml('mail-rte')}</div>
@@ -72,8 +78,35 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     <div class="span2"><button type="button" class="ghost" data-mail-check>Check (does not send)</button> <button type="button" class="m-btn" data-mail-send ${gmail.connected ? '' : raw('disabled title="Connect Gmail first"')}>Send</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
   const ed = mountEditor($('[data-mail-editor]', m)); ed.box.innerHTML = pre.html || '<p><br></p>';
   $$('[data-mail-add]', m).forEach((b) => b.addEventListener('click', () => { const i = $('[data-mail-to]', m); const cur = list(i.value); if (!cur.includes(b.dataset.mailAdd)) cur.push(b.dataset.mailAdd); i.value = cur.join(', '); }));
+  const tplSel = $('[data-mail-template]', m);
+  const warn = $('[data-mail-tpl-warn]', m);
+  const showWarn = (msgs) => { if (!warn) return; const bits = (msgs || []).filter(Boolean); if (!bits.length) { warn.hidden = true; warn.textContent = ''; return; }
+    warn.hidden = false; warn.textContent = bits.join(' ') + ' You can edit before sending.'; };
+  const applyChosen = () => {
+    if (!tplSel || !tplSel.value) { chosenTemplateKey = null; showWarn([]); return; }
+    const t = templates.find((x) => x.id === tplSel.value); if (!t) return;
+    const sender = { firstName: gmail.firstName || user.firstName, lastName: gmail.lastName || user.lastName };
+    const toNow = list($('[data-mail-to]', m).value);
+    const applied = applyFileTemplate(t, deal, sender, { toEmails: toNow, documents: docs, applyDefaultRecipients: toNow.length === 0 });
+    if (applied.suggestedTo && applied.suggestedTo.length && toNow.length === 0) $('[data-mail-to]', m).value = applied.suggestedTo.join(', ');
+    // re-merge recipient_first_name after To fill
+    const to2 = list($('[data-mail-to]', m).value);
+    const applied2 = applyFileTemplate(t, deal, sender, { toEmails: to2, documents: docs, applyDefaultRecipients: false });
+    $('[data-mail-subject]', m).value = applied2.subject;
+    ed.box.innerHTML = applied2.html || '<p><br></p>';
+    chosenTemplateKey = applied2.templateKey;
+    // auto-check matched documents; leave others as they were
+    const want = new Set(applied2.attachDocumentIds || []);
+    $$('[data-mail-doc]', m).forEach((c) => { if (want.has(c.value)) c.checked = true; });
+    showWarn(applied2.warnings);
+  };
+  if (tplSel) {
+    tplSel.addEventListener('change', applyChosen);
+    $('[data-mail-to]', m).addEventListener('change', () => { if (tplSel.value) applyChosen(); });
+    $('[data-mail-to]', m).addEventListener('blur', () => { if (tplSel.value) applyChosen(); });
+  }
   const input = (dryRun) => ({ dealId: deal.id, to: list($('[data-mail-to]', m).value), cc: list($('[data-mail-cc]', m).value), bcc: list($('[data-mail-bcc]', m).value),
-    subject: $('[data-mail-subject]', m).value, html: ed.html, documentIds: $$('[data-mail-doc]', m).filter((c) => c.checked).map((c) => c.value), templateKey: pre.templateKey || null, replyToEmailId: pre.replyToEmailId || null, dryRun });
+    subject: $('[data-mail-subject]', m).value, html: ed.html, documentIds: $$('[data-mail-doc]', m).filter((c) => c.checked).map((c) => c.value), templateKey: chosenTemplateKey, replyToEmailId: pre.replyToEmailId || null, dryRun });
   const out = $('[data-mail-check-result]', m);
   const show = (cls, msg) => { out.innerHTML = `<div class="notice ${cls}">${esc(msg)}</div>`; };
   $('[data-mail-check]', m).addEventListener('click', async () => {
