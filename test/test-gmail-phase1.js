@@ -1,4 +1,5 @@
 /* Gmail phase 1 (John, Nov 9): the gmail-* edge function logic with fake Google + fake database. No network, no secrets. */
+import { readFileSync } from 'node:fs';
 import { isAllowedTestRecipient, parseAddressList, subjectWithTag, formatPropertyAddress, fileTag, sanitizeHtml, buildMime, b64url, b64urlToText, hasWireDetails, parseGmailMessage, authUrl, SCOPES, REDIRECT_URI, extOk, SETTINGS_SCOPE, pickSendAsSignature, withSignature, hasSettingsScope } from '../supabase/functions/_shared/gmail-core.mjs';
 import { handleOauthStart, handleOauthCallback, handleSend, handleSync } from '../supabase/functions/_shared/gmail-handlers.mjs';
 let fail = 0;
@@ -65,11 +66,11 @@ function fakeDeps(over = {}) {
       if (fn === 'gmail_svc_take_oauth') { const s = db.states.get(args.p_state_hash); db.states.delete(args.p_state_hash); return s ? [{ profile_id: s.p_profile, code_verifier: s.p_verifier }] : []; }
       if (fn === 'gmail_svc_token') return [{ email: 'john@clatitle.com', refresh_token: REFRESH, history_id: '800', status: 'connected' }];
       if (fn === 'gmail_svc_linked_threads') return db.threads;
-      if (fn === 'gmail_svc_known_messages') return args.p_ids.filter((x) => x === 'mKnown');
+      if (fn === 'gmail_svc_known_messages') return args.p_ids.filter((x) => x === 'mKnown' || db.known.includes(x));
       if (fn === 'gmail_svc_check_sync_token') return args.p_token === db.syncToken;
       if (fn === 'gmail_svc_connected_accounts') return [{ profile_id: JOHN, email: 'john@clatitle.com' }];
       if (fn === 'gmail_svc_disconnect') return 'john@clatitle.com';
-      if (fn === 'gmail_svc_record') return 'rec-1';
+      if (fn === 'gmail_svc_record') { if (args.p && args.p.gmail_message_id) db.known.push(args.p.gmail_message_id); return 'rec-1'; }
       return null; },
     userDeal: async (id) => (id === DEAL ? { id: DEAL, file_number: 'MD-26-97207', street: '10423 John Glenn Street #502', city: 'Lanham', state: 'MD', zip: '20706' } : null),
     userDocs: async (dealId, ids) => ids.map((id) => ({ id, deal_id: dealId, name: id === 'wire' ? 'Wire Instructions.pdf' : 'Contract.pdf', mime_type: 'application/pdf', size_bytes: 4, storage_path: `${dealId}/${id}/Contract.pdf`, wire_instructions: false })).filter((d) => d.id !== 'other'),
@@ -143,7 +144,9 @@ const sendBody = (o = {}) => ({ dealId: DEAL, to: 'clatestportal+buyer@gmail.com
   ok(r.status === 200 && j.stored === 1, 'sync: one new reply stored');
   ok(!f.calls.fetch.some((c) => c.url.includes('mOther')), 'sync: a message in a thread NOT linked to a file is never opened');
   ok(!f.calls.fetch.some((c) => c.url.includes('/messages/mKnown')), 'sync: a message already on the file is skipped');
-  const rec = f.calls.svc.find((c) => c.fn === 'gmail_svc_record').args.p; ok(rec.direction === 'in' && rec.deal_id === DEAL && rec.documents.length === 1 && rec.documents[0].path.startsWith(DEAL + '/') && rec.attachment_names.some((n) => /virus\.exe \(not saved/.test(n)), 'sync: reply attachment saved to the file documents; a disallowed type is not saved');
+  const rec = f.calls.svc.find((c) => c.fn === 'gmail_svc_record').args.p; ok(rec.direction === 'in' && rec.source === 'gmail' && rec.deal_id === DEAL && rec.documents.length === 1 && rec.documents[0].key === 'mIn:att1' && rec.documents[0].path.startsWith(DEAL + '/') && rec.attachment_names.some((n) => /virus\.exe \(not saved/.test(n)), 'sync: reply attachment saved to the file documents; a disallowed type is not saved');
+  const again = await handleSync(post({}, { 'x-gmail-sync-token': 'x'.repeat(64) }), f.deps); const againJson = await again.json();
+  ok(again.status === 200 && againJson.stored === 0 && f.calls.stored.length === 1, 'sync again does not save the same attachment a second time');
   ok(f.calls.stored.length === 1 && f.calls.svc.some((c) => c.fn === 'gmail_svc_update_account' && c.args.p_history === '950'), 'sync: cursor moves forward after everything was handled'); }
 
 // ---- Gmail signature import (John, Nov 9 2:06 PM) ----
@@ -170,6 +173,21 @@ ok(hasSettingsScope('openid https://www.googleapis.com/auth/gmail.readonly') && 
   const mime = b64urlToText(JSON.parse(f.calls.fetch.find((c) => c.url.includes('/messages/send')).body).raw); const html = Buffer.from(mime.split('text/html; charset="UTF-8"')[1].split('\r\n\r\n')[1].split('--')[0].replace(/\r\n/g, ''), 'base64').toString();
   const text = Buffer.from(mime.split('text/plain; charset="UTF-8"')[1].split('\r\n\r\n')[1].split('--')[0].replace(/\r\n/g, ''), 'base64').toString();
   ok(r.status === 200 && (html.match(/John Coester/g) || []).length === 1 && (text.match(/John Coester/g) || []).length === 1, 'send: a body that already ends with the signature does not get it twice (HTML and plain text)'); }
+
+{ const f = fakeDeps({ google: (url) => {
+  if (url.includes('/token')) return { status: 200, body: { access_token: 'ya29.access' } };
+  if (url.includes('/history?')) return { status: 200, body: { historyId: '960', history: [{ messagesAdded: [{ message: { id: 'mOut', threadId: 'tLinked', labelIds: ['SENT'] } }] }] } };
+  if (url.includes('/messages/mOut/attachments/att9')) return { status: 200, body: { data: b64url('%PDF') } };
+  if (url.includes('/messages/mOut?format=full')) return { status: 200, body: { id: 'mOut', threadId: 'tLinked', labelIds: ['SENT'], internalDate: '1794000001000', snippet: 'From Gmail', payload: { headers: [{ name: 'From', value: 'john@clatitle.com' }, { name: 'To', value: 'clatestportal+b@gmail.com' }, { name: 'Subject', value: 'Outside' }], parts: [{ mimeType: 'text/plain', body: { data: b64url('Attached') } }, { filename: 'outside.pdf', mimeType: 'application/pdf', body: { attachmentId: 'att9', size: 4 } }] } } };
+  return { status: 404, body: {} };
+} });
+  const r = await handleSync(post({}, { 'x-gmail-sync-token': 'x'.repeat(64) }), f.deps);
+  const rec = (f.calls.svc.find((c) => c.fn === 'gmail_svc_record') || {}).args.p;
+  ok(r.status === 200 && rec && rec.direction === 'out' && rec.source === 'gmail' && rec.documents.length === 1 && rec.documents[0].key === 'mOut:att9' && rec.documents[0].name === 'outside.pdf', 'mail sent from Gmail saves its attachment onto the file'); }
+const mig = readFileSync(new URL('../supabase/migrations/20261110070000_gmail_attachment_documents.sql', import.meta.url), 'utf8');
+const back = readFileSync(new URL('../supabase/rollbacks/20261110070000_gmail_attachment_documents.sql', import.meta.url), 'utf8');
+ok(mig.includes("'staff'") && mig.includes('on conflict (deal_id, email_attachment_key) where email_attachment_key is not null do nothing') && mig.includes("is distinct from 'portal'"), 'migration saves inbound and outside attachments as staff only, once');
+ok(back.includes('drop column email_attachment_key') && !back.includes('on conflict (deal_id, email_attachment_key)'), 'rollback restores the previous recorder and drops the attachment key');
 
 console.log(fail ? `${fail} FAILED` : 'all gmail phase 1 checks passed');
 if (fail) process.exit(1);

@@ -1,6 +1,7 @@
 // File > Email tab (John, Nov 9: Gmail phase 1, CLA Portal Live Test). Staff send email from their OWN @clatitle.com Gmail inside the file;
-// replies in the same Gmail thread come back to the file (checked every few minutes, or "Check for replies"). Received attachments are saved to
-// Documents (staff only). The server refuses every address that is not a test address on Live Test, and never emails wire details.
+// replies in the same Gmail thread come back to the file (checked every few minutes, or "Check for replies"). Attachments on a reply or on
+// mail sent from Gmail (outside the portal) are saved to Documents for CLA staff only, once. The server refuses every address that is not a
+// test address on Live Test, and never emails wire details.
 import { html, raw, esc, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611070139';
 import { editorHtml, mountEditor } from './compose.js?v=202611090935';
 import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, hasSignature, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611091801';
@@ -21,7 +22,7 @@ export async function render({ api, deal, user, refresh: reload }) {
       <div class="small">${e.direction === 'in' ? pill('Received', 'info') : pill('Sent', 'ok')} <strong>${e.fromName || e.fromEmail}</strong> &lt;${e.fromEmail}&gt; to ${(e.toEmails || []).join(', ')}${(e.ccEmails || []).length ? html`, cc ${(e.ccEmails || []).join(', ')}` : ''}
         <span class="muted">${fmtDateTime(e.sentAt)}</span>${e.templateKey === 'intro' ? html` ${pill('Introduction', '')}` : e.templateKey ? html` ${pill('Template', '')}` : ''}</div>
       <div class="small muted">${e.snippet}</div>
-      ${(e.attachmentNames || []).length ? html`<div class="small" data-mail-attachments>Attachments: ${(e.attachmentNames || []).join(', ')} <a href="#/deals/${deal.id}/documents">Documents</a></div>` : ''}
+      ${(e.attachmentNames || []).length ? html`<div class="small" data-mail-attachments>Attachments: ${(e.attachmentNames || []).join(', ')} <a href="#/deals/${deal.id}/documents">Documents</a> (CLA staff only)</div>` : ''}
       <button type="button" class="linkish small" data-mail-show="${e.id}">Show message</button> ${g.connected ? html`<button type="button" class="linkish small" data-mail-reply="${e.id}">Reply</button>` : ''}
       <div data-mail-body="${e.id}" hidden></div></li>`;
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>Email</h2></div>

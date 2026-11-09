@@ -53,7 +53,7 @@ const emails = [{ id: 'e1', mailboxEmail: 'me@clatitle.com', gmailThreadId: 't1'
 const api = { getGmailStatus: async () => ({ available: true, allowed: true, connected: true, mailbox: 'me@clatitle.com', status: 'connected' }), listDealEmails: async () => emails };
 const v = await renderEmail({ api, deal, user: { role: 'Processor', firstName: 'A', lastName: 'B' } });
 const b = toText(v.body);
-ok(b.includes('Sending from <strong>me@clatitle.com</strong>') && (b.match(/data-mail-thread=/g) || []).length === 1 && (b.match(/data-mail-msg=/g) || []).length === 2 && b.includes('data-mail-dir="in"') && b.includes('id.pdf'), 'Email tab: one thread, sent + received, attachment listed');
+ok(b.includes('Sending from <strong>me@clatitle.com</strong>') && (b.match(/data-mail-thread=/g) || []).length === 1 && (b.match(/data-mail-msg=/g) || []).length === 2 && b.includes('data-mail-dir="in"') && b.includes('id.pdf') && b.includes('CLA staff only'), 'Email tab: one thread, sent + received, attachment listed for staff Documents');
 ok(b.includes('data-mail-intro') && b.includes('data-mail-sync') && b.includes('[CLA #MD-26-97207]') && b.includes('test addresses'), 'Email tab: Introduction email, Check for replies, tag + Live Test note');
 ok(!b.includes('<p>Thanks</p>'), 'Email tab: message bodies are not put into the page (they open in a sandboxed frame)');
 let refused = false; try { await renderEmail({ api, deal, user: { role: 'Outside user' } }); } catch (e) { refused = true; }

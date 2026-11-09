@@ -279,13 +279,16 @@ export async function syncAccount(deps, acct, { maxMessages = 50 } = {}) {
       const m = parseGmailMessage(r.body); const link = threads.get(m.threadId); if (!link || m.labelIds.includes('DRAFT')) continue;
       const docs = []; const names = [];
       for (const a of m.attachments) {
+        const name = safeName(a.filename);
+        // Stable across a re-run. A new document id is only the storage name; the database keeps one row per key.
+        const key = `${m.id}:${a.attachmentId || name}`;
         if (!extOk(a.filename) || Number(a.size || 0) > MAX_SAVE_BYTES) { names.push(`${a.filename} (not saved: file type or size not allowed)`); continue; }
         let data = a.data;
         if (!data && a.attachmentId) { const ar = await gmail(deps, access, `/messages/${encodeURIComponent(mid)}/attachments/${encodeURIComponent(a.attachmentId)}`); if (ar.ok && ar.body) data = ar.body.data; }
         if (!data) { names.push(`${a.filename} (not saved: could not download)`); continue; }
-        const bytes = b64urlToBytes(data); const id = deps.newId(); const name = safeName(a.filename); const path = `${link.deal_id}/${id}/${name}`;
+        const bytes = b64urlToBytes(data); const id = deps.newId(); const path = `${link.deal_id}/${id}/${name}`;
         await deps.storeAttachment(path, bytes, a.mimeType);
-        docs.push({ id, name, mime: a.mimeType, size: bytes.length, path }); names.push(name);
+        docs.push({ id, name, mime: a.mimeType, size: bytes.length, path, key }); names.push(name);
       }
       const dir = m.labelIds.includes('SENT') ? 'out' : 'in';
       await deps.svc('gmail_svc_record', { p: { deal_id: link.deal_id, mailbox_profile_id: acct.profile_id, mailbox_email: tok.email, direction: dir, source: 'gmail',
