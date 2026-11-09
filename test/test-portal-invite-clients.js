@@ -50,7 +50,7 @@ m.querySelector('#ipf').dispatchEvent(new window.Event('submit', { bubbles: true
 await new Promise((r) => setTimeout(r, 30));
 const link = m.querySelector('[data-invite-link]');
 ok(!!link && /#\/agent-invite\/[0-9a-f]{64}$/.test(link.value), 'the one-time link is shown to copy');
-ok(/not sent/i.test(m.textContent), 'the dialog says the email was not sent');
+ok(/Not emailed/.test(m.textContent) && m.querySelector('[data-invite-sent="no"]'), 'demo: the dialog says it was not emailed and shows the link (auto-email: test-invite-auto-email.js)');
 
 // the link opens the short client form and accepting makes a client login, not an agent profile
 const token = link.value.split('/').pop();

@@ -32,6 +32,11 @@ export function buildDeps(req: Request) {
       const { data, error } = await asUser.rpc('gmail_my_context');
       return error ? null : data;
     },
+    async userRpc(fn: string, args: Record<string, unknown>) {
+      const { data, error } = await asUser.rpc(fn, args);
+      if (error) throw new Error(error.message);
+      return data;
+    },
     async svc(fn: string, args: Record<string, unknown>) {
       const { data, error } = await admin.rpc(fn, args);
       if (error) throw new Error(error.message);

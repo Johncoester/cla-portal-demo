@@ -22,7 +22,10 @@ export function hrSupabase({ sb, ok, me }) {
   const role = async () => ok(await sb.rpc('hr_role'));
   const lookups = async () => ({ departments: (ok(await sb.from('hr_departments').select('*').order('sort')) || []).map(lk), designations: (ok(await sb.from('hr_designations').select('*').order('sort')) || []).map(lk) });
   const managers = async () => new Set((ok(await sb.from('hr_role_assignments').select('employee_id').is('removed_at', null)) || []).map((a) => a.employee_id));
-  const invites = async () => ok(await sb.from('hr_invites').select('employee_id,created_at,expires_at,accepted_at,revoked_at').order('created_at', { ascending: false })) || [];
+  const invites = async () => { const base = 'employee_id,created_at,expires_at,accepted_at,revoked_at';
+    let r = await sb.from('hr_invites').select(base + ',sent_at,sent_to').order('created_at', { ascending: false });   // Nov 9: emailed status (migration 20261110001000)
+    if (r.error && /sent_at|sent_to|column/i.test(r.error.message || '')) r = await sb.from('hr_invites').select(base).order('created_at', { ascending: false });
+    return ok(r) || []; };
   // the same view shape as the mock (names, role, login / invite status)
   async function views(rows, { admin = true } = {}) {
     const L = await lookups(); const mg = admin ? await managers() : new Set(); const inv = admin ? await invites() : [];
@@ -31,7 +34,7 @@ export function hrSupabase({ sb, ok, me }) {
       const st = !i ? 'none' : i.accepted_at ? 'accepted' : i.revoked_at ? 'revoked' : i.expires_at < now() ? 'expired' : 'pending';
       return { ...e, departmentName: (L.departments.find((d) => d.id === e.departmentId) || {}).name || '', designationName: (L.designations.find((d) => d.id === e.designationId) || {}).name || '',
         reportingToName: m ? fullNameOf(m) : '', jobTitleDisplay: String(e.jobTitle || '').trim() || (L.designations.find((d) => d.id === e.designationId) || {}).name || '', isHrManager: mg.has(e.id), employeeRole: mg.has(e.id) ? 'HR manager' : 'Employee', hasLogin: !!e.profileId,
-        inviteStatus: e.profileId ? 'accepted' : st, inviteExpiresAt: i && !e.profileId ? i.expires_at : null, reportCount: rows.filter((z) => z.reportingToId === e.id && !z.archivedAt).length }; });
+        inviteStatus: e.profileId ? 'accepted' : st, inviteExpiresAt: i && !e.profileId ? i.expires_at : null, inviteSentAt: i && !e.profileId ? i.sent_at || null : null, inviteSentTo: i && !e.profileId ? i.sent_to || '' : '', reportCount: rows.filter((z) => z.reportingToId === e.id && !z.archivedAt).length }; });
   }
   const allEmployees = async () => (ok(await sb.from('hr_employees').select(EMP_COLS).order('employee_code')) || []).map(camelEmp);
   const toJson = (v) => { const o = {}; for (const [k, x] of Object.entries(v)) o[k] = x == null ? '' : x; return o; };

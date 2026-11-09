@@ -3,8 +3,8 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, p
 import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole } from '../data/constants.js?v=202611090935';
 import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611092350';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611100005';
-import { agentInviteDraft } from '../data/agent-invite-mail.js?v=202611090935';
-import { copyPlainText } from './deal.js?v=202611100005';
+import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100100';
+import { copyPlainText } from './deal.js?v=202611100100';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
 export function contactCopyMessage(copied, kind) {
@@ -95,7 +95,7 @@ export async function render({ api, user, deal, refresh }) {
   }
   // Nov 9 (Francis: "can't invite buyers and sellers"; John: "a processor needs to be able to invite"): Invite to portal for a buyer, seller or agent
   // row with no login, right here on the file. A contact with no email gets one typed here (saved on the contact). The one-time link is shown to
-  // copy; NOTHING IS EMAILED (email delivery is paused). Agents land on the agent account form, buyers / sellers on a short login form.
+  // copy, and (Nov 9, later) the portal emails it from the inviter's own Gmail (invite-send.js). Agents land on the agent account form, buyers / sellers on a short login form.
   function invitePortal(contactId, role) {
     const p = deal.participants.find((x) => x.contactId === contactId && x.role === role); if (!p) return; const c = p.contact; const hasEmail = !!String(c.email || '').trim();
     const who = inviteKindForRole(role) === 'agent' ? 'agent account' : 'portal login';
@@ -103,19 +103,18 @@ export async function render({ api, user, deal, refresh }) {
       <label class="span2">Email<input name="email" type="email" maxlength="160" value="${c.email || ''}" ${hasEmail ? raw('readonly') : raw('required placeholder="name@example.com"')} data-invite-email></label>
       ${hasEmail ? '' : html`<p class="muted small span2" data-invite-email-note>This contact has no email yet. The email you enter is saved on the contact.</p>`}
       <div class="span2"><button class="m-btn" type="submit" data-invite-create>Create invite link</button> <button type="button" class="ghost" data-close>Close</button></div>
-      <p class="muted small span2">Nothing is emailed: the portal does not send email right now. Copy the link and send it to the person yourself.</p>
+      <p class="muted small span2">The portal emails the invite from your connected Gmail. The link is also shown here to copy.</p>
       <div class="span2" data-invite-result hidden></div></form>`, { wide: true });
     let made = false;
     $('#ipf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); if (made) return; const email = $('[data-invite-email]', m).value.trim();
       if (!hasEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Enter a valid email for this person.');
       const r = await api.createPortalInvite({ dealId: deal.id, contactId, email: hasEmail ? '' : email }); made = true;
-      const link = location.href.split('#')[0] + r.link; const draft = agentInviteDraft({ ...r, link, fileNumber: deal.fileNumber });
+      const link = location.href.split('#')[0] + r.link; const sendR = await autoSendInvite(api, 'agent', r.link);
       const res = $('[data-invite-result]', m); res.hidden = false; $('[data-invite-create]', m).disabled = true;
-      res.innerHTML = html`<p><strong>Invite link</strong> for ${r.firstName} ${r.lastName} (${draft.to}).</p>
-        <div class="ai-link-row"><input readonly value="${link}" data-invite-link aria-label="One-time invite link"><button type="button" class="m-btn" data-copy-link>Copy</button></div>
-        <div data-invite-draft><p><strong>Invitation email (not sent)</strong></p><p>To: ${draft.to}</p><p>Subject: ${draft.subject}</p><p>${draft.body}</p><p class="notice warn">${draft.delivery}</p></div>`.toString();
+      res.innerHTML = html`${inviteSendNotice(sendR)}<p><strong>Invite link</strong> for ${r.firstName} ${r.lastName} (${r.email}).</p>
+        <div class="ai-link-row"><input readonly value="${link}" data-invite-link aria-label="One-time invite link"><button type="button" class="m-btn" data-copy-link>Copy</button></div>`.toString();
       $('[data-copy-link]', res).addEventListener('click', guard(async () => { const outcome = await contactCopyOutcome(link, 'link'); toast(outcome.ok ? 'Link copied' : 'Select the link and copy it', outcome.level); }));
-      toast('Invite created (nothing sent)'); }));
+      toast(inviteToast(sendR)); }));
     $$('[data-close]', m).forEach((b) => b.addEventListener('click', () => { if (made) refresh(); }));   // repaint the tab; Resend / Revoke stay on Agent Invites
   }
   function editContact(c, staff) {

@@ -200,3 +200,25 @@ export function corsHeaders(origin) {
   return h;
 }
 export const json = (status, body, headers = {}) => new Response(JSON.stringify(body), { status, headers: { ...headers, 'Content-Type': 'application/json' } });
+
+/* Portal invite email (John, Nov 9: "I want the portal to send it"). Built on the server from the invite row, never from the browser.
+ * kind 'agent' covers agents and buyers / sellers (agent_invites.invite_kind 'agent' | 'client'); kind 'hr' is a staff (HR) invite. */
+export const INVITE_TOKEN_RE = /^[0-9a-f]{64}$/;
+export function inviteLink(kind, token) { return `${PORTAL_ORIGIN}/#/${kind === 'hr' ? 'hr-invite' : 'agent-invite'}/${token}`; }
+export function inviteEmailContent(info = {}, { token, inviterName = '' } = {}) {
+  const kind = info.kind === 'hr' ? 'hr' : 'agent'; const who = info.inviteKind === 'client' ? 'client' : kind === 'hr' ? 'staff' : 'agent';
+  const link = inviteLink(kind, token); const first = oneLine(info.firstName, 80) || 'there';
+  const address = info.dealId ? formatPropertyAddress(info) : ''; const fileNumber = info.dealId ? oneLine(info.fileNumber, 40) : '';
+  const subject = fileNumber ? subjectWithTag("You're invited to the CLA Title portal", fileNumber, address) : "You're invited to the CLA Title portal";
+  const what = who === 'client' ? `follow your file${address ? ` for ${address}` : ''}, see documents and complete your tasks`
+    : who === 'agent' ? `work with us on your files${address ? `, starting with ${address}` : ''}` : 'set up your CLA Title employee login';
+  const until = info.expiresAt ? new Date(info.expiresAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' }) : '';
+  const btn = who === 'agent' ? 'Set up my agent account' : 'Set up my portal login';
+  const html = `<p>Hi ${escapeHtml(first)},</p>`
+    + `<p>${escapeHtml(inviterName || 'CLA Title & Escrow')} invited you to the CLA Title &amp; Escrow portal so you can ${escapeHtml(what)}.</p>`
+    + `<p><a href="${escapeHtml(link)}" style="display:inline-block;padding:10px 18px;background:#1f5f99;color:#ffffff;text-decoration:none;border-radius:4px;font-weight:bold">${btn}</a></p>`
+    + `<p>Or open this link: <a href="${escapeHtml(link)}">${escapeHtml(link)}</a></p>`
+    + `<p>The link works once${until ? ` and expires on ${escapeHtml(until)}` : ''}. Use this email address (${escapeHtml(info.email || '')}) when you set up your login.</p>`
+    + `<p>If you weren't expecting this, you can ignore this email.</p>`;
+  return { subject, html, link, to: String(info.email || '').trim().toLowerCase() };
+}
