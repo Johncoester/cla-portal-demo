@@ -42,7 +42,7 @@ export async function render(c0) {
     ${t.mine && t.savedBy && t.savedBy !== t.ownerId ? html`<p class="note-box">Your agent filled this in for you. Please check the answers and correct anything that is wrong.</p>` : ''}
     ${t.formError ? html`<p class="notice warn" data-task-form-state="error">This form could not be loaded. Nothing was marked complete.</p>`
       : t.formHidden ? html`<p class="muted" data-task-form-state="hidden">Only the assigned person, the processor, and the coordinator can see these answers.</p>`
-      : t.canFill ? html`<form id="tform" class="form-grid" novalidate>${t.fields.map(input)}
+      : t.canFill ? html`<form id="tform" class="form-grid" novalidate>${!(t.fields || []).length ? html`<p class="notice warn span2" data-task-no-fields>This task has no form fields yet (template ${t.template ? html`${t.template.code} v${t.template.version}` : 'n/a'}). Tell CLA Title — nothing was marked complete.</p>` : ''}${t.fields.map(input)}
         <div class="span2"><button class="ghost" type="submit" data-mode="save">Save progress</button> <button class="m-btn" type="submit" data-mode="complete">${t.status === 'done' ? 'Save and keep complete' : 'Mark complete'}</button></div>
         <p class="muted small span2">Fields marked * are needed to mark the task complete. You can save partial work any time. We never ask for Social Security numbers here.</p></form>`
       : answers}</div>`;
