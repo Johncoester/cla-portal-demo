@@ -22,6 +22,10 @@
  *   documents:  listDocuments, addDocument, moveDocument, updateDocumentMeta, shareDocumentWithClient (staff: share an upload with the buyer), shareDocumentWithSeller (staff: the same for the seller), getDocumentContent, listDealFolders, createFolder, renameFolder,
  *               listLibrary, addLibraryDocument
  *   messages:   listMessageRecipients, listThreads, getThread, createThread, postMessage, markThreadRead
+ *   file mail:  orderMailUnread() -> { [dealId]: { portal, gmail, total } } for files with unread mail (portal threads this person is on, plus Gmail).
+ *               filePortalUnread(dealId), fileEmailUnreadCount(dealId), emailReadCursor(dealId), markDealEmailsRead(dealId).
+ *               Gmail read state is per person (deal_email_reads, migration 20261110030000). If that table is not there yet, the cursor stays in this browser and the page still opens.
+ *               Buyers, sellers, and agents do not receive deal_emails; their count is portal threads only.
  *   closing:    listSettlements, createSettlementRequest, getSchedulingLink(token), respondSettlement(token, ...), confirmSettlement, reopenSettlement
  *   other:      listActivity(dealId|null, filters), listNotifications (each with fileNumber + address), notificationCount, markNotificationRead, markAllNotificationsRead
  *   Matt Nov 2: listAllTasks({fileStatus}) (every task you may see, across files, each with its file), getTaskGrid({fileStatus}) (Processor / Admin only).
@@ -67,7 +71,7 @@ export function getAdapter() {
 }
 async function loadAdapter() {
   const cfg = (typeof window !== 'undefined' && window.CLA_PORTAL_CONFIG) || { mode: 'mock' };
-  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611100130'); return m.createSupabaseAdapter(cfg); }
-  const m = await import('./mock-adapter.js?v=202611100130');
+  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611100930'); return m.createSupabaseAdapter(cfg); }
+  const m = await import('./mock-adapter.js?v=202611100930');
   return m.createMockAdapter();
 }
