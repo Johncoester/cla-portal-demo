@@ -28,6 +28,7 @@ import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=2026110804
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611080400';
 import { propertyAddressOf } from './nov5-rules.js?v=202611090935';
 import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611090935';
+import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow } from './contact-insert.js?v=202611070139';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
@@ -338,6 +339,20 @@ export async function createSupabaseAdapter(cfg) {
       return mapHostedTaskList(got.rows, u, got.off, { myParticipantIds });
     },
     async getTask(id) { return fetchHostedTask(sb, id, await me()); },
+    async getAgentTask(id) {
+      const user = await me();
+      const row = await readHostedAgentTask(sb, id);
+      let task = null;
+      try { task = await fetchHostedTask(sb, id, user); } catch (e) { task = null; }
+      const view = hostedAgentTaskView(row, task);
+      view.canSubmit = !!(task && task.mine && view.status !== 'cancelled' && view.status !== 'done' && !viewOnly(user));
+      return view;
+    },
+    async submitAgentTask(id, answers) {
+      await submitHostedAgentTask(sb, id, answers);
+      const view = await this.getAgentTask(id);
+      return { ...view, status: 'done', submitted: true, canSubmit: false, answers: view.answersHidden ? null : answers };
+    },
     // Matt, Nov 3 (migration 26): entity documents requested from buyers / sellers acting as an entity (person, processor, coordinator, Admin)
     async listEntityDocRequests(dealId) { return camel(ok(await sb.rpc('entity_doc_requests', { p_deal: dealId }))); },
     async saveTaskForm(id, data, { complete = false } = {}) { return ok(await sb.rpc('save_task_form', { p_task: id, p_data: data, p_complete: complete })); },
