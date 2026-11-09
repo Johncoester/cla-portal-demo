@@ -1,10 +1,10 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611091450';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611091450';
+import { getAdapter } from './data/adapter.js?v=202611091801';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611091801';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611090935';
 import { canUseCrm } from './data/crm.js?v=202611070139';
-import { canUseGmail } from './data/gmail-email.js?v=202611091345';
+import { canUseGmail } from './data/gmail-email.js?v=202611091801';
 import { acctCanRead } from './data/accounting.js?v=202611070139';
 import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611090935';
 import { phaseOf } from './data/agent-portal.js?v=202611090935';
@@ -35,9 +35,9 @@ const pages = {
   dashboard: () => import('./pages/dashboard.js?v=202611091345'),
   orders: () => import('./pages/orders.js?v=202611091600'),
   'orders/new': () => import('./pages/ordernew.js?v=202611091355'),
-  deal: () => import('./pages/deal.js?v=202611091450'),
+  deal: () => import('./pages/deal.js?v=202611091801'),
   users: () => import('./pages/users.js?v=202611090935'),
-  profile: () => import('./pages/profile.js?v=202611091440'),
+  profile: () => import('./pages/profile.js?v=202611091801'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
   teams: () => import('./pages/teams.js?v=202611070139'),
   templates: () => import('./pages/templates.js?v=202611090935'),
