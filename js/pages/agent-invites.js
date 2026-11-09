@@ -2,7 +2,7 @@
 // contacts / CRM, see each invite's status (pending, accepted, expired, revoked) and Resend (new link) or Revoke (retired, never deleted).
 // NOTHING IS SENT: the portal sends no email. The one-time link is shown on screen to copy.
 import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611070139';
-import { STATUS_LABEL, NO_EMAIL_NOTE } from '../data/agent-profile.js?v=202611090935';
+import { STATUS_LABEL, NO_EMAIL_NOTE } from '../data/agent-profile.js?v=202611100005';
 import { agentInviteDraft } from '../data/agent-invite-mail.js?v=202611090935';
 const PILL = { pending: 'warn', accepted: 'ok', expired: 'bad', revoked: '' };
 const abs = (link) => location.href.split('#')[0] + link;
@@ -12,7 +12,7 @@ export async function render({ api, refresh }) {
   const shown = list.filter((i) => !flt || i.status === flt); const count = (s) => list.filter((i) => i.status === s).length;
   const opts = cands.filter((c) => !c.hasLogin).map((c) => html`<option value="${c.contactId}"${c.contactId === pre ? raw(' selected') : ''}${c.pendingInviteId ? raw(' data-pending') : ''}>${c.firstName} ${c.lastName}${c.company ? ` (${c.company})` : ''}${c.files.length ? ` · ${c.files.map((f) => `${f.fileNumber} ${f.role}`).join(', ')}` : ''}${c.pendingInviteId ? ' · invite pending' : ''}</option>`);
   const files = [...new Map(cands.flatMap((c) => c.files).map((f) => [f.dealId, f])).values()];
-  const rows = shown.map((i) => html`<tr data-invite-row="${i.id}" data-invite-status="${i.status}"><td><strong>${i.firstName} ${i.lastName}</strong><br><span class="muted small">${i.email}</span></td>
+  const rows = shown.map((i) => html`<tr data-invite-row="${i.id}" data-invite-status="${i.status}"><td><strong>${i.firstName} ${i.lastName}</strong>${i.inviteKind === 'client' ? html` <span class="pill" data-invite-kind="client">buyer / seller</span>` : ''}<br><span class="muted small">${i.email}</span></td>
     <td><span class="pill ${PILL[i.status] || ''}" data-status-pill>${STATUS_LABEL[i.status]}</span>${i.resentCount ? html` <span class="muted small">resent ${i.resentCount}&times;</span>` : ''}</td>
     <td>${i.fileNumber || html`<span class="muted">&mdash;</span>`}</td><td class="small">${fmtDateTime(i.createdAt)}<br><span class="muted">by ${i.createdByName}</span></td>
     <td class="small">${i.status === 'accepted' ? html`Accepted ${fmtDateTime(i.acceptedAt)}` : i.status === 'revoked' ? html`Revoked ${fmtDateTime(i.revokedAt)}` : html`${i.status === 'expired' ? 'Expired' : 'Expires'} ${fmtDateTime(i.expiresAt)}`}</td>

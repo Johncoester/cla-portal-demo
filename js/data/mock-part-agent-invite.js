@@ -4,7 +4,7 @@
 //  d.agentProfiles {profileId: {cellPhone, officePhone, brokerage, licenseNumber, street, city, state, zip, otherContact, photo (data URL), photoShape, updatedAt}}
 //  d.agentBirthMD  {profileId: 'MM-DD'}  (month / day only; kept apart like d.agentBirthdates, the existing optional birthdate it reuses)
 // NOTHING IS SENT. createAgentInvite / resendAgentInvite return the one-time link path; the page shows it for staff to copy.
-import { canInviteAgents, inviteStatus, INVITE_DAYS, cleanAgentProfile, monthDayFromBirthdate, initialsAvatar, cardOf } from './agent-profile.js?v=202611090935';
+import { canInviteAgents, PORTAL_INVITE_ROLES, inviteKindForRole, inviteStatus, INVITE_DAYS, cleanAgentProfile, monthDayFromBirthdate, initialsAvatar, cardOf } from './agent-profile.js?v=202611100005';
 import { isClient, isAgent, isOutside, sideOf } from './constants.js?v=202611090935';
 const rnd = () => { const a = new Uint8Array(16); (globalThis.crypto || { getRandomValues: (x) => x.map(() => Math.floor(Math.random() * 256)) }).getRandomValues(a); return [...a].map((b) => b.toString(16).padStart(2, '0')).join(''); };
 const plusDays = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString();
@@ -26,11 +26,11 @@ export function ensureAgentInvites(d) {
 export function agentInvitePart(x) {
   const { load, save, nid, needUser, fail, prof, contactOf, dealsFor, clone, now, sess, SESSION_KEY, log } = x;
   const db = () => ensureAgentInvites(load());
-  const needInviter = () => { const u = needUser(); if (!canInviteAgents(u)) fail('Only CLA staff (Processor, Sales Person, Sales Team, Admin) can invite agents.'); return u; };
+  const needInviter = () => { const u = needUser(); if (!canInviteAgents(u)) fail('Only CLA staff (Processor, Preprocessor, Sales Person, Sales Team, Admin) can invite people to the portal.'); return u; };
   const linkOf = (inv) => '#/agent-invite/' + inv.token;
   const row = (inv, withLink) => { const st = inviteStatus(inv, now()); return { id: inv.id, contactId: inv.contactId, dealId: inv.dealId, fileNumber: ((db().deals.find((z) => z.id === inv.dealId) || {}).fileNumber) || '',
     firstName: inv.firstName, lastName: inv.lastName, email: inv.email, status: st, createdAt: inv.createdAt, createdByName: x.nameOf(inv.createdBy), expiresAt: inv.expiresAt, acceptedAt: inv.acceptedAt,
-    revokedAt: inv.revokedAt, resentCount: inv.resentCount || 0, ...(withLink && st === 'pending' ? { link: linkOf(inv) } : {}) }; };
+    revokedAt: inv.revokedAt, resentCount: inv.resentCount || 0, inviteKind: inv.inviteKind || 'agent', ...(withLink && st === 'pending' ? { link: linkOf(inv) } : {}) }; };
   const tcScope = () => true;   // TCs cannot invite at all (needInviter refuses them), so every inviter sees every invite
   const byToken = (t) => db().agentInvites.find((i) => i.token && i.token === String(t || ''));
   const mdOf = (pid) => { const d = db(); const v = d.agentBirthMD[pid]; if (v) { const [m, dd] = v.split('-').map(Number); return { birthMonth: m, birthDay: dd }; } return monthDayFromBirthdate((d.agentBirthdates || {})[pid]); };
@@ -68,6 +68,26 @@ export function agentInvitePart(x) {
         resentCount: 0, createdBy: u.id, createdAt: at, acceptedAt: null, acceptedProfileId: null, revokedAt: null, revokedBy: null };
       d.agentInvites.push(inv); if (dealId) log(dealId, u.id, 'agent.invited', 'agent_invite', inv.id, `${v.firstName} ${v.lastName} invited to the portal (link shown, nothing sent)`); save();
       return { ...row(inv, true), sent: false }; },
+    // File Contacts tab "Invite to portal" (Nov 9): a Client-Buyer, Client-Seller, Buyer Agent or Listing Agent on a file this staff member can open.
+    // A contact with no email takes the email typed in the dialog (saved on the contact). Mirrors public.create_portal_invite. Nothing is sent.
+    async createPortalInvite({ dealId = null, contactId = null, email = '' } = {}) { const u = needInviter(); const d = db();
+      if (!dealId || !dealsFor(u).some((z) => z.id === dealId)) fail('Order not found.');
+      const c = d.contacts.find((z) => z.id === contactId) || fail('Contact not found.');
+      const parts = d.participants.filter((p) => p.dealId === dealId && p.contactId === c.id && !p.removed && PORTAL_INVITE_ROLES.includes(p.role));
+      if (!parts.length) fail('Only a buyer, seller, buyer agent or listing agent on this file can be invited.');
+      const role = (parts.find((p) => inviteKindForRole(p.role) === 'agent') || parts[0]).role; const kind = inviteKindForRole(role);
+      if (c.profileId && (prof(c.profileId) || {}).status === 'active') fail(`${c.firstName} ${c.lastName} already has a portal login.`);
+      if (!String(c.firstName || '').trim() || !String(c.lastName || '').trim()) fail('Add a first and last name to this contact (Edit) before inviting.');
+      const em = String(c.email || '').trim() || String(email || '').trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) fail('Enter a valid email for this person.');
+      const v = { firstName: c.firstName.trim(), lastName: c.lastName.trim(), email: em.toLowerCase() };
+      if (d.profiles.some((p) => p.email.toLowerCase() === v.email && p.status === 'active')) fail('Someone with that email already has a portal login.');
+      if (d.agentInvites.some((i) => i.email.toLowerCase() === v.email && inviteStatus(i, now()) === 'pending')) fail('There is already a pending invite for that email. Use Resend on Agent Invites.');
+      if (!String(c.email || '').trim()) c.email = v.email;
+      const at = now(); const inv = { id: nid('inv'), token: rnd() + rnd(), contactId: c.id, dealId, firstName: v.firstName, lastName: v.lastName, email: v.email, status: 'pending', expiresAt: plusDays(at, INVITE_DAYS),
+        resentCount: 0, createdBy: u.id, createdAt: at, acceptedAt: null, acceptedProfileId: null, revokedAt: null, revokedBy: null, inviteKind: kind };
+      d.agentInvites.push(inv); log(dealId, u.id, kind === 'agent' ? 'agent.invited' : 'client.invited', 'agent_invite', inv.id, `${v.firstName} ${v.lastName} (${role}) invited to the portal (link shown, nothing sent)`); save();
+      return { ...row(inv, true), role, sent: false }; },
     async resendAgentInvite(id) { const u = needInviter(); const inv = db().agentInvites.find((i) => i.id === id && tcScope(u, i)) || fail('Invite not found.');
       if (inv.status === 'accepted') fail('This invite was already accepted.'); if (inv.status === 'revoked') fail('This invite was revoked. Make a new invite instead.');
       if (db().profiles.some((p) => p.email.toLowerCase() === inv.email.toLowerCase() && p.status === 'active')) fail('Someone with that email already has a portal login.');
@@ -80,18 +100,20 @@ export function agentInvitePart(x) {
     async getAgentInvite(token) { const inv = byToken(token); const st = inviteStatus(inv, now());
       if (!inv) return { status: 'invalid' }; if (st !== 'pending') return { status: st };
       const c = inv.contactId && db().contacts.find((z) => z.id === inv.contactId);
-      return { status: 'pending', firstName: inv.firstName, lastName: inv.lastName, email: inv.email, cellPhone: (c && c.phone) || '', brokerage: (c && c.company) || '', expiresAt: inv.expiresAt }; },
+      return { status: 'pending', inviteKind: inv.inviteKind || 'agent', firstName: inv.firstName, lastName: inv.lastName, email: inv.email, cellPhone: (c && c.phone) || '', brokerage: (c && c.company) || '', expiresAt: inv.expiresAt }; },
     async acceptAgentInvite(token, form = {}) { const d = db(); const inv = byToken(token); const st = inviteStatus(inv, now());
       if (st !== 'pending') fail(st === 'expired' ? 'This invite link has expired. Ask CLA Title for a new one.' : st === 'accepted' ? 'This invite was already used. Sign in instead.' : 'This invite link is not valid.');
       const v = cleanAgentProfile(form);
       if (d.profiles.some((p) => p.email.toLowerCase() === v.email && p.status !== 'removed')) fail('Someone with that email already has a portal login.');
       let c = inv.contactId && d.contacts.find((z) => z.id === inv.contactId);
       if (!c) { c = d.contacts.find((z) => !z.profileId && z.email && z.email.toLowerCase() === v.email); }
-      if (!c) { c = { id: nid('c'), profileId: null, contactType: 'realtor', firstName: v.firstName, lastName: v.lastName, email: v.email, phone: v.cellPhone, company: v.brokerage || '', createdBy: inv.createdBy, createdAt: now() }; d.contacts.push(c); }
+      if (!c) { c = { id: nid('c'), profileId: null, contactType: inv.inviteKind === 'client' ? 'buyer_seller' : 'realtor', firstName: v.firstName, lastName: v.lastName, email: v.email, phone: v.cellPhone, company: v.brokerage || '', createdBy: inv.createdBy, createdAt: now() }; d.contacts.push(c); }
       const pid = nid('u'); d.profiles.push({ id: pid, email: v.email, firstName: v.firstName, lastName: v.lastName, phone: v.cellPhone, role: 'Outside user', isAdmin: false, status: 'active', createdAt: now(), createdBy: inv.createdBy });
-      c.profileId = pid; c.email = v.email; writeProfile(pid, v);
+      c.profileId = pid; c.email = v.email;
+      if (inv.inviteKind === 'client') { c.firstName = v.firstName; c.lastName = v.lastName; c.phone = v.cellPhone; }   // buyer / seller: no agent profile
+      else writeProfile(pid, v);
       inv.status = 'accepted'; inv.acceptedAt = now(); inv.acceptedProfileId = pid; inv.token = null;
-      if (inv.dealId) log(inv.dealId, pid, 'agent.joined', 'agent_invite', inv.id, `${v.firstName} ${v.lastName} set up their portal account`);
+      if (inv.dealId) log(inv.dealId, pid, inv.inviteKind === 'client' ? 'client.joined' : 'agent.joined', 'agent_invite', inv.id, `${v.firstName} ${v.lastName} set up their portal account`);
       save(); sess.setItem(SESSION_KEY, pid); return fullProfile(pid); },
     async getMyAgentProfile() { const u = needUser(); return fullProfile(u.id); },
     async updateMyAgentProfile(patch = {}) { const u = needUser(); if (!isOutside(u.role)) fail('Only agents have an agent profile.');

@@ -2,8 +2,9 @@
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill } from '../ui.js?v=202611070139';
 import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole } from '../data/constants.js?v=202611090935';
 import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611092350';
-import { canInviteAgents } from '../data/agent-profile.js?v=202611090935';
-import { copyPlainText } from './deal.js?v=202611092350';
+import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611100005';
+import { agentInviteDraft } from '../data/agent-invite-mail.js?v=202611090935';
+import { copyPlainText } from './deal.js?v=202611100005';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
 export function contactCopyMessage(copied, kind) {
@@ -27,7 +28,7 @@ export async function render({ api, user, deal, refresh }) {
   const list = deal.participants.filter((p) => !grp || grp.includes(p.role));
   const party = new Set((deal.agentParties || []).map((p) => p.contactId));
   const rows = list.map((p) => html`<tr data-contact-row="${p.contactId}" data-row-ctype="${p.contact.contactType || 'none'}"><td>${p.contact.firstName} ${p.contact.lastName}${p.removed ? html` ${pill('removed', 'bad')}` : ''}${party.has(p.contactId) ? html` <span class="pill warn agent-party" title="Client and their own agent on this file">Agent is a party</span>` : ''}${p.contact.profileId ? '' : html` <span class="muted small">(no portal login)</span>`}</td><td>${p.role}</td><td data-ctype="${p.contact.contactType || ''}">${contactTypeLabel(p.contact.contactType) || html`<span class="muted">&mdash;</span>`}</td><td>${p.contact.company}</td>${p.contact.contactHidden ? html`<td colspan="2" class="muted contact-hidden">Contact through CLA Title</td>` : html`<td>${fmtPhone(p.contact.phone)} ${p.contact.phone ? html`<button type="button" class="ghost" data-copy-field="${fmtPhone(p.contact.phone)}" data-copy-kind="phone" aria-label="Copy ${p.contact.firstName}'s phone">Copy</button>` : ''}</td><td>${p.contact.email} ${p.contact.email ? html`<button type="button" class="ghost" data-copy-field="${p.contact.email}" data-copy-kind="email" aria-label="Copy ${p.contact.firstName}'s email">Copy</button>` : ''}</td>`}
-    <td class="nowrap">${canInviteAgents(user) && ['Buyer Agent', 'Listing Agent'].includes(p.role) && !p.contact.profileId && !p.removed ? html`<a class="ghost" data-invite-agent="${p.contactId}" href="#/agent-invites?contact=${p.contactId}&deal=${deal.id}">Invite to portal</a> ` : ''}${edit ? html`<button class="ghost" data-edit="${p.contactId}">Edit</button> <button class="ghost" data-unlink="${p.id}" title="Removes this person from the order only">Remove from order</button>` : ''}</td></tr>`);
+    <td class="nowrap">${canInviteToPortal(user, p.role) && !p.contact.profileId && !p.removed ? html`<button type="button" class="ghost" data-invite-portal="${p.contactId}" data-invite-role="${p.role}">Invite to portal</button> ` : ''}${edit ? html`<button class="ghost" data-edit="${p.contactId}">Edit</button> <button class="ghost" data-unlink="${p.id}" title="Removes this person from the order only">Remove from order</button>` : ''}</td></tr>`);
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>Order Contacts</h2>${edit ? html`<button class="m-btn right" id="addp">+ Add contact</button>` : ''}</div>
     <ul class="nav-tabs">${GROUPS.map(([k]) => html`<li><a class="${k === g ? 'active' : ''}" href="#/deals/${deal.id}/contacts?g=${k}">${k}</a></li>`)}</ul>
     <form class="filter-bar" id="ctfilter"><label>Contact type<select name="ctype" aria-label="Filter by contact type"><option value="">Any</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}<option value="none">Not set</option></select></label></form>
@@ -37,6 +38,7 @@ export async function render({ api, user, deal, refresh }) {
     $$('[data-unlink]', root).forEach((b) => b.addEventListener('click', guard(async () => { if (!confirm('Remove this person from the order? (Their contact record, documents and messages are kept.)')) return; await api.removeParticipant(deal.id, b.dataset.unlink); toast('Removed from order'); refresh(); })));
     $$('[data-edit]', root).forEach((b) => b.addEventListener('click', () => { const ps = deal.participants.filter((p) => p.contactId === b.dataset.edit); editContact(ps[0].contact, ps.some((p) => STAFF_ROLES.includes(p.role))); }));
     const ab = $('#addp', root); if (ab) ab.addEventListener('click', guard(addPerson));
+    $$('[data-invite-portal]', root).forEach((b) => b.addEventListener('click', () => invitePortal(b.dataset.invitePortal, b.dataset.inviteRole)));
     const cf = $('#ctfilter [name=ctype]', root); cf.addEventListener('change', () => { $$('[data-contact-row]', root).forEach((tr) => { tr.hidden = !!cf.value && tr.dataset.rowCtype !== cf.value; }); });
   } };
 
@@ -90,6 +92,31 @@ export async function render({ api, user, deal, refresh }) {
       if (!id && !String(f.firstName || '').trim() && !String(f.company || '').trim()) throw new Error('Enter a first name, or a company or entity name.');
       if (!id) id = (await api.createContact({ firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone, company: f.company, contactType: f.contactType })).id;
       await api.addParticipant(deal.id, id, f.role); closeModal(); toast('Contact added'); refresh(); }));
+  }
+  // Nov 9 (Francis: "can't invite buyers and sellers"; John: "a processor needs to be able to invite"): Invite to portal for a buyer, seller or agent
+  // row with no login, right here on the file. A contact with no email gets one typed here (saved on the contact). The one-time link is shown to
+  // copy; NOTHING IS EMAILED (email delivery is paused). Agents land on the agent account form, buyers / sellers on a short login form.
+  function invitePortal(contactId, role) {
+    const p = deal.participants.find((x) => x.contactId === contactId && x.role === role); if (!p) return; const c = p.contact; const hasEmail = !!String(c.email || '').trim();
+    const who = inviteKindForRole(role) === 'agent' ? 'agent account' : 'portal login';
+    const m = modal('Invite to portal', html`<form id="ipf" class="form-grid" data-invite-portal-form><p class="span2"><strong>${c.firstName} ${c.lastName}</strong> (${role}) gets a one-time link to set up their ${who} for this file.</p>
+      <label class="span2">Email<input name="email" type="email" maxlength="160" value="${c.email || ''}" ${hasEmail ? raw('readonly') : raw('required placeholder="name@example.com"')} data-invite-email></label>
+      ${hasEmail ? '' : html`<p class="muted small span2" data-invite-email-note>This contact has no email yet. The email you enter is saved on the contact.</p>`}
+      <div class="span2"><button class="m-btn" type="submit" data-invite-create>Create invite link</button> <button type="button" class="ghost" data-close>Close</button></div>
+      <p class="muted small span2">Nothing is emailed: the portal does not send email right now. Copy the link and send it to the person yourself.</p>
+      <div class="span2" data-invite-result hidden></div></form>`, { wide: true });
+    let made = false;
+    $('#ipf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); if (made) return; const email = $('[data-invite-email]', m).value.trim();
+      if (!hasEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Enter a valid email for this person.');
+      const r = await api.createPortalInvite({ dealId: deal.id, contactId, email: hasEmail ? '' : email }); made = true;
+      const link = location.href.split('#')[0] + r.link; const draft = agentInviteDraft({ ...r, link, fileNumber: deal.fileNumber });
+      const res = $('[data-invite-result]', m); res.hidden = false; $('[data-invite-create]', m).disabled = true;
+      res.innerHTML = html`<p><strong>Invite link</strong> for ${r.firstName} ${r.lastName} (${draft.to}).</p>
+        <div class="ai-link-row"><input readonly value="${link}" data-invite-link aria-label="One-time invite link"><button type="button" class="m-btn" data-copy-link>Copy</button></div>
+        <div data-invite-draft><p><strong>Invitation email (not sent)</strong></p><p>To: ${draft.to}</p><p>Subject: ${draft.subject}</p><p>${draft.body}</p><p class="notice warn">${draft.delivery}</p></div>`.toString();
+      $('[data-copy-link]', res).addEventListener('click', guard(async () => { const outcome = await contactCopyOutcome(link, 'link'); toast(outcome.ok ? 'Link copied' : 'Select the link and copy it', outcome.level); }));
+      toast('Invite created (nothing sent)'); }));
+    $$('[data-close]', m).forEach((b) => b.addEventListener('click', () => { if (made) refresh(); }));   // repaint the tab; Resend / Revoke stay on Agent Invites
   }
   function editContact(c, staff) {
     const m = modal('Edit contact', html`<form id="ecf" class="form-grid"><label>First name<input name="firstName" value="${c.firstName}"></label><label>Last name<input name="lastName" value="${c.lastName}"></label>

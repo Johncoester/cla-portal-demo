@@ -11,6 +11,12 @@ export const NO_EMAIL_NOTE = 'Nothing is emailed: the portal does not send email
 // who may invite: Processor, Sales Person, Sales Team, Admin / Super admin. NOT Transaction Coordinators (John, Nov 4 1:48 PM: "No for now"):
 // a TC gets no Agent Invites page, no Invite to portal button, and every invite call refuses (mirrored by private.can_invite_agents in migration 41)
 export const canInviteAgents = (u) => !!u && u.status !== 'removed' && (u.isAdmin || isStaff(u.role)) && (u.isAdmin || u.role !== 'Transaction Coordinator');
+// Portal invite from a file (John + Francis, Nov 9: "a processor needs to be able to invite"): the same staff who may invite agents
+// (Processor, Preprocessor, Sales Person, Sales Team, Admin; still not a TC) invite a Client-Buyer, Client-Seller, Buyer Agent or Listing Agent
+// row that has no portal login. Agents get the agent account form; buyers and sellers a short login form (no brokerage / license).
+export const PORTAL_INVITE_ROLES = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent'];
+export const inviteKindForRole = (role) => (role === 'Buyer Agent' || role === 'Listing Agent' ? 'agent' : 'client');
+export const canInviteToPortal = (u, role) => canInviteAgents(u) && PORTAL_INVITE_ROLES.includes(role);
 export const inviteStatus = (inv, nowIso = new Date().toISOString()) => (!inv ? 'invalid' : inv.status === 'pending' && inv.expiresAt && inv.expiresAt < nowIso ? 'expired' : inv.status);
 export const STATUS_LABEL = { pending: 'Pending', accepted: 'Accepted', expired: 'Expired', revoked: 'Revoked', invalid: 'Not valid' };
 const s = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
