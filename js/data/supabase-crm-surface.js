@@ -1,12 +1,12 @@
 /* Hosted methods the CRM screens call that were not on the Supabase adapter.
  * Tables only: dashboards, reports, layout sections, dup rules, search columns, activities.
  * Recent items have no table, so they last for this page session only. */
-import { localDate } from './constants.js?v=202611090935';
-import { canUseCrm, crmReadOnly } from './crm.js?v=202611070139';
+import { localDate } from './constants.js?v=202611100245';
+import { canUseCrm, crmReadOnly } from './crm.js?v=202611100230';
 import {
   MODULE_CODES, SEARCH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, moduleName, moduleFields, reportFields,
   parseQuery, searchMatch, chartData, runReport, reportCsv, dashboardVisible, dashboardEditable, reportVisible,
-} from './crm-analytics.js?v=202611070139';
+} from './crm-analytics.js?v=202611100600';
 
 const RECENT = new Map();
 const row = (o) => o || {};

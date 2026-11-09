@@ -3,11 +3,11 @@
  * (features.js, CLA_PORTAL_CONFIG.features.crm, OFF in supabase mode) and the database switch (private.features 'crm', migration 22).
  * With the browser flag off every method refuses before calling the database. Meetings never send invitations; nothing is emailed. */
 import { CRM_OFF } from './features.js?v=202611070139';
-import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611070139';
-import { localDate, runsOrders as runsOrdersCI } from './constants.js?v=202611090935';
-import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611070139';
-import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611090935';
-import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611070139';
+import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611100230';
+import { localDate, runsOrders as runsOrdersCI } from './constants.js?v=202611100245';
+import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611100600';
+import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611100600';
+import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611100600';
 import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611100600';
 import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611100600';
 

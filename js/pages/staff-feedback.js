@@ -1,6 +1,6 @@
 /* Portal feedback for CLA staff. Not the file inbox. Screenshots stay on this page.
  * Delivery copy comes from the saved state. A test simulation is labeled and is not the assistant. */
-import { html, raw, $, $$, guard, toast, fmtDateTime, fmtSize } from '../ui.js?v=202611071800';
+import { html, raw, $, $$, guard, toast, fmtDateTime, fmtSize } from '../ui.js?v=202611100245';
 import { FEEDBACK_STATUSES, STATUS_LABELS, canReportStaffFeedback, canSupportStaffFeedback, COMPOSE_NOTICE, newId, reportNotice, sanitizePage } from '../data/staff-feedback.js?v=202611080400';
 
 const ACCEPT = 'image/png,image/jpeg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif';

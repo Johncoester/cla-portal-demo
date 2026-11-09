@@ -224,16 +224,16 @@ const html = readFileSync(path.join(root, 'index.html'), 'utf8');
 const appSrc = readFileSync(path.join(root, 'js/app.js'), 'utf8');
 const adapterSrc = readFileSync(path.join(root, 'js/data/adapter.js'), 'utf8');
 const heavySrc = readFileSync(path.join(root, 'js/data/supabase-adapter.js'), 'utf8');
-check(html.includes('js/app.js?v=202611100600') && !html.includes('boot-marks') && appSrc.includes("adapter.js?v=202611100600") && appSrc.includes("pages/tasks.js?v=202611100600") && appSrc.includes("pages/taskgrid.js?v=202611091600") && adapterSrc.includes("supabase-adapter.js?v=202611100600"), 'the changed imports keep their cache query');
+check(html.includes('js/app.js?v=202611100600') && !html.includes('boot-marks') && appSrc.includes("adapter.js?v=202611100600") && appSrc.includes("pages/tasks.js?v=202611100600") && appSrc.includes("pages/taskgrid.js?v=202611100600") && adapterSrc.includes("supabase-adapter.js?v=202611100600"), 'the changed imports keep their cache query');
 check(appSrc.includes("api.listAllTasks({ fileStatus: 'All' })") && heavySrc.includes("nav.share(u.id, 'grid:' + fs") && heavySrc.includes('Promise.all([sb.rpc(\'task_grid\''), 'the board overlap stays and the grid read shares one flight');
 const money = {
   'js/data/constants.js': '30ef60e9c1c68676d0982e106813e9b6eb574163d6bc34d6ed68a086e7f6e5cd',
-  'js/data/supabase-tc.js': '56bb2d60d60f38384df385d102a5bf3f5a7116768896bd35eb2b93e6440975a6',
-  'js/pages/deal-buyer-legacy.js': 'a18e6c94baf312aef30902db949ebb477fc591622481d5f4006af4cb7c8b412b',
-  'js/pages/deal.js': '671da616f5ca4ed2827e00c3fd2ca64c3f74f9c2ae82b108a50ec90afae129e2',
-  'js/pages/money-input.js': '014244be259d403571d283caa85afde7ff2b355a3ad5ba8f024034a76a26188d',
-  'js/pages/ordernew.js': '8971e977e0e66efe0f1d7bb166f84a1093fae23e2424c1260615e5ed89a6e5b4',
-  'js/pages/tc-overview.js': '5f1572ee9b4afa15012fd09409f59e5af2755d309853d3252b72069bf7157ee0',
+  'js/data/supabase-tc.js': 'be121354ee84869fc81366c4ef609b7620588b9a83a9c27e64dbc09a675e87be',
+  'js/pages/deal-buyer-legacy.js': '91e534abd457d2705111b3137118e4b9dcdfd36fedcbc256580a1fe732dc48bc',
+  'js/pages/deal.js': '59749afacbc7491d2f053dc3ad8cf10d435ddd7b201add95c91e5684f45a5dbc',
+  'js/pages/money-input.js': '3837b6a4d35529968a34f9fb53594aeec035effedd77ecaffc16f9c8351d361c',
+  'js/pages/ordernew.js': '56fbe2cd7e54f0932a1774974bb603f9fc970ff605be3b9c4f78c9eeec030c56',
+  'js/pages/tc-overview.js': 'f4f56aa17b5585843ad8ce0b3410e18808234e1e0aea517443ca34b37e19b67e',
 };
 for (const [file, hash] of Object.entries(money)) {
   const got = createHash('sha256').update(readFileSync(path.join(root, file))).digest('hex');

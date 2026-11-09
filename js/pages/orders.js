@@ -1,7 +1,7 @@
 // Orders list: tabs Open / Close / On Hold / Cancelled / All, search box. Same columns as the old portal.
-import { html, fmtDate, pill, $, $$, raw, options } from '../ui.js?v=202611070139';
-import { runsOrders, isClient, isAgent, isProcessor, isOutside, TX_TYPES } from '../data/constants.js?v=202611090935';
-import { filterDeals, sortDeals, DEAL_SORT_DIR } from '../data/task-board.js?v=202611091600';
+import { html, fmtDate, pill, $, $$, raw, options } from '../ui.js?v=202611100245';
+import { runsOrders, isClient, isAgent, isProcessor, isOutside, TX_TYPES } from '../data/constants.js?v=202611100245';
+import { filterDeals, sortDeals, DEAL_SORT_DIR } from '../data/task-board.js?v=202611100600';
 import { isUnassigned } from '../data/processor-assign.js?v=202611091600';
 
 const TABS = [['Open', 'Open'], ['Closed', 'Close'], ['On Hold', 'On Hold'], ['Cancelled', 'Cancelled'], ['All', 'All Orders']];

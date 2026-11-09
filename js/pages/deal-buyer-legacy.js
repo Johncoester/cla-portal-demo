@@ -2,16 +2,16 @@
 // Client-Buyer viewing their own order (not an agent there). The order page redesign (deal.js) is for staff / agents / sellers. Delete once buyer overview lands.
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
 import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611100245';
-import { GMAIL_OFF } from '../data/automation.js?v=202611100245';
-import { occSelects, yesNo } from './occ-fields.js?v=202611100245';
+import { GMAIL_OFF } from '../data/automation.js?v=202611100600';
+import { occSelects, yesNo } from './occ-fields.js?v=202611100600';
 import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611100245';
-import { slotText } from './dealclosing.js?v=202611100245';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611100245';
-import { composeModal } from './compose.js?v=202611100245';
+import { slotText } from './dealclosing.js?v=202611100600';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611100600';
+import { composeModal } from './compose.js?v=202611100600';
 import { sourceChoices } from '../data/place-order.js?v=202611100245';
 import { themeOn } from '../theme.js?v=202611100245';
 
-const TABS = { tasks: './dealtasks.js?v=202611100600', inbox: './dealmsgs.js?v=202611100245', documents: './dealdocs.js?v=202611100600', contacts: './dealcontacts.js?v=202611100600', activity: './dealactivity.js?v=202611100245', closing: './dealclosing.js?v=202611100245', agreements: './dealagreements.js?v=202611100245', accounting: './dealaccounting.js?v=202611100245' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611100600', inbox: './dealmsgs.js?v=202611100600', documents: './dealdocs.js?v=202611100600', contacts: './dealcontacts.js?v=202611100600', activity: './dealactivity.js?v=202611100600', closing: './dealclosing.js?v=202611100600', agreements: './dealagreements.js?v=202611100600', accounting: './dealaccounting.js?v=202611100600' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -33,7 +33,7 @@ export async function render(ctx) {
   return { ...v, body: html`${done.html}${cards}${extra.top}${v.body}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
 }
 async function themedSummary({ api, user }, d, ov, inv) {
-  const { orderSummary } = await import('./theme-cards.js?v=202611100245');
+  const { orderSummary } = await import('./theme-cards.js?v=202611100600');
   const staffView = !user.accountRole && user.role !== 'Outside user';
   const canWire = staffView || (user.roles || [user.role]).includes('Client-Buyer');   // SAME rule as the Wire instructions button: CLA staff + the buyer, never an agent
   const tasks = await api.listTasks(d.id).catch(() => []);

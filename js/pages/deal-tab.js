@@ -1,18 +1,18 @@
 /* File-tab modules. Loading one evaluates local helpers only. It does not check who is signed in and it does not read a file. */
 const TABS = Object.assign(Object.create(null), {
   tasks: './dealtasks.js?v=202611100600',
-  inbox: './dealmsgs.js?v=202611100245',
-  email: './dealemail.js?v=202611100245',   // John, Nov 9: Gmail phase 1 (staff only; the tab module refuses everyone else)
+  inbox: './dealmsgs.js?v=202611100600',
+  email: './dealemail.js?v=202611100600',   // John, Nov 9: Gmail phase 1 (staff only; the tab module refuses everyone else)
   documents: './dealdocs.js?v=202611100600',
   contacts: './dealcontacts.js?v=202611100600',
-  activity: './dealactivity.js?v=202611100245',
-  closing: './dealclosing.js?v=202611100245',
-  agreements: './dealagreements.js?v=202611100245',
-  accounting: './dealaccounting.js?v=202611100245',
-  title: './dealtitle.js?v=202611100245',
-  funding: './dealfwp.js?v=202611100245',
-  wires: './dealfwp.js?v=202611100245',
-  policy: './dealfwp.js?v=202611100245',
+  activity: './dealactivity.js?v=202611100600',
+  closing: './dealclosing.js?v=202611100600',
+  agreements: './dealagreements.js?v=202611100600',
+  accounting: './dealaccounting.js?v=202611100600',
+  title: './dealtitle.js?v=202611100600',
+  funding: './dealfwp.js?v=202611100600',
+  wires: './dealfwp.js?v=202611100600',
+  policy: './dealfwp.js?v=202611100600',
 });
 const TASK_FORM = './dealtaskform.js?v=202611100600';
 

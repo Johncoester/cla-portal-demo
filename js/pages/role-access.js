@@ -2,7 +2,7 @@
 // A grid of roles x modules. Tick or untick, then Save. Admins and Super admins always have everything (no checkbox, so nobody locks themselves out).
 // Agents, clients and HR-only logins are never in the grid. A cell shows "-" where the module has never been for that role.
 // Every change is logged (who, when, old -> new). Saved rows take effect for each person on their next page load.
-import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611070139';
+import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611100245';
 import { canManageRoleAccess } from '../data/role-access.js?v=202611100100';
 
 const word = (v) => (v ? 'On' : 'Off');

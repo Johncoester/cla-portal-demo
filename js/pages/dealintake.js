@@ -4,9 +4,9 @@
 // their tasks are done / overdue, and EVERY one of their intake sections with its status and answers on one page (no need to open each form).
 // Same data and permissions as the task pages: listTasks + getTask / getAgentTask (answers only where the viewer may already read them, bank
 // numbers masked as before). Expand all / Collapse all; everything starts expanded.
-import { html, $, $$, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611070139';
-import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611090935';
-import { localDate, fmtPhone, isRefi } from '../data/constants.js?v=202611090935';
+import { html, $, $$, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611100245';
+import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611100600';
+import { localDate, fmtPhone, isRefi } from '../data/constants.js?v=202611100245';
 import { CLS, LABEL } from './dealtasks.js?v=202611100600';
 import { entityLine } from './deal.js?v=202611100600';
 

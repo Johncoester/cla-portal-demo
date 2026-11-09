@@ -3,8 +3,8 @@
  * closingLocationState (US code), closingLocationCountry (ISO 3166-1 alpha-2), signingMethod (staff only), answeredAt / answeredBy, updatedAt / updatedBy.
  * Who: the party reads / answers their OWN row; CLA staff read every row on orders they can see; Processor / Admin / Super admin edit any answer and
  * set the signing method; an agent reads their own side's clients (answer only, never the signing method); nobody sees the other side; no deletes. */
-import { cleanLocationAnswer, canManageClosingLocations, locationFlag, whereText, CLIENT_PARTY_ROLES, SIGNING_CODES, signingLabel, reminderTitle, stateName } from './closing-location.js?v=202611090935';
-import { senderFor } from './email-senders.js?v=202611090935';
+import { cleanLocationAnswer, canManageClosingLocations, locationFlag, whereText, CLIENT_PARTY_ROLES, SIGNING_CODES, signingLabel, reminderTitle, stateName } from './closing-location.js?v=202611100600';
+import { senderFor } from './email-senders.js?v=202611100600';
 const AGENT_FOR = { 'Buyer Agent': 'Client-Buyer', 'Listing Agent': 'Client-Seller' };
 export function closingLocationPart({ load, save, needUser, now, fail, nid, isStaffView, dealOr404, contactOf, fileRoles, fullName, notify, prof, localDate }) {
   const rows = () => { const d = load(); if (!Array.isArray(d.closingPartyLocations)) d.closingPartyLocations = []; return d.closingPartyLocations; };

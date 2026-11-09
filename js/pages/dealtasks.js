@@ -1,10 +1,10 @@
 // Tasks tab. Intake forms are per-participant copies of a versioned template (open them to fill in). Simple tasks are ticked.
 // Processor + transaction coordinator manage tasks and queue reminders (outbox only, never sent). Tasks are cancelled, never deleted.
-import { html, $, $$, guard, formData, modal, closeModal, options, fmtDate, pill, toast } from '../ui.js?v=202611070139';
-import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611090935';
-import { boxTasks } from '../data/task-board.js?v=202611091600';
+import { html, $, $$, guard, formData, modal, closeModal, options, fmtDate, pill, toast } from '../ui.js?v=202611100245';
+import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611100245';
+import { boxTasks } from '../data/task-board.js?v=202611100600';
 import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611100600';
-import { taskOpenHref } from '../data/task-actions.js?v=202611090935';
+import { taskOpenHref } from '../data/task-actions.js?v=202611100600';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
 export const LABEL = { todo: 'to do', in_progress: 'started', done: 'done', blocked: 'blocked', cancelled: 'cancelled' };
@@ -16,7 +16,7 @@ export async function render(ctx) {
   const allTasks = await api.listTasks(deal.id);
   // BUYER (Nov 4 call): the agreements are to-dos that open the agreement (no Agreements tab for the buyer); the buyer never gets a Listing Agent box (listing agent never shown)
   // SELLER MIRROR (Nov 4): the pure seller gets the same To-do list (agreements as to-dos) and never a Buyer's Agent box (the buyer's agent is never shown to the seller)
-  const { isPureClient, isPureSeller, agreementTasks } = await import('./client-overview.js?v=202611100005'); const pure = user.accountRole && isPureClient(user); const hideBox = pure ? (isPureSeller(user) ? 'buyer-agent' : 'listing-agent') : null;
+  const { isPureClient, isPureSeller, agreementTasks } = await import('./client-overview.js?v=202611100600'); const pure = user.accountRole && isPureClient(user); const hideBox = pure ? (isPureSeller(user) ? 'buyer-agent' : 'listing-agent') : null;
   // CLIENT TASK PRIVACY (Matt, Nov 5, live40): a buyer / seller only ever sees tasks assigned to them (the adapter already filters; this is the UI guard),
   // only their own side's box, and "You're all caught up" once nothing is left. Never the other parties' boxes or tasks.
   const productionView = !pure && new URLSearchParams(location.hash.split('?')[1] || '').get('lane') === 'production';

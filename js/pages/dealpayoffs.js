@@ -2,7 +2,7 @@
 // Francis Santos's Qualia training video (John, Nov 4 2026: "yes build it", "mimic Qualia exactly for now"). CLA staff only (the Accounting tab
 // already refuses agents and clients). Processor / Admin / Super admin edit; Sales and TCs read. Nothing is sent. No wire instructions, bank
 // details or SSNs are stored. Spec: /workspace/francis-videos/payoff-hoa-ffb-gr/PAYOFF-HOA-FFB-GR-SPEC.md, docs/PAYOFFS-HOA-FFB-GR.md.
-import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611070139';
+import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611100245';
 import * as PO from '../data/payoffs.js?v=202611070139';
 import { QUALIA_TABS, PRORATION_CYCLES, computeProration } from '../data/prorations.js?v=202611070139';
 const opt = (v, l, sel) => html`<option value="${v}" ${String(v) === String(sel ?? '') ? raw('selected') : ''}>${l}</option>`;

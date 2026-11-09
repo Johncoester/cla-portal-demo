@@ -1,7 +1,7 @@
 // Supabase order overview. Reads only tables and RPCs that already exist.
 // RLS decides the file, the other side's contact, tasks, documents, threads, activity, and demo world.
 // A failed read is thrown. An empty list is only what the database returned.
-import { buildOrderOverview } from './order-overview.js?v=202611092230';
+import { buildOrderOverview } from './order-overview.js?v=202611100600';
 
 const CONTACT_MS = 2000;
 /* Email/phone is extra. A denied column or a read that never returns must not leave the file on "Loading this page." */
