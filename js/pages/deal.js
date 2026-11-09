@@ -1,6 +1,6 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
 import { html, raw, toText, esc, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611070139';
-import { TEST_ALLOWLIST_NOTE, isAllowedTestRecipient, textToHtml, hasSignature } from '../data/gmail-email.js?v=202611091345';
+import { TEST_ALLOWLIST_NOTE, isAllowedTestRecipient, textToHtml, hasSignature } from '../data/gmail-email.js?v=202611091801';
 import { occSelects, yesNo } from './occ-fields.js?v=202611070139';
 import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611090935';
 import { modOn } from '../data/modules.js?v=202611090935';
@@ -13,7 +13,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611090935';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611091311';
 import { gatherReads } from '../data/read-batch.js?v=202611082010';
-import { prefetchDealTab } from './deal-tab.js?v=202611091450';
+import { prefetchDealTab } from './deal-tab.js?v=202611092210';
 import { placeText } from '../data/cla-offices.js?v=202611090935';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 

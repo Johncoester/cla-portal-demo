@@ -7,7 +7,7 @@
  *   deps.storeAttachment(path, bytes, mime)         service-role upload to deal-documents
  *   deps.newId() -> uuid, deps.now() -> ms */
 import { TEST_PROJECT_REF, PORTAL_ORIGIN, REDIRECT_URI, GMAIL_ROLES, MAX_RECIPIENTS, MAX_DOCS, MAX_ATTACH_BYTES, MAX_SAVE_BYTES, MAX_BODY_CHARS, TEST_ALLOWLIST_NOTE,
-  isAllowedTestRecipient, parseAddressList, subjectWithTag, sanitizeHtml, htmlToText, hasWireDetails, isWireName, extOk, safeName, buildMime, b64url, b64urlToBytes,
+  isAllowedTestRecipient, parseAddressList, subjectWithTag, formatPropertyAddress, sanitizeHtml, htmlToText, hasWireDetails, isWireName, extOk, safeName, buildMime, b64url, b64urlToBytes,
   parseGmailMessage, randomToken, sha256Hex, pkceChallenge, authUrl, decodeJwtPayload, missingScopes, oneLine, json, hasSettingsScope, pickSendAsSignature, withSignature } from './gmail-core.mjs';
 
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -153,7 +153,7 @@ export async function handleSend(req, deps) {
   }
   const subjectIn = oneLine(b.subject, 250);
   if (!subjectIn) return json(400, { error: 'Add a subject.' }, H);
-  const subject = subjectWithTag(subjectIn, deal.file_number || '');
+  const subject = subjectWithTag(subjectIn, deal.file_number || '', formatPropertyAddress(deal));
   const bodyHtml = sanitizeHtml(b.html || '');
   if (!htmlToText(bodyHtml)) return json(400, { error: 'Write a message first.' }, H);
   if (bodyHtml.length > MAX_BODY_CHARS) return json(400, { error: 'The message is too long.' }, H);

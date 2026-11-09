@@ -10,7 +10,21 @@ export function isAllowedTestRecipient(addr) {
   if (/^clatestportal\+[a-z0-9._-]{1,64}@gmail\.com$/.test(a)) return true;
   return /^[a-z0-9._%+'-]+@clatitle\.com$/.test(a);
 }
-export const fileTag = (fileNumber) => `[CLA #${String(fileNumber || 'order').trim()}]`;
+// "123 Main St, Rockville MD 20850" — comma after street only; empty parts omitted (John, Nov 9)
+export function formatPropertyAddress(deal = {}) {
+  const street = String(deal && deal.street || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  const city = String(deal && deal.city || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  const state = String(deal && deal.state || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  const zip = String(deal && deal.zip || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  const cityStateZip = [city, state, zip].filter(Boolean).join(' ');
+  return [street, cityStateZip].filter(Boolean).join(', ');
+}
+// [CLA #MD-26-97218] or [CLA #MD-26-97218 - 123 Main St, Rockville MD 20850]
+export const fileTag = (fileNumber, address) => {
+  const num = String(fileNumber || 'order').trim() || 'order';
+  const addr = String(typeof address === 'string' ? address : formatPropertyAddress(address || '')).replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  return addr ? `[CLA #${num} - ${addr}]` : `[CLA #${num}]`;
+};
 // ?gmail=... after Google sends the browser back to Profile Setting
 export const GMAIL_RESULT = {
   connected: ['ok', 'Gmail connected. You can now send email from a file (Email tab).'],
