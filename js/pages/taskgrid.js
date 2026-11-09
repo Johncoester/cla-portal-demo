@@ -29,7 +29,7 @@ export async function render({ api }) {
     <td class="nowrap" data-closing="${f.closingDate || ''}">${f.closingDate ? fmtDate(f.closingDate) : html`<span class="muted">not set</span>`}</td>${tasks.map((r) => cell({ ...(r.cells[f.id] || { state: 'na' }), refi: isRefi(f) && r.group !== 'buyer' }, r.key))}</tr>`;
   const t = g.totals;
   return { title: 'Task grid', crumbs: [['Task Grid']], body: html`
-    <div class="page-head"><div><div class="eyebrow">PROCESSOR</div><h2 class="page-title">Task grid</h2>
+    <div class="page-head" data-task-grid-ready data-file-count="${g.columns.length}"><div><div class="eyebrow">PROCESSOR</div><h2 class="page-title">Task grid</h2>
       <div class="muted">Files down the side, buyer / seller / agent tasks across the top. Click a column header to sort (click again to reverse). ${g.columns.length} file(s) &middot; ${t.done} done &middot; ${t.overdue} overdue &middot; ${t.pending} not yet due.</div></div>
       <div><a class="ghost" href="#/tasks">Task list</a></div></div>
     <ul class="nav-tabs">${FILES.map(([k, label]) => html`<li><a class="${k === fs ? 'active' : ''}" href="#/task-grid?s=${encodeURIComponent(k)}" ${k === fs ? raw('aria-current="page"') : ''}>${label}</a></li>`)}</ul>

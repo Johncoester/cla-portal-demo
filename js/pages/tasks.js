@@ -8,7 +8,7 @@ import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard
 export async function render({ api, user }) {
   const tasks = await api.listAllTasks({ fileStatus: 'All' }); const today = localDate();
   const files = new Set(tasks.map((t) => t.dealId)).size;
-  const body = html`<div class="page-head"><div><div class="eyebrow">${user.isAdmin ? 'ADMIN' : user.role.toUpperCase()}</div><h2 class="page-title">All tasks</h2>
+  const body = html`<div class="page-head" data-all-tasks-ready data-task-count="${tasks.length}"><div><div class="eyebrow">${user.isAdmin ? 'ADMIN' : user.role.toUpperCase()}</div><h2 class="page-title">All tasks</h2>
       <div class="muted">${tasks.length} task(s) on ${files} file(s) you can see. Showing incomplete tasks on open files, grouped by Buyer, Seller and Agent; change the filters to see more.</div></div>
       ${user.isAdmin ? html`<div><a class="ghost" href="#/task-grid">Task grid</a></div>` : ''}</div>
     <div class="card">${boardForm(BOARD_DEFAULTS)}<div data-board-results>${boardResults(tasks, BOARD_DEFAULTS, today)}</div></div>`;

@@ -1,5 +1,5 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611090210';
+import { getAdapter } from './data/adapter.js?v=202611090250';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611082250';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611082250';
@@ -43,8 +43,8 @@ const pages = {
   library: () => import('./pages/library.js?v=202611082250'),
   activity: () => import('./pages/activity.js?v=202611070139'),
   outbox: () => import('./pages/outbox.js?v=202611082250'),
-  tasks: () => import('./pages/tasks.js?v=202611082250'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611082250'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  tasks: () => import('./pages/tasks.js?v=202611090250'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611090250'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js?v=202611082250'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611082250'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => import('./pages/modules.js?v=202611082250'),
@@ -434,6 +434,12 @@ export async function render() {
   setModuleMap(mods);   // module switches for the person now signed in, after view-as and the locked link
   const tasksAllowed = !!(u && route.page === 'tasks' && modOn('tasks') && routeAllowed(u, route, { locked: !!lockedId, demo: DEMO_VIEW }) && api.listAllTasks);
   if (tasksAllowed) api.listAllTasks({ fileStatus: 'All' }).catch(() => {});
+  if (u && u.isAdmin && route.page === 'task-grid' && modOn('task-grid') && routeAllowed(u, route, { locked: !!lockedId, demo: DEMO_VIEW }) && api.getTaskGrid) {
+    const asked = new URLSearchParams((location.hash.split('?')[1]) || '').get('s');
+    const fs = ['Open', 'On Hold', 'Closed', 'All'].includes(asked) ? asked : 'Open';
+    api.getTaskGrid({ fileStatus: fs }).catch(() => {});
+  }
+  if (u && u.isAdmin && route.page === 'tasks' && modOn('task-grid') && pages['task-grid']) pages['task-grid']().catch(() => {});
   const [extra] = await Promise.all([hrP, voiceP]);
   if (replaced()) return;
   if (extra && u) u = { ...u, ...extra };
@@ -451,7 +457,11 @@ export async function render() {
     const samePerson = !!u && !!u.id && (authAt == null || genNow === authAt);
     const text = view.textContent || '';
     const drew = tab === 'tasks' ? text.includes('All Tasks') : tab === 'documents' ? text.includes('Documents & Files') : false;
-    if (!failed && samePerson && drew && (tab === 'tasks' || tab === 'documents')) root.setAttribute('data-content-ready', tab);
+    const allTasksReady = route.page === 'tasks' && view.querySelector('[data-all-tasks-ready]');
+    const gridReady = route.page === 'task-grid' && view.querySelector('[data-task-grid-ready]');
+    if (!failed && samePerson && allTasksReady) root.setAttribute('data-content-ready', 'all-tasks');
+    else if (!failed && samePerson && gridReady) root.setAttribute('data-content-ready', 'task-grid');
+    else if (!failed && samePerson && drew && (tab === 'tasks' || tab === 'documents')) root.setAttribute('data-content-ready', tab);
     if (u && u.id) root.setAttribute('data-route-user', u.id); else root.removeAttribute('data-route-user');
     if (u && route.page === 'deal') { root.setAttribute('data-route-deal', route.params.id); rememberCounts(api, route.params.id, u.id, my); } else root.removeAttribute('data-route-deal');
   };
