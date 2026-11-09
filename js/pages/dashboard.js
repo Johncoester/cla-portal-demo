@@ -2,9 +2,9 @@
 // Transaction Coordinator = Dashboard; Buyer/Listing Agent = Transactions; clients = My Closing.
 import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js?v=202611070139';
 import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611101015';
-import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611110900';
+import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611111200';
 import { themeOn } from '../theme.js?v=202611070139';
-import { mapLimit } from '../data/read-batch.js?v=202611082010';
+import { mapLimit } from '../data/read-batch.js?v=202611111200';
 import { pendingMine } from '../data/task-actions.js?v=202611110800';
 import { unassignedOpen } from '../data/processor-assign.js?v=202611091600';
 
@@ -24,7 +24,11 @@ export async function render(ctx) {
   const { api, user } = ctx;
   const deals = await api.listDeals({ status: 'All' });
   const needsTasks = !(user.isAdmin || runsOrders(user));
-  const lists = needsTasks ? await mapLimit(deals, 4, (d) => api.listTasks(d.id).then((ts) => ts.map((t) => ({ ...t, deal: d })))) : [];
+  // speed (Nov 9): the Supabase adapter reads every file's tasks in one go (listTasksForDeals); the mock keeps one listTasks per file
+  const withDeal = (d, ts) => (ts || []).map((t) => ({ ...t, deal: d }));
+  const lists = !needsTasks ? [] : api.listTasksForDeals
+    ? await api.listTasksForDeals(deals.map((d) => d.id)).then((byDeal) => deals.map((d) => withDeal(d, byDeal.get(d.id))))
+    : await mapLimit(deals, 4, (d) => api.listTasks(d.id).then((ts) => withDeal(d, ts)));
   const all = lists.flat();
   const open = deals.filter((d) => d.status === 'Open'); const today = localDate();
   const pick = user.isAdmin ? admin : runsOrders(user) ? processor : user.role === 'Transaction Coordinator' ? coordinator : isAgent(user.role) ? agent : isClient(user.role) ? client : isOutside(user.role) ? outside : team;
