@@ -52,7 +52,9 @@ const inCheck = "CHECK ((kind IN ('task', 'note')))";
 
 ok(rowEmails.length === 10 && rowEmails.every((e) => e.endsWith('@example.com')), 'the seed has 10 row emails and every one is @example.com');
 ok(seed.includes("p.email = 'johncoester@gmail.com'") && seed.includes("left(p.id::text, 8) = '149e612a'") && seed.includes("John''s profile was not found"), 'the seed looks up John by email and the id prefix, and raises if he is missing');
-ok(seed.includes('update _crm_seed_activities set owner_id = v_john') && seed.includes('update _crm_seed_leads set owner_id = v_john') && seed.includes('update _crm_seed_accounts set owner_id = v_john') && seed.includes('update _crm_seed_opps set owner_id = v_john'), 'seeded leads, companies, opportunities, and activities use that looked-up owner');
+ok(seed.includes('update _crm_seed_activities set owner_id = v_john') && seed.includes("role in ('Sales Person', 'Sales Team')"), 'activities are owned by John, and record owners are set only when that profile is a sales role');
+ok(!/disable\s+trigger/i.test(seed) && /set\s+local\s+session_replication_role\s*=\s*replica/i.test(seed), 'the seed keeps triggers on and restores dates under replica role');
+ok(/set\s+local\s+session_replication_role\s*=\s*replica/i.test(back) && /set\s+local\s+session_replication_role\s*=\s*origin/i.test(back), 'the rollback deletes under replica role and turns it back off');
 ok(!/set owner_id = '[0-9a-f-]{36}'/i.test(seed), 'owner_id is not a hard-coded person');
 ok(seed.includes('Only a simple allowed-value check counts') && seed.includes("regexp_matches(list_src,") && !seed.includes('regexp_matches(chk,'), 'the allowed-value guard reads the list text, not every quote in the constraint');
 ok((seed.match(/as u\(colname\)/g) || []).length === 4 && !/\) as col\b/.test(seed) && !/quote_ident\(col\)/.test(seed), 'insert column lists use u.colname so they do not clash with the col variable');
