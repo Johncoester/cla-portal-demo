@@ -30,7 +30,13 @@ export function withSignature(bodyHtml, sigHtml) {
 export const GMAIL_ROLES = ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin'];
 export const MAX_RECIPIENTS = 20;
 export const MAX_DOCS = 10;
-export const MAX_ATTACH_BYTES = 18_000_000;   // Gmail's message limit is 25 MB after base64 (+33%)
+export const MAX_ATTACH_BYTES = 18_000_000;   // raw file bytes, before base64
+export const MAX_MESSAGE_BYTES = 24_000_000;  // stay under Gmail's 25 MB limit for the whole RFC822 message
+// base64 (+ line wraps) of the file bytes, plus the message text. Used to refuse before Gmail is called.
+export function estimateMimeBytes(fileBytes, extra = 0) {
+  const n = Math.max(0, Number(fileBytes) || 0);
+  return Math.ceil(n / 3) * 4 + Math.ceil(n / 57) * 2 + (Number(extra) || 0);
+}
 export const MAX_SAVE_BYTES = 25_000_000;     // deal-documents bucket limit
 export const MAX_BODY_CHARS = 200_000;
 export const UPLOAD_EXT = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'png', 'jpg', 'jpeg', 'heic', 'heif', 'webp'];   // = private.upload_ext_ok
@@ -115,10 +121,14 @@ export const safeName = (n) => (String(n || 'attachment').replace(/[\\/\u0000-\u
 /* ---- encoding ---- */
 const enc = new TextEncoder();
 export const utf8 = (s) => enc.encode(String(s));
+// 4096 stays under the edge runtime's apply() argument limit. 32768 can throw
+// "Maximum call stack size exceeded" while a contract PDF is being encoded, which
+// aborts the send before it is recorded.
 export function bytesToB64(bytes) {
-  let bin = ''; const CH = 0x8000;
-  for (let i = 0; i < bytes.length; i += CH) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
-  return btoa(bin);
+  const u = bytes instanceof Uint8Array ? bytes : utf8(String(bytes == null ? '' : bytes));
+  const chunks = []; const CH = 4096;
+  for (let i = 0; i < u.length; i += CH) chunks.push(String.fromCharCode.apply(null, u.subarray(i, i + CH)));
+  return btoa(chunks.join(''));
 }
 export const b64url = (x) => bytesToB64(typeof x === 'string' ? utf8(x) : x).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 export function b64urlToBytes(s) {
@@ -146,13 +156,15 @@ export function buildMime({ from, fromName, to = [], cc = [], bcc = [], subject,
   const altPart = [`Content-Type: multipart/alternative; boundary="${alt}"`, '', `--${alt}`, 'Content-Type: text/plain; charset="UTF-8"', 'Content-Transfer-Encoding: base64', '',
     wrap76(bytesToB64(utf8(text || ''))), `--${alt}`, 'Content-Type: text/html; charset="UTF-8"', 'Content-Transfer-Encoding: base64', '',
     wrap76(bytesToB64(utf8(html || ''))), `--${alt}--`];
-  if (!attachments.length) { L.push(...altPart); return L.join('\r\n'); }
+  if (!attachments.length) { L.push(...altPart, ''); return L.join('\r\n'); }
   L.push(`Content-Type: multipart/mixed; boundary="${mixed}"`, '', `--${mixed}`, ...altPart);
   for (const a of attachments) {
     const mime = /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(a.mime || '') ? a.mime : 'application/octet-stream';
-    L.push(`--${mixed}`, `Content-Type: ${mime}`, 'Content-Transfer-Encoding: base64', `Content-Disposition: attachment; ${fileParam(a.name)}`, '', wrap76(bytesToB64(a.bytes)));
+    const fname = fileParam(a.name);
+    const quoted = fname.match(/^filename="(.*)"$/);
+    L.push(`--${mixed}`, `Content-Type: ${mime}${quoted ? `; name="${quoted[1]}"` : ''}`, 'Content-Transfer-Encoding: base64', `Content-Disposition: attachment; ${fname}`, '', wrap76(bytesToB64(a.bytes || new Uint8Array())));
   }
-  L.push(`--${mixed}--`);
+  L.push(`--${mixed}--`, '');
   return L.join('\r\n');
 }
 
