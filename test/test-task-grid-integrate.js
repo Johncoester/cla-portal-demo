@@ -224,15 +224,15 @@ const html = readFileSync(path.join(root, 'index.html'), 'utf8');
 const appSrc = readFileSync(path.join(root, 'js/app.js'), 'utf8');
 const adapterSrc = readFileSync(path.join(root, 'js/data/adapter.js'), 'utf8');
 const heavySrc = readFileSync(path.join(root, 'js/data/supabase-adapter.js'), 'utf8');
-check(html.includes('js/app.js?v=202611090935') && !html.includes('boot-marks') && appSrc.includes("adapter.js?v=202611090935") && appSrc.includes("pages/tasks.js?v=202611090935") && appSrc.includes("pages/taskgrid.js?v=202611090935") && adapterSrc.includes("supabase-adapter.js?v=202611090935"), 'the changed imports keep their cache query');
+check(html.includes('js/app.js?v=202611090950') && !html.includes('boot-marks') && appSrc.includes("adapter.js?v=202611090950") && appSrc.includes("pages/tasks.js?v=202611090950") && appSrc.includes("pages/taskgrid.js?v=202611090935") && adapterSrc.includes("supabase-adapter.js?v=202611090950"), 'the changed imports keep their cache query');
 check(appSrc.includes("api.listAllTasks({ fileStatus: 'All' })") && heavySrc.includes("nav.share(u.id, 'grid:' + fs") && heavySrc.includes('Promise.all([sb.rpc(\'task_grid\''), 'the board overlap stays and the grid read shares one flight');
 const money = {
   'js/data/constants.js': '30ef60e9c1c68676d0982e106813e9b6eb574163d6bc34d6ed68a086e7f6e5cd',
   'js/data/supabase-tc.js': '56bb2d60d60f38384df385d102a5bf3f5a7116768896bd35eb2b93e6440975a6',
-  'js/pages/deal-buyer-legacy.js': '2c185ae0891dd334bdf9191e03a6bd9e044b5158a19671dfa8cdda8d9f285ea1',
-  'js/pages/deal.js': '8509b6340c711f777c128b87ef65c6d2bbf3cad1fa34460538d811ca5ad60e05',
+  'js/pages/deal-buyer-legacy.js': 'bcd8104c33c38e9559b0d276fe32f2abf75c57767aa8e7b78988c4f45983cf21',
+  'js/pages/deal.js': 'd53f813dfbc35364e79146f0a10a8c058b93aa4dae4e72f4bb714cb92009918a',
   'js/pages/money-input.js': '014244be259d403571d283caa85afde7ff2b355a3ad5ba8f024034a76a26188d',
-  'js/pages/ordernew.js': 'f99e775d3b89179de89325304509598c7b0d52651ed1873a422f51c2db13f30e',
+  'js/pages/ordernew.js': 'ba74c509e682bcf68cdbd67f2c99aeca8e6dc73dfb9e63901967d40038eddd01',
   'js/pages/tc-overview.js': '07b78fedbead1f5a74b1e1b01fcdb8e20652f737ff2dfbe42373c47adefcfb3d',
 };
 for (const [file, hash] of Object.entries(money)) {
