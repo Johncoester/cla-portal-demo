@@ -1014,3 +1014,13 @@ fieldset.span2 { display: flex; flex-wrap: wrap; gap: .5rem; border: 1px solid v
   .staff-feedback .form-grid { grid-template-columns: 1fr; }
   .staff-feedback .m-btn, .staff-feedback .ghost { width: 100%; }
 }
+
+/* VOICE TEST PANEL (header control, separate from the Bots menu) */
+.voice-panel { width: min(420px, calc(100vw - 24px)); max-height: min(70vh, 560px); overflow: auto; padding: 12px; }
+.voice-panel .voice-reply { white-space: pre-wrap; margin: 8px 0 0; }
+.voice-controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+@media (max-width: 860px) {
+  .voice-panel { position: fixed; top: 60px; left: 8px; right: 8px; width: auto; }
+  .voice-wrap [data-voice-current] { max-width: 92px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: bottom; }
+  .co-top .voice-wrap { margin-left: 0; }
+}

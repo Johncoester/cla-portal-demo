@@ -1,7 +1,10 @@
 /* Voice is a signed-in Live Test path. The public fake link cannot open it. */
 import { readFileSync } from 'node:fs';
+import { appendTranscript, voiceFileFacts, voiceInstructions, voiceOpenPlan, voiceShellPlan, VOICE_GENERIC } from '../js/data/voice-file.js';
+import { voiceMenuHtml } from '../js/pages/voice-panel.js';
+import { botRegistry } from '../js/data/bot-registry.js';
 import { routeAllowed } from '../js/data/locked-links.js';
-import { acceptEphemeralToken, audioAppend, createVoiceAttempt, createVoiceSession, isSpokenAudioEvent, pcm16Base64ToFloat32, realtimeSocket, requestVoice, sessionUpdate, stopMic, textTurn, voicePassText, voiceRouteOk, withTimeout, VOICE_SIGN_IN, VOICE_TIMED_OUT, VOICE_URL, DEMO_INSTRUCTIONS } from '../js/data/voice-demo.js';
+import { acceptEphemeralToken, audioAppend, createVoiceAttempt, createVoiceSession, isSpokenAudioEvent, pcm16Base64ToFloat32, realtimeSocket, requestVoice, sessionUpdate, stopMic, textTurn, voicePassText, voiceRouteOk, withTimeout, VOICE_DROPPED, VOICE_NOT_CONNECTED, VOICE_SIGN_IN, VOICE_TIMED_OUT, VOICE_URL, DEMO_INSTRUCTIONS } from '../js/data/voice-demo.js';
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
 const buyer = { id: 'u-buyer', role: 'Outside user', status: 'active' };
@@ -148,9 +151,79 @@ ok(audioErrors.length === 1 && played.length === 2, 'one bad chunk is reported o
 const stoppedSpeaker = speaker.stop();
 ok(stoppedSpeaker.retainedChunks === 0 && voiceSock.closed === true && speaker.state.context == null, 'Stop still drops the microphone and does not keep the audio');
 const pageSrc = readFileSync(new URL('../js/pages/voice-demo.js', import.meta.url), 'utf8');
-ok(pageSrc.includes("/transcript/i.test(event.type || '')") && pageSrc.includes('onAudioError') && !pageSrc.includes('speechSynthesis'), 'the page still shows transcript text and does not speak with the browser voice');
+const panelSrc = readFileSync(new URL('../js/pages/voice-panel.js', import.meta.url), 'utf8');
+const fileSrc = readFileSync(new URL('../js/data/voice-file.js', import.meta.url), 'utf8');
+ok(fileSrc.includes("/transcript/i.test") && panelSrc.includes('appendTranscript') && panelSrc.includes('onAudioError') && !pageSrc.includes('speechSynthesis') && !panelSrc.includes('speechSynthesis'), 'the transcript stays text and the browser voice is not used');
 const appSrc = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const htmlSrc = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-ok(htmlSrc.includes('js/app.js?v=202611091050') && appSrc.includes("voice-demo.js?v=202611071632") && appSrc.includes("pages/voice-demo.js?v=202611071632") && pageSrc.includes("voice-demo.js?v=202611071632"), 'the shell and both voice imports use the new playback stamp');
+ok(/js\/app\.js\?v=\d+/.test(htmlSrc) && /voice-demo\.js\?v=\d+/.test(appSrc) && /pages\/voice-panel\.js\?v=\d+/.test(appSrc) && /voice-file\.js\?v=\d+/.test(pageSrc), 'the shell loads the voice panel with cache stamps');
+ok(appSrc.includes('voiceMenuHtml') && appSrc.includes('class="topbar-tools"') && !appSrc.includes('href="#/voice-demo"'), 'Voice test is a header control and the old banner link is gone');
+ok(appSrc.includes('${botsMenu(u)}') && appSrc.includes('wireBots()') && appSrc.includes("tab === 'accounting'"), 'the published Bots dropdown and Accounting stay');
+ok(!botRegistry().some((b) => /voice/i.test(b.id + ' ' + b.label)) && !fileSrc.includes('import') && !panelSrc.includes('bot-registry'), 'voice is not in the Bots registry');
+ok(panelSrc.includes('voiceOpenPlan') && panelSrc.includes("addEventListener('click', () => attempt.start())"), 'Start is its own button; opening the panel does not start it');
+ok(appSrc.includes('prepareVoiceShell({ userId: u && u.id, dealId: shellDeal && shellDeal.id })') && (appSrc.match(/stopVoiceNow\(\)/g) || []).length >= 6, 'file switch, role/person change, sign-out and public pages stop voice');
+function voiceSocket() {
+  return class { constructor() { this.readyState = 0; this.listeners = {}; this.sent = []; queueMicrotask(() => { this.readyState = 1; (this.listeners.open || []).forEach((fn) => fn({})); }); } addEventListener(n, fn) { (this.listeners[n] || (this.listeners[n] = [])).push(fn); } send(body) { this.sent.push(body); } close() { this.readyState = 3; (this.listeners.close || []).forEach((fn) => fn({})); } };
+}
+function voiceAudio() {
+  return { sampleRate: 24000, state: 'running', destination: {}, resume() { return Promise.resolve(); }, close() { this.state = 'closed'; }, createMediaStreamSource() { return { connect() {}, disconnect() {} }; }, createGain() { return { gain: { value: 1 }, connect() {}, disconnect() {} }; }, createScriptProcessor() { return { connect() {}, disconnect() {} }; }, createBuffer() { return { duration: 0, copyToChannel() {} }; }, createBufferSource() { return { connect() {}, start() {}, stop() {} }; } };
+}
+let againMic = 0;
+let againSock = null;
+const again = createVoiceSession({ WebSocket: class extends voiceSocket() { constructor() { super(); againSock = this; } }, getUserMedia: async () => { againMic += 1; return { getTracks() { return [{ stop() {} }]; } }; }, audioContextFactory: voiceAudio });
+const againNotes = [];
+const againAttempt = createVoiceAttempt({ live: again, show(m, s) { againNotes.push([s, m]); }, requestPass: async () => ({ ok: true, data: { value: token } }) });
+const firstTry = await againAttempt.start();
+ok(firstTry.openedMic === true && againMic === 1, 'the first Start opens the microphone');
+againAttempt.stop();
+const secondTry = await againAttempt.start();
+ok(secondTry.openedMic === true && againMic === 2 && againNotes.filter((n) => n[0] === 'live').length === 2, 'Start after Stop connects again instead of claiming Connected with no socket');
+again.sendText('Is the closing Tuesday?');
+ok(againSock.sent.some((s) => s.includes('Is the closing Tuesday?')), 'the typed message is sent on the socket opened by the second Start');
+againSock.close();
+let dropped = '';
+try { again.sendText('Again'); } catch (e) { dropped = e.message; }
+ok(dropped === VOICE_DROPPED && dropped !== VOICE_NOT_CONNECTED, 'a socket that ended is not described as never started and no close code is shown');
+let closedMic = 0;
+const closedNotes = [];
+const closedAudio = createVoiceSession({ WebSocket: class { constructor() { throw new Error('socket should not open'); } }, getUserMedia: async () => { closedMic += 1; return { getTracks() { return []; } }; }, audioContextFactory: () => ({ sampleRate: 24000, state: 'closed', destination: {}, resume() { return Promise.resolve(); }, close() {} }) });
+const closedAttempt = createVoiceAttempt({ live: closedAudio, show(m, s) { closedNotes.push([s, m]); }, requestPass: async () => ({ ok: true, data: { value: token } }) });
+const closedTry = await closedAttempt.start();
+ok(closedTry.openedMic === false && closedMic === 0 && !closedNotes.some((n) => String(n[1]).startsWith('Connected.')), 'a closed audio context does not say the microphone is on');
+ok(DEMO_INSTRUCTIONS === VOICE_GENERIC && !/MD-26-97183|145 Main Street|Ben Buyer/.test(DEMO_INSTRUCTIONS), 'with no file open the script does not invent one');
+const fat = { id: 'd1', fileNumber: 'MD-26-97215', street: '8029 Harbor Tree Way', city: 'Montgomery Village', state: 'MD', zip: '20886', transactionType: 'Purchase', fileTitle: 'Harbor purchase', county: 'Montgomery', openDate: '2026-11-07', closingDate: '2026-09-21', phase: 'Title Processing', myRoleLabel: 'Super admin on this file', purchasePrice: 482000, loanAmount: 300000, wireAccount: 'wire-secret', ssn: '123-45-6789', documents: 'contract.pdf', email: 'buyer@example.test', phone: '301-555-0100', cashToClose: 77123, accounting: { balance: 991234 } };
+const facts = voiceFileFacts(fat);
+const script = voiceInstructions(facts);
+ok(facts.connected === true && facts.fileLabel.includes('MD-26-97215') && facts.fileLabel.includes('8029 Harbor Tree Way'), 'the open file is labeled from the order header');
+ok(script.includes('Title Processing') && script.includes('Super admin on this file') && script.includes('Settlement date: 2026-09-21'), 'the script has the header fields already on screen');
+for (const secret of ['482000', '300000', 'wire-secret', '123-45-6789', 'contract.pdf', 'buyer@example.test', '301-555-0100', '77123', '991234']) ok(!script.includes(secret), 'the script leaves out ' + secret);
+ok(voiceInstructions(voiceFileFacts(null)) === VOICE_GENERIC && voiceFileFacts({ purchasePrice: 10 }).connected === false, 'a deal with no file number stays not connected');
+ok(voiceOpenPlan(false).start === false && voiceOpenPlan(false).stop === false && voiceOpenPlan(false).open === true, 'opening the panel does not start the microphone');
+ok(voiceOpenPlan(true).stop === true && voiceOpenPlan(true).start === false && voiceOpenPlan(true).open === false, 'hiding the panel stops the session');
+const same = { userId: 'u1', dealId: 'd1', open: true };
+ok(voiceShellPlan(same, { userId: 'u1', dealId: 'd1' }).stop === false && voiceShellPlan(same, { userId: 'u1', dealId: 'd1' }).keepOpen === true, 'a tab change inside the same file keeps the open panel');
+ok(voiceShellPlan(same, { userId: 'u1', dealId: 'd2' }).stop === true && voiceShellPlan(same, { userId: 'u1', dealId: 'd2' }).reason === 'file', 'another order stops the microphone');
+ok(voiceShellPlan(same, { userId: 'u1', dealId: '' }).stop === true, 'leaving the file stops the microphone');
+ok(voiceShellPlan(same, { userId: 'u2', dealId: 'd1' }).reason === 'person' && voiceShellPlan(same, { userId: '', dealId: 'd1' }).stop === true, 'a role switch or sign-out stops the microphone');
+ok(appendTranscript('', { type: 'response.output_audio_transcript.delta', delta: 'The settlement date is September 21.' }).includes('September 21') && appendTranscript('kept', { type: 'response.output_audio.delta', delta: 'not text' }) === 'kept', 'transcript text is shown and spoken audio is not written into it');
+let fileSent = '';
+const fileSession = createVoiceSession({
+  WebSocket: class { constructor() { this.listeners = {}; this.readyState = 1; queueMicrotask(() => (this.listeners.open || []).forEach((fn) => fn({}))); } addEventListener(n, fn) { (this.listeners[n] || (this.listeners[n] = [])).push(fn); } send(body) { fileSent = body; } close() {} },
+  getUserMedia: async () => ({ getTracks() { return [{ stop() {} }]; } }),
+  audioContextFactory: () => ({ sampleRate: 24000, state: 'running', destination: {}, resume() { return Promise.resolve(); }, close() { this.state = 'closed'; }, createMediaStreamSource() { return { connect() {}, disconnect() {} }; }, createGain() { return { gain: { value: 1 }, connect() {}, disconnect() {} }; }, createScriptProcessor() { return { connect() {}, disconnect() {} }; } }),
+  instructionsFor: () => script,
+});
+fileSession.begin();
+await fileSession.start(token);
+ok(fileSent.includes('MD-26-97215') && fileSent.includes('"tools":[]') && !fileSent.includes('wire-secret') && !fileSent.includes('482000'), 'the connected session sends only the header script and no tools');
+const menu = String(voiceMenuHtml(fat));
+ok(menu.includes('data-voice-btn') && menu.includes('data-voice-start') && menu.includes('data-voice-hide') && menu.includes('data-voice-reply') && menu.includes('MD-26-97215') && !menu.includes('#/voice-demo') && !menu.includes('wire-secret') && !menu.includes('482000'), 'the panel shows the file label, Start, Hide and the transcript, and it does not navigate away');
+let overMic = 0; const overNotes = [];
+const over = createVoiceSession({ WebSocket: voiceSocket(), getUserMedia: async () => { overMic += 1; return { getTracks() { return [{ stop() {} }]; } }; }, audioContextFactory: voiceAudio });
+const overAttempt = createVoiceAttempt({ live: over, show(m, st) { overNotes.push([st, m]); }, requestPass: async () => { await new Promise((r) => setTimeout(r, 20)); return { ok: true, data: { value: token } }; } });
+const [o1, o2] = await Promise.all([overAttempt.start(), overAttempt.start()]);
+ok(o1.cancelled === true && o2.openedMic === true && overNotes.filter((n) => n[0] === 'live').length === 1 && over.canSend(), 'two overlapping Starts give one connection and one Connected, from the latest click');
+overAttempt.stop();
+ok(!over.canSend(), 'Stop after overlapping Starts leaves nothing that can send');
 console.log(fail ? fail + ' failed' : 'voice demo passed');
 if (fail) process.exit(1);

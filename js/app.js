@@ -17,7 +17,8 @@ import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowe
 import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080400';
 import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611082000';
 import { botRegistry } from './data/bot-registry.js?v=202611080400';
-import { voiceRouteOk } from './data/voice-demo.js?v=202611071632';
+import { voiceRouteOk } from './data/voice-demo.js?v=202611091110';
+import { mountVoiceChrome, prepareVoiceShell, stopVoiceNow, voiceMenuHtml } from './pages/voice-panel.js?v=202611091110';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611070139';   // John, Nov 4 call: sidebar search + pinned order nav
 import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611090935';
 import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611070139';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
@@ -55,7 +56,7 @@ const pages = {
   'hr-invite': () => import('./pages/hr-invite.js?v=202611070139'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => import('./pages/offices.js?v=202611090935'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
   demo: () => import('./pages/demo-view.js?v=202611070139'),   // permanent Demo mode: Super admin views a seeded demo user
-  'voice-demo': () => import('./pages/voice-demo.js?v=202611071632'),   // signed-in Live Test only; the server allowlist decides who can talk
+  'voice-demo': () => import('./pages/voice-demo.js?v=202611091110'),   // signed-in Live Test only; the header Voice test panel is the test, this route is not a file
   'staff-feedback': () => import('./pages/staff-feedback.js?v=202611080400'),
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
@@ -143,11 +144,13 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
   const api = await getAdapter();
   const dealId = route.page === 'deal' ? route.params.id : null;
   const dealRead = (view && view.deal) ? view.deal : (prep.deal !== undefined ? prep.deal : (dealId ? (api.readDeal ? api.readDeal(dealId) : api.getDeal(dealId)).catch(() => null) : null));
+  const token = ++layoutToken;
   const [unread, deal, agentsLoaded] = await Promise.all([
     prep.unread !== undefined ? prep.unread : api.notificationCount(),
     dealRead,
     isOutside(u.role) && api.listMyAgents ? api.listMyAgents(dealId ? { dealId } : {}).catch(() => []) : [],
   ]);
+  if (token === layoutToken) shellDeal = deal;   // voice panel: the order header already on screen
   const cnt = (tab) => html`<span class="tab-count" data-tab-count="${tab}" hidden></span>`;
   const HR_CUR = { home: 'hr-home', employees: 'hr-employees', employee: 'hr-employees', add: 'hr-add', departments: 'hr-departments', designations: 'hr-designations', me: 'hr-me', team: 'hr-team', settings: 'hr-settings', documents: 'hr-documents' };
   const navPage = route.page === 'admin/templates' ? 'templates' : route.page;
@@ -179,14 +182,14 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
     <div class="co-topr"><button type="button" class="ghost" data-file-nav-toggle aria-expanded="false" aria-controls="global-nav">Show portal menu</button><a class="co-home" href="#${homeFor(u)}" data-co-home>${dashLabel(u)}</a>
       <div class="notif-wrap"><button class="bell" data-bell title="${unread} unread notification(s)" aria-label="Notifications"><img src="assets/img/bell_new.png" alt=""><span class="notification-num">${unread}</span></button>
         <div class="notif-dd" hidden><div class="notif-head"><strong>Notifications</strong><button class="linkish" data-readall>Mark all read</button></div><ul class="notif-list"><li class="muted">Loading&hellip;</li></ul></div></div>
-      ${VIEW_AS ? viewAsHtml(u) : ''}<div class="user-menu"><button class="user-btn" data-usermenu>Signed in as <b>${u.firstName} ${u.lastName}</b> <span class="role-tag" data-role-tag>${deal ? `${deal.myRoleLabel || deal.myRole} on this file` : fileRolesLabel(u.fileLabels || u.fileRoles)}</span> &#9662;</button>
+      ${voiceMenuOn() ? voiceMenuHtml(voiceDeal(deal)) : ''}${VIEW_AS ? viewAsHtml(u) : ''}<div class="user-menu"><button class="user-btn" data-usermenu>Signed in as <b>${u.firstName} ${u.lastName}</b> <span class="role-tag" data-role-tag>${deal ? `${deal.myRoleLabel || deal.myRole} on this file` : fileRolesLabel(u.fileLabels || u.fileRoles)}</span> &#9662;</button>
         <ul class="user-dd" hidden><li><a href="#/profile">Profile Setting</a></li><li><a href="#/contact-us">Contact Us</a></li>${demoMenu(u)}${sessionStorage.getItem(LOCK_KEY) ? html`<li class="muted" data-locked-note>${VIEW_AS && VIEW_AS.viewing ? `Viewing as this person from ${VIEW_AS.owner.firstName} ${VIEW_AS.owner.lastName}'s admin link` : 'Test link: signed in as this person only'}</li>` : raw('<li><a href="#" data-signout>Logout</a></li>')}</ul></div></div></div>
-  <div class="co-wrap"><div id="global-nav" data-global-nav hidden><ul class="nav nav-pills">${core}</ul></div><p class="welcome-title co-sr" data-site-name="CLA Portal Live Test">Welcome ${u.firstName} ${u.lastName} to CLA Portal Live Test</p>${demoBanner()}${voiceBanner()}${view.clientPage && view.clientPage.tab && agentCard ? html`<div class="with-agent co-with-agent" data-with-agent><div id="view">${view.body}</div>${agentCard}</div>` : html`<div id="view">${view.body}</div>`}</div>
+  <div class="co-wrap"><div id="global-nav" data-global-nav hidden><ul class="nav nav-pills">${core}</ul></div><p class="welcome-title co-sr" data-site-name="CLA Portal Live Test">Welcome ${u.firstName} ${u.lastName} to CLA Portal Live Test</p>${demoBanner()}${view.clientPage && view.clientPage.tab && agentCard ? html`<div class="with-agent co-with-agent" data-with-agent><div id="view">${view.body}</div>${agentCard}</div>` : html`<div id="view">${view.body}</div>`}</div>
   <div class="footer-bar"><span><img src="assets/img/logo-icon.png" alt="" class="foot-logo"> Copyright 2026 C.L.A Title &amp; Escrow | All Rights Reserved.</span><span>Security / Privacy Policy</span></div></div>`;
   const topButtons = runsOrders(u) && (ws === 'portal' || ws === 'everything') ? html`<a class="green-btn" href="#/orders/new">Place Order</a>` : '';
   return html`
   <div class="topbar-main"><div class="topbar-inner">
-    <a class="brand" href="#${homeFor(u)}"><img src="assets/img/logo-white.png" alt="CLA Title &amp; Escrow"></a><div class="topbar-tools">${usesWorkspaces(u) ? wsMenu(u, ws, api) : hrOnly(u) ? html`<div class="ws-wrap" data-ws-wrap><span class="ws-btn ws-static"><span class="ws-k">Workspace</span> <strong data-ws-current="hr">HR</strong></span></div>` : ''}${botsMenu(u)}</div>
+    <a class="brand" href="#${homeFor(u)}"><img src="assets/img/logo-white.png" alt="CLA Title &amp; Escrow"></a><div class="topbar-tools">${usesWorkspaces(u) ? wsMenu(u, ws, api) : hrOnly(u) ? html`<div class="ws-wrap" data-ws-wrap><span class="ws-btn ws-static"><span class="ws-k">Workspace</span> <strong data-ws-current="hr">HR</strong></span></div>` : ''}${botsMenu(u)}${voiceMenuOn() ? voiceMenuHtml(voiceDeal(deal)) : ''}</div>
     <div class="topbar-right">${crmSearchOn(u, api) && (ws === 'crm' || ws === 'everything') ? raw(HEADER_SEARCH) : ''}${topButtons}
       <div class="notif-wrap"><button class="bell" data-bell title="${unread} unread notification(s)" aria-label="Notifications"><img src="assets/img/bell_new.png" alt=""><span class="notification-num">${unread}</span></button>
         <div class="notif-dd" hidden><div class="notif-head"><strong>Notifications</strong><button class="linkish" data-readall>Mark all read</button></div><ul class="notif-list"><li class="muted">Loading&hellip;</li></ul></div></div>
@@ -198,7 +201,7 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
     <div class="right-bar">
       <h1 class="welcome-title" data-site-name="CLA Portal Live Test">Welcome ${u.firstName} ${u.lastName} to CLA Portal Live Test</h1>
       ${view.crumbs ? html`<ol class="breadcrumb"><li><a href="#${homeFor(u)}"><img src="assets/img/bread-home.png" alt="">Home</a></li>${view.crumbs.map(([label, href], i) => html`<li class="${i === view.crumbs.length - 1 ? 'active' : ''}">${href ? html`<a href="${href}">${label}</a>` : label}</li>`)}</ol>` : ''}
-      ${demoBanner()}${voiceBanner()}
+      ${demoBanner()}
       ${deal && !view.noOrderHeader ? orderHeader(deal) : ''}${sideSearchOn && route.page === 'dashboard' ? homeSearch() : ''}
       ${betaBanner(route)}
       ${agentCard ? (deal ? html`<div class="with-agent" data-with-agent><div id="view">${view.body}</div>${agentCard}</div>` : html`<div class="with-agent agent-inline" data-with-agent data-agent-inline>${agentCard}<div id="view">${view.body}</div></div>`) : html`<div id="view">${view.body}</div>`}
@@ -258,10 +261,9 @@ function orderHeader(deal) {
 }
 
 let rendering = 0; let VIEW_AS = null; let DEMO_VIEW = null; let PORTAL_MODE = 'mock'; let demoTimer = null; let VOICE_OK = false; let voiceCheckedFor = '';
-function voiceBanner() {
-  if (!VOICE_OK || PORTAL_MODE !== 'supabase' || (DEMO_VIEW && DEMO_VIEW.active)) return '';
-  return html`<p class="dev-banner" data-voice-entry><a href="#/voice-demo">Voice test</a> — pretend file only. It cannot open files or send anything.</p>`;
-}
+let shellDeal = null; let layoutToken = 0;
+function voiceMenuOn() { return VOICE_OK && PORTAL_MODE === 'supabase' && !(DEMO_VIEW && DEMO_VIEW.active); }
+function voiceDeal(deal) { return deal ? { ...deal, phase: phaseOf(deal).badge } : null; }   // header fields only; voice-file.js picks the allowed ones
 function demoBanner() {
   if (!DEMO_VIEW || !DEMO_VIEW.active) return '';
   const who = DEMO_VIEW.targetName || 'a demo user'; const role = DEMO_VIEW.portalRole || DEMO_VIEW.role || '';
@@ -366,14 +368,14 @@ export async function render() {
     if (asTok != null) history.replaceState(null, '', location.pathname + location.hash);
   }
   if (u && u.unprovisioned && api.mode === 'supabase') {
-    syncFeedback(null);
+    syncFeedback(null); stopVoiceNow();
     root.innerHTML = toText(html`<div class="login-page" data-unprovisioned><div class="login-card"><h2 data-site-name="CLA Portal Live Test">CLA Portal Live Test</h2><p class="dev-banner" data-test-environment>TEST ENVIRONMENT</p><p>This login is not provisioned. An administrator assigns the role. Registration is closed, and this screen does not create an account.</p><p><a href="#" data-signout>Sign out</a></p></div></div>`);
     const out = root.querySelector('[data-signout]'); if (out) out.addEventListener('click', async (e) => { e.preventDefault(); await api.signOut(); location.hash = '#/login'; location.reload(); });
     return;
   }
   if (asTok != null && api.mode !== 'supabase') { const lk = lockForToken(asTok); let okLink = false;
     if (lk) { try { await api.pickPerson(lk.user); sessionStorage.setItem(LOCK_KEY, JSON.stringify(lk)); okLink = true; } catch (e) { okLink = false; } }
-    if (!okLink) { sessionStorage.removeItem(LOCK_KEY); try { await api.signOut(); } catch (e) { /* none */ } syncFeedback(null); root.innerHTML = toText(html`<div class="box-title" data-bad-link><h2>This test link is not valid</h2></div><p>Ask for a new link.</p>`); return; }
+    if (!okLink) { sessionStorage.removeItem(LOCK_KEY); try { await api.signOut(); } catch (e) { /* none */ } syncFeedback(null); stopVoiceNow(); root.innerHTML = toText(html`<div class="box-title" data-bad-link><h2>This test link is not valid</h2></div><p>Ask for a new link.</p>`); return; }
     let land = safeLanding(new URLSearchParams(location.search).get('file')); if (land) { try { await api.getDeal(land); } catch (e) { land = null; } }   // landing only, never wider access
     const qs = new URLSearchParams(location.search); const sec = qs.get('section') ? sectionHash(qs.get('section'), qs.get('file')) : null;   // section links pick the first page only
     if (typeof clearSessionWs === 'function') clearSessionWs();
@@ -390,7 +392,7 @@ export async function render() {
     if (my !== rendering) return;
     if (!u || u.id !== lockedId) { root.innerHTML = toText(html`<div class="box-title" data-bad-link><h2>This test link is no longer valid</h2></div>`); return; } }
   if (replaced()) return;
-  if (!u && !PUBLIC.has(route.page)) { syncFeedback(null); if (route.page === 'deal') { try { sessionStorage.setItem(RETURN_KEY, location.hash); } catch (e) { /* the next signed-in render stays on home */ } } location.hash = '#/login'; return; }   // invite deep link: back to the order after sign-in
+  if (!u && !PUBLIC.has(route.page)) { syncFeedback(null); stopVoiceNow(); if (route.page === 'deal') { try { sessionStorage.setItem(RETURN_KEY, location.hash); } catch (e) { /* the next signed-in render stays on home */ } } location.hash = '#/login'; return; }   // invite deep link: back to the order after sign-in
   const recovery = api.mode === 'supabase' && sessionStorage.getItem('cla-portal-recovery') === '1';
   if (recovery && route.page !== 'login') { location.hash = '#/login'; return; }
   if (u && route.page === 'login' && !recovery) { const back = savedFileReturn(); location.hash = back || ('#' + homeFor(u)); return; }
@@ -487,8 +489,8 @@ export async function render() {
     view = { crumbs: [['Not available']], body: html`<div class="box-title"><h2>Not available</h2></div><p class="err-text">${e.message}</p><p><a class="back-btn" href="#${homeFor(u)}">Back</a></p>` };
   }
   if (!keepCurrent()) return;
-  if (PUBLIC.has(route.page)) { root.innerHTML = toText(view.body); syncFeedback(u); }
-  else { let shell; try { shell = await layout(u, view, route, ws, { unread: unreadP }); } catch (e) { if (replaced()) return; if (personMoved()) return render(); if (/sign in/i.test(e.message || '')) { location.hash = '#/login'; return; } throw e; }   // session ended mid-render
+  if (PUBLIC.has(route.page)) { stopVoiceNow(); root.innerHTML = toText(view.body); syncFeedback(u); }
+  else { let shell; try { shell = await layout(u, view, route, ws, { unread: unreadP }); } catch (e) { if (replaced()) return; if (personMoved()) return render(); if (/sign in/i.test(e.message || '')) { stopVoiceNow(); location.hash = '#/login'; return; } throw e; }   // session ended mid-render
     if (!keepCurrent()) return;
     root.innerHTML = toText(shell); wireChrome(u); }
   settle();
@@ -506,7 +508,7 @@ function viewAsHtml(u) {
 }
 function wireViewAs() {
   const sel = $('[data-view-as]'); if (!sel || !VIEW_AS) return;
-  sel.addEventListener('change', async () => { const lock = readLock(sessionStorage); if (!lock || !VIEW_AS) return; const id = sel.value;
+  sel.addEventListener('change', async () => { stopVoiceNow(); const lock = readLock(sessionStorage); if (!lock || !VIEW_AS) return; const id = sel.value;
     if (id === lock.user) delete lock.viewAs; else lock.viewAs = id;
     sessionStorage.setItem(LOCK_KEY, JSON.stringify(lock)); const api = await getAdapter(); await api.pickPerson(id); clearSessionWs();
     if (location.hash === '#/dashboard') render(); else location.hash = '#/dashboard'; });
@@ -523,9 +525,11 @@ function syncFeedback(person) {
 function wireChrome(u) {
   syncFeedback(u);
   wireBots();
+  prepareVoiceShell({ userId: u && u.id, dealId: shellDeal && shellDeal.id });   // another file, person or role stops the microphone
+  getAdapter().then((api) => mountVoiceChrome($('#app'), { api, deal: voiceMenuOn() ? voiceDeal(shellDeal) : null, enabled: voiceMenuOn() }));
   wireFileNav(); wireViewAs(); startHeartbeat(u);
   const stop = $('[data-view-as-stop]');
-  if (stop) stop.addEventListener('click', async (e) => { e.preventDefault(); const api = await getAdapter(); if (api.stopDemoView) { try { await api.stopDemoView(); } catch (err) { toast(err.message); return; } } if (demoTimer) clearTimeout(demoTimer); location.hash = '#/dashboard'; render(); });
+  if (stop) stop.addEventListener('click', async (e) => { e.preventDefault(); stopVoiceNow(); const api = await getAdapter(); if (api.stopDemoView) { try { await api.stopDemoView(); } catch (err) { toast(err.message); return; } } if (demoTimer) clearTimeout(demoTimer); location.hash = '#/dashboard'; render(); });
   if (demoTimer) clearTimeout(demoTimer);
   if (DEMO_VIEW && DEMO_VIEW.active && DEMO_VIEW.expiresAt) { const ms = new Date(DEMO_VIEW.expiresAt).getTime() - Date.now(); demoTimer = setTimeout(() => render(), Math.min(Math.max(ms + 250, 1000), 30 * 60 * 1000)); }
   getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) import('./pages/crm-search.js?v=202611090935').then((m) => m.wireHeaderSearch(api)); });
@@ -533,7 +537,7 @@ function wireChrome(u) {
   if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; });
   document.addEventListener('click', () => { if (dd) dd.hidden = true; }, { once: true });
   wireBell(); wireWs(u); getAdapter().then((api) => wireSideSearch(api, u, go));
-  const so = $('[data-signout]'); if (so) so.addEventListener('click', async (e) => { e.preventDefault(); const api = await getAdapter(); clearSessionWs(); stopHeartbeat(); if (api.hrSessionEnd) { try { await api.hrSessionEnd('logout'); } catch (er) { /* best effort */ } } await api.signOut(); location.hash = '#/login'; });
+  const so = $('[data-signout]'); if (so) so.addEventListener('click', async (e) => { e.preventDefault(); stopVoiceNow(); const api = await getAdapter(); clearSessionWs(); stopHeartbeat(); if (api.hrSessionEnd) { try { await api.hrSessionEnd('logout'); } catch (er) { /* best effort */ } } await api.signOut(); location.hash = '#/login'; });
   const rs = $('[data-reset]'); if (rs) rs.addEventListener('click', async (e) => { e.preventDefault(); if (!confirm('Reset all demo data back to the 4 fake deals?')) return; const api = await getAdapter(); await api.resetDemoData(); toast('Demo data reset'); render(); });
 }
 function wireWs(u) {
