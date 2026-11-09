@@ -1,6 +1,7 @@
 /* The hosted contract upload, checked against the TEST policy text. No database connection. */
 import { readFileSync } from 'node:fs';
 import { documentInsertRow, nov5Supabase, sameUploadId, SAVED_UNCONFIRMED } from '../js/data/supabase-nov5.js';
+import { docListRow, downloadHref } from '../js/pages/dealdocs.js';
 const DEAL = '81c35d28-8563-4801-b46e-79aa9313dc9b';
 const USER = '00000000-0000-4000-8000-000000000001';
 const DOC = '00000000-0000-4000-8000-000000000002';
@@ -22,8 +23,8 @@ const unfiled = documentInsertRow({ dealId: DEAL, file: { ...repro, folderId: ''
 
 ok(row.deal_id === DEAL && row.uploaded_by === USER && row.visibility === 'staff', 'the insert carries the open order, the signed-in user, and staff visibility');
 ok(row.name === 'contract.pdf' && row.doc_type === 'Contract / addendum' && row.wire_instructions === false && row.size_bytes === 6441501, 'the contract file, type, size, and unchecked wire box are the stored values');
-ok(!Object.prototype.hasOwnProperty.call(row, 'folder_id') && !Object.prototype.hasOwnProperty.call(unfiled, 'folder_id'), 'the published insert does not send a folder, so the folder retry and Unfiled are the same row');
-ok(JSON.stringify(row) === JSON.stringify(unfiled), 'changing the folder control does not change the hosted insert');
+ok(row.folder_id === 'folder-would-be-here' && unfiled.folder_id == null, 'a chosen folder is stored and Unfiled stays empty');
+ok(JSON.stringify(row) !== JSON.stringify(unfiled), 'the folder control changes the hosted insert');
 
 const extOk = (n) => {
   const ext = String(n || '').split('.').pop().toLowerCase();
@@ -33,11 +34,12 @@ const wireName = (n) => /\ywir(e|ing)[\s_.-]*(transfer[\s_.-]*)?(instruction|inf
 const staffish = (role, isAdmin) => isAdmin || ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin'].includes(role);
 const viewOnly = (role, isAdmin) => ['Sales Person', 'Sales Team'].includes(role) && !isAdmin;
 const visibilityAllowed = (vis, role, isAdmin) => ['all', 'buyer', 'seller', 'staff'].includes(vis) && staffish(role, isAdmin);
-const permissive = (r, who) => r.uploaded_by === who.uid && extOk(r.name) && r.deal_id != null && who.canAccessDeal && !viewOnly(who.role, who.isAdmin) && visibilityAllowed(r.visibility, who.role, who.isAdmin) && r.folder_id == null;
+const permissive = (r, who) => r.uploaded_by === who.uid && extOk(r.name) && r.deal_id != null && who.canAccessDeal && !viewOnly(who.role, who.isAdmin) && visibilityAllowed(r.visibility, who.role, who.isAdmin) && (r.folder_id == null || who.folderVisible === true);
 
 const superadmin = { uid: USER, role: 'Super admin', isAdmin: true, canAccessDeal: true };
 ok(extOk(row.name) && !wireName(row.name), 'contract.pdf is an allowed extension and is not renamed into a wire file');
-ok(permissive(row, superadmin), 'staff visibility, an open deal, and this payload pass the permissive insert text');
+ok(permissive(row, { ...superadmin, folderVisible: true }) && permissive(unfiled, superadmin), 'staff visibility passes for a visible folder and for Unfiled');
+ok(!permissive(row, superadmin), 'a folder this person cannot see does not pass the insert check');
 ok(!permissive({ ...row, visibility: 'CLA staff only' }, superadmin), 'the label is not a visibility value; the option value staff is what the form sends');
 ok(!permissive({ ...row, uploaded_by: 'someone-else' }, superadmin), 'a different uploaded_by fails the permissive check');
 
@@ -87,6 +89,13 @@ const slot = {};
 const firstId = sameUploadId(slot, { name: 'contract.pdf', size: 5, lastModified: 1 });
 ok(sameUploadId(slot, { name: 'contract.pdf', size: 5, lastModified: 1 }) === firstId, 'retrying the same file keeps its id');
 ok(sameUploadId(slot, { name: 'other.pdf', size: 5, lastModified: 2 }) !== firstId, 'a different file gets its own id');
+const listed = docListRow({ id: DOC, name: 'contract.pdf', sizeBytes: 6441501, storagePath: DEAL + '/' + DOC + '/contract.pdf', folderId: 'folder-1', visibility: 'staff', docType: 'Contract / addendum' }, [{ id: 'folder-1', name: 'Contract & addenda' }, { id: '', name: 'Unfiled', virtual: true }]);
+ok(listed.size === 6441501 && listed.hasContent === true && listed.folderName === 'Contract & addenda', 'a stored row uses its byte count, storage path, and folder name');
+const sample = docListRow({ id: 's', name: 'seed.pdf', size: 0, hasContent: false, folderName: '' }, []);
+ok(sample.hasContent === false && sample.size === 0 && sample.folderName === '', 'a demo sample stays a sample with no folder');
+ok(downloadHref({ dataUrl: 'data:application/pdf;base64,QQ==' }) === 'data:application/pdf;base64,QQ==', 'a data URL still opens');
+ok(downloadHref({ blob: new Blob(['fake']) }).startsWith('blob:'), 'a stored blob opens from the download');
+ok(downloadHref({ name: 'contract.pdf' }) === '', 'a row with no bytes and no data URL does not pretend to download');
 
 console.log(fail ? fail + ' failed' : 'document insert gate passed');
 if (fail) process.exit(1);

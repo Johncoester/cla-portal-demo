@@ -1,8 +1,9 @@
 // One intake task (form). Save partial work, validate, mark complete. ID-type fields upload a file into the order's "IDs & personal" folder.
 import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611070139';
+import { downloadNamed } from '../data/file-open.js?v=202611091030';
 import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611090935';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611090935';
-import { CLS, LABEL } from './dealtasks.js?v=202611091000';
+import { CLS, LABEL } from './dealtasks.js?v=202611091030';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 export async function render(c0) {
@@ -85,11 +86,11 @@ function signView({ api, deal, t, refresh, go }) {
       : s.status === 'cancelled' ? html`<p class="muted">This signature request was cancelled.</p>` : html`<p class="muted" data-not-signer>Only ${t.ownerName} can sign this. Agents cannot sign for their clients.</p>`}`
     : html`<p class="muted">Signature request not found.</p>`}</div>`;
   return { title: t.title, crumbs: [['All Tasks', `#/deals/${deal.id}/tasks`], [t.title]], body, mount(root) {
-    $$('[data-open]', root).forEach((a) => a.addEventListener('click', async (e) => { e.preventDefault(); try { const c = await api.getDocumentContent(a.dataset.open); if (!c.dataUrl) { toast('This is a sample file with no content in the demo.'); return; } const l = document.createElement('a'); l.href = c.dataUrl; l.download = c.name; document.body.appendChild(l); l.click(); l.remove(); } catch (err) { toast(err.message, 'err'); } }));
+    $$('[data-open]', root).forEach((a) => a.addEventListener('click', async (e) => { e.preventDefault(); try { downloadNamed(await api.getDocumentContent(a.dataset.open)); } catch (err) { toast(err.message, 'err'); } }));
     const f = $('#signf', root); if (f) f.addEventListener('submit', async (e) => { e.preventDefault(); try { const fd = new FormData(f);
       await api.signDocument(s.id, { typedName: fd.get('typedName'), adopt: fd.get('adopt') === 'on' }); toast('Signed. Thank you!'); go(`/deals/${deal.id}/tasks`); } catch (err) { toast(err.message, 'err'); } });
   } };
 }
 
 // Francis, Nov 3: agent tasks (kind 'agent') have their own page
-async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611091000'); return m.render(c); }
+async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611091030'); return m.render(c); }

@@ -20,7 +20,7 @@ import { officesSupabase } from './supabase-offices.js?v=202611090935';
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611090935';
 import { tcSupabase } from './supabase-tc.js?v=202611090935';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611090935';
-import { nov5Supabase } from './supabase-nov5.js?v=202611090935';
+import { nov5Supabase } from './supabase-nov5.js?v=202611091030';
 import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611090935';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611090935';
 import { staffSupabase } from './supabase-staff.js?v=202611082000';
@@ -30,7 +30,8 @@ import { propertyAddressOf } from './nov5-rules.js?v=202611090935';
 import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611090935';
 import { contactInsertRow } from './contact-insert.js?v=202611070139';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
-import { withMyAcknowledgements } from './agreement-link.js?v=202611070139';
+import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
+import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
 import { authEventAction, gatherReads, identitySlot, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611082200';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -364,7 +365,7 @@ export async function createSupabaseAdapter(cfg) {
     async getSchedulingLink(tok) { return ok(await sb.rpc('scheduling_get', { p_token: tok })); },   // anon OK
     async respondSettlement(tok, { picks, note, name }) { ok(await sb.rpc('scheduling_respond', { p_token: tok, p_picks: picks.map((i) => i + 1), p_name: name, p_note: note || '' })); },
     async updateTask(id, patch) { return ok(await sb.rpc('set_task_status', { p_task: id, p_status: patch.status })); },
-    async listDocuments(dealId) { return fileRead('docs:' + dealId, () => rawDocs(dealId)); },
+    async listDocuments(dealId, { folderId } = {}) { const rows = (await fileRead('docs:' + dealId, () => rawDocs(dealId))) || []; return filterListedDocuments(rows, folderId).map((d) => shapeListedDocument(d)); },   // folder filter + stored size/content flag (no extra query)
     // ---- Matt, Nov 2 (migration 16): cross-file task list + Processor / Admin task grid. task_board / task_grid are SECURITY INVOKER (RLS decides). ----
     async listAllTasks({ fileStatus = 'All' } = {}) {
       const who = ident.current();
@@ -393,7 +394,7 @@ export async function createSupabaseAdapter(cfg) {
       const out = { agreements: withMyAcknowledgements(ags, mine), needed: !staff };
       out.pending = out.needed ? out.agreements.filter((g) => !g.myAck).length : 0;
       if (staff) { const rows = camel(ok(await sb.rpc('agreement_status', { p_deal: dealId }))) || []; const m = new Map();
-        rows.forEach((r) => { if (!m.has(r.profileId)) m.set(r.profileId, { profileId: r.profileId, name: r.name, roleLabel: '', acks: {} }); m.get(r.profileId).acks[r.agreementCode] = r.acknowledgedAt ? { at: r.acknowledgedAt } : null; });
+        rows.forEach((r) => { const code = r.agreementCode || r.code; if (!code || !r.profileId) return; if (!m.has(r.profileId)) m.set(r.profileId, { profileId: r.profileId, name: r.name, roleLabel: '', acks: {} }); m.get(r.profileId).acks[code] = (r.acknowledgedAt || r.at) ? { at: r.acknowledgedAt || r.at } : null; });
         out.people = [...m.values()]; }
       return out;
     },

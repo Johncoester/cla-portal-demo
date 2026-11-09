@@ -23,7 +23,7 @@ function alreadyKept(error) {
   return code === '23505' || code === '409' || /already exists|duplicate key/i.test(msg);
 }
 
-/* Columns written by the hosted insert. folder_id is not one of them. */
+/* Columns written by the hosted insert. folder_id is the chosen folder (null = Unfiled); the insert policy checks folder_visible. */
 export function documentInsertRow({ dealId, file, userId, id }) {
   const name = String(file.name || 'upload').replace(/[\\/]/g, '_').slice(0, 200);
   return {
@@ -38,6 +38,7 @@ export function documentInsertRow({ dealId, file, userId, id }) {
     uploaded_by: userId,
     doc_type: file.docType || '',
     wire_instructions: file.wireInstructions === true,
+    folder_id: file.folderId || null,
   };
 }
 

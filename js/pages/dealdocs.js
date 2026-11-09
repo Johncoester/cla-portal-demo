@@ -1,22 +1,37 @@
 // Documents tab with folders. Upload, open/download, file into folders, edit description/visibility. There is NO delete: documents are kept permanently.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDateTime, fmtSize, pill, toast } from '../ui.js?v=202611070139';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611090935';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611091030';
 import { composeModal } from './compose.js?v=202611090935';
 import { runsOrders, viewOnly, DOC_VISIBILITY, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isViewOnly, isClient, visibilityChoices, visibilityLabel, CLIENT_SHARE_NOTE, BUYER_SHARE_NOTE, DOC_TYPES, docTypeChoices } from '../data/constants.js?v=202611090935';
 import { uploadDocumentBatch } from '../data/document-batch.js?v=202611090935';
 import { addToQueue, removeFromQueue, uploadFailureText } from '../data/document-queue.js?v=202611090935';
+import { downloadNamed } from '../data/file-open.js?v=202611091030';
 const icon = (n) => (/\.pdf$/i.test(n) ? 'pdf_icon.png' : /\.docx?$/i.test(n) ? 'word_icon.png' : /\.(xlsx?|csv)$/i.test(n) ? 'excel_icon.png' : 'image_icon.png');
+export function docListRow(d, folders = []) {
+  const folderId = d.folderId || '';
+  const known = (folders || []).find((f) => f.id && f.id === folderId);
+  const size = d.size != null ? d.size : (d.sizeBytes != null ? Number(d.sizeBytes) : 0);
+  const hasContent = d.hasContent != null ? !!d.hasContent : !!(d.storagePath || d.dataUrl || d.hasFile);
+  return { ...d, size, hasContent, folderName: d.folderName || (known && known.name) || '' };
+}
+export function downloadHref(content) {
+  if (!content) return '';
+  if (content.dataUrl) return content.dataUrl;
+  if (content.blob && typeof URL !== 'undefined' && URL.createObjectURL) return URL.createObjectURL(content.blob);
+  return '';
+}
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 export async function render({ api, user, deal, refresh }) {
   const q = new URLSearchParams(location.hash.split('?')[1] || ''); const tab = ['received', 'sent', 'all'].includes(q.get('t')) ? q.get('t') : 'all';
   const folder = q.has('f') ? q.get('f') : null;
-  const [docs, folders, sigs, ents] = await Promise.all([
+  const [rawDocs, folders, sigs, ents] = await Promise.all([
     api.listDocuments(deal.id, folder === null ? {} : { folderId: folder }),
     api.listDealFolders(deal.id),
     api.listSignatureRequests(deal.id),
     api.listEntityDocRequests(deal.id).catch(() => []),
   ]);
+  const docs = rawDocs.map((d) => docListRow(d, folders));   // hosted rows: size_bytes, storage path, folder name
   const manage = runsOrders(user) || user.role === 'Transaction Coordinator'; const realFolders = folders.filter((f) => !f.virtual);
   const href = (t, f) => `#/deals/${deal.id}/documents?t=${t}${f === null ? '' : '&f=' + encodeURIComponent(f)}`;
   const portalDocs = docs.filter((d) => !d.sample);
@@ -47,7 +62,7 @@ export async function render({ api, user, deal, refresh }) {
     ${sigs.length ? html`<div class="box-title"><h2><span class="h-ico"></span>Signatures</h2></div><p class="muted small">Demo e-sign: not legally binding. A real provider (DocuSign / Dropbox Sign) plugs in at the same place.</p>
       <table class="tbl striped" id="sigtable"><thead><tr><th>Document</th><th>Signers</th><th>Status</th><th></th></tr></thead><tbody>${sigRows}</tbody></table>` : ''}`;
   return { title: 'Documents', crumbs: [['Documents']], body, mount(root) {
-    $$('[data-open]', root).forEach((a) => a.addEventListener('click', guard(async (e) => { e.preventDefault(); const c = await api.getDocumentContent(a.dataset.open); const l = document.createElement('a'); l.href = c.dataUrl; l.download = c.name; document.body.appendChild(l); l.click(); l.remove(); })));
+    $$('[data-open]', root).forEach((a) => a.addEventListener('click', guard(async (e) => { e.preventDefault(); downloadNamed(await api.getDocumentContent(a.dataset.open)); })));
     $$('[data-meta]', root).forEach((b) => b.addEventListener('click', () => meta(docs.find((d) => d.id === b.dataset.meta))));
     const ub = $('#upbtn', root); if (ub) ub.addEventListener('click', upload);
     const sfb = $('#sharefiles', root); if (sfb) sfb.addEventListener('click', guard(() => composeModal({ api, deal, user, go: (p) => { location.hash = p; } }, { title: 'New Conversation', withFiles: true })));
