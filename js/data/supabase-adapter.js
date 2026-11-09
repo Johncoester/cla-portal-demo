@@ -20,6 +20,7 @@ import { officesSupabase } from './supabase-offices.js?v=202611090935';
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611090935';
 import { tcSupabase } from './supabase-tc.js?v=202611090935';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611090935';
+import { gmailSupabase } from './supabase-gmail.js?v=202611091311';
 import { nov5Supabase } from './supabase-nov5.js?v=202611091030';
 import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611090935';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611090935';
@@ -542,6 +543,7 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, automationPart(a, { runsOrders: runsOrdersCI, me }));   // Email sellers and agents: preview only, nothing sent
   Object.assign(a, tcSupabase({ sb, ok, camel, api: a }));   // John, Nov 5 (migration 71): TC contract / EMD / ALTA / all-parties thread
   Object.assign(a, emailSendersSupabase({ sb, ok, me }));
+  Object.assign(a, gmailSupabase({ sb, ok, camel }));   // John, Nov 9: Gmail phase 1 (own @clatitle.com mailbox, TEST only)
   Object.assign(a, nov5Supabase({ sb, ok, camel, me }));
   Object.assign(a, orderOverviewSupabase({ sb, ok, camel, me: async () => ident.current() || me(), api: a }));
   a.readOverview = (dealId) => fileRead('overview:' + dealId, () => a.getOrderOverview(dealId));

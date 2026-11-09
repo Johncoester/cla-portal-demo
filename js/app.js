@@ -1,9 +1,10 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611091240';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611091240';
+import { getAdapter } from './data/adapter.js?v=202611091311';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611091311';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611090935';
 import { canUseCrm } from './data/crm.js?v=202611070139';
+import { canUseGmail } from './data/gmail-email.js?v=202611091311';
 import { acctCanRead } from './data/accounting.js?v=202611070139';
 import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611090935';
 import { phaseOf } from './data/agent-portal.js?v=202611090935';
@@ -31,12 +32,12 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611091730'),
-  dashboard: () => import('./pages/dashboard.js?v=202611091240'),
+  dashboard: () => import('./pages/dashboard.js?v=202611091311'),
   orders: () => import('./pages/orders.js?v=202611091600'),
   'orders/new': () => import('./pages/ordernew.js?v=202611091030'),
-  deal: () => import('./pages/deal.js?v=202611091240'),
+  deal: () => import('./pages/deal.js?v=202611091311'),
   users: () => import('./pages/users.js?v=202611090935'),
-  profile: () => import('./pages/profile.js?v=202611090935'),
+  profile: () => import('./pages/profile.js?v=202611091311'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
   teams: () => import('./pages/teams.js?v=202611070139'),
   templates: () => import('./pages/templates.js?v=202611090935'),
@@ -44,7 +45,7 @@ const pages = {
   library: () => import('./pages/library.js?v=202611091030'),
   activity: () => import('./pages/activity.js?v=202611070139'),
   outbox: () => import('./pages/outbox.js?v=202611090935'),
-  tasks: () => import('./pages/tasks.js?v=202611091240'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => import('./pages/tasks.js?v=202611091311'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611091600'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js?v=202611090935'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611091240'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
@@ -165,7 +166,7 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
   // BUYER (Nov 4 call): plain tab names; no Contacts tab (the Overview lists the closing team) and no Agreements tab (they are to-dos now)
   const pureBuyer = deal && ['Client-Buyer', 'Client-Seller'].some((c) => (deal.myRoles || [deal.myRole]).includes(c)) && !(deal.myRoles || [deal.myRole]).some((r) => /Agent$/.test(r));   // seller mirror (Nov 4): a pure seller gets the same plain tabs
   const dealNav = deal && pureBuyer ? html`<li class="nav-sep">This file</li>${link('overview', 'Overview', 'orders')}${link('tasks', 'To-do list', 'task')}${link('inbox', 'Messages', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing appointment', 'task')}${link('activity', 'Activity', 'activity')}`
-    : deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${link('inbox', deal && isClient(deal.myRole) ? 'Messages' : 'Inbox', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${link('activity', 'Activity', 'activity')}${(api.features || {}).accounting && acctCanRead(u) && modOn('accounting') ? html`${link('accounting', 'Accounting', 'documents', modBeta('accounting'))}${modOn('post-closing') ? html`<li class="nav-item"><a class="nav-link ${t === 'accounting' && route.params.v === 'postclosing' ? 'active' : ''}" href="#/deals/${dealId}/accounting?v=postclosing" data-nav-postclosing>Post-Closing</a></li>` : ''}${modOn('e-recording') ? html`<li class="nav-item"><a class="nav-link" href="#/deals/${dealId}/accounting?v=postclosing" data-nav-recording>E-Recording</a></li>` : ''}${canReachPayoffs(u) && modOn('payoffs') ? html`<li class="nav-item"><a class="nav-link payoffs ${t === 'accounting' && route.params.v === 'payoffs' ? 'active' : ''}" href="#/deals/${dealId}/accounting?v=payoffs" data-nav-payoffs${tip('Payoffs / HOA', modBeta('payoffs'))}>${lbl('accounting', 'Payoffs / HOA')}</a></li>` : ''}` : ''}${(api.features || {}).funding && fwpCanRead(u) && modOn('funding') ? link('funding', 'Funding', 'documents', modBeta('funding')) : ''}${(api.features || {}).wires && fwpCanRead(u) && modOn('wires') ? link('wires', 'Wires', 'documents', modBeta('wires')) : ''}${(api.features || {}).policy && fwpCanRead(u) && modOn('policy') ? link('policy', 'Final Policy', 'documents', modBeta('policy')) : ''}${(api.features || {}).title && titleCanRead(u) && modOn('title') ? html`<li class="nav-item"><a class="nav-link title-nav ${t === 'title' ? 'active' : ''}" href="#/deals/${dealId}/title" data-nav-title${tip('Title', modBeta('title'))}${modBeta('title') ? raw(' data-beta-nav') : ''}>${lbl('title', 'Title')}${modBeta('title') ? betaTag('title') : ''}</a></li>` : ''}` : '';   // John, Nov 4: Title sits directly under Payoffs / HOA (staff only)   // (buyer branch above)
+    : deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${link('inbox', deal && isClient(deal.myRole) ? 'Messages' : 'Inbox', 'inbox')}${canUseGmail(u) && api.listDealEmails && api.mode === 'supabase' ? link('email', 'Email', 'inbox') : ''}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${link('activity', 'Activity', 'activity')}${(api.features || {}).accounting && acctCanRead(u) && modOn('accounting') ? html`${link('accounting', 'Accounting', 'documents', modBeta('accounting'))}${modOn('post-closing') ? html`<li class="nav-item"><a class="nav-link ${t === 'accounting' && route.params.v === 'postclosing' ? 'active' : ''}" href="#/deals/${dealId}/accounting?v=postclosing" data-nav-postclosing>Post-Closing</a></li>` : ''}${modOn('e-recording') ? html`<li class="nav-item"><a class="nav-link" href="#/deals/${dealId}/accounting?v=postclosing" data-nav-recording>E-Recording</a></li>` : ''}${canReachPayoffs(u) && modOn('payoffs') ? html`<li class="nav-item"><a class="nav-link payoffs ${t === 'accounting' && route.params.v === 'payoffs' ? 'active' : ''}" href="#/deals/${dealId}/accounting?v=payoffs" data-nav-payoffs${tip('Payoffs / HOA', modBeta('payoffs'))}>${lbl('accounting', 'Payoffs / HOA')}</a></li>` : ''}` : ''}${(api.features || {}).funding && fwpCanRead(u) && modOn('funding') ? link('funding', 'Funding', 'documents', modBeta('funding')) : ''}${(api.features || {}).wires && fwpCanRead(u) && modOn('wires') ? link('wires', 'Wires', 'documents', modBeta('wires')) : ''}${(api.features || {}).policy && fwpCanRead(u) && modOn('policy') ? link('policy', 'Final Policy', 'documents', modBeta('policy')) : ''}${(api.features || {}).title && titleCanRead(u) && modOn('title') ? html`<li class="nav-item"><a class="nav-link title-nav ${t === 'title' ? 'active' : ''}" href="#/deals/${dealId}/title" data-nav-title${tip('Title', modBeta('title'))}${modBeta('title') ? raw(' data-beta-nav') : ''}>${lbl('title', 'Title')}${modBeta('title') ? betaTag('title') : ''}</a></li>` : ''}` : '';   // John, Nov 4: Title sits directly under Payoffs / HOA (staff only)   // (buyer branch above)
   // Inside a file the portal menu starts closed for every role. The file name and file tabs stay. The button only shows or hides that menu.
   const fileNav = !!deal;
   const contact = isStaff(u.role) || hrOnly(u) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us"${tip('Contact Us')}>${lbl('contact-us', 'Contact Us')}</a></li>`;
