@@ -16,7 +16,7 @@ import { fwpCanRead } from './funding-wire-policy.js?v=202611070139';   // John,
 import { canUseCrm } from './crm.js?v=202611070139';
 import { canInviteAgents } from './agent-profile.js?v=202611090935';
 import { canManageModules } from './modules.js?v=202611090935';
-import { hrSectionAllowed } from './hr.js?v=202611070139';
+import { hrSectionAllowed } from './hr.js?v=202611091730';
 import { canManageOffices } from './offices.js?v=202611090935';
 
 export const LOCK_KEY = 'cla-portal-new:locked:v1';
