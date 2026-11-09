@@ -2,7 +2,9 @@
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDateTime, fmtSize, pill, toast } from '../ui.js?v=202611070139';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611091030';
 import { composeModal } from './compose.js?v=202611090935';
-import { runsOrders, viewOnly, DOC_VISIBILITY, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isViewOnly, isClient, visibilityChoices, visibilityLabel, CLIENT_SHARE_NOTE, BUYER_SHARE_NOTE, DOC_TYPES, docTypeChoices } from '../data/constants.js?v=202611090935';
+import { runsOrders, viewOnly, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isClient, isRefi, visibilityChoices, visibilityLabel, CLIENT_SHARE_NOTE, BUYER_SHARE_NOTE, DOC_TYPES, docTypeChoices } from '../data/constants.js?v=202611090935';
+import { MISC_DOC_TYPE, orderedDocTypes, docTypeLabel, resolveDocType, docTypeEditorState } from '../data/document-type.js?v=202611100945';
+import { AUDIENCE_CONTROL, AUDIENCE_NOTE, audienceParties, audienceChoices, checkedForVisibility, visibilityFromChecked, audienceSync } from '../data/document-audience.js?v=202611100945';
 import { uploadDocumentBatch } from '../data/document-batch.js?v=202611090935';
 import { addToQueue, removeFromQueue, uploadFailureText } from '../data/document-queue.js?v=202611090935';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
@@ -21,6 +23,10 @@ export function downloadHref(content) {
   return '';
 }
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
+async function fileParties(api, dealId) {
+  if (!api.getDeal) return [];
+  try { const full = await api.getDeal(dealId); return (full && full.participants) || []; } catch (e) { return []; }
+}
 
 export async function render({ api, user, deal, refresh }) {
   const q = new URLSearchParams(location.hash.split('?')[1] || ''); const tab = ['received', 'sent', 'all'].includes(q.get('t')) ? q.get('t') : 'all';
@@ -36,7 +42,7 @@ export async function render({ api, user, deal, refresh }) {
   const href = (t, f) => `#/deals/${deal.id}/documents?t=${t}${f === null ? '' : '&f=' + encodeURIComponent(f)}`;
   const portalDocs = docs.filter((d) => !d.sample);
   const shown = portalDocs.filter((d) => tab === 'all' || (tab === 'sent') === (d.uploadedBy === user.id));
-  const staffView = !user.accountRole && user.role !== 'Outside user'; const types = staffView ? DOC_TYPES : docTypeChoices(user.role);   // Matt: seller document types
+  const staffView = !user.accountRole && user.role !== 'Outside user'; const types = orderedDocTypes(staffView ? DOC_TYPES : docTypeChoices(user.role));   // Miscellaneous/Other first; sellers keep the seller list
   // Matt, Nov 3: entity documents requested from a buyer / seller acting as an entity (shown to the person, the processor, the coordinator and Admin)
   const entBlock = ents.length ? html`<div class="box-title"><h2><span class="h-ico"></span>Requested entity documents</h2></div>
     <table class="tbl striped" id="entity-docs"><thead><tr><th>Buyer / seller</th><th>Entity</th><th>Authorized signer</th><th>Requested documents</th></tr></thead><tbody>${ents.map((e) => html`<tr data-entity-task="${e.taskId}">
@@ -47,6 +53,16 @@ export async function render({ api, user, deal, refresh }) {
   // SHARE WITH BUYER (John, Nov 4): CLA staff open another party's upload (e.g. the listing agent's) to the buyer; the buyer never sees who uploaded it
   const clientView = !!user.accountRole && isClient(user.role); const canShareClient = manage && staffView && !viewOnly(user);
   const canUpload = !viewOnly(user); const visOpts = visibilityChoices(user.role, user.isAdmin); const VL = (v) => visibilityLabel(v, user.role);   // user.role = the role on THIS file (deal.js scopes it)
+  const partyRows = (deal.participants && deal.participants.length) ? deal.participants : await fileParties(api, deal.id);
+  const parties = audienceParties(partyRows, { refinance: isRefi(deal) });
+  const choices = audienceChoices({ parties, allowed: visOpts, role: user.role, control: AUDIENCE_CONTROL });
+  const typeFields = (stored) => { const st = docTypeEditorState(stored, types); return html`<label class="span2">Document type<select name="docType" data-doc-type><option value="">Choose&hellip;</option>${options(types, st.choice, docTypeLabel)}</select></label>
+      <label class="span2" data-doc-free ${st.choice === MISC_DOC_TYPE ? '' : raw('hidden')}>Type it here<input name="docTypeFree" maxlength="80" value="${st.free}" placeholder="What kind of document is this?"></label>`; };
+  const audienceFields = (visibility) => { const on = new Set(checkedForVisibility(visibility, choices)); return html`<fieldset class="span2" data-audience data-audience-control="${AUDIENCE_CONTROL}"><legend>Who can see it</legend><div class="checks">${choices.map((c) => html`<label class="check"><input type="${AUDIENCE_CONTROL}" name="audience" value="${c.id}" data-side="${c.side}" ${c.exclusive ? raw('data-cla-only') : ''} ${on.has(c.id) ? raw('checked') : ''}> ${c.label}</label>`)}</div>${isClient(user.role) ? '' : html`<p class="muted small" data-audience-note>${AUDIENCE_NOTE}</p>`}</fieldset>`; };
+  const mountType = (form) => { const sel = $('[data-doc-type]', form); const free = $('[data-doc-free]', form); if (!sel || !free) return; const sync = () => { free.hidden = sel.value !== MISC_DOC_TYPE; }; sel.addEventListener('change', sync); sync(); };
+  const mountAudience = (form) => { const boxes = () => $$('input[name=audience]', form); boxes().forEach((el) => el.addEventListener('change', () => { const now = boxes().filter((i) => i.checked).map((i) => i.value); const next = new Set(audienceSync(now, el.value, choices, AUDIENCE_CONTROL)); boxes().forEach((i) => { i.checked = next.has(i.value); }); })); };
+  const chosenType = (form, f) => resolveDocType(f.docType, form.elements.docTypeFree ? form.elements.docTypeFree.value : '');
+  const chosenVisibility = (form) => visibilityFromChecked($$('input[name=audience]:checked', form).map((i) => i.value), choices, visOpts);
   const rows = shown.map((d) => html`<tr><td class="center"><img class="fileico" src="assets/img/${icon(d.name)}" alt=""></td>
     <td data-doc-row="${d.id}"${d.wireInstructions ? raw(' data-wire-doc') : ''}><a href="#" data-open="${d.id}" class="doc-link">${d.name}</a>${d.wireInstructions ? html` ${pill('wire instructions - buyer only', 'warn')}` : ''}<br><span class="muted small">${d.docType ? html`<span data-doctype>${d.docType}</span> &middot; ` : ''}${fmtSize(d.size)}${d.hasContent ? '' : ' \u00b7 sample file'}</span></td>
     <td>${d.folderName || html`<span class="muted">Unfiled</span>`}</td><td>${fmtDateTime(d.createdAt)}</td><td>${d.uploadedByName}<br><span class="muted small">${d.uploadedByRole}</span></td><td>${d.description}</td><td>${clientView && d.sharedWithMe ? pill('Shared with you by CLA Title', 'info') : pill(VL(d.visibility), d.visibility === 'all' ? '' : 'info')}${!clientView && d.sharedWithClient ? html`<br><span data-shared-client="${d.id}">${pill('shared with the buyer', 'ok')}</span><br><span class="muted small">by ${d.sharedWithClientByName} ${fmtDateTime(d.sharedWithClientAt)}</span>` : ''}${!clientView && d.sharedWithSeller ? html`<br><span data-shared-seller="${d.id}">${pill('shared with the seller', 'ok')}</span><br><span class="muted small">by ${d.sharedWithSellerByName} ${fmtDateTime(d.sharedWithSellerAt)}</span>` : ''}</td>
@@ -82,9 +98,9 @@ export async function render({ api, user, deal, refresh }) {
       <label class="span2">Add files <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB each. Choosing more files adds them. Each file keeps the type, folder, and who can see it below.)</span><input type="file" name="file" multiple data-upload-files></label>
       <ul class="plain" data-upload-queue></ul>
       <p class="span2"><button type="button" class="ghost" data-upload-clear>Clear selected files</button></p>
-      <label class="span2">Document type<select name="docType"><option value="">Choose&hellip;</option>${options(types, '')}</select></label>
+      ${typeFields('')}
       <label class="span2">Additional instruction<input name="description" maxlength="500"></label>
-      <label class="span2">Folder<select name="folderId"><option value="">Unfiled</option>${options(realFolders, folder || '', (f) => f.name, (f) => f.id)}</select></label><label class="span2">Who can see it<select name="visibility">${options(visOpts, visOpts[0], VL)}</select></label>${staffView ? html`<label class="check span2"><input type="checkbox" name="wireInstructions" data-wire-mark> Wire instructions (buyer clients and CLA Title only; agents never see it, whatever "Who can see it" says)</label>` : ''}${isClient(user.role) ? html`<p class="span2 muted small" data-share-note>${user.role === 'Client-Buyer' ? BUYER_SHARE_NOTE : CLIENT_SHARE_NOTE}</p>` : html`<p class="span2 muted small" data-staff-share>CLA staff only means every CLA staff role on the portal, including the processor, coordinator, and sales. It is not limited to the processor, and the other side does not see it.</p>`}
+      <label class="span2">Folder<select name="folderId"><option value="">Unfiled</option>${options(realFolders, folder || '', (f) => f.name, (f) => f.id)}</select></label>${audienceFields(visOpts[0])}${staffView ? html`<label class="check span2"><input type="checkbox" name="wireInstructions" data-wire-mark> Wire instructions (buyer clients and CLA Title only; agents never see it, whatever "Who can see it" says)</label>` : ''}${isClient(user.role) ? html`<p class="span2 muted small" data-share-note>${user.role === 'Client-Buyer' ? BUYER_SHARE_NOTE : CLIENT_SHARE_NOTE}</p>` : html`<p class="span2 muted small" data-staff-share>CLA staff only means every CLA staff role on the portal, including the processor, coordinator, and sales. It is not limited to the processor, and the other side does not see it.</p>`}
       <p class="span2 err-text" data-upload-err role="alert"></p>
       <div class="span2"><button class="m-btn" type="submit" data-upload-submit>Upload</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
     const form = $('#uf', m); const err = $('[data-upload-err]', form); const list = $('[data-upload-queue]', form); const input = $('[data-upload-files]', form);
@@ -92,18 +108,20 @@ export async function render({ api, user, deal, refresh }) {
       $$('[data-upload-remove]', list).forEach((b) => b.addEventListener('click', () => { queue = removeFromQueue(queue, Number(b.dataset.uploadRemove)); draw(); })); };
     input.addEventListener('change', () => { const added = addToQueue(queue, [...input.files]); queue = added.queue; if (added.skipped.length) err.textContent = added.skipped.map((z) => `${z.name}: ${z.reason}`).join(' '); input.value = ''; draw(); });
     $('[data-upload-clear]', form).addEventListener('click', () => { queue = []; err.textContent = ''; draw(); });
-    draw();
+    draw(); mountType(form); mountAudience(form);
     form.addEventListener('submit', async (e) => { e.preventDefault(); const btn = $('[data-upload-submit]', form); err.textContent = '';
       if (!queue.length) { err.textContent = 'Choose a file to upload.'; toast('Choose a file to upload.', 'err'); return; }
+      const f = formData(form); const seen = chosenVisibility(form);
+      if (seen.error) { err.textContent = seen.error; toast(seen.error, 'err'); return; }
       if (btn.disabled) return; btn.disabled = true; btn.textContent = 'Uploading…';
-      const f = formData(form); const pending = queue.slice();
+      const pending = queue.slice(); const docType = chosenType(form, f);
       try {
         const result = await uploadDocumentBatch(pending, async (file) => {
           const dataUrl = await readFile(file);
           const slots = form._uploads || (form._uploads = new Map()); const key = [file.name, file.size, file.lastModified].join('\0');
           if (!slots.has(key)) slots.set(key, {});
           const id = sameUploadId(slots.get(key), file);
-          return api.addDocument(deal.id, { id, name: file.name, description: f.description, mimeType: file.type, size: file.size, dataUrl, file, visibility: f.visibility, folderId: f.folderId || null, docType: f.docType || '', wireInstructions: staffView && !!f.wireInstructions });
+          return api.addDocument(deal.id, { id, name: file.name, description: f.description, mimeType: file.type, size: file.size, dataUrl, file, visibility: seen.visibility, folderId: f.folderId || null, docType, wireInstructions: staffView && !!f.wireInstructions });
         }, docs.map((d) => d.name));
         const failedNames = new Set(result.failed.map((z) => z.name));
         queue = pending.filter((file) => failedNames.has(file.name));
@@ -127,14 +145,15 @@ export async function render({ api, user, deal, refresh }) {
   function meta(d) {
     const canMeta = runsOrders(user) || d.uploadedBy === user.id;
     const m = modal('Document details', html`<form id="mf" class="form-grid"><p class="span2"><strong>${d.name}</strong></p>
-      ${canMeta ? html`<label class="span2">Document type<select name="docType"><option value="">Choose&hellip;</option>${options([...new Set([...types, ...(d.docType ? [d.docType] : [])])], d.docType || '')}</select></label>
+      ${canMeta ? html`${typeFields(d.docType)}
       <label class="span2">Additional instruction<input name="description" value="${d.description}"></label>
-      <label class="span2">Who can see it<select name="visibility">${options(visOpts, d.visibility, VL)}</select></label>` : ''}
+      ${audienceFields(d.visibility)}` : ''}
       ${canMeta && staffView ? html`<label class="check span2"><input type="checkbox" name="wireInstructions" data-wire-mark ${d.wireInstructions ? raw('checked') : ''}> Wire instructions (buyer clients and CLA Title only)</label>` : ''}
       ${manage ? html`<label class="span2">Folder<select name="folderId"><option value="">Unfiled</option>${options(realFolders, d.folderId || '', (f) => f.name, (f) => f.id)}</select></label>` : ''}
       <p class="span2 muted small">Documents cannot be deleted.</p>
       <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
-    $('#mf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); if (canMeta) await api.updateDocumentMeta(d.id, { description: f.description, visibility: f.visibility, docType: f.docType || '', ...(staffView ? { wireInstructions: !!f.wireInstructions } : {}) });
+    const mf = $('#mf', m); mountType(mf); mountAudience(mf);
+    mf.addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); const seen = chosenVisibility(e.target); if (canMeta && seen.error) { toast(seen.error, 'err'); return; } if (canMeta) await api.updateDocumentMeta(d.id, { description: f.description, visibility: seen.visibility || d.visibility, docType: chosenType(e.target, f), ...(staffView ? { wireInstructions: !!f.wireInstructions } : {}) });
       if (manage && (f.folderId || null) !== (d.folderId || null)) await api.moveDocument(d.id, f.folderId || null); closeModal(); toast('Saved'); refresh(); }));
   }
 }
