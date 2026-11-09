@@ -99,6 +99,12 @@ export async function invitePreview(api, meetingId, done) {
   if (done) done(p); return p;
 }
 
+// A preview row has no saved record, so it must not link to #/crm/.../<uuid>.
+export function importRowHref(row, committed) {
+  if (!committed || !row || row.status !== 'ok' || !row.link) return '';
+  return String(row.link);
+}
+
 // ---------- IMPORT (Admin / Super admin): upload -> map columns -> preview (errors, duplicates) -> import -> summary ----------
 // Janine, Nov 4: default values for fields the file does not have (or leaves blank). A value in the file always wins.
 function defaultsCard(module, owners, cfg) {
@@ -149,7 +155,7 @@ export async function importPage({ api, me, params, owners = [], cfg = {} }, { t
       $('[data-import-map]', root).hidden = false; $('[data-import-prev]', root).hidden = true; $('[data-import-summary]', root).hidden = true; }));
     const table = (r) => { const cols = fields.filter(([k]) => r.mapping.includes(k));
       return html`<thead><tr><th>Line</th><th>Result</th>${cols.map(([, l]) => html`<th>${l}</th>`)}</tr></thead><tbody>${r.rows.map((x) => html`<tr data-prev-row="${x.line}" data-status="${x.status}" class="${x.status === 'ok' ? '' : 'bad-row'}"><td>${x.line}</td>
-        <td>${x.status === 'ok' ? html`${pill(r.committed ? 'Created' : 'OK', 'ok')}${x.link && r.committed ? html` <a href="${x.link}">${x.name}</a>` : ''}${(x.notes || []).length ? html`<br><span class="muted small">${x.notes.join('; ')}</span>` : ''}` : html`${pill(x.status === 'duplicate' ? 'Duplicate' : 'Error', x.status === 'duplicate' ? 'warn' : 'bad')} <span class="small">${x.message}</span>`}</td>
+        <td>${x.status === 'ok' ? html`${pill(r.committed ? 'Created' : 'OK', 'ok')}${importRowHref(x, r.committed) ? html` <a href="${importRowHref(x, r.committed)}">${x.name}</a>` : ''}${(x.notes || []).length ? html`<br><span class="muted small">${x.notes.join('; ')}</span>` : ''}` : html`${pill(x.status === 'duplicate' ? 'Duplicate' : 'Error', x.status === 'duplicate' ? 'warn' : 'bad')} <span class="small">${x.message}</span>`}</td>
         ${cols.map(([k]) => html`<td>${(x.values || {})[k] || ''}</td>`)}</tr>`)}</tbody>`; };
     const counts = (c, done) => `${c.total} row(s): ${c.ok} ${done ? 'created' : 'ready'}, ${c.duplicates} duplicate(s), ${c.errors} error(s).`;
     $('[data-import-preview]', root).addEventListener('click', guard(async () => { const er = $('[data-import-err]', root); er.textContent = '';

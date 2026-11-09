@@ -29,7 +29,7 @@ declare
   cols text;
   typ text;
   extra text;
-  marker text := 'crm-hosted-import 20261109231000';
+  marker text := 'crm-hosted-import 20261110020000';
 begin
   if to_regclass('public.crm_imports') is null then
     raise exception 'drift: public.crm_imports is missing';
@@ -73,7 +73,7 @@ begin
     and data_type = 'timestamp with time zone';
   if not found then raise exception 'drift: public.crm_imports.created_at timestamptz is missing. Columns: %', cols; end if;
 
-  foreach extra in array ARRAY['created', 'duplicates', 'errors']::text[] loop
+  foreach extra in array ARRAY['created', 'duplicates', 'errors', 'total']::text[] loop
     select data_type into typ from information_schema.columns
     where table_schema = 'public' and table_name = 'crm_imports' and column_name = extra;
     if typ is null then
@@ -88,7 +88,7 @@ begin
   where table_schema = 'public' and table_name = 'crm_imports' and column_name = 'defaults';
   if typ is null then
     alter table public.crm_imports add column defaults jsonb not null default '[]'::jsonb;
-    comment on column public.crm_imports.defaults is 'crm-hosted-import 20261109231000';
+    comment on column public.crm_imports.defaults is 'crm-hosted-import 20261110020000';
   elsif typ is distinct from 'jsonb' then
     raise exception 'drift: public.crm_imports.defaults is %, expected jsonb. Columns: %', typ, cols;
   end if;
@@ -97,7 +97,7 @@ begin
   from information_schema.columns
   where table_schema = 'public' and table_name = 'crm_imports'
     and is_nullable = 'NO' and column_default is null
-    and column_name not in ('module', 'kind', 'file_name', 'created_by', 'created', 'duplicates', 'errors', 'defaults');
+    and column_name not in ('module', 'kind', 'file_name', 'created_by', 'created', 'duplicates', 'errors', 'total', 'defaults');
   if extra is not null then
     raise exception 'drift: public.crm_imports has required columns this import does not fill: %', extra;
   end if;
@@ -125,7 +125,7 @@ begin
       constraint crm_import_rows_line_check check (line > 0),
       constraint crm_import_rows_status_check check (status = any (array['ok'::text, 'duplicate'::text, 'error'::text]))
     );
-    comment on table public.crm_import_rows is 'crm-hosted-import 20261109231000';
+    comment on table public.crm_import_rows is 'crm-hosted-import 20261110020000';
     alter table public.crm_import_rows enable row level security;
     revoke all on table public.crm_import_rows from public;
     if exists (select 1 from pg_roles where rolname = 'anon') then
@@ -511,14 +511,16 @@ begin
     'importId', null
   );
   if not coalesce(p_commit, false) then
-    -- rolls back the lead / client / note inserts. The detail is the preview.
+    -- Rolls the lead / client / note inserts back. The error detail carries every row,
+    -- including names and emails, so Postgres logs can keep that text. Fine on TEST
+    -- with fake data. Revisit before any real import.
     raise exception 'Import preview only. Nothing was saved.'
       using errcode = 'P0004', detail = v_result::text;
   end if;
 
-  insert into public.crm_imports (module, kind, file_name, created_by, created, duplicates, errors, defaults)
+  insert into public.crm_imports (module, kind, file_name, created_by, created, duplicates, errors, total, defaults)
   values (
-    p_module, p_kind, left(btrim(coalesce(p_file_name, '')), 200), v_uid, v_ok, v_dup, v_err, p_defaults
+    p_module, p_kind, left(btrim(coalesce(p_file_name, '')), 200), v_uid, v_ok, v_dup, v_err, v_total, p_defaults
   ) returning id into v_import;
 
   insert into public.crm_import_rows (import_id, line, status, message, record_id, record_name)

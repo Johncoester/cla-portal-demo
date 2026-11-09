@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { crmJanineSupabase } from '../js/data/supabase-crm-janine.js';
 import { IMPORT_MAX_ROWS, IMPORT_MAX_BYTES } from '../js/data/crm-janine.js';
+import { importRowHref } from '../js/pages/crm-janine.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(path.join(root, rel), 'utf8');
@@ -28,15 +29,17 @@ const bannerAt = page.indexOf('data-import-test-banner');
 ok(bannerAt > deniedAt && page.includes('TEST portal: fake data only, do not import real client contacts'), 'the test-portal banner is on the admin import screen');
 ok(page.includes("api.mode === 'supabase' && me.isAdmin"), 'the banner is admin-only and only on the hosted portal');
 
-const sql = read('supabase/migrations/20261109231000_crm_hosted_import.sql');
-const rollback = read('supabase/rollbacks/20261109231000_crm_hosted_import.sql');
+const sql = read('supabase/migrations/20261110020000_crm_hosted_import.sql');
+const rollback = read('supabase/rollbacks/20261110020000_crm_hosted_import.sql');
 const sqlCode = sql.replace(/--[^\n]*/g, '');
 const batch = sqlCode.split('create or replace function public.crm_import_batch')[1].split('create or replace function public.crm_list_imports')[0];
 const loop = batch.split('for v_row in select value from jsonb_array_elements(p_rows)')[1] || '';
 ok((batch.match(/private\.is_admin\(\)/g) || []).length === 1 && loop && !loop.includes('private.is_admin'), 'crm_import_batch checks admin once, not per row');
 ok(!sqlCode.includes('session_replication_role') && !/create policy|alter policy|on public\.deals|on public\.tasks/i.test(sqlCode), 'import does not bypass triggers or change deals or tasks policies');
 ok(sql.includes('public.crm_import_rows') && sql.includes("errcode = 'P0004'"), 'preview rolls back through P0004 and rows are logged');
-ok(rollback.includes('drop function if exists public.crm_import_batch') && rollback.includes('crm-hosted-import 20261109231000') && !rollback.includes('drop table public.crm_imports'), 'rollback drops the functions and only the objects this migration added');
+ok(/insert into public\.crm_imports \([^)]*\btotal\b/.test(sql) && sql.includes('v_total'), 'the import log stores the row total');
+ok(sql.includes('Postgres logs can keep that text'), 'the preview comment says row results can land in the database log');
+ok(rollback.includes('drop function if exists public.crm_import_batch') && rollback.includes('crm-hosted-import 20261110020000') && !rollback.includes('drop table public.crm_imports'), 'rollback drops the functions and only the objects this migration added');
 
 const calls = [];
 const sb = { rpc: async (name, args) => {
@@ -108,7 +111,11 @@ ok(sent.args.p_defaults.some((d) => d.field === 'ownerId' && d.value === OWNER) 
 ok(preview.committed === false && preview.importId == null && preview.counts.ok === 1 && preview.counts.duplicates === 1, 'preview reports ready rows and duplicates and saves nothing');
 ok(preview.rows[0].values.state === 'Maryland' && preview.rows[0].values.description === 'TEST-SEED-CRM-IMPORT', 'the preview table still shows the file text');
 ok(preview.rows[0].status === 'ok' && preview.rows[1].status === 'duplicate' && /already used/.test(preview.rows[1].message), 'a duplicate row is reported and not treated as created');
-ok(preview.rows[0].link.includes('/crm/leads/'), 'a ready row links to the lead it would create');
+ok(preview.rows[0].link.includes('/crm/leads/'), 'the preview payload still names the lead it would create');
+const keptLink = '#/crm/leads/11111111-1111-4111-8111-111111111111';
+ok(importRowHref({ status: 'ok', link: keptLink, name: 'Casey Sample' }, false) === '', 'a preview does not link to a lead that was not saved');
+ok(importRowHref({ status: 'ok', link: keptLink, name: 'Casey Sample' }, true) === keptLink, 'a kept import links to the lead');
+ok(importRowHref({ status: 'duplicate', link: keptLink }, true) === '', 'a duplicate row has no record link');
 
 calls.length = 0;
 const run = await api.runCrmImport({ module: 'leads', csv: SAMPLE, fileName: 'leads.csv' });
