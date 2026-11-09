@@ -170,6 +170,13 @@ export function toContractRow(clean) {
   for (const f of CONTRACT_FIELDS) row[f.column] = clean.fields[f.key];
   return row;
 }
+/* jsonb does not keep object key order (Postgres sorts keys by length, then bytes), so the saved field_flags come back
+ * in a different order than they were sent. Compare by content, not by key order. Arrays keep their order. */
+export function canonicalJson(v) {
+  if (Array.isArray(v)) return '[' + v.map(canonicalJson).join(',') + ']';
+  if (v && typeof v === 'object') return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + canonicalJson(v[k])).join(',') + '}';
+  return JSON.stringify(v === undefined ? null : v);
+}
 export function contractMismatch(expected, actual) {
   for (const f of CONTRACT_FIELDS) {
     const a = expected.fields[f.key] ?? null;
@@ -179,7 +186,7 @@ export function contractMismatch(expected, actual) {
       else if (Math.abs(Number(a) - Number(b)) > 0.000001) return f.key;
     } else if (JSON.stringify(a) !== JSON.stringify(b)) return f.key;
   }
-  if (JSON.stringify(expected.flags || {}) !== JSON.stringify(actual.flags || {})) return 'flags';
+  if (canonicalJson(expected.flags || {}) !== canonicalJson(actual.flags || {})) return 'flags';
   if ((actual.fields.posture || ESTIMATE_POSTURE) !== ESTIMATE_POSTURE) return 'posture';
   return null;
 }
