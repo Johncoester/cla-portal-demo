@@ -431,9 +431,12 @@ export async function createSupabaseAdapter(cfg) {
     // NOTE: there is intentionally no deleteDocument anywhere.
     // ---- Matt, Oct 31, priority 2 (migration 14) ----
     async listAgreements(dealId) {
-      const [{ data: { user } }, ags] = [await sb.auth.getUser(), camel(ok(await sb.from('agreements').select('*').order('code')))];
-      const mine = camel(ok(await sb.from('agreement_acks').select('*').eq('deal_id', dealId).eq('profile_id', user.id)));
-      const roles = (await fileRoles()).get(dealId); const staff = !(roles && roles.roles && roles.roles.length);
+      // Francis, Nov 9: staff = account role (Processor/TC/Admin…), not "no file roles". A Processor with a
+      // deal_contacts row must still see the ack status table and must not be asked to acknowledge.
+      const [u, ags] = [await me(), camel(ok(await sb.from('agreements').select('*').order('code')))];
+      if (!u || !u.id) throw new Error('Please sign in.');
+      const mine = camel(ok(await sb.from('agreement_acks').select('*').eq('deal_id', dealId).eq('profile_id', u.id)));
+      const staff = u.role !== 'Outside user' && !u.accountRole;
       const out = { agreements: withMyAcknowledgements(ags, mine), needed: !staff };
       out.pending = out.needed ? out.agreements.filter((g) => !g.myAck).length : 0;
       if (staff) { const rows = camel(ok(await sb.rpc('agreement_status', { p_deal: dealId }))) || []; const m = new Map();
