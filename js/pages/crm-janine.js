@@ -110,9 +110,13 @@ export async function importPage({ api, me, params, owners = [], cfg = {} }, { t
   const module = params.id === 'contacts' ? 'contacts' : 'leads'; const kind = params.sub === 'notes' ? 'notes' : 'records';
   const M = module === 'leads' ? 'Leads' : 'Clients'; const what = kind === 'notes' ? `Notes (on ${M})` : M;
   if (!me.isAdmin) return { title: 'Import', crumbs: [['CRM', '#/crm'], ['Import']], body: html`${head('Import ' + what, me)}${tabs(module)}<p class="err-text" data-import-denied>Only an Admin or Super admin can import.</p>` };
+  const testBanner = api.mode === 'supabase' && me.isAdmin
+    ? html`<p class="notice" data-import-test-banner>TEST portal: fake data only, do not import real client contacts</p>`
+    : '';
   const fields = kind === 'notes' ? NOTE_IMPORT_FIELDS : PERSON_IMPORT_FIELDS; const hist = await api.listCrmImports();
   const tmplName = kind === 'notes' ? `sample-${module}-notes.csv` : `sample-${module}.csv`;
   const body = html`${head('Import ' + what, me)}${tabs(module)}
+    ${testBanner}
     <div class="card" data-import="${module}:${kind}"><h3>1. Upload a CSV</h3>
       <p class="muted small">${kind === 'notes' ? `Each note is linked to an existing ${M === 'Leads' ? 'lead' : 'client'} by email, else by first + last name (one match only).` : `Each row becomes a ${M === 'Leads' ? 'lead' : 'client'}, checked like the Create form: Last Name, Role in Company, Relationship Status and State are required; one email / phone across Leads and Clients. A blank County is filled from the ZIP.`}
         Up to ${IMPORT_MAX_ROWS} rows (${IMPORT_MAX_BYTES / 1e6} MB). Nothing is emailed.</p>

@@ -8,8 +8,8 @@ import { localDate, runsOrders as runsOrdersCI } from './constants.js?v=20261109
 import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611070139';
 import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611090935';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611070139';
-import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611090935';
-import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611091240';
+import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611092310';
+import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611092310';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };
