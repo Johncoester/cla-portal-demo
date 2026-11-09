@@ -55,6 +55,7 @@ ok(seed.includes("p.email = 'johncoester@gmail.com'") && seed.includes("left(p.i
 ok(seed.includes('update _crm_seed_activities set owner_id = v_john') && seed.includes('update _crm_seed_leads set owner_id = v_john') && seed.includes('update _crm_seed_accounts set owner_id = v_john') && seed.includes('update _crm_seed_opps set owner_id = v_john'), 'seeded leads, companies, opportunities, and activities use that looked-up owner');
 ok(!/set owner_id = '[0-9a-f-]{36}'/i.test(seed), 'owner_id is not a hard-coded person');
 ok(seed.includes('Only a simple allowed-value check counts') && seed.includes("regexp_matches(list_src,") && !seed.includes('regexp_matches(chk,'), 'the allowed-value guard reads the list text, not every quote in the constraint');
+ok((seed.match(/as u\(colname\)/g) || []).length === 4 && !/\) as col\b/.test(seed) && !/quote_ident\(col\)/.test(seed), 'insert column lists use u.colname so they do not clash with the col variable');
 ok(!refuses(kindCheck, 'kind', 'task') && !refuses(callCheck, 'kind', 'task') && !refuses(fieldsCheck, 'kind', 'note') && !refuses(fieldsCheck, 'kind', 'email') && !refuses(statusCheck, 'status', 'Not Started') && refuses(statusCheck, 'status', 'nope') && !refuses(inCheck, 'kind', 'task') && refuses(inCheck, 'kind', 'email'), 'simple ANY and IN lists are enforced, and call-only or field checks are ignored');
 ok(phones.length === 15 && phones.every((p) => /555-01\d\d$/.test(p)), 'the seed has 15 phones and every one is 555-01xx');
 ok((seed.match(/'TEST Lead /g) || []).length === 10, 'the seed names 10 leads');
