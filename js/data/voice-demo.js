@@ -8,6 +8,8 @@ export const VOICE_MIC_MS = 10000;
 export const VOICE_TIMED_OUT = 'Voice did not answer in time. Nothing was recorded. The microphone was not opened.';
 export const VOICE_AUDIO_TIMED_OUT = 'This browser did not start audio in time. The microphone was not opened.';
 export const VOICE_SIGN_IN = 'This sign-in expired before voice could start. Sign in again, then press Start. The microphone was not opened.';
+export const VOICE_NOT_CONNECTED = 'Start voice before sending a typed message.';
+export const VOICE_DROPPED = 'Voice disconnected before the message was sent. Press Start to connect again.';
 const PCM_RATES = new Set([8000, 16000, 22050, 24000, 32000, 44100, 48000]);
 export const VOICE_MODEL = 'grok-voice-latest';
 export const VOICE_URL = 'wss://api.x.ai/v1/realtime?model=grok-voice-latest';
@@ -193,52 +195,91 @@ function wireMic(state, socket) {
   state.source = source; state.processor = proc; state.mute = mute;
 }
 
+function socketIsOpen(socket) {
+  return !!socket && (typeof socket.readyState !== 'number' || socket.readyState === 1);
+}
+
 export function createVoiceSession(deps) {
-  const state = { stream: null, chunks: [], socket: null, context: null, source: null, processor: null, mute: null, abandoned: false, resumePromise: null };
+  const state = { stream: null, chunks: [], socket: null, context: null, source: null, processor: null, mute: null, abandoned: false, resumePromise: null, ended: false, epoch: 0 };
   let opened = false;
   const audioWait = deps.audioWaitMs || VOICE_AUDIO_MS;
   const micWait = deps.micWaitMs || VOICE_MIC_MS;
   const leave = () => state.abandoned;
+  const current = (epoch) => epoch === state.epoch && !state.abandoned;
   return {
     state,
+    /* A new Start click. Clears a previous Stop so this click can open audio during the gesture. */
+    begin() {
+      state.abandoned = false;
+      state.epoch += 1;
+      opened = false;
+      state.ended = false;
+      if (state.stream && state.stream.getTracks) state.stream.getTracks().forEach((t) => { try { t.stop(); } catch (e) { /* already stopped */ } });
+      state.stream = null;
+      if (state.socket && state.socket.close) { try { state.socket.close(); } catch (e) { /* already closed */ } }
+      state.socket = null;
+      if (state.context && state.context.state === 'closed') state.context = null;
+      this.primeAudio();
+    },
     primeAudio() {
-      if (state.abandoned || state.context || !deps.audioContextFactory) return;
+      if (state.abandoned || !deps.audioContextFactory) return;
+      if (state.context && state.context.state !== 'closed') return;
       state.context = deps.audioContextFactory();
       const resume = state.context && state.context.resume ? state.context.resume() : Promise.resolve();
       state.resumePromise = Promise.resolve(resume).catch(() => {});
     },
+    canSend() { return opened && !!state.stream && socketIsOpen(state.socket) && !state.ended && !state.abandoned; },
     async start(token) {
       acceptEphemeralToken(token);
-      if (leave()) return state;
+      const epoch = state.epoch;
+      const stale = () => !current(epoch);
+      const dropOwn = (socket, stream) => {
+        if (stream && stream.getTracks) stream.getTracks().forEach((t) => { try { t.stop(); } catch (e) { /* already stopped */ } });
+        if (state.stream === stream) state.stream = null;
+        if (socket && socket.close) { try { socket.close(); } catch (e) { /* already closed */ } }
+        if (state.socket === socket) state.socket = null;
+        opened = false;
+      };
+      if (stale()) return state;
       this.primeAudio();
       if (state.resumePromise) {
         await rejectAfter(state.resumePromise, audioWait, VOICE_AUDIO_TIMED_OUT);
-        if (leave() || (state.context && state.context.state === 'closed')) return state;
+        if (stale()) return state;
+        if (state.context && state.context.state === 'closed') throw new Error(VOICE_AUDIO_TIMED_OUT);
       }
       const rate = state.context && PCM_RATES.has(state.context.sampleRate) ? state.context.sampleRate : 24000;
       state.outputRate = rate;
       const socket = realtimeSocket(token, deps.WebSocket);
       state.socket = socket;
+      state.ended = false;
       socket.addEventListener('message', (ev) => { if (deps.onMessage) deps.onMessage(ev); playSocketMessage(state, deps, ev); });
       await new Promise((resolve, reject) => {
         const t = setTimeout(() => reject(new Error('Grok voice could not be reached. Nothing was recorded.')), deps.timeoutMs || 8000);
         const fail = () => { clearTimeout(t); reject(new Error('Grok voice could not be reached. Nothing was recorded.')); };
-        socket.addEventListener('open', () => { clearTimeout(t); if (leave()) { resolve(); return; } opened = true; socket.send(JSON.stringify(sessionUpdate(rate))); resolve(); });
+        socket.addEventListener('open', () => { clearTimeout(t); if (stale()) { resolve(); return; } opened = true; socket.send(JSON.stringify(sessionUpdate(rate))); resolve(); });
         socket.addEventListener('error', fail);
-        socket.addEventListener('close', () => { if (!opened) fail(); });
+        socket.addEventListener('close', () => { if (state.socket === socket) state.ended = true; if (!opened) fail(); });
       });
-      if (leave()) { stopMic(state); opened = false; return state; }
-      try { state.stream = await rejectAfter(deps.getUserMedia({ audio: { channelCount: 1 } }), micWait, 'The microphone was not opened. Nothing was recorded.'); }
-      catch (e) { stopMic(state); opened = false; if (leave()) return state; throw new Error('The microphone was not opened. Nothing was recorded.'); }
-      if (leave()) { stopMic(state); opened = false; return state; }
+      if (stale() || !opened) { dropOwn(socket, null); if (stale()) return state; throw new Error('Grok voice could not be reached. Nothing was recorded.'); }
+      let stream = null;
+      try { stream = await rejectAfter(deps.getUserMedia({ audio: { channelCount: 1 } }), micWait, 'The microphone was not opened. Nothing was recorded.'); }
+      catch (e) {
+        dropOwn(socket, null);
+        if (stale()) return state;
+        throw new Error('The microphone was not opened. Nothing was recorded.');
+      }
+      if (stale()) { dropOwn(socket, stream); return state; }
+      state.stream = stream;
       wireMic(state, socket);
+      if (!this.canSend()) { dropOwn(socket, stream); throw new Error('Grok voice could not be reached. Nothing was recorded.'); }
       return state;
     },
     sendText(text) {
-      if (!state.socket || !opened) throw new Error('Start voice before sending a typed message.');
+      if (!state.socket || !opened) throw new Error(VOICE_NOT_CONNECTED);
+      if (state.ended || !socketIsOpen(state.socket)) throw new Error(VOICE_DROPPED);
       for (const msg of textTurn(text)) state.socket.send(JSON.stringify(msg));
     },
-    stop() { state.abandoned = true; opened = false; return stopMic(state); },
+    stop() { state.abandoned = true; state.epoch += 1; opened = false; return stopMic(state); },
   };
 }
 
@@ -249,7 +290,7 @@ export function createVoiceAttempt({ live, show, requestPass }) {
     stop() { generation += 1; return live.stop(); },
     async start() {
       const mine = ++generation;
-      if (live.primeAudio) live.primeAudio();
+      if (live.begin) live.begin(); else if (live.primeAudio) live.primeAudio();
       show('Connecting…', 'wait');
       const ready = await requestPass();
       if (mine !== generation) return { openedMic: false, cancelled: true };
@@ -260,7 +301,12 @@ export function createVoiceAttempt({ live, show, requestPass }) {
       }
       try {
         await live.start(ready.data.value);
-        if (mine !== generation) { live.stop(); return { openedMic: false, cancelled: true }; }
+        if (mine !== generation) return { openedMic: false, cancelled: true };
+        if (!live.canSend || !live.canSend()) {
+          live.stop();
+          show('Voice is not connected. Press Start to connect again. Nothing was kept.', 'error');
+          return { openedMic: false, cancelled: false };
+        }
         show('Connected. The microphone is on. A spoken reply plays in this browser when Grok sends audio. Stop turns the microphone off.', 'live');
         return { openedMic: true, cancelled: false };
       } catch (e) {

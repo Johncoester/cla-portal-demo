@@ -1,7 +1,7 @@
 /* Voice is a signed-in Live Test path. The public fake link cannot open it. */
 import { readFileSync } from 'node:fs';
 import { routeAllowed } from '../js/data/locked-links.js';
-import { acceptEphemeralToken, audioAppend, createVoiceAttempt, createVoiceSession, isSpokenAudioEvent, pcm16Base64ToFloat32, realtimeSocket, requestVoice, sessionUpdate, stopMic, textTurn, voicePassText, voiceRouteOk, withTimeout, VOICE_SIGN_IN, VOICE_TIMED_OUT, VOICE_URL, DEMO_INSTRUCTIONS } from '../js/data/voice-demo.js';
+import { acceptEphemeralToken, audioAppend, createVoiceAttempt, createVoiceSession, isSpokenAudioEvent, pcm16Base64ToFloat32, realtimeSocket, requestVoice, sessionUpdate, stopMic, textTurn, voicePassText, voiceRouteOk, withTimeout, VOICE_DROPPED, VOICE_NOT_CONNECTED, VOICE_SIGN_IN, VOICE_TIMED_OUT, VOICE_URL, DEMO_INSTRUCTIONS } from '../js/data/voice-demo.js';
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
 const buyer = { id: 'u-buyer', role: 'Outside user', status: 'active' };
@@ -152,5 +152,33 @@ ok(pageSrc.includes("/transcript/i.test(event.type || '')") && pageSrc.includes(
 const appSrc = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const htmlSrc = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 ok(htmlSrc.includes('js/app.js?v=202611091050') && appSrc.includes("voice-demo.js?v=202611071632") && appSrc.includes("pages/voice-demo.js?v=202611071632") && pageSrc.includes("voice-demo.js?v=202611071632"), 'the shell and both voice imports use the new playback stamp');
+function voiceSocket() {
+  return class { constructor() { this.readyState = 0; this.listeners = {}; this.sent = []; queueMicrotask(() => { this.readyState = 1; (this.listeners.open || []).forEach((fn) => fn({})); }); } addEventListener(n, fn) { (this.listeners[n] || (this.listeners[n] = [])).push(fn); } send(body) { this.sent.push(body); } close() { this.readyState = 3; (this.listeners.close || []).forEach((fn) => fn({})); } };
+}
+function voiceAudio() {
+  return { sampleRate: 24000, state: 'running', destination: {}, resume() { return Promise.resolve(); }, close() { this.state = 'closed'; }, createMediaStreamSource() { return { connect() {}, disconnect() {} }; }, createGain() { return { gain: { value: 1 }, connect() {}, disconnect() {} }; }, createScriptProcessor() { return { connect() {}, disconnect() {} }; }, createBuffer() { return { duration: 0, copyToChannel() {} }; }, createBufferSource() { return { connect() {}, start() {}, stop() {} }; } };
+}
+let againMic = 0;
+let againSock = null;
+const again = createVoiceSession({ WebSocket: class extends voiceSocket() { constructor() { super(); againSock = this; } }, getUserMedia: async () => { againMic += 1; return { getTracks() { return [{ stop() {} }]; } }; }, audioContextFactory: voiceAudio });
+const againNotes = [];
+const againAttempt = createVoiceAttempt({ live: again, show(m, s) { againNotes.push([s, m]); }, requestPass: async () => ({ ok: true, data: { value: token } }) });
+const firstTry = await againAttempt.start();
+ok(firstTry.openedMic === true && againMic === 1, 'the first Start opens the microphone');
+againAttempt.stop();
+const secondTry = await againAttempt.start();
+ok(secondTry.openedMic === true && againMic === 2 && againNotes.filter((n) => n[0] === 'live').length === 2, 'Start after Stop connects again instead of claiming Connected with no socket');
+again.sendText('Is the closing Tuesday?');
+ok(againSock.sent.some((s) => s.includes('Is the closing Tuesday?')), 'the typed message is sent on the socket opened by the second Start');
+againSock.close();
+let dropped = '';
+try { again.sendText('Again'); } catch (e) { dropped = e.message; }
+ok(dropped === VOICE_DROPPED && dropped !== VOICE_NOT_CONNECTED, 'a socket that ended is not described as never started and no close code is shown');
+let closedMic = 0;
+const closedNotes = [];
+const closedAudio = createVoiceSession({ WebSocket: class { constructor() { throw new Error('socket should not open'); } }, getUserMedia: async () => { closedMic += 1; return { getTracks() { return []; } }; }, audioContextFactory: () => ({ sampleRate: 24000, state: 'closed', destination: {}, resume() { return Promise.resolve(); }, close() {} }) });
+const closedAttempt = createVoiceAttempt({ live: closedAudio, show(m, s) { closedNotes.push([s, m]); }, requestPass: async () => ({ ok: true, data: { value: token } }) });
+const closedTry = await closedAttempt.start();
+ok(closedTry.openedMic === false && closedMic === 0 && !closedNotes.some((n) => String(n[1]).startsWith('Connected.')), 'a closed audio context does not say the microphone is on');
 console.log(fail ? fail + ' failed' : 'voice demo passed');
 if (fail) process.exit(1);

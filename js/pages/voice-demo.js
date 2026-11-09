@@ -54,7 +54,9 @@ function show(root, message, state) {
   root.setAttribute('data-voice-state', state);
 }
 
+let detachVoice = null;
 function wire(root, api) {
+  if (detachVoice) detachVoice();
   const attempt = createVoiceAttempt({
     live,
     show: (message, state) => show(root, message, state),
@@ -69,6 +71,9 @@ function wire(root, api) {
     try { live.sendText($('[data-voice-input]', root).value); }
     catch (err) { show(root, err.message, root.getAttribute('data-voice-state') === 'live' ? 'live' : 'ready'); }
   });
-  window.addEventListener('pagehide', () => { attempt.stop(); });
-  window.addEventListener('hashchange', () => { if (!location.hash.startsWith('#/voice-demo')) attempt.stop(); });
+  const onHide = () => attempt.stop();
+  const onHash = () => { if (!location.hash.startsWith('#/voice-demo')) attempt.stop(); };
+  window.addEventListener('pagehide', onHide);
+  window.addEventListener('hashchange', onHash);
+  detachVoice = () => { window.removeEventListener('pagehide', onHide); window.removeEventListener('hashchange', onHash); };
 }
