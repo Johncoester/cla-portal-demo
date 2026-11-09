@@ -17,7 +17,13 @@ export const EMPLOYMENT_TYPES = [['full_time', 'Full time'], ['part_time', 'Part
 export const EMPLOYMENT_STATUSES = [['active', 'Active'], ['on_leave', 'On leave'], ['separated', 'Separated']];
 export const PAY_TYPES = [['salary', 'Salary'], ['hourly', 'Hourly']];
 export const PAY_CURRENCIES = [['USD', 'USD'], ['PHP', 'PHP']];
-export const WORK_LOCATIONS = ['Rockville, MD (office)', 'Annapolis, MD (office)', 'Remote (US)', 'Remote (Philippines)'];   // fake
+// Francis, Nov 9: + Florida, and the other CLA states (MD, VA, DC, FL) so every office state can be picked
+export const WORK_LOCATIONS = ['Rockville, MD (office)', 'Annapolis, MD (office)', 'Washington, DC', 'Virginia', 'Florida', 'Remote (US)', 'Remote (Philippines)'];
+// HR invite -> portal role (Francis + John, Nov 9). Mirrors private.hr_portal_role_for (migration 20261109170000): when an HR invite
+// creates a NEW login, its portal role comes from the designation. Anything not listed stays 'Employee' (HR area only).
+// NEVER Admin or Super admin (the 'Administrator' designation is a job title, not portal Admin). An existing login keeps its role.
+export const HR_PORTAL_ROLE_BY_DESIGNATION = Object.freeze({ processor: 'Processor', 'sales person': 'Sales Person', preprocessor: 'Preprocessor', 'transaction coordinator': 'Transaction Coordinator' });
+export const portalRoleForDesignation = (name) => HR_PORTAL_ROLE_BY_DESIGNATION[String(name || '').trim().replace(/\s+/g, ' ').toLowerCase()] || 'Employee';
 export const HR_ROLE_LABEL = { super: 'Super admin', hr_manager: 'HR manager', employee: 'Employee' };
 export const EMPLOYEE_ROLE_FILTER = ['Super admin', 'HR manager', 'Employee'];
 export const labelOf = (list, code) => (list.find(([c]) => c === code) || [null, code || ''])[1];
