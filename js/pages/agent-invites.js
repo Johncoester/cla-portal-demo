@@ -4,7 +4,7 @@
 import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611070139';
 import { STATUS_LABEL } from '../data/agent-profile.js?v=202611100005';
 import { agentInviteDraft } from '../data/agent-invite-mail.js?v=202611090935';
-import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100100';
+import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100130';
 const PILL = { pending: 'warn', accepted: 'ok', expired: 'bad', revoked: '' };
 const abs = (link) => location.href.split('#')[0] + link;
 export async function render({ api, refresh }) {
