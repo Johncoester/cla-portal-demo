@@ -357,7 +357,12 @@ export async function createSupabaseAdapter(cfg) {
     async updateTask(id, patch) { return ok(await sb.rpc('set_task_status', { p_task: id, p_status: patch.status })); },
     async listDocuments(dealId) { return fileRead('docs:' + dealId, () => rawDocs(dealId)); },
     // ---- Matt, Nov 2 (migration 16): cross-file task list + Processor / Admin task grid. task_board / task_grid are SECURITY INVOKER (RLS decides). ----
-    async listAllTasks({ fileStatus = 'All' } = {}) { return boardRows(ok(await sb.rpc('task_board', { p_file_status: fileStatus }))); },
+    async listAllTasks({ fileStatus = 'All' } = {}) {
+      const who = ident.current();
+      const run = async () => boardRows(ok(await sb.rpc('task_board', { p_file_status: fileStatus })));
+      if (!who || !who.id) return run();
+      return nav.share(who.id, 'task-board:' + fileStatus, run);
+    },
     // FILE-FIRST combined list (John, Nov 4; migration 45): my tasks on every file I am on, each with my role on that file
     async listMyTasks({ fileStatus = 'Open' } = {}) { return boardRows(ok(await sb.rpc('my_task_list', { p_file_status: fileStatus }))).map((t) => ({ ...t, mine: true, myRoles: t.myRoles || [], myRoleLabel: fileRoleLabel(t.myRoles || []) })); },
     async getTaskGrid({ fileStatus = 'Open' } = {}) {

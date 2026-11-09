@@ -1,5 +1,5 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611082250';
+import { getAdapter } from './data/adapter.js?v=202611090210';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611082250';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611082250';
@@ -422,17 +422,22 @@ export async function render() {
       if (tab === 'overview' && api.readOverview) api.readOverview(id).catch(() => null);
     }
   }
-  const [mods, extra] = await Promise.all([modP, hrP, voiceP]);
+  const mods = await modP;
   if (replaced()) return;
-  if (extra && u) u = { ...u, ...extra };
-  if (!keepCurrent()) return;
   if (u && api.getModuleAccess && authAt == null) {
     let now = null;
     try { now = await api.getSession(); } catch (e) { now = null; }
     if (!keepCurrent()) return;
     if (!now || now.id !== stamp.id || (now.role || '') !== stamp.role || !!now.isDemo !== stamp.demo) return render();
   }
+  if (!keepCurrent()) return;
   setModuleMap(mods);   // module switches for the person now signed in, after view-as and the locked link
+  const tasksAllowed = !!(u && route.page === 'tasks' && modOn('tasks') && routeAllowed(u, route, { locked: !!lockedId, demo: DEMO_VIEW }) && api.listAllTasks);
+  if (tasksAllowed) api.listAllTasks({ fileStatus: 'All' }).catch(() => {});
+  const [extra] = await Promise.all([hrP, voiceP]);
+  if (replaced()) return;
+  if (extra && u) u = { ...u, ...extra };
+  if (!keepCurrent()) return;
   const voiceBlocked = route.page === 'voice-demo' && !voiceRouteOk(u, { locked: !!lockedId, demo: DEMO_VIEW, mode: api.mode });
   const settle = () => {
     if (my !== rendering) return;
