@@ -1,5 +1,7 @@
 /* Signed-in voice test. The browser asks the TEST function for a short-lived pass.
- * It never holds the xAI key, and it does not read or change a file. */
+ * It never holds the xAI key. File text is only the order header already on screen,
+ * passed in by instructionsFor. This module does not read the database. */
+import { VOICE_GENERIC } from './voice-file.js?v=202611091110';
 export const VOICE_NOT_CONFIGURED = 'Grok voice is not configured on the server yet.';
 export const VOICE_DENIED = 'Voice is not available on this sign-in.';
 export const VOICE_PASS_MS = 12000;
@@ -13,7 +15,7 @@ export const VOICE_DROPPED = 'Voice disconnected before the message was sent. Pr
 const PCM_RATES = new Set([8000, 16000, 22050, 24000, 32000, 44100, 48000]);
 export const VOICE_MODEL = 'grok-voice-latest';
 export const VOICE_URL = 'wss://api.x.ai/v1/realtime?model=grok-voice-latest';
-export const DEMO_INSTRUCTIONS = 'You are the voice test on CLA Portal Live Test. Speak only about this pretend file: 145 Main Street, Rockville, purchase, buyer Ben Buyer, file MD-26-97183. These names are fake. Do not ask for a real account, a password, or a document. You cannot email, upload, change a file, or look anyone up. If asked to do any of that, say this test cannot take actions.';
+export const DEMO_INSTRUCTIONS = VOICE_GENERIC;
 
 export function voiceRouteOk(u, { locked = false, demo = null, mode = 'mock' } = {}) {
   return mode === 'supabase' && !!u && !locked && !(demo && demo.active);
@@ -34,9 +36,10 @@ export function realtimeSocket(token, WebSocketImpl) {
   return new WebSocketImpl(VOICE_URL, [`xai-client-secret.${secret}`]);
 }
 
-export function sessionUpdate(sampleRate = 24000) {
+export function sessionUpdate(sampleRate = 24000, instructions = DEMO_INSTRUCTIONS) {
   const rate = PCM_RATES.has(sampleRate) ? sampleRate : 24000;
-  return { type: 'session.update', session: { voice: 'eve', instructions: DEMO_INSTRUCTIONS, turn_detection: { type: 'server_vad' }, audio: { input: { format: { type: 'audio/pcm', rate } }, output: { format: { type: 'audio/pcm', rate } } }, tools: [] } };
+  const script = typeof instructions === 'string' && instructions.trim() ? instructions : DEMO_INSTRUCTIONS;
+  return { type: 'session.update', session: { voice: 'eve', instructions: script, turn_detection: { type: 'server_vad' }, audio: { input: { format: { type: 'audio/pcm', rate } }, output: { format: { type: 'audio/pcm', rate } } }, tools: [] } };
 }
 
 export function float32ToBase64Pcm16(samples) {
@@ -256,7 +259,7 @@ export function createVoiceSession(deps) {
       await new Promise((resolve, reject) => {
         const t = setTimeout(() => reject(new Error('Grok voice could not be reached. Nothing was recorded.')), deps.timeoutMs || 8000);
         const fail = () => { clearTimeout(t); reject(new Error('Grok voice could not be reached. Nothing was recorded.')); };
-        socket.addEventListener('open', () => { clearTimeout(t); if (stale()) { resolve(); return; } opened = true; socket.send(JSON.stringify(sessionUpdate(rate))); resolve(); });
+        socket.addEventListener('open', () => { clearTimeout(t); if (stale()) { resolve(); return; } opened = true; const script = typeof deps.instructionsFor === 'function' ? deps.instructionsFor() : DEMO_INSTRUCTIONS; socket.send(JSON.stringify(sessionUpdate(rate, script))); resolve(); });
         socket.addEventListener('error', fail);
         socket.addEventListener('close', () => { if (state.socket === socket) state.ended = true; if (!opened) fail(); });
       });
