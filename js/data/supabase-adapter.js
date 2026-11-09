@@ -6,7 +6,7 @@ import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?
 import { assertRecipients, messageText } from './portal-message.js?v=202611090935';
 import { planDocumentBatch } from './document-batch.js?v=202611090935';
 import { featureFlags } from './features.js?v=202611070139';
-import { accountingSupabase } from './supabase-accounting.js?v=202611071820';
+import { accountingSupabase } from './supabase-accounting.js?v=202611091140';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
 import { modulesSupabase } from './supabase-modules.js?v=202611090935';
 import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611090935';
