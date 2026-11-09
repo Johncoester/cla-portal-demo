@@ -129,12 +129,15 @@ export function withoutHiddenProfiles(contacts, visibleProfileIds) {
 export const PROCESSOR_PICK_ROLES = ['Processor', 'Preprocessor', 'Admin', 'Super admin'];
 /* Unassigned is a real choice. A blank id is not filled with the person who is signed in. */
 export function processorChoices(procs, keepId, meId) {
+  // Unassigned clears the assignment (John Nov 6 / Francis Nov 9: staff must be able to remove a Processor).
   const options = [{ value: '', label: 'Unassigned' }];
   for (const p of procs || []) {
     if (!p || !p.id) continue;
+    const name = `${p.firstName || ''} ${p.lastName || ''}`.trim() || p.name || 'Processor';
     const role = p.role && p.role !== 'Processor' ? ` (${p.role})` : '';
     const you = meId && p.id === meId ? ' (you)' : '';
-    options.push({ value: p.id, label: `${p.firstName || ''} ${p.lastName || ''}`.trim() + role + you });
+    const email = p.email ? ` — ${p.email}` : '';
+    options.push({ value: p.id, label: name + role + you + email });
   }
   const value = keepId && options.some((o) => o.value === keepId) ? keepId : '';
   return { options, value, dropped: !!(keepId && value !== keepId) };
