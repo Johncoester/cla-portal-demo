@@ -15,6 +15,7 @@ import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=2026110701
 import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611090905';
 import { crmReadOnly, CRM_OWNER_ROLES } from './crm.js?v=202611070139';
 import { dealDisplayName } from './nov5-rules.js?v=202611090935';
+import { roleAllowed } from './role-access.js?v=202611100100';
 import { referralLabel, REFERRALS } from './place-order.js?v=202611092320';
 
 export const SEND_NOTE = 'Not sent: Gmail is not connected yet. The email was saved on this record only.';
@@ -39,7 +40,8 @@ export function crmNov3bPart(x, h) {
   //          every order they can open in the portal, with Deal Owner / Client / Source filters.
   // 'own'  = Sales Person: ONLY the deals they are a salesperson on (deal_sales_people). A deal they merely appear on as a contact is not "theirs" in the
   //          CRM. Enforced here (list, record page, search, reports, dashboards all read this) and in SQL, not only on the screen.
-  const dealScope = (u) => (u.isAdmin || C.runsOrders(u) || u.role === 'Sales Team' ? 'all' : 'own');
+  // Role access (Nov 9; SQL private.crm_deal_scope_all + role_can('crm_all_deals')): the seed keeps Processor / Preprocessor / Sales Team on 'all', Sales Person 'own'
+  const dealScope = (u) => (u.isAdmin || roleAllowed(u.role, 'crm_all_deals') === true ? 'all' : 'own');
   const crmDealsFor = (u) => { const list = dealsFor(u); return dealScope(u) === 'all' ? list : list.filter((q) => salesOf(q.id).some((z) => z.salesId === u.id)); };
 
   // ---------- module rows (what the viewer may see), flat, for search / reports / dashboards ----------

@@ -10,6 +10,7 @@
 //    null         no HR record (agents, clients, staff not on the HR list): no HR at all.
 //  HR managers get the HR workspace only, unless their portal role already gives them the CRM or the Portal.
 //  No SSNs or other government ID numbers are collected. No hard deletes: archive (deactivate) instead. Every field change is in the history.
+import { roleHrOk } from './role-access.js?v=202611100100';
 export const HR_INVITE_DAYS = 14;   // like the agent invite (agent-profile.js INVITE_DAYS)
 export const HR_NO_EMAIL_NOTE = 'Nothing is emailed: the portal does not send email. Copy this one-time link and send it to the employee yourself.';
 export const COUNTRIES = [['US', 'United States'], ['PH', 'Philippines']];
@@ -97,7 +98,7 @@ export const initials = (e) => ((s(e.firstName, 1) + s(e.lastName, 1)).toUpperCa
 export const fullNameOf = (e) => (e ? `${e.firstName || ''} ${e.lastName || ''}`.trim() : '');
 
 // HR access for one session user (hrRole on the session) + the module switch map entry ('live' | 'beta' | 'off')
-export const hrVisibleFor = (u, access) => !!u && !!u.hrRole && !u.accountRole && u.role !== 'Outside user' && (u.hrRole === 'super' ? access !== 'off' : access === 'live');
+export const hrVisibleFor = (u, access) => !!u && !!u.hrRole && !u.accountRole && u.role !== 'Outside user' && (u.hrRole === 'super' ? access !== 'off' : access === 'live' && roleHrOk(u));   // + Role access (Nov 9)
 export const hrCanManage = (u) => !!u && (u.hrRole === 'super' || u.hrRole === 'hr_manager');
 export const hrIsSuper = (u) => !!u && u.hrRole === 'super';
 // which HR sections a user may open (route guard + nav). 'me' needs an employee record.

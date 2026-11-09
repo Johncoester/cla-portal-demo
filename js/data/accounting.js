@@ -14,6 +14,7 @@
  *                  debited, the "to" side credited. Prorations / adjustments, seller credits, deposits and the loan amount are credits.
  * Auto entries (never stored, always in step with the order): Sales price (buyer -> seller), Deposit / EMD (deposit -> buyer), Loan amount
  * (lender -> buyer). A refinance has no seller side: no sales price, no deposit, no seller amounts. */
+import { roleAllowed } from './role-access.js?v=202611100100';
 export const ACCOUNTING_OFF = 'Accounting is turned off on this portal.';
 export const ACCOUNTING_STAFF_ONLY = 'Accounting is for CLA staff only.';
 export const ACCOUNTING_READ_ONLY = 'Accounting is read-only for your role.';
@@ -21,8 +22,10 @@ export const TEST_MARK = 'TEST - not a legal disclosure';
 export const EXAMPLE_MARK = 'EXAMPLE amount - not a real rate. Enter the real figure.';
 export const ACCT_EDIT_ROLES = ['Processor', 'Preprocessor', 'Admin', 'Super admin'];      // + anyone with the Admin flag
 export const ACCT_READ_ROLES = ['Sales Person', 'Sales Team', 'Transaction Coordinator'];   // read-only (Caroline Kim, Nov 4 2026: "TCs get read-only access")
-export const acctCanRead = (u) => !!u && (u.isAdmin || ACCT_EDIT_ROLES.includes(u.role) || ACCT_READ_ROLES.includes(u.role));
-export const acctCanEdit = (u) => !!u && (u.isAdmin || ACCT_EDIT_ROLES.includes(u.role));
+// Role access (John, Nov 9): a Super admin can switch Accounting off for a role on Admin > Role access (role-access.js; SQL acct_reader / acct_editor)
+const acctRoleOn = (u) => roleAllowed(u.role, 'accounting') !== false;
+export const acctCanRead = (u) => !!u && (u.isAdmin || ((ACCT_EDIT_ROLES.includes(u.role) || ACCT_READ_ROLES.includes(u.role)) && acctRoleOn(u)));
+export const acctCanEdit = (u) => !!u && (u.isAdmin || (ACCT_EDIT_ROLES.includes(u.role) && acctRoleOn(u)));
 
 export const ALTA_SECTIONS = [
   ['financial', 'Financial'], ['prorations', 'Prorations / Adjustments'], ['loanCharges', 'Loan Charges'], ['otherLoanCharges', 'Other Loan Charges'],

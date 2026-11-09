@@ -9,6 +9,7 @@ import { featureFlags } from './features.js?v=202611070139';
 import { accountingSupabase } from './supabase-accounting.js?v=202611091140';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
 import { modulesSupabase } from './supabase-modules.js?v=202611090935';
+import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access
 import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611090935';
 import { callItemsSupabase } from './supabase-callitems.js?v=202611090935';
 import { automationPart } from './automation.js?v=202611091345';
@@ -484,6 +485,8 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, payoffsSupabase({ sb, ok, flags: a.features, api: a }));
   // MODULE SWITCHES (John, Nov 3; migration 35): Admin-only Live switch per module; off = beta (Admins only)
   Object.assign(a, modulesSupabase({ sb, ok, me, flags: a.features }));
+  Object.assign(a, roleAccessSupabase({ sb, ok, me }));   // John, Nov 9: role_module_access, read once (cached) in parallel with the module switches
+  { const gma = a.getModuleAccess; a.getModuleAccess = async function (...args) { const ra = a.loadRoleAccess().catch(() => []); const m = await gma.apply(this, args); await ra; return m; }; }
   Object.assign(a, taskSwitchesSupabase({ sb, ok, me }));   // John, Nov 4 (migration 49): Task Templates > Task switches (Admin only)
   Object.assign(a, callItemsSupabase({ sb, ok, me }));   // John, Nov 3 call (migration 38): underwriter splits, agent birthdate
   Object.assign(a, agentInviteSupabase({ sb, ok, me }));   // John, Nov 4 (migration 41): agent invites (nothing sent), agent profiles, the clients' agent card
