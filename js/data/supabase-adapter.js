@@ -22,11 +22,11 @@ import { tcSupabase } from './supabase-tc.js?v=202611090935';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611090935';
 import { gmailSupabase } from './supabase-gmail.js?v=202611091311';
 import { nov5Supabase } from './supabase-nov5.js?v=202611091030';
-import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611091415';
+import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611091420';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611090935';
 import { staffSupabase } from './supabase-staff.js?v=202611082000';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
-import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611080400';
+import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611091420';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
 import { propertyAddressOf } from './nov5-rules.js?v=202611090935';
 import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611090935';
@@ -280,7 +280,7 @@ export async function createSupabaseAdapter(cfg) {
     async readFileShell(id) { return fileRead('shell:' + id, () => fetchFileShell(id)); },
     // John, Nov 2 (migration 19): several salespeople per order; the Processor and Admins add/remove them (RPCs check the role + file access)
     async listPreprocessors() { return camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status').eq('role', 'Preprocessor').eq('status', 'active').order('first_name'))); },
-    async listProcessors() { const u = await me(); return (camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status, is_demo').in('role', PROCESSOR_PICK_ROLES).eq('status', 'active').order('first_name'))) || [])
+    async listProcessors() { const u = await me(); return (camel(ok(await sb.from('profiles').select('id, first_name, last_name, email, role, status, is_demo').in('role', PROCESSOR_PICK_ROLES).eq('status', 'active').order('first_name'))) || [])
       .filter((p) => !!p.isDemo === !!(u && u.isDemo)).map((p) => ({ ...p, name: `${p.firstName} ${p.lastName}` })); },
     // John, Nov 2 (migration 20): Place Order. Open Date (backdating OK, never future), any US state, EMD amount / due date; the DB re-checks all of it.
     async createDeal(input) {
