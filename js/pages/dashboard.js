@@ -1,10 +1,11 @@
 // Role dashboards: Processor = Work Queue; Sales Person / Sales Team = Team Dashboard (view-only);
 // Transaction Coordinator = Dashboard; Buyer/Listing Agent = Transactions; clients = My Closing.
 import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js?v=202611070139';
-import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611082250';
-import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611082250';
+import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611090935';
+import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611090935';
 import { themeOn } from '../theme.js?v=202611070139';
 import { mapLimit } from '../data/read-batch.js?v=202611082010';
+import { pendingMine } from '../data/task-actions.js?v=202611090935';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>${d.fileTitle ? html` <span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}`;
 // CARD THEME (default look): a tile that repeats one of the four dashboard cards (open orders = "in Pipeline" count, overdue tasks) is not drawn;
@@ -23,7 +24,7 @@ export async function render(ctx) {
   const v = await pick({ ...ctx, deals, open, all, today });
   // CARD THEME MOCKUP (opt-in): four clickable summary cards above the CLA team dashboards (computed from the orders this person can see)
   const tc = themeOn() && (user.isAdmin || runsOrders(user) || ['Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(user.role));
-  const top = tc ? (await import('./theme-cards.js?v=202611082250')).dashCards(deals) : '';
+  const top = tc ? (await import('./theme-cards.js?v=202611090935')).dashCards(deals) : '';
   return { title: v.title, crumbs: [[v.title]], body: tc ? html`${top}${v.body}` : v.body, mount: v.mount };
 }
 
@@ -131,7 +132,9 @@ export const myTaskList = (tasks) => { const open = tasks.filter((t) => ['todo',
       <td data-my-task-role>${t.myRoleLabel || ''}</td><td class="nowrap ${t.overdue ? 'warn' : ''}">${t.dueDate ? fmtDate(t.dueDate) : html`<span class="muted">-</span>`}</td></tr>`)}</tbody></table>`
       : html`<p class="muted">Nothing needed from you right now.</p>`}</div>`; };
 async function outside({ api, deals, all }) {
-  const mine = api.listMyTasks ? await api.listMyTasks({ fileStatus: 'Open' }) : [];
+  const fromFiles = pendingMine(all.filter((t) => !t.deal || t.deal.status === 'Open'));
+  const rpc = api.listMyTasks ? await api.listMyTasks({ fileStatus: 'Open' }).catch(() => []) : [];
+  const mine = fromFiles.length ? fromFiles : rpc;
   const mineOpen = (d) => all.filter((t) => t.deal.id === d.id && t.mine && ['todo', 'in_progress', 'blocked'].includes(t.status)).length;
   const sections = GROUPS.map(([role, label]) => { const list = deals.filter((d) => groupOf(d) === role); if (!list.length) return '';
     const isC = isClient(role); const shown = isC ? list.filter((d) => d.status === 'Open') : list;

@@ -7,7 +7,7 @@
 // shown but cannot send until Gmail is connected; Stats (Opened / Bounced / Clicked) wait for Gmail too. Function first, minimal styling.
 import { html, raw, $, $$, guard, toast, modal, closeModal, pill, fmtDateTime, fmtSize } from '../ui.js?v=202611070139';
 import { TEMPLATE_MODULES, moduleLabel, GALLERY_TABS, GALLERY, starterBlocks, VIEW_FOLDERS, templatesInView, GMAIL_NOTE, STATS_NOTE, templateHtml, textToHtml, ATTACH_EXT, isPersonalFolder } from '../data/crm-templates.js?v=202611090905';
-import { tabs, head } from './crm-kit.js?v=202611090905';
+import { tabs, head } from './crm-kit.js?v=202611090935';
 import { richEditor, wireInputPicker, insertIntoInput, openPicker, copyText, readFile } from './crm-rte.js?v=202611090905';
 import { builder } from './crm-builder.js?v=202611090905';
 

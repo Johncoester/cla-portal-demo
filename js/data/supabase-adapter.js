@@ -1,31 +1,33 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611082250';
-import { localDate, fileRoleLabel, moneyAmount } from './constants.js?v=202611082250';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611090935';
+import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611090935';
+import { assertRecipients, messageText } from './portal-message.js?v=202611090935';
+import { planDocumentBatch } from './document-batch.js?v=202611090935';
 import { featureFlags } from './features.js?v=202611070139';
 import { accountingSupabase } from './supabase-accounting.js?v=202611071820';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
-import { modulesSupabase } from './supabase-modules.js?v=202611082250';
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611082250';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611082250';
-import { automationPart } from './automation.js?v=202611082250';
-import { runsOrders as runsOrdersCI } from './constants.js?v=202611082250';
-import { crmSupabase } from './supabase-crm.js?v=202611090905';
+import { modulesSupabase } from './supabase-modules.js?v=202611090935';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611090935';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611090935';
+import { automationPart } from './automation.js?v=202611090935';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611090935';
+import { crmSupabase } from './supabase-crm.js?v=202611090935';
 import { hrSupabase } from './supabase-hr.js?v=202611070139';
-import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611082250';
-import { officesSupabase } from './supabase-offices.js?v=202611082250';
-import { closingLocationSupabase } from './supabase-closing-location.js?v=202611082250';
-import { tcSupabase } from './supabase-tc.js?v=202611082250';
-import { emailSendersSupabase } from './supabase-email-senders.js?v=202611082250';
-import { nov5Supabase } from './supabase-nov5.js?v=202611082250';
-import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611082250';
-import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611082250';
+import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611090935';
+import { officesSupabase } from './supabase-offices.js?v=202611090935';
+import { closingLocationSupabase } from './supabase-closing-location.js?v=202611090935';
+import { tcSupabase } from './supabase-tc.js?v=202611090935';
+import { emailSendersSupabase } from './supabase-email-senders.js?v=202611090935';
+import { nov5Supabase } from './supabase-nov5.js?v=202611090935';
+import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611090935';
+import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611090935';
 import { staffSupabase } from './supabase-staff.js?v=202611082000';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611080400';
-import { propertyAddressOf } from './nov5-rules.js?v=202611082250';
-import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList } from './task-actions.js?v=202611082250';
+import { propertyAddressOf } from './nov5-rules.js?v=202611090935';
+import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611090935';
 import { contactInsertRow } from './contact-insert.js?v=202611070139';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611070139';
 import { authEventAction, gatherReads, identitySlot, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611082200';
@@ -252,7 +254,7 @@ export async function createSupabaseAdapter(cfg) {
     async createDeal(input) {
       // Refinance (John, Nov 3): no purchase price / EMD; migration 32 (private.deal_refi_guard) refuses them, and sellers / realtors / a TC on the file
       const refi = input.transactionType === 'Refinance';
-      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611082250'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
+      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611090935'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
       const { data: { user } } = await sb.auth.getUser();
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
         open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : moneyAmount(input.purchasePrice), loan_amount: moneyAmount(input.loanAmount),
@@ -323,9 +325,11 @@ export async function createSupabaseAdapter(cfg) {
       const u = ident.current() || await me();
       if (!u || ticket !== ident.generation()) throw new Error('Please sign in.');
       if (nav.userId() && nav.userId() !== u.id) throw new Error('Please sign in.');
-      const got = await raw;
+      // Francis (Nov 6): a task copy for the viewer's own file-party row counts as theirs. CLA staff who run orders skip this read.
+      const mineIds = (u.isAdmin || runsOrdersCI(u)) ? Promise.resolve([]) : viewerParticipantIds(sb, dealId, u);
+      const got = await raw; const myParticipantIds = await mineIds;
       if (ticket !== ident.generation() || (nav.userId() && nav.userId() !== u.id)) throw new Error('Please sign in.');
-      return mapHostedTaskList(got.rows, u, got.off);
+      return mapHostedTaskList(got.rows, u, got.off, { myParticipantIds });
     },
     async getTask(id) { return fetchHostedTask(sb, id, await me()); },
     // Matt, Nov 3 (migration 26): entity documents requested from buyers / sellers acting as an entity (person, processor, coordinator, Admin)
@@ -495,6 +499,56 @@ export async function createSupabaseAdapter(cfg) {
   a.readOverview = (dealId) => fileRead('overview:' + dealId, () => a.getOrderOverview(dealId));
   // Staff create and resend invite links here (nothing is emailed). Accepting a link goes through the accept-invite function, not a browser sign-up.
   Object.assign(a, staffFeedbackSupabase({ sb, ok, camel }));
+  a.sendMessage = async ({ dealId, threadId, subject, to, bodyHtml, files } = {}) => {
+    const user = await me();
+    if (!user || !user.id) throw new Error('Please sign in.');
+    if (viewOnly(user)) throw new Error('This sign-in cannot send messages.');
+    const { text } = messageText(bodyHtml);
+    const incoming = Array.isArray(files) ? files : [];
+    if (!text && !incoming.length) throw new Error('Write a message first.');
+    let thread = threadId || '';
+    if (thread) {
+      const parts = camel(ok(await sb.from('thread_participants').select('profile_id').eq('thread_id', thread))) || [];
+      if (!parts.some((p) => p.profileId === user.id)) throw new Error('You are not part of this conversation.');
+      const row = camel(ok(await sb.from('threads').select('deal_id').eq('id', thread).single()));
+      dealId = row.dealId;
+    } else {
+      const allowed = (await a.listMessageRecipients(dealId)).map((p) => p.id);
+      const ids = assertRecipients(to, allowed);
+      const created = ok(await sb.rpc('create_thread', { p_deal: dealId, p_subject: subject || (incoming.length ? 'Shared files' : 'New conversation'), p_participants: ids, p_body: text || '(file shared)' }));
+      thread = created && created.id ? created.id : created;
+    }
+    const names = [];
+    try { names.push(...((await a.listDocuments(dealId)) || []).map((d) => d.name)); } catch (e) { /* a list the caller cannot read does not add names */ }
+    const plan = planDocumentBatch(incoming, { existingNames: names });
+    const savedFiles = []; const failedFiles = [...plan.rejected];
+    for (const file of plan.accepted) {
+      if (file.wireInstructions && user.role === 'Outside user') { failedFiles.push({ name: file.name, reason: 'Only CLA Title staff can attach wire instructions.' }); continue; }
+      try {
+        const saved = await a.addDocument(dealId, { name: file.name, description: file.description || '', mimeType: file.mimeType || file.type || '', size: file.size || 0, dataUrl: file.dataUrl || null, file, visibility: file.wireInstructions ? 'buyer' : (file.visibility || 'all'), docType: file.docType || '', wireInstructions: !!file.wireInstructions });
+        savedFiles.push({ id: saved.id, name: saved.name || file.name }); names.push(file.name);
+      } catch (e) { failedFiles.push({ name: file.name, reason: e && e.message ? e.message : 'The upload failed.' }); }
+    }
+    if (threadId) {
+      if (!text && !savedFiles.length) throw new Error(failedFiles[0] ? failedFiles[0].reason : 'Write a message first.');
+      const note = savedFiles.length ? `${text || '(file shared)'}\n\nFiles on this order: ${savedFiles.map((f) => f.name).join(', ')}` : text;
+      ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: note.slice(0, 4000), body_html: messageText(bodyHtml).clean || null }));
+    } else if (savedFiles.length) {
+      ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: `Files on this order: ${savedFiles.map((f) => f.name).join(', ')}`.slice(0, 4000) }));
+    }
+    return { id: thread, threadId: thread, sent: false, emailed: false, deliveredInPortal: true, status: 'in_portal', savedFiles, failedFiles };
+  };
+  a.getThreadDetail = async (id) => {
+    const user = await me();
+    const t = await a.getThread(id);
+    const parts = camel(ok(await sb.from('thread_participants').select('profile_id').eq('thread_id', id))) || [];
+    const ids = parts.map((p) => p.profileId).filter(Boolean);
+    if (user && !ids.includes(user.id)) throw new Error('You are not part of this conversation.');
+    const profiles = ids.length ? camel(ok(await sb.from('profiles').select('id, first_name, last_name, role').in('id', ids))) || [] : [];
+    const who = (pid) => profiles.find((p) => p.id === pid);
+    return { ...t, participantIds: ids, participants: ids.map((pid) => { const p = who(pid); return { id: pid, name: p ? `${p.firstName || ''} ${p.lastName || ''}`.trim() : 'Participant', role: p ? p.role : '', wireOk: true }; }),
+      messages: (t.messages || []).map((m) => ({ ...m, authorName: (who(m.authorId) && `${who(m.authorId).firstName || ''} ${who(m.authorId).lastName || ''}`.trim()) || 'Participant', mine: !!(user && m.authorId === user.id), body: m.body || '', attachments: m.attachments || [] })) };
+  };
   a.previewCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };
   a.runCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };
   a.cancelSignatureRequest = async () => { throw new Error(NOT_ENABLED); };

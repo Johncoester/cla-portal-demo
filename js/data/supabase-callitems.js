@@ -4,7 +4,7 @@
  *    change in public.underwriter_split_log; nothing deleted.
  *  - public.agent_private (birthdate): the agent and CLA staff read; the agent or an Admin writes through public.set_agent_birthdate(). */
 import { SPLIT_ADMIN_ONLY, canManageSplits, canReadSplits, cleanState, cleanPct } from './underwriter.js?v=202611070139';
-import { canSeeBirthdate, canSetBirthdate, cleanBirthdate } from './agent-info.js?v=202611082250';
+import { canSeeBirthdate, canSetBirthdate, cleanBirthdate } from './agent-info.js?v=202611090935';
 const fromRow = (r) => ({ state: r.state, pct: r.underwriter_pct == null ? null : Number(r.underwriter_pct), underwriter: r.underwriter, updatedAt: r.updated_at, updatedBy: r.updated_by, updatedByName: r.updated_by_name || '' });
 export function callItemsSupabase({ sb, ok, me }) {
   return {

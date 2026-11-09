@@ -1,8 +1,8 @@
 // Order overview shape shared by the Supabase adapter. Inputs are already limited by RLS
 // (deal_contacts hides the other side, tasks/documents/threads/activity use their own policies).
 // This function does not invent rows, prices, or activity. A hidden contact keeps a blank phone and email.
-import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS } from './agent-portal.js?v=202611082250';
-import { CLA_PHONE, isRefi, viewOnly, isAgent, sideOf } from './constants.js?v=202611082250';
+import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS } from './agent-portal.js?v=202611090935';
+import { CLA_PHONE, isRefi, viewOnly, isAgent, sideOf } from './constants.js?v=202611090935';
 
 const OPEN = ['todo', 'in_progress', 'blocked'];
 const EMD_RECEIPT = /earnest money deposit receipt/i;
@@ -44,7 +44,8 @@ export function buildOrderOverview({ deal, me, tasks = [], documents = [], threa
     ...salesReps(), ...opt('Buyer Agent', 'Buyer Agent'), ...opt('Listing Agent', 'Listing Agent'),
     ...(refi ? all('Lender').map((p) => party('Lender', p)) : []), ...all('Client-Seller').map((p) => party('Seller', p))];
   const visibleTasks = tasks.filter((t) => t && t.dealId === deal.id);
-  const openMine = visibleTasks.filter((t) => OPEN.includes(t.status) && (t.ownerId === me.id || t.ownerProfileId === me.id || (!t.participantId && (actor.roles || [actor.role]).includes(t.assignedRole))));
+  const owned = (t) => t.ownerId === me.id || t.ownerProfileId === me.id || (!t.participantId && (actor.roles || [actor.role]).includes(t.assignedRole));
+  const openMine = visibleTasks.filter((t) => OPEN.includes(t.status) && (t.mine === true || (t.mine == null && owned(t))));
   const openAll = visibleTasks.filter((t) => OPEN.includes(t.status));
   const outstanding = staff ? openAll.length : openMine.length;
   const docs = documents.filter((z) => z && z.dealId === deal.id && !z.sample);

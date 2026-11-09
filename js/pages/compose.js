@@ -2,7 +2,8 @@
 // Rich text (Bold, Italic, Underline, bullet / numbered list, Link, Clear formatting) on a contenteditable box; the adapter sanitizes what is stored.
 // Files: Upload File / + Add File / drag-and-drop; Send stays disabled while files are still being read ("wait for the upload to finish").
 import { html, raw, $, $$, guard, modal, closeModal, toast, fmtSize } from '../ui.js?v=202611070139';
-import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isWireDocName, WIRE_BUYER_ONLY } from '../data/constants.js?v=202611082250';
+import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isWireDocName, WIRE_BUYER_ONLY } from '../data/constants.js?v=202611090935';
+import { explainRecipients } from '../data/message-recipients.js?v=202611090935';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 const TOOLS = [['bold', 'B', 'Bold'], ['italic', 'I', 'Italic'], ['underline', 'U', 'Underline'], ['insertUnorderedList', '\u2022 List', 'Bulleted list'], ['insertOrderedList', '1. List', 'Numbered list'], ['link', 'Link', 'Insert link'], ['removeFormat', 'Clear', 'Clear formatting']];
 export const editorHtml = (id = 'rte') => html`<div class="rte-bar" role="toolbar" aria-label="Formatting">${TOOLS.map(([c, l, t]) => html`<button type="button" class="ghost" data-cmd="${c}" title="${t}" aria-label="${t}">${l}</button>`)}</div>
@@ -37,8 +38,10 @@ export function mountFiles(root, onBusy = () => {}) {
 // buyer clients can be picked in To. Agents are never offered. The adapter refuses it anyway.
 export async function composeModal({ api, deal, go, user }, { title = 'New Conversation', to = '', subject = '', withFiles = true } = {}) {
   const people = await api.listMessageRecipients(deal.id); const staff = !!user && !user.accountRole && user.role !== 'Outside user';
+  const explained = explainRecipients({ myRole: (deal && (deal.myRole || (user && user.role))) || '', participants: (deal && deal.participants) || [], allowed: people });
   const m = modal(title, html`<form id="cmpf" class="form-grid" novalidate>
-    <label class="span2">To<select name="to" required data-to><option value="">Choose a recipient&hellip;</option>${people.map((p) => html`<option value="${p.id}" ${p.id === to ? raw('selected') : ''}>${p.firstName} ${p.lastName} (${p.role})</option>`)}</select></label>
+    <label class="span2">To<select name="to" required data-to><option value="">Choose a recipient&hellip;</option>${explained.selectable.map((p) => html`<option value="${p.id}" ${p.id === to ? raw('selected') : ''}>${p.firstName} ${p.lastName} (${p.role})</option>`)}</select></label>
+    ${explained.unavailable.length ? html`<ul class="span2 muted small" data-recipients-unavailable>${explained.unavailable.map((p) => html`<li>${p.name} (${p.role}): ${p.reason}</li>`)}</ul>` : html`<p class="span2 muted small" data-recipients-note>The list is people on your side of this file who have a portal login, plus CLA Title staff on the file. The other side is not listed.</p>`}
     <label class="span2">Subject<input name="subject" maxlength="150" value="${subject}" data-subject></label>
     <div class="span2"><span>Message</span>${editorHtml('cmp-rte')}</div>
     ${withFiles ? html`<div class="span2"><span>Files</span> <button type="button" class="m-btn" data-upload-file>Upload File</button>${filesHtml()}</div>` : ''}
@@ -56,6 +59,6 @@ export async function composeModal({ api, deal, go, user }, { title = 'New Conve
   $('#cmpf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); if (fl && fl.busy) throw new Error('Wait for the upload to finish.'); const f = e.target;
     if (!f.to.value) throw new Error('Pick who to send it to.'); if (!ed.text && !(fl && fl.files.length)) throw new Error('Write a message or add a file.');
     const t = await api.sendMessage({ dealId: deal.id, to: [f.to.value], subject: f.subject.value, bodyHtml: ed.html, files: fl ? fl.files.map((z) => ({ ...z, wireInstructions: !!(mark && mark.checked) })) : [] });
-    closeModal(); toast(fl && fl.files.length ? 'Files shared' : 'Message sent'); go(`/deals/${deal.id}/inbox/${t.id}`); }));
+    closeModal(); toast(t && t.failedFiles && t.failedFiles.length ? `${(t.savedFiles || []).length} file(s) kept on the order. ${t.failedFiles.length} not uploaded. The message is in the portal and was not emailed.` : 'The message is in the portal for the people on this conversation. It was not emailed.'); go(`/deals/${deal.id}/inbox/${t.id}`); }));
   return m;
 }

@@ -1,20 +1,20 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
 import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611070139';
-import { GMAIL_OFF } from '../data/automation.js?v=202611082250';
+import { GMAIL_OFF } from '../data/automation.js?v=202611090935';
 import { occSelects, yesNo } from './occ-fields.js?v=202611070139';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611082250';
-import { modOn } from '../data/modules.js?v=202611082250';
-import { slotText } from './dealclosing.js?v=202611082250';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611082250';
-import { composeModal } from './compose.js?v=202611082250';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611090935';
+import { modOn } from '../data/modules.js?v=202611090935';
+import { slotText } from './dealclosing.js?v=202611090935';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611090935';
+import { composeModal } from './compose.js?v=202611090935';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611071845';
-import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611082250';
+import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611090935';
 import { themeOn } from '../theme.js?v=202611070139';
-import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611082250';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611082250';
+import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611090935';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611090935';
 import { gatherReads } from '../data/read-batch.js?v=202611082010';
-import { prefetchDealTab } from './deal-tab.js?v=202611082250';
-import { placeText } from '../data/cla-offices.js?v=202611082250';
+import { prefetchDealTab } from './deal-tab.js?v=202611090935';
+import { placeText } from '../data/cla-offices.js?v=202611090935';
 
 function staffSections(ctx, dealId) {
   const { api } = ctx;

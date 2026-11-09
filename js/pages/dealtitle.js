@@ -2,8 +2,8 @@
 // Sections (?v=): Checklist, Notes & Documents, PACER, Search package, Contract, Chain of title, Loan check, Schedule A, Requirements (B-I), Exceptions (B-II),
 // Policies, CPL, Finalize & Package, Summary note. Nothing is ever sent (the lender email is a queued outbox row); no SSN is ever asked for or stored.
 import { html, raw, esc, $, $$, guard, toast, modal, closeModal, options, pill, fmtDate, fmtDateTime, fmtMoney, formData } from '../ui.js?v=202611070139';
-import * as T from '../data/title.js?v=202611082250';
-import { modOn } from '../data/modules.js?v=202611082250';   // live40: Payoffs / HOA switch
+import * as T from '../data/title.js?v=202611090935';
+import { modOn } from '../data/modules.js?v=202611090935';   // live40: Payoffs / HOA switch
 
 const ld = (iso) => (iso ? fmtDateTime(iso).split(',')[0] : '');   // a timestamp's LOCAL date
 const val = (v) => (v == null ? '' : v);

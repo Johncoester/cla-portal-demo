@@ -1,9 +1,9 @@
 // Inbox tab: conversations on this file (only people on the thread see it). Replies, new conversation, unread counts.
 import { html, $, $$, guard, formData, modal, closeModal, fmtDateTime, pill, toast } from '../ui.js?v=202611070139';
-import { viewOnly, isViewOnly, runsOrders, WIRE_FRAUD_NOTE } from '../data/constants.js?v=202611082250';
+import { viewOnly, isViewOnly, runsOrders, WIRE_FRAUD_NOTE } from '../data/constants.js?v=202611090935';
 import { raw } from '../ui.js?v=202611070139';
-import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611082250';
-import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611082250';
+import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611090935';
+import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611090935';
 
 export async function render(ctx) {
   const { api, user, deal, refresh, params } = ctx; const notViewOnly = !viewOnly(user);
@@ -46,6 +46,8 @@ async function thread({ api, user, deal, refresh, params }) {
     const f = $('#rf', root); if (!f) return; const ed = mountEditor(f); const send = $('[data-send]', f);
     const fl = mountFiles(f, (b) => { send.disabled = b > 0; send.textContent = b > 0 ? 'Waiting for upload\u2026' : 'Send'; });
     f.addEventListener('submit', guard(async (e) => { e.preventDefault(); if (fl.busy) throw new Error('Wait for the upload to finish.'); if (!ed.text && !fl.files.length) throw new Error('Write a message first.');
-      await api.sendMessage({ threadId: t.id, bodyHtml: ed.html, files: fl.files }); refresh(); }));
+      const sent = await api.sendMessage({ threadId: t.id, bodyHtml: ed.html, files: fl.files });
+      if (sent && sent.failedFiles && sent.failedFiles.length) toast(`${sent.savedFiles.length} file(s) attached. ${sent.failedFiles.map((z) => z.name + ': ' + z.reason).join(' ')} Nothing was emailed.`);
+      refresh(); }));
   } };
 }

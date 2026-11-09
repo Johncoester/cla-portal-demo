@@ -6,15 +6,15 @@
  * NOTHING is deleted: leads, contacts, accounts and opportunities are archived; tasks are closed; attachments and notes stay.
  * Access (mirrored by private.crm_* in migration 22): see crm.js. */
 import { CRM_OFF } from './features.js?v=202611070139';
-import { dealDisplayName } from './nov5-rules.js?v=202611082250';
+import { dealDisplayName } from './nov5-rules.js?v=202611090935';
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, OPP_STAGES, ACCOUNT_KIND_CODES, CRM_ENTITIES, accountKindForType, entityLabel,
   TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, LINK_KEYS, LINK_FIELDS, cleanUrl, nextDue, addDaysTo, taskOpen, meetingOpen, localStamp,
   canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals, REPEAT_CODES, LEAD_STATUS_DEFAULT, companyKey } from './crm.js?v=202611070139';
-import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611082250';
+import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611090935';
 import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611070139';
 import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611070139';
 import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611070139';
-import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611090905';
+import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611090935';
 import { feedbackNov4Part } from './mock-part-feedback-nov4.js?v=202611070139';
 import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611090905';
 import { crmCallsPart } from './mock-part-crm-calls.js?v=202611070139';
