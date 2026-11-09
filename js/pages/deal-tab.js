@@ -1,9 +1,9 @@
 /* File-tab modules. Loading one evaluates local helpers only. It does not check who is signed in and it does not read a file. */
 const TABS = Object.assign(Object.create(null), {
-  tasks: './dealtasks.js?v=202611091730',
+  tasks: './dealtasks.js?v=202611091300',
   inbox: './dealmsgs.js?v=202611091030',
   documents: './dealdocs.js?v=202611091030',
-  contacts: './dealcontacts.js?v=202611091730',
+  contacts: './dealcontacts.js?v=202611091300',
   activity: './dealactivity.js?v=202611070139',
   closing: './dealclosing.js?v=202611090935',
   agreements: './dealagreements.js?v=202611070139',
@@ -13,7 +13,7 @@ const TABS = Object.assign(Object.create(null), {
   wires: './dealfwp.js?v=202611090935',
   policy: './dealfwp.js?v=202611090935',
 });
-const TASK_FORM = './dealtaskform.js?v=202611091730';
+const TASK_FORM = './dealtaskform.js?v=202611091300';
 
 function ownSpec(tab) {
   if (typeof tab !== 'string' || !Object.prototype.hasOwnProperty.call(TABS, tab)) return '';

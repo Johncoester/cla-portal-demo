@@ -9,7 +9,7 @@ import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, 
 import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611090935';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
 import { delegationLocked, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611090935';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611090950';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611091300';
 import { devAuth } from './mock-part-auth.js?v=202611070139';
 import { contactsTasksDocs } from './mock-part-docs.js?v=202611090935';
 import { tasksAndForms } from './mock-part-tasks.js?v=202611090935';
@@ -193,11 +193,8 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     const d = load();
     if (seesAll(u)) return d.deals;
     if (u.role === 'Preprocessor') return d.deals.filter((q) => q.preprocessorUserId === u.id);
-    if (u.role === 'Transaction Coordinator') {
-      const agents = teamAgentIds(u); const agentContacts = new Set(d.contacts.filter((c) => agents.has(c.profileId)).map((c) => c.id));
-      const ids = new Set(d.participants.filter((p) => agentContacts.has(p.contactId) && isAgent(p.role)).map((p) => p.dealId));
-      return d.deals.filter((x) => ids.has(x.id));
-    }
+    // John / Francis, Nov 9 (option B): a Transaction Coordinator sees every file, like a Processor (migration 20261109190000)
+    if (u.role === 'Transaction Coordinator') return d.deals;
     const c = contactOf(u.id);
     const ids = new Set(c ? d.participants.filter((p) => p.contactId === c.id).map((p) => p.dealId) : []);
     // every salesperson linked to the file (John, Nov 2: several per file) sees it, as the single sales person did before
@@ -364,6 +361,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
       fileTitle: fileTitleOf(participantsOf(x.id, u)),
       partyNames: [...new Set(participantsOf(x.id, u).map((p) => (p.contact ? fullName(p.contact) : '')).filter(Boolean))],
       processorName: x.processorId ? nameOf(x.processorId) : 'Unassigned', processorUnassigned: !x.processorId,
+      tcUserId: x.tcUserId || null, tcName: x.tcUserId ? nameOf(x.tcUserId) : '',
       preprocessorUserId: x.preprocessorUserId || null, preprocessorName: x.preprocessorUserId ? nameOf(x.preprocessorUserId) : '',
       // John, Nov 2: several salespeople per file. salesPersonName stays as the joined names (older callers).
       salesPeople: salesOf(x.id).map((s) => ({ id: s.salesId, name: nameOf(s.salesId), role: (prof(s.salesId) || {}).role, addedAt: s.addedAt })),

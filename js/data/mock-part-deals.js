@@ -17,7 +17,7 @@ export function occFields(input, transactionType, fail) {
   return { primaryResidence: pr, firstTimeBuyer: ft };
 }
 export function dealsAndAuth(x) {
-  const { load, save, nid, me, needUser, needProcessor, contactOf, dealsFor, dealOr404, log, nameOf, dealView, taskVisible, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, C } = x;
+  const { load, save, nid, me, needUser, needProcessor, contactOf, dealsFor, dealOr404, log, notify, nameOf, dealView, taskVisible, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
   // John, Nov 2: several salespeople per file; each must be an ACTIVE Sales Person or Sales Team user. The file's Processor must be an active Processor.
   const checkSales = (id) => { const p = x.prof(id) || fail('Salesperson not found.'); if (!['Sales Person', 'Sales Team'].includes(p.role)) fail('Only a Sales Person or Sales Team user can be a salesperson on an order.');
@@ -134,6 +134,11 @@ export function dealsAndAuth(x) {
         if (nextId !== prev) { q.processorId = nextId; const prevContact = prev && contactOf(prev); if (prevContact) d.participants = d.participants.filter((p) => !(p.dealId === id && p.role === 'Processor' && p.contactId === prevContact.id));
           const nc = next && contactOf(next.id); if (nc && !d.participants.some((p) => p.dealId === id && p.role === 'Processor' && p.contactId === nc.id)) d.participants.push({ id: nid('dp'), dealId: id, contactId: nc.id, role: 'Processor', createdAt: now() });
           log(id, u.id, 'deal.processor', 'deal', id, nextId ? `Processor set to ${nameOf(nextId)}` : 'Processor unassigned'); } }
+      // John, Nov 9: the file's Transaction Coordinator (informational; staff set / change / clear it any time). Same activity + one notification as the hosted trigger.
+      if (patch.tcUserId !== undefined) { const nextId = patch.tcUserId || null; const prev = q.tcUserId || null;
+        if (nextId && !d.profiles.some((p) => p.id === nextId && p.status === 'active' && p.role === 'Transaction Coordinator')) fail('The Transaction Coordinator on an order must be an active Transaction Coordinator.');
+        if (nextId !== prev) { q.tcUserId = nextId; log(id, u.id, 'deal.tc', 'deal', id, nextId ? `Transaction Coordinator set to ${nameOf(nextId)}` : 'Transaction Coordinator unassigned');
+          if (nextId) notify([nextId], { kind: 'tc', dealId: id, title: `You are now the Transaction Coordinator on ${q.fileNumber || 'an order'}`, link: `#/deals/${id}` }, u.id); } }
       if (patch.salesIds !== undefined || patch.salesPersonId !== undefined) { const ids = salesList(patch); ids.forEach((sid) => { if (!x.salesOf(id).some((s) => s.salesId === sid)) checkSales(sid); }); setSales(u, id, ids); }
       log(id, u.id, 'deal.updated', 'deal', id, 'Order details updated'); save(); return clone(dealView(u, q));
     },
