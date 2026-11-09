@@ -70,6 +70,8 @@ export function filterDeals(deals, f = {}) {
     if (f.role === 'agent-party' ? !(d.agentParties && d.agentParties.length) : f.role && !(d.myRoles || [d.myRole]).includes(f.role)) return false;
     if (f.overdue && !(d.overdueTasks > 0)) return false;
     if (f.txType && d.transactionType !== f.txType) return false;
+    if (f.processor === 'unassigned' && d.processorId) return false;   // John, Nov 9: files with no Processor yet
+    if (f.processor === 'assigned' && !d.processorId) return false;
     if (q && !dealSearchText(d).includes(q)) return false;
     return true;
   });
