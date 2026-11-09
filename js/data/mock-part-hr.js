@@ -33,7 +33,7 @@ export function ensureHr(d) {
     .map(([id, name], i) => at({ id, name, sort: (i + 1) * 10 }));
   d.hrDepartments.push(at({ id: 'hrd-old', name: 'Front Desk (old)', sort: 90, archivedAt: SEED_AT, archivedBy: 'u-admin' }));
   d.hrDesignations = [['hrg-md', 'Managing Director'], ['hrg-pm', 'Processing Manager'], ['hrg-proc', 'Processor'], ['hrg-exam', 'Title Examiner'], ['hrg-sexam', 'Senior Title Examiner'],
-    ['hrg-admin', 'Office Administrator'], ['hrg-hr', 'HR Generalist'], ['hrg-recr', 'Recruiter'], ['hrg-close', 'Closing Coordinator'], ['hrg-sales', 'Sales Executive'], ['hrg-inside', 'Inside Sales'], ['hrg-salesp', 'Sales Person']]
+    ['hrg-admin', 'Office Administrator'], ['hrg-hr', 'HR Generalist'], ['hrg-recr', 'Recruiter'], ['hrg-close', 'Closing Coordinator'], ['hrg-sales', 'Sales Executive'], ['hrg-inside', 'Inside Sales'], ['hrg-salesp', 'Sales Person'], ['hrg-tc', 'Transaction Coordinator']]
     .map(([id, name], i) => at({ id, name, sort: (i + 1) * 10 }));
   const pe = (pid) => d.profiles.find((p) => p.id === pid) || {};
   const E = (n, pid, first, last, dept, desig, extra) => { const p = pid ? pe(pid) : {}; return at({ ...BLANK, id: 'hre-' + String(n).padStart(2, '0'), employeeCode: 'CLA-' + String(n).padStart(3, '0'), profileId: pid && p.id ? pid : null,
