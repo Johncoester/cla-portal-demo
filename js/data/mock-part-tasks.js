@@ -3,7 +3,7 @@
 import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611090935';
 import { senderFor } from './email-senders.js?v=202611090935';
 import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611090935';   // Task switch OFF: no new copy (existing copies kept)
-import { templateGenerates, audienceAllowsRole } from './nov5-rules.js?v=202611090935';
+import { templateGenerates, audienceAllowsRole } from './nov5-rules.js?v=202611100600';
 import { maskAccount } from './constants.js?v=202611090935';
 export function tasksAndForms(x) {
   const { load, save, nid, needUser, needAdmin, isManager, dealOr404, onDeal, fileRole, fileRoles, holds, dealsFor, log, prof, nameOf, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, dateOrNull, localDate, localDayOf, C } = x;

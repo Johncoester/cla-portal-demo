@@ -4,7 +4,7 @@ import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pi
 import { CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611090935';
 import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611070139';
 import { modOn, modBeta, BETA_LABEL } from '../data/modules.js?v=202611090935';   // module switches: Deals hidden when not Live (beta badge for Admins)
-import { createNewMenu } from './crm-janine.js?v=202611100230';
+import { createNewMenu } from './crm-janine.js?v=202611100600';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
 import { pageOf, selectionState, selectPage, BULK_PAGE_SIZE } from '../data/crm-bulk.js?v=202611090905';
 import { bulkBar, wireBulk } from './crm-bulk.js?v=202611090905';

@@ -3,7 +3,7 @@
 import { html, $, $$, guard, formData, modal, closeModal, options, fmtDate, pill, toast } from '../ui.js?v=202611070139';
 import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611090935';
 import { boxTasks } from '../data/task-board.js?v=202611091600';
-import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611090935';
+import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611100600';
 import { taskOpenHref } from '../data/task-actions.js?v=202611090935';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
@@ -11,7 +11,7 @@ export const LABEL = { todo: 'to do', in_progress: 'started', done: 'done', bloc
 
 export async function render(ctx) {
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611100245')).render(ctx);
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611100600')).render(ctx);
   const { api, user, deal, refresh } = ctx;
   const allTasks = await api.listTasks(deal.id);
   // BUYER (Nov 4 call): the agreements are to-dos that open the agreement (no Agreements tab for the buyer); the buyer never gets a Listing Agent box (listing agent never shown)

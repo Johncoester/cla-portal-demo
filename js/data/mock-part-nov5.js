@@ -1,6 +1,6 @@
 /* mock-part-nov5.js : Nov 5 admin controls (task lifecycle, alert groups, entity attorneys, CPL prices, file coverage).
  * FAKE DATA ONLY. Outbox stays queued. No guessed email addresses. */
-import { DEMO_ALERT_GROUPS, DEMO_ENTITY_ATTORNEYS, TASK_LANES, OPEN_TASK, OPEN_TASK_HANDLING, cleanAudiences, templateGenerates, resolveCplPrice, cleanCplAmount, postclosingAlertPlan, attorneyAuthorized, ordinaryCoverageDoc, propertyAddressOf, COVERAGE_NOTE, configuredEmail } from './nov5-rules.js?v=202611090935';
+import { DEMO_ALERT_GROUPS, DEMO_ENTITY_ATTORNEYS, TASK_LANES, OPEN_TASK, OPEN_TASK_HANDLING, cleanAudiences, templateGenerates, resolveCplPrice, cleanCplAmount, postclosingAlertPlan, attorneyAuthorized, ordinaryCoverageDoc, propertyAddressOf, COVERAGE_NOTE, configuredEmail } from './nov5-rules.js?v=202611100600';
 import { looksLikeWireDetails } from './constants.js?v=202611090935';
 import { taskEnabled } from './task-switches.js?v=202611090935';
 
