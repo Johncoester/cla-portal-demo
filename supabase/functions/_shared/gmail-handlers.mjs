@@ -77,6 +77,11 @@ export async function handleOauthStart(req, deps) {
 
 /* ---------------- gmail-oauth-callback (Google redirects the browser here; verify_jwt off) ---------------- */
 const back = (code) => new Response(null, { status: 302, headers: { Location: `${PORTAL_ORIGIN}/#/profile?gmail=${code}`, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });
+// which step failed, with Google's own error code (never a token, code, or secret), so a failed connect can be diagnosed from the function logs
+const gErr = (b) => { if (!b || typeof b !== 'object') return ''; const e = b.error; if (typeof e === 'string') return `${e}${b.error_description ? ` (${String(b.error_description).slice(0, 200)})` : ''}`;
+  if (e && typeof e === 'object') { const r = (e.errors && e.errors[0] && e.errors[0].reason) || (e.details && e.details[0] && e.details[0].reason) || ''; return `${e.status || ''} ${r} ${String(e.message || '').slice(0, 240)}`.trim(); } return ''; };
+export const callbackDiag = (step, res) => `gmail-oauth-callback failed at ${step}${res ? `: HTTP ${res.status} ${gErr(res.body)}` : ''}`.trim();
+const why = (deps, step, res) => { try { (deps.log || console.warn)(callbackDiag(step, res)); } catch (e) { /* logging never breaks the redirect */ } };
 export async function handleOauthCallback(req, deps) {
   if (wrongProject(deps)) return back('failed');
   if (req.method !== 'GET') return new Response('Method not allowed', { status: 405 });
@@ -85,18 +90,18 @@ export async function handleOauthCallback(req, deps) {
   const taken = rowOf(await deps.svc('gmail_svc_take_oauth', { p_state_hash: await sha256Hex(state) }));
   if (!taken) return back('expired');
   if (err) return back('denied');
-  if (!code || !deps.clientId || !deps.clientSecret) return back('failed');
+  if (!code || !deps.clientId || !deps.clientSecret) { why(deps, !code ? 'no code from Google' : 'client id / secret not set'); return back('failed'); }
   const t = await googleForm(deps, TOKEN_URL, { code, client_id: deps.clientId, client_secret: deps.clientSecret, redirect_uri: REDIRECT_URI, grant_type: 'authorization_code', code_verifier: taken.code_verifier });
-  if (!t.ok || !t.body.access_token) return back('failed');
+  if (!t.ok || !t.body.access_token) { why(deps, 'token exchange', t); return back('failed'); }
   const tok = t.body; const kill = async () => { await revoke(deps, tok.refresh_token || tok.access_token); };
-  if (missingScopes(tok.scope).length) { await kill(); return back('missing_scope'); }
+  if (missingScopes(tok.scope).length) { why(deps, `scopes (granted: ${String(tok.scope || '')})`); await kill(); return back('missing_scope'); }
   const idp = decodeJwtPayload(tok.id_token) || {}; const email = String(idp.email || '').toLowerCase();
-  if (!idp.email_verified || idp.hd !== 'clatitle.com' || !/^[^@\s]+@clatitle\.com$/.test(email)) { await kill(); return back('wrong_domain'); }
+  if (!idp.email_verified || idp.hd !== 'clatitle.com' || !/^[^@\s]+@clatitle\.com$/.test(email)) { why(deps, `domain check (hd=${idp.hd || 'none'}, verified=${!!idp.email_verified})`); await kill(); return back('wrong_domain'); }
   const prof = await gmail(deps, tok.access_token, '/profile');
-  if (!prof.ok || String(prof.body && prof.body.emailAddress || '').toLowerCase() !== email) { await kill(); return back('failed'); }
-  if (!tok.refresh_token) { await kill(); return back('failed'); }
+  if (!prof.ok || String(prof.body && prof.body.emailAddress || '').toLowerCase() !== email) { why(deps, prof.ok ? 'Gmail profile address differs from the Google sign-in' : 'Gmail profile', prof.ok ? null : prof); await kill(); return back('failed'); }
+  if (!tok.refresh_token) { why(deps, 'no refresh token from Google'); await kill(); return back('failed'); }
   try { await deps.svc('gmail_svc_connect', { p_profile: taken.profile_id, p_email: email, p_refresh: tok.refresh_token, p_scopes: String(tok.scope || ''), p_history: String(prof.body.historyId || '') }); }
-  catch (e) { await kill(); return back(/another portal login/i.test(String(e && e.message)) ? 'in_use' : 'failed'); }
+  catch (e) { why(deps, `saving the connection: ${String(e && e.message || e).slice(0, 200)}`); await kill(); return back(/another portal login/i.test(String(e && e.message)) ? 'in_use' : 'failed'); }
   return back('connected');
 }
 

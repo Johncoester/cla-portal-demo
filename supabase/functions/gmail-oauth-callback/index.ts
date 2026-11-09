@@ -6,5 +6,5 @@ import { PORTAL_ORIGIN } from '../_shared/gmail-core.mjs';
 
 Deno.serve(async (req: Request) => {
   try { return await handleOauthCallback(req, buildDeps(req)); }
-  catch (_e) { return new Response(null, { status: 302, headers: { Location: `${PORTAL_ORIGIN}/#/profile?gmail=failed`, 'Cache-Control': 'no-store' } }); }
+  catch (e) { console.warn(`gmail-oauth-callback crashed: ${String((e as Error)?.message || e).slice(0, 200)}`); return new Response(null, { status: 302, headers: { Location: `${PORTAL_ORIGIN}/#/profile?gmail=failed`, 'Cache-Control': 'no-store' } }); }
 });
