@@ -1,4 +1,4 @@
--- Rollback of 20261110020000_task_template_fields_for_assignees.sql
+-- Rollback of 20261110024000_task_template_fields_for_assignees.sql
 begin;
 set local lock_timeout = '3s';
 drop policy if exists templates_select on public.task_templates;

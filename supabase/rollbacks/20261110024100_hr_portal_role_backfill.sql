@@ -1,39 +1,8 @@
--- Francis V-9 (Nov 9): an HR-created Processor / TC can still land as profiles.role = 'Employee' (HR-only, no files).
--- Causes: (1) invites accepted BEFORE 20261109170000 always created Employee and that migration never backfilled;
--- (2) accepting while linking an EXISTING Employee login keeps Employee forever.
--- This migration:
---   1. One-shot backfill: Employee + linked HR designation that maps to Processor / Preprocessor / Sales Person / TC
---      becomes that portal role. Admin / Super admin / Outside user / already-correct roles are never touched.
---   2. Both accept paths upgrade a linked Employee the same way when the designation maps to a staff portal role.
--- No RLS change. Never sets is_admin. Never maps Administrator/CEO/Manager to Admin.
--- Rollback: supabase/rollbacks/20261110021000_hr_portal_role_backfill.sql
+-- Rollback of 20261110024100_hr_portal_role_backfill.sql
+-- Restores the accept paths without the Employee-upgrade branch.
+-- Does NOT undo the one-shot profiles.role backfill (that would re-break HR Processors / TCs already fixed).
 begin;
 set local lock_timeout = '3s';
-do $$
-begin
-  if to_regprocedure('private.hr_portal_role_for(uuid)') is null then
-    raise exception 'drift: private.hr_portal_role_for(uuid) missing — apply 20261109170000 first';
-  end if;
-  if (select md5(prosrc) from pg_proc where oid = to_regprocedure('private.invite_service_accept(text,text,uuid,jsonb)'))
-       is distinct from '34186fdfe90c71369b8feebdde6fdb1a' then
-    raise exception 'drift: private.invite_service_accept changed or missing';
-  end if;
-  if (select md5(prosrc) from pg_proc where oid = to_regprocedure('private.rpc_hr_accept_invite(text)'))
-       is distinct from 'ec593ca11b9a77e302ff6529e195af1b' then
-    raise exception 'drift: private.rpc_hr_accept_invite changed or missing';
-  end if;
-end $$;
-
--- 1. backfill stuck Employee logins whose designation already maps to a portal staff role
-update public.profiles p
-   set role = private.hr_portal_role_for(e.designation_id)
-  from public.hr_employees e
- where e.profile_id = p.id
-   and p.status = 'active'
-   and p.role = 'Employee'
-   and private.hr_portal_role_for(e.designation_id) in ('Processor', 'Preprocessor', 'Sales Person', 'Transaction Coordinator');
-
--- 2. accept paths: when linking an existing Employee, upgrade from the designation (new profiles already use the map)
 CREATE OR REPLACE FUNCTION private.invite_service_accept(p_kind text, p_token text, p_user uuid, p jsonb DEFAULT '{}'::jsonb)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -43,7 +12,7 @@ AS $function$
 declare
   th text := encode(extensions.digest(coalesce(p_token, ''), 'sha256'), 'hex');
   v public.hr_invites; e public.hr_employees; i public.agent_invites; pr public.profiles;
-  f text; l text; em text; cid uuid; n int; mapped text;
+  f text; l text; em text; cid uuid; n int;
 begin
   perform private.assert_invite_service();
   p := coalesce(p, '{}'::jsonb);
@@ -59,11 +28,6 @@ begin
       if pr.role = 'Outside user' or pr.status <> 'active' or lower(pr.email) <> lower(e.email)
          or exists (select 1 from public.hr_employees z where z.profile_id = p_user) then
         raise exception 'This invite link is not valid or has expired.' using errcode = 'P0001'; end if;
-      -- Nov 9 V-9: an HR-only Employee login that is being linked upgrades to the designation's portal role
-      mapped := private.hr_portal_role_for(e.designation_id);
-      if pr.role = 'Employee' and mapped in ('Processor', 'Preprocessor', 'Sales Person', 'Transaction Coordinator') then
-        update public.profiles set role = mapped where id = p_user and role = 'Employee';
-      end if;
     else
       if exists (select 1 from public.profiles where lower(email) = lower(e.email)) then
         raise exception 'This invite link is not valid or has expired.' using errcode = 'P0001'; end if;
@@ -129,7 +93,7 @@ CREATE OR REPLACE FUNCTION private.rpc_hr_accept_invite(p_token text)
  SECURITY DEFINER
  SET search_path TO 'pg_catalog', 'public', 'extensions'
 AS $function$
-declare v public.hr_invites; e public.hr_employees; me uuid := private.effective_uid(); pr public.profiles; mapped text;
+declare v public.hr_invites; e public.hr_employees; me uuid := private.effective_uid(); pr public.profiles;
 begin
   if me is null then raise exception 'Create your sign-in first.' using errcode = '42501'; end if;
   select * into v from public.hr_invites where token_hash = encode(digest(coalesce(p_token, ''), 'sha256'), 'hex') for update;
@@ -142,10 +106,6 @@ begin
     if pr.role = 'Outside user' or pr.status <> 'active' then raise exception 'This sign-in belongs to an agent or client login. Ask HR to use your work email.' using errcode = 'P0001'; end if;
     if lower(pr.email) <> lower(e.email) then raise exception 'This sign-in has a different email than the invite.' using errcode = 'P0001'; end if;
     if exists (select 1 from public.hr_employees z where z.profile_id = me) then raise exception 'This login is already linked to an employee.' using errcode = 'P0001'; end if;
-    mapped := private.hr_portal_role_for(e.designation_id);
-    if pr.role = 'Employee' and mapped in ('Processor', 'Preprocessor', 'Sales Person', 'Transaction Coordinator') then
-      update public.profiles set role = mapped where id = me and role = 'Employee';
-    end if;
   else
     if exists (select 1 from public.profiles where lower(email) = lower(e.email)) then raise exception 'Someone with that email already has a portal login.' using errcode = 'P0001'; end if;
     insert into public.profiles (id, email, first_name, last_name, phone, role) values (me, e.email, e.first_name, e.last_name,
@@ -159,15 +119,13 @@ end $function$;
 
 do $$
 begin
-  if private.hr_portal_role_for(null) <> 'Employee' then raise exception 'self-check: null designation must map to Employee'; end if;
-  if exists (select 1 from public.hr_designations g where private.hr_portal_role_for(g.id) in ('Admin', 'Super admin')) then
-    raise exception 'self-check: a designation maps to an Admin role';
+  if (select md5(prosrc) from pg_proc where oid = to_regprocedure('private.invite_service_accept(text,text,uuid,jsonb)'))
+       is distinct from '34186fdfe90c71369b8feebdde6fdb1a' then
+    raise exception 'readback: invite_service_accept did not restore';
   end if;
-  if position('mapped := private.hr_portal_role_for' in (select prosrc from pg_proc where oid = to_regprocedure('private.invite_service_accept(text,text,uuid,jsonb)'))) = 0 then
-    raise exception 'readback: invite_service_accept missing Employee upgrade';
-  end if;
-  if position('mapped := private.hr_portal_role_for' in (select prosrc from pg_proc where oid = to_regprocedure('private.rpc_hr_accept_invite(text)'))) = 0 then
-    raise exception 'readback: rpc_hr_accept_invite missing Employee upgrade';
+  if (select md5(prosrc) from pg_proc where oid = to_regprocedure('private.rpc_hr_accept_invite(text)'))
+       is distinct from 'ec593ca11b9a77e302ff6529e195af1b' then
+    raise exception 'readback: rpc_hr_accept_invite did not restore';
   end if;
 end $$;
 commit;

@@ -3,7 +3,7 @@
 -- in fetchHostedTask even when they own the task. Form answers already come through get_task_form; this only
 -- unlocks the field DEFINITIONS for a template that already has a task on a deal the viewer can open.
 -- No schema change. Active/retired templates stay as they are. Write policies unchanged.
--- Rollback: supabase/rollbacks/20261110020000_task_template_fields_for_assignees.sql
+-- Rollback: supabase/rollbacks/20261110024000_task_template_fields_for_assignees.sql
 begin;
 set local lock_timeout = '3s';
 do $$
