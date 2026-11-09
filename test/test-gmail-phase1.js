@@ -1,5 +1,5 @@
 /* Gmail phase 1 (John, Nov 9): the gmail-* edge function logic with fake Google + fake database. No network, no secrets. */
-import { isAllowedTestRecipient, parseAddressList, subjectWithTag, sanitizeHtml, buildMime, b64url, b64urlToText, hasWireDetails, parseGmailMessage, authUrl, SCOPES, REDIRECT_URI, extOk } from '../supabase/functions/_shared/gmail-core.mjs';
+import { isAllowedTestRecipient, parseAddressList, subjectWithTag, sanitizeHtml, buildMime, b64url, b64urlToText, hasWireDetails, parseGmailMessage, authUrl, SCOPES, REDIRECT_URI, extOk, SETTINGS_SCOPE, pickSendAsSignature, withSignature, hasSettingsScope } from '../supabase/functions/_shared/gmail-core.mjs';
 import { handleOauthStart, handleOauthCallback, handleSend, handleSync } from '../supabase/functions/_shared/gmail-handlers.mjs';
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
@@ -19,7 +19,8 @@ ok(!/script|onclick|onerror|javascript:|iframe/i.test(clean) && clean.includes('
 ok(hasWireDetails('Routing number 021000021, account number 12345678') && !hasWireDetails('Never wire money without calling our office first.'), 'wire check: bank numbers refused, a wire-fraud warning is fine');
 ok(extOk('a.pdf') && !extOk('a.exe') && !extOk('.pdf'), 'attachment types match the portal upload list');
 const u = new URL(authUrl({ clientId: 'cid', state: 'st', challenge: 'ch', loginHint: 'me@clatitle.com' }));
-ok(u.searchParams.get('scope') === SCOPES.join(' ') && !/gmail\.modify|mail\.google\.com/.test(u.searchParams.get('scope')), 'consent asks for gmail.send + gmail.readonly only');
+ok(u.searchParams.get('scope') === SCOPES.join(' ') && !/gmail\.modify|mail\.google\.com/.test(u.searchParams.get('scope')), 'consent asks for gmail.send + gmail.readonly (+ settings.basic to read the signature) only');
+ok(SCOPES.includes(SETTINGS_SCOPE) && !SCOPES.some((x) => /settings\.sharing|gmail\.compose|gmail\.modify/.test(x)), 'signature import uses gmail.settings.basic only');
 ok(u.searchParams.get('code_challenge_method') === 'S256' && u.searchParams.get('redirect_uri') === REDIRECT_URI && u.searchParams.get('hd') === 'clatitle.com' && u.searchParams.get('access_type') === 'offline', 'PKCE S256, exact redirect, clatitle.com accounts, offline access');
 
 // ---- MIME ----
@@ -39,6 +40,7 @@ function fakeDeps(over = {}) {
   const google = over.google || ((url, init) => {
     if (url.includes('oauth2.googleapis.com/token')) return { status: 200, body: { access_token: 'ya29.access', refresh_token: REFRESH, scope: SCOPES.slice(2).join(' ') + ' openid https://www.googleapis.com/auth/userinfo.email', id_token: 'h.' + b64url(JSON.stringify({ email: 'john@clatitle.com', email_verified: true, hd: 'clatitle.com' })) + '.s' } };
     if (url.includes('/revoke')) return { status: 200, body: {} };
+    if (url.endsWith('/settings/sendAs')) return over.sendAs || { status: 200, body: { sendAs: [{ sendAsEmail: 'alias@clatitle.com', isPrimary: false, signature: '<p>Alias</p>' }, { sendAsEmail: 'john@clatitle.com', isPrimary: true, isDefault: true, signature: '<div>John Coester | CLA Title<img src="https://x.test/l.png" onerror="alert(1)"></div><script>bad()</script>' }] } };
     if (url.endsWith('/profile')) return { status: 200, body: { emailAddress: 'john@clatitle.com', historyId: '900' } };
     if (url.includes('/messages/send')) return { status: 200, body: { id: 'gSent1', threadId: 'tNew' } };
     if (url.includes('format=metadata')) return { status: 200, body: { payload: { headers: [{ name: 'Message-ID', value: '<sent1@mail.gmail.com>' }] } } };
@@ -136,6 +138,31 @@ const sendBody = (o = {}) => ({ dealId: DEAL, to: 'clatestportal+buyer@gmail.com
   ok(!f.calls.fetch.some((c) => c.url.includes('/messages/mKnown')), 'sync: a message already on the file is skipped');
   const rec = f.calls.svc.find((c) => c.fn === 'gmail_svc_record').args.p; ok(rec.direction === 'in' && rec.deal_id === DEAL && rec.documents.length === 1 && rec.documents[0].path.startsWith(DEAL + '/') && rec.attachment_names.some((n) => /virus\.exe \(not saved/.test(n)), 'sync: reply attachment saved to the file documents; a disallowed type is not saved');
   ok(f.calls.stored.length === 1 && f.calls.svc.some((c) => c.fn === 'gmail_svc_update_account' && c.args.p_history === '950'), 'sync: cursor moves forward after everything was handled'); }
+
+// ---- Gmail signature import (John, Nov 9 2:06 PM) ----
+ok(pickSendAsSignature({ sendAs: [{ isPrimary: true, signature: '<b>P</b>' }, { isDefault: true, signature: '<i>D</i>' }] }) === '<i>D</i>' && pickSendAsSignature({ sendAs: [{ isPrimary: true, signature: '<b>P</b>' }] }) === '<b>P</b>' && pickSendAsSignature({}) === '', 'signature: the default send-as wins, else the primary');
+ok(!/script|onerror/.test(pickSendAsSignature({ sendAs: [{ isDefault: true, signature: '<p onerror="x()">A</p><script>y()</script>' }] })), 'signature: imported HTML is sanitized');
+{ const once = withSignature('<p>Hi</p>', '<p>Jo</p>'); ok(once === '<p>Hi</p><br><div class="gmail_signature"><p>Jo</p></div>' && withSignature(once, '<p>Jo</p>') === once && withSignature('<p>Hi</p>', '<p><br></p>') === '<p>Hi</p>', 'signature: appended once, never twice, nothing when empty'); }
+ok(hasSettingsScope(`openid ${SETTINGS_SCOPE}`) && !hasSettingsScope('openid email'), 'signature: scope check');
+{ const f = fakeDeps(); const s = await (await handleOauthStart(post({ action: 'start' }), f.deps)).json(); const st = new URL(s.url).searchParams.get('state');
+  const cb = await handleOauthCallback(new Request(`https://fn.test/?state=${encodeURIComponent(st)}&code=abc`), f.deps);
+  const set = f.calls.svc.find((c) => c.fn === 'gmail_svc_set_gmail_signature'); const ci = f.calls.svc.findIndex((c) => c.fn === 'gmail_svc_connect');
+  ok(cb.headers.get('Location').endsWith('gmail=connected') && set && set.args.p_force === false && set.args.p_html.includes('John Coester | CLA Title') && !/onerror|script/.test(set.args.p_html) && f.calls.svc.indexOf(set) > ci, 'connect: imports the default Gmail signature after saving the connection (keeps a typed override)'); }
+{ const f = fakeDeps({ sendAs: { status: 500, body: {} } }); const s = await (await handleOauthStart(post({ action: 'start' }), f.deps)).json(); const st = new URL(s.url).searchParams.get('state');
+  const cb = await handleOauthCallback(new Request(`https://fn.test/?state=${encodeURIComponent(st)}&code=abc`), f.deps); ok(cb.headers.get('Location').endsWith('gmail=connected') && !f.calls.svc.some((c) => c.fn === 'gmail_svc_set_gmail_signature'), 'connect: a signature read failure never blocks the connect'); }
+{ const tok = (scope) => (url) => (url.includes('/token') ? { status: 200, body: { access_token: 'ya29.a', refresh_token: REFRESH, scope, id_token: 'h.' + b64url(JSON.stringify({ email: 'john@clatitle.com', email_verified: true, hd: 'clatitle.com' })) + '.s' } } : url.endsWith('/profile') ? { status: 200, body: { emailAddress: 'john@clatitle.com', historyId: '1' } } : { status: 200, body: {} });
+  const w = await cbWith(tok('openid email https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly'));
+  ok(w.loc.endsWith('gmail=connected') && !w.f.calls.fetch.some((c) => c.url.includes('/settings/')), 'connect without the settings permission still connects (no signature read)'); }
+{ const f = fakeDeps({ ctx: { signatureScope: true } }); const r = await handleOauthStart(post({ action: 'refresh_signature' }), f.deps); const j = await r.json(); const set = f.calls.svc.find((c) => c.fn === 'gmail_svc_set_gmail_signature');
+  ok(r.status === 200 && j.ok && j.signatureHtml.includes('John Coester | CLA Title') && set.args.p_force === true && set.args.p_profile === JOHN && !leaks(f.calls, JSON.stringify(j)), 'Refresh from Gmail: reads the signature (read-only) and replaces the portal one'); }
+{ const f = fakeDeps({ ctx: { signatureScope: false } }); const r = await handleOauthStart(post({ action: 'refresh_signature' }), f.deps); const j = await r.json();
+  ok(r.status === 409 && j.needsReconnect && /Reconnect Gmail to import your signature/.test(j.error) && !f.calls.fetch.length, 'Refresh from Gmail without the permission: asks to reconnect, Google not called'); }
+{ const f = fakeDeps({ ctx: { signatureScope: true }, sendAs: { status: 403, body: { error: { status: 'PERMISSION_DENIED', message: 'Request had insufficient authentication scopes.' } } } }); const r = await handleOauthStart(post({ action: 'refresh_signature' }), f.deps); const j = await r.json();
+  ok(r.status === 409 && j.needsReconnect && !f.calls.svc.some((c) => c.fn === 'gmail_svc_set_gmail_signature'), 'Refresh from Gmail: Google says the permission is missing -> reconnect, nothing stored'); }
+{ const f = fakeDeps({ ctx: { signatureHtml: '<p>John Coester<br>CLA Title</p>' } }); const r = await handleSend(post(sendBody({ html: '<p>Hello</p><p>Thank you,</p><p>John Coester<br>CLA Title</p>' })), f.deps);
+  const mime = b64urlToText(JSON.parse(f.calls.fetch.find((c) => c.url.includes('/messages/send')).body).raw); const html = Buffer.from(mime.split('text/html; charset="UTF-8"')[1].split('\r\n\r\n')[1].split('--')[0].replace(/\r\n/g, ''), 'base64').toString();
+  const text = Buffer.from(mime.split('text/plain; charset="UTF-8"')[1].split('\r\n\r\n')[1].split('--')[0].replace(/\r\n/g, ''), 'base64').toString();
+  ok(r.status === 200 && (html.match(/John Coester/g) || []).length === 1 && (text.match(/John Coester/g) || []).length === 1, 'send: a body that already ends with the signature does not get it twice (HTML and plain text)'); }
 
 console.log(fail ? `${fail} FAILED` : 'all gmail phase 1 checks passed');
 if (fail) process.exit(1);

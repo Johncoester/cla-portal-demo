@@ -7,7 +7,25 @@ export const REDIRECT_URI = 'https://aqcervntopidtcazcmlv.supabase.co/functions/
 export const WORKSPACE_DOMAIN = 'clatitle.com';
 export const SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
 export const READ_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
-export const SCOPES = ['openid', 'email', SEND_SCOPE, READ_SCOPE];
+// gmail.settings.basic (John, Nov 9 2:06 PM): used READ-ONLY, to import the person's current Gmail signature (users.settings.sendAs.list).
+// It is optional: a connect without it still works and Profile Setting asks to reconnect to import the signature.
+export const SETTINGS_SCOPE = 'https://www.googleapis.com/auth/gmail.settings.basic';
+export const SCOPES = ['openid', 'email', SEND_SCOPE, READ_SCOPE, SETTINGS_SCOPE];
+export const hasSettingsScope = (granted) => String(granted || '').split(/\s+/).includes(SETTINGS_SCOPE);
+// the signature Gmail adds for the default send-as address (else the primary one), sanitized like any email body
+export function pickSendAsSignature(body) {
+  const list = (body && Array.isArray(body.sendAs)) ? body.sendAs : [];
+  const a = list.find((x) => x && x.isDefault) || list.find((x) => x && x.isPrimary) || null;
+  return a ? sanitizeHtml(String(a.signature || '')).slice(0, 20000) : '';
+}
+// append the signature once: not when there is none, and not when the body already ends with it
+export function withSignature(bodyHtml, sigHtml) {
+  const sig = sanitizeHtml(sigHtml || ''); const st = htmlToText(sig);
+  if (!st) return bodyHtml;
+  const flat = (t) => t.replace(/\s+/g, ' ').trim();
+  if (flat(htmlToText(bodyHtml)).endsWith(flat(st))) return bodyHtml;
+  return `${bodyHtml}<br><div class="gmail_signature">${sig}</div>`;
+}
 export const GMAIL_ROLES = ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin'];
 export const MAX_RECIPIENTS = 20;
 export const MAX_DOCS = 10;

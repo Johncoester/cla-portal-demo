@@ -8,7 +8,7 @@
  *   deps.newId() -> uuid, deps.now() -> ms */
 import { TEST_PROJECT_REF, PORTAL_ORIGIN, REDIRECT_URI, GMAIL_ROLES, MAX_RECIPIENTS, MAX_DOCS, MAX_ATTACH_BYTES, MAX_SAVE_BYTES, MAX_BODY_CHARS, TEST_ALLOWLIST_NOTE,
   isAllowedTestRecipient, parseAddressList, subjectWithTag, sanitizeHtml, htmlToText, hasWireDetails, isWireName, extOk, safeName, buildMime, b64url, b64urlToBytes,
-  parseGmailMessage, randomToken, sha256Hex, pkceChallenge, authUrl, decodeJwtPayload, missingScopes, oneLine, json } from './gmail-core.mjs';
+  parseGmailMessage, randomToken, sha256Hex, pkceChallenge, authUrl, decodeJwtPayload, missingScopes, oneLine, json, hasSettingsScope, pickSendAsSignature, withSignature } from './gmail-core.mjs';
 
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -49,6 +49,13 @@ async function revoke(deps, token) {
   if (!token) return false;
   try { const r = await deps.fetch(REVOKE_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token }).toString() }); return r.ok; } catch (e) { return false; }
 }
+// read-only: the person's current Gmail signature (needs gmail.settings.basic). { ok, html } or { ok: false, scope: true } on a missing scope
+async function gmailSignature(deps, access) {
+  const r = await gmail(deps, access, '/settings/sendAs');
+  if (r.ok) return { ok: true, html: pickSendAsSignature(r.body) };
+  const reason = JSON.stringify((r.body && r.body.error) || {});
+  return { ok: false, scope: r.status === 403 && /insufficient|scope|PERMISSION_DENIED/i.test(reason), status: r.status };
+}
 const rowOf = (x) => (Array.isArray(x) ? x[0] : x) || null;
 
 /* ---------------- gmail-oauth-start: start | status | disconnect ---------------- */
@@ -64,6 +71,18 @@ export async function handleOauthStart(req, deps) {
     const state = randomToken(32); const verifier = randomToken(48);
     await deps.svc('gmail_svc_begin_oauth', { p_profile: g.user.id, p_state_hash: await sha256Hex(state), p_verifier: verifier });
     return json(200, { url: authUrl({ clientId: deps.clientId, state, challenge: await pkceChallenge(verifier), loginHint: g.ctx.email }) }, deps.headers);
+  }
+  if (action === 'refresh_signature') {
+    if (!g.ctx.mailbox) return json(409, { error: 'Connect Gmail first.' }, deps.headers);
+    if (!g.ctx.signatureScope) return json(409, { error: 'Reconnect Gmail to import your signature.', needsReconnect: true }, deps.headers);
+    const row = rowOf(await deps.svc('gmail_svc_token', { p_profile: g.user.id }));
+    if (!row || !row.refresh_token) return json(409, { error: 'Connect Gmail first.' }, deps.headers);
+    let access; try { access = await accessTokenFor(deps, row.refresh_token); }
+    catch (e) { return json(e instanceof ReconnectError ? 409 : 502, { error: e instanceof ReconnectError ? e.message : 'Google did not answer. Try again.' }, deps.headers); }
+    const sig = await gmailSignature(deps, access);
+    if (!sig.ok) return json(sig.scope ? 409 : 502, sig.scope ? { error: 'Reconnect Gmail to import your signature.', needsReconnect: true } : { error: `Gmail did not return your signature (HTTP ${sig.status}).` }, deps.headers);
+    await deps.svc('gmail_svc_set_gmail_signature', { p_profile: g.user.id, p_html: sig.html, p_force: true });
+    return json(200, { ok: true, signatureHtml: sig.html, empty: !htmlToText(sig.html) }, deps.headers);
   }
   if (action === 'disconnect') {
     const row = rowOf(await deps.svc('gmail_svc_token', { p_profile: g.user.id }));
@@ -102,6 +121,12 @@ export async function handleOauthCallback(req, deps) {
   if (!tok.refresh_token) { why(deps, 'no refresh token from Google'); await kill(); return back('failed'); }
   try { await deps.svc('gmail_svc_connect', { p_profile: taken.profile_id, p_email: email, p_refresh: tok.refresh_token, p_scopes: String(tok.scope || ''), p_history: String(prof.body.historyId || '') }); }
   catch (e) { why(deps, `saving the connection: ${String(e && e.message || e).slice(0, 200)}`); await kill(); return back(/another portal login/i.test(String(e && e.message)) ? 'in_use' : 'failed'); }
+  // import the current Gmail signature (never blocks the connect; a typed portal signature is kept)
+  if (hasSettingsScope(tok.scope)) {
+    try { const sig = await gmailSignature(deps, tok.access_token);
+      if (sig.ok) await deps.svc('gmail_svc_set_gmail_signature', { p_profile: taken.profile_id, p_html: sig.html, p_force: false }); else why(deps, 'signature import (connect still saved)', { status: sig.status, body: {} });
+    } catch (e) { why(deps, `signature import (connect still saved): ${String(e && e.message || e).slice(0, 120)}`); }
+  }
   return back('connected');
 }
 
@@ -142,8 +167,7 @@ export async function handleSend(req, deps) {
   if (total > MAX_ATTACH_BYTES) return json(400, { error: 'Attachments are over 18 MB. Send fewer files.' }, H);
   let reply = null;
   if (b.replyToEmailId) { reply = await deps.userEmail(String(b.replyToEmailId)); if (!reply || reply.deal_id !== deal.id) return json(400, { error: 'That email is not on this file.' }, H); }
-  const sig = sanitizeHtml(ctx.signatureHtml || '');
-  const html = sig && htmlToText(sig) ? `${bodyHtml}<br><div class="gmail_signature">${sig}</div>` : bodyHtml;
+  const html = withSignature(bodyHtml, ctx.signatureHtml || '');
   const fromName = `${ctx.firstName || ''} ${ctx.lastName || ''}`.trim();
   const preview = { from: ctx.mailbox || null, fromName, to: to.ok, cc: cc.ok, bcc: bcc.ok, subject, signatureAdded: html !== bodyHtml, attachments: docs.map((d) => ({ id: d.id, name: d.name, size: Number(d.size_bytes || 0) })), threaded: !!(reply && reply.mailbox_email === ctx.mailbox) };
   if (dryRun) return json(200, { ok: true, dryRun: true, connected: !!ctx.mailbox && ctx.mailboxStatus === 'connected', ...preview }, H);
