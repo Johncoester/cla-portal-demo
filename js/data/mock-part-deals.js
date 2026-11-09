@@ -4,6 +4,7 @@ import { checkSource } from './mock-part-nov3b.js?v=202611090935';
 import { isRefi, REFI_BLOCKED_FIELDS } from './constants.js?v=202611090935';
 import { PROCESSOR_PICK_ROLES, referralWriteError } from './place-order.js?v=202611071845';
 import { claRepresentationCode } from './cla-representation.js?v=202611090950';
+import { buildFileNumber, retagFileNumber, sentOutside } from './file-number.js?v=202611092330';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 // John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only
@@ -91,7 +92,7 @@ export function dealsAndAuth(x) {
       const transactionType = C.TX_TYPES.includes(input.transactionType) ? input.transactionType : 'Purchase';
       if (isRefi(transactionType)) refiNoPrice(input, fail);
       const nextNum = Math.max(97000, ...d.deals.map((q) => Number(q.fileNumber.split('-')[2]) || 0)) + 1;
-      const deal = { id: nid('deal'), fileNumber: `MD-26-${nextNum}`, street, city, state, zip, county, countySource: ac.countySource, transactionType, stage: 0, status: 'Open',
+      const deal = { id: nid('deal'), fileNumber: buildFileNumber(state, localDate().slice(2, 4), nextNum), street, city, state, zip, county, countySource: ac.countySource, transactionType, stage: 0, status: 'Open',
         openDate, closingDate: dateOrNull(input.closingDate, 'Closing date'), purchasePrice: money(input.purchasePrice, 'Purchase price'), loanAmount: money(input.loanAmount, 'Loan amount'),
         emdAmount: money(input.emdAmount, 'EMD amount'), emdDueDate: dateOrNull(input.emdDueDate, 'EMD due date'),
         // Matt, Nov 3 (b): lender phone + email (and the picked lender's name / company) and the source of business are set at placement
@@ -111,6 +112,7 @@ export function dealsAndAuth(x) {
     },
     async updateDeal(id, patch) {
       const u = needProcessor(); const d = load(); const q = d.deals.find((y) => y.id === id) || fail('Order not found.');
+      const prevState = q.state;
       if (patch.state != null) { patch = { ...patch, state: stateCode(patch.state) }; if (patch.state !== q.state && !C.US_STATES.includes(patch.state)) fail('Pick a US state.'); }
       ['street', 'city', 'state', 'zip', 'lenderName', 'lenderContact', 'lenderEmail', 'lenderPhone', 'lossPayeeName', 'notes'].forEach((k) => { if (patch[k] != null) q[k] = str(patch[k], k === 'notes' ? 2000 : 200); });
       if (patch.county != null) q.county = str(patch.county, C.COUNTY_MAX);
@@ -118,6 +120,9 @@ export function dealsAndAuth(x) {
       if (patch.lenderPhone != null) q.lenderPhone = x.phone(patch.lenderPhone, 'Lender phone');
       if (!zipOk(q.zip)) fail('ZIP must be 5 digits (or ZIP+4).');
       if (!q.street || !q.city || !q.state) fail('Street, city and state are required.');
+      // John, Nov 9: the prefix follows the property state while nothing carrying the number has gone outside CLA; after that it is kept
+      if (patch.state != null && patch.state !== prevState) { const next = retagFileNumber(q.fileNumber, q.state);
+        if (next && q.status === 'Open' && !sentOutside({ outbox: (d.outbox || []).filter((o) => o.dealId === id) }) && !d.deals.some((y) => y.id !== id && y.fileNumber === next)) { log(id, u.id, 'deal.file_number', 'deal', id, `File number changed from ${q.fileNumber} to ${next} (property state ${q.state})`); q.fileNumber = next; } }
       if (patch.openDate) { const o = dateOrNull(patch.openDate, 'Open date'); if (o > localDate()) fail('Open date cannot be in the future.'); q.openDate = o; }
       if (patch.closingDate !== undefined) q.closingDate = dateOrNull(patch.closingDate, 'Closing date');
       if (isRefi(q)) refiNoPrice(patch, fail);   // a refinance keeps no purchase price / EMD (clearing one an old order still has is allowed)
