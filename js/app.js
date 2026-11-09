@@ -32,7 +32,7 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611091730'),
-  dashboard: () => import('./pages/dashboard.js?v=202611092350'),
+  dashboard: () => import('./pages/dashboard.js?v=202611092400'),
   orders: () => import('./pages/orders.js?v=202611091600'),
   'orders/new': () => import('./pages/ordernew.js?v=202611092350'),
   deal: () => import('./pages/deal.js?v=202611092350'),
