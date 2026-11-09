@@ -11,7 +11,7 @@ import { composeModal } from './compose.js?v=202611090935';
 import { sourceChoices } from '../data/place-order.js?v=202611070139';
 import { themeOn } from '../theme.js?v=202611070139';
 
-const TABS = { tasks: './dealtasks.js?v=202611091140', inbox: './dealmsgs.js?v=202611091030', documents: './dealdocs.js?v=202611091030', contacts: './dealcontacts.js?v=202611091140', activity: './dealactivity.js?v=202611070139', closing: './dealclosing.js?v=202611090935', agreements: './dealagreements.js?v=202611070139', accounting: './dealaccounting.js?v=202611091140' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611091730', inbox: './dealmsgs.js?v=202611091030', documents: './dealdocs.js?v=202611091030', contacts: './dealcontacts.js?v=202611091730', activity: './dealactivity.js?v=202611070139', closing: './dealclosing.js?v=202611090935', agreements: './dealagreements.js?v=202611070139', accounting: './dealaccounting.js?v=202611091730' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -20,7 +20,7 @@ export async function render(ctx) {
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
   if (tab === 'accounting' && !(api.features || {}).accounting) throw new Error('That page does not exist.');   // John, Nov 3: the Accounting tab follows the module switch on CLA Portal Live Test.
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611091140' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611091730' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
