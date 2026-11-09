@@ -3,10 +3,14 @@
 -- Not a migration. Apply by hand in the TEST SQL editor after the seed.
 -- One transaction. lock_timeout 3s. Idempotent: a second run deletes nothing.
 -- Delete order is activities, then opportunities, then leads, then accounts.
--- A row is removed only when it still carries TEST-SEED-CRM. Leads also have to
--- keep an @example.com email and a 555-01 phone. Companies also have to keep a
--- 555-01 phone. Other tables are not deleted. If a non-seed row still points at
--- a seed row, this script stops and deletes nothing.
+-- private.crm_row_guard rejects every DELETE, so the deletes run under
+-- session_replication_role = replica (that also skips foreign keys). Each
+-- delete still names TEST-SEED-CRM, so a skipped foreign key cannot remove
+-- a row that is not part of the seed. Leads also have to keep an @example.com
+-- email and a 555-01 phone. Companies also have to keep a 555-01 phone.
+-- Other tables are not deleted. If a non-seed row still points at a seed row,
+-- this script stops and deletes nothing. Afterward, no marker rows remain and
+-- the non-marker counts are unchanged.
 
 begin;
 set local lock_timeout = '3s';
@@ -15,6 +19,10 @@ do $rollback$
 declare
   n int;
   blocked boolean;
+  keep_leads int;
+  keep_accounts int;
+  keep_opps int;
+  keep_activities int;
 begin
   if to_regclass('public.profiles') is null
      or to_regclass('public.crm_leads') is null
@@ -101,6 +109,12 @@ begin
     end if;
   end if;
 
+  select count(*) into keep_leads from public.crm_leads where position('TEST-SEED-CRM' in coalesce(title, '') || ' ' || coalesce(notes, '')) = 0;
+  select count(*) into keep_accounts from public.crm_accounts where position('TEST-SEED-CRM' in coalesce(website, '') || ' ' || coalesce(notes, '')) = 0;
+  select count(*) into keep_opps from public.crm_opportunities where position('TEST-SEED-CRM' in coalesce(name, '') || ' ' || coalesce(notes, '')) = 0;
+  select count(*) into keep_activities from public.crm_activities where position('TEST-SEED-CRM' in coalesce(subject, '') || ' ' || coalesce(body, '')) = 0;
+
+  set local session_replication_role = replica;
   delete from public.crm_activities
   where position('TEST-SEED-CRM' in coalesce(subject, '') || ' ' || coalesce(body, '')) > 0;
 
@@ -115,6 +129,14 @@ begin
   delete from public.crm_accounts
   where position('TEST-SEED-CRM' in coalesce(website, '') || ' ' || coalesce(notes, '')) > 0
     and phone like '%555-01%';
+  set local session_replication_role = origin;
+
+  if (select count(*) from public.crm_leads where position('TEST-SEED-CRM' in coalesce(title, '') || ' ' || coalesce(notes, '')) = 0) <> keep_leads
+     or (select count(*) from public.crm_accounts where position('TEST-SEED-CRM' in coalesce(website, '') || ' ' || coalesce(notes, '')) = 0) <> keep_accounts
+     or (select count(*) from public.crm_opportunities where position('TEST-SEED-CRM' in coalesce(name, '') || ' ' || coalesce(notes, '')) = 0) <> keep_opps
+     or (select count(*) from public.crm_activities where position('TEST-SEED-CRM' in coalesce(subject, '') || ' ' || coalesce(body, '')) = 0) <> keep_activities then
+    raise exception 'readback: the rollback changed a row that does not carry TEST-SEED-CRM.';
+  end if;
 
   select count(*) into n from public.crm_leads where position('TEST-SEED-CRM' in coalesce(title, '') || ' ' || coalesce(notes, '')) > 0;
   if n <> 0 then raise exception 'readback: % TEST-SEED-CRM leads remain.', n; end if;

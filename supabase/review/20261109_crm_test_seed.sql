@@ -16,8 +16,14 @@
 -- mass update does not remove the only copy of the marker.
 -- Names are fake (TEST Lead Avery Example). Row emails are @example.com.
 -- Phones are 555-01xx. Addresses are Example streets in MD, VA, DC, and FL.
--- owner_id is John's profile, looked up at runtime (email johncoester@gmail.com,
--- id starting 149e612a). No profile is inserted and no other person is hard-coded.
+-- owner_id on activities is John's profile, looked up at runtime
+-- (email johncoester@gmail.com, id starting 149e612a). Leads, companies, and
+-- opportunities get that owner only when the profile is an active Sales Person
+-- or Sales Team user; crm_owner_check refuses any other role. No profile is
+-- inserted and no other person is hard-coded.
+-- Inserts run with the portal triggers on. If a trigger rewrites created_at or
+-- modified_at, those dates are put back with a by-marker update under
+-- session_replication_role = replica. Triggers are not disabled.
 -- Dates are Eastern calendar days so Created / Modified filters
 -- and overdue task colors have rows in the last 7 days, the last 30 days, and older.
 -- last_activity_at is not written and is not required. TEST has no such column
@@ -371,10 +377,17 @@ begin
       update _crm_seed_activities set priority = 'Normal' where priority is null;
     end if;
 
-    update _crm_seed_leads set owner_id = v_john;
-    update _crm_seed_accounts set owner_id = v_john;
-    update _crm_seed_opps set owner_id = v_john;
     update _crm_seed_activities set owner_id = v_john;
+    -- crm_owner_check accepts only an active Sales Person or Sales Team user.
+    -- A Super admin can own a task (crm_assignee_check) but not a lead, company, or opportunity.
+    if exists (
+      select 1 from public.profiles
+      where id = v_john and status = 'active' and role in ('Sales Person', 'Sales Team')
+    ) then
+      update _crm_seed_leads set owner_id = v_john;
+      update _crm_seed_accounts set owner_id = v_john;
+      update _crm_seed_opps set owner_id = v_john;
+    end if;
     if actor_required then
       update _crm_seed_leads set created_by = v_actor, modified_by = v_actor;
       update _crm_seed_accounts set created_by = v_actor, modified_by = v_actor;
@@ -418,14 +431,6 @@ begin
     if extra is not null then
       raise exception 'refusing: crm_activities has required columns this seed does not fill: %', extra;
     end if;
-
-    -- User triggers are paused only so historical created/modified
-    -- timestamps are stored. Foreign keys stay on. Triggers are turned back on
-    -- before the readback, and a rollback restores them if this script stops.
-    alter table public.crm_accounts disable trigger user;
-    alter table public.crm_leads disable trigger user;
-    alter table public.crm_opportunities disable trigger user;
-    alter table public.crm_activities disable trigger user;
 
     select string_agg(quote_ident(u.colname), ', ' order by u.colname), string_agg('src.' || quote_ident(u.colname), ', ' order by u.colname)
       into insert_cols, select_cols
@@ -488,10 +493,31 @@ begin
       || 'from _crm_seed_activities) src'
       using today;
 
-    alter table public.crm_activities enable trigger user;
-    alter table public.crm_opportunities enable trigger user;
-    alter table public.crm_leads enable trigger user;
-    alter table public.crm_accounts enable trigger user;
+    -- crm_row_guard rewrites activity modified_at to now() on insert. Put the
+    -- historical created/modified dates back without firing triggers. Replica
+    -- role also skips foreign keys, so the update matches marker ids only.
+    set local session_replication_role = replica;
+    update public.crm_accounts a set
+      created_at = timezone('America/New_York', (today - s.created_off) + time '15:00'),
+      modified_at = timezone('America/New_York', (today - s.modified_off) + time '15:00')
+    from _crm_seed_accounts s
+    where a.id = s.id and position('TEST-SEED-CRM' in coalesce(a.website, '') || ' ' || coalesce(a.notes, '')) > 0;
+    update public.crm_leads l set
+      created_at = timezone('America/New_York', (today - s.created_off) + time '15:00'),
+      modified_at = timezone('America/New_York', (today - s.modified_off) + time '15:00')
+    from _crm_seed_leads s
+    where l.id = s.id and position('TEST-SEED-CRM' in coalesce(l.title, '') || ' ' || coalesce(l.notes, '')) > 0;
+    update public.crm_opportunities o set
+      created_at = timezone('America/New_York', (today - s.created_off) + time '15:00'),
+      modified_at = timezone('America/New_York', (today - s.modified_off) + time '15:00')
+    from _crm_seed_opps s
+    where o.id = s.id and position('TEST-SEED-CRM' in coalesce(o.name, '') || ' ' || coalesce(o.notes, '')) > 0;
+    update public.crm_activities a set
+      created_at = timezone('America/New_York', (today - s.created_off) + time '15:00'),
+      modified_at = timezone('America/New_York', (today - s.created_off) + time '15:00')
+    from _crm_seed_activities s
+    where a.id = s.id and position('TEST-SEED-CRM' in coalesce(a.subject, '') || ' ' || coalesce(a.body, '')) > 0;
+    set local session_replication_role = origin;
   end if;
 
   if (select count(*) from public.crm_leads where position('TEST-SEED-CRM' in coalesce(title, '')) > 0 and email ~ '@example\.com$' and phone like '%555-01%') <> 10 then
