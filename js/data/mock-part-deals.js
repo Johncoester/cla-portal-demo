@@ -95,7 +95,7 @@ export function dealsAndAuth(x) {
         openDate, closingDate: dateOrNull(input.closingDate, 'Closing date'), purchasePrice: money(input.purchasePrice, 'Purchase price'), loanAmount: money(input.loanAmount, 'Loan amount'),
         emdAmount: money(input.emdAmount, 'EMD amount'), emdDueDate: dateOrNull(input.emdDueDate, 'EMD due date'),
         // Matt, Nov 3 (b): lender phone + email (and the picked lender's name / company) and the source of business are set at placement
-        lenderName: str(input.lenderName, 200), lenderContact: str(input.lenderContact, 200), lenderEmail: str(input.lenderEmail, 200).toLowerCase(), lenderPhone: x.phone(input.lenderPhone, 'Lender phone'),
+        lenderName: str(input.lenderName, 200), lenderContact: str(input.lenderContact, 200), lenderEmail: str(input.lenderEmail, 200).toLowerCase(), lenderPhone: x.phone(input.lenderPhone, 'Lender phone'), lossPayeeName: str(input.lossPayeeName, 200),
         sourceOfBusiness: (() => { const src = checkSource(d, input.sourceOfBusiness, '', fail); const msg = referralWriteError({ source: src, contacts: d.contacts, profiles: d.profiles, actor: u, participants: d.participants, dealId: '' }); if (msg) fail(msg); return src; })(), ...occFields(input, transactionType, fail), notes: str(input.notes, 2000), claRepresentation, processorId: procId, processorUnassigned: !procId, preprocessorUserId: preprocId ? preprocId.id : null, createdBy: u.id, createdAt: now() };
       if (deal.lenderEmail && !emailOk(deal.lenderEmail)) fail('Lender email is not valid.');
       d.deals.push(deal);
@@ -112,7 +112,7 @@ export function dealsAndAuth(x) {
     async updateDeal(id, patch) {
       const u = needProcessor(); const d = load(); const q = d.deals.find((y) => y.id === id) || fail('Order not found.');
       if (patch.state != null) { patch = { ...patch, state: stateCode(patch.state) }; if (patch.state !== q.state && !C.US_STATES.includes(patch.state)) fail('Pick a US state.'); }
-      ['street', 'city', 'state', 'zip', 'lenderName', 'lenderContact', 'lenderEmail', 'lenderPhone', 'notes'].forEach((k) => { if (patch[k] != null) q[k] = str(patch[k], k === 'notes' ? 2000 : 200); });
+      ['street', 'city', 'state', 'zip', 'lenderName', 'lenderContact', 'lenderEmail', 'lenderPhone', 'lossPayeeName', 'notes'].forEach((k) => { if (patch[k] != null) q[k] = str(patch[k], k === 'notes' ? 2000 : 200); });
       if (patch.county != null) q.county = str(patch.county, C.COUNTY_MAX);
       if (q.lenderEmail && !emailOk(q.lenderEmail)) fail('Lender email is not valid.');
       if (patch.lenderPhone != null) q.lenderPhone = x.phone(patch.lenderPhone, 'Lender phone');
