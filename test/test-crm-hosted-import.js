@@ -29,8 +29,8 @@ const bannerAt = page.indexOf('data-import-test-banner');
 ok(bannerAt > deniedAt && page.includes('TEST portal: fake data only, do not import real client contacts'), 'the test-portal banner is on the admin import screen');
 ok(page.includes("api.mode === 'supabase' && me.isAdmin"), 'the banner is admin-only and only on the hosted portal');
 
-const sql = read('supabase/migrations/20261110020000_crm_hosted_import.sql');
-const rollback = read('supabase/rollbacks/20261110020000_crm_hosted_import.sql');
+const sql = read('supabase/migrations/20261110100000_crm_hosted_import.sql');
+const rollback = read('supabase/rollbacks/20261110100000_crm_hosted_import.sql');
 const sqlCode = sql.replace(/--[^\n]*/g, '');
 const batch = sqlCode.split('create or replace function public.crm_import_batch')[1].split('create or replace function public.crm_list_imports')[0];
 const loop = batch.split('for v_row in select value from jsonb_array_elements(p_rows)')[1] || '';
@@ -39,7 +39,7 @@ ok(!sqlCode.includes('session_replication_role') && !/create policy|alter policy
 ok(sql.includes('public.crm_import_rows') && sql.includes("errcode = 'P0004'"), 'preview rolls back through P0004 and rows are logged');
 ok(/insert into public\.crm_imports \([^)]*\btotal\b/.test(sql) && sql.includes('v_total'), 'the import log stores the row total');
 ok(sql.includes('Postgres logs can keep that text'), 'the preview comment says row results can land in the database log');
-ok(rollback.includes('drop function if exists public.crm_import_batch') && rollback.includes('crm-hosted-import 20261110020000') && !rollback.includes('drop table public.crm_imports'), 'rollback drops the functions and only the objects this migration added');
+ok(rollback.includes('drop function if exists public.crm_import_batch') && rollback.includes('crm-hosted-import 20261110100000') && !rollback.includes('drop table public.crm_imports'), 'rollback drops the functions and only the objects this migration added');
 ok(sql.includes('p_import uuid') && sql.includes('p_chunk integer') && rollback.includes('crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer)'), 'chunks share one batch id');
 ok(batch.includes('v_n > 500') && batch.includes('At most 500 rows per import call.'), 'a call of more than 500 rows is refused');
 ok(batch.includes('p_chunk > 20') && batch.includes('at most 10000 rows'), 'the server still caps each call at 500 and a file at 10000');

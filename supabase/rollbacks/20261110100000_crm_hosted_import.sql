@@ -1,4 +1,4 @@
--- Exact rollback of 20261110020000_crm_hosted_import.sql.
+-- Exact rollback of 20261110100000_crm_hosted_import.sql.
 -- One transaction. lock_timeout 3s.
 -- Drops the three import functions. Drops crm_import_rows only when this
 -- migration created it (the table comment is the marker). Drops crm_imports
@@ -17,7 +17,7 @@ drop function if exists public.crm_list_import_rows(uuid);
 
 do $rb$
 declare
-  marker text := 'crm-hosted-import 20261110020000';
+  marker text := 'crm-hosted-import 20261110100000';
   col text;
 begin
   if to_regclass('public.crm_import_rows') is not null

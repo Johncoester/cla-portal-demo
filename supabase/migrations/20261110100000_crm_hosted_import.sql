@@ -34,7 +34,7 @@ declare
   cols text;
   typ text;
   extra text;
-  marker text := 'crm-hosted-import 20261110020000';
+  marker text := 'crm-hosted-import 20261110100000';
 begin
   if to_regclass('public.crm_imports') is null then
     raise exception 'drift: public.crm_imports is missing';
@@ -93,7 +93,7 @@ begin
   where table_schema = 'public' and table_name = 'crm_imports' and column_name = 'defaults';
   if typ is null then
     alter table public.crm_imports add column defaults jsonb not null default '[]'::jsonb;
-    comment on column public.crm_imports.defaults is 'crm-hosted-import 20261110020000';
+    comment on column public.crm_imports.defaults is 'crm-hosted-import 20261110100000';
   elsif typ is distinct from 'jsonb' then
     raise exception 'drift: public.crm_imports.defaults is %, expected jsonb. Columns: %', typ, cols;
   end if;
@@ -130,7 +130,7 @@ begin
       constraint crm_import_rows_line_check check (line > 0),
       constraint crm_import_rows_status_check check (status = any (array['ok'::text, 'duplicate'::text, 'error'::text]))
     );
-    comment on table public.crm_import_rows is 'crm-hosted-import 20261110020000';
+    comment on table public.crm_import_rows is 'crm-hosted-import 20261110100000';
     alter table public.crm_import_rows enable row level security;
     revoke all on table public.crm_import_rows from public;
     if exists (select 1 from pg_roles where rolname = 'anon') then
