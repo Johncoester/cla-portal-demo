@@ -1,4 +1,4 @@
--- Exact rollback of 20261109163000_crm_attachment_email_rls.sql.
+-- Exact rollback of 20261109172229_crm_attachment_email_rls.sql.
 -- One transaction. lock_timeout 3s. Refuses unless the two email policies
 -- still deparse to the corrected email-id join, then restores the captured
 -- preimage (e.id = e.entity_id). No helper and no other policy is changed.

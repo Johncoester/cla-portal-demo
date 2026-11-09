@@ -1,8 +1,8 @@
 /* Text check for the crm_attachments email RLS fix. No network and no database. */
 import { readFileSync } from 'node:fs';
 
-const migration = readFileSync(new URL('../supabase/migrations/20261109163000_crm_attachment_email_rls.sql', import.meta.url), 'utf8');
-const rollback = readFileSync(new URL('../supabase/rollbacks/20261109163000_crm_attachment_email_rls.sql', import.meta.url), 'utf8');
+const migration = readFileSync(new URL('../supabase/migrations/20261109172229_crm_attachment_email_rls.sql', import.meta.url), 'utf8');
+const rollback = readFileSync(new URL('../supabase/rollbacks/20261109172229_crm_attachment_email_rls.sql', import.meta.url), 'utf8');
 const check = readFileSync(new URL('../supabase/checks/crm_attachment_email_rls.sql', import.meta.url), 'utf8');
 
 let pass = 0, fails = 0;

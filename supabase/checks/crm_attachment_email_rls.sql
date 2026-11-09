@@ -1,6 +1,6 @@
 -- Read-only check for crm_attachments rows whose entity is email.
 -- Run as postgres (table owner / superuser) in the SQL editor, before and after
--- supabase/migrations/20261109163000_crm_attachment_email_rls.sql.
+-- supabase/migrations/20261109172229_crm_attachment_email_rls.sql.
 -- One transaction. There is no COMMIT. The last statement is ROLLBACK.
 -- Every profile, lead, email, and attachment below is fake and is discarded.
 --
