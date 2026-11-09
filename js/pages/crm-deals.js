@@ -3,7 +3,7 @@
 import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, toast } from '../ui.js?v=202611070139';
 import { crmSort, inLocalRange } from '../data/crm.js?v=202611070139';
 import { DEAL_COLS, LOCKED_COLS, DEFAULT_HIDDEN, loadHidden, saveHidden } from '../data/crm-deal-cols.js?v=202611070139';
-import { tabs, head, money } from './crm-kit.js?v=202611090935';
+import { tabs, head, money, wireRowOpen } from './crm-kit.js?v=202611090935';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611090905';
 import { viewsBar, wireViewsBar } from './crm-views.js?v=202611090935';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
@@ -69,6 +69,7 @@ async function dealsList(c) {
       $$('th[data-sort]', root).forEach((th) => { const on = th.dataset.sort === sort; if (on) th.setAttribute('aria-sort', dir === 'asc' ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort');
         $('.up', th).classList.toggle('on', on && dir === 'asc'); $('.dn', th).classList.toggle('on', on && dir === 'desc'); }); };
     f.q.addEventListener('input', apply); $$('[data-crm-date]', f).forEach((el) => el.addEventListener('change', apply));
+    wireRowOpen(tb, (id) => `#/crm/deals/${id}`);
     const reset = $('[data-crm-reset]', f); if (reset) reset.addEventListener('click', () => {
       const bare = (location.hash || '').split('?')[0] === '#/crm/deals' && !(location.hash || '').includes('?');
       if (!bare) { location.hash = '#/crm/deals'; return; }
@@ -100,16 +101,27 @@ async function dealsList(c) {
   return { title: 'Deals', crumbs: [['CRM', '#/crm'], ['Deals']], body, mount };
 }
 
+function disbView(x) {
+  const raw = x && typeof x === 'object' ? x : {}; const src = raw.values && typeof raw.values === 'object' ? raw.values : raw; const out = {};
+  DISBURSEMENT_FIELDS.forEach(([k]) => { out[k] = src[k] == null || src[k] === '' ? null : src[k]; });
+  return { ...out, canEdit: !!raw.canEdit, updatedAt: raw.updatedAt || null, updatedByName: raw.updatedByName || '', history: Array.isArray(raw.history) ? raw.history : [] };
+}
+async function loadDisb(api, id) {
+  if (!api || typeof api.getCrmDealDisbursement !== 'function') return disbView(null);
+  try { return disbView(await api.getCrmDealDisbursement(id)); } catch { return disbView(null); }
+}
 async function dealPage(c) {
-  const { api, me, params, refresh } = c; const d = await api.getCrmDeal(params.id); const disb = await api.getCrmDealDisbursement(d.id); api.noteCrmRecent('deal', d.id).catch(() => {});
+  const { api, me, params, refresh } = c; const d = await api.getCrmDeal(params.id); const disb = await loadDisb(api, d.id);
+  if (typeof api.noteCrmRecent === 'function') { try { const p = api.noteCrmRecent('deal', d.id); if (p && typeof p.catch === 'function') p.catch(() => {}); } catch { /* recent items are optional */ } }
+  const people = Array.isArray(d.people) ? d.people : []; const emails = Array.isArray(d.emails) ? d.emails : []; const portal = d._portalLink || `#/deals/${d.id}`;
   const row = (l, v) => html`<tr><th>${l}</th><td>${v}</td></tr>`;
-  const body = html`${tabs('deals')}${head(d.name, me, html`<span data-record-actions>${sendEmailBtn('deal', d.id, me)} <a class="ghost" href="${d._portalLink}" data-open-order>Open the order</a></span>`)}
+  const body = html`${tabs('deals')}${head(d.name, me, html`<span data-record-actions>${sendEmailBtn('deal', d.id, me)} <a class="ghost" href="${portal}" data-open-order>Open the order</a></span>`)}
     <div class="card" data-deal-summary><table class="tbl">${row('Deal Name', d.name)}${row('File Number', d.fileNumber)}${row('Property Address', d.propertyAddress)}${row('Amount', money(d.amount))}${row('Loan Amount', money(d.loanAmount))}
       ${row('Stage', d.stage)}${row('Closing Date', fmtDate(d.closingDate))}${row('Open Date', fmtDate(d.openDate))}${row('Deal Owner', d.ownerName)}${row('Sales Reps', d.salesReps)}${row('Transaction Type', d.transactionType)}</table></div>
-    <div class="card" data-deal-people><h3>People on the file</h3><table class="tbl"><thead><tr><th>Role</th><th>Name</th><th>Email</th></tr></thead><tbody>${d.people.map((p) => html`<tr><td>${p.role}</td><td>${p.link ? html`<a href="${p.link}">${p.name}</a>` : p.name}</td><td>${p.email}</td></tr>`)}</tbody></table></div>
+    <div class="card" data-deal-people><h3>People on the file</h3><table class="tbl"><thead><tr><th>Role</th><th>Name</th><th>Email</th></tr></thead><tbody>${people.map((p) => html`<tr><td>${p.role}</td><td>${p.link ? html`<a href="${p.link}">${p.name}</a>` : p.name}</td><td>${p.email}</td></tr>`)}</tbody></table></div>
     ${disbCard(disb)}
-    ${emailsCard(d.emails)}`;
-  return { title: d.name, crumbs: [['CRM', '#/crm'], ['Deals', '#/crm/deals'], [d.fileNumber]], body, mount(root) { wireSendEmail(root, api, me, refresh); wireEmails(root, api, d.emails); wireDisb(root, api, d.id, disb, refresh); void $; } };
+    ${emailsCard(emails)}`;
+  return { title: d.name, crumbs: [['CRM', '#/crm'], ['Deals', '#/crm/deals'], [d.fileNumber]], body, mount(root) { wireSendEmail(root, api, me, refresh); wireEmails(root, api, emails); wireDisb(root, api, d.id, disb, refresh); void $; } };
 }
 
 // Janine, Nov 4 (video "Disbursement Details - Deals"): Zoho's Disbursement Details section. Typed amounts + a date; Admin / Super admin edit; every change logged.

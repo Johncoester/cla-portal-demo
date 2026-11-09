@@ -9,6 +9,18 @@ import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202
 import { pageOf, selectionState, selectPage, BULK_PAGE_SIZE } from '../data/crm-bulk.js?v=202611090905';
 import { bulkBar, wireBulk } from './crm-bulk.js?v=202611090905';
 
+// A click on the row (not on a link, button, or checkbox) opens the record. The name link still navigates on its own.
+export function wireRowOpen(tb, hrefFor) {
+  if (!tb || !tb.addEventListener) return;
+  tb.addEventListener('click', (e) => {
+    const t = e.target; const el = t && typeof t.closest === 'function' ? t : (t && t.parentElement);
+    if (!el || typeof el.closest !== 'function') return;
+    if (el.closest('a, button, input, select, textarea, label, summary')) return;
+    const tr = el.closest('tr[data-row]'); if (!tr || !tr.dataset || !tr.dataset.row) return;
+    const href = hrefFor(tr.dataset.row); if (href) location.hash = href;
+  });
+}
+
 // Nov 2 (Zoho): Home is the CRM landing page; Contacts are shown as Clients and Accounts as Companies (routes keep their internal names); My follow-ups -> Home tasks
 export const SECTIONS = [['home', 'Home'], ['leads', 'Leads'], ['contacts', 'Clients'], ['accounts', 'Companies'], ['deals', 'Deals'], ['pipeline', 'Pipeline'], ['dashboards', 'Dashboards'], ['reports', 'Reports'], ['templates', 'Templates']];   // Nov 3 (b): Deals (the portal's orders), Dashboards (video 9);   // Nov 3: Templates (email templates, every CRM user; Processor read-only)
 // Settings tab: Admin / Super admin only (crm.js calls setCrmAdmin on every CRM page load; the adapter refuses everyone else anyway)
@@ -57,6 +69,7 @@ export function listView({ key, rows, cols, filters = [], sorts = [], fields, df
       const pg = $('[data-bulk-pager]', root); if (pg) pg.innerHTML = toText(view.pages > 1 ? html`<button type="button" class="ghost" data-bulk-prev ${view.page <= 1 ? raw('disabled') : ''}>Previous</button> Page ${view.page} of ${view.pages} <button type="button" class="ghost" data-bulk-next ${view.page >= view.pages ? raw('disabled') : ''}>Next</button>` : html``);
       paintBar(); };
     f.addEventListener('input', apply); f.addEventListener('change', apply);
+    wireRowOpen(tb, (id) => `#/crm/${key}/${id}`);
     const resetBtn = $('[data-crm-reset]', f); if (resetBtn) resetBtn.addEventListener('click', () => {
       [...f.elements].forEach((el) => { if (!el.name) return; el.value = el.name === 'sort' ? sortDefault : (dflt[el.name] || ''); });
       apply();

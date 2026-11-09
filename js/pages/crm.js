@@ -31,7 +31,8 @@ const link = (sec, r) => html`<a href="#/crm/${sec}/${r.id}" data-open="${r.id}"
 const muted = (t) => html`<span class="muted">${t}</span>`;
 // record header (Zoho, video 7): Send Email | Edit | More (Archive, Compose from template). Nothing is ever sent.
 const moreMenu = (...items) => html`<details class="more-menu" data-more style="display:inline-block"><summary class="ghost" data-more-btn>More &#9662;</summary><div data-more-items>${items}</div></details>`;
-const noteRecent = (api, entity, id) => { api.noteCrmRecent(entity, id).catch(() => {}); };
+const noteRecent = (api, entity, id) => { if (!api || typeof api.noteCrmRecent !== 'function') return; try { const p = api.noteCrmRecent(entity, id); if (p && typeof p.catch === 'function') p.catch(() => {}); } catch { /* a recent-item note never blocks the record */ } };
+const recordEmails = async (api, entity, id) => { if (!api || typeof api.listCrmEmails !== 'function') return []; try { const rows = await api.listCrmEmails(entity, id); return Array.isArray(rows) ? rows : []; } catch { return []; } };
 // Zoho record header prev / next arrows (video 7): the neighbours in the list order (by name, archived left out), only records you may see
 async function recNav(list, id, base) {
   const rows = (await list).filter((r) => !r.archived || r.id === id).sort((a, b) => String(a.name).localeCompare(String(b.name)) || String(a.id).localeCompare(String(b.id)));
@@ -112,7 +113,7 @@ async function leadsList({ api, me, owners, go, cfg, refresh }) {
     const b = $('[data-new-lead]', root); if (b) b.addEventListener('click', () => personModal('lead', blankPerson(me), { owners, accounts, me, cfg, blank: () => blankPerson(me) }, (v) => api.createCrmLead(v), (l) => go('/crm/leads/' + l.id))); } };
 }
 async function leadPage({ api, me, owners, assignees, params, refresh, go, cfg }) {
-  const l = await api.getCrmLead(params.id); const accounts = me.canEdit && !l.converted ? await api.listCrmAccounts() : []; const emails = await api.listCrmEmails('lead', l.id); noteRecent(api, 'lead', l.id); const nav = await recNav(api.listCrmLeads(), l.id, 'leads');
+  const l = await api.getCrmLead(params.id); const accounts = me.canEdit && !l.converted ? await api.listCrmAccounts() : []; const emails = await recordEmails(api, 'lead', l.id); noteRecent(api, 'lead', l.id); const nav = await recNav(api.listCrmLeads(), l.id, 'leads');
   const body = html`${head(`Lead: ${l.name}`, me)}${tabs('leads')}
     <div class="card" data-lead="${l.id}"><p>${l.converted ? html`${pill('Converted', 'ok')} to client <a href="#/crm/contacts/${l.convertedContactId}" data-converted-contact>${l.convertedContactName}</a> on ${fmtDate(l.convertedAt)}` : ''}${l.archived ? html` ${pill('Archived')}` : ''}</p>
       <p data-record-actions>${sendEmailBtn('lead', l.id, me)} ${me.canEdit && !l.converted ? html`<button class="ghost" data-edit-lead>Edit</button> ${l.archived ? '' : html`<button class="m-btn" data-convert>Convert to client</button>`} ` : ''}${moreMenu(archiveBtn(me, 'lead', l.id, l.archived), ' ', composeBtn('lead', l.id))} ${nav}
@@ -161,7 +162,7 @@ async function contactsList({ api, me, owners, go, cfg, refresh }) {
     const b = $('[data-new-contact]', root); if (b) b.addEventListener('click', () => personModal('contact', blankPerson(me), { owners, accounts, me, cfg, blank: () => blankPerson(me) }, (v) => api.createCrmContact(v), (r) => go('/crm/contacts/' + r.id))); } };
 }
 async function contactPage({ api, me, owners, assignees, params, refresh, cfg }) {
-  const c = await api.getCrmContact(params.id); const accounts = me.canEdit ? await api.listCrmAccounts() : []; const emails = await api.listCrmEmails('contact', c.id); noteRecent(api, 'contact', c.id); const nav = await recNav(api.listCrmContacts(), c.id, 'contacts');
+  const c = await api.getCrmContact(params.id); const accounts = me.canEdit ? await api.listCrmAccounts() : []; const emails = await recordEmails(api, 'contact', c.id); noteRecent(api, 'contact', c.id); const nav = await recNav(api.listCrmContacts(), c.id, 'contacts');
   const extra = html`<dt>Portal login</dt><dd>${c.hasLogin ? 'Yes (outside user)' : 'No'}</dd>
     <dt>Salespeople</dt><dd data-sales-reps>${c.salesReps.length ? c.salesReps.map((s) => s.name).join(', ') : muted('none linked')} <span class="muted small">(client links from Admin &gt; Users)</span></dd>
     <dt>Last contacted</dt><dd>${fmtDate(c.lastContactedOn) || muted('—')}</dd>${hiddenField(cfg, 'person', 'tags') ? '' : html`<dt>Tags</dt><dd data-f="tags">${c.tags.join(', ') || muted('—')}</dd>`}
@@ -211,7 +212,7 @@ function accountForm(api, me, owners, a, done, cfg = null) {
   open(v);
 }
 async function accountPage({ api, me, owners, assignees, params, refresh, cfg }) {
-  const a = await api.getCrmAccount(params.id); const H = (k) => hiddenField(cfg, 'account', k); const emails = await api.listCrmEmails('account', a.id); noteRecent(api, 'account', a.id);
+  const a = await api.getCrmAccount(params.id); const H = (k) => hiddenField(cfg, 'account', k); const emails = await recordEmails(api, 'account', a.id); noteRecent(api, 'account', a.id);
   const body = html`${head(`Company: ${a.name}`, me)}${tabs('accounts')}
     <div class="card" data-account="${a.id}"><h3>${a.name} ${a.archived ? pill('Archived') : ''}</h3>
       <dl class="kv"><dt>Type</dt><dd data-f="kind">${lbl(cfg, 'accountKind', a.kind)}</dd>${H('phone') ? '' : html`<dt>Phone</dt><dd>${a.phone || '—'}</dd>`}${H('website') ? '' : html`<dt>Website</dt><dd>${a.website || '—'}</dd>`}${H('city') && H('state') ? '' : html`<dt>City</dt><dd>${[H('city') ? '' : a.city, H('state') ? '' : a.state].filter(Boolean).join(', ') || '—'}</dd>`}
