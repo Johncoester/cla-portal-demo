@@ -9,6 +9,7 @@ import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCusto
 import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611090935';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611070139';
 import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611090935';
+import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611091240';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };
@@ -69,6 +70,18 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     if (v.participants !== undefined) o.participants = (Array.isArray(v.participants) ? v.participants : String(v.participants || '').split(',')).map((x) => String(x).trim()).filter(Boolean);
     return o; };
   const one = async (q) => ok(await q.select('*').single());
+  // TEST CRM tables have no last-activity column. List filters still offer Last Activity Time, filled from crm_activities.
+  const withActivity = async (rows, entity) => {
+    const ids = (rows || []).map((r) => r && r.id).filter(Boolean);
+    const best = new Map();
+    if (ids.length) {
+      try {
+        const acts = ok(await sb.from('crm_activities').select('entity_id,occurred_on,created_at').eq('entity', entity).in('entity_id', ids)) || [];
+        acts.forEach((a) => { const stamp = a.occurred_on || a.created_at || ''; const prev = best.get(a.entity_id) || ''; if (String(stamp) > String(prev)) best.set(a.entity_id, stamp); });
+      } catch { /* a missing activities read leaves the filter blank, not broken */ }
+    }
+    return (rows || []).map((r) => ({ ...r, lastActivityAt: best.get(r.id) || r.lastActivityAt || null }));
+  };
   // ---------- CRM Settings (migration 25) ----------
   const settingsRaw = async () => ensureSettings(await rpc('crm_settings'));
   // custom values from a form ({custom: {...}} and / or 'cf.<id>' keys), cleaned like the mock; the database checks them again
@@ -111,27 +124,27 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async listCrmOwners() { on(); return owners(); },
     async listCrmAssignees() { on(); return staff(); },
     async listCrmUsers() { on(); return staff(); },   // participants: the CLA staff the caller can pick (other users can be added by an Admin later)
-    async listCrmLeads() { on(); const os = await owners(); return (ok(await sb.from('crm_leads').select('*')) || []).map((l) => leadRow(l, os)); },
+    async listCrmLeads() { on(); const os = await owners(); return withActivity((ok(await sb.from('crm_leads').select('*')) || []).map((l) => leadRow(l, os)), 'lead'); },
     async getCrmLead(id) { on(); const os = await owners(); const l = ok(await sb.from('crm_leads').select('*').eq('id', id).maybeSingle()); if (!l) throw new Error('Lead not found.');
       return { ...leadRow(l, os), activities: await acts([['lead', id]]), invitedMeetings: await invited('lead', id), attachments: await files([['lead', id]]) }; },
     async createCrmLead(v) { on(); const os = await owners(); return leadRow(await one(sb.from('crm_leads').insert(await withCustom('lead', leadIn(v), v))), os); },
     async updateCrmLead(id, v) { on(); const os = await owners(); return leadRow(await one(sb.from('crm_leads').update(await withCustom('lead', leadIn(v), v)).eq('id', id)), os); },
     async convertCrmLead(id, opts = {}) { return camel(await rpc('crm_convert_lead', { p_lead: id, p: opts })); },
-    async listCrmContacts() { return (await rpc('crm_contact_list')).map(contactRow); },
+    async listCrmContacts() { return withActivity((await rpc('crm_contact_list')).map(contactRow), 'contact'); },
     async getCrmContact(id) { const c = contactRow(await rpc('crm_contact_detail', { p_id: id })); const pairs = [['contact', id]]; if (c.fromLeadId) pairs.push(['lead', c.fromLeadId]);
       const account = c.accountId ? (await rpc('crm_account_list')).find((a) => a.id === c.accountId) || null : null;
       const opportunities = camel(ok(await sb.from('crm_opportunities').select('*').eq('contact_id', id)) || []);
       return { ...c, account: account && camel(account), totals: orderTotals(c.orders), activities: await acts(pairs), opportunities, invitedMeetings: await invited('contact', id), attachments: await files(pairs) }; },
     async createCrmContact(v) { const id = await rpc('crm_create_contact', { p: await withCustom('contact', contactIn(noCf(v)), v) }); return contactRow(await rpc('crm_contact_detail', { p_id: id })); },
     async updateCrmContact(id, v) { await rpc('crm_update_contact', { p_id: id, p: await withCustom('contact', contactIn(noCf(v)), v) }); return contactRow(await rpc('crm_contact_detail', { p_id: id })); },
-    async listCrmAccounts() { return camel(await rpc('crm_account_list')); },
+    async listCrmAccounts() { return withActivity(camel(await rpc('crm_account_list')), 'account'); },
     async getCrmAccount(id) { const a = camel((await rpc('crm_account_list')).find((x) => x.id === id)); if (!a) throw new Error('Company not found.'); const d = await rpc('crm_account_detail', { p_id: id });
       return { ...a, contactList: d.contactList.map(contactRow), orders: d.orders, totals: orderTotals(d.orders), activities: await acts([['account', id]]), invitedMeetings: [], attachments: await files([['account', id]]),
         opportunities: camel(ok(await sb.from('crm_opportunities').select('*').eq('account_id', id)) || []) }; },
     async createCrmAccount(v) { on(); return camel(await one(sb.from('crm_accounts').insert(await withCustom('account', accIn(v), v)))); },
     async updateCrmAccount(id, v) { on(); return camel(await one(sb.from('crm_accounts').update(await withCustom('account', accIn(v), v)).eq('id', id))); },
-    async listCrmOpportunities() { on(); const os = await owners(); return camel(ok(await sb.from('crm_opportunities').select('*, contact:contacts(first_name, last_name), account:crm_accounts(name)')) || [])
-      .map((o) => ({ ...o, ownerName: nameOf(os, o.ownerId), contactName: o.contact ? `${o.contact.firstName} ${o.contact.lastName}`.trim() : '', accountName: o.account ? o.account.name : '', archived: !!o.archivedAt })); },
+    async listCrmOpportunities() { on(); const os = await owners(); return withActivity(camel(ok(await sb.from('crm_opportunities').select('*, contact:contacts(first_name, last_name), account:crm_accounts(name)')) || [])
+      .map((o) => ({ ...o, ownerName: nameOf(os, o.ownerId), contactName: o.contact ? `${o.contact.firstName} ${o.contact.lastName}`.trim() : '', accountName: o.account ? o.account.name : '', archived: !!o.archivedAt })), 'opportunity'); },
     async createCrmOpportunity(v) { on(); return camel(await one(sb.from('crm_opportunities').insert(await withCustom('opportunity', oppIn(v), v)))); },
     async updateCrmOpportunity(id, v) { on(); return camel(await one(sb.from('crm_opportunities').update(await withCustom('opportunity', oppIn(v), v)).eq('id', id))); },
     async moveCrmOpportunity(id, stage) { on(); return camel(await one(sb.from('crm_opportunities').update({ stage }).eq('id', id))); },
@@ -164,7 +177,7 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async crmReport({ from = '', to = '' } = {}) { return rpc('crm_report', { p_from: from || null, p_to: to || null }); },
     // John, Nov 3 (migration 32): CRM Deals list with filters. public.crm_deals() applies the scope (a Sales Person gets only their own deals) on the server.
     async listCrmDeals(f = {}) { const rows = await rpc('crm_deals', { p_status: f.status || null, p_owner: f.ownerId || null, p_client: f.clientId || null, p_source: f.source || null });
-      return (rows || []).map((r) => ({ ...r, _link: `#/crm/deals/${r.id}`, _portalLink: `#/deals/${r.id}`, _clientLink: '' })); },
+      return withActivity((rows || []).map((r) => ({ ...r, _link: `#/crm/deals/${r.id}`, _portalLink: `#/deals/${r.id}`, _clientLink: '' })), 'deal'); },
     async listCrmDealFilters() { return rpc('crm_deal_filters'); },
     // One crm_deals call (the same scope as the list). One deal_contacts call for this deal only. No per-row helper.
     async getCrmDeal(id) {
@@ -223,5 +236,6 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
   // Nov 3 (migration 33): calls (Zoho video 11) + Admin-only list CSV downloads. Nothing is ever sent.
   Object.assign(api, crmCallsSupabase({ sb, ok, camel, on, one, actOut, staff }));
   Object.assign(api, crmJanineSupabase({ sb, ok, camel, on, rpc, me, self: api }));   // Janine, Nov 3 (migration 37)
+  Object.assign(api, crmSurfaceSupabase({ sb, ok, camel, me, on, self: api }));
   return api;
 }
