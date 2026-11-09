@@ -43,5 +43,14 @@ ok(page.includes('data-hr-portal-role') && page.includes('portalRoleForDesignati
 const mock = read('js/data/mock-part-hr.js');
 ok(mock.includes("['hrg-salesp', 'Sales Person']") && /role: portalRoleForDesignation\(/.test(mock), 'demo data mirrors the designation and the role map');
 
+// ---- Transaction Coordinator designation (John email to Francis, Nov 9) ----
+const migTc = read('supabase/migrations/20261109180000_hr_tc_designation.sql');
+const rbTc = read('supabase/rollbacks/20261109180000_hr_tc_designation.sql');
+ok(/insert into public\.hr_designations \(name\)[\s\S]*?select 'Transaction Coordinator'[\s\S]*?where not exists/.test(migTc), 'adds the Transaction Coordinator designation once');
+ok(migTc.includes("private.hr_portal_role_for") && migTc.includes('Transaction Coordinator'), 'TC migration checks the existing role map');
+ok(!/create function|create or replace function|create policy|alter policy|drop policy|update public\.profiles/i.test(migTc), 'TC migration does not change helpers, RLS, or profiles');
+ok(/update public\.hr_designations g set archived_at = now\(\) where lower\(btrim\(g\.name\)\) = 'transaction coordinator'/.test(rbTc.replace(/\s+/g, ' ')), 'TC rollback archives the unused designation');
+ok(mock.includes("['hrg-tc', 'Transaction Coordinator']"), 'demo data includes Transaction Coordinator designation');
+
 console.log(fail ? fail + ' failed' : 'hr portal role passed');
 if (fail) process.exit(1);
