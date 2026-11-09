@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611091140';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611091140';
+import { getAdapter } from './data/adapter.js?v=202611091520';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611091520';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611090935';
 import { canUseCrm } from './data/crm.js?v=202611070139';
@@ -31,10 +31,10 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611090935'),
-  dashboard: () => import('./pages/dashboard.js?v=202611091140'),
+  dashboard: () => import('./pages/dashboard.js?v=202611091520'),
   orders: () => import('./pages/orders.js?v=202611090935'),
   'orders/new': () => import('./pages/ordernew.js?v=202611091030'),
-  deal: () => import('./pages/deal.js?v=202611091140'),
+  deal: () => import('./pages/deal.js?v=202611091520'),
   users: () => import('./pages/users.js?v=202611090935'),
   profile: () => import('./pages/profile.js?v=202611090935'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
@@ -44,7 +44,7 @@ const pages = {
   library: () => import('./pages/library.js?v=202611091030'),
   activity: () => import('./pages/activity.js?v=202611070139'),
   outbox: () => import('./pages/outbox.js?v=202611090935'),
-  tasks: () => import('./pages/tasks.js?v=202611091140'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => import('./pages/tasks.js?v=202611091520'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611090935'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js?v=202611090935'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611090935'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
@@ -174,7 +174,8 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
   const agentCard = yourAgentHtml(agents);
   const sidebarHead = deal ? html`<a class="logo-home-link" href="#/deals/${deal.id}"><div class="order-heading-left"><span>${deal.fileNumber}</span></div><div class="map-div"><img class="map-pin" src="assets/img/map-icon-new.png" alt=""><p>${deal.street}<br>${deal.city}, ${deal.state}, ${deal.zip}</p></div></a>` : '';
   // John, Nov 4 call: order search in the sidebar (not in the CRM-only workspace or the neutral Home); inside an order non-admins get order-only items
-  const sideSearchOn = !deal && ws !== null && ws !== 'crm'; if (deal) noteRecent(u, deal.id);
+  // Francis Nov 9: HR-only logins (and anyone in the HR workspace) get flat HR links — no More fold and no order search that always comes back empty.
+  const sideSearchOn = !deal && ws !== null && ws !== 'crm' && ws !== 'hr' && !hrOnly(u); if (deal) noteRecent(u, deal.id);
   // CLIENT SHELL (John, Nov 4): the buyer / seller File Overview AND every file tab (To-do list, Messages, Documents, Closing appointment, Activity; the seller's
   // tabs too) use a light shell: white top bar with the CLA logo and a baby-blue rule, pill tabs in the page, no sidebar. Tab pages keep the "Your agent" card.
   if (view.tcPage || view.clientPage) return html`<div class="co-shell" data-client-shell${view.tcPage ? ' data-tc-shell' : ''}>
