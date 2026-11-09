@@ -14,6 +14,7 @@ import { fmtPhone, TX_TYPES, runsOrders, localDate, US_STATE_NAMES, DOC_TYPES, M
 import { pickerHtml, mountPicker, personLabel } from './person-picker.js?v=202611090935';
 import { ENTITY_TYPES } from '../data/templates.js?v=202611090935';
 import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611071845';
+import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
 import { orderDraftKey, readOrderDraft, writeOrderDraft, clearOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim } from '../data/order-draft.js?v=202611070139';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611090935';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
@@ -66,6 +67,7 @@ const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); 
 const zipOk = (z) => !z || /^\d{5}(-\d{4})?$/.test(z);   // same rule as the data layer
 
 export async function render({ api, user, go }) {
+  const repOn = claRepresentationWritesEnabled(api);
   if (!runsOrders(user)) throw new Error('Only a Processor or Admin can place orders.');
   const contacts = await api.listContacts();
   const optional = async (fn) => { try { return (await fn()) || []; } catch (e) { return []; } };
@@ -94,6 +96,10 @@ export async function render({ api, user, go }) {
       <div class="wiz-body card">
       ${panel('transaction', html`<div class="form-grid">
         <label>Transaction type<select name="transactionType">${options(TX_TYPES, 'Purchase')}</select></label>
+        ${repOn ? html`<fieldset class="span2" data-cla-representation><legend>Who CLA represents</legend>
+          <p class="muted small">CLA's side of this file. It is not a person's portal role, not the buyer or listing agent, not the referral source, and it does not change who can see the file. A new order starts as both sides. An older file with no answer stays not recorded.</p>
+          ${CLA_REPRESENTATION.map((row) => html`<label class="referral-source"><input type="radio" name="claRepresentation" value="${row.code}" ${row.code === 'both' ? raw('checked') : ''}> ${row.label}</label>`)}
+        </fieldset>` : ''}
         <label>Open date *<input name="openDate" type="date" required value="${today}" max="${today}" title="The day the order came in. Can be backdated; not in the future."><span class="field-hint">The day the order came in. Can be backdated, never in the future.</span></label>
         <fieldset class="span2" id="tx-docs"><legend data-tx-doc-label>Upload sales contract</legend>
           <label class="dropzone-label">Files <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB each)</span><input type="file" id="tx-files" multiple accept="${ALLOWED_UPLOAD_EXT.map((e) => '.' + e).join(',')}"></label>
@@ -257,6 +263,7 @@ export async function render({ api, user, go }) {
         .forEach((el) => errs.push({ el, msg: nativeMsg(el) }));
       const f = formData(form);
       if (k === 'transaction' && f.openDate && f.openDate > localDate() && !errs.some((e) => e.el && e.el.name === 'openDate')) errs.push({ el: $('[name=openDate]', p), msg: 'Open date cannot be in the future.' });
+      if (k === 'transaction' && repOn && !$$('[name=claRepresentation]', p).some((el) => el.checked)) errs.push({ el: $('[name=claRepresentation]', p), msg: 'Choose who CLA represents: Both buyer and seller, Buyer only, or Seller only.' });
       if (k === 'property' && !zipOk(String(f.zip || '').trim())) errs.push({ el: $('[name=zip]', p), msg: 'ZIP must be 5 digits (or ZIP+4).' });
       if (k === 'parties') {
         for (const role of Object.keys(MULTI).filter(counts)) rows[role].forEach((r, i) => { if (r.pk.typed && !r.pk.value) errs.push({ el: $('.picker-q', r.pk.el), msg: `${labelOf(role)}: pick a person from the list (or clear the box, or use "Add new user").` }); });
@@ -311,7 +318,7 @@ export async function render({ api, user, go }) {
           : html`<div class="notice ok-box" data-review-ready><strong>Ready to place.</strong> Everything required is filled in.</div>`}
         ${skipped.length ? html`<div class="notice info" data-review-skipped>Not added (nobody picked from the list): ${skipped.join(', ').toLowerCase()}. You can add them later on the Contacts tab.</div>` : ''}
         <div class="review-grid">
-        ${section('transaction', 'Transaction', [['Transaction type', html`<strong>${f.transactionType}</strong>`], ['Open date', val(fmtDate(f.openDate))], ['Contract / title request', txFiles.length ? txFiles.map((x) => html`<div>${x.name} <span class="muted small">${fmtSize(x.size)}</span></div>`) : dash]])}
+        ${section('transaction', 'Transaction', [['Transaction type', html`<strong>${f.transactionType}</strong>`], ...(repOn ? [['Who CLA represents', html`<strong data-review-representation>${claRepresentationLabel(f.claRepresentation)}</strong>`]] : []), ['Open date', val(fmtDate(f.openDate))], ['Contract / title request', txFiles.length ? txFiles.map((x) => html`<div>${x.name} <span class="muted small">${fmtSize(x.size)}</span></div>`) : dash]])}
         ${section('property', 'Property', [['Address', f.street ? html`${f.street}<br>${[f.city, f.state].filter(Boolean).join(', ')} ${f.zip || ''}` : dash], ['County', val(f.county)], ...(mdOn ? [['Primary residence', yesNo(f.primaryResidence)], ['First-time buyer', yesNo(f.firstTimeBuyer)]] : [])])}
         ${section('parties', r ? 'Borrowers' : 'Buyers & Sellers', [[r ? 'Borrowers' : 'Buyers', partyList('Client-Buyer')], ...(r ? [] : [['Sellers', partyList('Client-Seller')]])])}
         ${section('loan', 'Lender & Loan', [...(r ? [] : [['Purchase price', val(fmtMoney(moneyAmount(f.purchasePrice)))]]), ['Loan amount', val(fmtMoney(moneyAmount(f.loanAmount)))],
@@ -435,6 +442,7 @@ export async function render({ api, user, go }) {
     const prior = draftStore && draftKey ? readOrderDraft(draftStore, draftKey) : null;
     if (prior) {
       const restored = applyOrderDraft(form, prior, procs);
+      if (repOn && draftKeepsUnrecordedRepresentation(prior.fields)) $$('[name=claRepresentation]', form).forEach((el) => { el.checked = false; });
       applyRefi();
       syncPickers();
       syncReferral();
@@ -472,8 +480,8 @@ export async function render({ api, user, go }) {
       const referral = referralFromForm({ value: pickedReferral ? pickedReferral.value : '', picks, refinance: refi() });
       f.sourceOfBusiness = ''; delete f.sourceContactId;
       if (!showMdQuestions(f.state, refi())) { f.primaryResidence = ''; f.firstTimeBuyer = ''; }
-      const input = { ...f, emdAmount: amt, purchasePrice: refi() ? '' : moneyAmount(f.purchasePrice), ...(refi() ? { emdDueDate: '' } : {}), loanAmount: moneyAmount(f.loanAmount), salesIds: new FormData(e.target).getAll('salesIds'),
-        ...(lender ? { lenderName: lender.company || '', lenderContact: personLabel(lender) } : {}) };
+      const input = representationPayload(api, { ...f, emdAmount: amt, purchasePrice: refi() ? '' : moneyAmount(f.purchasePrice), ...(refi() ? { emdDueDate: '' } : {}), loanAmount: moneyAmount(f.loanAmount), salesIds: new FormData(e.target).getAll('salesIds'),
+        ...(lender ? { lenderName: lender.company || '', lenderContact: personLabel(lender) } : {}) });
       if (draftStore && draftKey) { const claim = claimOrderDraft(draftStore, draftKey); if (!claim.ok) throw new Error(claim.message); }
       placing = true; const btn = $('[data-place-order]', root); btn.disabled = true; btn.textContent = 'Placing order\u2026';
       let deal; try { deal = await api.createDeal(input); } catch (err) { placing = false; btn.disabled = false; btn.textContent = 'Place order'; if (draftStore && draftKey) releaseOrderClaim(draftStore, draftKey); throw err; }

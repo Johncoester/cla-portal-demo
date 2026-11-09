@@ -29,6 +29,7 @@ import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=
 import { propertyAddressOf } from './nov5-rules.js?v=202611090935';
 import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611090935';
 import { contactInsertRow } from './contact-insert.js?v=202611070139';
+import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611070139';
 import { authEventAction, gatherReads, identitySlot, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611082200';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
@@ -150,6 +151,8 @@ export async function createSupabaseAdapter(cfg) {
     const ents = new Map(got.entities.map((r) => [r.participant_id, { name: r.name, type: r.entity_type || '', repName: r.rep_name || '', repTitle: r.rep_title || '', repPhone: r.rep_phone || '', repEmail: r.rep_email || '' }]));
     d.participants.forEach((p) => { p.entity = ents.get(p.id) || null; });
     const src = got.source[0]; d.sourceOfBusiness = src ? src.value : ''; d.sourceOfBusinessLabel = src ? src.label : '';
+    // Who CLA represents (deals.cla_representation, migration 20261109150000): shown to CLA staff only; null = not recorded
+    if (ident.current() && ident.current().role === 'Outside user') { d.claRepresentation = null; d.claRepresentationLabel = ''; } else { d.claRepresentation = d.claRepresentation || null; d.claRepresentationLabel = claRepresentationLabel(d.claRepresentation); }
     return withRole(d, got.roles.get(d.id), got.parties);
   }
   async function fetchFileShell(id) {
@@ -261,6 +264,7 @@ export async function createSupabaseAdapter(cfg) {
         emd_amount: refi ? null : moneyAmount(input.emdAmount), emd_due_date: refi ? null : input.emdDueDate || null, notes: input.notes || '', processor_id: input.processorId || null, preprocessor_user_id: input.preprocessorUserId || null, created_by: user.id,
         lender_name: input.lenderName || '', lender_contact: input.lenderContact || '', lender_phone: input.lenderPhone || '', lender_email: String(input.lenderEmail || '').trim().toLowerCase(),
         primary_residence: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.primaryResidence || ''), first_time_buyer: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.firstTimeBuyer || '') };   // Maryland purchases only (John, Nov 6)
+      if (input.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(input.claRepresentation);   // Both / Buyer only / Seller only; absent = not recorded
       const d = camel(ok(await sb.from('deals').insert(row).select().single()));
       if (String(input.sourceOfBusiness || '').trim()) ok(await sb.rpc('set_deal_source', { p_deal: d.id, p_source: input.sourceOfBusiness }));   // migration 31 (staff-only table)
       const ids = [].concat(input.salesIds || []).filter(Boolean); if (ids.length) ok(await sb.rpc('set_deal_sales_people', { p_deal: d.id, p_sales: ids }));
@@ -272,6 +276,7 @@ export async function createSupabaseAdapter(cfg) {
       for (const [k, col] of Object.entries(map)) if (patch[k] !== undefined) { const v = patch[k];
         row[col] = money.has(col) ? moneyAmount(v) : dates.has(col) || col === 'processor_id' || col === 'preprocessor_user_id' ? (v || null) : v; }
       if (row.open_date === null) delete row.open_date;
+      if (patch.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(patch.claRepresentation);   // '' = not recorded (null)
       if (patch.state !== undefined && String(patch.state || '').toUpperCase() !== 'MD') { row.primary_residence = ''; row.first_time_buyer = ''; }
       if (Object.keys(row).length) ok(await sb.from('deals').update(row).eq('id', id));
       if (patch.sourceOfBusiness !== undefined) ok(await sb.rpc('set_deal_source', { p_deal: id, p_source: patch.sourceOfBusiness || '' }));
@@ -499,6 +504,7 @@ export async function createSupabaseAdapter(cfg) {
   a.readOverview = (dealId) => fileRead('overview:' + dealId, () => a.getOrderOverview(dealId));
   // Staff create and resend invite links here (nothing is emailed). Accepting a link goes through the accept-invite function, not a browser sign-up.
   Object.assign(a, staffFeedbackSupabase({ sb, ok, camel }));
+  a.claRepresentationReady = true;   // deals.cla_representation exists on TEST (20261109150000)
   a.sendMessage = async ({ dealId, threadId, subject, to, bodyHtml, files } = {}) => {
     const user = await me();
     if (!user || !user.id) throw new Error('Please sign in.');

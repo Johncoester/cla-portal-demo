@@ -13,8 +13,9 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611090935';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611090935';
 import { gatherReads } from '../data/read-batch.js?v=202611082010';
-import { prefetchDealTab } from './deal-tab.js?v=202611090935';
+import { prefetchDealTab } from './deal-tab.js?v=202611090950';
 import { placeText } from '../data/cla-offices.js?v=202611090935';
+import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 
 function staffSections(ctx, dealId) {
   const { api } = ctx;
@@ -137,7 +138,7 @@ function overview({ api, user, refresh, demoLocked }, d, crumbs, ag, salesStaff 
       <ol class="tracker op-steps" data-milestones>${tracker}</ol>${edit ? html`<p class="muted small op-hint">Click a step to set the stage. The last step closes the order.</p>` : ''}
       ${glance}</section>
     <div class="op-title deal-head"><h1 class="op-address" data-op-address>${d.street}, ${d.city}, ${d.state} ${d.zip}</h1><span class="op-order-no order-no" data-op-order-no>Order # ${d.fileNumber}</span>${d.fileTitle ? html` <span class="file-title" data-file-title>${d.fileTitle}</span>` : ''}${d.agentParties && d.agentParties.length ? html` <span class="pill warn agent-party">Agent is a party</span>` : ''}</div>
-    <p class="op-sub muted" data-op-sub>${d.transactionType || 'Purchase'}${d.county ? html` &middot; <span data-county-head>${d.county} County</span>` : ''}<span data-county hidden>${d.county || '\u2014'}</span> &middot; Opened ${fmtDate(d.openDate)} &middot; Processor ${d.processorName || 'not set'}${d.preprocessorName ? html` &middot; Preprocessor ${d.preprocessorName}` : ''}${staffView ? html` &middot; <span data-source-of-business>Source of business: ${d.sourceOfBusinessLabel || 'Not set'}</span>` : ''}${ov && ov.orderDetails.agencyLicenseId ? html` &middot; Agency License ID <span data-license>${ov.orderDetails.agencyLicenseId}</span>` : ''}</p>
+    <p class="op-sub muted" data-op-sub>${d.transactionType || 'Purchase'}${d.county ? html` &middot; <span data-county-head>${d.county} County</span>` : ''}<span data-county hidden>${d.county || '\u2014'}</span> &middot; Opened ${fmtDate(d.openDate)} &middot; Processor ${d.processorName || 'not set'}${d.preprocessorName ? html` &middot; Preprocessor ${d.preprocessorName}` : ''}${staffView && (claRepresentationWritesEnabled(api) || d.claRepresentation) ? html` &middot; <span data-cla-representation>CLA represents: ${d.claRepresentationLabel || 'Not recorded'}</span>` : ''}${staffView ? html` &middot; <span data-source-of-business>Source of business: ${d.sourceOfBusinessLabel || 'Not set'}</span>` : ''}${ov && ov.orderDetails.agencyLicenseId ? html` &middot; Agency License ID <span data-license>${ov.orderDetails.agencyLicenseId}</span>` : ''}</p>
     ${moneyRow(d, { canWire, staffView, showEmd })}
     ${d.unread ? html`<div class="op-actions"><a class="new-msg" href="#/deals/${d.id}/inbox">${d.unread} new message(s)</a></div>` : ''}
     ${d.agentParties && d.agentParties.length ? html`<div class="notice warn" data-agent-party><strong>Agent is a party.</strong> ${d.agentParties.map((p) => `${p.name} is the ${p.label}`).join('; ')} on this file (a licensee buying or selling for themselves). Make sure the licensee disclosure is on file.</div>` : ''}
@@ -199,6 +200,7 @@ async function editModal(api, d, refresh) {
       : html`<label>Purchase price<input name="purchasePrice" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.purchasePrice)}"></label><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>
     <label>EMD amount<input name="emdAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.emdAmount)}"></label><label>EMD due date<input type="date" name="emdDueDate" value="${v('emdDueDate')}"></label>`}
     ${refi ? '' : html`<div class="span2" data-md-occ ${d.state === 'MD' ? '' : raw('hidden')}>${occSelects(d)}</div>`}
+    ${claRepresentationWritesEnabled(api) ? html`<h4 class="span2">Who CLA represents</h4><label class="span2">CLA's side of this file<select name="claRepresentation" aria-label="Who CLA represents"><option value="" ${d.claRepresentation ? '' : raw('selected')}>Not recorded</option>${CLA_REPRESENTATION.map((row) => html`<option value="${row.code}" ${row.code === d.claRepresentation ? raw('selected') : ''}>${row.label}</option>`)}</select><span class="field-hint">Not a portal role, not the buyer or listing agent, not the referral source, and not who can see the file. Not recorded stays blank until you choose.</span></label>` : ''}
     <h4 class="span2">CLA Title team</h4><label class="span2">Processor <button type="button" class="ghost" data-refresh-processors>Refresh list</button><select name="processorId" data-processor-select></select><span class="field-hint">Unassigned is allowed. Refreshing the list does not change the address or the other fields.</span></label>
     <label class="span2">Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, d.preprocessorUserId || '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select></label>
     <h4 class="span2">Lender</h4><label>Company<input name="lenderName" value="${v('lenderName')}"></label><label>Contact<input name="lenderContact" value="${v('lenderContact')}"></label>
