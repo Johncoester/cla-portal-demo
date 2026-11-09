@@ -20,7 +20,7 @@ import { closingSchedule } from './mock-part-schedule.js?v=202611070139';
 import { notificationsPart } from './mock-part-notify.js?v=202611070139';
 import { mattP2 } from './mock-part-matt.js?v=202611090935';
 import { mattNov2 } from './mock-part-nov2.js?v=202611091600';
-import { crmPart } from './mock-part-crm.js?v=202611092320';
+import { crmPart } from './mock-part-crm.js?v=202611100100';
 import { featureFlags } from './features.js?v=202611070139';
 import { crmZohoUpgrade } from './crm.js?v=202611070139';
 import { ensureEmailTemplates } from './crm-templates.js?v=202611090905';
@@ -34,6 +34,7 @@ import { upgradeCalls } from './crm-calls.js?v=202611070139';
 import { accountingPart, ensureAccounting } from './mock-part-accounting.js?v=202611091140';
 import { payoffsPart, ensurePayoffs } from './mock-part-payoffs.js?v=202611070139';
 import { modulesPart, ensureModules } from './mock-part-modules.js?v=202611090935';
+import { roleAccessPart } from './mock-part-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access (Super admin)
 import { taskShownTo } from './task-switches.js?v=202611090935';
 import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611090935';
 import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.js?v=202611090935';
@@ -387,6 +388,8 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   Object.assign(api, mattNov3b(ctx));   // Matt, Nov 3 (b): source-of-business options for Place Order
   Object.assign(api, taskSwitchesPart(ctx));   // John, Nov 4: Task Templates > Task switches (Admin only; off = not created on new files, existing kept)
   Object.assign(api, modulesPart(ctx, flags));
+  Object.assign(api, roleAccessPart(ctx));   // John, Nov 9: which roles get CRM / all deals / Accounting / HR (Super admin switches; seed = before)
+  { const gma = api.getModuleAccess; api.getModuleAccess = async function (...args) { await api.loadRoleAccess().catch(() => []); return gma.apply(this, args); }; }
   Object.assign(api, emailSendersPart(ctx));   // John, Nov 3: Admin-only Modules page, one "Live" switch per module (off = beta: Admins only)
   Object.assign(api, underwriterPart(ctx));
   Object.assign(api, closingLocationPart(ctx));   // John, Nov 4: in the property's state at closing? (RON / embassy flag, staff signing method)

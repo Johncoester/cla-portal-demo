@@ -1,11 +1,12 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611100005';
+import { getAdapter } from './data/adapter.js?v=202611100100';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611100005';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611090935';
-import { canUseCrm } from './data/crm.js?v=202611070139';
+import { canUseCrm } from './data/crm.js?v=202611100100';
+import { canManageRoleAccess } from './data/role-access.js?v=202611100100';
 import { canUseGmail } from './data/gmail-email.js?v=202611091801';
-import { acctCanRead } from './data/accounting.js?v=202611070139';
+import { acctCanRead } from './data/accounting.js?v=202611100100';
 import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611090935';
 import { phaseOf } from './data/agent-portal.js?v=202611090935';
 import { applyTheme, themeOn } from './theme.js?v=202611070139';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
@@ -14,15 +15,15 @@ import { canInviteAgents } from './data/agent-profile.js?v=202611100005';
 import { yourAgentHtml } from './pages/your-agent.js?v=202611100005';
 import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611090935';
-import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611100005';   // John, Nov 4: one locked login link per fake user
+import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611100100';   // John, Nov 4: one locked login link per fake user
 import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080400';
 import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611082000';
 import { botRegistry } from './data/bot-registry.js?v=202611080400';
 import { voiceRouteOk } from './data/voice-demo.js?v=202611091110';
 import { mountVoiceChrome, prepareVoiceShell, stopVoiceNow, voiceMenuHtml } from './pages/voice-panel.js?v=202611091110';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611070139';   // John, Nov 4 call: sidebar search + pinned order nav
-import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611092200';
-import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611091730';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
+import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611100100';
+import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611100100';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
   const v = phoneTyping(el.value); if (v !== el.value) el.value = v; });
@@ -50,6 +51,7 @@ const pages = {
   schedule: () => import('./pages/schedule.js?v=202611090935'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611091240'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => import('./pages/modules.js?v=202611090935'),
+  'role-access': () => import('./pages/role-access.js?v=202611100100'),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => import('./pages/agent-invites.js?v=202611100005'),   // John, Nov 4: invite agents (link shown, nothing sent)
   'agent-invite': () => import('./pages/agent-signup.js?v=202611100005'),     // the agent's one-time setup link (no sign-in)
   underwriters: () => import('./pages/underwriters.js?v=202611070139'),
@@ -133,6 +135,7 @@ export function navFor(u, dealId, unread, features = {}, ws = 'everything', demo
   if (isFeedbackPilot(u, { demoActive: !!(demo && demo.active) }) ) add('staff-feedback', 'Portal feedback', '#/staff-feedback', 'inbox');
   if (canInviteAgents(u)) add('agent-invites', 'Agent Invites', '#/agent-invites', 'contact-us');   // John, Nov 4
   if (canManageModules(u)) add('modules', 'Modules', '#/modules', 'documents');
+  if (canManageRoleAccess(u)) add('role-access', 'Role access', '#/role-access', 'documents');   // John, Nov 9: which roles see CRM / Accounting / HR (Super admin)
   if (canManageModules(u)) add('underwriters', 'Underwriter Splits', '#/underwriters', 'documents');   // John, Nov 3 call (Admin / Super admin)   // John, Nov 3: the Live switches (Admin / Super admin only)
   let out = items.map((n) => ({ ...n, beta: modBeta(n.id) }));
   if (ws === 'everything') return out.filter((n) => navInWs(n.id, ws));   // Everything keeps Portal and the other admin pages. Task Templates is Admin / Settings only.

@@ -2,6 +2,7 @@
  * the same lists are CHECK constraints in SQL (migrations 22 + 24). FAKE DATA ONLY in this build. See docs/CRM.md.
  * Nov 2 (Zoho match, migration 24 / mock v17): picklists, labels and task / meeting fields copied from John's Zoho training videos
  * (Zoho modules renamed there: Clients = Contacts, Companies = Accounts). */
+import { roleAllowed } from './role-access.js?v=202611100100';
 // ---- Zoho picklists (exact labels from the videos) ----
 export const ROLES_IN_COMPANY = ['Realtor', 'Real Estate Broker', 'Transaction Coordinator', 'Loan Officer', 'Mortgage Broker', 'Team Lead'];
 export const LEAD_SOURCES = ['Business Group', 'Call in/Walk in', 'Direct Mail', 'Door Knocking', 'Email Campaign', 'Existing Client or Agent', 'Facebook/IG Ads', 'Facebook Group',
@@ -205,7 +206,8 @@ export function crmZohoUpgrade(d) {
 // Sales Team (the sales team's records: owned by any salesperson or unowned, plus linked; edit), Processor (everything, READ-ONLY).
 // Transaction Coordinators and outside users (agents, clients) have no CRM.
 export const CRM_ROLES = ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team'];
-export const canUseCrm = (u) => !!u && (!!u.isAdmin || CRM_ROLES.includes(u.role));
+// Role access (John, Nov 9): a Super admin can switch a CRM role off on Admin > Role access (role-access.js; SQL private.role_can('crm')).
+export const canUseCrm = (u) => !!u && (!!u.isAdmin || (CRM_ROLES.includes(u.role) && roleAllowed(u.role, 'crm') !== false));
 export const crmReadOnly = (u) => !!u && !u.isAdmin && (u.role === 'Processor' || u.role === 'Preprocessor');
 export const CRM_OWNER_ROLES = ['Sales Person', 'Sales Team'];   // who can own a lead / contact / account / opportunity / follow-up
 
