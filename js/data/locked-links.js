@@ -1,4 +1,4 @@
-import { canManageFileTemplates } from './file-email-templates.js?v=202611092200';
+import { canManageFileTemplates } from './file-email-templates.js?v=202611092210';
 /* locked-links.js : ONE LOGIN LINK PER FAKE USER (John, Nov 4). FAKE DATA ONLY, mock mode only.
  * A link like  https://johncoester.github.io/cla-portal-demo/?as=<token>&file=deal-1  signs the visitor in as that one fake user and LOCKS the
  * browser tab to them: no user picker, no switch user, and routes outside that user's own portal are refused (routeAllowed below, enforced in app.js).
