@@ -3,6 +3,24 @@
 // A failed read is thrown. An empty list is only what the database returned.
 import { buildOrderOverview } from './order-overview.js?v=202611092230';
 
+const CONTACT_MS = 2000;
+/* Email/phone is extra. A denied column or a read that never returns must not leave the file on "Loading this page." */
+async function processorContact(sb, id) {
+  if (!id) return null;
+  let timer;
+  try {
+    const res = await new Promise((resolve) => {
+      timer = setTimeout(() => resolve(null), CONTACT_MS);
+      const q = sb.from('profiles').select('id,first_name,last_name,email,phone').eq('id', id).maybeSingle();
+      Promise.resolve(q).then((row) => resolve(row), () => resolve(null));
+    });
+    if (!res || res.error || res.data == null) return null;
+    return res.data;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export function orderOverviewSupabase({ sb, ok, camel, me, api }) {
   const names = async (ids) => {
     const want = [...new Set(ids.filter(Boolean))];
@@ -28,10 +46,14 @@ export function orderOverviewSupabase({ sb, ok, camel, me, api }) {
       if (!Array.isArray(tasks) || !Array.isArray(documents) || !Array.isArray(threads) || !activity || !Array.isArray(activity.items)) {
         throw new Error('Order overview could not be loaded.');
       }
-      if (deal.processorId && !deal.processorName) {
-        const row = camel(ok(await sb.from('profiles').select('id,first_name,last_name,email,phone').eq('id', deal.processorId).maybeSingle()));
+      // Francis, Nov 9: processorNames fills processorName first, so the old "!processorName" gate
+      // skipped email/phone. Load them whenever someone is assigned, but a failed or stuck read
+      // leaves the address blank instead of rejecting the whole file page.
+      if (deal.processorId) {
+        const raw = await processorContact(sb, deal.processorId);
+        const row = raw ? camel(raw) : null;
         if (row && row.id) {
-          deal.processorName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
+          if (!deal.processorName) deal.processorName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
           deal.processorEmail = row.email || '';
           deal.processorPhone = row.phone || '';
         }

@@ -31,7 +31,7 @@ let threw = false; try { buildOrderOverview({ deal: null, me: { id: 'u' } }); } 
 ok(threw, 'a missing order is an error');
 
 const calls = [];
-const chain = (rows) => { const q = { select() { return q; }, eq() { return q; }, in() { return q; }, order() { return q; }, then(fn) { return Promise.resolve(fn({ data: rows, error: null })); } }; return q; };
+const chain = (rows) => { const q = { select() { return q; }, eq() { return q; }, in() { return q; }, order() { return q; }, maybeSingle() { return Promise.resolve({ data: null, error: null }); }, then(fn) { return Promise.resolve(fn({ data: rows, error: null })); } }; return q; };
 const sb = { from(table) { calls.push(table); return chain([]); } };
 const api = { async getDeal(id) { if (id === 'missing') throw new Error('Order not found.'); return deal; }, async listTasks() { return tasks; }, async listDocuments() { return []; }, async listThreads() { return [{ id: 'th', subject: 'Hello', messages: [] }]; }, async listActivity() { return { items: [{ id: 'a', createdAt: '2026-11-01T00:00:00Z', action: 'note', detail: 'Opened', actorName: 'Paula' }] }; } };
 const supa = orderOverviewSupabase({ sb, ok: (r) => { if (r.error) throw new Error(r.error.message); return r.data; }, camel: (o) => o, me: async () => ({ id: 'u-proc', role: 'Processor' }), api });
@@ -42,5 +42,57 @@ ok(missing, 'supabase overview does not replace a missing file with an empty pag
 const ur = await supa.listUpdateRequests('deal-1');
 const shares = await supa.listSharedAccess('deal-1');
 ok(Array.isArray(ur) && Array.isArray(shares) && calls.includes('update_requests') && calls.includes('access_invites'), 'update requests and shared access are read from their tables');
+
+const emailCalls = [];
+const sbEmail = {
+  from(table) {
+    emailCalls.push(table);
+    const q = {
+      select() { return q; }, eq() { return q; }, in() { return q; }, order() { return q; },
+      maybeSingle() {
+        if (table === 'profiles') return Promise.resolve({ data: { id: 'u-proc', first_name: 'Paula', last_name: 'Processor', email: 'paula@clatitle.test', phone: '301-555-0199' }, error: null });
+        return Promise.resolve({ data: null, error: null });
+      },
+      then(fn) { return Promise.resolve(fn({ data: [], error: null })); },
+    };
+    return q;
+  },
+};
+const apiNamed = {
+  async getDeal() { return { ...deal, processorId: 'u-proc', processorName: 'Paula Processor', processorEmail: '', participants: deal.participants }; },
+  async listTasks() { return []; }, async listDocuments() { return []; }, async listThreads() { return []; },
+  async listActivity() { return { items: [] }; },
+};
+const camel = (o) => Array.isArray(o) ? o.map(camel) : o && typeof o === 'object'
+  ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), camel(v)])) : o;
+const namedOv = await orderOverviewSupabase({
+  sb: sbEmail,
+  ok: (r) => { if (r && r.error) throw new Error(r.error.message); return r && Object.prototype.hasOwnProperty.call(r, 'data') ? r.data : r; },
+  camel,
+  me: async () => ({ id: 'u-staff', role: 'Processor' }),
+  api: apiNamed,
+}).getOrderOverview('deal-1');
+const procParty = namedOv.parties.find((x) => x.label === 'Processor');
+ok(procParty && procParty.email === 'paula@clatitle.test' && procParty.phone === '301-555-0199' && emailCalls.includes('profiles'), 'processor email loads when processorId is set even if the name is already known');
+
+const denied = orderOverviewSupabase({
+  sb: { from() { const q = { select() { return q; }, eq() { return q; }, maybeSingle() { return Promise.resolve({ data: null, error: { message: 'permission denied for column email' } }); } }; return q; } },
+  ok: (r) => { if (r && r.error) throw new Error(r.error.message); return r.data; },
+  camel,
+  me: async () => ({ id: 'u-staff', role: 'Processor' }),
+  api: apiNamed,
+});
+let deniedOv = null; let deniedThrew = false;
+try { deniedOv = await denied.getOrderOverview('deal-1'); } catch (e) { deniedThrew = true; }
+ok(!deniedThrew && deniedOv && deniedOv.parties.find((x) => x.label === 'Processor').name === 'Paula Processor', 'a denied processor email column does not reject the file overview');
+
+const stuck = orderOverviewSupabase({
+  sb: { from() { const q = { select() { return q; }, eq() { return q; }, maybeSingle() { return new Promise(() => {}); } }; return q; } },
+  ok: (r) => r, camel, me: async () => ({ id: 'u-staff', role: 'Processor' }), api: apiNamed,
+});
+const started = Date.now();
+const stuckOv = await stuck.getOrderOverview('deal-1');
+ok(stuckOv && stuckOv.parties.some((x) => x.label === 'Processor') && Date.now() - started < 3500, 'a processor contact read that never returns still finishes the overview');
+
 console.log(fail ? fail + ' failed' : 'order overview passed');
 if (fail) process.exit(1);
