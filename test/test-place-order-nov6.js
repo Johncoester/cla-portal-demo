@@ -62,8 +62,9 @@ ok((await a.createDeal({ ...ORDER, street: '8 Old Source Rd', sourceOfBusiness: 
 
 const page = readFileSync(new URL('../js/pages/ordernew.js', import.meta.url), 'utf8');
 const adapter = readFileSync(new URL('../js/data/supabase-adapter.js', import.meta.url), 'utf8');
-for (const bit of ['Upload sales contract', 'Upload title request', 'Add lender', "Buyer's transaction coordinator", 'Listing transaction coordinator', '+ Add another ${MULTI[role]}', "'Client-Seller': 'seller'", 'Who can see these files', 'id="tx-files"', 'id="tx-vis"', 'id="sob-block"', 'options(salesParty', 'MIN_ROWS = 1', 'data-add-tc']) ok(page.includes(bit), 'wizard has ' + bit);
-ok(!/name="p:Sales Team"[\s\S]{0,180}options\(contacts/.test(page), 'sales team member is not the full contact list');
+for (const bit of ['Upload sales contract', 'Upload title request', 'Add lender', "Buyer's transaction coordinator", 'Listing transaction coordinator', '+ Add another ${MULTI[role]}', "'Client-Seller': 'seller'", 'Who can see these files', 'id="tx-files"', 'id="tx-vis"', 'id="sob-block"', 'data-sales-picker', 'name="salesIds"', 'MIN_ROWS = 1', 'data-add-tc']) ok(page.includes(bit), 'wizard has ' + bit);
+ok(!page.includes('name="p:Sales Team"') && !page.includes('Sales team member') && !page.includes('salesParty'), 'Place Order has no separate Sales team member field');
+ok((page.match(/<legend>Sales Rep<\/legend>/g) || []).length === 1, 'Place Order keeps a single Sales Rep field');
 ok(adapter.includes('withoutHiddenProfiles') && adapter.includes('PROCESSOR_PICK_ROLES') && adapter.includes("!== 'MD'"), 'supabase adapter filters demo contacts, widens the processor list, and keeps occupancy for Maryland');
 ok(REFERRALS.map(([code]) => code).join() === 'buyer,seller,buyer_agent,listing_agent,lender,homeowner', 'buyer and seller are referral choices and homeowner stays');
 
