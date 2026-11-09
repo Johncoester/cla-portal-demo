@@ -8,9 +8,9 @@
 //   #/hr/settings        HR Settings: assign / remove HR managers (Super admin only, logged to the history)
 // The adapter refuses anything the person may not do; the page only hides what they cannot use.
 import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime } from '../ui.js?v=202611070139';
-import { hrCanManage, hrIsSuper, filterEmployees, initials, fullNameOf, COUNTRIES, EMPLOYMENT_TYPES, EMPLOYMENT_STATUSES, PAY_TYPES, PAY_CURRENCIES, WORK_LOCATIONS, EMPLOYEE_ROLE_FILTER,
-  HR_NO_EMAIL_NOTE, HR_INVITE_DAYS, FIELD_LABEL, labelOf, jobTitleOf } from '../data/hr.js?v=202611070139';
-import { companyDocsPage, employeeDocsCard, sharedDocsCard, portalTimeCard, wireEmployeeDocs, wireSharedDocs } from './hr-feedback.js?v=202611090935';
+import { hrCanManage, hrIsSuper, filterEmployees, initials, fullNameOf, COUNTRIES, EMPLOYMENT_TYPES, EMPLOYMENT_STATUSES, PAY_TYPES, PAY_CURRENCIES, WORK_LOCATIONS, portalRoleForDesignation, EMPLOYEE_ROLE_FILTER,
+  HR_NO_EMAIL_NOTE, HR_INVITE_DAYS, FIELD_LABEL, labelOf, jobTitleOf } from '../data/hr.js?v=202611091730';
+import { companyDocsPage, employeeDocsCard, sharedDocsCard, portalTimeCard, wireEmployeeDocs, wireSharedDocs } from './hr-feedback.js?v=202611091730';
 const PILL = { active: 'ok', on_leave: 'warn', separated: 'bad' };
 const INV = { pending: ['Invite pending', 'warn'], expired: ['Invite expired', 'bad'], revoked: ['Invite revoked', ''], none: ['No login yet', ''], accepted: ['Has login', 'ok'] };
 const abs = (link) => location.href.split('#')[0] + link;
@@ -129,7 +129,7 @@ async function addForm({ api, user, go }) {
       <label>Country <span class="req">*</span><select name="country" data-hr-country>${opt(COUNTRIES, 'US')}</select></label>
       <label>First Name <span class="req">*</span><input name="firstName" maxlength="80" required></label><label>Last Name <span class="req">*</span><input name="lastName" maxlength="80" required></label>
       <label class="span2">Email ID <span class="req">*</span><input name="email" type="email" maxlength="160" required placeholder="name@example.test"></label>
-      <label>Department<select name="departmentId">${opt(deps, '', 'Select')}</select></label><label>Designation<select name="designationId">${opt(des, '', 'Select')}</select></label>
+      <label>Department<select name="departmentId">${opt(deps, '', 'Select')}</select></label><label>Designation<select name="designationId" data-hr-desig>${opt(des, '', 'Select')}</select><span class="muted small" data-hr-portal-role>Portal access: HR area only</span></label>
       <label>Location<select name="workLocation" data-hr-loc>${opt(WORK_LOCATIONS.map((l) => [l, l]), '', 'Select')}</select></label><label>Date of joining<input name="dateOfJoining" type="date"></label>
       <label>Reporting To<select name="reportingToId">${opt(all.map((e) => [e.id, `${fullNameOf(e)} (${e.employeeCode})`]), '', 'Nobody')}</select></label>
       <label>Employment type<select name="employmentType">${opt(EMPLOYMENT_TYPES, 'full_time')}</select></label></div>
@@ -139,6 +139,9 @@ async function addForm({ api, user, go }) {
   return { title: 'Add Employee', crumbs: [['HR', '#/hr'], ['Add Employee']], body, mount(root) {
     wireQuick(root); const f = $('[data-hr-add-form]', root);
     $('[data-hr-generate]', root).addEventListener('click', guard(async () => { $('[data-hr-code]', root).value = await api.generateHrEmployeeCode(); }));
+    const desig = $('[data-hr-desig]', root); const roleHint = $('[data-hr-portal-role]', root);   // Nov 9: show which portal role the invite will give
+    const showRole = () => { const g = lk.designations.find((x) => x.id === desig.value); const r = portalRoleForDesignation(g && g.name); roleHint.textContent = r === 'Employee' ? 'Portal access: HR area only' : 'Portal access: ' + r; };
+    desig.addEventListener('change', showRole); showRole();
     $('[data-hr-country]', root).addEventListener('change', (e) => { const l = $('[data-hr-loc]', root); if (!l.value) l.value = e.target.value === 'PH' ? 'Remote (Philippines)' : ''; });
     f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(f).entries());
       const r = await api.createHrEmployee(d); toast('Employee added' + (r.invite ? ' (invite link made, nothing sent)' : ' and linked to their existing login'));
