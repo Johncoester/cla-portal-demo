@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { isForbiddenTab, requiredTabs, tabOf } from './people.js';
+import { isForbiddenTab, requiredTabs, tabOf, HASH_TABS } from './people.js';
 
 export function tinyPdf(name) {
   const body = `%PDF-1.1\n1 0 obj<</Length 0>>endobj\ntrailer<<>>\n%%EOF\n% ${name}\n`;
@@ -9,9 +9,8 @@ export function tinyPdf(name) {
 export async function gotoHash(page, hash) {
   const target = hash.startsWith('#') ? hash : `#${hash}`;
   const path = target.split('?')[0];
-  const known = ['tasks', 'inbox', 'documents', 'closing', 'contacts', 'agreements', 'activity', 'email', 'accounting', 'title'];
   const parts = path.split('/').filter(Boolean);
-  const key = [...parts].reverse().find((p) => known.includes(p)) || 'overview';
+  const key = [...parts].reverse().find((p) => HASH_TABS.includes(p)) || 'overview';
   await page.evaluate((h) => { location.hash = h; }, target);
   await page.waitForFunction((tab) => {
     const cur = document.querySelector('[aria-current="page"], a.nav-link.active');
