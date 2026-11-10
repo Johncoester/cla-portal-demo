@@ -82,11 +82,12 @@ export async function createSupabaseAdapter(cfg) {
   // per-file roles (migration 10) + self-representation (migration 11): my role(s) on each order I can see. role = primary (agent first),
   // roles = all I hold there, label = 'Buyer + Buyer's Agent' for an agent buying for themselves. Outside users get the roles/labels across files.
   const loadFileRoles = async () => new Map((ok(await sb.rpc('my_file_roles_full')) || []).map((r) => [r.deal_id, r]));
-  const fileRoles = () => fileRead('roles#' + fileGen, loadFileRoles);
+  const fileRoles = () => sessionCache('roles', loadFileRoles);
   const ORDER = ['Buyer Agent', 'Listing Agent', "Buyer + Buyer's Agent", 'Seller + Listing Agent', 'Client-Buyer', 'Client-Seller'];
   const sorted = (xs) => [...new Set(xs)].filter((r) => ORDER.includes(r)).sort((x, y) => ORDER.indexOf(x) - ORDER.indexOf(y));
   // staff only (RPC returns nothing to outside users): "Agent is a party" badge = a client who is also their side's agent on the order
-  const parties = async () => { const m = new Map(); (ok(await sb.rpc('agent_parties')) || []).forEach((r) => { if (!m.has(r.deal_id)) m.set(r.deal_id, []); m.get(r.deal_id).push({ contactId: r.contact_id, name: r.name, label: r.label }); }); return m; };
+  const loadParties = async () => { const m = new Map(); (ok(await sb.rpc('agent_parties')) || []).forEach((r) => { if (!m.has(r.deal_id)) m.set(r.deal_id, []); m.get(r.deal_id).push({ contactId: r.contact_id, name: r.name, label: r.label }); }); return m; };
+  const parties = () => sessionCache('parties', loadParties);
   // task_board / task_grid rows -> the same shape the mock's listAllTasks returns (task + its file)
   const boardRows = (rows) => camel(rows || []).map((t) => ({ ...t, ownerId: t.ownerProfileId, ownerName: t.ownerName || '', personName: t.ownerName || '', group: groupOfRole(t.assignedRole),
     deal: { id: t.dealId, fileNumber: t.fileNumber, street: t.street, city: t.city, state: t.state, zip: t.zip, address: `${t.street}, ${t.city}, ${t.state} ${t.zip}`, closingDate: t.closingDate, status: t.dealStatus } }));
@@ -126,7 +127,7 @@ export async function createSupabaseAdapter(cfg) {
     return k;
   };
   nav.share = (id, key, fn) => shareReads(id, storedKey(key), fn);
-  const dropFileReads = () => { fileGen += 1; };
+  const dropFileReads = () => { fileGen += 1; sessionBox.clear(); };
   const early = speculativeReads();
   let openingNav = false;
   let navSerial = 0;
@@ -188,8 +189,26 @@ export async function createSupabaseAdapter(cfg) {
     flight.catch(() => { if (authUserFlight === flight) { authUserFlight = null; authUserFlightOwner = 0; } });
     return flight;
   }
+  let sessionUser = '';
+  const sessionBox = new Map();
+  function clearSessionCache() { sessionBox.clear(); sessionUser = ''; }
+  // Survives tab changes. A new sign-in, or a write that bumps fileGen, reads again.
+  function sessionCache(key, load) {
+    const id = nav.userId() || pendingAuthId || (ident.current() && ident.current().id) || '';
+    if (!id) return Promise.resolve().then(load);
+    if (id !== sessionUser) { sessionBox.clear(); sessionUser = id; }
+    const full = id + '#' + fileGen + ':' + key;
+    let hit = sessionBox.get(full);
+    if (!hit) {
+      hit = Promise.resolve().then(load);
+      sessionBox.set(full, hit);
+      hit.catch(() => { if (sessionBox.get(full) === hit) sessionBox.delete(full); });
+    }
+    return hit;
+  }
   function dropAuth() {
     ident.invalidate();
+    clearSessionCache();
     procNames = null;
     authUserFlight = null;
     authUserFlightOwner = 0;
@@ -206,6 +225,7 @@ export async function createSupabaseAdapter(cfg) {
     return person;
   }
   function confirmedSignOut() {
+    clearSessionCache();
     lastGoodUser = null;
     lastHeld = null;
     profile.clear();
