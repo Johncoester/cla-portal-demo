@@ -19,7 +19,37 @@ export function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
+/* When the three GitHub secrets are unset, read them from TEST Vault.
+ * The service-role key is already a workflow secret. The values are not printed. */
+export async function loadGmailVault(env = process.env, fetchImpl = globalThis.fetch) {
+  if (env.E2E_GMAIL_CLIENT_ID && env.E2E_GMAIL_CLIENT_SECRET && env.E2E_GMAIL_REFRESH_TOKEN) return false;
+  const url = String(env.SUPABASE_URL || '').replace(/\/$/, '');
+  const key = env.SUPABASE_SERVICE_ROLE_KEY || '';
+  if (!url || !key) return false;
+  if (url !== 'https://aqcervntopidtcazcmlv.supabase.co') {
+    throw new Error('Refusing to load the test inbox from a project that is not CLA Portal Live Test.');
+  }
+  const res = await fetchImpl(`${url}/rest/v1/rpc/e2e_gmail_credentials`, {
+    method: 'POST',
+    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: '{}',
+  });
+  if (!res.ok) throw new Error(`The test inbox Gmail credentials are not available (HTTP ${res.status}).`);
+  let json;
+  try { json = await res.json(); } catch (e) { throw new Error('The test inbox Gmail credentials could not be read.'); }
+  const row = Array.isArray(json) ? json[0] : json;
+  const id = row && row.client_id;
+  const secret = row && row.client_secret;
+  const refresh = row && row.refresh_token;
+  if (!id || !secret || !refresh) throw new Error('The test inbox is not connected yet.');
+  env.E2E_GMAIL_CLIENT_ID = id;
+  env.E2E_GMAIL_CLIENT_SECRET = secret;
+  env.E2E_GMAIL_REFRESH_TOKEN = refresh;
+  return true;
+}
+
 export async function gmailAccessToken() {
+  await loadGmailVault();
   const body = new URLSearchParams({
     client_id: required('E2E_GMAIL_CLIENT_ID'),
     client_secret: required('E2E_GMAIL_CLIENT_SECRET'),

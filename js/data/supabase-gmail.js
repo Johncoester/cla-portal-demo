@@ -64,6 +64,19 @@ async function gmailUnreadMap(sb, camel, userId) {
   return gmailUnreadByDeal(camel(res.data) || [], reads, { userId, localReadAt: localCursorMap(browserStorage(), userId) });
 }
 
+async function e2eCall(sb, body) {
+  const res = await sb.functions.invoke('e2e-gmail-oauth', { body });
+  if (res.error) {
+    let msg = 'The setup page did not answer.';
+    try {
+      const j = await res.error.context.json();
+      if (j && typeof j.error === 'string' && j.error.length < 240 && !/ya29\.|client_secret|access_token|refresh_token/i.test(j.error)) msg = j.error;
+    } catch (e) { /* keep the generic line */ }
+    throw new Error(msg);
+  }
+  return res.data || {};
+}
+
 export function gmailSupabase({ sb, ok, camel }) {
   const call = async (name, body) => {
     const res = await sb.functions.invoke(name, { body });
@@ -109,6 +122,10 @@ export function gmailSupabase({ sb, ok, camel }) {
         documentIds: input.documentIds || [], uploadIds: input.uploadIds || [], pendingUploads: input.pendingUploads || [], templateKey: input.templateKey || null, replyToEmailId: input.replyToEmailId || null, dryRun: input.dryRun === true });
     },
     async checkGmailReplies() { return call('gmail-sync', { mode: 'user' }); },
+    async e2eGmailStatus() { return e2eCall(sb, { action: 'status' }); },
+    async e2eGmailSaveClient(clientId, clientSecret) { return e2eCall(sb, { action: 'save', clientId, clientSecret }); },
+    async e2eGmailConsentLink() { return e2eCall(sb, { action: 'link' }); },
+    async e2eGmailReopen() { return e2eCall(sb, { action: 'reopen' }); },
     // Portal invite email (Nov 9): gmail-send builds the email from the invite row and sends it from the inviter's own Gmail. Never throws:
     // the page always gets an outcome and keeps the copy link on screen when it was not sent.
     // A 200 body with sent:false still carries the reason (the role suite's no-send answer is one of these). Dropping it made the dialog look like a silent copy link.
