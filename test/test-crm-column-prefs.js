@@ -69,6 +69,11 @@ ok(writes.length === 1 && writes[0][0] === 'accounts' && writes[0][1] === 'email
 scheduleColumnSave({ api: down, storage: store, userId: 'u1', module: 'accounts', order: ['name'], known, delay: 20 });
 await wait(50);
 ok(rejected === 0 && loadColumns(store, 'u1', 'accounts', { known, defaults }).join() === 'name', 'a failed write stays on the browser copy and does not surface');
+resetColumnPrefSession();
+const checkFail = { async saveUserUiPrefs() { throw new Error('new row for relation "user_ui_prefs" violates check constraint "user_ui_prefs_module_ok"'); } };
+scheduleColumnSave({ api: checkFail, storage: store, userId: 'u1', module: 'leads', order: ['email', 'phone'], known, delay: 20 });
+await wait(50);
+ok(rejected === 0 && loadColumns(store, 'u1', 'leads', { known, defaults }).join() === 'email,phone', 'a rejected row stays in this browser and is not shown as an error');
 
 resetColumnPrefSession();
 let release = () => {};
@@ -106,6 +111,14 @@ ok((await other.getUserUiPrefs('contacts')).prefs.order.join() === 'email,name',
 const mig = read('supabase/migrations/20261112070000_user_ui_prefs.sql');
 const rb = read('supabase/rollbacks/20261112070000_user_ui_prefs.sql');
 ok(mig.includes('create table if not exists public.user_ui_prefs') && mig.includes('user_id uuid not null default auth.uid()') && mig.includes('primary key (user_id, module)'), 'the migration adds user_ui_prefs');
+ok(mig.includes("constraint user_ui_prefs_module_ok check (module in ('leads', 'contacts', 'accounts', 'deals'))"), 'module is limited to the four list keys');
+ok(mig.includes("constraint user_ui_prefs_prefs_ok check (jsonb_typeof(prefs) = 'object' and pg_column_size(prefs) < 16384)"), 'prefs must be a jsonb object under 16 KB');
+ok(mig.includes('constraint user_ui_prefs_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade'), 'user_id references auth.users and cascades on delete');
+ok(mig.includes('drift: user_ui_prefs_module_ok is missing') && mig.includes('drift: user_ui_prefs_prefs_ok is missing') && mig.includes('must reference auth.users(id) on delete cascade'), 'an existing table without the checks or the foreign key fails the drift guard');
+ok(rb.includes('drop constraint if exists user_ui_prefs_module_ok') && rb.includes('drop constraint if exists user_ui_prefs_prefs_ok') && rb.includes('drop constraint if exists user_ui_prefs_user_id_fkey') && rb.includes('drop table if exists public.user_ui_prefs'), 'the rollback drops the checks, the foreign key, and the table');
+const pages = read('js/pages/crm.js') + read('js/pages/crm-deals.js') + read('js/pages/crm-kit.js') + read('js/data/crm-columns.js');
+ok(pages.includes("key: 'leads'") && pages.includes("key: 'contacts'") && pages.includes("key: 'accounts'") && pages.includes("module: 'deals'") && pages.includes("['leads', 'contacts', 'accounts', 'deals']"), 'the screens write leads, contacts, accounts, and deals');
+ok(!/saveUserUiPrefs\([^)]*clients|module: 'clients'|module: 'companies'|key: 'clients'|key: 'companies'/.test(read('js/pages/crm.js') + read('js/pages/crm-deals.js') + read('js/pages/crm-kit.js') + read('js/data/crm-columns.js')), 'column saves do not use the clients or companies labels as keys');
 ok(mig.includes('enable row level security') && !/private\./.test(mig) && !/for delete/i.test(mig), 'RLS is on, with no private helper and no delete policy');
 const policyHits = mig.match(/user_id = \(select auth\.uid\(\)\)/g) || [];
 ok(policyHits.length === 4, 'select, insert, and update each check auth.uid()');
