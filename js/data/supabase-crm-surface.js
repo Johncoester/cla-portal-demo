@@ -1,7 +1,7 @@
 /* Hosted methods the CRM screens call that were not on the Supabase adapter.
  * Tables only: dashboards, reports, layout sections, dup rules, search columns, activities.
  * Recent items have no table, so they last for this page session only. */
-import { localDate } from './constants.js?v=202611090935';
+import { localDate } from './constants.js?v=202611101015';
 import { canUseCrm, crmReadOnly } from './crm.js?v=202611070139';
 import {
   MODULE_CODES, SEARCH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, moduleName, moduleFields, reportFields,

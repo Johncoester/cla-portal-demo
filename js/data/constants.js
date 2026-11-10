@@ -121,18 +121,18 @@ export const DOC_VISIBILITY = ['all', 'buyer', 'seller', 'staff'];
 export const visibilityChoices = (role, isAdmin = false) => {
   if (isAdmin || ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin'].includes(role)) return [...DOC_VISIBILITY];
   const side = ({ 'Buyer Agent': 'buyer', 'Client-Buyer': 'buyer', 'Listing Agent': 'seller', 'Client-Seller': 'seller' })[role];
-  // CLIENTS (Matt, Oct 31): one choice, 'Share with CLA Title' = CLA staff + their own side (their agent), never the other side.
-  // (A self-represented agent acts as the agent here, so keeps the agent choices.) Migration 13 refuses 'all' from a client.
-  // BUYER (Matt, Nov 4 call): the buyer shares documents with CLA Title ONLY ('staff'), not with their agent or anyone else
-  if (role === 'Client-Buyer') return ['staff'];
-  if (role === 'Client-Seller') return [side];
+  // CLIENTS: one choice, 'Share with CLA Title'. It is stored as that client's own side ('buyer' or 'seller'),
+  // which CLA staff and their own agent can see, and the other side cannot. A self-represented agent keeps the agent choices.
+  if (role === 'Client-Buyer' || role === 'Client-Seller') return side ? [side] : ['all'];
   // An agent may keep a file with CLA staff only. That does not open the other side or a client's private form.
   if (role === 'Listing Agent' || role === 'Buyer Agent') return ['staff', side, 'all'];
   return side ? ['all', side] : ['all']; };
 // Labels for 'Who can see it'. Clients see their own-side option as 'Share with CLA Title'.
 export const VIS_LABELS = { all: 'Everyone on the file', buyer: 'Buyer side only', seller: 'Seller side only', staff: 'CLA staff only' };
 export const visibilityLabel = (vis, role) => ((role === 'Client-Buyer' && vis === 'staff') || ((role === 'Client-Buyer' || role === 'Client-Seller') && vis === sideOf(role)) ? 'Share with CLA Title' : VIS_LABELS[vis] || vis);
-export const BUYER_SHARE_NOTE = 'Share with CLA Title: only CLA Title & Escrow staff can see it. Nobody else on the file (not your agent, not the other side).';
+// A client form may still submit the old 'staff' value. Store their own side so the agent and CLA staff can both see it.
+export const clientShareVisibility = (role, vis) => ((role === 'Client-Buyer' || role === 'Client-Seller') && vis === 'staff' ? (sideOf(role) || vis) : vis);
+export const BUYER_SHARE_NOTE = 'Share with CLA Title: CLA Title staff and your own agent on this file can see it. The other side (their agent and client) cannot.';
 export const CLIENT_SHARE_NOTE = 'Share with CLA Title: CLA Title staff and your own agent on this file can see it. The other side (their agent and client) cannot.';
 // Participant roles on a deal = the 8 order roles plus non-login parties (never 'Admin')
 // John, Nov 4 meeting: abstractors and underwriters are parties too (non-login, like Lender / HOA; migration 49 allows them)

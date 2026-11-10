@@ -1,7 +1,7 @@
 /* Closer on an order (MF-011). A dropdown of active CLA staff that also accepts a typed name.
  * The stored name is what people read. closerProfileId is set only when that name is one active staff member.
  * A typed name that is not in the list is kept, with no staff id. Nothing here calls the network. */
-import { STAFF_ACCOUNT_ROLES } from './constants.js?v=202611090935';
+import { STAFF_ACCOUNT_ROLES } from './constants.js?v=202611101015';
 
 export const CLOSER_NAME_MAX = 120;
 export const CLOSER_STAFF_ROLES = STAFF_ACCOUNT_ROLES;

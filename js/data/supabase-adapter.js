@@ -1,40 +1,41 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611091600';
-import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611090935';
-import { assertRecipients, messageText } from './portal-message.js?v=202611090935';
-import { planDocumentBatch } from './document-batch.js?v=202611090935';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611101015';
+import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611101015';
+import { assertRecipients, messageText } from './portal-message.js?v=202611101015';
+import { planDocumentBatch } from './document-batch.js?v=202611101015';
 import { featureFlags } from './features.js?v=202611070139';
 import { accountingSupabase } from './supabase-accounting.js?v=202611091140';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
-import { modulesSupabase } from './supabase-modules.js?v=202611090935';
+import { modulesSupabase } from './supabase-modules.js?v=202611101015';
 import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611090935';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611090935';
-import { automationPart } from './automation.js?v=202611091345';
-import { runsOrders as runsOrdersCI } from './constants.js?v=202611090935';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611101015';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611101015';
+import { automationPart } from './automation.js?v=202611101015';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
 import { crmSupabase } from './supabase-crm.js?v=202611101600';
 import { hrSupabase } from './supabase-hr.js?v=202611100130';
-import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611091240';
-import { officesSupabase } from './supabase-offices.js?v=202611090935';
-import { closingLocationSupabase } from './supabase-closing-location.js?v=202611090935';
-import { tcSupabase } from './supabase-tc.js?v=202611090935';
-import { emailSendersSupabase } from './supabase-email-senders.js?v=202611090935';
-import { gmailSupabase } from './supabase-gmail.js?v=202611100930';
-import { nov5Supabase } from './supabase-nov5.js?v=202611091030';
-import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611100930';
-import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611100130';
+import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611101015';
+import { officesSupabase } from './supabase-offices.js?v=202611101015';
+import { closingLocationSupabase } from './supabase-closing-location.js?v=202611101015';
+import { tcSupabase } from './supabase-tc.js?v=202611101015';
+import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
+import { gmailSupabase } from './supabase-gmail.js?v=202611101230';
+import { nov5Supabase } from './supabase-nov5.js?v=202611101015';
+import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611101015';
+import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611101015';
 import { staffSupabase } from './supabase-staff.js?v=202611082000';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611092320';
-import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101145';
+import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
-import { propertyAddressOf } from './nov5-rules.js?v=202611090935';
-import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611090935';
+import { propertyAddressOf } from './nov5-rules.js?v=202611101015';
+import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611101015';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
-import { contactInsertRow } from './contact-insert.js?v=202611070139';
+import { contactInsertRow } from './contact-insert.js?v=202611101200';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
+import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole } from './lender-file.js?v=202611101200';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
@@ -316,7 +317,7 @@ export async function createSupabaseAdapter(cfg) {
     async createDeal(input) {
       // Refinance (John, Nov 3): no purchase price / EMD; migration 32 (private.deal_refi_guard) refuses them, and sellers / realtors / a TC on the file
       const refi = input.transactionType === 'Refinance';
-      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611090935'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
+      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611101015'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
       const { data: { user } } = await sb.auth.getUser();
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
         open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : moneyAmount(input.purchasePrice), loan_amount: moneyAmount(input.loanAmount),
@@ -325,6 +326,7 @@ export async function createSupabaseAdapter(cfg) {
         primary_residence: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.primaryResidence || ''), first_time_buyer: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.firstTimeBuyer || '') };   // Maryland purchases only (John, Nov 6)
       if (input.tcUserId) row.tc_user_id = input.tcUserId;   // John, Nov 9: blank = the database auto-assigns (a TC who opens it, else the agents' team TC)
       if (input.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(input.claRepresentation);   // Both / Buyer only / Seller only; absent = not recorded
+      const wrote = lenderColumnWrite(input); if (wrote) { row.lender_address = wrote.lenderAddress; row.cpl_address = wrote.cplAddress; row.cpl_same_as_lender = wrote.cplSameAsLender; row.mortgage_broker_name = wrote.mortgageBrokerName; }
       const d = camel(ok(await sb.from('deals').insert(row).select().single()));
       if (String(input.sourceOfBusiness || '').trim()) ok(await sb.rpc('set_deal_source', { p_deal: d.id, p_source: input.sourceOfBusiness }));   // migration 31 (staff-only table)
       const ids = [].concat(input.salesIds || []).filter(Boolean); if (ids.length) ok(await sb.rpc('set_deal_sales_people', { p_deal: d.id, p_sales: ids }));
@@ -337,6 +339,11 @@ export async function createSupabaseAdapter(cfg) {
         row[col] = money.has(col) ? moneyAmount(v) : dates.has(col) || col === 'processor_id' || col === 'preprocessor_user_id' || col === 'tc_user_id' || col === 'closer_profile_id' ? (v || null) : v; }
       if (row.open_date === null) delete row.open_date;
       if (patch.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(patch.claRepresentation);   // '' = not recorded (null)
+      if (lenderColumnsTouched(patch)) { const x = lenderExtras(patch);
+        if (patch.lenderAddress !== undefined) row.lender_address = x.lenderAddress;
+        if (patch.cplAddress !== undefined || patch.cplSameAsLender !== undefined) row.cpl_address = x.cplAddress;
+        if (patch.cplSameAsLender !== undefined) row.cpl_same_as_lender = x.cplSameAsLender;
+        if (patch.mortgageBrokerName !== undefined) row.mortgage_broker_name = x.mortgageBrokerName; }
       if (patch.state !== undefined && String(patch.state || '').toUpperCase() !== 'MD') { row.primary_residence = ''; row.first_time_buyer = ''; }
       if (Object.keys(row).length) ok(await sb.from('deals').update(row).eq('id', id));
       if (patch.sourceOfBusiness !== undefined) ok(await sb.rpc('set_deal_source', { p_deal: id, p_source: patch.sourceOfBusiness || '' }));
@@ -351,6 +358,7 @@ export async function createSupabaseAdapter(cfg) {
         if (!patch || patch[k] === undefined) continue;
         row[col] = k === 'contactType' ? (patch[k] || null) : k === 'email' ? String(patch[k] || '').trim().toLowerCase() : patch[k];
       }
+      if (patch && patch.lenderRole !== undefined) row.lender_role = cleanLenderRole(patch.lenderRole, patch.contactType || 'lender');
       if (!Object.keys(row).length) throw new Error('Nothing to save on this contact.');
       let saved;
       try { saved = camel(ok(await sb.from('contacts').update(row).eq('id', id).select().single())); }
@@ -359,6 +367,12 @@ export async function createSupabaseAdapter(cfg) {
       assertContactSaved(patch, saved);
       dropFileReads();
       return saved;
+    },
+    async listLossPayeeClauses(lenderName) {
+      const name = String(lenderName || '').replace(/[%_,]/g, '').trim();
+      if (!name) return [];
+      const rows = camel(ok(await sb.from('deals').select('lender_name, loss_payee_name, open_date').ilike('lender_name', name))) || [];
+      return lossPayeeSuggestions(rows, lenderName);
     },
     // participants: the triggers (migrations 10, 11, 20) enforce outside-user roles, self-representation pairs and "TC = Transaction Coordinator accounts only"
     // Matt, Nov 3b: opts.entity = { name, type, repName, repTitle, repPhone, repEmail } on a buyer / seller row (set_participant_entity, migration 31)
@@ -453,11 +467,11 @@ export async function createSupabaseAdapter(cfg) {
     async markNotificationRead(id) { ok(await sb.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id)); },
     async markAllNotificationsRead() { ok(await sb.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null)); },
     // closing: tokens come back ONCE from create/reopen (only hashes are stored), unlike the mock which keeps them
-    async createSettlementRequest(dealId, { slots, location, note }) { return camel(ok(await sb.rpc('create_settlement_request', { p_deal: dealId, p_slots: slots, p_location: location, p_note: note }))[0]); },
+    async createSettlementRequest(dealId, { slots, location, note, officeId }) { return camel(ok(await sb.rpc('create_settlement_request', { p_deal: dealId, p_slots: slots, p_location: location || '', p_note: note || '', p_office: officeId || null }))[0]); },
     async confirmSettlement(id, slotIndex) { ok(await sb.rpc('confirm_settlement', { p_settlement: id, p_slot: slotIndex + 1 })); },
     async reopenSettlement(id, { slots, note } = {}) { return camel(ok(await sb.rpc('reopen_settlement', { p_settlement: id, p_slots: slots || null, p_note: note || null }))[0]); },
     async getSchedulingLink(tok) { return ok(await sb.rpc('scheduling_get', { p_token: tok })); },   // anon OK
-    async respondSettlement(tok, { picks, note, name }) { ok(await sb.rpc('scheduling_respond', { p_token: tok, p_picks: picks.map((i) => i + 1), p_name: name, p_note: note || '' })); },
+    async respondSettlement(tok, { picks, note, name, location, officeId }) { ok(await sb.rpc('scheduling_respond', { p_token: tok, p_picks: picks.map((i) => i + 1), p_name: name, p_note: note || '', p_location: location || '', p_office: officeId || '' })); },
     async updateTask(id, patch) { return ok(await sb.rpc('set_task_status', { p_task: id, p_status: patch.status })); },
     async listDocuments(dealId, { folderId } = {}) { const rows = (await fileRead('docs:' + dealId, () => rawDocs(dealId))) || []; return filterListedDocuments(rows, folderId).map((d) => shapeListedDocument(d)); },   // folder filter + stored size/content flag (no extra query)
     // ---- Matt, Nov 2 (migration 16): cross-file task list + Processor / Admin task grid. task_board / task_grid are SECURITY INVOKER (RLS decides). ----

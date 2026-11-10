@@ -2,11 +2,11 @@
 //   "+" Create New menu (every CRM page), #/crm/new/<module>, CSV import (#/crm/import/<leads|contacts>[/notes], Admin / Super admin),
 //   county from the ZIP on the person form, the company duplicate warning, the meeting "Send invite" PREVIEW (.ics), the task Subject type-ahead.
 import { html, raw, $, $$, guard, toast, modal, closeModal, fmtDateTime, pill, toText } from '../ui.js?v=202611070139';
-import { modOn } from '../data/modules.js?v=202611090935';   // module switches (combined nov3g)
+import { modOn } from '../data/modules.js?v=202611101015';   // module switches (combined nov3g)
 import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, guessMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importTooBigMessage, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, importErrorCsv, saveImportResume, loadImportResume, IMPORT_RESUME_PREFIX } from '../data/crm-janine.js?v=202611101600';
 import { fopts } from './crm-custom.js?v=202611070139';
-import { importStatusChoices } from '../data/nov5-rules.js?v=202611090935';
-import { US_STATES } from '../data/constants.js?v=202611090935';
+import { importStatusChoices } from '../data/nov5-rules.js?v=202611101015';
+import { US_STATES } from '../data/constants.js?v=202611101015';
 
 // ---------- "+" Create New (Home and every CRM page) ----------
 // combined nov3g: skip modules whose Live switch is off for this user (regular users; Admins testing a beta module still get it)

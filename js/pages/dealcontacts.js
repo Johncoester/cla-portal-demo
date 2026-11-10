@@ -1,11 +1,13 @@
 // Contacts tab: everyone on this file. Processor can add people (existing or new), edit them, and unlink them from the order.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill } from '../ui.js?v=202611070139';
-import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole } from '../data/constants.js?v=202611090935';
-import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611092350';
-import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611100005';
+import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole } from '../data/constants.js?v=202611101015';
+import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611101015';
+import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611101015';
 import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100200';
-import { copyPlainText } from './deal.js?v=202611101145';
+import { copyPlainText } from './deal.js?v=202611101500';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
+import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611101015';
+import { LENDER_CONTACT_ROLES, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611101200';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
 export function contactCopyMessage(copied, kind) {
@@ -26,13 +28,23 @@ const GROUPS = [['ALL', null], ['BUYER', ['Client-Buyer', 'Buyer Agent']], ['SEL
 
 export async function render({ api, user, deal, refresh }) {
   const repaint = () => { if (api.dropFileReads) api.dropFileReads(); refresh(); };
-  const edit = runsOrders(user); const g = new URLSearchParams(location.hash.split('?')[1] || '').get('g') || 'ALL'; const grp = (GROUPS.find((x) => x[0] === g) || GROUPS[0])[1];
+  const edit = runsOrders(user); const staffView = !user.accountRole && user.role !== 'Outside user'; const g = new URLSearchParams(location.hash.split('?')[1] || '').get('g') || 'ALL'; const grp = (GROUPS.find((x) => x[0] === g) || GROUPS[0])[1];
   const list = deal.participants.filter((p) => !grp || grp.includes(p.role));
   const party = new Set((deal.agentParties || []).map((p) => p.contactId));
   const separate = (p) => list.some((q) => q.id !== p.id && q.contactId !== p.contactId && sameParty([q], p.contact, p.role));
-  const rows = list.map((p) => html`<tr data-contact-row="${p.contactId}" data-participant="${p.id}" data-row-ctype="${p.contact.contactType || 'none'}"><td>${p.contact.firstName} ${p.contact.lastName}${p.removed ? html` ${pill('removed', 'bad')}` : ''}${party.has(p.contactId) ? html` <span class="pill warn agent-party" title="Client and their own agent on this file">Agent is a party</span>` : ''}${separate(p) ? html` <span class="pill warn" data-duplicate-party title="Another ${p.role} row has the same name. Edit saves only this contact.">Separate contact</span>` : ''}${p.contact.profileId ? '' : html` <span class="muted small">(no portal login)</span>`}</td><td>${p.role}</td><td data-ctype="${p.contact.contactType || ''}">${contactTypeLabel(p.contact.contactType) || html`<span class="muted">&mdash;</span>`}</td><td>${p.contact.company}</td>${p.contact.contactHidden ? html`<td colspan="2" class="muted contact-hidden">Contact through CLA Title</td>` : html`<td>${fmtPhone(p.contact.phone)} ${p.contact.phone ? html`<button type="button" class="ghost" data-copy-field="${fmtPhone(p.contact.phone)}" data-copy-kind="phone" aria-label="Copy ${p.contact.firstName}'s phone">Copy</button>` : ''}</td><td>${p.contact.email} ${p.contact.email ? html`<button type="button" class="ghost" data-copy-field="${p.contact.email}" data-copy-kind="email" aria-label="Copy ${p.contact.firstName}'s email">Copy</button>` : ''}</td>`}
-    <td class="nowrap">${canInviteToPortal(user, p.role) && !p.contact.profileId && !p.removed ? html`<button type="button" class="ghost" data-invite-portal="${p.contactId}" data-invite-role="${p.role}">Invite to portal</button> ` : ''}${edit ? html`<button type="button" class="ghost" data-edit="${p.id}">Edit</button> <button type="button" class="ghost" data-unlink="${p.id}" title="Removes this person from the order only">Remove from order</button>` : ''}</td></tr>`);
-  const body = html`<div class="box-title"><h2><span class="h-ico"></span>Order Contacts</h2>${edit ? html`<button class="m-btn right" id="addp">+ Add contact</button>` : ''}</div>
+  const rows = list.map((p) => {
+    const who = contactDisplayName(p.contact);
+    const roleBit = lenderRoleLabel(p.contact.lenderRole);
+    const phoneBtn = p.contact.phone ? html`<button type="button" class="ghost" data-copy-field="${fmtPhone(p.contact.phone)}" data-copy-kind="phone" aria-label="${'Copy ' + who + ' phone'}">Copy</button>` : '';
+    const emailBtn = p.contact.email ? html`<button type="button" class="ghost" data-copy-field="${p.contact.email}" data-copy-kind="email" aria-label="${'Copy ' + who + ' email'}">Copy</button>` : '';
+    const contactCells = p.contact.contactHidden
+      ? html`<td colspan="2" class="muted contact-hidden">Contact through CLA Title</td>`
+      : html`<td>${fmtPhone(p.contact.phone)} ${phoneBtn}</td><td>${p.contact.email} ${emailBtn}</td>`;
+    const dup = separate(p) ? html` <span class="pill warn" data-duplicate-party title="Another ${p.role} row has the same name. Edit saves only this contact.">Separate contact</span>` : '';
+    return html`<tr data-contact-row="${p.contactId}" data-participant="${p.id}" data-row-ctype="${p.contact.contactType || 'none'}"><td>${who}${p.removed ? html` ${pill('removed', 'bad')}` : ''}${party.has(p.contactId) ? html` <span class="pill warn agent-party" title="Client and their own agent on this file">Agent is a party</span>` : ''}${dup}${p.contact.profileId ? '' : html` <span class="muted small">(no portal login)</span>`}</td><td>${p.role}</td><td data-ctype="${p.contact.contactType || ''}">${contactTypeLabel(p.contact.contactType) || html`<span class="muted">&mdash;</span>`}${roleBit ? html` · ${roleBit}` : ''}</td><td>${p.contact.company}</td>${contactCells}
+    <td class="nowrap">${canInviteToPortal(user, p.role) && !p.contact.profileId && !p.removed ? html`<button type="button" class="ghost" data-invite-portal="${p.contactId}" data-invite-role="${p.role}">Invite to portal</button> ` : ''}${edit ? html`<button type="button" class="ghost" data-edit="${p.id}">Edit</button> <button type="button" class="ghost" data-unlink="${p.id}" title="Removes this person from the order only">Remove from order</button>` : ''}</td></tr>`;
+  });
+  const body = html`${staffView ? lenderSectionHtml(deal, { canEdit: edit }) : ''}<div class="box-title"><h2><span class="h-ico"></span>Order Contacts</h2>${edit ? html`<button class="m-btn right" id="addp">+ Add contact</button>` : ''}</div>
     <ul class="nav-tabs">${GROUPS.map(([k]) => html`<li><a class="${k === g ? 'active' : ''}" href="#/deals/${deal.id}/contacts?g=${k}">${k}</a></li>`)}</ul>
     <form class="filter-bar" id="ctfilter"><label>Contact type<select name="ctype" aria-label="Filter by contact type"><option value="">Any</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}<option value="none">Not set</option></select></label></form>
     <table class="tbl striped"><thead><tr><th>Name</th><th>Role</th><th>Contact type</th><th>Company</th><th>Phone</th><th>Email</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
@@ -43,6 +55,7 @@ export async function render({ api, user, deal, refresh }) {
     const ab = $('#addp', root); if (ab) ab.addEventListener('click', guard(addPerson));
     $$('[data-invite-portal]', root).forEach((b) => b.addEventListener('click', () => invitePortal(b.dataset.invitePortal, b.dataset.inviteRole)));
     const cf = $('#ctfilter [name=ctype]', root); cf.addEventListener('change', () => { $$('[data-contact-row]', root).forEach((tr) => { tr.hidden = !!cf.value && tr.dataset.rowCtype !== cf.value; }); });
+    if (staffView) mountLenderSection(root, { api, deal, refresh: repaint });
   } };
 
   // John, Nov 2: type-to-search picker (name / email / phone / brokerage). Transaction Coordinator: only active TC logins; no new person
@@ -55,7 +68,7 @@ export async function render({ api, user, deal, refresh }) {
       <p class="muted small span2" data-tc-note hidden>Only users with the Transaction Coordinator account role can be the Transaction Coordinator. An Admin creates them under Create User.</p>
       <p class="muted small span2">Type a name and pick a match, or choose <strong>Add "…" as a new person</strong> in the list. Use the fields below when you already have email, phone or company details.</p>
       <div class="span2">${pickerHtml('contactId', 'Contact')}</div>
-      <div class="span2 form-grid" data-newperson><h4 class="span2">&mdash; or enter full details &mdash;</h4><label data-fn>First name<input name="firstName"></label><label>Last name<input name="lastName"></label><label>Email<input name="email" type="email"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone></label><label data-co>Company / brokerage<input name="company"></label>${ctypeSelect('')}</div>
+      <div class="span2 form-grid" data-newperson><h4 class="span2">&mdash; or enter full details &mdash;</h4><label data-fn>First name<input name="firstName"></label><label>Last name<input name="lastName"></label><label>Email<input name="email" type="email"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone></label><label data-co>Company / brokerage<input name="company"></label>${ctypeSelect('')}<label data-lrole hidden>Lender contact type<select name="lenderRole" aria-label="Lender contact type"><option value="">No contact person</option>${LENDER_CONTACT_ROLES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select></label></div>
       <div class="span2"><button class="m-btn" type="submit">Add</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
     const roleSel = $('[name=role]', m); const isTc = () => roleSel.value === 'Transaction Coordinator';
     // Same quick-create rules as Place Order (ordernew.js): split the typed name; lender company-ish strings become company-only.
@@ -85,13 +98,15 @@ export async function render({ api, user, deal, refresh }) {
     const ctSel = $('[data-newperson] [name=contactType]', m); let ctTouched = false; ctSel.addEventListener('change', () => { ctTouched = true; });
     const paintRole = () => { const r = roleSel.value; const lender = r === 'Lender'; const person = r === 'Client-Buyer' || r === 'Client-Seller';
       $('[data-fn]', m).firstChild.textContent = lender ? 'Contact first name (optional)' : person ? 'First name (leave blank for an entity)' : 'First name';
-      $('[data-co]', m).firstChild.textContent = lender ? 'Lender company name' : person ? 'Entity or company name' : 'Company / brokerage'; };
+      $('[data-co]', m).firstChild.textContent = lender ? 'Lender company name' : person ? 'Entity or company name' : 'Company / brokerage';
+      const lrole = $('[data-lrole]', m); if (lrole) lrole.hidden = !lender; };
     roleSel.addEventListener('change', () => { if (!ctTouched) ctSel.value = contactTypeForRole(roleSel.value); const tc = isTc(); $('[data-tc-note]', m).hidden = !tc; $('[data-newperson]', m).hidden = tc; if (tc && pk.value && !tcIds.has(pk.value)) pk.set(null); paintRole(); });
     paintRole();
     $('#apf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); let id = f.contactId;
       if (!id && pk.typed) throw new Error('Pick a person from the list, choose Add as a new person, or clear the search box and enter full details below.');
       if (!id && isTc()) throw new Error('Pick a Transaction Coordinator from the list.');
-      if (!id && f.role === 'Lender' && !String(f.company || '').trim()) throw new Error('Lender company name is required. A contact person is optional.');
+      if (!id && f.role === 'Lender') { const built = lenderCompanyContact({ company: f.company, firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone, lenderRole: f.lenderRole }); if (!built.ok) throw new Error(built.error); id = (await api.createContact(built.contact)).id; }
+      if (!id && (f.role === 'Client-Buyer' || f.role === 'Client-Seller') && !String(f.firstName || '').trim() && String(f.company || '').trim()) id = (await api.createContact({ firstName: '', lastName: f.lastName, email: f.email, phone: f.phone, company: f.company, contactType: f.contactType || 'buyer_seller' })).id;
       if (!id && !String(f.firstName || '').trim() && !String(f.company || '').trim()) throw new Error('Enter a first name, or a company or entity name.');
       if (!id) id = (await api.createContact({ firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone, company: f.company, contactType: f.contactType })).id;
       await api.addParticipant(deal.id, id, f.role); closeModal(); toast('Contact added'); repaint(); }));
@@ -121,9 +136,9 @@ export async function render({ api, user, deal, refresh }) {
     $$('[data-close]', m).forEach((b) => b.addEventListener('click', () => { if (made) repaint(); }));   // repaint the tab; Resend / Revoke stay on Agent Invites
   }
   function editContact(c, staff) {
-    const opened = { firstName: c.firstName || '', lastName: c.lastName || '', email: c.email || '', phone: c.phone || '', company: c.company || '', contactType: c.contactType || '' };
+    const opened = { firstName: c.firstName || '', lastName: c.lastName || '', email: c.email || '', phone: c.phone || '', company: c.company || '', contactType: c.contactType || '', lenderRole: c.lenderRole || '' };
     const m = modal('Edit contact', html`<form id="ecf" class="form-grid"><label>First name<input name="firstName" value="${opened.firstName}"></label><label>Last name<input name="lastName" value="${opened.lastName}"></label>
-      <label>Email<input name="email" type="email" autocomplete="off" value="${opened.email}"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${opened.phone}"></label><label>Company<input name="company" value="${opened.company}"></label>${staff ? html`<p class="muted small">CLA staff have no contact type.</p>` : ctypeSelect(opened.contactType || '')}
+      <label>Email<input name="email" type="email" autocomplete="off" value="${opened.email}"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${opened.phone}"></label><label>Company<input name="company" value="${opened.company}"></label>${staff ? html`<p class="muted small">CLA staff have no contact type.</p>` : ctypeSelect(opened.contactType || '')}${!staff && (c.contactType === 'lender' || c.lenderRole) ? html`<label>Lender contact type<select name="lenderRole" aria-label="Lender contact type"><option value="">Not set</option>${LENDER_CONTACT_ROLES.map(([v, l]) => html`<option value="${v}" ${v === (c.lenderRole || '') ? raw('selected') : ''}>${l}</option>`)}</select></label>` : ''}
       <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
     $('#ecf', m).addEventListener('submit', guard(async (e) => {
       e.preventDefault();
@@ -134,6 +149,12 @@ export async function render({ api, user, deal, refresh }) {
       if (!submitted.firstName.trim() && !submitted.company.trim()) throw new Error('Enter a first name, or a company or entity name.');
       if (submitted.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(submitted.email)) throw new Error('Enter a valid email for this person.');
       const patch = contactWritePatch(opened, submitted);
+      const lenderEl = !staff && form.querySelector('[name="lenderRole"]');
+      if (lenderEl) {
+        const lenderRole = String(lenderEl.value || '');
+        if (submitted.contactType && submitted.contactType !== 'lender' && lenderRole) throw new Error('Loan Officer and Lender TC are lender contacts only.');
+        if (lenderRole !== (opened.lenderRole || '')) patch.lenderRole = lenderRole;
+      }
       if (!Object.keys(patch).length) { closeModal(); toast('No changes to save'); return; }
       const saved = await api.updateContact(c.id, patch);
       assertContactSaved(patch, saved);
