@@ -1,37 +1,37 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611091600';
-import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611090935';
-import { assertRecipients, messageText } from './portal-message.js?v=202611090935';
-import { planDocumentBatch } from './document-batch.js?v=202611090935';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611101015';
+import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611101015';
+import { assertRecipients, messageText } from './portal-message.js?v=202611101015';
+import { planDocumentBatch } from './document-batch.js?v=202611101015';
 import { featureFlags } from './features.js?v=202611070139';
 import { accountingSupabase } from './supabase-accounting.js?v=202611091140';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
-import { modulesSupabase } from './supabase-modules.js?v=202611090935';
+import { modulesSupabase } from './supabase-modules.js?v=202611101015';
 import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611090935';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611090935';
-import { automationPart } from './automation.js?v=202611091345';
-import { runsOrders as runsOrdersCI } from './constants.js?v=202611090935';
-import { crmSupabase } from './supabase-crm.js?v=202611091240';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611101015';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611101015';
+import { automationPart } from './automation.js?v=202611101015';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
+import { crmSupabase } from './supabase-crm.js?v=202611101015';
 import { hrSupabase } from './supabase-hr.js?v=202611100130';
-import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611101215';
-import { officesSupabase } from './supabase-offices.js?v=202611101215';
-import { closingLocationSupabase } from './supabase-closing-location.js?v=202611090935';
-import { tcSupabase } from './supabase-tc.js?v=202611090935';
-import { emailSendersSupabase } from './supabase-email-senders.js?v=202611090935';
+import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611101015';
+import { officesSupabase } from './supabase-offices.js?v=202611101015';
+import { closingLocationSupabase } from './supabase-closing-location.js?v=202611101015';
+import { tcSupabase } from './supabase-tc.js?v=202611101015';
+import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
 import { gmailSupabase } from './supabase-gmail.js?v=202611101230';
-import { nov5Supabase } from './supabase-nov5.js?v=202611091030';
-import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611100930';
-import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611100130';
+import { nov5Supabase } from './supabase-nov5.js?v=202611101015';
+import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611101015';
+import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611101015';
 import { staffSupabase } from './supabase-staff.js?v=202611082000';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611092320';
-import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101145';
+import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
-import { propertyAddressOf } from './nov5-rules.js?v=202611090935';
-import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611090935';
+import { propertyAddressOf } from './nov5-rules.js?v=202611101015';
+import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611101015';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow } from './contact-insert.js?v=202611101200';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
@@ -317,7 +317,7 @@ export async function createSupabaseAdapter(cfg) {
     async createDeal(input) {
       // Refinance (John, Nov 3): no purchase price / EMD; migration 32 (private.deal_refi_guard) refuses them, and sellers / realtors / a TC on the file
       const refi = input.transactionType === 'Refinance';
-      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611090935'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
+      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611101015'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
       const { data: { user } } = await sb.auth.getUser();
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
         open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : moneyAmount(input.purchasePrice), loan_amount: moneyAmount(input.loanAmount),

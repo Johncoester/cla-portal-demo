@@ -9,7 +9,7 @@ import { splitFor } from '../data/underwriter.js?v=202611070139';
 import { cdDescription } from '../data/accounting.js?v=202611070139';
 import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611070139';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
 import * as Q from '../data/qualia-charges.js?v=202611070139';
-import { modOn } from '../data/modules.js?v=202611090935';   // live40: Payoffs / HOA switch
+import { modOn } from '../data/modules.js?v=202611101015';   // live40: Payoffs / HOA switch
 
 const usd = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const cell$ = (n) => (n == null || Number(n) === 0 ? '' : usd(n));

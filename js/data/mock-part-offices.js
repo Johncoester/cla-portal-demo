@@ -5,7 +5,7 @@
  * a real location is retired.
  * Rules (same as SQL): CLA staff read, Admins / Super admins write; NO deletes (an office is retired; a county taken off an office keeps its row
  * with removedAt); at most one active main office per state (setting a new one moves the flag); a county is served by one active office at most. */
-import { SAMPLE_OFFICES, cleanOffice, canManageOffices, OFFICE_ADMIN_ONLY, officeAddress, officeSort, normCounty, nearestOffice, OFFICE_LOCATION, geoPoint } from './offices.js?v=202611101215';
+import { SAMPLE_OFFICES, cleanOffice, canManageOffices, OFFICE_ADMIN_ONLY, officeAddress, officeSort, normCounty, nearestOffice, OFFICE_LOCATION, geoPoint } from './offices.js?v=202611101015';
 const SEED_AT = '2026-11-04T12:00:00Z';
 const OLD_PLACEHOLDERS = ['off-rockville', 'off-annapolis', 'off-dc', 'off-fairfax', 'off-ftlauderdale'];
 const seedRow = (o) => { const { counties, ...rest } = o; return { ...rest, active: true, createdAt: SEED_AT, createdBy: null, updatedAt: SEED_AT, updatedBy: null }; };
