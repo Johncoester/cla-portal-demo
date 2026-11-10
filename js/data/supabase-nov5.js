@@ -3,6 +3,7 @@
  * File bytes go to the private deal-documents bucket (migration 3). A missing bucket surfaces as an error; nothing is invented. */
 import { ordinaryCoverageDoc } from './nov5-rules.js?v=202611101015';
 import { uploadBytes } from './upload-bytes.js?v=202611070139';
+import { shapePortalThreads } from './portal-threads.js?v=202611101800';
 
 export const SAVED_UNCONFIRMED = 'This file was saved but the list could not be refreshed. It is already stored, so sending it again will not add a second copy.';
 
@@ -60,10 +61,14 @@ export function nov5Supabase({ sb, ok, camel, me }) {
       return row;
     },
     async listThreads(dealId) {
-      const threads = camel(ok(await sb.from('threads').select('*').eq('deal_id', dealId).order('created_at')));
-      const ids = threads.map((t) => t.id);
-      const messages = ids.length ? camel(ok(await sb.from('messages').select('*').in('thread_id', ids).order('created_at'))) : [];
-      return threads.map((t) => ({ ...t, messages: messages.filter((m) => m.threadId === t.id) }));
+      const user = await uid();
+      const threads = camel(ok(await sb.from('threads').select('*').eq('deal_id', dealId).order('created_at'))) || [];
+      const ids = threads.map((t) => t.id).filter(Boolean);
+      const messages = ids.length ? camel(ok(await sb.from('messages').select('*').in('thread_id', ids).order('created_at'))) || [] : [];
+      const participants = ids.length ? camel(ok(await sb.from('thread_participants').select('thread_id, profile_id, last_read_at').in('thread_id', ids))) || [] : [];
+      const profileIds = [...new Set(participants.map((p) => p.profileId).concat(messages.map((m) => m.authorId)).filter(Boolean))];
+      const profiles = profileIds.length ? camel(ok(await sb.from('profiles').select('id, first_name, last_name, role').in('id', profileIds))) || [] : [];
+      return shapePortalThreads({ threads, messages, participants, profiles, userId: user && user.id });
     },
     async getThread(id) {
       const t = camel(ok(await sb.from('threads').select('*').eq('id', id).single()));
