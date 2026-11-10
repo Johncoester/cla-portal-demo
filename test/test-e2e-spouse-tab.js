@@ -15,6 +15,9 @@ const section = readFileSync('js/pages/spouse.js', 'utf8');
 ok(form.includes('spouseSectionHtml') && section.includes('Spouse information') && section.includes('save_party') === false, 'Personal information includes the spouse section');
 ok(section.includes("subject === 'spouse'") === false && section.includes('data-spouse-ssn-input'), 'the spouse Social Security number stays on its own input');
 ok(!readFileSync('js/app.js', 'utf8').includes("link('spouse'"), 'the file sidebar has no Spouse tab');
+ok(!readFileSync('js/pages/deal-buyer-legacy.js', 'utf8').includes('spouse:'), 'the older file page does not keep a Spouse tab');
+ok(readFileSync('js/pages/deal.js', 'utf8').includes("tab === 'spouse'"), 'opening /spouse is refused');
+ok(!readFileSync('js/pages/client-overview.js', 'utf8').includes('Spouse'), 'the client pills do not include Spouse');
 
 console.log(fail ? fail + ' failed' : 'e2e spouse tab passed');
 if (fail) process.exit(1);

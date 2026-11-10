@@ -30,7 +30,11 @@ export function messagesActivity(x) {
         add(deal.tcUserId, '', '', 'Transaction Coordinator', profOf(deal.tcUserId).email); }
       for (const s of load().dealSalesPeople || []) if (s.dealId === dealId) { const p = load().profiles.find((z) => z.id === s.salesId); if (p) add(p.id, p.firstName, p.lastName, p.role); }
       if (u.role === 'Transaction Coordinator') add(u.id, u.firstName, u.lastName, u.role);
-      return clone(rows.filter((r) => r.id !== u.id));
+      let out = rows.filter((r) => r.id !== u.id);
+      const held = (u.roles && u.roles.length) ? u.roles : [u.role];
+      const pureClient = held.length > 0 && held.every((r) => r === 'Client-Buyer' || r === 'Client-Seller');
+      if (pureClient && !staff) out = out.filter((r) => r.email && r.role === 'Processor');
+      return clone(out);
     },
     async listThreads(dealId) {
       let u = needUser(); u = onDeal(u, dealId); const d = load();

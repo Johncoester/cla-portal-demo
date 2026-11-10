@@ -49,13 +49,12 @@ as $titles$
     from file_role fr
     join public.deal_participants dp on dp.deal_id = fr.deal_id
     join public.contacts c on c.id = dp.contact_id
-    left join lateral (
-      select e.name
+    left join (
+      select distinct on (e.participant_id) e.participant_id, e.name
       from public.participant_entities e
-      where e.participant_id = dp.id and e.removed_at is null and btrim(coalesce(e.name, '')) <> ''
-      order by e.set_at desc nulls last
-      limit 1
-    ) ent on true
+      where e.removed_at is null and btrim(coalesce(e.name, '')) <> ''
+      order by e.participant_id, e.set_at desc nulls last
+    ) ent on ent.participant_id = dp.id
     where dp.role in ('Client-Buyer', 'Client-Seller')
       and not (
         fr.deal_role in ('Client-Buyer', 'Client-Seller')

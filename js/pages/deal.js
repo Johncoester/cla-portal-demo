@@ -58,6 +58,7 @@ export async function render(ctx) {
   // per-file roles: on this order an outside user acts as their role HERE (deal.myRole), e.g. Buyer Agent here, Client-Buyer elsewhere
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
+  if (tab === 'spouse') throw new Error('That page does not exist.');
   if (tab === 'accounting' && !(api.features || {}).accounting) throw new Error('That page does not exist.');
   if (tab === 'title' && !(api.features || {}).title) throw new Error('That page does not exist.');   // John, Nov 4: order > Title behind the `title` flag
   if (tab === 'contacts' && user.accountRole && isPureClient(user)) throw new Error('Your closing team is on the Overview.');   // buyer (Nov 4 call) and seller (mirror): no Contacts tab. Accounting stays behind its module switch on CLA Portal Live Test.
