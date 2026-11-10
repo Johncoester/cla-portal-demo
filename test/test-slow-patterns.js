@@ -14,7 +14,8 @@ export function slowPolicy(sql) {
   const hits = [];
   for (const policy of policies) {
     const using = policy.match(/using\s*\(([\s\S]*)\)\s*(?:with\s+check|;)/i);
-    const body = using ? using[1] : policy;
+    // (select private.helper()) is one initplan for the statement. A bare helper() is per row.
+    const body = (using ? using[1] : policy).replace(/\(select\s+private\.(?:me_role|is_staffish|is_admin|is_processor|effective_uid|can_access_deal|viewer_is_demo)\s*\(/gi, '(');
     const found = CHAIN.filter((name) => body.includes(name));
     if (found.length >= 2) hits.push(found.join('+'));
   }
@@ -36,6 +37,7 @@ create policy tasks_select on public.tasks for select using (
 `;
 ok(slowPolicy(sample).length === 1, 'a per-row helper chain in a policy is rejected');
 ok(slowPolicy("create policy ok on public.tasks for select using (private.task_readable(id));").length === 0, 'a one-pass policy is allowed');
+ok(slowPolicy("create policy once on public.tasks for select using ((select private.is_admin()) or (select private.effective_uid()) = owner_profile_id);").length === 0, 'initplan helpers are not a per-row chain');
 ok(repeatedRpc("const fileRoles = () => sessionCache('roles', async () => sb.rpc('my_file_roles_full'));\nfunction sessionCache(){}\nconst parties = () => sessionCache('parties', async () => sb.rpc('agent_parties'));").cached, 'the sample cache helper is recognized');
 
 const kept = repeatedRpc("function sessionCache(){}\nsessionCache('roles', () => sb.rpc('my_file_roles_full'));\nsessionCache('parties', () => sb.rpc('agent_parties'));");
