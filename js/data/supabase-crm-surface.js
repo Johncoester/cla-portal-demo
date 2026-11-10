@@ -66,7 +66,6 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
     async noteCrmRecent(entity, id) { const u = await who(); const bag = RECENT.get(u.id) || { items: [], searches: [] }; const at = new Date().toISOString(); const cur = bag.items.find((z) => z.module === entity && z.id === id); if (cur) cur.at = at; else bag.items.push({ module: entity, id, at }); RECENT.set(u.id, bag); return { ok: true }; },
     async listCrmRecent() { const u = await who(); const bag = RECENT.get(u.id) || { items: [], searches: [] }; return { items: bag.items.slice().sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 10), searches: bag.searches.slice(0, 10) }; },
     async saveCrmRecentSearch(q) { const u = await who(); const s = parseQuery(q).q; if (!s) return { ok: true }; const bag = RECENT.get(u.id) || { items: [], searches: [] }; bag.searches = [s, ...bag.searches.filter((z) => z !== s)].slice(0, 10); RECENT.set(u.id, bag); return { ok: true }; },
-    async listCrmImportRows() { await who(); return []; },
     async getCrmComposeContext(entity, id) {
       const u = await who();
       let recordName = 'Record'; let to = [];
