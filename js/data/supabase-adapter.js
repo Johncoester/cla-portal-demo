@@ -29,6 +29,7 @@ import { staffSupabase } from './supabase-staff.js?v=202611082000';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611092320';
 import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
+import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611101030';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
 import { propertyAddressOf } from './nov5-rules.js?v=202611101015';
 import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611101015';
@@ -389,9 +390,31 @@ export async function createSupabaseAdapter(cfg) {
     async setParticipantEntity(dealId, participantId, entity) { return ok(await sb.rpc('set_participant_entity', { p_participant: participantId, p_entity: entity || null })); },
     async listSourceOptions() { return ok(await sb.rpc('source_of_business_options')) || []; },
     async listCoordinators() {
-      const rows = (ok(await sb.rpc('coordinator_choices')) || []).map((r) => camel(r));
-      const visible = new Set((camel(ok(await sb.from('profiles').select('id'))) || []).map((p) => p.id));
-      return rows.filter((r) => visible.has(r.profileId));
+      const u = await me();
+      const fromRpc = (ok(await sb.rpc('coordinator_choices')) || []).map((r) => camel(r));
+      let profiles = [];
+      try {
+        profiles = camel(ok(await sb.from('profiles').select('id, first_name, last_name, email, phone, is_demo, role, status').eq('role', 'Transaction Coordinator').eq('status', 'active'))) || [];
+      } catch (e) {
+        const visible = new Set((camel(ok(await sb.from('profiles').select('id'))) || []).map((p) => p.id));
+        return fromRpc.filter((r) => r.contactId && visible.has(r.profileId));
+      }
+      const known = fromRpc.filter((r) => r.profileId && r.contactId).map((r) => ({ id: r.contactId, profileId: r.profileId, firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, company: r.company }));
+      const plan = coordinatorRoster(profiles, known, u);
+      return plan.rows.filter((r) => r.contactId).map((r) => ({ profileId: r.profileId, contactId: r.contactId, firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, company: r.company }));
+    },
+    async findDuplicateOrders({ street, city, state, zip, buyerIds, sellerIds } = {}) {
+      const u = await me();
+      if (!u || !runsOrdersCI(u)) throw new Error('Only a Processor or Admin can do this.');
+      const st = String(state || '').trim().toUpperCase();
+      if (!String(street || '').trim() || !String(city || '').trim() || !st) return [];
+      const deals = camel(ok(await sb.from('deals').select('id, file_number, street, city, state, zip, status').eq('state', st).neq('status', 'Cancelled'))) || [];
+      const ids = deals.map((d) => d.id);
+      const parts = ids.length ? camel(ok(await sb.from('deal_participants').select('deal_id, contact_id, role').in('deal_id', ids).in('role', ['Client-Buyer', 'Client-Seller']))) || [] : [];
+      const orders = deals.map((d) => ({ id: d.id, fileNumber: d.fileNumber, street: d.street, city: d.city, state: d.state, zip: d.zip, status: d.status,
+        buyerIds: parts.filter((p) => p.dealId === d.id && p.role === 'Client-Buyer').map((p) => p.contactId),
+        sellerIds: parts.filter((p) => p.dealId === d.id && p.role === 'Client-Seller').map((p) => p.contactId) }));
+      return duplicateOrders({ street, city, state: st, zip, buyerIds, sellerIds, orders });
     },
     async addDealSalesPerson(dealId, salesId) { ok(await sb.rpc('add_deal_sales_person', { p_deal: dealId, p_sales: salesId })); return (await a.getDeal(dealId)).salesPeople; },
     async removeDealSalesPerson(dealId, salesId) { ok(await sb.rpc('remove_deal_sales_person', { p_deal: dealId, p_sales: salesId })); return (await a.getDeal(dealId)).salesPeople; },
