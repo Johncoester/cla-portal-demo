@@ -4,7 +4,7 @@ import { TEST_ALLOWLIST_NOTE, isAllowedTestRecipient, textToHtml, hasSignature }
 import { occSelects, yesNo } from './occ-fields.js?v=202611070139';
 import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611090935';
 import { modOn } from '../data/modules.js?v=202611090935';
-import { slotText } from './dealclosing.js?v=202611100245';
+import { slotText } from './dealclosing.js?v=202611090935';
 import { pickerHtml, mountPicker } from './person-picker.js?v=202611092350';
 import { composeModal } from './compose.js?v=202611090935';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611092320';
