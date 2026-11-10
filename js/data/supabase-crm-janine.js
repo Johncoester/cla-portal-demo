@@ -3,7 +3,9 @@
  * NOTHING is sent: an invite is a preview row + an .ics built in the browser.
  * CSV import parses in the browser (same limits and mapping as the demo) and
  * asks crm_import_batch to apply the database rules, 500 rows at a time.
- * Preview rolls back inside each call (P0004). A commit reuses one batch id.
+ * Preview rolls the writes back inside the call and returns jsonb (HTTP 200).
+ * A P0004 detail is still accepted until that migration is applied.
+ * A commit reuses one batch id.
  * Nothing is emailed. */
 import { buildIcs, INVITE_NOTE, parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, importTooBigMessage, leadRequiredMessages, importPartialReport, importErrorCsv, saveImportResume, loadZipTable, countiesFor, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611101600';
 import { US_STATE_NAMES, US_STATES } from './constants.js?v=202611101015';
@@ -261,10 +263,13 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
           if (!retryableImportError(e)) throw e;
           try { res = await sb.rpc('crm_import_batch', args); } catch (again) { res = { data: null, error: again }; }
         }
-        if (res.error && res.error.code === 'P0004') {
+        if (res && !res.error && res.data) {
+          body = res.data;
+        } else if (res && res.error && res.error.code === 'P0004') {
+          // The migration that returns preview jsonb may not be applied yet.
           body = previewBody(res.error);
           if (!body) throw new Error(res.error.message || 'Import preview failed.');
-        } else if (res.error || !res.data) {
+        } else if (!res || res.error || !res.data) {
           const message = (res.error && res.error.message) || 'Import failed.';
           if (!commit) throw new Error(message);
           const partial = { saved, failed: range, message, code: (res.error && res.error.code) || '', importId, rowsSaved: saved.reduce((n, part) => n + part.count, 0), startChunk: range.chunk };
@@ -277,8 +282,6 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
             });
           }
           throw err;
-        } else {
-          body = res.data;
         }
         if (commit && body.importId) importId = body.importId;
         saved.push(range);

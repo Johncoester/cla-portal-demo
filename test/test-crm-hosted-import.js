@@ -73,7 +73,6 @@ const sb = { rpc: async (name, args) => {
   const okN = rows.filter((r) => r.status === 'ok').length;
   const dupN = rows.filter((r) => r.status === 'duplicate').length;
   const body = { rows, counts: { total: rows.length, ok: okN, duplicates: dupN, errors: 0 }, importId: args.p_commit ? (args.p_import || '22222222-2222-4222-8222-222222222222') : null };
-  if (!args.p_commit) return { data: null, error: { code: 'P0004', message: 'Import preview only. Nothing was saved.', details: JSON.stringify(body) } };
   return { data: body, error: null };
 } };
 const okRow = (r) => { if (r.error) throw new Error(r.error.message); return r.data; };
@@ -132,7 +131,7 @@ ok(sent.name === 'crm_import_batch' && sent.args.p_commit === false && sent.args
 ok(sent.args.p_rows[0].values.state === 'MD' && sent.args.p_rows[0].values.email === 'casey.sample@example.test', 'Maryland and the email are normalised before the database sees them');
 ok(sent.args.p_rows[0].prepNotes.some((n) => n.includes('20852') && n.includes('County')), 'a blank county is filled from the ZIP');
 ok(sent.args.p_defaults.some((d) => d.field === 'ownerId' && d.value === OWNER) && sent.args.p_defaults.some((d) => d.field === 'state' && d.value === 'MD'), 'defaults are the salesperson and the state code');
-ok(preview.committed === false && preview.importId == null && preview.counts.ok === 1 && preview.counts.duplicates === 1, 'preview reports ready rows and duplicates and saves nothing');
+ok(preview.committed === false && preview.importId == null && preview.counts.ok === 1 && preview.counts.duplicates === 1, 'a preview reads the HTTP 200 jsonb and saves nothing');
 ok(preview.rows[0].values.state === 'Maryland' && preview.rows[0].values.description === 'TEST-SEED-CRM-IMPORT', 'the preview table still shows the file text');
 ok(preview.rows[0].status === 'ok' && preview.rows[1].status === 'duplicate' && /already used/.test(preview.rows[1].message), 'a duplicate row is reported and not treated as created');
 ok(preview.rows[0].link.includes('/crm/leads/'), 'the preview payload still names the lead it would create');
@@ -240,6 +239,31 @@ calls.length = 0;
 const resumed = await api.runCrmImport({ module: 'leads', csv: leadFile(1000), fileName: 'leads-resume.csv', importId: stored.importId, startChunk: stored.startChunk, storage });
 ok(calls.length === 1 && calls[0].args.p_chunk === 2 && calls[0].args.p_import === stored.importId && calls.every((c) => c.args.p_chunk !== 1), 'resume continues at the unsaved chunk and does not resend the saved chunk');
 ok(resumed.committed === true && resumed.counts.total === 500, 'resume imports only the rows that were not saved yet');
+
+calls.length = 0;
+const liveRpc = sb.rpc;
+sb.rpc = async (name, args) => {
+  const res = await liveRpc(name, args);
+  if (args && args.p_commit === false && res && res.data) {
+    return { data: null, error: { code: 'P0004', message: 'Import preview only. Nothing was saved.', details: JSON.stringify(res.data) } };
+  }
+  return res;
+};
+const legacy = await api.previewCrmImport({ module: 'leads', csv: SAMPLE, fileName: 'leads.csv' });
+sb.rpc = liveRpc;
+ok(legacy.committed === false && legacy.counts.ok === 1 && legacy.counts.duplicates === 1 && legacy.importId == null, 'a preview still accepts P0004 until the migration is applied');
+
+const nextSql = read('supabase/migrations/20261110210000_crm_import_preview_200.sql');
+const nextRb = read('supabase/rollbacks/20261110210000_crm_import_preview_200.sql');
+const grab = (text) => {
+  const s = text.indexOf('create or replace function public.crm_import_batch(');
+  return text.slice(s, text.indexOf('$fn$;', s) + '$fn$;'.length);
+};
+ok(grab(nextRb) === grab(sql), 'rollback restores the crm_import_batch definition from 20261110100000');
+ok(nextSql.includes("errcode = 'CRM01'") && nextSql.includes("when sqlstate 'CRM01'") && nextSql.includes('return v_result;'), 'preview catches a private sentinel and returns jsonb');
+ok(!nextSql.includes("errcode = 'P0004', detail") && nextSql.includes("when sqlstate 'P0004'"), 'the preview no longer raises P0004, and a row-level P0004 still escapes');
+ok(nextSql.includes('security definer') && nextSql.includes('v_n > 500') && nextSql.includes("errcode = '42501'") && nextSql.includes('p_import uuid default null') && nextSql.includes('p_chunk integer default 1'), 'signature, security, the 500-row cap, and the admin check stay');
+ok(nextSql.includes('grant execute on function public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer) to authenticated') && nextSql.includes('revoke all on function public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer) from public'), 'grants stay on the same signature');
 
 console.log(fail ? fail + ' failed' : 'crm hosted import passed');
 if (fail) process.exit(1);
