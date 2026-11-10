@@ -6,13 +6,13 @@ import { GMAIL_OFF } from '../data/automation.js?v=202611101015';
 import { occSelects, yesNo } from './occ-fields.js?v=202611100245';
 import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611101015';
 import { officeDate } from '../data/office-date.js?v=202611102100';
-import { slotText } from './dealclosing.js?v=202611120500';
+import { slotText } from './dealclosing.js?v=202611121200';
 import { pickerHtml, mountPicker } from './person-picker.js?v=202611101015';
 import { composeModal } from './compose.js?v=202611110900';
 import { sourceChoices } from '../data/place-order.js?v=202611100245';
 import { themeOn } from '../theme.js?v=202611100245';
 
-const TABS = { tasks: './dealtasks.js?v=202611121200', inbox: './dealmsgs.js?v=202611111700', documents: './dealdocs.js?v=202611121200', contacts: './dealcontacts.js?v=202611121200', activity: './dealactivity.js?v=202611111700', closing: './dealclosing.js?v=202611111700', agreements: './dealagreements.js?v=202611111700', accounting: './dealaccounting.js?v=202611121200' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off). Spouse is a section of Personal information, not a tab.
+const TABS = { tasks: './dealtasks.js?v=202611121200', inbox: './dealmsgs.js?v=202611111700', documents: './dealdocs.js?v=202611121200', contacts: './dealcontacts.js?v=202611121200', activity: './dealactivity.js?v=202611111700', closing: './dealclosing.js?v=202611121200', agreements: './dealagreements.js?v=202611111700', accounting: './dealaccounting.js?v=202611121200' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off). Spouse is a section of Personal information, not a tab.
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
