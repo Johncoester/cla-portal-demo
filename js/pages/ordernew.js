@@ -6,7 +6,7 @@
 // with a progress bar (click any step to jump to it), per-step validation on Next, a review summary and a confirmation panel on the new order's page.
 // It is still ONE <form id="nof"> with the same field names, ids and data-attributes; only one step is shown at a time. Every rule is unchanged:
 // refinance hides price / EMD / sellers / agents / both transaction coordinators (the Agents step is skipped), Buyer Agent / Listing Agent / Lender are optional,
-// one buyer and one seller to start ("+ Add another" adds the rest), entity representative, commas in money fields, source of business (who referred the file),
+// two buyer rows and two seller rows to start ("+ Add another" adds the rest; an empty extra row is not saved), entity representative, commas in money fields, source of business (who referred the file),
 // wires never shown to agents.
 import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611070139';
 import { occSelects, yesNo } from './occ-fields.js?v=202611070139';
@@ -21,10 +21,11 @@ import { sameUploadId } from '../data/supabase-nov5.js?v=202611091030';
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
 // Each person becomes their own deal_participants row, so each buyer / seller gets their own copy of the client intake tasks (existing per-person behaviour).
 export const MULTI = { 'Client-Buyer': 'buyer', 'Client-Seller': 'seller' };
-// John, Nov 6: one buyer and one seller to start. "+ Add another buyer / seller" adds the next row (no empty grey box).
-// Each row has its own "+ Add entity": the buyer / seller is an LLC, corporation, partnership or trust -> entity name, type and the Entity Representative
-// (name, title or role, phone, email). Saved on that person's row of the order and pre-filled on their Personal information form (+ Add entity there).
-export const MIN_ROWS = 1;
+// Matt, Nov 9 (MF-015): a new order starts with two buyer rows and two seller rows. "+ Add another buyer / seller" adds the next row.
+// An empty extra row is ignored on save (only a picked person is added). Each row has its own "+ Add entity": the buyer / seller is an LLC,
+// corporation, partnership or trust -> entity name, type and the Entity Representative (name, title or role, phone, email). Saved on that person's
+// row of the order and pre-filled on their Personal information form (+ Add entity there).
+export const MIN_ROWS = 2;
 const rowLabel = (label, n) => `${label} ${n}${n > 1 ? ' (optional)' : ''}`;
 const entityPanel = (label) => html`<div class="entity-panel" data-entity-panel hidden><p class="muted small">This ${label.toLowerCase()} is an entity (LLC, corporation, partnership or trust). The person picked above is our contact for it; they confirm the details and attach the entity documents on their Personal information form.</p>
   <div class="form-grid"><label>Entity name *<input data-ent="name" maxlength="200" aria-label="Entity name"></label>
@@ -520,8 +521,9 @@ export async function render({ api, user, go }) {
       let deal; try { deal = await api.createDeal(input); } catch (err) { placing = false; btn.disabled = false; btn.textContent = 'Place order'; if (draftStore && draftKey) releaseOrderClaim(draftStore, draftKey); throw err; }
       if (draftStore && draftKey) clearOrderDraft(draftStore, draftKey);
       const problems = []; let tasks = 0; const added = {};
-      // Buyer 1, Buyer 2, ..., Seller 1, Seller 2, ..., agents, lender, TC, sales team (p:<role> or p:<role>:<n>); the same order as the one-page form
-      const entries = [...new FormData(e.target).entries()].filter(([k, x]) => k.startsWith('p:') && x).map(([k, x]) => [k, x, k.slice(2).replace(/:\d+$/, '')])
+      // Buyer 1, Buyer 2, ..., Seller 1, Seller 2, ..., agents, lender, TC, sales team (p:<role> or p:<role>:<n>); the same order as the one-page form.
+      // Empty extra buyer / seller rows (the form starts with two of each) are ignored: a blank value is not a person.
+      const entries = [...new FormData(e.target).entries()].filter(([k, x]) => k.startsWith('p:') && String(x || '').trim()).map(([k, x]) => [k, String(x).trim(), k.slice(2).replace(/:\d+$/, '')])
         .map((t, i) => [...t, i]).sort((a, b) => (ADD_ORDER.indexOf(a[2]) - ADD_ORDER.indexOf(b[2])) || (a[3] - b[3]));
       for (const [k, x, role] of entries) { if (!counts(role)) continue;   // refinance: hidden seller / realtor / TC boxes are not saved
         try { const res = await api.addParticipant(deal.id, x, role, entities[k] ? { entity: entities[k] } : undefined); tasks += (res && res.tasksCreated) || 0; added[role] = (added[role] || 0) + 1; } catch (err) { problems.push(`${role}: ${err.message}`); } }
