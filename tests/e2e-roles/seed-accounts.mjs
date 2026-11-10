@@ -15,9 +15,13 @@
  *   node tests/e2e-roles/seed-accounts.mjs --workflow-dispatch
  * --workflow-dispatch refuses to run anywhere except that GitHub Actions event.
  *
- * Then paste supabase/migrations/20261110140000_e2e_role_file_seed.sql into the
- * TEST SQL editor with e2e.mail_to set. If these users already exist, leave the
- * password settings empty; the SQL only reads a password when the profile is missing.
+ * A new login is created with portal_role in user_metadata and app_metadata so
+ * on_auth_user_sync can insert the profile. The nine logins already on TEST
+ * were created without that key, so they have no profile until someone applies
+ * supabase/migrations/20261110140000_e2e_role_profiles.sql and then
+ * supabase/migrations/20261110140100_e2e_role_file_seed.sql in the TEST SQL
+ * editor. Those files look the logins up. They do not insert auth users and
+ * they do not read a password. This script does not apply them.
  */
 import { plusAlias } from './helpers/allowlist.js';
 
@@ -48,18 +52,18 @@ if (!url.includes(TEST_REF)) fail(`Refusing. SUPABASE_URL must be the TEST proje
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 if (!key) fail('Missing secret SUPABASE_SERVICE_ROLE_KEY.');
 const base = String(process.env.E2E_MAIL_TO || '').trim().toLowerCase();
-if (!base) fail('Missing secret E2E_MAIL_TO.');
+if (base !== 'clatestportal@gmail.com') fail('E2E_MAIL_TO must be clatestportal@gmail.com. The profile migration only accepts that alias base.');
 
 const names = {
-  'super-admin': ['E2E Super', 'Admin'],
-  processor: ['E2E', 'Processor'],
-  'sales-person': ['E2E', 'Salesperson'],
-  'sales-team': ['E2E', 'Salesteam'],
-  coordinator: ['E2E', 'Coordinator'],
-  'buyer-agent': ['E2E', 'Buyeragent'],
-  'listing-agent': ['E2E', 'Listingagent'],
-  buyer: ['E2E', 'Buyer'],
-  seller: ['E2E', 'Seller'],
+  'super-admin': ['E2E Super', 'Admin', 'Super admin'],
+  processor: ['E2E', 'Processor', 'Processor'],
+  'sales-person': ['E2E', 'Salesperson', 'Sales Person'],
+  'sales-team': ['E2E', 'Salesteam', 'Sales Team'],
+  coordinator: ['E2E', 'Coordinator', 'Transaction Coordinator'],
+  'buyer-agent': ['E2E', 'Buyeragent', 'Outside user'],
+  'listing-agent': ['E2E', 'Listingagent', 'Outside user'],
+  buyer: ['E2E', 'Buyer', 'Outside user'],
+  seller: ['E2E', 'Seller', 'Outside user'],
 };
 
 for (const [tag, secret] of ROLES) {
@@ -67,11 +71,17 @@ for (const [tag, secret] of ROLES) {
   const password = process.env[secret] || '';
   if (!email) fail(`E2E_MAIL_TO cannot make a plus-alias for ${tag}.`);
   if (password.length < 8) fail(`Missing or short secret ${secret}.`);
-  const [first, last] = names[tag];
+  const [first, last, portalRole] = names[tag];
   const res = await fetch(`${url.replace(/\/$/, '')}/auth/v1/admin/users`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, apikey: key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { first_name: first, last_name: last } }),
+    body: JSON.stringify({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { first_name: first, last_name: last, portal_role: portalRole },
+      app_metadata: { portal_role: portalRole },
+    }),
   });
   if (res.status === 422 || res.status === 409) {
     console.log(`exists ${email}`);
@@ -80,4 +90,4 @@ for (const [tag, secret] of ROLES) {
   if (!res.ok) fail(`Auth create failed for ${email} (HTTP ${res.status}).`);
   console.log(`created ${email}`);
 }
-console.log('Auth users are ready. Apply supabase/migrations/20261110140000_e2e_role_file_seed.sql in the TEST SQL editor. This script did not apply it.');
+console.log('Auth users are ready. Apply supabase/migrations/20261110140000_e2e_role_profiles.sql, then supabase/migrations/20261110140100_e2e_role_file_seed.sql, in the TEST SQL editor. This script did not apply them.');

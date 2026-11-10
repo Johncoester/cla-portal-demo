@@ -35,7 +35,11 @@ Only `https://testportal.clatitle.com/`. The config refuses any other host when 
 1. Create the logins, then link the file. The script talks to the TEST Auth admin API and does not apply SQL. Two ways, both reading passwords from env and never printing them:
    - A developer machine that already has the service-role key: `E2E_TARGET=test E2E_CONFIRM_TEST_SEED=yes node tests/e2e-roles/seed-accounts.mjs`.
    - No key on the developer machine: run the GitHub Actions workflow **e2e-roles-test** with **Seed TEST accounts** checked. That `workflow_dispatch` job injects the repo secrets. `--workflow-dispatch` refuses to run anywhere else.
-2. In the TEST SQL editor, set `e2e.mail_to` and apply `supabase/migrations/20261110140000_e2e_role_file_seed.sql`. The file is not applied by this repo's CI. Its rollback is `supabase/rollbacks/20261110140000_e2e_role_file_seed.sql`.
+2. In the TEST SQL editor, apply the two files below, in order. CI does not apply them. The alias base is hard-coded as `clatestportal@gmail.com`. There is no session setting. Each file raises if a login it needs is missing, and neither file inserts into `auth.users`.
+   - `supabase/migrations/20261110140000_e2e_role_profiles.sql` writes each login's profile (`status` active, `is_demo` false, `is_admin` only for the super admin) and that login's own contact, plus the loginless `+e2e-invitee` contact. It finds the nine logins with `lower(email)` on `auth.users`.
+   - `supabase/migrations/20261110140100_e2e_role_file_seed.sql` writes the E2E deal (`notes = E2E-ROLE-FILE`), `deal_participants`, and `deal_sales_people`.
+   Rollbacks, file first: `supabase/rollbacks/20261110140100_e2e_role_file_seed.sql`, then `supabase/rollbacks/20261110140000_e2e_role_profiles.sql`. They delete only rows tagged as E2E and never the auth users.
+   A future fresh seed sends `portal_role` in `user_metadata` and `app_metadata` so `on_auth_user_sync` creates the profile. The nine logins already on TEST were created without that key, which is why the profiles file writes them.
 3. Connect Gmail on the Processor login (Profile Setting). File email and invite email go out from that mailbox.
 4. Export the secrets and run:
 
@@ -53,7 +57,7 @@ Nothing here is a password. GitHub Actions reads the same names from repository 
 
 | Name | Used for |
 | --- | --- |
-| `E2E_MAIL_TO` | Dedicated test inbox. Use `clatestportal@gmail.com` or an `@clatitle.com` address with no plus-tag. Role addresses are plus-aliases of it. |
+| `E2E_MAIL_TO` | Dedicated test inbox. The seed and the profile migration require `clatestportal@gmail.com`. Role addresses are plus-aliases of it. |
 | `E2E_GMAIL_CLIENT_ID` | Gmail API client for that inbox (poll, reply, trash). |
 | `E2E_GMAIL_CLIENT_SECRET` | Gmail API client secret. |
 | `E2E_GMAIL_REFRESH_TOKEN` | Refresh token for `E2E_MAIL_TO` with read and send. |
@@ -69,7 +73,7 @@ Nothing here is a password. GitHub Actions reads the same names from repository 
 | `SUPABASE_URL` | `https://aqcervntopidtcazcmlv.supabase.co` for the seed script only. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Seed script only. Repo secret for the workflow_dispatch seed. Do not put it on a developer machine if you use that job, and never in the browser. |
 
-On TEST the emails are `local+e2e-<role>@domain` from `E2E_MAIL_TO`, for example `clatestportal+e2e-buyer@gmail.com`. An invitee with no login is `+e2e-invitee`. The harness aborts before send if any recipient is outside that set, or if Live Test's own allowlist would refuse it (`clatestportal@gmail.com`, `clatestportal+tag@gmail.com`, or `@clatitle.com`).
+On TEST the seeded emails are `clatestportal+e2e-<role>@gmail.com`, for example `clatestportal+e2e-buyer@gmail.com`. An invitee with no login is `clatestportal+e2e-invitee@gmail.com`. The harness aborts before send if any recipient is outside that set, or if Live Test's own allowlist would refuse it (`clatestportal@gmail.com`, `clatestportal+tag@gmail.com`, or `@clatitle.com`).
 
 The Processor login on TEST must already have Gmail connected. The suite does not run the Google consent screen.
 
