@@ -119,6 +119,10 @@ create table public.contacts (
   crm_state text
 );
 create index contacts_account_idx on public.contacts (account_id);
+-- The hosted kind check is not in this repo. This stands in for brokerage / lender / other
+-- so the migration's extension of that check can be applied and rolled back here.
+alter table public.crm_accounts add constraint crm_accounts_kind_check
+  check (kind = any (array['brokerage', 'lender', 'other']));
 SQL
 
 "${PSQL[@]}" -f "$ROOT/supabase/migrations/20261112080000_company_lookup.sql"
@@ -207,8 +211,8 @@ echo '===== OWNER SLICE ====='
 "${PSQL[@]}" -c "select count(*) filter (where owner_id = '00000000-0000-4000-8000-0000000000a1') as sam_wide, count(*) as wide_rows from public.crm_accounts where archived_at is null and private.crm_company_key(name) like 'fake brokerage 5%';"
 
 # Privacy-on plan: the same SELECT company_lookup runs when v_owner_private is true.
-explain_on() {
-  local label="$1" role="$2" uid="$3" q="$4" lim="$5"
+explain_off() {
+  local label="$1" role="$2" uid="$3"
   echo "===== $label ====="
   "${PSQL[@]}" <<SQL
 update private.timing_who set role = '${role}', uid = '${uid}';
@@ -216,95 +220,64 @@ explain (analyze, buffers)
 select a.id, a.name, a.kind, a.city, a.state, a.phone
 from public.crm_accounts a
 where a.archived_at is null
-  and private.crm_company_key(a.name) like private.crm_company_key('${q}') || '%'
-  and (
-    (select private.crm_all())
-    or a.owner_id is not distinct from (select private.effective_uid())
-    or (
-      (select private.me_role()) = 'Sales Team'
-      and (
-        a.owner_id is null
-        or exists (
-          select 1 from public.profiles p
-          where p.id = a.owner_id and p.role in ('Sales Person', 'Sales Team')
-        )
-      )
-    )
-  )
+  and private.crm_company_key(a.name) like private.crm_company_key('Fake Brokerage 5') || '%'
 order by private.crm_company_key(a.name) using ~<~
-limit ${lim};
+limit 25;
 SQL
   "${PSQL[@]}" <<SQL
 \\timing on
 update private.timing_who set role = '${role}', uid = '${uid}';
-select count(*) as function_rows from public.company_lookup('${q}', ${lim});
+select count(*) as function_rows from public.company_lookup('Fake Brokerage 5', 25);
 SQL
 }
 
 SAM=00000000-0000-4000-8000-0000000000a1
 TEAM=00000000-0000-4000-8000-0000000000a2
 PROC=00000000-0000-4000-8000-0000000000a4
-explain_on "SALES PERSON ONE MATCH (not theirs)" "Sales Person" "$SAM" "Fake Brokerage 50000" 25
-explain_on "SALES PERSON ONE MATCH (theirs)" "Sales Person" "$SAM" "Sam Owned Realty" 25
-explain_on "SALES PERSON WIDE PREFIX" "Sales Person" "$SAM" "Fake Brokerage 5" 25
-explain_on "SALES TEAM ONE MATCH" "Sales Team" "$TEAM" "Fake Brokerage 50000" 25
-explain_on "SALES TEAM WIDE PREFIX" "Sales Team" "$TEAM" "Fake Brokerage 5" 25
-explain_on "CRM ALL ONE MATCH" "Processor" "$PROC" "Fake Brokerage 50000" 25
-explain_on "CRM ALL WIDE PREFIX" "Processor" "$PROC" "Fake Brokerage 5" 25
+explain_off "SALES PERSON WIDE PREFIX" "Sales Person" "$SAM"
+explain_off "SALES TEAM WIDE PREFIX" "Sales Team" "$TEAM"
+explain_off "CRM ALL WIDE PREFIX" "Processor" "$PROC"
 
-echo '===== PRIVACY ASSERTIONS (true) ====='
+echo '===== PRIVACY AND MATCH ASSERTIONS ====='
 "${PSQL[@]}" <<SQL
 update private.timing_who set role = 'Sales Person', uid = '${SAM}';
 do \$\$
-declare n int;
-begin
-  if (select count(*) from public.company_lookup('Fake Brokerage 50000', 25)) <> 0 then
-    raise exception 'sales person saw another owner';
-  end if;
-  if (select count(*) from public.company_lookup('Sam Owned Realty', 25)) <> 1 then
-    raise exception 'sales person missed their own company';
-  end if;
-  update private.timing_who set role = 'Sales Team', uid = '${TEAM}';
-  if (select count(*) from public.company_lookup('Fake Brokerage 50000', 25)) <> 1 then
-    raise exception 'sales team missed a salesperson-owned company';
-  end if;
-  update private.timing_who set role = 'Processor', uid = '${PROC}';
-  if (select count(*) from public.company_lookup('Fake Brokerage 50000', 25)) <> 1 then
-    raise exception 'crm_all missed a company';
-  end if;
-end \$\$;
-SQL
-
-echo '===== PRIVACY OFF (scratch only; migration default stays true) ====='
-"${PSQL[@]}" <<'SQL'
-do $$
 declare src text;
 begin
-  select pg_get_functiondef(oid) into src from pg_proc where oid = 'public.company_lookup(text, integer)'::regprocedure;
-  if position('v_owner_private boolean := true' in src) = 0 then
-    raise exception 'shipped company_lookup is not owner-private';
-  end if;
-  execute replace(src, 'v_owner_private boolean := true', 'v_owner_private boolean := false');
-end $$;
-SQL
-"${PSQL[@]}" <<SQL
-update private.timing_who set role = 'Sales Person', uid = '${SAM}';
-explain (analyze, buffers)
-select a.id, a.name, a.kind, a.city, a.state, a.phone
-from public.crm_accounts a
-where a.archived_at is null
-  and private.crm_company_key(a.name) like private.crm_company_key('Fake Brokerage 5') || '%'
-order by private.crm_company_key(a.name) using ~<~
-limit 25;
-\\timing on
-select count(*) as function_rows from public.company_lookup('Fake Brokerage 50000', 25);
-select count(*) as wide_rows from public.company_lookup('Fake Brokerage 5', 25);
-do \$\$
-begin
   if (select count(*) from public.company_lookup('Fake Brokerage 50000', 25)) <> 1 then
-    raise exception 'privacy off should show the other owner';
+    raise exception 'default privacy off should show another owner';
   end if;
+  if public.company_match_active('Fake Brokerage 50000 LLC') is null then
+    raise exception 'exact match missed the one active company';
+  end if;
+  if public.company_match_active('Fake Brokerage') is not null then
+    raise exception 'a prefix must not auto-link';
+  end if;
+  update private.timing_who set role = 'Outside user', uid = '${SAM}';
+  if public.company_match_active('Ambiguous Holdings LLC') is not null then
+    raise exception 'two active keys must not auto-link';
+  end if;
+  if public.company_match_active('Harbor Realty, LLC') is null then
+    raise exception 'outside user exact match returned null';
+  end if;
+  begin
+    perform public.company_lookup('Harbor', 5);
+    raise exception 'outside user listed companies';
+  exception when insufficient_privilege then
+    null;
+  end;
+  select pg_get_functiondef(oid) into src from pg_proc where oid = 'public.company_lookup(text, integer)'::regprocedure;
+  execute replace(src, 'v_owner_private boolean := false', 'v_owner_private boolean := true');
+  update private.timing_who set role = 'Sales Person', uid = '${SAM}';
+  if (select count(*) from public.company_lookup('Fake Brokerage 50000', 25)) <> 0 then
+    raise exception 'privacy on should hide another owner';
+  end if;
+  execute replace(pg_get_functiondef('public.company_lookup(text, integer)'::regprocedure), 'v_owner_private boolean := true', 'v_owner_private boolean := false');
 end \$\$;
+insert into public.crm_accounts (name, kind, state) values ('Example Payoff Lender (fake)', 'payoff_lender', 'MD');
+insert into public.crm_accounts (name, kind, state) values ('Example HOA (fake)', 'hoa', 'MD');
+insert into public.crm_accounts (name, kind, state) values ('Example Utility (fake)', 'utility', 'MD');
+delete from public.crm_accounts where name in ('Example Payoff Lender (fake)', 'Example HOA (fake)', 'Example Utility (fake)');
 SQL
 
 echo '===== CONTAINS EXPLAIN ====='

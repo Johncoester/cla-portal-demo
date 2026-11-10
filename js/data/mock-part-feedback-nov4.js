@@ -8,7 +8,7 @@
 import { moduleFields, cleanCriteria, applyCriteria, display, SEARCH_COLUMNS, SEARCH_MODULES } from './crm-analytics.js?v=202611070139';
 import { VIEW_MODULES, VIEW_DEFAULT_COLUMNS, PINS_MAX, nameOk, cleanColumns, cleanFilterValues, SEARCH_COL_MAX } from './crm-views.js?v=202611070139';
 import { cleanDisbursement, DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611070139';
-import { crmReadOnly } from './crm.js?v=202611070139';
+import { crmReadOnly } from './crm.js?v=202611121100';
 
 export function feedbackNov4Part(x, h) {
   const { save, now, fail, str, nid, nameOf, prof, localDate, clone, C } = x;

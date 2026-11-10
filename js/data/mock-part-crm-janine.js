@@ -9,7 +9,7 @@
 import { parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, buildIcs, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611101600';
 import { importedStatusDecision } from './crm-import-status.js?v=202611120600';
 import { ensureSettings } from './crm-config.js?v=202611070139';
-import { companyKey, CRM_OWNER_ROLES } from './crm.js?v=202611070139';
+import { companyKey, CRM_OWNER_ROLES } from './crm.js?v=202611121100';
 import { US_STATE_NAMES } from './constants.js?v=202611101015';
 
 const seenData = new WeakSet();

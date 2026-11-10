@@ -2,7 +2,7 @@
 // Function first, minimal styling. Reminders show in the portal only; nothing is emailed; meetings are never sent as invitations.
 import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611070139';
 import { localDate } from '../data/constants.js?v=202611101015';
-import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY, dueTone, daysOverdue, taskOpen } from '../data/crm.js?v=202611070139';
+import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY, dueTone, daysOverdue, taskOpen } from '../data/crm.js?v=202611121100';
 import { tabs, head } from './crm-kit.js?v=202611120600';
 import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611121100';
 import { inviteBtn, invitePreview } from './crm-janine.js?v=202611121100';

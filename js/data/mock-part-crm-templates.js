@@ -6,7 +6,7 @@
  * TC and outside users: no CRM. Mirrored by migration 27 (crm_email_folders, crm_email_templates, crm_email_template_files, crm_email_favorites, crm_user_signatures). */
 import { MODULE_CODES, moduleLabel, TEMPLATE_STATUSES, ATTACH_EXT, NAME_MAX, SUBJECT_MAX, BODY_MAX, SIGNATURE_MAX, GMAIL_NOTE, mergeFieldsFor, renderTemplate, sanitizeHtml, cleanBlocks, cssColor,
   personalFolderId, isPersonalFolder, cleanFolderName, ensureEmailTemplates, htmlToText } from './crm-templates.js?v=202611090905';
-import { crmReadOnly } from './crm.js?v=202611070139';
+import { crmReadOnly } from './crm.js?v=202611121100';
 
 export function crmTemplatesPart(x, h) {
   const { save, now, fail, str, clone, nameOf, nid, prof, localDate, C } = x;

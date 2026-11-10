@@ -4,7 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { companyLookupFlags } from '../js/data/mock-part-crm.js';
-import { companyKey } from '../js/data/crm.js';
+import { ACCOUNT_KINDS, companyKey } from '../js/data/crm.js';
+import { ensureSettings } from '../js/data/crm-config.js';
 import { companyDuplicateFromLookup } from '../js/pages/crm-janine.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -25,7 +26,10 @@ ok(mig.includes('public.company_lookup(p_q text, p_limit integer default 20)') &
 ok(mig.includes('((select private.is_processor()) or (select private.crm_user()))'), 'the role check is hoisted once per call');
 ok(mig.includes('least(25, greatest(1, coalesce(p_limit, 20)))') && mig.includes('a.archived_at is null') && mig.includes("like v_key || '%'"), 'lookup returns active rows, prefix-matches the normalized key, and caps at 25');
 ok(mig.includes('id, name, kind, city, state, phone') || mig.includes('a.id, a.name, a.kind, a.city, a.state, a.phone'), 'lookup returns only id, name, kind, city, state, and phone');
-ok(mig.includes('v_owner_private boolean := true') && !/v_owner_private boolean := false/.test(migSql) && mig.includes('private.crm_all()') && mig.includes('No per-row private.* helper'), 'owner privacy is on by default and the default path does not call a per-row private helper');
+ok(/v_owner_private boolean := false/.test(migSql) && mig.includes('private.crm_all()') && mig.includes('No per-row private.* helper'), 'owner privacy is off by default and the true path is still in the function');
+ok(mig.includes('public.company_match_active(p_name text)') && mig.includes("= 'Outside user'") && mig.includes('limit 2') && !mig.includes('from public.deals'), 'exact auto-link returns one id and does not read a deal');
+ok(mig.includes('payoff_lender') && mig.includes("'hoa'") && mig.includes("'utility'") && !migSql.includes('other_companies'), 'payoff lender, HOA, and utility join the company list only');
+ok(rb.includes('drop function public.company_match_active(text)') && rb.includes('ff030-kind-prev:'), 'the rollback drops the match function and restores the kind check');
 ok(!/like\s+'%'\s*\|\|/i.test(migSql) && mig.includes('Contains search'), 'the contains fallback is not in the function');
 ok(mig.includes('text_pattern_ops') && mig.includes('where archived_at is null') && /CONCURRENTLY/.test(mig), 'the active-name index is text_pattern_ops and production is told to build it concurrently');
 ok(mig.includes('((select private.is_processor()) and not (select private.is_preprocessor()))') && mig.includes('private.crm_editor()') && mig.includes('owner_id null') && mig.includes('crm_accounts_name_uq'), 'find-or-create is gated once and inserts with a null owner');
@@ -40,7 +44,10 @@ const previewBody = preview.replace(/--[^\n]*/g, '');
 ok(preview.includes('begin read only') && preview.includes('step_a_would_link') && preview.includes('ambiguous_matches') && preview.includes('unmatched_keys') && preview.includes('unmatched_keys_empty_state') && preview.includes('contacts_with_company_text') && preview.includes('distinct_keys'), 'the preview prints the backfill counts');
 ok(!/\b(insert|update|delete|truncate|alter|create|drop|grant|copy)\b/i.test(previewBody), 'the preview query writes nothing');
 
-ok(page.includes('api.lookupCompanies(name.value, 25)') && form.includes('wireCompanyDup(f, api'), 'the company form warning goes through company_lookup');
+ok(ACCOUNT_KINDS.map(([c]) => c).join(',') === 'brokerage,lender,payoff_lender,hoa,utility,other', 'the company form list is brokerage, lender, payoff lender, HOA, utility, other');
+const grown = ensureSettings({ picklists: { accountKind: [{ value: 'brokerage', label: 'Brokerage', retired: false }] } });
+ok(grown.picklists.accountKind[0].value === 'brokerage' && ['payoff_lender', 'hoa', 'utility'].every((c) => grown.picklists.accountKind.some((o) => o.value === c)), 'an older company-type list gains the three kinds without dropping Brokerage');
+ok(page.includes('api.lookupCompanies(name.value, 25)') && form.includes('wireCompanyDup(f, api') && form.includes('l.state || \'\''), 'the company form warning uses company_lookup, and a new company state starts from the lead, not a property');
 ok(hosted.includes("rpc('company_lookup'") && !read('js/data/supabase-crm-janine.js').includes('crm_company_duplicate'), 'the hosted adapter calls company_lookup and not the old duplicate RPC');
 
 const harbor = companyDuplicateFromLookup(
@@ -71,22 +78,38 @@ await Promise.all(caps);
 ok((await api.lookupCompanies('Cap Realty', 100)).length === 25, 'lookup never returns more than 25 rows');
 ok((await api.lookupCompanies('', 20)).length === 0, 'a blank query does not scan the list');
 
+const kinds = [];
+for (const kind of ['payoff_lender', 'hoa', 'utility']) kinds.push(api.createCrmAccount({ name: `Kind ${kind}`, kind, state: 'MD', ownerId: 'u-team' }));
+const madeKinds = await Promise.all(kinds);
+ok(madeKinds.map((a) => a.kind).join(',') === 'payoff_lender,hoa,utility', 'payoff lender, HOA, and utility can be saved as companies');
 const mine = await api.createCrmAccount({ name: 'Sam Private Realty', kind: 'brokerage', state: 'MD', ownerId: 'u-sp' });
-await api.signInDev('u-team');
-ok((await api.lookupCompanies('Lookup Only Realty', 20)).some((r) => r.id === made.id) && (await api.lookupCompanies('Sam Private', 20)).some((r) => r.id === mine.id), 'sales team still sees salesperson-owned companies when owner privacy is on');
+const twin = await api.createCrmAccount({ name: 'Twin Key Holdings LLC', kind: 'other', state: 'MD', ownerId: 'u-team' });
 await api.signInDev('u-sp');
-const hidden = await api.lookupCompanies('Lookup Only Realty', 20);
-const own = await api.lookupCompanies('Sam Private', 20);
+const seenByDefault = await api.lookupCompanies('Lookup Only Realty', 20);
 const listed = await api.listCrmAccounts();
-ok(!hidden.some((r) => r.id === made.id) && own.some((r) => r.id === mine.id) && !listed.some((r) => r.id === made.id), 'owner privacy on: a sales person does not see another owner, and still sees their own');
-companyLookupFlags.ownerPrivate = false;
+ok(seenByDefault.some((r) => r.id === made.id) && !listed.some((r) => r.id === made.id), 'by default a sales person sees every company name, including one the CRM list hides');
+companyLookupFlags.ownerPrivate = true;
 try {
-  const open = await api.lookupCompanies('Lookup Only Realty', 20);
-  ok(open.some((r) => r.id === made.id) && !listed.some((r) => r.id === made.id), 'owner privacy off: a sales person sees a company the CRM list hides');
+  await api.signInDev('u-team');
+  ok((await api.lookupCompanies('Sam Private', 20)).some((r) => r.id === mine.id), 'with owner privacy on, sales team still sees a salesperson-owned company');
+  await api.signInDev('u-sp');
+  const hidden = await api.lookupCompanies('Lookup Only Realty', 20);
+  const own = await api.lookupCompanies('Sam Private', 20);
+  ok(!hidden.some((r) => r.id === made.id) && own.some((r) => r.id === mine.id), 'with owner privacy on, a sales person does not see another owner and still sees their own');
 } finally {
-  companyLookupFlags.ownerPrivate = true;
+  companyLookupFlags.ownerPrivate = false;
 }
-ok(!(await api.lookupCompanies('Lookup Only Realty', 20)).some((r) => r.id === made.id), 'the privacy switch is back on after the test');
+ok((await api.lookupCompanies('Lookup Only Realty', 20)).some((r) => r.id === made.id), 'the privacy switch is back off after the test');
+await api.signInDev('u-buyer');
+let outsideLookup = false;
+try { await api.lookupCompanies('Harbor', 5); } catch (e) { outsideLookup = /CRM is for CLA staff only/.test(e.message); }
+let outsideCreate = false;
+try { await api.createCrmAccount({ name: 'Buyer Created Realty', kind: 'brokerage', state: 'MD' }); } catch (e) { outsideCreate = /CRM is for CLA staff only|read-only|cannot/.test(e.message); }
+const harborId = await api.matchCrmCompany('Harbor Realty (fake)');
+const twinId = await api.matchCrmCompany('Twin Key Holdings, LLC');
+const prefixMiss = await api.matchCrmCompany('Harbor');
+ok(outsideLookup && outsideCreate && harborId === 'acc-harbor' && twinId === twin.id && prefixMiss === null, 'an outside user auto-links only an exact unique company and cannot search or create');
+await api.signInDev('u-admin');
 
 await api.signInDev('u-proc');
 ok((await api.lookupCompanies('Lookup Only', 5)).some((r) => r.name === 'Lookup Only Realty'), 'a processor can look companies up');

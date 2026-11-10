@@ -4,6 +4,7 @@
 -- Adds:
 --   public.company_lookup(text, integer)          active companies for a typeahead
 --   public.company_find_or_create(text, text, text)  existing active id, or a new row
+--   public.company_match_active(text)             exact key, one active id, or null
 --   crm_accounts_company_key_active_idx           prefix index on the normalized name
 --   crm_accounts_name_sync                        copies a renamed company onto linked contacts
 --
@@ -12,10 +13,11 @@
 -- private.crm_company_key, is_processor, is_preprocessor, crm_user, crm_editor,
 -- and effective_uid are used as they already exist. Their bodies are not replaced.
 --
--- Owner privacy is the constant v_owner_private inside company_lookup. It
--- defaults to true until the CRM user answers the visibility question. A caller
--- must not see a company name they cannot see in the CRM today.
--- true (the default) uses the owner rule the CRM uses today:
+-- The CRM user answered: everyone gets every company record. v_owner_private
+-- defaults to false. The true path stays in the function so it can be turned
+-- back on without a new migration. false (the default) shows every active name
+-- to every caller who passed the role check, with no owner predicate.
+-- true uses the owner rule the CRM list uses:
 --   (select private.crm_all())
 --   or the row's owner is the caller
 --   or the caller is Sales Team and the owner is blank or a salesperson.
@@ -25,18 +27,16 @@
 -- The other half of today's account rule (a company you can see because you
 -- can see one of its clients) is not in the switch. That half is a per-contact
 -- private helper. Do not add it as a per-row call.
--- false shows every active name to every caller who passed the role check,
--- and that SELECT has no owner predicate. Leave it false only if the CRM user
--- says every processor and salesperson may see every name.
+-- State on a new company is only the p_state argument. These functions never
+-- read a deal or copy the property's state.
 --
--- Scratch timings with the default true, 110,000 companies, 55 of 11,111 wide-prefix
--- rows visible to one Sales Person (local only, not hosted):
---   Sales Person, one match they do not own: index scan, 0.23 ms, 0 rows, 12 buffer hits.
---   Sales Person, wide prefix, 25 rows: same index, 62 ms, 4,975 rows removed by the
---     owner filter, 9,877 buffer hits. The limit cannot stop at the first 25 keys.
---   Sales Team, wide prefix: 0.95 ms, 58 buffer hits. The sales-role probe runs once.
---   crm_all (Processor), wide prefix: 0.88 ms, 55 buffer hits. effective_uid and the
---     profiles probe are not executed. This matches the privacy-off index scan (0.83 ms).
+-- Company kinds. The CRM list was brokerage, lender, other. Payoff lender, HOA,
+-- and utility are the same list, not a second table. This file adds only those
+-- three codes (payoff_lender, hoa, utility) to an existing allowed-value check
+-- on crm_accounts.kind, and to crm_picklist_options accountKind when that table
+-- exists. It does not create a check if kind was unrestricted, and it does not
+-- touch other_companies. The previous check text is saved on the constraint
+-- comment (ff030-kind-prev:) so the rollback can put that exact check back.
 --
 -- Contains search (key like '%' || q || '%') is not in the function. A leading
 -- wildcard cannot use the new index. On a local scratch database of 110,000
@@ -99,6 +99,7 @@ begin
   end if;
   if to_regprocedure('public.company_lookup(text, integer)') is not null
      or to_regprocedure('public.company_find_or_create(text, text, text)') is not null
+     or to_regprocedure('public.company_match_active(text)') is not null
      or to_regprocedure('public.crm_account_name_sync()') is not null then
     raise exception 'drift: company lookup functions already exist';
   end if;
@@ -181,10 +182,9 @@ security definer
 set search_path to 'pg_catalog', 'public'
 as $fn$
 declare
-  -- OWNER PRIVACY SWITCH. true until the CRM user decides.
-  -- true: the owner rule above. No per-row private.* helper.
-  -- false: every caller who passed the role check sees every active name.
-  v_owner_private boolean := true;
+  -- OWNER PRIVACY SWITCH. false: everyone who passed the role check sees every
+  -- active name. true: the owner rule. The CRM user chose false.
+  v_owner_private boolean := false;
   v_key text;
   v_lim integer;
 begin
@@ -199,7 +199,7 @@ begin
   end if;
   v_lim := least(25, greatest(1, coalesce(p_limit, 20)));
 
-  -- Privacy-off path. Not used while v_owner_private is true.
+  -- Default path (v_owner_private false).
   -- The index is (crm_company_key(name) text_pattern_ops) WHERE archived_at is null.
   -- No owner predicate and no per-row private.* helper. Contains (leading '%') is absent.
   if not v_owner_private then
@@ -217,7 +217,8 @@ begin
     return;
   end if;
 
-  -- Default path (v_owner_private true). No per-row private.* helper.
+  -- Owner-privacy path. Not used while v_owner_private is false.
+  -- No per-row private.* helper.
   -- The profiles probe is a primary-key lookup, and only when the caller is Sales Team.
   return query
   select a.id, a.name, a.kind, a.city, a.state, a.phone
@@ -244,7 +245,7 @@ end
 $fn$;
 
 comment on function public.company_lookup(text, integer) is
-  'Active CRM companies for a typeahead. Prefix on private.crm_company_key. Owner privacy is on (v_owner_private) until the CRM user decides. Cap 25. Does not search with a leading wildcard.';
+  'Active CRM companies for a typeahead. Prefix on private.crm_company_key. Owner privacy is off (v_owner_private): every caller who passed the role check sees every active name. Cap 25. Does not search with a leading wildcard.';
 
 create function public.company_find_or_create(p_name text, p_kind text, p_state text)
 returns uuid
@@ -282,6 +283,7 @@ begin
   if char_length(v_name) > 160 then
     raise exception 'Company name is too long.' using errcode = '22023';
   end if;
+  -- State is whatever the caller passed. Never a deal's property state.
   v_state := upper(btrim(coalesce(p_state, '')));
   if v_state !~ '^[A-Z]{2}$' then
     raise exception 'State is required.' using errcode = '22023';
@@ -326,7 +328,115 @@ end
 $fn$;
 
 comment on function public.company_find_or_create(text, text, text) is
-  'Returns the active crm_accounts id whose normalized name matches, or inserts one with owner_id null. State is required. crm_accounts_name_uq still applies.';
+  'Returns the active crm_accounts id whose normalized name matches, or inserts one with owner_id null. State is the p_state argument only, never a property state. crm_accounts_name_uq still applies.';
+
+-- Exact auto-link. Returns the one active account id whose normalized name
+-- equals p_name, or null. Two or more active matches return null. No prefix,
+-- no contains, no insert, and no company columns. An outside user may call it.
+-- A processor or CRM user may call it. Nobody else may. company_lookup stays
+-- closed to outside users, and this function does not create a company.
+create function public.company_match_active(p_name text)
+returns uuid
+language plpgsql
+stable
+security definer
+set search_path to 'pg_catalog', 'public'
+as $fn$
+declare
+  v_key text;
+  v_id uuid;
+  v_n int;
+begin
+  if not (
+    (select private.me_role()) = 'Outside user'
+    or (select private.is_processor())
+    or (select private.crm_user())
+  ) then
+    raise exception 'You cannot match a company.' using errcode = '42501';
+  end if;
+  v_key := private.crm_company_key(p_name);
+  if v_key = '' then
+    return null;
+  end if;
+  select count(*)::int into v_n
+  from (
+    select 1
+    from public.crm_accounts a
+    where a.archived_at is null
+      and private.crm_company_key(a.name) = v_key
+    limit 2
+  ) s;
+  if v_n <> 1 then
+    return null;
+  end if;
+  select a.id into v_id
+  from public.crm_accounts a
+  where a.archived_at is null
+    and private.crm_company_key(a.name) = v_key
+  limit 1;
+  return v_id;
+end
+$fn$;
+
+comment on function public.company_match_active(text) is
+  'Exact normalized name, exactly one active crm_accounts row: returns that id. Otherwise null. No company fields. Outside user, processor, or CRM user.';
+
+-- Payoff lender, HOA, and utility join the existing company-kind list.
+-- A check that is not a simple allowed-value list is left alone. No check is
+-- created when kind was unrestricted. other_companies is not touched.
+do $kinds$
+declare
+  r record;
+  old_def text;
+  body text;
+begin
+  for r in
+    select c.oid, c.conname, pg_get_constraintdef(c.oid) as def
+    from pg_constraint c
+    where c.conrelid = 'public.crm_accounts'::regclass
+      and c.contype = 'c'
+      and pg_get_constraintdef(c.oid) ~* '\mkind\M'
+      and pg_get_constraintdef(c.oid) ~* '\m(any|in)\M'
+      and pg_get_constraintdef(c.oid) !~* '\m(and|or)\M'
+  loop
+    if r.def ~* 'payoff_lender' and r.def ~* '\mhoa\M' and r.def ~* '\mutility\M' then
+      continue;
+    end if;
+    if pg_catalog.obj_description(r.oid, 'pg_constraint') is not null then
+      raise exception 'drift: kind check % already has a comment', r.conname;
+    end if;
+    old_def := r.def;
+    body := btrim(regexp_replace(old_def, '^\s*CHECK\s*', '', 'i'));
+    execute format('alter table public.crm_accounts drop constraint %I', r.conname);
+    execute format(
+      'alter table public.crm_accounts add constraint %I check ((%s) or kind in (''payoff_lender'', ''hoa'', ''utility''))',
+      r.conname, body);
+    execute format(
+      'comment on constraint %I on public.crm_accounts is %L',
+      r.conname, 'ff030-kind-prev:' || old_def);
+  end loop;
+
+  if to_regclass('public.crm_picklist_options') is not null then
+    if exists (
+      select 1 from (values ('list_key'), ('value'), ('label'), ('retired'), ('position')) as col(n)
+      where not exists (
+        select 1 from information_schema.columns c
+        where c.table_schema = 'public' and c.table_name = 'crm_picklist_options' and c.column_name = col.n
+      )
+    ) then
+      raise exception 'drift: crm_picklist_options is missing a column the company kinds need';
+    end if;
+    insert into public.crm_picklist_options (list_key, value, label, retired, position)
+    select 'accountKind', v.value, v.label, false,
+           coalesce((select max(o.position) from public.crm_picklist_options o where o.list_key = 'accountKind'), 0) + v.n
+    from (values (1, 'payoff_lender', 'Payoff lender'), (2, 'hoa', 'HOA'), (3, 'utility', 'Utility')) as v(n, value, label)
+    where not exists (
+      select 1 from public.crm_picklist_options o
+      where o.list_key = 'accountKind' and o.value = v.value
+    );
+  end if;
+end
+$kinds$;
 
 -- Trigger function, not a policy helper and not a private.* function.
 -- A direct RPC call is a no-op: TG_OP is null outside a trigger.
@@ -364,9 +474,11 @@ create trigger crm_accounts_name_sync
 
 revoke all on function public.company_lookup(text, integer) from public, anon;
 revoke all on function public.company_find_or_create(text, text, text) from public, anon;
+revoke all on function public.company_match_active(text) from public, anon;
 revoke all on function public.crm_account_name_sync() from public, anon;
 grant execute on function public.company_lookup(text, integer) to authenticated;
 grant execute on function public.company_find_or_create(text, text, text) to authenticated;
+grant execute on function public.company_match_active(text) to authenticated;
 grant execute on function public.crm_account_name_sync() to authenticated;
 
 do $readback$
@@ -394,6 +506,14 @@ begin
      or has_function_privilege('anon', 'public.company_find_or_create(text, text, text)', 'execute')
      or not has_function_privilege('authenticated', 'public.company_find_or_create(text, text, text)', 'execute') then
     raise exception 'readback: company_find_or_create grants are not authenticated-only';
+  end if;
+  if (select prosecdef from pg_proc where oid = 'public.company_match_active(text)'::regprocedure) is not true then
+    raise exception 'readback: company_match_active is not security definer';
+  end if;
+  if has_function_privilege('public', 'public.company_match_active(text)', 'execute')
+     or has_function_privilege('anon', 'public.company_match_active(text)', 'execute')
+     or not has_function_privilege('authenticated', 'public.company_match_active(text)', 'execute') then
+    raise exception 'readback: company_match_active grants are not authenticated-only';
   end if;
   if has_function_privilege('public', 'public.crm_account_name_sync()', 'execute')
      or has_function_privilege('anon', 'public.crm_account_name_sync()', 'execute')

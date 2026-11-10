@@ -3,7 +3,7 @@
  * (features.js, CLA_PORTAL_CONFIG.features.crm, OFF in supabase mode) and the database switch (private.features 'crm', migration 22).
  * With the browser flag off every method refuses before calling the database. Meetings never send invitations; nothing is emailed. */
 import { CRM_OFF } from './features.js?v=202611070139';
-import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED, companyKey } from './crm.js?v=202611070139';
+import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED, companyKey } from './crm.js?v=202611121100';
 import { localDate, runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
 import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611070139';
 import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611101015';
@@ -138,7 +138,12 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
       return { ...c, account: account && camel(account), totals: orderTotals(c.orders), activities: await acts(pairs), opportunities, invitedMeetings: await invited('contact', id), attachments: await files(pairs) }; },
     async createCrmContact(v) { const id = await rpc('crm_create_contact', { p: await withCustom('contact', contactIn(noCf(v)), v) }); return contactRow(await rpc('crm_contact_detail', { p_id: id })); },
     async updateCrmContact(id, v) { await rpc('crm_update_contact', { p_id: id, p: await withCustom('contact', contactIn(noCf(v)), v) }); return contactRow(await rpc('crm_contact_detail', { p_id: id })); },
-    // FF-030: public.company_lookup. Active rows, prefix on the normalized name, cap 25. Owner privacy is on in the function until the CRM user decides.
+    // FF-030: public.company_lookup. Active rows, prefix on the normalized name, cap 25. Owner privacy is off: every CRM caller sees every active name.
+    // Exact auto-link for an outside user (and for a processor or CRM user). Id only. No company fields. Does not require the CRM flag.
+    async matchCrmCompany(name) {
+      const id = ok(await sb.rpc('company_match_active', { p_name: String(name == null ? '' : name) }));
+      return id || null;
+    },
     async lookupCompanies(q, limit = 20) {
       on();
       const n = Number(limit);

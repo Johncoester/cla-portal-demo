@@ -10,7 +10,7 @@ import { CRM_OFF } from './features.js?v=202611070139';
 import { dealDisplayName } from './nov5-rules.js?v=202611101015';
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, OPP_STAGES, ACCOUNT_KIND_CODES, CRM_ENTITIES, accountKindForType, entityLabel,
   TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, LINK_KEYS, LINK_FIELDS, cleanUrl, nextDue, addDaysTo, taskOpen, meetingOpen, localStamp,
-  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals, REPEAT_CODES, LEAD_STATUS_DEFAULT, companyKey } from './crm.js?v=202611070139';
+  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals, REPEAT_CODES, LEAD_STATUS_DEFAULT, companyKey } from './crm.js?v=202611121100';
 import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611121100';
 import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611070139';
 import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611070139';
@@ -21,10 +21,10 @@ import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611090905';
 import { crmCallsPart } from './mock-part-crm-calls.js?v=202611070139';
 import { callOpen, callSeconds, durationText, callStatusOf } from './crm-calls.js?v=202611070139';
 
-// FF-030 company_lookup. ownerPrivate stays true until the CRM user says every
-// staff member may see every company name. contains stays false: a leading
-// wildcard cannot use the prefix index. Tests flip ownerPrivate and put it back.
-export const companyLookupFlags = { ownerPrivate: true, contains: false };
+// FF-030 company_lookup. The CRM user said everyone sees every company, so
+// ownerPrivate stays false. The true path remains for a later switch. contains
+// stays false: a leading wildcard cannot use the prefix index.
+export const companyLookupFlags = { ownerPrivate: false, contains: false };
 
 export function crmPart(x, flags) {
   const { load, save: save0, nid, needUser, dealsFor, prof, nameOf, fullName, clone, now, fail, str, emailOk, localDate, C } = x;
@@ -419,6 +419,18 @@ export function crmPart(x, flags) {
     },
 
     // ---------- accounts ----------
+    // Exact auto-link. Returns only the id, and only when one active company has this
+    // normalized name. Prefix and contains never match. Outside users may call this.
+    // They cannot call lookupCompanies or createCrmAccount.
+    async matchCrmCompany(name) {
+      const u = needUser();
+      const allowed = C.isOutside(u.role) || !!u.isAdmin || C.isProcessor(u.role) || canUseCrm(u);
+      if (!allowed) fail('You cannot match a company.');
+      const key = companyKey(name);
+      if (!key) return null;
+      const hits = db().crmAccounts.filter((a) => !a.archivedAt && companyKey(a.name) === key);
+      return hits.length === 1 ? hits[0].id : null;
+    },
     // Same rows public.company_lookup returns: id, name, kind, city, state, phone. Active only. Cap 25.
     async lookupCompanies(q, limit = 20) {
       const u = crmUser();

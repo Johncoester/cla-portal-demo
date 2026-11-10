@@ -9,7 +9,7 @@ import { buildIcs, INVITE_NOTE, parseCsv, guessMapping, applyMapping, PERSON_IMP
 import { US_STATE_NAMES, US_STATES } from './constants.js?v=202611101015';
 import { ensureSettings, findOption } from './crm-config.js?v=202611070139';
 import { importedStatusDecision } from './crm-import-status.js?v=202611120600';
-import { LINK_KEYS } from './crm.js?v=202611070139';
+import { LINK_KEYS } from './crm.js?v=202611121100';
 
 const DEFAULT_LABEL = Object.fromEntries(IMPORT_DEFAULT_FIELDS.map(([k, l]) => [k, l]));
 const clip = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
