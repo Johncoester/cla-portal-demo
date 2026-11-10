@@ -9,7 +9,7 @@ import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, 
 import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611101015';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
 import { delegationLocked, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611101015';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611101030';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611101700';
 import { devAuth } from './mock-part-auth.js?v=202611070139';
 import { contactsTasksDocs } from './mock-part-docs.js?v=202611101015';
 import { tasksAndForms } from './mock-part-tasks.js?v=202611101015';
@@ -20,7 +20,7 @@ import { closingSchedule } from './mock-part-schedule.js?v=202611101015';
 import { notificationsPart } from './mock-part-notify.js?v=202611070139';
 import { mattP2 } from './mock-part-matt.js?v=202611101015';
 import { mattNov2 } from './mock-part-nov2.js?v=202611101015';
-import { crmPart } from './mock-part-crm.js?v=202611101015';
+import { crmPart } from './mock-part-crm.js?v=202611101600';
 import { featureFlags } from './features.js?v=202611070139';
 import { crmZohoUpgrade } from './crm.js?v=202611070139';
 import { ensureEmailTemplates } from './crm-templates.js?v=202611090905';

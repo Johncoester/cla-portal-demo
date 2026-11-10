@@ -19,7 +19,7 @@ begin
   if not exists (select 1 from pg_constraint where conname = 'contacts_lender_role_chk') then
     raise exception 'drift: contacts_lender_role_chk is not present'; end if;
   select count(*) into n from information_schema.columns where table_schema = 'public' and table_name = 'deals';
-  if n <> 63 then raise exception 'drift: deals has % columns, expected 63', n; end if;
+  if n <> 65 then raise exception 'drift: deals has % columns, expected 65', n; end if;
   select count(*) into n from information_schema.columns where table_schema = 'public' and table_name = 'contacts';
   if n <> 42 then raise exception 'drift: contacts has % columns, expected 42', n; end if;
 end $$;
@@ -45,7 +45,7 @@ begin
   if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'deals' and column_name = 'lender_name') then
     raise exception 'readback: deals.lender_name was dropped'; end if;
   select count(*) into n from information_schema.columns where table_schema = 'public' and table_name = 'deals';
-  if n <> 59 then raise exception 'readback: deals has % columns, expected 59', n; end if;
+  if n <> 61 then raise exception 'readback: deals has % columns, expected 61', n; end if;
   select count(*) into n from information_schema.columns where table_schema = 'public' and table_name = 'contacts';
   if n <> 41 then raise exception 'readback: contacts has % columns, expected 41', n; end if;
 end $$;

@@ -3,7 +3,7 @@
  * File bytes go to the private deal-documents bucket (migration 3). A missing bucket surfaces as an error; nothing is invented. */
 import { ordinaryCoverageDoc } from './nov5-rules.js?v=202611101015';
 import { uploadBytes } from './upload-bytes.js?v=202611070139';
-import { shapePortalThreads } from './portal-threads.js?v=202611101245';
+import { shapePortalThreads } from './portal-threads.js?v=202611101800';
 
 export const SAVED_UNCONFIRMED = 'This file was saved but the list could not be refreshed. It is already stored, so sending it again will not add a second copy.';
 

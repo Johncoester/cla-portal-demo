@@ -5,7 +5,7 @@ import { viewOnly, isViewOnly, runsOrders, WIRE_FRAUD_NOTE } from '../data/const
 import { raw } from '../ui.js?v=202611070139';
 import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611101015';
 import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611101015';
-import { presentThread } from '../data/portal-threads.js?v=202611101245';
+import { presentThread } from '../data/portal-threads.js?v=202611101800';
 
 export async function render(ctx) {
   const { api, user, deal, refresh, params } = ctx; const notViewOnly = !viewOnly(user);

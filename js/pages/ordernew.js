@@ -14,12 +14,12 @@ import { fmtPhone, TX_TYPES, runsOrders, localDate, US_STATE_NAMES, DOC_TYPES, M
 import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611101015';
 import { ENTITY_TYPES } from '../data/templates.js?v=202611101015';
 import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611092320';
-import { duplicateNotice } from '../data/order-duplicates.js?v=202611101030';
+import { duplicateNotice } from '../data/order-duplicates.js?v=202611101700';
 import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
 import { orderDraftKey, readOrderDraft, writeOrderDraft, clearOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim } from '../data/order-draft.js?v=202611070139';
 import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows } from '../data/lender-file.js?v=202611101200';
 import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611101015';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611101245';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611101800';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
 // Each person becomes their own deal_participants row, so each buyer / seller gets their own copy of the client intake tasks (existing per-person behaviour).
@@ -38,7 +38,7 @@ const entityPanel = (label) => html`<div class="entity-panel" data-entity-panel 
   <label>Representative's phone<input data-ent="repPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone aria-label="Representative's phone"></label>
   <label>Representative's email<input data-ent="repEmail" type="email" maxlength="200" aria-label="Representative's email"></label></div></div>`;
 const referralSlot = (role) => { const meta = referralPartyByRole(role); if (!meta) return '';
-  return html`<label class="referral-source" data-referral-slot="${meta.code}"><input type="radio" name="referralSource" value="pending" data-referral-code="${meta.code}" disabled aria-label="Referral source: ${meta.label}, pick a person first"> <span>Referral source</span></label>`; };
+  return html`<label class="referral-source" data-referral-slot="${meta.code}"><input type="radio" name="referralSource" value="pending" data-referral-code="${meta.code}" disabled aria-label="Source of business: ${meta.label}, pick a person first"> <span>Source of business</span></label>`; };
 const partyRow = (role, label, n = 1) => html`<div class="party-row-wrap" data-party-row="${n}"><div class="multi-row">${pickerHtml('p:' + role, rowLabel(label, n))}${referralSlot(role)}<button type="button" class="ghost" data-ent-toggle aria-pressed="false" title="This ${label.toLowerCase()} is an LLC, corporation, partnership or trust">+ Add entity</button><button type="button" class="ghost" data-rm-row title="Remove this ${label.toLowerCase()} (before the order is created)" hidden>Remove</button></div>${entityPanel(label)}</div>`;
 const pickerWithReferral = (role, label) => html`<div class="picker-with-ref" data-referral-wrap="${referralPartyByRole(role).code}">${pickerHtml('p:' + role, label)}${referralSlot(role)}</div>`;
 const partyBlock = (role, label) => html`<fieldset class="span2 multi-party" data-multi="${role}"><legend>${label}s</legend>
@@ -102,7 +102,7 @@ export async function render({ api, user, go }) {
       ${panel('transaction', html`<div class="form-grid">
         <label>Transaction type<select name="transactionType">${options(TX_TYPES, 'Purchase')}</select></label>
         ${repOn ? html`<fieldset class="span2" data-cla-representation><legend>Who CLA represents</legend>
-          <p class="muted small">CLA's side of this file. It is not a person's portal role, not the buyer or listing agent, not the referral source, and it does not change who can see the file. A new order starts as both sides. An older file with no answer stays not recorded.</p>
+          <p class="muted small">CLA's side of this file. It is not a person's portal role, not the buyer or listing agent, not the source of business, and it does not change who can see the file. A new order starts as both sides. An older file with no answer stays not recorded.</p>
           ${CLA_REPRESENTATION.map((row) => html`<label class="referral-source"><input type="radio" name="claRepresentation" value="${row.code}" ${row.code === 'both' ? raw('checked') : ''}> ${row.label}</label>`)}
         </fieldset>` : ''}
         <label>Open date *<input name="openDate" type="date" required value="${today}" max="${today}" title="The day the order came in. Can be backdated; not in the future."><span class="field-hint">The day the order came in. Can be backdated, never in the future.</span></label>
@@ -112,7 +112,7 @@ export async function render({ api, user, go }) {
           <p class="notice info" data-vis-prompt="tx-vis" hidden>Who can see these files? Choose before you continue.</p>
           <label>Who can see them<select id="tx-vis" data-vis>${options(visOpts, visOpts[0], (v) => visibilityLabel(v, user.role))}</select></label>
         </fieldset>
-        <p class="span2 notice info" data-refi-note hidden><strong>Refinance:</strong> no purchase price, EMD, sellers or realtors. The people on the order are the borrower(s), salespeople, the Processor and the Lender. A referral source is chosen only if you mark one of those people. Switch back to Purchase to see the other fields again.</p></div>`,
+        <p class="span2 notice info" data-refi-note hidden><strong>Refinance:</strong> no purchase price, EMD, sellers or realtors. The people on the order are the borrower(s), salespeople, the Processor and the Lender. A source of business is chosen only if you mark one of those people. Switch back to Purchase to see the other fields again.</p></div>`,
         'What kind of order is this, and when did it come in?')}
       ${panel('property', html`<div class="form-grid">
         <label class="span2">Street address *<input name="street" required maxlength="200" autocomplete="off"></label>
@@ -122,9 +122,9 @@ export async function render({ api, user, go }) {
         <div class="span2" id="md-occ" hidden><p class="muted small">Maryland purchases only.</p>${occSelects({})}</div></div>`,
         'The address of the property being bought, sold or refinanced.')}
       ${panel('parties', html`<p class="muted small people-optional">People on this order are all optional; you can add or change them later under Contacts. Type a name and pick a match, or choose <strong>Add "…" as a new person</strong> in the list. <strong>Add new user</strong> below still works for full details (email, entity, lender company).</p>
-        <div class="span2" id="sob-block" data-referral-bar><fieldset class="referral-bar"><legend>Referral source</legend>
-          <label class="referral-source"><input type="radio" name="referralSource" value="" checked data-referral-clear aria-label="Referral source: Not set"> Not set</label>
-          <p class="muted small" data-referral-status>Referral source: Not set. Mark one buyer, seller, buyer agent, listing agent, or lender. Nobody is selected for you. This is not the CLA salesperson and it does not change a contact's Lead Source.</p></fieldset></div>
+        <div class="span2" id="sob-block" data-referral-bar><fieldset class="referral-bar"><legend>Source of business</legend>
+          <label class="referral-source"><input type="radio" name="referralSource" value="" checked data-referral-clear aria-label="Source of business: Not set"> Not set</label>
+          <p class="muted small" data-referral-status>Source of business: Not set. Mark one buyer, seller, buyer agent, listing agent, or lender. Nobody is selected for you. This is not the CLA salesperson and it does not change a contact's Lead Source.</p></fieldset></div>
         <div class="form-grid">${partyBlock('Client-Buyer', 'Buyer')}${partyBlock('Client-Seller', 'Seller')}</div>`,
         'Type a name and pick a match, or add them from the list when there is no match. A buyer or seller that is an LLC, corporation, partnership or trust: use + Add entity and enter the entity name. A representative is optional.')}
       ${panel('loan', html`<h4 class="wiz-sub">Amounts and dates</h4><div class="form-grid">
@@ -387,7 +387,7 @@ export async function render({ api, user, go }) {
           ...(r ? [] : [['EMD amount', val(fmtMoney(moneyAmount(f.emdAmount)))], ['EMD due date', val(fmtDate(f.emdDueDate))]]), ['Closing date', val(fmtDate(f.closingDate))],
                     ['Lender', (pickers.Lender.value || f.lenderName) ? html`${f.lenderName ? html`<strong>${f.lenderName}</strong>${pickers.Lender.value ? html` · ${nameOf(pickers.Lender.value)}` : ''}` : nameOf(pickers.Lender.value)}${f.lenderPhone || f.lenderEmail || f.lossPayeeName || f.mortgageBrokerName || f.cplAddress ? html`<br><span class="muted small">${[f.lenderPhone, f.lenderEmail, f.mortgageBrokerName && ('Broker: ' + f.mortgageBrokerName), f.lossPayeeName && ('Loss payee: ' + f.lossPayeeName), f.cplAddress && ('CPL: ' + f.cplAddress)].filter(Boolean).join(' · ')}</span>` : ''}` : dash],
           ['Lender contacts', readLenderContactRows(form).length ? readLenderContactRows(form).map((row) => html`<div>${[row.firstName, row.lastName].filter(Boolean).join(' ')} <span class="muted small">${row.lenderRole === 'lender_tc' ? 'Lender TC' : row.lenderRole === 'loan_officer' ? 'Loan Officer' : ''}</span></div>`) : dash]])}
-        ${section('parties', 'Source of business', [['Referred by', val((() => { const picked = $$('[name=referralSource]', root).find((el) => el.checked && el.value); return picked ? (picked.getAttribute('aria-label') || '').replace(/^Referral source:\s*/, '') : ''; })())]])}
+        ${section('parties', 'Source of business', [['Source of business', val((() => { const picked = $$('[name=referralSource]', root).find((el) => el.checked && el.value); return picked ? (picked.getAttribute('aria-label') || '').replace(/^Source of business:\s*/, '') : ''; })())]])}
         ${r ? '' : section('agents', 'Agents', [['Buyer agent', val(nameOf(pickers['Buyer Agent'].value))], ['Listing agent', val(nameOf(pickers['Listing Agent'].value))], ["Buyer's transaction coordinator", val(selText($('[name="p:Transaction Coordinator"]', root)))], ['Listing transaction coordinator', val(selText($('[name="p:Transaction Coordinator:2"]', root)))]])}
         ${section('team', 'Team & Notes', [['Processor', val(selText($('[name=processorId]', root)).replace(/^Choose the Processor.*$/, ''))], ['Preprocessor', val(selText($('[name=preprocessorUserId]', root)))], ['Sales Rep', sales.length ? sales.join(', ') : dash],
           ['Notes', f.notes ? html`<span class="review-notes">${f.notes.length > 240 ? f.notes.slice(0, 240) + '\u2026' : f.notes}</span>` : dash],
@@ -429,10 +429,10 @@ export async function render({ api, user, go }) {
         if (MULTI[role]) { const wrap = slot.closest('[data-party-row]'); const row = (rows[role] || []).find((r) => r.el === wrap); contactId = row && row.pk.value || ''; }
         else if (pickers[role]) contactId = pickers[role].value || '';
         const value = contactId ? encodeReferral(code, contactId) : ''; input.value = value; input.disabled = !value || hiddenRole;
-        const who = contactId ? `${meta.label} — ${nameOf(contactId)}` : `${meta.label}, pick a person first`; input.setAttribute('aria-label', `Referral source: ${who}`);
+        const who = contactId ? `${meta.label} — ${nameOf(contactId)}` : `${meta.label}, pick a person first`; input.setAttribute('aria-label', `Source of business: ${who}`);
         if (input.checked && (!value || hiddenRole)) { input.checked = false; if (clear) clear.checked = true; } });
       const status = $('[data-referral-status]', root); if (!status) return; const picked = $$('[name=referralSource]', root).find((el) => el.checked && el.value);
-      status.textContent = picked ? `Referral source: ${(picked.getAttribute('aria-label') || '').replace(/^Referral source:\s*/, '')}. One person only.` : 'Referral source: Not set. Mark one buyer, seller, buyer agent, listing agent, or lender. Nobody is selected for you.'; };
+      status.textContent = picked ? `Source of business: ${(picked.getAttribute('aria-label') || '').replace(/^Source of business:\s*/, '')}. One person only.` : 'Source of business: Not set. Mark one buyer, seller, buyer agent, listing agent, or lender. Nobody is selected for you.'; };
     const ROLE_BY = { buyer: 'Client-Buyer', seller: 'Client-Seller', buyer_agent: 'Buyer Agent', listing_agent: 'Listing Agent', lender: 'Lender' };
     $('[name=state]', root).addEventListener('change', syncMd);
     // ---------- one "Add new user" place ----------
@@ -589,7 +589,7 @@ export async function render({ api, user, go }) {
           await api.addParticipant(deal.id, c.id, 'Lender'); added.Lender = (added.Lender || 0) + 1;
         } catch (err) { problems.push(`Lender company: ${err.message}`); }
       }
-      if (referral) { try { await api.updateDeal(deal.id, { sourceOfBusiness: referral }); } catch (err) { problems.push(`Referral source was not saved: ${err.message}`); } }
+      if (referral) { try { await api.updateDeal(deal.id, { sourceOfBusiness: referral }); } catch (err) { problems.push(`Source of business was not saved: ${err.message}`); } }
       let saved = 0;
       const uploadIds = new WeakMap();
       const uploadOne = async (file, visibility, docType, wire) => { try { let slot = uploadIds.get(file); if (!slot) uploadIds.set(file, slot = {}); const id = sameUploadId(slot, file); await api.addDocument(deal.id, { id, name: file.name, description: '', mimeType: file.type, size: file.size, dataUrl: await readFile(file), visibility, folderId: null, docType, wireInstructions: wire }); saved++; } catch (err) { problems.push(`${file.name}: ${err.message}`); } };
