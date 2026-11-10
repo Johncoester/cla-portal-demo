@@ -1,6 +1,8 @@
 -- task_board's name step called deal_contacts once per deal. Each call ran
 -- seven security-definer helpers, and each of those re-ran effective_uid.
--- board_owner_names does that work once for the whole id list. A staff
+-- PR 147 (20261111060000) would instead call task_owner_name once per task.
+-- That file is not applied on TEST, and it should not be applied separately:
+-- this migration replaces either body with one set-based lookup. A staff
 -- viewer skips the hide flags. my_task_list asks for names only after it
 -- has kept its own rows, and it resolves deal_roles once per deal.
 -- effective_uid remembers its answer for the rest of the transaction.
@@ -39,9 +41,16 @@ begin
     where n.nspname = 'public' and p.proname = 'task_board'
       and pg_get_function_identity_arguments(p.oid) = 'p_file_status text'
       and not p.prosecdef and p.provolatile = 's'
-      and encode(sha256(convert_to(p.prosrc, 'UTF8')), 'hex') = '76c9c7bc2ff952cfe0a430fa4fe6ac7ef089c8501c89195d06b57d91a57d3ab0'
+      and encode(sha256(convert_to(p.prosrc, 'UTF8')), 'hex') in (
+        '76c9c7bc2ff952cfe0a430fa4fe6ac7ef089c8501c89195d06b57d91a57d3ab0',
+        '8e2d4e07661f5a6aca98fab382640e65ed726f1c346404bf571646487076abf5'
+      )
   ) then
-    raise exception 'drift: public.task_board(text) is not the captured function';
+    raise exception 'drift: public.task_board(text) hash %',
+      (select encode(sha256(convert_to(p.prosrc, 'UTF8')), 'hex')
+         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public' and p.proname = 'task_board'
+          and pg_get_function_identity_arguments(p.oid) = 'p_file_status text');
   end if;
 
   if not exists (
@@ -59,7 +68,7 @@ begin
   where schemaname = 'public' and tablename = 'tasks' and policyname = 'tasks_audience_limit';
   if q = '((audiences IS NULL) OR private.is_staffish() OR private.task_outside_audience(id))' then
     null;
-  elsif q like '%g.staffish%' or q like '%(select private.is_staffish())%' or q like '%(SELECT private.is_staffish())%' then
+  elsif q like '%g.staffish%' or q ~* 'select[[:space:]]+private\.is_staffish\(' then
     null;
   else
     raise exception 'drift: tasks_audience_limit is %', q;
@@ -69,7 +78,7 @@ begin
   where schemaname = 'public' and tablename = 'tasks' and policyname = 'tasks_retired_kept';
   if q = '((template_code IS NULL) OR (NOT private.template_code_retired(template_code)) OR private.is_admin() OR private.is_processor() OR ((status = ANY (ARRAY[''todo''::text, ''in_progress''::text, ''blocked''::text])) AND (owner_profile_id = ( SELECT private.effective_uid() AS uid))))' then
     null;
-  elsif q like '%g.is_admin%' or q like '%(select private.is_admin())%' or q like '%(SELECT private.is_admin())%' then
+  elsif q like '%g.is_admin%' or q ~* 'select[[:space:]]+private\.is_admin\(' then
     null;
   else
     raise exception 'drift: tasks_retired_kept is %', q;
@@ -79,7 +88,7 @@ begin
   where schemaname = 'public' and tablename = 'tasks' and policyname = 'tasks_switch_hidden';
   if q = '((template_code IS NULL) OR private.task_enabled(template_code) OR private.is_admin())' then
     null;
-  elsif q like '%g.is_admin%' or q like '%(select private.is_admin())%' or q like '%(SELECT private.is_admin())%' then
+  elsif q like '%g.is_admin%' or q ~* 'select[[:space:]]+private\.is_admin\(' then
     null;
   else
     raise exception 'drift: tasks_switch_hidden is %', q;
@@ -277,6 +286,9 @@ as $mine$
   order by k.due_date nulls last, k.file_number, k.title
 $mine$;
 
+-- PR 147's per-task helper is unused once task_board calls board_owner_names.
+drop function if exists private.task_owner_name(uuid, uuid);
+
 do $pol$
 declare
   q text;
@@ -345,6 +357,9 @@ begin
   end if;
   if position('cla.effective_uid_for' in (select p.prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'private' and p.proname = 'effective_uid')) = 0 then
     raise exception 'effective_uid is not cached for the transaction';
+  end if;
+  if to_regprocedure('private.task_owner_name(uuid,uuid)') is not null then
+    raise exception 'task_owner_name was left behind';
   end if;
   select qual into q from pg_policies
   where schemaname = 'public' and tablename = 'tasks' and policyname = 'tasks_audience_limit';

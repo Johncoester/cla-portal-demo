@@ -224,13 +224,13 @@ const html = readFileSync(path.join(root, 'index.html'), 'utf8');
 const appSrc = readFileSync(path.join(root, 'js/app.js'), 'utf8');
 const adapterSrc = readFileSync(path.join(root, 'js/data/adapter.js'), 'utf8');
 const heavySrc = readFileSync(path.join(root, 'js/data/supabase-adapter.js'), 'utf8');
-check(html.includes('js/app.js?v=202611111600') && !html.includes('boot-marks') && appSrc.includes("adapter.js?v=202611111600") && appSrc.includes("pages/tasks.js?v=202611110900") && appSrc.includes("pages/taskgrid.js?v=202611101015") && adapterSrc.includes("supabase-adapter.js?v=202611111600"), 'the changed imports keep their cache query');
+check(html.includes('js/app.js?v=202611112300') && !html.includes('boot-marks') && appSrc.includes("adapter.js?v=202611112300") && appSrc.includes("pages/tasks.js?v=202611111700") && appSrc.includes("pages/taskgrid.js?v=202611101015") && adapterSrc.includes("supabase-adapter.js?v=202611112300"), 'the changed imports keep their cache query');
 check(appSrc.includes("api.listAllTasks({ fileStatus: 'All' })") && heavySrc.includes("nav.share(u.id, 'grid:' + fs") && heavySrc.includes('Promise.all([sb.rpc(\'task_grid\''), 'the board overlap stays and the grid read shares one flight');
 const money = {
   'js/data/constants.js': '30ef60e9c1c68676d0982e106813e9b6eb574163d6bc34d6ed68a086e7f6e5cd',
   'js/data/supabase-tc.js': '56bb2d60d60f38384df385d102a5bf3f5a7116768896bd35eb2b93e6440975a6',
-  'js/pages/deal-buyer-legacy.js': 'a18e6c94baf312aef30902db949ebb477fc591622481d5f4006af4cb7c8b412b',
-  'js/pages/deal.js': '671da616f5ca4ed2827e00c3fd2ca64c3f74f9c2ae82b108a50ec90afae129e2',
+  'js/pages/deal-buyer-legacy.js': '07b35e146d598006c981281138d6b78ec72d5ef2bc3de3aaa19395a1cb230af1',
+  'js/pages/deal.js': '1b9feb2549c6ed2cb1dde2b7d5a77ffb8875bd8f1c3d063101308aee11cd7f16',
   'js/pages/money-input.js': '014244be259d403571d283caa85afde7ff2b355a3ad5ba8f024034a76a26188d',
   'js/pages/ordernew.js': '8971e977e0e66efe0f1d7bb166f84a1093fae23e2424c1260615e5ed89a6e5b4',
   'js/pages/tc-overview.js': '5f1572ee9b4afa15012fd09409f59e5af2755d309853d3252b72069bf7157ee0',

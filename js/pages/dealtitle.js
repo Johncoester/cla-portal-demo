@@ -26,7 +26,7 @@ const stepBtns = (v, key, ro) => { const s = v.steps.find((z) => z.key === key) 
 
 export async function render({ api, deal, user, refresh }) {
   const sec = new URLSearchParams(location.hash.split('?')[1] || '').get('v') || 'overview';
-  const v = await api.getTitle(deal.id); v.progress.pct = v.progress.total ? Math.round((v.progress.done / v.progress.total) * 100) : 0; const ro = !v.canEdit; const r = v.review || {}; const D = v.deal;
+  const v = await api.getTitle(deal.id, { section: sec }); v.progress.pct = v.progress.total ? Math.round((v.progress.done / v.progress.total) * 100) : 0; const ro = !v.canEdit; const r = v.review || {}; const D = v.deal;
   const go = (s) => `#/deals/${deal.id}/title${s === 'overview' ? '' : `?v=${s}`}`;
   const head = html`<div class="box-title tt-head" data-title-head><h2><span class="h-ico"></span>Title</h2>
       <div class="tt-meta"><span>Status ${statusPill(v.status)}</span><span>Reviewer <b>${r.reviewerName || '-'}</b></span><span>Review date <b>${fmtDate(r.reviewDate) || '-'}</b></span>

@@ -22,8 +22,22 @@ const hay = (d) => [d.fileNumber, d.street, d.city, d.state, d.zip, d.county, d.
 export function matchDeals(deals, q) { const t = String(q || '').toLowerCase().split(/\s+/).filter(Boolean); if (!t.length) return [];
   return deals.filter((d) => { const h = hay(d); return t.every((w) => h.includes(w)); }).slice(0, 8); }
 const why = (d, q) => { const l = String(q).toLowerCase(); const n = (d.partyNames || []).find((x) => x.toLowerCase().includes(l)); return n || ''; };
+// speed (Nov 9): one deal list per person for up to 60s, shared by every render, so a tab switch inside an order no longer
+// re-reads every order. Another person, any write through the adapter (writeSerial), or a failed read reads again.
+// Adapters without writeSerial (the mock reads local data) read every time, as before.
+const SIDE_DEALS_MS = 60000; let sideDeals = null;
+const dealList = (api, u) => {
+  if (typeof api.writeSerial !== 'function') return api.listDeals({ status: 'All' });
+  const who = (u && u.id) || ''; const w = api.writeSerial();
+  if (!sideDeals || sideDeals.who !== who || sideDeals.w !== w || Date.now() - sideDeals.at > SIDE_DEALS_MS) {
+    const entry = { who, w, at: Date.now(), p: api.listDeals({ status: 'All' }) };
+    entry.p.catch(() => { if (sideDeals === entry) sideDeals = null; });
+    sideDeals = entry;
+  }
+  return sideDeals.p;
+};
 export function wireSideSearch(api, u, go) {
-  let deals = null; const load = async () => { if (!deals) { try { deals = await api.listDeals({ status: 'All' }); } catch (e) { deals = []; } } return deals; };
+  let deals = null; const load = async () => { if (!deals) { try { deals = await dealList(api, u); } catch (e) { deals = []; } } return deals; };
   $$('[data-ss-wrap]').forEach((w) => { const inp = $('[data-ss-input]', w); const dd = $('[data-ss-dd]', w); let hits = []; let at = -1;
     const show = () => { dd.innerHTML = toText(hits.length ? hits.map((d, i) => html`<li role="option" class="${i === at ? 'on' : ''}" data-ss-pick="${d.id}"><strong>${d.street}</strong> <span class="ss-fn">${d.fileNumber}</span><br><span class="muted small">${d.city}, ${d.state}${d.status && d.status !== 'Open' ? ` · ${d.status}` : ''}${why(d, inp.value) ? ` · ${why(d, inp.value)}` : ''}</span></li>`) : html`<li class="muted" data-ss-none>No orders match.</li>`); dd.hidden = !inp.value.trim(); };
     inp.addEventListener('focus', load);

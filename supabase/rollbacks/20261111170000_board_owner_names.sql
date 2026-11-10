@@ -92,21 +92,21 @@ declare
 begin
   select qual into q from pg_policies
   where schemaname = 'public' and tablename = 'tasks' and policyname = 'tasks_audience_limit';
-  if q like '%select private.is_staffish()%' and q not like '%g.staffish%' then
+  if q ~* 'select[[:space:]]+private\.is_staffish\(' and q not like '%g.staffish%' then
     alter policy tasks_audience_limit on public.tasks
     using (((audiences IS NULL) OR private.is_staffish() OR private.task_outside_audience(id)));
   end if;
 
   select qual into q from pg_policies
   where schemaname = 'public' and tablename = 'tasks' and policyname = 'tasks_retired_kept';
-  if q like '%select private.is_admin()%' and q not like '%g.is_admin%' then
+  if q ~* 'select[[:space:]]+private\.is_admin\(' and q not like '%g.is_admin%' then
     alter policy tasks_retired_kept on public.tasks
     using (((template_code IS NULL) OR (NOT private.template_code_retired(template_code)) OR private.is_admin() OR private.is_processor() OR ((status = ANY (ARRAY['todo'::text, 'in_progress'::text, 'blocked'::text])) AND (owner_profile_id = ( SELECT private.effective_uid() AS uid)))));
   end if;
 
   select qual into q from pg_policies
   where schemaname = 'public' and tablename = 'tasks' and policyname = 'tasks_switch_hidden';
-  if q like '%select private.is_admin()%' and q not like '%g.is_admin%' then
+  if q ~* 'select[[:space:]]+private\.is_admin\(' and q not like '%g.is_admin%' then
     alter policy tasks_switch_hidden on public.tasks
     using (((template_code IS NULL) OR private.task_enabled(template_code) OR private.is_admin()));
   end if;

@@ -10,6 +10,11 @@ import { planDocumentBatch } from './document-batch.js?v=202611101015';
 import { featureFlags } from './features.js?v=202611070139';
 import { accountingSupabase } from './supabase-accounting.js?v=202611091140';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
+import { titleSupabase } from './supabase-title.js?v=202611112200';
+import { policySupabase } from './supabase-policy.js?v=202611112100';
+import { fundingSupabase } from './supabase-funding.js?v=202611112000';
+import { postClosingSupabase } from './supabase-postclosing.js?v=202611111900';
+import { wiresSupabase } from './supabase-wires.js?v=202611111800';
 import { modulesSupabase } from './supabase-modules.js?v=202611101015';
 import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access
 import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611101015';
@@ -34,7 +39,7 @@ import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
 import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611101700';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
 import { propertyAddressOf } from './nov5-rules.js?v=202611101015';
-import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611110800';
+import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611110800';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow } from './contact-insert.js?v=202611101200';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
@@ -45,7 +50,7 @@ import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=2026
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
-import { authEventAction, gatherReads, identitySlot, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611082200';
+import { authEventAction, carriedReads, gatherReads, identitySlot, mapLimit, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611111200';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
 // These stay reachable with no user session. Everything else under /rest/v1/ is skipped after sign-out,
@@ -129,6 +134,11 @@ export async function createSupabaseAdapter(cfg) {
   nav.share = (id, key, fn) => shareReads(id, storedKey(key), fn);
   const dropFileReads = () => { fileGen += 1; sessionBox.clear(); };
   const early = speculativeReads();
+  // speed (Nov 9): one order's reads carried across navigations for 30s, so a tab switch inside the same order reuses them.
+  // Same person only. Any write (wrapper at the end), a real sign-out, or another person drops them. Keys carry storedKey's
+  // generation, so dropFileReads() also retires carried order reads.
+  const carry = carriedReads({ ttlMs: 30000 });
+  const CARRY_KEY = /^(deal|shell|taskrows|docs|overview|listDealFolders|listSignatureRequests|listEntityDocRequests):/;
   let openingNav = false;
   let navSerial = 0;
   let openNavId = 0;
@@ -217,6 +227,7 @@ export async function createSupabaseAdapter(cfg) {
     profile.clear();
     nav.clear();
     early.clear();
+    carry.clear();
   }
   function remember(person) {
     if (!person || !person.id) return person;
@@ -231,6 +242,7 @@ export async function createSupabaseAdapter(cfg) {
     profile.clear();
     nav.clear();
     early.clear();
+    carry.clear();
     ident.forget();
   }
   let pendingAuthId = '';
@@ -246,7 +258,16 @@ export async function createSupabaseAdapter(cfg) {
     if (action === 'drop') dropAuth();
     if (event === 'PASSWORD_RECOVERY') { try { sessionStorage.setItem('cla-portal-recovery', '1'); } catch (e) { /* the reset screen also checks the flag */ } if (!/recovery/.test(location.hash)) location.hash = '#/login'; }
   });
-  const fileRead = (key, fn) => early.read(nav.userId() || pendingAuthId || '', storedKey(key), fn, nav);
+  const fileRead = (key, fn) => {
+    const who = nav.userId() || pendingAuthId || '';
+    const k = storedKey(key);
+    if (!CARRY_KEY.test(k)) return early.read(who, k, fn, nav);
+    const held = carry.get(who, k);
+    if (held) return early.read(who, k, () => held, nav);
+    const read = early.read(who, k, fn, nav);
+    carry.keep(who, k, read);
+    return read;
+  };
   const meFrom = (who) => profile.load(who, async () => {
       const raw = ok(await sb.rpc('my_profile'));   // profiles row only; user_metadata is never a role
       if (!raw) return { id: who.id, email: who.email || '', firstName: '', lastName: '', role: '', status: 'unprovisioned', unprovisioned: true, isAdmin: false };
@@ -605,6 +626,38 @@ export async function createSupabaseAdapter(cfg) {
       if (nav.userId() && nav.userId() !== u.id) return [];
       return mapHostedTaskList(got.rows, u, got.off, { myParticipantIds: onFile.participantIds, fileRoles: onFile.roles });
     },
+    // Dashboard (speed, Nov 9): listTasks for many files at once -> Map(dealId -> the same list listTasks gives). One paged tasks read
+    // and one switches read instead of a tasks read and a switches read per file. The viewer's party rows and file roles
+    // (viewerOnFile) are still read per file for people who do not run orders, as listTasks does.
+    async listTasksForDeals(dealIds) {
+      const ids = [...new Set((dealIds || []).filter(Boolean))];
+      const out = new Map(ids.map((id) => [id, []]));
+      if (!ids.length) return out;
+      let u = ident.current() || await me();
+      if ((!u || !u.id) && lastHeld && lastHeld.id) u = lastHeld;
+      if (!u || !u.id) return out;
+      if (nav.userId() && nav.userId() !== u.id) return out;
+      const PAGE = 1000;   // PostgREST returns at most 1000 rows per request: page until a short page
+      const chunks = []; for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));   // keeps the URL short
+      const rows = (await mapLimit(chunks, 4, async (part) => {
+        const got = [];
+        for (let from = 0; ; from += PAGE) {
+          const page = ok(await sb.from('tasks').select(HOSTED_TASK_COLUMNS).in('deal_id', part).order('created_at').order('id').range(from, from + PAGE - 1)) || [];
+          got.push(...page);
+          if (page.length < PAGE) return got;
+        }
+      })).flat();
+      let off = [];
+      if (rows.some((t) => t.template_code)) off = (ok(await sb.from('task_template_switches').select('code').eq('enabled', false)) || []).map((r) => r.code);
+      const byDeal = new Map(ids.map((id) => [id, []]));
+      rows.forEach((t) => { if (byDeal.has(t.deal_id)) byDeal.get(t.deal_id).push(t); });
+      const staff = u.isAdmin || runsOrdersCI(u);
+      const onFile = new Map();
+      if (!staff) await mapLimit(ids.filter((id) => byDeal.get(id).length), 4, async (id) => { onFile.set(id, await viewerOnFile(sb, id, u)); });
+      if (nav.userId() && nav.userId() !== u.id) return new Map(ids.map((id) => [id, []]));
+      byDeal.forEach((list, id) => { const f = onFile.get(id) || { participantIds: [], roles: [] }; out.set(id, mapHostedTaskList(list, u, off, { myParticipantIds: f.participantIds, fileRoles: f.roles })); });
+      return out;
+    },
     async getTask(id) { return fetchHostedTask(sb, id, await me()); },
     async getAgentTask(id) {
       const user = await me();
@@ -722,6 +775,16 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, accountingSupabase({ sb, ok, flags: a.features }));
   // PAYOFFS / HOA / FFB / GROUND RENT (John, Nov 4; migration 42): same switches as accounting, staff only
   Object.assign(a, payoffsSupabase({ sb, ok, flags: a.features, api: a }));
+  // TITLE: existing title tables. Staff RLS. Nothing is sent and no SSN is stored.
+  Object.assign(a, titleSupabase({ sb, ok, flags: a.features, me }));
+  // FINAL POLICY: existing policy tables. Staff RLS. Issuance stays queued-only.
+  Object.assign(a, policySupabase({ sb, ok, flags: a.features, me }));
+  // FUNDING: existing funding_records and related tables. Staff RLS. Nothing is sent.
+  Object.assign(a, fundingSupabase({ sb, ok, flags: a.features, me }));
+  // Post-Closing and E-Recording: existing scanback and recording tables. Staff RLS. Outbox is queued only.
+  Object.assign(a, postClosingSupabase({ sb, ok, flags: a.features, me }));
+  // WIRES: existing wire_records / escrow_accounts / wire_audit_log. Staff RLS via fwp_staff('wires'). No bank send.
+  Object.assign(a, wiresSupabase({ sb, ok, flags: a.features, me }));
   // MODULE SWITCHES (John, Nov 3; migration 35): Admin-only Live switch per module; off = beta (Admins only)
   Object.assign(a, modulesSupabase({ sb, ok, me, flags: a.features }));
   Object.assign(a, roleAccessSupabase({ sb, ok, me }));   // John, Nov 9: role_module_access, read once (cached) in parallel with the module switches
@@ -891,5 +954,14 @@ export async function createSupabaseAdapter(cfg) {
     }
   }
   a.dropFileReads = dropFileReads;
+  // CARRY: every method that is not a read is treated as a write. It drops the carried order reads before it runs and again when it
+  // settles, so the refresh after a save reads fresh. A read named like a write only costs a re-read; never the other way round.
+  const READ_ONLY = /^(list|get|read|preview|search|find)[A-Z]|^(demoViewStatus|notificationCount|unreadCount|authGeneration|beginNavigation|sessionUser|crmMe|crmMergeFields|crmRelatedEmails|crmReport|hrMe|closingLocationFlags|closingLocationPrompt|writeSerial)$/;
+  let writes = 0; const wrote = () => { writes += 1; carry.clear(); };
+  Object.keys(a).forEach((name) => {
+    const fn = a[name]; if (typeof fn !== 'function' || READ_ONLY.test(name)) return;
+    a[name] = function (...args) { wrote(); let out; try { out = fn.apply(this, args); } finally { if (out && typeof out.then === 'function') Promise.resolve(out).then(wrote, wrote); else wrote(); } return out; };
+  });
+  a.writeSerial = () => writes;
   return a;
 }

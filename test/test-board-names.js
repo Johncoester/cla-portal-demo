@@ -160,6 +160,21 @@ try {
     if (asViewer(v.id, lists + ' union all ' + namesBefore) !== before.get(v.label)) rolled += 1;
   }
   ok(rolled === 0, 'rollback restores every viewer (' + rolled + '/' + viewers.length + ')');
+
+  psqlFile(join(root, 'test/sql/rest-speed/board-147.sql'));
+  let via147 = 0;
+  for (const v of viewers) {
+    if (asViewer(v.id, lists + ' union all ' + namesBefore) !== before.get(v.label)) via147 += 1;
+  }
+  ok(via147 === 0, 'PR 147 owner lookup matches the current rows (' + via147 + '/' + viewers.length + ')');
+  psqlFile(join(root, 'supabase/migrations/20261111170000_board_owner_names.sql'));
+  let after147 = 0;
+  for (const v of viewers) {
+    if (asViewer(v.id, lists + ' union all ' + namesAfter) !== before.get(v.label)) after147 += 1;
+  }
+  ok(after147 === 0, 'the set-based board replaces PR 147 with the same rows (' + after147 + '/' + viewers.length + ')');
+  const gone = psql(`select to_regprocedure('private.task_owner_name(uuid,uuid)') is null`).stdout.trim();
+  ok(gone === 't', 'task_owner_name is not left behind');
 } finally {
   spawnSync(`${bin}/pg_ctl`, ['-D', data, '-m', 'fast', '-w', 'stop'], { encoding: 'utf8' });
   rmSync(data, { recursive: true, force: true });
