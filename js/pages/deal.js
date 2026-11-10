@@ -14,7 +14,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611101015';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611101015';
 import { gatherReads } from '../data/read-batch.js?v=202611082010';
-import { prefetchDealTab } from './deal-tab.js?v=202611101015';
+import { prefetchDealTab } from './deal-tab.js?v=202611101500';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';
@@ -216,7 +216,7 @@ async function editModal(api, d, refresh) {
       : html`<label>Purchase price<input name="purchasePrice" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.purchasePrice)}"></label><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>
     <label>EMD amount<input name="emdAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.emdAmount)}"></label><label>EMD due date<input type="date" name="emdDueDate" value="${v('emdDueDate')}"></label>`}
     ${refi ? '' : html`<div class="span2" data-md-occ ${d.state === 'MD' ? '' : raw('hidden')}>${occSelects(d)}</div>`}
-    ${claRepresentationWritesEnabled(api) ? html`<h4 class="span2">Who CLA represents</h4><label class="span2">CLA's side of this file<select name="claRepresentation" aria-label="Who CLA represents"><option value="" ${d.claRepresentation ? '' : raw('selected')}>Not recorded</option>${CLA_REPRESENTATION.map((row) => html`<option value="${row.code}" ${row.code === d.claRepresentation ? raw('selected') : ''}>${row.label}</option>`)}</select><span class="field-hint">Not a portal role, not the buyer or listing agent, not the referral source, and not who can see the file. Not recorded stays blank until you choose.</span></label>` : ''}
+    ${claRepresentationWritesEnabled(api) ? html`<h4 class="span2">Who CLA represents</h4><label class="span2">CLA's side of this file<select name="claRepresentation" aria-label="Who CLA represents"><option value="" ${d.claRepresentation ? '' : raw('selected')}>Not recorded</option>${CLA_REPRESENTATION.map((row) => html`<option value="${row.code}" ${row.code === d.claRepresentation ? raw('selected') : ''}>${row.label}</option>`)}</select><span class="field-hint">Not a portal role, not the buyer or listing agent, not the source of business, and not who can see the file. Not recorded stays blank until you choose.</span></label>` : ''}
     <h4 class="span2">CLA Title team</h4><label class="span2">Processor <button type="button" class="ghost" data-refresh-processors>Refresh list</button><select name="processorId" data-processor-select></select><span class="field-hint">Unassigned is allowed. Refreshing the list does not change the address or the other fields.</span></label>
     <label class="span2">Transaction Coordinator<select name="tcUserId" data-tc-select><option value="">(none)</option>${options(tcOpts, d.tcUserId || '', (t) => t.name, (t) => t.id)}</select><span class="field-hint">Filled in automatically from the agent's team when blank. Change or clear it any time.</span></label>
     <label class="span2">Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, d.preprocessorUserId || '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select></label>
@@ -312,12 +312,12 @@ function referralCell(row, state, canEdit) {
   if (!state || !state.control) return html`<span class="op-ref"></span>`;
   const meta = referralPartyByCode(state.code);
   const who = state.contactId ? `${meta.label} — ${state.name}` : `${meta.label}, no person on this row`;
-  if (!state.contactId || state.disabled) return html`<label class="op-ref referral-source is-off"><input type="radio" disabled aria-label="Referral source: ${who}"> <span>Referral source</span></label>`;
+  if (!state.contactId || state.disabled) return html`<label class="op-ref referral-source is-off"><input type="radio" disabled aria-label="Source of business: ${who}"> <span>Source of business</span></label>`;
   const value = encodeReferral(state.code, state.contactId);
   if (!canEdit) {
-    return html`<span class="op-ref${state.checked ? ' is-current' : ''}"${state.checked ? html` data-referral-current="${value}"` : ''}><input type="radio" disabled ${state.checked ? raw('checked') : ''} aria-label="Referral source: ${who}"> <span>Referral source</span></span>`;
+    return html`<span class="op-ref${state.checked ? ' is-current' : ''}"${state.checked ? html` data-referral-current="${value}"` : ''}><input type="radio" disabled ${state.checked ? raw('checked') : ''} aria-label="Source of business: ${who}"> <span>Source of business</span></span>`;
   }
-  return html`<label class="op-ref referral-source"><input type="radio" name="fileReferral" value="${value}" data-referral-source="${value}" aria-label="Referral source: ${who}" ${state.checked ? raw('checked') : ''}> <span>Referral source</span></label>`;
+  return html`<label class="op-ref referral-source"><input type="radio" name="fileReferral" value="${value}" data-referral-source="${value}" aria-label="Source of business: ${who}" ${state.checked ? raw('checked') : ''}> <span>Source of business</span></label>`;
 }
 function partiesList(d, ov, staffView, { splits = [], edit = false, source = '', sourceLabel = '' } = {}) {
   const rows = partyRows(d, ov, staffView, splits);
@@ -332,9 +332,9 @@ function partiesList(d, ov, staffView, { splits = [], edit = false, source = '',
         ${em ? html`<a class="op-act" href="mailto:${em}" data-email aria-label="Email ${p.name} (opens your mail app)">&#9993; Email</a>` : html`<span class="op-act is-off" aria-disabled="true">&#9993; Email</span>`}
         ${p.canMessage ? html`<button type="button" class="op-act" data-message-to="${p.profileId}">Message</button>` : ''}
         ${p.placeholder && edit ? html`<a class="op-act" href="#/deals/${d.id}/contacts" data-add-role="${p.label}" aria-label="Add ${p.label.toLowerCase()} on Contacts">+ Add</a>` : ''}</span>${ref}</div>`; };
-  const legacy = referral && referral.legacy ? html`<p class="op-ref-legacy" data-referral-unmatched>Referral source: ${referral.unmatched}. This value is not tied to one person on the file.</p>` : '';
-  const clear = referral && edit ? html`<label class="referral-source op-ref-clear"><input type="radio" name="fileReferral" value="" data-referral-clear aria-label="Referral source: Not set" ${referral.clearChecked ? raw('checked') : ''}> Not set</label>` : '';
-  const hint = referral ? html`<p class="muted small" data-referral-hint>Referral source is one person: a buyer, seller, buyer agent, listing agent, or lender. It is not the CLA salesperson and it does not change a contact's Lead Source.</p>` : '';
+  const legacy = referral && referral.legacy ? html`<p class="op-ref-legacy" data-referral-unmatched>Source of business: ${referral.unmatched}. This value is not tied to one person on the file.</p>` : '';
+  const clear = referral && edit ? html`<label class="referral-source op-ref-clear"><input type="radio" name="fileReferral" value="" data-referral-clear aria-label="Source of business: Not set" ${referral.clearChecked ? raw('checked') : ''}> Not set</label>` : '';
+  const hint = referral ? html`<p class="muted small" data-referral-hint>Source of business is one person: a buyer, seller, buyer agent, listing agent, or lender. It is not the CLA salesperson and it does not change a contact's Lead Source.</p>` : '';
   return html`<div class="op-plist" data-parties data-party-list-all${referral ? raw(' data-referral-on') : ''}>${rows.length ? rows.map(row) : html`<p class="muted">Nobody on this order yet.</p>`}</div>
     ${staffView && edit ? html`<div class="op-ref-tools" data-referral-tools>${clear}</div>` : ''}${legacy}${hint}
     <p class="muted small op-pnote">Call and Email open your phone or mail app. The portal does not send anything.</p>`;
@@ -365,7 +365,7 @@ function mountParties(root, { api, d, refresh, canEdit } = {}) {
       return saved && saved.sourceOfBusiness != null ? saved.sourceOfBusiness : value;
     } });
     if (!result.ok) { restore(previous); toast(result.error, 'err'); return; }
-    toast(result.value ? 'Referral source saved' : 'Referral source cleared');
+    toast(result.value ? 'Source of business saved' : 'Source of business cleared');
     refresh();
   }));
 }
