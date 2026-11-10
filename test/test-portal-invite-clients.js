@@ -28,7 +28,7 @@ ok(inviteKindForRole('Client-Seller') === 'client' && inviteKindForRole('Listing
 // the Contacts tab shows the button on client rows too (it used to be agents only)
 const src = readFileSync('js/pages/dealcontacts.js', 'utf8');
 ok(!/\['Buyer Agent', 'Listing Agent'\]\.includes\(p\.role\) && !p\.contact\.profileId/.test(src), 'the old agents-only button condition is gone');
-ok(/canInviteToPortal\(user, p\.role\)/.test(src) && /api\.createPortalInvite\(/.test(src), 'the button uses canInviteToPortal and createPortalInvite');
+ok(/canInviteToPortal\(user, p\.role\)/.test(src) && /api\.createPortalInvite\(/.test(src) && /pending invite/.test(src) && /resendAgentInvite/.test(src), 'the button uses canInviteToPortal, and a pending invite is resent instead of shown as an error');
 
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
 await api.signInDev('u-proc');
@@ -51,9 +51,18 @@ await new Promise((r) => setTimeout(r, 30));
 const link = m.querySelector('[data-invite-link]');
 ok(!!link && /#\/agent-invite\/[0-9a-f]{64}$/.test(link.value), 'the one-time link is shown to copy');
 ok(/Not emailed/.test(m.textContent) && m.querySelector('[data-invite-sent="no"]'), 'demo: the dialog says it was not emailed and shows the link (auto-email: test-invite-auto-email.js)');
+const firstToken = link.value;
+m.querySelector('[data-close]').dispatchEvent(new window.Event('click', { bubbles: true }));
+btn('c-cora', 'Client-Seller').dispatchEvent(new window.Event('click', { bubbles: true }));
+const again = document.getElementById('modal');
+again.querySelector('#ipf').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+await new Promise((r) => setTimeout(r, 30));
+const resent = again.querySelector('[data-invite-link]');
+ok(!!resent && /#\/agent-invite\/[0-9a-f]{64}$/.test(resent.value) && resent.value !== firstToken, 'a second Create invite link resends and shows a new copy link');
+ok(/Not emailed/.test(again.textContent) && !/already a pending invite/i.test(again.textContent), 'the pending invite is not shown as an error, and it is still not emailed');
 
 // the link opens the short client form and accepting makes a client login, not an agent profile
-const token = link.value.split('/').pop();
+const token = resent.value.split('/').pop();
 const inv = await api.getAgentInvite(token);
 ok(inv.status === 'pending' && inv.inviteKind === 'client', 'the invite is a pending client invite');
 const signup = await import('../js/pages/agent-signup.js');

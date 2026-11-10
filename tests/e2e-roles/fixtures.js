@@ -5,6 +5,12 @@ import { knownFailureActive } from './known-failures.js';
 
 const IGNORE = /config\.js|favicon|Download the React DevTools/i;
 
+// A reload can abort supabase-js getUser. The library logs TypeError: Failed to fetch from auth-js.
+// The page retries the read. That console line is not a failed save.
+function authFetchNoise(text) {
+  return /Failed to fetch/.test(text) && /auth-js/.test(text);
+}
+
 export const test = base.extend({
   issues: async ({ page }, use) => {
     if (targetMode() !== 'test') {
@@ -12,13 +18,20 @@ export const test = base.extend({
       await page.addInitScript(() => { window.CLA_DEV_PICKER = true; });
     }
     const issues = [];
-    page.on('pageerror', (err) => issues.push(`pageerror: ${err && err.message ? err.message : err}`));
+    page.on('pageerror', (err) => {
+      const message = String(err && err.message ? err.message : err);
+      const stack = String(err && err.stack || '');
+      const line = `pageerror: ${message}`;
+      if (authFetchNoise(`${line}\n${stack}`)) return;
+      issues.push(line);
+    });
     page.on('console', (msg) => {
       if (msg.type() !== 'error') return;
       const where = (msg.location() && msg.location().url) || '';
       const text = msg.text();
-      if (IGNORE.test(text) || IGNORE.test(where)) return;
-      issues.push(where ? `${text} (${where})` : text);
+      const line = where ? `${text} (${where})` : text;
+      if (IGNORE.test(text) || IGNORE.test(where) || authFetchNoise(line)) return;
+      issues.push(line);
     });
     await use(issues);
   },
@@ -27,7 +40,7 @@ export const test = base.extend({
 export { expect };
 
 export function freshIssues(issues) {
-  return issues.filter((line) => !IGNORE.test(line));
+  return issues.filter((line) => !IGNORE.test(line) && !authFetchNoise(line));
 }
 
 export async function signIn(page, key) {

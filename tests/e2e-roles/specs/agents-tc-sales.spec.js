@@ -111,7 +111,19 @@ test('sales team invite shows the stored email and a copy link, and does not ema
   const email = await page.locator('[data-invite-email]').inputValue();
   expect(email, 'stored email is blank').toMatch(/@/);
   await page.locator('[data-invite-create]').click();
+  const link = page.locator('[data-invite-link]');
+  const pending = page.locator('.toast.err', { hasText: /pending invite/i });
+  await expect(link.or(pending)).toBeVisible();
+  // A pending invite from an earlier run is resent. The test does not delete that row.
+  if (await pending.count() && !(await link.count())) {
+    await page.locator('#modal [data-close]').first().click();
+    await gotoHash(page, '#/agent-invites?status=pending');
+    const inviteRow = page.locator('[data-invite-row]', { hasText: email }).first();
+    await inviteRow.waitFor();
+    await inviteRow.locator('[data-resend]').click();
+  }
   await expect(page.locator('[data-invite-link]')).toHaveValue(/#\/(?:agent-invite|hr-invite)\//);
+  await expect(page.locator('[data-invite-result]')).toContainText(email);
   await expect(page.locator('[data-invite-sent="yes"]')).toHaveCount(0);
   expect(freshIssues(issues)).toEqual([]);
 });
