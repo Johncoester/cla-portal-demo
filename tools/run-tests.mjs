@@ -4,7 +4,8 @@
 // so a fixed known-failures list would block unrelated PRs.
 // The base: in CI the checkout is the PR merged into main (or a merge-queue commit), so it is that commit's first parent,
 // the exact main it was merged into (the pull_request event's base.sha can be older). Elsewhere BASE_SHA, else origin/main.
-// Most tests do not name their loader, so each .js test runs bare first, then with the repo's loader hooks.
+// Most tests do not name their loader, so each .js test runs bare first, then with the repo's loader hooks. A missing loader
+// fails within seconds, so only a fast failure is retried: a slow failing test is not run four times.
 // Run: node tools/run-tests.mjs [test/test-one.js ...]      BASE_SHA=<commit> overrides the base
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
@@ -21,8 +22,9 @@ function runTest(t, cwd = process.cwd()) {
   if (!existsSync(join(cwd, t))) return { ok: false, missing: true, out: '' };
   let out = null;
   for (const hooks of t.endsWith('.sh') ? [null] : LOADERS) {
+    const t0 = Date.now();
     out = hooks ? sh(process.execPath, [...hooks, t], cwd) : sh('bash', [t], cwd);
-    if (out.status === 0) break;
+    if (out.status === 0 || Date.now() - t0 > 20000) break;
   }
   return { ok: out.status === 0, out: `${out.stdout || ''}${out.stderr || ''}` };
 }
