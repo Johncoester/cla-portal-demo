@@ -33,10 +33,11 @@ import { propertyAddressOf } from './nov5-rules.js?v=202611090935';
 import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611090935';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow } from './contact-insert.js?v=202611070139';
+import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
-import { authEventAction, gatherReads, identitySlot, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611082200';
+import { authEventAction, gatherReads, identitySlot, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611082010';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
 
@@ -84,6 +85,14 @@ export async function createSupabaseAdapter(cfg) {
   const withRole = (d, r, pm) => ({ ...d, myRole: r && r.role, myRoles: (r && r.roles) || [], myRoleLabel: r && r.label, selfRep: !!(r && r.self_rep), agentParties: pm.get(d.id) || [] });
   const profile = profileFlight();
   const nav = navigationReads();
+  let fileGen = 0;
+  const shareReads = nav.share.bind(nav);
+  nav.share = (id, key, fn) => {
+    const k = String(key);
+    const bust = k.startsWith('deal:') || k.startsWith('shell:') || k.startsWith('overview:');
+    return shareReads(id, bust ? k + '#' + fileGen : k, fn);
+  };
+  const dropFileReads = () => { fileGen += 1; };
   const early = speculativeReads();
   let openingNav = false;
   let navSerial = 0;
@@ -327,13 +336,34 @@ export async function createSupabaseAdapter(cfg) {
       return a.getDeal(id); },
     // contacts: unique email (contacts_email_uq); a new contact has no login and no invite is sent
     async createContact(input) { return camel(ok(await sb.from('contacts').insert(contactInsertRow(input)).select().single())); },
-    async updateContact(id, patch) { const row = {}; for (const [k, col] of [['firstName', 'first_name'], ['lastName', 'last_name'], ['email', 'email'], ['phone', 'phone'], ['company', 'company'], ['contactType', 'contact_type']])
-      if (patch[k] !== undefined) row[col] = k === 'contactType' ? (patch[k] || null) : k === 'email' ? String(patch[k] || '').toLowerCase() : patch[k];
-      return camel(ok(await sb.from('contacts').update(row).eq('id', id).select().single())); },
+    async updateContact(id, patch) {
+      if (!id) throw new Error('This contact was not saved. Nothing was changed.');
+      const row = {};
+      for (const [k, col] of [['firstName', 'first_name'], ['lastName', 'last_name'], ['email', 'email'], ['phone', 'phone'], ['company', 'company'], ['contactType', 'contact_type']]) {
+        if (!patch || patch[k] === undefined) continue;
+        row[col] = k === 'contactType' ? (patch[k] || null) : k === 'email' ? String(patch[k] || '').trim().toLowerCase() : patch[k];
+      }
+      if (!Object.keys(row).length) throw new Error('Nothing to save on this contact.');
+      let saved;
+      try { saved = camel(ok(await sb.from('contacts').update(row).eq('id', id).select().single())); }
+      catch (e) { throw contactSaveMiss(e); }
+      if (!saved || !saved.id) throw new Error('This contact was not saved. Nothing was changed.');
+      assertContactSaved(patch, saved);
+      dropFileReads();
+      return saved;
+    },
     // participants: the triggers (migrations 10, 11, 20) enforce outside-user roles, self-representation pairs and "TC = Transaction Coordinator accounts only"
     // Matt, Nov 3b: opts.entity = { name, type, repName, repTitle, repPhone, repEmail } on a buyer / seller row (set_participant_entity, migration 31)
-    async addParticipant(dealId, contactId, role, opts = {}) { const p = ok(await sb.from('deal_participants').insert({ deal_id: dealId, contact_id: contactId, role }).select('id').single());
-      if (opts && opts.entity) ok(await sb.rpc('set_participant_entity', { p_participant: p.id, p_entity: opts.entity })); return { ok: true, id: p.id }; },
+    async addParticipant(dealId, contactId, role, opts = {}) {
+      const contact = camel(ok(await sb.from('contacts').select('id, first_name, last_name, email, company').eq('id', contactId).maybeSingle()));
+      if (!contact) throw new Error('Contact not found.');
+      const onFile = (ok(await sb.rpc('deal_contacts', { p_deal: dealId })) || []).map((r) => ({ role: r.role, contactId: r.contact_id, contact: { id: r.contact_id, firstName: r.first_name, lastName: r.last_name, email: r.email, company: r.company } }));
+      if (sameParty(onFile, contact, role)) throw new Error(duplicatePartyMessage(contact, role));
+      const p = ok(await sb.from('deal_participants').insert({ deal_id: dealId, contact_id: contactId, role }).select('id').single());
+      if (opts && opts.entity) ok(await sb.rpc('set_participant_entity', { p_participant: p.id, p_entity: opts.entity }));
+      dropFileReads();
+      return { ok: true, id: p.id };
+    },
     async setParticipantEntity(dealId, participantId, entity) { return ok(await sb.rpc('set_participant_entity', { p_participant: participantId, p_entity: entity || null })); },
     async listSourceOptions() { return ok(await sb.rpc('source_of_business_options')) || []; },
     async listCoordinators() {
@@ -474,6 +504,8 @@ export async function createSupabaseAdapter(cfg) {
   };
   const NOT_ENABLED = 'This action is not enabled on CLA Portal Live Test. Nothing was sent, queued, or saved as if it had succeeded.';
   Object.assign(a, staffSupabase({ sb, ok, camel, me, api: a }));
+  const removeParty = a.removeParticipant && a.removeParticipant.bind(a);
+  if (removeParty) a.removeParticipant = async (...args) => { const r = await removeParty(...args); dropFileReads(); return r; };
   // Dev-only pickers stay off. E-sign candidate picking stays unwired; signing itself stays disabled below.
   for (const n of ['pickPerson', 'signInDev', 'listSignatureCandidates']) a[n] = todo(n);
   // CRM (John, Nov 2; migration 22): only when the `crm` flag is on (default OFF in supabase mode; features.js). The database has its own switch too.
@@ -649,5 +681,6 @@ export async function createSupabaseAdapter(cfg) {
       if (a.listEntityDocRequests) a.listEntityDocRequests(id).catch(() => null);
     }
   }
+  a.dropFileReads = dropFileReads;
   return a;
 }
