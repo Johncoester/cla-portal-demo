@@ -14,7 +14,7 @@
  *   vendoredRateSource          the built-in snapshot above (the only one used today)
  *   calculatorSupabaseRateSource NOT CONNECTED: a placeholder showing where a reader of the calculator's tables would plug in. It refuses. */
 import * as C from './vendor/cla-calculator/calc-core.js?v=202611070139';
-import { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden } from './accounting.js?v=202611100100';
+import { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden } from './accounting.js?v=202611070139';
 export { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden };
 
 export const CALC_SOURCE = { repo: 'github.com/Johncoester/cla-closing-cost-calculator', commit: '69568a9', snapshot: '2026-11-02', files: 'index.html (calc code), fee-snapshot.js (rate tables)' };

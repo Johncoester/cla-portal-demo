@@ -1,8 +1,8 @@
 // File > Email tab (John, Nov 9: Gmail phase 1, CLA Portal Live Test). Staff send email from their OWN @clatitle.com Gmail inside the file;
 // replies in the same Gmail thread come back to the file (checked every few minutes, or "Check for replies"). Received attachments are saved to
 // Documents (staff only). The server refuses every address that is not a test address on Live Test, and never emails wire details.
-import { html, raw, esc, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611100245';
-import { editorHtml, mountEditor } from './compose.js?v=202611100700';
+import { html, raw, esc, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611070139';
+import { editorHtml, mountEditor } from './compose.js?v=202611090935';
 import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, hasSignature, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611091801';
 import { applyFileTemplate } from '../data/file-email-templates.js?v=202611092210';
 const ROLE = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent', 'Transaction Coordinator': 'TC' };

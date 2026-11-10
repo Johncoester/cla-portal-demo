@@ -2,7 +2,7 @@
  * (best effort; the mock adapter and the SQL tests are the tested parts).
  *  - public.update_tc_contract / update_tc_client_contact / update_tc_emd_alta / create_all_parties_thread
  *  - typed columns on deals (contract, commissions, EMD received, signed ALTA); threads.staff_coordinated */
-import { STAGES, moneyAmount, plainNumber } from './constants.js?v=202611100245';
+import { STAGES, moneyAmount, plainNumber } from './constants.js?v=202611090935';
 export function tcSupabase({ sb, ok, camel, api }) {
   const dealRow = async (id) => camel(ok(await sb.from('deals').select('*').eq('id', id).single()));
   const milestones = (q) => STAGES.map((name, i) => ({ index: i, name,

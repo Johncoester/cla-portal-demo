@@ -1,28 +1,28 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { getAdapter } from './data/adapter.js?v=202611100700';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611100700';
-import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611100245';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611100245';
-import { canUseCrm } from './data/crm.js?v=202611100230';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611100245';
+import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611090935';
+import { canUseCrm } from './data/crm.js?v=202611100100';
 import { canManageRoleAccess } from './data/role-access.js?v=202611100100';
 import { canUseGmail } from './data/gmail-email.js?v=202611091801';
 import { acctCanRead } from './data/accounting.js?v=202611100100';
-import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611100700';
-import { phaseOf } from './data/agent-portal.js?v=202611100700';
-import { applyTheme, themeOn } from './theme.js?v=202611100245';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
-import { icon } from './pages/theme-cards.js?v=202611100700';
-import { canInviteAgents } from './data/agent-profile.js?v=202611100700';
-import { yourAgentHtml } from './pages/your-agent.js?v=202611100700';
+import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611090935';
+import { phaseOf } from './data/agent-portal.js?v=202611090935';
+import { applyTheme, themeOn } from './theme.js?v=202611070139';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
+import { icon } from './pages/theme-cards.js?v=202611090935';
+import { canInviteAgents } from './data/agent-profile.js?v=202611100005';
+import { yourAgentHtml } from './pages/your-agent.js?v=202611100005';
 import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
-import { titleCanRead } from './data/title.js?v=202611100700';
-import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611100700';   // John, Nov 4: one locked login link per fake user
+import { titleCanRead } from './data/title.js?v=202611090935';
+import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611100100';   // John, Nov 4: one locked login link per fake user
 import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080400';
 import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611082000';
 import { botRegistry } from './data/bot-registry.js?v=202611080400';
 import { voiceRouteOk } from './data/voice-demo.js?v=202611091110';
-import { mountVoiceChrome, prepareVoiceShell, stopVoiceNow, voiceMenuHtml } from './pages/voice-panel.js?v=202611100700';
-import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611100700';   // John, Nov 4 call: sidebar search + pinned order nav
-import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611100700';
+import { mountVoiceChrome, prepareVoiceShell, stopVoiceNow, voiceMenuHtml } from './pages/voice-panel.js?v=202611091110';
+import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611070139';   // John, Nov 4 call: sidebar search + pinned order nav
+import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611100100';
 import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611100100';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
@@ -32,36 +32,36 @@ document.addEventListener('input', (e) => { const el = e.target; if (el instance
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611100700'),
-  dashboard: () => import('./pages/dashboard.js?v=202611100700'),
-  orders: () => import('./pages/orders.js?v=202611100700'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611100700'),
-  deal: () => import('./pages/deal.js?v=202611100700'),
-  users: () => import('./pages/users.js?v=202611100700'),
-  profile: () => import('./pages/profile.js?v=202611100700'),
-  'contact-us': () => import('./pages/contact.js?v=202611100700'),
-  teams: () => import('./pages/teams.js?v=202611100700'),
-  templates: () => import('./pages/templates.js?v=202611100700'),
-  'admin/templates': () => import('./pages/templates.js?v=202611100700'),
-  library: () => import('./pages/library.js?v=202611100700'),
-  activity: () => import('./pages/activity.js?v=202611100700'),
-  outbox: () => import('./pages/outbox.js?v=202611100700'),
-  tasks: () => import('./pages/tasks.js?v=202611100700'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611100700'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
-  schedule: () => import('./pages/schedule.js?v=202611100700'),   // public closing-time link (no sign-in needed)
+  login: () => import('./pages/entry.js?v=202611100005'),
+  dashboard: () => import('./pages/dashboard.js?v=202611100245'),
+  orders: () => import('./pages/orders.js?v=202611091600'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611092350'),
+  deal: () => import('./pages/deal.js?v=202611100245'),
+  users: () => import('./pages/users.js?v=202611090935'),
+  profile: () => import('./pages/profile.js?v=202611100005'),
+  'contact-us': () => import('./pages/contact.js?v=202611070139'),
+  teams: () => import('./pages/teams.js?v=202611070139'),
+  templates: () => import('./pages/templates.js?v=202611090935'),
+  'admin/templates': () => import('./pages/templates.js?v=202611090935'),
+  library: () => import('./pages/library.js?v=202611091030'),
+  activity: () => import('./pages/activity.js?v=202611070139'),
+  outbox: () => import('./pages/outbox.js?v=202611090935'),
+  tasks: () => import('./pages/tasks.js?v=202611100245'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611091600'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  schedule: () => import('./pages/schedule.js?v=202611090935'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611100700'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
-  modules: () => import('./pages/modules.js?v=202611100700'),
-  'role-access': () => import('./pages/role-access.js?v=202611100700'),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
-  'agent-invites': () => import('./pages/agent-invites.js?v=202611100700'),   // John, Nov 4: invite agents (link shown, nothing sent)
-  'agent-invite': () => import('./pages/agent-signup.js?v=202611100700'),     // the agent's one-time setup link (no sign-in)
-  underwriters: () => import('./pages/underwriters.js?v=202611100700'),
-  hr: () => import('./pages/hr.js?v=202611100700'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
-  'hr-invite': () => import('./pages/hr-invite.js?v=202611100700'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
-  offices: () => import('./pages/offices.js?v=202611100700'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
-  'admin/email-templates': () => import('./pages/email-templates.js?v=202611100700'),   // John, Nov 9: Admin > Email Templates (file Email tab)
-  demo: () => import('./pages/demo-view.js?v=202611100700'),   // permanent Demo mode: Super admin views a seeded demo user
-  'voice-demo': () => import('./pages/voice-demo.js?v=202611100700'),   // signed-in Live Test only; the header Voice test panel is the test, this route is not a file
-  'staff-feedback': () => import('./pages/staff-feedback.js?v=202611100700'),
+  modules: () => import('./pages/modules.js?v=202611090935'),
+  'role-access': () => import('./pages/role-access.js?v=202611100100'),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
+  'agent-invites': () => import('./pages/agent-invites.js?v=202611100200'),   // John, Nov 4: invite agents (link shown, nothing sent)
+  'agent-invite': () => import('./pages/agent-signup.js?v=202611100005'),     // the agent's one-time setup link (no sign-in)
+  underwriters: () => import('./pages/underwriters.js?v=202611070139'),
+  hr: () => import('./pages/hr.js?v=202611100200'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
+  'hr-invite': () => import('./pages/hr-invite.js?v=202611070139'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
+  offices: () => import('./pages/offices.js?v=202611090935'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
+  'admin/email-templates': () => import('./pages/email-templates.js?v=202611092210'),   // John, Nov 9: Admin > Email Templates (file Email tab)
+  demo: () => import('./pages/demo-view.js?v=202611070139'),   // permanent Demo mode: Super admin views a seeded demo user
+  'voice-demo': () => import('./pages/voice-demo.js?v=202611091110'),   // signed-in Live Test only; the header Voice test panel is the test, this route is not a file
+  'staff-feedback': () => import('./pages/staff-feedback.js?v=202611080400'),
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };

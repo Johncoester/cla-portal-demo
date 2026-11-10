@@ -1,8 +1,8 @@
 /* crm-search.js : CRM GLOBAL SEARCH (Janine, Zoho video 7). Header box (CLA staff with the CRM only): click shows recent items and recent searches;
  * typing shows quick results grouped by module; Enter (or "View all results") opens the full results page #/crm/search/<q>[/<module>] with an
  * "All Modules" dropdown and one table per module with Zoho's columns. Matches name, email and phone (phone by its digits). Only records you may see. */
-import { html, raw, $, $$, guard, toText, esc, modal, closeModal, toast } from '../ui.js?v=202611100245';
-import { SEARCH_MODULES, moduleName, highlight } from '../data/crm-analytics.js?v=202611100700';
+import { html, raw, $, $$, guard, toText, esc, modal, closeModal, toast } from '../ui.js?v=202611070139';
+import { SEARCH_MODULES, moduleName, highlight } from '../data/crm-analytics.js?v=202611070139';
 import { tabs, head } from './crm-kit.js?v=202611100700';
 
 const resultsHref = (q, module = 'all') => `#/crm/search/${encodeURIComponent(q)}${module && module !== 'all' ? '/' + module : ''}`;

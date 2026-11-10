@@ -161,6 +161,42 @@ begin
 end
 $pre$;
 
+-- TEST already has crm_imports_total_check (total <= 2000) and
+-- crm_import_rows_line_check (line between 2 and 2001). A later chunk
+-- trips those (23514). Replace them only when that old definition is
+-- still the one on the table. A fresh table created above is left alone.
+do $limits$
+declare
+  marker text := 'crm-hosted-import 20261110100000';
+  def text;
+begin
+  if to_regclass('public.crm_imports') is not null then
+    select pg_get_constraintdef(c.oid) into def
+    from pg_constraint c
+    where c.conrelid = 'public.crm_imports'::regclass
+      and c.conname = 'crm_imports_total_check';
+    if def is not null and def ~* 'total[[:space:]]*<=[[:space:]]*2000' and def !~ '10000' then
+      alter table public.crm_imports drop constraint crm_imports_total_check;
+      alter table public.crm_imports
+        add constraint crm_imports_total_check check (total >= 0 and total <= 10000);
+      comment on constraint crm_imports_total_check on public.crm_imports is marker;
+    end if;
+  end if;
+  if to_regclass('public.crm_import_rows') is not null then
+    select pg_get_constraintdef(c.oid) into def
+    from pg_constraint c
+    where c.conrelid = 'public.crm_import_rows'::regclass
+      and c.conname = 'crm_import_rows_line_check';
+    if def is not null and def ~* 'line' and def ~ '2001' and def !~ '10001' then
+      alter table public.crm_import_rows drop constraint crm_import_rows_line_check;
+      alter table public.crm_import_rows
+        add constraint crm_import_rows_line_check check (line >= 2 and line <= 10001);
+      comment on constraint crm_import_rows_line_check on public.crm_import_rows is marker;
+    end if;
+  end if;
+end
+$limits$;
+
 -- Earlier draft of this same unapplied migration used six arguments.
 drop function if exists public.crm_import_batch(boolean, text, text, text, jsonb, jsonb);
 drop function if exists public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer);

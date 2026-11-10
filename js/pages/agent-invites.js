@@ -1,9 +1,9 @@
 // AGENT INVITES (John, Nov 4): CLA staff (Processor, Sales Person, Sales Team, TC, Admin) invite a real estate agent to the portal from a file or the
 // contacts / CRM, see each invite's status (pending, accepted, expired, revoked) and Resend (new link) or Revoke (retired, never deleted).
 // Nov 9: Create and Resend email the invite from the inviter's own connected Gmail (gmail-send); the one-time link is also shown to copy.
-import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611100245';
-import { STATUS_LABEL } from '../data/agent-profile.js?v=202611100700';
-import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100700';
+import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611070139';
+import { STATUS_LABEL } from '../data/agent-profile.js?v=202611100005';
+import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100200';
 const PILL = { pending: 'warn', accepted: 'ok', expired: 'bad', revoked: '' };
 const abs = (link) => location.href.split('#')[0] + link;
 export async function render({ api, refresh }) {

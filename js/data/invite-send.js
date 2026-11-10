@@ -2,7 +2,7 @@
  * After staff create or Resend an invite (agent, buyer / seller, or HR staff), the page asks gmail-send to email it from the inviter's own
  * connected @clatitle.com Gmail. If it was not sent (Gmail not connected, Live Test address rule, Google error) the copy link stays on screen
  * with the reason. Nothing here sends by itself; api.sendInviteEmail does, and it never throws. */
-import { html } from '../ui.js?v=202611100245';
+import { html } from '../ui.js?v=202611070139';
 export const tokenOfLink = (link) => { const m = /#\/(?:agent-invite|hr-invite)\/([0-9a-f]{64})$/.exec(String(link || '')); return m ? m[1] : ''; };
 // where a staff member makes a fresh link for each kind of invite (used in the reasons below)
 const REMAKE = { agent: 'use Resend on Agent Invites', hr: "use Make a new invite link on the employee's HR page" };

@@ -1,7 +1,7 @@
 // John, Nov 3 call: explicit First-time buyer / Primary residence questions on the order (purchases). They feed the Accounting tab's CLA-rate
 // calculation: in Maryland a first-time buyer buying a primary residence pays none of the state transfer tax (the seller pays the rest; county
 // taxes stay split 50/50).
-import { html, raw } from '../ui.js?v=202611100245';
+import { html, raw } from '../ui.js?v=202611070139';
 const opt = (v, cur, l) => html`<option value="${v}" ${cur === v ? raw('selected') : ''}>${l}</option>`;
 export const yesNo = (v) => (v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Not asked yet');
 export function occSelects(d = {}, attrs = '') {

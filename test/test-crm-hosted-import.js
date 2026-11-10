@@ -43,6 +43,9 @@ ok(rollback.includes('drop function if exists public.crm_import_batch') && rollb
 ok(sql.includes('p_import uuid') && sql.includes('p_chunk integer') && rollback.includes('crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer)'), 'chunks share one batch id');
 ok(batch.includes('v_n > 500') && batch.includes('At most 500 rows per import call.'), 'a call of more than 500 rows is refused');
 ok(batch.includes('p_chunk > 20') && batch.includes('at most 10000 rows'), 'the server still caps each call at 500 and a file at 10000');
+ok(sql.includes("conname = 'crm_imports_total_check'") && sql.includes('total <= 2000') && sql.includes('total >= 0 and total <= 10000') && sql.includes("!~ '10000'"), 'the migration widens the total check only when the old total <= 2000 check is present');
+ok(sql.includes("conname = 'crm_import_rows_line_check'") && sql.includes('2001') && sql.includes('line >= 2 and line <= 10001') && sql.includes("!~ '10001'"), 'the migration widens the line check only when the old 2 to 2001 check is present');
+ok(rollback.includes('check (total <= 2000)') && rollback.includes('check (line >= 2 and line <= 2001)') && rollback.includes('No rows were deleted') && !/delete\s+from\s+public\.crm_imports/i.test(rollback) && !/delete\s+from\s+public\.crm_import_rows/i.test(rollback), 'rollback restores the old checks and refuses instead of deleting rows past the old limit');
 ok(batch.includes('total = total + v_total') && batch.includes('created = created + v_ok') && batch.includes('errors = errors + v_err'), 'chunk totals accumulate on the one import row');
 const p0004At = batch.indexOf("when sqlstate 'P0004'");
 const othersAt = batch.indexOf('when others');

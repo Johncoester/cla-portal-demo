@@ -1,11 +1,11 @@
 // Documents tab with folders. Upload, open/download, file into folders, edit description/visibility. There is NO delete: documents are kept permanently.
-import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDateTime, fmtSize, pill, toast } from '../ui.js?v=202611100245';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611100700';
-import { composeModal } from './compose.js?v=202611100700';
-import { runsOrders, viewOnly, DOC_VISIBILITY, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isViewOnly, isClient, visibilityChoices, visibilityLabel, CLIENT_SHARE_NOTE, BUYER_SHARE_NOTE, DOC_TYPES, docTypeChoices } from '../data/constants.js?v=202611100245';
-import { uploadDocumentBatch } from '../data/document-batch.js?v=202611100700';
+import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDateTime, fmtSize, pill, toast } from '../ui.js?v=202611070139';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611091030';
+import { composeModal } from './compose.js?v=202611090935';
+import { runsOrders, viewOnly, DOC_VISIBILITY, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isViewOnly, isClient, visibilityChoices, visibilityLabel, CLIENT_SHARE_NOTE, BUYER_SHARE_NOTE, DOC_TYPES, docTypeChoices } from '../data/constants.js?v=202611090935';
+import { uploadDocumentBatch } from '../data/document-batch.js?v=202611090935';
 import { addToQueue, removeFromQueue, uploadFailureText } from '../data/document-queue.js?v=202611090935';
-import { downloadNamed } from '../data/file-open.js?v=202611100245';
+import { downloadNamed } from '../data/file-open.js?v=202611091030';
 const icon = (n) => (/\.pdf$/i.test(n) ? 'pdf_icon.png' : /\.docx?$/i.test(n) ? 'word_icon.png' : /\.(xlsx?|csv)$/i.test(n) ? 'excel_icon.png' : 'image_icon.png');
 export function docListRow(d, folders = []) {
   const folderId = d.folderId || '';

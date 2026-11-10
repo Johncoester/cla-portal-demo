@@ -1,6 +1,6 @@
 /* Several documents in one pick. Each file is checked and stored on its own.
  * A file that fails stays unstored. A file that saved is not uploaded again. */
-import { ALLOWED_UPLOAD_EXT, MAX_UPLOAD_BYTES } from './constants.js?v=202611100245';
+import { ALLOWED_UPLOAD_EXT, MAX_UPLOAD_BYTES } from './constants.js?v=202611090935';
 
 const extOf = (name) => { const n = String(name || ''); const i = n.lastIndexOf('.'); return i > 0 ? n.slice(i + 1).toLowerCase() : ''; };
 

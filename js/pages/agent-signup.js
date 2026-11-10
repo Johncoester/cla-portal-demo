@@ -1,7 +1,7 @@
 // Agent account setup from a one-time invite link (#/agent-invite/<token>), John Nov 4. Works without signing in. FAKE DATA ONLY, nothing sent.
-import { html, $, guard, toast } from '../ui.js?v=202611100245';
-import { agentFormHtml, mountAgentForm } from './agent-profile-form.js?v=202611100700';
-import { STATUS_LABEL } from '../data/agent-profile.js?v=202611100700';
+import { html, $, guard, toast } from '../ui.js?v=202611070139';
+import { agentFormHtml, mountAgentForm } from './agent-profile-form.js?v=202611100005';
+import { STATUS_LABEL } from '../data/agent-profile.js?v=202611100005';
 const shell = (inner) => html`<div class="login-page ap-signup-page"><div class="login-card ap-signup-card"><img src="assets/img/login-logo-new.png" alt="C.L.A. Title &amp; Escrow" class="sched-logo">${inner}</div></div>`;
 export async function render({ api, params, go }) {
   const inv = await api.getAgentInvite(params.token);

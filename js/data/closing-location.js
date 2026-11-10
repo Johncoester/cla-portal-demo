@@ -3,7 +3,7 @@
  * Each Client-Buyer / Client-Seller answers "Will you be in <property state> at the time of closing?"; No -> another US state or a country outside
  * the US. CLA staff see a flag and set a per-party signing method (staff only). Mirrored by public.closing_party_locations (migration 58).
  * Pure rules shared by the mock adapter, the Supabase adapter and the pages. FAKE data only. */
-import { US_STATE_NAMES, runsOrders } from './constants.js?v=202611100245';
+import { US_STATE_NAMES, runsOrders } from './constants.js?v=202611090935';
 export const SIGNING_METHODS = [['in_person_office', 'In person at office'], ['mobile_notary', 'Mobile/in-state notary'], ['out_of_state_notary', 'Out-of-state notary'],
   ['ron', 'RON (remote online notarization)'], ['embassy', 'Embassy/consulate'], ['undecided', 'Undecided']];
 export const SIGNING_CODES = SIGNING_METHODS.map(([c]) => c);

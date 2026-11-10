@@ -2,11 +2,11 @@
 // with ?theme=default nothing here is rendered and the pages look as before. FAKE DATA ONLY. Inline SVG icons (no CDN, no icon font).
 // Figures that the portal does not store yet (title search / commitment, cash to close, wire status, payoffs, loan type, rate) are MOCKUP
 // SAMPLES derived from the fake order (sampleFacts below); every one of them carries a visible "sample" tag (SAMPLE) on the page.
-import { html, raw, fmtDate, fmtMoney } from '../ui.js?v=202611100245';
-import { STAGES, isRefi, localDate } from '../data/constants.js?v=202611100245';
-import { phaseOf, PHASES } from '../data/agent-portal.js?v=202611100700';
-import { placeText } from '../data/cla-offices.js?v=202611100700';
-import { modAccess } from '../data/modules.js?v=202611100700';
+import { html, raw, fmtDate, fmtMoney } from '../ui.js?v=202611070139';
+import { STAGES, isRefi, localDate } from '../data/constants.js?v=202611090935';
+import { phaseOf, PHASES } from '../data/agent-portal.js?v=202611090935';
+import { placeText } from '../data/cla-offices.js?v=202611090935';
+import { modAccess } from '../data/modules.js?v=202611090935';
 
 // ---------- icons: 24x24, thin 1.5 stroke, currentColor ----------
 const P = {

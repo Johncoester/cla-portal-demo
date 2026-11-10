@@ -1,10 +1,10 @@
 // Inbox tab: conversations on this file (only people on the thread see it). Replies, new conversation, unread counts.
-import { html, $, $$, guard, formData, modal, closeModal, fmtDateTime, pill, toast } from '../ui.js?v=202611100245';
-import { downloadNamed } from '../data/file-open.js?v=202611100245';
-import { viewOnly, isViewOnly, runsOrders, WIRE_FRAUD_NOTE } from '../data/constants.js?v=202611100245';
-import { raw } from '../ui.js?v=202611100245';
-import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611100700';
-import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611100700';
+import { html, $, $$, guard, formData, modal, closeModal, fmtDateTime, pill, toast } from '../ui.js?v=202611070139';
+import { downloadNamed } from '../data/file-open.js?v=202611091030';
+import { viewOnly, isViewOnly, runsOrders, WIRE_FRAUD_NOTE } from '../data/constants.js?v=202611090935';
+import { raw } from '../ui.js?v=202611070139';
+import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611090935';
+import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611090935';
 
 export async function render(ctx) {
   const { api, user, deal, refresh, params } = ctx; const notViewOnly = !viewOnly(user);

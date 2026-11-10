@@ -1,6 +1,6 @@
 /* Voice test panel in the header (its own control, separate from the Bots menu). Start is a separate click;
  * Hide, Stop, another file, another person/role, sign-out and page hide all release the microphone. */
-import { html, $ } from '../ui.js?v=202611100245';
+import { html, $ } from '../ui.js?v=202611070139';
 import { EMPTY_REPLY, appendTranscript, voiceFileFacts, voiceInstructions, voiceOpenPlan, voiceShellPlan } from '../data/voice-file.js?v=202611091110';
 import { createVoiceAttempt, createVoiceSession, requestVoice, withTimeout, VOICE_PASS_MS } from '../data/voice-demo.js?v=202611091110';
 

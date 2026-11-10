@@ -1,7 +1,7 @@
 // Profile Setting > Gmail (John, Nov 9: Gmail phase 1, CLA Portal Live Test). Connect / Disconnect your own @clatitle.com Gmail and keep the
 // signature the portal adds to every email you send (the Gmail API does not add your Gmail signature, so the portal imports it: John, Nov 9 2:06 PM).
-import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611100245';
-import { editorHtml, mountEditor } from './compose.js?v=202611100700';
+import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611070139';
+import { editorHtml, mountEditor } from './compose.js?v=202611090935';
 import { GMAIL_RESULT, TEST_ALLOWLIST_NOTE } from '../data/gmail-email.js?v=202611091801';
 export function sigSourceLine(g) {
   const when = g.signatureSyncedAt ? ` (imported ${fmtDateTime(g.signatureSyncedAt)})` : '';

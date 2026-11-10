@@ -1,8 +1,8 @@
 // compose.js (Francis, Nov 3): the message composer used by Share Files, the Parties "Message" buttons and Inbox replies.
 // Rich text (Bold, Italic, Underline, bullet / numbered list, Link, Clear formatting) on a contenteditable box; the adapter sanitizes what is stored.
 // Files: Upload File / + Add File / drag-and-drop; Send stays disabled while files are still being read ("wait for the upload to finish").
-import { html, raw, $, $$, guard, modal, closeModal, toast, fmtSize } from '../ui.js?v=202611100245';
-import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isWireDocName, WIRE_BUYER_ONLY } from '../data/constants.js?v=202611100245';
+import { html, raw, $, $$, guard, modal, closeModal, toast, fmtSize } from '../ui.js?v=202611070139';
+import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isWireDocName, WIRE_BUYER_ONLY } from '../data/constants.js?v=202611090935';
 import { explainRecipients } from '../data/message-recipients.js?v=202611090935';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 const TOOLS = [['bold', 'B', 'Bold'], ['italic', 'I', 'Italic'], ['underline', 'U', 'Underline'], ['insertUnorderedList', '\u2022 List', 'Bulleted list'], ['insertOrderedList', '1. List', 'Numbered list'], ['link', 'Link', 'Insert link'], ['removeFormat', 'Clear', 'Clear formatting']];
