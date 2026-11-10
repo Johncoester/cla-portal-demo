@@ -95,11 +95,13 @@ export async function createSupabaseAdapter(cfg) {
   const nav = navigationReads();
   let fileGen = 0;
   const shareReads = nav.share.bind(nav);
-  nav.share = (id, key, fn) => {
+  const storedKey = (key) => {
     const k = String(key);
-    const bust = k.startsWith('deal:') || k.startsWith('shell:') || k.startsWith('overview:');
-    return shareReads(id, bust ? k + '#' + fileGen : k, fn);
+    if (k.includes('#')) return k;
+    if (k.startsWith('deal:') || k.startsWith('shell:') || k.startsWith('overview:')) return k + '#' + fileGen;
+    return k;
   };
+  nav.share = (id, key, fn) => shareReads(id, storedKey(key), fn);
   const dropFileReads = () => { fileGen += 1; };
   const early = speculativeReads();
   let openingNav = false;
@@ -107,11 +109,55 @@ export async function createSupabaseAdapter(cfg) {
   let openNavId = 0;
   let authUserFlight = null;
   let authUserFlightOwner = 0;
+  let lastGoodUser = null;
+  let lastHeld = null;
   const navStops = new Map();
+  const AUTH_TRIES = 2;
+  const AUTH_BACKOFF_MS = 200;
+  const authStatus = (error) => Number(error && (error.status || error.statusCode) || 0);
+  const authMessage = (error) => String(error && error.message || error || '');
+  // A dropped connection is not a sign-out. 401/403 is. SIGNED_OUT is handled in onAuthStateChange.
+  const authRejected = (error) => { const status = authStatus(error); return status === 401 || status === 403; };
+  const transientAuthFailure = (error) => {
+    if (!error || authRejected(error)) return false;
+    const status = authStatus(error);
+    if (status >= 500) return true;
+    return /failed to fetch|network|timeout|load failed|econnreset|authretryablefetcherror/i.test(authMessage(error));
+  };
+  async function readAuthUser() {
+    let lastError = null;
+    for (let attempt = 0; attempt < AUTH_TRIES; attempt += 1) {
+      if (attempt) await new Promise((r) => setTimeout(r, AUTH_BACKOFF_MS));
+      let res;
+      try { res = await sb.auth.getUser(); }
+      catch (error) {
+        lastError = error;
+        if (authRejected(error)) return { data: { user: null }, signedOut: true };
+        if (transientAuthFailure(error) && attempt + 1 < AUTH_TRIES) continue;
+        if (transientAuthFailure(error) && lastGoodUser) return { data: { user: lastGoodUser }, signedOut: false, cached: true };
+        throw error;
+      }
+      const user = res && res.data && res.data.user || null;
+      const error = res && res.error || null;
+      if (user && user.id) return { data: { user }, signedOut: false };
+      if (authRejected(error)) return { data: { user: null }, signedOut: true };
+      if (error && transientAuthFailure(error)) {
+        lastError = error;
+        if (attempt + 1 < AUTH_TRIES) continue;
+        if (lastGoodUser) return { data: { user: lastGoodUser }, signedOut: false, cached: true };
+        throw error;
+      }
+      if (lastGoodUser) return { data: { user: lastGoodUser }, signedOut: false, cached: true };
+      return { data: { user: null }, signedOut: true };
+    }
+    if (lastError && transientAuthFailure(lastError) && lastGoodUser) return { data: { user: lastGoodUser }, signedOut: false, cached: true };
+    if (lastError) throw lastError;
+    return { data: { user: null }, signedOut: true };
+  }
   function fetchAuthUser() {
     const owner = openNavId;
     if (owner && authUserFlight && authUserFlightOwner === owner) return authUserFlight;
-    const flight = sb.auth.getUser();
+    const flight = readAuthUser();
     if (!owner) { flight.catch(() => {}); return flight; }
     authUserFlight = flight;
     authUserFlightOwner = owner;
@@ -123,9 +169,25 @@ export async function createSupabaseAdapter(cfg) {
     procNames = null;
     authUserFlight = null;
     authUserFlightOwner = 0;
+    lastGoodUser = null;
+    lastHeld = null;
     profile.clear();
     nav.clear();
     early.clear();
+  }
+  function remember(person) {
+    if (!person || !person.id) return person;
+    lastHeld = person;
+    lastGoodUser = { id: person.id, email: person.email || '' };
+    return person;
+  }
+  function confirmedSignOut() {
+    lastGoodUser = null;
+    lastHeld = null;
+    profile.clear();
+    nav.clear();
+    early.clear();
+    ident.forget();
   }
   let pendingAuthId = '';
   sb.auth.onAuthStateChange((event, session) => {
@@ -137,7 +199,7 @@ export async function createSupabaseAdapter(cfg) {
     if (action === 'drop') dropAuth();
     if (event === 'PASSWORD_RECOVERY') { try { sessionStorage.setItem('cla-portal-recovery', '1'); } catch (e) { /* the reset screen also checks the flag */ } if (!/recovery/.test(location.hash)) location.hash = '#/login'; }
   });
-  const fileRead = (key, fn) => early.read(nav.userId() || pendingAuthId, key, fn, nav);
+  const fileRead = (key, fn) => early.read(nav.userId() || pendingAuthId || '', storedKey(key), fn, nav);
   const meFrom = (who) => profile.load(who, async () => {
       const raw = ok(await sb.rpc('my_profile'));   // profiles row only; user_metadata is never a role
       if (!raw) return { id: who.id, email: who.email || '', firstName: '', lastName: '', role: '', status: 'unprovisioned', unprovisioned: true, isAdmin: false };
@@ -152,11 +214,12 @@ export async function createSupabaseAdapter(cfg) {
       const navAt = openNavId;
       const cached = ident.current();
       if (cached && cached.id && nav.userId() === cached.id) return cached;
-      const { data: { user } } = await fetchAuthUser();
+      const auth = await fetchAuthUser();
+      const user = auth && auth.data && auth.data.user;
       if (ticket !== ident.generation() || openNavId !== navAt) continue;
+      if (auth && auth.signedOut) { if (ticket === ident.generation() && openNavId === navAt) confirmedSignOut(); return null; }
       if (!user) {
-        if (ticket !== ident.generation() || openNavId !== navAt) return null;
-        profile.clear(); nav.clear(); early.clear(); ident.forget();
+        if (lastHeld && lastHeld.id) return lastHeld;
         return null;
       }
       if (nav.userId() !== user.id) {
@@ -167,9 +230,11 @@ export async function createSupabaseAdapter(cfg) {
       }
       const loaded = await meFrom(user);
       if (ticket !== ident.generation() || openNavId !== navAt || !loaded || loaded.id !== user.id) continue;
-      return ident.hold(loaded, ticket);
+      const kept = ident.hold(loaded, ticket);
+      if (kept) return remember(kept);
+      return kept;
     }
-    return null;
+    return lastHeld && lastHeld.id ? lastHeld : null;
   };
   async function fetchDeal(id) {
     const got = await gatherReads({
@@ -248,28 +313,28 @@ export async function createSupabaseAdapter(cfg) {
       if (patch.role != null || patch.isAdmin != null || patch.status != null) throw new Error('Role and access are assigned by an administrator.');
       const row = {};
       if (patch.firstName != null) row.first_name = String(patch.firstName); if (patch.lastName != null) row.last_name = String(patch.lastName); if (patch.phone != null) row.phone = String(patch.phone);
-      const { data: { user } } = await sb.auth.getUser(); if (!user) throw new Error('Please sign in.');
+      const auth = await readAuthUser(); const user = auth && auth.data && auth.data.user; if (auth && auth.signedOut || !user) throw new Error('Please sign in.');
       if (Object.keys(row).length) ok(await sb.from('profiles').update(row).eq('id', user.id));
       profile.begin(); ident.forget(); return me();
     },
     async getSession() {
       const ticket = ident.generation();
       const navAt = openNavId;
-      const { data: { user } } = await sb.auth.getUser();
+      const auth = await fetchAuthUser();
+      const user = auth && auth.data && auth.data.user;
       if (ticket !== ident.generation() || openNavId !== navAt) return null;
-      if (!user) {
-        if (ticket !== ident.generation() || openNavId !== navAt) return null;
-        profile.clear(); nav.clear(); early.clear(); ident.forget();
-        return null;
-      }
+      if (auth && auth.signedOut) { confirmedSignOut(); return null; }
+      if (!user) return lastHeld && lastHeld.id ? lastHeld : null;
       const cached = ident.current();
       if (cached && cached.id === user.id && nav.userId() === user.id) return cached;
       if (ticket !== ident.generation() || openNavId !== navAt) return null;
       profile.begin();
       if (!openingNav && !early.adopt(nav, user.id, ticket, ident.generation())) return null;
       const loaded = await meFrom(user);
-      if (ticket !== ident.generation() || openNavId !== navAt || !loaded || loaded.id !== user.id) return null;
-      return ident.hold(loaded, ticket);
+      if (ticket !== ident.generation() || openNavId !== navAt || !loaded || loaded.id !== user.id) return lastHeld && lastHeld.id === (user && user.id) ? lastHeld : null;
+      const kept = ident.hold(loaded, ticket);
+      if (kept) return remember(kept);
+      return lastHeld && lastHeld.id === user.id ? lastHeld : null;
     },
     authGeneration() { return ident.generation(); },
     async signOut() { dropAuth(); await sb.auth.signOut(); },
@@ -450,7 +515,7 @@ export async function createSupabaseAdapter(cfg) {
       const ids = new Set(w.map((r) => r.id)); return (camel(ok(await sb.rpc('message_recipients', { p_deal: dealId }))) || []).map((r) => ({ ...r, wireOk: ids.has(r.id) }));
     },
     async createThread(dealId, { subject, participantIds, body }) { return { id: ok(await sb.rpc('create_thread', { p_deal: dealId, p_subject: subject, p_participants: participantIds, p_body: body })) }; },
-    async postMessage(threadId, body) { const { data: { user } } = await sb.auth.getUser(); return camel(ok(await sb.from('messages').insert({ thread_id: threadId, author_id: user.id, body }).select().single())); },
+    async postMessage(threadId, body) { const auth = await readAuthUser(); const user = auth && auth.data && auth.data.user; if (!user || auth.signedOut) throw new Error('Please sign in.'); return camel(ok(await sb.from('messages').insert({ thread_id: threadId, author_id: user.id, body }).select().single())); },
     // activity log: RLS returns rows to CLA staff only (migration 13)
     async listActivity(dealId) { let q = sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(300); q = dealId ? q.eq('deal_id', dealId) : q.is('deal_id', null);
       const items = camel(ok(await q)); return { items, total: items.length, types: [...new Set(items.map((a) => a.action.split('.')[0]))].sort(), actors: [] }; },
@@ -475,14 +540,15 @@ export async function createSupabaseAdapter(cfg) {
     // tasks.form_data is NOT selectable (column grant); answers come from get_task_form for the owner / processor / coordinator / Admin only
     async listTasks(dealId) {
       const raw = fileRead('taskrows:' + dealId, () => fetchHostedTaskRows(sb, dealId));
-      const ticket = ident.generation();
-      const u = ident.current() || await me();
-      if (!u || ticket !== ident.generation()) throw new Error('Please sign in.');
-      if (nav.userId() && nav.userId() !== u.id) throw new Error('Please sign in.');
+      let u = ident.current() || await me();
+      if ((!u || !u.id) && lastHeld && lastHeld.id) u = lastHeld;
+      // A moved navigation or a blip is not a sign-out. Throwing here rejects the overview batch and the page reports "Please sign in."
+      if (!u || !u.id) return [];
+      if (nav.userId() && nav.userId() !== u.id) return [];
       // Francis (Nov 6): a task copy for the viewer's own file-party row counts as theirs. CLA staff who run orders skip this read.
       const mineIds = (u.isAdmin || runsOrdersCI(u)) ? Promise.resolve([]) : viewerParticipantIds(sb, dealId, u);
       const got = await raw; const myParticipantIds = await mineIds;
-      if (ticket !== ident.generation() || (nav.userId() && nav.userId() !== u.id)) throw new Error('Please sign in.');
+      if (nav.userId() && nav.userId() !== u.id) return [];
       return mapHostedTaskList(got.rows, u, got.off, { myParticipantIds });
     },
     async getTask(id) { return fetchHostedTask(sb, id, await me()); },
@@ -620,17 +686,19 @@ export async function createSupabaseAdapter(cfg) {
           const hinted = pendingAuthId;
           const earlyProfile = hinted ? meFrom({ id: hinted }) : null;
           if (earlyProfile) earlyProfile.catch(() => {});
+          const known = !!(lastGoodUser && pendingAuthId && pendingAuthId === lastGoodUser.id);
+          if (known) warmFile(hint);
           const userFlight = fetchAuthUser();
-          warmFile(hint);
           const raced = await Promise.race([
             userFlight.then((result) => ({ result })),
             stopped.then(() => ({ stopped: true })),
           ]);
           if (raced.stopped || openNavId !== myNav) return empty;
-          const { data: { user } } = raced.result;
+          const auth = raced.result || {};
+          const user = auth.data && auth.data.user;
           if (openNavId !== myNav) return empty;
           if (ticket !== ident.generation()) { early.clear(); continue; }
-          if (!user) { profile.clear(); nav.clear(); early.clear(); ident.forget(); return empty; }
+          if (auth.signedOut || !user) { if (auth.signedOut) confirmedSignOut(); return empty; }
           if (!early.adopt(nav, user.id, ticket, ident.generation())) {
             if (openNavId !== myNav) return empty;
             early.clear();
@@ -640,6 +708,7 @@ export async function createSupabaseAdapter(cfg) {
           const hr = nav.share(user.id, 'hr-extras', () => hrSessionExtras());
           hr.catch(() => {});
           const demo = a.demoViewStatus().catch(() => null);
+          if (!known) warmFile(hint);
           let loaded = earlyProfile && user.id === hinted ? await earlyProfile : null;
           if (openNavId !== myNav) return empty;
           if (ticket !== ident.generation()) { nav.clear(); early.clear(); ident.forget(); continue; }
@@ -653,6 +722,7 @@ export async function createSupabaseAdapter(cfg) {
           if (!loaded || loaded.id !== user.id) { ident.forget(); continue; }
           const kept = ident.hold(loaded, ticket);
           if (!kept) { if (openNavId !== myNav) return empty; continue; }
+          remember(kept);
           return { user: kept, hr, demo, mods };
         }
         if (openNavId === myNav) early.clear();
