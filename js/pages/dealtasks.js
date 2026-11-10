@@ -6,7 +6,7 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate,
 import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611101015';
 import { boxTasks, boxOfRole } from '../data/task-board.js?v=202611101015';
 import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611101015';
-import { taskOpenHref } from '../data/task-actions.js?v=202611101015';
+import { taskOpenHref } from '../data/task-actions.js?v=202611110800';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
 export const LABEL = { todo: 'to do', in_progress: 'started', done: 'done', blocked: 'blocked', cancelled: 'cancelled' };
@@ -18,7 +18,7 @@ export async function render(ctx) {
   const { api, user, deal, refresh } = ctx;
   if (intakeDeal !== deal.id) { intakeDeal = deal.id; intakeOpen.clear(); }
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611110300')).render(ctx);
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611110800')).render(ctx);
   const allTasks = await api.listTasks(deal.id);
   // BUYER (Nov 4 call): the agreements are to-dos that open the agreement (no Agreements tab for the buyer); the buyer never gets a Listing Agent box (listing agent never shown)
   // SELLER MIRROR (Nov 4): the pure seller gets the same To-do list (agreements as to-dos) and never a Buyer's Agent box (the buyer's agent is never shown to the seller)
@@ -51,7 +51,7 @@ export async function render(ctx) {
   const row = (t) => html`<tr class="${toneOf(t)}" data-task-row="${t.id}" data-task-tone="${toneOf(t)}">
       <td class="center">${t.canTick ? html`<input type="checkbox" data-tick="${t.id}" ${t.status === 'done' ? html`checked` : ''} aria-label="Done">` : ''}</td>
       <td><div class="task-line"><strong>${taskOpenHref(t) ? html`<a href="${taskOpenHref(t)}">${t.title}</a>` : t.title}</strong>${t.notYours ? html` <span class="muted small" data-not-yours>Not yours to open</span>` : ''}${t.taskGroup ? html` <span class="pill" data-task-group>${t.taskGroup}</span>` : ''}${dense ? html` ${kindBit(t, true)}` : ''}</div>${t.description ? (dense ? html`<div class="task-desc muted">${t.description}</div>` : html`<br><span class="muted">${t.description}</span>`) : ''}${t.switchedOff ? html` <span class="pill warn" data-switched-off title="Switched off on Task Templates > Task switches: kept, hidden from everyone except Admin / Super admin">Switched off (admins only)</span>` : ''}${dense ? '' : kindBit(t, false)}${answerList(t)}${dense && intakeSide(t) ? html`<div class="intake-slot" data-intake-slot="${t.id}" hidden></div>` : ''}</td>
-      <td>${t.ownerName || t.assignedRole}${t.ownerName ? html`<br><span class="muted small">${t.assignedRole}</span>` : ''}${t.mine ? html` ${pill(user.selfRep ? `you, as ${t.assignedRole}` : 'you', 'info')}` : ''}${t.forClient && open(t) ? html` ${pill('you can complete this for your client', 'warn')}` : ''}</td>
+      <td>${t.ownerName || t.assignedRole}${t.ownerName ? html`<br><span class="muted small">${t.assignedRole}</span>` : ''}${t.mine ? html` ${pill(user.selfRep ? `you, as ${t.assignedRole}` : 'you', 'info')}` : ''}</td>
       <td class="task-due ${open(t) && t.dueDate && t.dueDate < today ? 'bad-text' : ''}">${fmtDate(t.dueDate)}</td><td>${pill(LABEL[t.status], CLS[t.status])}${t.completedByLabel ? html`<br><span class="muted small done-by">${t.completedByLabel}</span>` : ''}</td>
       <td class="nowrap">${actions(t)}</td></tr>`;
   const mineFirst = [...tasks].sort((a, b) => ((b.mine || b.forClient) && open(b)) - ((a.mine || a.forClient) && open(a)));
@@ -77,7 +77,7 @@ export async function render(ctx) {
     const slotOf = (id) => $(`[data-intake-slot="${(globalThis.CSS && CSS.escape ? CSS.escape(String(id)) : String(id).replace(/(["\\])/g, '\\$1'))}"]`, root);
     const showIntake = async (ids) => {
       if (!ids.length) return;
-      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611110300');
+      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611110800');
       await Promise.all(ids.map(async (id) => {
         const slot = slotOf(id); if (!slot) return;
         const box = slot.closest('details'); if (box) box.open = true;

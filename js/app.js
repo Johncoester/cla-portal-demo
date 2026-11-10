@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611110300';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611110300';
+import { getAdapter } from './data/adapter.js?v=202611110800';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611110800';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611100100';
@@ -32,11 +32,11 @@ document.addEventListener('input', (e) => { const el = e.target; if (el instance
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611102000'),
-  dashboard: () => import('./pages/dashboard.js?v=202611110300'),
+  login: () => import('./pages/entry.js?v=202611110800'),
+  dashboard: () => import('./pages/dashboard.js?v=202611110800'),
   orders: () => import('./pages/orders.js?v=202611101015'),
   'orders/new': () => import('./pages/ordernew.js?v=202611110300'),
-  deal: () => import('./pages/deal.js?v=202611110300'),
+  deal: () => import('./pages/deal.js?v=202611110800'),
   users: () => import('./pages/users.js?v=202611101015'),
   profile: () => import('./pages/profile.js?v=202611101015'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
@@ -46,17 +46,17 @@ const pages = {
   library: () => import('./pages/library.js?v=202611101015'),
   activity: () => import('./pages/activity.js?v=202611070139'),
   outbox: () => import('./pages/outbox.js?v=202611101015'),
-  tasks: () => import('./pages/tasks.js?v=202611110300'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => import('./pages/tasks.js?v=202611110800'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611101015'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js?v=202611101015'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611101600'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => import('./pages/modules.js?v=202611101015'),
   'role-access': () => import('./pages/role-access.js?v=202611100100'),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => import('./pages/agent-invites.js?v=202611110300'),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
-  'agent-invite': () => import('./pages/agent-signup.js?v=202611101015'),     // the agent's one-time setup link (no sign-in)
+  'agent-invite': () => import('./pages/agent-signup.js?v=202611110800'),     // the agent's one-time setup link (no sign-in)
   underwriters: () => import('./pages/underwriters.js?v=202611070139'),
   hr: () => import('./pages/hr.js?v=202611110300'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
-  'hr-invite': () => import('./pages/hr-invite.js?v=202611070139'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
+  'hr-invite': () => import('./pages/hr-invite.js?v=202611110800'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => import('./pages/offices.js?v=202611101015'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
   'admin/email-templates': () => import('./pages/email-templates.js?v=202611102000'),   // John, Nov 9: Admin > Email Templates (file Email tab)
   demo: () => import('./pages/demo-view.js?v=202611070139'),   // permanent Demo mode: Super admin views a seeded demo user

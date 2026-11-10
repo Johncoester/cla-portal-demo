@@ -22,13 +22,17 @@ export function shapeListedTask(t, user, opts = {}) {
   const kind = t.kind || (t.templateId ? 'form' : 'simple');
   const readOnly = viewOnly(user);
   const open = t.status !== 'cancelled' && t.status !== 'done';
+  const clientTask = t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller';
+  // V-4: an agent on the file is not the client the task belongs to. Staff and that client can mark it complete.
+  const canComplete = !clientTask || manager || mine;
   const canFill = !readOnly && kind === 'form' && t.status !== 'cancelled' && (mine || manager);
-  const canTick = !readOnly && kind === 'simple' && t.status !== 'cancelled' && (manager || mine) && ['todo', 'in_progress', 'done'].includes(t.status);
+  const canTick = !readOnly && kind === 'simple' && t.status !== 'cancelled' && canComplete && (manager || mine) && ['todo', 'in_progress', 'done'].includes(t.status);
   return {
     ...t,
     kind,
     mine,
     canFill,
+    canComplete,
     canTick,
     actionable: canFill || canTick || ((kind === 'sign' || kind === 'agent') && !readOnly && (mine || manager)),
     notYours: !mine && !manager && open,

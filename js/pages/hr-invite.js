@@ -3,12 +3,17 @@
 // Supabase: the page asks for a password and calls the accept-invite function. Public sign-up stays off. Nothing is emailed.
 // Refused inside a locked test-link session (locked-links.js routeAllowed).
 import { html, $, guard, toast, fmtDateTime } from '../ui.js?v=202611070139';
+const signInPath = (email) => { const e = String(email || '').trim(); return '/login' + (e ? '?email=' + encodeURIComponent(e) : ''); };
 export async function render({ api, params, go }) {
   const inv = await api.getHrInvite(params.token);
   const supa = api.mode === 'supabase';
   const shell = (inner) => html`<div class="login-page hr-invite-page" data-hr-invite-page="${inv.status}"><div class="login-card"><img src="assets/img/login-logo-new.png" alt="C.L.A. Title &amp; Escrow" class="sched-logo"><div class="eyebrow">HR INVITE &middot; CLA TITLE PORTAL</div><h2>Set up your login</h2>${inner}
     <p class="dev-banner" data-test-environment>TEST ENVIRONMENT &middot; FAKE DATA ONLY</p></div></div>`;
-  if (inv.status !== 'pending') return { title: 'Invite', body: shell(html`<p data-hr-invite-bad>${inv.status === 'expired' ? 'This invite link has expired.' : inv.status === 'accepted' ? 'This invite link was already used. Sign in instead.' : 'This invite link is not valid.'} Ask HR for a new link.</p>`) };
+  if (inv.status === 'accepted' || inv.status === 'exists') {
+    if (go) go(signInPath(inv.email));
+    return { title: 'Sign in', body: shell(html`<p data-invite-redirect="signin"></p>`) };
+  }
+  if (inv.status !== 'pending') return { title: 'Invite', body: shell(html`<p data-hr-invite-bad>${inv.status === 'expired' ? 'This invite link has expired.' : 'This invite link is not valid.'} Ask HR for a new link.</p>`) };
   const action = supa
     ? html`<form data-hr-accept-form><label>Password<input type="password" name="password" required minlength="8" autocomplete="new-password" data-hr-password></label><label>Confirm password<input type="password" name="confirm" required minlength="8" autocomplete="new-password" data-hr-password-2></label><p class="field-hint">At least 8 characters. This becomes your portal password. Nothing is emailed.</p><p class="err-text" data-hr-err role="alert" hidden></p><button class="m-btn m-btn-lg" type="submit">Set up my login</button></form>`
     : html`<button class="m-btn m-btn-lg" data-hr-accept>Set up my login</button>`;
