@@ -153,12 +153,32 @@ grant execute on function public.save_office(text, text, text, text, text, text,
 drop function if exists private.closest_office(text, text, double precision, double precision);
 drop function if exists private.haversine_miles(double precision, double precision, double precision, double precision);
 
+-- Undo the public-location seed: remove offices this migration inserted, and put the five placeholder rows back.
+alter table public.settlements drop constraint if exists settlements_office_id_fkey;
+alter table public.settlement_responses drop constraint if exists settlement_responses_office_id_fkey;
+delete from public.office_counties where office_id in (
+  'off-white-plains', 'off-bethesda', 'off-chester', 'off-frederick', 'off-hagerstown', 'off-towson',
+  'off-arlington-courthouse', 'off-ballston', 'off-venture-x-fairfax', 'off-dc-closing', 'off-thomas-circle',
+  'off-west-palm-beach', 'off-fort-lauderdale', 'off-sarasota', 'off-new-smyrna-beach', 'off-st-petersburg', 'off-naples', 'off-miami');
+delete from public.offices where id in (
+  'off-white-plains', 'off-bethesda', 'off-chester', 'off-frederick', 'off-hagerstown', 'off-towson',
+  'off-arlington-courthouse', 'off-ballston', 'off-venture-x-fairfax', 'off-dc-closing', 'off-thomas-circle',
+  'off-west-palm-beach', 'off-fort-lauderdale', 'off-sarasota', 'off-new-smyrna-beach', 'off-st-petersburg', 'off-naples', 'off-miami');
+update public.offices set name = 'CLA Title - Rockville, MD office (sample)', address_line1 = '100 Placeholder Pike', address_line2 = '', city = 'Rockville', state = 'MD', zip = '20850', main_phone = '301-555-0100', is_main_office_for_state = true, active = true, sort_order = 1, updated_at = now() where id = 'off-rockville';
+update public.offices set name = 'CLA Title - Annapolis, MD office (sample)', address_line1 = '200 Placeholder Street', address_line2 = '', city = 'Annapolis', state = 'MD', zip = '21401', main_phone = '410-555-0100', is_main_office_for_state = false, active = true, sort_order = 2, updated_at = now() where id = 'off-annapolis';
+update public.offices set name = 'CLA Title - Washington, DC office (sample)', address_line1 = '300 Placeholder Avenue NW', address_line2 = '', city = 'Washington', state = 'DC', zip = '20001', main_phone = '202-555-0100', is_main_office_for_state = true, active = true, sort_order = 3, updated_at = now() where id = 'off-dc';
+update public.offices set name = 'CLA Title - Fairfax, VA office (sample)', address_line1 = '400 Placeholder Road', address_line2 = '', city = 'Fairfax', state = 'VA', zip = '22030', main_phone = '703-555-0100', is_main_office_for_state = true, active = true, sort_order = 4, updated_at = now() where id = 'off-fairfax';
+update public.offices set name = 'CLA Title - Fort Lauderdale, FL office (sample)', address_line1 = '500 Placeholder Boulevard', address_line2 = '', city = 'Fort Lauderdale', state = 'FL', zip = '33301', main_phone = '954-555-0100', is_main_office_for_state = true, active = true, sort_order = 5, updated_at = now() where id = 'off-ftlauderdale';
+update public.office_counties set removed_at = null, removed_by = null where office_id in ('off-rockville', 'off-annapolis', 'off-dc', 'off-fairfax', 'off-ftlauderdale');
+
 alter table public.settlements drop constraint if exists settlements_office_id_fkey;
 alter table public.settlement_responses drop constraint if exists settlement_responses_office_id_fkey;
 alter table public.settlements drop column if exists office_id;
 alter table public.settlement_responses drop column if exists office_id;
 alter table public.settlement_responses drop column if exists location;
 alter table public.offices drop constraint if exists offices_lat_lng_pair;
+alter table public.offices drop constraint if exists offices_coord_source_chk;
+alter table public.offices drop column if exists coord_source;
 alter table public.offices drop column if exists latitude;
 alter table public.offices drop column if exists longitude;
 alter table public.deals drop constraint if exists deals_lat_lng_pair;

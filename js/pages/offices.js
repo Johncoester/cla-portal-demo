@@ -3,20 +3,20 @@
 // office and pick the counties it serves. The closing "Which CLA Title office" picker lists the ACTIVE offices in this order and defaults to the
 // office closest to the property. Offices are never deleted: Retire hides one from new closings only.
 import { html, raw, $, $$, guard, toast, modal, closeModal, fmtDateTime } from '../ui.js?v=202611070139';
-import { canManageOffices, cleanOffice, countiesFor, OFFICE_STATES, SAMPLE_IDS } from '../data/offices.js?v=202611100830';
+import { canManageOffices, cleanOffice, countiesFor, OFFICE_STATES } from '../data/offices.js?v=202611100830';
 const STATE_NAMES = { MD: 'Maryland', VA: 'Virginia', DC: 'District of Columbia', FL: 'Florida' };
 
 export async function render({ api, user, refresh }) {
   if (!canManageOffices(user)) throw new Error('Only an Admin or Super admin can see the Offices page.');
   const { offices } = await api.listOffices({ includeRetired: true });
   const active = offices.filter((o) => o.active); const retired = offices.filter((o) => !o.active);
-  const anySample = offices.some((o) => SAMPLE_IDS.includes(o.id) && o.active);
+  const anySample = offices.some((o) => /\(sample\)/i.test(o.name) && o.active);
   const row = (o, i, list) => html`<tr data-office-row="${o.id}" data-office-active="${o.active ? 'yes' : 'no'}" class="${o.active ? '' : 'off-retired'}">
     <td class="nowrap">${o.active ? html`<button type="button" class="ghost small" data-office-up="${o.id}" aria-label="Move ${o.name} up" ${i === 0 ? raw('disabled') : ''}>&uarr;</button>
       <button type="button" class="ghost small" data-office-down="${o.id}" aria-label="Move ${o.name} down" ${i === list.length - 1 ? raw('disabled') : ''}>&darr;</button>` : ''}</td>
     <td><strong data-office-name>${o.name}</strong>${o.isMainOfficeForState && o.active ? html` <span class="off-chip" data-office-main>Main office for ${o.state}</span>` : ''}
       ${o.active ? '' : html` <span class="off-chip off-chip-retired" data-office-retired-tag>Retired</span>`}</td>
-    <td data-office-address>${o.address}</td>
+    <td data-office-address>${o.address}${o.coordSource === 'address' ? html` <span class="muted small" data-coord-source="address">Census address</span>` : o.coordSource === 'zip' ? html` <span class="muted small" data-coord-source="zip">ZIP center</span>` : ''}</td>
     <td class="nowrap">${o.phone || html`<span class="muted">none</span>`}${o.email ? html`<br><span class="small">${o.email}</span>` : ''}</td>
     <td data-office-counties>${o.counties.length ? html`<span class="small">${o.countyText}</span>` : html`<span class="muted small">No counties yet</span>`}</td>
     <td class="small muted">${fmtDateTime(o.updatedAt)}<br>${o.updatedByName}</td>

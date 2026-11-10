@@ -2,8 +2,8 @@
 -- NOT APPLIED by this change. Apply by hand when ready.
 -- Rollback: supabase/rollbacks/20261110083000_closing_nearest_office.sql
 --
--- The office list is the existing public.offices rows (Admin > Offices). This migration does not replace those rows.
--- The sample offices stay the sample offices. Latitude/longitude are filled from each office ZIP's Census center when blank.
+-- Verified offices from https://clatitle.com/locations/ replace the sample placeholder rows (see the insert below).
+-- Latitude/longitude are the Census address match, or the ZIP center when the address did not match.
 -- ZIP centers: U.S. Census Bureau, 2024 Gazetteer ZCTA national file, internal point (public domain).
 -- https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2024_Gazetteer/2024_Gaz_zcta_national.zip
 --
@@ -58,6 +58,9 @@ end $$;
 
 alter table public.offices add column if not exists latitude double precision;
 alter table public.offices add column if not exists longitude double precision;
+alter table public.offices add column if not exists coord_source text;
+alter table public.offices drop constraint if exists offices_coord_source_chk;
+alter table public.offices add constraint offices_coord_source_chk check (coord_source is null or coord_source in ('address', 'zip'));
 alter table public.offices drop constraint if exists offices_lat_lng_pair;
 alter table public.offices add constraint offices_lat_lng_pair check (
   (latitude is null and longitude is null)
@@ -101,11 +104,67 @@ on conflict (zip) do nothing;
 
 update public.offices o
    set latitude = z.latitude,
-       longitude = z.longitude
+       longitude = z.longitude,
+       coord_source = coalesce(o.coord_source, 'zip')
   from public.zip_centroids z
  where o.latitude is null
    and o.longitude is null
    and left(btrim(o.zip), 5) = z.zip;
+
+
+-- Public closing locations from https://clatitle.com/locations/ (read 2026-11-10).
+-- Coordinates: Census geocoder address match (Public_AR_Current) when coord_source = 'address';
+-- ZIP center when the address did not match (coord_source = 'zip').
+-- Rows are replaced only while they are still the "(sample)" / Placeholder offices. New ids are inserted.
+-- off-dc, off-fairfax, and off-ftlauderdale are the old fictional offices and are retired, not reused.
+insert into public.offices (id, name, address_line1, address_line2, city, state, zip, main_phone, email, is_main_office_for_state, active, sort_order, latitude, longitude, coord_source, created_at, updated_at)
+values
+  ('off-rockville', 'Rockville', '9210 Corporate Blvd', '#150', 'Rockville', 'MD', '20850', '888-924-9008', null, true, true, 1, 39.107612, -77.189877, 'address', now(), now()),
+  ('off-white-plains', 'White Plains', '4560 Crain Highway', 'Suite 11', 'White Plains', 'MD', '20695', '', null, false, true, 2, 38.587387, -76.945010, 'address', now(), now()),
+  ('off-bethesda', 'Bethesda', '7201 Wisconsin Avenue', '', 'Bethesda', 'MD', '20814', '', null, false, true, 3, 38.981338, -77.092659, 'address', now(), now()),
+  ('off-annapolis', 'Annapolis', '1910 Towne Centre Boulevard', 'Ste. 250', 'Annapolis', 'MD', '21401', '', null, false, true, 4, 38.980745, -76.540246, 'address', now(), now()),
+  ('off-chester', 'Chester', '110 S. Piney Road', 'Ste. 106', 'Chester', 'MD', '21619', '', null, false, true, 5, 38.972726, -76.269768, 'address', now(), now()),
+  ('off-frederick', 'Frederick', '201 Broadway Street', 'Suite 320', 'Frederick', 'MD', '21701', '', null, false, true, 6, 39.410733, -77.412707, 'address', now(), now()),
+  ('off-hagerstown', 'Hagerstown', '201 Prospect Avenue', '', 'Hagerstown', 'MD', '21742', '', null, false, true, 7, 39.6782, -77.6527, 'zip', now(), now()),
+  ('off-towson', 'Towson', '200 Towsontown Blvd W', 'Ste 413', 'Towson', 'MD', '21204', '', null, false, true, 8, 39.396086, -76.618924, 'address', now(), now()),
+  ('off-arlington-courthouse', 'Arlington Courthouse', '2311 Wilson Boulevard', '', 'Arlington', 'VA', '22201', '', null, false, true, 9, 38.891038, -77.086702, 'address', now(), now()),
+  ('off-ballston', 'Ballston', '4201 Wilson Boulevard', '', 'Arlington', 'VA', '22203', '', null, false, true, 10, 38.879927, -77.110308, 'address', now(), now()),
+  ('off-venture-x-fairfax', 'Venture X Fairfax', '3060 Williams Dr', 'Suite 300', 'Fairfax', 'VA', '22031', '', null, false, true, 11, 38.8589, -77.2603, 'zip', now(), now()),
+  ('off-dc-closing', 'DC Closing', '1050 Connecticut Avenue NW', 'Suite 500', 'Washington', 'DC', '20036', '', null, false, true, 12, 38.903131, -77.039741, 'address', now(), now()),
+  ('off-thomas-circle', 'Thomas Circle', 'One Thomas Circle', '', 'Washington', 'DC', '20005', '', null, false, true, 13, 38.905587, -77.032489, 'address', now(), now()),
+  ('off-west-palm-beach', 'West Palm Beach', '2054 Vista Parkway', 'Ste 400', 'West Palm Beach', 'FL', '33411', '', null, false, true, 14, 26.710708, -80.147471, 'address', now(), now()),
+  ('off-fort-lauderdale', 'Fort Lauderdale', '2455 E Sunrise Blvd.', 'Suite 1205', 'Fort Lauderdale', 'FL', '33304', '', null, false, true, 15, 26.138072, -80.113710, 'address', now(), now()),
+  ('off-sarasota', 'Sarasota', '1990 Main Street', '', 'Sarasota', 'FL', '34236', '', null, false, true, 16, 27.336405, -82.531219, 'address', now(), now()),
+  ('off-new-smyrna-beach', 'New Smyrna Beach', '100 S Riverside Dr', '', 'New Smyrna Beach', 'FL', '32168', '', null, false, true, 17, 29.025586, -80.920889, 'address', now(), now()),
+  ('off-st-petersburg', 'St. Petersburg', '360 Central Ave', 'Ste 800', 'St. Petersburg', 'FL', '33701', '', null, false, true, 18, 27.771150, -82.637924, 'address', now(), now()),
+  ('off-naples', 'Naples', '999 Vanderbilt Beach Rd.', 'Ste 224', 'Naples', 'FL', '34108', '', null, false, true, 19, 26.250602, -81.798886, 'address', now(), now()),
+  ('off-miami', 'Miami', '1111 Brickell Ave', 'Floor 10', 'Miami', 'FL', '33131', '', null, false, true, 20, 25.762700, -80.191546, 'address', now(), now())
+on conflict (id) do update set
+  name = excluded.name,
+  address_line1 = excluded.address_line1,
+  address_line2 = excluded.address_line2,
+  city = excluded.city,
+  state = excluded.state,
+  zip = excluded.zip,
+  main_phone = excluded.main_phone,
+  is_main_office_for_state = excluded.is_main_office_for_state,
+  active = true,
+  sort_order = excluded.sort_order,
+  latitude = excluded.latitude,
+  longitude = excluded.longitude,
+  coord_source = excluded.coord_source,
+  updated_at = now()
+where offices.name ilike '%(sample)%' or offices.address_line1 ilike '%placeholder%';
+
+update public.offices
+   set active = false, updated_at = now()
+ where id in ('off-dc', 'off-fairfax', 'off-ftlauderdale')
+   and (name ilike '%(sample)%' or address_line1 ilike '%placeholder%');
+
+update public.office_counties
+   set removed_at = now()
+ where office_id in ('off-rockville', 'off-annapolis', 'off-dc', 'off-fairfax', 'off-ftlauderdale')
+   and removed_at is null;
 
 create or replace function private.haversine_miles(lat1 double precision, lon1 double precision, lat2 double precision, lon2 double precision)
 returns double precision

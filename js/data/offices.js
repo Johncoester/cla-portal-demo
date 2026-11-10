@@ -1,8 +1,9 @@
 /* offices.js : CLA Title OFFICES (John, Nov 4: "In the admin section create a way for us to add offices so we can add them in that show in the
  * scheduling section"). Pure (no storage): the field rules, the SAMPLE offices, the nearest-office rule and the display text. The mock adapter
  * (mock-part-offices.js) and public.offices / public.office_counties (migration 57) store them; Admin > Offices edits them.
- * SAMPLE DATA: the 5 starting offices are made-up placeholders, labelled "(sample)", until Francis sends the real office list. No real addresses.
- * Their latitude / longitude are the Census 2024 ZCTA internal point of that placeholder ZIP (public domain), not a surveyed front door.
+ * The starting offices are the public closing locations listed at https://clatitle.com/locations/ (read 2026-11-10).
+ * A name keeps "(sample)" only when the address was not on that page. Latitude / longitude are the Census geocoder
+ * address match when it returned one (coordSource "address"); otherwise the Census ZIP center (coordSource "zip").
  * An office is never deleted: it is retired (active = false). A retired office stays on closings that already use it but cannot be picked again.
  * Closest office for a property (Matt): straight-line miles from the property's latitude/longitude, or from its ZIP center when it has no point.
  * An office is placed the same way (its own latitude/longitude, else its ZIP center). Then, if a distance cannot be worked out: an active office
@@ -21,20 +22,36 @@ export const countiesFor = (state) => COUNTY_LIST[String(state || '').toUpperCas
 // the list spelling of a county in a state ('anne arundel county' -> 'Anne Arundel'), or null when it is not one of that state's counties
 export const countyIn = (state, county) => { const n = normCounty(county); return countiesFor(state).find((c) => normCounty(c) === n) || null; };
 const C = (state, list) => list.map((county) => ({ state, county }));
-// SAMPLE offices: placeholder streets and 555-01xx (fictional) phone numbers. Same ids as migrations 56 / 57.
+// Public closing locations from https://clatitle.com/locations/ . Names are the headings on that page.
+// Phone is stored only where that page prints one (Rockville's direct number). No county service area is listed, so counties stay empty.
+// coordSource "address" = Census Bureau geocoder address match (Public_AR_Current). "zip" = Census 2024 ZCTA internal point, used when the address did not match.
+// Rockville is the main office: it is listed first and is the only location with a direct phone. The site does not name a main office for VA, DC, or FL.
+// Left out, not guessed: a second heading that only says "VIRGINIA" with the text "8000 Towers Crescent Drive Vienna VA 22183".
+// Its View Map link is 8000 Towers Crescent Dr, Tysons, VA 22182, so the city and ZIP on the page do not match the pin.
+const pub = (id, name, line1, line2, city, state, zip, lat, lng, source, sort, extra = {}) => ({
+  id, name, addressLine1: line1, addressLine2: line2, city, state, zip, latitude: lat, longitude: lng, coordSource: source,
+  phone: extra.phone || '', email: '', isMainOfficeForState: !!extra.main, sortOrder: sort, counties: C(state, extra.counties || []) });
 export const SAMPLE_OFFICES = [
-  { id: 'off-rockville', name: 'CLA Title - Rockville, MD office (sample)', addressLine1: '100 Placeholder Pike', addressLine2: '', city: 'Rockville', state: 'MD', zip: '20850', latitude: 39.0892, longitude: -77.1804,
-    phone: '301-555-0100', email: '', isMainOfficeForState: true, sortOrder: 1, counties: C('MD', ['Montgomery', 'Frederick', 'Howard', 'Carroll', 'Washington']) },
-  { id: 'off-annapolis', name: 'CLA Title - Annapolis, MD office (sample)', addressLine1: '200 Placeholder Street', addressLine2: '', city: 'Annapolis', state: 'MD', zip: '21401', latitude: 38.9879, longitude: -76.5527,
-    phone: '410-555-0100', email: '', isMainOfficeForState: false, sortOrder: 2,
-    counties: C('MD', ['Anne Arundel', "Prince George's", 'Calvert', 'Charles', "St. Mary's", 'Baltimore', 'Baltimore City', "Queen Anne's", 'Talbot', 'Kent']) },
-  { id: 'off-dc', name: 'CLA Title - Washington, DC office (sample)', addressLine1: '300 Placeholder Avenue NW', addressLine2: '', city: 'Washington', state: 'DC', zip: '20001', latitude: 38.9104, longitude: -77.0177,
-    phone: '202-555-0100', email: '', isMainOfficeForState: true, sortOrder: 3, counties: C('DC', ['District of Columbia']) },
-  { id: 'off-fairfax', name: 'CLA Title - Fairfax, VA office (sample)', addressLine1: '400 Placeholder Road', addressLine2: '', city: 'Fairfax', state: 'VA', zip: '22030', latitude: 38.8372, longitude: -77.3405,
-    phone: '703-555-0100', email: '', isMainOfficeForState: true, sortOrder: 4,
-    counties: C('VA', ['Fairfax', 'Arlington', 'Loudoun', 'Prince William', 'Alexandria City', 'Fairfax City', 'Falls Church City']) },
-  { id: 'off-ftlauderdale', name: 'CLA Title - Fort Lauderdale, FL office (sample)', addressLine1: '500 Placeholder Boulevard', addressLine2: '', city: 'Fort Lauderdale', state: 'FL', zip: '33301', latitude: 26.1213, longitude: -80.1279,
-    phone: '954-555-0100', email: '', isMainOfficeForState: true, sortOrder: 5, counties: C('FL', ['Broward', 'Miami-Dade', 'Palm Beach']) },
+  pub('off-rockville', 'Rockville', '9210 Corporate Blvd', '#150', 'Rockville', 'MD', '20850', 39.107612, -77.189877, 'address', 1, { phone: '888-924-9008', main: true }),
+  pub('off-white-plains', 'White Plains', '4560 Crain Highway', 'Suite 11', 'White Plains', 'MD', '20695', 38.587387, -76.945010, 'address', 2),
+  pub('off-bethesda', 'Bethesda', '7201 Wisconsin Avenue', '', 'Bethesda', 'MD', '20814', 38.981338, -77.092659, 'address', 3),
+  pub('off-annapolis', 'Annapolis', '1910 Towne Centre Boulevard', 'Ste. 250', 'Annapolis', 'MD', '21401', 38.980745, -76.540246, 'address', 4),
+  pub('off-chester', 'Chester', '110 S. Piney Road', 'Ste. 106', 'Chester', 'MD', '21619', 38.972726, -76.269768, 'address', 5),
+  pub('off-frederick', 'Frederick', '201 Broadway Street', 'Suite 320', 'Frederick', 'MD', '21701', 39.410733, -77.412707, 'address', 6),
+  pub('off-hagerstown', 'Hagerstown', '201 Prospect Avenue', '', 'Hagerstown', 'MD', '21742', 39.6782, -77.6527, 'zip', 7),
+  pub('off-towson', 'Towson', '200 Towsontown Blvd W', 'Ste 413', 'Towson', 'MD', '21204', 39.396086, -76.618924, 'address', 8),
+  pub('off-arlington-courthouse', 'Arlington Courthouse', '2311 Wilson Boulevard', '', 'Arlington', 'VA', '22201', 38.891038, -77.086702, 'address', 9),
+  pub('off-ballston', 'Ballston', '4201 Wilson Boulevard', '', 'Arlington', 'VA', '22203', 38.879927, -77.110308, 'address', 10),
+  pub('off-venture-x-fairfax', 'Venture X Fairfax', '3060 Williams Dr', 'Suite 300', 'Fairfax', 'VA', '22031', 38.8589, -77.2603, 'zip', 11),
+  pub('off-dc-closing', 'DC Closing', '1050 Connecticut Avenue NW', 'Suite 500', 'Washington', 'DC', '20036', 38.903131, -77.039741, 'address', 12),
+  pub('off-thomas-circle', 'Thomas Circle', 'One Thomas Circle', '', 'Washington', 'DC', '20005', 38.905587, -77.032489, 'address', 13),
+  pub('off-west-palm-beach', 'West Palm Beach', '2054 Vista Parkway', 'Ste 400', 'West Palm Beach', 'FL', '33411', 26.710708, -80.147471, 'address', 14),
+  pub('off-fort-lauderdale', 'Fort Lauderdale', '2455 E Sunrise Blvd.', 'Suite 1205', 'Fort Lauderdale', 'FL', '33304', 26.138072, -80.113710, 'address', 15),
+  pub('off-sarasota', 'Sarasota', '1990 Main Street', '', 'Sarasota', 'FL', '34236', 27.336405, -82.531219, 'address', 16),
+  pub('off-new-smyrna-beach', 'New Smyrna Beach', '100 S Riverside Dr', '', 'New Smyrna Beach', 'FL', '32168', 29.025586, -80.920889, 'address', 17),
+  pub('off-st-petersburg', 'St. Petersburg', '360 Central Ave', 'Ste 800', 'St. Petersburg', 'FL', '33701', 27.771150, -82.637924, 'address', 18),
+  pub('off-naples', 'Naples', '999 Vanderbilt Beach Rd.', 'Ste 224', 'Naples', 'FL', '34108', 26.250602, -81.798886, 'address', 19),
+  pub('off-miami', 'Miami', '1111 Brickell Ave', 'Floor 10', 'Miami', 'FL', '33131', 25.762700, -80.191546, 'address', 20),
 ];
 export const SAMPLE_IDS = SAMPLE_OFFICES.map((o) => o.id);
 // one line: "100 Placeholder Pike, Suite 2, Rockville, MD 20850"
