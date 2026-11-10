@@ -72,25 +72,26 @@ for (const file of files) {
     hits.get(target).push({ from: rel, stamp: m[3] });
   }
 }
-const STAMP = '202611121800';
-const changed = ['js/pages/crm.js', 'js/app.js'];
+const want = new Map([['js/pages/crm.js', '202611121800'], ['js/app.js', '202611121900']]);
 const issues = [];
 const dual = [];
 const missing = [];
-for (const target of changed) {
+for (const [target, stamp] of want) {
   const list = hits.get(target) || [];
   const stamps = [...new Set(list.map((h) => h.stamp))];
   if (!list.length) missing.push(target);
-  if (stamps.length !== 1 || stamps[0] !== STAMP) issues.push(target + ' ' + (stamps.join(',') || 'none'));
+  if (stamps.length !== 1 || stamps[0] !== stamp) issues.push(target + ' ' + (stamps.join(',') || 'none'));
   if (stamps.length > 1) dual.push(target + ' ' + stamps.join(','));
 }
+const at1800 = [...hits.entries()].filter(([, list]) => list.some((h) => h.stamp === '202611121800')).map(([target]) => target);
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
 ok(dual.length === 0, 'dual-stamp scan ' + dual.length + (dual.length ? ': ' + dual.join('; ') : ''));
 ok(missing.length === 0, 'recursive import check missing ' + missing.length + (missing.length ? ': ' + missing.join('; ') : ''));
+ok(at1800.length === 1 && at1800[0] === 'js/pages/crm.js', 'crm.js is the only module at 202611121800' + (at1800.length === 1 ? '' : ': ' + at1800.join(',')));
 const appImporters = (hits.get('js/app.js') || []).map((h) => h.from + '@' + h.stamp);
-ok(appImporters.length === 1 && appImporters[0] === 'index.html@' + STAMP, 'index.html loads app.js at ' + STAMP);
+ok(appImporters.length === 1 && appImporters[0] === 'index.html@202611121900', 'index.html loads app.js at 202611121900');
 const crmImporters = (hits.get('js/pages/crm.js') || []).map((h) => h.from + '@' + h.stamp);
-ok(crmImporters.length === 1 && crmImporters[0] === 'js/app.js@' + STAMP, 'app.js loads the CRM page at ' + STAMP);
+ok(crmImporters.length === 1 && crmImporters[0] === 'js/app.js@202611121800', 'app.js loads the CRM page at 202611121800');
 console.log('cache-stamp issues', issues.length);
 console.log('dual-stamp', dual.length);
 console.log('recursive-import missing', missing.length);
