@@ -23,7 +23,7 @@ import { officesSupabase } from './supabase-offices.js?v=202611101015';
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611101015';
 import { tcSupabase } from './supabase-tc.js?v=202611101015';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
-import { gmailSupabase } from './supabase-gmail.js?v=202611102000';
+import { gmailSupabase } from './supabase-gmail.js?v=202611110200';
 import { nov5Supabase } from './supabase-nov5.js?v=202611101800';
 import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611102000';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611101015';
@@ -743,7 +743,7 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, nov5Supabase({ sb, ok, camel, me }));
   Object.assign(a, orderOverviewSupabase({ sb, ok, camel, me: async () => ident.current() || me(), api: a }));
   a.readOverview = (dealId) => fileRead('overview:' + dealId, () => a.getOrderOverview(dealId));
-  // Staff create and resend invite links here (nothing is emailed). Accepting a link goes through the accept-invite function, not a browser sign-up.
+  // Staff create and resend invite links here. The page then calls sendInviteEmail (gmail-send) from the inviter's Gmail. Accepting a link goes through the accept-invite function, not a browser sign-up.
   Object.assign(a, staffFeedbackSupabase({ sb, ok, camel }));
   a.claRepresentationReady = true;   // deals.cla_representation exists on TEST (20261109150000)
   a.sendMessage = async ({ dealId, threadId, subject, to, bodyHtml, files } = {}) => {

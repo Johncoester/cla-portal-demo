@@ -106,11 +106,11 @@ const adapter = readFileSync(new URL('../js/data/supabase-adapter.js', import.me
 check(adapter.includes('gatherReads') && adapter.includes('profile.clear()') && adapter.includes('nav.clear()') && adapter.includes('read-batch.js?v=202611082200') && adapter.includes('supabase-staff.js?v=202611082000'), 'order reads overlap, sign-out drops the profile, and the staff module stamp is current');
 check(adapter.includes('task-actions.js?v=202611101015') && adapter.includes('supabase-order-overview.js?v=202611102000') && adapter.includes('supabase-tc.js?v=202611101015') && !adapter.includes('task-actions.js?v=202611070139') && !adapter.includes('supabase-order-overview.js?v=202611071845'), 'the changed hosted modules are imported at the current stamp');
 const appSrc = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-check(appSrc.includes("adapter.js?v=202611102300") && appSrc.includes("deal.js?v=202611102200") && appSrc.includes("dashboard.js?v=202611102200") && appSrc.includes("ordernew.js?v=202611102100") && appSrc.includes("prefetchDealTab") && !appSrc.includes('modsEarly'), 'the shell loads the current adapter and does not reuse an early module map');
+check(appSrc.includes("adapter.js?v=202611110200") && appSrc.includes("deal.js?v=202611110200") && appSrc.includes("dashboard.js?v=202611110200") && appSrc.includes("ordernew.js?v=202611102100") && appSrc.includes("prefetchDealTab") && !appSrc.includes('modsEarly'), 'the shell loads the current adapter and does not reuse an early module map');
 const taskPage = readFileSync(new URL('../js/pages/dealtasks.js', import.meta.url), 'utf8');
 const dealTab = readFileSync(new URL('../js/pages/deal-tab.js', import.meta.url), 'utf8');
 const dealPage = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
-check(taskPage.includes('constants.js?v=202611101015') && dealTab.includes('dealtasks.js?v=202611102200') && dealPage.includes('prefetchDealTab') && appSrc.includes('tabFlight.catch'), 'the tasks tab loads the current task module');
+check(taskPage.includes('constants.js?v=202611101015') && dealTab.includes('dealtasks.js?v=202611110200') && dealPage.includes('prefetchDealTab') && appSrc.includes('tabFlight.catch'), 'the tasks tab loads the current task module');
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 check(app.includes('Loading this page.') && app.includes('data-loading-note') && app.includes('#view') && !app.includes('getOrderOverview(dealId).then'), 'a file tab clears the open page before the next read and does not wait on a second overview');
 const widget = readFileSync(new URL('../js/pages/staff-feedback-widget.js', import.meta.url), 'utf8');
