@@ -1,7 +1,0 @@
-{
-  "test/test-boot-marks.js": "reads js/boot-marks.js, which is not in the repo",
-  "test/test-hosted-tasks.js": "1 check: document list and upload use the saved visibility and not the held party-checkbox share",
-  "test/test-money-boot.js": "1 check: a failed static money formatter stops the page before tasks",
-  "test/test-feedback-edge-sql-roundtrip.js": "needs a local Postgres reachable as sudo -u postgres",
-  "test/test-task-grid-integrate.js": "SHA-256 pins for files other PRs change are out of date on main"
-}

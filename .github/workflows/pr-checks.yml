@@ -1,7 +1,7 @@
 # Merge checks (Bob, Nov 10). Every pull request into main, and every merge-queue batch, must pass all three jobs.
 # Nov 10: a stamp-conflict merge dropped an import from js/app.js and every file page hung on TEST.
 #  - imports:   a name used but not defined or imported (ESLint no-undef), and every module linking (missing exports or paths)
-#  - tests:     test/test-*.js and test/test-*.sh; only failures listed in tools/known-test-failures.json are allowed
+#  - tests:     test/test-*.js and test/test-*.sh; fails only on a test that passes on main and fails with this change
 #  - smoke:     headless Chromium on the mock data, one person per role, dashboard and every tab of a file
 # To make them block merges: Settings > Branches > main > require these status checks (and a merge queue).
 name: pr-checks
@@ -57,7 +57,9 @@ jobs:
           # the sudo -u postgres tests read SQL files from the checkout
           chmod a+x /home/runner /home/runner/work
           chmod -R a+rX "$GITHUB_WORKSPACE"
-      - name: Test suite
+      - name: Test suite (fails only on a test that passes on main)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
         run: node tools/run-tests.mjs
 
   smoke:
