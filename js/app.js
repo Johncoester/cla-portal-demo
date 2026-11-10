@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611102000';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611102000';
+import { getAdapter } from './data/adapter.js?v=202611102100';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611102100';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611100100';
@@ -19,8 +19,8 @@ import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowe
 import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080400';
 import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611082000';
 import { botRegistry } from './data/bot-registry.js?v=202611080400';
-import { voiceRouteOk } from './data/voice-demo.js?v=202611091110';
-import { mountVoiceChrome, prepareVoiceShell, stopVoiceNow, voiceMenuHtml } from './pages/voice-panel.js?v=202611091110';
+import { canRequestVoice, voiceRouteOk } from './data/voice-demo.js?v=202611102100';
+import { mountVoiceChrome, prepareVoiceShell, stopVoiceNow, voiceMenuHtml } from './pages/voice-panel.js?v=202611102100';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611070139';   // John, Nov 4 call: sidebar search + pinned order nav
 import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611101015';
 import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611100100';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
@@ -33,10 +33,10 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611102000'),
-  dashboard: () => import('./pages/dashboard.js?v=202611102000'),
+  dashboard: () => import('./pages/dashboard.js?v=202611102100'),
   orders: () => import('./pages/orders.js?v=202611101015'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611102000'),
-  deal: () => import('./pages/deal.js?v=202611102000'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611102100'),
+  deal: () => import('./pages/deal.js?v=202611102100'),
   users: () => import('./pages/users.js?v=202611101015'),
   profile: () => import('./pages/profile.js?v=202611101015'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
@@ -46,7 +46,7 @@ const pages = {
   library: () => import('./pages/library.js?v=202611101015'),
   activity: () => import('./pages/activity.js?v=202611070139'),
   outbox: () => import('./pages/outbox.js?v=202611101015'),
-  tasks: () => import('./pages/tasks.js?v=202611102000'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => import('./pages/tasks.js?v=202611102100'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611101015'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js?v=202611101015'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611101600'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
@@ -428,7 +428,7 @@ export async function render() {
     : ((u && api.getModuleAccess) ? api.getModuleAccess().then((m) => m || {}).catch(() => ({})) : Promise.resolve({}));
   const hrP = navStart ? navStart.then((s) => (s && s.hr) || {}).catch(() => ({})) : Promise.resolve(null);
   let voiceP = Promise.resolve();
-  if (api.mode === 'supabase' && u && !(DEMO_VIEW && DEMO_VIEW.active) && api.requestVoicePass) {
+  if (api.mode === 'supabase' && canRequestVoice(u) && !(DEMO_VIEW && DEMO_VIEW.active) && api.requestVoicePass) {
     if (voiceCheckedFor !== u.id) { voiceCheckedFor = u.id; voiceP = api.requestVoicePass('check').then((chk) => { VOICE_OK = !!(chk.ok && chk.data && chk.data.allowed === true); }).catch(() => { VOICE_OK = false; }); }
   } else { VOICE_OK = false; if (!u) voiceCheckedFor = ''; }
   const earlyMod = u ? routeModule(route) : null;

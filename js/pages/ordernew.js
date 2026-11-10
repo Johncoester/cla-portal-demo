@@ -10,7 +10,8 @@
 // wires never shown to agents.
 import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611070139';
 import { occSelects, yesNo } from './occ-fields.js?v=202611070139';
-import { fmtPhone, TX_TYPES, runsOrders, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount } from '../data/constants.js?v=202611101015';
+import { fmtPhone, TX_TYPES, runsOrders, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount } from '../data/constants.js?v=202611101015';
+import { officeDate } from '../data/office-date.js?v=202611102100';
 import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611101015';
 import { ENTITY_TYPES } from '../data/templates.js?v=202611101015';
 import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611092320';
@@ -91,7 +92,7 @@ export async function render({ api, user, go }) {
   const staff = await optional(() => api.listSalesStaff()); const procs = await optional(() => api.listProcessors()); const preprocs = await optional(() => api.listPreprocessors()); const tcs = await optional(() => api.listCoordinators());
   const closers = closerChoices(await optional(() => api.listActiveStaff()));
   // the file's Processor: a Processor defaults to themselves; an Admin / Super admin is not a valid Processor, so they must choose one
-  const today = localDate();
+  const today = officeDate();
   // "Add new user" roles. Salesperson creates a staff login, which is Admin-only (John's earlier decision), so only Admins / Super admins see it.
   const NEW_ROLES = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer Agent'], ['Listing Agent', 'Listing Agent'], ['Lender', 'Lender'], ['Transaction Coordinator', 'Transaction coordinator'], ...(user.isAdmin ? [['Sales Person', 'Salesperson']] : [])];
   const visOpts = visibilityChoices(user.role, user.isAdmin);
@@ -349,7 +350,7 @@ export async function render({ api, user, go }) {
       $$('input, select, textarea', p).filter((el) => el.type !== 'hidden' && el.type !== 'file' && !el.closest('[hidden]:not([data-wiz-step])') && el.willValidate && !el.checkValidity())
         .forEach((el) => errs.push({ el, msg: nativeMsg(el) }));
       const f = formData(form);
-      if (k === 'transaction' && f.openDate && f.openDate > localDate() && !errs.some((e) => e.el && e.el.name === 'openDate')) errs.push({ el: $('[name=openDate]', p), msg: 'Open date cannot be in the future.' });
+      if (k === 'transaction' && f.openDate && f.openDate > officeDate() && !errs.some((e) => e.el && e.el.name === 'openDate')) errs.push({ el: $('[name=openDate]', p), msg: 'Open date cannot be in the future.' });
       if (k === 'transaction' && repOn && !$$('[name=claRepresentation]', p).some((el) => el.checked)) errs.push({ el: $('[name=claRepresentation]', p), msg: 'Choose who CLA represents: Both buyer and seller, Buyer only, or Seller only.' });
       if (k === 'property' && !zipOk(String(f.zip || '').trim())) errs.push({ el: $('[name=zip]', p), msg: 'ZIP must be 5 digits (or ZIP+4).' });
       if (k === 'property') { try { cleanParcel(f.parcelId); } catch (err) { errs.push({ el: $('[name=parcelId]', p), msg: err.message }); } }

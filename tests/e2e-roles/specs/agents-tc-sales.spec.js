@@ -1,4 +1,4 @@
-import { test, expect, signIn, openMockFile, freshIssues, runId, onTest } from '../fixtures.js';
+import { test, expect, signIn, openMockFile, freshIssues, runId } from '../fixtures.js';
 import { walkFileTabs, uploadOfferedVisibilities, shareFileLabels, assertRecipients, sendPortalMessage, fillAssignedTasks, gotoHash, dealId } from '../helpers/portal.js';
 import { recipientRules } from '../helpers/people.js';
 import { targetMode } from '../helpers/gate.js';
@@ -17,7 +17,7 @@ test('buyer agent file, tasks, documents, share list, and a message', async ({ p
   await gotoHash(page, `#/deals/${id}/tasks`);
   await fillAssignedTasks(page, runId(), { requireUpload: false });
   await gotoHash(page, `#/deals/${id}/documents`);
-  const docs = await uploadOfferedVisibilities(page, runId());
+  const docs = await uploadOfferedVisibilities(page, runId(), person);
   expect(docs.saved.length).toBeGreaterThan(1);
   const labels = await shareFileLabels(page);
   assertRecipients(labels, recipientRules(person));
@@ -39,7 +39,7 @@ test('listing agent file, documents, share list, and a message', async ({ page, 
   await expect(page.locator('[data-task-no-fields]')).toHaveCount(0);
   await expect(page.locator('#view, .co-cb').first()).not.toContainText('template n/a');
   await gotoHash(page, `#/deals/${id}/documents`);
-  const docs = await uploadOfferedVisibilities(page, runId());
+  const docs = await uploadOfferedVisibilities(page, runId(), person);
   expect(docs.saved.length).toBeGreaterThan(1);
   const labels = await shareFileLabels(page);
   assertRecipients(labels, recipientRules(person));
@@ -50,7 +50,7 @@ test('listing agent file, documents, share list, and a message', async ({ page, 
 
 test('transaction coordinator file tabs, tasks, contacts, documents, email, and a message', async ({ page, issues }) => {
   test.setTimeout(120000);
-  const { id } = await portal(page, 'coordinator');
+  const { person, id } = await portal(page, 'coordinator');
   await gotoHash(page, `#/deals/${id}/tasks`);
   await expect(page.locator('#view, .co-cb').first()).toContainText(/task/i);
   await gotoHash(page, `#/deals/${id}/contacts`);
@@ -58,7 +58,7 @@ test('transaction coordinator file tabs, tasks, contacts, documents, email, and 
   await expect(page.locator('[data-edit]')).toHaveCount(0);
   await expect(page.locator('[data-invite-portal]')).toHaveCount(0);
   await gotoHash(page, `#/deals/${id}/documents`);
-  const docs = await uploadOfferedVisibilities(page, runId());
+  const docs = await uploadOfferedVisibilities(page, runId(), person);
   expect(docs.saved).toEqual(expect.arrayContaining(['Everyone on the file']));
   await gotoHash(page, `#/deals/${id}/email`);
   await expect(page.locator('[data-email-tab]')).toBeVisible();
@@ -91,7 +91,6 @@ test('sales team is view-only on the file', async ({ page, issues }) => {
 });
 
 test('sales team invite shows the stored email and a copy link, and does not email', async ({ page, issues }) => {
-  onTest('MF-024');
   await signIn(page, 'salesTeam');
   await page.route('**/functions/v1/gmail-send**', (route) => route.fulfill({
     status: 200,

@@ -62,45 +62,120 @@ export async function walkFileTabs(page, person) {
   }
 }
 
-export async function uploadOfferedVisibilities(page, run) {
+async function audienceChoices(page) {
+  return page.locator('#uf input[name="audience"]').evaluateAll((els) => els.map((el) => ({
+    id: el.value,
+    label: ((el.closest('label') && el.closest('label').innerText) || '').replace(/\s+/g, ' ').trim(),
+    side: el.getAttribute('data-side') || '',
+    exclusive: el.hasAttribute('data-cla-only') || el.value === 'cla',
+    grants: el.getAttribute('data-grants') || '',
+    checked: el.checked,
+  })));
+}
+
+function describeAudience(checked) {
+  if (checked.length === 1 && checked[0].exclusive) return { label: checked[0].label, value: checked[0].grants || '' };
+  const sides = [...new Set(checked.map((c) => c.side).filter(Boolean))];
+  if (sides.length >= 2 || checked.some((c) => c.id === 'all')) return { label: 'Everyone on the file', value: 'all' };
+  if (sides.length === 1) return { label: sides[0] === 'buyer' ? 'Buyer side only' : 'Seller side only', value: sides[0] };
+  return { label: checked.map((c) => c.label).join(', '), value: '' };
+}
+
+async function clickAudience(page, id) {
+  const boxes = page.locator('#uf input[name="audience"]');
+  const n = await boxes.count();
+  for (let i = 0; i < n; i++) {
+    if ((await boxes.nth(i).getAttribute('value')) === id) {
+      await boxes.nth(i).click();
+      return;
+    }
+  }
+  throw new Error(`Audience choice ${id} is not on the upload form.`);
+}
+
+/* Who can see it is party checkboxes. CLA only stands alone. Checking a person shares that whole side. */
+async function applyAudience(page, plan) {
+  if (plan.kind === 'keep') return;
+  const cla = page.locator('#uf input[name="audience"][value="cla"]');
+  if (await cla.count() && !(await cla.isChecked())) await cla.click();
+  if (plan.kind === 'cla') return;
+  for (const id of plan.click) {
+    const boxes = page.locator('#uf input[name="audience"]');
+    const n = await boxes.count();
+    for (let i = 0; i < n; i++) {
+      if ((await boxes.nth(i).getAttribute('value')) === id && !(await boxes.nth(i).isChecked())) await clickAudience(page, id);
+    }
+  }
+}
+
+function audiencePlans(choices, person) {
+  const cla = choices.find((c) => c.exclusive);
+  const buyer = choices.find((c) => c.side === 'buyer');
+  const seller = choices.find((c) => c.side === 'seller');
+  const checked = choices.filter((c) => c.checked);
+  const current = describeAudience(checked);
+  const plans = [{ kind: 'keep', label: current.label, value: current.value, click: [] }];
+  const side = person && person.side;
+  if (buyer && seller) {
+    if (cla && current.value !== 'staff') plans.push({ kind: 'cla', label: cla.label, value: 'staff', click: [] });
+    if (side !== 'seller' && current.value !== 'buyer') plans.push({ kind: 'side', label: 'Buyer side only', value: 'buyer', click: [buyer.id] });
+    if (side !== 'buyer' && current.value !== 'seller') plans.push({ kind: 'side', label: 'Seller side only', value: 'seller', click: [seller.id] });
+    if (current.value !== 'all') plans.push({ kind: 'all', label: 'Everyone on the file', value: 'all', click: [buyer.id, seller.id] });
+  }
+  return plans;
+}
+
+export { officeDate as officeToday } from '../../../js/data/office-date.js';
+
+export async function uploadOfferedVisibilities(page, run, person) {
   await page.getByRole('heading', { name: 'Documents & Files' }).waitFor();
   const openBtn = page.getByRole('button', { name: 'Upload here' });
-  if (await openBtn.count() === 0) return { offered: false, saved: [], options: [] };
-  await openBtn.click();
-  const select = page.locator('#uf select[name="visibility"]');
-  await expect(select).toBeVisible();
-  const options = await select.locator('option').evaluateAll((els) => els.map((el) => ({
-    value: el.value,
-    label: (el.textContent || '').trim(),
-  })));
-  expect(options.length).toBeGreaterThan(0);
-  const saved = [];
-  for (let i = 0; i < options.length; i++) {
-    const opt = options[i];
-    if (i > 0) {
-      await page.getByRole('button', { name: 'Upload here' }).click();
+  if (await openBtn.count() === 0) return { offered: false, saved: [], options: [], values: [] };
+  const posted = [];
+  const onRequest = (req) => {
+    if (req.method() !== 'POST' || !/\/documents(?:\?|$)/.test(req.url())) return;
+    try {
+      const body = req.postDataJSON();
+      if (body && body.visibility) posted.push(body.visibility);
+    } catch (e) { /* the body was not the document row */ }
+  };
+  page.on('request', onRequest);
+  try {
+    await openBtn.click();
+    await expect(page.locator('#uf legend', { hasText: 'Who can see it' })).toBeVisible();
+    const choices = await audienceChoices(page);
+    expect(choices.length, 'upload offered no audience').toBeGreaterThan(0);
+    const plans = audiencePlans(choices, person);
+    const saved = [];
+    const options = [];
+    for (let i = 0; i < plans.length; i++) {
+      const plan = plans[i];
+      if (i > 0) await page.getByRole('button', { name: 'Upload here' }).click();
+      const form = page.locator('#uf');
+      await expect(form.locator('legend', { hasText: 'Who can see it' })).toBeVisible();
+      await applyAudience(page, plan);
+      const file = tinyPdf(`e2e-${run}-${plan.value || i}.pdf`);
+      await form.locator('[data-upload-files]').setInputFiles(file);
+      await form.locator('[data-upload-submit]').click();
+      const err = form.locator('[data-upload-err]');
+      const body = page.locator('#view, .co-cb').first();
+      await Promise.race([
+        body.getByText(file.name, { exact: true }).waitFor({ timeout: 20000 }),
+        err.filter({ hasText: /\S/ }).waitFor({ timeout: 20000 }),
+      ]);
+      const errText = await err.innerText({ timeout: 1000 }).catch(() => '');
+      const toastText = await page.locator('.toast').last().innerText({ timeout: 1000 }).catch(() => '');
+      const denied = /cannot add|not saved|row-level security|not available for your role/i.test(`${errText} ${toastText}`) && !/uploaded/i.test(toastText);
+      if (denied) throw new Error(`Sharing option "${plan.label}" is offered but the upload was refused: ${errText || toastText}`);
+      await expect(body).toContainText(file.name);
+      saved.push(plan.label);
+      options.push({ value: plan.value, label: plan.label });
+      await page.locator('#modal').waitFor({ state: 'detached' }).catch(() => {});
     }
-    const form = page.locator('#uf');
-    await form.locator('select[name="visibility"]').selectOption(opt.value);
-    const file = tinyPdf(`e2e-${run}-${opt.value}.pdf`);
-    await form.locator('[data-upload-files]').setInputFiles(file);
-    await form.locator('[data-upload-submit]').click();
-    const err = form.locator('[data-upload-err]');
-    await Promise.race([
-      page.locator('.toast', { hasText: /uploaded|could not|cannot|failed/i }).first().waitFor({ timeout: 20000 }),
-      err.filter({ hasText: /\S/ }).waitFor({ timeout: 20000 }),
-    ]);
-    const errText = await err.innerText({ timeout: 1000 }).catch(() => '');
-    const toastText = await page.locator('.toast').last().innerText({ timeout: 1000 }).catch(() => '');
-    const denied = /cannot add|not saved|row-level security/i.test(`${errText} ${toastText}`) && !/uploaded/i.test(toastText);
-    if (denied) {
-      throw new Error(`Sharing option "${opt.label}" is offered but the upload was refused: ${errText || toastText}`);
-    }
-    await expect(page.locator('#view, .co-cb').first()).toContainText(file.name);
-    saved.push(opt.label);
-    await page.locator('#modal').waitFor({ state: 'detached' }).catch(() => {});
+    return { offered: true, saved, options, values: posted };
+  } finally {
+    page.off('request', onRequest);
   }
-  return { offered: true, saved, options };
 }
 
 export async function messageRecipientLabels(page) {

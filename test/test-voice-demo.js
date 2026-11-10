@@ -4,7 +4,7 @@ import { appendTranscript, voiceFileFacts, voiceInstructions, voiceOpenPlan, voi
 import { voiceMenuHtml } from '../js/pages/voice-panel.js';
 import { botRegistry } from '../js/data/bot-registry.js';
 import { routeAllowed } from '../js/data/locked-links.js';
-import { acceptEphemeralToken, audioAppend, createVoiceAttempt, createVoiceSession, isSpokenAudioEvent, pcm16Base64ToFloat32, realtimeSocket, requestVoice, sessionUpdate, stopMic, textTurn, voicePassText, voiceRouteOk, withTimeout, VOICE_DROPPED, VOICE_NOT_CONNECTED, VOICE_SIGN_IN, VOICE_TIMED_OUT, VOICE_URL, DEMO_INSTRUCTIONS } from '../js/data/voice-demo.js';
+import { acceptEphemeralToken, audioAppend, canRequestVoice, createVoiceAttempt, createVoiceSession, isSpokenAudioEvent, pcm16Base64ToFloat32, realtimeSocket, requestVoice, sessionUpdate, stopMic, textTurn, voicePassText, voiceRouteOk, withTimeout, VOICE_DROPPED, VOICE_NOT_CONNECTED, VOICE_SIGN_IN, VOICE_TIMED_OUT, VOICE_URL, DEMO_INSTRUCTIONS } from '../js/data/voice-demo.js';
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
 const buyer = { id: 'u-buyer', role: 'Outside user', status: 'active' };
@@ -15,6 +15,8 @@ ok(voiceRouteOk(buyer, { ...signed, locked: true }) === false, 'the public fake 
 ok(voiceRouteOk(admin, { ...signed, mode: 'mock' }) === false, 'mock mode cannot reach voice');
 ok(voiceRouteOk(null, signed) === false, 'a signed-out visitor cannot reach voice');
 ok(voiceRouteOk(admin, { ...signed, demo: { active: true } }) === false, 'demo view cannot reach voice');
+ok(canRequestVoice(admin) === true, 'a super admin may ask whether voice is on');
+ok(canRequestVoice(buyer) === false && canRequestVoice({ role: 'Sales Team' }) === false && canRequestVoice({ role: 'Processor', isAdmin: false }) === false && canRequestVoice({ role: 'Admin', isAdmin: true }) === false, 'every other role skips the voice call');
 ok(routeAllowed(buyer, { page: 'voice-demo' }, { locked: true }) === false, 'the route guard blocks the fake link');
 ok(routeAllowed(admin, { page: 'voice-demo' }, { locked: false, demo: { active: true } }) === false, 'the route guard blocks demo view');
 let bad = '';
@@ -162,6 +164,7 @@ ok(appSrc.includes('${botsMenu(u)}') && appSrc.includes('wireBots()') && appSrc.
 ok(!botRegistry().some((b) => /voice/i.test(b.id + ' ' + b.label)) && !fileSrc.includes('import') && !panelSrc.includes('bot-registry'), 'voice is not in the Bots registry');
 ok(panelSrc.includes('voiceOpenPlan') && panelSrc.includes("addEventListener('click', () => attempt.start())"), 'Start is its own button; opening the panel does not start it');
 ok(appSrc.includes('prepareVoiceShell({ userId: u && u.id, dealId: shellDeal && shellDeal.id })') && (appSrc.match(/stopVoiceNow\(\)/g) || []).length >= 6, 'file switch, role/person change, sign-out and public pages stop voice');
+ok(/canRequestVoice\(u\)[\s\S]{0,240}requestVoicePass\(/.test(appSrc), 'the shell asks for a voice pass only after the role check');
 function voiceSocket() {
   return class { constructor() { this.readyState = 0; this.listeners = {}; this.sent = []; queueMicrotask(() => { this.readyState = 1; (this.listeners.open || []).forEach((fn) => fn({})); }); } addEventListener(n, fn) { (this.listeners[n] || (this.listeners[n] = [])).push(fn); } send(body) { this.sent.push(body); } close() { this.readyState = 3; (this.listeners.close || []).forEach((fn) => fn({})); } };
 }

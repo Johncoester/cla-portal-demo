@@ -61,7 +61,7 @@ test('file email, invite, and reply arrive only at the test inbox', async ({ pag
     const bigName = `e2e-${run}-large.pdf`;
     await gotoHash(page, `#/deals/${id}/documents`);
     await page.locator('#upbtn').click();
-    await page.locator('#uf select[name="visibility"]').selectOption({ index: 0 });
+    await expect(page.locator('#uf legend', { hasText: 'Who can see it' })).toBeVisible();
     await page.locator('[data-upload-files]').setInputFiles({ name: bigName, mimeType: 'application/pdf', buffer: big });
     await page.locator('[data-upload-submit]').click();
     await expect(page.locator('#view, .co-cb').first()).toContainText(bigName, { timeout: 60000 });
