@@ -23,7 +23,7 @@ export async function render(ctx) {
   const allTasks = await api.listTasks(deal.id);
   // BUYER (Nov 4 call): the agreements are to-dos that open the agreement (no Agreements tab for the buyer); the buyer never gets a Listing Agent box (listing agent never shown)
   // SELLER MIRROR (Nov 4): the pure seller gets the same To-do list (agreements as to-dos) and never a Buyer's Agent box (the buyer's agent is never shown to the seller)
-  const { isPureClient, isPureSeller, agreementTasks } = await import('./client-overview.js?v=202611120200'); const pure = user.accountRole && isPureClient(user); const hideBox = pure ? (isPureSeller(user) ? 'buyer-agent' : 'listing-agent') : null;
+  const { isPureClient, isPureSeller, agreementTasks } = await import('./client-overview.js?v=202611120500'); const pure = user.accountRole && isPureClient(user); const hideBox = pure ? (isPureSeller(user) ? 'buyer-agent' : 'listing-agent') : null;
   // CLIENT TASK PRIVACY (Matt, Nov 5, live40): a buyer / seller only ever sees tasks assigned to them (the adapter already filters; this is the UI guard),
   // only their own side's box, and "You're all caught up" once nothing is left. Never the other parties' boxes or tasks.
   const manage = runsOrders(user) || user.role === 'Transaction Coordinator';

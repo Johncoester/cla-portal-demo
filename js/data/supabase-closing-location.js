@@ -3,6 +3,7 @@
  *  - public.closing_locations(deal): the rows this user may see (signing_method only for CLA staff)
  *  - public.answer_closing_location(participant, in_state, state, country) / public.set_signing_method(participant, method): RLS + trigger decide. */
 import { cleanLocationAnswer, locationFlag, whereText, signingLabel } from './closing-location.js?v=202611101015';
+import { cleanSideSigning, sidePatch } from './closing-side.js?v=202611120500';
 export function closingLocationSupabase({ sb, ok }) {
   const list = async (dealId) => (ok(await sb.rpc('closing_locations', { p_deal: dealId })) || []).map((r) => {
     const v = { participantId: r.participant_id, dealId, partyRole: r.party_role, name: r.name || '', propertyState: r.property_state, inStateAtClosing: r.in_state_at_closing,
@@ -21,6 +22,13 @@ export function closingLocationSupabase({ sb, ok }) {
     async remindClosingLocations(dealId = null) { return ok(await sb.rpc('remind_closing_locations', { p_deal: dealId })); },
     answerClosingLocation: answer, setClosingLocation: answer,
     async setSigningMethod(dealId, pid, method) { ok(await sb.rpc('set_signing_method', { p_participant: pid, p_method: method })); return (await list(dealId)).find((z) => z.participantId === pid); },
+    async saveSideSigning(dealId, input) {
+      const clean = cleanSideSigning(input); const patch = sidePatch(clean); const row = {};
+      const map = { buyerSignStatus: 'buyer_sign_status', sellerSignStatus: 'seller_sign_status', buyerSignedOn: 'buyer_signed_on', sellerSignedOn: 'seller_signed_on', buyerPlaceKind: 'buyer_place_kind', sellerPlaceKind: 'seller_place_kind', buyerOfficeId: 'buyer_office_id', sellerOfficeId: 'seller_office_id', buyerSigningDate: 'buyer_signing_date', sellerSigningDate: 'seller_signing_date', buyerSigningTime: 'buyer_signing_time', sellerSigningTime: 'seller_signing_time', buyerManualStreet: 'buyer_manual_street', buyerManualCity: 'buyer_manual_city', buyerManualState: 'buyer_manual_state', buyerManualZip: 'buyer_manual_zip', sellerManualStreet: 'seller_manual_street', sellerManualCity: 'seller_manual_city', sellerManualState: 'seller_manual_state', sellerManualZip: 'seller_manual_zip' };
+      for (const [k, col] of Object.entries(map)) if (patch[k] !== undefined) row[col] = patch[k] || null;
+      ok(await sb.from('deals').update(row).eq('id', dealId));
+      return clean;
+    },
     async closingLocationFlags(dealId) { return (await list(dealId)).filter((v) => v.flag).map((v) => ({ participantId: v.participantId, ...v.flag, signingMethod: v.signingMethod, signingLabel: v.signingLabel })); },
   };
 }
