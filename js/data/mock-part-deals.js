@@ -3,6 +3,7 @@ import { autoCounty } from './county-auto.js?v=202611090935';
 import { checkSource } from './mock-part-nov3b.js?v=202611092320';
 import { isRefi, REFI_BLOCKED_FIELDS } from './constants.js?v=202611090935';
 import { PROCESSOR_PICK_ROLES, referralWriteError } from './place-order.js?v=202611092320';
+import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611101030';
 import { claRepresentationCode } from './cla-representation.js?v=202611090950';
 import { buildFileNumber, retagFileNumber, sentOutside } from './file-number.js?v=202611092340';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
@@ -63,10 +64,19 @@ export function dealsAndAuth(x) {
       return clone(load().profiles.filter((p) => p.status === 'active' && PROCESSOR_PICK_ROLES.includes(p.role) && !!p.isDemo === !!u.isDemo).map(({ id, firstName, lastName, role, isDemo }) => ({ id, firstName, lastName, role, isDemo: !!isDemo }))); },
     async listPreprocessors() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
       return clone(load().profiles.filter((p) => p.status === 'active' && p.role === 'Preprocessor').map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role }))); },
-    // John, Nov 2: who can be a file's Transaction Coordinator = active users whose account role is exactly 'Transaction Coordinator' (with their contact id)
+    // John, Nov 2: who can be a file's Transaction Coordinator = active users whose account role is exactly 'Transaction Coordinator' (with their contact id).
+    // A TC login with no contact (HR accept does not create one) gets a contact here so the Place Order dropdown can save them.
     async listCoordinators() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
-      return clone(load().profiles.filter((p) => p.status === 'active' && p.role === 'Transaction Coordinator').map((p) => { const c = contactOf(p.id);
-        return { id: p.id, contactId: c ? c.id : null, firstName: p.firstName, lastName: p.lastName, email: p.email, phone: p.phone, company: c ? c.company : '', role: p.role }; }).filter((p) => p.contactId)); },
+      const d = load(); const plan = coordinatorRoster(d.profiles, d.contacts, u);
+      for (const draft of plan.created) { const id = nid('c'); d.contacts.push({ id, profileId: draft.profileId, firstName: draft.firstName, lastName: draft.lastName, email: draft.email, phone: draft.phone, company: '', contactType: null, isDemo: draft.isDemo, createdBy: u.id, createdAt: now() });
+        const row = plan.rows.find((r) => r.profileId === draft.profileId); if (row) row.contactId = id; }
+      if (plan.created.length) save();
+      return clone(plan.rows.filter((r) => r.contactId).map((r) => ({ id: r.profileId, contactId: r.contactId, firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, company: r.company, role: 'Transaction Coordinator' }))); },
+    async findDuplicateOrders({ street, city, state, zip, buyerIds, sellerIds } = {}) { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
+      const d = load(); const orders = dealsFor(u).map((q) => ({ id: q.id, fileNumber: q.fileNumber, street: q.street, city: q.city, state: q.state, zip: q.zip, status: q.status,
+        buyerIds: d.participants.filter((p) => p.dealId === q.id && p.role === 'Client-Buyer').map((p) => p.contactId),
+        sellerIds: d.participants.filter((p) => p.dealId === q.id && p.role === 'Client-Seller').map((p) => p.contactId) }));
+      return duplicateOrders({ street, city, state, zip, buyerIds, sellerIds, orders }); },
     async listSalesStaff() { needUser(); return clone(load().profiles.filter((p) => p.status === 'active' && ['Sales Person', 'Sales Team'].includes(p.role)).map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role }))); },
     async unreadCount() { const u = needUser(); return dealsFor(u).reduce((n, q) => n + dealView(u, q).unread, 0); },
     // ---------- Deals ----------
