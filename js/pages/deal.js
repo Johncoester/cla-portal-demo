@@ -12,9 +12,9 @@ import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.j
 import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611101015';
 import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611101015';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611101015';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611101245';
 import { gatherReads } from '../data/read-batch.js?v=202611082010';
-import { prefetchDealTab } from './deal-tab.js?v=202611101015';
+import { prefetchDealTab } from './deal-tab.js?v=202611101245';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';
