@@ -8,6 +8,7 @@
  *   - janineLazyUpgrade: Zillow URL -> Zillow Profile, leads linked to their company. No storage-key bump: lazy, idempotent, lossless. */
 import { parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, buildIcs, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611101600';
 import { importedStatusDecision } from './crm-import-status.js?v=202611120600';
+import { cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611121000';
 import { ensureSettings } from './crm-config.js?v=202611070139';
 import { companyKey, CRM_OWNER_ROLES } from './crm.js?v=202611070139';
 import { US_STATE_NAMES } from './constants.js?v=202611101015';
@@ -159,6 +160,21 @@ export function crmJaninePart(x, ctx) {
     },
     async listCrmMeetingInvites(id) { const u = crmUser(); const d = db(); const m = d.crmActivities.find((z) => z.id === id && z.kind === 'meeting'); if (!m || !seen(u, m.entity, m.entityId)) fail('Meeting not found.');
       return d.crmMeetingInvites.filter((z) => z.meetingId === id).map((z) => ({ ...z, createdByName: nameOf(z.createdBy) })); },
+    // Janine, Nov 10: the same per-login column row the hosted table stores. Demo data only. No network.
+    async getUserUiPrefs(module) {
+      const u = crmUser(); const mod = cleanUiModule(module); const d = db();
+      const row = (d.userUiPrefs || []).find((r) => r.userId === u.id && r.module === mod);
+      return row ? { module: mod, prefs: { order: row.prefs.order.slice() }, updatedAt: row.updatedAt } : null;
+    },
+    async saveUserUiPrefs(module, prefs) {
+      const u = crmUser(); const mod = cleanUiModule(module); const clean = cleanUiPrefs(prefs); const d = db();
+      d.userUiPrefs ||= [];
+      let row = d.userUiPrefs.find((r) => r.userId === u.id && r.module === mod);
+      const at = now();
+      if (!row) { row = { userId: u.id, module: mod }; d.userUiPrefs.push(row); }
+      row.prefs = { order: clean.order.slice() }; row.updatedAt = at; save();
+      return { module: mod, prefs: { order: row.prefs.order.slice() }, updatedAt: at };
+    },
   };
   return { api, localDate };
 }

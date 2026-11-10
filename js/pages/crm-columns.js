@@ -1,7 +1,7 @@
-/* Manage columns (Janine, Nov 5). Every field of the module, check to show, drag to reorder, cap 10.
- * The choice is read from local storage during render. It does not call the network. */
+/* Manage columns (Janine, Nov 5; saved on the login Nov 10). Every field of the module, check to show, drag to reorder, cap 10.
+ * The open list paints from this browser, then applies the login's row once. A change is saved after a short pause. */
 import { html, raw, toText, $, $$ } from '../ui.js?v=202611070139';
-import { COLUMN_CAP, loadColumns, saveColumns } from '../data/crm-columns.js?v=202611120600';
+import { COLUMN_CAP, loadColumns, scheduleColumnSave } from '../data/crm-columns.js?v=202611121000';
 
 const storageOf = (storage) => {
   if (storage) return storage;
@@ -16,7 +16,7 @@ export function columnChooserHtml(module, fields, visible) {
   const on = new Set(visible);
   return html`<details class="col-chooser" data-manage-cols="${module}">
     <summary>Manage columns</summary>
-    <p class="muted small" data-col-cap>Check a field to show it. At most ${COLUMN_CAP}. Drag a shown field to change the order. Saved for you in this browser.</p>
+    <p class="muted small" data-col-cap>Check a field to show it. At most ${COLUMN_CAP}. Drag a shown field to change the order. Saved for you on this login.</p>
     <ol data-col-order>${visible.map((k) => { const f = fields.find((z) => z.key === k); return html`<li draggable="true" data-col-key="${k}">${f ? f.label : k}</li>`; })}</ol>
     <div class="col-list" data-col-picks>${fields.map((f) => html`<label class="check"><input type="checkbox" data-col-pick="${f.key}" ${on.has(f.key) ? raw('checked') : ''}> ${f.label}</label>`)}</div>
     <p><button type="button" class="ghost" data-cols-reset>Default columns</button></p>
@@ -24,14 +24,17 @@ export function columnChooserHtml(module, fields, visible) {
   </details>`;
 }
 
-export function wireColumnChooser(root, { module, userId, fields, visible, defaults, known, onChange, storage }) {
-  const box = $(`[data-manage-cols="${module}"]`, root); if (!box) return visible;
+export function wireColumnChooser(root, { module, userId, fields, visible, defaults, known, onChange, storage, api }) {
+  const box = $(`[data-manage-cols="${module}"]`, root); if (!box) return { setOrder() {} };
   const store = storageOf(storage);
   const say = (t) => { const p = $('[data-col-msg]', box); if (!p) return; p.hidden = !t; p.textContent = t || ''; };
   const drawOrder = (order) => { const ol = $('[data-col-order]', box); if (!ol) return;
     ol.innerHTML = toText(order.map((k) => { const f = fields.find((z) => z.key === k); return html`<li draggable="true" data-col-key="${k}">${f ? f.label : k}</li>`; }));
     $$('[data-col-pick]', box).forEach((cb) => { cb.checked = order.includes(cb.dataset.colPick); }); };
-  const commit = (order, msg) => { const next = saveColumns(store, userId, module, order, known); drawOrder(next); say(msg || ''); onChange(next); return next; };
+  const commit = (order, msg) => {
+    const next = scheduleColumnSave({ api, storage: store, userId, module, order, known });
+    drawOrder(next); say(msg || ''); onChange(next); return next;
+  };
   box.addEventListener('change', (e) => {
     const cb = e.target.closest('[data-col-pick]'); if (!cb) return;
     const key = cb.dataset.colPick; let order = [...visible];
@@ -57,5 +60,5 @@ export function wireColumnChooser(root, { module, userId, fields, visible, defau
   });
   const reset = $('[data-cols-reset]', box);
   if (reset) reset.addEventListener('click', () => { visible = commit(defaults, ''); });
-  return visible;
+  return { setOrder(order) { visible = order.slice(); drawOrder(visible); } };
 }
