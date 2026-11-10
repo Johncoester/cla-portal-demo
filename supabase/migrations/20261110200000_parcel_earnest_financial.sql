@@ -63,8 +63,8 @@ begin
   end if;
   select count(*) into n from information_schema.columns
   where table_schema = 'public' and table_name = 'deals';
-  if n <> 67 then
-    raise exception 'drift: deals has % columns, expected 67', n;
+  if n <> 68 then
+    raise exception 'drift: deals has % columns, expected 68', n;
   end if;
 end $$;
 
@@ -103,8 +103,8 @@ begin
   end if;
   select count(*) into n from information_schema.columns
   where table_schema = 'public' and table_name = 'deals';
-  if n <> 69 then
-    raise exception 'readback: deals has % columns, expected 69', n;
+  if n <> 70 then
+    raise exception 'readback: deals has % columns, expected 70', n;
   end if;
   if not (select relrowsecurity from pg_class where oid = 'public.deals'::regclass) then
     raise exception 'readback: deals RLS is off';

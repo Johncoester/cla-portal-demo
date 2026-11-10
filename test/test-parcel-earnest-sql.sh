@@ -44,12 +44,22 @@ if ! "${PSQL[@]}" -tAc "select 1 from information_schema.columns where table_sch
   "${PSQL[@]}" -f "$ROOT/supabase/migrations/20261110071500_deal_closer.sql"
 fi
 if ! "${PSQL[@]}" -tAc "select 1 from information_schema.columns where table_schema='public' and table_name='deals' and column_name='lender_address'" | grep -q 1; then
+  # Lender expects 61 columns. closing_time may already have been added while the
+  # count was still short. Park it, apply lender, then put closing_time back.
+  if "${PSQL[@]}" -tAc "select 1 from information_schema.columns where table_schema='public' and table_name='deals' and column_name='closing_time'" | grep -q 1; then
+    echo "PARK deals.closing_time so the lender migration still sees 61 columns"
+    "${PSQL[@]}" -c "alter table public.deals drop constraint if exists deals_closing_time_chk; alter table public.deals drop column closing_time;"
+  fi
   echo "REPAIR lender columns by re-running 20261110081500"
   "${PSQL[@]}" -f "$ROOT/supabase/migrations/20261110081500_lender_clause_cpl_contacts.sql"
 fi
 if ! "${PSQL[@]}" -tAc "select 1 from information_schema.columns where table_schema='public' and table_name='deals' and column_name='latitude'" | grep -q 1; then
   echo "REPAIR deals.latitude and longitude from 20261110083000 (that file's function drift check did not pass on this scratch database)"
   "${PSQL[@]}" -c "alter table public.deals add column latitude double precision; alter table public.deals add column longitude double precision;"
+fi
+if ! "${PSQL[@]}" -tAc "select 1 from information_schema.columns where table_schema='public' and table_name='deals' and column_name='closing_time'" | grep -q 1; then
+  echo "APPLY 20261110190000_deal_closing_time after the 67-column shape"
+  "${PSQL[@]}" -f "$ROOT/supabase/migrations/20261110190000_deal_closing_time.sql"
 fi
 if ! "${PSQL[@]}" -tAc "select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='crm_import_batch'" | grep -q 1; then
   echo "REPAIR hosted CRM import by re-running 20261110100000"
@@ -58,8 +68,8 @@ fi
 
 count="$("${PSQL[@]}" -tAc "select count(*) from information_schema.columns where table_schema='public' and table_name='deals'")"
 echo "deals columns before parcel migration: $count (migrations ok=$ok fail=$bad)"
-if [ "$count" != "67" ]; then
-  echo "expected 67 deals columns after main's migrations" >&2
+if [ "$count" != "68" ]; then
+  echo "expected 68 deals columns after main's migrations" >&2
   "${PSQL[@]}" -c "select column_name from information_schema.columns where table_schema='public' and table_name='deals' order by ordinal_position;"
   exit 1
 fi
@@ -85,7 +95,7 @@ echo "rollback ok"
 
 "${PSQL[@]}" -f "$MIG"
 re="$("${PSQL[@]}" -tAc "select count(*) from information_schema.columns where table_schema='public' and table_name='deals'")"
-if [ "$re" != "69" ]; then echo "reapply left $re columns" >&2; exit 1; fi
+if [ "$re" != "70" ]; then echo "reapply left $re columns" >&2; exit 1; fi
 if "${PSQL[@]}" -c "insert into public.contacts (first_name, custom) values ('Marked2', '{\"ff_marker\":\"1\"}'::jsonb);" >/tmp/francis-custom2.out 2>&1; then
   echo "unknown custom key was accepted after reapply" >&2
   exit 1

@@ -13,7 +13,6 @@ on:
   workflow_run:
     workflows: ["pages-build-deployment"]
     types: [completed]
-  deployment_status:
   schedule:
     # 2:00 AM Eastern Daylight Time and 2:00 AM Eastern Standard Time.
     # The job continues only when the clock in America/New_York says 02.
@@ -32,9 +31,9 @@ jobs:
     if: >-
       (github.event_name == 'workflow_dispatch') ||
       (github.event_name == 'schedule') ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
-      (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' && github.event.deployment.environment != 'production')
-    runs-on: ubuntu-latest
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    # ubuntu-latest is 26.04. Playwright 1.58.2 cannot install Chromium there.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       E2E_TARGET: test

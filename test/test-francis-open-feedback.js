@@ -67,7 +67,7 @@ ok(editModal.includes('name="emdHeldBy"') && editModal.includes('name="parcelId"
 ok(dealSrc.includes('edit ? html`<button class="icon-edit" id="editdeal"'), 'the edit control is still limited to staff who can edit the order');
 
 const migration = readFileSync(new URL('../supabase/migrations/20261110200000_parcel_earnest_financial.sql', import.meta.url), 'utf8');
-ok(migration.includes('parcel_id') && migration.includes('financial') && migration.includes("lock_timeout = '3s'") && migration.includes('expected 67') && !/update\s+public\.contacts/i.test(migration) && !/contacts\.custom/.test(migration), 'the migration adds parcel and financial on deals and does not write contacts.custom');
+ok(migration.includes('parcel_id') && migration.includes('financial') && migration.includes("lock_timeout = '3s'") && migration.includes('expected 68') && migration.includes('expected 70') && !/update\s+public\.contacts/i.test(migration) && !/contacts\.custom/.test(migration), 'the migration adds parcel and financial on deals and does not write contacts.custom');
 
 console.log(fail ? fail + ' failed' : 'francis open feedback passed');
 if (fail) process.exit(1);

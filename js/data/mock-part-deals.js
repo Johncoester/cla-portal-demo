@@ -4,6 +4,7 @@ import { checkSource } from './mock-part-nov3b.js?v=202611101015';
 import { isRefi, REFI_BLOCKED_FIELDS, STAFF_ACCOUNT_ROLES } from './constants.js?v=202611101015';
 import { closerChoices, resolveCloser } from './closer.js?v=202611101015';
 import { PROCESSOR_PICK_ROLES, referralWriteError } from './place-order.js?v=202611092320';
+import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611101700';
 import { claRepresentationCode } from './cla-representation.js?v=202611090950';
 import { buildFileNumber, retagFileNumber, sentOutside } from './file-number.js?v=202611092340';
 import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions } from './lender-file.js?v=202611101200';
@@ -32,6 +33,11 @@ export function dealsAndAuth(x) {
     if (!PROCESSOR_PICK_ROLES.includes(p.role) || p.status !== 'active') fail('The Processor on an order must be an active Processor, Preprocessor, Admin or Super admin.');
     if (!!p.isDemo !== !!(actor && actor.isDemo)) fail('A real order cannot use a demo Processor, and a demo order cannot use a real Processor.'); return p; };
   const salesList = (inp) => { const v = inp.salesIds !== undefined ? inp.salesIds : inp.salesPersonId; return [...new Set((v == null ? [] : Array.isArray(v) ? v : String(v).split(',')).map((z) => String(z).trim()).filter(Boolean))]; };
+  const closerOn = (u, text, current) => {
+    const staff = load().profiles.filter((p) => p.status === 'active' && STAFF_ACCOUNT_ROLES.includes(p.role) && !!p.isDemo === !!u.isDemo);
+    return resolveCloser(text, closerChoices(staff), current || {});
+  };
+  const closingTimeOf = (value) => { const t = String(value == null ? '' : value).trim(); if (t && !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) fail('Enter a time as HH:MM, or clear it.'); return t; };
   function setSales(u, dealId, ids) { const d = load(); d.dealSalesPeople ||= []; const cur = x.salesOf(dealId).map((s) => s.salesId);
     const add = ids.filter((sid) => !cur.includes(sid)); const drop = cur.filter((sid) => !ids.includes(sid));
     d.dealSalesPeople = d.dealSalesPeople.filter((s) => !(s.dealId === dealId && drop.includes(s.salesId)));
@@ -67,10 +73,16 @@ export function dealsAndAuth(x) {
       return clone(load().profiles.filter((p) => p.status === 'active' && PROCESSOR_PICK_ROLES.includes(p.role) && !!p.isDemo === !!u.isDemo).map(({ id, firstName, lastName, role, isDemo }) => ({ id, firstName, lastName, role, isDemo: !!isDemo }))); },
     async listPreprocessors() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
       return clone(load().profiles.filter((p) => p.status === 'active' && p.role === 'Preprocessor').map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role }))); },
-    // John, Nov 2: who can be a file's Transaction Coordinator = active users whose account role is exactly 'Transaction Coordinator' (with their contact id)
+    // John, Nov 2: who can be a file's Transaction Coordinator = active users whose account role is exactly 'Transaction Coordinator' (with their contact id).
+    // A TC login with no contact stays off this list. The migration creates that contact; opening Place Order does not.
     async listCoordinators() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
-      return clone(load().profiles.filter((p) => p.status === 'active' && p.role === 'Transaction Coordinator').map((p) => { const c = contactOf(p.id);
-        return { id: p.id, contactId: c ? c.id : null, firstName: p.firstName, lastName: p.lastName, email: p.email, phone: p.phone, company: c ? c.company : '', role: p.role }; }).filter((p) => p.contactId)); },
+      const d = load(); const plan = coordinatorRoster(d.profiles, d.contacts, u);
+      return clone(plan.rows.filter((r) => r.contactId).map((r) => ({ id: r.profileId, contactId: r.contactId, firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, company: r.company, role: 'Transaction Coordinator' }))); },
+    async findDuplicateOrders({ street, city, state, zip, buyerIds, sellerIds } = {}) { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
+      const d = load(); const orders = dealsFor(u).map((q) => ({ id: q.id, fileNumber: q.fileNumber, street: q.street, city: q.city, state: q.state, zip: q.zip, status: q.status,
+        buyerIds: d.participants.filter((p) => p.dealId === q.id && p.role === 'Client-Buyer').map((p) => p.contactId),
+        sellerIds: d.participants.filter((p) => p.dealId === q.id && p.role === 'Client-Seller').map((p) => p.contactId) }));
+      return duplicateOrders({ street, city, state, zip, buyerIds, sellerIds, orders }); },
     async listSalesStaff() { needUser(); return clone(load().profiles.filter((p) => p.status === 'active' && ['Sales Person', 'Sales Team'].includes(p.role)).map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role }))); },
     async listActiveStaff() { const u = needUser(); return clone(load().profiles.filter((p) => p.status === 'active' && STAFF_ACCOUNT_ROLES.includes(p.role) && !!p.isDemo === !!u.isDemo).map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role, status: 'active' }))); },
     async unreadCount() { const u = needUser(); return dealsFor(u).reduce((n, q) => n + dealView(u, q).unread, 0); },
@@ -106,6 +118,8 @@ export function dealsAndAuth(x) {
         lenderName: str(input.lenderName, 200), lenderContact: str(input.lenderContact, 200), lenderEmail: str(input.lenderEmail, 200).toLowerCase(), lenderPhone: x.phone(input.lenderPhone, 'Lender phone'), lossPayeeName: str(input.lossPayeeName, 400),
         ...lenderExtras(input),
         sourceOfBusiness: (() => { const src = checkSource(d, input.sourceOfBusiness, '', fail); const msg = referralWriteError({ source: src, contacts: d.contacts, profiles: d.profiles, actor: u, participants: d.participants, dealId: '' }); if (msg) fail(msg); return src; })(), ...occFields(input, transactionType, fail), notes: str(input.notes, 2000), claRepresentation, processorId: procId, processorUnassigned: !procId, preprocessorUserId: preprocId ? preprocId.id : null, createdBy: u.id, createdAt: now() };
+      const placedCloser = closerOn(u, input.closerName, {});
+      deal.closerName = placedCloser.closerName; deal.closerProfileId = placedCloser.closerProfileId; deal.closingTime = closingTimeOf(input.closingTime);
       if (deal.lenderEmail && !emailOk(deal.lenderEmail)) fail('Lender email is not valid.');
       d.deals.push(deal);
       const pc = procId && contactOf(procId); if (pc) d.participants.push({ id: nid('dp'), dealId: deal.id, contactId: pc.id, role: 'Processor', createdAt: now() });
@@ -168,9 +182,9 @@ export function dealsAndAuth(x) {
         if (nextId !== prev) { q.tcUserId = nextId; log(id, u.id, 'deal.tc', 'deal', id, nextId ? `Transaction Coordinator set to ${nameOf(nextId)}` : 'Transaction Coordinator unassigned');
           if (nextId) notify([nextId], { kind: 'tc', dealId: id, title: `You are now the Transaction Coordinator on ${q.fileNumber || 'an order'}`, link: `#/deals/${id}` }, u.id); } }
       if (patch.salesIds !== undefined || patch.salesPersonId !== undefined) { const ids = salesList(patch); ids.forEach((sid) => { if (!x.salesOf(id).some((s) => s.salesId === sid)) checkSales(sid); }); setSales(u, id, ids); }
+      if (patch.closingTime !== undefined) q.closingTime = closingTimeOf(patch.closingTime);
       if (patch.closerName !== undefined || patch.closerProfileId !== undefined) {
-        const staff = d.profiles.filter((p) => p.status === 'active' && STAFF_ACCOUNT_ROLES.includes(p.role) && !!p.isDemo === !!u.isDemo);
-        const next = resolveCloser(patch.closerName, closerChoices(staff), { closerName: q.closerName || '', closerProfileId: q.closerProfileId || null });
+        const next = closerOn(u, patch.closerName, { closerName: q.closerName || '', closerProfileId: q.closerProfileId || null });
         if (next.closerName !== (q.closerName || '') || (next.closerProfileId || null) !== (q.closerProfileId || null)) {
           q.closerName = next.closerName; q.closerProfileId = next.closerProfileId;
           log(id, u.id, 'deal.closer', 'deal', id, next.closerName ? `Closer set to ${next.closerName}` : 'Closer cleared');

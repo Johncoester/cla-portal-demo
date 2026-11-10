@@ -9,6 +9,8 @@ import { pickerHtml, mountPicker } from './person-picker.js?v=202611101015';
 import { composeModal } from './compose.js?v=202611101015';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611092320';
 import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611101015';
+import { canManageClosingLocations } from '../data/closing-location.js?v=202611101015';
+import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611101900';
 import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611101015';
 import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611102000';
@@ -84,7 +86,17 @@ export async function render(ctx) {
   const { ag, salesStaff, ov, ur, inv, locFlags, promptHtml, splits, demoLocked } = pack;
   deal.staffOrderNotes = pack.notes;   // John, Nov 4: staff-only order notes (Title module sticky notes; never clients / agents)
   const flagHtml = locFlags.length ? html`<div class="notice warn" data-location-flags>${locFlags.map((f) => html`<div data-location-flag="${f.participantId}"><strong>${f.text}</strong> &middot; signing method: ${f.signingLabel} <a href="#/deals/${deal.id}/closing">scheduling</a></div>`)}</div>` : '';
-  const v = overview({ ...ctx, demoLocked }, deal, here, ag, salesStaff, ov, splits); const extra = agentPanels(ctx, deal, ov, ur, inv); const done = placedPanel(deal);
+  const staffView = !user.accountRole && user.role !== 'Outside user';
+  const canEdit = runsOrders(user) && !demoLocked;
+  let closerStaff = [];
+  let contactChoices = [];
+  if (canEdit) {
+    try { closerStaff = api.listActiveStaff ? await api.listActiveStaff() : []; } catch (e) { closerStaff = []; }
+    try { contactChoices = api.listContacts ? await api.listContacts() : []; } catch (e) { contactChoices = []; }
+  }
+  const locations = staffView && api.listClosingLocations ? await api.listClosingLocations(deal.id).catch(() => []) : [];
+  const settlement = { staffView, canEdit, canEditSigning: staffView && canManageClosingLocations(user) && !demoLocked, closerStaff, contactChoices, locations };
+  const v = overview({ ...ctx, demoLocked, settlement }, deal, here, ag, salesStaff, ov, splits); const extra = agentPanels(ctx, deal, ov, ur, inv); const done = placedPanel(deal);
   return { ...v, deal, noOrderHeader: true, body: html`${done.html}${promptHtml}${flagHtml}${v.head}${extra.top}${v.body}${extra.bottom}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
 }
 
@@ -122,7 +134,7 @@ const partyName = (p) => partyDisplayName(p);
 const entityExtra = (p) => { const e = p && p.entity; if (!e) return ''; if (partyName(p) !== e.name) return entityLine(e); const rep = [e.repName, e.repTitle].filter(Boolean).join(', '); if (!e.type && !rep && !e.repPhone && !e.repEmail) return ''; return html`<div class="entity-line small" data-entity="${e.name}">${e.type ? html`<span class="muted">${e.type}</span>` : ''}${rep ? html`<br>Representative: ${rep}` : ''}${e.repPhone || e.repEmail ? html`<br><span class="muted">${[fmtPhone(e.repPhone), e.repEmail].filter(Boolean).join(' \u00b7 ')}</span>` : ''}</div>`; };
 const person = (p) => { if (!p) return html`<div class="muted">Not specified</div>`; const name = partyName(p); const company = p.contact.company && p.contact.company !== name ? p.contact.company : ''; return html`<div class="person" data-person="${p.contactId}">${entityExtra(p)}<strong>${name}${p.removed ? ' (removed)' : ''}</strong>${p.contact.contactHidden ? html`<br><span class="muted contact-hidden">${HIDDEN_CONTACT}</span>` : html`<br><span class="muted">${p.contact.email}</span><br><span class="muted">${fmtPhone(p.contact.phone)}</span>`}${company ? html`<br><span class="muted">${company}</span>` : ''}</div>`; };
 
-function overview({ api, user, refresh, demoLocked }, d, crumbs, ag, salesStaff = [], ov = null, splits = []) {
+function overview({ api, user, refresh, demoLocked, settlement = null }, d, crumbs, ag, salesStaff = [], ov = null, splits = []) {
   const staffView = !user.accountRole && user.role !== 'Outside user';
   const canWire = staffView || (user.roles || [user.role]).includes('Client-Buyer');   // Matt, Oct 31: buyer only (plus CLA staff)
   const sc = d.scheduledClosing;
@@ -162,6 +174,7 @@ function overview({ api, user, refresh, demoLocked }, d, crumbs, ag, salesStaff 
   const lenderLine = d.lenderName || d.lenderContact || d.lenderEmail || d.lenderPhone ? html`<b>${d.lenderName || d.lenderContact}</b>${d.lenderName && d.lenderContact ? html` &middot; ${d.lenderContact}` : ''}${d.lenderEmail || d.lenderPhone ? html`<br><span class="muted small">${[d.lenderEmail, fmtPhone(d.lenderPhone)].filter(Boolean).join(' \u00b7 ')}</span>` : ''}`
     : by('Lender') ? html`<b>${by('Lender').contact.firstName} ${by('Lender').contact.lastName}</b>${by('Lender').contact.company ? html`<br><span class="muted small">${by('Lender').contact.company}</span>` : ''}` : Number(d.loanAmount) ? html`<b>Not yet entered</b>` : html`<b>None (cash)</b>`;
   const body = html`
+    ${settlementSectionHtml({ deal: d, user, demoLocked, contacts: (settlement && settlement.contactChoices) || [], closerStaff: (settlement && settlement.closerStaff) || [], locations: (settlement && settlement.locations) || [] })}
     <div class="box-title"><h2><span class="h-ico"></span>Parties</h2><a class="ghost right" href="#/deals/${d.id}/contacts">All contacts</a></div>
     ${partiesList(d, ov, staffView, { splits, edit, source: staffView ? (d.sourceOfBusiness || '') : '', sourceLabel: staffView ? (d.sourceOfBusinessLabel || '') : '' })}
     ${staffView ? html`<div class="op-party-tools" data-party-tools>${edit ? html`<button type="button" class="ghost" data-add-party="Client-Buyer">+ Add ${B.toLowerCase()}</button>${!refi ? html` <button type="button" class="ghost" data-add-party="Client-Seller">+ Add seller</button>` : ''}` : ''}
@@ -173,8 +186,7 @@ function overview({ api, user, refresh, demoLocked }, d, crumbs, ag, salesStaff 
     <div class="box-title"><h2><span class="h-ico"></span>Order Contacts</h2><a class="ghost right" href="#/deals/${d.id}/contacts">All contacts</a></div>
     <div class="card op-contacts-card" data-order-contacts>${staffView ? lenderSectionHtml(d, { canEdit: edit }) : html`<div><div class="muted small">Lender</div><div data-lender>${lenderLine}</div></div>`}
       <div><div class="muted small">HOA</div><div>${by('HOA') ? html`<b>${by('HOA').contact.firstName} ${by('HOA').contact.lastName}</b>` : html`<b>&mdash;</b>`}</div></div>
-      <div><div class="muted small">Closing location</div><div><b>${sc && sc.location ? sc.location : 'CLA Title office (to be confirmed)'}</b></div></div></div>
-    <table class="tbl striped op-contacts-tbl" data-all-order-contacts hidden><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th></tr></thead><tbody>${d.participants.map((p) => { const name = partyName(p); return html`<tr><td>${name}${p.removed ? html` ${pill('removed', 'bad')}` : ''}</td><td>${p.role}</td>${p.contact.contactHidden ? html`<td colspan="2" class="muted contact-hidden">${HIDDEN_CONTACT}</td>` : html`<td>${fmtPhone(p.contact.phone)} <button type="button" class="op-act" data-copy-field="${fmtPhone(p.contact.phone)}" aria-label="Copy phone">Copy</button></td><td>${p.contact.email} <button type="button" class="op-act" data-copy-field="${p.contact.email}" aria-label="Copy email">Copy</button></td>`}</tr>`; })}</tbody></table>`;
+      <div><div class="muted small">Closing location</div><div><b>${sc && sc.location ? sc.location : 'CLA Title office (to be confirmed)'}</b></div></div></div>`;
   return { title: d.fileNumber, crumbs: [...crumbs, ['Order Details']], head, body, mount(root) {
     $$('.step', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.setStage(d.id, b.dataset.stage); toast('Stage updated'); refresh(); })));
     const ss = $('#statussel', root); if (ss) ss.addEventListener('change', guard(async () => { await api.setDealStatus(d.id, ss.value); toast('Status updated'); refresh(); }));
@@ -186,6 +198,7 @@ function overview({ api, user, refresh, demoLocked }, d, crumbs, ag, salesStaff 
     $$('[data-add-party]', root).forEach((b) => b.addEventListener('click', guard(() => addPartyModal(api, d, b.dataset.addParty, refresh))));
     const en = $('[data-edit-notes]', root); if (en) en.addEventListener('click', guard(() => editModal(api, d, refresh)));
     mountParties(root, { api, d, refresh, canEdit: edit && staffView });
+    mountSettlement(root, { api, deal: d, refresh, user, demoLocked, contacts: (settlement && settlement.contactChoices) || [], closerStaff: (settlement && settlement.closerStaff) || [] });
     if (staffView) mountLenderSection(root, { api, deal: d, refresh });
   } };
 }
@@ -292,7 +305,7 @@ const COPY_ICON = html`<svg class="op-copy-ico" viewBox="0 0 24 24" width="14" h
 const copyLabel = (kind) => (kind === 'email' ? 'Copy email address' : 'Copy phone number');
 export function partyCopyButton(kind, value) {
   const label = copyLabel(kind);
-  return html`<button type="button" class="op-copy" data-copy-field="${value}" data-copy-kind="${kind}" aria-label="${label}" title="${label}">${COPY_ICON}</button>`;
+  return html`<button type="button" class="op-copy" data-copy-field="${value}" data-copy-kind="${kind}" aria-label="${label}" title="${label}">${COPY_ICON}</button><span class="copy-confirm" data-copy-confirm hidden>Copied</span>`;
 }
 /* True only when the text actually landed on the clipboard. A denied or missing clipboard is a failure. */
 export async function copyPlainText(text, deps = {}) {
@@ -364,8 +377,10 @@ function mountParties(root, { api, d, refresh, canEdit } = {}) {
     try { ok = await copyPlainText(b.dataset.copyField); } catch (e) { ok = false; }
     b.classList.remove('is-copied', 'is-failed');
     if (!ok) { b.classList.add('is-failed'); b.setAttribute('aria-label', `Could not copy the ${kind}`); toast(`Could not copy the ${kind}.`, 'err'); return; }
-    b.classList.add('is-copied'); b.setAttribute('aria-label', `${kind[0].toUpperCase()}${kind.slice(1)} copied`); toast(`${kind[0].toUpperCase()}${kind.slice(1)} copied`);
-    setTimeout(() => { if (!b.isConnected) return; b.classList.remove('is-copied'); b.setAttribute('aria-label', label); }, 2000);
+    b.classList.add('is-copied'); b.setAttribute('aria-label', `${kind[0].toUpperCase()}${kind.slice(1)} copied`);
+    const note = b.nextElementSibling; if (note && note.hasAttribute('data-copy-confirm')) note.hidden = false;
+    toast('Copied');
+    setTimeout(() => { if (!b.isConnected) return; b.classList.remove('is-copied'); b.setAttribute('aria-label', label); if (note && note.isConnected) note.hidden = true; }, 2000);
   }));
   if (!canEdit || !api || !d) return;
   const group = () => $$('[name=fileReferral]', root);

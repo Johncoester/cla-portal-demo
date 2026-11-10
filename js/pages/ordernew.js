@@ -14,6 +14,8 @@ import { fmtPhone, TX_TYPES, runsOrders, localDate, US_STATE_NAMES, DOC_TYPES, M
 import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611101015';
 import { ENTITY_TYPES } from '../data/templates.js?v=202611101015';
 import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611092320';
+import { closerChoices, resolveCloser } from '../data/closer.js?v=202611101015';
+import { duplicateNotice } from '../data/order-duplicates.js?v=202611101700';
 import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
 import { orderDraftKey, readOrderDraft, writeOrderDraft, clearOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim } from '../data/order-draft.js?v=202611070139';
 import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows } from '../data/lender-file.js?v=202611101200';
@@ -21,7 +23,7 @@ import { fillProperty, cleanParcel } from '../data/address-fill.js?v=20261110200
 import { readEarnest, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611102000';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611101015';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611101015';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611101800';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
 // Each person becomes their own deal_participants row, so each buyer / seller gets their own copy of the client intake tasks (existing per-person behaviour).
@@ -87,13 +89,15 @@ export async function render({ api, user, go }) {
   const contacts = await api.listContacts();
   const optional = async (fn) => { try { return (await fn()) || []; } catch (e) { return []; } };
   const staff = await optional(() => api.listSalesStaff()); const procs = await optional(() => api.listProcessors()); const preprocs = await optional(() => api.listPreprocessors()); const tcs = await optional(() => api.listCoordinators());
+  const closers = closerChoices(await optional(() => api.listActiveStaff()));
   // the file's Processor: a Processor defaults to themselves; an Admin / Super admin is not a valid Processor, so they must choose one
   const today = localDate();
   // "Add new user" roles. Salesperson creates a staff login, which is Admin-only (John's earlier decision), so only Admins / Super admins see it.
   const NEW_ROLES = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer Agent'], ['Listing Agent', 'Listing Agent'], ['Lender', 'Lender'], ['Transaction Coordinator', 'Transaction coordinator'], ...(user.isAdmin ? [['Sales Person', 'Salesperson']] : [])];
   const visOpts = visibilityChoices(user.role, user.isAdmin);
   const salesBox = (s, checked = false) => html`<label class="check"><input type="checkbox" name="salesIds" value="${s.id}" ${checked ? raw('checked') : ''}> ${s.firstName} ${s.lastName} <span class="muted small">(${s.role})</span></label>`;
-  const tcSelect = (name, label) => html`<label>${label}<select name="${name}"><option value="">(none yet)</option>${options(tcs, '', (c) => `${c.firstName} ${c.lastName}${c.company ? ' \u2014 ' + c.company : ''}`, (c) => c.contactId)}</select></label>`;
+  const tcBlank = tcs.length ? '(none)' : '(none available for this login)';
+  const tcSelect = (name, label) => html`<label>${label}<select name="${name}"><option value="">${tcBlank}</option>${options(tcs, '', (c) => `${c.firstName} ${c.lastName}${c.company ? ' \u2014 ' + c.company : ''}`, (c) => c.contactId)}</select></label>`;
   const N = STEPS.length;
   const panel = (key, inner, intro) => { const i = STEPS.findIndex((s) => s[0] === key); const [, title] = STEPS[i];
     return html`<section class="wiz-panel" data-wiz-step="${key}" aria-labelledby="wiz-h-${key}" ${i ? raw('hidden') : ''}>
@@ -164,12 +168,14 @@ export async function render({ api, user, go }) {
         'Money is typed with commas (485,000). Every amount is optional and can be filled in later.')}
       ${panel('agents', html`<div class="form-grid agents-grid">${agentCard('Buyer Agent', 'Buyer agent')}${agentCard('Listing Agent', 'Listing agent')}
         ${tcSelect('p:Transaction Coordinator', "Buyer's transaction coordinator")}<button type="button" class="ghost" data-add-tc="p:Transaction Coordinator">+ Add buyer's transaction coordinator</button>
-        ${tcSelect('p:Transaction Coordinator:2', 'Listing transaction coordinator')}<button type="button" class="ghost" data-add-tc="p:Transaction Coordinator:2">+ Add listing transaction coordinator</button></div>
+        ${tcSelect('p:Transaction Coordinator:2', 'Listing transaction coordinator')}<button type="button" class="ghost" data-add-tc="p:Transaction Coordinator:2">+ Add listing transaction coordinator</button>
+        ${tcs.length ? '' : html`<p class="span2 muted small" data-no-tc>No transaction coordinator is available for this login.</p>`}</div>
         <p class="muted small">Both transaction coordinators are optional and are saved as transaction coordinators on the order. A new person needs a Transaction Coordinator login before they can be the coordinator on the file. Agents never see wire instructions.</p>`,
         'The realtors on each side, who referred the file, and each side\'s transaction coordinator.')}
       ${panel('team', html`<div class="form-grid">
-        <label>Processor<select name="processorId" data-processor-select><option value="">Unassigned</option></select> <button type="button" class="ghost" data-refresh-processors>Refresh list</button><span class="field-hint">Leave Unassigned to save the file now. A Processor added after you opened this page appears when you refresh the list. Nothing else on the form is cleared.</span></label><label>Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select></label>
-        <fieldset class="span2" data-sales-picker><legend>Sales Rep</legend><div data-sales-list class="check-grid">${staff.length ? staff.map((s) => salesBox(s)) : html`<p class="muted" data-no-sales>No active salespeople.</p>`}</div><span class="field-hint">The only sales field on Place Order. Check each salesperson on this order. Someone already saved as a sales team member on an existing file is left as they are.</span></fieldset>
+        <label>Processor<select name="processorId" data-processor-select><option value="">Unassigned</option></select> <button type="button" class="ghost" data-refresh-processors>Refresh list</button><span class="field-hint">Leave Unassigned to save the file now. A Processor added after you opened this page appears when you refresh the list. Nothing else on the form is cleared.</span></label><label>Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select>${preprocs.length ? '' : html`<span class="field-hint" data-no-preproc>No preprocessor is available for this login.</span>`}</label>
+        <label class="span2">Closer<input name="closerName" list="place-closer-staff" maxlength="120" autocomplete="off" aria-label="Closer" data-closer-input><datalist id="place-closer-staff">${closers.map((c) => html`<option value="${c.label}"></option>`)}</datalist><span class="field-hint">Pick an active CLA staff member, or type a name. Same field as Edit order details.</span></label>
+        <fieldset class="span2" data-sales-picker><legend>Sales Rep</legend><div data-sales-list class="check-grid">${staff.length ? staff.map((s) => salesBox(s)) : html`<p class="muted" data-no-sales>No salespeople are available for this login.</p>`}</div><span class="field-hint">The only sales field on Place Order. Check each salesperson on this order. Someone already saved as a sales team member on an existing file is left as they are.</span></fieldset>
         <label class="span2">Notes<textarea name="notes" rows="3" maxlength="2000" placeholder="Anything the team should know about this order"></textarea></label>
         <fieldset class="span2" id="nof-docs"><legend>Documents (e.g. the sales contract)</legend>
           <label class="dropzone-label">Files <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB each; choose several at once)</span><input type="file" id="nof-files" multiple accept="${ALLOWED_UPLOAD_EXT.map((e) => '.' + e).join(',')}"></label>
@@ -392,6 +398,21 @@ export async function render({ api, user, go }) {
     const selText = (sel) => (sel && sel.value ? sel.options[sel.selectedIndex].textContent.trim() : '');
     const dash = html`<span class="muted">&mdash;</span>`; const val = (v) => (v ? v : dash);
     const agentReview = (role) => { const id = pickers[role] && pickers[role].value; if (!id) return dash; const card = $(`[data-agent-card="${role}"]`, root); const bits = card ? [$('[data-agent-phone]', card).value, $('[data-agent-email]', card).value, $('[data-agent-company]', card).value].map((v) => String(v || '').trim()).filter(Boolean) : []; return html`${nameOf(id)}${bits.length ? html` <span class="muted small">${bits.join(' · ')}</span>` : ''}`; };
+    let dupGen = 0;
+    const partyIds = (role) => (rows[role] || []).map((r) => r.pk && r.pk.value).filter(Boolean);
+    const paintDuplicates = () => {
+      const gen = ++dupGen; const f = formData(form);
+      const buyerIds = partyIds('Client-Buyer'); const sellerIds = refi() ? [] : partyIds('Client-Seller');
+      const box = $('[data-dup-orders]', root); if (!box) return;
+      box.innerHTML = toText(html`<p class="muted small" data-dup-pending>Checking open files at this address.</p>`);
+      const run = typeof api.findDuplicateOrders === 'function' ? api.findDuplicateOrders({ street: f.street, city: f.city, state: f.state, zip: f.zip, buyerIds, sellerIds }) : Promise.reject(new Error('missing'));
+      Promise.resolve(run).then((matches) => ({ failed: false, matches: matches || [] }), () => ({ failed: true, matches: [] })).then((result) => {
+        if (gen !== dupGen) return; const host = $('[data-dup-orders]', root); if (!host) return;
+        if (result.failed) { host.innerHTML = toText(html`<div class="notice warn" data-dup-failed><strong>Could not check for an existing file.</strong> Look this address up in Open Orders before you place it. You can still place this order.</div>`); return; }
+        const note = duplicateNotice(result.matches); if (!note.show) { host.innerHTML = ''; return; }
+        host.innerHTML = toText(html`<div class="notice warn" data-dup-hit><strong>${note.title}</strong><ul>${note.lines.map((line) => html`<li><a href="#/deals/${line.id}">${line.text}</a></li>`)}</ul><p>${note.proceed}</p></div>`);
+      });
+    };
     const drawReview = () => { const f = formData(form); const r = refi(); const list = active();
       const issues = list.filter((k) => k !== 'review').map((k) => [k, check(k)]).filter(([, e]) => e.length);
       const section = (k, title, items) => html`<section class="review-sec" data-review-sec="${k}"><header><h4>${title}</h4><button type="button" class="linkish" data-wiz-goto="${k}">Edit</button></header><dl class="review-dl">${items.map(([dt, dd]) => html`<dt>${dt}</dt><dd>${dd}</dd>`)}</dl></section>`;
@@ -400,6 +421,7 @@ export async function render({ api, user, go }) {
       const files = [...fileIn.files]; const txFiles = [...txIn.files]; const mdOn = showMdQuestions(f.state, r);
       const skipped = optionalSkipped();
       $('[data-review]', root).innerHTML = toText(html`
+        <div data-dup-orders></div>
         ${issues.length ? html`<div class="notice warn" data-review-issues><strong>${issues.reduce((n, [, e]) => n + e.length, 0)} thing(s) to fix before placing the order:</strong><ul>${issues.map(([k, e]) => html`<li><a href="#" data-wiz-goto="${k}">${stepTitle(k)}</a>: ${e.map((x) => x.msg).join(' ')}</li>`)}</ul></div>`
           : html`<div class="notice ok-box" data-review-ready><strong>Ready to place.</strong> Everything required is filled in.</div>`}
         ${skipped.length ? html`<div class="notice info" data-review-skipped>Not added (nobody picked from the list): ${skipped.join(', ').toLowerCase()}. You can add them later on the Contacts tab.</div>` : ''}
@@ -413,7 +435,7 @@ export async function render({ api, user, go }) {
           ['Lender contacts', readLenderContactRows(form).length ? readLenderContactRows(form).map((row) => html`<div>${[row.firstName, row.lastName].filter(Boolean).join(' ')} <span class="muted small">${row.lenderRole === 'lender_tc' ? 'Lender TC' : row.lenderRole === 'loan_officer' ? 'Loan Officer' : ''}</span></div>`) : dash]])}
         ${section('parties', 'Source of business', [['Source of business', val((() => { const picked = $$('[name=referralSource]', root).find((el) => el.checked && el.value); return picked ? (picked.getAttribute('aria-label') || '').replace(/^Source of business:\s*/, '') : ''; })())]])}
         ${r ? '' : section('agents', 'Agents', [['Buyer agent', agentReview('Buyer Agent')], ['Listing agent', agentReview('Listing Agent')], ["Buyer's transaction coordinator", val(selText($('[name="p:Transaction Coordinator"]', root)))], ['Listing transaction coordinator', val(selText($('[name="p:Transaction Coordinator:2"]', root)))]])}
-        ${section('team', 'Team & Notes', [['Processor', val(selText($('[name=processorId]', root)).replace(/^Choose the Processor.*$/, ''))], ['Preprocessor', val(selText($('[name=preprocessorUserId]', root)))], ['Sales Rep', sales.length ? sales.join(', ') : dash],
+        ${section('team', 'Team & Notes', [['Processor', val(selText($('[name=processorId]', root)).replace(/^Choose the Processor.*$/, ''))], ['Preprocessor', val(selText($('[name=preprocessorUserId]', root)))], ['Closer', val(f.closerName)], ['Sales Rep', sales.length ? sales.join(', ') : dash],
           ['Notes', f.notes ? html`<span class="review-notes">${f.notes.length > 240 ? f.notes.slice(0, 240) + '\u2026' : f.notes}</span>` : dash],
           ['Documents', files.length ? html`${files.map((x, i) => html`<div>${x.name} <span class="muted small">${fmtSize(x.size)}${($(`[data-doctype="${i}"]`, root) || {}).value ? ' \u00b7 ' + $(`[data-doctype="${i}"]`, root).value : ''}</span></div>`)}<span class="muted small">${selText($('#nof-vis', root))}${$('#nof-wire', root).checked ? ' \u00b7 wire instructions (never shown to agents)' : ''}</span>` : dash]])}
         </div>
@@ -421,7 +443,7 @@ export async function render({ api, user, go }) {
           <li>The order opens at stage <strong>Opened</strong> with a new file number, and the Processor gets the <em>Collect executed contract</em> task.</li>
           <li>Each person you added gets their own intake tasks, copied from the current Task Templates.</li>
           <li>The standard document folders are created${files.length + txFiles.length ? ` and your ${files.length + txFiles.length} document(s) are saved` : ''}.</li>
-          <li>It is recorded in the Activity Log. <strong>No emails, texts or portal invites are sent</strong> (invite people later from Contacts).</li></ul></div>`); };
+          <li>It is recorded in the Activity Log. <strong>No emails, texts or portal invites are sent</strong> (invite people later from Contacts).</li></ul></div>`); paintDuplicates(); };
     // ---------- Refinance: hide / restore ----------
     const anRole = $('#an-role', root);
     const applyRefi = () => { const on = refi();
@@ -586,7 +608,8 @@ export async function render({ api, user, go }) {
       if (!showMdQuestions(f.state, refi())) { f.primaryResidence = ''; f.firstTimeBuyer = ''; }
       const extras = lenderExtras({ lenderAddress: f.lenderAddress, cplAddress: f.cplAddress, cplSameAsLender: !!($('[data-cpl-same]', root) && $('[data-cpl-same]', root).checked), mortgageBrokerName: f.mortgageBrokerName });
       const earnest = refi() ? { financial: {} } : readEarnest(f);
-      const input = representationPayload(api, { ...f, parcelId: cleanParcel(f.parcelId), emdHeldBy: earnest.emdHeldBy || '', commissionBase: earnest.commissionBase, commissionPercent: earnest.commissionPercent, commissionAdditional: earnest.commissionAdditional, commissionPaidBy: earnest.commissionPaidBy || '', emdAmount: amt, purchasePrice: refi() ? '' : moneyAmount(f.purchasePrice), ...(refi() ? { emdDueDate: '' } : {}), loanAmount: moneyAmount(f.loanAmount), salesIds: new FormData(form).getAll('salesIds'),
+      const placedCloser = resolveCloser(f.closerName, closers, {});
+      const input = representationPayload(api, { ...f, closerName: placedCloser.closerName, closerProfileId: placedCloser.closerProfileId, parcelId: cleanParcel(f.parcelId), emdHeldBy: earnest.emdHeldBy || '', commissionBase: earnest.commissionBase, commissionPercent: earnest.commissionPercent, commissionAdditional: earnest.commissionAdditional, commissionPaidBy: earnest.commissionPaidBy || '', emdAmount: amt, purchasePrice: refi() ? '' : moneyAmount(f.purchasePrice), ...(refi() ? { emdDueDate: '' } : {}), loanAmount: moneyAmount(f.loanAmount), salesIds: new FormData(form).getAll('salesIds'),
         lenderName: (f.lenderName || (lender && lender.company) || '').trim(),
         lenderContact: lender ? personLabel(lender) : '',
         lenderPhone: (f.lenderPhone || '').trim(),

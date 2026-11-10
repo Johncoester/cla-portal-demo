@@ -36,8 +36,8 @@ export async function render({ api, user, deal, refresh }) {
   const rows = list.map((p) => {
     const who = (p.role === 'Client-Buyer' || p.role === 'Client-Seller') ? partyDisplayName(p) : contactDisplayName(p.contact);
     const roleBit = lenderRoleLabel(p.contact.lenderRole);
-    const phoneBtn = p.contact.phone ? html`<button type="button" class="ghost" data-copy-field="${fmtPhone(p.contact.phone)}" data-copy-kind="phone" aria-label="${'Copy ' + who + ' phone'}">Copy</button>` : '';
-    const emailBtn = p.contact.email ? html`<button type="button" class="ghost" data-copy-field="${p.contact.email}" data-copy-kind="email" aria-label="${'Copy ' + who + ' email'}">Copy</button>` : '';
+    const phoneBtn = p.contact.phone ? html`<button type="button" class="ghost" data-copy-field="${fmtPhone(p.contact.phone)}" data-copy-kind="phone" aria-label="${'Copy ' + who + ' phone'}">Copy</button><span class="copy-confirm" data-copy-confirm hidden>Copied</span>` : '';
+    const emailBtn = p.contact.email ? html`<button type="button" class="ghost" data-copy-field="${p.contact.email}" data-copy-kind="email" aria-label="${'Copy ' + who + ' email'}">Copy</button><span class="copy-confirm" data-copy-confirm hidden>Copied</span>` : '';
     const contactCells = p.contact.contactHidden
       ? html`<td colspan="2" class="muted contact-hidden">Contact through CLA Title</td>`
       : html`<td>${fmtPhone(p.contact.phone)} ${phoneBtn}</td><td>${p.contact.email} ${emailBtn}</td>`;
@@ -48,9 +48,14 @@ export async function render({ api, user, deal, refresh }) {
   const body = html`${staffView ? lenderSectionHtml(deal, { canEdit: edit }) : ''}<div class="box-title"><h2><span class="h-ico"></span>Order Contacts</h2>${edit ? html`<button class="m-btn right" id="addp">+ Add contact</button>` : ''}</div>
     <ul class="nav-tabs">${GROUPS.map(([k]) => html`<li><a class="${k === g ? 'active' : ''}" href="#/deals/${deal.id}/contacts?g=${k}">${k}</a></li>`)}</ul>
     <form class="filter-bar" id="ctfilter"><label>Contact type<select name="ctype" aria-label="Filter by contact type"><option value="">Any</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}<option value="none">Not set</option></select></label></form>
-    <table class="tbl striped"><thead><tr><th>Name</th><th>Role</th><th>Contact type</th><th>Company</th><th>Phone</th><th>Email</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+    <table class="tbl striped" data-contacts-table><thead><tr><th>Name</th><th>Role</th><th>Contact type</th><th>Company</th><th>Phone</th><th>Email</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   return { title: 'Contacts', crumbs: [['Contacts']], body, mount(root) {
-    $$('[data-copy-field]', root).forEach((b) => b.addEventListener('click', guard(async () => { const outcome = await contactCopyOutcome(b.dataset.copyField, b.dataset.copyKind); toast(outcome.message, outcome.level); })));
+    $$('[data-copy-field]', root).forEach((b) => b.addEventListener('click', guard(async () => {
+      const outcome = await contactCopyOutcome(b.dataset.copyField, b.dataset.copyKind);
+      const note = b.nextElementSibling;
+      if (note && note.hasAttribute('data-copy-confirm')) { note.hidden = !outcome.ok; if (outcome.ok) setTimeout(() => { if (note.isConnected) note.hidden = true; }, 1600); }
+      toast(outcome.message, outcome.level);
+    })));
     $$('[data-unlink]', root).forEach((b) => b.addEventListener('click', guard(async () => { if (!confirm('Remove this person from the order? (Their contact record, documents and messages are kept.)')) return; await api.removeParticipant(deal.id, b.dataset.unlink); toast('Removed from order'); repaint(); })));
     $$('[data-edit]', root).forEach((b) => b.addEventListener('click', () => { const row = deal.participants.find((p) => p.id === b.dataset.edit); if (!row || !row.contact || !row.contact.id) { toast('This contact cannot be edited from this row.', 'err'); return; } const same = deal.participants.filter((p) => p.contactId === row.contactId); editContact(row.contact, same.some((p) => STAFF_ROLES.includes(p.role))); }));
     const ab = $('#addp', root); if (ab) ab.addEventListener('click', guard(addPerson));
