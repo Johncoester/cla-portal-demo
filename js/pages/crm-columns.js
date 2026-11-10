@@ -1,7 +1,7 @@
 /* Manage columns (Janine, Nov 5). Every field of the module, check to show, drag to reorder, cap 10.
  * The choice is read from local storage during render. It does not call the network. */
 import { html, raw, toText, $, $$ } from '../ui.js?v=202611070139';
-import { COLUMN_CAP, loadColumns, saveColumns } from '../data/crm-columns.js?v=202611102745';
+import { COLUMN_CAP, loadColumns, saveColumns } from '../data/crm-columns.js?v=202611120600';
 
 const storageOf = (storage) => {
   if (storage) return storage;

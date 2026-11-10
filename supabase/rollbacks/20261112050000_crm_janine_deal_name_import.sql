@@ -1,4 +1,4 @@
--- Rollback 20261110274500_crm_janine_deal_name_import.
+-- Rollback 20261112050000_crm_janine_deal_name_import.
 -- Restores the deal name "file number + street" and the import function that kept a retired status on a row.
 -- Not applied to hosted TEST.
 
@@ -6,7 +6,7 @@ begin;
 set local lock_timeout = '3s';
 set local search_path = pg_catalog, public, extensions;
 
-create or replace function private.crm_deal_row(g public.deals) returns jsonb language sql stable security definer set search_path = public as $$
+create or replace function private.crm_deal_row(g public.deals) returns jsonb language sql stable security definer set search_path = pg_catalog, public, extensions as $$
   select jsonb_build_object('id', g.id, 'name', g.file_number || ' ' || g.street, 'fileNumber', g.file_number, 'propertyAddress', g.street || ', ' || g.city || ', ' || g.state || ' ' || g.zip,
     'amount', g.purchase_price, 'loanAmount', g.loan_amount, 'stage', case g.status when 'Open' then 'Active' else g.status end, 'status', g.status,
     'closingDate', g.closing_date, 'openDate', g.open_date, 'county', coalesce(g.county, ''), 'city', g.city, 'transactionType', g.transaction_type,

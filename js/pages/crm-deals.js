@@ -4,11 +4,11 @@ import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, 
 import { crmSort, inLocalRange } from '../data/crm.js?v=202611070139';
 import { DEAL_COLS, DEFAULT_HIDDEN, loadHidden } from '../data/crm-deal-cols.js?v=202611070139';
 import { display, moduleFields } from '../data/crm-analytics.js?v=202611070139';
-import { crmDealName, columnKey, loadColumns, normalizeColumns } from '../data/crm-columns.js?v=202611102745';
-import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611102745';
-import { tabs, head, money, wireRowOpen } from './crm-kit.js?v=202611102745';
+import { crmDealName, columnKey, loadColumns, normalizeColumns } from '../data/crm-columns.js?v=202611120600';
+import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611120600';
+import { tabs, head, money, wireRowOpen } from './crm-kit.js?v=202611120600';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611090905';
-import { viewsBar, wireViewsBar } from './crm-views.js?v=202611102745';
+import { viewsBar, wireViewsBar } from './crm-views.js?v=202611120600';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
 import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070139';
 import { pageOf, selectionState, selectPage, BULK_PAGE_SIZE } from '../data/crm-bulk.js?v=202611090905';

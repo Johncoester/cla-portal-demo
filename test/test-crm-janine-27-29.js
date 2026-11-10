@@ -59,10 +59,10 @@ ok(read('js/pages/crm-reports.js').includes('data-create-report') && read('js/pa
 const dash = read('js/pages/crm-dashboards.js');
 ok(dash.includes('data-dash-kebab') && dash.includes('data-add-comp') && !dash.includes('Reorder and resize') && !dash.includes('data-dash-menu') && dash.includes('data-resize') && dash.includes('data-drag-handle') && dash.includes('Notes (beta)'), 'the dashboard keeps Add Component, a title kebab, and direct drag');
 ok(dash.includes('data-comp-menu') && dash.includes('Move to another dashboard') && dash.includes('Download (CSV)'), 'each component keeps its own menu');
-ok(!read('js/data/nov5-rules.js').includes('202611102745') && read('js/data/nov5-rules.js').includes('crm-janine.js?v=202611101015') && read('js/data/county-auto.js').includes('crm-janine.js?v=202611101015'), 'nov5-rules.js and county-auto.js stay on the crm-janine pin');
+ok(!read('js/data/nov5-rules.js').includes('202611120600') && read('js/data/nov5-rules.js').includes('crm-janine.js?v=202611101015') && read('js/data/county-auto.js').includes('crm-janine.js?v=202611101015'), 'nov5-rules.js and county-auto.js stay on the crm-janine pin');
 
-const mig = read('supabase/migrations/20261110274500_crm_janine_deal_name_import.sql');
-const rb = read('supabase/rollbacks/20261110274500_crm_janine_deal_name_import.sql');
+const mig = read('supabase/migrations/20261112050000_crm_janine_deal_name_import.sql');
+const rb = read('supabase/rollbacks/20261112050000_crm_janine_deal_name_import.sql');
 ok(mig.includes("btrim(g.street || ', ' || g.city || ', ' || g.state || ' ' || g.zip)") && !mig.includes("g.file_number || ' ' || g.street"), 'the read path names a deal with the property address');
 ok(mig.includes('is retired and is not imported') && mig.includes('not o.retired'), 'the hosted import rejects a retired relationship status');
 ok(rb.includes("g.file_number || ' ' || g.street") && !rb.includes('is retired and is not imported'), 'the rollback restores the previous deal name and import rule');
@@ -107,7 +107,7 @@ for (const [target, hits] of stamps) {
 const janinePins = (stamps.get('js/data/crm-janine.js') || []).filter((h) => allowOld.has(h.from));
 if (janinePins.length !== allowOld.size || janinePins.some((h) => h.stamp !== '202611101015')) issues.push('crm-janine pin moved');
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
-ok(html.includes('js/app.js?v=202611102745') && html.includes('css/portal.css?v=202611102745'), 'index.html uses the placeholder stamp');
+ok(html.includes('js/app.js?v=202611120600') && html.includes('css/portal.css?v=202611120600'), 'index.html uses the placeholder stamp');
 
 const tList = performance.now();
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
