@@ -1,5 +1,5 @@
 /* Vault-or-env decision for the inbox spec. Fake fetch only. No token is printed. */
-import { gmailCredentials } from '../tests/e2e-roles/helpers/inbox.js';
+import { gmailCredentials, invitePathFromText } from '../tests/e2e-roles/helpers/inbox.js';
 
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
@@ -30,6 +30,10 @@ const loaded = await gmailCredentials(vaultEnv, async (url, init) => {
 });
 ok(loaded.ok && vaultEnv.E2E_GMAIL_REFRESH_TOKEN === 'vault-refresh' && auth.includes('service-role-not-a-gmail-token'), 'a vault row fills the three names');
 ok(!loaded.message.includes('vault-refresh') && !loaded.message.includes('vault-secret'), 'the result does not repeat the vault values');
+
+const note = 'clatestportal+e2e-used-invite@gmail.com\n#/agent-invite/' + 'ab'.repeat(32);
+ok(invitePathFromText(note, 'clatestportal+e2e-used-invite@gmail.com') === '#/agent-invite/' + 'ab'.repeat(32), 'the remembered note keeps the invite path');
+ok(invitePathFromText(note, 'someone-else@gmail.com') === '', 'a note for another address is ignored');
 
 console.log(fail ? fail + ' failed' : 'gmail credentials passed');
 if (fail) process.exit(1);

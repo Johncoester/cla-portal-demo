@@ -151,6 +151,60 @@ export async function attachmentBytes(token, messageId, attachment) {
   return decodeB64Url(body.data || '');
 }
 
+/* The fixed used-invite address plus the one-time path. Empty when this message is for someone else. */
+export function invitePathFromText(text, email) {
+  const body = String(text || '');
+  const who = String(email || '').trim().toLowerCase();
+  if (!who || !body.toLowerCase().includes(who)) return '';
+  const m = body.match(/#\/agent-invite\/([0-9a-f]{64})/);
+  return m ? `#/agent-invite/${m[1]}` : '';
+}
+
+function messageText(msg) {
+  const chunks = [header(msg, 'subject'), msg.snippet || ''];
+  const walk = (part) => {
+    if (!part) return;
+    if ((part.mimeType === 'text/plain' || part.mimeType === 'text/html') && part.body && part.body.data) chunks.push(decodeB64Url(part.body.data).toString('utf8'));
+    for (const child of part.parts || []) walk(child);
+  };
+  walk(msg.payload);
+  return chunks.join('\n');
+}
+
+/* Later runs reopen the same link. The test inbox keeps one note; the token is not printed. */
+export async function findRememberedInviteLink(accessToken, email) {
+  const q = 'subject:"E2E used invite link" newer_than:400d';
+  const list = await gmail(accessToken, `/messages?q=${encodeURIComponent(q)}&maxResults=10`);
+  for (const item of (list && list.messages) || []) {
+    const msg = await gmail(accessToken, `/messages/${item.id}?format=full`);
+    const path = invitePathFromText(messageText(msg), email);
+    if (path) return path;
+  }
+  return '';
+}
+
+export async function rememberInviteLink(accessToken, email, invitePath) {
+  const have = await findRememberedInviteLink(accessToken, email);
+  if (have) return have;
+  const mime = [
+    `To: ${email}`,
+    'Subject: E2E used invite link',
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset="UTF-8"',
+    '',
+    email,
+    invitePath,
+    '',
+  ].join('\r\n');
+  const raw = Buffer.from(mime).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  await gmail(accessToken, '/messages/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ raw }),
+  });
+  return invitePath;
+}
+
 export async function trashMessage(token, id) {
   if (!id) return;
   await gmail(token, `/messages/${id}/trash`, { method: 'POST' });
