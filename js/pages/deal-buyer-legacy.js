@@ -7,12 +7,13 @@ import { occSelects, yesNo } from './occ-fields.js?v=202611100245';
 import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611101015';
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { slotText } from './dealclosing.js?v=202611121300';
+import { viewTasksHref } from '../data/task-board.js?v=202611122100';
 import { pickerHtml, mountPicker } from './person-picker.js?v=202611101015';
 import { composeModal } from './compose.js?v=202611110900';
 import { sourceChoices } from '../data/place-order.js?v=202611100245';
 import { themeOn } from '../theme.js?v=202611100245';
 
-const TABS = { tasks: './dealtasks.js?v=202611121900', spouse: './spouse.js?v=202611120200', inbox: './dealmsgs.js?v=202611111700', documents: './dealdocs.js?v=202611111700', contacts: './dealcontacts.js?v=202611121900', activity: './dealactivity.js?v=202611111700', closing: './dealclosing.js?v=202611121300', agreements: './dealagreements.js?v=202611111700', accounting: './dealaccounting.js?v=202611111700' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611122100', spouse: './spouse.js?v=202611120200', inbox: './dealmsgs.js?v=202611111700', documents: './dealdocs.js?v=202611111700', contacts: './dealcontacts.js?v=202611122100', activity: './dealactivity.js?v=202611111700', closing: './dealclosing.js?v=202611121300', agreements: './dealagreements.js?v=202611111700', accounting: './dealaccounting.js?v=202611111700' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -21,7 +22,7 @@ export async function render(ctx) {
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
   if (tab === 'accounting' && !(api.features || {}).accounting) throw new Error('That page does not exist.');   // John, Nov 3: the Accounting tab follows the module switch on CLA Portal Live Test.
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611121900' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611122100' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
@@ -183,7 +184,7 @@ function agentPanels(ctx, d, ov, ur, inv) {
   const urRow = (r) => html`<tr data-ur="${r.id}" data-ur-status="${r.status}"><td>${fmtDate(r.createdAt)}</td><td><strong>${r.topic}</strong>${r.note ? html`<br><span class="muted small">${r.note}</span>` : ''}${staffView ? html`<br><span class="muted small">from ${r.requestedByName} (${r.requestedRole})</span>` : ''}</td>
     <td>${r.status === 'answered' ? html`${pill('answered', 'ok')}<br>${r.response}<br><span class="muted small">${r.respondedByName}, ${fmtDate(r.respondedAt)}</span>` : ov.canAnswerUpdates ? html`<form class="inline-form" data-answer="${r.id}"><textarea name="response" rows="2" maxlength="2000" placeholder="Write the update" aria-label="Update for ${r.topic}"></textarea> <button class="m-btn" type="submit">Send update</button></form>` : pill('waiting for CLA Title', 'warn')}</td></tr>`;
   const top = html`<div class="agent-overview" data-agent-overview>
-    ${ov.outstanding ? html`<div class="notice warn" data-outstanding>You have <strong>${ov.outstanding}</strong> outstanding task${ov.outstanding === 1 ? '' : 's'}. <a class="m-btn" href="#/deals/${d.id}/tasks" data-view-tasks>View Tasks</a></div>` : html`<div class="notice info" data-outstanding="0">No outstanding tasks for you on this order.</div>`}
+    ${ov.outstanding ? html`<div class="notice warn" data-outstanding>You have <strong>${ov.outstanding}</strong> outstanding task${ov.outstanding === 1 ? '' : 's'}. <a class="m-btn" href="${viewTasksHref(d.id, user)}" data-view-tasks>View Tasks</a></div>` : html`<div class="notice info" data-outstanding="0">No outstanding tasks for you on this order.</div>`}
     <div class="box-title"><h2><span class="h-ico"></span>Closing progress</h2>${ov.canShareAccess ? html`<button class="m-btn right" id="shareaccess">Share Access</button>` : ''}</div>
     ${steps}<p class="muted small">Current step: <strong data-progress-step>${ov.progress.phaseName}</strong> (order stage: ${ov.progress.stageName}${ov.progress.status !== 'Open' ? `, status ${ov.progress.status}` : ''}). The badge at the top comes from the same stage, so they always agree.</p>
     ${ov.canRequestUpdate ? html`<form id="requpdate" class="filter-bar" data-request-update><label>Request Update<select name="topic" required><option value="">Choose&hellip;</option>${options(ov.updateTopics, '')}</select></label>
