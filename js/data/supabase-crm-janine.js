@@ -5,7 +5,7 @@
  * asks crm_import_batch to apply the database rules, 500 rows at a time.
  * Preview rolls back inside each call (P0004). A commit reuses one batch id.
  * Nothing is emailed. */
-import { buildIcs, INVITE_NOTE, parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, importTooBigMessage, leadRequiredMessages, importPartialReport, importErrorCsv, saveImportResume, loadZipTable, countiesFor, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611100700';
+import { buildIcs, INVITE_NOTE, parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, importTooBigMessage, leadRequiredMessages, importPartialReport, importErrorCsv, saveImportResume, loadZipTable, countiesFor, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611101600';
 import { US_STATE_NAMES, US_STATES } from './constants.js?v=202611090935';
 import { ensureSettings, findOption } from './crm-config.js?v=202611070139';
 import { resolveImportedStatus } from './nov5-rules.js?v=202611090935';
