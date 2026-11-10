@@ -41,6 +41,8 @@ jobs:
       E2E_BASE_URL: https://testportal.clatitle.com/
       E2E_REQUIRE_EMAIL: '1'
       E2E_MAIL_TO: ${{ secrets.E2E_MAIL_TO }}
+      # Optional. When these are empty, the email test reads them from TEST Vault
+      # with SUPABASE_SERVICE_ROLE_KEY. The step does not print the values.
       E2E_GMAIL_CLIENT_ID: ${{ secrets.E2E_GMAIL_CLIENT_ID }}
       E2E_GMAIL_CLIENT_SECRET: ${{ secrets.E2E_GMAIL_CLIENT_SECRET }}
       E2E_GMAIL_REFRESH_TOKEN: ${{ secrets.E2E_GMAIL_REFRESH_TOKEN }}
@@ -112,6 +114,9 @@ jobs:
 
       - name: Role smoke
         if: steps.clock.outputs.skip != '1'
+        env:
+          SUPABASE_URL: https://aqcervntopidtcazcmlv.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx playwright test --config tests/e2e-roles/playwright.config.js
 
       - name: Pass or fail summary

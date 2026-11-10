@@ -58,9 +58,9 @@ Nothing here is a password. GitHub Actions reads the same names from repository 
 | Name | Used for |
 | --- | --- |
 | `E2E_MAIL_TO` | Dedicated test inbox. The seed and the profile migration require `clatestportal@gmail.com`. Role addresses are plus-aliases of it. |
-| `E2E_GMAIL_CLIENT_ID` | Gmail API client for that inbox (poll, reply, trash). |
-| `E2E_GMAIL_CLIENT_SECRET` | Gmail API client secret. |
-| `E2E_GMAIL_REFRESH_TOKEN` | Refresh token for `E2E_MAIL_TO` with read and send. |
+| `E2E_GMAIL_CLIENT_ID` | Optional override. Leave it empty. The email test reads the client id from TEST Vault. |
+| `E2E_GMAIL_CLIENT_SECRET` | Optional override. Leave it empty. The email test reads the client secret from TEST Vault. |
+| `E2E_GMAIL_REFRESH_TOKEN` | Optional override. Leave it empty. The email test reads the refresh token from TEST Vault. |
 | `E2E_SUPER_ADMIN_EMAIL` / `E2E_SUPER_ADMIN_PASSWORD` | Seeded Super admin. The smoke does not browse admin modules. |
 | `E2E_PROCESSOR_EMAIL` / `E2E_PROCESSOR_PASSWORD` | Order Entry and, on TEST, file email. |
 | `E2E_SALES_PERSON_EMAIL` / `E2E_SALES_PERSON_PASSWORD` | Sales Person portal. |
@@ -75,7 +75,53 @@ Nothing here is a password. GitHub Actions reads the same names from repository 
 
 On TEST the seeded emails are `clatestportal+e2e-<role>@gmail.com`, for example `clatestportal+e2e-buyer@gmail.com`. An invitee with no login is `clatestportal+e2e-invitee@gmail.com`. The harness aborts before send if any recipient is outside that set, or if Live Test's own allowlist would refuse it (`clatestportal@gmail.com`, `clatestportal+tag@gmail.com`, or `@clatitle.com`).
 
-The Processor login on TEST must already have Gmail connected. The suite does not run the Google consent screen.
+The Processor login on TEST must already have Gmail connected. That is the staff mailbox the file email is sent from. The suite's own inbox is separate. See "Connect the test inbox" below.
+
+## Connect the test inbox (one time)
+
+The staff "Connect Gmail" button cannot do this. That client is an internal `@clatitle.com` app, and it does not ask for permission to trash mail. The test inbox is `clatestportal@gmail.com`, so it needs its own Google client. Francis does the Google part and the consent. She does not need GitHub, and she never copies a token into chat, email, or GitHub.
+
+### What has to be deployed first
+
+On CLA Portal Live Test only (`aqcervntopidtcazcmlv`):
+
+1. Apply `supabase/migrations/20261110180000_e2e_gmail_vault.sql` in the TEST SQL editor. Do not apply the rollback.
+2. Deploy the Edge Function `e2e-gmail-oauth` with JWT verification turned off. It has no extra secrets. Google's redirect has no portal login, and the function checks the Admin JWT itself on save.
+
+   `supabase functions deploy e2e-gmail-oauth --no-verify-jwt --project-ref aqcervntopidtcazcmlv`
+3. Deploy this branch to the TEST site so Profile Setting shows the new box.
+
+The link Francis uses after that is [Profile Setting on the test portal](https://testportal.clatitle.com/#/profile).
+
+### What Francis does
+
+1. Sign in to [Google Cloud Console](https://console.cloud.google.com/) as `clatestportal@gmail.com`.
+2. Create a project named `CLA Portal E2E Gmail`.
+3. Open APIs & Services, then Library. Search for Gmail API and enable it.
+4. Open Google Auth Platform. Older consoles call this APIs & Services, then OAuth consent screen.
+   - User type: External.
+   - App name: `CLA Portal E2E`.
+   - User support email and developer contact: `clatestportal@gmail.com`.
+   - Publishing status: Testing.
+   - Test users: add `clatestportal@gmail.com`.
+   - Data access, or Scopes: add `openid`, `email`, and these three:
+     - `https://www.googleapis.com/auth/gmail.readonly`
+     - `https://www.googleapis.com/auth/gmail.send`
+     - `https://www.googleapis.com/auth/gmail.modify`
+5. Open Clients. Older consoles call this APIs & Services, then Credentials. Create an OAuth client ID, type Web application, name `CLA Portal E2E`.
+6. Authorized redirect URI, exactly one line and nothing after it:
+
+   `https://aqcervntopidtcazcmlv.supabase.co/functions/v1/e2e-gmail-oauth`
+
+7. Google shows the client ID and the client secret on that screen. Leave the tab open. Do not email them, do not put them in chat, and do not put them in GitHub.
+8. In another tab, sign in to the TEST portal as an Admin or Super admin and open <https://testportal.clatitle.com/#/profile>.
+9. In the box "Test inbox for the automated email checks", paste the client ID and the client secret and press Save. The boxes go blank. Close the Google Cloud tab.
+10. Press "Open the Google consent page". If Google asks which account, choose `clatestportal@gmail.com`. Allow the permissions.
+11. The next page says the test inbox is connected. Stop there. The redirect turns itself off. GitHub already has the service-role key, and the email test reads the client and the token from the vault when it runs.
+
+A Google app left in Testing makes that permission stop working after 7 days. When the email checks start failing, open the same Profile page, press "Allow one new consent", then "Open the Google consent page" again, and allow it as `clatestportal@gmail.com`.
+
+The nightly run does not need `E2E_GMAIL_CLIENT_ID`, `E2E_GMAIL_CLIENT_SECRET`, or `E2E_GMAIL_REFRESH_TOKEN` in GitHub. Those three stay in the TEST vault. If a value was already stored in GitHub, it is used instead and the vault is not read.
 
 ## What the email checks cover
 

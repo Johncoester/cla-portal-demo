@@ -38,7 +38,7 @@ const pages = {
   'orders/new': () => import('./pages/ordernew.js?v=202611092350'),
   deal: () => import('./pages/deal.js?v=202611100245'),
   users: () => import('./pages/users.js?v=202611090935'),
-  profile: () => import('./pages/profile.js?v=202611100005'),
+  profile: () => import('./pages/profile.js?v=202611101800'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
   teams: () => import('./pages/teams.js?v=202611070139'),
   templates: () => import('./pages/templates.js?v=202611090935'),
