@@ -55,6 +55,8 @@ const v = await renderEmail({ api, deal, user: { role: 'Processor', firstName: '
 const b = toText(v.body);
 ok(b.includes('Sending from <strong>me@clatitle.com</strong>') && (b.match(/data-mail-thread=/g) || []).length === 1 && (b.match(/data-mail-msg=/g) || []).length === 2 && b.includes('data-mail-dir="in"') && b.includes('id.pdf'), 'Email tab: one thread, sent + received, attachment listed');
 ok(b.includes('data-mail-intro') && b.includes('data-mail-sync') && b.includes('[CLA #MD-26-97207]') && b.includes('test addresses'), 'Email tab: Introduction email, Check for replies, tag + Live Test note');
+ok(b.includes('data-mail-search') && b.includes('Subject, from, or message') && b.includes('aria-label="Search email on this file"'), 'Email tab: search box for subject, from, and message');
+ok((b.match(/data-mail-unread="1"/g) || []).length === 2 && b.includes('data-mail-unread-count') && b.includes('2 unread'), 'Email tab: mail not yet viewed is counted');
 ok(!b.includes('<p>Thanks</p>'), 'Email tab: message bodies are not put into the page (they open in a sandboxed frame)');
 let refused = false; try { await renderEmail({ api, deal, user: { role: 'Outside user' } }); } catch (e) { refused = true; }
 ok(refused, 'Email tab: outside users are refused');
@@ -62,5 +64,7 @@ const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 ok(/canUseGmail\(u\) && api\.listDealEmails && api\.mode === 'supabase' \? link\('email', 'Email', 'inbox'\)/.test(app), 'file menu shows Email for Gmail roles on Live Test only');
 const dealSrc = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
 ok(dealSrc.includes('data-send-sellers-agents') && dealSrc.includes('api.sendDealEmail') && !dealSrc.includes('data-send-disabled'), '"Email sellers and agents" sends through Gmail when connected');
+const compose = readFileSync(new URL('../js/pages/dealemail.js', import.meta.url), 'utf8');
+ok(compose.includes('payload.documentIds') && compose.includes('r.ok === false') && compose.includes('selected document') && compose.includes('send.disabled = false'), 'compose shows an error and does not say Sent when the selected documents are missing');
 console.log(fail ? `${fail} FAILED` : 'all gmail ui checks passed');
 if (fail) process.exit(1);

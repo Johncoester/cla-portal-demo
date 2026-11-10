@@ -28,7 +28,7 @@ ok(rb.includes("c.profile_id in (select private.my_team_agents())") && /alter ta
 
 const deal = read('js/pages/deal.js'); const sa = read('js/data/supabase-adapter.js'); const mock = read('js/data/mock-part-deals.js'); const core = read('js/data/mock-adapter.js');
 ok(deal.includes('data-tc-name') && deal.includes('data-tc-none') && deal.includes('name="tcUserId"'), 'file header shows the TC; Edit order details can set / change / clear it');
-ok(sa.includes("tcUserId: 'tc_user_id'") && sa.includes("col === 'tc_user_id' ? (v || null)") && sa.includes('d.tcName'), 'hosted adapter writes tc_user_id (blank = null) and reads the name');
+ok(sa.includes("tcUserId: 'tc_user_id'") && /col === 'tc_user_id'[\s\S]{0,80}\? \(v \|\| null\)/.test(sa) && sa.includes('d.tcName'), 'hosted adapter writes tc_user_id (blank = null) and reads the name');
 ok(mock.includes("'deal.tc'") && mock.includes("kind: 'tc'"), 'mock adapter mirrors activity + notification');
 ok(/if \(u\.role === 'Transaction Coordinator'\) return d\.deals;/.test(core), 'mock: a TC sees every file');
 console.log(fail ? fail + ' failed' : 'tc assign passed');
