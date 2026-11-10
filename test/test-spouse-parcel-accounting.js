@@ -25,8 +25,8 @@ ok(again.financial.emdHeldBy === 'Listing brokerage' && again.financial.commissi
 const acct = readFileSync('js/pages/dealaccounting-contract.js', 'utf8');
 ok(acct.includes('data-earnest-accounting') && acct.includes('emdHeldBy') && acct.includes('commissionPaidBy'), 'the accounting page edits the same earnest fields');
 
-const sql = readFileSync('supabase/migrations/20261112050000_parcel_id_list.sql');
-const roll = readFileSync('supabase/rollbacks/20261112050000_parcel_id_list.sql');
+const sql = readFileSync('supabase/migrations/20261112060000_parcel_id_list.sql');
+const roll = readFileSync('supabase/rollbacks/20261112060000_parcel_id_list.sql');
 console.log('parcel-migration-sha256', createHash('sha256').update(sql).digest('hex'));
 console.log('parcel-rollback-sha256', createHash('sha256').update(roll).digest('hex'));
 console.log(fail ? fail + ' failed' : 'spouse parcel accounting passed');

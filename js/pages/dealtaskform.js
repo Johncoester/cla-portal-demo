@@ -3,9 +3,9 @@ import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=
 import { downloadNamed } from '../data/file-open.js?v=202611100245';
 import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611120200';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
-import { spouseSectionHtml, spousePayload, loadSpouseRows, applySpouse } from './spouse.js?v=202611120600';
+import { spouseSectionHtml, spousePayload, loadSpouseRows, applySpouse } from './spouse.js?v=202611120700';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611101015';
-import { CLS, LABEL } from './dealtasks.js?v=202611120600';
+import { CLS, LABEL } from './dealtasks.js?v=202611120700';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 // The task page and the processor Tasks "Expand all" use the same fields, save, and complete rules.

@@ -1,5 +1,5 @@
 import { html, $ } from '../ui.js?v=202611070139';
-import { parcelList, parcelPatch } from '../data/parcels.js?v=202611120600';
+import { parcelList, parcelPatch } from '../data/parcels.js?v=202611120700';
 
 export function parcelFieldsHtml(dealOrList) {
   const list = Array.isArray(dealOrList) ? (dealOrList.length ? dealOrList : ['']) : parcelList(dealOrList);

@@ -21,7 +21,7 @@ const cc = readFileSync('js/pages/dealemail.js', 'utf8');
 ok(cc.includes('data-mail-cc') && !cc.includes("addEventListener('blur'") && cc.includes('cc: list($(\'[data-mail-cc]\', m).value)'), 'Cc is a field on the send and is not rewritten when To changes');
 ok(readFileSync('js/pages/gmail-card.js', 'utf8').includes('Connect Gmail') && readFileSync('js/pages/profile.js', 'utf8').includes('gmailCardHtml') && cc.includes('Connect Gmail on Profile Setting first'), 'a disconnected Gmail account says to connect it on Profile Setting');
 
-for (const file of ['supabase/migrations/20261112050100_entity_file_titles.sql', 'supabase/rollbacks/20261112050100_entity_file_titles.sql']) {
+for (const file of ['supabase/migrations/20261112060100_entity_file_titles.sql', 'supabase/rollbacks/20261112060100_entity_file_titles.sql']) {
   console.log(file.split('/').pop(), createHash('sha256').update(readFileSync(file)).digest('hex'));
 }
 console.log(fail ? fail + ' failed' : 'ff followup passed');

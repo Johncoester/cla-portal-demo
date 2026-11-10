@@ -21,7 +21,7 @@ import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnab
 import { orderDraftKey, readOrderDraft, writeOrderDraft, clearOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim } from '../data/order-draft.js?v=202611070139';
 import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows } from '../data/lender-file.js?v=202611101200';
 import { fillProperty } from '../data/address-fill.js?v=202611102000';
-import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611120600';
+import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611120700';
 import { readEarnest, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611102000';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611120500';

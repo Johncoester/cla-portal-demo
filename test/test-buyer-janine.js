@@ -57,7 +57,7 @@ const overview = src('js/data/supabase-order-overview.js');
 ok(overview.includes("rpc('request_update'"), 'hosted Ask for an update calls request_update');
 const order = src('js/pages/ordernew.js');
 ok(order.includes('Salespeople on this order') && order.includes('type="checkbox" name="salesIds"'), 'Place Order salespeople are checkboxes with a matching label');
-const sql = src('supabase/migrations/20261112050200_buyer_task_holder.sql');
+const sql = src('supabase/migrations/20261112060200_buyer_task_holder.sql');
 ok(sql.includes('owner_profile_id is null') && sql.includes('rpc_save_party_ssn'), 'a blank task owner can still save the form and the Social Security number');
 
 if (fail) { console.log(fail + ' failed'); process.exit(1); }
