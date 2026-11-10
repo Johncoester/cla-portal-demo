@@ -4,10 +4,11 @@ import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor,
 import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611101015';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611101015';
 import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100200';
-import { copyPlainText } from './deal.js?v=202611101500';
+import { copyPlainText } from './deal.js?v=202611102000';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611101015';
 import { LENDER_CONTACT_ROLES, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611101200';
+import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
 export function contactCopyMessage(copied, kind) {
@@ -33,7 +34,7 @@ export async function render({ api, user, deal, refresh }) {
   const party = new Set((deal.agentParties || []).map((p) => p.contactId));
   const separate = (p) => list.some((q) => q.id !== p.id && q.contactId !== p.contactId && sameParty([q], p.contact, p.role));
   const rows = list.map((p) => {
-    const who = contactDisplayName(p.contact);
+    const who = (p.role === 'Client-Buyer' || p.role === 'Client-Seller') ? partyDisplayName(p) : contactDisplayName(p.contact);
     const roleBit = lenderRoleLabel(p.contact.lenderRole);
     const phoneBtn = p.contact.phone ? html`<button type="button" class="ghost" data-copy-field="${fmtPhone(p.contact.phone)}" data-copy-kind="phone" aria-label="${'Copy ' + who + ' phone'}">Copy</button>` : '';
     const emailBtn = p.contact.email ? html`<button type="button" class="ghost" data-copy-field="${p.contact.email}" data-copy-kind="email" aria-label="${'Copy ' + who + ' email'}">Copy</button>` : '';
@@ -117,7 +118,7 @@ export async function render({ api, user, deal, refresh }) {
   function invitePortal(contactId, role) {
     const p = deal.participants.find((x) => x.contactId === contactId && x.role === role); if (!p) return; const c = p.contact; const hasEmail = !!String(c.email || '').trim();
     const who = inviteKindForRole(role) === 'agent' ? 'agent account' : 'portal login';
-    const m = modal('Invite to portal', html`<form id="ipf" class="form-grid" data-invite-portal-form><p class="span2"><strong>${c.firstName} ${c.lastName}</strong> (${role}) gets a one-time link to set up their ${who} for this file.</p>
+    const m = modal('Invite to portal', html`<form id="ipf" class="form-grid" data-invite-portal-form><p class="span2"><strong>${partyDisplayName(p)}</strong> (${role}) gets a one-time link to set up their ${who} for this file.</p>
       <label class="span2">Email<input name="email" type="email" maxlength="160" value="${c.email || ''}" ${hasEmail ? raw('readonly') : raw('required placeholder="name@example.com"')} data-invite-email></label>
       ${hasEmail ? '' : html`<p class="muted small span2" data-invite-email-note>This contact has no email yet. The email you enter is saved on the contact.</p>`}
       <div class="span2"><button class="m-btn" type="submit" data-invite-create>Create invite link</button> <button type="button" class="ghost" data-close>Close</button></div>

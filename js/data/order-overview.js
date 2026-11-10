@@ -3,6 +3,7 @@
 // This function does not invent rows, prices, or activity. A hidden contact keeps a blank phone and email.
 import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS } from './agent-portal.js?v=202611101015';
 import { CLA_PHONE, isRefi, viewOnly, isAgent, sideOf } from './constants.js?v=202611101015';
+import { partyDisplayName } from './party-name.js?v=202611102000';
 
 const OPEN = ['todo', 'in_progress', 'blocked'];
 const EMD_RECEIPT = /earnest money deposit receipt/i;
@@ -20,7 +21,9 @@ export function buildOrderOverview({ deal, me, tasks = [], documents = [], threa
     const hidden = !!(p && p.contact && p.contact.contactHidden);
     const c = p && p.contact;
     const profileId = c && c.profileId || null;
-    return { label, name: c ? (`${c.firstName || ''} ${c.lastName || ''}`.trim() || c.company || 'Unnamed contact') : 'Not specified', company: c && !hidden ? c.company || '' : '',
+    const name = p ? partyDisplayName(p) : 'Not specified';
+    const company = c && !hidden ? (c.company || '') : '';
+    return { label, name, company: company && company !== name ? company : '',
       email: c && !hidden ? c.email || '' : '', phone: c && !hidden ? c.phone || '' : '', contactHidden: hidden, entity: p && p.entity ? p.entity : null,
       contactId: hidden ? '' : (p && (p.contactId || (c && c.id)) || ''),
       profileId, canMessage: !!(profileId && profileId !== me.id && !hidden && !readOnly) };

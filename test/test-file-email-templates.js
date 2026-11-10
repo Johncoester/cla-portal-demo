@@ -74,7 +74,7 @@ ok(/Hello there,/.test(blankBuyer.html) && !/\(\s*\)/.test(blankBuyer.html) && b
 const fullName = partyPerson({ role: 'Client-Buyer', contact: { firstName: 'Warren Spencer', lastName: '', email: 'clatestportal+buyer@gmail.com' } });
 ok(fullName.first === 'Warren' && fullName.last === 'Spencer', 'partyPerson: split full name in firstName');
 const entity = partyPerson({ role: 'Client-Buyer', contact: { firstName: '', lastName: '', email: '' }, entity: { name: 'Spencer LLC', repName: 'Warren Spencer', repEmail: 'clatestportal+buyer@gmail.com' } });
-ok(entity.first === 'Warren' && entity.email === 'clatestportal+buyer@gmail.com' && entity.full.includes('Warren'), 'partyPerson: entity uses rep first name + email');
+ok(entity.full === 'Spencer LLC' && entity.first === 'Spencer LLC' && entity.entityName === 'Spencer LLC' && entity.email === 'clatestportal+buyer@gmail.com' && !entity.full.includes('Warren'), 'partyPerson: an entity buyer shows the entity name, and mail still uses the representative email');
 
 const fromRpc = participantsFromContacts(
   [{ participant_id: 'p1', deal_id: 'd', contact_id: 'c1', role: 'Client-Buyer', first_name: 'Warren', last_name: 'Spencer', email: 'clatestportal+buyer@gmail.com', contact_hidden: false }],
@@ -89,7 +89,7 @@ ok(canManageFileTemplates({ isAdmin: true, status: 'active' }) && !canManageFile
 ok(canSelectFileTemplates({ role: 'Processor' }) && !canSelectFileTemplates({ role: 'Outside user' }), 'staff select; outside no');
 
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-ok(app.includes("'admin/email-templates'") && app.includes('Email Templates') && app.includes('email-templates.js?v=202611101015'), 'app registers Admin Email Templates at stamp');
+ok(app.includes("'admin/email-templates'") && app.includes('Email Templates') && app.includes('email-templates.js?v=202611102000'), 'app registers Admin Email Templates at stamp');
 const dealemail = readFileSync(new URL('../js/pages/dealemail.js', import.meta.url), 'utf8');
 ok(dealemail.includes('data-mail-template') && dealemail.includes('applyFileTemplate') && dealemail.includes('loadDealEmailContext'), 'compose has Use template + loadDealEmailContext');
 const gmail = readFileSync(new URL('../js/data/supabase-gmail.js', import.meta.url), 'utf8');
