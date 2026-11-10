@@ -321,7 +321,7 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
   }
 
   return {
-    async findCrmCompanyDuplicate({ name = '', exceptId = null } = {}) { return (await rpc('crm_company_duplicate', { p_name: name, p_except: exceptId })) || null; },
+    // Company duplicates go through lookupCompanies in supabase-crm.js (public.company_lookup).
     async previewCrmImport(input) { return runImport(input, false); },
     async runCrmImport(input) { return runImport(input, true); },
     async listCrmImports() {

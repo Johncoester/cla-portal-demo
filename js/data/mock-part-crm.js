@@ -11,7 +11,7 @@ import { dealDisplayName } from './nov5-rules.js?v=202611101015';
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, OPP_STAGES, ACCOUNT_KIND_CODES, CRM_ENTITIES, accountKindForType, entityLabel,
   TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, LINK_KEYS, LINK_FIELDS, cleanUrl, nextDue, addDaysTo, taskOpen, meetingOpen, localStamp,
   canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals, REPEAT_CODES, LEAD_STATUS_DEFAULT, companyKey } from './crm.js?v=202611070139';
-import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611120600';
+import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611121100';
 import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611070139';
 import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611070139';
 import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611070139';
@@ -59,6 +59,11 @@ export function crmPart(x, flags) {
   const seen = (u, entity, id) => { try { entityOf(u, entity, id); return true; } catch (e) { return false; } };
 
   // ---------- validation ----------
+  // FF-030 company_lookup. Both stay false. Owner privacy waits on the CRM user.
+  // Contains stays off: a leading wildcard cannot use the prefix index (see the migration).
+  // While owner privacy is off, a processor and a salesperson both see every active name.
+  const companyLookupOwnerPrivate = false;
+  const companyLookupContains = false;
   // blank owner = unassigned; on CREATE a salesperson's record defaults to themselves. A Sales Person assigns to themselves only. (= private.crm_owner_check)
   const owner = (u, v, current = null, create = false) => { let s = str(v, 60) || null;
     if (!s && create && isSales(u)) s = u.id;
@@ -414,6 +419,19 @@ export function crmPart(x, flags) {
     },
 
     // ---------- accounts ----------
+    // Same rows public.company_lookup returns: id, name, kind, city, state, phone. Active only. Cap 25.
+    async lookupCompanies(q, limit = 20) {
+      const u = crmUser();
+      const key = companyKey(q);
+      if (!key) return [];
+      const n = Number(limit);
+      const cap = Number.isFinite(n) ? Math.min(25, Math.max(1, Math.trunc(n))) : 20;
+      let rows = db().crmAccounts.filter((a) => !a.archivedAt && companyKey(a.name).startsWith(key));
+      if (!rows.length && companyLookupContains) rows = db().crmAccounts.filter((a) => !a.archivedAt && companyKey(a.name).includes(key));
+      if (companyLookupOwnerPrivate) rows = rows.filter((a) => accountSeen(u, a));
+      rows.sort((a, b) => companyKey(a.name).localeCompare(companyKey(b.name)) || String(a.name).localeCompare(String(b.name)) || String(a.id).localeCompare(String(b.id)));
+      return rows.slice(0, cap).map((a) => ({ id: a.id, name: a.name, kind: a.kind || '', city: a.city || '', state: a.state || '', phone: a.phone || '' }));
+    },
     async listCrmAccounts() { const u = crmUser(); return db().crmAccounts.filter((a) => accountSeen(u, a)).map((a) => accountOut(u, a)); },
     async getCrmAccount(id) {
       const u = crmUser(); const a = get.account(u, id); const d = db(); const cs = d.contacts.filter((c) => c.accountId === a.id && inCrm(c));
@@ -430,7 +448,8 @@ export function crmPart(x, flags) {
     },
     async updateCrmAccount(id, patch) {
       const u = crmEditor(); const d = db(); const a = get.account(u, id);
-      if (patch.name != null) { const n = str(patch.name, 160) || fail('Company name is required.'); if (companyKey(n) !== companyKey(a.name)) companyRules(n, null, a.id); a.name = n; }
+      if (patch.name != null) { const n = str(patch.name, 160) || fail('Company name is required.'); if (companyKey(n) !== companyKey(a.name)) companyRules(n, null, a.id);
+        if (n !== a.name) { a.name = n; d.contacts.forEach((c) => { if (c.accountId === a.id && c.company !== n) c.company = n; }); } }
       if (patch.kind != null) a.kind = opt('accountKind', patch.kind, 'Company type', { current: a.kind, required: true });
       if (patch.phone != null) a.phone = x.phone(patch.phone); ['website', 'city', 'notes'].forEach((k) => { if (patch[k] != null) a[k] = str(patch[k], k === 'notes' ? 4000 : 200); });
       if (patch.state != null) { const s = str(patch.state, 2).toUpperCase(); if (!s) fail('State is required.'); if (!C.US_STATES.includes(s)) fail('Pick a US state (or DC).'); a.state = s; }

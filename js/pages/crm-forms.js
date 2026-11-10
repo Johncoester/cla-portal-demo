@@ -10,7 +10,7 @@ import { CONVERTED_STATUS } from '../data/crm.js?v=202611070139';
 import { fieldsInSection, builtinRequired, activeOptions, defaultOption } from '../data/crm-config.js?v=202611070139';
 import { optSel, lbl, lblOrDash, hiddenField, cfInputs, cfRows, cfExtraSections } from './crm-custom.js?v=202611070139';
 import { activityBoard, wireCalls } from './crm-calls.js?v=202611120600';
-import { wireZipCounty, wireSubjectTypeahead, inviteBtn, invitePreview } from './crm-janine.js?v=202611120600';
+import { wireZipCounty, wireSubjectTypeahead, inviteBtn, invitePreview } from './crm-janine.js?v=202611121100';
 
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 const v0 = (v) => (v == null ? '' : v);
