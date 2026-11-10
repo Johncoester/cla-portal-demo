@@ -1,8 +1,8 @@
 /* mock adapter: tasks. Templates (versioned definitions) are separate from each participant's task COPY; a copy records templateId + templateVersion.
  * Intake forms: save partial work, validate, mark complete. Reminders are QUEUED in an outbox only and never sent. Tasks are cancelled, never deleted. */
-import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611101015';
+import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, fieldsForFile, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611120100';
 import { senderFor } from './email-senders.js?v=202611101015';
-import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611101015';   // Task switch OFF: no new copy (existing copies kept)
+import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611120100';   // Task switch OFF: no new copy (existing copies kept)
 import { templateGenerates, audienceAllowsRole, TASK_AUDIENCES } from './nov5-rules.js?v=202611101015';
 import { maskAccount } from './constants.js?v=202611101015';
 import { taskDueDate } from './due-date.js?v=202611110300';
@@ -11,7 +11,7 @@ export function tasksAndForms(x) {
   const OPEN = ['todo', 'in_progress', 'blocked'];
   const tpl = (id) => load().taskTemplates.find((t) => t.id === id);
   // Matt, Nov 3: a copy's fields = the template's fields for that copy's role (e.g. settlement type is on SELLER copies only)
-  const fieldsOf = (t, tp = tpl(t.templateId)) => (tp ? fieldsForRole(tp.fields, t.assignedRole) : []);
+  const fieldsOf = (t, tp = tpl(t.templateId)) => (tp ? fieldsForFile(fieldsForRole(tp.fields, t.assignedRole), load().deals.find((z) => z.id === t.dealId)) : []);
   const taskOr404 = (u, id) => { const t = load().tasks.find((z) => z.id === id) || fail('Task not found.'); u = onDeal(u, t.dealId); if (!taskVisible(u, t)) fail('Task not found.'); return t; };
   const audiencesOf = (input) => {
     if (!input || input.audiences == null || input.audiences === '') return null;

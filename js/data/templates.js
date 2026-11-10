@@ -45,6 +45,23 @@ export const ENTITY_REP_FIELDS = [F('entity_rep_name', 'Entity Representative (f
 const ENTITY_FIELDS_V4 = (() => { const i = ENTITY_FIELDS.findIndex((f) => f.k === 'entity_docs_note'); return [...ENTITY_FIELDS.slice(0, i), ...ENTITY_REP_FIELDS, ...ENTITY_FIELDS.slice(i)]; })();
 const PERSONAL_V4 = [...PERSONAL_V1, F('settlement_type', 'In-person or online settlement?', 'select', true, { opts: ['In person', 'Online'], roles: ['Client-Seller'] }),
   ...POA_FIELDS, ...ENTITY_FIELDS_V4, F('notes', 'Anything else we should know?', 'textarea')];
+// FF-020 (Francis): buyer Personal information. Current address and "Will you attend the closing?" are already on this form.
+// The survey question is always shown: the file has no "survey is optional" flag. Maryland first-time is states: ['MD'] only.
+// Not included, waiting on John: full SSN, confirmed spouse match.
+const BUYER_ONLY = ['Client-Buyer'];
+const buyerYn = (k, label, extra = {}) => F(k, label, 'select', false, { opts: yn, roles: BUYER_ONLY, ...extra });
+export const BUYER_PERSONAL_FIELDS = [
+  F('citizenship', 'Citizenship', 'text', false, { roles: BUYER_ONLY }),
+  F('gender', 'Gender', 'select', false, { opts: ['Female', 'Male', 'Nonbinary', 'Prefer not to say'], roles: BUYER_ONLY }),
+  F('date_of_birth', 'Date of birth', 'date', false, { roles: BUYER_ONLY }),
+  F('forwarding_address', 'Forwarding address', 'text', false, { roles: BUYER_ONLY }),
+  buyerYn('leaving_town', 'Will you be leaving town before closing?'),
+  buyerYn('divorce', 'Are you currently going through a divorce?'),
+  buyerYn('primary_residence', 'Will the property be your primary residence?'),
+  buyerYn('survey', 'Would you like to obtain a survey?'),
+  buyerYn('md_first_time', 'Are you a first-time homebuyer in Maryland?', { states: ['MD'] }),
+];
+const PERSONAL_V5 = [...PERSONAL_V4, ...BUYER_PERSONAL_FIELDS];
 // Plain-English vesting explanations ("What do these mean?" button on Title vesting). General information only, not legal advice.
 export const VESTING_TYPES = [
   ['Sole owner', 'One person owns the property alone. Only that person signs to sell or borrow against it, and when they die it passes under their will (or state law if there is no will).'],
@@ -74,6 +91,9 @@ export const TEMPLATE_DEFS = [
   { code: 'personal_info', version: 4, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 31,
     description: 'Contact details and closing preferences, power of attorney, and whether you are buying or selling as an entity (LLC, corporation, partnership or trust) and who represents it.',
     fields: PERSONAL_V4 },
+  { code: 'personal_info', version: 5, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 120,
+    description: 'Contact details and closing preferences, power of attorney, and whether you are buying or selling as an entity. Buyers also answer citizenship, closing plans, and Maryland questions when the property is in Maryland.',
+    fields: PERSONAL_V5 },
   { code: 'title_vesting', version: 2, title: 'Title vesting', roles: ['Client-Buyer'], dueDays: 10, agentRoles: [], migration: 26, description: 'How the buyer(s) will hold title.',
     fields: [F('vesting_names', 'Name(s) exactly as they should appear on the deed', 'textarea', true),
       F('vesting_type', 'Manner of holding title', 'select', true, { opts: VESTING_TYPES.map(([o]) => o), help: VESTING_HELP }),
@@ -132,6 +152,11 @@ const CHECK = {
 };
 const MSG = { email: 'must be a valid email', phone: PHONE_MSG, routing: 'must be a valid 9-digit routing number', account: 'must be 4 to 17 digits', state: 'must be a 2-letter code (e.g. MD)', zip: 'must be a 5-digit ZIP', date: 'must be a date', money: 'must be a positive amount', digits4: 'must be exactly 4 digits' };
 export const fieldActive = (f, data) => !(f.k !== 'none' && data.none) && (!f.when || data[f.when[0]] === f.when[1]);
+/* A field with states is only on files in those states. The deal is already loaded with the page. */
+export function fieldsForFile(fields, deal) {
+  const state = String((deal && deal.state) || '').trim().toUpperCase();
+  return (fields || []).filter((f) => !f.states || f.states.some((s) => String(s).toUpperCase() === state));
+}
 /* Clean + validate a form. complete=false (save partial work): only checks values that are filled in. complete=true: required fields must be filled.
  * Returns { data, errors: [{k, msg}] }. Unknown keys are dropped. */
 export function validateForm(fields, input, complete) {
@@ -189,6 +214,7 @@ export function applyNov3Templates(d, { at = new Date().toISOString(), by = null
  * Representative). Recognised by its marker field (entity_rep_name), numbered after any later Admin version, agent-delegation policy carried over; untouched
  * copies (todo, nothing saved) of OLDER versions move onto it while it is the active version. Idempotent. Mirrored in SQL (migration 31). */
 export const NOV3B_MARKERS = { personal_info: 'entity_rep_name' };
+export const BUYER_PERSONAL_MARKERS = { personal_info: 'citizenship' };
 export function applyNov3bTemplates(d, { at = new Date().toISOString(), by = null } = {}) {
   const added = []; let moved = 0;
   for (const def of TEMPLATE_DEFS.filter((t) => t.migration === 31)) {
@@ -197,6 +223,26 @@ export function applyNov3bTemplates(d, { at = new Date().toISOString(), by = nul
       const top = vs.slice().sort((a, b) => b.version - a.version)[0]; const version = top ? Math.max(top.version + 1, def.version) : def.version;
       nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: top ? [...(top.agentRoles || [])] : [...def.agentRoles], active: true, publishedBy: by, publishedAt: at };
       if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-nov3b`;
+      vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
+    }
+    if (!nt.active) continue;
+    d.tasks.filter((t) => t.templateCode === def.code && t.templateId !== nt.id && t.kind === 'form' && t.status === 'todo' && !t.savedAt && !Object.keys(t.formData || {}).length
+      && (d.taskTemplates.find((z) => z.id === t.templateId) || { version: 0 }).version < nt.version)
+      .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
+  }
+  return { added, moved };
+}
+
+/* FF-020: personal_info v5 adds the buyer questions. Same move rule as v4: untouched todo copies with no answers
+ * take the new version. A copy that already has answers stays on the version it was saved with. */
+export function applyBuyerPersonal(d, { at = new Date().toISOString(), by = null } = {}) {
+  const added = []; let moved = 0;
+  for (const def of TEMPLATE_DEFS.filter((t) => t.migration === 120)) {
+    const vs = d.taskTemplates.filter((t) => t.code === def.code); let nt = vs.find((t) => hasMarker(t, BUYER_PERSONAL_MARKERS[def.code]));
+    if (!nt) {
+      const top = vs.slice().sort((a, b) => b.version - a.version)[0]; const version = top ? Math.max(top.version + 1, def.version) : def.version;
+      nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: top ? [...(top.agentRoles || [])] : [...def.agentRoles], active: true, publishedBy: by, publishedAt: at };
+      if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-buyer`;
       vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
     }
     if (!nt.active) continue;

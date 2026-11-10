@@ -6,7 +6,7 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate,
 import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611101015';
 import { boxTasks, boxOfRole } from '../data/task-board.js?v=202611101015';
 import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611101015';
-import { taskOpenHref } from '../data/task-actions.js?v=202611110800';
+import { taskOpenHref } from '../data/task-actions.js?v=202611120100';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
 export const LABEL = { todo: 'to do', in_progress: 'started', done: 'done', blocked: 'blocked', cancelled: 'cancelled' };
@@ -18,7 +18,7 @@ export async function render(ctx) {
   const { api, user, deal, refresh } = ctx;
   if (intakeDeal !== deal.id) { intakeDeal = deal.id; intakeOpen.clear(); }
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611111700')).render(ctx);
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611120100')).render(ctx);
   const allTasks = await api.listTasks(deal.id);
   // BUYER (Nov 4 call): the agreements are to-dos that open the agreement (no Agreements tab for the buyer); the buyer never gets a Listing Agent box (listing agent never shown)
   // SELLER MIRROR (Nov 4): the pure seller gets the same To-do list (agreements as to-dos) and never a Buyer's Agent box (the buyer's agent is never shown to the seller)
@@ -77,7 +77,7 @@ export async function render(ctx) {
     const slotOf = (id) => $(`[data-intake-slot="${(globalThis.CSS && CSS.escape ? CSS.escape(String(id)) : String(id).replace(/(["\\])/g, '\\$1'))}"]`, root);
     const showIntake = async (ids) => {
       if (!ids.length) return;
-      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611111700');
+      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611120100');
       await Promise.all(ids.map(async (id) => {
         const slot = slotOf(id); if (!slot) return;
         const box = slot.closest('details'); if (box) box.open = true;
@@ -88,7 +88,7 @@ export async function render(ctx) {
         try {
           const full = await api.getTask(id);
           if (!slot.isConnected) return;
-          slot.innerHTML = toText(html`<div class="intake-edit" data-intake-panel="${id}"><p class="intake-edit-note muted small">Edit <strong>${full.title}</strong>${full.ownerName ? html` for ${full.ownerName}` : ''}</p>${intakeFormHtml(full)}</div>`);
+          slot.innerHTML = toText(html`<div class="intake-edit" data-intake-panel="${id}"><p class="intake-edit-note muted small">Edit <strong>${full.title}</strong>${full.ownerName ? html` for ${full.ownerName}` : ''}</p>${intakeFormHtml(full, { state: deal.state })}</div>`);
           mountIntakeForm(slot, { api, t: full, afterSave(mode) { toast(mode === 'complete' ? 'Task complete. Thank you!' : 'Progress saved'); refresh(); } });
           slot.dataset.loading = ''; slot.dataset.loaded = '1'; intakeOpen.add(id);
         } catch (err) {

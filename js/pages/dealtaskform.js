@@ -1,14 +1,14 @@
 // One intake task (form). Save partial work, validate, mark complete. ID-type fields upload a file into the order's "IDs & personal" folder.
 import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611100245';
 import { downloadNamed } from '../data/file-open.js?v=202611100245';
-import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611101015';
+import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611120100';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611101015';
-import { CLS, LABEL } from './dealtasks.js?v=202611111700';
+import { CLS, LABEL } from './dealtasks.js?v=202611120100';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 // The task page and the processor Tasks "Expand all" use the same fields, save, and complete rules.
-export function intakeFormHtml(t, { page = false } = {}) {
-  const fields = fieldsForRole(t.fields || [], t.assignedRole);   // Matt, Nov 3: role-only fields (settlement type = sellers only); the data layer filters too
+export function intakeFormHtml(t, { page = false, state = '' } = {}) {
+  const fields = fieldsForFile(fieldsForRole(t.fields || [], t.assignedRole), { state });   // Matt, Nov 3: role-only fields (settlement type = sellers only); Maryland questions use the file state already on the page
   t.fields = fields;
   const v = t.formData || {};
   const docName = (id) => ((t.documents || []).find((z) => z.id === id) || {}).name || '';
@@ -74,7 +74,7 @@ export async function render(c0) {
   const t = await api.getTask(params.sub);
   if (t.kind === 'sign') return signView({ api, deal, t, refresh, go });
   const tplLabel = t.template ? html`${t.template.code} v${t.template.version}` : (t.templateCode ? html`${t.templateCode} v${t.templateVersion}` : 'n/a');
-  const inner = intakeFormHtml(t, { page: true });
+  const inner = intakeFormHtml(t, { page: true, state: deal && deal.state });
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>${t.title}</h2><a class="ghost right" href="#/deals/${deal.id}/tasks">All tasks</a></div>
     <div class="card"><p>${t.description}</p><p class="muted small">For <strong>${t.ownerName || t.assignedRole}</strong> (${t.assignedRole}) &middot; due ${fmtDate(t.dueDate) || 'n/a'} &middot; ${pill(LABEL[t.status], CLS[t.status])}
       &middot; template ${tplLabel}${t.savedAt ? html` &middot; last saved ${fmtDateTime(t.savedAt)}` : ''}</p>
@@ -109,4 +109,4 @@ function signView({ api, deal, t, refresh, go }) {
 }
 
 // Francis, Nov 3: agent tasks (kind 'agent') have their own page
-async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611111700'); return m.render(c); }
+async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611120100'); return m.render(c); }
