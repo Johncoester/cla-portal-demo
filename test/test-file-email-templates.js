@@ -89,7 +89,7 @@ ok(canManageFileTemplates({ isAdmin: true, status: 'active' }) && !canManageFile
 ok(canSelectFileTemplates({ role: 'Processor' }) && !canSelectFileTemplates({ role: 'Outside user' }), 'staff select; outside no');
 
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-ok(app.includes("'admin/email-templates'") && app.includes('Email Templates') && app.includes('email-templates.js?v=202611102000'), 'app registers Admin Email Templates at stamp');
+ok(app.includes("'admin/email-templates'") && app.includes('Email Templates') && app.includes('email-templates.js?v=202611110900'), 'app registers Admin Email Templates at stamp');
 const dealemail = readFileSync(new URL('../js/pages/dealemail.js', import.meta.url), 'utf8');
 ok(dealemail.includes('data-mail-template') && dealemail.includes('applyFileTemplate') && dealemail.includes('loadDealEmailContext'), 'compose has Use template + loadDealEmailContext');
 const gmail = readFileSync(new URL('../js/data/supabase-gmail.js', import.meta.url), 'utf8');
