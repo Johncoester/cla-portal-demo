@@ -68,16 +68,11 @@ ok(mig.includes('is retired and is not imported') && mig.includes('not o.retired
 ok(rb.includes("g.file_number || ' ' || g.street") && !rb.includes('is retired and is not imported'), 'the rollback restores the previous deal name and import rule');
 ok(!/create policy/i.test(mig), 'this migration adds no RLS policy');
 
-const moneyFiles = ['js/data/constants.js', 'js/data/supabase-tc.js', 'js/pages/money-input.js', 'js/pages/ordernew.js', 'js/pages/tc-overview.js', 'js/data/nov5-rules.js', 'js/data/county-auto.js'];
+const moneyFiles = ['js/data/constants.js', 'js/data/supabase-tc.js', 'js/pages/deal-buyer-legacy.js', 'js/pages/deal.js', 'js/pages/money-input.js', 'js/pages/ordernew.js', 'js/pages/tc-overview.js', 'js/data/nov5-rules.js', 'js/data/county-auto.js'];
 for (const file of moneyFiles) {
   let dirty = false;
   try { execFileSync('git', ['diff', '--exit-code', 'HEAD', '--', file], { cwd: root, stdio: 'ignore' }); } catch (e) { dirty = true; }
   ok(!dirty, file + ' is unchanged');
-}
-const stampOnly = (s) => s.replace(/\?v=\d+/g, '?v=0');
-for (const file of ['js/pages/deal.js', 'js/pages/deal-buyer-legacy.js']) {
-  const head = execFileSync('git', ['show', `HEAD:${file}`], { cwd: root, encoding: 'utf8' });
-  ok(stampOnly(read(file)) === stampOnly(head), file + ' changed only its cache stamp');
 }
 
 function walk(dir, out = []) {
@@ -112,7 +107,7 @@ for (const [target, hits] of stamps) {
 const janinePins = (stamps.get('js/data/crm-janine.js') || []).filter((h) => allowOld.has(h.from));
 if (janinePins.length !== allowOld.size || janinePins.some((h) => h.stamp !== '202611101015')) issues.push('crm-janine pin moved');
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
-ok(html.includes('js/app.js?v=202611121900') && html.includes('css/portal.css?v=202611120600'), 'index.html uses this hotfix stamp for the shell, and the stylesheet stamp is unchanged');
+ok(html.includes('js/app.js?v=202611121900') && html.includes('css/portal.css?v=202611120600'), 'index.html uses the placeholder stamp');
 
 const tList = performance.now();
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
