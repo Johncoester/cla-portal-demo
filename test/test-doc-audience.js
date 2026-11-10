@@ -50,7 +50,7 @@ const agentAllowed = visibilityChoices('Listing Agent');
 const agentChoices = audienceChoices({ parties: named, allowed: agentAllowed, role: 'Listing Agent' });
 ok(visibilityFromChecked(['b1', 'ba'], agentChoices, agentAllowed).error && visibilityFromChecked(['s1', 'la'], agentChoices, agentAllowed).visibility === 'seller' && visibilityFromChecked(['b1', 'ba', 's1', 'la'], agentChoices, agentAllowed).visibility === 'all', 'a listing agent can save their side or everyone, not the buyer side alone');
 const buyerClient = audienceChoices({ parties: named, allowed: visibilityChoices('Client-Buyer'), role: 'Client-Buyer' });
-ok(buyerClient.length === 1 && buyerClient[0].label === 'Share with CLA Title' && visibilityFromChecked(['cla'], buyerClient, visibilityChoices('Client-Buyer')).visibility === 'staff', 'a buyer still shares with CLA Title only');
+ok(buyerClient.length === 1 && buyerClient[0].label === 'Share with CLA Title' && visibilityFromChecked(['cla'], buyerClient, visibilityChoices('Client-Buyer')).visibility === 'buyer', 'a buyer Share with CLA Title is stored as the buyer side');
 const sellerClient = audienceChoices({ parties: named, allowed: visibilityChoices('Client-Seller'), role: 'Client-Seller' });
 ok(visibilityFromChecked(checkedForVisibility('seller', sellerClient), sellerClient, visibilityChoices('Client-Seller')).visibility === 'seller', 'a seller still shares with CLA Title as the seller side');
 
@@ -111,7 +111,7 @@ ok(await sees('u-buyer', fromAgent.id), 'Share with buyer still opens that agent
 
 await api.signInDev('u-buyer');
 const fromBuyer = await api.addDocument('deal-1', { ...file, name: 'buyer-cla.pdf', visibility: 'staff', docType: 'Other' });
-ok(fromBuyer.visibility === 'staff' && await sees('u-buyer', fromBuyer.id) && await sees('u-proc', fromBuyer.id) && !(await sees('u-bagent', fromBuyer.id)) && !(await sees('u-seller', fromBuyer.id)), 'a buyer share with CLA Title stays with the buyer and CLA staff');
+ok(fromBuyer.visibility === 'buyer' && await sees('u-buyer', fromBuyer.id) && await sees('u-proc', fromBuyer.id) && await sees('u-bagent', fromBuyer.id) && !(await sees('u-seller', fromBuyer.id)) && !(await sees('u-lagent', fromBuyer.id)), 'a buyer share with CLA Title stays with the buyer, their agent, and CLA staff');
 
 const { window, document } = parseHTML('<!doctype html><html><body></body></html>');
 globalThis.window = window; globalThis.document = document;
