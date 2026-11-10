@@ -28,9 +28,9 @@ begin
       and d.description = marker
   ) into marked;
   if marked and to_regclass('public.crm_imports') is not null then
-    select count(*) into bad from public.crm_imports where total > 2000;
+    select count(*) into bad from public.crm_imports where total < 0 or total > 2000;
     if bad > 0 then
-      raise exception 'Cannot restore crm_imports_total_check (total <= 2000): % import log row(s) have a total above 2000. No rows were deleted.', bad;
+      raise exception 'Cannot restore crm_imports_total_check ((total >= 0) and (total <= 2000)): % import log row(s) are outside that range. No rows were deleted.', bad;
     end if;
   end if;
   select exists (
@@ -91,7 +91,7 @@ begin
          and d.description = marker
      ) then
     alter table public.crm_imports drop constraint crm_imports_total_check;
-    alter table public.crm_imports add constraint crm_imports_total_check check (total <= 2000);
+    alter table public.crm_imports add constraint crm_imports_total_check check ((total >= 0) and (total <= 2000));
     comment on constraint crm_imports_total_check on public.crm_imports is null;
   end if;
   if to_regclass('public.crm_import_rows') is not null

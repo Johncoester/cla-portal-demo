@@ -161,8 +161,8 @@ begin
 end
 $pre$;
 
--- TEST already has crm_imports_total_check (total <= 2000) and
--- crm_import_rows_line_check (line between 2 and 2001). A later chunk
+-- TEST already has crm_imports_total_check ((total >= 0) and (total <= 2000))
+-- and crm_import_rows_line_check (line between 2 and 2001). A later chunk
 -- trips those (23514). Replace them only when that old definition is
 -- still the one on the table. A fresh table created above is left alone.
 do $limits$
@@ -179,7 +179,7 @@ begin
       alter table public.crm_imports drop constraint crm_imports_total_check;
       alter table public.crm_imports
         add constraint crm_imports_total_check check (total >= 0 and total <= 10000);
-      comment on constraint crm_imports_total_check on public.crm_imports is marker;
+      execute format('comment on constraint %I on %I.%I is %L', 'crm_imports_total_check', 'public', 'crm_imports', marker);
     end if;
   end if;
   if to_regclass('public.crm_import_rows') is not null then
@@ -191,7 +191,7 @@ begin
       alter table public.crm_import_rows drop constraint crm_import_rows_line_check;
       alter table public.crm_import_rows
         add constraint crm_import_rows_line_check check (line >= 2 and line <= 10001);
-      comment on constraint crm_import_rows_line_check on public.crm_import_rows is marker;
+      execute format('comment on constraint %I on %I.%I is %L', 'crm_import_rows_line_check', 'public', 'crm_import_rows', marker);
     end if;
   end if;
 end
