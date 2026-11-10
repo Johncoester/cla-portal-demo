@@ -1,20 +1,20 @@
 /* File-tab modules. Loading one evaluates local helpers only. It does not check who is signed in and it does not read a file. */
 const TABS = Object.assign(Object.create(null), {
-  tasks: './dealtasks.js?v=202611101200',
+  tasks: './dealtasks.js?v=202611101215',
   inbox: './dealmsgs.js?v=202611100245',
   email: './dealemail.js?v=202611100930',   // John, Nov 9: Gmail phase 1 (staff only; the tab module refuses everyone else)
   documents: './dealdocs.js?v=202611100945',
-  contacts: './dealcontacts.js?v=202611101200',
+  contacts: './dealcontacts.js?v=202611101215',
   activity: './dealactivity.js?v=202611100245',
-  closing: './dealclosing.js?v=202611100245',
+  closing: './dealclosing.js?v=202611101215',
   agreements: './dealagreements.js?v=202611100245',
-  accounting: './dealaccounting.js?v=202611100245',
+  accounting: './dealaccounting.js?v=202611101215',
   title: './dealtitle.js?v=202611100245',
   funding: './dealfwp.js?v=202611100245',
   wires: './dealfwp.js?v=202611100245',
   policy: './dealfwp.js?v=202611100245',
 });
-const TASK_FORM = './dealtaskform.js?v=202611101200';
+const TASK_FORM = './dealtaskform.js?v=202611101215';
 
 function ownSpec(tab) {
   if (typeof tab !== 'string' || !Object.prototype.hasOwnProperty.call(TABS, tab)) return '';
