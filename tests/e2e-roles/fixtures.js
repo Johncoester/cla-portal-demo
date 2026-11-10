@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { test as base, expect } from '@playwright/test';
 import { targetMode } from './helpers/gate.js';
 import { PEOPLE, SEED_FILE } from './helpers/people.js';
@@ -18,6 +21,43 @@ function pendingInviteNetwork400(text) {
 }
 
 const PENDING_INVITE_MESSAGE = /already a pending invite/i;
+
+// Two workers signing in as the same person refresh one Supabase session and the second refresh revokes it.
+const accountLockDir = path.join(os.tmpdir(), 'cla-e2e-account-locks');
+const accountLocks = new WeakMap();
+
+function accountAlive(pid) {
+  if (!pid) return false;
+  try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
+}
+
+async function acquireAccount(key) {
+  fs.mkdirSync(accountLockDir, { recursive: true });
+  const file = path.join(accountLockDir, String(key).replace(/[^a-z0-9_-]/gi, '_'));
+  for (;;) {
+    try {
+      const fd = fs.openSync(file, 'wx');
+      fs.writeFileSync(fd, String(process.pid));
+      fs.closeSync(fd);
+      return file;
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+      let owner = 0;
+      try { owner = Number(fs.readFileSync(file, 'utf8')); } catch (err) { owner = 0; }
+      if (!accountAlive(owner)) { try { fs.unlinkSync(file); } catch (err) { /* the owner released it */ } continue; }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+}
+
+function releaseAccount(page) {
+  const file = accountLocks.get(page);
+  if (!file) return;
+  accountLocks.delete(page);
+  try {
+    if (Number(fs.readFileSync(file, 'utf8')) === process.pid) fs.unlinkSync(file);
+  } catch (e) { /* already released */ }
+}
 
 export async function allowPendingInvite400(page, issues) {
   issues.allowedInvite400 = 0;
@@ -54,7 +94,7 @@ export const test = base.extend({
       if (pendingInviteNetwork400(line) && issues.allowedInvite400 > 0) { issues.allowedInvite400 -= 1; return; }
       issues.push(line);
     });
-    await use(issues);
+    try { await use(issues); } finally { releaseAccount(page); }
   },
 });
 
@@ -74,6 +114,8 @@ export async function signIn(page, key) {
   if (!person) throw new Error(`Unknown role ${key}`);
   await page.goto('/#/login');
   if (targetMode() === 'test') {
+    releaseAccount(page);
+    accountLocks.set(page, await acquireAccount(key));
     const email = process.env[person.emailEnv] || '';
     const password = process.env[person.passwordEnv] || '';
     if (!email || !password) throw new Error(`Missing secret ${person.emailEnv} or ${person.passwordEnv}.`);
