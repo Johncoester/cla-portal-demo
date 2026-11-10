@@ -95,10 +95,11 @@ Messages the suite receives in the test inbox are moved to trash. The copy in th
 
 `.github/workflows/e2e-roles-test.yml`
 
-- After the Pages workflow `pages-build-deployment` succeeds.
-- After a successful `deployment_status`, except an environment named production.
+- After the Pages workflow `pages-build-deployment` succeeds. That is the only deploy trigger, so one deploy starts one run.
 - Nightly at 02:00 America/New_York (the 06:00 and 07:00 UTC crons; the job exits unless the Eastern hour is 02).
 - `workflow_dispatch` for a manual run.
+
+The job runs on `ubuntu-24.04`. Overlapping runs share the `e2e-roles-test` concurrency group and queue.
 
 The base URL is hard-coded to `https://testportal.clatitle.com/`. A screenshot and a trace are uploaded when the job fails. The job summary is the pass/fail table, including expected failures and email latency when a live send ran.
 
