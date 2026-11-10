@@ -3,8 +3,9 @@ import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=
 import { downloadNamed } from '../data/file-open.js?v=202611100245';
 import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611120200';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
+import { spouseSectionHtml, spousePayload, loadSpouseRows, applySpouse } from './spouse.js?v=202611120600';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611101015';
-import { CLS, LABEL } from './dealtasks.js?v=202611120200';
+import { CLS, LABEL } from './dealtasks.js?v=202611120600';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 // The task page and the processor Tasks "Expand all" use the same fields, save, and complete rules.
@@ -49,8 +50,9 @@ export function intakeFormHtml(t, { page = false, state = '' } = {}) {
   const completeBtn = t.canComplete === false ? '' : html`<button class="m-btn" type="submit" data-mode="complete">${t.status === 'done' ? 'Save and keep complete' : 'Mark complete'}</button>`;
   const askSsn = t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller') && !t.formHidden;
   const ssn = askSsn ? buyerSsnHtml(t.ssnShown || '', !!t.ssnStaff) : '';
+  const spouse = askSsn ? spouseSectionHtml(t.spouseRow, !!t.spouseStaff) : '';
   return html`<form ${page ? raw('id="tform"') : ''} class="form-grid" data-intake-form="${t.id}" novalidate>${!(fields || []).length ? html`<p class="notice warn span2" data-task-no-fields>This task has no form fields yet (template ${tplLabel}). Tell CLA Title — nothing was marked complete.</p>` : ''}${fields.map(input)}
-    ${ssn}
+    ${ssn}${spouse}
     <div class="span2"><button class="ghost" type="submit" data-mode="save">Save progress</button> ${completeBtn}</div>
     <p class="muted small span2">Fields marked * are needed to mark the task complete. You can save partial work any time.${askSsn ? ' The Social Security number is saved separately and is not emailed.' : ''}</p></form>`;
 }
@@ -104,8 +106,15 @@ export function mountIntakeForm(root, { api, t, afterSave }) {
         if (file.size > MAX_UPLOAD_BYTES) throw new Error('File is too large for this demo.');
         const up = await api.uploadForTask(t.id, { name: file.name, mimeType: file.type, size: file.size, dataUrl: await readFile(file), field: fi.dataset.file }); form.elements[fi.dataset.file].value = up.id; fi.value = ''; }   // stored once: a retry after a form error must not upload it again
       writeMortgages();
-      const data = {}; new FormData(form).forEach((val, k) => { if (typeof val === 'string') data[k] = val; });
+      const data = {}; new FormData(form).forEach((val, k) => { if (typeof val === 'string' && !k.startsWith('spouse')) data[k] = val; });
+      const spouseBox = $('[data-spouse-section]', form);
+      if (spouseBox && api.saveSpouse) await api.saveSpouse(t.dealId, spouseBox.dataset.spouse, spousePayload(form));
       await api.saveTaskForm(t.id, data, { complete: mode === 'complete' });
+      const spouseSsn = $('[data-spouse-ssn-input]', form);
+      if (spouseSsn && spouseSsn.value && spouseBox && spouseBox.dataset.spouseTask) {
+        await api.savePartySsn(spouseBox.dataset.spouseTask, 'spouse', spouseSsn.value);
+        spouseSsn.value = '';
+      }
       const ssnInput = $('[data-buyer-ssn]', form);
       if (ssnInput && ssnInput.value) {
         await api.saveBuyerSsn(t.id, ssnInput.value);
@@ -127,6 +136,8 @@ export async function render(c0) {
   if (t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller') && !t.formHidden && api.readBuyerSsn) {
     try { t.ssnShown = await api.readBuyerSsn(t.id) || ''; } catch (e) { t.ssnShown = ''; }
     t.ssnStaff = ssnStaff(c0.user);
+    t.dealId = deal.id;
+    applySpouse(t, await loadSpouseRows(api, deal.id), c0.user);
   }
   const tplLabel = t.template ? html`${t.template.code} v${t.template.version}` : (t.templateCode ? html`${t.templateCode} v${t.templateVersion}` : 'n/a');
   const inner = intakeFormHtml(t, { page: true, state: deal && deal.state });

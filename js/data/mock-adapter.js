@@ -9,8 +9,8 @@ import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, 
 import { fileTitleOf, partyDisplayName } from './party-name.js?v=202611102000';
 import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611120200';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
-import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks } from './templates.js?v=202611120200';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611120500';
+import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks } from './templates.js?v=202611120600';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611120600';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
 import { contactsTasksDocs } from './mock-part-docs.js?v=202611120100';
 import { tasksAndForms } from './mock-part-tasks.js?v=202611120200';

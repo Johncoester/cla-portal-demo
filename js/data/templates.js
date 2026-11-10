@@ -141,7 +141,7 @@ export const TEMPLATE_DEFS = [
     description: 'Contact details and closing preferences, power of attorney, and whether you are buying or selling as an entity. Buyers also answer citizenship, closing plans, and Maryland questions when the property is in Maryland.',
     fields: PERSONAL_V5 },
   { code: 'personal_info', version: 6, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 121,
-    description: 'Buyer and seller personal details. Sellers also confirm proceeds, the property, and utilities. Spouse details are on the Spouse tab, not here.',
+    description: 'Buyer and seller personal details. Sellers also confirm proceeds, the property, and utilities. Spouse information is a section on this form.',
     fields: PERSONAL_V6 },
   { code: 'title_vesting', version: 2, title: 'Title vesting', roles: ['Client-Buyer'], dueDays: 10, agentRoles: [], migration: 26, description: 'How the buyer(s) will hold title.',
     fields: [F('vesting_names', 'Name(s) exactly as they should appear on the deed', 'textarea', true),

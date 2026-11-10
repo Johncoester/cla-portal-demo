@@ -1,6 +1,45 @@
 // TEST contract figures. Estimates only. Blank stays blank. Nothing here is a receipt, payoff, or Closing Disclosure.
-import { html, raw, $, $$, guard, formData, toast } from '../ui.js?v=202611071751';
+import { html, raw, $, $$, guard, formData, toast, fmtMoney } from '../ui.js?v=202611071751';
 import { CONTRACT_FIELDS, CONTRACT_GROUPS, illustrative } from '../data/contract-terms.js?v=202611091140';
+import { runsOrders, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611101015';
+import { earnestView, readEarnest, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611102000';
+
+function earnestAccounting(deal, user) {
+  if (isRefi(deal)) return '';
+  const ev = earnestView(deal);
+  const edit = runsOrders(user);
+  const moneyBox = (name, label, value) => html`<label>${label}<input name="${name}" inputmode="decimal" data-money value="${moneyShow(value)}" aria-label="${label}" autocomplete="off"></label>`;
+  return html`<form class="card acct-form" data-earnest-accounting data-earnest-edit="${edit ? 'yes' : 'no'}"><h3>Earnest &amp; commissions</h3>
+    <p class="muted small">Optional. Saved on the order, the same place as Add New Order. A refinance has none.</p>
+    <div class="form-grid">
+      ${moneyBox('emdAmount', 'EMD amount', deal.emdAmount)}
+      <label>EMD due date<input type="date" name="emdDueDate" value="${deal.emdDueDate || ''}"></label>
+      <label>EMD held by<input name="emdHeldBy" maxlength="200" value="${ev.held}" aria-label="EMD held by"></label>
+      ${moneyBox('commissionBase', 'Commission base', ev.base)}
+      <label>Commission %<input name="commissionPercent" inputmode="decimal" value="${ev.percent == null ? '' : ev.percent}" aria-label="Commission percent" autocomplete="off"></label>
+      ${moneyBox('commissionAdditional', 'Additional', ev.additional)}
+      <label>Total<input name="commissionTotal" data-commission-total readonly aria-label="Commission total" tabindex="-1" value="${ev.total == null ? '' : ev.total}"></label>
+      <label>Paid by<select name="commissionPaidBy" aria-label="Commission paid by"><option value="">Choose&hellip;</option>${COMMISSION_PAID_BY.map(([code, label]) => html`<option value="${code}" ${code === ev.paid ? raw('selected') : ''}>${label}</option>`)}</select></label>
+    </div>
+    <p class="acct-form-actions">${edit ? html`<button class="m-btn" type="submit">Save earnest and commissions</button>` : html`<span class="muted small">Read only.</span>`}${ev.any || deal.emdAmount != null ? html` <span class="muted small" data-earnest-now>${ev.total == null ? '' : fmtMoney(ev.total)}</span>` : ''}</p>
+  </form>`;
+}
+
+function mountEarnest(root, api, deal, user, refresh) {
+  const form = $('[data-earnest-accounting]', root);
+  if (!form || isRefi(deal)) return;
+  const paint = () => { const box = $('[data-commission-total]', form); if (!box) return; try { const e = readEarnest(formData(form)); box.value = e.commissionTotal == null ? '' : String(e.commissionTotal); } catch (err) { box.value = ''; } };
+  form.addEventListener('input', paint);
+  if (!runsOrders(user)) { $$('input, select, button', form).forEach((el) => { el.disabled = true; }); return; }
+  form.addEventListener('submit', guard(async (e) => {
+    e.preventDefault();
+    const f = formData(form);
+    const earnest = readEarnest(f);
+    await api.updateDeal(deal.id, { emdAmount: moneyAmount(f.emdAmount), emdDueDate: f.emdDueDate || '', ...earnest });
+    toast('Earnest and commissions saved');
+    if (refresh) refresh();
+  }));
+}
 
 const moneyValue = (n) => (n == null || n === '' ? '' : Number(n).toFixed(2));
 const numValue = (n) => (n == null || n === '' ? '' : String(n));
@@ -23,7 +62,7 @@ function fieldHtml(f, terms, locked) {
   return html`<label class="${wide}" data-contract-field="${f.key}">${f.label}${control}${f.hint ? html`<span class="field-hint">${f.hint}</span>` : ''}</label>${basis}${source}`;
 }
 
-export async function contractView(api, deal) {
+export async function contractView(api, deal, user) {
   const terms = api.getContractTerms ? await api.getContractTerms(deal.id) : null;
   if (!terms) return { body: html`<p class="notice warn" data-contract-missing>Contract figures are not available from this connection. Nothing was saved.</p>`, mount() {} };
   const locked = !terms.canEdit || !!terms.blocked;
@@ -42,7 +81,7 @@ export async function contractView(api, deal) {
       <p class="err-text small" data-form-err></p>
       ${terms.canEdit ? html`<div class="acct-form-actions"><button class="m-btn" type="submit" data-save-contract ${terms.blocked ? raw('disabled') : ''}>Save contract figures</button><span class="muted small">${terms.saved ? 'Saved on this order as an estimate.' : 'Nothing is saved until this succeeds.'}</span></div>` : ''}
     </form></div>`;
-  return { body, mount: (root, c = {}) => mountContract(root, api, deal, terms, c.refresh) };
+  return { body: html`${earnestAccounting(deal, user)}${body}`, mount: (root, c = {}) => { mountContract(root, api, deal, terms, c.refresh); mountEarnest(root, api, deal, user, c.refresh); } };
 }
 
 function readNum(form, name) {

@@ -9,7 +9,7 @@ import { claRepresentationCode } from './cla-representation.js?v=202611090950';
 import { buildFileNumber, retagFileNumber, sentOutside } from './file-number.js?v=202611092340';
 import { officeDate } from './office-date.js?v=202611102100';
 import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions } from './lender-file.js?v=202611101200';
-import { cleanParcel } from './address-fill.js?v=202611102000';
+import { parcelInput } from './parcels.js?v=202611120600';
 import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611102000';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
@@ -111,7 +111,8 @@ export function dealsAndAuth(x) {
       if (isRefi(transactionType)) refiNoPrice(input, fail);
       const nextNum = Math.max(97000, ...d.deals.map((q) => Number(q.fileNumber.split('-')[2]) || 0)) + 1;
       const earnest = earnestDealPatch(input, { refinance: isRefi(transactionType) });
-      const deal = { id: nid('deal'), fileNumber: buildFileNumber(state, localDate().slice(2, 4), nextNum), street, city, state, zip, county, countySource: ac.countySource, parcelId: cleanParcel(input.parcelId), transactionType, stage: 0, status: 'Open',
+      const parcels = parcelInput(input);
+      const deal = { id: nid('deal'), fileNumber: buildFileNumber(state, localDate().slice(2, 4), nextNum), street, city, state, zip, county, countySource: ac.countySource, parcelId: parcels.parcelId, parcelIds: parcels.parcelIds, transactionType, stage: 0, status: 'Open',
         openDate, closingDate: dateOrNull(input.closingDate, 'Closing date'), purchasePrice: money(input.purchasePrice, 'Purchase price'), loanAmount: money(input.loanAmount, 'Loan amount'),
         emdAmount: money(input.emdAmount, 'EMD amount'), emdDueDate: dateOrNull(input.emdDueDate, 'EMD due date'),
         financial: earnest.financial, ...earnest.patch,
@@ -162,7 +163,7 @@ export function dealsAndAuth(x) {
       // John, Nov 2: earnest money deposit (optional; amount >= 0)
       if (patch.emdAmount !== undefined) q.emdAmount = money(patch.emdAmount, 'EMD amount');
       if (patch.emdDueDate !== undefined) q.emdDueDate = dateOrNull(patch.emdDueDate, 'EMD due date');
-      if (patch.parcelId !== undefined) q.parcelId = cleanParcel(patch.parcelId);
+      if (patch.parcelId !== undefined || patch.parcelIds !== undefined) { const parcels = parcelInput(patch); q.parcelId = parcels.parcelId; q.parcelIds = parcels.parcelIds; }
       if (earnestTouched(patch)) {
         const src = { emdHeldBy: q.financial && q.financial.emdHeldBy, commissionBase: q.financial && q.financial.commissionBase, commissionPercent: q.financial && q.financial.commissionPercent, commissionAdditional: q.financial && q.financial.commissionAdditional, commissionPaidBy: q.financial && q.financial.commissionPaidBy, ...patch };
         const next = earnestDealPatch(src, { refinance: isRefi(q) });
