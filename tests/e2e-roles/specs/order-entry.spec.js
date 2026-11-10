@@ -63,9 +63,18 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   await expect(page.locator('[data-parties]')).toContainText(buyer);
   await expect(page.locator('[data-parties]')).toContainText(seller);
   await expect(page.locator('[data-parcel-id]')).toContainText(parcel);
-  await expect(page.locator('[data-settlement-section]')).toBeVisible();
-  await expect(page.locator('[data-settlement-row="date"]')).toBeVisible();
-  await expect(page.locator('[data-settlement-row="closer"]')).toBeVisible();
+  await expect(page.locator('[data-file-identity]')).toBeVisible();
+  await expect(page.locator('[data-file-address]')).toContainText('100 E2E Test File');
+  await expect(page.locator('[data-file-order]')).toContainText(number[0]);
+  await expect(page.locator('[data-file-buyers]')).toContainText(buyer);
+  await expect(page.locator('[data-file-sellers]')).toContainText(seller);
+  await expect(page.locator('[data-wire-box]')).toHaveCount(0);
+  await expect(page.locator('[data-settlement-section]')).toHaveCount(0);
+  await expect(page.locator('[data-order-contacts]')).toHaveCount(0);
+  await expect(page.locator('[data-closing-date] [data-settlement-row="date"]')).toBeVisible();
+  await expect(page.locator('[data-closing-date] [data-settlement-row="time"]')).toBeVisible();
+  await expect(page.locator('[data-closing-location]')).toBeVisible();
+  await expect(page.locator('[data-closer]')).toBeVisible();
 
   await page.locator('#editdeal').click();
   await page.locator('#edf select[name="state"]').selectOption('FL');

@@ -91,8 +91,8 @@ check(!appText.includes('esm.sh') && !adapterText.includes('auth.getUser') && he
 const money = {
   'js/data/constants.js': '9572d16f9e92bd33db5d131ce7c1acb8ab005110b14727ee50357586b5e3eea2',
   'js/data/supabase-tc.js': '71286bb6df2b07034f2d537f3bee4c444e0c2d3e58d8da825efdf3abdaed827b',
-  'js/pages/deal-buyer-legacy.js': '179543b13082dfc6a4fbe4fedb64400f6d3cf60fcf96b78b715406212769cf45',
-  'js/pages/deal.js': '94093ce2771d6c3f8a958f7a0e86594887809c91c9cd421cbbac343d2d8cdf8b',
+  'js/pages/deal-buyer-legacy.js': '07b35e146d598006c981281138d6b78ec72d5ef2bc3de3aaa19395a1cb230af1',
+  'js/pages/deal.js': '1b9feb2549c6ed2cb1dde2b7d5a77ffb8875bd8f1c3d063101308aee11cd7f16',
   'js/pages/money-input.js': '17f8b1b07f9509b4a47a745ca7fdb7f79fd9c30a05e5fd7f7013a8c75bd6bc3a',
   'js/pages/ordernew.js': 'c280ef2cba0c6222f271a5d18d31172c5900c22b77135c3c3a5178107b3f8b36',
   'js/pages/tc-overview.js': '0badb69d44174fa40cfb89ecfc21c453580cb279c33ce10d9f1772db7291f24e',
