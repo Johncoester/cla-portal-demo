@@ -17,13 +17,14 @@ function fakeSb(store, calls) {
         insert(row) { q.op = 'insert'; q.payload = row; return api; },
         update(row) { q.op = 'update'; q.payload = row; return api; },
         eq(col, val) { q.filters.push([col, val]); return api; },
+        in(col, vals) { q.filters.push([col, vals, 'in']); return api; },
         is(col, val) { q.filters.push([col, val]); return api; },
         order() { return api; },
         maybeSingle() { return exec(true); },
         single() { return exec(true); },
         then(resolve, reject) { return exec(false).then(resolve, reject); },
       };
-      function match(row) { return q.filters.every(([col, val]) => row[col] === val); }
+      function match(row) { return q.filters.every(([col, val, op]) => op === 'in' ? val.includes(row[col]) : row[col] === val); }
       function exec(one) {
         calls.push({ table: name, op: q.op, payload: q.payload ? JSON.parse(JSON.stringify(q.payload)) : null });
         if (!store[name]) store[name] = [];
@@ -59,7 +60,10 @@ ok(refused, 'a full account number is refused');
 const calls = [];
 const store = { deals: [{ ...deal }], escrow_accounts: [{ ...escrow }], wire_records: [], wire_audit_log: [], tasks: [] };
 const api = wiresSupabase({ sb: fakeSb(store, calls), ok: pass, flags, me: staff });
+const beforeOpen = calls.length;
 const opened = await api.getWire('file-1');
+const openCalls = calls.slice(beforeOpen).filter((c) => c.table);
+ok(openCalls.length === 3 && openCalls.every((c) => c.op === 'select') && openCalls.map((c) => c.table).sort().join() === 'deals,escrow_accounts,wire_records', 'opening one file reads 3 tables and writes nothing');
 ok(opened.canEdit === true && opened.wires.length === 1 && opened.wires[0].id === '' && opened.escrowAccounts[0].accountMasked === '•••• 1001' && !('accountLast4' in opened.escrowAccounts[0]), 'an empty file opens one unsaved wire and a masked escrow account');
 
 const saved = await api.saveWire('file-1', { payeeName: 'Seller Example', disbursementMethod: 'wire', amount: '1500', accountLast4: '•••• 4242', abaLast4: '9999', fromAccountId: escrow.id, allSellersSigned: 'true', notarized: 'true', payeeNameMatches: 'true', payeeAddressMatches: 'true', recipientName: 'Seller Example', bankName: 'Example Bank', beneficiaryMessage: 'Seller proceeds FAKE' });
@@ -93,6 +97,14 @@ const proc = wiresSupabase({ sb: fakeSb(store, []), ok: pass, flags, me: staff }
 let adminOnly = '';
 try { await proc.saveEscrowAccount({ state: 'MD', accountName: 'Other', accountLast4: '1001' }); } catch (e) { adminOnly = e.message; }
 ok(/Admin/i.test(adminOnly), 'a processor cannot change escrow accounts');
+const queueCalls = [];
+const queueApi = wiresSupabase({ sb: fakeSb({ wire_records: [], deals: [] }, queueCalls), ok: pass, flags, me: staff });
+await queueApi.listWireQueue();
+ok(queueCalls.filter((c) => c.table).length === 1 && queueCalls[0].table === 'wire_records', 'an empty wire queue reads one table');
+const dealPage = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
+ok(!dealPage.includes('getWire(') && !dealPage.includes('listWireQueue'), 'a file overview does not call the wires tab');
+const fwp = readFileSync(new URL('../js/pages/dealfwp.js', import.meta.url), 'utf8');
+ok(fwp.includes("kind === 'wires' && sec === 'queue'") && fwp.includes('listWireQueue()'), 'the wire queue does not load this file first');
 
 function walk(file, missing, seen = new Set()) {
   const rel = file.replace(/\\/g, '/');

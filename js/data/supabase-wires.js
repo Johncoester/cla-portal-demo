@@ -84,9 +84,10 @@ export function wiresSupabase({ sb, ok, flags, me }) {
   return {
     async listWireQueue() {
       await gate();
-      const deals = ok(await sb.from('deals').select(DEAL_COLS)) || [];
-      const byId = new Map(deals.map((d) => [d.id, d]));
       const wires = ok(await sb.from('wire_records').select('*').is('deleted_at', null)) || [];
+      const ids = [...new Set(wires.map((w) => w.deal_id))];
+      const deals = ids.length ? ok(await sb.from('deals').select(DEAL_COLS).in('id', ids)) || [] : [];
+      const byId = new Map(deals.map((d) => [d.id, d]));
       return wires.filter((w) => byId.has(w.deal_id)).map((w) => {
         const shown = present(w);
         return { ...queueRow(byId.get(w.deal_id)), record: shown, wire: shown, queueStatus: w.queue_status === 'Done' ? 'Done' : '' };
@@ -94,10 +95,10 @@ export function wiresSupabase({ sb, ok, flags, me }) {
     },
     async getWire(dealId) {
       await gate();
-      const deal = await dealOf(dealId);
-      const wires = (await rows(dealId)).map(present);
+      const [deal, wireRows, accounts] = await Promise.all([dealOf(dealId), rows(dealId), escrow()]);
+      const wires = wireRows.map(present);
       wires.push({ ...blank(), payeeName: wires.length ? 'Add a wire' : 'New wire' });
-      return { deal: queueRow(deal), wires, escrowAccounts: await escrow(), canEdit: true };
+      return { deal: queueRow(deal), wires, escrowAccounts: accounts, canEdit: true };
     },
     async saveWire(dealId, input = {}) {
       await gate();
