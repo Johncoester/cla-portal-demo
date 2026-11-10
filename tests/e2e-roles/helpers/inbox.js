@@ -48,6 +48,23 @@ export async function loadGmailVault(env = process.env, fetchImpl = globalThis.f
   return true;
 }
 
+const GMAIL_SECRET_NAMES = ['E2E_GMAIL_CLIENT_ID', 'E2E_GMAIL_CLIENT_SECRET', 'E2E_GMAIL_REFRESH_TOKEN'];
+
+/* Read the vault first, then decide. Names of missing variables only: never the values.
+ * E2E_REQUIRE_EMAIL=1 means the workflow is running the inbox, so a miss is a failure. */
+export async function gmailCredentials(env = process.env, fetchImpl = globalThis.fetch) {
+  let vaultError = '';
+  try {
+    await loadGmailVault(env, fetchImpl);
+  } catch (e) {
+    vaultError = e && e.message ? String(e.message) : 'The test inbox vault read failed.';
+  }
+  const missing = GMAIL_SECRET_NAMES.filter((name) => !env[name]);
+  if (!missing.length) return { ok: true, message: '' };
+  const message = `Gmail credentials are not in the environment or the TEST vault (${missing.join(', ')}).${vaultError ? ' ' + vaultError : ''}`;
+  return { ok: false, required: env.E2E_REQUIRE_EMAIL === '1', message };
+}
+
 export async function gmailAccessToken() {
   await loadGmailVault();
   const body = new URLSearchParams({
