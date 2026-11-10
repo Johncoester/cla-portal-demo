@@ -2,10 +2,10 @@
 import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611070139';
 import { localDate } from '../data/constants.js?v=202611101015';
 import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort, inLocalRange } from '../data/crm.js?v=202611070139';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv } from './crm-kit.js?v=202611101015';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv } from './crm-kit.js?v=202611101600';
 import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611070139';
 import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611070139';
-import { wireCompose } from './crm-templates.js?v=202611101015';
+import { wireCompose } from './crm-templates.js?v=202611101600';
 
 const crumbs = (label) => [['CRM', '#/crm'], [label]];
 const q = () => new URLSearchParams(location.hash.split('?')[1] || '');
