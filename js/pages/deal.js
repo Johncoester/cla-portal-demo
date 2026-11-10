@@ -6,7 +6,7 @@ import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { modOn } from '../data/modules.js?v=202611101015';
 import { slotText } from './dealclosing.js?v=202611121300';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611101015';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611122000';
 import { composeModal } from './compose.js?v=202611110900';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611092320';
 import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611101015';
@@ -17,7 +17,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611121300';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611120200';
 import { gatherReads } from '../data/read-batch.js?v=202611111700';
-import { prefetchDealTab } from './deal-tab.js?v=202611121300';
+import { prefetchDealTab } from './deal-tab.js?v=202611122000';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';

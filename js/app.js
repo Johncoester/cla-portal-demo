@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { getAdapter } from './data/adapter.js?v=202611121700';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611121300';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611122000';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611100100';
@@ -33,10 +33,10 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611110800'),
-  dashboard: () => import('./pages/dashboard.js?v=202611121300'),
+  dashboard: () => import('./pages/dashboard.js?v=202611122000'),
   orders: () => import('./pages/orders.js?v=202611111700'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611120500'),
-  deal: () => import('./pages/deal.js?v=202611121300'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611122000'),
+  deal: () => import('./pages/deal.js?v=202611122000'),
   users: () => import('./pages/users.js?v=202611101015'),
   profile: () => import('./pages/profile.js?v=202611120400'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
@@ -46,7 +46,7 @@ const pages = {
   library: () => import('./pages/library.js?v=202611101015'),
   activity: () => import('./pages/activity.js?v=202611070139'),
   outbox: () => import('./pages/outbox.js?v=202611101015'),
-  tasks: () => import('./pages/tasks.js?v=202611121300'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => import('./pages/tasks.js?v=202611122000'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611101015'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js?v=202611121300'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611121700'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
@@ -349,8 +349,11 @@ function rememberCounts(api, dealId, userId, token) {
     }
   }).catch(() => {});
 }
+let pageUnmount = null;
 export async function render() {
-  const my = ++rendering; applyTheme(); const root = $('#app'); showRouteLoading(root); await nextPaint(); if (my !== rendering) return;
+  const my = ++rendering;
+  if (pageUnmount) { const stop = pageUnmount; pageUnmount = null; try { stop(); } catch (e) { /* the previous page already left */ } }
+  applyTheme(); const root = $('#app'); showRouteLoading(root); await nextPaint(); if (my !== rendering) return;
   const api = await getAdapter(); const route = parse(); closeModal();
   PORTAL_MODE = api.mode || 'mock';
   const authAt = api.authGeneration ? api.authGeneration() : null;
@@ -519,6 +522,8 @@ export async function render() {
   settle();
   document.title = (view.title ? view.title + ' | ' : '') + 'CLA Portal Live Test';
   if (view.mount) view.mount($('#view') || root, { api, user: u, refresh: render, go });
+  if (my !== rendering) { if (view.unmount) view.unmount(); return; }
+  pageUnmount = view.unmount || null;
 }
 // Nov 3 (b), Zoho video 7: CRM global search in the header (CLA staff with the CRM only; the module loads only then)
 const HEADER_SEARCH = `<div class="crm-global-search" data-global-search-wrap style="position:relative;display:inline-block"><input type="search" data-global-search placeholder="Search CRM (name, email, phone)" aria-label="Search the CRM" autocomplete="off" maxlength="100"><div data-global-search-dd hidden style="position:absolute;right:0;top:100%;z-index:50;background:#fff;color:#222;min-width:420px;max-height:70vh;overflow:auto;border:1px solid #ccc;padding:6px;text-align:left"></div></div><span data-crm-create-slot></span>`;
