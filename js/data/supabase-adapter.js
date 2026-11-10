@@ -39,7 +39,7 @@ import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
 import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611101700';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
 import { propertyAddressOf } from './nov5-rules.js?v=202611101015';
-import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611120100';
+import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611120200';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow } from './contact-insert.js?v=202611101200';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
@@ -678,6 +678,10 @@ export async function createSupabaseAdapter(cfg) {
     async saveTaskForm(id, data, { complete = false } = {}) { return ok(await sb.rpc('save_task_form', { p_task: id, p_data: data, p_complete: complete })); },
     async saveBuyerSsn(id, ssn) { return ok(await sb.rpc('save_buyer_ssn', { p_task: id, p_ssn: ssn })); },
     async readBuyerSsn(id) { return ok(await sb.rpc('read_buyer_ssn', { p_task: id })) || ''; },
+    async savePartySsn(id, subject, ssn) { return ok(await sb.rpc('save_party_ssn', { p_task: id, p_subject: subject, p_ssn: ssn })); },
+    async readPartySsn(id, subject) { return ok(await sb.rpc('read_party_ssn', { p_task: id, p_subject: subject })) || ''; },
+    async getSpouse(dealId) { return camel(ok(await sb.rpc('get_spouse', { p_deal: dealId }))) || []; },
+    async saveSpouse(dealId, participantId, input) { return camel(ok(await sb.rpc('save_spouse', { p_deal: dealId, p_participant: participantId, p_data: input }))); },
     // ---- round 2 RPCs (same names as SQL) ----
     async adminDeleteUser(id) { ok(await sb.rpc('admin_delete_user', { p_user: id })); },
     // ---- John, Nov 2 (migration 17): clients <-> salespeople. Writes go through Admin RPCs; the table is readable by Admin / Processor (all) and Sales (own links) ----
