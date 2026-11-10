@@ -30,6 +30,11 @@ export function dealsAndAuth(x) {
     if (!PROCESSOR_PICK_ROLES.includes(p.role) || p.status !== 'active') fail('The Processor on an order must be an active Processor, Preprocessor, Admin or Super admin.');
     if (!!p.isDemo !== !!(actor && actor.isDemo)) fail('A real order cannot use a demo Processor, and a demo order cannot use a real Processor.'); return p; };
   const salesList = (inp) => { const v = inp.salesIds !== undefined ? inp.salesIds : inp.salesPersonId; return [...new Set((v == null ? [] : Array.isArray(v) ? v : String(v).split(',')).map((z) => String(z).trim()).filter(Boolean))]; };
+  const closerOn = (u, text, current) => {
+    const staff = load().profiles.filter((p) => p.status === 'active' && STAFF_ACCOUNT_ROLES.includes(p.role) && !!p.isDemo === !!u.isDemo);
+    return resolveCloser(text, closerChoices(staff), current || {});
+  };
+  const closingTimeOf = (value) => { const t = String(value == null ? '' : value).trim(); if (t && !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) fail('Enter a time as HH:MM, or clear it.'); return t; };
   function setSales(u, dealId, ids) { const d = load(); d.dealSalesPeople ||= []; const cur = x.salesOf(dealId).map((s) => s.salesId);
     const add = ids.filter((sid) => !cur.includes(sid)); const drop = cur.filter((sid) => !ids.includes(sid));
     d.dealSalesPeople = d.dealSalesPeople.filter((s) => !(s.dealId === dealId && drop.includes(s.salesId)));
@@ -102,6 +107,8 @@ export function dealsAndAuth(x) {
         lenderName: str(input.lenderName, 200), lenderContact: str(input.lenderContact, 200), lenderEmail: str(input.lenderEmail, 200).toLowerCase(), lenderPhone: x.phone(input.lenderPhone, 'Lender phone'), lossPayeeName: str(input.lossPayeeName, 400),
         ...lenderExtras(input),
         sourceOfBusiness: (() => { const src = checkSource(d, input.sourceOfBusiness, '', fail); const msg = referralWriteError({ source: src, contacts: d.contacts, profiles: d.profiles, actor: u, participants: d.participants, dealId: '' }); if (msg) fail(msg); return src; })(), ...occFields(input, transactionType, fail), notes: str(input.notes, 2000), claRepresentation, processorId: procId, processorUnassigned: !procId, preprocessorUserId: preprocId ? preprocId.id : null, createdBy: u.id, createdAt: now() };
+      const placedCloser = closerOn(u, input.closerName, {});
+      deal.closerName = placedCloser.closerName; deal.closerProfileId = placedCloser.closerProfileId; deal.closingTime = closingTimeOf(input.closingTime);
       if (deal.lenderEmail && !emailOk(deal.lenderEmail)) fail('Lender email is not valid.');
       d.deals.push(deal);
       const pc = procId && contactOf(procId); if (pc) d.participants.push({ id: nid('dp'), dealId: deal.id, contactId: pc.id, role: 'Processor', createdAt: now() });
@@ -155,9 +162,9 @@ export function dealsAndAuth(x) {
         if (nextId !== prev) { q.tcUserId = nextId; log(id, u.id, 'deal.tc', 'deal', id, nextId ? `Transaction Coordinator set to ${nameOf(nextId)}` : 'Transaction Coordinator unassigned');
           if (nextId) notify([nextId], { kind: 'tc', dealId: id, title: `You are now the Transaction Coordinator on ${q.fileNumber || 'an order'}`, link: `#/deals/${id}` }, u.id); } }
       if (patch.salesIds !== undefined || patch.salesPersonId !== undefined) { const ids = salesList(patch); ids.forEach((sid) => { if (!x.salesOf(id).some((s) => s.salesId === sid)) checkSales(sid); }); setSales(u, id, ids); }
+      if (patch.closingTime !== undefined) q.closingTime = closingTimeOf(patch.closingTime);
       if (patch.closerName !== undefined || patch.closerProfileId !== undefined) {
-        const staff = d.profiles.filter((p) => p.status === 'active' && STAFF_ACCOUNT_ROLES.includes(p.role) && !!p.isDemo === !!u.isDemo);
-        const next = resolveCloser(patch.closerName, closerChoices(staff), { closerName: q.closerName || '', closerProfileId: q.closerProfileId || null });
+        const next = closerOn(u, patch.closerName, { closerName: q.closerName || '', closerProfileId: q.closerProfileId || null });
         if (next.closerName !== (q.closerName || '') || (next.closerProfileId || null) !== (q.closerProfileId || null)) {
           q.closerName = next.closerName; q.closerProfileId = next.closerProfileId;
           log(id, u.id, 'deal.closer', 'deal', id, next.closerName ? `Closer set to ${next.closerName}` : 'Closer cleared');
