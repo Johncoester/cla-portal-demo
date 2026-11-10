@@ -32,6 +32,8 @@ export const SECRET_NAMES = [
 ];
 
 const FORBIDDEN = new Set(['accounting', 'title', 'funding', 'wires', 'policy', 'crm', 'hr', 'payoffs']);
+/* Tabs gotoHash can tell apart from the file overview. Spouse is a real file tab. */
+export const HASH_TABS = ['spouse', 'tasks', 'inbox', 'documents', 'closing', 'contacts', 'agreements', 'activity', 'email', 'accounting', 'title'];
 
 export function tabOf(href) {
   const hash = String(href || '').split('?')[0];
@@ -47,10 +49,10 @@ export function isForbiddenTab(tab) {
 }
 
 export function requiredTabs(person) {
-  if (person.pureClient) return ['overview', 'tasks', 'inbox', 'documents', 'closing', 'activity'];
+  if (person.pureClient) return ['overview', 'tasks', 'spouse', 'inbox', 'documents', 'closing', 'activity'];
   if (person.shell === 'client') return ['overview', 'tasks', 'inbox', 'documents', 'closing', 'agreements', 'contacts', 'activity'];
-  if (person.shell === 'tc') return ['overview', 'tasks', 'inbox', 'documents', 'closing', 'contacts', 'activity'];
-  return ['overview', 'tasks', 'inbox', 'documents', 'closing', 'contacts', 'agreements', 'activity'];
+  if (person.shell === 'tc') return ['overview', 'tasks', 'spouse', 'inbox', 'documents', 'closing', 'contacts', 'activity'];
+  return ['overview', 'tasks', 'spouse', 'inbox', 'documents', 'closing', 'contacts', 'agreements', 'activity'];
 }
 
 /* Share Files option text is "First Last (Role)". Expectations come from
