@@ -1,0 +1,68 @@
+# Merge checks (Bob, Nov 10). Every pull request into main, and every merge-queue batch, must pass all three jobs.
+# Nov 10: a stamp-conflict merge dropped an import from js/app.js and every file page hung on TEST.
+#  - imports:   a name used but not defined or imported (ESLint no-undef), and every module linking (missing exports or paths)
+#  - tests:     test/test-*.js and test/test-*.sh; only failures listed in tools/known-test-failures.json are allowed
+#  - smoke:     headless Chromium on the mock data, one person per role, dashboard and every tab of a file
+# To make them block merges: Settings > Branches > main > require these status checks (and a merge queue).
+name: pr-checks
+
+on:
+  pull_request:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  imports:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install ESLint
+        run: npm install --no-save eslint@9.17.0 globals@15.14.0
+      - name: Names used but not defined or imported
+        run: npx eslint js
+      - name: Every module links
+        run: node --import ./test/register-supabase-fake.mjs tools/check-module-links.mjs
+
+  tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: linkedom where the DOM tests expect it
+        run: |
+          mkdir -p /tmp/domtest
+          npm install --prefix /tmp/domtest --no-save linkedom@0.18.15
+      - name: Start the runner's Postgres for the sudo -u postgres tests
+        run: sudo systemctl start postgresql.service
+      - name: Test suite
+        run: node tools/run-tests.mjs
+
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Every role, dashboard and file tabs, mock data
+        run: node tools/smoke-mock.mjs
