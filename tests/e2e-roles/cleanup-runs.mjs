@@ -4,7 +4,7 @@
  *   threads    subject like 'E2E-RUN-%'   (and their messages)
  *   deals      notes like 'E2E-RUN-%'     (and their tasks and participants). The seeded file (notes = E2E-ROLE-FILE) never matches.
  * Bob, Nov 10: left behind, these rows grew TEST every deploy (task copies 186 -> 251) and slowed task_board for everyone.
- * Does not print the service-role key or row contents. Storage objects behind deleted documents are not removed.
+ * Takes a legacy service_role key or a new secret key (sb_secret_...). Does not print the key or row contents. Storage objects behind deleted documents are not removed.
  *
  * In the workflow:   node tests/e2e-roles/cleanup-runs.mjs --workflow
  * On a developer machine (service-role key already in hand):
@@ -28,7 +28,9 @@ if (new URL(url).hostname !== `${TEST_REF}.supabase.co`) fail(`Refusing. SUPABAS
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 if (!key) fail('Missing secret SUPABASE_SERVICE_ROLE_KEY.');
 
-const headers = { Authorization: `Bearer ${key}`, apikey: key, 'Content-Type': 'application/json' };
+// A legacy service_role key is a JWT and also goes in Authorization. A new secret key (sb_secret_...) is not a JWT:
+// Supabase takes it in the apikey header only.
+const headers = { apikey: key, 'Content-Type': 'application/json', ...(key.startsWith('eyJ') ? { Authorization: `Bearer ${key}` } : {}) };
 async function rest(method, path) {
   const res = await fetch(`${url}/rest/v1/${path}`, { method, headers: method === 'GET' ? headers : { ...headers, Prefer: 'return=representation' } });
   if (!res.ok) throw new Error(`${method} ${path.split('?')[0]} failed (HTTP ${res.status}): ${(await res.text()).slice(0, 200)}`);
