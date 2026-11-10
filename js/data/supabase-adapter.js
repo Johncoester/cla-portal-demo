@@ -17,7 +17,7 @@ import { postClosingSupabase } from './supabase-postclosing.js?v=202611111900';
 import { wiresSupabase } from './supabase-wires.js?v=202611111800';
 import { modulesSupabase } from './supabase-modules.js?v=202611101015';
 import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611101015';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611120100';
 import { callItemsSupabase } from './supabase-callitems.js?v=202611101015';
 import { automationPart } from './automation.js?v=202611101015';
 import { runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
@@ -28,7 +28,7 @@ import { officesSupabase } from './supabase-offices.js?v=202611101015';
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611101015';
 import { tcSupabase } from './supabase-tc.js?v=202611101015';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
-import { gmailSupabase } from './supabase-gmail.js?v=202611110300';
+import { gmailSupabase } from './supabase-gmail.js?v=202611120400';
 import { nov5Supabase } from './supabase-nov5.js?v=202611110300';
 import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611110800';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611101015';
@@ -39,7 +39,7 @@ import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
 import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611101700';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
 import { propertyAddressOf } from './nov5-rules.js?v=202611101015';
-import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611110800';
+import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611120200';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow } from './contact-insert.js?v=202611101200';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
@@ -676,6 +676,12 @@ export async function createSupabaseAdapter(cfg) {
     // Matt, Nov 3 (migration 26): entity documents requested from buyers / sellers acting as an entity (person, processor, coordinator, Admin)
     async listEntityDocRequests(dealId) { return camel(ok(await sb.rpc('entity_doc_requests', { p_deal: dealId }))); },
     async saveTaskForm(id, data, { complete = false } = {}) { return ok(await sb.rpc('save_task_form', { p_task: id, p_data: data, p_complete: complete })); },
+    async saveBuyerSsn(id, ssn) { return ok(await sb.rpc('save_buyer_ssn', { p_task: id, p_ssn: ssn })); },
+    async readBuyerSsn(id) { return ok(await sb.rpc('read_buyer_ssn', { p_task: id })) || ''; },
+    async savePartySsn(id, subject, ssn) { return ok(await sb.rpc('save_party_ssn', { p_task: id, p_subject: subject, p_ssn: ssn })); },
+    async readPartySsn(id, subject) { return ok(await sb.rpc('read_party_ssn', { p_task: id, p_subject: subject })) || ''; },
+    async getSpouse(dealId) { return camel(ok(await sb.rpc('get_spouse', { p_deal: dealId }))) || []; },
+    async saveSpouse(dealId, participantId, input) { return camel(ok(await sb.rpc('save_spouse', { p_deal: dealId, p_participant: participantId, p_data: input }))); },
     // ---- round 2 RPCs (same names as SQL) ----
     async adminDeleteUser(id) { ok(await sb.rpc('admin_delete_user', { p_user: id })); },
     // ---- John, Nov 2 (migration 17): clients <-> salespeople. Writes go through Admin RPCs; the table is readable by Admin / Processor (all) and Sales (own links) ----

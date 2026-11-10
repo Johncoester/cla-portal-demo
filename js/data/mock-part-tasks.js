@@ -1,8 +1,9 @@
 /* mock adapter: tasks. Templates (versioned definitions) are separate from each participant's task COPY; a copy records templateId + templateVersion.
  * Intake forms: save partial work, validate, mark complete. Reminders are QUEUED in an outbox only and never sent. Tasks are cancelled, never deleted. */
-import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611101015';
+import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, fieldsForFile, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611120200';
+import { ssnDigits, ssnGrouped, ssnMask, ssnStaff, withoutSsn } from './buyer-ssn.js?v=202611120200';
 import { senderFor } from './email-senders.js?v=202611101015';
-import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611101015';   // Task switch OFF: no new copy (existing copies kept)
+import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611120200';   // Task switch OFF: no new copy (existing copies kept)
 import { templateGenerates, audienceAllowsRole, TASK_AUDIENCES } from './nov5-rules.js?v=202611101015';
 import { maskAccount } from './constants.js?v=202611101015';
 import { taskDueDate } from './due-date.js?v=202611110300';
@@ -11,7 +12,7 @@ export function tasksAndForms(x) {
   const OPEN = ['todo', 'in_progress', 'blocked'];
   const tpl = (id) => load().taskTemplates.find((t) => t.id === id);
   // Matt, Nov 3: a copy's fields = the template's fields for that copy's role (e.g. settlement type is on SELLER copies only)
-  const fieldsOf = (t, tp = tpl(t.templateId)) => (tp ? fieldsForRole(tp.fields, t.assignedRole) : []);
+  const fieldsOf = (t, tp = tpl(t.templateId)) => (tp ? fieldsForFile(fieldsForRole(tp.fields, t.assignedRole), load().deals.find((z) => z.id === t.dealId)) : []);
   const taskOr404 = (u, id) => { const t = load().tasks.find((z) => z.id === id) || fail('Task not found.'); u = onDeal(u, t.dealId); if (!taskVisible(u, t)) fail('Task not found.'); return t; };
   const audiencesOf = (input) => {
     if (!input || input.audiences == null || input.audiences === '') return null;
@@ -127,7 +128,7 @@ export function tasksAndForms(x) {
       let u = needUser(); const t = taskOr404(u, id); u = onDeal(u, t.dealId); if (!canFill(u, t)) fail('You cannot fill in this task.');
       if (complete && ownerOf(t) && ownerOf(t) !== u.id && agentCanFill(u, t)) fail('You can only complete tasks assigned to you.');
       const tp = tpl(t.templateId) || fail('Task template missing.');
-      const fields = fieldsOf(t, tp); const r = validateForm(fields, input || {}, complete);
+      const fields = fieldsOf(t, tp); const r = validateForm(fields, withoutSsn(input), complete);
       for (const f of fields.filter((z) => z.type === 'doc' && r.data[z.k] && fieldActive(z, r.data))) {
         const doc = load().documents.find((z) => z.id === r.data[f.k]); if (!doc || doc.dealId !== t.dealId) r.errors.push({ k: f.k, msg: `${f.label}: upload the file again.` });
       }
@@ -145,6 +146,62 @@ export function tasksAndForms(x) {
       else { if (t.status !== 'blocked') t.status = 'in_progress'; t.completedAt = null; t.completedBy = null; log(t.dealId, u.id, 'task.saved', 'task', t.id, `${t.title}: progress saved${note}`); }
       if (forClient) notify([owner], { kind: 'task', dealId: t.dealId, title: `${nameOf(u.id)} ${complete ? 'completed' : 'started'} ${t.title} for you - please check the answers`, link }, u.id);
       save(); return clone(out(u, t));
+    },
+    // Full SSN stays out of formData, notifications, and the activity detail. Staff read the whole number; the buyer reads the last 4.
+    async saveBuyerSsn(id, raw, subject = 'self') { return this.savePartySsn(id, subject, raw); },
+    async readBuyerSsn(id, subject = 'self') { return this.readPartySsn(id, subject); },
+    async savePartySsn(id, subject, raw) {
+      let u = needUser(); const t = taskOr404(u, id); u = onDeal(u, t.dealId);
+      const who = subject === 'spouse' ? 'spouse' : 'self';
+      if (t.templateCode !== 'personal_info' || !['Client-Buyer', 'Client-Seller'].includes(t.assignedRole)) fail('Not available.');
+      const owner = ownerOf(t); const staff = ssnStaff(u);
+      if (owner !== u.id && !staff) fail('Not available.');
+      const digits = ssnDigits(raw);
+      const d = load(); d.buyerSsn = d.buyerSsn || [];
+      let row = d.buyerSsn.find((z) => z.taskId === id && (z.subject || 'self') === who);
+      if (!row) { row = { taskId: id, subject: who }; d.buyerSsn.push(row); }
+      row.digits = digits; row.last4 = digits.slice(-4); row.subject = who;
+      log(t.dealId, u.id, 'task.ssn', 'task', t.id, who === 'spouse' ? 'Spouse Social Security number saved' : 'Social Security number saved');
+      save();
+    },
+    async readPartySsn(id, subject = 'self') {
+      let u = needUser(); const t = taskOr404(u, id); u = onDeal(u, t.dealId);
+      const who = subject === 'spouse' ? 'spouse' : 'self';
+      if (t.templateCode !== 'personal_info' || !['Client-Buyer', 'Client-Seller'].includes(t.assignedRole)) fail('Not available.');
+      const row = (load().buyerSsn || []).find((z) => z.taskId === id && (z.subject || 'self') === who);
+      if (!row) return '';
+      if (ssnStaff(u)) return ssnGrouped(row.digits);
+      if (ownerOf(t) === u.id) return ssnMask(row.digits);
+      fail('Not available.');
+    },
+    async getSpouse(dealId) {
+      let u = needUser(); u = onDeal(u, dealId);
+      const staff = ssnStaff(u);
+      const d = load();
+      const mine = d.participants.filter((p) => p.dealId === dealId && ['Client-Buyer', 'Client-Seller'].includes(p.role));
+      const visible = staff ? mine : mine.filter((p) => ownerOf({ participantId: p.id }) === u.id);
+      if (!staff && !visible.length) fail('Not available.');
+      return clone(visible.map((p) => {
+        const info = (d.spouseInfo || []).find((z) => z.participantId === p.id) || {};
+        const task = d.tasks.find((t) => t.participantId === p.id && t.templateCode === 'personal_info' && t.status !== 'cancelled');
+        const row = task && (d.buyerSsn || []).find((z) => z.taskId === task.id && z.subject === 'spouse');
+        const ssn = !row ? '' : staff ? ssnGrouped(row.digits) : ssnMask(row.digits);
+        return { participantId: p.id, role: p.role, taskId: task ? task.id : null, fullName: info.fullName || '', citizenship: info.citizenship || '', gender: info.gender || '', maritalStatus: info.maritalStatus || '', cellPhone: info.cellPhone || '', homePhone: info.homePhone || '', workPhone: info.workPhone || '', email: info.email || '', dateOfBirth: info.dateOfBirth || '', poaGiven: info.poaGiven || '', ssn };
+      }));
+    },
+    async saveSpouse(dealId, participantId, input) {
+      let u = needUser(); u = onDeal(u, dealId);
+      const d = load(); const p = d.participants.find((z) => z.id === participantId && z.dealId === dealId) || fail('Not available.');
+      if (!['Client-Buyer', 'Client-Seller'].includes(p.role)) fail('Not available.');
+      if (ownerOf({ participantId: p.id }) !== u.id && !ssnStaff(u)) fail('Not available.');
+      const keep = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
+      const row = { participantId: p.id, dealId, fullName: keep(input.fullName, 200), citizenship: keep(input.citizenship, 80), gender: keep(input.gender, 40), maritalStatus: keep(input.maritalStatus, 40), cellPhone: keep(input.cellPhone, 40), homePhone: keep(input.homePhone, 40), workPhone: keep(input.workPhone, 40), email: keep(input.email, 200), dateOfBirth: keep(input.dateOfBirth, 20), poaGiven: input.poaGiven === 'Yes' || input.poaGiven === 'No' ? input.poaGiven : '' };
+      d.spouseInfo = d.spouseInfo || [];
+      const at = d.spouseInfo.findIndex((z) => z.participantId === p.id);
+      if (at < 0) d.spouseInfo.push(row); else d.spouseInfo[at] = row;
+      log(dealId, u.id, 'spouse.saved', 'participant', p.id, 'Spouse information saved');
+      save();
+      return clone(row);
     },
     // Upload a file for a form field (e.g. photo ID). Filed under "IDs & personal", visible to the owner's side only.
     async uploadForTask(id, file) {

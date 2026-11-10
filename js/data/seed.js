@@ -1,5 +1,5 @@
 // FAKE DATA ONLY. Fictional people, example.test addresses, 555 phone numbers. No real clients, no credentials.
-import { TEMPLATE_DEFS, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611101015';
+import { TEMPLATE_DEFS, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611120200';
 import { crmZohoUpgrade } from './crm.js?v=202611070139';
 import { ensureEmailTemplates } from './crm-templates.js?v=202611090905';
 export const DEAL_FOLDERS = ['Contract & addenda', 'IDs & personal', 'Lender & payoff', 'HOA', 'Closing'];
