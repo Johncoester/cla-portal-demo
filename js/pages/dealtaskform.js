@@ -3,14 +3,14 @@ import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=
 import { downloadNamed } from '../data/file-open.js?v=202611100245';
 import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611100245';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611100245';
-import { CLS, LABEL } from './dealtasks.js?v=202611100900';
+import { CLS, LABEL } from './dealtasks.js?v=202611100915';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
-export async function render(c0) {
-  { const t0 = await ctx0(c0); if (t0) return t0; }
-  const { api, deal, params, refresh, go } = c0;
-  const t = await api.getTask(params.sub); const v = t.formData || {};
-  t.fields = fieldsForRole(t.fields, t.assignedRole);   // Matt, Nov 3: role-only fields (settlement type = sellers only); the data layer filters too
+// The task page and the processor Tasks "Expand all" use the same fields, save, and complete rules.
+export function intakeFormHtml(t, { page = false } = {}) {
+  const fields = fieldsForRole(t.fields || [], t.assignedRole);   // Matt, Nov 3: role-only fields (settlement type = sellers only); the data layer filters too
+  t.fields = fields;
+  const v = t.formData || {};
   const docName = (id) => ((t.documents || []).find((z) => z.id === id) || {}).name || '';
   const input = (f) => {
     const val = v[f.k] == null ? '' : v[f.k]; const req = f.req ? html`<span class="req">*</span>` : '';
@@ -32,42 +32,55 @@ export async function render(c0) {
       account: 'maxlength="17" inputmode="numeric" autocomplete="off"', state: 'maxlength="2" placeholder="MD"', zip: 'maxlength="10" inputmode="numeric"' }[f.type];
     return html`<label class="fld" data-k="${f.k}">${f.label} ${req}<input type="${type}" name="${f.k}" value="${val}" ${extra ? raw(extra) : ''}><span class="ferr"></span></label>`;
   };
+  const answers = html`${t.maskedAnswers ? html`<p class="muted small" data-masked>Bank account numbers show the last 4 digits only. The client and the processor see them in full.</p>` : ''}<dl class="answers">${fields.filter((f) => f.type !== 'info' && fieldActive(f, v) && v[f.k] !== undefined).map((f) => html`<dt>${f.label}</dt><dd>${f.type === 'checkbox' ? 'Yes' : f.type === 'doc' ? docName(v[f.k]) : v[f.k]}</dd>`)}</dl>`;
+  if (t.formError) return html`<p class="notice warn" data-task-form-state="error">This form could not be loaded. Nothing was marked complete.</p>`;
+  if (t.formHidden) return html`<p class="muted" data-task-form-state="hidden">Only the assigned person, the processor, and the coordinator can see these answers.</p>`;
+  if (!t.canFill) return answers;
+  return html`<form ${page ? raw('id="tform"') : ''} class="form-grid" data-intake-form="${t.id}" novalidate>${!(fields || []).length ? html`<p class="notice warn span2" data-task-no-fields>This task has no form fields yet (template ${t.template ? html`${t.template.code} v${t.template.version}` : 'n/a'}). Tell CLA Title — nothing was marked complete.</p>` : ''}${fields.map(input)}
+    <div class="span2"><button class="ghost" type="submit" data-mode="save">Save progress</button> <button class="m-btn" type="submit" data-mode="complete">${t.status === 'done' ? 'Save and keep complete' : 'Mark complete'}</button></div>
+    <p class="muted small span2">Fields marked * are needed to mark the task complete. You can save partial work any time. We never ask for Social Security numbers here.</p></form>`;
+}
+
+export function mountIntakeForm(root, { api, t, afterSave }) {
+  const form = $('form[data-intake-form]', root); if (!form || form.dataset.bound === '1') return;
+  form.dataset.bound = '1';
+  const sync = () => { const cur = {}; new FormData(form).forEach((val, k) => { cur[k] = val; }); t.fields.filter((f) => f.type === 'checkbox').forEach((f) => { if (cur[f.k]) cur[f.k] = true; });   /* a ticked box counts as true ("+ Add entity") */ t.fields.forEach((f) => { const el = $(`.fld[data-k="${f.k}"]`, form); if (el) el.hidden = !fieldActive(f, cur); }); };
+  form.addEventListener('change', sync); sync();
+  $$('[data-plus]', form).forEach((b) => b.addEventListener('click', () => { const cb = form.elements[b.dataset.plus]; cb.checked = !cb.checked;
+    b.textContent = cb.checked ? '\u2212 Remove entity' : '+ Add entity'; b.setAttribute('aria-pressed', String(cb.checked)); sync(); }));
+  $$('[data-help]', form).forEach((b) => b.addEventListener('click', () => { const pnl = $(`[data-help-panel="${b.dataset.help}"]`, form); pnl.hidden = !pnl.hidden; b.setAttribute('aria-expanded', String(!pnl.hidden)); }));
+  let mode = 'save'; $$('button[data-mode]', form).forEach((b) => b.addEventListener('click', () => { mode = b.dataset.mode; }));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault(); $$('.ferr', form).forEach((x) => { x.textContent = ''; }); $$('.fld', form).forEach((x) => x.classList.remove('has-err'));
+    try {
+      for (const fi of $$('input[data-file]', form)) { const file = fi.files[0]; if (!file) continue;
+        if (file.size > MAX_UPLOAD_BYTES) throw new Error('File is too large for this demo.');
+        const up = await api.uploadForTask(t.id, { name: file.name, mimeType: file.type, size: file.size, dataUrl: await readFile(file), field: fi.dataset.file }); form.elements[fi.dataset.file].value = up.id; fi.value = ''; }   // stored once: a retry after a form error must not upload it again
+      const data = {}; new FormData(form).forEach((val, k) => { if (typeof val === 'string') data[k] = val; });
+      await api.saveTaskForm(t.id, data, { complete: mode === 'complete' });
+      if (afterSave) afterSave(mode);
+    } catch (err) {
+      (err.fieldErrors || []).forEach((fe) => { const el = $(`.fld[data-k="${fe.k}"]`, form); if (el) { el.classList.add('has-err'); $('.ferr', el).textContent = fe.msg; } });
+      toast(err.fieldErrors ? `Please fix ${err.fieldErrors.length} field(s).` : err.message, 'err');
+    }
+  });
+}
+
+export async function render(c0) {
+  { const t0 = await ctx0(c0); if (t0) return t0; }
+  const { api, deal, params, refresh, go } = c0;
+  const t = await api.getTask(params.sub);
   if (t.kind === 'sign') return signView({ api, deal, t, refresh, go });
-  const answers = html`${t.maskedAnswers ? html`<p class="muted small" data-masked>Bank account numbers show the last 4 digits only. The client and the processor see them in full.</p>` : ''}<dl class="answers">${t.fields.filter((f) => f.type !== 'info' && fieldActive(f, v) && v[f.k] !== undefined).map((f) => html`<dt>${f.label}</dt><dd>${f.type === 'checkbox' ? 'Yes' : f.type === 'doc' ? docName(v[f.k]) : v[f.k]}</dd>`)}</dl>`;
+  const inner = intakeFormHtml(t, { page: true });
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>${t.title}</h2><a class="ghost right" href="#/deals/${deal.id}/tasks">All tasks</a></div>
     <div class="card"><p>${t.description}</p><p class="muted small">For <strong>${t.ownerName || t.assignedRole}</strong> (${t.assignedRole}) &middot; due ${fmtDate(t.dueDate) || 'n/a'} &middot; ${pill(LABEL[t.status], CLS[t.status])}
       &middot; template ${t.template ? html`${t.template.code} v${t.template.version}` : 'n/a'}${t.savedAt ? html` &middot; last saved ${fmtDateTime(t.savedAt)}` : ''}</p>
     ${t.completedByLabel ? html`<p class="done-by"><strong>${t.completedByLabel}</strong> on ${fmtDateTime(t.completedAt)}.</p>` : t.savedByLabel ? html`<p class="muted small done-by">${t.savedByLabel} on ${fmtDateTime(t.savedAt)}.</p>` : ''}
     ${t.forClient && t.canFill ? html`<p class="note-box">You are completing this <strong>on behalf of ${t.ownerName}</strong>. ${t.ownerName} will be told, can see your answers and can correct them. Every save is recorded with your name.</p>` : ''}
     ${t.mine && t.savedBy && t.savedBy !== t.ownerId ? html`<p class="note-box">Your agent filled this in for you. Please check the answers and correct anything that is wrong.</p>` : ''}
-    ${t.formError ? html`<p class="notice warn" data-task-form-state="error">This form could not be loaded. Nothing was marked complete.</p>`
-      : t.formHidden ? html`<p class="muted" data-task-form-state="hidden">Only the assigned person, the processor, and the coordinator can see these answers.</p>`
-      : t.canFill ? html`<form id="tform" class="form-grid" novalidate>${!(t.fields || []).length ? html`<p class="notice warn span2" data-task-no-fields>This task has no form fields yet (template ${t.template ? html`${t.template.code} v${t.template.version}` : 'n/a'}). Tell CLA Title — nothing was marked complete.</p>` : ''}${t.fields.map(input)}
-        <div class="span2"><button class="ghost" type="submit" data-mode="save">Save progress</button> <button class="m-btn" type="submit" data-mode="complete">${t.status === 'done' ? 'Save and keep complete' : 'Mark complete'}</button></div>
-        <p class="muted small span2">Fields marked * are needed to mark the task complete. You can save partial work any time. We never ask for Social Security numbers here.</p></form>`
-      : answers}</div>`;
+    ${inner}</div>`;
   return { title: t.title, crumbs: [['All Tasks', `#/deals/${deal.id}/tasks`], [t.title]], body, mount(root) {
-    const form = $('#tform', root); if (!form) return;
-    const sync = () => { const cur = {}; new FormData(form).forEach((val, k) => { cur[k] = val; }); t.fields.filter((f) => f.type === 'checkbox').forEach((f) => { if (cur[f.k]) cur[f.k] = true; });   /* a ticked box counts as true ("+ Add entity") */ t.fields.forEach((f) => { const el = $(`.fld[data-k="${f.k}"]`, form); if (el) el.hidden = !fieldActive(f, cur); }); };
-    form.addEventListener('change', sync); sync();
-    $$('[data-plus]', form).forEach((b) => b.addEventListener('click', () => { const cb = form.elements[b.dataset.plus]; cb.checked = !cb.checked;
-      b.textContent = cb.checked ? '\u2212 Remove entity' : '+ Add entity'; b.setAttribute('aria-pressed', String(cb.checked)); sync(); }));
-    $$('[data-help]', form).forEach((b) => b.addEventListener('click', () => { const pnl = $(`[data-help-panel="${b.dataset.help}"]`, form); pnl.hidden = !pnl.hidden; b.setAttribute('aria-expanded', String(!pnl.hidden)); }));
-    let mode = 'save'; $$('button[data-mode]', form).forEach((b) => b.addEventListener('click', () => { mode = b.dataset.mode; }));
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault(); $$('.ferr', form).forEach((x) => { x.textContent = ''; }); $$('.fld', form).forEach((x) => x.classList.remove('has-err'));
-      try {
-        for (const fi of $$('input[data-file]', form)) { const file = fi.files[0]; if (!file) continue;
-          if (file.size > MAX_UPLOAD_BYTES) throw new Error('File is too large for this demo.');
-          const up = await api.uploadForTask(t.id, { name: file.name, mimeType: file.type, size: file.size, dataUrl: await readFile(file), field: fi.dataset.file }); form.elements[fi.dataset.file].value = up.id; fi.value = ''; }   // stored once: a retry after a form error must not upload it again
-        const data = {}; new FormData(form).forEach((val, k) => { if (typeof val === 'string') data[k] = val; });
-        await api.saveTaskForm(t.id, data, { complete: mode === 'complete' });
-        toast(mode === 'complete' ? 'Task complete. Thank you!' : 'Progress saved'); mode === 'complete' ? go(`/deals/${deal.id}/tasks`) : refresh();
-      } catch (err) {
-        (err.fieldErrors || []).forEach((fe) => { const el = $(`.fld[data-k="${fe.k}"]`, form); if (el) { el.classList.add('has-err'); $('.ferr', el).textContent = fe.msg; } });
-        toast(err.fieldErrors ? `Please fix ${err.fieldErrors.length} field(s).` : err.message, 'err');
-      }
-    });
+    mountIntakeForm(root, { api, t, afterSave(mode) { toast(mode === 'complete' ? 'Task complete. Thank you!' : 'Progress saved'); mode === 'complete' ? go(`/deals/${deal.id}/tasks`) : refresh(); } });
   } };
 }
 
@@ -93,4 +106,4 @@ function signView({ api, deal, t, refresh, go }) {
 }
 
 // Francis, Nov 3: agent tasks (kind 'agent') have their own page
-async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611100900'); return m.render(c); }
+async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611100915'); return m.render(c); }
