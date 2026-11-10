@@ -107,7 +107,7 @@ for (const [target, hits] of stamps) {
 const janinePins = (stamps.get('js/data/crm-janine.js') || []).filter((h) => allowOld.has(h.from));
 if (janinePins.length !== allowOld.size || janinePins.some((h) => h.stamp !== '202611101015')) issues.push('crm-janine pin moved');
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
-ok(html.includes('js/app.js?v=202611121200') && html.includes('css/portal.css?v=202611121200'), 'index.html uses this batch stamp, which is later than PR 170');
+ok(html.includes('js/app.js?v=202611121600') && html.includes('css/portal.css?v=202611121200'), 'index.html loads app.js after main and keeps this batch stylesheet stamp');
 
 const tList = performance.now();
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });

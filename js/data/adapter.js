@@ -49,6 +49,10 @@
  *               listCrmContacts / getCrmContact (orders + totals + salesReps + activities) / createCrmContact / updateCrmContact (CRM fields only),
  *               listCrmAccounts / getCrmAccount / createCrmAccount / updateCrmAccount, listCrmOpportunities / createCrmOpportunity / updateCrmOpportunity / moveCrmOpportunity,
  *               archiveCrmRecord(entity, id, archived) (no CRM deletes), listCrmActivities / logCrmActivity / updateCrmActivity, listCrmFollowUps({ownerId, status}), crmReport({from, to}).
+ * Janine, Nov 10 (migration 20261112070000, public.user_ui_prefs): getUserUiPrefs(module) -> {module, prefs:{order}, updatedAt} | null.
+ *               saveUserUiPrefs(module, {order}) upserts that person's row. module is leads, contacts, accounts, or deals.
+ *               The list paints from this browser, then asks once per list per session when that list opens, and writes after a short pause.
+ *               If the call fails, the list keeps the browser copy and shows no error.
  * Nov 3 (migration 27): CRM EMAIL TEMPLATES (same flag). NOTHING IS SENT: sendCrmTestEmail always refuses ("Sending will be turned on when Gmail is connected.").
  *               listCrmEmailFolders() -> {canCreate, folders}, createCrmEmailFolder(name) / renameCrmEmailFolder(id, name) (Admin / Super admin),
  *               listCrmEmailTemplates / getCrmEmailTemplate / createCrmEmailTemplate({module, kind, name, subject, body|blocks, pageBg, status, folderId})
