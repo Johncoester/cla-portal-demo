@@ -32,7 +32,8 @@ import { processorFields, missingProcessorIds, nameOfProfile } from './processor
 import { propertyAddressOf } from './nov5-rules.js?v=202611090935';
 import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611090935';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
-import { contactInsertRow } from './contact-insert.js?v=202611070139';
+import { contactInsertRow } from './contact-insert.js?v=202611100815';
+import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole } from './lender-file.js?v=202611100815';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
@@ -308,6 +309,7 @@ export async function createSupabaseAdapter(cfg) {
         primary_residence: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.primaryResidence || ''), first_time_buyer: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.firstTimeBuyer || '') };   // Maryland purchases only (John, Nov 6)
       if (input.tcUserId) row.tc_user_id = input.tcUserId;   // John, Nov 9: blank = the database auto-assigns (a TC who opens it, else the agents' team TC)
       if (input.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(input.claRepresentation);   // Both / Buyer only / Seller only; absent = not recorded
+      const wrote = lenderColumnWrite(input); if (wrote) { row.lender_address = wrote.lenderAddress; row.cpl_address = wrote.cplAddress; row.cpl_same_as_lender = wrote.cplSameAsLender; row.mortgage_broker_name = wrote.mortgageBrokerName; }
       const d = camel(ok(await sb.from('deals').insert(row).select().single()));
       if (String(input.sourceOfBusiness || '').trim()) ok(await sb.rpc('set_deal_source', { p_deal: d.id, p_source: input.sourceOfBusiness }));   // migration 31 (staff-only table)
       const ids = [].concat(input.salesIds || []).filter(Boolean); if (ids.length) ok(await sb.rpc('set_deal_sales_people', { p_deal: d.id, p_sales: ids }));
@@ -320,6 +322,11 @@ export async function createSupabaseAdapter(cfg) {
         row[col] = money.has(col) ? moneyAmount(v) : dates.has(col) || col === 'processor_id' || col === 'preprocessor_user_id' || col === 'tc_user_id' ? (v || null) : v; }
       if (row.open_date === null) delete row.open_date;
       if (patch.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(patch.claRepresentation);   // '' = not recorded (null)
+      if (lenderColumnsTouched(patch)) { const x = lenderExtras(patch);
+        if (patch.lenderAddress !== undefined) row.lender_address = x.lenderAddress;
+        if (patch.cplAddress !== undefined || patch.cplSameAsLender !== undefined) row.cpl_address = x.cplAddress;
+        if (patch.cplSameAsLender !== undefined) row.cpl_same_as_lender = x.cplSameAsLender;
+        if (patch.mortgageBrokerName !== undefined) row.mortgage_broker_name = x.mortgageBrokerName; }
       if (patch.state !== undefined && String(patch.state || '').toUpperCase() !== 'MD') { row.primary_residence = ''; row.first_time_buyer = ''; }
       if (Object.keys(row).length) ok(await sb.from('deals').update(row).eq('id', id));
       if (patch.sourceOfBusiness !== undefined) ok(await sb.rpc('set_deal_source', { p_deal: id, p_source: patch.sourceOfBusiness || '' }));
@@ -329,7 +336,14 @@ export async function createSupabaseAdapter(cfg) {
     async createContact(input) { return camel(ok(await sb.from('contacts').insert(contactInsertRow(input)).select().single())); },
     async updateContact(id, patch) { const row = {}; for (const [k, col] of [['firstName', 'first_name'], ['lastName', 'last_name'], ['email', 'email'], ['phone', 'phone'], ['company', 'company'], ['contactType', 'contact_type']])
       if (patch[k] !== undefined) row[col] = k === 'contactType' ? (patch[k] || null) : k === 'email' ? String(patch[k] || '').toLowerCase() : patch[k];
+      if (patch.lenderRole !== undefined) row.lender_role = cleanLenderRole(patch.lenderRole, patch.contactType || 'lender');
       return camel(ok(await sb.from('contacts').update(row).eq('id', id).select().single())); },
+    async listLossPayeeClauses(lenderName) {
+      const name = String(lenderName || '').replace(/[%_,]/g, '').trim();
+      if (!name) return [];
+      const rows = camel(ok(await sb.from('deals').select('lender_name, loss_payee_name, open_date').ilike('lender_name', name))) || [];
+      return lossPayeeSuggestions(rows, lenderName);
+    },
     // participants: the triggers (migrations 10, 11, 20) enforce outside-user roles, self-representation pairs and "TC = Transaction Coordinator accounts only"
     // Matt, Nov 3b: opts.entity = { name, type, repName, repTitle, repPhone, repEmail } on a buyer / seller row (set_participant_entity, migration 31)
     async addParticipant(dealId, contactId, role, opts = {}) { const p = ok(await sb.from('deal_participants').insert({ deal_id: dealId, contact_id: contactId, role }).select('id').single());

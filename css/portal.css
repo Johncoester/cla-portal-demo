@@ -271,6 +271,13 @@ a.active-link, .active-link { font-weight: 700; text-decoration: underline; } tr
 .party-row-wrap + .party-row-wrap { border-top: 1px dashed var(--line-2); padding-top: 10px; }
 .multi-party .entity-panel { margin: 0 0 12px; padding: var(--s3) var(--s4); border: 1px solid var(--navy-100); border-left: 3px solid var(--navy-500); border-radius: var(--r); background: var(--surface); }
 .lender-block .form-grid { margin-top: var(--s3); }
+.clause-field { position: relative; }
+.clause-field .picker-list { top: calc(100% - 8px); }
+.clause-field .picker-list button { display: block; width: 100%; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.lender-contact-row { margin: 0 0 8px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: var(--r); background: var(--surface); }
+.lender-file { margin: 0 0 12px; }
+.lender-file h3 { margin-top: 0; }
+.lender-people { margin: 8px 0 12px; padding-left: 18px; }
 /* ---------- Place Order: the step-by-step flow ---------- */
 .wizard { max-width: 1120px; }
 .wiz-progress { list-style: none; margin: 0 0 var(--s2); padding: var(--s3) var(--s2) var(--s2); display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--sh-1); }
