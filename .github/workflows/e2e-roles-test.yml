@@ -22,6 +22,7 @@ on:
 permissions:
   contents: read
 
+# One suite at a time. A later run waits, so two browsers never share TEST's 20 PostgREST connections.
 concurrency:
   group: e2e-roles-test
   cancel-in-progress: false

@@ -25,7 +25,7 @@ import { tcSupabase } from './supabase-tc.js?v=202611101015';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
 import { gmailSupabase } from './supabase-gmail.js?v=202611110300';
 import { nov5Supabase } from './supabase-nov5.js?v=202611110300';
-import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611102000';
+import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611110700';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611101015';
 import { staffSupabase } from './supabase-staff.js?v=202611110300';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
@@ -60,7 +60,8 @@ export async function createSupabaseAdapter(cfg) {
     ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), camel(v)])) : o;
   // per-file roles (migration 10) + self-representation (migration 11): my role(s) on each order I can see. role = primary (agent first),
   // roles = all I hold there, label = 'Buyer + Buyer's Agent' for an agent buying for themselves. Outside users get the roles/labels across files.
-  const fileRoles = async () => new Map((ok(await sb.rpc('my_file_roles_full')) || []).map((r) => [r.deal_id, r]));
+  const loadFileRoles = async () => new Map((ok(await sb.rpc('my_file_roles_full')) || []).map((r) => [r.deal_id, r]));
+  const fileRoles = () => fileRead('roles#' + fileGen, loadFileRoles);
   const ORDER = ['Buyer Agent', 'Listing Agent', "Buyer + Buyer's Agent", 'Seller + Listing Agent', 'Client-Buyer', 'Client-Seller'];
   const sorted = (xs) => [...new Set(xs)].filter((r) => ORDER.includes(r)).sort((x, y) => ORDER.indexOf(x) - ORDER.indexOf(y));
   // staff only (RPC returns nothing to outside users): "Agent is a party" badge = a client who is also their side's agent on the order
@@ -517,8 +518,14 @@ export async function createSupabaseAdapter(cfg) {
     async createThread(dealId, { subject, participantIds, body }) { return { id: ok(await sb.rpc('create_thread', { p_deal: dealId, p_subject: subject, p_participants: participantIds, p_body: body })) }; },
     async postMessage(threadId, body) { const auth = await readAuthUser(); const user = auth && auth.data && auth.data.user; if (!user || auth.signedOut) throw new Error('Please sign in.'); return camel(ok(await sb.from('messages').insert({ thread_id: threadId, author_id: user.id, body }).select().single())); },
     // activity log: RLS returns rows to CLA staff only (migration 13)
-    async listActivity(dealId) { let q = sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(300); q = dealId ? q.eq('deal_id', dealId) : q.is('deal_id', null);
-      const items = camel(ok(await q)); return { items, total: items.length, types: [...new Set(items.map((a) => a.action.split('.')[0]))].sort(), actors: [] }; },
+    async listActivity(dealId) {
+      return fileRead('activity#' + fileGen + ':' + (dealId || ''), async () => {
+        let q = sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(300);
+        q = dealId ? q.eq('deal_id', dealId) : q.is('deal_id', null);
+        const items = camel(ok(await q));
+        return { items, total: items.length, types: [...new Set(items.map((a) => a.action.split('.')[0]))].sort(), actors: [] };
+      });
+    },
     // Buyers, sellers, and agents never read activity_log. Their tab is the documents,
     // messages, and own tasks they can already open. A failed read is omitted, not an error.
     async listMyActivity(dealId) {
@@ -814,7 +821,7 @@ export async function createSupabaseAdapter(cfg) {
     if (!orig) return;
     a[name] = (id, ...rest) => (rest.length || id == null ? orig(id, ...rest) : fileRead(name + ':' + id, () => orig(id)));
   };
-  ['listThreads', 'listActivity', 'listDealFolders', 'listSignatureRequests', 'listEntityDocRequests'].forEach(shareRead);
+  ['listThreads', 'listDealFolders', 'listSignatureRequests', 'listEntityDocRequests'].forEach(shareRead);
   function warmFile(hint) {
     if (!hint || !hint.dealId || hint.gated) return;
     const id = hint.dealId;
@@ -824,11 +831,11 @@ export async function createSupabaseAdapter(cfg) {
       fileRead('taskrows:' + id, () => fetchHostedTaskRows(sb, id));
       fileRead('docs:' + id, () => rawDocs(id));
       if (a.listThreads) a.listThreads(id).catch(() => null);
-      if (a.listActivity) a.listActivity(id).catch(() => null);
       if (a.readOverview) a.readOverview(id).catch(() => null);
       return;
     }
     fileRead('shell:' + id, () => fetchFileShell(id));
+    if (tab === 'activity' && a.listActivity) a.listActivity(id).catch(() => null);
     if (tab === 'tasks') fileRead('taskrows:' + id, () => fetchHostedTaskRows(sb, id));
     if (tab === 'documents') {
       fileRead('docs:' + id, () => rawDocs(id));
