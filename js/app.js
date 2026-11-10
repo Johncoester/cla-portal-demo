@@ -33,7 +33,7 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611110800'),
-  dashboard: () => import('./pages/dashboard.js?v=202611120100'),
+  dashboard: () => import('./pages/dashboard.js?v=202611121300'),
   orders: () => import('./pages/orders.js?v=202611111700'),
   'orders/new': () => import('./pages/ordernew.js?v=202611120500'),
   deal: () => import('./pages/deal.js?v=202611121300'),
@@ -46,7 +46,7 @@ const pages = {
   library: () => import('./pages/library.js?v=202611101015'),
   activity: () => import('./pages/activity.js?v=202611070139'),
   outbox: () => import('./pages/outbox.js?v=202611101015'),
-  tasks: () => import('./pages/tasks.js?v=202611120100'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => import('./pages/tasks.js?v=202611121300'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611101015'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js?v=202611121300'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611120600'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
