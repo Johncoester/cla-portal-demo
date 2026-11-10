@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611120600';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611120500';
+import { getAdapter } from './data/adapter.js?v=202611121000';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611121300';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611100100';
@@ -33,10 +33,10 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611110800'),
-  dashboard: () => import('./pages/dashboard.js?v=202611120100'),
+  dashboard: () => import('./pages/dashboard.js?v=202611121300'),
   orders: () => import('./pages/orders.js?v=202611111700'),
   'orders/new': () => import('./pages/ordernew.js?v=202611120500'),
-  deal: () => import('./pages/deal.js?v=202611120500'),
+  deal: () => import('./pages/deal.js?v=202611121300'),
   users: () => import('./pages/users.js?v=202611101015'),
   profile: () => import('./pages/profile.js?v=202611120400'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
@@ -46,10 +46,10 @@ const pages = {
   library: () => import('./pages/library.js?v=202611101015'),
   activity: () => import('./pages/activity.js?v=202611070139'),
   outbox: () => import('./pages/outbox.js?v=202611101015'),
-  tasks: () => import('./pages/tasks.js?v=202611120100'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => import('./pages/tasks.js?v=202611121300'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611101015'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
-  schedule: () => import('./pages/schedule.js?v=202611101015'),   // public closing-time link (no sign-in needed)
-  crm: () => import('./pages/crm.js?v=202611120600'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  schedule: () => import('./pages/schedule.js?v=202611121300'),   // public closing-time link (no sign-in needed)
+  crm: () => import('./pages/crm.js?v=202611121000'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => import('./pages/modules.js?v=202611101015'),
   'role-access': () => import('./pages/role-access.js?v=202611100100'),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => import('./pages/agent-invites.js?v=202611110300'),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
@@ -556,7 +556,7 @@ function wireChrome(u) {
   if (demoTimer) clearTimeout(demoTimer);
   if (DEMO_VIEW && DEMO_VIEW.active && DEMO_VIEW.expiresAt) { const ms = new Date(DEMO_VIEW.expiresAt).getTime() - Date.now(); demoTimer = setTimeout(() => render(), Math.min(Math.max(ms + 250, 1000), 30 * 60 * 1000)); }
   getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) {
-    import('./pages/crm-search.js?v=202611120600').then((m) => m.wireHeaderSearch(api));
+    import('./pages/crm-search.js?v=202611121000').then((m) => m.wireHeaderSearch(api));
     import('./pages/crm-janine.js?v=202611120600').then((m) => m.mountHeaderCreate(u));
   } });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');

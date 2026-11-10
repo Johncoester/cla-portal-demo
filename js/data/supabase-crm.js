@@ -8,7 +8,7 @@ import { localDate, runsOrders as runsOrdersCI } from './constants.js?v=20261110
 import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611070139';
 import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611101015';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611070139';
-import { withDealName } from './crm-columns.js?v=202611120600';
+import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611121000';
 import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611120600';
 import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611120600';
 
@@ -230,6 +230,20 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
       if (!subject) throw new Error('Subject is required.');
       const row = ok(await sb.from('crm_emails').insert({ entity, entity_id: input.entityId, from_email: String(u.email || '').toLowerCase(), to_emails: to, cc_emails: [], bcc_emails: [], subject: subject.slice(0, 250), body_html: String(input.html || '').slice(0, 200000), status: 'drafted', scheduled_at: null, created_by: u.id }).select('id, status').single());
       return { id: row.id, status: 'drafted', emailed: false };
+    },
+    // Janine, Nov 10: Manage columns follows the login (public.user_ui_prefs). One row per person per list.
+    async getUserUiPrefs(module) {
+      on(); const u = await me(); if (!canUseCrm(u)) throw new Error('The CRM is for CLA staff only.');
+      const mod = cleanUiModule(module);
+      const row = ok(await sb.from('user_ui_prefs').select('module, prefs, updated_at').eq('user_id', u.id).eq('module', mod).maybeSingle());
+      if (!row) return null;
+      return { module: row.module || mod, prefs: row.prefs || {}, updatedAt: row.updated_at || null };
+    },
+    async saveUserUiPrefs(module, prefs) {
+      on(); const u = await me(); if (!canUseCrm(u)) throw new Error('The CRM is for CLA staff only.');
+      const mod = cleanUiModule(module); const clean = cleanUiPrefs(prefs);
+      const row = await one(sb.from('user_ui_prefs').upsert({ user_id: u.id, module: mod, prefs: clean, updated_at: new Date().toISOString() }, { onConflict: 'user_id,module' }));
+      return { module: mod, prefs: row.prefs || clean, updatedAt: row.updated_at || null };
     },
   };
   // Nov 3 (migration 27): email templates. Nothing is ever sent.
