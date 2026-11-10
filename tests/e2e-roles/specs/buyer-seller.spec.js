@@ -105,6 +105,79 @@ test('buyer message is still there after a reload', async ({ page, issues }) => 
   expect(freshIssues(issues)).toEqual([]);
 });
 
+test('buyer can ask for an update on every listed topic', async ({ page, issues }) => {
+  onTest('JN-44a');
+  await signIn(page, 'buyer');
+  await openMockFile(page);
+  await page.locator('[data-co-ask]').click();
+  const select = page.locator('#requpdate select[name="topic"]');
+  const values = await select.locator('option').evaluateAll((els) => els.map((el) => el.value).filter(Boolean));
+  expect(values.length).toBeGreaterThan(1);
+  for (const value of values) {
+    await select.selectOption(value);
+    await page.locator('#requpdate button[type="submit"]').click();
+    await expect(page.locator('.toast', { hasText: 'Update requested. CLA Title will answer here.' }).last()).toBeVisible();
+    await page.locator('#modal').waitFor({ state: 'detached' });
+    await page.locator('[data-co-ask]').click();
+    await page.locator('#requpdate').waitFor();
+  }
+  await expect(page.locator('.toast.err')).toHaveCount(0);
+  expect(freshIssues(issues)).toEqual([]);
+});
+
+test('buyer lender answers mark the task done', async ({ page, issues }) => {
+  onTest('JN-44b');
+  await signIn(page, 'buyer');
+  await openMockFile(page);
+  const id = dealId(page);
+  await gotoHash(page, `#/deals/${id}/tasks`);
+  const lender = page.getByRole('link', { name: /Lender information/ });
+  await lender.first().click();
+  await page.locator('#tform').waitFor();
+  await expect(page.locator('[data-task-form-state]')).toHaveCount(0);
+  await page.locator('#tform input[name="company"]').fill('E2E Lender');
+  await page.locator('#tform input[name="officer_name"]').fill('E2E Officer');
+  await page.locator('#tform input[name="officer_email"]').fill('e2e-lender@example.test');
+  await page.locator('#tform input[name="officer_phone"]').fill('2025550100');
+  await page.locator('#tform button[data-mode="complete"]').click();
+  await expect(page.locator('.toast', { hasText: 'Task complete. Thank you!' })).toBeVisible();
+  await expect(page.locator('tr[data-task-row]', { hasText: 'Lender information' }).first()).toContainText('done');
+  expect(freshIssues(issues)).toEqual([]);
+});
+
+test('buyer can upload an ID and complete the task', async ({ page, issues }) => {
+  onTest('JN-44c');
+  await signIn(page, 'buyer');
+  await openMockFile(page);
+  const id = dealId(page);
+  await gotoHash(page, `#/deals/${id}/tasks`);
+  await page.getByRole('link', { name: /Upload (photo |identification|your )?ID/i }).first().click();
+  await page.locator('#tform').waitFor();
+  await expect(page.locator('[data-task-form-state]')).toHaveCount(0);
+  await page.locator('#tform select[name="id_type"]').selectOption({ index: 1 });
+  await page.locator('#tform input[name="id_expires"]').fill('2030-01-01');
+  await page.locator('#tform input[type="file"]').setInputFiles({ name: 'e2e-id.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.1\n%%EOF') });
+  await page.locator('#tform button[data-mode="complete"]').click();
+  await expect(page.locator('.toast', { hasText: 'Task complete. Thank you!' })).toBeVisible();
+  expect(freshIssues(issues)).toEqual([]);
+});
+
+test('buyer personal information completes without an error', async ({ page, issues }) => {
+  onTest('JN-44d');
+  await signIn(page, 'buyer');
+  await openMockFile(page);
+  const id = dealId(page);
+  await gotoHash(page, `#/deals/${id}/tasks`);
+  await page.getByRole('link', { name: /Personal information/ }).first().click();
+  await page.locator('#tform, [data-task-form-state]').first().waitFor();
+  await expect(page.locator('[data-task-form-state]')).toHaveCount(0);
+  await page.locator('#tform [data-buyer-ssn]').fill('900-12-3456');
+  await page.locator('#tform button[data-mode="complete"]').click();
+  await expect(page.locator('.toast.err')).toHaveCount(0);
+  await expect(page.locator('.toast', { hasText: 'Task complete. Thank you!' })).toBeVisible();
+  expect(freshIssues(issues)).toEqual([]);
+});
+
 test('seller message is still there after a reload', async ({ page, issues }) => {
   await signIn(page, 'seller');
   await openMockFile(page);

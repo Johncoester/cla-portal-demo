@@ -65,7 +65,7 @@ const adapter = readFileSync(new URL('../js/data/supabase-adapter.js', import.me
 for (const bit of ['Upload sales contract', 'Upload title request', 'Add lender', "Buyer's transaction coordinator", 'Listing transaction coordinator', '+ Add another ${MULTI[role]}', "'Client-Seller': 'seller'", 'Who can see these files', 'id="tx-files"', 'id="tx-vis"', 'id="sob-block"', 'data-sales-picker', 'name="salesIds"', 'MIN_ROWS = 2', 'data-add-tc']) ok(page.includes(bit), 'wizard has ' + bit);
 ok(page.includes('Empty extra buyer / seller rows') && page.includes("String(x || '').trim()"), 'empty extra buyer and seller rows are ignored on save');
 ok(!page.includes('name="p:Sales Team"') && !page.includes('Sales team member') && !page.includes('salesParty'), 'Place Order has no separate Sales team member field');
-ok((page.match(/<legend>Sales Rep<\/legend>/g) || []).length === 1, 'Place Order keeps a single Sales Rep field');
+ok((page.match(/<legend>Salespeople on this order<\/legend>/g) || []).length === 1, 'Place Order keeps one salespeople field');
 ok(adapter.includes('withoutHiddenProfiles') && adapter.includes('PROCESSOR_PICK_ROLES') && adapter.includes("!== 'MD'"), 'supabase adapter filters demo contacts, widens the processor list, and keeps occupancy for Maryland');
 ok(REFERRALS.map(([code]) => code).join() === 'buyer,seller,buyer_agent,listing_agent,lender,homeowner', 'buyer and seller are referral choices and homeowner stays');
 

@@ -73,6 +73,15 @@ export function buyerSsnHtml(shown, staff) {
     <p class="muted small">CLA Title staff use this to clear judgments. After you save, you see only the last 4 digits.</p></div>`;
 }
 
+// Saving a finished lender form closes the task. A half-filled form stays open.
+export function intakeCompletes(t, data, mode) {
+  if (mode === 'complete') return true;
+  if (!t || t.templateCode !== 'lender_info') return false;
+  const cash = data.none === 'on' || data.none === true || data.none === 'true';
+  const text = (k) => String(data[k] == null ? '' : data[k]).trim();
+  return cash || !!(text('company') && text('officer_name') && text('officer_email') && text('officer_phone'));
+}
+
 export function mountIntakeForm(root, { api, t, afterSave }) {
   const form = $('form[data-intake-form]', root); if (!form || form.dataset.bound === '1') return;
   form.dataset.bound = '1';
@@ -109,7 +118,6 @@ export function mountIntakeForm(root, { api, t, afterSave }) {
       const data = {}; new FormData(form).forEach((val, k) => { if (typeof val === 'string' && !k.startsWith('spouse')) data[k] = val; });
       const spouseBox = $('[data-spouse-section]', form);
       if (spouseBox && api.saveSpouse) await api.saveSpouse(t.dealId, spouseBox.dataset.spouse, spousePayload(form));
-      await api.saveTaskForm(t.id, data, { complete: mode === 'complete' });
       const spouseSsn = $('[data-spouse-ssn-input]', form);
       if (spouseSsn && spouseSsn.value && spouseBox && spouseBox.dataset.spouseTask) {
         await api.savePartySsn(spouseBox.dataset.spouseTask, 'spouse', spouseSsn.value);
@@ -120,6 +128,9 @@ export function mountIntakeForm(root, { api, t, afterSave }) {
         await api.saveBuyerSsn(t.id, ssnInput.value);
         ssnInput.value = '';
       }
+      const complete = intakeCompletes(t, data, mode);
+      await api.saveTaskForm(t.id, data, { complete });
+      mode = complete ? 'complete' : mode;
       if (afterSave) afterSave(mode);
     } catch (err) {
       (err.fieldErrors || []).forEach((fe) => { const el = $(`.fld[data-k="${fe.k}"]`, form); if (el) { el.classList.add('has-err'); $('.ferr', el).textContent = fe.msg; } });

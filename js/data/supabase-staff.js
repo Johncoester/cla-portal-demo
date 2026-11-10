@@ -1,11 +1,11 @@
 /* Staff screens that were still throwing "not implemented yet" in supabase mode.
  * Reads and writes go through the existing tables and RLS. This file does not create logins
  * and does not contain a service-role key. Nothing is emailed. */
-import { uploadBytes as blobOf } from './upload-bytes.js?v=202611070139';
+import { uploadBytes as blobOf, uploadFileName } from './upload-bytes.js?v=202611120600';
 const day = (d) => new Date(d).toISOString().slice(0, 10);
 const plusDays = (n) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const full = (p) => `${p.firstName || ''} ${p.lastName || ''}`.trim();
-const safeName = (n) => String(n || 'upload').replace(/[\\/]/g, '_').slice(0, 200);
+const safeName = (n, mime) => uploadFileName(n, mime);
 const sideOf = (role) => ({ 'Buyer Agent': 'buyer', 'Client-Buyer': 'buyer', 'Listing Agent': 'seller', 'Client-Seller': 'seller' }[role] || 'staff');
 export const LOGIN_CLOSED = 'Creating a login is closed here. Add the employee in HR and copy the invite link (#/hr/add). Agents use Agent Invites (#/agent-invites). Nothing is emailed.';
 
@@ -16,7 +16,7 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
     const u = await uid();
     const id = (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID() : null;
     if (!id) throw new Error('This browser cannot mint a document id.');
-    const name = safeName(file.name);
+    const name = safeName(file.name, file.mimeType);
     const path = dealId ? `${dealId}/${id}/${name}` : `library/${folderId}/${id}/${name}`;
     const up = await sb.storage.from('deal-documents').upload(path, await blobOf(file), { contentType: file.mimeType || 'application/octet-stream', upsert: false });
     if (up.error) throw new Error(up.error.message || 'The document bucket refused the upload.');

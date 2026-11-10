@@ -84,6 +84,18 @@ export function orderOverviewSupabase({ sb, ok, camel, me, api }) {
       const emailUnread = await emailP;
       return buildOrderOverview({ deal, me: user, tasks, documents, threads, activity: null, salesPeople: deal.salesPeople || [], emailUnread });
     },
+    async requestUpdate(dealId, { topic, note } = {}) {
+      const user = await me();
+      if (!user || !user.id) throw new Error('Please sign in.');
+      const id = ok(await sb.rpc('request_update', { p_deal: dealId, p_topic: topic || '', p_note: note || '' }));
+      return { id };
+    },
+    async respondUpdateRequest(id, { response } = {}) {
+      const user = await me();
+      if (!user || !user.id) throw new Error('Please sign in.');
+      ok(await sb.rpc('respond_update_request', { p_id: id, p_response: response || '' }));
+      return { id };
+    },
     async listUpdateRequests(dealId) {
       const user = await me();
       if (!user || !user.id) throw new Error('Please sign in.');
