@@ -49,7 +49,7 @@ const pages = {
   tasks: () => import('./pages/tasks.js?v=202611121300'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611101015'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js?v=202611121300'),   // public closing-time link (no sign-in needed)
-  crm: () => import('./pages/crm.js?v=202611120600'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  crm: () => import('./pages/crm.js?v=202611121800'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => import('./pages/modules.js?v=202611101015'),
   'role-access': () => import('./pages/role-access.js?v=202611100100'),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => import('./pages/agent-invites.js?v=202611110300'),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
