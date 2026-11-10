@@ -12,7 +12,7 @@ import { composeModal } from './compose.js?v=202611101015';
 import { sourceChoices } from '../data/place-order.js?v=202611100245';
 import { themeOn } from '../theme.js?v=202611100245';
 
-const TABS = { tasks: './dealtasks.js?v=202611110800', inbox: './dealmsgs.js?v=202611110300', documents: './dealdocs.js?v=202611110300', contacts: './dealcontacts.js?v=202611110800', activity: './dealactivity.js?v=202611110300', closing: './dealclosing.js?v=202611101015', agreements: './dealagreements.js?v=202611100245', accounting: './dealaccounting.js?v=202611110300' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611110800', inbox: './dealmsgs.js?v=202611110300', documents: './dealdocs.js?v=202611110300', contacts: './dealcontacts.js?v=202611111100', activity: './dealactivity.js?v=202611110300', closing: './dealclosing.js?v=202611101015', agreements: './dealagreements.js?v=202611100245', accounting: './dealaccounting.js?v=202611110300' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
