@@ -120,7 +120,7 @@ const choices = visibilityChoices('Listing Agent');
 ok(choices[0] === 'staff' && choices.includes('seller') && !choices.includes('buyer'), 'a listing agent can choose CLA staff only and not the buyer side');
 const docsPage = readFileSync(new URL('../js/pages/dealdocs.js', import.meta.url), 'utf8');
 ok(docsPage.includes('not limited to the processor') && !docsPage.includes('keeps the file with the processor and CLA Title'), 'staff sharing is labeled as all CLA staff, not the processor alone');
-ok(agentMayInsertDocument({ role: 'Listing Agent', onThisFile: true, visibility: 'staff' }) && agentMayInsertDocument({ role: 'Listing Agent', onThisFile: true, visibility: 'seller' }), 'an assigned listing agent may save staff-only or seller-side');
+ok(agentMayInsertDocument({ role: 'Listing Agent', onThisFile: true, visibility: 'staff' }) && agentMayInsertDocument({ role: 'Listing Agent', onThisFile: true, visibility: 'seller' }) && agentMayInsertDocument({ role: 'Listing Agent', onThisFile: true, visibility: 'all' }) && agentMayInsertDocument({ role: 'Buyer Agent', onThisFile: true, visibility: 'all' }) && agentMayInsertDocument({ role: 'Buyer Agent', onThisFile: true, visibility: 'buyer' }), 'an assigned agent may save staff-only, their own side, or everyone on the file');
 ok(!agentMayInsertDocument({ role: 'Listing Agent', onThisFile: true, visibility: 'buyer' }) && !agentMayInsertDocument({ role: 'Listing Agent', onThisFile: false, visibility: 'staff' }) && !agentMayInsertDocument({ role: 'Listing Agent', onThisFile: true, visibility: 'staff', wire: true }), 'the other side, another file, and a wire file stay refused');
 
 let queued = addToQueue([], [{ name: 'deed.pdf', size: 10 }]);
