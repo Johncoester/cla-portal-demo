@@ -2,7 +2,7 @@
 // Quick jumps: Contract info, Milestones, EMD & ALTA, Documents/Upload, Messages (all parties). FAKE DATA ONLY.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611070139';
 import { STAGES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, moneyShow, moneyAmount } from '../data/constants.js?v=202611101015';
-import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611101900';
+import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611111000';
 import { composeModal } from './compose.js?v=202611101015';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611110300';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';

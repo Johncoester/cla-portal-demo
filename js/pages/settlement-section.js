@@ -56,6 +56,30 @@ export function settlementSectionHtml({ deal, user, demoLocked = false, contacts
     ${canEdit ? html`<p class="muted small">Each change saves on its own. Pick a closer from CLA staff, or type a name.</p>` : ''}</section>`;
 }
 
+/* Staff file overview (FF-019). The Settlement card is not shown there. Date, time, and signing
+ * method move here. Buyer agent, listing agent, and closer stay where the overview already shows them. */
+export function closingDateSectionHtml({ deal, user, demoLocked = false, locations = [], daysNote = '' } = {}) {
+  const d = deal || { participants: [] };
+  const flags = settlementEditFlags(user, { demoLocked });
+  const { canEdit, canEditSigning } = flags;
+  const clock = settlementClock(d);
+  const note = daysNote ? html` <span class="muted">${daysNote}</span>` : '';
+  const dateRow = canEdit
+    ? html`<label class="settlement-row" data-settlement-row="date"><span class="settlement-k">Closing date</span><span><input type="date" data-settlement-edit="date" data-prev="${d.closingDate || ''}" value="${d.closingDate || ''}" aria-label="Closing date">${note}</span></label>`
+    : html`<div class="settlement-row" data-settlement-row="date"><span class="settlement-k">Closing date</span><span data-settlement-value="date">${fmtDate(d.closingDate) || 'Not set'}${note}</span></div>`;
+  const timeRow = canEdit
+    ? html`<label class="settlement-row" data-settlement-row="time"><span class="settlement-k">Time</span><input type="time" data-settlement-edit="time" data-prev="${clock}" value="${clock}" aria-label="Closing time"></label>`
+    : html`<div class="settlement-row" data-settlement-row="time"><span class="settlement-k">Time</span><span data-settlement-value="time">${clock || 'Not set'}</span></div>`;
+  const signingRows = (locations || []).map((r) => html`<label class="settlement-row" data-settlement-row="signing" data-participant="${r.participantId}"><span class="settlement-k">Signing method</span><span class="settlement-who">${r.name}</span>
+    ${canEditSigning ? html`<select data-settlement-edit="signing" data-participant="${r.participantId}" data-prev="${r.signingMethod || 'undecided'}" aria-label="Signing method for ${r.name}">${SIGNING_METHODS.map(([c, l]) => html`<option value="${c}" ${r.signingMethod === c ? raw('selected') : ''}>${l}</option>`)}</select>` : html`<span data-settlement-value="signing">${r.signingLabel || 'Undecided'}</span>`}</label>`);
+  const sc = d.scheduledClosing;
+  const where = sc && sc.location ? sc.location : 'CLA Title office (to be confirmed)';
+  return html`<section class="card op-closing" data-closing-date><h3>Closing date</h3>
+    <div class="settlement-rows">${dateRow}${timeRow}${signingRows}
+      <div class="settlement-row" data-closing-location><span class="settlement-k">Closing location</span><span>${where}</span></div></div>
+    ${canEdit ? html`<p class="muted small">Each change saves on its own.</p>` : ''}</section>`;
+}
+
 export function mountSettlement(root, { api, deal, refresh, user, demoLocked = false, contacts = [], closerStaff = [] } = {}) {
   const flags = settlementEditFlags(user, { demoLocked });
   if (!flags.canEdit && !flags.canEditSigning) return;
