@@ -36,41 +36,53 @@ export function titleSupabase({ sb, ok, flags, me }) {
     const contacts = ok(await sb.from('contacts').select('id,first_name,last_name').in('id', ids)) || [];
     return contacts.map((c) => `${c.first_name || ''} ${c.last_name || ''}`.trim()).filter(Boolean);
   };
-  const view = async (deal, userEdit) => {
-    const raw = await reviewRow(deal.id);
+  const view = async (deal, userEdit, section = 'overview') => {
+    const extraTable = { notes: 'order_notes', pacer: 'title_pacer_searches', search: 'title_search_tracking', tracking: 'title_search_tracking', chain: 'title_chain_entries', requirements: 'title_items', exceptions: 'title_items', cpl: 'title_cpls', summary: 'title_summary_notes', curative: 'title_curative_liens', entities: 'title_entity_reviews', liencert: 'title_lien_certificates', ctc: 'title_ctc_checks' }[section];
+    const [raw, stepRows, parts, extraRows, docResult] = await Promise.all([
+      reviewRow(deal.id),
+      live('title_checklist_items', deal.id),
+      sb.from('deal_participants').select('contact_id,role').eq('deal_id', deal.id).in('role', ['Client-Buyer', 'Client-Seller']),
+      extraTable ? live(extraTable, deal.id) : Promise.resolve([]),
+      section === 'notes' || section === 'finalize' ? sb.from('documents').select('id,name,title_doc_kind,created_at').eq('deal_id', deal.id) : Promise.resolve({ data: [], error: null }),
+    ]);
     const review = raw && !raw.deleted_at ? raw : null;
-    const steps = T.STEPS.map(([key, label, section]) => ({ key, label, section, status: 'open', doneAt: null, doneByName: '', note: '' }));
-    for (const row of await live('title_checklist_items', deal.id)) {
+    const steps = T.STEPS.map(([key, label, sec]) => ({ key, label, section: sec, status: 'open', doneAt: null, doneByName: '', note: '' }));
+    for (const row of stepRows) {
       const step = steps.find((s) => s.key === row.step_key);
       if (step) { step.status = row.status || 'open'; step.doneAt = row.done_at; step.note = row.note || ''; }
     }
-    const chain = (await live('title_chain_entries', deal.id)).sort((a, b) => a.position - b.position).map((e) => ({ ...e, id: e.id, instrumentType: e.instrument_type, documentName: e.document_name, grantor: e.grantor, grantee: e.grantee, documentDate: e.document_date, recordedDate: e.recorded_date, book: e.book, page: e.page, instrumentNumber: e.instrument_number, pertainsToProperty: e.pertains_to_property, overrideOn: e.override_on, overrideText: e.override_text, position: e.position, text: e.generated_text || '' }));
-    const docs = (ok(await sb.from('documents').select('id,name,title_doc_kind,created_at').eq('deal_id', deal.id)) || []).filter((d) => d.title_doc_kind).map((d) => ({ id: d.id, name: d.name, kind: d.title_doc_kind, kindLabel: T.docKindLabel(d.title_doc_kind), folder: '', generated: true, createdAt: d.created_at }));
+    const partRows = ok(parts) || [];
+    const ids = partRows.map((p) => p.contact_id).filter(Boolean);
+    const contacts = ids.length ? ok(await sb.from('contacts').select('id,first_name,last_name').in('id', ids)) || [] : [];
+    const nameOf = (role) => partRows.filter((p) => p.role === role).map((p) => contacts.find((c) => c.id === p.contact_id)).filter(Boolean).map((c) => `${c.first_name || ''} ${c.last_name || ''}`.trim()).filter(Boolean);
+    const chain = section === 'chain' ? extraRows.sort((a, b) => a.position - b.position).map((e) => ({ ...e, instrumentType: e.instrument_type, documentName: e.document_name, grantor: e.grantor, grantee: e.grantee, documentDate: e.document_date, recordedDate: e.recorded_date, book: e.book, page: e.page, instrumentNumber: e.instrument_number, pertainsToProperty: e.pertains_to_property, overrideOn: e.override_on, overrideText: e.override_text, position: e.position, text: e.generated_text || '' })) : [];
+    const docs = (ok(docResult) || []).filter((d) => d.title_doc_kind).map((d) => ({ id: d.id, name: d.name, kind: d.title_doc_kind, kindLabel: T.docKindLabel(d.title_doc_kind), folder: '', generated: true, createdAt: d.created_at }));
     const reviewView = review ? {
       ...review, commitmentStatus: review.commitment_status || 'draft', commitmentNumber: review.commitment_number || '', underwriter: review.underwriter || '', effectiveDate: review.effective_date, vestingText: review.vesting_text || '', legalDescription: review.legal_description || '',
       proposedInsured: review.proposed_insured || '', ownerPolicyType: review.owner_policy_type || '', lenderPolicyType: review.lender_policy_type || '', beingOverrideOn: review.being_override_on, beingOverrideText: review.being_override_text || '', sdatTaxId: review.sdat_tax_id || '',
     } : null;
     return {
       dealId: deal.id, canEdit: userEdit, canPayoffs: false, status: deal.title_review_status || 'not_started', statusLabel: T.reviewStatusLabel(deal.title_review_status || 'not_started'),
-      deal: { id: deal.id, fileNumber: deal.file_number, street: deal.street, city: deal.city, state: deal.state, zip: deal.zip, county: deal.county || '', transactionType: deal.transaction_type, purchasePrice: num(deal.purchase_price), loanAmount: num(deal.loan_amount), lenderName: deal.lender_name || '', lenderEmail: deal.lender_email || '', closingDate: deal.closing_date, loanIdNumber: deal.loan_id_number || '', lossPayeeName: deal.loss_payee_name || '', usesMers: deal.uses_mers, fundingType: deal.funding_type || '', firstPaymentDate: deal.first_payment_date || '', interestType: deal.interest_type || '', loanType: deal.loan_type || '', buyers: await names(deal.id, 'Client-Buyer'), sellers: await names(deal.id, 'Client-Seller') },
+      deal: { id: deal.id, fileNumber: deal.file_number, street: deal.street, city: deal.city, state: deal.state, zip: deal.zip, county: deal.county || '', transactionType: deal.transaction_type, purchasePrice: num(deal.purchase_price), loanAmount: num(deal.loan_amount), lenderName: deal.lender_name || '', lenderEmail: deal.lender_email || '', closingDate: deal.closing_date, loanIdNumber: deal.loan_id_number || '', lossPayeeName: deal.loss_payee_name || '', usesMers: deal.uses_mers, fundingType: deal.funding_type || '', firstPaymentDate: deal.first_payment_date || '', interestType: deal.interest_type || '', loanType: deal.loan_type || '', buyers: nameOf('Client-Buyer'), sellers: nameOf('Client-Seller') },
       review: reviewView, steps, progress: T.progressOf(steps.map((s) => ({ stepKey: s.key, status: s.status }))), mdAckRequired: T.mdAckRequired(deal), warnings: [],
-      pacer: (await live('title_pacer_searches', deal.id)).map((z) => ({ id: z.id, partyName: z.party_name, partyRole: z.party_role, searchType: z.search_type, result: z.result, notes: z.notes || '', exactMatch: z.exact_match })),
-      pacerParties: [], discrepancies: (await live('title_discrepancies', deal.id)).map((z) => ({ id: z.id, discrepancyType: z.discrepancy_type, description: z.description, status: z.status, label: T.discrepancyLabel(z.discrepancy_type) })),
+      pacer: section === 'pacer' ? extraRows.map((z) => ({ id: z.id, partyName: z.party_name, partyRole: z.party_role, searchType: z.search_type, result: z.result, notes: z.notes || '', exactMatch: z.exact_match })) : [],
+      pacerParties: [], discrepancies: [],
       chain, being: { generated: '', text: review ? review.legal_description || '' : '', overrideOn: !!(review && review.being_override_on), overrideText: review ? review.being_override_text || '' : '', vestingId: null },
-      infoBlock: '', requirements: (await live('title_items', deal.id)).filter((r) => r.kind === 'requirement').map((r) => ({ ...r, text: r.body_text || r.generated_text || '', templateLabel: r.template_key || 'Custom', hasPayoff: false })),
-      exceptions: (await live('title_items', deal.id)).filter((r) => r.kind === 'exception').map((r) => ({ ...r, text: r.body_text || r.generated_text || '', templateLabel: r.template_key || 'Custom' })),
-      cpls: (await live('title_cpls', deal.id)).map((c) => ({ id: c.id, cplNumber: c.cpl_number, protectedParty: c.protected_party, cplFor: c.cpl_for, cost: num(c.cost), status: c.status })),
-      docs, orderDocs: [], notes: { orderNote: deal.notes || '', sticky: (await live('order_notes', deal.id)).map((n) => ({ id: n.id, category: n.category, body: n.body, issueResolved: n.issue_resolved })), payoff: [] },
+      infoBlock: '', requirements: section === 'requirements' ? extraRows.filter((r) => r.kind === 'requirement').map((r) => ({ ...r, text: r.body_text || r.generated_text || '', templateLabel: r.template_key || 'Custom', hasPayoff: false })) : [],
+      exceptions: section === 'exceptions' ? extraRows.filter((r) => r.kind === 'exception').map((r) => ({ ...r, text: r.body_text || r.generated_text || '', templateLabel: r.template_key || 'Custom' })) : [],
+      cpls: section === 'cpl' ? extraRows.map((c) => ({ id: c.id, cplNumber: c.cpl_number, protectedParty: c.protected_party, cplFor: c.cpl_for, cost: num(c.cost), status: c.status })) : [],
+      docs, orderDocs: [], notes: { orderNote: deal.notes || '', sticky: section === 'notes' ? extraRows.map((n) => ({ id: n.id, category: n.category, body: n.body, issueResolved: n.issue_resolved })) : [], payoff: [] },
       payoffs: [], hoaLinked: false, hoaFound: false, packageComponents: [], packageMissing: [], signatures: [],
-      search: null, searches: await live('title_search_tracking', deal.id), searchBlocked: false, emdReceived: false,
-      liens: await live('title_curative_liens', deal.id), entities: await live('title_entity_reviews', deal.id), lienCerts: await live('title_lien_certificates', deal.id),
-      ctcChecks: T.CTC_ITEMS.map(([key, label]) => ({ checkKey: key, label, status: 'open', note: '', id: null })), processorNotes: [], staffAttorneys: [], packageRecipients: T.PACKAGE_RECIPIENT_ROLES || [],
+      search: section === 'tracking' ? (extraRows[0] || null) : null, searches: section === 'search' || section === 'tracking' ? extraRows : [], searchBlocked: false, emdReceived: false,
+      liens: section === 'curative' ? extraRows : [], entities: section === 'entities' ? extraRows : [], lienCerts: section === 'liencert' ? extraRows : [],
+      effectiveDateCheck: { valid: true, text: '' },
+      ctcChecks: T.CTC_ITEMS.map(([key, label]) => { const saved = section === 'ctc' ? extraRows.find((c) => c.check_key === key) : null; return { checkKey: key, label, status: saved ? saved.status : 'open', note: saved ? saved.note || '' : '', id: saved ? saved.id : null }; }), processorNotes: [], staffAttorneys: [], packageRecipients: T.PACKAGE_RECIPIENT_ROLES || [],
       summary: null, ownerMatches: null, outbox: [], log: [],
     };
   };
 
   return {
-    async getTitle(dealId) { const u = await gate(false); return view(await dealOf(dealId), canEdit(u)); },
+    async getTitle(dealId, { section = 'overview' } = {}) { const u = await gate(false); return view(await dealOf(dealId), canEdit(u), section); },
     async startTitleReview(dealId) {
       const u = await gate(true); const deal = await dealOf(dealId); const cur = await reviewRow(dealId);
       if (!cur) await run(sb.from('title_reviews').insert({ deal_id: dealId, reviewer_id: u.id, review_date: new Date().toLocaleDateString('en-CA'), commitment_status: 'draft' }).select('id').single());

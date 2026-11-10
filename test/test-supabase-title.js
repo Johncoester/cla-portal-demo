@@ -36,8 +36,14 @@ const staff = async () => ({ id: 'p1', role: 'Processor' });
 const calls = [];
 const store = { deals: [{ ...deal }], deal_participants: [], contacts: [], documents: [] };
 const api = titleSupabase({ sb: fakeSb(store, calls), ok: pass, flags: { title: true }, me: staff });
+const before = calls.length;
 const opened = await api.getTitle('file-1');
+const openReads = calls.slice(before).filter((c) => c.table);
 check(opened.review == null && opened.canEdit === true && opened.steps.length > 0 && opened.progress.total > 0, 'a file with no review still opens the title tab');
+check(openReads.length === 4 && openReads.every((c) => c.op === 'select'), 'the checklist reads 4 tables and writes nothing');
+const chainCalls = [];
+await titleSupabase({ sb: fakeSb({ ...store, deals: store.deals }, chainCalls), ok: pass, flags: { title: true }, me: staff }).getTitle('file-1', { section: 'chain' });
+check(chainCalls.filter((c) => c.table).length === 5, 'chain of title adds one table');
 const started = await api.startTitleReview('file-1');
 check(started.review && store.title_reviews[0].commitment_status === 'draft', 'starting a review writes title_reviews');
 await api.saveTitleReview('file-1', { commitmentNumber: 'C-FAKE', underwriter: 'Example Underwriter (fake)' });
@@ -51,6 +57,8 @@ let msg = '';
 try { await buyer.getTitle('file-1'); } catch (e) { msg = e.message; }
 check(/staff only/i.test(msg) && outside.length === 0, 'an outside user cannot open title');
 check(!calls.some((c) => c.table === 'outbox'), 'opening and saving title does not queue mail');
+const dealPage = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
+check(!dealPage.includes('getTitle('), 'a file overview does not open title');
 function walk(file, missing, seen = new Set()) {
   const rel = file.replace(/\\/g, '/');
   if (seen.has(rel)) return seen;
