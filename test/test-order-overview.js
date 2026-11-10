@@ -96,5 +96,25 @@ const started = Date.now();
 const stuckOv = await stuck.getOrderOverview('deal-1');
 ok(stuckOv && stuckOv.parties.some((x) => x.label === 'Processor') && Date.now() - started < 3500, 'a processor contact read that never returns still finishes the overview');
 
+const signedOutCalls = [];
+const signedOut = orderOverviewSupabase({
+  sb: {
+    auth: { getSession: async () => ({ data: { session: null } }) },
+    from(table) { signedOutCalls.push(table); const q = { select() { return q; }, eq() { return q; }, in() { return q; }, order() { return q; }, maybeSingle() { return Promise.resolve({ data: null, error: null }); }, then(fn) { return Promise.resolve(fn({ data: [], error: null })); } }; return q; },
+  },
+  ok: (r) => { if (r && r.error) throw new Error(r.error.message); return r && r.data; },
+  camel,
+  me: async () => ({ id: 'u-buyer', role: 'Outside user' }),
+  api: { async getDeal() { return { ...deal, processorId: 'u-proc' }; }, async listTasks() { return []; }, async listDocuments() { return []; }, async listThreads() { return []; }, async listActivity() { return { items: [{ id: 'a', actorId: 'd3af9b26-44e1-4a72-b934-223a0982c49a', actorName: '' }] }; } },
+});
+const quiet = await signedOut.getOrderOverview('deal-1');
+ok(quiet && !signedOutCalls.includes('profiles'), 'a file overview does not read profiles after the session is gone');
+const { shouldQuietRest } = await import('../js/data/supabase-adapter.js');
+ok(shouldQuietRest('https://example.supabase.co/rest/v1/profiles?select=id,first_name,last_name&id=in.(d3af)', true), 'a profiles name read is skipped after sign-out');
+ok(shouldQuietRest('https://example.supabase.co/rest/v1/rpc/contact_types', true), 'contact_types is skipped after sign-out');
+ok(!shouldQuietRest('https://example.supabase.co/rest/v1/rpc/portal_invite_lookup', true), 'an invite lookup still runs with no session');
+ok(!shouldQuietRest('https://example.supabase.co/auth/v1/token?grant_type=password', true), 'sign-in itself is not a REST read');
+ok(!shouldQuietRest('https://example.supabase.co/rest/v1/rpc/contact_types', false), 'contact_types runs while a session is open');
+
 console.log(fail ? fail + ' failed' : 'order overview passed');
 if (fail) process.exit(1);

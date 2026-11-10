@@ -34,8 +34,10 @@ export function tasksAndForms(x) {
   // "Completed by Bianca Buyer-Agent (Buyer Agent) on behalf of Ben Buyer" - shown on the task, in the log and to staff.
   const byLine = (byId, ownerId, dealId, t) => `${who(byId, dealId, t && capOf(byId, ownerId, t))}${ownerId && byId && byId !== ownerId ? ` on behalf of ${nameOf(ownerId)}` : ''}`;
   const out = (u, t) => { const o = clone(t); o.ownerId = ownerOf(t); o.ownerName = o.ownerId ? nameOf(o.ownerId) : ''; o.mine = o.ownerId === u.id || (!t.participantId && holds(u, t.assignedRole));
-    o.canFill = canFill(u, t); o.canTick = t.kind === 'simple' && t.status !== 'cancelled' && (isManager(u) || (!t.participantId && holds(u, t.assignedRole) && ['todo', 'done'].includes(t.status)));
-    o.forClient = !o.mine && agentCanFill(u, t);   // "a task you can complete for your client"
+    o.canFill = canFill(u, t); o.forClient = !o.mine && agentCanFill(u, t);
+    const clientTask = t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller';
+    o.canComplete = !clientTask || isManager(u) || o.mine;
+    o.canTick = t.kind === 'simple' && t.status !== 'cancelled' && o.canComplete && (isManager(u) || (!t.participantId && holds(u, t.assignedRole) && ['todo', 'done'].includes(t.status)));
     o.switchedOff = taskSwitchedOff(load(), t);   // TASK SWITCHES: only Admin / Super admin ever get such a row (taskVisible); shown marked "Switched off"
     const tp = t.templateId ? tpl(t.templateId) : null; o.agentRoles = tp && !delegationLocked(tp) ? (tp.agentRoles || []) : [];
     o.completedByLabel = t.status === 'done' && t.completedBy ? `Completed by ${byLine(t.completedBy, o.ownerId, t.dealId, t)}` : '';
@@ -123,6 +125,7 @@ export function tasksAndForms(x) {
     // Intake forms. complete=false saves partial work (only filled values are checked). complete=true validates required fields and marks the task done.
     async saveTaskForm(id, input, { complete = false } = {}) {
       let u = needUser(); const t = taskOr404(u, id); u = onDeal(u, t.dealId); if (!canFill(u, t)) fail('You cannot fill in this task.');
+      if (complete && ownerOf(t) && ownerOf(t) !== u.id && agentCanFill(u, t)) fail('You can only complete tasks assigned to you.');
       const tp = tpl(t.templateId) || fail('Task template missing.');
       const fields = fieldsOf(t, tp); const r = validateForm(fields, input || {}, complete);
       for (const f of fields.filter((z) => z.type === 'doc' && r.data[z.k] && fieldActive(z, r.data))) {
@@ -136,7 +139,8 @@ export function tasksAndForms(x) {
       const note = forClient ? ` by ${byLine(u.id, owner, t.dealId, t)}` : owner === u.id && prevBy && prevBy !== u.id && C.isAgent(fileRole(prevBy, t.dealId)) ? ` by ${selfRep ? who(u.id, t.dealId, t.assignedRole) : nameOf(u.id)} (changed answers entered by ${who(prevBy, t.dealId)})`
         : owner && owner !== u.id ? ` by ${who(u.id, t.dealId)}` : selfRep ? ` by ${who(u.id, t.dealId, owner === u.id ? t.assignedRole : undefined)}` : '';
       const link = `#/deals/${t.dealId}/tasks/${t.id}`;
-      if (complete) { t.status = 'done'; t.completedAt = now(); t.completedBy = u.id; log(t.dealId, u.id, 'task.completed', 'task', t.id, `${t.title}: completed${note}`);
+      if (forClient) { log(t.dealId, u.id, 'task.saved', 'task', t.id, `${t.title}: progress saved${note}`); }
+      else if (complete) { t.status = 'done'; t.completedAt = now(); t.completedBy = u.id; log(t.dealId, u.id, 'task.completed', 'task', t.id, `${t.title}: completed${note}`);
         const deal = load().deals.find((z) => z.id === t.dealId); notify([deal.processorId], { kind: 'task', dealId: t.dealId, title: `${nameOf(u.id)} completed ${t.title}${forClient ? ` for ${nameOf(owner)}` : ''}`, link }, u.id); }
       else { if (t.status !== 'blocked') t.status = 'in_progress'; t.completedAt = null; t.completedBy = null; log(t.dealId, u.id, 'task.saved', 'task', t.id, `${t.title}: progress saved${note}`); }
       if (forClient) notify([owner], { kind: 'task', dealId: t.dealId, title: `${nameOf(u.id)} ${complete ? 'completed' : 'started'} ${t.title} for you - please check the answers`, link }, u.id);

@@ -3,7 +3,7 @@ import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=
 import { downloadNamed } from '../data/file-open.js?v=202611100245';
 import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611101015';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611101015';
-import { CLS, LABEL } from './dealtasks.js?v=202611110600';
+import { CLS, LABEL } from './dealtasks.js?v=202611110800';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 // The task page and the processor Tasks "Expand all" use the same fields, save, and complete rules.
@@ -37,8 +37,9 @@ export function intakeFormHtml(t, { page = false } = {}) {
   if (t.formError) return html`<p class="notice warn" data-task-form-state="error">This form could not be loaded. Nothing was marked complete.</p>`;
   if (t.formHidden) return html`<p class="muted" data-task-form-state="hidden">Only the assigned person, the processor, and the coordinator can see these answers.</p>`;
   if (!t.canFill) return answers;
+  const completeBtn = t.canComplete === false ? '' : html`<button class="m-btn" type="submit" data-mode="complete">${t.status === 'done' ? 'Save and keep complete' : 'Mark complete'}</button>`;
   return html`<form ${page ? raw('id="tform"') : ''} class="form-grid" data-intake-form="${t.id}" novalidate>${!(fields || []).length ? html`<p class="notice warn span2" data-task-no-fields>This task has no form fields yet (template ${tplLabel}). Tell CLA Title — nothing was marked complete.</p>` : ''}${fields.map(input)}
-    <div class="span2"><button class="ghost" type="submit" data-mode="save">Save progress</button> <button class="m-btn" type="submit" data-mode="complete">${t.status === 'done' ? 'Save and keep complete' : 'Mark complete'}</button></div>
+    <div class="span2"><button class="ghost" type="submit" data-mode="save">Save progress</button> ${completeBtn}</div>
     <p class="muted small span2">Fields marked * are needed to mark the task complete. You can save partial work any time. We never ask for Social Security numbers here.</p></form>`;
 }
 
@@ -78,7 +79,7 @@ export async function render(c0) {
     <div class="card"><p>${t.description}</p><p class="muted small">For <strong>${t.ownerName || t.assignedRole}</strong> (${t.assignedRole}) &middot; due ${fmtDate(t.dueDate) || 'n/a'} &middot; ${pill(LABEL[t.status], CLS[t.status])}
       &middot; template ${tplLabel}${t.savedAt ? html` &middot; last saved ${fmtDateTime(t.savedAt)}` : ''}</p>
     ${t.completedByLabel ? html`<p class="done-by"><strong>${t.completedByLabel}</strong> on ${fmtDateTime(t.completedAt)}.</p>` : t.savedByLabel ? html`<p class="muted small done-by">${t.savedByLabel} on ${fmtDateTime(t.savedAt)}.</p>` : ''}
-    ${t.forClient && t.canFill ? html`<p class="note-box">You are completing this <strong>on behalf of ${t.ownerName}</strong>. ${t.ownerName} will be told, can see your answers and can correct them. Every save is recorded with your name.</p>` : ''}
+    ${t.forClient && t.canFill ? html`<p class="note-box" data-agent-no-complete>Only <strong>${t.ownerName || 'the client'}</strong> or CLA Title can mark this task complete.</p>` : ''}
     ${t.mine && t.savedBy && t.savedBy !== t.ownerId ? html`<p class="note-box">Your agent filled this in for you. Please check the answers and correct anything that is wrong.</p>` : ''}
     ${inner}</div>`;
   return { title: t.title, crumbs: [['All Tasks', `#/deals/${deal.id}/tasks`], [t.title]], body, mount(root) {
@@ -108,4 +109,4 @@ function signView({ api, deal, t, refresh, go }) {
 }
 
 // Francis, Nov 3: agent tasks (kind 'agent') have their own page
-async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611110600'); return m.render(c); }
+async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611110800'); return m.render(c); }

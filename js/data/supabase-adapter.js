@@ -25,7 +25,7 @@ import { tcSupabase } from './supabase-tc.js?v=202611101015';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
 import { gmailSupabase } from './supabase-gmail.js?v=202611110300';
 import { nov5Supabase } from './supabase-nov5.js?v=202611110300';
-import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611110700';
+import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611110800';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611101015';
 import { staffSupabase } from './supabase-staff.js?v=202611110300';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
@@ -34,7 +34,7 @@ import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
 import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611101700';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
 import { propertyAddressOf } from './nov5-rules.js?v=202611101015';
-import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611110600';
+import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611110800';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow } from './contact-insert.js?v=202611101200';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
@@ -48,12 +48,33 @@ import { filterListedDocuments, shapeListedDocument } from './document-list.js?v
 import { authEventAction, gatherReads, identitySlot, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611082200';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
+// These stay reachable with no user session. Everything else under /rest/v1/ is skipped after sign-out,
+// because the publishable key is not a JWT and PostgREST answers 401.
+const PUBLIC_REST = /\/rest\/v1\/rpc\/(portal_invite_lookup|agent_invite_lookup|hr_invite_lookup|scheduling_get|scheduling_respond)(?:\?|$)/;
+export function shouldQuietRest(url, signedOut) {
+  const u = String(url || '');
+  if (!signedOut || !u.includes('/rest/v1/') || PUBLIC_REST.test(u)) return false;
+  return true;
+}
+export function quietRestResponse(url) {
+  const rpc = String(url || '').includes('/rest/v1/rpc/');
+  return new Response(rpc ? 'null' : '[]', { status: 200, headers: { 'content-type': 'application/json' } });
+}
 
 export async function createSupabaseAdapter(cfg) {
   if (!cfg || !cfg.url || !cfg.anonKey) throw new Error('Supabase mode needs a project URL and a publishable key. There is no mock fallback.');
   if (typeof localStorage !== 'undefined') { try { localStorage.removeItem('cla-portal-new:data:v30'); } catch (e) { /* a browser that blocks storage still must not load fixtures */ } }
   const { createClient } = await import(SB);
-  const sb = createClient(cfg.url, cfg.anonKey);
+  let signedOut = false;
+  const sb = createClient(cfg.url, cfg.anonKey, {
+    global: {
+      fetch(input, init) {
+        const url = typeof input === 'string' ? input : (input && input.url) || '';
+        if (shouldQuietRest(url, signedOut)) return Promise.resolve(quietRestResponse(url));
+        return fetch(input, init);
+      },
+    },
+  });
   const ident = identitySlot();
   const ok = (r) => { if (r.error) throw new Error(r.error.message); return r.data; };
   const camel = (o) => Array.isArray(o) ? o.map(camel) : o && typeof o === 'object'
@@ -80,14 +101,16 @@ export async function createSupabaseAdapter(cfg) {
   const processorNames = () => {
     if (!procNames || Date.now() - procNamesAt > 300000) {
       procNamesAt = Date.now();
-      procNames = Promise.resolve().then(() => sb.from('profiles').select('id, first_name, last_name').in('role', PROCESSOR_PICK_ROLES))
-        .then((r) => { if (r.error) { procNames = null; return new Map(); } return new Map((r.data || []).map((p) => [p.id, nameOfProfile(p)])); }, () => { procNames = null; return new Map(); });
+      procNames = Promise.resolve().then(async () => {
+        if (!(await profileReadAllowed(sb))) return { data: [], error: null };
+        return sb.from('profiles').select('id, first_name, last_name').in('role', PROCESSOR_PICK_ROLES);
+      }).then((r) => { if (r.error) { procNames = null; return new Map(); } return new Map((r.data || []).map((p) => [p.id, nameOfProfile(p)])); }, () => { procNames = null; return new Map(); });
     }
     return procNames;
   };
   const withProcessorNames = async (deals, names) => {
     const miss = missingProcessorIds(deals, names);
-    if (miss.length) { try { const r = await sb.from('profiles').select('id, first_name, last_name').in('id', miss); (r.data || []).forEach((p) => names.set(p.id, nameOfProfile(p))); } catch (e) { /* names stay blank */ } }
+    if (miss.length && await profileReadAllowed(sb)) { try { const r = await sb.from('profiles').select('id, first_name, last_name').in('id', miss); (r.data || []).forEach((p) => names.set(p.id, nameOfProfile(p))); } catch (e) { /* names stay blank */ } }
     return names;
   };
   const types = async (ids) => new Map(ids.length ? (ok(await sb.rpc('contact_types', { p_ids: [...new Set(ids)] })) || []).map((r) => [r.contact_id, r.contact_type]) : []);
@@ -192,6 +215,9 @@ export async function createSupabaseAdapter(cfg) {
   }
   let pendingAuthId = '';
   sb.auth.onAuthStateChange((event, session) => {
+    const token = session && session.access_token || '';
+    if (token) signedOut = false;
+    else if (event === 'SIGNED_OUT') signedOut = true;
     const nextId = session && session.user && session.user.id || '';
     const held = ident.current();
     const action = authEventAction(event, nextId, held && held.id || '', nav.userId(), pendingAuthId);
@@ -338,7 +364,7 @@ export async function createSupabaseAdapter(cfg) {
       return lastHeld && lastHeld.id === user.id ? lastHeld : null;
     },
     authGeneration() { return ident.generation(); },
-    async signOut() { dropAuth(); await sb.auth.signOut(); },
+    async signOut() { signedOut = true; dropAuth(); await sb.auth.signOut(); },
     async resetDemoData() {},
     async getMyProfile() { return me(); },
     // John, Nov 2 (migration 23): file titles from deal_file_titles(p_deal) = the buyers' / sellers' last names the caller may see, in the order added

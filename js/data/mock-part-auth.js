@@ -3,7 +3,7 @@
 export function devAuth(x) {
   const { load, me, clone, fail } = x;
   return {
-    async listDevUsers() { return clone(load().profiles.filter((p) => p.status === 'active').map(({ id, firstName, lastName, role, isAdmin }) => ({ id, firstName, lastName, role, isAdmin: !!isAdmin, contactType: ((load().contacts || []).find((c) => c.profileId === id) || {}).contactType || null,
+    async listDevUsers() { return clone(load().profiles.filter((p) => p.status === 'active').map(({ id, firstName, lastName, role, isAdmin, email }) => ({ id, firstName, lastName, role, email, isAdmin: !!isAdmin, contactType: ((load().contacts || []).find((c) => c.profileId === id) || {}).contactType || null,
       fileRoles: role === 'Outside user' ? x.fileRolesOf({ id, role }) : [], fileLabels: role === 'Outside user' ? x.fileLabelsOf({ id, role }) : [] }))); },   // outside users: the roles they hold on their files
     async signInDev(userId) {
       const p = load().profiles.find((q) => q.id === userId);
