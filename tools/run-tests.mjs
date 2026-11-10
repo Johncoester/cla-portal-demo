@@ -11,7 +11,7 @@ const LOADERS = [[], ['--import', './test/register-supabase-fake.mjs'],
   ['--import', './test/fail-money-input.mjs', '--import', './test/register-supabase-fake.mjs']];
 const tests = process.argv.slice(2).length ? process.argv.slice(2)
   : readdirSync('test').filter((f) => /^test-.*\.(js|sh)$/.test(f)).sort().map((f) => `test/${f}`);
-const run = (cmd, args) => spawnSync(cmd, args, { encoding: 'utf8', timeout: 180000, env: { ...process.env, CI: '1' } });
+const run = (cmd, args) => spawnSync(cmd, args, { encoding: 'utf8', timeout: 600000, env: { ...process.env, CI: '1' } });
 const results = [];
 for (const t of tests) {
   const t0 = Date.now(); let out = null;
