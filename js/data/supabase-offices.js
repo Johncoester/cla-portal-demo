@@ -2,7 +2,7 @@
  * project (best effort; the mock adapter and the SQL tests are the tested parts).
  *  - public.offices / public.office_counties: CLA staff read; writes go through save_office / set_office_active / reorder_offices (Admin, Super admin).
  *  - public.closing_office_choices(deal) + closing_office_default(deal): the picker for anyone on the order (active offices + a retired one in use). */
-import { OFFICE_LOCATION, officeAddress, canManageOffices, cleanOffice, nearestOffice } from './offices.js?v=202611101215';
+import { OFFICE_LOCATION, officeAddress, canManageOffices, cleanOffice, nearestOffice } from './offices.js?v=202611101015';
 const row = (o, counties) => ({ id: o.id, name: o.name, addressLine1: o.address_line1, addressLine2: o.address_line2 || '', city: o.city, state: o.state, zip: o.zip,
   latitude: o.latitude == null || o.latitude === '' ? null : Number(o.latitude), longitude: o.longitude == null || o.longitude === '' ? null : Number(o.longitude),
   phone: o.main_phone || '', email: o.email || '', isMainOfficeForState: !!o.is_main_office_for_state, active: !!o.active, sortOrder: o.sort_order,

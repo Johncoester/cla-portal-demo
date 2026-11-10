@@ -3,9 +3,9 @@
 import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, toast } from '../ui.js?v=202611070139';
 import { crmSort, inLocalRange } from '../data/crm.js?v=202611070139';
 import { DEAL_COLS, LOCKED_COLS, DEFAULT_HIDDEN, loadHidden, saveHidden } from '../data/crm-deal-cols.js?v=202611070139';
-import { tabs, head, money, wireRowOpen } from './crm-kit.js?v=202611091240';
+import { tabs, head, money, wireRowOpen } from './crm-kit.js?v=202611101015';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611090905';
-import { viewsBar, wireViewsBar } from './crm-views.js?v=202611091240';
+import { viewsBar, wireViewsBar } from './crm-views.js?v=202611101015';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
 import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070139';
 import { pageOf, selectionState, selectPage, BULK_PAGE_SIZE } from '../data/crm-bulk.js?v=202611090905';

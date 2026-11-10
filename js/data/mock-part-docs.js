@@ -1,7 +1,7 @@
 /* mock adapter: contacts, participants, documents (deal files). NOTE: there is no delete for documents, for anyone (Admin included). */
-import { cleanEntity } from './mock-part-nov3b.js?v=202611092320';
+import { cleanEntity } from './mock-part-nov3b.js?v=202611101015';
 import { cleanLenderRole } from './lender-file.js?v=202611101200';
-import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611090935';
+import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611101015';
 import { acceptDocType } from './document-type.js?v=202611100945';
 import { assertContactSaved, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
 export function contactsTasksDocs(x) {
@@ -165,9 +165,8 @@ export function contactsTasksDocs(x) {
       return { name: z.name, mimeType: z.mimeType, dataUrl: content || ('data:text/plain;charset=utf-8,' + encodeURIComponent(`FAKE DEMO FILE\n${z.name}\n(Seed documents have no real content.)\n`)) };
     },
   };
-  // u = the deal-scoped user. Outside users: 'all' or their own side only (never staff-only, never the other side).
-  // BUYER (Nov 4 call): shares with CLA Title only. An older 'buyer side' request from the buyer is stored as 'staff' (CLA staff only)
-  const buyerVis = (u, vis) => (u.role === 'Client-Buyer' && vis === 'buyer' ? 'staff' : vis);
+  // A buyer or seller 'Share with CLA Title' is their own side (staff and their agent). An old 'staff' choice is stored that way too.
+  const buyerVis = (u, vis) => ((u.role === 'Client-Buyer' || u.role === 'Client-Seller') && vis === 'staff' ? (C.sideOf(u.role) || vis) : vis);
   const visCheck = (u, vis) => { if (C.visibilityChoices(u.role, u.isAdmin).includes(vis)) return;
     if (vis === 'staff') fail(C.isClient(u.role) ? 'Clients cannot make staff-only documents.' : 'Only CLA staff can make staff-only documents.');
     if (C.isClient(u.role)) fail('Clients share files with CLA Title (and their own agent) only.');

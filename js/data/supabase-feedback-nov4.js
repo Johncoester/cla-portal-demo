@@ -6,13 +6,13 @@
  *  - Custom views / saved filters: public.crm_views, crm_view_criteria, crm_view_columns, crm_view_shares, crm_view_pins,
  *    crm_saved_filters, crm_saved_filter_values. Already on TEST. Views and saved filters are retired, never deleted.
  *    Criteria values are one row per value_index (no JSON). Child rows are read and replaced in batches. */
-import { CLA_OFFICES, OFFICE_LOCATION } from './cla-offices.js?v=202611101215';
+import { CLA_OFFICES, OFFICE_LOCATION } from './cla-offices.js?v=202611101015';
 import { DISBURSEMENT_FIELDS, cleanDisbursement } from './crm-disbursement.js?v=202611070139';
 import { VIEW_MODULES, VIEW_DEFAULT_COLUMNS, PINS_MAX, nameOk, cleanColumns, cleanFilterValues, SEARCH_COL_MAX } from './crm-views.js?v=202611070139';
 import { moduleFields, cleanCriteria, applyCriteria, display, SHARE_ROLES, DEPARTMENTS } from './crm-analytics.js?v=202611070139';
 import { canUseCrm, crmReadOnly } from './crm.js?v=202611070139';
 import { CRM_OFF, featureFlags } from './features.js?v=202611070139';
-import { localDate } from './constants.js?v=202611090935';
+import { localDate } from './constants.js?v=202611101015';
 const snake = (k) => k.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LIST_FN = { contacts: 'listCrmContacts', leads: 'listCrmLeads', accounts: 'listCrmAccounts', deals: 'listCrmDeals' };

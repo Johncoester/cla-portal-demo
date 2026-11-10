@@ -5,10 +5,10 @@
 // Same data and permissions as the task pages: listTasks + getTask / getAgentTask (answers only where the viewer may already read them, bank
 // numbers masked as before). Expand all / Collapse all; everything starts expanded.
 import { html, $, $$, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611070139';
-import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611090935';
-import { localDate, fmtPhone, isRefi } from '../data/constants.js?v=202611090935';
-import { CLS, LABEL } from './dealtasks.js?v=202611101230';
-import { entityLine } from './deal.js?v=202611101230';
+import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611101015';
+import { localDate, fmtPhone, isRefi } from '../data/constants.js?v=202611101015';
+import { CLS, LABEL } from './dealtasks.js?v=202611101015';
+import { entityLine } from './deal.js?v=202611101015';
 
 const ORDER = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent'];
 const ROLE_NAME = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent' };
