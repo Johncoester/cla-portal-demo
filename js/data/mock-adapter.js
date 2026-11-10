@@ -9,7 +9,7 @@ import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, 
 import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611101015';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
 import { delegationLocked, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611101015';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611101700';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611101900';
 import { devAuth } from './mock-part-auth.js?v=202611070139';
 import { contactsTasksDocs } from './mock-part-docs.js?v=202611101015';
 import { tasksAndForms } from './mock-part-tasks.js?v=202611101015';

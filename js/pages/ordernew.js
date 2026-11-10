@@ -14,6 +14,7 @@ import { fmtPhone, TX_TYPES, runsOrders, localDate, US_STATE_NAMES, DOC_TYPES, M
 import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611101015';
 import { ENTITY_TYPES } from '../data/templates.js?v=202611101015';
 import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611092320';
+import { closerChoices, resolveCloser } from '../data/closer.js?v=202611101015';
 import { duplicateNotice } from '../data/order-duplicates.js?v=202611101700';
 import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
 import { orderDraftKey, readOrderDraft, writeOrderDraft, clearOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim } from '../data/order-draft.js?v=202611070139';
@@ -77,6 +78,7 @@ export async function render({ api, user, go }) {
   const contacts = await api.listContacts();
   const optional = async (fn) => { try { return (await fn()) || []; } catch (e) { return []; } };
   const staff = await optional(() => api.listSalesStaff()); const procs = await optional(() => api.listProcessors()); const preprocs = await optional(() => api.listPreprocessors()); const tcs = await optional(() => api.listCoordinators());
+  const closers = closerChoices(await optional(() => api.listActiveStaff()));
   // the file's Processor: a Processor defaults to themselves; an Admin / Super admin is not a valid Processor, so they must choose one
   const today = localDate();
   // "Add new user" roles. Salesperson creates a staff login, which is Admin-only (John's earlier decision), so only Admins / Super admins see it.
@@ -150,6 +152,7 @@ export async function render({ api, user, go }) {
         'The realtors on each side, who referred the file, and each side\'s transaction coordinator.')}
       ${panel('team', html`<div class="form-grid">
         <label>Processor<select name="processorId" data-processor-select><option value="">Unassigned</option></select> <button type="button" class="ghost" data-refresh-processors>Refresh list</button><span class="field-hint">Leave Unassigned to save the file now. A Processor added after you opened this page appears when you refresh the list. Nothing else on the form is cleared.</span></label><label>Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select>${preprocs.length ? '' : html`<span class="field-hint" data-no-preproc>No preprocessor is available for this login.</span>`}</label>
+        <label class="span2">Closer<input name="closerName" list="place-closer-staff" maxlength="120" autocomplete="off" aria-label="Closer" data-closer-input><datalist id="place-closer-staff">${closers.map((c) => html`<option value="${c.label}"></option>`)}</datalist><span class="field-hint">Pick an active CLA staff member, or type a name. Same field as Edit order details.</span></label>
         <fieldset class="span2" data-sales-picker><legend>Sales Rep</legend><div data-sales-list class="check-grid">${staff.length ? staff.map((s) => salesBox(s)) : html`<p class="muted" data-no-sales>No salespeople are available for this login.</p>`}</div><span class="field-hint">The only sales field on Place Order. Check each salesperson on this order. Someone already saved as a sales team member on an existing file is left as they are.</span></fieldset>
         <label class="span2">Notes<textarea name="notes" rows="3" maxlength="2000" placeholder="Anything the team should know about this order"></textarea></label>
         <fieldset class="span2" id="nof-docs"><legend>Documents (e.g. the sales contract)</legend>
@@ -389,7 +392,7 @@ export async function render({ api, user, go }) {
           ['Lender contacts', readLenderContactRows(form).length ? readLenderContactRows(form).map((row) => html`<div>${[row.firstName, row.lastName].filter(Boolean).join(' ')} <span class="muted small">${row.lenderRole === 'lender_tc' ? 'Lender TC' : row.lenderRole === 'loan_officer' ? 'Loan Officer' : ''}</span></div>`) : dash]])}
         ${section('parties', 'Source of business', [['Source of business', val((() => { const picked = $$('[name=referralSource]', root).find((el) => el.checked && el.value); return picked ? (picked.getAttribute('aria-label') || '').replace(/^Source of business:\s*/, '') : ''; })())]])}
         ${r ? '' : section('agents', 'Agents', [['Buyer agent', val(nameOf(pickers['Buyer Agent'].value))], ['Listing agent', val(nameOf(pickers['Listing Agent'].value))], ["Buyer's transaction coordinator", val(selText($('[name="p:Transaction Coordinator"]', root)))], ['Listing transaction coordinator', val(selText($('[name="p:Transaction Coordinator:2"]', root)))]])}
-        ${section('team', 'Team & Notes', [['Processor', val(selText($('[name=processorId]', root)).replace(/^Choose the Processor.*$/, ''))], ['Preprocessor', val(selText($('[name=preprocessorUserId]', root)))], ['Sales Rep', sales.length ? sales.join(', ') : dash],
+        ${section('team', 'Team & Notes', [['Processor', val(selText($('[name=processorId]', root)).replace(/^Choose the Processor.*$/, ''))], ['Preprocessor', val(selText($('[name=preprocessorUserId]', root)))], ['Closer', val(f.closerName)], ['Sales Rep', sales.length ? sales.join(', ') : dash],
           ['Notes', f.notes ? html`<span class="review-notes">${f.notes.length > 240 ? f.notes.slice(0, 240) + '\u2026' : f.notes}</span>` : dash],
           ['Documents', files.length ? html`${files.map((x, i) => html`<div>${x.name} <span class="muted small">${fmtSize(x.size)}${($(`[data-doctype="${i}"]`, root) || {}).value ? ' \u00b7 ' + $(`[data-doctype="${i}"]`, root).value : ''}</span></div>`)}<span class="muted small">${selText($('#nof-vis', root))}${$('#nof-wire', root).checked ? ' \u00b7 wire instructions (never shown to agents)' : ''}</span>` : dash]])}
         </div>
@@ -553,7 +556,8 @@ export async function render({ api, user, go }) {
       f.sourceOfBusiness = ''; delete f.sourceContactId;
       if (!showMdQuestions(f.state, refi())) { f.primaryResidence = ''; f.firstTimeBuyer = ''; }
       const extras = lenderExtras({ lenderAddress: f.lenderAddress, cplAddress: f.cplAddress, cplSameAsLender: !!($('[data-cpl-same]', root) && $('[data-cpl-same]', root).checked), mortgageBrokerName: f.mortgageBrokerName });
-      const input = representationPayload(api, { ...f, emdAmount: amt, purchasePrice: refi() ? '' : moneyAmount(f.purchasePrice), ...(refi() ? { emdDueDate: '' } : {}), loanAmount: moneyAmount(f.loanAmount), salesIds: new FormData(e.target).getAll('salesIds'),
+      const placedCloser = resolveCloser(f.closerName, closers, {});
+      const input = representationPayload(api, { ...f, closerName: placedCloser.closerName, closerProfileId: placedCloser.closerProfileId, emdAmount: amt, purchasePrice: refi() ? '' : moneyAmount(f.purchasePrice), ...(refi() ? { emdDueDate: '' } : {}), loanAmount: moneyAmount(f.loanAmount), salesIds: new FormData(e.target).getAll('salesIds'),
         lenderName: (f.lenderName || (lender && lender.company) || '').trim(),
         lenderContact: lender ? personLabel(lender) : '',
         lenderPhone: (f.lenderPhone || '').trim(),
