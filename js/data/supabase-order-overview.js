@@ -1,7 +1,8 @@
 // Supabase order overview. Reads only tables and RPCs that already exist.
 // RLS decides the file, the other side's contact, tasks, documents, threads, activity, and demo world.
 // A failed read is thrown. An empty list is only what the database returned.
-import { buildOrderOverview } from './order-overview.js?v=202611092230';
+import { buildOrderOverview } from './order-overview.js?v=202611100930';
+import { canUseGmail } from './gmail-email.js?v=202611091801';
 
 const CONTACT_MS = 2000;
 /* Email/phone is extra. A denied column or a read that never returns must not leave the file on "Loading this page." */
@@ -40,6 +41,9 @@ export function orderOverviewSupabase({ sb, ok, camel, me, api }) {
       ]);
       const user = await userP;
       if (!user || !user.id) throw new Error('Please sign in.');
+      // Staff only. Buyers, sellers, and agents are not asked for deal_emails (RLS would return nothing).
+      // A missing read-cursor table resolves to 0 inside fileEmailUnreadCount; it must not reject the file.
+      const emailP = (canUseGmail(user) && api.fileEmailUnreadCount) ? api.fileEmailUnreadCount(dealId).catch(() => 0) : Promise.resolve(0);
       const deal = await dealP;
       if (!deal || !deal.id) throw new Error('Order not found.');
       const [tasks, documents, threads, activity] = await listsP;
@@ -72,7 +76,8 @@ export function orderOverviewSupabase({ sb, ok, camel, me, api }) {
         if (last && !last.authorName) last.authorName = actors.get(last.authorId) || '';
       }
       for (const item of activity.items) if (!item.actorName) item.actorName = actors.get(item.actorId) || '';
-      return buildOrderOverview({ deal, me: user, tasks, documents, threads, activity: activity.items, salesPeople: deal.salesPeople || [] });
+      const emailUnread = await emailP;
+      return buildOrderOverview({ deal, me: user, tasks, documents, threads, activity: activity.items, salesPeople: deal.salesPeople || [], emailUnread });
     },
     async listUpdateRequests(dealId) {
       const user = await me();

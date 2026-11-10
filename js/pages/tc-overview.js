@@ -11,7 +11,11 @@ const initials = (f, l) => `${(f || '')[0] || ''}${(l || '')[0] || ''}`.toUpperC
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 export async function renderTcOverview(ctx, d) {
   const { api, user, refresh } = ctx;
-  const [tasks, contacts, ms, emd, ci] = await Promise.all([api.listTasks(d.id), api.getDeal(d.id), api.getMilestones(d.id), api.getEmdAlta(d.id), api.getContractInfo(d.id)]);
+  const [tasks, contacts, ms, emd, ci, emailN, portalN] = await Promise.all([
+    api.listTasks(d.id), api.getDeal(d.id), api.getMilestones(d.id), api.getEmdAlta(d.id), api.getContractInfo(d.id),
+    api.fileEmailUnreadCount ? api.fileEmailUnreadCount(d.id).catch(() => 0) : 0,
+    api.filePortalUnread ? api.filePortalUnread(d.id).catch(() => 0) : 0,
+  ]);
   const open = tasks.filter((t) => OPEN.includes(t.status)).sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'));
   const cur = d.status === 'Closed' ? 10 : Math.max(0, Math.min(9, Number(d.stage) || 0)); const pct = cur * 10;
   const chips = html`${emd.received ? pill('EMD received ' + long(emd.receivedDate), 'ok') : pill('EMD not received', 'warn')} ${emd.altaReceived ? pill('Signed ALTA received ' + long(emd.altaReceivedDate), 'ok') : pill('Signed ALTA pending', 'warn')}`;
@@ -19,7 +23,7 @@ export async function renderTcOverview(ctx, d) {
     <h1 class="co-greet" data-co-greet>Hi ${user.firstName}, here’s your coordination file</h1><p class="co-sub">${d.street}, ${d.city}, ${d.state} ${d.zip} · Order ${d.fileNumber}</p>
     <nav class="co-seg tc-nav" aria-label="File tools" data-tc-nav>
       <a class="on" href="${href(d)}" data-tc-tab="Overview" aria-current="page">Overview</a><a href="${href(d, 'tasks')}" data-tc-tab="Tasks">Tasks ${open.length ? html`<span class="n">${open.length}</span>` : ''}</a>
-      <a href="${href(d, 'inbox')}" data-tc-tab="Messages">Messages</a><a href="${href(d, 'documents')}" data-tc-tab="Documents">Documents</a><a href="${href(d, 'closing')}" data-tc-tab="Closing">Closing</a><a href="${href(d, 'contacts')}" data-tc-tab="Contacts">Contacts</a><a href="${href(d, 'activity')}" data-tc-tab="Activity">Activity</a></nav>
+      <a href="${href(d, 'inbox')}" data-tc-tab="Messages">Messages${portalN ? html` <span class="n" data-portal-unread>${portalN}</span>` : ''}</a><a href="${href(d, 'email')}" data-tc-tab="Email">Email${emailN ? html` <span class="n" data-email-unread>${emailN}</span>` : ''}</a><a href="${href(d, 'documents')}" data-tc-tab="Documents">Documents</a><a href="${href(d, 'closing')}" data-tc-tab="Closing">Closing</a><a href="${href(d, 'contacts')}" data-tc-tab="Contacts">Contacts</a><a href="${href(d, 'activity')}" data-tc-tab="Activity">Activity</a></nav>
     <div class="tc-quick" data-tc-quick><span class="muted small">Quick jump</span>
       <button type="button" class="co-btn g" data-tc-action="contract">Contract info</button><button type="button" class="co-btn g" data-tc-action="milestones">Milestones</button><button type="button" class="co-btn g" data-tc-action="emd">EMD &amp; ALTA</button>
       <button type="button" class="co-btn g" data-tc-action="upload">Documents / Upload</button><button type="button" class="co-btn p" data-tc-action="messages">Messages (all parties)</button></div>
@@ -87,7 +91,12 @@ export async function renderTcOverview(ctx, d) {
 }
 
 export async function tcTabChrome(ctx, d, active) {
-  const [tasks] = await Promise.all([ctx.api.listTasks(d.id)]); const open = tasks.filter((t) => OPEN.includes(t.status)).length;
+  const [tasks, emailN, portalN] = await Promise.all([
+    ctx.api.listTasks(d.id),
+    ctx.api.fileEmailUnreadCount ? ctx.api.fileEmailUnreadCount(d.id).catch(() => 0) : 0,
+    ctx.api.filePortalUnread ? ctx.api.filePortalUnread(d.id).catch(() => 0) : 0,
+  ]);
+  const open = tasks.filter((t) => OPEN.includes(t.status)).length;
   return html`<h1 class="co-greet co-greet-sm" data-co-greet>Coordination file</h1><p class="co-sub co-file" data-co-file>${d.street}, ${d.city}, ${d.state} ${d.zip} · Order ${d.fileNumber}</p>
-    <nav class="co-seg tc-nav" aria-label="This file" data-tc-nav>${[['overview', 'Overview', href(d), 0], ['tasks', 'Tasks', href(d, 'tasks'), open], ['inbox', 'Messages', href(d, 'inbox'), 0], ['email', 'Email', href(d, 'email'), 0], ['documents', 'Documents', href(d, 'documents'), 0], ['closing', 'Closing', href(d, 'closing'), 0], ['contacts', 'Contacts', href(d, 'contacts'), 0], ['activity', 'Activity', href(d, 'activity'), 0]].map(([k, l, h, n]) => html`<a class="${active === k ? 'on' : ''}" href="${h}" data-tc-tab="${l}"${active === k ? raw(' aria-current="page"') : ''}>${l}${n ? html` <span class="n">${n}</span>` : ''}</a>`)}</nav>`;
+    <nav class="co-seg tc-nav" aria-label="This file" data-tc-nav>${[['overview', 'Overview', href(d), 0], ['tasks', 'Tasks', href(d, 'tasks'), open], ['inbox', 'Messages', href(d, 'inbox'), Number(portalN) || 0], ['email', 'Email', href(d, 'email'), Number(emailN) || 0], ['documents', 'Documents', href(d, 'documents'), 0], ['closing', 'Closing', href(d, 'closing'), 0], ['contacts', 'Contacts', href(d, 'contacts'), 0], ['activity', 'Activity', href(d, 'activity'), 0]].map(([k, l, h, n]) => html`<a class="${active === k ? 'on' : ''}" href="${h}" data-tc-tab="${l}"${active === k ? raw(' aria-current="page"') : ''}>${l}${n ? html` <span class="n">${n}</span>` : ''}</a>`)}</nav>`;
 }
