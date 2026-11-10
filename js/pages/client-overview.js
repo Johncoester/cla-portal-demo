@@ -5,7 +5,7 @@
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney, pill, toast } from '../ui.js?v=202611070139';
 import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611090935';
 import { composeModal } from './compose.js?v=202611090935';
-import { slotText } from './dealclosing.js?v=202611090935';
+import { slotText } from './dealclosing.js?v=202611101215';
 import { yourAgentHtml } from './your-agent.js?v=202611100005';
 
 // stage 5 shows as "Wire Fraud Awareness" on the BUYER's view only (display only; the stored stage list is unchanged)

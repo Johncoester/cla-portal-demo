@@ -8,8 +8,8 @@
 import { AGREEMENTS, agreementOf } from './agreements.js?v=202611070139';
 import { getProvider, ESIGN_PROVIDER } from './esign.js?v=202611070139';
 import { WIRE_FRAUD_NOTE, CLA_PHONE } from './constants.js?v=202611090935';
-import { OFFICE_LOCATION, placeText as placeText0 } from './offices.js?v=202611090935';
-import { closingOfficeChoices, officeById, officeNameOf } from './mock-part-offices.js?v=202611090935';   // Admin > Offices (migration 57): the stored office list
+import { OFFICE_LOCATION, placeText as placeText0 } from './offices.js?v=202611101215';
+import { closingOfficeChoices, officeById, officeNameOf } from './mock-part-offices.js?v=202611101215';   // Admin > Offices (migration 57): the stored office list
 export function mattP2(x) {
   const { load, save, nid, needUser, isManager, notViewOnly, onDeal, scopeTo, holds, contactOf, isStaffView, personSide, docVisible, log, prof, nameOf, notify, dealProfileIds, clone, now, fail, str, localDate, C } = x;
   const d0 = () => load();
@@ -23,7 +23,7 @@ export function mattP2(x) {
   const whenOk = (v, label) => { const s = str(v, 16); if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s) || isNaN(Date.parse(s))) fail(`${label} needs a date and a time.`);
     if (Date.parse(s) < Date.now()) fail(`${label} must be in the future.`); return s; };
   const locOk = (v) => { const s = str(v, 60); if (!C.CLOSING_LOCATIONS.includes(s)) fail(`Pick where to sign: ${C.CLOSING_LOCATIONS.join(', ')}.`); return s; };
-  // John, Nov 4 meeting (7:17): a 'CLA Title office' closing names WHICH office; it defaults to the office nearest the property (cla-offices.js).
+  // John, Nov 4 meeting (7:17), Matt: a 'CLA Title office' closing names WHICH office. It defaults to the closest office (straight-line distance, offices.js).
   // Another place (mobile notary / remote) has no office. Older callers that send no office get the nearest one (or none when nothing is near).
   // Offices come from Admin > Offices (stored, mock-part-offices.js): only an ACTIVE office can be picked; a retired one stays on closings that already use it.
   const placeText = (location, officeId) => placeText0(location, officeId, officeNameOf(d0(), officeId));
