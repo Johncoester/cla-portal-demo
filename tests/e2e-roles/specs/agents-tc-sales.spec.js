@@ -1,7 +1,8 @@
-import { test, expect, signIn, openMockFile, freshIssues, runId, onTest } from '../fixtures.js';
+import { test, expect, signIn, openMockFile, freshIssues, allowPendingInvite400, runId } from '../fixtures.js';
 import { walkFileTabs, uploadOfferedVisibilities, shareFileLabels, assertRecipients, sendPortalMessage, fillAssignedTasks, gotoHash, dealId } from '../helpers/portal.js';
 import { recipientRules } from '../helpers/people.js';
 import { targetMode } from '../helpers/gate.js';
+import { E2E_INVITE_HOLD } from '../../../js/data/invite-send.js';
 
 async function portal(page, key) {
   const person = await signIn(page, key);
@@ -17,7 +18,7 @@ test('buyer agent file, tasks, documents, share list, and a message', async ({ p
   await gotoHash(page, `#/deals/${id}/tasks`);
   await fillAssignedTasks(page, runId(), { requireUpload: false });
   await gotoHash(page, `#/deals/${id}/documents`);
-  const docs = await uploadOfferedVisibilities(page, runId());
+  const docs = await uploadOfferedVisibilities(page, runId(), person);
   expect(docs.saved.length).toBeGreaterThan(1);
   const labels = await shareFileLabels(page);
   assertRecipients(labels, recipientRules(person));
@@ -39,7 +40,7 @@ test('listing agent file, documents, share list, and a message', async ({ page, 
   await expect(page.locator('[data-task-no-fields]')).toHaveCount(0);
   await expect(page.locator('#view, .co-cb').first()).not.toContainText('template n/a');
   await gotoHash(page, `#/deals/${id}/documents`);
-  const docs = await uploadOfferedVisibilities(page, runId());
+  const docs = await uploadOfferedVisibilities(page, runId(), person);
   expect(docs.saved.length).toBeGreaterThan(1);
   const labels = await shareFileLabels(page);
   assertRecipients(labels, recipientRules(person));
@@ -50,7 +51,7 @@ test('listing agent file, documents, share list, and a message', async ({ page, 
 
 test('transaction coordinator file tabs, tasks, contacts, documents, email, and a message', async ({ page, issues }) => {
   test.setTimeout(120000);
-  const { id } = await portal(page, 'coordinator');
+  const { person, id } = await portal(page, 'coordinator');
   await gotoHash(page, `#/deals/${id}/tasks`);
   await expect(page.locator('#view, .co-cb').first()).toContainText(/task/i);
   await gotoHash(page, `#/deals/${id}/contacts`);
@@ -58,7 +59,7 @@ test('transaction coordinator file tabs, tasks, contacts, documents, email, and 
   await expect(page.locator('[data-edit]')).toHaveCount(0);
   await expect(page.locator('[data-invite-portal]')).toHaveCount(0);
   await gotoHash(page, `#/deals/${id}/documents`);
-  const docs = await uploadOfferedVisibilities(page, runId());
+  const docs = await uploadOfferedVisibilities(page, runId(), person);
   expect(docs.saved).toEqual(expect.arrayContaining(['Everyone on the file']));
   await gotoHash(page, `#/deals/${id}/email`);
   await expect(page.locator('[data-email-tab]')).toBeVisible();
@@ -91,13 +92,18 @@ test('sales team is view-only on the file', async ({ page, issues }) => {
 });
 
 test('sales team invite shows the stored email and a copy link, and does not email', async ({ page, issues }) => {
-  onTest('MF-024');
+  await allowPendingInvite400(page, issues);
   await signIn(page, 'salesTeam');
-  await page.route('**/functions/v1/gmail-send**', (route) => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ sent: false, error: 'E2E checked the copy link only.' }),
-  }));
+  // The role logins are allowlisted fake addresses and have no @clatitle.com Gmail. This answer stops the request before Google. The dialog must show the reason.
+  let gated = 0;
+  await page.route('**/functions/v1/gmail-send**', (route) => {
+    gated += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(E2E_INVITE_HOLD),
+    });
+  });
   if (targetMode() === 'test') {
     await openMockFile(page);
     const id = dealId(page);
@@ -112,7 +118,24 @@ test('sales team invite shows the stored email and a copy link, and does not ema
   const email = await page.locator('[data-invite-email]').inputValue();
   expect(email, 'stored email is blank').toMatch(/@/);
   await page.locator('[data-invite-create]').click();
+  const link = page.locator('[data-invite-link]');
+  const pending = page.locator('.toast.err', { hasText: /pending invite/i });
+  await expect(link.or(pending)).toBeVisible();
+  // A pending invite from an earlier run is resent. The test does not delete that row.
+  if (await pending.count() && !(await link.count())) {
+    await page.locator('#modal [data-close]').first().click();
+    await gotoHash(page, '#/agent-invites?status=pending');
+    const inviteRow = page.locator('[data-invite-row]', { hasText: email }).first();
+    await inviteRow.waitFor();
+    await inviteRow.locator('[data-resend]').click();
+  }
   await expect(page.locator('[data-invite-link]')).toHaveValue(/#\/(?:agent-invite|hr-invite)\//);
+  await expect(page.locator('[data-invite-result]')).toContainText(email);
   await expect(page.locator('[data-invite-sent="yes"]')).toHaveCount(0);
+  await expect(page.locator('[data-invite-result]')).toContainText(/Not emailed|nothing is emailed/i);
+  if (targetMode() === 'test') {
+    expect(gated, 'the page asked gmail-send').toBeGreaterThan(0);
+    await expect(page.locator('[data-invite-result]')).toContainText(E2E_INVITE_HOLD.error);
+  }
   expect(freshIssues(issues)).toEqual([]);
 });

@@ -3,7 +3,7 @@
  * Template files need the private CRM storage bucket, which is not set up yet (as for record attachments), so uploads refuse here. */
 import { MODULE_CODES, moduleLabel, GMAIL_NOTE, mergeFieldsFor, renderTemplate, sanitizeHtml, cleanBlocks, cssColor, personalFolderId, isPersonalFolder, cleanFolderName, folderCounts } from './crm-templates.js?v=202611090905';
 import { canUseCrm, crmReadOnly } from './crm.js?v=202611070139';
-import { localDate } from './constants.js?v=202611090935';
+import { localDate } from './constants.js?v=202611101015';
 
 export function crmTemplatesSupabase({ sb, ok, camel, me, on, one, self }) {
   const who = async () => { on(); const u = await me(); if (!canUseCrm(u)) throw new Error('The CRM is for CLA staff only.'); return u; };

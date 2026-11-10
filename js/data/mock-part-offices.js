@@ -1,13 +1,30 @@
 /* OFFICES, mock adapter (mirrors public.offices / public.office_counties, migration 57). John, Nov 4: "In the admin section create a way for us
  * to add offices so we can add them in that show in the scheduling section." Admin > Offices adds, edits, reorders, retires and reactivates.
- * The 5 starting offices are SAMPLE placeholders ("(sample)"); added lazily to stored data (no storage version bump, like the underwriter splits).
+ * The starting offices are the public list from https://clatitle.com/locations/ (offices.js). A stored copy that still has "(sample)"
+ * or a Placeholder street is replaced by that list. Offices an admin added are kept. Nothing is deleted: a fake sample id that is not
+ * a real location is retired.
  * Rules (same as SQL): CLA staff read, Admins / Super admins write; NO deletes (an office is retired; a county taken off an office keeps its row
  * with removedAt); at most one active main office per state (setting a new one moves the flag); a county is served by one active office at most. */
-import { SAMPLE_OFFICES, cleanOffice, canManageOffices, OFFICE_ADMIN_ONLY, officeAddress, officeSort, normCounty, nearestOffice, OFFICE_LOCATION } from './offices.js?v=202611090935';
+import { SAMPLE_OFFICES, cleanOffice, canManageOffices, OFFICE_ADMIN_ONLY, officeAddress, officeSort, normCounty, nearestOffice, OFFICE_LOCATION, geoPoint } from './offices.js?v=202611101015';
 const SEED_AT = '2026-11-04T12:00:00Z';
+const OLD_PLACEHOLDERS = ['off-rockville', 'off-annapolis', 'off-dc', 'off-fairfax', 'off-ftlauderdale'];
+const seedRow = (o) => { const { counties, ...rest } = o; return { ...rest, active: true, createdAt: SEED_AT, createdBy: null, updatedAt: SEED_AT, updatedBy: null }; };
+const isPlaceholder = (o) => /\(sample\)/i.test(o.name || '') || /placeholder/i.test(o.addressLine1 || '');
 export function ensureOffices(d) {
-  if (!Array.isArray(d.offices)) d.offices = SAMPLE_OFFICES.map(({ counties, ...o }) => ({ ...o, active: true, createdAt: SEED_AT, createdBy: null, updatedAt: SEED_AT, updatedBy: null }));
+  if (!Array.isArray(d.offices)) d.offices = SAMPLE_OFFICES.map(seedRow);
   if (!Array.isArray(d.officeCounties)) d.officeCounties = SAMPLE_OFFICES.flatMap((o) => o.counties.map((c) => ({ officeId: o.id, state: c.state, county: c.county, addedAt: SEED_AT, addedBy: null, removedAt: null, removedBy: null })));
+  if (d.offices.some((o) => OLD_PLACEHOLDERS.includes(o.id) && isPlaceholder(o))) {
+    const verified = new Map(SAMPLE_OFFICES.map((o) => [o.id, o]));
+    d.offices.forEach((o) => { if (!isPlaceholder(o)) return; const v = verified.get(o.id);
+      if (v) { const { counties, ...rest } = v; Object.assign(o, rest, { active: true, updatedAt: SEED_AT }); }
+      else if (OLD_PLACEHOLDERS.includes(o.id)) { o.active = false; o.updatedAt = SEED_AT; } });
+    SAMPLE_OFFICES.forEach((v) => { if (!d.offices.some((o) => o.id === v.id)) d.offices.push(seedRow(v)); });
+    d.officeCounties.forEach((c) => { if (OLD_PLACEHOLDERS.includes(c.officeId) && !c.removedAt) { c.removedAt = SEED_AT; c.removedBy = null; } });
+  }
+  // Older stored copies have no latitude. Fill from the public row, else the ZIP center. A saved point is left alone.
+  d.offices.forEach((o) => { if (o.latitude != null && o.longitude != null) return; const sample = SAMPLE_OFFICES.find((s) => s.id === o.id);
+    const p = (sample && sample.latitude != null) ? { latitude: sample.latitude, longitude: sample.longitude, coordSource: sample.coordSource } : geoPoint({ zip: o.zip });
+    if (!p) return; if (o.latitude == null) o.latitude = p.latitude; if (o.longitude == null) o.longitude = p.longitude; if (!o.coordSource && p.coordSource) o.coordSource = p.coordSource; else if (!o.coordSource && p.source === 'zip') o.coordSource = 'zip'; });
   return d;
 }
 // the office records with their current counties (pure over the stored data)
@@ -67,8 +84,8 @@ export function officesPart({ load, save, needUser, nid, now, fail, nameOf, isSt
       save(); return rows().map(view); },
   };
 }
-// the closing picker's data for one deal (used by mock-part-matt.js): the ACTIVE offices + the nearest one; currentIds = offices already on this
-// deal's closing / proposals (shown by name even when retired, never offered as a new pick)
+// the closing picker's data for one deal (used by mock-part-matt.js and the closing-date request): the ACTIVE offices + the closest one.
+// Closest is straight-line distance (offices.js). A retired office already on a closing is named by the caller; it is not offered here.
 export function closingOfficeChoices(d, deal) {
   const all = officeRows(d); const live = all.filter((o) => o.active);
   return { offices: live.map((o) => ({ id: o.id, name: o.name, address: officeAddress(o), state: o.state, isMainOfficeForState: !!o.isMainOfficeForState, stateDefault: !!o.isMainOfficeForState,

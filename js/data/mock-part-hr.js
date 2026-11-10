@@ -8,10 +8,10 @@
  *   d.hrInvites          [{id, employeeId, token, email, createdAt, createdBy, expiresAt, acceptedAt, acceptedProfileId, revokedAt, revokedBy}]   (link only, 14 days)
  *   d.hrChangeHistory    [{id, seq, tableName, rowId, employeeId, field, column, oldValue, newValue, action, changedBy, changedByName, changedAt}]   (append only)
  * Nothing is ever deleted: archive / deactivate instead. No SSNs or other government ID numbers. */
-import { isSuperAdmin, isOutside, EMPLOYEE_ROLE } from './constants.js?v=202611090935';
-import { ensureHrFeedback, hrFeedbackPart } from './mock-part-hr-feedback.js?v=202611091730';
-import { moduleAccess } from './modules.js?v=202611090935';
-import { ensureModules } from './mock-part-modules.js?v=202611090935';
+import { isSuperAdmin, isOutside, EMPLOYEE_ROLE } from './constants.js?v=202611101015';
+import { ensureHrFeedback, hrFeedbackPart } from './mock-part-hr-feedback.js?v=202611101015';
+import { moduleAccess } from './modules.js?v=202611101015';
+import { ensureModules } from './mock-part-modules.js?v=202611101015';
 import { HR_INVITE_DAYS, portalRoleForDesignation, SELF_FIELDS, HR_FIELDS, SENSITIVE_FIELDS, FIELD_LABEL, COLUMN_OF, cleanEmployee, cleanSelfPatch, nextEmployeeCode, basicOf, fullNameOf, employeesCsv, historyCsv, csvStamp,
   EMPLOYMENT_TYPES, EMPLOYMENT_STATUSES, PAY_TYPES, labelOf } from './hr.js?v=202611091730';
 const rnd = () => { const a = new Uint8Array(16); (globalThis.crypto || { getRandomValues: (x) => x.map(() => Math.floor(Math.random() * 256)) }).getRandomValues(a); return [...a].map((b) => b.toString(16).padStart(2, '0')).join(''); };
@@ -218,7 +218,9 @@ export function hrPart(x, flags) {
     async createHrInvite(employeeId) { const { u } = needHr(); const e = empById(employeeId) || fail('Employee not found.'); const r = makeInvite(u, e); save(); return r; },
     // ---- the invite link (no sign-in needed to look it up). Accepting creates the employee's login (portal role from the designation, else 'Employee') and signs them in. ----
     async getHrInvite(token) { const i = token && db().hrInvites.find((z) => z.token && z.token === String(token)); if (!i) return { status: 'invalid' }; const e = empById(i.employeeId);
-      return { status: e && e.archivedAt ? 'invalid' : inviteStatus(i), firstName: e ? e.firstName : '', lastName: e ? e.lastName : '', email: i.email, expiresAt: i.expiresAt }; },
+      let status = e && e.archivedAt ? 'invalid' : inviteStatus(i);
+      if (status === 'pending' && db().profiles.some((p) => p.email && p.email.toLowerCase() === String(i.email || '').toLowerCase() && p.status === 'active')) status = 'exists';
+      return { status, firstName: e ? e.firstName : '', lastName: e ? e.lastName : '', email: i.email, expiresAt: i.expiresAt }; },
     async acceptHrInvite(token) { const d = db(); const i = token && d.hrInvites.find((z) => z.token && z.token === String(token)); const e = i && empById(i.employeeId);
       if (!i || !e || e.archivedAt || inviteStatus(i) !== 'pending') fail('This invite link is not valid or has expired. Ask HR for a new one.');
       if (e.profileId) fail('This employee already has a portal login.');
@@ -226,7 +228,7 @@ export function hrPart(x, flags) {
       if (p && isOutside(p.role)) fail('That email belongs to an agent or client login. Ask HR to use your work email.');
       if (!p) { p = { id: nextId('u'), email: e.email, firstName: e.firstName, lastName: e.lastName, phone: e.phone || '', role: portalRoleForDesignation(((d.hrDesignations || []).find((g) => g.id === e.designationId) || {}).name), isAdmin: false, status: 'active', createdAt: now(), createdBy: i.createdBy }; d.profiles.push(p); }   // Nov 9: role from the designation (hr.js map), else 'Employee'
       const actor = { id: p.id };
-      e.profileId = p.id; e.updatedAt = now(); e.updatedBy = p.id; i.acceptedAt = now(); i.acceptedProfileId = p.id; i.token = null;
+      e.profileId = p.id; e.updatedAt = now(); e.updatedBy = p.id; i.acceptedAt = now(); i.acceptedProfileId = p.id;
       hist(actor, 'hr_employees', e.id, e.id, 'profileId', null, p.id, 'invite_accepted');
       save(); sess.setItem(SESSION_KEY, p.id); return { profileId: p.id, employeeId: e.id }; },
     // ---- Departments / Designations (list for everyone in HR, add / archive for HR) ----

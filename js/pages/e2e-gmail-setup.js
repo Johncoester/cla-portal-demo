@@ -1,6 +1,6 @@
 // One-time TEST setup for the automated email inbox. Admin and Super admin only.
 // The client secret is sent once and the boxes are cleared. The page never shows a token.
-import { html } from '../ui.js?v=202611070139';
+import { html } from '../ui.js?v=202611120400';
 
 export function e2eGmailSetupHtml(s) {
   if (!s) return '';

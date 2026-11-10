@@ -13,7 +13,6 @@ on:
   workflow_run:
     workflows: ["pages-build-deployment"]
     types: [completed]
-  deployment_status:
   schedule:
     # 2:00 AM Eastern Daylight Time and 2:00 AM Eastern Standard Time.
     # The job continues only when the clock in America/New_York says 02.
@@ -23,6 +22,7 @@ on:
 permissions:
   contents: read
 
+# One suite at a time. A later run waits, so two browsers never share TEST's 20 PostgREST connections.
 concurrency:
   group: e2e-roles-test
   cancel-in-progress: false
@@ -32,9 +32,9 @@ jobs:
     if: >-
       (github.event_name == 'workflow_dispatch') ||
       (github.event_name == 'schedule') ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
-      (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' && github.event.deployment.environment != 'production')
-    runs-on: ubuntu-latest
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    # ubuntu-latest is 26.04. Playwright 1.58.2 cannot install Chromium there.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       E2E_TARGET: test
@@ -75,12 +75,28 @@ jobs:
           fi
         id: clock
 
+      # Bob, Nov 10: a burst of merges queued one full run per deploy, back to back on TEST (7:53-8:43 ET), and the
+      # task queries slowed for everyone. A deploy run whose commit is no longer the tip of main skips: the newer
+      # deploy brings its own run. The nightly and hand-started runs always go.
+      - name: Skip a deploy run that a newer commit replaced
+        if: github.event_name == 'workflow_run'
+        id: fresh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          tip=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)
+          if [ -n "$tip" ] && [ "$tip" != "$RUN_SHA" ]; then
+            echo "main is at ${tip}, this deploy was ${RUN_SHA}. The newer deploy runs the smoke."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
-        if: steps.clock.outputs.skip != '1'
+        if: steps.clock.outputs.skip != '1' && steps.fresh.outputs.skip != '1'
         uses: actions/checkout@v4
 
       - name: Refuse any target except TEST
-        if: steps.clock.outputs.skip != '1'
+        if: steps.clock.outputs.skip != '1' && steps.fresh.outputs.skip != '1'
         run: |
           python3 - <<'PY'
           import os, sys
@@ -93,19 +109,19 @@ jobs:
           PY
 
       - name: Setup Node
-        if: steps.clock.outputs.skip != '1'
+        if: steps.clock.outputs.skip != '1' && steps.fresh.outputs.skip != '1'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
       - name: Install Playwright
-        if: steps.clock.outputs.skip != '1'
+        if: steps.clock.outputs.skip != '1' && steps.fresh.outputs.skip != '1'
         run: |
           npm install --no-save @playwright/test@1.58.2
           npx playwright install --with-deps chromium
 
       - name: Seed TEST accounts
-        if: steps.clock.outputs.skip != '1' && github.event_name == 'workflow_dispatch' && github.event.inputs.seed_accounts == 'true'
+        if: steps.clock.outputs.skip != '1' && steps.fresh.outputs.skip != '1' && github.event_name == 'workflow_dispatch' && github.event.inputs.seed_accounts == 'true'
         env:
           E2E_TARGET: test
           SUPABASE_URL: https://aqcervntopidtcazcmlv.supabase.co
@@ -113,14 +129,29 @@ jobs:
         run: node tests/e2e-roles/seed-accounts.mjs --workflow-dispatch
 
       - name: Role smoke
-        if: steps.clock.outputs.skip != '1'
+        if: steps.clock.outputs.skip != '1' && steps.fresh.outputs.skip != '1'
         env:
           SUPABASE_URL: https://aqcervntopidtcazcmlv.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx playwright test --config tests/e2e-roles/playwright.config.js
 
+      # Rows a run creates (uploads, E2E-RUN threads and orders, their task copies) are deleted again, pass or fail.
+      # A cleanup problem shows in the log and the summary, and does not turn a passing smoke red.
+      - name: Remove this run's rows from TEST
+        if: always() && steps.clock.outputs.skip != '1' && steps.fresh.outputs.skip != '1'
+        continue-on-error: true
+        env:
+          SUPABASE_URL: https://aqcervntopidtcazcmlv.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set +e
+          node tests/e2e-roles/cleanup-runs.mjs --workflow 2>&1 | tee cleanup.log
+          status=${PIPESTATUS[0]}
+          { echo; echo "**TEST cleanup**"; echo; sed 's/^/    /' cleanup.log; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
       - name: Pass or fail summary
-        if: always() && steps.clock.outputs.skip != '1'
+        if: always() && steps.clock.outputs.skip != '1' && steps.fresh.outputs.skip != '1'
         run: |
           if [ -f tests/e2e-roles/test-results/summary.md ]; then
             cat tests/e2e-roles/test-results/summary.md >> "$GITHUB_STEP_SUMMARY"
@@ -129,7 +160,7 @@ jobs:
           fi
 
       - name: Screenshots and trace
-        if: failure() && steps.clock.outputs.skip != '1'
+        if: failure() && steps.clock.outputs.skip != '1' && steps.fresh.outputs.skip != '1'
         uses: actions/upload-artifact@v4
         with:
           name: e2e-roles-failure

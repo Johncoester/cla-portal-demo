@@ -62,16 +62,15 @@ export function partyPerson(p) {
   let first = String(c.firstName || c.first_name || '').trim();
   let last = String(c.lastName || c.last_name || '').trim();
   let email = String(c.email || '').trim().toLowerCase();
-  // Entity / LLC buyer or seller: prefer the representative's name + email; fall back to entity name for display
+  // Entity / LLC buyer or seller: the name everywhere is the entity name. The representative's email is still how mail is addressed.
+  const entityNameEarly = ent ? String(ent.name || '').trim() : '';
+  const client = p.role === 'Client-Buyer' || p.role === 'Client-Seller';
   if (ent && (ent.name || ent.repName || ent.rep_name)) {
-    const rep = String(ent.repName || ent.rep_name || '').trim();
-    if (rep) {
-      const parts = rep.split(/\s+/).filter(Boolean);
-      first = parts[0] || first;
-      last = parts.slice(1).join(' ') || last;
-    }
     const re = String(ent.repEmail || ent.rep_email || '').trim().toLowerCase();
     if (re) email = re;
+  }
+  if (client && entityNameEarly) {
+    return { first: entityNameEarly, last: '', email, full: entityNameEarly, entityName: entityNameEarly, role: p.role, hidden: false };
   }
   // "Warren Spencer" stored entirely in firstName (or lastName)
   if (first && !last && /\s/.test(first)) { const parts = first.split(/\s+/).filter(Boolean); first = parts[0] || ''; last = parts.slice(1).join(' '); }

@@ -5,10 +5,10 @@
 // Same data and permissions as the task pages: listTasks + getTask / getAgentTask (answers only where the viewer may already read them, bank
 // numbers masked as before). Expand all / Collapse all; everything starts expanded.
 import { html, $, $$, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611070139';
-import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611090935';
-import { localDate, fmtPhone, isRefi } from '../data/constants.js?v=202611090935';
-import { CLS, LABEL } from './dealtasks.js?v=202611100245';
-import { entityLine } from './deal.js?v=202611100245';
+import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611120200';
+import { localDate, fmtPhone, isRefi } from '../data/constants.js?v=202611101015';
+import { CLS, LABEL } from './dealtasks.js?v=202611120200';
+import { entityLine } from './deal.js?v=202611120200';
 
 const ORDER = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent'];
 const ROLE_NAME = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent' };
@@ -21,10 +21,10 @@ function flat(v, prefix = '') {
   if (typeof v === 'object') return Object.entries(v).flatMap(([k, x]) => flat(x, prefix ? `${prefix} \u00b7 ${human(k)}` : human(k)));
   return [[prefix.trim(), v === true ? 'Yes' : v === false ? 'No' : String(v)]];
 }
-function formAnswers(t) {
+function formAnswers(t, state) {
   if (t.formHidden) return html`<p class="muted small" data-answers-hidden>Answers are visible to the person, their own agent (where allowed) and CLA Title.</p>`;
   const v = t.formData || {}; const docName = (id) => ((t.documents || []).find((z) => z.id === id) || {}).name || 'attached';
-  const fields = fieldsForRole(t.fields || [], t.assignedRole).filter((f) => f.type !== 'info' && fieldActive(f, v) && v[f.k] !== undefined && v[f.k] !== '');
+  const fields = fieldsForFile(fieldsForRole(t.fields || [], t.assignedRole), { state }).filter((f) => f.type !== 'info' && fieldActive(f, v) && v[f.k] !== undefined && v[f.k] !== '');
   if (!fields.length) return html`<p class="muted small" data-no-answers>No answers yet.</p>`;
   return html`${t.maskedAnswers ? html`<p class="muted small">Bank account numbers show the last 4 digits only.</p>` : ''}<dl class="answers" data-answers>${fields.map((f) => html`<dt>${f.label}</dt><dd>${f.type === 'checkbox' ? 'Yes' : f.type === 'doc' ? docName(v[f.k]) : f.type === 'phone' ? fmtPhone(v[f.k]) : v[f.k]}</dd>`)}</dl>`;
 }
@@ -48,7 +48,7 @@ export async function render({ api, deal }) {
       <span class="muted small">${t.dueDate ? `due ${fmtDate(t.dueDate)}` : ''}${t.status === 'done' && t.completedAt ? ` \u00b7 completed ${fmtDateTime(t.completedAt)}` : ''}</span>
       <a class="ghost small" href="#/deals/${deal.id}/tasks/${t.id}">Open</a>
       ${t.completedByLabel ? html`<br><span class="muted small done-by">${t.completedByLabel}</span>` : ''}
-      ${t.kind === 'form' ? formAnswers(f) : t.kind === 'agent' ? agentAnswers(f) : ''}</div>`; };
+      ${t.kind === 'form' ? formAnswers(f, deal.state) : t.kind === 'agent' ? agentAnswers(f) : ''}</div>`; };
   const block = (p) => { const done = p.tasks.filter((t) => t.status === 'done').length; const late = p.tasks.filter((t) => open(t) && t.dueDate && t.dueDate < today).length;
     const part = parts.find((z) => z.id === p.pid);
     return html`<details class="intake-party" data-intake-party="${p.pid}" data-role="${p.role}" open><summary><strong>${p.name}</strong> &middot; ${roleName(p.role)}

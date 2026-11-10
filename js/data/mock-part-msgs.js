@@ -10,14 +10,21 @@ export function messagesActivity(x) {
     // { wire: true }: only the people who may receive WIRE INSTRUCTIONS (CLA staff + the buyer clients on this file; never an agent). Every row says wireOk.
     async listMessageRecipients(dealId, { wire = false } = {}) {
       let u = needUser(); u = onDeal(u, dealId); const staff = x.isStaffView(u); const seen = new Set(); const rows = [];
-      const add = (id, firstName, lastName, role) => { if (!id || id === u.id || seen.has(id)) return; if (!staff && String(id).startsWith('contact:')) return;
+      const profOf = (id) => load().profiles.find((p) => p.id === id) || {};
+      const loginFor = (email, roles) => { const em = String(email || '').trim().toLowerCase(); if (!em) return null;
+        return (load().profiles || []).find((p) => p.status === 'active' && String(p.email || '').toLowerCase() === em && roles.includes(p.role)) || null; };
+      const add = (id, firstName, lastName, role, email) => { if (!id || id === u.id || seen.has(id)) return; if (!staff && String(id).startsWith('contact:')) return;
         if (!String(id).startsWith('contact:') && !x.canMessage(u, id, dealId)) return; if (wire && (String(id).startsWith('contact:') || !x.wireAllowed(id, dealId))) return;
-        seen.add(id); rows.push({ id, firstName, lastName, role: role || x.fileRoleText(id, dealId), side: String(id).startsWith('contact:') ? null : x.personSide(id, dealId), wireOk: String(id).startsWith('contact:') ? false : x.wireAllowed(id, dealId) }); };
+        const who = String(id).startsWith('contact:') ? {} : profOf(id);
+        seen.add(id); rows.push({ id, firstName: firstName || who.firstName || '', lastName: lastName || who.lastName || '', email: email || who.email || '', role: role || x.fileRoleText(id, dealId), side: String(id).startsWith('contact:') ? null : x.personSide(id, dealId), wireOk: String(id).startsWith('contact:') ? false : x.wireAllowed(id, dealId) }); };
       for (const p of participantsOf(dealId, u)) { if (p.removed || !p.contact) continue; const c = p.contact;
-        add(c.profileId || (staff ? `contact:${c.id}` : null), c.firstName, c.lastName, p.role); }
+        let pid = c.profileId || null; let email = c.email || '';
+        if (!pid && (p.role === 'Processor' || p.role === 'Preprocessor')) { const hit = loginFor(c.email, ['Processor', 'Preprocessor']); if (hit) { pid = hit.id; email = hit.email; } }
+        add(pid || (staff ? `contact:${c.id}` : null), pid ? '' : c.firstName, pid ? '' : c.lastName, p.role, email); }
       const deal = load().deals.find((z) => z.id === dealId);
-      if (deal) { add(deal.processorId, (load().profiles.find((p) => p.id === deal.processorId) || {}).firstName, (load().profiles.find((p) => p.id === deal.processorId) || {}).lastName, 'Processor');
-        add(deal.preprocessorUserId, (load().profiles.find((p) => p.id === deal.preprocessorUserId) || {}).firstName, (load().profiles.find((p) => p.id === deal.preprocessorUserId) || {}).lastName, 'Preprocessor'); }
+      if (deal) { add(deal.processorId, '', '', 'Processor', profOf(deal.processorId).email);
+        add(deal.preprocessorUserId, '', '', 'Preprocessor', profOf(deal.preprocessorUserId).email);
+        add(deal.tcUserId, '', '', 'Transaction Coordinator', profOf(deal.tcUserId).email); }
       for (const s of load().dealSalesPeople || []) if (s.dealId === dealId) { const p = load().profiles.find((z) => z.id === s.salesId); if (p) add(p.id, p.firstName, p.lastName, p.role); }
       if (u.role === 'Transaction Coordinator') add(u.id, u.firstName, u.lastName, u.role);
       return clone(rows.filter((r) => r.id !== u.id));

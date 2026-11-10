@@ -4,7 +4,7 @@
 // Francis, Nov 9: when there is no match, offer "Add … as a new person" in the list so a party can be created from the field itself
 // (Buyers & Sellers / Agents / Lender) without leaving for "Add new user".
 import { html, toText, $, toast } from '../ui.js?v=202611070139';
-import { fmtPhone, contactTypeLabel } from '../data/constants.js?v=202611090935';
+import { fmtPhone, contactTypeLabel } from '../data/constants.js?v=202611101015';
 
 const MAX = 25;
 const digits = (s) => String(s || '').replace(/\D/g, '');

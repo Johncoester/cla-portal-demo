@@ -3,10 +3,11 @@
 // Buyers never see Cash to Close, payoffs or wire details here; the only wire item is the existing Wire instructions button (buyer + staff only, as before).
 // app.js draws this page in the light "client shell" (white top bar, no sidebar) because the view sets clientPage.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney, pill, toast } from '../ui.js?v=202611070139';
-import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611090935';
-import { composeModal } from './compose.js?v=202611090935';
-import { slotText } from './dealclosing.js?v=202611090935';
-import { yourAgentHtml } from './your-agent.js?v=202611100005';
+import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611101015';
+import { composeModal } from './compose.js?v=202611110900';
+import { slotText } from './dealclosing.js?v=202611101015';
+import { yourAgentHtml } from './your-agent.js?v=202611101015';
+import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 
 // stage 5 shows as "Wire Fraud Awareness" on the BUYER's view only (display only; the stored stage list is unchanged)
 // live40 (John, Nov 5 meeting): the client tracker's step 2 (internal STAGES[1] 'EMD Receipt', key unchanged for reports) reads "Buyer info received" for buyer and seller.
@@ -35,22 +36,23 @@ const tel = (p) => String(p || '').replace(/[^0-9+]/g, '');
 // Pure buyer AND pure seller (seller mirror, Nov 4): Overview, To-do list, Messages, Documents, Closing appointment, Activity. A client who is also their
 // own agent on the file (self-represented): Overview, Tasks, Messages, Documents, Closing, Agreements, Contacts, Activity.
 // active = the route tab ('overview', 'tasks', ...); a buyer's agreement page counts as the To-do list (agreements are to-dos for the buyer).
-const TAB_OF = { overview: 'overview', tasks: 'tasks', inbox: 'inbox', documents: 'documents', closing: 'closing', activity: 'activity', agreements: 'agreements', contacts: 'contacts' };
+const TAB_OF = { overview: 'overview', tasks: 'tasks', spouse: 'spouse', inbox: 'inbox', documents: 'documents', closing: 'closing', activity: 'activity', agreements: 'agreements', contacts: 'contacts' };
 export function clientNav(d, user, active, n = {}) {
   const pure = isPureClient(user); const on = pure && active === 'agreements' ? 'tasks' : TAB_OF[active] || '';
   const tab = (key, href, label, cnt) => html`<a class="${on === key ? 'on' : ''}" href="${href}" data-co-tab="${label}"${on === key ? raw(' aria-current="page"') : ''}>${label}${cnt ? html` <span class="n">${cnt}</span>` : ''}</a>`;
   const B = `#/deals/${d.id}`; const agent = (user.roles || [user.role]).some((r) => /Agent$/.test(r));
-  return html`<nav class="co-seg" aria-label="This file" data-co-nav>${pure ? html`${tab('overview', B, BUYER_TAB_LABELS.overview, 0)}${tab('tasks', `${B}/tasks`, BUYER_TAB_LABELS.tasks, n.todo)}${tab('inbox', `${B}/inbox`, BUYER_TAB_LABELS.inbox, n.msg)}${tab('documents', `${B}/documents`, BUYER_TAB_LABELS.documents, n.docs)}${tab('closing', `${B}/closing`, BUYER_TAB_LABELS.closing, 0)}${tab('activity', `${B}/activity`, BUYER_TAB_LABELS.activity, 0)}`
-    : html`${tab('overview', B, 'Overview', 0)}${tab('tasks', `${B}/tasks`, 'Tasks', n.tasks)}${tab('inbox', `${B}/inbox`, 'Messages', n.msg)}${tab('documents', `${B}/documents`, 'Documents', n.docs)}${tab('closing', `${B}/closing`, 'Closing', 0)}${tab('agreements', `${B}/agreements`, 'Agreements', n.ag)}${agent ? tab('contacts', `${B}/contacts`, 'Contacts', 0) : ''}${tab('activity', `${B}/activity`, 'Activity', 0)}`}</nav>`;
+  return html`<nav class="co-seg" aria-label="This file" data-co-nav>${pure ? html`${tab('overview', B, BUYER_TAB_LABELS.overview, 0)}${tab('tasks', `${B}/tasks`, BUYER_TAB_LABELS.tasks, n.todo)}${tab('spouse', `${B}/spouse`, 'Spouse', 0)}${tab('inbox', `${B}/inbox`, BUYER_TAB_LABELS.inbox, n.msg)}${tab('documents', `${B}/documents`, BUYER_TAB_LABELS.documents, n.docs)}${tab('closing', `${B}/closing`, BUYER_TAB_LABELS.closing, 0)}${tab('activity', `${B}/activity`, BUYER_TAB_LABELS.activity, 0)}`
+    : html`${tab('overview', B, 'Overview', 0)}${tab('tasks', `${B}/tasks`, 'Tasks', n.tasks)}${tab('spouse', `${B}/spouse`, 'Spouse', 0)}${tab('inbox', `${B}/inbox`, 'Messages', n.msg)}${tab('documents', `${B}/documents`, 'Documents', n.docs)}${tab('closing', `${B}/closing`, 'Closing', 0)}${tab('agreements', `${B}/agreements`, 'Agreements', n.ag)}${agent ? tab('contacts', `${B}/contacts`, 'Contacts', 0) : ''}${tab('activity', `${B}/activity`, 'Activity', 0)}`}</nav>`;
 }
 // The top of every client TAB page: the file line and the same pill tabs as the Overview (counts read the same way as there)
 export async function clientTabChrome({ api, user }, d, active) {
   const pure = isPureClient(user);
   const [ov, tasks, ag] = await Promise.all([api.getOrderOverview(d.id).catch(() => ({ counts: {} })), pure ? api.listTasks(d.id).catch(() => []) : [], api.listAgreements(d.id).catch(() => null)]);
   const todo = pure ? tasks.filter((t) => t.mine && OPEN.includes(t.status)).length + agreementTasks(d, ag).length : 0; const cnt = ov.counts || {};
+  const msgN = d.unread || cnt.inbox || 0;
   const what = isRefi(d) ? 'refinance' : clientSide(user) === 'buyer' ? 'home purchase' : 'home sale';
   return html`<h1 class="co-greet co-greet-sm" data-co-greet>Your ${what}</h1><p class="co-sub co-file" data-co-file>${d.street}, ${d.city}, ${d.state} ${d.zip} \u00b7 Order ${d.fileNumber}</p>
-    ${clientNav(d, user, active, { todo, tasks: cnt.tasks, msg: d.unread || 0, docs: cnt.documents, ag: ag && ag.pending })}`;
+    ${clientNav(d, user, active, { todo, tasks: cnt.tasks, msg: msgN, docs: cnt.documents, ag: ag && ag.pending })}`;
 }
 
 export async function renderClientOverview(ctx, d, here) {
@@ -69,11 +71,11 @@ export async function renderClientOverview(ctx, d, here) {
   const next = todo[0];
   // ---------- closing team ----------
   const ps = d.participants.filter((p) => !p.removed && p.contact); const meC = ps.find((p) => p.contact.profileId === user.id);
-  const row = (p, chip, { cla = false, you = false, via = false, big = false } = {}) => { const c = p.contact; const pid = c.profileId; const name = `${c.firstName} ${c.lastName}`.trim();
+  const row = (p, chip, { cla = false, you = false, via = false, big = false } = {}) => { const c = p.contact; const pid = c.profileId; const name = partyDisplayName(p); const bits = name.split(/\s+/).filter(Boolean);
     const em = via ? 'Contact through your agent' : c.contactHidden ? 'Contact through CLA Title' : [c.email, fmtPhone(c.phone)].filter(Boolean).join(' \u00b7 ');
     const acts = you || via || c.contactHidden ? '' : html`<div class="co-acts">${pid && canMsg.has(pid) ? html`<button type="button" data-co-message="${pid}">Message</button>` : ''}${c.phone ? html`<a href="tel:${tel(c.phone)}" data-co-call>Call</a>` : ''}</div>`;
-    return html`<div class="${big ? 'co-ya' : 'co-prow'}" data-co-person="${name}" data-co-role="${chip}"${you ? raw(' data-co-you') : ''}${via ? raw(' data-co-via-agent') : ''}><div class="co-av" aria-hidden="true">${initials(c.firstName, c.lastName)}</div>
-      <div class="co-who"><div class="co-nm">${name}${you ? html` <span class="co-you">(you)</span>` : ''}</div>${c.company && !via ? html`<div class="co-em">${c.company}</div>` : ''}<div class="co-em">${em}</div><span class="co-chip${cla ? ' cla' : ''}">${chip}</span></div>${acts}</div>`; };
+    return html`<div class="${big ? 'co-ya' : 'co-prow'}" data-co-person="${name}" data-co-role="${chip}"${you ? raw(' data-co-you') : ''}${via ? raw(' data-co-via-agent') : ''}><div class="co-av" aria-hidden="true">${initials(bits[0] || '', bits[1] || '')}</div>
+      <div class="co-who"><div class="co-nm">${name}${you ? html` <span class="co-you">(you)</span>` : ''}</div>${c.company && c.company !== name && !via ? html`<div class="co-em">${c.company}</div>` : ''}<div class="co-em">${em}</div><span class="co-chip${cla ? ' cla' : ''}">${chip}</span></div>${acts}</div>`; };
   const ownAgentRole = side === 'buyer' ? 'Buyer Agent' : 'Listing Agent'; const otherAgentRole = side === 'buyer' ? 'Listing Agent' : 'Buyer Agent';
   const myRole = side === 'buyer' ? 'Client-Buyer' : 'Client-Seller'; const otherRole = side === 'buyer' ? 'Client-Seller' : 'Client-Buyer';
   const B = refi ? 'Borrower' : 'Buyer'; const L = { 'Client-Buyer': B, 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent' };
@@ -98,7 +100,7 @@ export async function renderClientOverview(ctx, d, here) {
   const sc = d.scheduledClosing;
   // live40 (John, Nov 5 meeting): Settlement date = the scheduled closing once there is one; until then the proposed date from order entry (closingDate), labeled "(proposed)"
   const settleFact = sc && sc.at ? fact('Settlement date', longDate(String(sc.at).slice(0, 10)), 'settlement') : d.closingDate ? fact('Settlement date (proposed)', longDate(d.closingDate), 'settlement') : fact('Settlement date', 'Not set yet', 'settlement');
-  const msgCount = d.unread || 0; const cnt = ov.counts || {};
+  const cnt = ov.counts || {}; const msgCount = d.unread || cnt.inbox || 0;
   const body = html`<div class="co-page" data-client-overview="${side}">
     <h1 class="co-greet" data-co-greet>Hi ${user.firstName}, here\u2019s your ${what}</h1><p class="co-sub">${d.street}, ${d.city}, ${d.state} ${d.zip} \u00b7 Order ${d.fileNumber}</p>
     ${clientNav(d, user, 'overview', { todo: todo.length, tasks: cnt.tasks, msg: msgCount, docs: cnt.documents, ag: ag && ag.pending })}

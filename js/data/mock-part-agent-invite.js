@@ -4,8 +4,8 @@
 //  d.agentProfiles {profileId: {cellPhone, officePhone, brokerage, licenseNumber, street, city, state, zip, otherContact, photo (data URL), photoShape, updatedAt}}
 //  d.agentBirthMD  {profileId: 'MM-DD'}  (month / day only; kept apart like d.agentBirthdates, the existing optional birthdate it reuses)
 // NOTHING IS SENT. createAgentInvite / resendAgentInvite return the one-time link path; the page shows it for staff to copy.
-import { canInviteAgents, PORTAL_INVITE_ROLES, inviteKindForRole, inviteStatus, INVITE_DAYS, cleanAgentProfile, monthDayFromBirthdate, initialsAvatar, cardOf } from './agent-profile.js?v=202611100005';
-import { isClient, isAgent, isOutside, sideOf } from './constants.js?v=202611090935';
+import { canInviteAgents, PORTAL_INVITE_ROLES, inviteKindForRole, inviteStatus, INVITE_DAYS, cleanAgentProfile, monthDayFromBirthdate, initialsAvatar, cardOf } from './agent-profile.js?v=202611101015';
+import { isClient, isAgent, isOutside, sideOf } from './constants.js?v=202611101015';
 const rnd = () => { const a = new Uint8Array(16); (globalThis.crypto || { getRandomValues: (x) => x.map(() => Math.floor(Math.random() * 256)) }).getRandomValues(a); return [...a].map((b) => b.toString(16).padStart(2, '0')).join(''); };
 const plusDays = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString();
 // demo data (fake, lazily added once): Bianca + Larry accepted (placeholder initials avatars), Lena (deal-4 listing agent, no login yet) pending, one expired
@@ -98,7 +98,11 @@ export function agentInvitePart(x) {
     async getAgentProfile(userId) { const u = needUser(); if (!(u.id === userId || canInviteAgents(u))) fail('Only the agent and CLA staff can see an agent profile.'); return fullProfile(userId); },
     // ---------- the agent (no sign-in needed to open the link) ----------
     async getAgentInvite(token) { const inv = byToken(token); const st = inviteStatus(inv, now());
-      if (!inv) return { status: 'invalid' }; if (st !== 'pending') return { status: st };
+      if (!inv) return { status: 'invalid' };
+      const named = { inviteKind: inv.inviteKind || 'agent', firstName: inv.firstName, lastName: inv.lastName, email: inv.email };
+      if (st === 'accepted') return { status: 'accepted', ...named };
+      if (st === 'pending' && db().profiles.some((p) => p.email && p.email.toLowerCase() === String(inv.email || '').toLowerCase() && p.status === 'active')) return { status: 'exists', ...named };
+      if (st !== 'pending') return { status: st, email: inv.email || '' };
       const c = inv.contactId && db().contacts.find((z) => z.id === inv.contactId);
       return { status: 'pending', inviteKind: inv.inviteKind || 'agent', firstName: inv.firstName, lastName: inv.lastName, email: inv.email, cellPhone: (c && c.phone) || '', brokerage: (c && c.company) || '', expiresAt: inv.expiresAt }; },
     async acceptAgentInvite(token, form = {}) { const d = db(); const inv = byToken(token); const st = inviteStatus(inv, now());
@@ -112,7 +116,7 @@ export function agentInvitePart(x) {
       c.profileId = pid; c.email = v.email;
       if (inv.inviteKind === 'client') { c.firstName = v.firstName; c.lastName = v.lastName; c.phone = v.cellPhone; }   // buyer / seller: no agent profile
       else writeProfile(pid, v);
-      inv.status = 'accepted'; inv.acceptedAt = now(); inv.acceptedProfileId = pid; inv.token = null;
+      inv.status = 'accepted'; inv.acceptedAt = now(); inv.acceptedProfileId = pid;
       if (inv.dealId) log(inv.dealId, pid, inv.inviteKind === 'client' ? 'client.joined' : 'agent.joined', 'agent_invite', inv.id, `${v.firstName} ${v.lastName} set up their portal account`);
       save(); sess.setItem(SESSION_KEY, pid); return fullProfile(pid); },
     async getMyAgentProfile() { const u = needUser(); return fullProfile(u.id); },

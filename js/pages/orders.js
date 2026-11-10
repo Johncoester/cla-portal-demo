@@ -1,8 +1,9 @@
 // Orders list: tabs Open / Close / On Hold / Cancelled / All, search box. Same columns as the old portal.
 import { html, fmtDate, pill, $, $$, raw, options } from '../ui.js?v=202611070139';
-import { runsOrders, isClient, isAgent, isProcessor, isOutside, TX_TYPES } from '../data/constants.js?v=202611090935';
-import { filterDeals, sortDeals, DEAL_SORT_DIR } from '../data/task-board.js?v=202611091600';
+import { runsOrders, isClient, isAgent, isProcessor, isOutside, TX_TYPES } from '../data/constants.js?v=202611101015';
+import { filterDeals, sortDeals, DEAL_SORT_DIR } from '../data/task-board.js?v=202611101015';
 import { isUnassigned } from '../data/processor-assign.js?v=202611091600';
+import { orderMailCount } from '../data/file-email-unread.js?v=202611100930';
 
 const TABS = [['Open', 'Open'], ['Closed', 'Close'], ['On Hold', 'On Hold'], ['Cancelled', 'Cancelled'], ['All', 'All Orders']];
 // what each tab is called in its heading / count / empty message, so switching tabs visibly changes the page even when a tab is empty
@@ -16,13 +17,23 @@ const COLS = [['openDate', 'Open Date'], ['closingDate', 'Closing Date'], ['file
 const unassignedBadge = (d) => (isUnassigned(d) ? html` <span class="pill warn" data-unassigned title="No Processor assigned yet">Unassigned</span>` : '');
 const partyBadge = (d) => (d.agentParties && d.agentParties.length ? html` <span class="pill warn agent-party" title="${d.agentParties.map((p) => `${p.name}: ${p.label}`).join('; ')}">Agent is a party</span>` : '');
 
+const mailCell = (n) => {
+  if (!(n > 0)) return '';
+  const label = n === 1 ? '1 unread message' : `${n} unread messages`;
+  return html`<span class="bell-cell" data-new-mail="${n}" title="${label}"><img src="assets/img/bell_new.png" alt="New message"><span class="count">${n}</span></span>`;
+};
+
 export async function render({ api, user }) {
   const q = new URLSearchParams((location.hash.split('?')[1]) || ''); const tab = TABS.some((t) => t[0] === q.get('s')) ? q.get('s') : 'Open';
   const deals = await api.listDeals({ status: tab });
+  // Portal unread (threads this person is on) plus Gmail on the file. Icon only when that count is above zero.
+  // If the read fails, keep the portal count already on the deal (mock). A missing Gmail cursor table does not blank the list.
+  let mailFlags = null;
+  if (api.orderMailUnread) { try { mailFlags = await api.orderMailUnread(); } catch (e) { mailFlags = null; } }
   const showRole = isClient(user.role) || isAgent(user.role) || isOutside(user.role);   // outside users: their role differs per file
   const pf = showRole ? '' : (['unassigned', 'assigned'].includes(q.get('p')) ? q.get('p') : ''); const unassigned = deals.filter(isUnassigned).length;   // ?p=unassigned (Work Queue link)
   const rows = deals.map((d) => html`<tr data-deal="${d.id}" data-search="${(d.fileNumber + ' ' + d.address + ' ' + (d.county || '') + ' ' + (d.fileTitle || '') + ' ' + d.transactionType + ' ' + (d.processorName || '')).toLowerCase()}">
-    <td class="nowrap"><span class="bell-cell"><img src="assets/img/bell_new.png" alt=""><span class="count">${d.unread}</span></span></td>
+    <td class="nowrap">${mailCell(orderMailCount(d, mailFlags))}</td>
     <td>${fmtDate(d.openDate)}</td><td>${fmtDate(d.closingDate)}</td><td>${d.fileNumber}${d.fileTitle ? html` <br><span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}${partyBadge(d)}${showRole ? '' : unassignedBadge(d)}</td>${showRole ? html`<td>${d.selfRep ? d.myRoleLabel : SIDE[d.myRole] || '-'}</td>` : ''}
     <td>${d.street},<br>${d.city}, ${d.state}, ${d.zip}</td>
     <td>${d.myOpenTasks ? html`<span class="action-req">Action Required</span>` : d.openTasks && !showRole ? html`<span class="muted">${d.openTasks} open task(s)</span>` : ''}${d.overdueTasks && !showRole ? html`<br>${pill(d.overdueTasks + ' overdue', 'bad')}` : ''}</td>

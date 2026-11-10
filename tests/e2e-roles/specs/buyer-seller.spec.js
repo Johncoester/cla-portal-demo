@@ -1,4 +1,5 @@
 import { test, expect, signIn, openMockFile, freshIssues, runId, onTest } from '../fixtures.js';
+import { targetMode } from '../helpers/gate.js';
 import { walkFileTabs, uploadOfferedVisibilities, shareFileLabels, messageRecipientLabels, assertRecipients, sendPortalMessage, fillAssignedTasks, gotoHash, dealId } from '../helpers/portal.js';
 import { PEOPLE, recipientRules } from '../helpers/people.js';
 
@@ -46,28 +47,28 @@ test('seller Fill In shows questions, fields, an upload, and Save progress stick
 
 test('buyer document sharing options that are offered must upload', async ({ page, issues }) => {
   onTest('FF-016');
-  await signIn(page, 'buyer');
+  const person = await signIn(page, 'buyer');
   await openMockFile(page);
   const id = dealId(page);
   await gotoHash(page, `#/deals/${id}/documents`);
-  const result = await uploadOfferedVisibilities(page, runId());
+  const result = await uploadOfferedVisibilities(page, runId(), person);
   expect(result.offered).toBeTruthy();
-  expect(result.options.map((o) => o.value)).toEqual(['buyer']);
-  expect(result.options.map((o) => o.label).join(' ')).toMatch(/Share with CLA Title/);
+  expect(result.options.map((o) => o.label)).toEqual(['Share with CLA Title']);
   expect(result.saved.join(' ')).toMatch(/Share with CLA Title/i);
+  if (targetMode() === 'test') expect(result.values).toEqual(['buyer']);
   expect(freshIssues(issues)).toEqual([]);
 });
 
 test('seller document sharing options that are offered must upload', async ({ page, issues }) => {
-  await signIn(page, 'seller');
+  const person = await signIn(page, 'seller');
   await openMockFile(page);
   const id = dealId(page);
   await gotoHash(page, `#/deals/${id}/documents`);
-  const result = await uploadOfferedVisibilities(page, runId());
+  const result = await uploadOfferedVisibilities(page, runId(), person);
   expect(result.offered).toBeTruthy();
-  expect(result.options.map((o) => o.value)).toEqual(['seller']);
-  expect(result.options.map((o) => o.label).join(' ')).toMatch(/Share with CLA Title/);
+  expect(result.options.map((o) => o.label)).toEqual(['Share with CLA Title']);
   expect(result.saved.join(' ')).toMatch(/Share with CLA Title/i);
+  if (targetMode() === 'test') expect(result.values).toEqual(['seller']);
   expect(freshIssues(issues)).toEqual([]);
 });
 

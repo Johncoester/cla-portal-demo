@@ -2,16 +2,17 @@
 // Client-Buyer viewing their own order (not an agent there). The order page redesign (deal.js) is for staff / agents / sellers. Delete once buyer overview lands.
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
 import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611100245';
-import { GMAIL_OFF } from '../data/automation.js?v=202611100245';
+import { GMAIL_OFF } from '../data/automation.js?v=202611101015';
 import { occSelects, yesNo } from './occ-fields.js?v=202611100245';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611100245';
-import { slotText } from './dealclosing.js?v=202611100245';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611100245';
-import { composeModal } from './compose.js?v=202611100245';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611101015';
+import { officeDate } from '../data/office-date.js?v=202611102100';
+import { slotText } from './dealclosing.js?v=202611101015';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611101015';
+import { composeModal } from './compose.js?v=202611110900';
 import { sourceChoices } from '../data/place-order.js?v=202611100245';
 import { themeOn } from '../theme.js?v=202611100245';
 
-const TABS = { tasks: './dealtasks.js?v=202611100245', inbox: './dealmsgs.js?v=202611100245', documents: './dealdocs.js?v=202611100245', contacts: './dealcontacts.js?v=202611100245', activity: './dealactivity.js?v=202611100245', closing: './dealclosing.js?v=202611100245', agreements: './dealagreements.js?v=202611100245', accounting: './dealaccounting.js?v=202611100245' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611120200', spouse: './spouse.js?v=202611120200', inbox: './dealmsgs.js?v=202611111700', documents: './dealdocs.js?v=202611111700', contacts: './dealcontacts.js?v=202611120200', activity: './dealactivity.js?v=202611111700', closing: './dealclosing.js?v=202611111700', agreements: './dealagreements.js?v=202611111700', accounting: './dealaccounting.js?v=202611111700' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -20,7 +21,7 @@ export async function render(ctx) {
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
   if (tab === 'accounting' && !(api.features || {}).accounting) throw new Error('That page does not exist.');   // John, Nov 3: the Accounting tab follows the module switch on CLA Portal Live Test.
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611100245' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611120200' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
@@ -33,7 +34,7 @@ export async function render(ctx) {
   return { ...v, body: html`${done.html}${cards}${extra.top}${v.body}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
 }
 async function themedSummary({ api, user }, d, ov, inv) {
-  const { orderSummary } = await import('./theme-cards.js?v=202611100245');
+  const { orderSummary } = await import('./theme-cards.js?v=202611101015');
   const staffView = !user.accountRole && user.role !== 'Outside user';
   const canWire = staffView || (user.roles || [user.role]).includes('Client-Buyer');   // SAME rule as the Wire instructions button: CLA staff + the buyer, never an agent
   const tasks = await api.listTasks(d.id).catch(() => []);
@@ -143,7 +144,7 @@ async function editModal(api, d, refresh) {
   const m = modal('Edit order details', html`<form id="edf" class="form-grid">
     <label class="span2">Street<input name="street" required value="${v('street')}"></label><label>City<input name="city" required value="${v('city')}"></label>
     <label>State<select name="state" required><option value="">Select state</option>${US_STATE_NAMES.map(([c, n]) => html`<option value="${c}" ${c === d.state ? raw('selected') : ''}>${n} (${c})</option>`)}${d.state && !US_STATES.includes(d.state) ? html`<option value="${d.state}" selected>${d.state}</option>` : ''}</select></label><label>ZIP<input name="zip" value="${v('zip')}"></label><label>County<input name="county" maxlength="100" value="${v('county')}" aria-label="County"></label>
-    <label>Open date<input type="date" name="openDate" required value="${v('openDate')}" max="${localDate()}"></label>    <label>Closing date<input type="date" name="closingDate" value="${v('closingDate')}"></label>
+    <label>Open date<input type="date" name="openDate" required value="${v('openDate')}" max="${officeDate()}"></label>    <label>Closing date<input type="date" name="closingDate" value="${v('closingDate')}"></label>
     ${refi ? html`<p class="span2 muted small" data-refi-edit>Refinance: no purchase price or EMD.${d.purchasePrice != null || d.emdAmount != null || d.emdDueDate ? ' This older order still has one; saving clears it.' : ''}</p><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>`
       : html`<label>Purchase price<input name="purchasePrice" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.purchasePrice)}"></label><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>
     <label>EMD amount<input name="emdAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.emdAmount)}"></label><label>EMD due date<input type="date" name="emdDueDate" value="${v('emdDueDate')}"></label>`}

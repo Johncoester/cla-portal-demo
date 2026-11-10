@@ -1,61 +1,98 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611091600';
-import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611090935';
-import { assertRecipients, messageText } from './portal-message.js?v=202611090935';
-import { planDocumentBatch } from './document-batch.js?v=202611090935';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611101015';
+import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611101015';
+import { officeDate } from './office-date.js?v=202611102100';
+import { clientActivityFrom } from './client-activity.js?v=202611102100';
+import { assertRecipients, messageText } from './portal-message.js?v=202611101015';
+import { planDocumentBatch } from './document-batch.js?v=202611101015';
 import { featureFlags } from './features.js?v=202611070139';
 import { accountingSupabase } from './supabase-accounting.js?v=202611091140';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
-import { modulesSupabase } from './supabase-modules.js?v=202611090935';
+import { titleSupabase } from './supabase-title.js?v=202611112200';
+import { policySupabase } from './supabase-policy.js?v=202611112100';
+import { fundingSupabase } from './supabase-funding.js?v=202611112000';
+import { postClosingSupabase } from './supabase-postclosing.js?v=202611111900';
+import { wiresSupabase } from './supabase-wires.js?v=202611111800';
+import { modulesSupabase } from './supabase-modules.js?v=202611101015';
 import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611090935';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611090935';
-import { automationPart } from './automation.js?v=202611091345';
-import { runsOrders as runsOrdersCI } from './constants.js?v=202611090935';
-import { crmSupabase } from './supabase-crm.js?v=202611091240';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611120100';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611101015';
+import { automationPart } from './automation.js?v=202611101015';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
+import { crmSupabase } from './supabase-crm.js?v=202611101600';
 import { hrSupabase } from './supabase-hr.js?v=202611100130';
-import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611091240';
-import { officesSupabase } from './supabase-offices.js?v=202611090935';
-import { closingLocationSupabase } from './supabase-closing-location.js?v=202611090935';
-import { tcSupabase } from './supabase-tc.js?v=202611090935';
-import { emailSendersSupabase } from './supabase-email-senders.js?v=202611090935';
-import { gmailSupabase } from './supabase-gmail.js?v=202611101800';
-import { nov5Supabase } from './supabase-nov5.js?v=202611091030';
-import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611092320';
-import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611100130';
-import { staffSupabase } from './supabase-staff.js?v=202611082000';
+import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611101015';
+import { officesSupabase } from './supabase-offices.js?v=202611101015';
+import { closingLocationSupabase } from './supabase-closing-location.js?v=202611101015';
+import { tcSupabase } from './supabase-tc.js?v=202611101015';
+import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
+import { gmailSupabase } from './supabase-gmail.js?v=202611120400';
+import { nov5Supabase } from './supabase-nov5.js?v=202611110300';
+import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611110800';
+import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611101015';
+import { staffSupabase } from './supabase-staff.js?v=202611110300';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611092320';
+import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
+import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611101700';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
-import { propertyAddressOf } from './nov5-rules.js?v=202611090935';
-import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611090935';
+import { propertyAddressOf } from './nov5-rules.js?v=202611101015';
+import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611120200';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
-import { contactInsertRow } from './contact-insert.js?v=202611070139';
+import { contactInsertRow } from './contact-insert.js?v=202611101200';
+import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
+import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole } from './lender-file.js?v=202611101200';
+import { fileTitleOf } from './party-name.js?v=202611102000';
+import { cleanParcel } from './address-fill.js?v=202611102000';
+import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611102000';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
-import { authEventAction, gatherReads, identitySlot, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611082200';
+import { authEventAction, carriedReads, gatherReads, identitySlot, mapLimit, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611111200';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
+// These stay reachable with no user session. Everything else under /rest/v1/ is skipped after sign-out,
+// because the publishable key is not a JWT and PostgREST answers 401.
+const PUBLIC_REST = /\/rest\/v1\/rpc\/(portal_invite_lookup|agent_invite_lookup|hr_invite_lookup|scheduling_get|scheduling_respond)(?:\?|$)/;
+export function shouldQuietRest(url, signedOut) {
+  const u = String(url || '');
+  if (!signedOut || !u.includes('/rest/v1/') || PUBLIC_REST.test(u)) return false;
+  return true;
+}
+export function quietRestResponse(url) {
+  const rpc = String(url || '').includes('/rest/v1/rpc/');
+  return new Response(rpc ? 'null' : '[]', { status: 200, headers: { 'content-type': 'application/json' } });
+}
 
 export async function createSupabaseAdapter(cfg) {
   if (!cfg || !cfg.url || !cfg.anonKey) throw new Error('Supabase mode needs a project URL and a publishable key. There is no mock fallback.');
   if (typeof localStorage !== 'undefined') { try { localStorage.removeItem('cla-portal-new:data:v30'); } catch (e) { /* a browser that blocks storage still must not load fixtures */ } }
   const { createClient } = await import(SB);
-  const sb = createClient(cfg.url, cfg.anonKey);
+  let signedOut = false;
+  const sb = createClient(cfg.url, cfg.anonKey, {
+    global: {
+      fetch(input, init) {
+        const url = typeof input === 'string' ? input : (input && input.url) || '';
+        if (shouldQuietRest(url, signedOut)) return Promise.resolve(quietRestResponse(url));
+        return fetch(input, init);
+      },
+    },
+  });
   const ident = identitySlot();
   const ok = (r) => { if (r.error) throw new Error(r.error.message); return r.data; };
   const camel = (o) => Array.isArray(o) ? o.map(camel) : o && typeof o === 'object'
     ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), camel(v)])) : o;
   // per-file roles (migration 10) + self-representation (migration 11): my role(s) on each order I can see. role = primary (agent first),
   // roles = all I hold there, label = 'Buyer + Buyer's Agent' for an agent buying for themselves. Outside users get the roles/labels across files.
-  const fileRoles = async () => new Map((ok(await sb.rpc('my_file_roles_full')) || []).map((r) => [r.deal_id, r]));
+  const loadFileRoles = async () => new Map((ok(await sb.rpc('my_file_roles_full')) || []).map((r) => [r.deal_id, r]));
+  const fileRoles = () => sessionCache('roles', loadFileRoles);
   const ORDER = ['Buyer Agent', 'Listing Agent', "Buyer + Buyer's Agent", 'Seller + Listing Agent', 'Client-Buyer', 'Client-Seller'];
   const sorted = (xs) => [...new Set(xs)].filter((r) => ORDER.includes(r)).sort((x, y) => ORDER.indexOf(x) - ORDER.indexOf(y));
   // staff only (RPC returns nothing to outside users): "Agent is a party" badge = a client who is also their side's agent on the order
-  const parties = async () => { const m = new Map(); (ok(await sb.rpc('agent_parties')) || []).forEach((r) => { if (!m.has(r.deal_id)) m.set(r.deal_id, []); m.get(r.deal_id).push({ contactId: r.contact_id, name: r.name, label: r.label }); }); return m; };
+  const loadParties = async () => { const m = new Map(); (ok(await sb.rpc('agent_parties')) || []).forEach((r) => { if (!m.has(r.deal_id)) m.set(r.deal_id, []); m.get(r.deal_id).push({ contactId: r.contact_id, name: r.name, label: r.label }); }); return m; };
+  const parties = () => sessionCache('parties', loadParties);
   // task_board / task_grid rows -> the same shape the mock's listAllTasks returns (task + its file)
   const boardRows = (rows) => camel(rows || []).map((t) => ({ ...t, ownerId: t.ownerProfileId, ownerName: t.ownerName || '', personName: t.ownerName || '', group: groupOfRole(t.assignedRole),
     deal: { id: t.dealId, fileNumber: t.fileNumber, street: t.street, city: t.city, state: t.state, zip: t.zip, address: `${t.street}, ${t.city}, ${t.state} ${t.zip}`, closingDate: t.closingDate, status: t.dealStatus } }));
@@ -70,48 +107,149 @@ export async function createSupabaseAdapter(cfg) {
   const processorNames = () => {
     if (!procNames || Date.now() - procNamesAt > 300000) {
       procNamesAt = Date.now();
-      procNames = Promise.resolve().then(() => sb.from('profiles').select('id, first_name, last_name').in('role', PROCESSOR_PICK_ROLES))
-        .then((r) => { if (r.error) { procNames = null; return new Map(); } return new Map((r.data || []).map((p) => [p.id, nameOfProfile(p)])); }, () => { procNames = null; return new Map(); });
+      procNames = Promise.resolve().then(async () => {
+        if (!(await profileReadAllowed(sb))) return { data: [], error: null };
+        return sb.from('profiles').select('id, first_name, last_name').in('role', PROCESSOR_PICK_ROLES);
+      }).then((r) => { if (r.error) { procNames = null; return new Map(); } return new Map((r.data || []).map((p) => [p.id, nameOfProfile(p)])); }, () => { procNames = null; return new Map(); });
     }
     return procNames;
   };
   const withProcessorNames = async (deals, names) => {
     const miss = missingProcessorIds(deals, names);
-    if (miss.length) { try { const r = await sb.from('profiles').select('id, first_name, last_name').in('id', miss); (r.data || []).forEach((p) => names.set(p.id, nameOfProfile(p))); } catch (e) { /* names stay blank */ } }
+    if (miss.length && await profileReadAllowed(sb)) { try { const r = await sb.from('profiles').select('id, first_name, last_name').in('id', miss); (r.data || []).forEach((p) => names.set(p.id, nameOfProfile(p))); } catch (e) { /* names stay blank */ } }
     return names;
   };
   const types = async (ids) => new Map(ids.length ? (ok(await sb.rpc('contact_types', { p_ids: [...new Set(ids)] })) || []).map((r) => [r.contact_id, r.contact_type]) : []);
   const withRole = (d, r, pm) => ({ ...d, myRole: r && r.role, myRoles: (r && r.roles) || [], myRoleLabel: r && r.label, selfRep: !!(r && r.self_rep), agentParties: pm.get(d.id) || [] });
   const profile = profileFlight();
   const nav = navigationReads();
+  let fileGen = 0;
+  const shareReads = nav.share.bind(nav);
+  const storedKey = (key) => {
+    const k = String(key);
+    if (k.includes('#')) return k;
+    if (k.startsWith('deal:') || k.startsWith('shell:') || k.startsWith('overview:')) return k + '#' + fileGen;
+    return k;
+  };
+  nav.share = (id, key, fn) => shareReads(id, storedKey(key), fn);
+  const dropFileReads = () => { fileGen += 1; sessionBox.clear(); };
   const early = speculativeReads();
+  // speed (Nov 9): one order's reads carried across navigations for 30s, so a tab switch inside the same order reuses them.
+  // Same person only. Any write (wrapper at the end), a real sign-out, or another person drops them. Keys carry storedKey's
+  // generation, so dropFileReads() also retires carried order reads.
+  const carry = carriedReads({ ttlMs: 30000 });
+  const CARRY_KEY = /^(deal|shell|taskrows|docs|overview|listDealFolders|listSignatureRequests|listEntityDocRequests):/;
   let openingNav = false;
   let navSerial = 0;
   let openNavId = 0;
   let authUserFlight = null;
   let authUserFlightOwner = 0;
+  let lastGoodUser = null;
+  let lastHeld = null;
   const navStops = new Map();
+  const AUTH_TRIES = 2;
+  const AUTH_BACKOFF_MS = 200;
+  const authStatus = (error) => Number(error && (error.status || error.statusCode) || 0);
+  const authMessage = (error) => String(error && error.message || error || '');
+  // A dropped connection is not a sign-out. 401/403 is. SIGNED_OUT is handled in onAuthStateChange.
+  const authRejected = (error) => { const status = authStatus(error); return status === 401 || status === 403; };
+  const transientAuthFailure = (error) => {
+    if (!error || authRejected(error)) return false;
+    const status = authStatus(error);
+    if (status >= 500) return true;
+    return /failed to fetch|network|timeout|load failed|econnreset|authretryablefetcherror/i.test(authMessage(error));
+  };
+  async function readAuthUser() {
+    let lastError = null;
+    for (let attempt = 0; attempt < AUTH_TRIES; attempt += 1) {
+      if (attempt) await new Promise((r) => setTimeout(r, AUTH_BACKOFF_MS));
+      let res;
+      try { res = await sb.auth.getUser(); }
+      catch (error) {
+        lastError = error;
+        if (authRejected(error)) return { data: { user: null }, signedOut: true };
+        if (transientAuthFailure(error) && attempt + 1 < AUTH_TRIES) continue;
+        if (transientAuthFailure(error) && lastGoodUser) return { data: { user: lastGoodUser }, signedOut: false, cached: true };
+        throw error;
+      }
+      const user = res && res.data && res.data.user || null;
+      const error = res && res.error || null;
+      if (user && user.id) return { data: { user }, signedOut: false };
+      if (authRejected(error)) return { data: { user: null }, signedOut: true };
+      if (error && transientAuthFailure(error)) {
+        lastError = error;
+        if (attempt + 1 < AUTH_TRIES) continue;
+        if (lastGoodUser) return { data: { user: lastGoodUser }, signedOut: false, cached: true };
+        throw error;
+      }
+      if (lastGoodUser) return { data: { user: lastGoodUser }, signedOut: false, cached: true };
+      return { data: { user: null }, signedOut: true };
+    }
+    if (lastError && transientAuthFailure(lastError) && lastGoodUser) return { data: { user: lastGoodUser }, signedOut: false, cached: true };
+    if (lastError) throw lastError;
+    return { data: { user: null }, signedOut: true };
+  }
   function fetchAuthUser() {
     const owner = openNavId;
     if (owner && authUserFlight && authUserFlightOwner === owner) return authUserFlight;
-    const flight = sb.auth.getUser();
+    const flight = readAuthUser();
     if (!owner) { flight.catch(() => {}); return flight; }
     authUserFlight = flight;
     authUserFlightOwner = owner;
     flight.catch(() => { if (authUserFlight === flight) { authUserFlight = null; authUserFlightOwner = 0; } });
     return flight;
   }
+  let sessionUser = '';
+  const sessionBox = new Map();
+  function clearSessionCache() { sessionBox.clear(); sessionUser = ''; }
+  // Survives tab changes. A new sign-in, or a write that bumps fileGen, reads again.
+  function sessionCache(key, load) {
+    const id = nav.userId() || pendingAuthId || (ident.current() && ident.current().id) || '';
+    if (!id) return Promise.resolve().then(load);
+    if (id !== sessionUser) { sessionBox.clear(); sessionUser = id; }
+    const full = id + '#' + fileGen + ':' + key;
+    let hit = sessionBox.get(full);
+    if (!hit) {
+      hit = Promise.resolve().then(load);
+      sessionBox.set(full, hit);
+      hit.catch(() => { if (sessionBox.get(full) === hit) sessionBox.delete(full); });
+    }
+    return hit;
+  }
   function dropAuth() {
     ident.invalidate();
+    clearSessionCache();
     procNames = null;
     authUserFlight = null;
     authUserFlightOwner = 0;
+    lastGoodUser = null;
+    lastHeld = null;
     profile.clear();
     nav.clear();
     early.clear();
+    carry.clear();
+  }
+  function remember(person) {
+    if (!person || !person.id) return person;
+    lastHeld = person;
+    lastGoodUser = { id: person.id, email: person.email || '' };
+    return person;
+  }
+  function confirmedSignOut() {
+    clearSessionCache();
+    lastGoodUser = null;
+    lastHeld = null;
+    profile.clear();
+    nav.clear();
+    early.clear();
+    carry.clear();
+    ident.forget();
   }
   let pendingAuthId = '';
   sb.auth.onAuthStateChange((event, session) => {
+    const token = session && session.access_token || '';
+    if (token) signedOut = false;
+    else if (event === 'SIGNED_OUT') signedOut = true;
     const nextId = session && session.user && session.user.id || '';
     const held = ident.current();
     const action = authEventAction(event, nextId, held && held.id || '', nav.userId(), pendingAuthId);
@@ -120,7 +258,16 @@ export async function createSupabaseAdapter(cfg) {
     if (action === 'drop') dropAuth();
     if (event === 'PASSWORD_RECOVERY') { try { sessionStorage.setItem('cla-portal-recovery', '1'); } catch (e) { /* the reset screen also checks the flag */ } if (!/recovery/.test(location.hash)) location.hash = '#/login'; }
   });
-  const fileRead = (key, fn) => early.read(nav.userId() || pendingAuthId, key, fn, nav);
+  const fileRead = (key, fn) => {
+    const who = nav.userId() || pendingAuthId || '';
+    const k = storedKey(key);
+    if (!CARRY_KEY.test(k)) return early.read(who, k, fn, nav);
+    const held = carry.get(who, k);
+    if (held) return early.read(who, k, () => held, nav);
+    const read = early.read(who, k, fn, nav);
+    carry.keep(who, k, read);
+    return read;
+  };
   const meFrom = (who) => profile.load(who, async () => {
       const raw = ok(await sb.rpc('my_profile'));   // profiles row only; user_metadata is never a role
       if (!raw) return { id: who.id, email: who.email || '', firstName: '', lastName: '', role: '', status: 'unprovisioned', unprovisioned: true, isAdmin: false };
@@ -135,11 +282,12 @@ export async function createSupabaseAdapter(cfg) {
       const navAt = openNavId;
       const cached = ident.current();
       if (cached && cached.id && nav.userId() === cached.id) return cached;
-      const { data: { user } } = await fetchAuthUser();
+      const auth = await fetchAuthUser();
+      const user = auth && auth.data && auth.data.user;
       if (ticket !== ident.generation() || openNavId !== navAt) continue;
+      if (auth && auth.signedOut) { if (ticket === ident.generation() && openNavId === navAt) confirmedSignOut(); return null; }
       if (!user) {
-        if (ticket !== ident.generation() || openNavId !== navAt) return null;
-        profile.clear(); nav.clear(); early.clear(); ident.forget();
+        if (lastHeld && lastHeld.id) return lastHeld;
         return null;
       }
       if (nav.userId() !== user.id) {
@@ -150,9 +298,11 @@ export async function createSupabaseAdapter(cfg) {
       }
       const loaded = await meFrom(user);
       if (ticket !== ident.generation() || openNavId !== navAt || !loaded || loaded.id !== user.id) continue;
-      return ident.hold(loaded, ticket);
+      const kept = ident.hold(loaded, ticket);
+      if (kept) return remember(kept);
+      return kept;
     }
-    return null;
+    return lastHeld && lastHeld.id ? lastHeld : null;
   };
   async function fetchDeal(id) {
     const got = await gatherReads({
@@ -176,9 +326,10 @@ export async function createSupabaseAdapter(cfg) {
     Object.assign(d, salesFields(got.sales.get(id))); d.county = d.county || ''; d.fileTitle = got.titles.get(id) || '';
     const ents = new Map(got.entities.map((r) => [r.participant_id, { name: r.name, type: r.entity_type || '', repName: r.rep_name || '', repTitle: r.rep_title || '', repPhone: r.rep_phone || '', repEmail: r.rep_email || '' }]));
     d.participants.forEach((p) => { p.entity = ents.get(p.id) || null; });
+    d.fileTitle = fileTitleOf(d.participants) || d.fileTitle || '';
     const src = got.source[0]; d.sourceOfBusiness = src ? src.value : ''; d.sourceOfBusinessLabel = src ? src.label : '';
     // Who CLA represents (deals.cla_representation, migration 20261109150000): shown to CLA staff only; null = not recorded
-    if (ident.current() && ident.current().role === 'Outside user') { d.claRepresentation = null; d.claRepresentationLabel = ''; } else { d.claRepresentation = d.claRepresentation || null; d.claRepresentationLabel = claRepresentationLabel(d.claRepresentation); }
+    if (ident.current() && ident.current().role === 'Outside user') { d.claRepresentation = null; d.claRepresentationLabel = ''; d.closerName = ''; d.closerProfileId = null; } else { d.claRepresentation = d.claRepresentation || null; d.claRepresentationLabel = claRepresentationLabel(d.claRepresentation); d.closerName = d.closerName || ''; d.closerProfileId = d.closerProfileId || null; }
     return withRole(d, got.roles.get(d.id), got.parties);
   }
   async function fetchFileShell(id) {
@@ -194,9 +345,11 @@ export async function createSupabaseAdapter(cfg) {
     row.sourceOfBusiness = '';
     row.sourceOfBusinessLabel = '';
     if (ident.current() && ident.current().role === 'Outside user') {
+      row.closerName = ''; row.closerProfileId = null;
       const roles = await fileRoles();
       return withRole(row, roles.get(row.id), new Map());
     }
+    row.closerName = row.closerName || ''; row.closerProfileId = row.closerProfileId || null;
     return withRole(row, null, new Map());
   }
   const rawDocs = async (id) => camel(ok(await sb.from('documents').select('*').eq('deal_id', id)));
@@ -228,31 +381,31 @@ export async function createSupabaseAdapter(cfg) {
       if (patch.role != null || patch.isAdmin != null || patch.status != null) throw new Error('Role and access are assigned by an administrator.');
       const row = {};
       if (patch.firstName != null) row.first_name = String(patch.firstName); if (patch.lastName != null) row.last_name = String(patch.lastName); if (patch.phone != null) row.phone = String(patch.phone);
-      const { data: { user } } = await sb.auth.getUser(); if (!user) throw new Error('Please sign in.');
+      const auth = await readAuthUser(); const user = auth && auth.data && auth.data.user; if (auth && auth.signedOut || !user) throw new Error('Please sign in.');
       if (Object.keys(row).length) ok(await sb.from('profiles').update(row).eq('id', user.id));
       profile.begin(); ident.forget(); return me();
     },
     async getSession() {
       const ticket = ident.generation();
       const navAt = openNavId;
-      const { data: { user } } = await sb.auth.getUser();
+      const auth = await fetchAuthUser();
+      const user = auth && auth.data && auth.data.user;
       if (ticket !== ident.generation() || openNavId !== navAt) return null;
-      if (!user) {
-        if (ticket !== ident.generation() || openNavId !== navAt) return null;
-        profile.clear(); nav.clear(); early.clear(); ident.forget();
-        return null;
-      }
+      if (auth && auth.signedOut) { confirmedSignOut(); return null; }
+      if (!user) return lastHeld && lastHeld.id ? lastHeld : null;
       const cached = ident.current();
       if (cached && cached.id === user.id && nav.userId() === user.id) return cached;
       if (ticket !== ident.generation() || openNavId !== navAt) return null;
       profile.begin();
       if (!openingNav && !early.adopt(nav, user.id, ticket, ident.generation())) return null;
       const loaded = await meFrom(user);
-      if (ticket !== ident.generation() || openNavId !== navAt || !loaded || loaded.id !== user.id) return null;
-      return ident.hold(loaded, ticket);
+      if (ticket !== ident.generation() || openNavId !== navAt || !loaded || loaded.id !== user.id) return lastHeld && lastHeld.id === (user && user.id) ? lastHeld : null;
+      const kept = ident.hold(loaded, ticket);
+      if (kept) return remember(kept);
+      return lastHeld && lastHeld.id === user.id ? lastHeld : null;
     },
     authGeneration() { return ident.generation(); },
-    async signOut() { dropAuth(); await sb.auth.signOut(); },
+    async signOut() { signedOut = true; dropAuth(); await sb.auth.signOut(); },
     async resetDemoData() {},
     async getMyProfile() { return me(); },
     // John, Nov 2 (migration 23): file titles from deal_file_titles(p_deal) = the buyers' / sellers' last names the caller may see, in the order added
@@ -281,6 +434,11 @@ export async function createSupabaseAdapter(cfg) {
     async readFileShell(id) { return fileRead('shell:' + id, () => fetchFileShell(id)); },
     // John, Nov 2 (migration 19): several salespeople per order; the Processor and Admins add/remove them (RPCs check the role + file access)
     async listPreprocessors() { return camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status').eq('role', 'Preprocessor').eq('status', 'active').order('first_name'))); },
+    async listActiveStaff() {
+      const u = await me();
+      const rows = camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status, is_demo').in('role', CLOSER_STAFF_ROLES).eq('status', 'active').order('last_name').order('first_name'))) || [];
+      return rows.filter((p) => !!p.isDemo === !!(u && u.isDemo)).map((p) => ({ id: p.id, firstName: p.firstName, lastName: p.lastName, role: p.role, status: 'active' }));
+    },
     async listProcessors() {
       const u = await me();
       const shape = (res) => (camel(ok(res)) || []).filter((p) => !!p.isDemo === !!(u && u.isDemo)).map((p) => ({ ...p, name: `${p.firstName} ${p.lastName}` }));
@@ -299,27 +457,40 @@ export async function createSupabaseAdapter(cfg) {
     async createDeal(input) {
       // Refinance (John, Nov 3): no purchase price / EMD; migration 32 (private.deal_refi_guard) refuses them, and sellers / realtors / a TC on the file
       const refi = input.transactionType === 'Refinance';
-      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611090935'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
+      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611101015'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
       const { data: { user } } = await sb.auth.getUser();
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
-        open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : moneyAmount(input.purchasePrice), loan_amount: moneyAmount(input.loanAmount),
+        open_date: input.openDate || officeDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : moneyAmount(input.purchasePrice), loan_amount: moneyAmount(input.loanAmount),
         emd_amount: refi ? null : moneyAmount(input.emdAmount), emd_due_date: refi ? null : input.emdDueDate || null, notes: input.notes || '', processor_id: input.processorId || null, preprocessor_user_id: input.preprocessorUserId || null, created_by: user.id,
         lender_name: input.lenderName || '', lender_contact: input.lenderContact || '', lender_phone: input.lenderPhone || '', lender_email: String(input.lenderEmail || '').trim().toLowerCase(), loss_payee_name: input.lossPayeeName || '',
         primary_residence: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.primaryResidence || ''), first_time_buyer: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.firstTimeBuyer || '') };   // Maryland purchases only (John, Nov 6)
       if (input.tcUserId) row.tc_user_id = input.tcUserId;   // John, Nov 9: blank = the database auto-assigns (a TC who opens it, else the agents' team TC)
+      if (String(input.closerName || '').trim() || input.closerProfileId) { row.closer_name = String(input.closerName || ''); row.closer_profile_id = input.closerProfileId || null; }
+      if (input.closingTime) row.closing_time = String(input.closingTime);
       if (input.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(input.claRepresentation);   // Both / Buyer only / Seller only; absent = not recorded
+      const wrote = lenderColumnWrite(input); if (wrote) { row.lender_address = wrote.lenderAddress; row.cpl_address = wrote.cplAddress; row.cpl_same_as_lender = wrote.cplSameAsLender; row.mortgage_broker_name = wrote.mortgageBrokerName; }
+      const parcelId = cleanParcel(input.parcelId); if (parcelId) row.parcel_id = parcelId;
+      const earnest = earnestDealPatch(input, { refinance: refi }); if (Object.keys(earnest.financial).length) row.financial = earnest.financial;
       const d = camel(ok(await sb.from('deals').insert(row).select().single()));
       if (String(input.sourceOfBusiness || '').trim()) ok(await sb.rpc('set_deal_source', { p_deal: d.id, p_source: input.sourceOfBusiness }));   // migration 31 (staff-only table)
       const ids = [].concat(input.salesIds || []).filter(Boolean); if (ids.length) ok(await sb.rpc('set_deal_sales_people', { p_deal: d.id, p_sales: ids }));
       return { ...d, address: `${d.street}, ${d.city}, ${d.state} ${d.zip}` }; },
     async updateDeal(id, patch) {
       const map = { street: 'street', city: 'city', state: 'state', zip: 'zip', county: 'county', openDate: 'open_date', closingDate: 'closing_date', purchasePrice: 'purchase_price', loanAmount: 'loan_amount',
-        emdAmount: 'emd_amount', emdDueDate: 'emd_due_date', lenderName: 'lender_name', lenderContact: 'lender_contact', lenderEmail: 'lender_email', lenderPhone: 'lender_phone', lossPayeeName: 'loss_payee_name', notes: 'notes', processorId: 'processor_id', preprocessorUserId: 'preprocessor_user_id', tcUserId: 'tc_user_id', primaryResidence: 'primary_residence', firstTimeBuyer: 'first_time_buyer' };
+        emdAmount: 'emd_amount', emdDueDate: 'emd_due_date', lenderName: 'lender_name', lenderContact: 'lender_contact', lenderEmail: 'lender_email', lenderPhone: 'lender_phone', lossPayeeName: 'loss_payee_name', notes: 'notes', processorId: 'processor_id', preprocessorUserId: 'preprocessor_user_id', tcUserId: 'tc_user_id', primaryResidence: 'primary_residence', firstTimeBuyer: 'first_time_buyer', closerName: 'closer_name', closerProfileId: 'closer_profile_id', closingTime: 'closing_time' };
       const money = new Set(['purchase_price', 'loan_amount', 'emd_amount']); const dates = new Set(['open_date', 'closing_date', 'emd_due_date']); const row = {};
       for (const [k, col] of Object.entries(map)) if (patch[k] !== undefined) { const v = patch[k];
-        row[col] = money.has(col) ? moneyAmount(v) : dates.has(col) || col === 'processor_id' || col === 'preprocessor_user_id' || col === 'tc_user_id' ? (v || null) : v; }
+        row[col] = money.has(col) ? moneyAmount(v) : dates.has(col) || col === 'processor_id' || col === 'preprocessor_user_id' || col === 'tc_user_id' || col === 'closer_profile_id' ? (v || null) : v; }
       if (row.open_date === null) delete row.open_date;
+      if (row.closing_time != null) { const t = String(row.closing_time).trim(); if (t && !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) throw new Error('Enter a time as HH:MM, or clear it.'); row.closing_time = t; }
       if (patch.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(patch.claRepresentation);   // '' = not recorded (null)
+      if (patch.parcelId !== undefined) row.parcel_id = cleanParcel(patch.parcelId);
+      if (earnestTouched(patch)) { const earnest = earnestDealPatch(patch, { refinance: false }); row.financial = earnest.financial; }
+      if (lenderColumnsTouched(patch)) { const x = lenderExtras(patch);
+        if (patch.lenderAddress !== undefined) row.lender_address = x.lenderAddress;
+        if (patch.cplAddress !== undefined || patch.cplSameAsLender !== undefined) row.cpl_address = x.cplAddress;
+        if (patch.cplSameAsLender !== undefined) row.cpl_same_as_lender = x.cplSameAsLender;
+        if (patch.mortgageBrokerName !== undefined) row.mortgage_broker_name = x.mortgageBrokerName; }
       if (patch.state !== undefined && String(patch.state || '').toUpperCase() !== 'MD') { row.primary_residence = ''; row.first_time_buyer = ''; }
       if (Object.keys(row).length) ok(await sb.from('deals').update(row).eq('id', id));
       if (patch.sourceOfBusiness !== undefined) ok(await sb.rpc('set_deal_source', { p_deal: id, p_source: patch.sourceOfBusiness || '' }));
@@ -327,19 +498,69 @@ export async function createSupabaseAdapter(cfg) {
       return a.getDeal(id); },
     // contacts: unique email (contacts_email_uq); a new contact has no login and no invite is sent
     async createContact(input) { return camel(ok(await sb.from('contacts').insert(contactInsertRow(input)).select().single())); },
-    async updateContact(id, patch) { const row = {}; for (const [k, col] of [['firstName', 'first_name'], ['lastName', 'last_name'], ['email', 'email'], ['phone', 'phone'], ['company', 'company'], ['contactType', 'contact_type']])
-      if (patch[k] !== undefined) row[col] = k === 'contactType' ? (patch[k] || null) : k === 'email' ? String(patch[k] || '').toLowerCase() : patch[k];
-      return camel(ok(await sb.from('contacts').update(row).eq('id', id).select().single())); },
+    async updateContact(id, patch) {
+      if (!id) throw new Error('This contact was not saved. Nothing was changed.');
+      const row = {};
+      for (const [k, col] of [['firstName', 'first_name'], ['lastName', 'last_name'], ['email', 'email'], ['phone', 'phone'], ['company', 'company'], ['contactType', 'contact_type']]) {
+        if (!patch || patch[k] === undefined) continue;
+        row[col] = k === 'contactType' ? (patch[k] || null) : k === 'email' ? String(patch[k] || '').trim().toLowerCase() : patch[k];
+      }
+      if (patch && patch.lenderRole !== undefined) row.lender_role = cleanLenderRole(patch.lenderRole, patch.contactType || 'lender');
+      if (!Object.keys(row).length) throw new Error('Nothing to save on this contact.');
+      let saved;
+      try { saved = camel(ok(await sb.from('contacts').update(row).eq('id', id).select().single())); }
+      catch (e) { throw contactSaveMiss(e); }
+      if (!saved || !saved.id) throw new Error('This contact was not saved. Nothing was changed.');
+      assertContactSaved(patch, saved);
+      dropFileReads();
+      return saved;
+    },
+    async listLossPayeeClauses(lenderName) {
+      const name = String(lenderName || '').replace(/[%_,]/g, '').trim();
+      if (!name) return [];
+      const rows = camel(ok(await sb.from('deals').select('lender_name, loss_payee_name, open_date').ilike('lender_name', name))) || [];
+      return lossPayeeSuggestions(rows, lenderName);
+    },
     // participants: the triggers (migrations 10, 11, 20) enforce outside-user roles, self-representation pairs and "TC = Transaction Coordinator accounts only"
     // Matt, Nov 3b: opts.entity = { name, type, repName, repTitle, repPhone, repEmail } on a buyer / seller row (set_participant_entity, migration 31)
-    async addParticipant(dealId, contactId, role, opts = {}) { const p = ok(await sb.from('deal_participants').insert({ deal_id: dealId, contact_id: contactId, role }).select('id').single());
-      if (opts && opts.entity) ok(await sb.rpc('set_participant_entity', { p_participant: p.id, p_entity: opts.entity })); return { ok: true, id: p.id }; },
+    async addParticipant(dealId, contactId, role, opts = {}) {
+      const contact = camel(ok(await sb.from('contacts').select('id, first_name, last_name, email, company').eq('id', contactId).maybeSingle()));
+      if (!contact) throw new Error('Contact not found.');
+      const onFile = (ok(await sb.rpc('deal_contacts', { p_deal: dealId })) || []).map((r) => ({ role: r.role, contactId: r.contact_id, contact: { id: r.contact_id, firstName: r.first_name, lastName: r.last_name, email: r.email, company: r.company } }));
+      if (sameParty(onFile, contact, role)) throw new Error(duplicatePartyMessage(contact, role));
+      const p = ok(await sb.from('deal_participants').insert({ deal_id: dealId, contact_id: contactId, role }).select('id').single());
+      if (opts && opts.entity) ok(await sb.rpc('set_participant_entity', { p_participant: p.id, p_entity: opts.entity }));
+      dropFileReads();
+      return { ok: true, id: p.id };
+    },
     async setParticipantEntity(dealId, participantId, entity) { return ok(await sb.rpc('set_participant_entity', { p_participant: participantId, p_entity: entity || null })); },
     async listSourceOptions() { return ok(await sb.rpc('source_of_business_options')) || []; },
     async listCoordinators() {
-      const rows = (ok(await sb.rpc('coordinator_choices')) || []).map((r) => camel(r));
-      const visible = new Set((camel(ok(await sb.from('profiles').select('id'))) || []).map((p) => p.id));
-      return rows.filter((r) => visible.has(r.profileId));
+      const u = await me();
+      const fromRpc = (ok(await sb.rpc('coordinator_choices')) || []).map((r) => camel(r));
+      let profiles = [];
+      try {
+        profiles = camel(ok(await sb.from('profiles').select('id, first_name, last_name, email, phone, is_demo, role, status').eq('role', 'Transaction Coordinator').eq('status', 'active'))) || [];
+      } catch (e) {
+        const visible = new Set((camel(ok(await sb.from('profiles').select('id'))) || []).map((p) => p.id));
+        return fromRpc.filter((r) => r.contactId && visible.has(r.profileId));
+      }
+      const known = fromRpc.filter((r) => r.profileId && r.contactId).map((r) => ({ id: r.contactId, profileId: r.profileId, firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, company: r.company }));
+      const plan = coordinatorRoster(profiles, known, u);
+      return plan.rows.filter((r) => r.contactId).map((r) => ({ profileId: r.profileId, contactId: r.contactId, firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, company: r.company }));
+    },
+    async findDuplicateOrders({ street, city, state, zip, buyerIds, sellerIds } = {}) {
+      const u = await me();
+      if (!u || !runsOrdersCI(u)) throw new Error('Only a Processor or Admin can do this.');
+      const st = String(state || '').trim().toUpperCase();
+      if (!String(street || '').trim() || !String(city || '').trim() || !st) return [];
+      const deals = camel(ok(await sb.from('deals').select('id, file_number, street, city, state, zip, status').eq('state', st).neq('status', 'Cancelled'))) || [];
+      const ids = deals.map((d) => d.id);
+      const parts = ids.length ? camel(ok(await sb.from('deal_participants').select('deal_id, contact_id, role').in('deal_id', ids).in('role', ['Client-Buyer', 'Client-Seller']))) || [] : [];
+      const orders = deals.map((d) => ({ id: d.id, fileNumber: d.fileNumber, street: d.street, city: d.city, state: d.state, zip: d.zip, status: d.status,
+        buyerIds: parts.filter((p) => p.dealId === d.id && p.role === 'Client-Buyer').map((p) => p.contactId),
+        sellerIds: parts.filter((p) => p.dealId === d.id && p.role === 'Client-Seller').map((p) => p.contactId) }));
+      return duplicateOrders({ street, city, state: st, zip, buyerIds, sellerIds, orders });
     },
     async addDealSalesPerson(dealId, salesId) { ok(await sb.rpc('add_deal_sales_person', { p_deal: dealId, p_sales: salesId })); return (await a.getDeal(dealId)).salesPeople; },
     async removeDealSalesPerson(dealId, salesId) { ok(await sb.rpc('remove_deal_sales_person', { p_deal: dealId, p_sales: salesId })); return (await a.getDeal(dealId)).salesPeople; },
@@ -362,22 +583,80 @@ export async function createSupabaseAdapter(cfg) {
       const ids = new Set(w.map((r) => r.id)); return (camel(ok(await sb.rpc('message_recipients', { p_deal: dealId }))) || []).map((r) => ({ ...r, wireOk: ids.has(r.id) }));
     },
     async createThread(dealId, { subject, participantIds, body }) { return { id: ok(await sb.rpc('create_thread', { p_deal: dealId, p_subject: subject, p_participants: participantIds, p_body: body })) }; },
-    async postMessage(threadId, body) { const { data: { user } } = await sb.auth.getUser(); return camel(ok(await sb.from('messages').insert({ thread_id: threadId, author_id: user.id, body }).select().single())); },
+    async postMessage(threadId, body) { const auth = await readAuthUser(); const user = auth && auth.data && auth.data.user; if (!user || auth.signedOut) throw new Error('Please sign in.'); return camel(ok(await sb.from('messages').insert({ thread_id: threadId, author_id: user.id, body }).select().single())); },
     // activity log: RLS returns rows to CLA staff only (migration 13)
-    async listActivity(dealId) { let q = sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(300); q = dealId ? q.eq('deal_id', dealId) : q.is('deal_id', null);
-      const items = camel(ok(await q)); return { items, total: items.length, types: [...new Set(items.map((a) => a.action.split('.')[0]))].sort(), actors: [] }; },
+    async listActivity(dealId) {
+      return fileRead('activity#' + fileGen + ':' + (dealId || ''), async () => {
+        let q = sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(300);
+        q = dealId ? q.eq('deal_id', dealId) : q.is('deal_id', null);
+        const items = camel(ok(await q));
+        return { items, total: items.length, types: [...new Set(items.map((a) => a.action.split('.')[0]))].sort(), actors: [] };
+      });
+    },
+    // Buyers, sellers, and agents never read activity_log. Their tab is the documents,
+    // messages, and own tasks they can already open. A failed read is omitted, not an error.
+    async listMyActivity(dealId) {
+      const u = ident.current() || await me();
+      if (!u) return [];
+      const safe = async (read) => { try { const rows = await read(); return Array.isArray(rows) ? rows : []; } catch (e) { return []; } };
+      const [docs, threads, tasks] = await Promise.all([
+        safe(() => a.listDocuments(dealId)),
+        safe(() => a.listThreads(dealId)),
+        safe(() => a.listTasks(dealId)),
+      ]);
+      let names = new Map();
+      try {
+        const people = await a.listMessageRecipients(dealId);
+        names = new Map((people || []).filter((p) => p && p.id).map((p) => [p.id, `${p.firstName || ''} ${p.lastName || ''}`.trim()]));
+      } catch (e) { names = new Map(); }
+      return clientActivityFrom({ user: u, documents: docs, threads, tasks, names });
+    },
     // tasks.form_data is NOT selectable (column grant); answers come from get_task_form for the owner / processor / coordinator / Admin only
     async listTasks(dealId) {
       const raw = fileRead('taskrows:' + dealId, () => fetchHostedTaskRows(sb, dealId));
-      const ticket = ident.generation();
-      const u = ident.current() || await me();
-      if (!u || ticket !== ident.generation()) throw new Error('Please sign in.');
-      if (nav.userId() && nav.userId() !== u.id) throw new Error('Please sign in.');
+      let u = ident.current() || await me();
+      if ((!u || !u.id) && lastHeld && lastHeld.id) u = lastHeld;
+      // A moved navigation or a blip is not a sign-out. Throwing here rejects the overview batch and the page reports "Please sign in."
+      if (!u || !u.id) return [];
+      if (nav.userId() && nav.userId() !== u.id) return [];
       // Francis (Nov 6): a task copy for the viewer's own file-party row counts as theirs. CLA staff who run orders skip this read.
-      const mineIds = (u.isAdmin || runsOrdersCI(u)) ? Promise.resolve([]) : viewerParticipantIds(sb, dealId, u);
-      const got = await raw; const myParticipantIds = await mineIds;
-      if (ticket !== ident.generation() || (nav.userId() && nav.userId() !== u.id)) throw new Error('Please sign in.');
-      return mapHostedTaskList(got.rows, u, got.off, { myParticipantIds });
+      // A one-off has no owner. The buyer's account role is Outside user; Client-Buyer is only the role on this file.
+      const onFileP = (u.isAdmin || runsOrdersCI(u)) ? Promise.resolve({ participantIds: [], roles: [] }) : viewerOnFile(sb, dealId, u);
+      const got = await raw; const onFile = await onFileP;
+      if (nav.userId() && nav.userId() !== u.id) return [];
+      return mapHostedTaskList(got.rows, u, got.off, { myParticipantIds: onFile.participantIds, fileRoles: onFile.roles });
+    },
+    // Dashboard (speed, Nov 9): listTasks for many files at once -> Map(dealId -> the same list listTasks gives). One paged tasks read
+    // and one switches read instead of a tasks read and a switches read per file. The viewer's party rows and file roles
+    // (viewerOnFile) are still read per file for people who do not run orders, as listTasks does.
+    async listTasksForDeals(dealIds) {
+      const ids = [...new Set((dealIds || []).filter(Boolean))];
+      const out = new Map(ids.map((id) => [id, []]));
+      if (!ids.length) return out;
+      let u = ident.current() || await me();
+      if ((!u || !u.id) && lastHeld && lastHeld.id) u = lastHeld;
+      if (!u || !u.id) return out;
+      if (nav.userId() && nav.userId() !== u.id) return out;
+      const PAGE = 1000;   // PostgREST returns at most 1000 rows per request: page until a short page
+      const chunks = []; for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));   // keeps the URL short
+      const rows = (await mapLimit(chunks, 4, async (part) => {
+        const got = [];
+        for (let from = 0; ; from += PAGE) {
+          const page = ok(await sb.from('tasks').select(HOSTED_TASK_COLUMNS).in('deal_id', part).order('created_at').order('id').range(from, from + PAGE - 1)) || [];
+          got.push(...page);
+          if (page.length < PAGE) return got;
+        }
+      })).flat();
+      let off = [];
+      if (rows.some((t) => t.template_code)) off = (ok(await sb.from('task_template_switches').select('code').eq('enabled', false)) || []).map((r) => r.code);
+      const byDeal = new Map(ids.map((id) => [id, []]));
+      rows.forEach((t) => { if (byDeal.has(t.deal_id)) byDeal.get(t.deal_id).push(t); });
+      const staff = u.isAdmin || runsOrdersCI(u);
+      const onFile = new Map();
+      if (!staff) await mapLimit(ids.filter((id) => byDeal.get(id).length), 4, async (id) => { onFile.set(id, await viewerOnFile(sb, id, u)); });
+      if (nav.userId() && nav.userId() !== u.id) return new Map(ids.map((id) => [id, []]));
+      byDeal.forEach((list, id) => { const f = onFile.get(id) || { participantIds: [], roles: [] }; out.set(id, mapHostedTaskList(list, u, off, { myParticipantIds: f.participantIds, fileRoles: f.roles })); });
+      return out;
     },
     async getTask(id) { return fetchHostedTask(sb, id, await me()); },
     async getAgentTask(id) {
@@ -397,6 +676,12 @@ export async function createSupabaseAdapter(cfg) {
     // Matt, Nov 3 (migration 26): entity documents requested from buyers / sellers acting as an entity (person, processor, coordinator, Admin)
     async listEntityDocRequests(dealId) { return camel(ok(await sb.rpc('entity_doc_requests', { p_deal: dealId }))); },
     async saveTaskForm(id, data, { complete = false } = {}) { return ok(await sb.rpc('save_task_form', { p_task: id, p_data: data, p_complete: complete })); },
+    async saveBuyerSsn(id, ssn) { return ok(await sb.rpc('save_buyer_ssn', { p_task: id, p_ssn: ssn })); },
+    async readBuyerSsn(id) { return ok(await sb.rpc('read_buyer_ssn', { p_task: id })) || ''; },
+    async savePartySsn(id, subject, ssn) { return ok(await sb.rpc('save_party_ssn', { p_task: id, p_subject: subject, p_ssn: ssn })); },
+    async readPartySsn(id, subject) { return ok(await sb.rpc('read_party_ssn', { p_task: id, p_subject: subject })) || ''; },
+    async getSpouse(dealId) { return camel(ok(await sb.rpc('get_spouse', { p_deal: dealId }))) || []; },
+    async saveSpouse(dealId, participantId, input) { return camel(ok(await sb.rpc('save_spouse', { p_deal: dealId, p_participant: participantId, p_data: input }))); },
     // ---- round 2 RPCs (same names as SQL) ----
     async adminDeleteUser(id) { ok(await sb.rpc('admin_delete_user', { p_user: id })); },
     // ---- John, Nov 2 (migration 17): clients <-> salespeople. Writes go through Admin RPCs; the table is readable by Admin / Processor (all) and Sales (own links) ----
@@ -415,12 +700,23 @@ export async function createSupabaseAdapter(cfg) {
     async markNotificationRead(id) { ok(await sb.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id)); },
     async markAllNotificationsRead() { ok(await sb.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null)); },
     // closing: tokens come back ONCE from create/reopen (only hashes are stored), unlike the mock which keeps them
-    async createSettlementRequest(dealId, { slots, location, note }) { return camel(ok(await sb.rpc('create_settlement_request', { p_deal: dealId, p_slots: slots, p_location: location, p_note: note }))[0]); },
+    async createSettlementRequest(dealId, { slots, location, note, officeId }) { return camel(ok(await sb.rpc('create_settlement_request', { p_deal: dealId, p_slots: slots, p_location: location || '', p_note: note || '', p_office: officeId || null }))[0]); },
     async confirmSettlement(id, slotIndex) { ok(await sb.rpc('confirm_settlement', { p_settlement: id, p_slot: slotIndex + 1 })); },
     async reopenSettlement(id, { slots, note } = {}) { return camel(ok(await sb.rpc('reopen_settlement', { p_settlement: id, p_slots: slots || null, p_note: note || null }))[0]); },
     async getSchedulingLink(tok) { return ok(await sb.rpc('scheduling_get', { p_token: tok })); },   // anon OK
-    async respondSettlement(tok, { picks, note, name }) { ok(await sb.rpc('scheduling_respond', { p_token: tok, p_picks: picks.map((i) => i + 1), p_name: name, p_note: note || '' })); },
-    async updateTask(id, patch) { return ok(await sb.rpc('set_task_status', { p_task: id, p_status: patch.status })); },
+    async respondSettlement(tok, { picks, note, name, location, officeId }) { ok(await sb.rpc('scheduling_respond', { p_token: tok, p_picks: picks.map((i) => i + 1), p_name: name, p_note: note || '', p_location: location || '', p_office: officeId || '' })); },
+    async updateTask(id, patch = {}) {
+      if (patch.dueDate !== undefined) {
+        const due = patch.dueDate ? String(patch.dueDate).slice(0, 10) : null;
+        ok(await sb.rpc('set_task_due_override', { p_task: id, p_due: due }));
+      }
+      if (patch.audiences !== undefined) {
+        const list = Array.isArray(patch.audiences) ? patch.audiences.filter(Boolean) : (patch.audiences ? [patch.audiences] : []);
+        ok(await sb.from('tasks').update({ audiences: list.length ? list : null }).eq('id', id).select('id').single());
+      }
+      if (patch.status != null) return ok(await sb.rpc('set_task_status', { p_task: id, p_status: patch.status }));
+      return ok(await sb.from('tasks').select('id, deal_id, title, status, due_date, assigned_role, audiences').eq('id', id).single());
+    },
     async listDocuments(dealId, { folderId } = {}) { const rows = (await fileRead('docs:' + dealId, () => rawDocs(dealId))) || []; return filterListedDocuments(rows, folderId).map((d) => shapeListedDocument(d)); },   // folder filter + stored size/content flag (no extra query)
     // ---- Matt, Nov 2 (migration 16): cross-file task list + Processor / Admin task grid. task_board / task_grid are SECURITY INVOKER (RLS decides). ----
     async listAllTasks({ fileStatus = 'All' } = {}) {
@@ -474,6 +770,8 @@ export async function createSupabaseAdapter(cfg) {
   };
   const NOT_ENABLED = 'This action is not enabled on CLA Portal Live Test. Nothing was sent, queued, or saved as if it had succeeded.';
   Object.assign(a, staffSupabase({ sb, ok, camel, me, api: a }));
+  const removeParty = a.removeParticipant && a.removeParticipant.bind(a);
+  if (removeParty) a.removeParticipant = async (...args) => { const r = await removeParty(...args); dropFileReads(); return r; };
   // Dev-only pickers stay off. E-sign candidate picking stays unwired; signing itself stays disabled below.
   for (const n of ['pickPerson', 'signInDev', 'listSignatureCandidates']) a[n] = todo(n);
   // CRM (John, Nov 2; migration 22): only when the `crm` flag is on (default OFF in supabase mode; features.js). The database has its own switch too.
@@ -483,6 +781,16 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, accountingSupabase({ sb, ok, flags: a.features }));
   // PAYOFFS / HOA / FFB / GROUND RENT (John, Nov 4; migration 42): same switches as accounting, staff only
   Object.assign(a, payoffsSupabase({ sb, ok, flags: a.features, api: a }));
+  // TITLE: existing title tables. Staff RLS. Nothing is sent and no SSN is stored.
+  Object.assign(a, titleSupabase({ sb, ok, flags: a.features, me }));
+  // FINAL POLICY: existing policy tables. Staff RLS. Issuance stays queued-only.
+  Object.assign(a, policySupabase({ sb, ok, flags: a.features, me }));
+  // FUNDING: existing funding_records and related tables. Staff RLS. Nothing is sent.
+  Object.assign(a, fundingSupabase({ sb, ok, flags: a.features, me }));
+  // Post-Closing and E-Recording: existing scanback and recording tables. Staff RLS. Outbox is queued only.
+  Object.assign(a, postClosingSupabase({ sb, ok, flags: a.features, me }));
+  // WIRES: existing wire_records / escrow_accounts / wire_audit_log. Staff RLS via fwp_staff('wires'). No bank send.
+  Object.assign(a, wiresSupabase({ sb, ok, flags: a.features, me }));
   // MODULE SWITCHES (John, Nov 3; migration 35): Admin-only Live switch per module; off = beta (Admins only)
   Object.assign(a, modulesSupabase({ sb, ok, me, flags: a.features }));
   Object.assign(a, roleAccessSupabase({ sb, ok, me }));   // John, Nov 9: role_module_access, read once (cached) in parallel with the module switches
@@ -512,17 +820,19 @@ export async function createSupabaseAdapter(cfg) {
           const hinted = pendingAuthId;
           const earlyProfile = hinted ? meFrom({ id: hinted }) : null;
           if (earlyProfile) earlyProfile.catch(() => {});
+          const known = !!(lastGoodUser && pendingAuthId && pendingAuthId === lastGoodUser.id);
+          if (known) warmFile(hint);
           const userFlight = fetchAuthUser();
-          warmFile(hint);
           const raced = await Promise.race([
             userFlight.then((result) => ({ result })),
             stopped.then(() => ({ stopped: true })),
           ]);
           if (raced.stopped || openNavId !== myNav) return empty;
-          const { data: { user } } = raced.result;
+          const auth = raced.result || {};
+          const user = auth.data && auth.data.user;
           if (openNavId !== myNav) return empty;
           if (ticket !== ident.generation()) { early.clear(); continue; }
-          if (!user) { profile.clear(); nav.clear(); early.clear(); ident.forget(); return empty; }
+          if (auth.signedOut || !user) { if (auth.signedOut) confirmedSignOut(); return empty; }
           if (!early.adopt(nav, user.id, ticket, ident.generation())) {
             if (openNavId !== myNav) return empty;
             early.clear();
@@ -532,6 +842,7 @@ export async function createSupabaseAdapter(cfg) {
           const hr = nav.share(user.id, 'hr-extras', () => hrSessionExtras());
           hr.catch(() => {});
           const demo = a.demoViewStatus().catch(() => null);
+          if (!known) warmFile(hint);
           let loaded = earlyProfile && user.id === hinted ? await earlyProfile : null;
           if (openNavId !== myNav) return empty;
           if (ticket !== ident.generation()) { nav.clear(); early.clear(); ident.forget(); continue; }
@@ -545,6 +856,7 @@ export async function createSupabaseAdapter(cfg) {
           if (!loaded || loaded.id !== user.id) { ident.forget(); continue; }
           const kept = ident.hold(loaded, ticket);
           if (!kept) { if (openNavId !== myNav) return empty; continue; }
+          remember(kept);
           return { user: kept, hr, demo, mods };
         }
         if (openNavId === myNav) early.clear();
@@ -565,7 +877,7 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, nov5Supabase({ sb, ok, camel, me }));
   Object.assign(a, orderOverviewSupabase({ sb, ok, camel, me: async () => ident.current() || me(), api: a }));
   a.readOverview = (dealId) => fileRead('overview:' + dealId, () => a.getOrderOverview(dealId));
-  // Staff create and resend invite links here (nothing is emailed). Accepting a link goes through the accept-invite function, not a browser sign-up.
+  // Staff create and resend invite links here. The page then calls sendInviteEmail (gmail-send) from the inviter's Gmail. Accepting a link goes through the accept-invite function, not a browser sign-up.
   Object.assign(a, staffFeedbackSupabase({ sb, ok, camel }));
   a.claRepresentationReady = true;   // deals.cla_representation exists on TEST (20261109150000)
   a.sendMessage = async ({ dealId, threadId, subject, to, bodyHtml, files } = {}) => {
@@ -601,7 +913,7 @@ export async function createSupabaseAdapter(cfg) {
     if (threadId) {
       if (!text && !savedFiles.length) throw new Error(failedFiles[0] ? failedFiles[0].reason : 'Write a message first.');
       const note = savedFiles.length ? `${text || '(file shared)'}\n\nFiles on this order: ${savedFiles.map((f) => f.name).join(', ')}` : text;
-      ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: note.slice(0, 4000), body_html: messageText(bodyHtml).clean || null }));
+      ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: note.slice(0, 4000), body_html: messageText(bodyHtml).clean || '' }));
     } else if (savedFiles.length) {
       ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: `Files on this order: ${savedFiles.map((f) => f.name).join(', ')}`.slice(0, 4000) }));
     }
@@ -618,15 +930,13 @@ export async function createSupabaseAdapter(cfg) {
     return { ...t, participantIds: ids, participants: ids.map((pid) => { const p = who(pid); return { id: pid, name: p ? `${p.firstName || ''} ${p.lastName || ''}`.trim() : 'Participant', role: p ? p.role : '', wireOk: true }; }),
       messages: (t.messages || []).map((m) => ({ ...m, authorName: (who(m.authorId) && `${who(m.authorId).firstName || ''} ${who(m.authorId).lastName || ''}`.trim()) || 'Participant', mine: !!(user && m.authorId === user.id), body: m.body || '', attachments: m.attachments || [] })) };
   };
-  a.previewCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };
-  a.runCrmImport = async () => { throw new Error('External CRM import is not authorized on this test portal. Nothing was imported.'); };
   a.cancelSignatureRequest = async () => { throw new Error(NOT_ENABLED); };
   const shareRead = (name) => {
     const orig = a[name] && a[name].bind(a);
     if (!orig) return;
     a[name] = (id, ...rest) => (rest.length || id == null ? orig(id, ...rest) : fileRead(name + ':' + id, () => orig(id)));
   };
-  ['listThreads', 'listActivity', 'listDealFolders', 'listSignatureRequests', 'listEntityDocRequests'].forEach(shareRead);
+  ['listThreads', 'listDealFolders', 'listSignatureRequests', 'listEntityDocRequests'].forEach(shareRead);
   function warmFile(hint) {
     if (!hint || !hint.dealId || hint.gated) return;
     const id = hint.dealId;
@@ -636,11 +946,11 @@ export async function createSupabaseAdapter(cfg) {
       fileRead('taskrows:' + id, () => fetchHostedTaskRows(sb, id));
       fileRead('docs:' + id, () => rawDocs(id));
       if (a.listThreads) a.listThreads(id).catch(() => null);
-      if (a.listActivity) a.listActivity(id).catch(() => null);
       if (a.readOverview) a.readOverview(id).catch(() => null);
       return;
     }
     fileRead('shell:' + id, () => fetchFileShell(id));
+    if (tab === 'activity' && a.listActivity) a.listActivity(id).catch(() => null);
     if (tab === 'tasks') fileRead('taskrows:' + id, () => fetchHostedTaskRows(sb, id));
     if (tab === 'documents') {
       fileRead('docs:' + id, () => rawDocs(id));
@@ -649,5 +959,15 @@ export async function createSupabaseAdapter(cfg) {
       if (a.listEntityDocRequests) a.listEntityDocRequests(id).catch(() => null);
     }
   }
+  a.dropFileReads = dropFileReads;
+  // CARRY: every method that is not a read is treated as a write. It drops the carried order reads before it runs and again when it
+  // settles, so the refresh after a save reads fresh. A read named like a write only costs a re-read; never the other way round.
+  const READ_ONLY = /^(list|get|read|preview|search|find)[A-Z]|^(demoViewStatus|notificationCount|unreadCount|authGeneration|beginNavigation|sessionUser|crmMe|crmMergeFields|crmRelatedEmails|crmReport|hrMe|closingLocationFlags|closingLocationPrompt|writeSerial)$/;
+  let writes = 0; const wrote = () => { writes += 1; carry.clear(); };
+  Object.keys(a).forEach((name) => {
+    const fn = a[name]; if (typeof fn !== 'function' || READ_ONLY.test(name)) return;
+    a[name] = function (...args) { wrote(); let out; try { out = fn.apply(this, args); } finally { if (out && typeof out.then === 'function') Promise.resolve(out).then(wrote, wrote); else wrote(); } return out; };
+  });
+  a.writeSerial = () => writes;
   return a;
 }

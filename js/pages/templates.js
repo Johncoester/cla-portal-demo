@@ -1,9 +1,9 @@
 // Task templates (definitions with versions). Each participant gets a COPY that records the version it was made from.
 // Admin and Super admin only (route guard). Each tab is the same page: Templates, Task switches, Task admin.
 import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime, pill, modal, closeModal, formData } from '../ui.js?v=202611070139';
-import { canManageTaskSwitches, REASON_MSG } from '../data/task-switches.js?v=202611090935';
-import { taskAdminView } from './task-admin.js?v=202611090935';
-import { runsOrders, isProcessor } from '../data/constants.js?v=202611090935';
+import { canManageTaskSwitches, REASON_MSG } from '../data/task-switches.js?v=202611120100';
+import { taskAdminView } from './task-admin.js?v=202611110300';
+import { runsOrders, isProcessor } from '../data/constants.js?v=202611101015';
 const DELEG = [['', 'No - client only'], ['Buyer Agent', 'Buyer Agent (for the buyer)'], ['Listing Agent', 'Listing Agent (for the seller)'], ['Buyer Agent,Listing Agent', 'Each side\'s agent for their own client']];
 
 export async function render(ctx) {
@@ -15,7 +15,7 @@ export async function render(ctx) {
   return { ...v, body: html`<div class="box-title"><h2><span class="h-ico"></span>Task Templates</h2></div>${tabs}${v.body}` };
 }
 
-async function templatesView({ api, user, refresh }) {
+async function templatesView({ api, user, refresh, go }) {
   const list = await api.listTaskTemplates(); const canSet = user.isAdmin || runsOrders(user); const codes = [...new Set(list.map((t) => t.code))];
   const block = (code) => { const vs = list.filter((t) => t.code === code); const cur = vs.find((t) => t.active) || vs[0];
     return html`<div class="card"><div class="deal-card-head"><h3>${cur.title}</h3><span class="muted small">${code}</span><span class="spacer"></span>
@@ -27,8 +27,10 @@ async function templatesView({ api, user, refresh }) {
       <table class="tbl"><thead><tr><th>Version</th><th>Title</th><th>Due after</th><th>Published</th><th>Copies made from it</th><th></th></tr></thead><tbody>
       ${vs.map((t) => html`<tr><td>v${t.version}</td><td>${t.title}</td><td>${t.dueDays} days</td><td>${fmtDate(t.publishedAt)} &middot; ${t.publishedByName}</td><td>${t.copies}</td><td>${t.active ? pill('current', 'ok') : pill('older', '')}</td></tr>`)}</tbody></table></div>`; };
   const body = html`<p class="muted">When someone is added to an order they get their own copy of each current template for their role. A copy keeps the version it was made from, so publishing a new version never changes work in progress.${user.isAdmin ? '' : ' Only an Admin can publish versions.'}</p>
+    ${user.isAdmin ? html`<p><button type="button" class="m-btn" data-new-task>+ New task</button> <span class="muted small">Opens the task form on the Task admin tab. Class, audience, and due days are set there.</span></p>` : ''}
     ${codes.map(block)}`;
   return { title: 'Task Templates', crumbs: [['Task Templates']], body, mount(root) {
+    const add = $('[data-new-task]', root); if (add) add.addEventListener('click', () => go('/admin/templates?tab=admin&new=1'));
     $$('[data-publish]', root).forEach((b) => b.addEventListener('click', guard(async () => {
       const title = prompt('Title for the new version', b.dataset.title); if (title == null) return;
       const v = await api.publishTemplateVersion(b.dataset.publish, { title }); toast(`Published v${v.version}`); refresh(); })));

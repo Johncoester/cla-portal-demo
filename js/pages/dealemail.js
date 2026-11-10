@@ -1,10 +1,12 @@
 // File > Email tab (John, Nov 9: Gmail phase 1, CLA Portal Live Test). Staff send email from their OWN @clatitle.com Gmail inside the file;
-// replies in the same Gmail thread come back to the file (checked every few minutes, or "Check for replies"). Received attachments are saved to
-// Documents (staff only). The server refuses every address that is not a test address on Live Test, and never emails wire details.
+// replies in the same Gmail thread come back to the file (checked every few minutes, or "Check for replies"). Attachments on a reply, on
+// mail sent from Gmail, and files added from the computer while composing are saved to Documents for CLA staff only, once. A file picked
+// from Documents is not saved again. The server refuses every address that is not a test address on Live Test, and never emails wire details.
 import { html, raw, esc, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611070139';
-import { editorHtml, mountEditor } from './compose.js?v=202611090935';
+import { editorHtml, mountEditor } from './compose.js?v=202611110900';
 import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, hasSignature, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611091801';
-import { applyFileTemplate } from '../data/file-email-templates.js?v=202611092210';
+import { applyFileTemplate } from '../data/file-email-templates.js?v=202611102000';
+import { countUnreadEmails, emailMatchesQuery, isUnreadFileEmail } from '../data/file-email-unread.js?v=202611100930';
 const ROLE = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent', 'Transaction Coordinator': 'TC' };
 const list = (s) => String(s || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
 const isWire = (d) => d.wireInstructions || /\bwir(e|ed|es|ing)\b|wire[_ -]?instruction/i.test(d.name || '');
@@ -12,20 +14,34 @@ const reSubject = (s) => (/^re:/i.test(String(s || '').trim()) ? String(s).trim(
 
 export async function render({ api, deal, user, refresh: reload }) {
   if (!canUseGmail(user) || !api.listDealEmails) throw new Error('That page does not exist.');
-  const [g, emails] = await Promise.all([api.getGmailStatus().catch(() => ({ available: false })), api.listDealEmails(deal.id).catch(() => [])]);
+  const [g, emails, cursor] = await Promise.all([
+    api.getGmailStatus().catch(() => ({ available: false })),
+    api.listDealEmails(deal.id).catch(() => []),
+    api.emailReadCursor ? api.emailReadCursor(deal.id).catch(() => ({ readAt: '' })) : Promise.resolve({ readAt: '' }),
+  ]);
+  const userId = user && user.id || '';
+  const readAt = cursor && cursor.readAt || '';
+  const unreadN = countUnreadEmails(emails, { userId, readAt });
+  // Viewing the tab marks the file read for this person. The count above is what was unread when the page opened.
+  // A missing deal_email_reads table is remembered in this browser instead; a failed mark does not block the list.
+  if (api.markDealEmailsRead) { try { await api.markDealEmailsRead(deal.id); } catch (e) { /* list still shows */ } }
   const threads = new Map();
   for (const e of emails) { const k = `${e.mailboxEmail}|${e.gmailThreadId}`; if (!threads.has(k)) threads.set(k, []); threads.get(k).push(e); }
   const groups = [...threads.values()].map((ms) => ms.sort((a, b) => String(a.sentAt).localeCompare(String(b.sentAt))));
   groups.sort((a, b) => String(b[b.length - 1].sentAt).localeCompare(String(a[a.length - 1].sentAt)));
-  const row = (e) => html`<li class="mail-msg" data-mail-msg="${e.id}" data-mail-dir="${e.direction}">
+  const row = (e) => {
+    const fresh = isUnreadFileEmail(e, { userId, readAt });
+    return html`<li class="mail-msg${fresh ? ' unread' : ''}" data-mail-msg="${e.id}" data-mail-dir="${e.direction}"${fresh ? raw(' data-mail-unread="1"') : ''}>
       <div class="small">${e.direction === 'in' ? pill('Received', 'info') : pill('Sent', 'ok')} <strong>${e.fromName || e.fromEmail}</strong> &lt;${e.fromEmail}&gt; to ${(e.toEmails || []).join(', ')}${(e.ccEmails || []).length ? html`, cc ${(e.ccEmails || []).join(', ')}` : ''}
-        <span class="muted">${fmtDateTime(e.sentAt)}</span>${e.templateKey === 'intro' ? html` ${pill('Introduction', '')}` : e.templateKey ? html` ${pill('Template', '')}` : ''}</div>
+        <span class="muted">${fmtDateTime(e.sentAt)}</span>${fresh ? html` ${pill('New', 'info')}` : ''}${e.templateKey === 'intro' ? html` ${pill('Introduction', '')}` : e.templateKey ? html` ${pill('Template', '')}` : ''}</div>
       <div class="small muted">${e.snippet}</div>
-      ${(e.attachmentNames || []).length ? html`<div class="small" data-mail-attachments>Attachments: ${(e.attachmentNames || []).join(', ')} <a href="#/deals/${deal.id}/documents">Documents</a></div>` : ''}
+      ${(e.attachmentNames || []).length ? html`<div class="small" data-mail-attachments>Attachments: ${(e.attachmentNames || []).join(', ')} <a href="#/deals/${deal.id}/documents">Documents</a> (CLA staff only)</div>` : ''}
       <button type="button" class="linkish small" data-mail-show="${e.id}">Show message</button> ${g.connected ? html`<button type="button" class="linkish small" data-mail-reply="${e.id}">Reply</button>` : ''}
       <div data-mail-body="${e.id}" hidden></div></li>`;
-  const body = html`<div class="box-title"><h2><span class="h-ico"></span>Email</h2></div>
+  };
+  const body = html`<div class="box-title"><h2><span class="h-ico"></span>Email${unreadN ? html` <span class="nav-badge" data-mail-unread-count>${unreadN} unread</span>` : ''}</h2></div>
     <div class="card" data-email-tab>
+      <label>Search email on this file<input type="search" data-mail-search placeholder="Subject, from, or message" aria-label="Search email on this file"></label>
       ${g.connected ? html`<p data-mail-from>Sending from <strong>${g.mailbox}</strong>${g.status === 'needs_reconnect' ? html` <span class="pill bad">connect again on <a href="#/profile">Profile Setting</a></span>` : ''}</p>`
         : html`<div class="notice warn" data-mail-connect>Connect your @clatitle.com Gmail first: <a href="#/profile">Profile Setting &gt; Gmail</a>. You can still check an email below (nothing is sent).</div>`}
       <p class="small muted" data-mail-allowlist>${TEST_ALLOWLIST_NOTE} Subjects get ${fileTag(deal.fileNumber, deal)} so replies are easy to find.</p>
@@ -33,9 +49,28 @@ export async function render({ api, deal, user, refresh: reload }) {
         ${g.connected ? html`<button type="button" class="ghost" data-mail-sync>Check for replies</button>` : ''}</p>
     </div>
     ${groups.length ? groups.map((ms) => html`<div class="card mail-thread" data-mail-thread="${ms[0].gmailThreadId}"><h3 class="small">${ms[ms.length - 1].subject} <span class="muted">(${ms.length} message${ms.length === 1 ? '' : 's'}, ${ms[0].mailboxEmail})</span></h3><ul class="plain">${ms.map(row)}</ul></div>`)
-      : html`<p class="muted" data-mail-none>No email on this file yet.</p>`}`;
+      : html`<p class="muted" data-mail-none>No email on this file yet.</p>`}
+    <p class="muted" data-mail-search-empty hidden>No email matches that search.</p>`;
   return { title: 'Email', crumbs: [['Email']], body, mount(root) {
     const byId = new Map(emails.map((e) => [e.id, e]));
+    const search = $('[data-mail-search]', root);
+    const applySearch = () => {
+      const query = search ? search.value : '';
+      let shown = 0;
+      $$('[data-mail-thread]', root).forEach((card) => {
+        let hit = 0;
+        $$('[data-mail-msg]', card).forEach((li) => {
+          const keep = emailMatchesQuery(byId.get(li.dataset.mailMsg), query);
+          li.hidden = !keep;
+          if (keep) hit += 1;
+        });
+        card.hidden = hit === 0;
+        if (hit) shown += 1;
+      });
+      const empty = $('[data-mail-search-empty]', root);
+      if (empty) empty.hidden = shown > 0 || !String(query || '').trim();
+    };
+    if (search) { search.addEventListener('input', applySearch); search.addEventListener('search', applySearch); }
     $$('[data-mail-show]', root).forEach((b) => b.addEventListener('click', () => {
       const box = $(`[data-mail-body="${b.dataset.mailShow}"]`, root); const e = byId.get(b.dataset.mailShow);
       if (box.hidden && !box.firstChild) { const f = document.createElement('iframe'); f.setAttribute('sandbox', ''); f.setAttribute('referrerpolicy', 'no-referrer'); f.className = 'mail-frame';
@@ -86,6 +121,8 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     <div class="span2" data-mail-editor>${editorHtml('mail-rte')}</div>
     ${docs.length ? html`<fieldset class="span2" data-mail-docs><legend class="small">Attach documents from this file</legend>${docs.map((d) => html`<label class="small">${isWire(d)
       ? html`<input type="checkbox" disabled> ${d.name} <span class="pill bad">wire instructions are never emailed</span>` : html`<input type="checkbox" value="${d.id}" data-mail-doc> ${d.name} <span class="muted">${fmtSize(d.size || 0)}</span>`}</label><br>`)}</fieldset>` : ''}
+    <label class="span2">Attach from your computer <span class="muted small">(saved to Documents, CLA staff only, when you send)</span><input type="file" data-mail-files multiple></label>
+    <ul class="plain small" data-mail-file-list></ul>
     <p class="span2 small muted" data-mail-note>${TEST_ALLOWLIST_NOTE}</p>
     <div class="span2" data-mail-check-result></div>
     <div class="span2"><button type="button" class="ghost" data-mail-check>Check (does not send)</button> <button type="button" class="m-btn" data-mail-send ${gmail.connected ? '' : raw('disabled title="Connect Gmail first"')}>Send</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
@@ -117,8 +154,14 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     $('[data-mail-to]', m).addEventListener('change', () => { if (tplSel.value) applyChosen(); });
     $('[data-mail-to]', m).addEventListener('blur', () => { if (tplSel.value) applyChosen(); });
   }
+  const computerFiles = () => [...((($('[data-mail-files]', m) || {}).files) || [])];
+  const paintFiles = () => { const listEl = $('[data-mail-file-list]', m); if (!listEl) return; const files = computerFiles();
+    listEl.innerHTML = files.length ? files.map((f) => `<li data-mail-local>${esc(f.name)} <span class="muted">${fmtSize(f.size || 0)}</span></li>`).join('') : ''; };
+  const fileInput = $('[data-mail-files]', m); if (fileInput) fileInput.addEventListener('change', paintFiles);
+  const readAsDataUrl = (file) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(file); });
   const input = (dryRun) => ({ dealId: deal.id, to: list($('[data-mail-to]', m).value), cc: list($('[data-mail-cc]', m).value), bcc: list($('[data-mail-bcc]', m).value),
-    subject: $('[data-mail-subject]', m).value, html: ed.html, documentIds: $$('[data-mail-doc]', m).filter((c) => c.checked).map((c) => c.value), templateKey: chosenTemplateKey, replyToEmailId: pre.replyToEmailId || null, dryRun });
+    subject: $('[data-mail-subject]', m).value, html: ed.html, documentIds: $$('[data-mail-doc]', m).filter((c) => c.checked).map((c) => c.value), templateKey: chosenTemplateKey, replyToEmailId: pre.replyToEmailId || null, dryRun,
+    pendingUploads: dryRun ? computerFiles().map((f) => ({ name: f.name, size: f.size })) : [] });
   const out = $('[data-mail-check-result]', m);
   const show = (cls, msg) => { out.innerHTML = `<div class="notice ${cls}">${esc(msg)}</div>`; };
   $('[data-mail-check]', m).addEventListener('click', async () => {
@@ -127,7 +170,27 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
   const send = $('[data-mail-send]', m);
   send.addEventListener('click', async () => {
     send.disabled = true;
-    try { const r = await api.sendDealEmail(input(false)); closeModal(); toast(`Sent from ${r.from}`); if (done) done(r); }
-    catch (e) { show('bad', e.message); send.disabled = false; } });
+    try {
+      const files = computerFiles();
+      for (const file of files) { if (isWire({ name: file.name })) throw new Error('Wire instructions cannot be attached to an email from the portal.'); }
+      const uploadIds = [];
+      for (const file of files) {
+        const saved = await api.addDocument(deal.id, { name: file.name, description: 'Email attachment from the portal', mimeType: file.type || 'application/octet-stream', size: file.size, dataUrl: await readAsDataUrl(file), visibility: 'staff' });
+        uploadIds.push(saved.id);
+      }
+      const payload = { ...input(false), uploadIds };
+      const r = await api.sendDealEmail(payload);
+      const got = Array.isArray(r.attachments) ? r.attachments : [];
+      const wanted = [...(payload.documentIds || []), ...uploadIds];
+      const missing = wanted.filter((id) => !got.some((a) => a && String(a.id) === String(id)));
+      if (r.ok === false || missing.length) {
+        show('bad', r.error || `The email did not include ${missing.length} selected document${missing.length === 1 ? '' : 's'}. It was not a complete send.`);
+        send.disabled = false;
+        return;
+      }
+      closeModal();
+      toast(`Sent from ${r.from}${got.length ? ` with ${got.length} attachment${got.length === 1 ? '' : 's'}` : ''}`);
+      if (done) done(r);
+    } catch (e) { show('bad', e.message); send.disabled = false; } });
   return m;
 }

@@ -44,7 +44,7 @@ async function startupSwitch() {
   const nav = await pending;
   await nav.hr; await nav.demo;
   const shell = await api.readFileShell('file-1');
-  check(nav.user && nav.user.id === 'B' && shell.street === 'PRIVATE-FOR-B' && reads[0] === 'A' && reads.includes('B') && shell.street !== 'PRIVATE-FOR-A', 'a startup switch from A to B does not serve A\'s file row');
+  check(nav.user && nav.user.id === 'B' && shell.street === 'PRIVATE-FOR-B' && reads.length > 0 && reads.every((r) => r === 'B') && shell.street !== 'PRIVATE-FOR-A', 'a startup switch from A to B does not serve A\'s file row');
 }
 
 async function delayedOldRead() {
@@ -73,7 +73,7 @@ async function delayedOldRead() {
   const nav = await pending;
   await nav.hr; await nav.demo;
   const shell = await api.readFileShell('file-1');
-  check(nav.user && nav.user.id === 'B' && shell.street === 'PRIVATE-FOR-B' && reads.includes('A') && reads.includes('B'), 'a file read started as A resolves too late to be served to B');
+  check(nav.user && nav.user.id === 'B' && shell.street === 'PRIVATE-FOR-B' && reads.length > 0 && reads.every((r) => r === 'B'), 'a file read starts for the confirmed person and does not serve A');
 }
 
 async function samePersonPermission() {
@@ -152,7 +152,7 @@ async function initialThenOther() {
   const nav = await pending;
   await nav.hr; await nav.demo;
   const shell = await api.readFileShell('file-1');
-  check(nav.user && nav.user.id === 'B' && shell.street === 'PRIVATE-FOR-B' && reads.includes('A') && reads.includes('B') && shell.street !== 'PRIVATE-FOR-A', 'INITIAL_SESSION A then SIGNED_IN B does not serve A\'s file row');
+  check(nav.user && nav.user.id === 'B' && shell.street === 'PRIVATE-FOR-B' && reads.length > 0 && reads.every((r) => r === 'B'), 'INITIAL_SESSION A then SIGNED_IN B does not serve A\'s file row');
 }
 
 async function firstEventOther() {
@@ -174,7 +174,7 @@ async function firstEventOther() {
   const nav = await pending;
   await nav.hr; await nav.demo;
   const shell = await api.readFileShell('file-1');
-  check(nav.user && nav.user.id === 'B' && shell.street === 'PRIVATE-FOR-B' && reads.includes('A') && reads.includes('B'), 'the first observed sign-in does not adopt a file read that started with no owner');
+  check(nav.user && nav.user.id === 'B' && shell.street === 'PRIVATE-FOR-B' && reads.length > 0 && reads.every((r) => r === 'B'), 'the first observed sign-in does not read the file before that person is confirmed');
 }
 
 async function delayedAfterOther() {
@@ -203,7 +203,7 @@ async function delayedAfterOther() {
   const nav = await pending;
   await nav.hr; await nav.demo;
   const shell = await api.readFileShell('file-1');
-  check(nav.user && nav.user.id === 'B' && shell.street === 'PRIVATE-FOR-B' && reads.includes('A') && reads.includes('B'), 'a file read started as A resolves too late to be served after B is confirmed');
+  check(nav.user && nav.user.id === 'B' && shell.street === 'PRIVATE-FOR-B' && reads.length > 0 && reads.every((r) => r === 'B'), 'a file read starts for B and does not serve A');
 }
 
 async function happyReload() {
@@ -224,7 +224,7 @@ async function happyReload() {
   const nav = await pending;
   await nav.hr; await nav.demo;
   const shell = await api.readFileShell('file-1');
-  check(nav.user && nav.user.id === 'A' && nav.user.role === 'Processor' && shell.street === 'PRIVATE-FOR-A' && api.authGeneration() === 0 && reads.length > 1 && reads.every((id) => id === 'A'), 'one session restore returns that person\'s file row and does not keep an unowned read');
+  check(nav.user && nav.user.id === 'A' && nav.user.role === 'Processor' && shell.street === 'PRIVATE-FOR-A' && api.authGeneration() === 0 && reads.length >= 1 && reads.every((id) => id === 'A'), 'one session restore returns that person\'s file row and does not keep an unowned read');
 }
 
 async function ownedRestore() {
@@ -332,6 +332,7 @@ async function ownedWarmReadIsKept() {
   const first = await api.beginNavigation({ dealId: 'file-1', tab: 'contacts' });
   await first.hr; await first.demo;
   await api.readFileShell('file-1');
+  await api.resetDemoData();   // a write: drops the carried order reads, so the next navigation reads the shell again early
   const afterFirst = reads.length;
   holdUser = true;
   const second = api.beginNavigation({ dealId: 'file-1', tab: 'contacts' });
@@ -627,6 +628,43 @@ await firstEventOther();
 await delayedAfterOther();
 await samePersonPermission();
 await signOutDrops();
+async function transientGetUserRetriesThenUsesCache() {
+  let calls = 0;
+  const hooks = {
+    getUser() {
+      calls += 1;
+      if (calls === 1) return Promise.reject(new Error('Failed to fetch'));
+      return Promise.resolve({ data: { user: { id: 'A', email: 'a@example.test' } }, error: null });
+    },
+    rpc(name) {
+      if (name === 'my_profile') return { data: { id: 'A', email: 'a@example.test', role: 'Buyer Agent', first_name: 'E2E', last_name: 'Buyeragent', is_demo: false }, error: null };
+      if (name === 'demo_view_status') return { data: { active: false }, error: null };
+      return { data: [], error: null };
+    },
+  };
+  globalThis.__fakeSB = client(hooks);
+  const api = await createSupabaseAdapter({ url: 'https://fake.invalid', anonKey: 'FAKE-NOT-A-KEY' });
+  hooks.cb('INITIAL_SESSION', { user: { id: 'A' } });
+  const nav = await api.beginNavigation();
+  await nav.hr; await nav.demo;
+  check(calls === 2 && nav.user && nav.user.id === 'A' && nav.user.role === 'Buyer Agent', 'a Failed to fetch from getUser is retried once and then the person is kept');
+  hooks.getUser = () => Promise.reject(new Error('Failed to fetch'));
+  const again = await api.beginNavigation();
+  await again.hr; await again.demo;
+  check(again.user && again.user.id === 'A' && again.user.role === 'Buyer Agent', 'after the retries a transient getUser failure falls back to the cached session');
+  hooks.getUser = () => Promise.resolve({ data: { user: null }, error: { message: 'JWT expired', status: 401 } });
+  const signedOut = await api.beginNavigation();
+  check(!signedOut.user, 'a 401 from auth drops the cached session');
+  hooks.getUser = () => Promise.resolve({ data: { user: { id: 'A', email: 'a@example.test' } }, error: null });
+  const back = await api.beginNavigation();
+  await back.hr; await back.demo;
+  hooks.cb('SIGNED_OUT', null);
+  hooks.getUser = () => Promise.resolve({ data: { user: null }, error: null });
+  const after = await api.getMyProfile();
+  check(back.user && back.user.id === 'A' && after == null, 'SIGNED_OUT clears the cached session');
+}
+
+await transientGetUserRetriesThenUsesCache();
 await happyReload();
 await ownedRestore();
 console.log(fail ? fail + ' failed' : 'supabase auth startup passed');

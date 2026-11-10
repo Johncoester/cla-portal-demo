@@ -1,17 +1,18 @@
 // Inbox tab: conversations on this file (only people on the thread see it). Replies, new conversation, unread counts.
 import { html, $, $$, guard, formData, modal, closeModal, fmtDateTime, pill, toast } from '../ui.js?v=202611070139';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
-import { viewOnly, isViewOnly, runsOrders, WIRE_FRAUD_NOTE } from '../data/constants.js?v=202611090935';
+import { viewOnly, isViewOnly, runsOrders, WIRE_FRAUD_NOTE } from '../data/constants.js?v=202611101015';
 import { raw } from '../ui.js?v=202611070139';
-import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611090935';
-import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611090935';
+import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611101015';
+import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611110900';
+import { presentThread } from '../data/portal-threads.js?v=202611101800';
 
 export async function render(ctx) {
   const { api, user, deal, refresh, params } = ctx; const notViewOnly = !viewOnly(user);
   if (params.sub) return thread(ctx);
   const threads = await api.listThreads(deal.id);
-  const rows = threads.map((t, i) => html`<tr class="${t.unread ? 'unread' : ''}"><td>${i + 1}</td><td><a href="#/deals/${deal.id}/inbox/${t.id}">${t.subject}</a>${t.staffCoordinated ? html` ${pill('all parties · staff coordinated', 'info')}` : ''}${t.unread ? html` ${pill(t.unread + ' new', 'info')}` : ''}<br><span class="muted small">${t.lastBody.slice(0, 90)}</span></td>
-    <td>${t.lastFrom}</td><td>${t.participants.map((p) => `${p.name}`).join(' | ')}</td><td>${fmtDateTime(t.lastAt)}</td><td>${t.count}${t.hasFiles ? ' \u{1F4CE}' : ''}</td></tr>`);
+  const rows = (threads || []).map((raw, i) => { const t = presentThread(raw, { userId: user.id }); return html`<tr class="${t.unread ? 'unread' : ''}"><td>${i + 1}</td><td><a href="#/deals/${deal.id}/inbox/${t.id}">${t.subject}</a>${t.staffCoordinated ? html` ${pill('all parties · staff coordinated', 'info')}` : ''}${t.unread ? html` ${pill(t.unread + ' new', 'info')}` : ''}<br><span class="muted small">${String(t.lastBody || '').slice(0, 90)}</span></td>
+    <td>${t.lastFrom}</td><td>${(t.participants || []).map((p) => `${p.name}`).join(' | ')}</td><td>${fmtDateTime(t.lastAt)}</td><td>${t.count}${t.hasFiles ? ' \u{1F4CE}' : ''}</td></tr>`; });
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>Conversations</h2>${notViewOnly ? html`${user.role === 'Transaction Coordinator' && api.createAllPartiesThread ? html`<button class="m-btn right" id="allparties">Message all parties</button> ` : ''}<button class="m-btn right" id="newthread">Start conversation</button> <button class="ghost right" id="sharefiles2">Share Files</button>` : ''}</div>
     ${rows.length ? html`<table class="tbl striped"><thead><tr><th>Sr#</th><th>Subject</th><th>From</th><th>Users</th><th>Last activity</th><th>Msgs</th></tr></thead><tbody>${rows}</tbody></table>` : html`<p class="muted">No conversations yet.</p>`}`;
   return { title: 'Inbox', crumbs: [['Conversation']], body, mount(root) {
@@ -47,6 +48,7 @@ async function thread({ api, user, deal, refresh, params }) {
     const f = $('#rf', root); if (!f) return; const ed = mountEditor(f); const send = $('[data-send]', f);
     const fl = mountFiles(f, (b) => { send.disabled = b > 0; send.textContent = b > 0 ? 'Waiting for upload\u2026' : 'Send'; });
     f.addEventListener('submit', guard(async (e) => { e.preventDefault(); if (fl.busy) throw new Error('Wait for the upload to finish.'); if (!ed.text && !fl.files.length) throw new Error('Write a message first.');
+      if (typeof api.sendMessage !== 'function') throw new Error('Sending a portal message is not available on this sign-in.');
       const sent = await api.sendMessage({ threadId: t.id, bodyHtml: ed.html, files: fl.files });
       if (sent && sent.failedFiles && sent.failedFiles.length) toast(`${sent.savedFiles.length} file(s) attached. ${sent.failedFiles.map((z) => z.name + ': ' + z.reason).join(' ')} Nothing was emailed.`);
       refresh(); }));

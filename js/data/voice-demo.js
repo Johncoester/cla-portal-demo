@@ -21,6 +21,13 @@ export function voiceRouteOk(u, { locked = false, demo = null, mode = 'mock' } =
   return mode === 'supabase' && !!u && !locked && !(demo && demo.active);
 }
 
+/* The function allows two accounts and answers every other sign-in with 403.
+ * That 403 is a failed resource in the browser. Only a Super admin is asked,
+ * which is the role those two accounts use. Every other role skips the call. */
+export function canRequestVoice(u) {
+  return !!(u && u.role === 'Super admin' && u.isAdmin && !u.accountRole && (u.status || 'active') === 'active');
+}
+
 export function acceptEphemeralToken(value) {
   const s = String(value == null ? '' : value).trim();
   if (!/^xai-realtime-client-secret-[A-Za-z0-9_-]{8,}$/.test(s) || s.length > 400) {

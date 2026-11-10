@@ -2,8 +2,8 @@
 // Sections (?v=): Checklist, Notes & Documents, PACER, Search package, Contract, Chain of title, Loan check, Schedule A, Requirements (B-I), Exceptions (B-II),
 // Policies, CPL, Finalize & Package, Summary note. Nothing is ever sent (the lender email is a queued outbox row); no SSN is ever asked for or stored.
 import { html, raw, esc, $, $$, guard, toast, modal, closeModal, options, pill, fmtDate, fmtDateTime, fmtMoney, formData } from '../ui.js?v=202611070139';
-import * as T from '../data/title.js?v=202611090935';
-import { modOn } from '../data/modules.js?v=202611090935';   // live40: Payoffs / HOA switch
+import * as T from '../data/title.js?v=202611101015';
+import { modOn } from '../data/modules.js?v=202611101015';   // live40: Payoffs / HOA switch
 
 const ld = (iso) => (iso ? fmtDateTime(iso).split(',')[0] : '');   // a timestamp's LOCAL date
 const val = (v) => (v == null ? '' : v);
@@ -26,7 +26,7 @@ const stepBtns = (v, key, ro) => { const s = v.steps.find((z) => z.key === key) 
 
 export async function render({ api, deal, user, refresh }) {
   const sec = new URLSearchParams(location.hash.split('?')[1] || '').get('v') || 'overview';
-  const v = await api.getTitle(deal.id); v.progress.pct = v.progress.total ? Math.round((v.progress.done / v.progress.total) * 100) : 0; const ro = !v.canEdit; const r = v.review || {}; const D = v.deal;
+  const v = await api.getTitle(deal.id, { section: sec }); v.progress.pct = v.progress.total ? Math.round((v.progress.done / v.progress.total) * 100) : 0; const ro = !v.canEdit; const r = v.review || {}; const D = v.deal;
   const go = (s) => `#/deals/${deal.id}/title${s === 'overview' ? '' : `?v=${s}`}`;
   const head = html`<div class="box-title tt-head" data-title-head><h2><span class="h-ico"></span>Title</h2>
       <div class="tt-meta"><span>Status ${statusPill(v.status)}</span><span>Reviewer <b>${r.reviewerName || '-'}</b></span><span>Review date <b>${fmtDate(r.reviewDate) || '-'}</b></span>

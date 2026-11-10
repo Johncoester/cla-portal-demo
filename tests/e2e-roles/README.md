@@ -49,7 +49,7 @@ E2E_TARGET=test npm run test:e2e
 
 `E2E_BASE_URL` defaults to the TEST origin. Do not point it anywhere else.
 
-Rows a run creates are tagged `E2E-RUN-<id>` (order notes, message subjects, upload names). `tests/e2e-roles/cleanup-run.sql` deletes only those rows. It is not a migration. The seeded file (`notes = E2E-ROLE-FILE`, street `100 E2E Test File`) is removed only by the rollback.
+Rows a run creates are tagged `E2E-RUN-<id>` (order notes, message subjects, upload names). The workflow deletes them again at the end of every run, pass or fail (`tests/e2e-roles/cleanup-runs.mjs`, service-role key, TEST only; `--dry-run` counts without deleting). `tests/e2e-roles/cleanup-run.sql` deletes one run's rows by hand. It is not a migration. The seeded file (`notes = E2E-ROLE-FILE`, street `100 E2E Test File`) is removed only by the rollback.
 
 ## Secrets John needs to set
 
@@ -141,10 +141,11 @@ Messages the suite receives in the test inbox are moved to trash. The copy in th
 
 `.github/workflows/e2e-roles-test.yml`
 
-- After the Pages workflow `pages-build-deployment` succeeds.
-- After a successful `deployment_status`, except an environment named production.
+- After the Pages workflow `pages-build-deployment` succeeds. That is the only deploy trigger, so one deploy starts one run.
 - Nightly at 02:00 America/New_York (the 06:00 and 07:00 UTC crons; the job exits unless the Eastern hour is 02).
 - `workflow_dispatch` for a manual run.
+
+The job runs on `ubuntu-24.04`. Overlapping runs share the `e2e-roles-test` concurrency group and queue.
 
 The base URL is hard-coded to `https://testportal.clatitle.com/`. A screenshot and a trace are uploaded when the job fails. The job summary is the pass/fail table, including expected failures and email latency when a live send ran.
 
@@ -159,8 +160,8 @@ Derived from `js/data/constants.js`, `js/data/agent-profile.js`, `js/pages/deald
 | Edit order details, parties, referral, state prefix | yes | no (view-only) | no (view-only) | no (`runsOrders` is false) | no | no | no | no |
 | File tabs | staff set, modules below not opened | staff set, no upload, no new message | same as Sales Person | Overview, Tasks, Messages, Documents, Closing, Contacts, Activity, and Email on the later tab chrome | client set including Contacts and Agreements | same as Buyer Agent | Overview, To-do, Messages, Documents, Closing, Activity | same as the buyer |
 | Fill In on assigned forms | not the focus of Order Entry | no forms of their own on the sample file | same | simple tasks, not intake forms | commission form | view the completed commission form | own intake, including photo ID | own intake, including photo ID |
-| Documents upload | not in the Order Entry path | control is absent | control is absent | every visibility label | CLA staff only, own side, everyone | CLA staff only, own side, everyone | one option, Share with CLA Title, stored as `buyer` (PR 113) | one option, Share with CLA Title, stored as `seller` |
-| Share Files | not in this path | button absent | button absent | both sides plus the assigned staff | own side plus assigned staff, not the seller side | own side plus assigned staff, not the buyer side | buyer agent, processor, preprocessor, TC, and sales; not the other side | listing agent plus that same staff list; not the buyer side |
+| Documents upload | not in the Order Entry path | control is absent | control is absent | Who can see it: named parties plus CLA only. Both sides stores everyone on the file | CLA only, own side, everyone | CLA only, own side, everyone | one checkbox, Share with CLA Title, stored as `buyer` | one checkbox, Share with CLA Title, stored as `seller` |
+| Share Files | not in this path | button absent | button absent | both sides plus the assigned staff | own side plus assigned staff, not the seller side | own side plus assigned staff, not the buyer side | buyer agent, processor, TC, and sales; preprocessor only when one is assigned; not the other side | listing agent plus that same staff list; not the buyer side |
 | Portal message | not in this path | button absent | button absent | yes | yes | yes | yes | yes |
 | Contacts edit | yes | no | no | no Edit button | no | no | no Contacts tab | no Contacts tab |
 | Invite from the file | yes | yes, for a party with no login | yes | no (`canInviteAgents` excludes TC) | no | no | no | no |
@@ -168,20 +169,12 @@ Derived from `js/data/constants.js`, `js/data/agent-profile.js`, `js/pages/deald
 
 ### Ambiguities
 
-- **Share with CLA Title after PR 113.** The label stays. The stored value is the client's own side: `buyer` or `seller`. CLA staff and that client's agent can see it. The other side cannot. This branch still offers the buyer `staff`, so FF-016 stays in `known-failures.js` for mock and TEST until that PR is in the tree. Delete the row when it is.
-- **Share Files staff.** PR 113's list is the preprocessor, transaction coordinator, salespeople, and the processor (or every active processor when none is assigned). The sample file already has those people, so the mock list matches. The hosted function on TEST does not until that PR is deployed, which is why FF-017 is expected only on TEST.
+- **Share with CLA Title.** The label stays. The stored value is the client's own side: `buyer` or `seller`. CLA staff and that client's agent can see it. The other side cannot. PR 129 is on TEST, so the buyer upload has to store `buyer`.
+- **Share Files staff.** The list is the preprocessor when one is assigned, the transaction coordinator, salespeople, and the processor (or every active processor when none is assigned). The mock sample file assigns a preprocessor. The TEST seed file `MD-26-99001` does not, so the suite does not require `(Preprocessor)` there.
 - **`documents_insert` on TEST** is not in this repo. An offered sharing option that the upload refuses still fails the test.
 - **Sales Team sees every file in the mock** (`seesAll`). The SQL for that on TEST was not re-read as a policy body here. The sample file is one they are also linked to as a salesperson.
 - **Email on the TC overview.** The overview pill nav does not include Email. The tab chrome on the other TC pages does, and only when `listDealEmails` exists. The suite opens Email from that chrome and does not treat a missing overview link as a failure.
 
 ## Known failures
 
-`tests/e2e-roles/known-failures.js` is the only switch. Each test calls `onTest('FF-016')`. Delete that ticket's row when its PR is live on the targets listed. The assertions stay on the post-fix behavior, so a leftover row fails the run once the bug is gone. They are not skips.
-
-| Ticket | Expected while listed | Post-fix assertion |
-| --- | --- | --- |
-| FF-015 | TEST | Buyer and seller Fill In shows questions, fields, an upload, and Save progress |
-| FF-016 | mock and TEST | Buyer Share with CLA Title is the value `buyer` and the upload succeeds |
-| FF-017 | TEST | Buyer Share Files and the message list include processor, preprocessor, TC, and sales |
-| FF-NEW-2 | TEST (PR 107) | Contact edit keeps the stored email |
-| MF-024 | TEST | Invite shows the stored email and a copy link |
+`tests/e2e-roles/known-failures.js` is the only switch. A test may still call `onTest('FF-016')`. With the row gone, that call does not expect a failure, so the post-fix assertion has to pass. FF-015, FF-016, and FF-017 landed in PR 129. FF-NEW-2 landed in PR 124. MF-024 means Fill In, which is the same landed fix, and it is not the invite ticket. The list is empty, so the suite shows the current behavior.
