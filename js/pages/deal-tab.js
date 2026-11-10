@@ -9,10 +9,10 @@ const TABS = Object.assign(Object.create(null), {
   closing: './dealclosing.js?v=202611101015',
   agreements: './dealagreements.js?v=202611100245',
   accounting: './dealaccounting.js?v=202611111900',
-  title: './dealtitle.js?v=202611101015',
-  funding: './dealfwp.js?v=202611112000',
-  wires: './dealfwp.js?v=202611112000',
-  policy: './dealfwp.js?v=202611112000',
+  title: './dealtitle.js?v=202611112200',
+  funding: './dealfwp.js?v=202611112100',
+  wires: './dealfwp.js?v=202611112100',
+  policy: './dealfwp.js?v=202611112100',
 });
 const TASK_FORM = './dealtaskform.js?v=202611120100';
 

@@ -1,0 +1,26 @@
+# Fails a pull request that puts a per-row helper chain back into a policy
+# (create or alter), or that calls my_file_roles_full / agent_parties again
+# without the session cache.
+name: slow-pattern
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Known-slow patterns
+        run: node test/test-slow-patterns.js
