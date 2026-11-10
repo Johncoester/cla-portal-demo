@@ -66,8 +66,15 @@ ok(!staff.formHidden && staff.formData.citizenship === 'Canada' && staff.formDat
 const sql = readFileSync('supabase/migrations/20261112010000_buyer_personal_info.sql', 'utf8');
 const added = sql.slice(sql.indexOf('$buyer$'), sql.lastIndexOf('$buyer$'));
 ok(/md_first_time/.test(added) && /"states":\["MD"\]/.test(added) && !/ssn|spouse/i.test(added) && !/create function/i.test(sql), 'the migration adds the Maryland question, skips SSN and spouse match, and does not add a read');
+const turnedOff = sql.indexOf("set active = false where code = 'personal_info' and active");
+const inserted = sql.indexOf('insert into public.task_templates');
+ok(turnedOff > 0 && inserted > turnedOff, 'version 4 is deactivated before version 5 is inserted');
+const rollSql = readFileSync('supabase/rollbacks/20261112010000_buyer_personal_info.sql', 'utf8');
+const rollOff = rollSql.indexOf("set active = false where code = 'personal_info' and version = 5");
+const rollOn = rollSql.indexOf("set active = true where code = 'personal_info' and version = 4");
+ok(rollOff > 0 && rollOn > rollOff, 'the rollback turns version 5 off before version 4 comes back on');
 const hash = createHash('sha256').update(readFileSync('supabase/migrations/20261112010000_buyer_personal_info.sql')).digest('hex');
-const roll = createHash('sha256').update(readFileSync('supabase/rollbacks/20261112010000_buyer_personal_info.sql')).digest('hex');
+const roll = createHash('sha256').update(rollSql).digest('hex');
 console.log('buyer-personal-migration-sha256', hash);
 console.log('buyer-personal-rollback-sha256', roll);
 
