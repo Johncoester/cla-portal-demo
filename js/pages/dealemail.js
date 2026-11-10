@@ -9,6 +9,12 @@ import { applyFileTemplate } from '../data/file-email-templates.js?v=20261110200
 import { countUnreadEmails, emailMatchesQuery, isUnreadFileEmail } from '../data/file-email-unread.js?v=202611100930';
 const ROLE = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent', 'Transaction Coordinator': 'TC' };
 const list = (s) => String(s || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
+// A template fills To only while that box is empty. An address the sender adds, or a Cc, is kept.
+export function recipientsAfterTemplate(current, suggested, { fillIfEmpty = false } = {}) {
+  const cur = list(current);
+  if (fillIfEmpty && !cur.length) return list(Array.isArray(suggested) ? suggested.join(', ') : suggested);
+  return cur;
+}
 const isWire = (d) => d.wireInstructions || /\bwir(e|ed|es|ing)\b|wire[_ -]?instruction/i.test(d.name || '');
 const reSubject = (s) => (/^re:/i.test(String(s || '').trim()) ? String(s).trim() : `Re: ${String(s || '').trim()}`);
 
@@ -136,11 +142,12 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     if (!tplSel || !tplSel.value) { chosenTemplateKey = null; showWarn([]); return; }
     const t = templates.find((x) => x.id === tplSel.value); if (!t) return;
     const sender = { firstName: gmail.firstName || user.firstName, lastName: gmail.lastName || user.lastName };
-    const toNow = list($('[data-mail-to]', m).value);
+    const toNow = recipientsAfterTemplate($('[data-mail-to]', m).value, [], { fillIfEmpty: false });
     const opts = { toEmails: toNow, documents: docs, applyDefaultRecipients: toNow.length === 0, processorEmail: mergeDeal.processorEmail };
     const applied = applyFileTemplate(t, mergeDeal, sender, opts);
-    if (applied.suggestedTo && applied.suggestedTo.length && toNow.length === 0) $('[data-mail-to]', m).value = applied.suggestedTo.join(', ');
-    const to2 = list($('[data-mail-to]', m).value);
+    const kept = recipientsAfterTemplate(toNow.join(', '), applied.suggestedTo, { fillIfEmpty: toNow.length === 0 });
+    $('[data-mail-to]', m).value = kept.join(', ');
+    const to2 = kept;
     const applied2 = applyFileTemplate(t, mergeDeal, sender, { toEmails: to2, documents: docs, applyDefaultRecipients: false, processorEmail: mergeDeal.processorEmail });
     $('[data-mail-subject]', m).value = applied2.subject;
     ed.box.innerHTML = applied2.html || '<p><br></p>';
@@ -149,11 +156,7 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     $$('[data-mail-doc]', m).forEach((c) => { if (want.has(c.value)) c.checked = true; });
     showWarn([...(applied.warnings || []).filter((w) => /No .+ with an email/.test(w)), ...applied2.warnings]);
   };
-  if (tplSel) {
-    tplSel.addEventListener('change', applyChosen);
-    $('[data-mail-to]', m).addEventListener('change', () => { if (tplSel.value) applyChosen(); });
-    $('[data-mail-to]', m).addEventListener('blur', () => { if (tplSel.value) applyChosen(); });
-  }
+  if (tplSel) tplSel.addEventListener('change', applyChosen);
   const computerFiles = () => [...((($('[data-mail-files]', m) || {}).files) || [])];
   const paintFiles = () => { const listEl = $('[data-mail-file-list]', m); if (!listEl) return; const files = computerFiles();
     listEl.innerHTML = files.length ? files.map((f) => `<li data-mail-local>${esc(f.name)} <span class="muted">${fmtSize(f.size || 0)}</span></li>`).join('') : ''; };
