@@ -18,7 +18,7 @@ export async function render(ctx) {
   const { api, user, deal, refresh } = ctx;
   if (intakeDeal !== deal.id) { intakeDeal = deal.id; intakeOpen.clear(); }
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611102200')).render(ctx);
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611110300')).render(ctx);
   const allTasks = await api.listTasks(deal.id);
   // BUYER (Nov 4 call): the agreements are to-dos that open the agreement (no Agreements tab for the buyer); the buyer never gets a Listing Agent box (listing agent never shown)
   // SELLER MIRROR (Nov 4): the pure seller gets the same To-do list (agreements as to-dos) and never a Buyer's Agent box (the buyer's agent is never shown to the seller)
@@ -68,6 +68,7 @@ export async function render(ctx) {
       ${sideExpand(g)}
       ${g.tasks.length ? html`<div class="side-scroll"><table class="tbl striped"><thead><tr><th></th><th>Task</th><th>Assigned to</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>${g.tasks.map(row)}</tbody></table></div>` : html`<p class="muted small" data-side-empty>None on this side.</p>`}</details>`)}` : pure ? '' : html`<p class="muted" data-tasks-empty>No tasks have been created on this file yet.</p>`}
     <p class="muted small">Tasks are never deleted; use Edit &rarr; Cancelled to retire one. Reminders are queued in the outbox only and never sent from this build.</p></div>`;
+  const AUDS = [['buyer', 'Buyer'], ['seller', 'Seller'], ['listing_agent', 'Listing agent'], ['buyer_agent', 'Buyer agent'], ['sales_team', 'Sales team'], ['transaction_coordinator', 'Transaction coordinator'], ['internal', 'Internal only']];
   return { title: 'Tasks', crumbs: [['All Tasks']], body, mount(root) {
     $$('[data-tick]', root).forEach((c) => c.addEventListener('change', guard(async () => { try { await api.updateTask(c.dataset.tick, { status: c.checked ? 'done' : 'todo' }); } finally { refresh(); } })));
     $$('[data-remind]', root).forEach((b) => b.addEventListener('click', guard(async () => { const r = await api.sendTaskReminder(b.dataset.remind); toast(r.queued ? 'Reminder queued in the outbox (not sent)' : 'Already queued today'); })));
@@ -76,7 +77,7 @@ export async function render(ctx) {
     const slotOf = (id) => $(`[data-intake-slot="${(globalThis.CSS && CSS.escape ? CSS.escape(String(id)) : String(id).replace(/(["\\])/g, '\\$1'))}"]`, root);
     const showIntake = async (ids) => {
       if (!ids.length) return;
-      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611102200');
+      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611110300');
       await Promise.all(ids.map(async (id) => {
         const slot = slotOf(id); if (!slot) return;
         const box = slot.closest('details'); if (box) box.open = true;
@@ -106,12 +107,17 @@ export async function render(ctx) {
   } };
 
   function form(t) {
+    const picked = new Set(t && t.audiences ? t.audiences : []);
     const m = modal(t ? 'Edit task' : 'Add task', html`<form id="tf" class="form-grid"><label class="span2">Title *<input name="title" required maxlength="200" value="${t ? t.title : ''}"></label>
       <label class="span2">Details<textarea name="description" rows="2" maxlength="1000">${t ? t.description : ''}</textarea></label>
       ${t && t.participantId ? html`<p class="span2 muted">Assigned to ${t.ownerName} (${t.assignedRole}). Template v${t.templateVersion}.</p>` : html`<label>Assigned to<select name="assignedRole">${options(ROLES, t ? t.assignedRole : 'Processor')}</select></label>`}
       <label>Due date<input type="date" name="dueDate" value="${t && t.dueDate ? t.dueDate : ''}"></label>
       ${t ? html`<label>Status<select name="status">${options(['todo', 'in_progress', 'done', 'blocked', 'cancelled'], t.status, (s) => LABEL[s])}</select></label>` : ''}
+      <fieldset class="span2" data-one-off-audience><legend>Who may see it</legend>${AUDS.map(([v, l]) => html`<label class="chk"><input type="checkbox" name="audiences" value="${v}" ${picked.has(v) ? 'checked' : ''}> ${l}</label>`)}</fieldset>
+      <p class="span2 muted small">Leave this blank to follow the assigned role. A buyer audience is not shown to the seller, and a seller audience is not shown to the buyer.</p>
       <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
-    $('#tf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); if (t) await api.updateTask(t.id, f); else await api.createTask(deal.id, f); closeModal(); toast('Task saved'); refresh(); }));
+    $('#tf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target);
+      const audiences = $$('input[name=audiences]:checked', m).map((el) => el.value);
+      if (t) await api.updateTask(t.id, { ...f, audiences }); else await api.createTask(deal.id, { ...f, audiences }); closeModal(); toast('Task saved'); refresh(); }));
   }
 }

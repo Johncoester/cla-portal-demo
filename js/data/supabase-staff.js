@@ -105,7 +105,8 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
     async createTask(dealId, input = {}) {
       const u = await uid();
       const title = String(input.title || '').trim(); if (!title) throw new Error('Task title is required.');
-      return camel(ok(await sb.from('tasks').insert({ deal_id: dealId, title, description: input.description || '', assigned_role: input.assignedRole || 'Processor', status: 'todo', due_date: input.dueDate || null, kind: 'simple', created_by: u.id }).select('id, deal_id, title, description, assigned_role, status, due_date, kind, created_by').single()));
+      const audiences = Array.isArray(input.audiences) ? input.audiences.filter(Boolean) : (input.audiences ? [input.audiences] : []);
+      return camel(ok(await sb.from('tasks').insert({ deal_id: dealId, title, description: input.description || '', assigned_role: input.assignedRole || 'Processor', status: 'todo', due_date: input.dueDate || null, audiences: audiences.length ? audiences : null, kind: 'simple', created_by: u.id }).select('id, deal_id, title, description, assigned_role, status, due_date, audiences, kind, created_by').single()));
     },
     async listTaskTemplates() {
       await uid();
