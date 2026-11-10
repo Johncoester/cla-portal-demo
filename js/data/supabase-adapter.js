@@ -25,7 +25,7 @@ import { tcSupabase } from './supabase-tc.js?v=202611101015';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
 import { gmailSupabase } from './supabase-gmail.js?v=202611110300';
 import { nov5Supabase } from './supabase-nov5.js?v=202611110300';
-import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611102000';
+import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611110800';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611101015';
 import { staffSupabase } from './supabase-staff.js?v=202611110300';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
@@ -34,7 +34,7 @@ import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
 import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611101700';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
 import { propertyAddressOf } from './nov5-rules.js?v=202611101015';
-import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611110800';
+import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611110800';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow } from './contact-insert.js?v=202611101200';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
@@ -79,14 +79,16 @@ export async function createSupabaseAdapter(cfg) {
   const processorNames = () => {
     if (!procNames || Date.now() - procNamesAt > 300000) {
       procNamesAt = Date.now();
-      procNames = Promise.resolve().then(() => sb.from('profiles').select('id, first_name, last_name').in('role', PROCESSOR_PICK_ROLES))
-        .then((r) => { if (r.error) { procNames = null; return new Map(); } return new Map((r.data || []).map((p) => [p.id, nameOfProfile(p)])); }, () => { procNames = null; return new Map(); });
+      procNames = Promise.resolve().then(async () => {
+        if (!(await profileReadAllowed(sb))) return { data: [], error: null };
+        return sb.from('profiles').select('id, first_name, last_name').in('role', PROCESSOR_PICK_ROLES);
+      }).then((r) => { if (r.error) { procNames = null; return new Map(); } return new Map((r.data || []).map((p) => [p.id, nameOfProfile(p)])); }, () => { procNames = null; return new Map(); });
     }
     return procNames;
   };
   const withProcessorNames = async (deals, names) => {
     const miss = missingProcessorIds(deals, names);
-    if (miss.length) { try { const r = await sb.from('profiles').select('id, first_name, last_name').in('id', miss); (r.data || []).forEach((p) => names.set(p.id, nameOfProfile(p))); } catch (e) { /* names stay blank */ } }
+    if (miss.length && await profileReadAllowed(sb)) { try { const r = await sb.from('profiles').select('id, first_name, last_name').in('id', miss); (r.data || []).forEach((p) => names.set(p.id, nameOfProfile(p))); } catch (e) { /* names stay blank */ } }
     return names;
   };
   const types = async (ids) => new Map(ids.length ? (ok(await sb.rpc('contact_types', { p_ids: [...new Set(ids)] })) || []).map((r) => [r.contact_id, r.contact_type]) : []);
@@ -546,10 +548,11 @@ export async function createSupabaseAdapter(cfg) {
       if (!u || !u.id) return [];
       if (nav.userId() && nav.userId() !== u.id) return [];
       // Francis (Nov 6): a task copy for the viewer's own file-party row counts as theirs. CLA staff who run orders skip this read.
-      const mineIds = (u.isAdmin || runsOrdersCI(u)) ? Promise.resolve([]) : viewerParticipantIds(sb, dealId, u);
-      const got = await raw; const myParticipantIds = await mineIds;
+      // A one-off has no owner. The buyer's account role is Outside user; Client-Buyer is only the role on this file.
+      const onFileP = (u.isAdmin || runsOrdersCI(u)) ? Promise.resolve({ participantIds: [], roles: [] }) : viewerOnFile(sb, dealId, u);
+      const got = await raw; const onFile = await onFileP;
       if (nav.userId() && nav.userId() !== u.id) return [];
-      return mapHostedTaskList(got.rows, u, got.off, { myParticipantIds });
+      return mapHostedTaskList(got.rows, u, got.off, { myParticipantIds: onFile.participantIds, fileRoles: onFile.roles });
     },
     async getTask(id) { return fetchHostedTask(sb, id, await me()); },
     async getAgentTask(id) {

@@ -5,9 +5,18 @@ import { buildOrderOverview } from './order-overview.js?v=202611102000';
 import { canUseGmail } from './gmail-email.js?v=202611091801';
 
 const CONTACT_MS = 2000;
+/* A name lookup made with no user session sends the publishable key as Bearer and PostgREST answers 401.
+ * Sign-out clears the session while a file overview can still be resolving actor names. Skip that read. */
+export async function profileReadAllowed(sb) {
+  if (!sb || !sb.auth || typeof sb.auth.getSession !== 'function') return true;
+  try {
+    const got = await sb.auth.getSession();
+    return !!(got && got.data && got.data.session && got.data.session.access_token);
+  } catch (e) { return false; }
+}
 /* Email/phone is extra. A denied column or a read that never returns must not leave the file on "Loading this page." */
 async function processorContact(sb, id) {
-  if (!id) return null;
+  if (!id || !(await profileReadAllowed(sb))) return null;
   let timer;
   try {
     const res = await new Promise((resolve) => {
@@ -25,7 +34,7 @@ async function processorContact(sb, id) {
 export function orderOverviewSupabase({ sb, ok, camel, me, api }) {
   const names = async (ids) => {
     const want = [...new Set(ids.filter(Boolean))];
-    if (!want.length) return new Map();
+    if (!want.length || !(await profileReadAllowed(sb))) return new Map();
     const rows = camel(ok(await sb.from('profiles').select('id,first_name,last_name').in('id', want))) || [];
     return new Map(rows.map((p) => [p.id, `${p.firstName || ''} ${p.lastName || ''}`.trim()]));
   };

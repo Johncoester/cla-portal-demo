@@ -1,8 +1,10 @@
 /* Due dates count from opened, contract, or closing. A missing date stays blank.
    A processor can override one copy. A client cannot change a due date or see the other side.
    The Tasks tab already had title, assignee, and due date. Audience is the piece this adds. */
+import { readFileSync } from 'node:fs';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { taskDueDate } from '../js/data/due-date.js';
+import { shapeListedTask, fetchHostedTaskList } from '../js/data/task-actions.js';
 import { taskAdminView } from '../js/pages/task-admin.js';
 import { toText } from '../js/ui.js';
 
@@ -79,6 +81,25 @@ const blocked = await api.createTask(deal.id, { title: 'Seller role buyer audien
 await api.signInDev('u-buyer');
 const buyerSees = await api.listTasks(deal.id);
 ok(buyerSees.some((t) => t.id === oneOff.id) && !buyerSees.some((t) => t.id === sellerPacket.id) && !buyerSees.some((t) => t.id === blocked.id), 'the buyer sees the buyer audience and not the seller tasks');
+const outside = { id: 'd3af', role: 'Outside user' };
+const packet = shapeListedTask({ id: 't', kind: 'simple', status: 'todo', assignedRole: 'Client-Buyer', participantId: null, ownerProfileId: null, title: 'E2E buyer packet' }, outside, { fileRoles: ['Client-Buyer'] });
+ok(packet.mine && packet.canTick && !packet.notYours, 'an outside user who is the buyer on this file owns an unowned buyer task');
+const sellerOnly = shapeListedTask({ id: 's', kind: 'simple', status: 'todo', assignedRole: 'Client-Seller', participantId: null, ownerProfileId: null }, outside, { fileRoles: ['Client-Buyer'] });
+ok(!sellerOnly.mine && sellerOnly.notYours, 'that buyer does not own an unowned seller task');
+const accountOnly = shapeListedTask({ id: 't2', kind: 'simple', status: 'todo', assignedRole: 'Client-Buyer', participantId: null, ownerProfileId: null }, outside);
+ok(!accountOnly.mine, 'the Outside user account role alone does not own the buyer task');
+const hostedRow = { id: 'pkt', deal_id: 'deal-1', title: 'E2E buyer packet', assigned_role: 'Client-Buyer', status: 'todo', kind: 'simple', participant_id: null, owner_profile_id: null, due_date: '2026-12-20' };
+const hosted = {
+  from(table) {
+    const api = { select() { return api; }, eq() { return api; }, order() { return api; }, then(resolve) { resolve(table === 'tasks' ? { data: [hostedRow], error: null } : { data: [], error: null }); } };
+    return api;
+  },
+  rpc(name) { return name === 'deal_contacts' ? Promise.resolve({ data: [{ profile_id: 'd3af', participant_id: 'p-buyer', role: 'Client-Buyer' }], error: null }) : Promise.resolve({ data: null, error: { message: name } }); },
+};
+const listed = await fetchHostedTaskList(hosted, 'deal-1', outside);
+ok(listed.length === 1 && listed[0].mine && listed[0].canTick && listed[0].dueDate === '2026-12-20', 'the hosted list marks the one-off as the buyer on this file');
+const adapterSrc = readFileSync('js/data/supabase-adapter.js', 'utf8');
+ok(adapterSrc.includes('viewerOnFile') && adapterSrc.includes('fileRoles: onFile.roles'), 'the signed-in task list passes this file\'s roles into each row');
 await api.signInDev('u-seller');
 const sellerSees = await api.listTasks(deal.id);
 ok(!sellerSees.some((t) => t.id === oneOff.id) && sellerSees.some((t) => t.id === sellerPacket.id) && !sellerSees.some((t) => t.id === blocked.id), 'the seller sees the seller audience and not a buyer audience on their role');

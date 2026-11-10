@@ -94,5 +94,19 @@ const started = Date.now();
 const stuckOv = await stuck.getOrderOverview('deal-1');
 ok(stuckOv && stuckOv.parties.some((x) => x.label === 'Processor') && Date.now() - started < 3500, 'a processor contact read that never returns still finishes the overview');
 
+const signedOutCalls = [];
+const signedOut = orderOverviewSupabase({
+  sb: {
+    auth: { getSession: async () => ({ data: { session: null } }) },
+    from(table) { signedOutCalls.push(table); const q = { select() { return q; }, eq() { return q; }, in() { return q; }, order() { return q; }, maybeSingle() { return Promise.resolve({ data: null, error: null }); }, then(fn) { return Promise.resolve(fn({ data: [], error: null })); } }; return q; },
+  },
+  ok: (r) => { if (r && r.error) throw new Error(r.error.message); return r && r.data; },
+  camel,
+  me: async () => ({ id: 'u-buyer', role: 'Outside user' }),
+  api: { async getDeal() { return { ...deal, processorId: 'u-proc' }; }, async listTasks() { return []; }, async listDocuments() { return []; }, async listThreads() { return []; }, async listActivity() { return { items: [{ id: 'a', actorId: 'd3af9b26-44e1-4a72-b934-223a0982c49a', actorName: '' }] }; } },
+});
+const quiet = await signedOut.getOrderOverview('deal-1');
+ok(quiet && !signedOutCalls.includes('profiles'), 'a file overview does not read profiles after the session is gone');
+
 console.log(fail ? fail + ' failed' : 'order overview passed');
 if (fail) process.exit(1);

@@ -15,9 +15,12 @@ export function shapeListedTask(t, user, opts = {}) {
   if (!t) return t;
   const owner = t.ownerProfileId || t.ownerId || null;
   const roles = (user && (user.roles || [user.role])) || [];
+  // Hosted buyers and sellers are Outside user on the account. Client-Buyer is only their role on this file.
+  const fileRoles = Array.isArray(opts.fileRoles) ? opts.fileRoles : [];
+  const held = new Set([...roles, ...fileRoles].filter(Boolean));
   const mineIds = opts.myParticipantIds || [];
   const ownsCopy = !!(t.participantId && mineIds.includes(t.participantId) && (!owner || owner === user.id));
-  const mine = !!(user && (owner === user.id || ownsCopy || (!t.participantId && roles.includes(t.assignedRole))));
+  const mine = !!(user && (owner === user.id || ownsCopy || (!t.participantId && held.has(t.assignedRole))));
   const manager = !!(user && (runsOrders(user) || user.role === 'Transaction Coordinator'));
   const kind = t.kind || (t.templateId ? 'form' : 'simple');
   const readOnly = viewOnly(user);
@@ -54,13 +57,22 @@ export function pendingMine(tasks, statuses = ['todo', 'in_progress', 'blocked']
   });
 }
 
-export async function viewerParticipantIds(sb, dealId, user) {
-  if (!sb || typeof sb.rpc !== 'function' || !dealId || !user || !user.id) return [];
+export async function viewerOnFile(sb, dealId, user) {
+  const empty = { participantIds: [], roles: [] };
+  if (!sb || typeof sb.rpc !== 'function' || !dealId || !user || !user.id) return empty;
   try {
     const res = await sb.rpc('deal_contacts', { p_deal: dealId });
-    if (!res || res.error || !Array.isArray(res.data)) return [];
-    return res.data.filter((r) => r && r.profile_id === user.id && r.participant_id).map((r) => r.participant_id);
-  } catch (e) { return []; }
+    if (!res || res.error || !Array.isArray(res.data)) return empty;
+    const mine = res.data.filter((r) => r && r.profile_id === user.id);
+    return {
+      participantIds: mine.filter((r) => r.participant_id).map((r) => r.participant_id),
+      roles: [...new Set(mine.map((r) => r.role).filter(Boolean))],
+    };
+  } catch (e) { return empty; }
+}
+
+export async function viewerParticipantIds(sb, dealId, user) {
+  return (await viewerOnFile(sb, dealId, user)).participantIds;
 }
 
 export function mapHostedTaskList(rawRows, user, disabledCodes = [], opts = {}) {
@@ -78,8 +90,8 @@ function maySeeAnswers(t, user) {
   return !!(t.mine || (user && (runsOrders(user) || user.role === 'Transaction Coordinator')));
 }
 
-export function assembleHostedTask(rawRow, user, { template = null, formRpc = null, myParticipantIds = [] } = {}) {
-  const t = mapHostedTaskList([rawRow], user, [], { myParticipantIds })[0];
+export function assembleHostedTask(rawRow, user, { template = null, formRpc = null, myParticipantIds = [], fileRoles = [] } = {}) {
+  const t = mapHostedTaskList([rawRow], user, [], { myParticipantIds, fileRoles })[0];
   if (template && template.id) {
     t.template = { id: template.id, code: template.code, version: template.version, title: template.title };
     t.fields = fieldsForRole(template.fields || [], t.assignedRole);
@@ -118,15 +130,15 @@ export async function fetchHostedTaskRows(sb, dealId) {
 
 export async function fetchHostedTaskList(sb, dealId, user) {
   const got = await fetchHostedTaskRows(sb, dealId);
-  const myParticipantIds = await viewerParticipantIds(sb, dealId, user);
-  return mapHostedTaskList(got.rows, user, got.off, { myParticipantIds });
+  const onFile = await viewerOnFile(sb, dealId, user);
+  return mapHostedTaskList(got.rows, user, got.off, { myParticipantIds: onFile.participantIds, fileRoles: onFile.roles });
 }
 
 export async function fetchHostedTask(sb, id, user) {
   const res = await sb.from('tasks').select(HOSTED_TASK_COLUMNS).eq('id', id).single();
   if (res.error) throw new Error(res.error.message);
-  const myParticipantIds = await viewerParticipantIds(sb, res.data.deal_id, user);
-  const preview = mapHostedTaskList([res.data], user, [], { myParticipantIds })[0];
+  const onFile = await viewerOnFile(sb, res.data.deal_id, user);
+  const preview = mapHostedTaskList([res.data], user, [], { myParticipantIds: onFile.participantIds, fileRoles: onFile.roles })[0];
   let template = null;
   if (preview.templateId) {
     const tp = await sb.from('task_templates').select('id, code, version, title, fields').eq('id', preview.templateId).maybeSingle();
@@ -141,5 +153,5 @@ export async function fetchHostedTask(sb, id, user) {
   }
   let formRpc = null;
   if (preview.kind === 'form') formRpc = await sb.rpc('get_task_form', { p_task: id });
-  return assembleHostedTask(res.data, user, { template, formRpc, myParticipantIds });
+  return assembleHostedTask(res.data, user, { template, formRpc, myParticipantIds: onFile.participantIds, fileRoles: onFile.roles });
 }
