@@ -52,7 +52,7 @@ ok(!vaOpen.fields.some((f) => f.k === 'md_first_time') && vaOpen.fields.some((f)
 await api.signInDev('u-seller');
 const seller = (await api.listTasks(md.id)).find((t) => t.templateCode === 'personal_info' && t.assignedRole === 'Client-Seller');
 const sellerOpen = await api.getTask(seller.id);
-ok(!sellerOpen.fields.some((f) => f.k === 'citizenship' || f.k === 'md_first_time'), 'the seller copy does not get the buyer questions');
+ok(sellerOpen.fields.some((f) => f.k === 'citizenship') && !sellerOpen.fields.some((f) => f.k === 'md_first_time' || f.k === 'survey'), 'the seller copy gets citizenship and not the buyer-only Maryland or survey questions');
 
 await api.signInDev('u-bagent');
 let agent = null; let agentErr = '';

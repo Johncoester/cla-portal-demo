@@ -62,6 +62,49 @@ export const BUYER_PERSONAL_FIELDS = [
   buyerYn('md_first_time', 'Are you a first-time homebuyer in Maryland?', { states: ['MD'] }),
 ];
 const PERSONAL_V5 = [...PERSONAL_V4, ...BUYER_PERSONAL_FIELDS];
+const CLIENTS = ['Client-Buyer', 'Client-Seller'];
+const SELLER = ['Client-Seller'];
+const sellerYn = (k, label, extra = {}) => F(k, label, 'select', false, { opts: yn, roles: SELLER, ...extra });
+const SELLER_PERSONAL_FIELDS = [
+  sellerYn('ground_rent', 'Ground rent?'),
+  sellerYn('front_foot', 'Front foot benefit charge?'),
+  F('travel_dates', 'Travel dates', 'text', true, { roles: SELLER, when: ['leaving_town', 'Yes'] }),
+  sellerYn('homestead', 'Homestead?'),
+  sellerYn('tenants_after', 'Tenants at or after closing?'),
+  F('water_provider', 'Water service provider', 'text', false, { roles: SELLER }),
+  sellerYn('deceased_owners', 'Any vested owners deceased?'),
+  sellerYn('in_state', 'In-state resident?'),
+  sellerYn('name_changed', 'Name changed since purchase?'),
+  sellerYn('existing_survey', 'Existing survey?'),
+  sellerYn('bankruptcy', 'Ever declared bankruptcy?'),
+  F('water_meter', 'Water meter location', 'select', false, { opts: ['Inside', 'Outside'], roles: SELLER }),
+  F('water_meter_where', 'Where is the water meter?', 'text', false, { roles: SELLER }),
+  F('proceeds_statement', 'Seller proceeds', 'info', false, { roles: SELLER, text: 'I understand that all seller proceeds must be disbursed to the seller(s) of record. If the seller is an entity or trust, the proceeds must be disbursed directly to that entity or trust.' }),
+  F('proceeds_ack', 'I acknowledge and understand the above statement.', 'checkbox', true, { roles: SELLER }),
+];
+const SHARED_WITH_SELLER = ['citizenship', 'gender', 'date_of_birth', 'forwarding_address', 'leaving_town', 'divorce', 'primary_residence'];
+const PERSONAL_V6 = [...PERSONAL_V5.map((f) => SHARED_WITH_SELLER.includes(f.k) ? { ...f, roles: CLIENTS } : f), ...SELLER_PERSONAL_FIELDS];
+const ID_V2 = [
+  F('id_type', 'ID type', 'select', true, { opts: ["Driver's license", 'Passport', 'State ID', 'Military ID'] }),
+  F('id_expires', 'Expiration date', 'date', true),
+  F('id_document', 'ID document', 'doc', true, { roles: ['Client-Buyer'] }),
+  F('id_front', 'Identification, front', 'doc', true, { roles: SELLER }),
+  F('id_back', 'Identification, back', 'doc', true, { roles: SELLER }),
+];
+const HOA_V2 = [
+  none('No HOA or condo association'),
+  F('association_name', 'Association name', 'text', true),
+  F('assoc_type', 'Type', 'select', true, { opts: ['HOA', 'Condo'] }),
+  F('contact_name', 'Management contact', 'text'),
+  F('contact_email', 'Management email', 'email'),
+  F('dues_amount', 'Dues amount ($)', 'money', true),
+  F('payment_schedule', 'Payment schedule', 'select', true, { opts: ['Monthly', 'Quarterly', 'Annually'] }),
+  F('confirm_hoa', 'I have reviewed and confirm these HOA details.', 'checkbox', true),
+];
+const MORTGAGE_V2 = [
+  none('No mortgage on this property'),
+  F('mortgages', 'Mortgages', 'mortgages', false),
+];
 // Plain-English vesting explanations ("What do these mean?" button on Title vesting). General information only, not legal advice.
 export const VESTING_TYPES = [
   ['Sole owner', 'One person owns the property alone. Only that person signs to sell or borrow against it, and when they die it passes under their will (or state law if there is no will).'],
@@ -74,6 +117,9 @@ export const VESTING_HELP = { button: 'What do these mean?', title: 'Ways to hol
 export const TEMPLATE_DEFS = [
   { code: 'id_upload', version: 1, title: 'Upload photo ID', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], description: 'A clear photo or scan of a government ID.',
     fields: [F('id_type', 'ID type', 'select', true, { opts: ["Driver's license", 'Passport', 'State ID', 'Military ID'] }), F('id_expires', 'Expiration date', 'date', true), F('id_document', 'ID document', 'doc', true)] },
+  { code: 'id_upload', version: 2, title: 'Upload identification', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 121,
+    description: 'A clear photo or scan of a government ID. Sellers upload the front and the back.',
+    fields: ID_V2 },
   { code: 'personal_info', version: 1, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], description: 'Contact details and closing preferences.', fields: PERSONAL_V1 },
   { code: 'personal_info', version: 2, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], description: 'Contact details and closing preferences (v2 adds settlement type and power of attorney).',
     fields: [...PERSONAL_V1, F('settlement_type', 'In-person or online settlement?', 'select', true, { opts: ['In person', 'Online'] }),
@@ -94,6 +140,9 @@ export const TEMPLATE_DEFS = [
   { code: 'personal_info', version: 5, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 120,
     description: 'Contact details and closing preferences, power of attorney, and whether you are buying or selling as an entity. Buyers also answer citizenship, closing plans, and Maryland questions when the property is in Maryland.',
     fields: PERSONAL_V5 },
+  { code: 'personal_info', version: 6, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 121,
+    description: 'Buyer and seller personal details. Sellers also confirm proceeds, the property, and utilities. Spouse details are on the Spouse tab, not here.',
+    fields: PERSONAL_V6 },
   { code: 'title_vesting', version: 2, title: 'Title vesting', roles: ['Client-Buyer'], dueDays: 10, agentRoles: [], migration: 26, description: 'How the buyer(s) will hold title.',
     fields: [F('vesting_names', 'Name(s) exactly as they should appear on the deed', 'textarea', true),
       F('vesting_type', 'Manner of holding title', 'select', true, { opts: VESTING_TYPES.map(([o]) => o), help: VESTING_HELP }),
@@ -105,9 +154,15 @@ export const TEMPLATE_DEFS = [
     fields: [none('No HOA or condo association'), F('association_name', 'Association name', 'text', true), F('assoc_type', 'Type', 'select', true, { opts: ['HOA', 'Condo'] }),
       F('contact_name', 'Management contact', 'text'), F('contact_email', 'Management email', 'email'), F('dues_amount', 'Dues amount ($)', 'money', true),
       F('payment_schedule', 'Payment schedule', 'select', true, { opts: ['Monthly', 'Quarterly', 'Annually'] })] },
+  { code: 'hoa_info', version: 2, title: 'Confirm HOA Information', roles: ['Client-Seller'], dueDays: 7, agentRoles: ['Listing Agent'], migration: 121,
+    description: 'Review the HOA or condo details and confirm they are right.',
+    fields: HOA_V2 },
   { code: 'mortgage_info', version: 1, title: 'Outstanding mortgage', roles: ['Client-Seller'], dueDays: 7, agentRoles: ['Listing Agent'], description: 'Loans to be paid off at closing.',
     fields: [none('No mortgage on this property'), F('lender_name', 'Mortgage lender', 'text', true), F('lender_phone', 'Lender phone', 'phone', true),
       F('loan_last4', 'Last 4 digits of loan number', 'digits4', true), F('loan_type', 'Loan type', 'select', false, { opts: ['First mortgage', 'Second mortgage', 'HELOC'] })] },
+  { code: 'mortgage_info', version: 2, title: 'Outstanding Mortgage Information', roles: ['Client-Seller'], dueDays: 7, agentRoles: ['Listing Agent'], migration: 121,
+    description: 'Each mortgage to be paid off at closing. Add another mortgage if there is more than one.',
+    fields: MORTGAGE_V2 },
   { code: 'home_warranty', version: 1, title: 'Home warranty', roles: ['Client-Buyer'], dueDays: 14, agentRoles: ['Buyer Agent', 'Listing Agent'], description: 'Home warranty purchased with the property, if any.',
     fields: [none('No home warranty'), F('company', 'Warranty company', 'text', true), F('price', 'Price ($)', 'money', true),
       F('paid_by', 'Paid by', 'select', true, { opts: ['Buyer', 'Seller', 'Buyer Agent', 'Listing Agent'] })] },
@@ -159,10 +214,22 @@ export function fieldsForFile(fields, deal) {
 }
 /* Clean + validate a form. complete=false (save partial work): only checks values that are filled in. complete=true: required fields must be filled.
  * Returns { data, errors: [{k, msg}] }. Unknown keys are dropped. */
+function cleanMortgages(raw) {
+  let list = [];
+  if (Array.isArray(raw)) list = raw;
+  else if (raw) { try { const parsed = JSON.parse(String(raw)); if (Array.isArray(parsed)) list = parsed; } catch (e) { list = []; } }
+  return list.map((m) => ({
+    lender: String((m && m.lender) || '').trim().slice(0, 200),
+    phone: String((m && m.phone) || '').trim().slice(0, 40),
+    last4: String((m && m.last4) || '').replace(/\D/g, '').slice(0, 4),
+    loan_type: String((m && m.loan_type) || '').trim().slice(0, 40),
+  })).filter((m) => m.lender || m.last4 || m.phone);
+}
 export function validateForm(fields, input, complete) {
   const data = {}; const errors = [];
   for (const f of fields) {
     let v = input[f.k];
+    if (f.type === 'mortgages') { data[f.k] = JSON.stringify(cleanMortgages(v)); continue; }
     if (f.type === 'checkbox') { if (v === true || v === 'on' || v === 'true') data[f.k] = true; continue; }
     if (f.type === 'info') continue;   // text shown on the form, never an answer
     v = v == null ? '' : String(v).trim().slice(0, f.type === 'textarea' ? 2000 : 300);
@@ -173,6 +240,11 @@ export function validateForm(fields, input, complete) {
     data[f.k] = v;
   }
   for (const f of fields) {
+    if (f.type === 'mortgages') {
+      if (!fieldActive(f, data)) { delete data[f.k]; continue; }
+      if (complete && !cleanMortgages(data[f.k]).length) errors.push({ k: f.k, msg: 'Add at least one mortgage, or mark that there is none.' });
+      continue;
+    }
     if (f.type === 'checkbox') { if (!fieldActive(f, data)) delete data[f.k]; else if (complete && f.req && !data[f.k]) errors.push({ k: f.k, msg: `Please tick: ${f.label}.` }); continue; }
     if (f.type === 'info') continue;
     if (!fieldActive(f, data)) { delete data[f.k]; continue; }
@@ -215,6 +287,7 @@ export function applyNov3Templates(d, { at = new Date().toISOString(), by = null
  * copies (todo, nothing saved) of OLDER versions move onto it while it is the active version. Idempotent. Mirrored in SQL (migration 31). */
 export const NOV3B_MARKERS = { personal_info: 'entity_rep_name' };
 export const BUYER_PERSONAL_MARKERS = { personal_info: 'citizenship' };
+export const SELLER_TASK_MARKERS = { personal_info: 'proceeds_ack', id_upload: 'id_front', hoa_info: 'confirm_hoa', mortgage_info: 'mortgages' };
 export function applyNov3bTemplates(d, { at = new Date().toISOString(), by = null } = {}) {
   const added = []; let moved = 0;
   for (const def of TEMPLATE_DEFS.filter((t) => t.migration === 31)) {
@@ -243,6 +316,26 @@ export function applyBuyerPersonal(d, { at = new Date().toISOString(), by = null
       const top = vs.slice().sort((a, b) => b.version - a.version)[0]; const version = top ? Math.max(top.version + 1, def.version) : def.version;
       nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: top ? [...(top.agentRoles || [])] : [...def.agentRoles], active: true, publishedBy: by, publishedAt: at };
       if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-buyer`;
+      vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
+    }
+    if (!nt.active) continue;
+    d.tasks.filter((t) => t.templateCode === def.code && t.templateId !== nt.id && t.kind === 'form' && t.status === 'todo' && !t.savedAt && !Object.keys(t.formData || {}).length
+      && (d.taskTemplates.find((z) => z.id === t.templateId) || { version: 0 }).version < nt.version)
+      .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
+  }
+  return { added, moved };
+}
+
+/* FF-021: seller personal questions, front-and-back ID, HOA confirmation, and repeatable mortgages.
+ * Untouched to-do copies move forward. Copies that already have answers stay put. */
+export function applySellerTasks(d, { at = new Date().toISOString(), by = null } = {}) {
+  const added = []; let moved = 0;
+  for (const def of TEMPLATE_DEFS.filter((t) => t.migration === 121)) {
+    const vs = d.taskTemplates.filter((t) => t.code === def.code); let nt = vs.find((t) => hasMarker(t, SELLER_TASK_MARKERS[def.code]));
+    if (!nt) {
+      const top = vs.slice().sort((a, b) => b.version - a.version)[0]; const version = top ? Math.max(top.version + 1, def.version) : def.version;
+      nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: top ? [...(top.agentRoles || [])] : [...def.agentRoles], active: true, publishedBy: by, publishedAt: at };
+      if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-seller`;
       vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
     }
     if (!nt.active) continue;
