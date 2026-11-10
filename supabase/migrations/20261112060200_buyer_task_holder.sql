@@ -53,10 +53,11 @@ begin
     join public.contacts c on c.id = dp.contact_id
     where dp.id = t.participant_id and c.profile_id = private.effective_uid()
   );
-  if not (
+  if not coalesce(
     private.form_owner_or_manager(t.owner_profile_id)
     or private.agent_can_fill(p_task)
-    or (t.owner_profile_id is null and own_copy)
+    or (t.owner_profile_id is null and own_copy),
+    false
   ) then raise exception 'Only the person, the processor and the coordinator can see these answers'; end if;
   d := t.form_data;
   if not (t.owner_profile_id = private.effective_uid() or private.is_processor() or (t.owner_profile_id is null and own_copy)) then
@@ -82,7 +83,7 @@ begin
   holder := t.owner_profile_id is null and own_copy;
   if holder then t.owner_profile_id := private.effective_uid(); end if;
   for_client := t.owner_profile_id is distinct from private.effective_uid() and private.agent_can_fill(p_task);
-  if t.kind <> 'form' or t.status = 'cancelled' or not (t.owner_profile_id = private.effective_uid() or private.is_manager() or for_client or holder) then raise exception 'You cannot fill in this task.'; end if;
+  if t.kind <> 'form' or t.status = 'cancelled' or not coalesce(t.owner_profile_id = private.effective_uid() or private.is_manager() or for_client or holder, false) then raise exception 'You cannot fill in this task.'; end if;
   select * into tp from public.task_templates where id = t.template_id;
   clean := private.validate_form(private.fields_for_role(tp.fields, t.assigned_role), coalesce(p_data, '{}'), p_complete, t.deal_id);
   prev := coalesce(t.saved_by, t.completed_by);

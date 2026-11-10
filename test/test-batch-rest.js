@@ -40,7 +40,7 @@ ok(await roleOf('u-ph1') === 'Employee', 'archiving the employee returns those f
 await api.updateHrEmployee('hre-01', { designationId: 'hrg-proc' });
 ok(await roleOf('u-admin') === 'Super admin', 'giving the Super admin a Processor designation does not change that login');
 const hrSql = read('supabase/migrations/20261112060500_hr_processor_role.sql');
-ok(hrSql.includes('auth.uid()') && hrSql.includes('private.is_admin()') && hrSql.includes("'Employee'"), 'the role sync skips the caller unless they are an admin, and a removed designation returns Employee');
+ok(hrSql.includes('private.effective_uid()') && hrSql.includes('private.is_admin()') && hrSql.includes("'Employee'"), 'the role sync skips the caller unless they are an admin, and a removed designation returns Employee');
 
 const deal = { participants: [
   { role: 'Client-Buyer', contact: { firstName: 'Ben', lastName: 'Buyer', email: 'ben.buyer@example.test' } },

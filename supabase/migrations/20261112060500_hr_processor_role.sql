@@ -20,7 +20,7 @@ as $function$
   where p.id = p_profile
     and coalesce(p.is_admin, false) = false
     and p.role not in ('Admin', 'Super admin', 'Outside user')
-    and (coalesce(private.is_admin(), false) or p.id is distinct from auth.uid())
+    and (coalesce(private.is_admin(), false) or p.id is distinct from private.effective_uid())
     and (
       (not p_reverting and p.role in ('Employee', 'Processor', 'Preprocessor', 'Sales Person', 'Transaction Coordinator'))
       or (p_reverting and p.role in ('Processor', 'Preprocessor', 'Sales Person', 'Transaction Coordinator'))
@@ -95,7 +95,7 @@ begin
   if position('is_admin' in src) = 0 and position('hr_apply_portal_role' in src) = 0 then
     raise exception 'readback: the admin flag is not left alone';
   end if;
-  if position('auth.uid()' in (select p.prosrc from pg_proc p where p.oid = 'private.hr_apply_portal_role(uuid,text,boolean)'::regprocedure)) = 0 then
+  if position('private.effective_uid()' in (select p.prosrc from pg_proc p where p.oid = 'private.hr_apply_portal_role(uuid,text,boolean)'::regprocedure)) = 0 then
     raise exception 'readback: HR can still change their own portal role';
   end if;
   if position('Employee' in (select p.prosrc from pg_proc p where p.oid = 'private.trg_hr_designation_portal_role()'::regprocedure)) = 0 then

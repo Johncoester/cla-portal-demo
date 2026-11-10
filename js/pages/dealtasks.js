@@ -6,7 +6,7 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate,
 import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611101015';
 import { boxTasks, boxOfRole } from '../data/task-board.js?v=202611101015';
 import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611101015';
-import { taskOpenHref } from '../data/task-actions.js?v=202611120200';
+import { taskOpenHref } from '../data/task-actions.js?v=202611121200';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
@@ -19,8 +19,8 @@ export async function render(ctx) {
   const { api, user, deal, refresh } = ctx;
   if (intakeDeal !== deal.id) { intakeDeal = deal.id; intakeOpen.clear(); }
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611120900')).render(ctx);
-  const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611120800');
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611121200')).render(ctx);
+  const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611121200');
   const allTasks = tasksWithLenderOnFile(await api.listTasks(deal.id), deal);
   // BUYER (Nov 4 call): the agreements are to-dos that open the agreement (no Agreements tab for the buyer); the buyer never gets a Listing Agent box (listing agent never shown)
   // SELLER MIRROR (Nov 4): the pure seller gets the same To-do list (agreements as to-dos) and never a Buyer's Agent box (the buyer's agent is never shown to the seller)
@@ -79,8 +79,8 @@ export async function render(ctx) {
     const slotOf = (id) => $(`[data-intake-slot="${(globalThis.CSS && CSS.escape ? CSS.escape(String(id)) : String(id).replace(/(["\\])/g, '\\$1'))}"]`, root);
     const showIntake = async (ids) => {
       if (!ids.length) return;
-      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611120900');
-      const { loadSpouseRows, applySpouse } = await import('./spouse.js?v=202611120700');
+      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611121200');
+      const { loadSpouseRows, applySpouse } = await import('./spouse.js?v=202611121200');
       const wantsSpouse = ids.some((id) => { const t = tasks.find((z) => z.id === id); return t && t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller'); });
       const spouseRows = wantsSpouse ? await loadSpouseRows(api, deal.id) : [];
       await Promise.all(ids.map(async (id) => {
