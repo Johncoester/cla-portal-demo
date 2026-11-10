@@ -100,6 +100,27 @@ export function speculativeReads() {
   };
 }
 
+/* One order's reads kept across navigations (a tab switch inside the same order), for one person and a short time.
+ * Another person, an old entry, or a failed read is not reused. The adapter drops them all on any write or auth change. */
+export function carriedReads({ ttlMs = 30000, now = () => Date.now() } = {}) {
+  let box = new Map();
+  return {
+    clear() { box = new Map(); },
+    get(owner, key) {
+      const entry = box.get(key);
+      if (!entry) return null;
+      if (!owner || entry.owner !== owner || now() - entry.at > ttlMs) { box.delete(key); return null; }
+      return entry.promise;
+    },
+    keep(owner, key, promise) {
+      if (!owner) return;
+      const entry = { owner, promise: Promise.resolve(promise), at: now() };
+      box.set(key, entry);
+      entry.promise.catch(() => { if (box.get(key) === entry) box.delete(key); });
+    },
+  };
+}
+
 /* The person remembered for this navigation. An auth change drops them. */
 export function identitySlot() {
   let gen = 0;

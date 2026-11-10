@@ -38,8 +38,15 @@ const flags = { funding: true, accounting: true };
 const calls = [];
 const store = { deals: [{ ...deal }], funding_records: [], funding_funds: [], funding_checks: [], funding_disbursements: [], accounting_fees: [], tasks: [], deal_participants: [], contacts: [] };
 const api = fundingSupabase({ sb: fakeSb(store, calls), ok: pass, flags, me: staff });
+const before = calls.length;
 const opened = await api.getFunding('file-1');
-check(opened.record && opened.record.status === 'pending' && opened.funds.length === 3 && opened.disbursements.some((d) => !d.id), 'opening funding creates the record and shows the three fund lines');
+const openReads = calls.slice(before).filter((c) => c.table);
+check(opened.record && opened.record.status === 'pending' && opened.funds.length === 3 && opened.record.id === '' && !store.funding_records.length, 'opening funding shows a blank record and does not write');
+check(openReads.length === 4 && openReads.every((c) => c.op === 'select'), 'the funding detail reads 4 tables');
+const checkCalls = [];
+const checkApi = fundingSupabase({ sb: fakeSb(store, checkCalls), ok: pass, flags, me: staff });
+await checkApi.getFunding('file-1', { section: 'checks' });
+check(checkCalls.filter((c) => c.table).length === 6, 'the checks section reads 6 tables');
 const saved = await api.saveFunding('file-1', { lender: 'Example Home Loans (fake)', balancedWithLender: 'true', sellerProceedsAmount: '10', checksDisbursed: '2' });
 check(saved.record.lender.includes('fake') && saved.record.balancedWithLender === true && saved.record.sellerProceedsAmount === 10, 'funding figures save');
 await api.saveFundingFund('file-1', 'emd', { status: 'received', pending: 'false', amount: '5' });
@@ -61,6 +68,8 @@ let offMsg = '';
 try { await off.listFundingQueue(); } catch (e) { offMsg = e.message; }
 check(/turned off/.test(offMsg), 'the funding flag refuses the queue');
 check(!calls.some((c) => /send/i.test(c.rpc || '')), 'opening and saving funding does not send');
+const dealPage = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
+check(!dealPage.includes('getFunding(') && !dealPage.includes('listFundingQueue'), 'a file overview does not open funding');
 
 function walk(file, missing, seen = new Set()) {
   const rel = file.replace(/\\/g, '/');

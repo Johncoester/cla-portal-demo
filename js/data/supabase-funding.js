@@ -70,29 +70,42 @@ export function fundingSupabase({ sb, ok, flags, me }) {
       return { balanced: !!t.balanced, receipts: t.receipts, disbursements: t.disbursements, difference: t.difference, dueToSeller: t.dueToSeller, dueToBuyer: t.dueToBuyer };
     } catch (e) { return { balanced: false, receipts: 0, disbursements: 0, difference: 0, dueToSeller: 0, dueToBuyer: 0 }; }
   };
-  const view = async (deal, row) => {
-    const funds = await child('funding_funds', deal.id);
-    const checks = (await child('funding_checks', deal.id)).map(checkView);
-    const disbursements = (await child('funding_disbursements', deal.id)).map(disbView);
-    const record = recordView(row);
+  const blankRecord = (deal) => recordView({ id: '', deal_id: deal.id, lender: deal.lender_name || '', status: 'pending' });
+  const view = async (deal, row, section) => {
+    const checksSection = section === 'checks';
+    const [funds, checkRows, disbRows, books] = await Promise.all([
+      child('funding_funds', deal.id),
+      child('funding_checks', deal.id),
+      checksSection ? child('funding_disbursements', deal.id) : Promise.resolve([]),
+      checksSection ? ledger(deal) : Promise.resolve(null),
+    ]);
+    const checks = checkRows.map(checkView);
+    const disbursements = disbRows.map(disbView);
+    const record = row ? recordView(row) : blankRecord(deal);
     const fundRows = R.FUND_KINDS.map(([kind]) => fundView(funds.find((f) => f.kind === kind), kind));
     const readiness = R.fundingReadiness(record, fundRows, checks);
     const blockers = [...readiness.missing];
     if (!record.wireTeamNotifiedAt) blockers.push('Wire team notified to release');
     if (disbursements.some((z) => z.status !== 'void' && z.id && (!z.invoiceVerified || !z.printed || (['check', 'overnight'].includes(z.method || 'check') && !z.fedexTracking)))) blockers.push('Every check invoice-verified, printed and given FedEx tracking');
-    disbursements.push(disbView({ kind: 'other', status: 'undisbursed', method: 'check' }));
-    return { deal: queueRow(deal, record), record, funds: fundRows, checks, disbursements, readiness, blockers, ledger: await ledger(deal), canEdit: true };
+    if (checksSection) disbursements.push(disbView({ kind: 'other', status: 'undisbursed', method: 'check' }));
+    return { deal: queueRow(deal, record), record, funds: fundRows, checks, disbursements, readiness, blockers, ledger: books || { balanced: false, receipts: 0, disbursements: 0, difference: 0, dueToSeller: 0, dueToBuyer: 0 }, canEdit: true };
   };
 
   return {
     async listFundingQueue() {
       await gate();
-      const deals = ok(await sb.from('deals').select(DEAL)) || [];
-      const rows = ok(await sb.from('funding_records').select('*').is('deleted_at', null)) || [];
+      const [deals, rows] = await Promise.all([
+        sb.from('deals').select(DEAL),
+        sb.from('funding_records').select('*').is('deleted_at', null),
+      ]).then((rs) => rs.map((r) => ok(r) || []));
       const by = new Map(rows.map((r) => [r.deal_id, r]));
       return deals.filter((d) => (d.status === 'Closed' || Number(d.stage) >= 2 || d.closing_date) && !(by.get(d.id) && by.get(d.id).disbursed_at)).map((d) => queueRow(d, by.get(d.id) ? recordView(by.get(d.id)) : null)).sort((a, b) => String(a.closingDate || '').localeCompare(String(b.closingDate || '')));
     },
-    async getFunding(dealId) { await gate(); const deal = await dealOf(dealId); return view(deal, await ensure(dealId, deal)); },
+    async getFunding(dealId, { section = 'detail' } = {}) {
+      await gate();
+      const [deal, cur] = await Promise.all([dealOf(dealId), recordRow(dealId)]);
+      return view(deal, cur && !cur.deleted_at ? cur : null, section);
+    },
     async saveFunding(dealId, input = {}) {
       await gate();
       const deal = await dealOf(dealId);
@@ -173,7 +186,7 @@ export function fundingSupabase({ sb, ok, flags, me }) {
     async markFundingDisbursed(dealId) {
       await gate();
       const deal = await dealOf(dealId);
-      const v = await view(deal, await ensure(dealId, deal));
+      const v = await view(deal, await ensure(dealId, deal), 'checks');
       if (v.blockers.length) throw new Error(`Not ready to disburse: ${v.blockers.join('; ')}`);
       await run(sb.from('funding_records').update({ status: 'disbursed', disbursed_at: new Date().toISOString() }).eq('deal_id', dealId).select('id').single());
       return true;
