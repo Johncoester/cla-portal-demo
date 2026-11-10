@@ -12,7 +12,8 @@ export default defineConfig({
   timeout: 90000,
   expect: { timeout: 15000 },
   fullyParallel: true,
-  workers: process.env.CI ? 2 : 2,
+  // CI uses one browser. Two workers against TEST doubled the REST rate and filled the 20-connection pool.
+  workers: process.env.CI ? 1 : 2,
   retries: 0,
   outputDir: path.join(here, 'test-results'),
   reporter: [['list'], ['./summary-reporter.js']],

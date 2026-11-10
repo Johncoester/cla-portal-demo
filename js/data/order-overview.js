@@ -57,12 +57,13 @@ export function buildOrderOverview({ deal, me, tasks = [], documents = [], threa
     const ms = t.messages || []; const last = ms[ms.length - 1];
     return { id: t.id, subject: t.subject || '', lastAt: last ? last.createdAt : t.createdAt, lastFrom: last ? (last.authorName || '') : '', lastBody: last ? String(last.body || '').slice(0, 120) : '', unread: t.unread || 0 };
   }).sort((a, b) => String(b.lastAt || '').localeCompare(String(a.lastAt || '')));
+  const activityDeferred = activity == null;
   const act = (activity || []).map((a) => ({ id: a.id, createdAt: a.createdAt, action: a.action, detail: a.detail, actorName: a.actorName || '' }));
   const emdPending = pureBuyer && visibleTasks.some((t) => t.assignedRole === 'Client-Buyer' && EMD_RECEIPT.test(t.title || '') && OPEN.includes(t.status));
   return { progress: phaseOf(deal), outstanding, emdPending,
-    counts: { tasks: staff ? openAll.length : outstanding, inbox: conversations.reduce((n, t) => n + (t.unread || 0), 0), threads: conversations.length, documents: docs.length, activity: act.length, email: Number(emailUnread) || 0 },
+    counts: { tasks: staff ? openAll.length : outstanding, inbox: conversations.reduce((n, t) => n + (t.unread || 0), 0), threads: conversations.length, documents: docs.length, activity: activityDeferred ? null : act.length, email: Number(emailUnread) || 0 },
     orderDetails: { propertyAddress: deal.address || [deal.street, [deal.city, deal.state, deal.zip].filter(Boolean).join(' ')].filter(Boolean).join(', '), orderId: deal.id, orderType: deal.transactionType || 'Purchase', refinance: refi, purchasePrice: refi ? null : deal.purchasePrice, loanAmount: deal.loanAmount, fileNumber: deal.fileNumber, agencyLicenseId: '' },
-    parties, recentActivity: act.slice(0, 6), conversations: conversations.slice(0, 5),
+    parties, recentActivity: act.slice(0, 6), activityDeferred, conversations: conversations.slice(0, 5),
     canRequestUpdate: !staff && !!sideOf(actor.role) && !readOnly, canShareAccess: (agentHere || (actor.roles || [actor.role]).includes('Client-Buyer') || (actor.roles || [actor.role]).includes('Client-Seller')) && !readOnly,
     canAnswerUpdates: staff && (actor.isAdmin || actor.role === 'Processor' || actor.role === 'Preprocessor' || actor.role === 'Transaction Coordinator'),
     updateTopics: UPDATE_TOPICS, permissions: ORG_PERMISSIONS };

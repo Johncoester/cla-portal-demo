@@ -105,6 +105,10 @@ check(dash.includes('needsTasks') && dash.includes('getWorkQueue({ deals })'), '
 const adapter = readFileSync(new URL('../js/data/supabase-adapter.js', import.meta.url), 'utf8');
 check(adapter.includes('gatherReads') && adapter.includes('profile.clear()') && adapter.includes('nav.clear()') && adapter.includes('read-batch.js?v=202611082200') && adapter.includes('supabase-staff.js?v=202611110300'), 'order reads overlap, sign-out drops the profile, and the staff module stamp is current');
 check(adapter.includes('task-actions.js?v=202611110800') && adapter.includes('supabase-order-overview.js?v=202611110800') && adapter.includes('supabase-tc.js?v=202611101015') && !adapter.includes('task-actions.js?v=202611070139') && !adapter.includes('supabase-order-overview.js?v=202611071845'), 'the changed hosted modules are imported at the current stamp');
+check(adapter.includes("fileRead('roles#' + fileGen") && adapter.includes("fileRead('activity#' + fileGen"), 'file roles and the activity log are reused for the page');
+const warm = adapter.slice(adapter.indexOf('function warmFile'));
+const overview = warm.slice(warm.indexOf("tab === 'overview'"), warm.indexOf("fileRead('shell:'"));
+check(!overview.includes('listActivity') && warm.includes("tab === 'activity' && a.listActivity"), 'activity_log is requested when the activity tab opens');
 const appSrc = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 check(appSrc.includes("adapter.js?v=202611110800") && appSrc.includes("deal.js?v=202611110800") && appSrc.includes("dashboard.js?v=202611110800") && appSrc.includes("ordernew.js?v=202611110300") && appSrc.includes("prefetchDealTab") && !appSrc.includes('modsEarly'), 'the shell loads the current adapter and does not reuse an early module map');
 const taskPage = readFileSync(new URL('../js/pages/dealtasks.js', import.meta.url), 'utf8');

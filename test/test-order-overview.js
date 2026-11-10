@@ -31,12 +31,14 @@ let threw = false; try { buildOrderOverview({ deal: null, me: { id: 'u' } }); } 
 ok(threw, 'a missing order is an error');
 
 const calls = [];
+let activityCalls = 0;
 const chain = (rows) => { const q = { select() { return q; }, eq() { return q; }, in() { return q; }, order() { return q; }, maybeSingle() { return Promise.resolve({ data: null, error: null }); }, then(fn) { return Promise.resolve(fn({ data: rows, error: null })); } }; return q; };
 const sb = { from(table) { calls.push(table); return chain([]); } };
-const api = { async getDeal(id) { if (id === 'missing') throw new Error('Order not found.'); return deal; }, async listTasks() { return tasks; }, async listDocuments() { return []; }, async listThreads() { return [{ id: 'th', subject: 'Hello', messages: [] }]; }, async listActivity() { return { items: [{ id: 'a', createdAt: '2026-11-01T00:00:00Z', action: 'note', detail: 'Opened', actorName: 'Paula' }] }; } };
+const api = { async getDeal(id) { if (id === 'missing') throw new Error('Order not found.'); return deal; }, async listTasks() { return tasks; }, async listDocuments() { return []; }, async listThreads() { return [{ id: 'th', subject: 'Hello', messages: [] }]; }, async listActivity() { activityCalls += 1; return { items: [{ id: 'a', createdAt: '2026-11-01T00:00:00Z', action: 'note', detail: 'Opened', actorName: 'Paula' }] }; } };
 const supa = orderOverviewSupabase({ sb, ok: (r) => { if (r.error) throw new Error(r.error.message); return r.data; }, camel: (o) => o, me: async () => ({ id: 'u-proc', role: 'Processor' }), api });
 const ov = await supa.getOrderOverview('deal-1');
-ok(ov.parties.some((p) => p.label === 'Buyer') && ov.counts.documents === 0 && ov.conversations[0].subject === 'Hello' && ov.recentActivity[0].detail === 'Opened', 'supabase overview uses the deal, tasks, threads, and activity it was given');
+ok(activityCalls === 0 && ov.activityDeferred === true && ov.recentActivity.length === 0 && ov.counts.activity == null, 'supabase overview does not read activity_log');
+ok(ov.parties.some((p) => p.label === 'Buyer') && ov.counts.documents === 0 && ov.conversations[0].subject === 'Hello', 'supabase overview uses the deal, tasks, and threads it was given');
 let missing = false; try { await supa.getOrderOverview('missing'); } catch (e) { missing = /not found/i.test(e.message); }
 ok(missing, 'supabase overview does not replace a missing file with an empty page');
 const ur = await supa.listUpdateRequests('deal-1');
@@ -107,6 +109,12 @@ const signedOut = orderOverviewSupabase({
 });
 const quiet = await signedOut.getOrderOverview('deal-1');
 ok(quiet && !signedOutCalls.includes('profiles'), 'a file overview does not read profiles after the session is gone');
+const { shouldQuietRest } = await import('../js/data/supabase-adapter.js');
+ok(shouldQuietRest('https://example.supabase.co/rest/v1/profiles?select=id,first_name,last_name&id=in.(d3af)', true), 'a profiles name read is skipped after sign-out');
+ok(shouldQuietRest('https://example.supabase.co/rest/v1/rpc/contact_types', true), 'contact_types is skipped after sign-out');
+ok(!shouldQuietRest('https://example.supabase.co/rest/v1/rpc/portal_invite_lookup', true), 'an invite lookup still runs with no session');
+ok(!shouldQuietRest('https://example.supabase.co/auth/v1/token?grant_type=password', true), 'sign-in itself is not a REST read');
+ok(!shouldQuietRest('https://example.supabase.co/rest/v1/rpc/contact_types', false), 'contact_types runs while a session is open');
 
 console.log(fail ? fail + ' failed' : 'order overview passed');
 if (fail) process.exit(1);

@@ -48,19 +48,41 @@ import { filterListedDocuments, shapeListedDocument } from './document-list.js?v
 import { authEventAction, gatherReads, identitySlot, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611082200';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
+// These stay reachable with no user session. Everything else under /rest/v1/ is skipped after sign-out,
+// because the publishable key is not a JWT and PostgREST answers 401.
+const PUBLIC_REST = /\/rest\/v1\/rpc\/(portal_invite_lookup|agent_invite_lookup|hr_invite_lookup|scheduling_get|scheduling_respond)(?:\?|$)/;
+export function shouldQuietRest(url, signedOut) {
+  const u = String(url || '');
+  if (!signedOut || !u.includes('/rest/v1/') || PUBLIC_REST.test(u)) return false;
+  return true;
+}
+export function quietRestResponse(url) {
+  const rpc = String(url || '').includes('/rest/v1/rpc/');
+  return new Response(rpc ? 'null' : '[]', { status: 200, headers: { 'content-type': 'application/json' } });
+}
 
 export async function createSupabaseAdapter(cfg) {
   if (!cfg || !cfg.url || !cfg.anonKey) throw new Error('Supabase mode needs a project URL and a publishable key. There is no mock fallback.');
   if (typeof localStorage !== 'undefined') { try { localStorage.removeItem('cla-portal-new:data:v30'); } catch (e) { /* a browser that blocks storage still must not load fixtures */ } }
   const { createClient } = await import(SB);
-  const sb = createClient(cfg.url, cfg.anonKey);
+  let signedOut = false;
+  const sb = createClient(cfg.url, cfg.anonKey, {
+    global: {
+      fetch(input, init) {
+        const url = typeof input === 'string' ? input : (input && input.url) || '';
+        if (shouldQuietRest(url, signedOut)) return Promise.resolve(quietRestResponse(url));
+        return fetch(input, init);
+      },
+    },
+  });
   const ident = identitySlot();
   const ok = (r) => { if (r.error) throw new Error(r.error.message); return r.data; };
   const camel = (o) => Array.isArray(o) ? o.map(camel) : o && typeof o === 'object'
     ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), camel(v)])) : o;
   // per-file roles (migration 10) + self-representation (migration 11): my role(s) on each order I can see. role = primary (agent first),
   // roles = all I hold there, label = 'Buyer + Buyer's Agent' for an agent buying for themselves. Outside users get the roles/labels across files.
-  const fileRoles = async () => new Map((ok(await sb.rpc('my_file_roles_full')) || []).map((r) => [r.deal_id, r]));
+  const loadFileRoles = async () => new Map((ok(await sb.rpc('my_file_roles_full')) || []).map((r) => [r.deal_id, r]));
+  const fileRoles = () => fileRead('roles#' + fileGen, loadFileRoles);
   const ORDER = ['Buyer Agent', 'Listing Agent', "Buyer + Buyer's Agent", 'Seller + Listing Agent', 'Client-Buyer', 'Client-Seller'];
   const sorted = (xs) => [...new Set(xs)].filter((r) => ORDER.includes(r)).sort((x, y) => ORDER.indexOf(x) - ORDER.indexOf(y));
   // staff only (RPC returns nothing to outside users): "Agent is a party" badge = a client who is also their side's agent on the order
@@ -193,6 +215,9 @@ export async function createSupabaseAdapter(cfg) {
   }
   let pendingAuthId = '';
   sb.auth.onAuthStateChange((event, session) => {
+    const token = session && session.access_token || '';
+    if (token) signedOut = false;
+    else if (event === 'SIGNED_OUT') signedOut = true;
     const nextId = session && session.user && session.user.id || '';
     const held = ident.current();
     const action = authEventAction(event, nextId, held && held.id || '', nav.userId(), pendingAuthId);
@@ -339,7 +364,7 @@ export async function createSupabaseAdapter(cfg) {
       return lastHeld && lastHeld.id === user.id ? lastHeld : null;
     },
     authGeneration() { return ident.generation(); },
-    async signOut() { dropAuth(); await sb.auth.signOut(); },
+    async signOut() { signedOut = true; dropAuth(); await sb.auth.signOut(); },
     async resetDemoData() {},
     async getMyProfile() { return me(); },
     // John, Nov 2 (migration 23): file titles from deal_file_titles(p_deal) = the buyers' / sellers' last names the caller may see, in the order added
@@ -519,8 +544,14 @@ export async function createSupabaseAdapter(cfg) {
     async createThread(dealId, { subject, participantIds, body }) { return { id: ok(await sb.rpc('create_thread', { p_deal: dealId, p_subject: subject, p_participants: participantIds, p_body: body })) }; },
     async postMessage(threadId, body) { const auth = await readAuthUser(); const user = auth && auth.data && auth.data.user; if (!user || auth.signedOut) throw new Error('Please sign in.'); return camel(ok(await sb.from('messages').insert({ thread_id: threadId, author_id: user.id, body }).select().single())); },
     // activity log: RLS returns rows to CLA staff only (migration 13)
-    async listActivity(dealId) { let q = sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(300); q = dealId ? q.eq('deal_id', dealId) : q.is('deal_id', null);
-      const items = camel(ok(await q)); return { items, total: items.length, types: [...new Set(items.map((a) => a.action.split('.')[0]))].sort(), actors: [] }; },
+    async listActivity(dealId) {
+      return fileRead('activity#' + fileGen + ':' + (dealId || ''), async () => {
+        let q = sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(300);
+        q = dealId ? q.eq('deal_id', dealId) : q.is('deal_id', null);
+        const items = camel(ok(await q));
+        return { items, total: items.length, types: [...new Set(items.map((a) => a.action.split('.')[0]))].sort(), actors: [] };
+      });
+    },
     // Buyers, sellers, and agents never read activity_log. Their tab is the documents,
     // messages, and own tasks they can already open. A failed read is omitted, not an error.
     async listMyActivity(dealId) {
@@ -816,7 +847,7 @@ export async function createSupabaseAdapter(cfg) {
     if (!orig) return;
     a[name] = (id, ...rest) => (rest.length || id == null ? orig(id, ...rest) : fileRead(name + ':' + id, () => orig(id)));
   };
-  ['listThreads', 'listActivity', 'listDealFolders', 'listSignatureRequests', 'listEntityDocRequests'].forEach(shareRead);
+  ['listThreads', 'listDealFolders', 'listSignatureRequests', 'listEntityDocRequests'].forEach(shareRead);
   function warmFile(hint) {
     if (!hint || !hint.dealId || hint.gated) return;
     const id = hint.dealId;
@@ -826,11 +857,11 @@ export async function createSupabaseAdapter(cfg) {
       fileRead('taskrows:' + id, () => fetchHostedTaskRows(sb, id));
       fileRead('docs:' + id, () => rawDocs(id));
       if (a.listThreads) a.listThreads(id).catch(() => null);
-      if (a.listActivity) a.listActivity(id).catch(() => null);
       if (a.readOverview) a.readOverview(id).catch(() => null);
       return;
     }
     fileRead('shell:' + id, () => fetchFileShell(id));
+    if (tab === 'activity' && a.listActivity) a.listActivity(id).catch(() => null);
     if (tab === 'tasks') fileRead('taskrows:' + id, () => fetchHostedTaskRows(sb, id));
     if (tab === 'documents') {
       fileRead('docs:' + id, () => rawDocs(id));
