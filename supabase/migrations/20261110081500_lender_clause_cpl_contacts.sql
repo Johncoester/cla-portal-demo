@@ -22,7 +22,7 @@ begin
   if exists (select 1 from pg_constraint where conname = 'contacts_lender_role_chk') then
     raise exception 'drift: contacts_lender_role_chk already exists'; end if;
   select count(*) into n from information_schema.columns where table_schema = 'public' and table_name = 'deals';
-  if n <> 59 then raise exception 'drift: deals has % columns, expected 59', n; end if;
+  if n <> 61 then raise exception 'drift: deals has % columns, expected 61', n; end if;
   select count(*) into n from information_schema.columns where table_schema = 'public' and table_name = 'contacts';
   if n <> 41 then raise exception 'drift: contacts has % columns, expected 41', n; end if;
   if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'deals' and column_name = 'loss_payee_name' and data_type = 'text' and is_nullable = 'NO') then
@@ -84,7 +84,7 @@ begin
   select count(*) into n from public.contacts where lender_role is not null;
   if n <> 0 then raise exception 'readback: % contacts already have lender_role (no backfill expected)', n; end if;
   select count(*) into n from information_schema.columns where table_schema = 'public' and table_name = 'deals';
-  if n <> 63 then raise exception 'readback: deals has % columns, expected 63', n; end if;
+  if n <> 65 then raise exception 'readback: deals has % columns, expected 65', n; end if;
   select count(*) into n from information_schema.columns where table_schema = 'public' and table_name = 'contacts';
   if n <> 42 then raise exception 'readback: contacts has % columns, expected 42', n; end if;
   if not (select relrowsecurity from pg_class where oid = 'public.deals'::regclass) then raise exception 'readback: deals RLS is off'; end if;
