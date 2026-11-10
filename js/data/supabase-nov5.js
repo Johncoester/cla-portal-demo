@@ -1,7 +1,7 @@
 /* supabase-nov5.js : browser adapter for the Nov 5 RPCs plus the document/message reads that were still stubs.
  * RLS and the security-definer RPCs decide access. This file does not embed a project URL or a key.
  * File bytes go to the private deal-documents bucket (migration 3). A missing bucket surfaces as an error; nothing is invented. */
-import { ordinaryCoverageDoc } from './nov5-rules.js?v=202611090935';
+import { ordinaryCoverageDoc } from './nov5-rules.js?v=202611101015';
 import { uploadBytes } from './upload-bytes.js?v=202611070139';
 
 export const SAVED_UNCONFIRMED = 'This file was saved but the list could not be refreshed. It is already stored, so sending it again will not add a second copy.';

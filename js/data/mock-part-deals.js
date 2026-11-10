@@ -1,10 +1,12 @@
 /* mock adapter, part 1: auth, profile, dashboard, deals. See mock-adapter.js. */
-import { autoCounty } from './county-auto.js?v=202611090935';
-import { checkSource } from './mock-part-nov3b.js?v=202611092320';
-import { isRefi, REFI_BLOCKED_FIELDS } from './constants.js?v=202611090935';
+import { autoCounty } from './county-auto.js?v=202611101015';
+import { checkSource } from './mock-part-nov3b.js?v=202611101015';
+import { isRefi, REFI_BLOCKED_FIELDS, STAFF_ACCOUNT_ROLES } from './constants.js?v=202611101015';
+import { closerChoices, resolveCloser } from './closer.js?v=202611101015';
 import { PROCESSOR_PICK_ROLES, referralWriteError } from './place-order.js?v=202611092320';
 import { claRepresentationCode } from './cla-representation.js?v=202611090950';
 import { buildFileNumber, retagFileNumber, sentOutside } from './file-number.js?v=202611092340';
+import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions } from './lender-file.js?v=202611101200';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 // John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only
@@ -68,6 +70,7 @@ export function dealsAndAuth(x) {
       return clone(load().profiles.filter((p) => p.status === 'active' && p.role === 'Transaction Coordinator').map((p) => { const c = contactOf(p.id);
         return { id: p.id, contactId: c ? c.id : null, firstName: p.firstName, lastName: p.lastName, email: p.email, phone: p.phone, company: c ? c.company : '', role: p.role }; }).filter((p) => p.contactId)); },
     async listSalesStaff() { needUser(); return clone(load().profiles.filter((p) => p.status === 'active' && ['Sales Person', 'Sales Team'].includes(p.role)).map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role }))); },
+    async listActiveStaff() { const u = needUser(); return clone(load().profiles.filter((p) => p.status === 'active' && STAFF_ACCOUNT_ROLES.includes(p.role) && !!p.isDemo === !!u.isDemo).map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role, status: 'active' }))); },
     async unreadCount() { const u = needUser(); return dealsFor(u).reduce((n, q) => n + dealView(u, q).unread, 0); },
     // ---------- Deals ----------
     async listDeals({ status } = {}) {
@@ -96,7 +99,8 @@ export function dealsAndAuth(x) {
         openDate, closingDate: dateOrNull(input.closingDate, 'Closing date'), purchasePrice: money(input.purchasePrice, 'Purchase price'), loanAmount: money(input.loanAmount, 'Loan amount'),
         emdAmount: money(input.emdAmount, 'EMD amount'), emdDueDate: dateOrNull(input.emdDueDate, 'EMD due date'),
         // Matt, Nov 3 (b): lender phone + email (and the picked lender's name / company) and the source of business are set at placement
-        lenderName: str(input.lenderName, 200), lenderContact: str(input.lenderContact, 200), lenderEmail: str(input.lenderEmail, 200).toLowerCase(), lenderPhone: x.phone(input.lenderPhone, 'Lender phone'), lossPayeeName: str(input.lossPayeeName, 200),
+        lenderName: str(input.lenderName, 200), lenderContact: str(input.lenderContact, 200), lenderEmail: str(input.lenderEmail, 200).toLowerCase(), lenderPhone: x.phone(input.lenderPhone, 'Lender phone'), lossPayeeName: str(input.lossPayeeName, 400),
+        ...lenderExtras(input),
         sourceOfBusiness: (() => { const src = checkSource(d, input.sourceOfBusiness, '', fail); const msg = referralWriteError({ source: src, contacts: d.contacts, profiles: d.profiles, actor: u, participants: d.participants, dealId: '' }); if (msg) fail(msg); return src; })(), ...occFields(input, transactionType, fail), notes: str(input.notes, 2000), claRepresentation, processorId: procId, processorUnassigned: !procId, preprocessorUserId: preprocId ? preprocId.id : null, createdBy: u.id, createdAt: now() };
       if (deal.lenderEmail && !emailOk(deal.lenderEmail)) fail('Lender email is not valid.');
       d.deals.push(deal);
@@ -114,7 +118,13 @@ export function dealsAndAuth(x) {
       const u = needProcessor(); const d = load(); const q = d.deals.find((y) => y.id === id) || fail('Order not found.');
       const prevState = q.state;
       if (patch.state != null) { patch = { ...patch, state: stateCode(patch.state) }; if (patch.state !== q.state && !C.US_STATES.includes(patch.state)) fail('Pick a US state.'); }
-      ['street', 'city', 'state', 'zip', 'lenderName', 'lenderContact', 'lenderEmail', 'lenderPhone', 'lossPayeeName', 'notes'].forEach((k) => { if (patch[k] != null) q[k] = str(patch[k], k === 'notes' ? 2000 : 200); });
+      ['street', 'city', 'state', 'zip', 'lenderName', 'lenderContact', 'lenderEmail', 'lenderPhone', 'lossPayeeName', 'notes'].forEach((k) => { if (patch[k] != null) q[k] = str(patch[k], k === 'notes' ? 2000 : k === 'lossPayeeName' ? 400 : 200); });
+      if (lenderColumnsTouched(patch)) Object.assign(q, lenderExtras({
+        lenderAddress: patch.lenderAddress !== undefined ? patch.lenderAddress : q.lenderAddress,
+        cplAddress: patch.cplAddress !== undefined ? patch.cplAddress : q.cplAddress,
+        cplSameAsLender: patch.cplSameAsLender !== undefined ? patch.cplSameAsLender : q.cplSameAsLender,
+        mortgageBrokerName: patch.mortgageBrokerName !== undefined ? patch.mortgageBrokerName : q.mortgageBrokerName,
+      }));
       if (patch.county != null) q.county = str(patch.county, C.COUNTY_MAX);
       if (q.lenderEmail && !emailOk(q.lenderEmail)) fail('Lender email is not valid.');
       if (patch.lenderPhone != null) q.lenderPhone = x.phone(patch.lenderPhone, 'Lender phone');
@@ -145,7 +155,19 @@ export function dealsAndAuth(x) {
         if (nextId !== prev) { q.tcUserId = nextId; log(id, u.id, 'deal.tc', 'deal', id, nextId ? `Transaction Coordinator set to ${nameOf(nextId)}` : 'Transaction Coordinator unassigned');
           if (nextId) notify([nextId], { kind: 'tc', dealId: id, title: `You are now the Transaction Coordinator on ${q.fileNumber || 'an order'}`, link: `#/deals/${id}` }, u.id); } }
       if (patch.salesIds !== undefined || patch.salesPersonId !== undefined) { const ids = salesList(patch); ids.forEach((sid) => { if (!x.salesOf(id).some((s) => s.salesId === sid)) checkSales(sid); }); setSales(u, id, ids); }
+      if (patch.closerName !== undefined || patch.closerProfileId !== undefined) {
+        const staff = d.profiles.filter((p) => p.status === 'active' && STAFF_ACCOUNT_ROLES.includes(p.role) && !!p.isDemo === !!u.isDemo);
+        const next = resolveCloser(patch.closerName, closerChoices(staff), { closerName: q.closerName || '', closerProfileId: q.closerProfileId || null });
+        if (next.closerName !== (q.closerName || '') || (next.closerProfileId || null) !== (q.closerProfileId || null)) {
+          q.closerName = next.closerName; q.closerProfileId = next.closerProfileId;
+          log(id, u.id, 'deal.closer', 'deal', id, next.closerName ? `Closer set to ${next.closerName}` : 'Closer cleared');
+        }
+      }
       log(id, u.id, 'deal.updated', 'deal', id, 'Order details updated'); save(); return clone(dealView(u, q));
+    },
+    async listLossPayeeClauses(lenderName) {
+      const u = needUser(); if (!(u.isAdmin || C.runsOrders(u))) fail('Only a Processor or Admin can look up lender clauses.');
+      return lossPayeeSuggestions(load().deals.filter((d) => !!d.isDemo === !!u.isDemo), lenderName);
     },
     // ---------- salespeople on a file (John, Nov 2; mirrors public.deal_sales_people, migration 19): Processor and Admins only ----------
     async addDealSalesPerson(dealId, salesId) { const u = needProcessor(); dealOr404(u, dealId);

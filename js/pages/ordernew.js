@@ -6,27 +6,30 @@
 // with a progress bar (click any step to jump to it), per-step validation on Next, a review summary and a confirmation panel on the new order's page.
 // It is still ONE <form id="nof"> with the same field names, ids and data-attributes; only one step is shown at a time. Every rule is unchanged:
 // refinance hides price / EMD / sellers / agents / both transaction coordinators (the Agents step is skipped), Buyer Agent / Listing Agent / Lender are optional,
-// one buyer and one seller to start ("+ Add another" adds the rest), entity representative, commas in money fields, source of business (who referred the file),
+// two buyer rows and two seller rows to start ("+ Add another" adds the rest; an empty extra row is not saved), entity representative, commas in money fields, source of business (who referred the file),
 // wires never shown to agents.
 import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611070139';
 import { occSelects, yesNo } from './occ-fields.js?v=202611070139';
-import { fmtPhone, TX_TYPES, runsOrders, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount } from '../data/constants.js?v=202611090935';
-import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611092350';
-import { ENTITY_TYPES } from '../data/templates.js?v=202611090935';
+import { fmtPhone, TX_TYPES, runsOrders, localDate, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount } from '../data/constants.js?v=202611101015';
+import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611101015';
+import { ENTITY_TYPES } from '../data/templates.js?v=202611101015';
 import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611092320';
 import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
 import { orderDraftKey, readOrderDraft, writeOrderDraft, clearOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim } from '../data/order-draft.js?v=202611070139';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611091030';
+import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows } from '../data/lender-file.js?v=202611101200';
+import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611101015';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611101015';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
 // Each person becomes their own deal_participants row, so each buyer / seller gets their own copy of the client intake tasks (existing per-person behaviour).
 export const MULTI = { 'Client-Buyer': 'buyer', 'Client-Seller': 'seller' };
-// John, Nov 6: one buyer and one seller to start. "+ Add another buyer / seller" adds the next row (no empty grey box).
-// Each row has its own "+ Add entity": the buyer / seller is an LLC, corporation, partnership or trust -> entity name, type and the Entity Representative
-// (name, title or role, phone, email). Saved on that person's row of the order and pre-filled on their Personal information form (+ Add entity there).
-export const MIN_ROWS = 1;
+// Matt, Nov 9 (MF-015): a new order starts with two buyer rows and two seller rows. "+ Add another buyer / seller" adds the next row.
+// An empty extra row is ignored on save (only a picked person is added). Each row has its own "+ Add entity": the buyer / seller is an LLC,
+// corporation, partnership or trust -> entity name, type and the Entity Representative (name, title or role, phone, email). Saved on that person's
+// row of the order and pre-filled on their Personal information form (+ Add entity there).
+export const MIN_ROWS = 2;
 const rowLabel = (label, n) => `${label} ${n}${n > 1 ? ' (optional)' : ''}`;
-const entityPanel = (label) => html`<div class="entity-panel" data-entity-panel hidden><p class="muted small">This ${label.toLowerCase()} is an entity (LLC, corporation, partnership or trust). The person picked above is our contact for it; they confirm the details and attach the entity documents on their Personal information form.</p>
+const entityPanel = (label) => html`<div class="entity-panel" data-entity-panel hidden><p class="muted small">This ${label.toLowerCase()} is an entity (LLC, corporation, partnership or trust). Enter the entity name. A contact person is optional. First and last name are not required.</p>
   <div class="form-grid"><label>Entity name *<input data-ent="name" maxlength="200" aria-label="Entity name"></label>
   <label>Entity type<select data-ent="type" aria-label="Entity type"><option value="">Choose&hellip;</option>${ENTITY_TYPES.map((t) => html`<option>${t}</option>`)}</select></label>
   <label>Entity Representative<input data-ent="repName" maxlength="120" placeholder="Full name" aria-label="Entity Representative"></label>
@@ -49,7 +52,8 @@ export const OPTIONAL_SLOTS = ['Buyer agent', 'Listing agent', 'Lender'];
 export const REFI_HIDE = ['purchasePrice', 'emdAmount', 'emdDueDate'];
 const SEARCH = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer agent'], ['Listing Agent', 'Listing agent'], ['Lender', 'Lender']];   // Lender slot: John, Nov 2 (contact type)
 // people are added to the order in this role order (the order the one-page form used), whichever step they were picked on
-const ADD_ORDER = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'Lender', 'Transaction Coordinator', 'Sales Team'];
+// Sales Team is not collected on Place Order (MF-020). A Sales Team person already on a file stays there.
+const ADD_ORDER = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'Lender', 'Transaction Coordinator'];
 // the steps (key, title, one-line hint). The Agents step is skipped on a refinance (no realtors, no TC).
 export const STEPS = [
   ['transaction', 'Transaction', 'Type, open date, contract'],
@@ -78,7 +82,6 @@ export async function render({ api, user, go }) {
   const NEW_ROLES = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer Agent'], ['Listing Agent', 'Listing Agent'], ['Lender', 'Lender'], ['Transaction Coordinator', 'Transaction coordinator'], ...(user.isAdmin ? [['Sales Person', 'Salesperson']] : [])];
   const visOpts = visibilityChoices(user.role, user.isAdmin);
   const salesBox = (s, checked = false) => html`<label class="check"><input type="checkbox" name="salesIds" value="${s.id}" ${checked ? raw('checked') : ''}> ${s.firstName} ${s.lastName} <span class="muted small">(${s.role})</span></label>`;
-  const salesParty = staff.map((s) => contacts.find((c) => c.profileId === s.id)).filter(Boolean);
   const tcSelect = (name, label) => html`<label>${label}<select name="${name}"><option value="">(none yet)</option>${options(tcs, '', (c) => `${c.firstName} ${c.lastName}${c.company ? ' \u2014 ' + c.company : ''}`, (c) => c.contactId)}</select></label>`;
   const N = STEPS.length;
   const panel = (key, inner, intro) => { const i = STEPS.findIndex((s) => s[0] === key); const [, title] = STEPS[i];
@@ -121,18 +124,21 @@ export async function render({ api, user, go }) {
           <label class="referral-source"><input type="radio" name="referralSource" value="" checked data-referral-clear aria-label="Source of business: Not set"> Not set</label>
           <p class="muted small" data-referral-status>Source of business: Not set. Mark one buyer, seller, buyer agent, listing agent, or lender. Nobody is selected for you. This is not the CLA salesperson and it does not change a contact's Lead Source.</p></fieldset></div>
         <div class="form-grid">${partyBlock('Client-Buyer', 'Buyer')}${partyBlock('Client-Seller', 'Seller')}</div>`,
-        'Type a name and pick a match, or add them from the list when there is no match. A buyer or seller that is an LLC, corporation, partnership or trust: use + Add entity.')}
+        'Type a name and pick a match, or add them from the list when there is no match. A buyer or seller that is an LLC, corporation, partnership or trust: use + Add entity and enter the entity name. A representative is optional.')}
       ${panel('loan', html`<h4 class="wiz-sub">Amounts and dates</h4><div class="form-grid">
         <label data-refi-hide="purchasePrice">Purchase price<input name="purchasePrice" inputmode="decimal" placeholder="485,000" data-money autocomplete="off"></label><label>Loan amount<input name="loanAmount" inputmode="decimal" placeholder="388,000" data-money autocomplete="off"></label>
         <label data-refi-hide="emdAmount">EMD amount<input name="emdAmount" inputmode="decimal" placeholder="10,000" aria-label="EMD amount (earnest money deposit)" data-money autocomplete="off"></label><label data-refi-hide="emdDueDate">EMD due date<input name="emdDueDate" type="date"></label>
         <label>Closing date<input name="closingDate" type="date"></label></div>
         <h4 class="wiz-sub">Lender <span class="muted small">(optional)</span></h4>
         <div class="lender-block" data-lender-block>${pickerWithReferral('Lender', 'Lender')}
-        <div class="form-grid"><label class="span2">Lender company name<input name="lenderName" maxlength="200" aria-label="Lender company name" placeholder="Company name (required when adding a new lender)"></label>
+        <div class="form-grid"><label class="span2">Lender company name<input name="lenderName" maxlength="200" aria-label="Lender company name" placeholder="Company name (a contact person is optional)" data-lender-company></label>
         <label>Lender phone<input name="lenderPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone aria-label="Lender phone"></label>
         <label>Lender email<input name="lenderEmail" type="email" maxlength="200" aria-label="Lender email"></label>
-        <label class="span2">Loss payee <span class="muted small">(optional)</span><input name="lossPayeeName" maxlength="200" aria-label="Loss payee" placeholder="Often the lender company, ISAOA/ATIMA"></label></div>
-        <p class="muted small">Company name, phone and email fill in from the lender you pick (change them for this order if needed). Optional, like the lender. Mortgage brokerage and extra lender contacts are not on this step yet.</p></div>`,
+        ${lenderFieldsHtml({})}</div>
+        <div data-lender-contacts><h4 class="wiz-sub">Lender contacts <span class="muted small">(optional)</span></h4><div data-lender-contact-rows></div>
+          <button type="button" class="ghost" data-add-lender-contact>+ Add lender contact</button>
+          <p class="muted small">Each person is a Loan Officer or a Lender TC (the lender's processor). More than one is allowed. Leave this blank to save the company with no contact person.</p></div>
+        <p class="muted small">Company name, phone and email fill in from the lender you pick (change them for this order if needed). The loss payee clause lists clauses already used for that company, and you can edit the text. Optional, like the lender.</p></div>`,
         'Money is typed with commas (485,000). Every amount is optional and can be filled in later.')}
       ${panel('agents', html`<div class="form-grid agents-grid">${pickerWithReferral('Buyer Agent', 'Buyer agent')}${pickerWithReferral('Listing Agent', 'Listing agent')}
         ${tcSelect('p:Transaction Coordinator', "Buyer's transaction coordinator")}<button type="button" class="ghost" data-add-tc="p:Transaction Coordinator">+ Add buyer's transaction coordinator</button>
@@ -141,8 +147,7 @@ export async function render({ api, user, go }) {
         'The realtors on each side, who referred the file, and each side\'s transaction coordinator.')}
       ${panel('team', html`<div class="form-grid">
         <label>Processor<select name="processorId" data-processor-select><option value="">Unassigned</option></select> <button type="button" class="ghost" data-refresh-processors>Refresh list</button><span class="field-hint">Leave Unassigned to save the file now. A Processor added after you opened this page appears when you refresh the list. Nothing else on the form is cleared.</span></label><label>Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select></label>
-        <label>Sales team member<select name="p:Sales Team"><option value="">(none yet)</option>${options(salesParty, '', (c) => `${c.firstName} ${c.lastName}${c.company ? ' \u2014 ' + c.company : ''}`, (c) => c.id)}</select></label>
-        <fieldset class="span2" data-sales-picker><legend>Salespeople on this order (check all that apply)</legend><div data-sales-list class="check-grid">${staff.length ? staff.map((s) => salesBox(s)) : html`<p class="muted" data-no-sales>No active salespeople.</p>`}</div></fieldset>
+        <fieldset class="span2" data-sales-picker><legend>Sales Rep</legend><div data-sales-list class="check-grid">${staff.length ? staff.map((s) => salesBox(s)) : html`<p class="muted" data-no-sales>No active salespeople.</p>`}</div><span class="field-hint">The only sales field on Place Order. Check each salesperson on this order. Someone already saved as a sales team member on an existing file is left as they are.</span></fieldset>
         <label class="span2">Notes<textarea name="notes" rows="3" maxlength="2000" placeholder="Anything the team should know about this order"></textarea></label>
         <fieldset class="span2" id="nof-docs"><legend>Documents (e.g. the sales contract)</legend>
           <label class="dropzone-label">Files <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB each; choose several at once)</span><input type="file" id="nof-files" multiple accept="${ALLOWED_UPLOAD_EXT.map((e) => '.' + e).join(',')}"></label>
@@ -169,6 +174,7 @@ export async function render({ api, user, go }) {
             <label>Email<span id="an-email-req" hidden> *</span><input id="an-email" type="email" maxlength="200"></label><label>Phone<input id="an-phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone></label>
             <label class="span2" id="an-company-l" hidden><span id="an-company-t">Brokerage / company</span><input id="an-company" maxlength="120" aria-label="Company"></label>
             <label class="span2" id="an-ctype-l" hidden>Contact type <span class="muted small">(for reporting; set from the role, you can change it)</span><select id="an-ctype" aria-label="Contact type"><option value="">(not set)</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select></label>
+            <label class="span2" id="an-lrole-l" hidden>Lender contact type<select id="an-lrole" aria-label="Lender contact type"><option value="">No contact person</option><option value="loan_officer">Loan Officer</option><option value="lender_tc">Lender TC</option></select></label>
             <p class="span2 muted small" id="an-note"></p>
             <div class="span2" id="an-dup" hidden></div>
             <div class="span2"><button type="button" class="m-btn" id="an-create">Create and add to this order</button></div>
@@ -210,6 +216,8 @@ export async function render({ api, user, go }) {
         input = companyish
           ? { firstName: '', lastName: '', company: name, email: '', phone: '', contactType: 'lender' }
           : { firstName, lastName, company: ($('[name=lenderName]', root) || {}).value || '', email: '', phone: '', contactType: 'lender' };
+      } else if ((role === 'Client-Buyer' || role === 'Client-Seller') && looksLikeEntityName(name)) {
+        input = { firstName: '', lastName: '', company: name, email: '', phone: '', contactType };
       } else {
         input = { firstName: firstName || name, lastName, email: '', phone: '', company: '', contactType };
       }
@@ -217,10 +225,14 @@ export async function render({ api, user, go }) {
       if (!people.some((x) => x.id === c.id)) people.push(c);
       return c;
     };
-    const pickerOpts = (role) => ({
+    const openEntity = (el, name) => { const pnl = $('[data-entity-panel]', el); const tg = $('[data-ent-toggle]', el); if (!pnl) return; pnl.hidden = false;
+      const box = $('[data-ent="name"]', pnl); if (box && !box.value) box.value = name || ''; if (tg) { tg.setAttribute('aria-pressed', 'true'); tg.textContent = '\u2212 Remove entity'; } };
+    const pickerOpts = (role, el) => ({
       createVerb: role === 'Lender' ? 'lender' : (MULTI[role] ? MULTI[role] : 'person'),
       onSet: (c) => { if (role === 'Lender') fillLender(c); syncReferral(); },
-      onCreate: (typed) => quickCreate(role, typed),
+      onCreate: async (typed) => { const c = await quickCreate(role, typed);
+        if (el && (role === 'Client-Buyer' || role === 'Client-Seller') && c && !String(c.firstName || '').trim() && c.company) openEntity(el, c.company);
+        return c; },
     });
     const pickers = Object.fromEntries(SEARCH.filter(([role]) => !MULTI[role]).map(([role]) => [role, mountPicker($(`[data-picker="p:${role}"]`, root), () => people, pickerOpts(role))]));
     // ---------- several buyers / sellers ----------
@@ -230,7 +242,7 @@ export async function render({ api, user, go }) {
       // Matt, Nov 3 (b): always at least two rows (leave the second blank if there is only one). Any row can be removed; the rest move up and a
       // blank row is added back at the end. The last row of a two-row set has no Remove (removing it would only put an empty row back).
       rows[role].forEach(({ el }, i) => { $('[data-rm-row]', el).hidden = rows[role].length <= MIN_ROWS && i === rows[role].length - 1; }); };
-    const hookRow = (role, el) => { const r = { el, pk: mountPicker($('.picker', el), () => people, pickerOpts(role)) }; rows[role].push(r);
+    const hookRow = (role, el) => { const r = { el, pk: mountPicker($('.picker', el), () => people, pickerOpts(role, el)) }; rows[role].push(r);
       const tg = $('[data-ent-toggle]', el); const pnl = $('[data-entity-panel]', el);
       tg.addEventListener('click', () => { const on = pnl.hidden; pnl.hidden = !on; tg.setAttribute('aria-pressed', String(on)); tg.textContent = on ? '\u2212 Remove entity' : '+ Add entity'; if (on) $('[data-ent="name"]', pnl).focus(); });
       $('[data-rm-row]', el).addEventListener('click', () => { rows[role] = rows[role].filter((z) => z !== r); el.remove(); renumber(role); while (rows[role].length < MIN_ROWS) addRow(role); }); renumber(role); return r; };
@@ -299,10 +311,12 @@ export async function render({ api, user, go }) {
         for (const role of Object.keys(MULTI).filter(counts)) { const ids = rows[role].map((r) => r.pk.value).filter(Boolean); const twice = ids.find((id, i) => ids.indexOf(id) !== i);
           if (twice) errs.push({ el: null, msg: `${personLabel(people.find((pp) => pp.id === twice) || { firstName: 'That person', lastName: '' })} is listed twice as ${labelOf(role)}.` }); }
         for (const role of Object.keys(MULTI).filter(counts)) rows[role].forEach((r, i) => { const e = entityOf(r); if (!e) return; const lab = rowLabel(labelOf(role), i + 1).replace(/ \(optional\)$/, '');
-          if (!r.pk.value) errs.push({ el: $('.picker-q', r.pk.el), msg: `${lab}: pick the person who is our contact for the entity (or remove the entity).` });
           if (!e.name) errs.push({ el: $('[data-ent="name"]', r.el), msg: `${lab}: entity name is required (or remove the entity).` }); });
       }
       if (k === 'loan') {
+        const company = String((f.lenderName || '')).trim();
+        readLenderContactRows(form).forEach((row, i) => { const built = lenderCompanyContact({ company, ...row }); const host = $$('[data-lender-contact-row]', p)[i];
+          if (!built.ok) errs.push({ el: (host && $('[data-lc="role"]', host)) || $('[name=lenderName]', p), msg: `Lender contact ${i + 1}: ${built.error}` }); });
         const refused = (v) => { try { moneyAmount(v); return false; } catch (err) { return true; } };
         if (!refi() && refused(f.emdAmount)) errs.push({ el: $('[name=emdAmount]', p), msg: 'EMD amount must be a number of 0 or more.' });
         for (const [key, l] of [['purchasePrice', 'Purchase price'], ['loanAmount', 'Loan amount']]) { if (key === 'purchasePrice' && refi()) continue;
@@ -352,10 +366,11 @@ export async function render({ api, user, go }) {
         ${section('parties', r ? 'Borrowers' : 'Buyers & Sellers', [[r ? 'Borrowers' : 'Buyers', partyList('Client-Buyer')], ...(r ? [] : [['Sellers', partyList('Client-Seller')]])])}
         ${section('loan', 'Lender & Loan', [...(r ? [] : [['Purchase price', val(fmtMoney(moneyAmount(f.purchasePrice)))]]), ['Loan amount', val(fmtMoney(moneyAmount(f.loanAmount)))],
           ...(r ? [] : [['EMD amount', val(fmtMoney(moneyAmount(f.emdAmount)))], ['EMD due date', val(fmtDate(f.emdDueDate))]]), ['Closing date', val(fmtDate(f.closingDate))],
-                    ['Lender', (pickers.Lender.value || f.lenderName) ? html`${f.lenderName ? html`<strong>${f.lenderName}</strong>${pickers.Lender.value ? html` · ${nameOf(pickers.Lender.value)}` : ''}` : nameOf(pickers.Lender.value)}${f.lenderPhone || f.lenderEmail || f.lossPayeeName ? html`<br><span class="muted small">${[f.lenderPhone, f.lenderEmail, f.lossPayeeName && ('Loss payee: ' + f.lossPayeeName)].filter(Boolean).join(' · ')}</span>` : ''}` : dash]])}
+                    ['Lender', (pickers.Lender.value || f.lenderName) ? html`${f.lenderName ? html`<strong>${f.lenderName}</strong>${pickers.Lender.value ? html` · ${nameOf(pickers.Lender.value)}` : ''}` : nameOf(pickers.Lender.value)}${f.lenderPhone || f.lenderEmail || f.lossPayeeName || f.mortgageBrokerName || f.cplAddress ? html`<br><span class="muted small">${[f.lenderPhone, f.lenderEmail, f.mortgageBrokerName && ('Broker: ' + f.mortgageBrokerName), f.lossPayeeName && ('Loss payee: ' + f.lossPayeeName), f.cplAddress && ('CPL: ' + f.cplAddress)].filter(Boolean).join(' · ')}</span>` : ''}` : dash],
+          ['Lender contacts', readLenderContactRows(form).length ? readLenderContactRows(form).map((row) => html`<div>${[row.firstName, row.lastName].filter(Boolean).join(' ')} <span class="muted small">${row.lenderRole === 'lender_tc' ? 'Lender TC' : row.lenderRole === 'loan_officer' ? 'Loan Officer' : ''}</span></div>`) : dash]])}
         ${section('parties', 'Source of business', [['Source of business', val((() => { const picked = $$('[name=referralSource]', root).find((el) => el.checked && el.value); return picked ? (picked.getAttribute('aria-label') || '').replace(/^Source of business:\s*/, '') : ''; })())]])}
         ${r ? '' : section('agents', 'Agents', [['Buyer agent', val(nameOf(pickers['Buyer Agent'].value))], ['Listing agent', val(nameOf(pickers['Listing Agent'].value))], ["Buyer's transaction coordinator", val(selText($('[name="p:Transaction Coordinator"]', root)))], ['Listing transaction coordinator', val(selText($('[name="p:Transaction Coordinator:2"]', root)))]])}
-        ${section('team', 'Team & Notes', [['Processor', val(selText($('[name=processorId]', root)).replace(/^Choose the Processor.*$/, ''))], ['Preprocessor', val(selText($('[name=preprocessorUserId]', root)))], ['Salespeople', sales.length ? sales.join(', ') : dash], ['Sales team member', val(selText($('[name="p:Sales Team"]', root)))],
+        ${section('team', 'Team & Notes', [['Processor', val(selText($('[name=processorId]', root)).replace(/^Choose the Processor.*$/, ''))], ['Preprocessor', val(selText($('[name=preprocessorUserId]', root)))], ['Sales Rep', sales.length ? sales.join(', ') : dash],
           ['Notes', f.notes ? html`<span class="review-notes">${f.notes.length > 240 ? f.notes.slice(0, 240) + '\u2026' : f.notes}</span>` : dash],
           ['Documents', files.length ? html`${files.map((x, i) => html`<div>${x.name} <span class="muted small">${fmtSize(x.size)}${($(`[data-doctype="${i}"]`, root) || {}).value ? ' \u00b7 ' + $(`[data-doctype="${i}"]`, root).value : ''}</span></div>`)}<span class="muted small">${selText($('#nof-vis', root))}${$('#nof-wire', root).checked ? ' \u00b7 wire instructions (never shown to agents)' : ''}</span>` : dash]])}
         </div>
@@ -404,16 +419,17 @@ export async function render({ api, user, go }) {
     // ---------- one "Add new user" place ----------
     const anForm = $('#an-form', root); const anFields = $('#an-fields', root); const dup = $('#an-dup', root);
     const v = (id) => $('#' + id, root).value.trim();
-    const reset = () => { ['an-first', 'an-last', 'an-email', 'an-phone', 'an-company', 'an-ctype', 'an-entity'].forEach((id) => { const el = $('#' + id, root); if (el) el.value = ''; }); const kind = $('#an-kind', root); if (kind) kind.value = 'person'; anRole.value = ''; anFields.hidden = true; dup.hidden = true; dup.innerHTML = ''; };
+    const reset = () => { ['an-first', 'an-last', 'an-email', 'an-phone', 'an-company', 'an-ctype', 'an-entity', 'an-lrole'].forEach((id) => { const el = $('#' + id, root); if (el) el.value = ''; }); const kind = $('#an-kind', root); if (kind) kind.value = 'person'; anRole.value = ''; anFields.hidden = true; dup.hidden = true; dup.innerHTML = ''; };
     const paintNew = () => { const r = anRole.value; const entity = (r === 'Client-Buyer' || r === 'Client-Seller') && $('#an-kind', root).value === 'entity'; const lender = r === 'Lender';
       $('#an-kind-l', root).hidden = !(r === 'Client-Buyer' || r === 'Client-Seller'); $('#an-entity-l', root).hidden = !entity; $('#an-etype-l', root).hidden = !entity;
-      $('#an-first-t', root).textContent = lender ? 'Contact first name (optional)' : entity ? 'Representative first name' : 'First name *';
-      $('#an-last-l', root).firstChild.textContent = lender ? 'Contact last name (optional)' : entity ? 'Representative last name' : 'Last name';
+      $('#an-first-t', root).textContent = lender ? 'Contact first name (optional)' : entity ? 'Representative first name (optional)' : 'First name *';
+      $('#an-first', root).required = false;
+      $('#an-last-l', root).firstChild.textContent = lender ? 'Contact last name (optional)' : entity ? 'Representative last name (optional)' : 'Last name';
       $('#an-company-l', root).hidden = !(r === 'Buyer Agent' || r === 'Listing Agent' || r === 'Lender'); $('#an-company-t', root).textContent = lender ? 'Lender company name *' : 'Brokerage / company';
-      $('#an-ctype-l', root).hidden = !r || r === 'Sales Person'; $('#an-ctype', root).value = contactTypeForRole(r); $('#an-email-req', root).hidden = r !== 'Sales Person';
+      $('#an-ctype-l', root).hidden = !r || r === 'Sales Person'; $('#an-ctype', root).value = contactTypeForRole(r); $('#an-lrole-l', root).hidden = !lender; $('#an-email-req', root).hidden = r !== 'Sales Person';
       $('#an-note', root).textContent = r === 'Sales Person' ? 'A Sales Person login is created in HR. Add the employee there and copy the invite link. Nothing is emailed.'
         : lender ? 'Adds the lender company as a contact. No portal login is created. A contact person is optional, and this does not change another lender\'s saved record.'
-        : entity ? 'Adds the entity on this order. The representative, if you enter one, is the contact. No portal login is created.'
+        : entity ? 'The entity name is the buyer or seller. First and last are only a representative and can be left blank. The entity name is not split into a first and last name. No portal login is created.'
         : r ? `Adds a contact (no portal login, no email or invite is sent) and ${MULTI[r] ? `adds them to the ${MULTI[r]}s of this order (after any already chosen)` : `puts them in the ${NEW_ROLES.find((x) => x[0] === r)[1]} slot of this order`}.` : ''; };
     $('#an-open', root).addEventListener('click', () => { anForm.hidden = false; if (cur === 'loan' && !anRole.value) { anRole.value = 'Lender'; anRole.dispatchEvent(new Event('change')); } else anRole.focus(); });
     $$('[data-add-tc]', root).forEach((b) => b.addEventListener('click', () => { $('#addnew', root).dataset.tcTarget = b.dataset.addTc; anForm.hidden = false; anRole.value = 'Transaction Coordinator'; anRole.dispatchEvent(new Event('change')); $('#an-first', root).focus(); }));
@@ -429,11 +445,11 @@ export async function render({ api, user, go }) {
       toast(`${personLabel(c)} added as ${NEW_ROLES.find((x) => x[0] === role)[1]}`); reset(); anForm.hidden = true; };
     $('#an-create', root).addEventListener('click', guard(async () => {
       const role = anRole.value; if (!role) throw new Error('Choose the role first.');
-      const entity = (role === 'Client-Buyer' || role === 'Client-Seller') && $('#an-kind', root).value === 'entity';
-      const first = v('an-first'); const email = v('an-email').toLowerCase(); const company = role === 'Lender' || role === 'Buyer Agent' || role === 'Listing Agent' ? v('an-company') : (entity ? v('an-entity') : '');
-      if (role === 'Lender' && !company) throw new Error('Lender company name is required. A contact person is optional.');
-      if (entity && !v('an-entity')) throw new Error('Entity name is required.');
-      if (!entity && role !== 'Lender' && !first) throw new Error('First name is required.');
+      const kind = ($('#an-kind', root) || {}).value || 'person';
+      const entity = (role === 'Client-Buyer' || role === 'Client-Seller') && kind === 'entity';
+      const first = v('an-first'); const email = v('an-email').toLowerCase(); const company = role === 'Lender' || role === 'Buyer Agent' || role === 'Listing Agent' ? v('an-company') : '';
+      const built = newPartyContact({ role, kind, entityName: v('an-entity'), entityType: ($('#an-etype', root) || {}).value || '', firstName: first, lastName: v('an-last'), email, phone: v('an-phone'), company, contactType: ($('#an-ctype', root) || {}).value || '', lenderRole: ($('#an-lrole', root) || {}).value || '' });
+      if (!built.ok) throw new Error(built.error);
       if (role === 'Sales Person' && !email) throw new Error('Email is required for a salesperson (it is their login).');
       // one person per email: use the saved contact. A different last name typed here does not overwrite that record and does not create a second login.
       if (email) { const hit = (await api.listContacts(email)).find((c) => (c.email || '').toLowerCase() === email);
@@ -442,16 +458,19 @@ export async function render({ api, user, go }) {
           dup.hidden = false; dup.innerHTML = toText(html`<p class="notice warn" data-dup>This email is already saved as <strong>${kept}</strong>. ${typedLast && typedLast.toLowerCase() !== String(hit.lastName || '').toLowerCase() ? 'The last name you typed is not written over that contact. ' : ''}${okToPick ? 'Select them for this order. No second login is created.' : 'They are not an active salesperson, so they cannot be added as one.'}</p>
             ${okToPick ? html`<button type="button" class="m-btn" id="an-use">Select existing person</button>` : ''}`);
           const use = $('#an-use', root); if (use) use.addEventListener('click', () => {
-            const ent = entity ? { name: v('an-entity'), type: $('#an-etype', root).value, repName: `${first} ${v('an-last')}`.trim(), repEmail: email, repPhone: v('an-phone') } : null;
-            if (!people.some((p) => p.id === hit.id)) people.push(hit); place(role, hit); if (ent) fillEntity(role, ent); });
+            if (!people.some((p) => p.id === hit.id)) people.push(hit); place(role, hit); if (built.entity) fillEntity(role, built.entity); });
           return; } }
       if (role === 'Sales Person') throw new Error('A Sales Person login is created in HR. Add the employee and copy the invite link (#/hr/add). Nothing is emailed.');
-      const ent = entity ? { name: v('an-entity'), type: $('#an-etype', root).value, repName: `${first} ${v('an-last')}`.trim(), repEmail: email, repPhone: v('an-phone') } : null;
-      const c = await api.createContact({ firstName: first, lastName: v('an-last'), email, phone: v('an-phone'), company, contactType: $('#an-ctype', root).value });
-      people.push(c); place(role, c); if (ent) fillEntity(role, ent); }));
+      const c = await api.createContact(built.contact);
+      people.push(c); place(role, c); if (built.entity) fillEntity(role, built.entity); }));
     const fillEntity = (role, ent) => { const row = (rows[role] || []).find((r) => r.pk.value); if (!row) return; const pnl = $('[data-entity-panel]', row.el); if (!pnl) return; pnl.hidden = false; const btn = $('[data-ent-toggle]', row.el); if (btn) { btn.setAttribute('aria-pressed', 'true'); btn.textContent = '\u2212 Remove entity'; }
       const set = (k, val) => { const el = $(`[data-ent="${k}"]`, pnl); if (el && val) el.value = val; }; set('name', ent.name); set('type', ent.type); set('repName', ent.repName); set('repEmail', ent.repEmail); set('repPhone', ent.repPhone); };
     txSel.addEventListener('change', applyRefi); applyRefi();
+    mountLossPayee(form, api); mountCplSame(form);
+    let lcSeq = 0;
+    const addLc = (i) => { const n = i == null ? lcSeq : i; lcSeq = Math.max(lcSeq, n + 1); const box = $('[data-lender-contact-rows]', root); if (!box) return;
+      box.insertAdjacentHTML('beforeend', toText(lenderContactRowHtml(n))); const row = box.lastElementChild; const rm = $('[data-rm-lender-contact]', row); if (rm) rm.addEventListener('click', () => row.remove()); };
+    const addLcBtn = $('[data-add-lender-contact]', root); if (addLcBtn) addLcBtn.addEventListener('click', () => addLc());
     const draftKey = orderDraftKey(user);
     const draftStore = typeof localStorage !== 'undefined' ? localStorage : null;
     const syncPickers = () => { $$('[data-picker]', root).forEach((el) => { const hid = $('input[type=hidden]', el); const person = people.find((p) => p.id === hid.value);
@@ -470,6 +489,7 @@ export async function render({ api, user, go }) {
     if (saveBtn) saveBtn.addEventListener('click', () => { const okSave = persistDraft(); toast(okSave ? 'Draft saved in this browser only. No order was created and no Processor was assigned.' : 'This browser could not store the draft. Keep this tab open.'); });
     const prior = draftStore && draftKey ? readOrderDraft(draftStore, draftKey) : null;
     if (prior) {
+      Object.keys(prior.fields || {}).map((k) => /^lcFirst:(\d+)$/.exec(k)).filter(Boolean).map((m) => Number(m[1])).sort((a, b) => a - b).forEach((i) => addLc(i));
       const restored = applyOrderDraft(form, prior, procs);
       if (repOn && draftKeepsUnrecordedRepresentation(prior.fields)) $$('[name=claRepresentation]', form).forEach((el) => { el.checked = false; });
       applyRefi();
@@ -497,6 +517,10 @@ export async function render({ api, user, go }) {
       // Buyers and sellers still have to be picked from the list (or the box cleared) so a client is never dropped by accident.
       const skipped = [];
       for (const [label, pk] of allPickers()) if (pk.typed && !pk.value) { if (OPTIONAL_SLOTS.includes(label)) skipped.push(label); else throw new Error(`${label}: pick a person from the list, choose Add as a new person, clear the box, or use "Add new user".`); }
+      for (const role of Object.keys(MULTI).filter(counts)) { for (const r of rows[role]) { const ent = entityOf(r); if (!ent || !ent.name || r.pk.value) continue;
+        const builtEnt = entityIdentity({ entityName: ent.name, entityType: ent.type, repName: ent.repName, repTitle: ent.repTitle, repEmail: ent.repEmail, repPhone: ent.repPhone });
+        if (!builtEnt.ok) throw new Error(builtEnt.error);
+        const made = await api.createContact(builtEnt.contact); if (!people.some((p) => p.id === made.id)) people.push(made); r.pk.set(made); } }
       if (refi()) { REFI_HIDE.forEach((k) => { delete f[k]; }); }   // hidden on a refinance: never checked, never saved
       // Matt, Nov 3 (b): amounts are shown with commas (485,000) and sent clean (485000)
       const amt = refi() ? '' : moneyAmount(f.emdAmount);
@@ -509,22 +533,43 @@ export async function render({ api, user, go }) {
       const referral = referralFromForm({ value: pickedReferral ? pickedReferral.value : '', picks, refinance: refi() });
       f.sourceOfBusiness = ''; delete f.sourceContactId;
       if (!showMdQuestions(f.state, refi())) { f.primaryResidence = ''; f.firstTimeBuyer = ''; }
+      const extras = lenderExtras({ lenderAddress: f.lenderAddress, cplAddress: f.cplAddress, cplSameAsLender: !!($('[data-cpl-same]', root) && $('[data-cpl-same]', root).checked), mortgageBrokerName: f.mortgageBrokerName });
       const input = representationPayload(api, { ...f, emdAmount: amt, purchasePrice: refi() ? '' : moneyAmount(f.purchasePrice), ...(refi() ? { emdDueDate: '' } : {}), loanAmount: moneyAmount(f.loanAmount), salesIds: new FormData(e.target).getAll('salesIds'),
         lenderName: (f.lenderName || (lender && lender.company) || '').trim(),
         lenderContact: lender ? personLabel(lender) : '',
         lenderPhone: (f.lenderPhone || '').trim(),
         lenderEmail: (f.lenderEmail || '').trim(),
-        lossPayeeName: (f.lossPayeeName || '').trim() });
+        lossPayeeName: (f.lossPayeeName || '').trim(),
+        lenderAddress: extras.lenderAddress, cplAddress: extras.cplAddress, cplSameAsLender: extras.cplSameAsLender, mortgageBrokerName: extras.mortgageBrokerName });
+      if (!extras.lenderAddress) delete input.lenderAddress;
+      if (!extras.cplAddress) delete input.cplAddress;
+      if (!extras.cplSameAsLender) delete input.cplSameAsLender;
+      if (!extras.mortgageBrokerName) delete input.mortgageBrokerName;
       if (draftStore && draftKey) { const claim = claimOrderDraft(draftStore, draftKey); if (!claim.ok) throw new Error(claim.message); }
       placing = true; const btn = $('[data-place-order]', root); btn.disabled = true; btn.textContent = 'Placing order\u2026';
       let deal; try { deal = await api.createDeal(input); } catch (err) { placing = false; btn.disabled = false; btn.textContent = 'Place order'; if (draftStore && draftKey) releaseOrderClaim(draftStore, draftKey); throw err; }
       if (draftStore && draftKey) clearOrderDraft(draftStore, draftKey);
       const problems = []; let tasks = 0; const added = {};
-      // Buyer 1, Buyer 2, ..., Seller 1, Seller 2, ..., agents, lender, TC, sales team (p:<role> or p:<role>:<n>); the same order as the one-page form
-      const entries = [...new FormData(e.target).entries()].filter(([k, x]) => k.startsWith('p:') && x).map(([k, x]) => [k, x, k.slice(2).replace(/:\d+$/, '')])
+      // Buyer 1, Buyer 2, ..., Seller 1, Seller 2, ..., agents, lender, TC, sales team (p:<role> or p:<role>:<n>); the same order as the one-page form.
+      // Empty extra buyer / seller rows (the form starts with two of each) are ignored: a blank value is not a person.
+      const entries = [...new FormData(e.target).entries()].filter(([k, x]) => k.startsWith('p:') && String(x || '').trim()).map(([k, x]) => [k, String(x).trim(), k.slice(2).replace(/:\d+$/, '')])
         .map((t, i) => [...t, i]).sort((a, b) => (ADD_ORDER.indexOf(a[2]) - ADD_ORDER.indexOf(b[2])) || (a[3] - b[3]));
       for (const [k, x, role] of entries) { if (!counts(role)) continue;   // refinance: hidden seller / realtor / TC boxes are not saved
         try { const res = await api.addParticipant(deal.id, x, role, entities[k] ? { entity: entities[k] } : undefined); tasks += (res && res.tasksCreated) || 0; added[role] = (added[role] || 0) + 1; } catch (err) { problems.push(`${role}: ${err.message}`); } }
+      const lenderCompany = (input.lenderName || '').trim();
+      const extraContacts = readLenderContactRows(e.target);
+      for (const row of extraContacts) { const builtRow = lenderCompanyContact({ company: lenderCompany, ...row });
+        if (!builtRow.ok) { problems.push(builtRow.error); continue; }
+        if (!builtRow.contact.firstName && !builtRow.contact.lastName) continue;
+        try { const c = await api.createContact(builtRow.contact); await api.addParticipant(deal.id, c.id, 'Lender'); added.Lender = (added.Lender || 0) + 1; } catch (err) { problems.push(`Lender contact: ${err.message}`); } }
+      if (lenderCompany && !(lenderPk && lenderPk.value) && !extraContacts.length) {
+        try {
+          const list = await api.listContacts();
+          const found = (list || []).find((c) => String(c.company || '').trim().toLowerCase() === lenderCompany.toLowerCase() && !String(c.firstName || '').trim() && !String(c.lastName || '').trim());
+          const c = found || await api.createContact({ firstName: '', lastName: '', company: lenderCompany, email: '', phone: '', contactType: 'lender' });
+          await api.addParticipant(deal.id, c.id, 'Lender'); added.Lender = (added.Lender || 0) + 1;
+        } catch (err) { problems.push(`Lender company: ${err.message}`); }
+      }
       if (referral) { try { await api.updateDeal(deal.id, { sourceOfBusiness: referral }); } catch (err) { problems.push(`Source of business was not saved: ${err.message}`); } }
       let saved = 0;
       const uploadIds = new WeakMap();

@@ -17,7 +17,9 @@ export function messagesActivity(x) {
         add(c.profileId || (staff ? `contact:${c.id}` : null), c.firstName, c.lastName, p.role); }
       const deal = load().deals.find((z) => z.id === dealId);
       if (deal) { add(deal.processorId, (load().profiles.find((p) => p.id === deal.processorId) || {}).firstName, (load().profiles.find((p) => p.id === deal.processorId) || {}).lastName, 'Processor');
-        add(deal.preprocessorUserId, (load().profiles.find((p) => p.id === deal.preprocessorUserId) || {}).firstName, (load().profiles.find((p) => p.id === deal.preprocessorUserId) || {}).lastName, 'Preprocessor'); }
+        add(deal.preprocessorUserId, (load().profiles.find((p) => p.id === deal.preprocessorUserId) || {}).firstName, (load().profiles.find((p) => p.id === deal.preprocessorUserId) || {}).lastName, 'Preprocessor');
+        add(deal.tcUserId, (load().profiles.find((p) => p.id === deal.tcUserId) || {}).firstName, (load().profiles.find((p) => p.id === deal.tcUserId) || {}).lastName, 'Transaction Coordinator');
+        if (!deal.processorId) { for (const p of load().profiles || []) if (p.role === 'Processor' && p.status !== 'disabled' && p.status !== 'removed') add(p.id, p.firstName, p.lastName, 'Processor'); } }
       for (const s of load().dealSalesPeople || []) if (s.dealId === dealId) { const p = load().profiles.find((z) => z.id === s.salesId); if (p) add(p.id, p.firstName, p.lastName, p.role); }
       if (u.role === 'Transaction Coordinator') add(u.id, u.firstName, u.lastName, u.role);
       return clone(rows.filter((r) => r.id !== u.id));

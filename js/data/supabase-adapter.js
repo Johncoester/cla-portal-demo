@@ -1,38 +1,41 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611091600';
-import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611090935';
-import { assertRecipients, messageText } from './portal-message.js?v=202611090935';
-import { planDocumentBatch } from './document-batch.js?v=202611090935';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611101015';
+import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611101015';
+import { assertRecipients, messageText } from './portal-message.js?v=202611101015';
+import { planDocumentBatch } from './document-batch.js?v=202611101015';
 import { featureFlags } from './features.js?v=202611070139';
 import { accountingSupabase } from './supabase-accounting.js?v=202611091140';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
-import { modulesSupabase } from './supabase-modules.js?v=202611090935';
+import { modulesSupabase } from './supabase-modules.js?v=202611101015';
 import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611090935';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611090935';
-import { automationPart } from './automation.js?v=202611091345';
-import { runsOrders as runsOrdersCI } from './constants.js?v=202611090935';
-import { crmSupabase } from './supabase-crm.js?v=202611091240';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611101015';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611101015';
+import { automationPart } from './automation.js?v=202611101015';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
+import { crmSupabase } from './supabase-crm.js?v=202611101015';
 import { hrSupabase } from './supabase-hr.js?v=202611100130';
-import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611091240';
-import { officesSupabase } from './supabase-offices.js?v=202611090935';
-import { closingLocationSupabase } from './supabase-closing-location.js?v=202611090935';
-import { tcSupabase } from './supabase-tc.js?v=202611090935';
-import { emailSendersSupabase } from './supabase-email-senders.js?v=202611090935';
-import { gmailSupabase } from './supabase-gmail.js?v=202611100930';
-import { nov5Supabase } from './supabase-nov5.js?v=202611091030';
-import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611100930';
-import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611100130';
+import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611101015';
+import { officesSupabase } from './supabase-offices.js?v=202611101015';
+import { closingLocationSupabase } from './supabase-closing-location.js?v=202611101015';
+import { tcSupabase } from './supabase-tc.js?v=202611101015';
+import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
+import { gmailSupabase } from './supabase-gmail.js?v=202611101230';
+import { nov5Supabase } from './supabase-nov5.js?v=202611101015';
+import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611101015';
+import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611101015';
 import { staffSupabase } from './supabase-staff.js?v=202611082000';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611092320';
+import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
-import { propertyAddressOf } from './nov5-rules.js?v=202611090935';
-import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611090935';
+import { propertyAddressOf } from './nov5-rules.js?v=202611101015';
+import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611101015';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
-import { contactInsertRow } from './contact-insert.js?v=202611070139';
+import { contactInsertRow } from './contact-insert.js?v=202611101200';
+import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
+import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole } from './lender-file.js?v=202611101200';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
@@ -84,6 +87,14 @@ export async function createSupabaseAdapter(cfg) {
   const withRole = (d, r, pm) => ({ ...d, myRole: r && r.role, myRoles: (r && r.roles) || [], myRoleLabel: r && r.label, selfRep: !!(r && r.self_rep), agentParties: pm.get(d.id) || [] });
   const profile = profileFlight();
   const nav = navigationReads();
+  let fileGen = 0;
+  const shareReads = nav.share.bind(nav);
+  nav.share = (id, key, fn) => {
+    const k = String(key);
+    const bust = k.startsWith('deal:') || k.startsWith('shell:') || k.startsWith('overview:');
+    return shareReads(id, bust ? k + '#' + fileGen : k, fn);
+  };
+  const dropFileReads = () => { fileGen += 1; };
   const early = speculativeReads();
   let openingNav = false;
   let navSerial = 0;
@@ -178,7 +189,7 @@ export async function createSupabaseAdapter(cfg) {
     d.participants.forEach((p) => { p.entity = ents.get(p.id) || null; });
     const src = got.source[0]; d.sourceOfBusiness = src ? src.value : ''; d.sourceOfBusinessLabel = src ? src.label : '';
     // Who CLA represents (deals.cla_representation, migration 20261109150000): shown to CLA staff only; null = not recorded
-    if (ident.current() && ident.current().role === 'Outside user') { d.claRepresentation = null; d.claRepresentationLabel = ''; } else { d.claRepresentation = d.claRepresentation || null; d.claRepresentationLabel = claRepresentationLabel(d.claRepresentation); }
+    if (ident.current() && ident.current().role === 'Outside user') { d.claRepresentation = null; d.claRepresentationLabel = ''; d.closerName = ''; d.closerProfileId = null; } else { d.claRepresentation = d.claRepresentation || null; d.claRepresentationLabel = claRepresentationLabel(d.claRepresentation); d.closerName = d.closerName || ''; d.closerProfileId = d.closerProfileId || null; }
     return withRole(d, got.roles.get(d.id), got.parties);
   }
   async function fetchFileShell(id) {
@@ -194,9 +205,11 @@ export async function createSupabaseAdapter(cfg) {
     row.sourceOfBusiness = '';
     row.sourceOfBusinessLabel = '';
     if (ident.current() && ident.current().role === 'Outside user') {
+      row.closerName = ''; row.closerProfileId = null;
       const roles = await fileRoles();
       return withRole(row, roles.get(row.id), new Map());
     }
+    row.closerName = row.closerName || ''; row.closerProfileId = row.closerProfileId || null;
     return withRole(row, null, new Map());
   }
   const rawDocs = async (id) => camel(ok(await sb.from('documents').select('*').eq('deal_id', id)));
@@ -281,6 +294,11 @@ export async function createSupabaseAdapter(cfg) {
     async readFileShell(id) { return fileRead('shell:' + id, () => fetchFileShell(id)); },
     // John, Nov 2 (migration 19): several salespeople per order; the Processor and Admins add/remove them (RPCs check the role + file access)
     async listPreprocessors() { return camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status').eq('role', 'Preprocessor').eq('status', 'active').order('first_name'))); },
+    async listActiveStaff() {
+      const u = await me();
+      const rows = camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status, is_demo').in('role', CLOSER_STAFF_ROLES).eq('status', 'active').order('last_name').order('first_name'))) || [];
+      return rows.filter((p) => !!p.isDemo === !!(u && u.isDemo)).map((p) => ({ id: p.id, firstName: p.firstName, lastName: p.lastName, role: p.role, status: 'active' }));
+    },
     async listProcessors() {
       const u = await me();
       const shape = (res) => (camel(ok(res)) || []).filter((p) => !!p.isDemo === !!(u && u.isDemo)).map((p) => ({ ...p, name: `${p.firstName} ${p.lastName}` }));
@@ -299,7 +317,7 @@ export async function createSupabaseAdapter(cfg) {
     async createDeal(input) {
       // Refinance (John, Nov 3): no purchase price / EMD; migration 32 (private.deal_refi_guard) refuses them, and sellers / realtors / a TC on the file
       const refi = input.transactionType === 'Refinance';
-      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611090935'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
+      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611101015'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
       const { data: { user } } = await sb.auth.getUser();
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
         open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : moneyAmount(input.purchasePrice), loan_amount: moneyAmount(input.loanAmount),
@@ -308,18 +326,24 @@ export async function createSupabaseAdapter(cfg) {
         primary_residence: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.primaryResidence || ''), first_time_buyer: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.firstTimeBuyer || '') };   // Maryland purchases only (John, Nov 6)
       if (input.tcUserId) row.tc_user_id = input.tcUserId;   // John, Nov 9: blank = the database auto-assigns (a TC who opens it, else the agents' team TC)
       if (input.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(input.claRepresentation);   // Both / Buyer only / Seller only; absent = not recorded
+      const wrote = lenderColumnWrite(input); if (wrote) { row.lender_address = wrote.lenderAddress; row.cpl_address = wrote.cplAddress; row.cpl_same_as_lender = wrote.cplSameAsLender; row.mortgage_broker_name = wrote.mortgageBrokerName; }
       const d = camel(ok(await sb.from('deals').insert(row).select().single()));
       if (String(input.sourceOfBusiness || '').trim()) ok(await sb.rpc('set_deal_source', { p_deal: d.id, p_source: input.sourceOfBusiness }));   // migration 31 (staff-only table)
       const ids = [].concat(input.salesIds || []).filter(Boolean); if (ids.length) ok(await sb.rpc('set_deal_sales_people', { p_deal: d.id, p_sales: ids }));
       return { ...d, address: `${d.street}, ${d.city}, ${d.state} ${d.zip}` }; },
     async updateDeal(id, patch) {
       const map = { street: 'street', city: 'city', state: 'state', zip: 'zip', county: 'county', openDate: 'open_date', closingDate: 'closing_date', purchasePrice: 'purchase_price', loanAmount: 'loan_amount',
-        emdAmount: 'emd_amount', emdDueDate: 'emd_due_date', lenderName: 'lender_name', lenderContact: 'lender_contact', lenderEmail: 'lender_email', lenderPhone: 'lender_phone', lossPayeeName: 'loss_payee_name', notes: 'notes', processorId: 'processor_id', preprocessorUserId: 'preprocessor_user_id', tcUserId: 'tc_user_id', primaryResidence: 'primary_residence', firstTimeBuyer: 'first_time_buyer' };
+        emdAmount: 'emd_amount', emdDueDate: 'emd_due_date', lenderName: 'lender_name', lenderContact: 'lender_contact', lenderEmail: 'lender_email', lenderPhone: 'lender_phone', lossPayeeName: 'loss_payee_name', notes: 'notes', processorId: 'processor_id', preprocessorUserId: 'preprocessor_user_id', tcUserId: 'tc_user_id', primaryResidence: 'primary_residence', firstTimeBuyer: 'first_time_buyer', closerName: 'closer_name', closerProfileId: 'closer_profile_id' };
       const money = new Set(['purchase_price', 'loan_amount', 'emd_amount']); const dates = new Set(['open_date', 'closing_date', 'emd_due_date']); const row = {};
       for (const [k, col] of Object.entries(map)) if (patch[k] !== undefined) { const v = patch[k];
-        row[col] = money.has(col) ? moneyAmount(v) : dates.has(col) || col === 'processor_id' || col === 'preprocessor_user_id' || col === 'tc_user_id' ? (v || null) : v; }
+        row[col] = money.has(col) ? moneyAmount(v) : dates.has(col) || col === 'processor_id' || col === 'preprocessor_user_id' || col === 'tc_user_id' || col === 'closer_profile_id' ? (v || null) : v; }
       if (row.open_date === null) delete row.open_date;
       if (patch.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(patch.claRepresentation);   // '' = not recorded (null)
+      if (lenderColumnsTouched(patch)) { const x = lenderExtras(patch);
+        if (patch.lenderAddress !== undefined) row.lender_address = x.lenderAddress;
+        if (patch.cplAddress !== undefined || patch.cplSameAsLender !== undefined) row.cpl_address = x.cplAddress;
+        if (patch.cplSameAsLender !== undefined) row.cpl_same_as_lender = x.cplSameAsLender;
+        if (patch.mortgageBrokerName !== undefined) row.mortgage_broker_name = x.mortgageBrokerName; }
       if (patch.state !== undefined && String(patch.state || '').toUpperCase() !== 'MD') { row.primary_residence = ''; row.first_time_buyer = ''; }
       if (Object.keys(row).length) ok(await sb.from('deals').update(row).eq('id', id));
       if (patch.sourceOfBusiness !== undefined) ok(await sb.rpc('set_deal_source', { p_deal: id, p_source: patch.sourceOfBusiness || '' }));
@@ -327,13 +351,41 @@ export async function createSupabaseAdapter(cfg) {
       return a.getDeal(id); },
     // contacts: unique email (contacts_email_uq); a new contact has no login and no invite is sent
     async createContact(input) { return camel(ok(await sb.from('contacts').insert(contactInsertRow(input)).select().single())); },
-    async updateContact(id, patch) { const row = {}; for (const [k, col] of [['firstName', 'first_name'], ['lastName', 'last_name'], ['email', 'email'], ['phone', 'phone'], ['company', 'company'], ['contactType', 'contact_type']])
-      if (patch[k] !== undefined) row[col] = k === 'contactType' ? (patch[k] || null) : k === 'email' ? String(patch[k] || '').toLowerCase() : patch[k];
-      return camel(ok(await sb.from('contacts').update(row).eq('id', id).select().single())); },
+    async updateContact(id, patch) {
+      if (!id) throw new Error('This contact was not saved. Nothing was changed.');
+      const row = {};
+      for (const [k, col] of [['firstName', 'first_name'], ['lastName', 'last_name'], ['email', 'email'], ['phone', 'phone'], ['company', 'company'], ['contactType', 'contact_type']]) {
+        if (!patch || patch[k] === undefined) continue;
+        row[col] = k === 'contactType' ? (patch[k] || null) : k === 'email' ? String(patch[k] || '').trim().toLowerCase() : patch[k];
+      }
+      if (patch && patch.lenderRole !== undefined) row.lender_role = cleanLenderRole(patch.lenderRole, patch.contactType || 'lender');
+      if (!Object.keys(row).length) throw new Error('Nothing to save on this contact.');
+      let saved;
+      try { saved = camel(ok(await sb.from('contacts').update(row).eq('id', id).select().single())); }
+      catch (e) { throw contactSaveMiss(e); }
+      if (!saved || !saved.id) throw new Error('This contact was not saved. Nothing was changed.');
+      assertContactSaved(patch, saved);
+      dropFileReads();
+      return saved;
+    },
+    async listLossPayeeClauses(lenderName) {
+      const name = String(lenderName || '').replace(/[%_,]/g, '').trim();
+      if (!name) return [];
+      const rows = camel(ok(await sb.from('deals').select('lender_name, loss_payee_name, open_date').ilike('lender_name', name))) || [];
+      return lossPayeeSuggestions(rows, lenderName);
+    },
     // participants: the triggers (migrations 10, 11, 20) enforce outside-user roles, self-representation pairs and "TC = Transaction Coordinator accounts only"
     // Matt, Nov 3b: opts.entity = { name, type, repName, repTitle, repPhone, repEmail } on a buyer / seller row (set_participant_entity, migration 31)
-    async addParticipant(dealId, contactId, role, opts = {}) { const p = ok(await sb.from('deal_participants').insert({ deal_id: dealId, contact_id: contactId, role }).select('id').single());
-      if (opts && opts.entity) ok(await sb.rpc('set_participant_entity', { p_participant: p.id, p_entity: opts.entity })); return { ok: true, id: p.id }; },
+    async addParticipant(dealId, contactId, role, opts = {}) {
+      const contact = camel(ok(await sb.from('contacts').select('id, first_name, last_name, email, company').eq('id', contactId).maybeSingle()));
+      if (!contact) throw new Error('Contact not found.');
+      const onFile = (ok(await sb.rpc('deal_contacts', { p_deal: dealId })) || []).map((r) => ({ role: r.role, contactId: r.contact_id, contact: { id: r.contact_id, firstName: r.first_name, lastName: r.last_name, email: r.email, company: r.company } }));
+      if (sameParty(onFile, contact, role)) throw new Error(duplicatePartyMessage(contact, role));
+      const p = ok(await sb.from('deal_participants').insert({ deal_id: dealId, contact_id: contactId, role }).select('id').single());
+      if (opts && opts.entity) ok(await sb.rpc('set_participant_entity', { p_participant: p.id, p_entity: opts.entity }));
+      dropFileReads();
+      return { ok: true, id: p.id };
+    },
     async setParticipantEntity(dealId, participantId, entity) { return ok(await sb.rpc('set_participant_entity', { p_participant: participantId, p_entity: entity || null })); },
     async listSourceOptions() { return ok(await sb.rpc('source_of_business_options')) || []; },
     async listCoordinators() {
@@ -415,11 +467,11 @@ export async function createSupabaseAdapter(cfg) {
     async markNotificationRead(id) { ok(await sb.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id)); },
     async markAllNotificationsRead() { ok(await sb.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null)); },
     // closing: tokens come back ONCE from create/reopen (only hashes are stored), unlike the mock which keeps them
-    async createSettlementRequest(dealId, { slots, location, note }) { return camel(ok(await sb.rpc('create_settlement_request', { p_deal: dealId, p_slots: slots, p_location: location, p_note: note }))[0]); },
+    async createSettlementRequest(dealId, { slots, location, note, officeId }) { return camel(ok(await sb.rpc('create_settlement_request', { p_deal: dealId, p_slots: slots, p_location: location || '', p_note: note || '', p_office: officeId || null }))[0]); },
     async confirmSettlement(id, slotIndex) { ok(await sb.rpc('confirm_settlement', { p_settlement: id, p_slot: slotIndex + 1 })); },
     async reopenSettlement(id, { slots, note } = {}) { return camel(ok(await sb.rpc('reopen_settlement', { p_settlement: id, p_slots: slots || null, p_note: note || null }))[0]); },
     async getSchedulingLink(tok) { return ok(await sb.rpc('scheduling_get', { p_token: tok })); },   // anon OK
-    async respondSettlement(tok, { picks, note, name }) { ok(await sb.rpc('scheduling_respond', { p_token: tok, p_picks: picks.map((i) => i + 1), p_name: name, p_note: note || '' })); },
+    async respondSettlement(tok, { picks, note, name, location, officeId }) { ok(await sb.rpc('scheduling_respond', { p_token: tok, p_picks: picks.map((i) => i + 1), p_name: name, p_note: note || '', p_location: location || '', p_office: officeId || '' })); },
     async updateTask(id, patch) { return ok(await sb.rpc('set_task_status', { p_task: id, p_status: patch.status })); },
     async listDocuments(dealId, { folderId } = {}) { const rows = (await fileRead('docs:' + dealId, () => rawDocs(dealId))) || []; return filterListedDocuments(rows, folderId).map((d) => shapeListedDocument(d)); },   // folder filter + stored size/content flag (no extra query)
     // ---- Matt, Nov 2 (migration 16): cross-file task list + Processor / Admin task grid. task_board / task_grid are SECURITY INVOKER (RLS decides). ----
@@ -474,6 +526,8 @@ export async function createSupabaseAdapter(cfg) {
   };
   const NOT_ENABLED = 'This action is not enabled on CLA Portal Live Test. Nothing was sent, queued, or saved as if it had succeeded.';
   Object.assign(a, staffSupabase({ sb, ok, camel, me, api: a }));
+  const removeParty = a.removeParticipant && a.removeParticipant.bind(a);
+  if (removeParty) a.removeParticipant = async (...args) => { const r = await removeParty(...args); dropFileReads(); return r; };
   // Dev-only pickers stay off. E-sign candidate picking stays unwired; signing itself stays disabled below.
   for (const n of ['pickPerson', 'signInDev', 'listSignatureCandidates']) a[n] = todo(n);
   // CRM (John, Nov 2; migration 22): only when the `crm` flag is on (default OFF in supabase mode; features.js). The database has its own switch too.
@@ -649,5 +703,6 @@ export async function createSupabaseAdapter(cfg) {
       if (a.listEntityDocRequests) a.listEntityDocRequests(id).catch(() => null);
     }
   }
+  a.dropFileReads = dropFileReads;
   return a;
 }
