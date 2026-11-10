@@ -1,9 +1,9 @@
 // Documents tab with folders. Upload, open/download, file into folders, edit description/visibility. There is NO delete: documents are kept permanently.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDateTime, fmtSize, pill, toast } from '../ui.js?v=202611070139';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611091030';
-import { composeModal } from './compose.js?v=202611090935';
-import { runsOrders, viewOnly, DOC_VISIBILITY, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isViewOnly, isClient, visibilityChoices, visibilityLabel, CLIENT_SHARE_NOTE, BUYER_SHARE_NOTE, DOC_TYPES, docTypeChoices } from '../data/constants.js?v=202611090935';
-import { uploadDocumentBatch } from '../data/document-batch.js?v=202611090935';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611101015';
+import { composeModal } from './compose.js?v=202611101015';
+import { runsOrders, viewOnly, DOC_VISIBILITY, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isViewOnly, isClient, visibilityChoices, visibilityLabel, clientShareVisibility, CLIENT_SHARE_NOTE, BUYER_SHARE_NOTE, DOC_TYPES, docTypeChoices } from '../data/constants.js?v=202611101015';
+import { uploadDocumentBatch } from '../data/document-batch.js?v=202611101015';
 import { addToQueue, removeFromQueue, uploadFailureText } from '../data/document-queue.js?v=202611090935';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
 const icon = (n) => (/\.pdf$/i.test(n) ? 'pdf_icon.png' : /\.docx?$/i.test(n) ? 'word_icon.png' : /\.(xlsx?|csv)$/i.test(n) ? 'excel_icon.png' : 'image_icon.png');
@@ -103,7 +103,7 @@ export async function render({ api, user, deal, refresh }) {
           const slots = form._uploads || (form._uploads = new Map()); const key = [file.name, file.size, file.lastModified].join('\0');
           if (!slots.has(key)) slots.set(key, {});
           const id = sameUploadId(slots.get(key), file);
-          return api.addDocument(deal.id, { id, name: file.name, description: f.description, mimeType: file.type, size: file.size, dataUrl, file, visibility: f.visibility, folderId: f.folderId || null, docType: f.docType || '', wireInstructions: staffView && !!f.wireInstructions });
+          return api.addDocument(deal.id, { id, name: file.name, description: f.description, mimeType: file.type, size: file.size, dataUrl, file, visibility: clientShareVisibility(user.role, f.visibility), folderId: f.folderId || null, docType: f.docType || '', wireInstructions: staffView && !!f.wireInstructions });
         }, docs.map((d) => d.name));
         const failedNames = new Set(result.failed.map((z) => z.name));
         queue = pending.filter((file) => failedNames.has(file.name));
@@ -134,7 +134,7 @@ export async function render({ api, user, deal, refresh }) {
       ${manage ? html`<label class="span2">Folder<select name="folderId"><option value="">Unfiled</option>${options(realFolders, d.folderId || '', (f) => f.name, (f) => f.id)}</select></label>` : ''}
       <p class="span2 muted small">Documents cannot be deleted.</p>
       <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
-    $('#mf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); if (canMeta) await api.updateDocumentMeta(d.id, { description: f.description, visibility: f.visibility, docType: f.docType || '', ...(staffView ? { wireInstructions: !!f.wireInstructions } : {}) });
+    $('#mf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); if (canMeta) await api.updateDocumentMeta(d.id, { description: f.description, visibility: clientShareVisibility(user.role, f.visibility), docType: f.docType || '', ...(staffView ? { wireInstructions: !!f.wireInstructions } : {}) });
       if (manage && (f.folderId || null) !== (d.folderId || null)) await api.moveDocument(d.id, f.folderId || null); closeModal(); toast('Saved'); refresh(); }));
   }
 }

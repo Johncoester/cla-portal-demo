@@ -9,9 +9,9 @@
 // The adapter refuses anything the person may not do; the page only hides what they cannot use.
 import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime } from '../ui.js?v=202611070139';
 import { hrCanManage, hrIsSuper, filterEmployees, initials, fullNameOf, COUNTRIES, EMPLOYMENT_TYPES, EMPLOYMENT_STATUSES, PAY_TYPES, PAY_CURRENCIES, WORK_LOCATIONS, portalRoleForDesignation, EMPLOYEE_ROLE_FILTER,
-  HR_INVITE_DAYS, FIELD_LABEL, labelOf, jobTitleOf } from '../data/hr.js?v=202611091730';
+  HR_INVITE_DAYS, FIELD_LABEL, labelOf, jobTitleOf } from '../data/hr.js?v=202611101015';
 import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100200';
-import { companyDocsPage, employeeDocsCard, sharedDocsCard, portalTimeCard, wireEmployeeDocs, wireSharedDocs } from './hr-feedback.js?v=202611091730';
+import { companyDocsPage, employeeDocsCard, sharedDocsCard, portalTimeCard, wireEmployeeDocs, wireSharedDocs } from './hr-feedback.js?v=202611101015';
 const PILL = { active: 'ok', on_leave: 'warn', separated: 'bad' };
 const INV = { pending: ['Invite pending', 'warn'], expired: ['Invite expired', 'bad'], revoked: ['Invite revoked', ''], none: ['No login yet', ''], accepted: ['Has login', 'ok'] };
 const abs = (link) => location.href.split('#')[0] + link;

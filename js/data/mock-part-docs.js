@@ -1,6 +1,6 @@
 /* mock adapter: contacts, participants, documents (deal files). NOTE: there is no delete for documents, for anyone (Admin included). */
-import { cleanEntity } from './mock-part-nov3b.js?v=202611092320';
-import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611090935';
+import { cleanEntity } from './mock-part-nov3b.js?v=202611101015';
+import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611101015';
 export function contactsTasksDocs(x) {
   const { load, save, nid, needUser, needProcessor, isManager, notViewOnly, seesAll, dealsFor, dealOr404, onDeal, fileRole, log, prof, nameOf, roleOf, fullName, folderOf, docVisible, participantsOf, notify, dealProfileIds, clone, now, fail, str, emailOk, C } = x;
   // u = the deal-scoped viewer (optional). A pure buyer never gets the name, role or id of another party who uploaded a file CLA staff shared with
@@ -159,9 +159,8 @@ export function contactsTasksDocs(x) {
       return { name: z.name, mimeType: z.mimeType, dataUrl: content || ('data:text/plain;charset=utf-8,' + encodeURIComponent(`FAKE DEMO FILE\n${z.name}\n(Seed documents have no real content.)\n`)) };
     },
   };
-  // u = the deal-scoped user. Outside users: 'all' or their own side only (never staff-only, never the other side).
-  // BUYER (Nov 4 call): shares with CLA Title only. An older 'buyer side' request from the buyer is stored as 'staff' (CLA staff only)
-  const buyerVis = (u, vis) => (u.role === 'Client-Buyer' && vis === 'buyer' ? 'staff' : vis);
+  // A buyer or seller 'Share with CLA Title' is their own side (staff and their agent). An old 'staff' choice is stored that way too.
+  const buyerVis = (u, vis) => ((u.role === 'Client-Buyer' || u.role === 'Client-Seller') && vis === 'staff' ? (C.sideOf(u.role) || vis) : vis);
   const visCheck = (u, vis) => { if (C.visibilityChoices(u.role, u.isAdmin).includes(vis)) return;
     if (vis === 'staff') fail(C.isClient(u.role) ? 'Clients cannot make staff-only documents.' : 'Only CLA staff can make staff-only documents.');
     if (C.isClient(u.role)) fail('Clients share files with CLA Title (and their own agent) only.');

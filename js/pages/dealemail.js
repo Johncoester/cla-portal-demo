@@ -2,9 +2,9 @@
 // replies in the same Gmail thread come back to the file (checked every few minutes, or "Check for replies"). Received attachments are saved to
 // Documents (staff only). The server refuses every address that is not a test address on Live Test, and never emails wire details.
 import { html, raw, esc, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611070139';
-import { editorHtml, mountEditor } from './compose.js?v=202611090935';
+import { editorHtml, mountEditor } from './compose.js?v=202611101015';
 import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, hasSignature, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611091801';
-import { applyFileTemplate } from '../data/file-email-templates.js?v=202611092210';
+import { applyFileTemplate } from '../data/file-email-templates.js?v=202611101015';
 const ROLE = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent', 'Transaction Coordinator': 'TC' };
 const list = (s) => String(s || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
 const isWire = (d) => d.wireInstructions || /\bwir(e|ed|es|ing)\b|wire[_ -]?instruction/i.test(d.name || '');

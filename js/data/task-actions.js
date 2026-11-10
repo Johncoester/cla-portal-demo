@@ -1,8 +1,8 @@
 /* Hosted task rows do not carry mine / canFill / canTick. These helpers add them
  * from the signed-in profile. They do not add tasks, do not return another person's
  * answers, and do not treat Demo view-only as a missing task. */
-import { runsOrders, viewOnly, maskAccount } from './constants.js?v=202611090935';
-import { fieldsForRole, maskedFields } from './templates.js?v=202611090935';
+import { runsOrders, viewOnly, maskAccount } from './constants.js?v=202611101015';
+import { fieldsForRole, maskedFields } from './templates.js?v=202611101015';
 
 export const HOSTED_TASK_COLUMNS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 
@@ -128,6 +128,12 @@ export async function fetchHostedTask(sb, id, user) {
     const tp = await sb.from('task_templates').select('id, code, version, title, fields').eq('id', preview.templateId).maybeSingle();
     if (tp.error) throw new Error(tp.error.message);
     template = tp.data || null;
+  }
+  // The list shows tasks.template_version. The detail needs the field definitions. If row security hides
+  // task_templates, get_task_template still returns them for a task this person can already open.
+  if (preview.kind === 'form' && (!template || !Array.isArray(template.fields) || !template.fields.length) && sb.rpc) {
+    const rpc = await sb.rpc('get_task_template', { p_task: id });
+    if (rpc && !rpc.error && rpc.data && rpc.data.id) template = rpc.data;
   }
   let formRpc = null;
   if (preview.kind === 'form') formRpc = await sb.rpc('get_task_form', { p_task: id });

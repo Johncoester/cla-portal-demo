@@ -1,9 +1,9 @@
 // One intake task (form). Save partial work, validate, mark complete. ID-type fields upload a file into the order's "IDs & personal" folder.
 import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611100245';
 import { downloadNamed } from '../data/file-open.js?v=202611100245';
-import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611100245';
-import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611100245';
-import { CLS, LABEL } from './dealtasks.js?v=202611100245';
+import { fieldActive, fieldsForRole } from '../data/templates.js?v=202611101015';
+import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611101015';
+import { CLS, LABEL } from './dealtasks.js?v=202611101015';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 export async function render(c0) {
@@ -33,16 +33,17 @@ export async function render(c0) {
     return html`<label class="fld" data-k="${f.k}">${f.label} ${req}<input type="${type}" name="${f.k}" value="${val}" ${extra ? raw(extra) : ''}><span class="ferr"></span></label>`;
   };
   if (t.kind === 'sign') return signView({ api, deal, t, refresh, go });
+  const tplLabel = t.template ? html`${t.template.code} v${t.template.version}` : (t.templateCode ? html`${t.templateCode} v${t.templateVersion}` : 'n/a');
   const answers = html`${t.maskedAnswers ? html`<p class="muted small" data-masked>Bank account numbers show the last 4 digits only. The client and the processor see them in full.</p>` : ''}<dl class="answers">${t.fields.filter((f) => f.type !== 'info' && fieldActive(f, v) && v[f.k] !== undefined).map((f) => html`<dt>${f.label}</dt><dd>${f.type === 'checkbox' ? 'Yes' : f.type === 'doc' ? docName(v[f.k]) : v[f.k]}</dd>`)}</dl>`;
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>${t.title}</h2><a class="ghost right" href="#/deals/${deal.id}/tasks">All tasks</a></div>
     <div class="card"><p>${t.description}</p><p class="muted small">For <strong>${t.ownerName || t.assignedRole}</strong> (${t.assignedRole}) &middot; due ${fmtDate(t.dueDate) || 'n/a'} &middot; ${pill(LABEL[t.status], CLS[t.status])}
-      &middot; template ${t.template ? html`${t.template.code} v${t.template.version}` : 'n/a'}${t.savedAt ? html` &middot; last saved ${fmtDateTime(t.savedAt)}` : ''}</p>
+      &middot; template ${tplLabel}${t.savedAt ? html` &middot; last saved ${fmtDateTime(t.savedAt)}` : ''}</p>
     ${t.completedByLabel ? html`<p class="done-by"><strong>${t.completedByLabel}</strong> on ${fmtDateTime(t.completedAt)}.</p>` : t.savedByLabel ? html`<p class="muted small done-by">${t.savedByLabel} on ${fmtDateTime(t.savedAt)}.</p>` : ''}
     ${t.forClient && t.canFill ? html`<p class="note-box">You are completing this <strong>on behalf of ${t.ownerName}</strong>. ${t.ownerName} will be told, can see your answers and can correct them. Every save is recorded with your name.</p>` : ''}
     ${t.mine && t.savedBy && t.savedBy !== t.ownerId ? html`<p class="note-box">Your agent filled this in for you. Please check the answers and correct anything that is wrong.</p>` : ''}
     ${t.formError ? html`<p class="notice warn" data-task-form-state="error">This form could not be loaded. Nothing was marked complete.</p>`
       : t.formHidden ? html`<p class="muted" data-task-form-state="hidden">Only the assigned person, the processor, and the coordinator can see these answers.</p>`
-      : t.canFill ? html`<form id="tform" class="form-grid" novalidate>${!(t.fields || []).length ? html`<p class="notice warn span2" data-task-no-fields>This task has no form fields yet (template ${t.template ? html`${t.template.code} v${t.template.version}` : 'n/a'}). Tell CLA Title — nothing was marked complete.</p>` : ''}${t.fields.map(input)}
+      : t.canFill ? html`<form id="tform" class="form-grid" novalidate>${!(t.fields || []).length ? html`<p class="notice warn span2" data-task-no-fields>This task has no form fields yet (template ${tplLabel}). Tell CLA Title — nothing was marked complete.</p>` : ''}${t.fields.map(input)}
         <div class="span2"><button class="ghost" type="submit" data-mode="save">Save progress</button> <button class="m-btn" type="submit" data-mode="complete">${t.status === 'done' ? 'Save and keep complete' : 'Mark complete'}</button></div>
         <p class="muted small span2">Fields marked * are needed to mark the task complete. You can save partial work any time. We never ask for Social Security numbers here.</p></form>`
       : answers}</div>`;
@@ -93,4 +94,4 @@ function signView({ api, deal, t, refresh, go }) {
 }
 
 // Francis, Nov 3: agent tasks (kind 'agent') have their own page
-async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611100245'); return m.render(c); }
+async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611101015'); return m.render(c); }

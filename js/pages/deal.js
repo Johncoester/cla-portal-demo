@@ -2,19 +2,19 @@
 import { html, raw, toText, esc, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611070139';
 import { TEST_ALLOWLIST_NOTE, isAllowedTestRecipient, textToHtml, hasSignature } from '../data/gmail-email.js?v=202611091801';
 import { occSelects, yesNo } from './occ-fields.js?v=202611070139';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611090935';
-import { modOn } from '../data/modules.js?v=202611090935';
-import { slotText } from './dealclosing.js?v=202611090935';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611092350';
-import { composeModal } from './compose.js?v=202611090935';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611101015';
+import { modOn } from '../data/modules.js?v=202611101015';
+import { slotText } from './dealclosing.js?v=202611101015';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611101015';
+import { composeModal } from './compose.js?v=202611101015';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611092320';
-import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611090935';
+import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611101015';
 import { themeOn } from '../theme.js?v=202611070139';
-import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611100005';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611091311';
+import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611101015';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611101015';
 import { gatherReads } from '../data/read-batch.js?v=202611082010';
-import { prefetchDealTab } from './deal-tab.js?v=202611100245';
-import { placeText } from '../data/cla-offices.js?v=202611090935';
+import { prefetchDealTab } from './deal-tab.js?v=202611101015';
+import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 
 function staffSections(ctx, dealId) {

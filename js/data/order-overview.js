@@ -1,8 +1,8 @@
 // Order overview shape shared by the Supabase adapter. Inputs are already limited by RLS
 // (deal_contacts hides the other side, tasks/documents/threads/activity use their own policies).
 // This function does not invent rows, prices, or activity. A hidden contact keeps a blank phone and email.
-import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS } from './agent-portal.js?v=202611090935';
-import { CLA_PHONE, isRefi, viewOnly, isAgent, sideOf } from './constants.js?v=202611090935';
+import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS } from './agent-portal.js?v=202611101015';
+import { CLA_PHONE, isRefi, viewOnly, isAgent, sideOf } from './constants.js?v=202611101015';
 
 const OPEN = ['todo', 'in_progress', 'blocked'];
 const EMD_RECEIPT = /earnest money deposit receipt/i;
