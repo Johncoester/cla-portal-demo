@@ -40,18 +40,18 @@ function run(entries, options = {}) {
 }
 
 const measured = run([
-  { entryType: 'resource', name: 'https://testportal.clatitle.com/js/app.js?v=202611090210', initiatorType: 'script', startTime: 100.4, responseEnd: 400.6, transferSize: 0, decodedBodySize: 1200 },
+  { entryType: 'resource', name: 'https://testportal.clatitle.com/js/app.js?v=202611102000', initiatorType: 'script', startTime: 100.4, responseEnd: 400.6, transferSize: 0, decodedBodySize: 1200 },
   { entryType: 'resource', name: 'https://esm.sh/@supabase/supabase-js@2.45.4', initiatorType: 'script', startTime: 420, responseEnd: 900, transferSize: 50, decodedBodySize: 800 },
   { entryType: 'resource', name: 'https://example.supabase.co/auth/v1/user?apikey=secret-token', initiatorType: 'fetch', startTime: 1876.2, responseEnd: 2195, transferSize: 20, decodedBodySize: 40 },
   { entryType: 'resource', name: 'https://example.supabase.co/rest/v1/rpc/task_board', initiatorType: 'fetch', startTime: 2353, responseEnd: 3699, transferSize: 900, decodedBodySize: 900 },
-  { entryType: 'longtask', name: 'self', startTime: 500, duration: 80.2, attribution: [{ name: 'https://testportal.clatitle.com/js/data/supabase-adapter.js?v=202611090210&token=secret' }] },
+  { entryType: 'longtask', name: 'self', startTime: 500, duration: 80.2, attribution: [{ name: 'https://testportal.clatitle.com/js/data/supabase-adapter.js?v=202611102000&token=secret' }] },
   { entryType: 'longtask', name: 'self', startTime: 1900, duration: 40, attribution: [] },
 ]);
 check(measured.data && measured.data.frozen === true && measured.data.authStart === 1876 && measured.data.docEnd === 963, 'the snapshot freezes at the first auth request and keeps the document end');
 const paths = measured.data.resources.map((row) => row.p);
-check(paths.join('|') === '/js/app.js?v=202611090210|/@supabase/supabase-js@2.45.4|/auth/v1/user', 'resources that start after auth are dropped');
+check(paths.join('|') === '/js/app.js?v=202611102000|/@supabase/supabase-js@2.45.4|/auth/v1/user', 'resources that start after auth are dropped');
 check(measured.data.resources.find((row) => row.k === 'esm').t === 50 && measured.data.resources.find((row) => row.k === 'same').t === 0, 'transfer size is kept, including zero when the browser hides or caches it');
-check(measured.data.tasks.length === 1 && measured.data.tasks[0].dur === 80 && measured.data.tasks[0].p === '/js/data/supabase-adapter.js?v=202611090210', 'only a long task that starts before auth is kept');
+check(measured.data.tasks.length === 1 && measured.data.tasks[0].dur === 80 && measured.data.tasks[0].p === '/js/data/supabase-adapter.js?v=202611102000', 'only a long task that starts before auth is kept');
 check(!measured.text.includes('secret'), 'a query secret is not stored');
 check(measured.observers.every((observer) => observer.dead), 'observers stop once auth starts');
 

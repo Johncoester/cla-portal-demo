@@ -7,6 +7,7 @@ import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611101015';
 import { composeModal } from './compose.js?v=202611101015';
 import { slotText } from './dealclosing.js?v=202611101015';
 import { yourAgentHtml } from './your-agent.js?v=202611101015';
+import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 
 // stage 5 shows as "Wire Fraud Awareness" on the BUYER's view only (display only; the stored stage list is unchanged)
 // live40 (John, Nov 5 meeting): the client tracker's step 2 (internal STAGES[1] 'EMD Receipt', key unchanged for reports) reads "Buyer info received" for buyer and seller.
@@ -70,11 +71,11 @@ export async function renderClientOverview(ctx, d, here) {
   const next = todo[0];
   // ---------- closing team ----------
   const ps = d.participants.filter((p) => !p.removed && p.contact); const meC = ps.find((p) => p.contact.profileId === user.id);
-  const row = (p, chip, { cla = false, you = false, via = false, big = false } = {}) => { const c = p.contact; const pid = c.profileId; const name = `${c.firstName} ${c.lastName}`.trim();
+  const row = (p, chip, { cla = false, you = false, via = false, big = false } = {}) => { const c = p.contact; const pid = c.profileId; const name = partyDisplayName(p); const bits = name.split(/\s+/).filter(Boolean);
     const em = via ? 'Contact through your agent' : c.contactHidden ? 'Contact through CLA Title' : [c.email, fmtPhone(c.phone)].filter(Boolean).join(' \u00b7 ');
     const acts = you || via || c.contactHidden ? '' : html`<div class="co-acts">${pid && canMsg.has(pid) ? html`<button type="button" data-co-message="${pid}">Message</button>` : ''}${c.phone ? html`<a href="tel:${tel(c.phone)}" data-co-call>Call</a>` : ''}</div>`;
-    return html`<div class="${big ? 'co-ya' : 'co-prow'}" data-co-person="${name}" data-co-role="${chip}"${you ? raw(' data-co-you') : ''}${via ? raw(' data-co-via-agent') : ''}><div class="co-av" aria-hidden="true">${initials(c.firstName, c.lastName)}</div>
-      <div class="co-who"><div class="co-nm">${name}${you ? html` <span class="co-you">(you)</span>` : ''}</div>${c.company && !via ? html`<div class="co-em">${c.company}</div>` : ''}<div class="co-em">${em}</div><span class="co-chip${cla ? ' cla' : ''}">${chip}</span></div>${acts}</div>`; };
+    return html`<div class="${big ? 'co-ya' : 'co-prow'}" data-co-person="${name}" data-co-role="${chip}"${you ? raw(' data-co-you') : ''}${via ? raw(' data-co-via-agent') : ''}><div class="co-av" aria-hidden="true">${initials(bits[0] || '', bits[1] || '')}</div>
+      <div class="co-who"><div class="co-nm">${name}${you ? html` <span class="co-you">(you)</span>` : ''}</div>${c.company && c.company !== name && !via ? html`<div class="co-em">${c.company}</div>` : ''}<div class="co-em">${em}</div><span class="co-chip${cla ? ' cla' : ''}">${chip}</span></div>${acts}</div>`; };
   const ownAgentRole = side === 'buyer' ? 'Buyer Agent' : 'Listing Agent'; const otherAgentRole = side === 'buyer' ? 'Listing Agent' : 'Buyer Agent';
   const myRole = side === 'buyer' ? 'Client-Buyer' : 'Client-Seller'; const otherRole = side === 'buyer' ? 'Client-Seller' : 'Client-Buyer';
   const B = refi ? 'Borrower' : 'Buyer'; const L = { 'Client-Buyer': B, 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent' };

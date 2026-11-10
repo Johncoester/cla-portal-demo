@@ -5,7 +5,8 @@
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
 import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, localDate, localDayOf, isRealDate,
   isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
-  phoneOk, fmtPhone, PHONE_MSG, fileTitleOf, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611101015';
+  phoneOk, fmtPhone, PHONE_MSG, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611101015';
+import { fileTitleOf, partyDisplayName } from './party-name.js?v=202611102000';
 import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611101015';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
 import { delegationLocked, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611101015';
@@ -42,7 +43,7 @@ import { underwriterPart } from './mock-part-underwriter.js?v=202611070139';
 import { agentInfoPart } from './mock-part-agentinfo.js?v=202611101015';
 import { agentInvitePart } from './mock-part-agent-invite.js?v=202611101015';
 import { automationPart } from './automation.js?v=202611101015';
-import { gmailMock } from './supabase-gmail.js?v=202611101230';
+import { gmailMock } from './supabase-gmail.js?v=202611102000';
 import { hrPart, ensureHr } from './mock-part-hr.js?v=202611101015';
 import { titlePart, ensureTitle } from './mock-part-title.js?v=202611101015';
 import { tcPortal, ensureTc, tcMessageViews } from './mock-part-tc.js?v=202611070139';
@@ -345,10 +346,10 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     u = scopeTo(u, x.id); const d = load(); const tasks = d.tasks.filter((t) => t.dealId === x.id && taskVisible(u, t)); const mine = d.threads.filter((t) => t.dealId === x.id && threadVisible(u, t));
     // staff see 'Agent is a party' (licensee disclosure) when someone on the order is both a client and their side's agent
     const parties = d.participants.filter((p) => p.dealId === x.id && isClient(p.role) && d.participants.some((q) => q.dealId === x.id && q.contactId === p.contactId && isAgent(q.role) && pairAllowed(p.role, q.role)))
-      .map((p) => { const c = d.contacts.find((z) => z.id === p.contactId); return { contactId: p.contactId, name: c ? fullName(c) : '', label: fileRoleLabel([p.role === 'Client-Buyer' ? 'Buyer Agent' : 'Listing Agent', p.role]) }; });
+      .map((p) => { const c = d.contacts.find((z) => z.id === p.contactId); const ent = p.entity && p.entity.name; return { contactId: p.contactId, name: ent || (c ? fullName(c) : ''), label: fileRoleLabel([p.role === 'Client-Buyer' ? 'Buyer Agent' : 'Listing Agent', p.role]) }; });
     const staffView = !isOutside(u.accountRole || u.role) && !isClient(u.role) && !isAgent(u.role);
     // Matt, Nov 3 (b): source of business is CLA-internal (staff only); its label follows renames in CRM Settings -> Lead Source
-    const src = staffView ? (x.sourceOfBusiness || '') : ''; const srcLabel = src ? (referralLabel(src, (id) => { const c = d.contacts.find((z) => z.id === id); return c ? `${c.firstName} ${c.lastName}`.trim() : ''; }) || optLabel(ensureSettings(clone(d.crmSettings || null)), 'leadSource', src)) : '';
+    const src = staffView ? (x.sourceOfBusiness || '') : ''; const srcLabel = src ? (referralLabel(src, (id) => { const c = d.contacts.find((z) => z.id === id); const ent = d.participants.find((p) => p.dealId === x.id && p.contactId === id && p.entity && p.entity.name); return ent ? ent.entity.name : (c ? `${c.firstName} ${c.lastName}`.trim() : ''); }) || optLabel(ensureSettings(clone(d.crmSettings || null)), 'leadSource', src)) : '';
     // the scheduled closing names its office from the stored office list (a retired office keeps its name here)
     const sc0 = x.scheduledClosing ? { ...clone(x.scheduledClosing), officeName: x.scheduledClosing.officeId ? ((officeById(d, x.scheduledClosing.officeId) || {}).name || '') : '', officeRetired: !!(x.scheduledClosing.officeId && officeById(d, x.scheduledClosing.officeId) && !officeById(d, x.scheduledClosing.officeId).active) } : x.scheduledClosing;
     // John, Nov 4: deal notes are staff/agent working notes; Client-Buyer / Client-Seller never get them (may name the other side's agent)
@@ -361,7 +362,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
       overdueTasks: tasks.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status) && t.dueDate && t.dueDate < localDate()).length,
       // John, Nov 2: several buyers / sellers; fileTitle = 'Buyer last names / Seller last names' of the people this viewer may see
       fileTitle: fileTitleOf(participantsOf(x.id, u)),
-      partyNames: [...new Set(participantsOf(x.id, u).map((p) => (p.contact ? fullName(p.contact) : '')).filter(Boolean))],
+      partyNames: [...new Set(participantsOf(x.id, u).flatMap((p) => [partyDisplayName(p), p.contact ? fullName(p.contact) : '']).filter(Boolean))],
       processorName: x.processorId ? nameOf(x.processorId) : 'Unassigned', processorUnassigned: !x.processorId,
       tcUserId: x.tcUserId || null, tcName: x.tcUserId ? nameOf(x.tcUserId) : '',
       preprocessorUserId: x.preprocessorUserId || null, preprocessorName: x.preprocessorUserId ? nameOf(x.preprocessorUserId) : '',

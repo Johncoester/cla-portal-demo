@@ -23,14 +23,15 @@ import { officesSupabase } from './supabase-offices.js?v=202611101015';
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611101015';
 import { tcSupabase } from './supabase-tc.js?v=202611101015';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
-import { gmailSupabase } from './supabase-gmail.js?v=202611101230';
-import { nov5Supabase } from './supabase-nov5.js?v=202611101015';
-import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611101015';
+import { gmailSupabase } from './supabase-gmail.js?v=202611102000';
+import { nov5Supabase } from './supabase-nov5.js?v=202611101800';
+import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611102000';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611101015';
 import { staffSupabase } from './supabase-staff.js?v=202611082000';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611092320';
 import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
+import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611101700';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
 import { propertyAddressOf } from './nov5-rules.js?v=202611101015';
 import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611101015';
@@ -38,6 +39,9 @@ import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from 
 import { contactInsertRow } from './contact-insert.js?v=202611101200';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
 import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole } from './lender-file.js?v=202611101200';
+import { fileTitleOf } from './party-name.js?v=202611102000';
+import { cleanParcel } from './address-fill.js?v=202611102000';
+import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611102000';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
@@ -189,6 +193,7 @@ export async function createSupabaseAdapter(cfg) {
     Object.assign(d, salesFields(got.sales.get(id))); d.county = d.county || ''; d.fileTitle = got.titles.get(id) || '';
     const ents = new Map(got.entities.map((r) => [r.participant_id, { name: r.name, type: r.entity_type || '', repName: r.rep_name || '', repTitle: r.rep_title || '', repPhone: r.rep_phone || '', repEmail: r.rep_email || '' }]));
     d.participants.forEach((p) => { p.entity = ents.get(p.id) || null; });
+    d.fileTitle = fileTitleOf(d.participants) || d.fileTitle || '';
     const src = got.source[0]; d.sourceOfBusiness = src ? src.value : ''; d.sourceOfBusinessLabel = src ? src.label : '';
     // Who CLA represents (deals.cla_representation, migration 20261109150000): shown to CLA staff only; null = not recorded
     if (ident.current() && ident.current().role === 'Outside user') { d.claRepresentation = null; d.claRepresentationLabel = ''; d.closerName = ''; d.closerProfileId = null; } else { d.claRepresentation = d.claRepresentation || null; d.claRepresentationLabel = claRepresentationLabel(d.claRepresentation); d.closerName = d.closerName || ''; d.closerProfileId = d.closerProfileId || null; }
@@ -327,20 +332,27 @@ export async function createSupabaseAdapter(cfg) {
         lender_name: input.lenderName || '', lender_contact: input.lenderContact || '', lender_phone: input.lenderPhone || '', lender_email: String(input.lenderEmail || '').trim().toLowerCase(), loss_payee_name: input.lossPayeeName || '',
         primary_residence: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.primaryResidence || ''), first_time_buyer: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.firstTimeBuyer || '') };   // Maryland purchases only (John, Nov 6)
       if (input.tcUserId) row.tc_user_id = input.tcUserId;   // John, Nov 9: blank = the database auto-assigns (a TC who opens it, else the agents' team TC)
+      if (String(input.closerName || '').trim() || input.closerProfileId) { row.closer_name = String(input.closerName || ''); row.closer_profile_id = input.closerProfileId || null; }
+      if (input.closingTime) row.closing_time = String(input.closingTime);
       if (input.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(input.claRepresentation);   // Both / Buyer only / Seller only; absent = not recorded
       const wrote = lenderColumnWrite(input); if (wrote) { row.lender_address = wrote.lenderAddress; row.cpl_address = wrote.cplAddress; row.cpl_same_as_lender = wrote.cplSameAsLender; row.mortgage_broker_name = wrote.mortgageBrokerName; }
+      const parcelId = cleanParcel(input.parcelId); if (parcelId) row.parcel_id = parcelId;
+      const earnest = earnestDealPatch(input, { refinance: refi }); if (Object.keys(earnest.financial).length) row.financial = earnest.financial;
       const d = camel(ok(await sb.from('deals').insert(row).select().single()));
       if (String(input.sourceOfBusiness || '').trim()) ok(await sb.rpc('set_deal_source', { p_deal: d.id, p_source: input.sourceOfBusiness }));   // migration 31 (staff-only table)
       const ids = [].concat(input.salesIds || []).filter(Boolean); if (ids.length) ok(await sb.rpc('set_deal_sales_people', { p_deal: d.id, p_sales: ids }));
       return { ...d, address: `${d.street}, ${d.city}, ${d.state} ${d.zip}` }; },
     async updateDeal(id, patch) {
       const map = { street: 'street', city: 'city', state: 'state', zip: 'zip', county: 'county', openDate: 'open_date', closingDate: 'closing_date', purchasePrice: 'purchase_price', loanAmount: 'loan_amount',
-        emdAmount: 'emd_amount', emdDueDate: 'emd_due_date', lenderName: 'lender_name', lenderContact: 'lender_contact', lenderEmail: 'lender_email', lenderPhone: 'lender_phone', lossPayeeName: 'loss_payee_name', notes: 'notes', processorId: 'processor_id', preprocessorUserId: 'preprocessor_user_id', tcUserId: 'tc_user_id', primaryResidence: 'primary_residence', firstTimeBuyer: 'first_time_buyer', closerName: 'closer_name', closerProfileId: 'closer_profile_id' };
+        emdAmount: 'emd_amount', emdDueDate: 'emd_due_date', lenderName: 'lender_name', lenderContact: 'lender_contact', lenderEmail: 'lender_email', lenderPhone: 'lender_phone', lossPayeeName: 'loss_payee_name', notes: 'notes', processorId: 'processor_id', preprocessorUserId: 'preprocessor_user_id', tcUserId: 'tc_user_id', primaryResidence: 'primary_residence', firstTimeBuyer: 'first_time_buyer', closerName: 'closer_name', closerProfileId: 'closer_profile_id', closingTime: 'closing_time' };
       const money = new Set(['purchase_price', 'loan_amount', 'emd_amount']); const dates = new Set(['open_date', 'closing_date', 'emd_due_date']); const row = {};
       for (const [k, col] of Object.entries(map)) if (patch[k] !== undefined) { const v = patch[k];
         row[col] = money.has(col) ? moneyAmount(v) : dates.has(col) || col === 'processor_id' || col === 'preprocessor_user_id' || col === 'tc_user_id' || col === 'closer_profile_id' ? (v || null) : v; }
       if (row.open_date === null) delete row.open_date;
+      if (row.closing_time != null) { const t = String(row.closing_time).trim(); if (t && !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) throw new Error('Enter a time as HH:MM, or clear it.'); row.closing_time = t; }
       if (patch.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(patch.claRepresentation);   // '' = not recorded (null)
+      if (patch.parcelId !== undefined) row.parcel_id = cleanParcel(patch.parcelId);
+      if (earnestTouched(patch)) { const earnest = earnestDealPatch(patch, { refinance: false }); row.financial = earnest.financial; }
       if (lenderColumnsTouched(patch)) { const x = lenderExtras(patch);
         if (patch.lenderAddress !== undefined) row.lender_address = x.lenderAddress;
         if (patch.cplAddress !== undefined || patch.cplSameAsLender !== undefined) row.cpl_address = x.cplAddress;
@@ -391,9 +403,31 @@ export async function createSupabaseAdapter(cfg) {
     async setParticipantEntity(dealId, participantId, entity) { return ok(await sb.rpc('set_participant_entity', { p_participant: participantId, p_entity: entity || null })); },
     async listSourceOptions() { return ok(await sb.rpc('source_of_business_options')) || []; },
     async listCoordinators() {
-      const rows = (ok(await sb.rpc('coordinator_choices')) || []).map((r) => camel(r));
-      const visible = new Set((camel(ok(await sb.from('profiles').select('id'))) || []).map((p) => p.id));
-      return rows.filter((r) => visible.has(r.profileId));
+      const u = await me();
+      const fromRpc = (ok(await sb.rpc('coordinator_choices')) || []).map((r) => camel(r));
+      let profiles = [];
+      try {
+        profiles = camel(ok(await sb.from('profiles').select('id, first_name, last_name, email, phone, is_demo, role, status').eq('role', 'Transaction Coordinator').eq('status', 'active'))) || [];
+      } catch (e) {
+        const visible = new Set((camel(ok(await sb.from('profiles').select('id'))) || []).map((p) => p.id));
+        return fromRpc.filter((r) => r.contactId && visible.has(r.profileId));
+      }
+      const known = fromRpc.filter((r) => r.profileId && r.contactId).map((r) => ({ id: r.contactId, profileId: r.profileId, firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, company: r.company }));
+      const plan = coordinatorRoster(profiles, known, u);
+      return plan.rows.filter((r) => r.contactId).map((r) => ({ profileId: r.profileId, contactId: r.contactId, firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, company: r.company }));
+    },
+    async findDuplicateOrders({ street, city, state, zip, buyerIds, sellerIds } = {}) {
+      const u = await me();
+      if (!u || !runsOrdersCI(u)) throw new Error('Only a Processor or Admin can do this.');
+      const st = String(state || '').trim().toUpperCase();
+      if (!String(street || '').trim() || !String(city || '').trim() || !st) return [];
+      const deals = camel(ok(await sb.from('deals').select('id, file_number, street, city, state, zip, status').eq('state', st).neq('status', 'Cancelled'))) || [];
+      const ids = deals.map((d) => d.id);
+      const parts = ids.length ? camel(ok(await sb.from('deal_participants').select('deal_id, contact_id, role').in('deal_id', ids).in('role', ['Client-Buyer', 'Client-Seller']))) || [] : [];
+      const orders = deals.map((d) => ({ id: d.id, fileNumber: d.fileNumber, street: d.street, city: d.city, state: d.state, zip: d.zip, status: d.status,
+        buyerIds: parts.filter((p) => p.dealId === d.id && p.role === 'Client-Buyer').map((p) => p.contactId),
+        sellerIds: parts.filter((p) => p.dealId === d.id && p.role === 'Client-Seller').map((p) => p.contactId) }));
+      return duplicateOrders({ street, city, state: st, zip, buyerIds, sellerIds, orders });
     },
     async addDealSalesPerson(dealId, salesId) { ok(await sb.rpc('add_deal_sales_person', { p_deal: dealId, p_sales: salesId })); return (await a.getDeal(dealId)).salesPeople; },
     async removeDealSalesPerson(dealId, salesId) { ok(await sb.rpc('remove_deal_sales_person', { p_deal: dealId, p_sales: salesId })); return (await a.getDeal(dealId)).salesPeople; },
@@ -675,7 +709,7 @@ export async function createSupabaseAdapter(cfg) {
     if (threadId) {
       if (!text && !savedFiles.length) throw new Error(failedFiles[0] ? failedFiles[0].reason : 'Write a message first.');
       const note = savedFiles.length ? `${text || '(file shared)'}\n\nFiles on this order: ${savedFiles.map((f) => f.name).join(', ')}` : text;
-      ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: note.slice(0, 4000), body_html: messageText(bodyHtml).clean || null }));
+      ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: note.slice(0, 4000), body_html: messageText(bodyHtml).clean || '' }));
     } else if (savedFiles.length) {
       ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: `Files on this order: ${savedFiles.map((f) => f.name).join(', ')}`.slice(0, 4000) }));
     }

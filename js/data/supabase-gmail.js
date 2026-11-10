@@ -1,7 +1,7 @@
 /* [SUPABASE] Gmail phase 1 (John, Nov 9; migration 20261109200000). The edge functions do all Google work; the page never holds a token.
  *   gmail-oauth-start (start | disconnect), gmail-send (also dryRun), gmail-sync (Check for replies). Reads: gmail_my_context(), deal_emails (RLS).
  * File email templates (migration 20261109220000): Admin > Email Templates + "Use template" on a file Email tab. Not CRM templates. */
-import { SEED_SHARED as FILE_EMAIL_SEED, cleanTemplateInput, participantsFromContacts } from './file-email-templates.js?v=202611092210';
+import { SEED_SHARED as FILE_EMAIL_SEED, cleanTemplateInput, participantsFromContacts } from './file-email-templates.js?v=202611102000';
 import { browserStorage, countUnreadEmails, gmailUnreadByDeal, laterIso, localCursorMap, mergeMailUnread, portalUnreadByDeal, readLocalCursor, writeLocalCursor } from './file-email-unread.js?v=202611100930';
 
 async function paged(make) {

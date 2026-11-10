@@ -15,10 +15,12 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   // The hosted check uses the office day. A UTC runner is already on the next calendar day after 7 PM Eastern.
   await page.locator('[data-wiz-step="transaction"] input[name="openDate"]').fill(officeToday());
   await advance(page, 'property');
+  const parcel = `E2E-${run.slice(-6)}`;
   await page.locator('[data-wiz-step="property"] input[name="street"]').fill(`100 E2E Test File ${run}`);
   await page.locator('[data-wiz-step="property"] input[name="city"]').fill('Alexandria');
   await page.locator('[data-wiz-step="property"] select[name="state"]').selectOption('VA');
   await page.locator('[data-wiz-step="property"] input[name="zip"]').fill('22314');
+  await page.locator('[data-wiz-step="property"] input[name="parcelId"]').fill(parcel);
 
   await advance(page, 'parties');
   const buyerRow = page.locator('[data-multi="Client-Buyer"] [data-party-row="1"]');
@@ -38,8 +40,12 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   await expect(page.locator('[data-multi="Client-Seller"] [data-party-row="2"]')).toBeVisible();
 
   await advance(page, 'loan');
+  await expect(page.locator('[data-wiz-step="loan"] [data-earnest-commission]')).toBeVisible();
   await advance(page, 'agents');
+  await expect(page.locator('[data-wiz-step="agents"] select[name="p:Transaction Coordinator"]')).toBeVisible();
+  await expect(page.locator('[data-wiz-step="agents"] select[name="p:Transaction Coordinator:2"]')).toBeVisible();
   await advance(page, 'team');
+  await expect(page.locator('[data-wiz-step="team"] input[name="closerName"]')).toBeVisible();
   const sales = page.locator('[data-wiz-step="team"] input[name="salesIds"]');
   if (await sales.count()) await sales.first().check();
   await page.locator('[data-wiz-step="team"] textarea[name="notes"]').fill(`E2E-RUN-${run}`);
@@ -56,6 +62,10 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   console.log(`E2E placed file ${number[0]}`);
   await expect(page.locator('[data-parties]')).toContainText(buyer);
   await expect(page.locator('[data-parties]')).toContainText(seller);
+  await expect(page.locator('[data-parcel-id]')).toContainText(parcel);
+  await expect(page.locator('[data-settlement-section]')).toBeVisible();
+  await expect(page.locator('[data-settlement-row="date"]')).toBeVisible();
+  await expect(page.locator('[data-settlement-row="closer"]')).toBeVisible();
 
   await page.locator('#editdeal').click();
   await page.locator('#edf select[name="state"]').selectOption('FL');

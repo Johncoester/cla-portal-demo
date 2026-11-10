@@ -2,8 +2,10 @@
 // Quick jumps: Contract info, Milestones, EMD & ALTA, Documents/Upload, Messages (all parties). FAKE DATA ONLY.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611070139';
 import { STAGES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, moneyShow, moneyAmount } from '../data/constants.js?v=202611101015';
+import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611101900';
 import { composeModal } from './compose.js?v=202611101015';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611101015';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611101800';
+import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 const OPEN = ['todo', 'in_progress', 'blocked'];
 const long = (d) => { if (!d) return '—'; const [y, m, dd] = String(d).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
 const href = (d, t = '') => `#/deals/${d.id}${t ? '/' + t : ''}`;
@@ -11,10 +13,11 @@ const initials = (f, l) => `${(f || '')[0] || ''}${(l || '')[0] || ''}`.toUpperC
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 export async function renderTcOverview(ctx, d) {
   const { api, user, refresh } = ctx;
-  const [tasks, contacts, ms, emd, ci, emailN, portalN] = await Promise.all([
+  const [tasks, contacts, ms, emd, ci, emailN, portalN, locations] = await Promise.all([
     api.listTasks(d.id), api.getDeal(d.id), api.getMilestones(d.id), api.getEmdAlta(d.id), api.getContractInfo(d.id),
     api.fileEmailUnreadCount ? api.fileEmailUnreadCount(d.id).catch(() => 0) : 0,
     api.filePortalUnread ? api.filePortalUnread(d.id).catch(() => 0) : 0,
+    api.listClosingLocations ? api.listClosingLocations(d.id).catch(() => []) : [],
   ]);
   const open = tasks.filter((t) => OPEN.includes(t.status)).sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'));
   const cur = d.status === 'Closed' ? 10 : Math.max(0, Math.min(9, Number(d.stage) || 0)); const pct = cur * 10;
@@ -39,11 +42,13 @@ export async function renderTcOverview(ctx, d) {
     </div></section>
     <section class="co-next" data-co-next="${open[0] ? open[0].id : ''}" data-co-outstanding="${open.length}"><div class="co-ic" aria-hidden="true">&#10004;</div><div class="co-next-main"><div class="k">Outstanding tasks (${open.length})</div>
       ${open.length ? html`<ul class="co-todo">${open.slice(0, 8).map((t, i) => html`<li data-co-todo="${t.id}"><span class="t">${t.title}</span><span class="d">${t.assignedRole} · ${t.dueDate ? 'Due ' + long(t.dueDate) : 'No due date'}</span><a class="co-btn ${i === 0 ? 'p' : 'g'}" href="${href(d, 'tasks')}${['form', 'sign', 'agent'].includes(t.kind) ? '/' + t.id : ''}">Open</a></li>`)}</ul>${open.length > 8 ? html`<a class="small" href="${href(d, 'tasks')}">View all ${open.length} tasks →</a>` : ''}` : html`<p class="muted">You’re all caught up.</p>`}</div></section>
+    ${settlementSectionHtml({ deal: d, user, demoLocked: !!ctx.demoLocked, locations })}
     <section class="co-card" data-co-team><div class="co-ch">Contacts &amp; parties<span class="r"><button type="button" class="co-btn g" data-tc-action="messages">Message all parties</button></span></div><div class="co-cb">
-      ${contacts.participants.filter((p) => !p.removed && p.contact).map((p) => { const c = p.contact; return html`<div class="co-prow" data-co-person="${c.firstName} ${c.lastName}" data-co-role="${p.role}"><div class="co-av">${initials(c.firstName, c.lastName)}</div><div class="co-who"><div class="co-nm">${c.firstName} ${c.lastName}</div><div class="co-em">${[c.email, c.phone].filter(Boolean).join(' · ') || 'Contact through CLA Title'}</div><span class="co-chip ${['Processor', 'Transaction Coordinator', 'Sales Person', 'Sales Team'].includes(p.role) ? 'cla' : ''}">${p.role}</span></div></div>`; })}
+      ${contacts.participants.filter((p) => !p.removed && p.contact).map((p) => { const c = p.contact; const name = partyDisplayName(p); const bits = name.split(/\s+/).filter(Boolean); return html`<div class="co-prow" data-co-person="${name}" data-co-role="${p.role}"><div class="co-av">${initials(bits[0], bits[1])}</div><div class="co-who"><div class="co-nm">${name}</div><div class="co-em">${[c.email, c.phone].filter(Boolean).join(' · ') || 'Contact through CLA Title'}</div><span class="co-chip ${['Processor', 'Transaction Coordinator', 'Sales Person', 'Sales Team'].includes(p.role) ? 'cla' : ''}">${p.role}</span></div></div>`; })}
     </div></section>
   </div>`;
   return { title: d.fileNumber, tcPage: true, crumbs: [['Orders', '#/orders'], [d.fileNumber, href(d)], ['Overview']], body, mount(root) {
+    mountSettlement(root, { api, deal: d, refresh, user, demoLocked: !!ctx.demoLocked });
     $$('[data-tc-action]', root).forEach((b) => b.addEventListener('click', guard(async () => {
       const a = b.dataset.tcAction;
       if (a === 'contract') contractModal();
