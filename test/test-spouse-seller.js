@@ -46,7 +46,7 @@ ok(opened.fields.find((f) => f.k === 'proceeds_ack').req === true, 'the acknowle
 const answers = {
   full_name: 'Sara Seller', email: 'sara.seller@example.test', cell_phone: '3015550100', current_address: '22 Seller Lane, Rockville, MD 20850',
   marital_status: 'Married', attending_closing: 'Yes', settlement_type: 'In person',
-  citizenship: 'United States', gender: 'Female', date_of_birth: '1985-06-15', forwarding_address: '9 Next Street, Rockville, MD 20850',
+  citizenship: 'U.S. Citizen', gender: 'Female', date_of_birth: '1985-06-15', forwarding_address: '9 Next Street, Rockville, MD 20850',
   ground_rent: 'Yes', front_foot: 'No', leaving_town: 'Yes', travel_dates: 'Dec 1 to Dec 4', divorce: 'No', primary_residence: 'Yes',
   homestead: 'Yes', tenants_after: 'No', water_provider: 'WSSC', deceased_owners: 'No', in_state: 'Yes', name_changed: 'No',
   existing_survey: 'Yes', bankruptcy: 'No', water_meter: 'Outside', water_meter_where: 'By the front steps',

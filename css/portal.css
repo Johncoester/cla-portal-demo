@@ -172,7 +172,7 @@ ul.plain { list-style: none; margin: 0; padding: 0; } ul.plain li { padding: 8px
 .tbl td[colspan].muted, .tbl td[colspan] > .muted:only-child { display: table-cell; text-align: center; padding: var(--s7) var(--s4); background: var(--surface-2); color: var(--ink-3); }
 .card > p.muted:only-of-type:last-child, .sum-card > p.muted:only-of-type { text-align: center; padding: var(--s5) var(--s3); margin: 0; background: var(--surface-2); border: 1px dashed var(--line-2); border-radius: var(--r); }
 /* ---------- order page ---------- */
-.order-header { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px var(--s5); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl); padding: var(--s4) var(--s5); margin: 0 0 var(--s5); box-shadow: var(--sh-2); position: relative; overflow: hidden; }
+.order-header { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px var(--s5); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl); padding: var(--s4) var(--s5); margin: 0 0 var(--s5); box-shadow: var(--sh-2); position: sticky; top: var(--topbar-h); z-index: 18; overflow: hidden; }
 .order-header::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(var(--navy-600), var(--navy-800)); }
 .oh-top { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; grid-column: 1; }
 .oh-address { font-family: var(--font-head); font-size: var(--fs-xl); font-weight: 600; color: var(--navy-950); grid-column: 1; line-height: 1.3; }

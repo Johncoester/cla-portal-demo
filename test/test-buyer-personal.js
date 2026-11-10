@@ -32,10 +32,10 @@ for (const key of ['citizenship', 'gender', 'date_of_birth', 'forwarding_address
 ok(!opened.fields.some((f) => /ssn|spouse/i.test(`${f.k} ${f.label}`)), 'SSN and spouse match are not on the form');
 
 const saved = await api.saveTaskForm(buyerTask.id, {
-  citizenship: 'Canada', gender: 'Female', date_of_birth: '1990-04-02', forwarding_address: '9 Next Street, Rockville, MD 20850',
+  citizenship: 'U.S. Citizen', gender: 'Female', date_of_birth: '1990-04-02', forwarding_address: '9 Next Street, Rockville, MD 20850',
   leaving_town: 'No', divorce: 'No', primary_residence: 'Yes', survey: 'Yes', md_first_time: 'Yes',
 });
-ok(saved.formData.citizenship === 'Canada' && saved.formData.md_first_time === 'Yes', 'saving keeps the new answers');
+ok(saved.formData.citizenship === 'U.S. Citizen' && saved.formData.md_first_time === 'Yes', 'saving keeps the new answers');
 const again = await api.getTask(buyerTask.id);
 ok(again.formData.date_of_birth === '1990-04-02' && again.formData.survey === 'Yes' && again.formData.forwarding_address.includes('9 Next Street'), 'opening the task again shows the saved answers');
 
@@ -61,7 +61,7 @@ ok(agent && agent.formHidden && !agent.formData.citizenship, `the buyer agent ca
 
 await api.signInDev('u-proc');
 const staff = await api.getTask(buyerTask.id);
-ok(!staff.formHidden && staff.formData.citizenship === 'Canada' && staff.formData.primary_residence === 'Yes', 'the processor can see the saved answers');
+ok(!staff.formHidden && staff.formData.citizenship === 'U.S. Citizen' && staff.formData.primary_residence === 'Yes', 'the processor can see the saved answers');
 
 const sql = readFileSync('supabase/migrations/20261112010000_buyer_personal_info.sql', 'utf8');
 const added = sql.slice(sql.indexOf('$buyer$'), sql.lastIndexOf('$buyer$'));

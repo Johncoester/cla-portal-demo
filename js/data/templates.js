@@ -50,8 +50,11 @@ const PERSONAL_V4 = [...PERSONAL_V1, F('settlement_type', 'In-person or online s
 // Not included, waiting on John: full SSN, confirmed spouse match.
 const BUYER_ONLY = ['Client-Buyer'];
 const buyerYn = (k, label, extra = {}) => F(k, label, 'select', false, { opts: yn, roles: BUYER_ONLY, ...extra });
+export const CITIZENSHIP_OPTS = ['U.S. Citizen', 'Permanent Resident', 'Non-Resident Alien', 'Other'];
+// "US Citizen" is already stored on a file. It stays a valid answer and is shown when that is the saved value.
+export const CITIZENSHIP_KEPT = ['US Citizen'];
 export const BUYER_PERSONAL_FIELDS = [
-  F('citizenship', 'Citizenship', 'text', false, { roles: BUYER_ONLY }),
+  F('citizenship', 'Citizenship', 'select', false, { opts: CITIZENSHIP_OPTS, keep: CITIZENSHIP_KEPT, roles: BUYER_ONLY }),
   F('gender', 'Gender', 'select', false, { opts: ['Female', 'Male', 'Nonbinary', 'Prefer not to say'], roles: BUYER_ONLY }),
   F('date_of_birth', 'Date of birth', 'date', false, { roles: BUYER_ONLY }),
   F('forwarding_address', 'Forwarding address', 'text', false, { roles: BUYER_ONLY }),
@@ -250,7 +253,7 @@ export function validateForm(fields, input, complete) {
     if (!fieldActive(f, data)) { delete data[f.k]; continue; }
     const v = data[f.k];
     if (v === undefined) { if (complete && f.req) errors.push({ k: f.k, msg: `${f.label} is required.` }); continue; }
-    if (f.type === 'select' && !f.opts.includes(v)) errors.push({ k: f.k, msg: `${f.label}: pick one of the options.` });
+    if (f.type === 'select' && !(f.opts || []).includes(v) && !(f.keep || []).includes(v)) errors.push({ k: f.k, msg: `${f.label}: pick one of the options.` });
     else if (CHECK[f.type] && !CHECK[f.type](v)) errors.push({ k: f.k, msg: `${f.label} ${MSG[f.type]}.` });
   }
   return { data, errors };

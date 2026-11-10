@@ -1,7 +1,7 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611120700';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611120700';
-import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
+import { getAdapter } from './data/adapter.js?v=202611120800';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611120800';
+import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611100100';
 import { canManageRoleAccess } from './data/role-access.js?v=202611100100';
@@ -12,7 +12,7 @@ import { phaseOf } from './data/agent-portal.js?v=202611101015';
 import { applyTheme, themeOn } from './theme.js?v=202611070139';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
 import { icon } from './pages/theme-cards.js?v=202611101015';
 import { canInviteAgents } from './data/agent-profile.js?v=202611101015';
-import { yourAgentHtml } from './pages/your-agent.js?v=202611101015';
+import { yourAgentHtml, withContactPhone } from './pages/your-agent.js?v=202611120800';
 import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611101015';
 import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611102000';   // John, Nov 4: one locked login link per fake user
@@ -36,7 +36,7 @@ const pages = {
   dashboard: () => import('./pages/dashboard.js?v=202611120100'),
   orders: () => import('./pages/orders.js?v=202611111700'),
   'orders/new': () => import('./pages/ordernew.js?v=202611120700'),
-  deal: () => import('./pages/deal.js?v=202611120700'),
+  deal: () => import('./pages/deal.js?v=202611120800'),
   users: () => import('./pages/users.js?v=202611101015'),
   profile: () => import('./pages/profile.js?v=202611120400'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
@@ -177,7 +177,7 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
   const fileNav = !!deal;
   const contact = isStaff(u.role) || hrOnly(u) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us"${tip('Contact Us')}>${lbl('contact-us', 'Contact Us')}</a></li>`;
   // John, Nov 4: the clients' "Your agent" card (buyer -> buyer's agent, seller -> listing agent); empty for staff and agents
-  const agents = agentsLoaded;
+  const agents = withContactPhone(agentsLoaded, deal);
   const agentCard = yourAgentHtml(agents);
   const sidebarHead = deal ? html`<a class="logo-home-link" href="#/deals/${deal.id}"><div class="order-heading-left"><span>${deal.fileNumber}</span></div><div class="map-div"><img class="map-pin" src="assets/img/map-icon-new.png" alt=""><p>${deal.street}<br>${deal.city}, ${deal.state}, ${deal.zip}</p></div></a>` : '';
   // John, Nov 4 call: order search in the sidebar (not in the CRM-only workspace or the neutral Home); inside an order non-admins get order-only items
@@ -261,10 +261,11 @@ function betaBanner(route) {
 // Same data-order-header / data-progress-badge / .order-no hooks as before (the badge text is exactly the phase name).
 function orderHeader(deal) {
   const ph = phaseOf(deal).badge;
+  const price = deal.transactionType === 'Refinance' || deal.purchasePrice == null || deal.purchasePrice === '' ? '' : fmtMoney(deal.purchasePrice);
   return html`<div class="order-header" data-order-header>
     <div class="oh-top"><span class="order-no">Order # ${deal.fileNumber}</span><span class="pill ${ph === 'Closed' ? '' : 'ok'}" data-progress-badge>${ph}</span>${deal.status && deal.status !== 'Open' ? html`<span class="pill warn" data-oh-status>${deal.status}</span>` : ''}</div>
     <strong class="oh-address">${deal.street}, ${deal.city}, ${deal.state} ${deal.zip}</strong>
-    <div class="oh-meta"><span>${deal.transactionType || 'Purchase'}${deal.fileTitle ? html` &middot; <strong>${deal.fileTitle}</strong>` : ''}</span>${deal.openDate ? html`<span>Opened <strong>${fmtDate(deal.openDate)}</strong></span>` : ''}${deal.county ? html`<span>${deal.county} County</span>` : ''}</div>
+    <div class="oh-meta"><span>${deal.transactionType || 'Purchase'}${price ? html` &middot; Purchase <strong data-oh-purchase>${price}</strong>` : ''}${deal.fileTitle ? html` &middot; <strong data-oh-parties>${deal.fileTitle}</strong>` : ''}</span>${deal.openDate ? html`<span>Opened <strong>${fmtDate(deal.openDate)}</strong></span>` : ''}${deal.county ? html`<span>${deal.county} County</span>` : ''}</div>
     <div class="oh-side"><span class="oh-big-label">Settlement date</span><span class="oh-big">${fmtDate(deal.closingDate) || 'Not set'}</span></div></div>`;
 }
 
