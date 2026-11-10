@@ -140,7 +140,9 @@ ok(!/grant .+ to anon/i.test(code) && /grant select, insert, update on public\.d
 ok(/drop function if exists public\.deal_email_unread_counts/.test(rb) && /drop table if exists public\.deal_email_reads/.test(rb) && !/drop table if exists public\.deal_emails/.test(rb), 'rollback removes only the cursor objects');
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const stamp = '202611100930';
+// This feature published 202611100930. A later commit on the same stack may move a module
+// forward; every importer of one module must still agree, and none may be older than that.
+const floor = '202611100930';
 const changed = new Set(['js/data/file-email-unread.js', 'js/data/supabase-gmail.js', 'js/data/order-overview.js', 'js/data/supabase-order-overview.js', 'js/pages/orders.js', 'js/pages/dealemail.js', 'js/pages/deal.js', 'js/app.js', 'js/pages/client-overview.js', 'js/pages/tc-overview.js', 'js/data/adapter.js', 'js/data/mock-adapter.js', 'js/data/supabase-adapter.js', 'js/pages/dashboard.js', 'js/pages/deal-buyer-legacy.js', 'js/pages/deal-tab.js', 'js/pages/dealagenttask.js', 'js/pages/dealcontacts.js', 'js/pages/dealintake.js', 'js/pages/dealtaskform.js', 'js/pages/dealtasks.js', 'js/pages/taskboard.js', 'js/pages/tasks.js']);
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -151,17 +153,25 @@ function walk(dir, out = []) {
   return out;
 }
 const specRe = /(['"])(\.{1,2}\/[^'"]+?\.js)\?v=(\d+)\1/g;
-let stampMiss = 0;
+const seen = new Map();
 for (const file of walk(path.join(root, 'js'))) {
   const text = readFileSync(file, 'utf8');
   const rel = path.relative(root, file);
   for (const m of text.matchAll(specRe)) {
     const target = path.normalize(path.join(path.dirname(rel), m[2])).replace(/\\/g, '/');
-    if (changed.has(target) && m[3] !== stamp) { stampMiss++; console.log('FAIL stamp', rel, m[2], m[3]); }
+    if (!changed.has(target)) continue;
+    if (!seen.has(target)) seen.set(target, new Set());
+    seen.get(target).add(m[3]);
   }
 }
+let stampMiss = 0;
+for (const [target, stamps] of seen) {
+  const list = [...stamps];
+  if (list.length !== 1 || list[0] < floor) { stampMiss++; console.log('FAIL stamp', target, list.join(',')); }
+}
 const html = readFileSync(path.join(root, 'index.html'), 'utf8');
-ok(stampMiss === 0 && html.includes('js/app.js?v=' + stamp), 'every importer of a changed module uses stamp ' + stamp + ' through index.html');
+const appStamp = (html.match(/js\/app\.js\?v=(\d+)/) || [])[1] || '';
+ok(stampMiss === 0 && appStamp >= floor, 'every importer of a changed module uses one stamp at or after ' + floor + ' through index.html');
 ok(!read('js/pages/crm.js').includes('202611100300') && !read('js/data/supabase-crm.js').includes('file-email-unread'), 'CRM modules are not part of this change');
 
 console.log(fail ? fail + ' failed' : 'file email unread passed');
