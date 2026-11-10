@@ -4,7 +4,7 @@ import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor,
 import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611101015';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611101015';
 import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100200';
-import { copyPlainText } from './deal.js?v=202611102100';
+import { copyPlainText } from './deal.js?v=202611102200';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611101015';
 import { LENDER_CONTACT_ROLES, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611101200';
@@ -132,7 +132,20 @@ export async function render({ api, user, deal, refresh }) {
     let made = false;
     $('#ipf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); if (made) return; const email = $('[data-invite-email]', m).value.trim();
       if (!hasEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Enter a valid email for this person.');
-      const r = await api.createPortalInvite({ dealId: deal.id, contactId, email: hasEmail ? '' : email }); made = true;
+      // create_portal_invite raises P0001 when agent_invites_one_pending already holds this email.
+      // Resend returns a new copy link for that same invite. The dialog still does not claim the message was emailed.
+      let r;
+      try { r = await api.createPortalInvite({ dealId: deal.id, contactId, email: hasEmail ? '' : email }); }
+      catch (err) {
+        const msg = String((err && err.message) || err || '');
+        if (!/pending invite/i.test(msg)) throw err;
+        const want = String(hasEmail ? c.email : email).trim().toLowerCase();
+        const pending = (await api.listAgentInvites({ status: 'pending' }) || []).find((i) => String(i.email || '').trim().toLowerCase() === want);
+        if (!pending) throw err;
+        const again = await api.resendAgentInvite(pending.id);
+        r = { ...again, firstName: again.firstName || c.firstName || '', lastName: again.lastName || c.lastName || '', email: again.email || (hasEmail ? c.email : email) };
+      }
+      made = true;
       const link = location.href.split('#')[0] + r.link; const sendR = await autoSendInvite(api, 'agent', r.link);
       const res = $('[data-invite-result]', m); res.hidden = false; $('[data-invite-create]', m).disabled = true;
       res.innerHTML = html`${inviteSendNotice(sendR)}<p><strong>Invite link</strong> for ${r.firstName} ${r.lastName} (${r.email}).</p>

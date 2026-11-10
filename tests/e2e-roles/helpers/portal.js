@@ -180,7 +180,10 @@ export async function uploadOfferedVisibilities(page, run, person) {
 
 export async function messageRecipientLabels(page) {
   await page.locator('#newthread').click();
-  const labels = await page.locator('#ntf input[name="to"]').evaluateAll((els) => els.map((el) => (el.closest('label') ? el.closest('label').innerText : '').replace(/\s+/g, ' ').trim()).filter(Boolean));
+  // Start conversation loads recipients, then inserts #ntf. Reading before that insert returns no names.
+  const form = page.locator('#modal #ntf');
+  await form.waitFor();
+  const labels = await form.locator('input[name="to"]').evaluateAll((els) => els.map((el) => (el.closest('label') ? el.closest('label').innerText : '').replace(/\s+/g, ' ').trim()).filter(Boolean));
   await page.locator('#modal [data-close]').first().click();
   return labels;
 }
@@ -239,13 +242,14 @@ export async function fillAssignedTasks(page, run, { requireUpload = true } = {}
     expect(await fields.count()).toBeGreaterThan(0);
     if (await page.locator('#tform input[type="file"]').count()) sawFile = true;
     if (!saved) {
-      const text = page.locator('#tform textarea, #tform input[type="text"]').first();
+      // Conditional fields (bank name on seller proceeds) stay in the form hidden until their question applies.
+      const text = page.locator('#tform textarea:visible, #tform input[type="text"]:visible').first();
       if (await text.count()) {
         await text.fill(token);
         await page.locator('#tform button[data-mode="save"]').click();
         await expect(page.locator('.toast', { hasText: 'Progress saved' })).toBeVisible();
         await page.reload();
-        await expect(page.locator('#tform textarea, #tform input[type="text"]').first()).toHaveValue(token);
+        await expect(page.locator('#tform textarea:visible, #tform input[type="text"]:visible').first()).toHaveValue(token);
         saved = true;
       }
     }

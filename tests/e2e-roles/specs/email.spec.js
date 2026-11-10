@@ -43,6 +43,8 @@ test('file email composer fills a template and does not send from mock', async (
 
 test('file email, invite, and reply arrive only at the test inbox', async ({ page }) => {
   test.skip(targetMode() !== 'test', 'Live Gmail delivery runs only against TEST (E2E_TARGET=test). Mock mode does not send.');
+  const missing = ['E2E_GMAIL_CLIENT_ID', 'E2E_GMAIL_CLIENT_SECRET', 'E2E_GMAIL_REFRESH_TOKEN'].filter((name) => !process.env[name]);
+  test.skip(missing.length > 0, `Skipped: missing secret ${missing.join(', ')}.`);
   test.setTimeout(240000);
   const run = runId();
   const token = await gmailAccessToken();
