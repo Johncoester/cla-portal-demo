@@ -10,6 +10,7 @@ import { planDocumentBatch } from './document-batch.js?v=202611101015';
 import { featureFlags } from './features.js?v=202611070139';
 import { accountingSupabase } from './supabase-accounting.js?v=202611091140';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
+import { fundingSupabase } from './supabase-funding.js?v=202611112000';
 import { postClosingSupabase } from './supabase-postclosing.js?v=202611111900';
 import { wiresSupabase } from './supabase-wires.js?v=202611111800';
 import { modulesSupabase } from './supabase-modules.js?v=202611101015';
@@ -752,6 +753,8 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, accountingSupabase({ sb, ok, flags: a.features }));
   // PAYOFFS / HOA / FFB / GROUND RENT (John, Nov 4; migration 42): same switches as accounting, staff only
   Object.assign(a, payoffsSupabase({ sb, ok, flags: a.features, api: a }));
+  // FUNDING: existing funding_records and related tables. Staff RLS. Nothing is sent.
+  Object.assign(a, fundingSupabase({ sb, ok, flags: a.features, me }));
   // Post-Closing and E-Recording: existing scanback and recording tables. Staff RLS. Outbox is queued only.
   Object.assign(a, postClosingSupabase({ sb, ok, flags: a.features, me }));
   // WIRES: existing wire_records / escrow_accounts / wire_audit_log. Staff RLS via fwp_staff('wires'). No bank send.
