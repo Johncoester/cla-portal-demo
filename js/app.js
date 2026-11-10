@@ -52,10 +52,10 @@ const pages = {
   crm: () => import('./pages/crm.js?v=202611101600'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => import('./pages/modules.js?v=202611101015'),
   'role-access': () => import('./pages/role-access.js?v=202611100100'),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
-  'agent-invites': () => import('./pages/agent-invites.js?v=202611101015'),   // John, Nov 4: invite agents (link shown, nothing sent)
+  'agent-invites': () => import('./pages/agent-invites.js?v=202611110300'),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
   'agent-invite': () => import('./pages/agent-signup.js?v=202611101015'),     // the agent's one-time setup link (no sign-in)
   underwriters: () => import('./pages/underwriters.js?v=202611070139'),
-  hr: () => import('./pages/hr.js?v=202611101015'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
+  hr: () => import('./pages/hr.js?v=202611110300'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
   'hr-invite': () => import('./pages/hr-invite.js?v=202611070139'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => import('./pages/offices.js?v=202611101015'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
   'admin/email-templates': () => import('./pages/email-templates.js?v=202611102000'),   // John, Nov 9: Admin > Email Templates (file Email tab)

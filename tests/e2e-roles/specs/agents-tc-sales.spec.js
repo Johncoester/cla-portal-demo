@@ -2,6 +2,7 @@ import { test, expect, signIn, openMockFile, freshIssues, allowPendingInvite400,
 import { walkFileTabs, uploadOfferedVisibilities, shareFileLabels, assertRecipients, sendPortalMessage, fillAssignedTasks, gotoHash, dealId } from '../helpers/portal.js';
 import { recipientRules } from '../helpers/people.js';
 import { targetMode } from '../helpers/gate.js';
+import { E2E_INVITE_HOLD } from '../../../js/data/invite-send.js';
 
 async function portal(page, key) {
   const person = await signIn(page, key);
@@ -93,11 +94,16 @@ test('sales team is view-only on the file', async ({ page, issues }) => {
 test('sales team invite shows the stored email and a copy link, and does not email', async ({ page, issues }) => {
   await allowPendingInvite400(page, issues);
   await signIn(page, 'salesTeam');
-  await page.route('**/functions/v1/gmail-send**', (route) => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ sent: false, error: 'E2E checked the copy link only.' }),
-  }));
+  // The role logins are allowlisted fake addresses and have no @clatitle.com Gmail. This answer stops the request before Google. The dialog must show the reason.
+  let gated = 0;
+  await page.route('**/functions/v1/gmail-send**', (route) => {
+    gated += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(E2E_INVITE_HOLD),
+    });
+  });
   if (targetMode() === 'test') {
     await openMockFile(page);
     const id = dealId(page);
@@ -126,5 +132,10 @@ test('sales team invite shows the stored email and a copy link, and does not ema
   await expect(page.locator('[data-invite-link]')).toHaveValue(/#\/(?:agent-invite|hr-invite)\//);
   await expect(page.locator('[data-invite-result]')).toContainText(email);
   await expect(page.locator('[data-invite-sent="yes"]')).toHaveCount(0);
+  await expect(page.locator('[data-invite-result]')).toContainText(/Not emailed|nothing is emailed/i);
+  if (targetMode() === 'test') {
+    expect(gated, 'the page asked gmail-send').toBeGreaterThan(0);
+    await expect(page.locator('[data-invite-result]')).toContainText(E2E_INVITE_HOLD.error);
+  }
   expect(freshIssues(issues)).toEqual([]);
 });
