@@ -1,0 +1,121 @@
+# Role smoke against CLA Portal Live Test only.
+# Runs after a successful GitHub Pages deploy, every night at 2:00 America/New_York,
+# and when someone starts it by hand. It never receives a production URL.
+name: e2e-roles-test
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["pages-build-deployment"]
+    types: [completed]
+  deployment_status:
+  schedule:
+    # 2:00 AM Eastern Daylight Time and 2:00 AM Eastern Standard Time.
+    # The job continues only when the clock in America/New_York says 02.
+    - cron: '0 6 * * *'
+    - cron: '0 7 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-roles-test
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'schedule') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' && github.event.deployment.environment != 'production')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      E2E_TARGET: test
+      E2E_BASE_URL: https://testportal.clatitle.com/
+      E2E_REQUIRE_EMAIL: '1'
+      E2E_MAIL_TO: ${{ secrets.E2E_MAIL_TO }}
+      E2E_GMAIL_CLIENT_ID: ${{ secrets.E2E_GMAIL_CLIENT_ID }}
+      E2E_GMAIL_CLIENT_SECRET: ${{ secrets.E2E_GMAIL_CLIENT_SECRET }}
+      E2E_GMAIL_REFRESH_TOKEN: ${{ secrets.E2E_GMAIL_REFRESH_TOKEN }}
+      E2E_SUPER_ADMIN_EMAIL: ${{ secrets.E2E_SUPER_ADMIN_EMAIL }}
+      E2E_SUPER_ADMIN_PASSWORD: ${{ secrets.E2E_SUPER_ADMIN_PASSWORD }}
+      E2E_PROCESSOR_EMAIL: ${{ secrets.E2E_PROCESSOR_EMAIL }}
+      E2E_PROCESSOR_PASSWORD: ${{ secrets.E2E_PROCESSOR_PASSWORD }}
+      E2E_SALES_PERSON_EMAIL: ${{ secrets.E2E_SALES_PERSON_EMAIL }}
+      E2E_SALES_PERSON_PASSWORD: ${{ secrets.E2E_SALES_PERSON_PASSWORD }}
+      E2E_SALES_TEAM_EMAIL: ${{ secrets.E2E_SALES_TEAM_EMAIL }}
+      E2E_SALES_TEAM_PASSWORD: ${{ secrets.E2E_SALES_TEAM_PASSWORD }}
+      E2E_TRANSACTION_COORDINATOR_EMAIL: ${{ secrets.E2E_TRANSACTION_COORDINATOR_EMAIL }}
+      E2E_TRANSACTION_COORDINATOR_PASSWORD: ${{ secrets.E2E_TRANSACTION_COORDINATOR_PASSWORD }}
+      E2E_BUYER_AGENT_EMAIL: ${{ secrets.E2E_BUYER_AGENT_EMAIL }}
+      E2E_BUYER_AGENT_PASSWORD: ${{ secrets.E2E_BUYER_AGENT_PASSWORD }}
+      E2E_LISTING_AGENT_EMAIL: ${{ secrets.E2E_LISTING_AGENT_EMAIL }}
+      E2E_LISTING_AGENT_PASSWORD: ${{ secrets.E2E_LISTING_AGENT_PASSWORD }}
+      E2E_CLIENT_BUYER_EMAIL: ${{ secrets.E2E_CLIENT_BUYER_EMAIL }}
+      E2E_CLIENT_BUYER_PASSWORD: ${{ secrets.E2E_CLIENT_BUYER_PASSWORD }}
+      E2E_CLIENT_SELLER_EMAIL: ${{ secrets.E2E_CLIENT_SELLER_EMAIL }}
+      E2E_CLIENT_SELLER_PASSWORD: ${{ secrets.E2E_CLIENT_SELLER_PASSWORD }}
+    steps:
+      - name: Stay on the 2 AM Eastern run
+        if: github.event_name == 'schedule'
+        run: |
+          hour=$(TZ=America/New_York date +%H)
+          if [ "$hour" != "02" ]; then
+            echo "Clock in America/New_York is ${hour}, not 02. This cron slot is the other daylight-saving hour."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+        id: clock
+
+      - name: Checkout
+        if: steps.clock.outputs.skip != '1'
+        uses: actions/checkout@v4
+
+      - name: Refuse any target except TEST
+        if: steps.clock.outputs.skip != '1'
+        run: |
+          python3 - <<'PY'
+          import os, sys
+          url = os.environ['E2E_BASE_URL']
+          if os.environ.get('E2E_TARGET') != 'test':
+              sys.exit('E2E_TARGET must be test')
+          if url.rstrip('/') != 'https://testportal.clatitle.com':
+              sys.exit('Refusing to run. The base URL is not the TEST portal.')
+          print('target ok')
+          PY
+
+      - name: Setup Node
+        if: steps.clock.outputs.skip != '1'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright
+        if: steps.clock.outputs.skip != '1'
+        run: |
+          npm install --no-save @playwright/test@1.58.2
+          npx playwright install --with-deps chromium
+
+      - name: Role smoke
+        if: steps.clock.outputs.skip != '1'
+        run: npx playwright test --config tests/e2e-roles/playwright.config.js
+
+      - name: Pass or fail summary
+        if: always() && steps.clock.outputs.skip != '1'
+        run: |
+          if [ -f tests/e2e-roles/test-results/summary.md ]; then
+            cat tests/e2e-roles/test-results/summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No summary file. The suite did not finish." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Screenshots and trace
+        if: failure() && steps.clock.outputs.skip != '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-roles-failure
+          path: |
+            tests/e2e-roles/test-results
+            tests/e2e-roles/playwright-report
+          if-no-files-found: ignore
