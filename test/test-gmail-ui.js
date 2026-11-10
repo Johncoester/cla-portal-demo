@@ -53,7 +53,7 @@ const emails = [{ id: 'e1', mailboxEmail: 'me@clatitle.com', gmailThreadId: 't1'
 const api = { getGmailStatus: async () => ({ available: true, allowed: true, connected: true, mailbox: 'me@clatitle.com', status: 'connected' }), listDealEmails: async () => emails };
 const v = await renderEmail({ api, deal, user: { role: 'Processor', firstName: 'A', lastName: 'B' } });
 const b = toText(v.body);
-ok(b.includes('Sending from <strong>me@clatitle.com</strong>') && (b.match(/data-mail-thread=/g) || []).length === 1 && (b.match(/data-mail-msg=/g) || []).length === 2 && b.includes('data-mail-dir="in"') && b.includes('id.pdf'), 'Email tab: one thread, sent + received, attachment listed');
+ok(b.includes('Sending from <strong>me@clatitle.com</strong>') && (b.match(/data-mail-thread=/g) || []).length === 1 && (b.match(/data-mail-msg=/g) || []).length === 2 && b.includes('data-mail-dir="in"') && b.includes('id.pdf') && b.includes('CLA staff only'), 'Email tab: one thread, sent + received, attachment listed for staff Documents');
 ok(b.includes('data-mail-intro') && b.includes('data-mail-sync') && b.includes('[CLA #MD-26-97207]') && b.includes('test addresses'), 'Email tab: Introduction email, Check for replies, tag + Live Test note');
 ok(b.includes('data-mail-search') && b.includes('Subject, from, or message') && b.includes('aria-label="Search email on this file"'), 'Email tab: search box for subject, from, and message');
 ok((b.match(/data-mail-unread="1"/g) || []).length === 2 && b.includes('data-mail-unread-count') && b.includes('2 unread'), 'Email tab: mail not yet viewed is counted');
@@ -65,6 +65,9 @@ ok(/canUseGmail\(u\) && api\.listDealEmails && api\.mode === 'supabase' \? link\
 const dealSrc = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
 ok(dealSrc.includes('data-send-sellers-agents') && dealSrc.includes('api.sendDealEmail') && !dealSrc.includes('data-send-disabled'), '"Email sellers and agents" sends through Gmail when connected');
 const compose = readFileSync(new URL('../js/pages/dealemail.js', import.meta.url), 'utf8');
+const gmailSrc = readFileSync(new URL('../js/data/supabase-gmail.js', import.meta.url), 'utf8');
 ok(compose.includes('payload.documentIds') && compose.includes('r.ok === false') && compose.includes('selected document') && compose.includes('send.disabled = false'), 'compose shows an error and does not say Sent when the selected documents are missing');
+ok(compose.includes('data-mail-files') && compose.includes("visibility: 'staff'") && compose.includes('uploadIds') && compose.includes('pendingUploads') && compose.indexOf('addDocument') > compose.indexOf('data-mail-send'), 'composing saves a computer file to Documents as CLA staff only when sending');
+ok(!/data-mail-doc[\s\S]{0,120}addDocument/.test(compose) && gmailSrc.includes('uploadIds: input.uploadIds'), 'a document picked from the file is not saved again');
 console.log(fail ? `${fail} FAILED` : 'all gmail ui checks passed');
 if (fail) process.exit(1);
