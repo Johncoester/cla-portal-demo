@@ -654,6 +654,8 @@ export async function createSupabaseAdapter(cfg) {
     // Matt, Nov 3 (migration 26): entity documents requested from buyers / sellers acting as an entity (person, processor, coordinator, Admin)
     async listEntityDocRequests(dealId) { return camel(ok(await sb.rpc('entity_doc_requests', { p_deal: dealId }))); },
     async saveTaskForm(id, data, { complete = false } = {}) { return ok(await sb.rpc('save_task_form', { p_task: id, p_data: data, p_complete: complete })); },
+    async saveBuyerSsn(id, ssn) { return ok(await sb.rpc('save_buyer_ssn', { p_task: id, p_ssn: ssn })); },
+    async readBuyerSsn(id) { return ok(await sb.rpc('read_buyer_ssn', { p_task: id })) || ''; },
     // ---- round 2 RPCs (same names as SQL) ----
     async adminDeleteUser(id) { ok(await sb.rpc('admin_delete_user', { p_user: id })); },
     // ---- John, Nov 2 (migration 17): clients <-> salespeople. Writes go through Admin RPCs; the table is readable by Admin / Processor (all) and Sales (own links) ----

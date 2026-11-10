@@ -7,6 +7,7 @@ import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from 
 import { boxTasks, boxOfRole } from '../data/task-board.js?v=202611101015';
 import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611101015';
 import { taskOpenHref } from '../data/task-actions.js?v=202611120100';
+import { ssnStaff } from '../data/buyer-ssn.js?v=202611120100';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
 export const LABEL = { todo: 'to do', in_progress: 'started', done: 'done', blocked: 'blocked', cancelled: 'cancelled' };
@@ -87,6 +88,10 @@ export async function render(ctx) {
         slot.innerHTML = '<p class="muted small" data-intake-loading>Loading intake…</p>';
         try {
           const full = await api.getTask(id);
+          if (full.templateCode === 'personal_info' && full.assignedRole === 'Client-Buyer' && !full.formHidden && api.readBuyerSsn) {
+            try { full.ssnShown = await api.readBuyerSsn(id) || ''; } catch (e) { full.ssnShown = ''; }
+            full.ssnStaff = ssnStaff(user);
+          }
           if (!slot.isConnected) return;
           slot.innerHTML = toText(html`<div class="intake-edit" data-intake-panel="${id}"><p class="intake-edit-note muted small">Edit <strong>${full.title}</strong>${full.ownerName ? html` for ${full.ownerName}` : ''}</p>${intakeFormHtml(full, { state: deal.state })}</div>`);
           mountIntakeForm(slot, { api, t: full, afterSave(mode) { toast(mode === 'complete' ? 'Task complete. Thank you!' : 'Progress saved'); refresh(); } });
