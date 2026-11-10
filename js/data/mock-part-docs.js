@@ -1,5 +1,6 @@
 /* mock adapter: contacts, participants, documents (deal files). NOTE: there is no delete for documents, for anyone (Admin included). */
 import { cleanEntity } from './mock-part-nov3b.js?v=202611092320';
+import { cleanLenderRole } from './lender-file.js?v=202611101200';
 import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611090935';
 import { acceptDocType } from './document-type.js?v=202611100945';
 import { assertContactSaved, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
@@ -40,6 +41,7 @@ export function contactsTasksDocs(x) {
       if (!given && !companyName) fail('A name or a company name is required.');
       const c = { id: nid('c'), profileId: null, firstName: given, lastName: str(input.lastName, 80),
         email: str(input.email, 200).toLowerCase(), phone: x.phone(input.phone), company: companyName, contactType: ctype(input.contactType), createdBy: u.id, createdAt: now() };
+      try { c.lenderRole = cleanLenderRole(input.lenderRole, c.contactType); } catch (e) { fail(e.message); }
       if (c.email && !emailOk(c.email)) fail('Email is not valid.');
       if (c.email && d.contacts.some((z) => z.email === c.email)) fail('A contact with this email already exists.');
       if (c.email && d.profiles.some((z) => z.email === c.email && z.status !== 'removed')) fail('A user with this email already exists.');
@@ -52,6 +54,7 @@ export function contactsTasksDocs(x) {
       if (patch.email != null) { const e = str(patch.email, 200).toLowerCase(); if (e && !emailOk(e)) fail('Email is not valid.');
         if (e && e !== c.email && load().contacts.some((z) => z.id !== c.id && z.email === e)) fail('A contact with this email already exists.'); c.email = e; }
       if (patch.contactType !== undefined) { const t = ctype(patch.contactType, c.profileId && prof(c.profileId)); if (t !== (c.contactType || null)) log(null, needUser().id, 'contact.type', 'contact', c.id, `Contact type of ${fullName(c)} set to ${C.contactTypeLabel(t) || 'not set'}`); c.contactType = t; }
+      if (patch.lenderRole !== undefined || patch.contactType !== undefined) { try { c.lenderRole = cleanLenderRole(patch.lenderRole !== undefined ? patch.lenderRole : c.lenderRole, c.contactType); } catch (e) { fail(e.message); } }
       const p = c.profileId && prof(c.profileId); if (p) { p.firstName = c.firstName; p.lastName = c.lastName; p.phone = c.phone; }
       save(); return assertContactSaved(patch, clone(c));
     },
