@@ -49,7 +49,7 @@ E2E_TARGET=test npm run test:e2e
 
 `E2E_BASE_URL` defaults to the TEST origin. Do not point it anywhere else.
 
-Rows a run creates are tagged `E2E-RUN-<id>` (order notes, message subjects, upload names). `tests/e2e-roles/cleanup-run.sql` deletes only those rows. It is not a migration. The seeded file (`notes = E2E-ROLE-FILE`, street `100 E2E Test File`) is removed only by the rollback.
+Rows a run creates are tagged `E2E-RUN-<id>` (order notes, message subjects, upload names). The workflow deletes them again at the end of every run, pass or fail (`tests/e2e-roles/cleanup-runs.mjs`, service-role key, TEST only; `--dry-run` counts without deleting). `tests/e2e-roles/cleanup-run.sql` deletes one run's rows by hand. It is not a migration. The seeded file (`notes = E2E-ROLE-FILE`, street `100 E2E Test File`) is removed only by the rollback.
 
 ## Secrets John needs to set
 

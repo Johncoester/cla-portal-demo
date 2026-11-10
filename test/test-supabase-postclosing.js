@@ -58,7 +58,15 @@ const calls = [];
 const store = { deals: [{ ...deal }], post_closing_scanbacks: [], scanback_documents: [], scanback_events: [], recording_packages: [], recording_instruments: [], recording_review_checks: [], recording_events: [], outbox: [], tasks: [], documents: [] };
 const api = postClosingSupabase({ sb: fakeSb(store, calls), ok: pass, flags, me: staff });
 
+const before = calls.length;
 const empty = await api.getPostClosing('file-1');
+const fileReads = calls.slice(before).filter((c) => c.table);
+check(fileReads.length === 7 && fileReads.every((c) => c.op === 'select'), 'one file reads 7 tables and writes nothing');
+const beforeQ = calls.length;
+await api.listPostClosingQueue();
+check(calls.slice(beforeQ).filter((c) => c.table).length === 3, 'the staff queue reads 3 tables');
+const dealPage = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
+check(!dealPage.includes('getPostClosing') && !dealPage.includes('listPostClosingQueue'), 'a file overview does not open post-closing');
 check(empty.canEdit === true && empty.scanback == null && empty.recording == null, 'a file with no post-closing row offers a start');
 const started = await api.startPostClosing('file-1');
 check(started.scanback && started.recording && started.recording.status === 'draft' && started.fundingLink === '#/deals/file-1/funding', 'start creates a scanback and a recording package');

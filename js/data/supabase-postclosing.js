@@ -103,13 +103,19 @@ export function postClosingSupabase({ sb, ok, flags, me }) {
   return {
     async getPostClosing(id) {
       const u = await gate(false);
-      const deal = await dealOf(id);
-      const scan = scanView(await scanRow(id));
-      const rec = recView(await recRow(id), deal);
-      const docs = (ok(await sb.from('scanback_documents').select('*').eq('deal_id', id).is('deleted_at', null)) || []).map(docView);
-      const instruments = (ok(await sb.from('recording_instruments').select('*').eq('deal_id', id).is('deleted_at', null)) || []).map(instView);
-      const checks = (ok(await sb.from('recording_review_checks').select('*').eq('deal_id', id).is('deleted_at', null)) || []).map((z) => ({ id: z.id, dealId: z.deal_id, key: z.check_key, groupName: z.group_name, label: z.label, done: !!z.done, note: z.note || '' }));
-      const box = (ok(await sb.from('outbox').select('id,post_closing_type,to_name,subject,status,deal_id').eq('deal_id', id)) || []).filter((o) => o.post_closing_type).map((o) => ({ id: o.id, postClosingType: o.post_closing_type, toName: o.to_name, subject: o.subject, status: o.status }));
+      const [deal, scanRaw, recRaw, docRows, instRows, checkRows, boxRows] = await Promise.all([
+        dealOf(id), scanRow(id), recRow(id),
+        sb.from('scanback_documents').select('*').eq('deal_id', id).is('deleted_at', null),
+        sb.from('recording_instruments').select('*').eq('deal_id', id).is('deleted_at', null),
+        sb.from('recording_review_checks').select('*').eq('deal_id', id).is('deleted_at', null),
+        sb.from('outbox').select('id,post_closing_type,to_name,subject,status,deal_id').eq('deal_id', id),
+      ]);
+      const scan = scanView(scanRaw);
+      const rec = recView(recRaw, deal);
+      const docs = (ok(docRows) || []).map(docView);
+      const instruments = (ok(instRows) || []).map(instView);
+      const checks = (ok(checkRows) || []).map((z) => ({ id: z.id, dealId: z.deal_id, key: z.check_key, groupName: z.group_name, label: z.label, done: !!z.done, note: z.note || '' }));
+      const box = (ok(boxRows) || []).filter((o) => o.post_closing_type).map((o) => ({ id: o.id, postClosingType: o.post_closing_type, toName: o.to_name, subject: o.subject, status: o.status }));
       return {
         deal: { id: deal.id, fileNumber: deal.file_number, state: deal.state, transactionType: deal.transaction_type, closingDate: deal.closing_date },
         canEdit: staffEdit(u), fundingLink: flags.funding ? `#/deals/${id}/funding` : null, scanback: scan, scanbackDocs: docs, scanbackEvents: [],
@@ -119,9 +125,11 @@ export function postClosingSupabase({ sb, ok, flags, me }) {
     },
     async listPostClosingQueue() {
       await gate(false);
-      const deals = ok(await sb.from('deals').select(DEAL)) || [];
-      const scans = ok(await sb.from('post_closing_scanbacks').select('*').is('deleted_at', null)) || [];
-      const recs = ok(await sb.from('recording_packages').select('*').is('deleted_at', null)) || [];
+      const [deals, scans, recs] = (await Promise.all([
+        sb.from('deals').select(DEAL),
+        sb.from('post_closing_scanbacks').select('*').is('deleted_at', null),
+        sb.from('recording_packages').select('*').is('deleted_at', null),
+      ])).map((r) => ok(r) || []);
       const scanBy = new Map(scans.map((s) => [s.deal_id, s]));
       const recBy = new Map(recs.map((s) => [s.deal_id, s]));
       return deals.map((deal) => ({

@@ -3,6 +3,12 @@
  * The other side is not listed. */
 const SIDE = { 'Listing Agent': 'seller', 'Client-Seller': 'seller', 'Buyer Agent': 'buyer', 'Client-Buyer': 'buyer' };
 
+export function recipientLabel(p) {
+  const name = `${(p && p.firstName) || ''} ${(p && p.lastName) || ''}`.trim() || 'Unnamed';
+  const mail = p && p.email ? ` <${p.email}>` : '';
+  return `${name}${mail} (${(p && p.role) || 'contact'})`;
+}
+
 export function explainRecipients({ myRole = '', participants = [], allowed = [] } = {}) {
   const side = SIDE[myRole] || '';
   const allowedIds = new Set((allowed || []).map((p) => p.id));

@@ -1,6 +1,6 @@
 -- Staff-only queued outbox rows for post-closing, e-recording, funding, wires, policy, and title.
 -- The browser cannot insert public.outbox (no insert policy). This queues a row and never marks it sent.
--- Rollback: supabase/rollbacks/20261111120000_staff_outbox_queue.sql
+-- Rollback: supabase/rollbacks/20261111190000_staff_outbox_queue.sql
 
 begin;
 set local lock_timeout = '3s';
