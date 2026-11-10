@@ -1,5 +1,5 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611120600';
+import { getAdapter } from './data/adapter.js?v=202611121700';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611121300';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611101015';
@@ -556,7 +556,7 @@ function wireChrome(u) {
   if (demoTimer) clearTimeout(demoTimer);
   if (DEMO_VIEW && DEMO_VIEW.active && DEMO_VIEW.expiresAt) { const ms = new Date(DEMO_VIEW.expiresAt).getTime() - Date.now(); demoTimer = setTimeout(() => render(), Math.min(Math.max(ms + 250, 1000), 30 * 60 * 1000)); }
   getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) {
-    import('./pages/crm-search.js?v=202611120600').then((m) => m.wireHeaderSearch(api));
+    import('./pages/crm-search.js?v=202611121000').then((m) => m.wireHeaderSearch(api));
     import('./pages/crm-janine.js?v=202611120600').then((m) => m.mountHeaderCreate(u));
   } });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');

@@ -1,6 +1,10 @@
-/* Per-user CRM list columns (Janine, Nov 5, item 29). Stored in this browser only, like the
- * Deals hide-list. No table and no request on list load. At most COLUMN_CAP columns stay visible. */
+/* Per-user CRM list columns (Janine, Nov 5, item 29; saved on the login Nov 10).
+ * This browser paints first. The signed-in row in public.user_ui_prefs wins when it loads.
+ * A list asks once per module for this page session, and only once that list is open.
+ * At most COLUMN_CAP columns stay visible. */
 export const COLUMN_CAP = 10;
+export const COLUMN_PREF_SAVE_MS = 400;
+export const UI_PREF_MODULES = ['leads', 'contacts', 'accounts', 'deals'];
 export const columnKey = (userId, module) => `cla-portal-new:crm-cols:v1:${userId || 'anon'}:${module}`;
 
 export function normalizeColumns(order, known, defaults) {
@@ -25,6 +29,96 @@ export function loadColumns(storage, userId, module, { known, defaults }) {
 export function saveColumns(storage, userId, module, order, known) {
   const list = normalizeColumns(order, known, []);
   try { if (storage) storage.setItem(columnKey(userId, module), JSON.stringify({ order: list })); } catch (e) { /* private mode: this visit only */ }
+  return list;
+}
+
+export function cleanUiModule(module) {
+  const name = String(module || '');
+  if (!UI_PREF_MODULES.includes(name)) throw new Error('Unknown list.');
+  return name;
+}
+
+export function cleanUiPrefs(prefs) {
+  const raw = prefs && Array.isArray(prefs.order) ? prefs.order : null;
+  if (!raw) throw new Error('Column preferences need an order.');
+  const order = [];
+  raw.forEach((k) => {
+    const s = String(k == null ? '' : k).trim();
+    if (!s || s.length > 80 || order.includes(s) || order.length >= COLUMN_CAP) return;
+    order.push(s);
+  });
+  if (!order.length) throw new Error('Keep at least one column.');
+  return { order };
+}
+
+const prefSlots = new Map();
+const prefKey = (userId, module) => `${userId || 'anon'}:${module}`;
+
+function columnStorage(storage) {
+  if (storage) return storage;
+  try { return typeof localStorage !== 'undefined' ? localStorage : null; } catch (e) { return null; }
+}
+
+export function resetColumnPrefSession() {
+  for (const slot of prefSlots.values()) { if (slot.timer) clearTimeout(slot.timer); }
+  prefSlots.clear();
+}
+
+/* First paint stays on `local` (already on screen). `ready` is that same list, or the server
+ * list once the single read for this module finishes. A later edit wins over that read.
+ * A failed read leaves the browser copy and is not tried again this session. */
+export function beginColumnPrefs({ api, storage, userId, module, known, defaults, local } = {}) {
+  const store = columnStorage(storage);
+  const instant = Array.isArray(local) && local.length
+    ? normalizeColumns(local, known, defaults)
+    : loadColumns(store, userId, module, { known, defaults });
+  const key = prefKey(userId, module);
+  let slot = prefSlots.get(key);
+  if (!slot) {
+    slot = { gen: 0, order: instant.slice(), timer: null, fetched: false, edited: false, promise: null };
+    prefSlots.set(key, slot);
+  }
+  if (!slot.fetched) {
+    slot.fetched = true;
+    const started = slot.gen;
+    slot.promise = (async () => {
+      try {
+        if (!api || typeof api.getUserUiPrefs !== 'function') return slot.order.slice();
+        const row = await api.getUserUiPrefs(module);
+        if (slot.edited || slot.gen !== started) return slot.order.slice();
+        const raw = row && row.prefs && Array.isArray(row.prefs.order) ? row.prefs.order : null;
+        if (!raw || !raw.length) return slot.order.slice();
+        slot.order = saveColumns(store, userId, module, raw, known);
+        return slot.order.slice();
+      } catch (e) { return slot.order.slice(); }
+    })();
+  }
+  const ready = (slot.promise || Promise.resolve(slot.order)).then(() => slot.order.slice());
+  return { local: instant, ready };
+}
+
+/* The browser copy is written now. The login row is written once, after the pause, with the last order. */
+export function scheduleColumnSave({ api, storage, userId, module, order, known, delay = COLUMN_PREF_SAVE_MS } = {}) {
+  const store = columnStorage(storage);
+  const list = saveColumns(store, userId, module, order, known);
+  const key = prefKey(userId, module);
+  let slot = prefSlots.get(key);
+  if (!slot) {
+    slot = { gen: 0, order: list.slice(), timer: null, fetched: false, edited: false, promise: null };
+    prefSlots.set(key, slot);
+  }
+  slot.gen += 1;
+  slot.edited = true;
+  slot.order = list.slice();
+  if (slot.timer) clearTimeout(slot.timer);
+  if (api && typeof api.saveUserUiPrefs === 'function') {
+    const wait = Number.isFinite(delay) ? delay : COLUMN_PREF_SAVE_MS;
+    slot.timer = setTimeout(() => {
+      slot.timer = null;
+      const prefs = { order: slot.order.slice() };
+      Promise.resolve().then(() => api.saveUserUiPrefs(module, prefs)).catch(() => {});
+    }, wait);
+  }
   return list;
 }
 

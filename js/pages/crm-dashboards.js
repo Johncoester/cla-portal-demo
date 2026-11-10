@@ -5,7 +5,7 @@
  * Nothing is deleted: dashboards and components are RETIRED (hidden, restorable). Function only (no styling work). */
 import { html, raw, $, $$, guard, toast, modal, closeModal, toText } from '../ui.js?v=202611070139';
 import { DASH_MODULES, moduleName, moduleFields, COMPONENT_TYPES, CHART_TYPES, VISIBILITY, BUCKETS, NUMERIC, isDateType, DATE_PRESETS } from '../data/crm-analytics.js?v=202611070139';
-import { tabs, head } from './crm-kit.js?v=202611120600';
+import { tabs, head } from './crm-kit.js?v=202611121000';
 import { chartSvg, kpiHtml, targetHtml, funnelHtml } from './crm-charts.js?v=202611070139';
 import { criteriaEditor } from './crm-criteria.js?v=202611070139';
 
@@ -90,7 +90,7 @@ async function dashDialog(c, dash) {
   const { api } = c; const t = await api.listCrmShareTargets(); const d = dash || { visibility: 'me', shareUsers: [], shareRoles: [], shareDepts: [], locked: false };
   const canShare = !dash || (!dash.builtin && dash.mine);
   const m = modal(dash ? 'Edit dashboard' : 'Create Dashboard', html`<form data-dash-form class="form-grid">
-    <label class="span2">Dashboard Name<input name="name" maxlength="120" required value="${d.name || ''}"></label>
+    <label class="span2">Dashboard Name<input name="name" maxlength="100" required value="${d.name || ''}"></label>
     <label class="span2">Description<textarea name="description" maxlength="500" rows="2">${d.description || ''}</textarea></label>
     ${canShare ? html`<fieldset class="span2" data-visibility><legend>Who can see it</legend>${VISIBILITY.map(([k, l]) => html`<label><input type="radio" name="visibility" value="${k}" ${d.visibility === k ? raw('checked') : ''}> ${l}</label> `)}
       <div data-custom-share ${d.visibility === 'custom' ? '' : raw('hidden')}><label>Users<select name="shareUsers" multiple size="5">${t.users.map((u) => html`<option value="${u.id}" ${d.shareUsers.includes(u.id) ? raw('selected') : ''}>${u.name} (${u.role})</option>`)}</select></label>
