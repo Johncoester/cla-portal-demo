@@ -4,6 +4,15 @@ import { targetMode } from '../helpers/gate.js';
 import { SEED_FILE } from '../helpers/people.js';
 
 async function signInAs(page, key) {
+  const menu = page.locator('[data-usermenu]');
+  if (await menu.count()) {
+    await menu.click();
+    const out = page.locator('[data-signout]');
+    if (await out.count()) {
+      await out.click();
+      await page.waitForFunction(() => location.hash.includes('/login'));
+    }
+  }
   await page.evaluate(() => sessionStorage.removeItem('cla-portal-new:session:v1'));
   await signIn(page, key);
 }
@@ -22,7 +31,10 @@ test('processor adds a task with a due date for the buyer audience', async ({ pa
   await page.locator('#tf input[name="dueDate"]').fill('2026-12-20');
   await page.locator('#tf input[name="audiences"][value="buyer"]').check();
   await page.locator('#tf button[type="submit"]').click();
-  await expect(page.locator('.toast', { hasText: 'Task saved' })).toBeVisible();
+  const saved = page.locator('.toast', { hasText: 'Task saved' });
+  const failed = page.locator('.toast.err');
+  await expect(saved.or(failed)).toBeVisible();
+  if (await failed.isVisible()) throw new Error(await failed.innerText());
   const row = page.locator('[data-task-row]', { hasText: title });
   await expect(row).toBeVisible();
   await expect(row).toContainText('12/20/2026');
@@ -31,7 +43,11 @@ test('processor adds a task with a due date for the buyer audience', async ({ pa
   await signInAs(page, 'buyer');
   await openMockFile(page);
   await gotoHash(page, `#/deals/${id}/tasks`);
-  await expect(page.locator('#view, .co-cb').first()).toContainText(title);
+  const buyerRow = page.locator('[data-task-row]', { hasText: title });
+  await expect(buyerRow).toBeVisible();
+  await expect(buyerRow).toContainText('12/20/2026');
+  await expect(buyerRow.locator('[data-edit]')).toHaveCount(0);
+  await expect(page.locator('#tf input[name="dueDate"]')).toHaveCount(0);
 
   await signInAs(page, 'seller');
   await openMockFile(page);
