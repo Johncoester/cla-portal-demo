@@ -4,7 +4,7 @@ import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor,
 import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611092350';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611100005';
 import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100200';
-import { copyPlainText } from './deal.js?v=202611101130';
+import { copyPlainText } from './deal.js?v=202611101145';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
