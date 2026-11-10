@@ -57,10 +57,17 @@ export async function openMockFile(page, id = 'deal-1') {
     const row = page.locator('tr', { hasText: 'E2E Test File' }).first();
     await row.waitFor();
     await row.locator('a.view-btn').click();
+    await page.waitForURL(/#\/deals\/[^/?#]+/);
   } else {
     await page.goto(`/#/deals/${id}`);
   }
-  await page.locator('[data-op-order-no], [data-co-file], [data-co-greet], .box-title').first().waitFor();
+  // .box-title is the orders heading, and it is still on screen for a moment after the hash changes.
+  // The file is open when its own marker is visible and the route is no longer loading.
+  await page.waitForFunction(() => {
+    if (document.querySelector('[data-route-loading], [data-loading-note]')) return false;
+    return !!document.querySelector('[data-op-order-no], [data-co-file], [data-co-greet]');
+  });
+  await page.locator('[data-co-tab], [data-tc-tab], a.nav-link[href*="#/deals/"]').first().waitFor();
 }
 
 export function runId() {

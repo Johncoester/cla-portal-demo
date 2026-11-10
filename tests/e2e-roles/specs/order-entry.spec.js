@@ -1,5 +1,5 @@
 import { test, expect, signIn, openMockFile, freshIssues, runId, onTest } from '../fixtures.js';
-import { advance, dealId, gotoHash } from '../helpers/portal.js';
+import { advance, dealId, gotoHash, officeToday } from '../helpers/portal.js';
 import { targetMode } from '../helpers/gate.js';
 
 test('Place Order, edit details, parties, referral source, and the file-number prefix', async ({ page, issues }) => {
@@ -12,6 +12,8 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   await page.locator('#nof').waitFor();
   await expect(page.locator('h2.page-title')).toContainText('Place Order');
 
+  // The hosted check uses the office day. A UTC runner is already on the next calendar day after 7 PM Eastern.
+  await page.locator('[data-wiz-step="transaction"] input[name="openDate"]').fill(officeToday());
   await advance(page, 'property');
   await page.locator('[data-wiz-step="property"] input[name="street"]').fill(`100 E2E Test File ${run}`);
   await page.locator('[data-wiz-step="property"] input[name="city"]').fill('Alexandria');
@@ -19,18 +21,27 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   await page.locator('[data-wiz-step="property"] input[name="zip"]').fill('22314');
 
   await advance(page, 'parties');
-  const buyerBox = page.locator('[data-multi="Client-Buyer"] .picker-q').first();
+  const buyerRow = page.locator('[data-multi="Client-Buyer"] [data-party-row="1"]');
+  const buyerBox = buyerRow.locator('.picker-q');
   await buyerBox.fill(buyer);
   await buyerBox.press('Enter');
-  await expect(page.locator('[data-multi="Client-Buyer"] [data-chosen]').first()).toContainText('Selected:');
-  const sellerBox = page.locator('[data-multi="Client-Seller"] .picker-q').first();
+  await expect(buyerRow.locator('[data-chosen]')).toContainText('Selected:');
+  const buyerSource = buyerRow.locator('input[name="referralSource"]');
+  await expect(buyerSource).toBeEnabled();
+  await buyerSource.check();
+  const sellerRow = page.locator('[data-multi="Client-Seller"] [data-party-row="1"]');
+  const sellerBox = sellerRow.locator('.picker-q');
   await sellerBox.fill(seller);
   await sellerBox.press('Enter');
-  await expect(page.locator('[data-multi="Client-Seller"] [data-chosen]').first()).toContainText('Selected:');
+  await expect(sellerRow.locator('[data-chosen]')).toContainText('Selected:');
+  await expect(page.locator('[data-multi="Client-Buyer"] [data-party-row="2"]')).toBeVisible();
+  await expect(page.locator('[data-multi="Client-Seller"] [data-party-row="2"]')).toBeVisible();
 
   await advance(page, 'loan');
   await advance(page, 'agents');
   await advance(page, 'team');
+  const sales = page.locator('[data-wiz-step="team"] input[name="salesIds"]');
+  if (await sales.count()) await sales.first().check();
   await page.locator('[data-wiz-step="team"] textarea[name="notes"]').fill(`E2E-RUN-${run}`);
   await advance(page, 'review');
   await page.locator('[data-place-order]').click();
@@ -42,6 +53,7 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   const number = (await page.locator('[data-op-order-no]').innerText()).match(/([A-Z]{2})-(\d{2})-(\d+)/);
   expect(number, 'file number missing').toBeTruthy();
   expect(number[1]).toBe('VA');
+  console.log(`E2E placed file ${number[0]}`);
   await expect(page.locator('[data-parties]')).toContainText(buyer);
   await expect(page.locator('[data-parties]')).toContainText(seller);
 

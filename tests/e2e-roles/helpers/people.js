@@ -1,3 +1,5 @@
+import { targetMode } from './gate.js';
+
 /* Mock sign-in ids are the built-in fake people. TEST sign-in reads env vars.
  * Passwords are never logged. */
 
@@ -52,25 +54,31 @@ export function requiredTabs(person) {
 
 /* Share Files option text is "First Last (Role)". Expectations come from
  * listMessageRecipients in mock-part-msgs.js and visibility / side rules in constants.js.
- * Hosted message_recipients() is not in this repo; see the README ambiguity note. */
-const ASSIGNED_STAFF = [/\(Processor\)/, /\(Preprocessor\)/, /\(Transaction Coordinator\)/, /\(Sales Person\)|\(Sales Team\)/];
+ * The mock sample file assigns a preprocessor. The TEST seed file does not, so a
+ * missing "(Preprocessor)" there is the empty assignment, not a missing recipient. */
+export function assignedStaffRoles() {
+  const roles = [/\(Processor\)/, /\(Transaction Coordinator\)/, /\(Sales Person\)|\(Sales Team\)/];
+  if (targetMode() !== 'test') roles.splice(1, 0, /\(Preprocessor\)/);
+  return roles;
+}
 
 export function recipientRules(person) {
   const staff = /Processor|Preprocessor|Transaction Coordinator|Sales Person|Sales Team|Admin|Super admin/;
+  const assigned = assignedStaffRoles();
   if (person.label === 'Client-Buyer') {
-    return { must: [/Buyer Agent/, ...ASSIGNED_STAFF], mustNot: [/Listing Agent/, /Client-Seller/], staff: true, staffRe: staff };
+    return { must: [/Buyer Agent/, ...assigned], mustNot: [/Listing Agent/, /Client-Seller/], staff: true, staffRe: staff };
   }
   if (person.label === 'Client-Seller') {
-    return { must: [/Listing Agent/, ...ASSIGNED_STAFF], mustNot: [/Buyer Agent/, /Client-Buyer/], staff: true, staffRe: staff };
+    return { must: [/Listing Agent/, ...assigned], mustNot: [/Buyer Agent/, /Client-Buyer/], staff: true, staffRe: staff };
   }
   if (person.label === 'Buyer Agent') {
-    return { must: [/Client-Buyer/, ...ASSIGNED_STAFF], mustNot: [/Listing Agent/, /Client-Seller/], staff: true, staffRe: staff };
+    return { must: [/Client-Buyer/, ...assigned], mustNot: [/Listing Agent/, /Client-Seller/], staff: true, staffRe: staff };
   }
   if (person.label === 'Listing Agent') {
-    return { must: [/Client-Seller/, ...ASSIGNED_STAFF], mustNot: [/Buyer Agent/, /Client-Buyer/], staff: true, staffRe: staff };
+    return { must: [/Client-Seller/, ...assigned], mustNot: [/Buyer Agent/, /Client-Buyer/], staff: true, staffRe: staff };
   }
   if (person.label === 'Transaction Coordinator') {
-    return { must: [/Buyer Agent/, /Listing Agent/, /Client-Buyer/, /Client-Seller/, /\(Processor\)/, /\(Preprocessor\)/, /\(Sales Person\)|\(Sales Team\)/], mustNot: [], staff: false, staffRe: staff };
+    return { must: [/Buyer Agent/, /Listing Agent/, /Client-Buyer/, /Client-Seller/, ...assigned.filter((re) => !/Transaction Coordinator/.test(re.source))], mustNot: [], staff: false, staffRe: staff };
   }
   return { must: [], mustNot: [], staff: false, staffRe: staff };
 }

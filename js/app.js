@@ -19,8 +19,8 @@ import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowe
 import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080400';
 import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611082000';
 import { botRegistry } from './data/bot-registry.js?v=202611080400';
-import { voiceRouteOk } from './data/voice-demo.js?v=202611091110';
-import { mountVoiceChrome, prepareVoiceShell, stopVoiceNow, voiceMenuHtml } from './pages/voice-panel.js?v=202611091110';
+import { canRequestVoice, voiceRouteOk } from './data/voice-demo.js?v=202611102100';
+import { mountVoiceChrome, prepareVoiceShell, stopVoiceNow, voiceMenuHtml } from './pages/voice-panel.js?v=202611102100';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611070139';   // John, Nov 4 call: sidebar search + pinned order nav
 import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611101015';
 import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611100100';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
@@ -428,7 +428,7 @@ export async function render() {
     : ((u && api.getModuleAccess) ? api.getModuleAccess().then((m) => m || {}).catch(() => ({})) : Promise.resolve({}));
   const hrP = navStart ? navStart.then((s) => (s && s.hr) || {}).catch(() => ({})) : Promise.resolve(null);
   let voiceP = Promise.resolve();
-  if (api.mode === 'supabase' && u && !(DEMO_VIEW && DEMO_VIEW.active) && api.requestVoicePass) {
+  if (api.mode === 'supabase' && canRequestVoice(u) && !(DEMO_VIEW && DEMO_VIEW.active) && api.requestVoicePass) {
     if (voiceCheckedFor !== u.id) { voiceCheckedFor = u.id; voiceP = api.requestVoicePass('check').then((chk) => { VOICE_OK = !!(chk.ok && chk.data && chk.data.allowed === true); }).catch(() => { VOICE_OK = false; }); }
   } else { VOICE_OK = false; if (!u) voiceCheckedFor = ''; }
   const earlyMod = u ? routeModule(route) : null;
