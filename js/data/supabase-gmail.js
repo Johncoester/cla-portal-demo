@@ -111,9 +111,14 @@ export function gmailSupabase({ sb, ok, camel }) {
     async checkGmailReplies() { return call('gmail-sync', { mode: 'user' }); },
     // Portal invite email (Nov 9): gmail-send builds the email from the invite row and sends it from the inviter's own Gmail. Never throws:
     // the page always gets an outcome and keeps the copy link on screen when it was not sent.
+    // A 200 body with sent:false still carries the reason (the role suite's no-send answer is one of these). Dropping it made the dialog look like a silent copy link.
     async sendInviteEmail({ kind, token } = {}) {
-      try { const r = await call('gmail-send', { invite: { kind, token } }); return { sent: r.sent === true, to: r.to || '', from: r.from || '', subject: r.subject || '' }; }
-      catch (e) { return { sent: false, to: e.to || '', error: e.message, connectGmail: !!e.connectGmail, refused: e.refused || [] }; }
+      try {
+        const r = await call('gmail-send', { invite: { kind, token } });
+        const sent = r.sent === true;
+        const error = sent ? '' : (typeof r.error === 'string' && r.error.trim() ? r.error.trim() : 'The invite was not emailed.');
+        return { sent, to: r.to || '', from: r.from || '', subject: r.subject || '', error, connectGmail: r.connectGmail === true, refused: Array.isArray(r.refused) ? r.refused : [] };
+      } catch (e) { return { sent: false, to: e.to || '', from: '', subject: '', error: e.message || 'The invite was not emailed.', connectGmail: !!e.connectGmail, refused: e.refused || [] }; }
     },
     async listFileEmailTemplates({ includeInactive = false } = {}) {
       let q = sb.from('email_templates').select('*').order('name');

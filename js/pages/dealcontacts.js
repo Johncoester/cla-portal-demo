@@ -3,8 +3,8 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, p
 import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole } from '../data/constants.js?v=202611101015';
 import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611101015';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611101015';
-import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611100200';
-import { copyPlainText } from './deal.js?v=202611102200';
+import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611110200';
+import { copyPlainText } from './deal.js?v=202611110200';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611101015';
 import { LENDER_CONTACT_ROLES, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611101200';
@@ -130,10 +130,22 @@ export async function render({ api, user, deal, refresh }) {
       <p class="muted small span2">The portal emails the invite from your connected Gmail. The link is also shown here to copy.</p>
       <div class="span2" data-invite-result hidden></div></form>`, { wide: true });
     let made = false;
+    const showResult = (sendR, link, person) => {
+      const res = $('[data-invite-result]', m); res.hidden = false;
+      const linkRow = link ? html`<p><strong>Invite link</strong> for ${person.firstName} ${person.lastName} (${person.email}).</p>
+        <div class="ai-link-row"><input readonly value="${link}" data-invite-link aria-label="One-time invite link"><button type="button" class="m-btn" data-copy-link>Copy</button></div>` : '';
+      res.innerHTML = html`${inviteSendNotice(sendR)}${linkRow}`.toString();
+      const copy = $('[data-copy-link]', res);
+      if (copy && link) copy.addEventListener('click', guard(async () => { const outcome = await contactCopyOutcome(link, 'link'); toast(outcome.ok ? 'Link copied' : 'Select the link and copy it', outcome.level); }));
+    };
     $('#ipf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); if (made) return; const email = $('[data-invite-email]', m).value.trim();
-      if (!hasEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Enter a valid email for this person.');
+      // No address on the row and none typed: say why, and do not call gmail-send. There is no link until an email is saved.
+      if (!hasEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showResult({ sent: false, noLink: true, error: 'This contact has no email address, so nothing was emailed. Enter an email above.' }, '', { firstName: c.firstName || '', lastName: c.lastName || '', email: '' });
+        return;
+      }
       // create_portal_invite raises P0001 when agent_invites_one_pending already holds this email.
-      // Resend returns a new copy link for that same invite. The dialog still does not claim the message was emailed.
+      // Resend makes a new link for that same invite, then gmail-send emails it. The copy link stays either way.
       let r;
       try { r = await api.createPortalInvite({ dealId: deal.id, contactId, email: hasEmail ? '' : email }); }
       catch (err) {
@@ -147,10 +159,8 @@ export async function render({ api, user, deal, refresh }) {
       }
       made = true;
       const link = location.href.split('#')[0] + r.link; const sendR = await autoSendInvite(api, 'agent', r.link);
-      const res = $('[data-invite-result]', m); res.hidden = false; $('[data-invite-create]', m).disabled = true;
-      res.innerHTML = html`${inviteSendNotice(sendR)}<p><strong>Invite link</strong> for ${r.firstName} ${r.lastName} (${r.email}).</p>
-        <div class="ai-link-row"><input readonly value="${link}" data-invite-link aria-label="One-time invite link"><button type="button" class="m-btn" data-copy-link>Copy</button></div>`.toString();
-      $('[data-copy-link]', res).addEventListener('click', guard(async () => { const outcome = await contactCopyOutcome(link, 'link'); toast(outcome.ok ? 'Link copied' : 'Select the link and copy it', outcome.level); }));
+      $('[data-invite-create]', m).disabled = true;
+      showResult(sendR, link, r);
       toast(inviteToast(sendR)); }));
     $$('[data-close]', m).forEach((b) => b.addEventListener('click', () => { if (made) repaint(); }));   // repaint the tab; Resend / Revoke stay on Agent Invites
   }
