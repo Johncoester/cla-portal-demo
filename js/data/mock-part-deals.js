@@ -8,6 +8,8 @@ import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=2026
 import { claRepresentationCode } from './cla-representation.js?v=202611090950';
 import { buildFileNumber, retagFileNumber, sentOutside } from './file-number.js?v=202611092340';
 import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions } from './lender-file.js?v=202611101200';
+import { cleanParcel } from './address-fill.js?v=202611102000';
+import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611102000';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 // John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only
@@ -107,9 +109,11 @@ export function dealsAndAuth(x) {
       const transactionType = C.TX_TYPES.includes(input.transactionType) ? input.transactionType : 'Purchase';
       if (isRefi(transactionType)) refiNoPrice(input, fail);
       const nextNum = Math.max(97000, ...d.deals.map((q) => Number(q.fileNumber.split('-')[2]) || 0)) + 1;
-      const deal = { id: nid('deal'), fileNumber: buildFileNumber(state, localDate().slice(2, 4), nextNum), street, city, state, zip, county, countySource: ac.countySource, transactionType, stage: 0, status: 'Open',
+      const earnest = earnestDealPatch(input, { refinance: isRefi(transactionType) });
+      const deal = { id: nid('deal'), fileNumber: buildFileNumber(state, localDate().slice(2, 4), nextNum), street, city, state, zip, county, countySource: ac.countySource, parcelId: cleanParcel(input.parcelId), transactionType, stage: 0, status: 'Open',
         openDate, closingDate: dateOrNull(input.closingDate, 'Closing date'), purchasePrice: money(input.purchasePrice, 'Purchase price'), loanAmount: money(input.loanAmount, 'Loan amount'),
         emdAmount: money(input.emdAmount, 'EMD amount'), emdDueDate: dateOrNull(input.emdDueDate, 'EMD due date'),
+        financial: earnest.financial, ...earnest.patch,
         // Matt, Nov 3 (b): lender phone + email (and the picked lender's name / company) and the source of business are set at placement
         lenderName: str(input.lenderName, 200), lenderContact: str(input.lenderContact, 200), lenderEmail: str(input.lenderEmail, 200).toLowerCase(), lenderPhone: x.phone(input.lenderPhone, 'Lender phone'), lossPayeeName: str(input.lossPayeeName, 400),
         ...lenderExtras(input),
@@ -155,6 +159,15 @@ export function dealsAndAuth(x) {
       // John, Nov 2: earnest money deposit (optional; amount >= 0)
       if (patch.emdAmount !== undefined) q.emdAmount = money(patch.emdAmount, 'EMD amount');
       if (patch.emdDueDate !== undefined) q.emdDueDate = dateOrNull(patch.emdDueDate, 'EMD due date');
+      if (patch.parcelId !== undefined) q.parcelId = cleanParcel(patch.parcelId);
+      if (earnestTouched(patch)) {
+        const src = { emdHeldBy: q.financial && q.financial.emdHeldBy, commissionBase: q.financial && q.financial.commissionBase, commissionPercent: q.financial && q.financial.commissionPercent, commissionAdditional: q.financial && q.financial.commissionAdditional, commissionPaidBy: q.financial && q.financial.commissionPaidBy, ...patch };
+        const next = earnestDealPatch(src, { refinance: isRefi(q) });
+        q.financial = next.financial;
+        if (next.patch.emdHolder !== undefined) q.emdHolder = next.patch.emdHolder; else if (!next.earnest.emdHeldBy) q.emdHolder = '';
+        if (next.earnest.commissionPaidBy === 'seller') { q.listingCommissionPct = next.patch.listingCommissionPct; q.listingCommissionAmount = next.patch.listingCommissionAmount; }
+        if (next.earnest.commissionPaidBy === 'buyer') { q.buyerCommissionPct = next.patch.buyerCommissionPct; q.buyerCommissionAmount = next.patch.buyerCommissionAmount; }
+      }
       if (patch.primaryResidence !== undefined || patch.firstTimeBuyer !== undefined) Object.assign(q, occFields({ primaryResidence: patch.primaryResidence !== undefined ? patch.primaryResidence : q.primaryResidence, firstTimeBuyer: patch.firstTimeBuyer !== undefined ? patch.firstTimeBuyer : q.firstTimeBuyer }, q.transactionType, fail));   // John, Nov 3 call
       if (patch.claRepresentation !== undefined) q.claRepresentation = claRepresentationCode(patch.claRepresentation);
       if (patch.sourceOfBusiness !== undefined) { const src = checkSource(load(), patch.sourceOfBusiness, q.sourceOfBusiness, fail); const msg = referralWriteError({ source: src, contacts: d.contacts, profiles: d.profiles, actor: u, participants: d.participants, dealId: id }); if (msg) fail(msg); q.sourceOfBusiness = src; }   // Matt, Nov 3 (b); Nov 7: one contact on the file, or a legacy value left as stored
