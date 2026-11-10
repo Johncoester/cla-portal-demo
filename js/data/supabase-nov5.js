@@ -2,6 +2,7 @@
  * RLS and the security-definer RPCs decide access. This file does not embed a project URL or a key.
  * File bytes go to the private deal-documents bucket (migration 3). A missing bucket surfaces as an error; nothing is invented. */
 import { ordinaryCoverageDoc } from './nov5-rules.js?v=202611101015';
+import { cleanDueRule } from './due-date.js?v=202611110300';
 import { uploadBytes } from './upload-bytes.js?v=202611070139';
 import { shapePortalThreads } from './portal-threads.js?v=202611101800';
 
@@ -47,7 +48,12 @@ export function nov5Supabase({ sb, ok, camel, me }) {
   const uid = async () => (await sb.auth.getUser()).data.user;
   return {
     async listTaskAdmin() { return camel(ok(await sb.rpc('list_task_admin'))); },
-    async saveTaskTemplate(input) { return camel(ok(await sb.rpc('upsert_task_template', { p_code: input.code, p_title: input.title, p_description: input.description || '', p_roles: input.roles || [], p_due_days: input.dueDays || 7, p_lane: input.lane, p_audiences: input.audiences || [], p_client_only: !!input.clientOnly }))); },
+    async saveTaskTemplate(input) {
+      const rule = cleanDueRule(input);
+      const saved = camel(ok(await sb.rpc('upsert_task_template', { p_code: input.code, p_title: input.title, p_description: input.description || '', p_roles: input.roles || [], p_due_days: rule.dueDays, p_lane: input.lane, p_audiences: input.audiences || [], p_client_only: !!input.clientOnly })));
+      ok(await sb.rpc('set_template_due_anchor', { p_code: input.code, p_anchor: rule.dueAnchor, p_due_days: rule.dueDays }));
+      return saved;
+    },
     async retireTaskTemplate(code, reason) { return camel(ok(await sb.rpc('retire_task_template', { p_code: code, p_reason: reason }))); },
     async listAlertGroups() { return camel(ok(await sb.from('alert_groups').select('*, members:alert_group_members(*)'))); },
     async saveAlertGroupMember(groupId, input) { return camel(ok(await sb.rpc('save_alert_group_member', { p_group: groupId, p_id: input.id || null, p_name: input.displayName, p_role: input.assignmentRole || 'postcloser', p_profile: input.profileId || null, p_email: input.email || '' }))); },

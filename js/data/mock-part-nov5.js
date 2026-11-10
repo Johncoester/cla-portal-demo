@@ -2,6 +2,7 @@
  * FAKE DATA ONLY. Outbox stays queued. No guessed email addresses. */
 import { DEMO_ALERT_GROUPS, DEMO_ENTITY_ATTORNEYS, TASK_LANES, OPEN_TASK, OPEN_TASK_HANDLING, cleanAudiences, templateGenerates, resolveCplPrice, cleanCplAmount, postclosingAlertPlan, attorneyAuthorized, ordinaryCoverageDoc, propertyAddressOf, COVERAGE_NOTE, configuredEmail } from './nov5-rules.js?v=202611101015';
 import { looksLikeWireDetails } from './constants.js?v=202611101015';
+import { cleanDueRule } from './due-date.js?v=202611110300';
 import { taskEnabled } from './task-switches.js?v=202611101015';
 
 const cloneGroups = () => JSON.parse(JSON.stringify(DEMO_ALERT_GROUPS));
@@ -46,11 +47,12 @@ export function nov5Part(x) {
       const lane = input.lane === 'production' ? 'production' : input.lane === 'portal' ? 'portal' : fail('Classify the task as Title Portal or Title Production.');
       const audiences = cleanAudiences(input.audiences, lane);
       const roles = Array.isArray(input.roles) ? input.roles.filter(Boolean) : [];
-      const due = Number(input.dueDays || 7); if (!Number.isInteger(due) || due < 1 || due > 90) fail('Due days must be from 1 to 90.');
+      let dueRule; try { dueRule = cleanDueRule(input); } catch (e) { fail(e.message); }
+      const due = dueRule.dueDays; const dueAnchor = dueRule.dueAnchor;
       const prev = d.taskTemplates.filter((t) => t.code === code).sort((a, b) => b.version - a.version)[0];
       const version = prev ? prev.version + 1 : 1;
       d.taskTemplates.forEach((t) => { if (t.code === code) t.active = false; });
-      const row = { id: nid('tpl'), code, version, title, description: str(input.description, 500), roles, dueDays: due, fields: prev ? prev.fields : [], active: true, retiredAt: null, retiredBy: null,
+      const row = { id: nid('tpl'), code, version, title, description: str(input.description, 500), roles, dueDays: due, dueAnchor, fields: prev ? prev.fields : [], active: true, retiredAt: null, retiredBy: null,
         lane, audiences, clientOnly: !!input.clientOnly, agentRoles: Array.isArray(input.agentRoles) ? input.agentRoles : (prev && prev.agentRoles) || [], publishedBy: u.id, publishedAt: now() };
       d.taskTemplates.push(row);
       if (!d.taskSwitches) d.taskSwitches = [];

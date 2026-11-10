@@ -23,11 +23,11 @@ import { officesSupabase } from './supabase-offices.js?v=202611101015';
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611101015';
 import { tcSupabase } from './supabase-tc.js?v=202611101015';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
-import { gmailSupabase } from './supabase-gmail.js?v=202611110200';
-import { nov5Supabase } from './supabase-nov5.js?v=202611101800';
+import { gmailSupabase } from './supabase-gmail.js?v=202611110300';
+import { nov5Supabase } from './supabase-nov5.js?v=202611110300';
 import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611102000';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611101015';
-import { staffSupabase } from './supabase-staff.js?v=202611082000';
+import { staffSupabase } from './supabase-staff.js?v=202611110300';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611092320';
 import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
@@ -592,7 +592,18 @@ export async function createSupabaseAdapter(cfg) {
     async reopenSettlement(id, { slots, note } = {}) { return camel(ok(await sb.rpc('reopen_settlement', { p_settlement: id, p_slots: slots || null, p_note: note || null }))[0]); },
     async getSchedulingLink(tok) { return ok(await sb.rpc('scheduling_get', { p_token: tok })); },   // anon OK
     async respondSettlement(tok, { picks, note, name, location, officeId }) { ok(await sb.rpc('scheduling_respond', { p_token: tok, p_picks: picks.map((i) => i + 1), p_name: name, p_note: note || '', p_location: location || '', p_office: officeId || '' })); },
-    async updateTask(id, patch) { return ok(await sb.rpc('set_task_status', { p_task: id, p_status: patch.status })); },
+    async updateTask(id, patch = {}) {
+      if (patch.dueDate !== undefined) {
+        const due = patch.dueDate ? String(patch.dueDate).slice(0, 10) : null;
+        ok(await sb.rpc('set_task_due_override', { p_task: id, p_due: due }));
+      }
+      if (patch.audiences !== undefined) {
+        const list = Array.isArray(patch.audiences) ? patch.audiences.filter(Boolean) : (patch.audiences ? [patch.audiences] : []);
+        ok(await sb.from('tasks').update({ audiences: list.length ? list : null }).eq('id', id).select('id').single());
+      }
+      if (patch.status != null) return ok(await sb.rpc('set_task_status', { p_task: id, p_status: patch.status }));
+      return ok(await sb.from('tasks').select('id, deal_id, title, status, due_date, assigned_role, audiences').eq('id', id).single());
+    },
     async listDocuments(dealId, { folderId } = {}) { const rows = (await fileRead('docs:' + dealId, () => rawDocs(dealId))) || []; return filterListedDocuments(rows, folderId).map((d) => shapeListedDocument(d)); },   // folder filter + stored size/content flag (no extra query)
     // ---- Matt, Nov 2 (migration 16): cross-file task list + Processor / Admin task grid. task_board / task_grid are SECURITY INVOKER (RLS decides). ----
     async listAllTasks({ fileStatus = 'All' } = {}) {

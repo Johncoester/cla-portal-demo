@@ -3,7 +3,7 @@
 // Nov 9: Create and Resend email the invite from the inviter's own connected Gmail (gmail-send); the one-time link is also shown to copy.
 import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611070139';
 import { STATUS_LABEL } from '../data/agent-profile.js?v=202611101015';
-import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611110200';
+import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611110300';
 const PILL = { pending: 'warn', accepted: 'ok', expired: 'bad', revoked: '' };
 const abs = (link) => location.href.split('#')[0] + link;
 export async function render({ api, refresh }) {

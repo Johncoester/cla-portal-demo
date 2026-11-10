@@ -3,16 +3,25 @@
 import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611101015';
 import { senderFor } from './email-senders.js?v=202611101015';
 import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611101015';   // Task switch OFF: no new copy (existing copies kept)
-import { templateGenerates, audienceAllowsRole } from './nov5-rules.js?v=202611101015';
+import { templateGenerates, audienceAllowsRole, TASK_AUDIENCES } from './nov5-rules.js?v=202611101015';
 import { maskAccount } from './constants.js?v=202611101015';
+import { taskDueDate } from './due-date.js?v=202611110300';
 export function tasksAndForms(x) {
   const { load, save, nid, needUser, needAdmin, isManager, dealOr404, onDeal, fileRole, fileRoles, holds, dealsFor, log, prof, nameOf, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, dateOrNull, localDate, localDayOf, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
   const tpl = (id) => load().taskTemplates.find((t) => t.id === id);
   // Matt, Nov 3: a copy's fields = the template's fields for that copy's role (e.g. settlement type is on SELLER copies only)
   const fieldsOf = (t, tp = tpl(t.templateId)) => (tp ? fieldsForRole(tp.fields, t.assignedRole) : []);
-  const addDays = (n) => localDate(n);
   const taskOr404 = (u, id) => { const t = load().tasks.find((z) => z.id === id) || fail('Task not found.'); u = onDeal(u, t.dealId); if (!taskVisible(u, t)) fail('Task not found.'); return t; };
+  const audiencesOf = (input) => {
+    if (!input || input.audiences == null || input.audiences === '') return null;
+    const raw = Array.isArray(input.audiences) ? input.audiences : String(input.audiences).split(',');
+    const list = [...new Set(raw.map((a) => String(a || '').trim()).filter(Boolean))];
+    if (!list.length) return null;
+    const bad = list.filter((a) => !TASK_AUDIENCES.includes(a));
+    if (bad.length) fail(`Unknown task audience: ${bad.join(', ')}.`);
+    return list;
+  };
   // Bank details (seller proceeds): only the owner and the PROCESSOR see them in full or change them; the coordinator / Admin see the last 4 digits.
   const masked = (t) => (t.templateId ? maskedFields(tpl(t.templateId)) : []);
   const fullView = (u, t) => ownerOf(t) === u.id || C.runsOrders(u);
@@ -39,8 +48,9 @@ export function tasksAndForms(x) {
     const d = load(); let n = 0;
     d.taskTemplates.filter((t) => templateGenerates(t, taskEnabled(d, t.code)) && t.roles.includes(p.role) && audienceAllowsRole(t, p.role)).forEach((t) => {
       if (d.tasks.some((z) => z.participantId === p.id && z.templateCode === t.code && z.status !== 'cancelled')) return;
+      const deal = d.deals.find((z) => z.id === dealId);
       d.tasks.push({ id: nid('t'), dealId, participantId: p.id, templateId: t.id, templateCode: t.code, templateVersion: t.version, kind: 'form', title: t.title, description: t.description,
-        assignedRole: p.role, status: 'todo', dueDate: addDays(t.dueDays || 7), formData: (p.entity && entityPrefill(p.entity, fieldsForRole(t.fields, p.role))) || {}, savedAt: null, savedBy: null, completedAt: null, completedBy: null, createdBy: actorId, createdAt: now(),
+        assignedRole: p.role, status: 'todo', dueDate: taskDueDate({ dueAnchor: t.dueAnchor, dueDays: t.dueDays, openDate: deal && deal.openDate, contractDate: deal && deal.contractDate, closingDate: deal && deal.closingDate }), dueOverridden: false, formData: (p.entity && entityPrefill(p.entity, fieldsForRole(t.fields, p.role))) || {}, savedAt: null, savedBy: null, completedAt: null, completedBy: null, createdBy: actorId, createdAt: now(),
         lane: t.lane || null, audiences: t.audiences ? [...t.audiences] : null }); n++;
     });
     if (n) { const c = d.contacts.find((z) => z.id === p.contactId); if (c && c.profileId) notify([c.profileId], { kind: 'task', dealId, title: `${n} new task(s) for you on this order`, link: `#/deals/${dealId}/tasks` }, actorId); }
@@ -86,7 +96,7 @@ export function tasksAndForms(x) {
       let u = needUser(); u = onDeal(u, dealId); if (!isManager(u)) fail('Only the processor or transaction coordinator can add tasks.');
       const role = C.DEAL_ROLES.includes(input.assignedRole) ? input.assignedRole : 'Processor';
       const t = { id: nid('t'), dealId, participantId: null, templateId: null, templateCode: null, templateVersion: null, kind: 'simple', title: str(input.title, 200) || fail('Task title is required.'),
-        description: str(input.description, 1000), assignedRole: role, status: 'todo', dueDate: dateOrNull(input.dueDate, 'Due date'), formData: {}, savedAt: null, completedAt: null, completedBy: null, createdBy: u.id, createdAt: now() };
+        description: str(input.description, 1000), assignedRole: role, status: 'todo', dueDate: dateOrNull(input.dueDate, 'Due date'), dueOverridden: false, audiences: audiencesOf(input), formData: {}, savedAt: null, completedAt: null, completedBy: null, createdBy: u.id, createdAt: now() };
       load().tasks.push(t); log(dealId, u.id, 'task.created', 'task', t.id, `Task added: ${t.title}`);
       notify(dealProfileIds(dealId).filter((pid) => fileRoles(pid, dealId).includes(role)), { kind: 'task', dealId, title: `New task: ${t.title}`, link: `#/deals/${dealId}/tasks` }, u.id);
       save(); return clone(t);
@@ -98,7 +108,8 @@ export function tasksAndForms(x) {
       }
       if (patch.title != null) t.title = str(patch.title, 200) || fail('Task title is required.');
       if (patch.description != null) t.description = str(patch.description, 1000);
-      if (patch.dueDate !== undefined) t.dueDate = dateOrNull(patch.dueDate, 'Due date');
+      if (patch.audiences !== undefined) t.audiences = audiencesOf(patch);
+      if (patch.dueDate !== undefined) { t.dueDate = dateOrNull(patch.dueDate, 'Due date'); t.dueOverridden = true; }
       if (patch.assignedRole != null && patch.assignedRole !== t.assignedRole) { if (t.participantId) fail('A participant task stays with that participant.'); if (!C.DEAL_ROLES.includes(patch.assignedRole)) fail('Unknown role.'); t.assignedRole = patch.assignedRole; }
       if (patch.status != null && patch.status !== t.status) {
         if (!C.TASK_STATUSES.includes(patch.status)) fail('Unknown task status.');
