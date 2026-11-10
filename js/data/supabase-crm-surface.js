@@ -157,7 +157,7 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
     async cloneCrmComponent(id) { const c = ok(await sb.from('crm_dash_components').select('*').eq('id', id).maybeSingle()); if (!c) throw new Error('Component not found.'); return this.addCrmComponent(c.dashboard_id, { ...camel(c), name: `Copy of ${c.name}`, chartType: c.chart_type }); },
     async moveCrmComponent(id, dashboardId) { await editor(); return compOut(ok(await sb.from('crm_dash_components').update({ dashboard_id: dashboardId }).eq('id', id).select('*').single()), {}); },
     async retireCrmComponent(id, retired = true) { await editor(); ok(await sb.from('crm_dash_components').update({ retired_at: retired ? new Date().toISOString() : null }).eq('id', id)); return { ok: true }; },
-    async reorderCrmDashboard(id, items = []) { await editor(); await Promise.all(items.map((it, i) => pack(sb.from('crm_dash_components').update({ position: i, width: it.width || 1 }).eq('id', it.id).eq('dashboard_id', id)))); return { ok: true }; },
+    async reorderCrmDashboard(id, items = []) { await editor(); await Promise.all(items.map((it, i) => pack(sb.from('crm_dash_components').update({ position: i, width: it.width || 1, height: it.height === 'l' ? 3 : it.height === 'm' ? 2 : 1 }).eq('id', it.id).eq('dashboard_id', id)))); return { ok: true }; },
     async previewCrmComponent(v = {}) { const u = await who(); const cfg = await self.getCrmSettings(); const rows = await rowsOf(v.module); const data = chartData(rows, { grouping: v.grouping || {}, measure: v.measure || { fn: 'count' } }, moduleFields(v.module, cfg), cfg); return { ...v, data, ownerId: u.id }; },
     async crmDrillDown() { await who(); return { title: 'Records', rows: [] }; },
     async listCrmReportFolders() {

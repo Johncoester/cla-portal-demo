@@ -239,6 +239,7 @@ body.theme-cards .preview-body { border-radius: 2px; background: #fff; }
 body.theme-cards .acct-uw { color: var(--tc-baby-ink, #1F6FA3); }
 /* Janine, Nov 3: baby-blue Create New menu + import / invite pieces */
 body.theme-cards .crm-create-list { border-radius: 14px; border-color: #e6eef7; } body.theme-cards .crm-create-list a:hover { background: var(--tc-baby-soft, #eaf4fd); color: var(--tc-baby-ink-2); }
+body.theme-cards .topbar-right .crm-create-new > summary { background: #fff; color: var(--tc-on-baby); border-color: #fff; }
 body.theme-cards .typeahead { border-radius: 12px; } body.theme-cards .typeahead li.on, body.theme-cards .typeahead li:hover { background: var(--tc-baby-soft, #eaf4fd); }
 body.theme-cards .invite-body { border-radius: 12px; background: #f6faff; }
 /* ACCOUNTING, Caroline Kim Nov 4 2026 (prorations, CD pages 1-5, CD details): the same baby-blue card look */

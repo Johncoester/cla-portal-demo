@@ -8,7 +8,7 @@
 import { buildIcs, INVITE_NOTE, parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, importTooBigMessage, leadRequiredMessages, importPartialReport, importErrorCsv, saveImportResume, loadZipTable, countiesFor, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611101600';
 import { US_STATE_NAMES, US_STATES } from './constants.js?v=202611101015';
 import { ensureSettings, findOption } from './crm-config.js?v=202611070139';
-import { resolveImportedStatus } from './nov5-rules.js?v=202611101015';
+import { importedStatusDecision } from './crm-import-status.js?v=202611102745';
 import { LINK_KEYS } from './crm.js?v=202611070139';
 
 const DEFAULT_LABEL = Object.fromEntries(IMPORT_DEFAULT_FIELDS.map(([k, l]) => [k, l]));
@@ -95,9 +95,8 @@ async function cleanDefaults(self, raw0, kind, module) {
       return { field: k, value: c };
     }
     if (k === 'relationshipStatus') {
-      const resolved = resolveImportedStatus(cfg, module, v);
+      const resolved = importedStatusDecision(cfg, module, v);
       if (resolved.error) throw new Error(resolved.error);
-      if (resolved.historical) throw new Error('A default Relationship Status must be a current choice. Retired choices stay on records that already have them and can still arrive in the file.');
       return { field: k, value: resolved.value };
     }
     const listKey = k === 'leadSource' ? 'leadSource' : 'roleInCompany';
@@ -164,6 +163,10 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
       throw new Error('Map the Email or the name columns, so each note can find its ' + (module === 'leads' ? 'lead' : 'client') + '.');
     }
     const defaults = await cleanDefaults(self, input.defaults, kind, module);
+    let statusCfg = null;
+    if (kind === 'records') {
+      try { statusCfg = ensureSettings(JSON.parse(JSON.stringify(await self.getCrmSettings()))); } catch (e) { statusCfg = null; }
+    }
     const table = kind === 'records' && mapping.includes('zip') ? await loadZipTable() : null;
     const display = new Map();
     const payload = records.map((rec, i) => {
@@ -234,9 +237,13 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
       const remote = [];
       slice.forEach((row) => {
         const missing = module === 'leads' && kind === 'records' ? leadRequiredMessages(row.values, defaults) : [];
-        if (!missing.length) { remote.push(row); return; }
+        const statusRaw = kind === 'records' ? row.values.relationshipStatus : '';
+        const statusDecision = statusCfg && String(statusRaw || '').trim() ? importedStatusDecision(statusCfg, module, statusRaw) : null;
+        if (statusDecision && !statusDecision.error && statusDecision.value) row.values.relationshipStatus = statusDecision.value;
+        const problems = [...missing, ...(statusDecision && statusDecision.error ? [statusDecision.error] : [])];
+        if (!problems.length) { remote.push(row); return; }
         local.push({
-          line: row.line, status: 'error', message: missing.join(' '), id: null, name: '', link: '', notes: [],
+          line: row.line, status: 'error', message: problems.join(' '), id: null, name: '', link: '', notes: [],
           values: display.get(row.line) || {},
         });
       });

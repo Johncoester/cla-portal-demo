@@ -7,7 +7,7 @@
  *   - Company duplicate lookup for the Company form (live warning with a link to the existing record).
  *   - janineLazyUpgrade: Zillow URL -> Zillow Profile, leads linked to their company. No storage-key bump: lazy, idempotent, lossless. */
 import { parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, buildIcs, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611101600';
-import { resolveImportedStatus } from './nov5-rules.js?v=202611101015';
+import { importedStatusDecision } from './crm-import-status.js?v=202611102745';
 import { ensureSettings } from './crm-config.js?v=202611070139';
 import { companyKey, CRM_OWNER_ROLES } from './crm.js?v=202611070139';
 import { US_STATE_NAMES } from './constants.js?v=202611101015';
@@ -59,9 +59,8 @@ export function crmJaninePart(x, ctx) {
     return IMPORT_DEFAULT_FIELDS.map(([k]) => [k, str(raw[k], 200)]).filter(([, v]) => v).map(([k, v]) => {
       if (k === 'ownerId') { const p = prof(v); if (!p || p.status !== 'active' || !CRM_OWNER_ROLES.includes(p.role)) fail('The default Owner must be an active Sales Person or Sales Team user.'); }
       if (k === 'state') { const c = stateCode(v); if (!/^[A-Z]{2}$/.test(c)) fail('Pick a state for the default State.'); return { field: k, value: c }; }
-      if (k === 'relationshipStatus') { const resolved = resolveImportedStatus(cfg, module, v);
+      if (k === 'relationshipStatus') { const resolved = importedStatusDecision(cfg, module, v);
         if (resolved.error) fail(resolved.error);
-        if (resolved.historical) fail('A default Relationship Status must be a current choice. Retired choices stay on records that already have them and can still arrive in the file.');
         return { field: k, value: resolved.value }; }
       return { field: k, value: v }; });
   }
@@ -79,9 +78,8 @@ export function crmJaninePart(x, ctx) {
     if (rec.zip && !str(rec.county, 60)) { const cs = countiesFor(table, rec.zip).filter((c) => !input.state || c.state === input.state);
       if (cs.length) { input.county = cs[0].county; notes.push(cs.length > 1 ? `County ${cs[0].county} from ZIP ${rec.zip} (it spans ${cs.length} counties; the main one was used)` : `County ${cs[0].county} from ZIP ${rec.zip}`); } }
     const cfg = ensureSettings(db().crmSettings || null);
-    if (String(rec.relationshipStatus || '').trim()) { const resolved = resolveImportedStatus(cfg, module, rec.relationshipStatus);
-      if (resolved.error) fail(resolved.error); input.relationshipStatus = resolved.value; input.retainHistoricalStatus = resolved.historical;
-      if (resolved.historical) notes.push(`Relationship Status kept as the historical value ${resolved.value}`); }
+    if (String(rec.relationshipStatus || '').trim()) { const resolved = importedStatusDecision(cfg, module, rec.relationshipStatus);
+      if (resolved.error) fail(resolved.error); input.relationshipStatus = resolved.value; }
     const co = str(rec.company, 160); delete input.company;
     if (co) { const acc = companyDup(co); if (acc && !acc.archivedAt) { input.accountId = acc.id; notes.push(`Company: ${acc.name}`); }
       else { input.company = co; notes.push(`No company called "${co}" yet: kept as text${module === 'leads' ? ' (pick it from Companies later)' : ''}`); } }
