@@ -1,9 +1,11 @@
 // Merge check (Bob, Nov 10): run every test/test-*.js and test/test-*.sh. A PR fails only when it breaks a test that
-// passes on main: each failing test is run again on the base commit (BASE_SHA, else origin/main) in a scratch worktree,
-// and a test that fails there too is reported as already failing on main without blocking. Version-pin tests go stale on
-// main several times a day, so a fixed known-failures list would block unrelated PRs.
+// passes on main: each failing test is run again on the base commit in a scratch worktree, and a test that fails there
+// too is reported as already failing on main without blocking. Version-pin tests go stale on main several times a day,
+// so a fixed known-failures list would block unrelated PRs.
+// The base: in CI the checkout is the PR merged into main (or a merge-queue commit), so it is that commit's first parent,
+// the exact main it was merged into (the pull_request event's base.sha can be older). Elsewhere BASE_SHA, else origin/main.
 // Most tests do not name their loader, so each .js test runs bare first, then with the repo's loader hooks.
-// Run: node tools/run-tests.mjs [test/test-one.js ...]      BASE_SHA=<commit> to compare against something other than origin/main
+// Run: node tools/run-tests.mjs [test/test-one.js ...]      BASE_SHA=<commit> overrides the base
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -37,7 +39,8 @@ console.log(`\n${results.length - failed.length} passed, ${failed.length} failed
 if (!failed.length) process.exit(0);
 
 // is each failure new in this change, or already failing on main?
-const base = process.env.BASE_SHA || sh('git', ['rev-parse', '--verify', '-q', 'origin/main']).stdout.trim();
+const parents = sh('git', ['rev-list', '--parents', '-n', '1', 'HEAD']).stdout.trim().split(' ').slice(1);
+const base = process.env.BASE_SHA || (parents.length > 1 ? parents[0] : sh('git', ['rev-parse', '--verify', '-q', 'origin/main']).stdout.trim());
 if (!base) { console.log('no base commit to compare with (set BASE_SHA or fetch origin/main): every failure counts'); process.exit(1); }
 const wt = mkdtempSync(join(tmpdir(), 'cla-base-'));
 const added = sh('git', ['worktree', 'add', '-q', '--detach', wt, base]);

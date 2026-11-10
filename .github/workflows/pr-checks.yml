@@ -58,8 +58,6 @@ jobs:
           chmod a+x /home/runner /home/runner/work
           chmod -R a+rX "$GITHUB_WORKSPACE"
       - name: Test suite (fails only on a test that passes on main)
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
         run: node tools/run-tests.mjs
 
   smoke:
