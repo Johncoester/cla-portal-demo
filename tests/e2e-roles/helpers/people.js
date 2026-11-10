@@ -5,6 +5,7 @@ import { targetMode } from './gate.js';
 
 export const FILE_MOCK = 'deal-1';
 export const FILE_STREET = '100 E2E Test File';
+export const SEED_FILE = 'MD-26-99001';
 export const SEED_MARKER = 'E2E-ROLE-FILE';
 
 export const PEOPLE = {

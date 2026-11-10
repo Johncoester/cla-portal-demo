@@ -1,6 +1,6 @@
 import { test as base, expect } from '@playwright/test';
 import { targetMode } from './helpers/gate.js';
-import { PEOPLE } from './helpers/people.js';
+import { PEOPLE, SEED_FILE } from './helpers/people.js';
 import { knownFailureActive } from './known-failures.js';
 
 const IGNORE = /config\.js|favicon|Download the React DevTools/i;
@@ -9,6 +9,26 @@ const IGNORE = /config\.js|favicon|Download the React DevTools/i;
 // The page retries the read. That console line is not a failed save.
 function authFetchNoise(text) {
   return /Failed to fetch/.test(text) && /auth-js/.test(text);
+}
+
+// Chrome logs a failed network request. The page does not console.error this.
+// Only the create_portal_invite 400 whose body is the pending-invite P0001 is ignored, and only after that body was read.
+function pendingInviteNetwork400(text) {
+  return /Failed to load resource: the server responded with a status of 400/.test(text) && /\/rpc\/create_portal_invite/.test(text);
+}
+
+const PENDING_INVITE_MESSAGE = /already a pending invite/i;
+
+export async function allowPendingInvite400(page, issues) {
+  issues.allowedInvite400 = 0;
+  await page.route('**/rest/v1/rpc/create_portal_invite', async (route) => {
+    const response = await route.fetch();
+    const body = await response.text();
+    let message = '';
+    try { message = String((JSON.parse(body) || {}).message || ''); } catch (e) { message = ''; }
+    if (response.status() === 400 && PENDING_INVITE_MESSAGE.test(message)) issues.allowedInvite400 += 1;
+    await route.fulfill({ response, body });
+  });
 }
 
 export const test = base.extend({
@@ -31,6 +51,7 @@ export const test = base.extend({
       const text = msg.text();
       const line = where ? `${text} (${where})` : text;
       if (IGNORE.test(text) || IGNORE.test(where) || authFetchNoise(line)) return;
+      if (pendingInviteNetwork400(line) && issues.allowedInvite400 > 0) { issues.allowedInvite400 -= 1; return; }
       issues.push(line);
     });
     await use(issues);
@@ -40,7 +61,12 @@ export const test = base.extend({
 export { expect };
 
 export function freshIssues(issues) {
-  return issues.filter((line) => !IGNORE.test(line) && !authFetchNoise(line));
+  let pendingLeft = issues.allowedInvite400 || 0;
+  return issues.filter((line) => {
+    if (IGNORE.test(line) || authFetchNoise(line)) return false;
+    if (pendingLeft > 0 && pendingInviteNetwork400(line)) { pendingLeft -= 1; return false; }
+    return true;
+  });
 }
 
 export async function signIn(page, key) {
@@ -67,7 +93,8 @@ export async function signIn(page, key) {
 export async function openMockFile(page, id = 'deal-1') {
   if (targetMode() === 'test') {
     await page.goto('/#/orders?s=All');
-    const row = page.locator('tr', { hasText: 'E2E Test File' }).first();
+    // Place Order uses a street that also contains "E2E Test File". The seed file is MD-26-99001.
+    const row = page.locator('tr', { hasText: SEED_FILE }).first();
     await row.waitFor();
     await row.locator('a.view-btn').click();
     await page.waitForURL(/#\/deals\/[^/?#]+/);

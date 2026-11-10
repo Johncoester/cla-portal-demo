@@ -1,4 +1,4 @@
-import { test, expect, signIn, openMockFile, freshIssues, runId } from '../fixtures.js';
+import { test, expect, signIn, openMockFile, freshIssues, allowPendingInvite400, runId } from '../fixtures.js';
 import { walkFileTabs, uploadOfferedVisibilities, shareFileLabels, assertRecipients, sendPortalMessage, fillAssignedTasks, gotoHash, dealId } from '../helpers/portal.js';
 import { recipientRules } from '../helpers/people.js';
 import { targetMode } from '../helpers/gate.js';
@@ -91,6 +91,7 @@ test('sales team is view-only on the file', async ({ page, issues }) => {
 });
 
 test('sales team invite shows the stored email and a copy link, and does not email', async ({ page, issues }) => {
+  await allowPendingInvite400(page, issues);
   await signIn(page, 'salesTeam');
   await page.route('**/functions/v1/gmail-send**', (route) => route.fulfill({
     status: 200,
