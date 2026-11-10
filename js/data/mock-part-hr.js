@@ -114,6 +114,17 @@ export function hrPart(x, flags) {
     d.hrChangeHistory.push({ id: 'hrh-' + d.hrSeq, seq: d.hrSeq, tableName, rowId, employeeId, field, column: COLUMN_OF[field] || field, oldValue: textOf(field, oldV), newValue: textOf(field, newV), action,
       changedBy: u.id, changedByName: nameOf(u.id), changedAt: now() });
   }
+  const STAFF_PORTAL_ROLES = ['Employee', 'Processor', 'Preprocessor', 'Sales Person', 'Transaction Coordinator'];
+  function syncPortalRole(e) {
+    const d = db();
+    if (!e || !e.profileId) return;
+    const p = d.profiles.find((z) => z.id === e.profileId);
+    if (!p || p.isAdmin || !STAFF_PORTAL_ROLES.includes(p.role)) return;
+    const name = ((d.hrDesignations || []).find((g) => g.id === e.designationId) || {}).name;
+    const next = portalRoleForDesignation(name);
+    if (!['Processor', 'Preprocessor', 'Sales Person', 'Transaction Coordinator'].includes(next) || p.role === next) return;
+    p.role = next;
+  }
   function applyPatch(u, e, patch, action = 'update') {
     let n = 0;
     for (const [k, v] of Object.entries(patch)) { const old = e[k] == null ? null : e[k]; const nv = v === '' && (k.endsWith('Id') || k === 'dateOfJoining' || k.startsWith('pay')) ? null : v;
@@ -194,6 +205,7 @@ export function hrPart(x, flags) {
       d.hrEmployees.push(e);
       for (const k of HR_FIELDS.concat(SELF_FIELDS)) if (e[k] != null && e[k] !== '') hist(u, 'hr_employees', e.id, e.id, k, null, e[k], 'create');
       if (login) hist(u, 'hr_employees', e.id, e.id, 'profileId', null, login.id, 'create');
+      syncPortalRole(e);
       const invite = login ? null : makeInvite(u, e); save();
       return { employee: view(e), invite, linkedLogin: !!login }; },
     async updateHrEmployee(id, patch = {}) { const { u, role } = gate(); const e = empById(id) || fail('Employee not found.'); const admin = role === 'super' || role === 'hr_manager';
@@ -205,7 +217,7 @@ export function hrPart(x, flags) {
       else if (e.profileId === u.id && !e.archivedAt) v = cleanSelfPatch(patch);
       else fail('You can only edit your own phone, address and emergency contact.');
       if (v.commissionNotes !== undefined && !(v.commissioned !== undefined ? v.commissioned : e.commissioned)) v.commissionNotes = '';
-      const n = applyPatch(u, e, v); if (n) save(); return { employee: admin ? view(e) : view(e), changed: n }; },
+      const n = applyPatch(u, e, v); syncPortalRole(e); save(); return { employee: view(e), changed: n }; },
     async archiveHrEmployee(id, archived = true) { const { u } = needHr(); const d = db(); const e = empById(id) || fail('Employee not found.');
       if (e.profileId === u.id && archived) fail('You cannot archive your own record.');
       if (!!e.archivedAt === !!archived) return view(e);
@@ -228,7 +240,7 @@ export function hrPart(x, flags) {
       if (p && isOutside(p.role)) fail('That email belongs to an agent or client login. Ask HR to use your work email.');
       if (!p) { p = { id: nextId('u'), email: e.email, firstName: e.firstName, lastName: e.lastName, phone: e.phone || '', role: portalRoleForDesignation(((d.hrDesignations || []).find((g) => g.id === e.designationId) || {}).name), isAdmin: false, status: 'active', createdAt: now(), createdBy: i.createdBy }; d.profiles.push(p); }   // Nov 9: role from the designation (hr.js map), else 'Employee'
       const actor = { id: p.id };
-      e.profileId = p.id; e.updatedAt = now(); e.updatedBy = p.id; i.acceptedAt = now(); i.acceptedProfileId = p.id;
+      e.profileId = p.id; syncPortalRole(e); e.updatedAt = now(); e.updatedBy = p.id; i.acceptedAt = now(); i.acceptedProfileId = p.id;
       hist(actor, 'hr_employees', e.id, e.id, 'profileId', null, p.id, 'invite_accepted');
       save(); sess.setItem(SESSION_KEY, p.id); return { profileId: p.id, employeeId: e.id }; },
     // ---- Departments / Designations (list for everyone in HR, add / archive for HR) ----

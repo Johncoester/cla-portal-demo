@@ -1,5 +1,5 @@
 import { test, expect, signIn, openMockFile, freshIssues } from '../fixtures.js';
-import { dealId, gotoHash } from '../helpers/portal.js';
+import { advance, dealId, gotoHash } from '../helpers/portal.js';
 
 test('the staff file header stays on screen while the file scrolls', async ({ page, issues }) => {
   await signIn(page, 'processor');
@@ -50,5 +50,21 @@ test('the buyer sees the agent phone and not themselves on the closing team', as
   await page.locator('#tform button[data-mode="save"]').click();
   await expect(page.locator('.toast', { hasText: 'Progress saved' })).toBeVisible();
   await expect(citizenship).toHaveValue('U.S. Citizen');
+  expect(freshIssues(issues)).toEqual([]);
+});
+
+test('Place Order fills city, state, county and ZIP from the street line', async ({ page, issues }) => {
+  await signIn(page, 'processor');
+  await page.goto('/#/orders/new');
+  await page.locator('#nof').waitFor();
+  await advance(page, 'property');
+  const street = page.locator('[data-wiz-step="property"] input[name="street"]');
+  await street.fill('10 Oak Street, Rockville, MD 20850');
+  await street.blur();
+  await expect(page.locator('[data-wiz-step="property"] input[name="city"]')).toHaveValue('Rockville');
+  await expect(page.locator('[data-wiz-step="property"] select[name="state"]')).toHaveValue('MD');
+  await expect(page.locator('[data-wiz-step="property"] input[name="zip"]')).toHaveValue('20850');
+  await expect(page.locator('[data-wiz-step="property"] input[name="county"]')).toHaveValue('Montgomery');
+  await expect(page.locator('[data-add-parcel]')).toBeVisible();
   expect(freshIssues(issues)).toEqual([]);
 });

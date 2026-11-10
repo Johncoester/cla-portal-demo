@@ -20,7 +20,7 @@ import { duplicateNotice } from '../data/order-duplicates.js?v=202611101700';
 import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
 import { orderDraftKey, readOrderDraft, writeOrderDraft, clearOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim } from '../data/order-draft.js?v=202611070139';
 import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows } from '../data/lender-file.js?v=202611101200';
-import { fillProperty } from '../data/address-fill.js?v=202611102000';
+import { bindAddressFill } from '../data/address-fill.js?v=202611120900';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611120700';
 import { readEarnest, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611102000';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
@@ -135,7 +135,7 @@ export async function render({ api, user, go }) {
         <label>ZIP<input name="zip" maxlength="10" placeholder="20850"></label>
         <label>County <span class="muted small">(optional; filled from the address or the ZIP when left blank)</span><input name="county" maxlength="100" placeholder="e.g. Frederick" aria-label="County"></label>
         ${parcelFieldsHtml([''])}
-        <p class="span2 muted small" data-address-fill>Type a full address (street, city, state, ZIP) and the empty city, state, ZIP and county boxes fill in from that address and the bundled ZIP table. A value you already typed stays.</p>
+        <p class="span2 muted small" data-address-fill>Leave the street box (or pick a full address) and the empty city, state, ZIP and county fill from that line and the bundled ZIP table. A value you already typed stays. Parcel IDs stay typed; use + Parcel ID for another.</p>
         <div class="span2" id="md-occ" hidden><p class="muted small">Maryland purchases only.</p>${occSelects({})}</div></div>`,
         'The address of the property being bought, sold or refinanced.')}
       ${panel('parties', html`<p class="muted small people-optional">People on this order are all optional; you can add or change them later under Contacts. Type a name and pick a match, or choose <strong>Add "…" as a new person</strong> in the list. <strong>Add new user</strong> below still works for full details (email, entity, lender company).</p>
@@ -273,16 +273,9 @@ export async function render({ api, user, go }) {
     ['Buyer Agent', 'Listing Agent'].forEach((role) => { const card = $(`[data-agent-card="${role}"]`, root); const q = $('.picker-q', card); if (q) q.addEventListener('input', () => { if (!pickers[role].value) $('[data-agent-edit]', card).hidden = true; });
       $('[data-agent-role]', card).addEventListener('change', () => { const nextRole = $('[data-agent-role]', card).value; if (nextRole === role) return; try { moveAgent(role, nextRole); } catch (err) { toast(err.message, 'err'); } }); });
     const paintCommission = () => { const box = $('[data-commission-total]', root); if (!box) return; try { const e = readEarnest(formData(form)); box.value = e.commissionTotal == null ? '' : String(e.commissionTotal); } catch (err) { box.value = ''; } };
-    const fillAddr = async () => { const street = $('[name=street]', form); const city = $('[name=city]', form); const state = $('[name=state]', form); const zip = $('[name=zip]', form); const county = $('[name=county]', form);
-      const next = await fillProperty({ street: street.value, city: city.value, state: state.value, zip: zip.value, county: county.value });
-      if (next.parsed && next.street !== street.value) street.value = next.street;
-      if (!city.value.trim() && next.city) city.value = next.city;
-      if (!state.value && next.state) state.value = next.state;
-      if (!zip.value.trim() && next.zip) zip.value = next.zip;
-      if (!county.value.trim() && next.county) county.value = next.county;
-      syncMd(); };
-    $('[name=street]', form).addEventListener('change', () => { fillAddr().catch(() => {}); });
-    $('[name=zip]', form).addEventListener('change', () => { fillAddr().catch(() => {}); });
+    bindAddressFill(form);
+    const syncAfterAddress = () => syncMd();
+    ['street', 'city', 'state', 'zip'].forEach((name) => { const el = form.querySelector(`[name="${name}"]`); if (el) el.addEventListener('blur', syncAfterAddress); });
     // ---------- several buyers / sellers ----------
     const rows = {};   // role -> [{ pk, el }] in screen order
     const renumber = (role) => { rows[role].forEach(({ pk, el }, i) => { const nm = i ? `p:${role}:${i + 1}` : `p:${role}`; pk.el.dataset.picker = nm; $('input[type=hidden]', pk.el).name = nm; el.dataset.partyRow = String(i + 1);

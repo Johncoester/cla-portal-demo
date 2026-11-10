@@ -5,7 +5,7 @@
 import { html, raw, esc, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611070139';
 import { editorHtml, mountEditor } from './compose.js?v=202611110900';
 import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, hasSignature, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611091801';
-import { applyFileTemplate } from '../data/file-email-templates.js?v=202611102000';
+import { applyFileTemplate } from '../data/file-email-templates.js?v=202611120900';
 import { countUnreadEmails, emailMatchesQuery, isUnreadFileEmail } from '../data/file-email-unread.js?v=202611100930';
 const ROLE = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent', 'Transaction Coordinator': 'TC' };
 const list = (s) => String(s || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
@@ -119,7 +119,7 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     <label class="span2">From<input value="${gmail.connected ? gmail.mailbox : 'Connect Gmail on Profile Setting first'}" disabled data-mail-compose-from></label>
     <label class="span2">To<input name="to" value="${(pre.to || []).join(', ')}" placeholder="name@example.com, ..." data-mail-to></label>
     <label>Cc<input name="cc" value="${(pre.cc || []).join(', ')}" data-mail-cc></label><label>Bcc<input name="bcc" data-mail-bcc></label>
-    ${parties.length ? html`<div class="span2 small">On this file: ${parties.map((p) => html`<button type="button" class="ghost small" data-mail-add="${p.email}" title="${p.email}">+ ${p.name || p.email} (${ROLE[p.role] || p.role})${isAllowedTestRecipient(p.email) ? '' : raw(' <span class="pill warn">not a test address</span>')}</button> `)}</div>` : ''}
+    <div class="span2 small" data-mail-people></div>
     ${templates.length && !pre.replyToEmailId ? html`<label class="span2">Use template<select data-mail-template><option value="">(blank — no template)</option>${tplOpts}</select></label>
       <div class="span2 notice warn" data-mail-tpl-warn hidden></div>` : ''}
     <label class="span2">Subject<input name="subject" maxlength="250" value="${pre.subject || ''}" data-mail-subject></label>
@@ -133,7 +133,25 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     <div class="span2" data-mail-check-result></div>
     <div class="span2"><button type="button" class="ghost" data-mail-check>Check (does not send)</button> <button type="button" class="m-btn" data-mail-send ${gmail.connected ? '' : raw('disabled title="Connect Gmail first"')}>Send</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
   const ed = mountEditor($('[data-mail-editor]', m)); ed.box.innerHTML = pre.html || '<p><br></p>';
-  $$('[data-mail-add]', m).forEach((b) => b.addEventListener('click', () => { const i = $('[data-mail-to]', m); const cur = list(i.value); if (!cur.includes(b.dataset.mailAdd)) cur.push(b.dataset.mailAdd); i.value = cur.join(', '); }));
+  const putAddr = (field, addr, on) => {
+    const input = $(field === 'cc' ? '[data-mail-cc]' : '[data-mail-to]', m);
+    const cur = list(input.value).filter((x) => x.toLowerCase() !== String(addr).toLowerCase());
+    if (on) cur.push(addr);
+    input.value = cur.join(', ');
+  };
+  const paintPeople = () => {
+    const box = $('[data-mail-people]', m); if (!box) return;
+    const to = list($('[data-mail-to]', m).value);
+    const cc = list($('[data-mail-cc]', m).value);
+    const chip = (field, addr) => html`<span class="pill" data-mail-chip="${field}">${addr} <button type="button" class="ghost small" data-mail-drop="${field}" data-mail-addr="${addr}" aria-label="Remove ${addr} from ${field === 'cc' ? 'Cc' : 'To'}">Remove</button></span>`;
+    box.innerHTML = toText(html`<div data-mail-to-chips>To: ${to.length ? to.map((addr) => chip('to', addr)) : html`<span class="muted">none</span>`}</div>
+      <div data-mail-cc-chips>Cc: ${cc.length ? cc.map((addr) => chip('cc', addr)) : html`<span class="muted">none</span>`}</div>
+      ${parties.length ? html`<div>On this file: ${parties.map((p) => html`<span>${p.name || p.email} (${ROLE[p.role] || p.role}) <button type="button" class="ghost small" data-mail-put="to" data-mail-addr="${p.email}">Add to To</button> <button type="button" class="ghost small" data-mail-put="cc" data-mail-addr="${p.email}">Add to Cc</button></span> `)}</div>` : ''}`);
+    $$('[data-mail-drop]', box).forEach((b) => b.addEventListener('click', () => { putAddr(b.dataset.mailDrop, b.dataset.mailAddr, false); paintPeople(); }));
+    $$('[data-mail-put]', box).forEach((b) => b.addEventListener('click', () => { putAddr(b.dataset.mailPut, b.dataset.mailAddr, true); paintPeople(); }));
+  };
+  paintPeople();
+  ['[data-mail-to]', '[data-mail-cc]'].forEach((sel) => { const el = $(sel, m); if (el) el.addEventListener('change', paintPeople); });
   const tplSel = $('[data-mail-template]', m);
   const warn = $('[data-mail-tpl-warn]', m);
   const showWarn = (msgs) => { if (!warn) return; const bits = (msgs || []).filter(Boolean); if (!bits.length) { warn.hidden = true; warn.textContent = ''; return; }
@@ -146,7 +164,11 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     const opts = { toEmails: toNow, documents: docs, applyDefaultRecipients: toNow.length === 0, processorEmail: mergeDeal.processorEmail };
     const applied = applyFileTemplate(t, mergeDeal, sender, opts);
     const kept = recipientsAfterTemplate(toNow.join(', '), applied.suggestedTo, { fillIfEmpty: toNow.length === 0 });
+    const ccNow = list($('[data-mail-cc]', m).value);
+    const keptCc = recipientsAfterTemplate(ccNow.join(', '), applied.suggestedCc, { fillIfEmpty: ccNow.length === 0 });
     $('[data-mail-to]', m).value = kept.join(', ');
+    $('[data-mail-cc]', m).value = keptCc.join(', ');
+    paintPeople();
     const to2 = kept;
     const applied2 = applyFileTemplate(t, mergeDeal, sender, { toEmails: to2, documents: docs, applyDefaultRecipients: false, processorEmail: mergeDeal.processorEmail });
     $('[data-mail-subject]', m).value = applied2.subject;

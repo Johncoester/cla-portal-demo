@@ -223,13 +223,15 @@ export function defaultRecipientEmails(deal = {}, roles = []) {
 export function applyFileTemplate(t, deal, sender, opts = {}) {
   const toEmails = opts.toEmails || [];
   const defaultRoles = t.defaultRecipientRoles || t.default_recipient_roles || [];
+  const ccRoles = t.defaultCcRoles || t.default_cc_roles || [];
   const suggested = opts.applyDefaultRecipients === false ? { emails: [], warnings: [] } : defaultRecipientEmails(deal, defaultRoles);
+  const suggestedCc = opts.applyDefaultRecipients === false ? { emails: [], warnings: [] } : defaultRecipientEmails(deal, ccRoles);
   const toForMerge = toEmails.length ? toEmails : suggested.emails;
   const vals = mergeValues(deal, sender, { ...opts, toEmails: toForMerge, processorEmail: opts.processorEmail });
   const subj = renderMerge(t.subject || '', vals, { mode: 'text' });
   const body = renderMerge(t.bodyHtml || t.body_html || '', vals, { mode: 'html' });
   const attach = matchAttachDocuments(opts.documents || [], t.attachDocTypes || t.attach_doc_types || []);
-  const warnings = [...(vals._recipientWarnings || []), ...(suggested.warnings || [])];
+  const warnings = [...(vals._recipientWarnings || []), ...(suggested.warnings || []), ...(suggestedCc.warnings || [])];
   if (subj.unknown.length || body.unknown.length) warnings.push('Unknown fields removed: ' + [...new Set([...subj.unknown, ...body.unknown])].join(', '));
   const missingVisible = [...new Set([...subj.missing, ...body.missing])].filter((k) => k !== 'processor_email' || !vals.processor_line);
   if (missingVisible.length) warnings.push('Blank on this file: ' + missingVisible.map((k) => '{{' + k + '}}').join(', '));
@@ -242,6 +244,7 @@ export function applyFileTemplate(t, deal, sender, opts = {}) {
     templateKey: t.id ? String(t.id).slice(0, 60) : (t.key || null),
     attachDocumentIds: attach.matched.map((d) => d.id),
     suggestedTo: suggested.emails,
+    suggestedCc: suggestedCc.emails,
     warnings,
   };
 }
@@ -259,7 +262,9 @@ export function cleanTemplateInput(v = {}) {
   const attachDocTypes = [].concat(v.attachDocTypes || v.attach_doc_types || []).map((x) => String(x || '').trim()).filter(Boolean).slice(0, 12);
   const defaultRecipientRoles = [].concat(v.defaultRecipientRoles || v.default_recipient_roles || [])
     .map((x) => String(x || '').trim()).filter((r) => DEFAULT_RECIPIENT_ROLE_KEYS.includes(r)).slice(0, 8);
-  return { name, subject, bodyHtml, scope: 'shared', category, active, attachDocTypes, defaultRecipientRoles };
+  const defaultCcRoles = [].concat(v.defaultCcRoles || v.default_cc_roles || [])
+    .map((x) => String(x || '').trim()).filter((r) => DEFAULT_RECIPIENT_ROLE_KEYS.includes(r)).slice(0, 8);
+  return { name, subject, bodyHtml, scope: 'shared', category, active, attachDocTypes, defaultRecipientRoles, defaultCcRoles };
 }
 
 export function canManageFileTemplates(u) {

@@ -2,7 +2,7 @@
 const TABS = Object.assign(Object.create(null), {
   tasks: './dealtasks.js?v=202611120800',
   inbox: './dealmsgs.js?v=202611111700',
-  email: './dealemail.js?v=202611120700',   // John, Nov 9: Gmail phase 1 (staff only; the tab module refuses everyone else)
+  email: './dealemail.js?v=202611120900',   // John, Nov 9: Gmail phase 1 (staff only; the tab module refuses everyone else)
   documents: './dealdocs.js?v=202611111700',
   contacts: './dealcontacts.js?v=202611120500',
   activity: './dealactivity.js?v=202611102100',
