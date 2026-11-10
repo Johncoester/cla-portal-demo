@@ -17,7 +17,7 @@ ok(contacts.includes('data-contacts-table'), 'the contacts table can use the tig
 
 const deal = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
 ok(!deal.includes('data-all-order-contacts'), 'the participant table that repeated Parties is gone');
-ok(deal.includes('data-order-contacts') && deal.includes('lenderSectionHtml') && deal.includes('Closing location') && deal.includes('>HOA<'), 'the order card keeps the lender editor, HOA, and closing location');
+ok(deal.includes('data-order-contacts') && deal.includes('Closing location') && deal.includes('>HOA<') && deal.includes("staffView ? '' : html`<div class=\"box-title\"><h2><span class=\"h-ico\"></span>Order Contacts"), 'agents still see HOA and closing location; staff overview does not render Order Contacts');
 
 const css = readFileSync(new URL('../css/portal.css', import.meta.url), 'utf8');
 ok(/\.op-prow \{[^}]*padding: 1px 8px/.test(css) && /\[data-contacts-table\] th, \[data-contacts-table\] td \{ padding: 3px 8px/.test(css), 'party rows and contact rows use the tighter padding');
