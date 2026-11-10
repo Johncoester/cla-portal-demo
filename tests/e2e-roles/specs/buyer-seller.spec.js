@@ -1,5 +1,5 @@
 import { test, expect, signIn, openMockFile, freshIssues, runId, onTest } from '../fixtures.js';
-import { walkFileTabs, uploadOfferedVisibilities, shareFileLabels, assertRecipients, sendPortalMessage, fillAssignedTasks, gotoHash, dealId } from '../helpers/portal.js';
+import { walkFileTabs, uploadOfferedVisibilities, shareFileLabels, messageRecipientLabels, assertRecipients, sendPortalMessage, fillAssignedTasks, gotoHash, dealId } from '../helpers/portal.js';
 import { PEOPLE, recipientRules } from '../helpers/people.js';
 
 async function smoke(page, key) {
@@ -52,6 +52,8 @@ test('buyer document sharing options that are offered must upload', async ({ pag
   await gotoHash(page, `#/deals/${id}/documents`);
   const result = await uploadOfferedVisibilities(page, runId());
   expect(result.offered).toBeTruthy();
+  expect(result.options.map((o) => o.value)).toEqual(['buyer']);
+  expect(result.options.map((o) => o.label).join(' ')).toMatch(/Share with CLA Title/);
   expect(result.saved.join(' ')).toMatch(/Share with CLA Title/i);
   expect(freshIssues(issues)).toEqual([]);
 });
@@ -63,6 +65,8 @@ test('seller document sharing options that are offered must upload', async ({ pa
   await gotoHash(page, `#/deals/${id}/documents`);
   const result = await uploadOfferedVisibilities(page, runId());
   expect(result.offered).toBeTruthy();
+  expect(result.options.map((o) => o.value)).toEqual(['seller']);
+  expect(result.options.map((o) => o.label).join(' ')).toMatch(/Share with CLA Title/);
   expect(result.saved.join(' ')).toMatch(/Share with CLA Title/i);
   expect(freshIssues(issues)).toEqual([]);
 });
@@ -74,7 +78,10 @@ test('buyer Share Files lists staff and the buyer agent, not the other side', as
   const id = dealId(page);
   await gotoHash(page, `#/deals/${id}/documents`);
   const labels = await shareFileLabels(page);
-  assertRecipients(labels, recipientRules(PEOPLE.buyer));
+  const rules = recipientRules(PEOPLE.buyer);
+  assertRecipients(labels, rules);
+  await gotoHash(page, `#/deals/${id}/inbox`);
+  assertRecipients(await messageRecipientLabels(page), rules);
   expect(freshIssues(issues)).toEqual([]);
 });
 

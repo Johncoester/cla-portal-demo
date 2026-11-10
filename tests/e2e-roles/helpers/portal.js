@@ -65,7 +65,7 @@ export async function walkFileTabs(page, person) {
 export async function uploadOfferedVisibilities(page, run) {
   await page.getByRole('heading', { name: 'Documents & Files' }).waitFor();
   const openBtn = page.getByRole('button', { name: 'Upload here' });
-  if (await openBtn.count() === 0) return { offered: false, saved: [] };
+  if (await openBtn.count() === 0) return { offered: false, saved: [], options: [] };
   await openBtn.click();
   const select = page.locator('#uf select[name="visibility"]');
   await expect(select).toBeVisible();
@@ -100,7 +100,14 @@ export async function uploadOfferedVisibilities(page, run) {
     saved.push(opt.label);
     await page.locator('#modal').waitFor({ state: 'detached' }).catch(() => {});
   }
-  return { offered: true, saved };
+  return { offered: true, saved, options };
+}
+
+export async function messageRecipientLabels(page) {
+  await page.locator('#newthread').click();
+  const labels = await page.locator('#ntf input[name="to"]').evaluateAll((els) => els.map((el) => (el.closest('label') ? el.closest('label').innerText : '').replace(/\s+/g, ' ').trim()).filter(Boolean));
+  await page.locator('#modal [data-close]').first().click();
+  return labels;
 }
 
 export async function shareFileLabels(page) {

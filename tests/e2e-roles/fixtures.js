@@ -1,6 +1,7 @@
 import { test as base, expect } from '@playwright/test';
 import { targetMode } from './helpers/gate.js';
 import { PEOPLE } from './helpers/people.js';
+import { knownFailureActive } from './known-failures.js';
 
 const IGNORE = /config\.js|favicon|Download the React DevTools/i;
 
@@ -67,5 +68,5 @@ export function runId() {
 }
 
 export function onTest(ticket) {
-  test.fail(targetMode() === 'test', ticket);
+  test.fail(knownFailureActive(ticket, targetMode()), ticket);
 }

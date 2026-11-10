@@ -5,6 +5,11 @@ name: e2e-roles-test
 
 on:
   workflow_dispatch:
+    inputs:
+      seed_accounts:
+        description: Create the E2E auth users on TEST from repo secrets
+        type: boolean
+        default: false
   workflow_run:
     workflows: ["pages-build-deployment"]
     types: [completed]
@@ -96,6 +101,14 @@ jobs:
         run: |
           npm install --no-save @playwright/test@1.58.2
           npx playwright install --with-deps chromium
+
+      - name: Seed TEST accounts
+        if: steps.clock.outputs.skip != '1' && github.event_name == 'workflow_dispatch' && github.event.inputs.seed_accounts == 'true'
+        env:
+          E2E_TARGET: test
+          SUPABASE_URL: https://aqcervntopidtcazcmlv.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node tests/e2e-roles/seed-accounts.mjs --workflow-dispatch
 
       - name: Role smoke
         if: steps.clock.outputs.skip != '1'

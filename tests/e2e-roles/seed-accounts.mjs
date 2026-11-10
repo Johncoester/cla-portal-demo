@@ -1,6 +1,7 @@
 /* Create the E2E auth users on CLA Portal Live Test. Does not apply SQL.
- * Does not print passwords or the service-role key.
+ * Does not print passwords, the service-role key, or request bodies.
  *
+ * Path A, a developer machine that already has the service-role key:
  *   E2E_TARGET=test E2E_CONFIRM_TEST_SEED=yes \
  *   SUPABASE_URL=https://aqcervntopidtcazcmlv.supabase.co \
  *   SUPABASE_SERVICE_ROLE_KEY=... \
@@ -8,7 +9,13 @@
  *   E2E_PROCESSOR_PASSWORD=... (and the other E2E_*_PASSWORD values) \
  *   node tests/e2e-roles/seed-accounts.mjs
  *
- * Then paste supabase/migrations/20261110103000_e2e_role_file_seed.sql into the
+ * Path B, no service-role key on the developer machine. Trigger the
+ * e2e-roles-test workflow with "Seed TEST accounts" checked. That job
+ * injects the repo secrets and runs:
+ *   node tests/e2e-roles/seed-accounts.mjs --workflow-dispatch
+ * --workflow-dispatch refuses to run anywhere except that GitHub Actions event.
+ *
+ * Then paste supabase/migrations/20261110140000_e2e_role_file_seed.sql into the
  * TEST SQL editor with e2e.mail_to set. If these users already exist, leave the
  * password settings empty; the SQL only reads a password when the profile is missing.
  */
@@ -29,8 +36,12 @@ const ROLES = [
 
 function fail(msg) { console.error(msg); process.exit(1); }
 
-if (process.env.E2E_TARGET !== 'test' || process.env.E2E_CONFIRM_TEST_SEED !== 'yes') {
-  fail('Refusing. Set E2E_TARGET=test and E2E_CONFIRM_TEST_SEED=yes. This script creates auth users and is not run by CI.');
+const workflowDispatch = process.argv.includes('--workflow-dispatch');
+const inDispatchJob = process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_EVENT_NAME === 'workflow_dispatch';
+if (workflowDispatch) {
+  if (!inDispatchJob) fail('Refusing. --workflow-dispatch runs only from the GitHub Actions workflow_dispatch job. A developer machine uses E2E_CONFIRM_TEST_SEED=yes.');
+} else if (process.env.GITHUB_ACTIONS === 'true' || process.env.E2E_TARGET !== 'test' || process.env.E2E_CONFIRM_TEST_SEED !== 'yes') {
+  fail('Refusing. On a developer machine set E2E_TARGET=test and E2E_CONFIRM_TEST_SEED=yes. This script is not part of the nightly or post-deploy run.');
 }
 const url = String(process.env.SUPABASE_URL || '');
 if (!url.includes(TEST_REF)) fail(`Refusing. SUPABASE_URL must be the TEST project (${TEST_REF}).`);
@@ -69,4 +80,4 @@ for (const [tag, secret] of ROLES) {
   if (!res.ok) fail(`Auth create failed for ${email} (HTTP ${res.status}).`);
   console.log(`created ${email}`);
 }
-console.log('Auth users are ready. Apply supabase/migrations/20261110103000_e2e_role_file_seed.sql in the TEST SQL editor. This script did not apply it.');
+console.log('Auth users are ready. Apply supabase/migrations/20261110140000_e2e_role_file_seed.sql in the TEST SQL editor. This script did not apply it.');

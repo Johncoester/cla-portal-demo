@@ -1,4 +1,4 @@
--- Rollback of 20261110103000_e2e_role_file_seed.sql
+-- Rollback of 20261110140000_e2e_role_file_seed.sql
 -- Removes only rows tagged E2E Role Seed / E2E-ROLE-FILE. NOT APPLIED.
 -- Refuses any database that is not CLA Portal Live Test.
 -- Does not delete passwords from this file (none are stored here).

@@ -20,7 +20,7 @@
 -- Safer path: node tests/e2e-roles/seed-accounts.mjs creates the auth users from the
 -- same env vars (service role, never prints passwords). Then run this file; it links
 -- the file and raises if a profile is missing.
--- Rollback: supabase/rollbacks/20261110103000_e2e_role_file_seed.sql
+-- Rollback: supabase/rollbacks/20261110140000_e2e_role_file_seed.sql
 
 begin;
 set local lock_timeout = '3s';

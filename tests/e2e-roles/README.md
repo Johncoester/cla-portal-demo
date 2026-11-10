@@ -32,8 +32,10 @@ A failure leaves a screenshot and a trace under `tests/e2e-roles/test-results/`.
 
 Only `https://testportal.clatitle.com/`. The config refuses any other host when `E2E_TARGET=test`, and it refuses a non-loopback host in mock mode.
 
-1. Create the logins with `node tests/e2e-roles/seed-accounts.mjs` (see secrets below). That script talks to the TEST Auth admin API and does not apply SQL.
-2. In the TEST SQL editor, set `e2e.mail_to` and apply `supabase/migrations/20261110103000_e2e_role_file_seed.sql`. The file is not applied by this repo's CI. Its rollback is `supabase/rollbacks/20261110103000_e2e_role_file_seed.sql`.
+1. Create the logins, then link the file. The script talks to the TEST Auth admin API and does not apply SQL. Two ways, both reading passwords from env and never printing them:
+   - A developer machine that already has the service-role key: `E2E_TARGET=test E2E_CONFIRM_TEST_SEED=yes node tests/e2e-roles/seed-accounts.mjs`.
+   - No key on the developer machine: run the GitHub Actions workflow **e2e-roles-test** with **Seed TEST accounts** checked. That `workflow_dispatch` job injects the repo secrets. `--workflow-dispatch` refuses to run anywhere else.
+2. In the TEST SQL editor, set `e2e.mail_to` and apply `supabase/migrations/20261110140000_e2e_role_file_seed.sql`. The file is not applied by this repo's CI. Its rollback is `supabase/rollbacks/20261110140000_e2e_role_file_seed.sql`.
 3. Connect Gmail on the Processor login (Profile Setting). File email and invite email go out from that mailbox.
 4. Export the secrets and run:
 
@@ -65,7 +67,7 @@ Nothing here is a password. GitHub Actions reads the same names from repository 
 | `E2E_CLIENT_BUYER_EMAIL` / `E2E_CLIENT_BUYER_PASSWORD` | Buyer portal. |
 | `E2E_CLIENT_SELLER_EMAIL` / `E2E_CLIENT_SELLER_PASSWORD` | Seller portal. |
 | `SUPABASE_URL` | `https://aqcervntopidtcazcmlv.supabase.co` for the seed script only. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Seed script only. Never put this in the browser or in Actions. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Seed script only. Repo secret for the workflow_dispatch seed. Do not put it on a developer machine if you use that job, and never in the browser. |
 
 On TEST the emails are `local+e2e-<role>@domain` from `E2E_MAIL_TO`, for example `clatestportal+e2e-buyer@gmail.com`. An invitee with no login is `+e2e-invitee`. The harness aborts before send if any recipient is outside that set, or if Live Test's own allowlist would refuse it (`clatestportal@gmail.com`, `clatestportal+tag@gmail.com`, or `@clatitle.com`).
 
@@ -107,8 +109,8 @@ Derived from `js/data/constants.js`, `js/data/agent-profile.js`, `js/pages/deald
 | Edit order details, parties, referral, state prefix | yes | no (view-only) | no (view-only) | no (`runsOrders` is false) | no | no | no | no |
 | File tabs | staff set, modules below not opened | staff set, no upload, no new message | same as Sales Person | Overview, Tasks, Messages, Documents, Closing, Contacts, Activity, and Email on the later tab chrome | client set including Contacts and Agreements | same as Buyer Agent | Overview, To-do, Messages, Documents, Closing, Activity | same as the buyer |
 | Fill In on assigned forms | not the focus of Order Entry | no forms of their own on the sample file | same | simple tasks, not intake forms | commission form | view the completed commission form | own intake, including photo ID | own intake, including photo ID |
-| Documents upload | not in the Order Entry path | control is absent | control is absent | every visibility label | CLA staff only, own side, everyone | CLA staff only, own side, everyone | one option, Share with CLA Title (`staff`) | one option, Share with CLA Title (stored value `seller`) |
-| Share Files | not in this path | button absent | button absent | both sides plus staff (staff recipient rule) | own side plus staff, not the seller side | own side plus staff, not the buyer side | buyer agent plus staff, not the listing agent or seller | listing agent plus staff, not the buyer agent or buyer |
+| Documents upload | not in the Order Entry path | control is absent | control is absent | every visibility label | CLA staff only, own side, everyone | CLA staff only, own side, everyone | one option, Share with CLA Title, stored as `buyer` (PR 113) | one option, Share with CLA Title, stored as `seller` |
+| Share Files | not in this path | button absent | button absent | both sides plus the assigned staff | own side plus assigned staff, not the seller side | own side plus assigned staff, not the buyer side | buyer agent, processor, preprocessor, TC, and sales; not the other side | listing agent plus that same staff list; not the buyer side |
 | Portal message | not in this path | button absent | button absent | yes | yes | yes | yes | yes |
 | Contacts edit | yes | no | no | no Edit button | no | no | no Contacts tab | no Contacts tab |
 | Invite from the file | yes | yes, for a party with no login | yes | no (`canInviteAgents` excludes TC) | no | no | no | no |
@@ -116,20 +118,20 @@ Derived from `js/data/constants.js`, `js/data/agent-profile.js`, `js/pages/deald
 
 ### Ambiguities
 
-- **Seller "Share with CLA Title".** The label is shared with the buyer, but the stored value for a seller is `seller`, not `staff`. The comment in `constants.js` says a seller share is CLA staff plus their own agent. The buyer comment says staff only. `documents_assigned_agent_insert` allows `staff` for Buyer Agent and Listing Agent, not for Client-Buyer. The older `documents_insert` policy is not in this repo, so whether TEST accepts a seller's `seller` value is not proven here. The test treats "offered and refused" as a failure.
-- **Who counts as CLA staff in Share Files.** The mock recipient list adds the processor, preprocessor, salespeople, coordinator, and same-side parties. The hosted `message_recipients` function body is not in this repo. If TEST omits view-only sales, that is a difference from the mock, not a guessed rule. The buyer assertion only requires some staff role plus the buyer agent.
-- **FF ticket numbers are not in the repo.** They are mapped from John's list of bugs: FF-015 Fill In shows `template n/a` and no fields (buyer and seller), FF-016 the buyer's Share with CLA Title upload is denied, FF-017 the buyer's Share Files list is only the buyer agent, FF-NEW-2 a contact edit reports Contact saved when the email did not persist (PR 107), MF-024 the agent invite fails because the stored email is blank. On TEST those tests are expected failures. In mock they assert the correct behavior and are expected to pass. They are not skipped.
+- **Share with CLA Title after PR 113.** The label stays. The stored value is the client's own side: `buyer` or `seller`. CLA staff and that client's agent can see it. The other side cannot. This branch still offers the buyer `staff`, so FF-016 stays in `known-failures.js` for mock and TEST until that PR is in the tree. Delete the row when it is.
+- **Share Files staff.** PR 113's list is the preprocessor, transaction coordinator, salespeople, and the processor (or every active processor when none is assigned). The sample file already has those people, so the mock list matches. The hosted function on TEST does not until that PR is deployed, which is why FF-017 is expected only on TEST.
+- **`documents_insert` on TEST** is not in this repo. An offered sharing option that the upload refuses still fails the test.
 - **Sales Team sees every file in the mock** (`seesAll`). The SQL for that on TEST was not re-read as a policy body here. The sample file is one they are also linked to as a salesperson.
 - **Email on the TC overview.** The overview pill nav does not include Email. The tab chrome on the other TC pages does, and only when `listDealEmails` exists. The suite opens Email from that chrome and does not treat a missing overview link as a failure.
 
 ## Known failures
 
-Marked with Playwright `test.fail` only when `E2E_TARGET=test`, so a fix that makes them pass fails the run until the marker is removed.
+`tests/e2e-roles/known-failures.js` is the only switch. Each test calls `onTest('FF-016')`. Delete that ticket's row when its PR is live on the targets listed. The assertions stay on the post-fix behavior, so a leftover row fails the run once the bug is gone. They are not skips.
 
-| Ticket | Test |
-| --- | --- |
-| FF-015 | Buyer Fill In, and seller Fill In |
-| FF-016 | Buyer document upload, Share with CLA Title |
-| FF-017 | Buyer Share Files recipients |
-| FF-NEW-2 | Contact edit must persist, including the email (PR 107) |
-| MF-024 | Invite shows the stored email and still produces a copy link |
+| Ticket | Expected while listed | Post-fix assertion |
+| --- | --- | --- |
+| FF-015 | TEST | Buyer and seller Fill In shows questions, fields, an upload, and Save progress |
+| FF-016 | mock and TEST | Buyer Share with CLA Title is the value `buyer` and the upload succeeds |
+| FF-017 | TEST | Buyer Share Files and the message list include processor, preprocessor, TC, and sales |
+| FF-NEW-2 | TEST (PR 107) | Contact edit keeps the stored email |
+| MF-024 | TEST | Invite shows the stored email and a copy link |
