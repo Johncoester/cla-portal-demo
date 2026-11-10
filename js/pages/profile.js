@@ -1,9 +1,10 @@
 // Profile Setting: edit my own name and phone. (Role and email are changed by a processor / by the auth provider.)
 import { outsideTypeLabel } from '../data/constants.js?v=202611101015';
-import { html, $, guard, formData, toast } from '../ui.js?v=202611070139';
+import { html, $, guard, formData, toast } from '../ui.js?v=202611120400';
 import { cleanBirthdate, BIRTHDATE_NOTE } from '../data/agent-info.js?v=202611101015';
 import { agentFormHtml, mountAgentForm } from './agent-profile-form.js?v=202611101015';
 import { gmailCardHtml, mountGmailCard } from './gmail-card.js?v=202611110900';
+import { e2eGmailSetupHtml, mountE2eGmailSetup } from './e2e-gmail-setup.js?v=202611120400';
 
 export async function render({ api, refresh }) {
   const p = await api.getMyProfile();
@@ -15,13 +16,15 @@ export async function render({ api, refresh }) {
   // John, Nov 9: Gmail phase 1 (staff roles only; Live Test only). Google sends the browser back here with ?gmail=<result>.
   const gmail = !agent && api.getGmailStatus ? await api.getGmailStatus().catch(() => null) : null;
   const gmailNote = gmail ? new URLSearchParams((typeof location !== 'undefined' ? location.hash : '').split('?')[1] || '').get('gmail') || '' : '';
+  const e2eGmail = p.isAdmin && api.e2eGmailStatus ? await api.e2eGmailStatus().catch(() => null) : null;
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>Profile Setting</h2></div>
     <form id="pf" class="card form-grid"><label>First name<input name="firstName" required value="${p.firstName}"></label><label>Last name<input name="lastName" value="${p.lastName}"></label>
       <label>Email<input value="${p.email}" disabled></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${p.phone}"></label><label class="span2">${p.role === 'Outside user' ? 'Account type / roles on your files' : 'Role'}<input value="${p.role === 'Outside user' ? `${outsideTypeLabel(p)}: ${(p.fileLabels || p.fileRoles || []).join(' + ') || 'not on any file yet'} (set per order)` : p.role}" disabled></label>
       ${agent ? html`<label data-birthdate-field>Birthdate (optional)<input type="date" name="birthdate" value="${bday || ''}" max="${new Date().toISOString().slice(0, 10)}" data-birthdate><span class="field-hint">${BIRTHDATE_NOTE}</span></label>` : ''}
-      <div class="span2"><button class="m-btn" type="submit">Save</button></div></form>${gmail ? gmailCardHtml(gmail, gmailNote) : ''}`;
+      <div class="span2"><button class="m-btn" type="submit">Save</button></div></form>${gmail ? gmailCardHtml(gmail, gmailNote) : ''}${e2eGmailSetupHtml(e2eGmail)}`;
   return { title: 'Profile', crumbs: [['Profile Setting']], body, mount(root) {
     if (gmail) mountGmailCard(root, api, gmail, refresh);
+    if (e2eGmail) mountE2eGmailSetup(root, api, refresh);
     $('#pf', root).addEventListener('submit', guard(async (e) => { e.preventDefault(); const fd = formData(e.target); const bd = fd.birthdate; delete fd.birthdate; if (agent && (bd || '') !== (bday || '')) cleanBirthdate(bd);
       await api.updateMyProfile(fd); if (agent && (bd || '') !== (bday || '')) await api.setAgentBirthdate(p.id, bd || ''); toast('Profile saved'); refresh(); }));
   } };
