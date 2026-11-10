@@ -10,6 +10,7 @@ import { planDocumentBatch } from './document-batch.js?v=202611101015';
 import { featureFlags } from './features.js?v=202611070139';
 import { accountingSupabase } from './supabase-accounting.js?v=202611091140';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
+import { titleSupabase } from './supabase-title.js?v=202611112200';
 import { policySupabase } from './supabase-policy.js?v=202611112100';
 import { fundingSupabase } from './supabase-funding.js?v=202611112000';
 import { postClosingSupabase } from './supabase-postclosing.js?v=202611111900';
@@ -754,6 +755,8 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, accountingSupabase({ sb, ok, flags: a.features }));
   // PAYOFFS / HOA / FFB / GROUND RENT (John, Nov 4; migration 42): same switches as accounting, staff only
   Object.assign(a, payoffsSupabase({ sb, ok, flags: a.features, api: a }));
+  // TITLE: existing title tables. Staff RLS. Nothing is sent and no SSN is stored.
+  Object.assign(a, titleSupabase({ sb, ok, flags: a.features, me }));
   // FINAL POLICY: existing policy tables. Staff RLS. Issuance stays queued-only.
   Object.assign(a, policySupabase({ sb, ok, flags: a.features, me }));
   // FUNDING: existing funding_records and related tables. Staff RLS. Nothing is sent.
