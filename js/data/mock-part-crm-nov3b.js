@@ -324,18 +324,18 @@ export function crmNov3bPart(x, h) {
     async getCrmDashboard(id) { const u = crmUser(); const d = dashOf(u, id); const cfg = cfgFor(u);
       return { ...dashOut(u, d), list: db().crmDashComponents.filter((c) => c.dashboardId === d.id && !c.retiredAt).sort((a, b) => a.position - b.position).map((c) => compOut(u, c, d, cfg)),
         retiredComponents: dashboardEditable(u, d, crmReadOnly(u)) ? db().crmDashComponents.filter((c) => c.dashboardId === d.id && c.retiredAt).map((c) => ({ id: c.id, name: c.name, retiredAt: c.retiredAt })) : [] }; },
-    async createCrmDashboard(input = {}) { const u = crmEditor(); const name = str(input.name, 200); if (!name) fail('Dashboard Name is required.'); if (name.length > 120) fail('Dashboard Name can be at most 120 characters.');
+    async createCrmDashboard(input = {}) { const u = crmEditor(); const name = str(input.name, 200); if (!name) fail('Dashboard Name is required.'); if (name.length > 100) fail('Dashboard Name can be at most 100 characters.');
       const d = { id: nid('dash'), builtin: null, name, description: str(input.description, 500), ...shareIn(input), ownerId: u.id, filters: {}, retiredAt: null, createdBy: u.id, createdAt: now(), modifiedAt: now() };
       db().crmDashboards.push(d); save(); return dashOut(u, d); },
     async updateCrmDashboard(id, patch = {}) { const u = crmEditor(); const d = dashEditable(u, id);
-      if (patch.name !== undefined) { const n = str(patch.name, 200); if (!n) fail('Dashboard Name is required.'); d.name = n.slice(0, 120); }
+      if (patch.name !== undefined) { const n = str(patch.name, 200); if (!n) fail('Dashboard Name is required.'); d.name = n.slice(0, 100); }
       if (patch.description !== undefined) d.description = str(patch.description, 500);
       if (['visibility', 'shareUsers', 'shareRoles', 'shareDepts', 'locked'].some((k) => patch[k] !== undefined)) { if (d.builtin) fail('A built-in dashboard is shared with everyone.'); if (d.ownerId !== u.id) fail('Only the owner changes who sees a dashboard.'); Object.assign(d, shareIn(patch, d)); }
       if (patch.filters !== undefined) { const f = patch.filters || {}; const owner = str(f.ownerId, 60); if (owner) { const p = prof(owner); if (!p || C.isOutside(p.role)) fail('Pick a CLA user.'); }
         const period = str(f.period, 20); if (period && !['today', 'yesterday', 'prev_fy', 'cur_fy', 'next_fy', 'prev_month', 'cur_month', 'next_month', 'this_year', 'prev_year', 'next_year'].includes(period)) fail('Pick a period from the list.');
         d.filters = { ...(owner ? { ownerId: owner } : {}), ...(period ? { period } : {}) }; }
       d.modifiedAt = now(); save(); return dashOut(u, d); },
-    async cloneCrmDashboard(id, { name } = {}) { const u = crmEditor(); const src = dashOf(u, id); const d = { ...clone(src), id: nid('dash'), builtin: null, name: (str(name, 120) || `Copy of ${src.name}`).slice(0, 120), visibility: 'me', shareUsers: [], shareRoles: [], shareDepts: [], locked: false,
+    async cloneCrmDashboard(id, { name } = {}) { const u = crmEditor(); const src = dashOf(u, id); const d = { ...clone(src), id: nid('dash'), builtin: null, name: (str(name, 100) || `Copy of ${src.name}`).slice(0, 100), visibility: 'me', shareUsers: [], shareRoles: [], shareDepts: [], locked: false,
         ownerId: u.id, retiredAt: null, createdBy: u.id, createdAt: now(), modifiedAt: now(), clonedFrom: src.id };
       db().crmDashboards.push(d); db().crmDashComponents.filter((c) => c.dashboardId === src.id && !c.retiredAt).forEach((c) => db().crmDashComponents.push({ ...clone(c), id: nid('dc'), dashboardId: d.id, createdBy: u.id, createdAt: now(), modifiedAt: now() }));
       save(); return dashOut(u, d); },
