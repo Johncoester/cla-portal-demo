@@ -34,7 +34,7 @@ import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
 import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611101700';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
 import { propertyAddressOf } from './nov5-rules.js?v=202611101015';
-import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerParticipantIds } from './task-actions.js?v=202611101015';
+import { fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611110600';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow } from './contact-insert.js?v=202611101200';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
@@ -553,10 +553,11 @@ export async function createSupabaseAdapter(cfg) {
       if (!u || !u.id) return [];
       if (nav.userId() && nav.userId() !== u.id) return [];
       // Francis (Nov 6): a task copy for the viewer's own file-party row counts as theirs. CLA staff who run orders skip this read.
-      const mineIds = (u.isAdmin || runsOrdersCI(u)) ? Promise.resolve([]) : viewerParticipantIds(sb, dealId, u);
-      const got = await raw; const myParticipantIds = await mineIds;
+      // A one-off has no owner. The buyer's account role is Outside user; Client-Buyer is only the role on this file.
+      const onFileP = (u.isAdmin || runsOrdersCI(u)) ? Promise.resolve({ participantIds: [], roles: [] }) : viewerOnFile(sb, dealId, u);
+      const got = await raw; const onFile = await onFileP;
       if (nav.userId() && nav.userId() !== u.id) return [];
-      return mapHostedTaskList(got.rows, u, got.off, { myParticipantIds });
+      return mapHostedTaskList(got.rows, u, got.off, { myParticipantIds: onFile.participantIds, fileRoles: onFile.roles });
     },
     async getTask(id) { return fetchHostedTask(sb, id, await me()); },
     async getAgentTask(id) {
