@@ -8,7 +8,7 @@
  *   deps.userRpc(fn, args) -> data                 RPC AS THE USER (their JWT), throws with the database message (invite_send_info)
  *   deps.newId() -> uuid, deps.now() -> ms */
 import { TEST_PROJECT_REF, PORTAL_ORIGIN, REDIRECT_URI, GMAIL_ROLES, MAX_RECIPIENTS, MAX_DOCS, MAX_ATTACH_BYTES, MAX_SAVE_BYTES, MAX_BODY_CHARS, TEST_ALLOWLIST_NOTE,
-  isAllowedTestRecipient, parseAddressList, subjectWithTag, formatPropertyAddress, sanitizeHtml, htmlToText, hasWireDetails, isWireName, extOk, safeName, buildMime, b64url, b64urlToBytes,
+  isAllowedTestRecipient, parseAddressList, subjectWithTag, formatPropertyAddress, sanitizeHtml, htmlToText, hasWireDetails, isWireName, extOk, safeName, matchUploadKeys, buildMime, b64url, b64urlToBytes,
   parseGmailMessage, randomToken, sha256Hex, pkceChallenge, authUrl, decodeJwtPayload, missingScopes, oneLine, json, hasSettingsScope, pickSendAsSignature, withSignature, isEmail, INVITE_TOKEN_RE, inviteEmailContent } from './gmail-core.mjs';
 
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -161,17 +161,23 @@ export async function handleSend(req, deps) {
   if (bodyHtml.length > MAX_BODY_CHARS) return json(400, { error: 'The message is too long.' }, H);
   if (hasWireDetails(htmlToText(bodyHtml)) || hasWireDetails(subject)) return json(400, { error: 'Wire / bank account details cannot be emailed from the portal. Remove them and call the buyer instead.' }, H);
   const ids = [...new Set((Array.isArray(b.documentIds) ? b.documentIds : []).map(String))];
-  if (ids.length > MAX_DOCS) return json(400, { error: `At most ${MAX_DOCS} attachments.` }, H);
-  const docs = ids.length ? await deps.userDocs(deal.id, ids) : [];
-  if (docs.length !== ids.length || docs.some((d) => d.deal_id !== deal.id)) return json(400, { error: 'An attachment is not a document on this file that you can open.' }, H);
+  const uploadIds = [...new Set((Array.isArray(b.uploadIds) ? b.uploadIds : []).map(String))].filter((id) => !ids.includes(id));
+  const pending = (Array.isArray(b.pendingUploads) ? b.pendingUploads : []).map((p) => ({ name: safeName(p && p.name), size: Number(p && p.size) || 0 })).filter((p) => p.name && p.name !== 'attachment');
+  if (ids.length + uploadIds.length + (dryRun ? pending.length : 0) > MAX_DOCS) return json(400, { error: `At most ${MAX_DOCS} attachments.` }, H);
+  if (pending.some((p) => !extOk(p.name) || isWireName(p.name))) return json(400, { error: 'That file cannot be attached. Wire instructions are never emailed, and the file type has to be one the portal allows.' }, H);
+  const allIds = [...ids, ...uploadIds];
+  const docs = allIds.length ? await deps.userDocs(deal.id, allIds) : [];
+  if (docs.length !== allIds.length || docs.some((d) => d.deal_id !== deal.id)) return json(400, { error: 'An attachment is not a document on this file that you can open.' }, H);
   if (docs.some((d) => d.wire_instructions || isWireName(d.name))) return json(400, { error: 'Wire instructions cannot be attached to an email from the portal.' }, H);
-  const total = docs.reduce((s, d) => s + Number(d.size_bytes || 0), 0);
+  const total = docs.reduce((s, d) => s + Number(d.size_bytes || 0), 0) + pending.reduce((s, p) => s + p.size, 0);
   if (total > MAX_ATTACH_BYTES) return json(400, { error: 'Attachments are over 18 MB. Send fewer files.' }, H);
   let reply = null;
   if (b.replyToEmailId) { reply = await deps.userEmail(String(b.replyToEmailId)); if (!reply || reply.deal_id !== deal.id) return json(400, { error: 'That email is not on this file.' }, H); }
   const html = withSignature(bodyHtml, ctx.signatureHtml || '');
   const fromName = `${ctx.firstName || ''} ${ctx.lastName || ''}`.trim();
-  const preview = { from: ctx.mailbox || null, fromName, to: to.ok, cc: cc.ok, bcc: bcc.ok, subject, signatureAdded: html !== bodyHtml, attachments: docs.map((d) => ({ id: d.id, name: d.name, size: Number(d.size_bytes || 0) })), threaded: !!(reply && reply.mailbox_email === ctx.mailbox) };
+  const picked = docs.filter((d) => ids.includes(d.id));
+  const uploaded = docs.filter((d) => uploadIds.includes(d.id));
+  const preview = { from: ctx.mailbox || null, fromName, to: to.ok, cc: cc.ok, bcc: bcc.ok, subject, signatureAdded: html !== bodyHtml, attachments: [...docs.map((d) => ({ id: d.id, name: d.name, size: Number(d.size_bytes || 0) })), ...pending.map((p) => ({ id: null, name: p.name, size: p.size, pending: true }))], threaded: !!(reply && reply.mailbox_email === ctx.mailbox) };
   if (dryRun) return json(200, { ok: true, dryRun: true, connected: !!ctx.mailbox && ctx.mailboxStatus === 'connected', ...preview }, H);
   if (!ctx.mailbox) return json(409, { error: 'Connect Gmail first (Profile Setting > Gmail).' }, H);
   if (ctx.mailboxStatus !== 'connected') return json(409, { error: 'Your Gmail needs to be connected again (Profile Setting > Gmail).' }, H);
@@ -185,7 +191,7 @@ export async function handleSend(req, deps) {
     return json(502, { error: 'Google did not answer. Nothing was sent.' }, H);
   }
   const attachments = [];
-  for (const d of docs) attachments.push({ name: d.name, mime: d.mime_type, bytes: await deps.userDocBytes(d.storage_path) });
+  for (const d of [...picked, ...uploaded]) attachments.push({ name: d.name, mime: d.mime_type, bytes: await deps.userDocBytes(d.storage_path) });
   const raw = buildMime({ from: tok.email, fromName, to: to.ok, cc: cc.ok, bcc: bcc.ok, subject, html, text: htmlToText(html), attachments,
     inReplyTo: reply && reply.rfc_message_id || '', references: reply && reply.rfc_message_id || '', seed: deps.newId() });
   const sendBody = { raw: b64url(raw) }; if (preview.threaded) sendBody.threadId = reply.gmail_thread_id;
@@ -195,12 +201,19 @@ export async function handleSend(req, deps) {
     return json(502, { error: `Gmail did not send it (HTTP ${sent.status}). Nothing was sent.` }, H);
   }
   let rfc = '';
-  const meta = await gmail(deps, access, `/messages/${encodeURIComponent(sent.body.id)}?format=metadata&metadataHeaders=Message-ID`);
-  if (meta.ok && meta.body && meta.body.payload) rfc = ((meta.body.payload.headers || []).find((h) => /^message-id$/i.test(h.name)) || {}).value || '';
+  let gmailParts = [];
+  if (uploaded.length) {
+    const full = await gmail(deps, access, `/messages/${encodeURIComponent(sent.body.id)}?format=full`);
+    if (full.ok && full.body) { const parsed = parseGmailMessage(full.body); rfc = parsed.rfcMessageId || ''; gmailParts = parsed.attachments || []; }
+  } else {
+    const meta = await gmail(deps, access, `/messages/${encodeURIComponent(sent.body.id)}?format=metadata&metadataHeaders=Message-ID`);
+    if (meta.ok && meta.body && meta.body.payload) rfc = ((meta.body.payload.headers || []).find((h) => /^message-id$/i.test(h.name)) || {}).value || '';
+  }
+  const keyed = matchUploadKeys(sent.body.id, picked.map((d) => d.name), uploaded.map((d) => ({ id: d.id, name: d.name })), gmailParts);
   const id = await deps.svc('gmail_svc_record', { p: { deal_id: deal.id, mailbox_profile_id: user.id, mailbox_email: tok.email, direction: 'out', source: 'portal',
     gmail_message_id: sent.body.id, gmail_thread_id: sent.body.threadId, rfc_message_id: rfc, from_email: tok.email, from_name: fromName, to_emails: to.ok, cc_emails: cc.ok, bcc_emails: bcc.ok,
     subject, body_html: html, snippet: htmlToText(bodyHtml).slice(0, 200), sent_at: new Date(deps.now()).toISOString(), attachment_document_ids: docs.map((d) => d.id),
-    attachment_names: docs.map((d) => d.name), template_key: oneLine(b.templateKey, 60) || null, sent_by: user.id } });
+    attachment_names: [...picked, ...uploaded].map((d) => d.name), keyed_documents: keyed, template_key: oneLine(b.templateKey, 60) || null, sent_by: user.id } });
   return json(200, { ok: true, id, gmailMessageId: sent.body.id, threadId: sent.body.threadId, ...preview, from: tok.email }, H);
 }
 

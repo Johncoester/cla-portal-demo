@@ -1,6 +1,6 @@
 /* Gmail phase 1 (John, Nov 9): the gmail-* edge function logic with fake Google + fake database. No network, no secrets. */
 import { readFileSync } from 'node:fs';
-import { isAllowedTestRecipient, parseAddressList, subjectWithTag, formatPropertyAddress, fileTag, sanitizeHtml, buildMime, b64url, b64urlToText, hasWireDetails, parseGmailMessage, authUrl, SCOPES, REDIRECT_URI, extOk, SETTINGS_SCOPE, pickSendAsSignature, withSignature, hasSettingsScope } from '../supabase/functions/_shared/gmail-core.mjs';
+import { isAllowedTestRecipient, parseAddressList, subjectWithTag, formatPropertyAddress, fileTag, sanitizeHtml, buildMime, b64url, b64urlToText, hasWireDetails, parseGmailMessage, authUrl, SCOPES, REDIRECT_URI, extOk, SETTINGS_SCOPE, pickSendAsSignature, withSignature, hasSettingsScope, matchUploadKeys } from '../supabase/functions/_shared/gmail-core.mjs';
 import { handleOauthStart, handleOauthCallback, handleSend, handleSync } from '../supabase/functions/_shared/gmail-handlers.mjs';
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
@@ -26,6 +26,9 @@ const clean = sanitizeHtml('<p onclick="x()">Hi</p><script>alert(1)</script><img
 ok(!/script|onclick|onerror|javascript:|iframe/i.test(clean) && clean.includes('https://ok.test'), 'sanitize removes scripts, handlers, javascript: links and iframes');
 ok(hasWireDetails('Routing number 021000021, account number 12345678') && !hasWireDetails('Never wire money without calling our office first.'), 'wire check: bank numbers refused, a wire-fraud warning is fine');
 ok(extOk('a.pdf') && !extOk('a.exe') && !extOk('.pdf'), 'attachment types match the portal upload list');
+const uploadKey = matchUploadKeys('gSentUp', ['Contract.pdf'], [{ id: 'up1', name: 'photo.png' }], [{ filename: 'Contract.pdf', attachmentId: 'oldAtt' }, { filename: 'photo.png', attachmentId: 'newAtt' }]);
+ok(uploadKey.length === 1 && uploadKey[0].id === 'up1' && uploadKey[0].key === 'gSentUp:newAtt', 'a computer upload is keyed like the later Gmail sync of that sent message');
+ok(matchUploadKeys('g1', ['Contract.pdf'], [{ id: 'up1', name: 'photo.png' }], []).length === 1 && matchUploadKeys('g1', ['Contract.pdf'], [{ id: 'up1', name: 'photo.png' }], [])[0].key === 'g1:photo.png', 'without a Gmail attachment id the key is the message and the file name');
 const u = new URL(authUrl({ clientId: 'cid', state: 'st', challenge: 'ch', loginHint: 'me@clatitle.com' }));
 ok(u.searchParams.get('scope') === SCOPES.join(' ') && !/gmail\.modify|mail\.google\.com/.test(u.searchParams.get('scope')), 'consent asks for gmail.send + gmail.readonly only');
 ok(!SCOPES.includes(SETTINGS_SCOPE) && !SCOPES.some((x) => /settings|gmail\.compose|gmail\.modify/.test(x)), 'signature import needs no extra permission (gmail.readonly reads send-as signatures)');
@@ -188,6 +191,28 @@ const mig = readFileSync(new URL('../supabase/migrations/20261110070000_gmail_at
 const back = readFileSync(new URL('../supabase/rollbacks/20261110070000_gmail_attachment_documents.sql', import.meta.url), 'utf8');
 ok(mig.includes("'staff'") && mig.includes('on conflict (deal_id, email_attachment_key) where email_attachment_key is not null do nothing') && mig.includes("is distinct from 'portal'"), 'migration saves inbound and outside attachments as staff only, once');
 ok(back.includes('drop column email_attachment_key') && !back.includes('on conflict (deal_id, email_attachment_key)'), 'rollback restores the previous recorder and drops the attachment key');
+{ const f = fakeDeps({
+  google: (url) => {
+    if (url.includes('/token')) return { status: 200, body: { access_token: 'ya29.access' } };
+    if (url.includes('/messages/send')) return { status: 200, body: { id: 'gSentUp', threadId: 'tUp' } };
+    if (url.includes('/messages/gSentUp?format=full')) return { status: 200, body: { id: 'gSentUp', threadId: 'tUp', payload: { headers: [{ name: 'Message-ID', value: '<up@mail>' }], parts: [{ filename: 'Contract.pdf', mimeType: 'application/pdf', body: { attachmentId: 'oldAtt', size: 4 } }, { filename: 'photo.png', mimeType: 'image/png', body: { attachmentId: 'newAtt', size: 8 } }] } } };
+    return { status: 404, body: {} };
+  },
+  deps: { userDocs: async (dealId, ids) => ids.map((id) => ({ id, deal_id: dealId, name: id === 'up1' ? 'photo.png' : 'Contract.pdf', mime_type: id === 'up1' ? 'image/png' : 'application/pdf', size_bytes: 4, storage_path: `${dealId}/${id}/f`, wire_instructions: false })) },
+});
+  const r = await handleSend(post(sendBody({ documentIds: ['d1'], uploadIds: ['up1', 'd1'] })), f.deps);
+  const rec = (f.calls.svc.find((c) => c.fn === 'gmail_svc_record') || {}).args;
+  const p = rec && rec.p;
+  ok(r.status === 200 && p && p.source === 'portal' && p.attachment_document_ids.join() === 'd1,up1' && p.keyed_documents.length === 1 && p.keyed_documents[0].id === 'up1' && p.keyed_documents[0].key === 'gSentUp:newAtt' && !p.documents && f.calls.stored.length === 0, 'a computer upload is keyed for sync; a document picked from the file is not saved again');
+  const before = f.calls.svc.length;
+  const dry = await handleSend(post(sendBody({ dryRun: true, pendingUploads: [{ name: 'photo.png', size: 8 }] })), f.deps); const dj = await dry.json();
+  ok(dry.status === 200 && dj.dryRun && dj.attachments.some((a) => a.pending && a.name === 'photo.png') && f.calls.svc.length === before && f.calls.stored.length === 0, 'check lists a computer file and does not save it');
+  const wire = await handleSend(post(sendBody({ dryRun: true, pendingUploads: [{ name: 'Wire instructions.pdf', size: 4 }] })), f.deps);
+  ok(wire.status === 400, 'a computer file named as wire instructions is refused'); }
+const portalSql = readFileSync(new URL('../supabase/migrations/20261110070100_gmail_portal_upload_documents.sql', import.meta.url), 'utf8');
+const portalBack = readFileSync(new URL('../supabase/rollbacks/20261110070100_gmail_portal_upload_documents.sql', import.meta.url), 'utf8');
+ok(portalSql.includes('keyed_documents') && portalSql.includes("visibility = 'staff'") && portalSql.includes("is distinct from 'portal'") && portalSql.includes('already.name'), 'portal uploads are keyed staff documents; picked files and a second sync are not inserted');
+ok(portalBack.includes('keyed_documents') && portalBack.includes('portal upload keys are still recorded') && !portalBack.includes("p->'keyed_documents'"), 'rollback removes the portal upload key stamp');
 
 console.log(fail ? `${fail} FAILED` : 'all gmail phase 1 checks passed');
 if (fail) process.exit(1);

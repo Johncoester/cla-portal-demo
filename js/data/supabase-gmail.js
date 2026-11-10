@@ -32,7 +32,7 @@ export function gmailSupabase({ sb, ok, camel }) {
     async listDealEmails(dealId) { return camel(ok(await sb.from('deal_emails').select('*').eq('deal_id', dealId).order('sent_at', { ascending: false }).limit(300))) || []; },
     async sendDealEmail(input = {}) {
       return call('gmail-send', { dealId: input.dealId, to: input.to || [], cc: input.cc || [], bcc: input.bcc || [], subject: input.subject || '', html: input.html || '',
-        documentIds: input.documentIds || [], templateKey: input.templateKey || null, replyToEmailId: input.replyToEmailId || null, dryRun: input.dryRun === true });
+        documentIds: input.documentIds || [], uploadIds: input.uploadIds || [], pendingUploads: input.pendingUploads || [], templateKey: input.templateKey || null, replyToEmailId: input.replyToEmailId || null, dryRun: input.dryRun === true });
     },
     async checkGmailReplies() { return call('gmail-sync', { mode: 'user' }); },
     // Portal invite email (Nov 9): gmail-send builds the email from the invite row and sends it from the inviter's own Gmail. Never throws:

@@ -112,6 +112,27 @@ export const isWireName = (n) => /\bwir(e|ed|es|ing)\b|wire[_ -]?instruction|\bw
 export const extOk = (n) => { const s = String(n || ''); const i = s.lastIndexOf('.'); return i > 0 && UPLOAD_EXT.includes(s.slice(i + 1).toLowerCase()); };
 export const safeName = (n) => (String(n || 'attachment').replace(/[\\/\u0000-\u001f]+/g, '_').replace(/^\.+/, '').trim() || 'attachment').slice(-200);
 
+/* Computer uploads on a portal send are already documents. The key matches gmail-sync
+ * (`message id` + Gmail attachment id, or the safe file name when Gmail did not assign one)
+ * so a later sync of this same sent message does not insert a second row.
+ * existingNames are the documents picked from the file, in MIME order, ahead of the uploads. */
+export function matchUploadKeys(messageId, existingNames, uploads, gmailAttachments) {
+  const parts = Array.isArray(gmailAttachments) ? gmailAttachments : [];
+  let i = 0;
+  for (const name of existingNames || []) {
+    if (i < parts.length && safeName(parts[i].filename) === safeName(name)) i += 1;
+    else break;
+  }
+  const mid = String(messageId || '').slice(0, 80);
+  return (uploads || []).map((u, n) => {
+    const name = safeName(u.name);
+    const part = parts[i + n];
+    const same = part && safeName(part.filename) === name;
+    const suffix = same && part.attachmentId ? String(part.attachmentId) : name;
+    return { id: u.id, key: `${mid}:${suffix}`.slice(0, 200) };
+  });
+}
+
 /* ---- encoding ---- */
 const enc = new TextEncoder();
 export const utf8 = (s) => enc.encode(String(s));

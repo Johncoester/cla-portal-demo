@@ -13,7 +13,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611100005';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611091311';
 import { gatherReads } from '../data/read-batch.js?v=202611082010';
-import { prefetchDealTab } from './deal-tab.js?v=202611100700';
+import { prefetchDealTab } from './deal-tab.js?v=202611100701';
 import { placeText } from '../data/cla-offices.js?v=202611090935';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 
