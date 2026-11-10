@@ -62,5 +62,7 @@ const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 ok(/canUseGmail\(u\) && api\.listDealEmails && api\.mode === 'supabase' \? link\('email', 'Email', 'inbox'\)/.test(app), 'file menu shows Email for Gmail roles on Live Test only');
 const dealSrc = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
 ok(dealSrc.includes('data-send-sellers-agents') && dealSrc.includes('api.sendDealEmail') && !dealSrc.includes('data-send-disabled'), '"Email sellers and agents" sends through Gmail when connected');
+const compose = readFileSync(new URL('../js/pages/dealemail.js', import.meta.url), 'utf8');
+ok(compose.includes('payload.documentIds') && compose.includes('r.ok === false') && compose.includes('selected document') && compose.includes('send.disabled = false'), 'compose shows an error and does not say Sent when the selected documents are missing');
 console.log(fail ? `${fail} FAILED` : 'all gmail ui checks passed');
 if (fail) process.exit(1);

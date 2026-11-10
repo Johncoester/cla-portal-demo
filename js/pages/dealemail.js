@@ -127,7 +127,19 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
   const send = $('[data-mail-send]', m);
   send.addEventListener('click', async () => {
     send.disabled = true;
-    try { const r = await api.sendDealEmail(input(false)); closeModal(); toast(`Sent from ${r.from}`); if (done) done(r); }
-    catch (e) { show('bad', e.message); send.disabled = false; } });
+    const payload = input(false);
+    try {
+      const r = await api.sendDealEmail(payload);
+      const got = Array.isArray(r.attachments) ? r.attachments : [];
+      const missing = (payload.documentIds || []).filter((id) => !got.some((a) => a && String(a.id) === String(id)));
+      if (r.ok === false || missing.length) {
+        show('bad', r.error || `The email did not include ${missing.length} selected document${missing.length === 1 ? '' : 's'}. It was not a complete send.`);
+        send.disabled = false;
+        return;
+      }
+      closeModal();
+      toast(`Sent from ${r.from}${got.length ? ` with ${got.length} attachment${got.length === 1 ? '' : 's'}` : ''}`);
+      if (done) done(r);
+    } catch (e) { show('bad', e.message); send.disabled = false; } });
   return m;
 }

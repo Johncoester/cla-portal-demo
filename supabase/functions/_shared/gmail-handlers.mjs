@@ -7,8 +7,8 @@
  *   deps.storeAttachment(path, bytes, mime)         service-role upload to deal-documents
  *   deps.userRpc(fn, args) -> data                 RPC AS THE USER (their JWT), throws with the database message (invite_send_info)
  *   deps.newId() -> uuid, deps.now() -> ms */
-import { TEST_PROJECT_REF, PORTAL_ORIGIN, REDIRECT_URI, GMAIL_ROLES, MAX_RECIPIENTS, MAX_DOCS, MAX_ATTACH_BYTES, MAX_SAVE_BYTES, MAX_BODY_CHARS, TEST_ALLOWLIST_NOTE,
-  isAllowedTestRecipient, parseAddressList, subjectWithTag, formatPropertyAddress, sanitizeHtml, htmlToText, hasWireDetails, isWireName, extOk, safeName, buildMime, b64url, b64urlToBytes,
+import { TEST_PROJECT_REF, PORTAL_ORIGIN, REDIRECT_URI, GMAIL_ROLES, MAX_RECIPIENTS, MAX_DOCS, MAX_ATTACH_BYTES, MAX_MESSAGE_BYTES, MAX_SAVE_BYTES, MAX_BODY_CHARS, TEST_ALLOWLIST_NOTE,
+  isAllowedTestRecipient, parseAddressList, subjectWithTag, formatPropertyAddress, sanitizeHtml, htmlToText, hasWireDetails, isWireName, extOk, safeName, buildMime, b64url, b64urlToBytes, utf8, estimateMimeBytes,
   parseGmailMessage, randomToken, sha256Hex, pkceChallenge, authUrl, decodeJwtPayload, missingScopes, oneLine, json, hasSettingsScope, pickSendAsSignature, withSignature, isEmail, INVITE_TOKEN_RE, inviteEmailContent } from './gmail-core.mjs';
 
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -45,6 +45,42 @@ async function gmail(deps, token, path, init = {}) {
   const res = await deps.fetch(`${GMAIL}${path}`, { ...init, headers: { Authorization: `Bearer ${token}`, ...(init.body ? { 'Content-Type': 'application/json' } : {}) } });
   let body = null; try { body = await res.json(); } catch (e) { body = null; }
   return { ok: res.ok, status: res.status, body };
+}
+const headerGet = (res, name) => {
+  const h = res && res.headers;
+  if (!h) return '';
+  if (typeof h.get === 'function') return h.get(name) || h.get(name.toLowerCase()) || '';
+  const key = Object.keys(h).find((k) => k.toLowerCase() === name.toLowerCase());
+  return key ? String(h[key] || '') : '';
+};
+// Filenames Gmail actually stored. Large parts come back with a size and no inline bytes.
+function filesOnPayload(payload) {
+  const out = [];
+  const walk = (p) => { if (!p) return; if (p.filename) out.push({ name: String(p.filename), size: Number((p.body && p.body.size) || 0) || ((p.body && p.body.data) ? 1 : 0) }); for (const c of p.parts || []) walk(c); };
+  walk(payload);
+  return out;
+}
+function sameFileList(wanted, got) {
+  const pool = got.filter((g) => g.size > 0).map((g) => g.name);
+  for (const name of wanted) { const i = pool.indexOf(name); if (i < 0) return false; pool.splice(i, 1); }
+  return true;
+}
+/* JSON {raw: base64url} drops attachments once the message is more than a few MB (Gmail still returns 200
+ * and a message id, so the portal used to record the names and tell the sender it worked). Attachments go
+ * as the RFC822 bytes on the resumable upload endpoint instead. */
+async function sendRfc822(deps, access, rawBytes, { threadId } = {}) {
+  const start = await deps.fetch('https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=resumable', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'message/rfc822', 'X-Upload-Content-Length': String(rawBytes.length) },
+    body: JSON.stringify(threadId ? { threadId } : {}),
+  });
+  let startBody = null; try { startBody = await start.json(); } catch (e) { startBody = null; }
+  const loc = headerGet(start, 'Location');
+  let host = ''; try { host = new URL(loc).hostname; } catch (e) { host = ''; }
+  if (!start.ok || !loc || !/(^|\.)googleapis\.com$/i.test(host)) return { ok: false, status: start.status || 502, body: startBody };
+  const put = await deps.fetch(loc, { method: 'PUT', headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'message/rfc822' }, body: rawBytes });
+  let body = null; try { body = await put.json(); } catch (e) { body = null; }
+  return { ok: put.ok || put.status === 201, status: put.status, body };
 }
 async function revoke(deps, token) {
   if (!token) return false;
@@ -166,7 +202,8 @@ export async function handleSend(req, deps) {
   if (docs.length !== ids.length || docs.some((d) => d.deal_id !== deal.id)) return json(400, { error: 'An attachment is not a document on this file that you can open.' }, H);
   if (docs.some((d) => d.wire_instructions || isWireName(d.name))) return json(400, { error: 'Wire instructions cannot be attached to an email from the portal.' }, H);
   const total = docs.reduce((s, d) => s + Number(d.size_bytes || 0), 0);
-  if (total > MAX_ATTACH_BYTES) return json(400, { error: 'Attachments are over 18 MB. Send fewer files.' }, H);
+  if (total > MAX_ATTACH_BYTES) return json(400, { error: 'Attachments are over 18 MB. Send fewer files. Nothing was sent.' }, H);
+  if (docs.length && estimateMimeBytes(total, 8000) > MAX_MESSAGE_BYTES) return json(400, { error: 'These files are too large to email (Gmail allows 25 MB for the whole message). Send fewer files. Nothing was sent.' }, H);
   let reply = null;
   if (b.replyToEmailId) { reply = await deps.userEmail(String(b.replyToEmailId)); if (!reply || reply.deal_id !== deal.id) return json(400, { error: 'That email is not on this file.' }, H); }
   const html = withSignature(bodyHtml, ctx.signatureHtml || '');
@@ -185,22 +222,52 @@ export async function handleSend(req, deps) {
     return json(502, { error: 'Google did not answer. Nothing was sent.' }, H);
   }
   const attachments = [];
-  for (const d of docs) attachments.push({ name: d.name, mime: d.mime_type, bytes: await deps.userDocBytes(d.storage_path) });
+  for (const d of docs) {
+    let bytes;
+    try { bytes = await deps.userDocBytes(d.storage_path); }
+    catch (e) { return json(502, { error: `Could not read "${d.name}" from this file. Nothing was sent.` }, H); }
+    if (!bytes || !bytes.length) return json(502, { error: `"${d.name}" is empty, so it was not attached. Nothing was sent.` }, H);
+    attachments.push({ name: d.name, mime: d.mime_type, bytes });
+  }
+  const counted = docs.reduce((s, d, i) => s + Math.max(Number(d.size_bytes) || 0, attachments[i].bytes.length), 0);
+  if (docs.length && estimateMimeBytes(counted, html.length + 8000) > MAX_MESSAGE_BYTES) return json(400, { error: 'These files are too large to email (Gmail allows 25 MB for the whole message). Send fewer files. Nothing was sent.' }, H);
   const raw = buildMime({ from: tok.email, fromName, to: to.ok, cc: cc.ok, bcc: bcc.ok, subject, html, text: htmlToText(html), attachments,
     inReplyTo: reply && reply.rfc_message_id || '', references: reply && reply.rfc_message_id || '', seed: deps.newId() });
-  const sendBody = { raw: b64url(raw) }; if (preview.threaded) sendBody.threadId = reply.gmail_thread_id;
-  const sent = await gmail(deps, access, '/messages/send', { method: 'POST', body: JSON.stringify(sendBody) });
+  let sent;
+  if (attachments.length) sent = await sendRfc822(deps, access, utf8(raw), { threadId: preview.threaded ? reply.gmail_thread_id : '' });
+  else {
+    const sendBody = { raw: b64url(raw) }; if (preview.threaded) sendBody.threadId = reply.gmail_thread_id;
+    sent = await gmail(deps, access, '/messages/send', { method: 'POST', body: JSON.stringify(sendBody) });
+  }
   if (!sent.ok || !sent.body || !sent.body.id) {
     await deps.svc('gmail_svc_audit', { p_profile: user.id, p_deal: deal.id, p_action: 'mail.failed', p_detail: `Gmail refused the send (HTTP ${sent.status}). Subject: ${subject}` });
     return json(502, { error: `Gmail did not send it (HTTP ${sent.status}). Nothing was sent.` }, H);
   }
-  let rfc = '';
-  const meta = await gmail(deps, access, `/messages/${encodeURIComponent(sent.body.id)}?format=metadata&metadataHeaders=Message-ID`);
-  if (meta.ok && meta.body && meta.body.payload) rfc = ((meta.body.payload.headers || []).find((h) => /^message-id$/i.test(h.name)) || {}).value || '';
-  const id = await deps.svc('gmail_svc_record', { p: { deal_id: deal.id, mailbox_profile_id: user.id, mailbox_email: tok.email, direction: 'out', source: 'portal',
-    gmail_message_id: sent.body.id, gmail_thread_id: sent.body.threadId, rfc_message_id: rfc, from_email: tok.email, from_name: fromName, to_emails: to.ok, cc_emails: cc.ok, bcc_emails: bcc.ok,
-    subject, body_html: html, snippet: htmlToText(bodyHtml).slice(0, 200), sent_at: new Date(deps.now()).toISOString(), attachment_document_ids: docs.map((d) => d.id),
-    attachment_names: docs.map((d) => d.name), template_key: oneLine(b.templateKey, 60) || null, sent_by: user.id } });
+  let rfc = ''; let confirmed = !attachments.length; let gotFiles = [];
+  const meta = await gmail(deps, access, `/messages/${encodeURIComponent(sent.body.id)}?format=${attachments.length ? 'full' : 'metadata'}&metadataHeaders=Message-ID`);
+  if (meta.ok && meta.body && meta.body.payload) {
+    rfc = ((meta.body.payload.headers || []).find((h) => /^message-id$/i.test(h.name)) || {}).value || '';
+    if (attachments.length) { gotFiles = filesOnPayload(meta.body.payload); confirmed = sameFileList(docs.map((d) => d.name), gotFiles); }
+  }
+  const savedNames = confirmed ? docs.map((d) => d.name) : [];
+  const savedIds = confirmed ? docs.map((d) => d.id) : [];
+  let id = null;
+  try {
+    id = await deps.svc('gmail_svc_record', { p: { deal_id: deal.id, mailbox_profile_id: user.id, mailbox_email: tok.email, direction: 'out', source: 'portal',
+      gmail_message_id: sent.body.id, gmail_thread_id: sent.body.threadId, rfc_message_id: rfc, from_email: tok.email, from_name: fromName, to_emails: to.ok, cc_emails: cc.ok, bcc_emails: bcc.ok,
+      subject, body_html: html, snippet: htmlToText(bodyHtml).slice(0, 200), sent_at: new Date(deps.now()).toISOString(), attachment_document_ids: savedIds,
+      attachment_names: savedNames, template_key: oneLine(b.templateKey, 60) || null, sent_by: user.id } });
+  } catch (e) {
+    return json(502, { error: 'Gmail sent the email, but the portal could not save it on the file. It will not show on the Email tab until it is checked again.', gmailMessageId: sent.body.id }, H);
+  }
+  if (!confirmed) {
+    const unread = !(meta.ok && meta.body && meta.body.payload);
+    const missing = docs.map((d) => d.name).filter((n) => !gotFiles.some((g) => g.name === n && g.size > 0));
+    const error = unread
+      ? 'Gmail sent the email, but the portal could not confirm the attachments were kept. Check the sent message. It is saved on the file without attachment names.'
+      : `Gmail sent the email but did not keep ${missing.length ? missing.join(', ') : 'the selected documents'}. The message is on the file without those attachments.`;
+    return json(502, { error, id, gmailMessageId: sent.body.id }, H);
+  }
   return json(200, { ok: true, id, gmailMessageId: sent.body.id, threadId: sent.body.threadId, ...preview, from: tok.email }, H);
 }
 

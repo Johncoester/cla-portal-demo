@@ -5,5 +5,9 @@ import { buildDeps } from '../_shared/gmail-deps.ts';
 Deno.serve(async (req: Request) => {
   const deps = buildDeps(req);
   try { return await handleSend(req, deps); }
-  catch (_e) { return new Response(JSON.stringify({ error: 'Something went wrong. Nothing was sent.' }), { status: 500, headers: { ...deps.headers, 'Content-Type': 'application/json' } }); }
+  catch (e) {
+    const m = e && typeof e.message === 'string' ? e.message.replace(/\s+/g, ' ').trim() : '';
+    const safe = m && m.length < 300 && !/ya29|refresh|secret|bearer|token/i.test(m) ? m : 'Something went wrong. Nothing was sent.';
+    return new Response(JSON.stringify({ error: safe }), { status: 500, headers: { ...deps.headers, 'Content-Type': 'application/json' } });
+  }
 });
