@@ -37,8 +37,17 @@ const flags = { policy: true };
 const calls = [];
 const store = { deals: [{ ...deal }] };
 const api = policySupabase({ sb: fakeSb(store, calls), ok: pass, flags, me: staff });
+const before = calls.length;
 const opened = await api.getPolicy('file-1');
-check(opened.record && opened.record.status === 'pending' && opened.title.underwriter.includes('fake') && Array.isArray(opened.record.requiredEndorsements), 'opening final policy creates the record and reuses title fields');
+const openCalls = calls.slice(before);
+check(opened.record && opened.record.id === '' && !store.policy_records.length && opened.title.underwriter.includes('fake'), 'opening final policy does not write and reuses title fields');
+check(openCalls.filter((c) => c.table).length === 3 && openCalls.filter((c) => c.rpc).length === 1, 'setup reads the deal, the policy row, escalations, and title');
+const docCalls = [];
+await policySupabase({ sb: fakeSb(store, docCalls), ok: pass, flags, me: staff }).getPolicy('file-1', { section: 'documents' });
+check(docCalls.filter((c) => c.table).length === 2 && !docCalls.some((c) => c.rpc), 'document checks read two tables');
+const issueCalls = [];
+await policySupabase({ sb: fakeSb(store, issueCalls), ok: pass, flags, me: staff }).getPolicy('file-1', { section: 'issue' });
+check(issueCalls.filter((c) => c.table).length === 6 && issueCalls.filter((c) => c.rpc).length === 1, 'issue reads six tables plus title');
 const saved = await api.savePolicy('file-1', { balancedFunded: 'true', ownerPremium: '100', altaOwnerCollected: '100', lenderPremium: '50', altaLenderCollected: '50', ownerSignatory: 'A Clerk', lenderSignatory: 'A Clerk' });
 check(saved.record.balancedFunded === true && saved.record.ownerPremium === 100 && saved.record.ownerSignatory === 'A Clerk', 'policy setup saves');
 const outside = [];
@@ -47,6 +56,8 @@ let msg = '';
 try { await buyer.getPolicy('file-1'); } catch (e) { msg = e.message; }
 check(/CLA Admins only/.test(msg) && outside.length === 0, 'a buyer cannot open final policy');
 check(!calls.some((c) => /send_email|gmail/i.test(c.rpc || '')), 'loading and saving policy does not send');
+const dealPage = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
+check(!dealPage.includes('getPolicy(') && !dealPage.includes('listPolicyQueue'), 'a file overview does not open final policy');
 function walk(file, missing, seen = new Set()) {
   const rel = file.replace(/\\/g, '/');
   if (seen.has(rel)) return seen;

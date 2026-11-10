@@ -16,11 +16,16 @@ export async function render(ctx) {
   const { api, deal, refresh, params } = ctx; const kind = params.tab; const sec = new URLSearchParams(location.hash.split('?')[1] || '').get('v') || (kind === 'policy' ? 'setup' : 'detail');
   const label = { funding: 'Funding', wires: 'Wires', policy: 'Final Policy' }[kind];
   const q = new URLSearchParams(location.hash.split('?')[1] || '');
-  const v = kind === 'funding' ? await api.getFunding(deal.id) : kind === 'wires' ? await api.getWire(deal.id) : await api.getPolicy(deal.id);
   const go = (s) => `#/deals/${deal.id}/${kind}?v=${s}`;
   const tabs = kind === 'funding' ? [['detail', 'Funding & Post-Closing'], ['checks', 'Checks & Disbursement'], ['queue', 'Disbursement queue']] : kind === 'wires' ? [['detail', 'Wire setup'], ['queue', 'Wire Setup queue']] : [['setup', 'Pre-checks & setup'], ['documents', 'Document checks'], ['issue', 'Issue & file'], ['queue', 'Policy queue'], ['completed', 'Completed log']];
-  if (sec === 'queue') v.queue = kind === 'funding' ? await api.listFundingQueue() : kind === 'wires' ? await api.listWireQueue() : await api.listPolicyQueue({ dateType: q.get('dateType') || 'close', from: q.get('from') || '', to: q.get('to') || '' });
-  if (kind === 'policy' && sec === 'completed') { const all = await api.listPolicyQueue({ dateType: 'close' }); v.completed = all.filter((z) => z.record && z.record.completedAt); }
+  let v;
+  if (kind === 'policy' && (sec === 'queue' || sec === 'completed')) {
+    const all = await api.listPolicyQueue(sec === 'completed' ? { dateType: 'close' } : { dateType: q.get('dateType') || 'close', from: q.get('from') || '', to: q.get('to') || '' });
+    v = { record: { requiredEndorsements: [], riders: [], endorsements: [] }, title: { underwriter: '', cplCount: 0 }, escalations: [], exceptions: [], warnings: [], blockers: [], finalBlockers: [], outbox: [], checks: [], queue: sec === 'completed' ? [] : all, completed: sec === 'completed' ? all.filter((z) => z.record && z.record.completedAt) : [] };
+  } else {
+    v = kind === 'funding' ? await api.getFunding(deal.id) : kind === 'wires' ? await api.getWire(deal.id) : await api.getPolicy(deal.id, { section: sec });
+    if (sec === 'queue') v.queue = kind === 'funding' ? await api.listFundingQueue() : await api.listWireQueue();
+  }
   const head = html`<div class="box-title"><h2>${label}</h2><span class="pill warn">FAKE DATA · staff only</span></div><p class="muted small">${deal.fileNumber} · ${deal.street}, ${deal.city}. Processors, Funding Team and Admins only. Agents, TCs and clients never see this module.</p><nav class="tt-tabs">${tabs.map(([k, l]) => html`<a href="${go(k)}" class="${sec === k ? 'active' : ''}">${l}</a>`)}</nav>`;
   const body = html`${head}<div class="fwp-body" data-fwp="${kind}" data-fwp-sec="${sec}">${kind === 'funding' ? fundingUi(v, sec, deal) : kind === 'wires' ? wireUi(v, sec, deal) : policyUi(v, sec, deal, ctx)}</div>`;
   return { title: label, crumbs: [[label]], body, mount(root) {

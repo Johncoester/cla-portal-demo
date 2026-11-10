@@ -101,13 +101,41 @@ export function policySupabase({ sb, ok, flags, me }) {
   return {
     async listPolicyQueue(filters = {}) {
       await gate();
-      const deals = (ok(await sb.from('deals').select(DEAL)) || []).map((d) => ({ id: d.id, transactionType: d.transaction_type, openDate: d.open_date, closingDate: d.closing_date, commitmentDate: d.commitment_date || '', buyerClosingPackageDate: d.buyer_closing_package_date || '', fileNumber: d.file_number, street: d.street, city: d.city, state: d.state, zip: d.zip, status: d.status, stage: d.stage }));
-      const rows = ok(await sb.from('policy_records').select('*').is('deleted_at', null)) || [];
-      const funding = ok(await sb.from('funding_records').select('deal_id,disbursed_at').is('deleted_at', null)) || [];
+      const [dealRows, rows, funding] = (await Promise.all([
+        sb.from('deals').select(DEAL),
+        sb.from('policy_records').select('*').is('deleted_at', null),
+        sb.from('funding_records').select('deal_id,disbursed_at').is('deleted_at', null),
+      ])).map((r) => ok(r) || []);
+      const deals = dealRows.map((d) => ({ id: d.id, transactionType: d.transaction_type, openDate: d.open_date, closingDate: d.closing_date, commitmentDate: d.commitment_date || '', buyerClosingPackageDate: d.buyer_closing_package_date || '', fileNumber: d.file_number, street: d.street, city: d.city, state: d.state, zip: d.zip, status: d.status, stage: d.stage }));
       const disb = new Map(funding.map((f) => [f.deal_id, f.disbursed_at || null]));
       return R.policyQueue(deals, rows.map((r) => ({ ...recordView(r), deletedAt: null })), filters).map(({ deal, record }) => ({ ...queueRow(deal, record), fundingDate: disb.get(deal.id) || null, disbursementDate: disb.get(deal.id) || null, title: { underwriter: '', commitmentNumber: '', commitmentStatus: '', cplCount: 0 } }));
     },
-    async getPolicy(dealId) { await gate(); const deal = await dealOf(dealId); return view(deal, await ensure(dealId, deal)); },
+    async getPolicy(dealId, { section = 'setup' } = {}) {
+      await gate();
+      const [deal, cur] = await Promise.all([dealOf(dealId), rowOf(dealId)]);
+      const row = cur && !cur.deleted_at ? cur : { id: '', deal_id: dealId, lender: deal.lender_name || '', status: 'pending', riders: [], required_endorsements: [], endorsements: [], issue_owner: true, issue_lender: true };
+      const p = recordView(row);
+      const need = section === 'issue' ? ['checks', 'exceptions', 'escalations', 'outbox', 'title'] : section === 'documents' ? [] : ['escalations', 'title'];
+      const jobs = {};
+      if (need.includes('checks')) jobs.checks = sb.from('policy_checks').select('*').eq('deal_id', dealId).is('deleted_at', null);
+      if (need.includes('exceptions')) jobs.exceptions = sb.from('policy_exceptions').select('*').eq('deal_id', dealId).is('deleted_at', null).order('position');
+      if (need.includes('escalations')) jobs.escalations = sb.from('policy_escalations').select('*').eq('deal_id', dealId).is('deleted_at', null);
+      if (need.includes('outbox')) jobs.outbox = sb.from('outbox').select('id,subject,to_email,status,kind,deal_id').eq('deal_id', dealId);
+      if (need.includes('title')) jobs.title = titleOf(dealId);
+      const keys = Object.keys(jobs);
+      const got = keys.length ? await Promise.all(keys.map((k) => jobs[k])) : [];
+      const extra = { checks: [], exceptions: [], escalations: [], outbox: [], title: { underwriter: '', commitmentNumber: '', commitmentStatus: '', cplCount: 0 } };
+      keys.forEach((k, i) => {
+        if (k === 'title') extra.title = got[i];
+        else if (k === 'checks') extra.checks = (ok(got[i]) || []).map((c) => ({ id: c.id, checkKey: c.check_key, passed: !!c.passed, note: c.note || '' }));
+        else if (k === 'exceptions') extra.exceptions = (ok(got[i]) || []).map((e) => ({ id: e.id, policySide: e.policy_side, exceptionKey: e.exception_key, text: e.text, position: e.position, included: e.included !== false }));
+        else if (k === 'escalations') extra.escalations = (ok(got[i]) || []).map((e) => ({ id: e.id, type: e.type, description: e.description, status: e.status, resolutionNote: e.resolution_note || '' }));
+        else extra.outbox = (ok(got[i]) || []).filter((o) => String(o.kind || '').startsWith('policy'));
+      });
+      const blockers = R.policyBlockers(p, extra.escalations, [], false);
+      const warnings = extra.exceptions.filter((e) => e.included).flatMap((e) => R.unfilledVariables(e.text).map((v) => `${e.exceptionKey}: ${v}`));
+      return { deal: queueRow(deal, p), record: p, ...extra, blockers, finalBlockers: R.policyBlockers(p, extra.escalations, extra.checks, !p.completedAt), warnings, canEdit: true };
+    },
     async savePolicy(dealId, input) {
       await gate();
       const deal = await dealOf(dealId);
