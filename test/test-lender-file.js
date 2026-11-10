@@ -87,8 +87,8 @@ ok(orderSrc.includes('newPartyContact') && orderSrc.includes('lenderFieldsHtml')
 ok(contactsSrc.includes('lenderSectionHtml') && contactsSrc.includes('lenderCompanyContact') && dealSrc.includes('mountLenderSection'), 'Parties and Contacts share the lender section');
 const migration = readFileSync(new URL('../supabase/migrations/20261110081500_lender_clause_cpl_contacts.sql', import.meta.url), 'utf8');
 const rollback = readFileSync(new URL('../supabase/rollbacks/20261110081500_lender_clause_cpl_contacts.sql', import.meta.url), 'utf8');
-ok(migration.includes('loss_payee_name') && migration.includes('lender_address') && migration.includes('cpl_same_as_lender') && migration.includes('mortgage_broker_name') && migration.includes('lender_role') && migration.includes("expected 59") && migration.includes('contacts_lender_role_chk'), 'the migration adds the new columns and guards the current deals shape');
-ok(rollback.includes('drop column lender_address') && rollback.includes('drop column lender_role') && rollback.includes('loss_payee_name was dropped') && rollback.includes('expected 59'), 'the rollback removes only the new columns and checks the old shape');
+ok(migration.includes('loss_payee_name') && migration.includes('lender_address') && migration.includes('cpl_same_as_lender') && migration.includes('mortgage_broker_name') && migration.includes('lender_role') && migration.includes("expected 61") && migration.includes("expected 65") && migration.includes('contacts_lender_role_chk'), 'the migration adds the new columns and guards the current deals shape');
+ok(rollback.includes('drop column lender_address') && rollback.includes('drop column lender_role') && rollback.includes('loss_payee_name was dropped') && rollback.includes("expected 65") && rollback.includes("expected 61"), 'the rollback removes only the new columns and checks the old shape');
 
 console.log(fail ? fail + ' failed' : 'lender file passed');
 if (fail) process.exit(1);
