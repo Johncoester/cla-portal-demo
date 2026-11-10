@@ -185,26 +185,29 @@ grant execute on function public.save_spouse(uuid, uuid, jsonb) to authenticated
 
 -- Seller questions ride the existing Personal information template. HOA, ID, and mortgage keep their codes
 -- and gain a new version. Untouched to-do copies with no answers move forward.
+-- task_templates_one_active allows one active row per code, so the current row is turned off before the new one is inserted.
+-- If those new versions are already the active rows, this block leaves them in place.
 do $tpl$
 declare
   personal jsonb;
   idfields jsonb;
   hoa jsonb;
+  personal_active integer;
+  id_active integer;
+  hoa_active integer;
+  mortgage_active integer;
 begin
-  if (select t.version from public.task_templates t where t.code = 'personal_info' and t.active order by t.version desc limit 1) is distinct from 5 then
-    raise exception 'drift: active personal_info is not version 5';
-  end if;
-  if exists (select 1 from public.task_templates t where t.code = 'personal_info' and t.version = 6)
-     or exists (select 1 from public.task_templates t where t.code = 'id_upload' and t.version = 2)
-     or exists (select 1 from public.task_templates t where t.code = 'hoa_info' and t.version = 2)
-     or exists (select 1 from public.task_templates t where t.code = 'mortgage_info' and t.version = 2) then
-    raise exception 'drift: a seller task version already exists';
-  end if;
-  if (select t.version from public.task_templates t where t.code = 'id_upload' and t.active order by t.version desc limit 1) is distinct from 1
-     or (select t.version from public.task_templates t where t.code = 'hoa_info' and t.active order by t.version desc limit 1) is distinct from 1
-     or (select t.version from public.task_templates t where t.code = 'mortgage_info' and t.active order by t.version desc limit 1) is distinct from 1 then
-    raise exception 'drift: id, HOA, or mortgage is not on version 1';
-  end if;
+  select t.version into personal_active from public.task_templates t where t.code = 'personal_info' and t.active order by t.version desc limit 1;
+  select t.version into id_active from public.task_templates t where t.code = 'id_upload' and t.active order by t.version desc limit 1;
+  select t.version into hoa_active from public.task_templates t where t.code = 'hoa_info' and t.active order by t.version desc limit 1;
+  select t.version into mortgage_active from public.task_templates t where t.code = 'mortgage_info' and t.active order by t.version desc limit 1;
+
+  if personal_active = 6 and id_active = 2 and hoa_active = 2 and mortgage_active = 2 then
+    null;
+  elsif personal_active is distinct from 5 or id_active is distinct from 1 or hoa_active is distinct from 1 or mortgage_active is distinct from 1
+     or exists (select 1 from public.task_templates t where (t.code = 'personal_info' and t.version = 6) or (t.code = 'id_upload' and t.version = 2) or (t.code = 'hoa_info' and t.version = 2) or (t.code = 'mortgage_info' and t.version = 2)) then
+    raise exception 'drift: seller templates are not the expected active versions';
+  else
 
   select jsonb_agg(
     case when elem->>'k' in ('citizenship', 'gender', 'date_of_birth', 'forwarding_address', 'leaving_town', 'divorce', 'primary_residence')
@@ -245,24 +248,28 @@ begin
   select t.fields || $hoa$[{"k":"confirm_hoa","label":"I have reviewed and confirm these HOA details.","type":"checkbox","req":true}]$hoa$::jsonb
     into hoa from public.task_templates t where t.code = 'hoa_info' and t.version = 1;
 
+  update public.task_templates set active = false where code = 'personal_info' and active;
   insert into public.task_templates (code, version, title, description, roles, due_days, due_anchor, fields, active, published_at, agent_roles, client_only, lane, audiences)
   select t.code, 6, t.title,
     'Buyer and seller personal details. Sellers also confirm proceeds, the property, and utilities. Spouse details are on the Spouse tab, not here.',
     t.roles, t.due_days, t.due_anchor, personal, true, now(), t.agent_roles, t.client_only, t.lane, t.audiences
   from public.task_templates t where t.code = 'personal_info' and t.version = 5;
 
+  update public.task_templates set active = false where code = 'id_upload' and active;
   insert into public.task_templates (code, version, title, description, roles, due_days, due_anchor, fields, active, published_at, agent_roles, client_only, lane, audiences)
   select t.code, 2, 'Upload identification',
     'A clear photo or scan of a government ID. Sellers upload the front and the back.',
     t.roles, t.due_days, t.due_anchor, idfields, true, now(), t.agent_roles, t.client_only, t.lane, t.audiences
   from public.task_templates t where t.code = 'id_upload' and t.version = 1;
 
+  update public.task_templates set active = false where code = 'hoa_info' and active;
   insert into public.task_templates (code, version, title, description, roles, due_days, due_anchor, fields, active, published_at, agent_roles, client_only, lane, audiences)
   select t.code, 2, 'Confirm HOA Information',
     'Review the HOA or condo details and confirm they are right.',
     t.roles, t.due_days, t.due_anchor, hoa, true, now(), t.agent_roles, t.client_only, t.lane, t.audiences
   from public.task_templates t where t.code = 'hoa_info' and t.version = 1;
 
+  update public.task_templates set active = false where code = 'mortgage_info' and active;
   insert into public.task_templates (code, version, title, description, roles, due_days, due_anchor, fields, active, published_at, agent_roles, client_only, lane, audiences)
   select t.code, 2, 'Outstanding Mortgage Information',
     'Each mortgage to be paid off at closing. Add another mortgage if there is more than one.',
@@ -270,11 +277,7 @@ begin
     $mort$[{"k":"none","label":"No mortgage on this property","type":"checkbox","req":false},{"k":"mortgages","label":"Mortgages","type":"mortgages","req":false}]$mort$::jsonb,
     true, now(), t.agent_roles, t.client_only, t.lane, t.audiences
   from public.task_templates t where t.code = 'mortgage_info' and t.version = 1;
-
-  update public.task_templates set active = false where code = 'personal_info' and version <> 6;
-  update public.task_templates set active = false where code = 'id_upload' and version <> 2;
-  update public.task_templates set active = false where code = 'hoa_info' and version <> 2;
-  update public.task_templates set active = false where code = 'mortgage_info' and version <> 2;
+  end if;
 
   update public.tasks task
   set template_id = nxt.id, template_version = nxt.version, title = nxt.title, description = nxt.description

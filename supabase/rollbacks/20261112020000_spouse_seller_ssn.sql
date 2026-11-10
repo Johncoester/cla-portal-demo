@@ -6,12 +6,15 @@ set local lock_timeout = '3s';
 
 do $guard$
 begin
-  if to_regclass('private.party_ssn') is null then raise exception 'rollback: private.party_ssn is missing'; end if;
-  if not exists (select 1 from public.task_templates where code = 'personal_info' and version = 6) then
-    raise exception 'rollback: personal_info version 6 is missing';
+  if to_regclass('private.party_ssn') is null and to_regclass('private.buyer_ssn') is null then
+    raise exception 'rollback: the Social Security table is missing';
   end if;
   if not exists (select 1 from public.task_templates where code = 'personal_info' and version = 5) then
     raise exception 'rollback: personal_info version 5 is missing';
+  end if;
+  if not exists (select 1 from public.task_templates where code = 'personal_info' and version = 6)
+     and not exists (select 1 from public.task_templates where code = 'personal_info' and version = 5 and active) then
+    raise exception 'rollback: personal_info version 6 is missing and version 5 is not active';
   end if;
 end
 $guard$;
@@ -27,12 +30,15 @@ where prev.code = task.template_code
   and task.kind = 'form' and task.status = 'todo' and task.saved_at is null
   and coalesce(task.form_data, '{}'::jsonb) = '{}'::jsonb;
 
-update public.task_templates set active = false
-where (code = 'personal_info' and version = 6) or (code = 'id_upload' and version = 2)
-   or (code = 'hoa_info' and version = 2) or (code = 'mortgage_info' and version = 2);
-update public.task_templates set active = true
-where (code = 'personal_info' and version = 5) or (code = 'id_upload' and version = 1)
-   or (code = 'hoa_info' and version = 1) or (code = 'mortgage_info' and version = 1);
+-- Turn each new version off before its previous version comes back on. One active row per code.
+update public.task_templates set active = false where code = 'personal_info' and version = 6;
+update public.task_templates set active = true where code = 'personal_info' and version = 5;
+update public.task_templates set active = false where code = 'id_upload' and version = 2;
+update public.task_templates set active = true where code = 'id_upload' and version = 1;
+update public.task_templates set active = false where code = 'hoa_info' and version = 2;
+update public.task_templates set active = true where code = 'hoa_info' and version = 1;
+update public.task_templates set active = false where code = 'mortgage_info' and version = 2;
+update public.task_templates set active = true where code = 'mortgage_info' and version = 1;
 
 delete from public.task_templates t
 where ((t.code = 'personal_info' and t.version = 6) or (t.code = 'id_upload' and t.version = 2)
@@ -47,13 +53,20 @@ drop function if exists private.rpc_save_party_ssn(uuid, text, text);
 drop function if exists private.rpc_read_party_ssn(uuid, text);
 drop table if exists public.spouse_info;
 
-delete from private.party_ssn where subject = 'spouse';
-alter table private.party_ssn drop constraint if exists party_ssn_subject;
-alter table private.party_ssn drop constraint if exists party_ssn_pkey;
-alter table private.party_ssn drop column if exists subject;
-alter table private.party_ssn add primary key (task_id);
-alter table private.party_ssn rename to buyer_ssn;
-revoke all on table private.buyer_ssn from public, anon, authenticated;
+do $restore$
+begin
+  if to_regclass('private.party_ssn') is null then
+    return;
+  end if;
+  delete from private.party_ssn where subject = 'spouse';
+  alter table private.party_ssn drop constraint if exists party_ssn_subject;
+  alter table private.party_ssn drop constraint if exists party_ssn_pkey;
+  alter table private.party_ssn drop column if exists subject;
+  alter table private.party_ssn add primary key (task_id);
+  alter table private.party_ssn rename to buyer_ssn;
+  revoke all on table private.buyer_ssn from public, anon, authenticated;
+end
+$restore$;
 
 create or replace function private.rpc_save_buyer_ssn(p_task uuid, p_ssn text) returns void
 language plpgsql security definer

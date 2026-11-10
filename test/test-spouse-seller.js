@@ -191,6 +191,11 @@ ok(loanHtml.includes('Add another mortgage') && loanHtml.includes('First Bank') 
 const sql = readFileSync('supabase/migrations/20261112020000_spouse_seller_ssn.sql', 'utf8');
 ok(/buyer_ssn_key/.test(sql) && /pgp_sym_encrypt/.test(sql) && !/900-00-000/.test(sql) && !/create_secret\(\s*'[A-Za-z0-9+/=]{16,}/.test(sql), 'the migration reuses the Vault key and contains no sample number');
 ok(/proceeds_ack/.test(sql) && /id_front/.test(sql) && /id_back/.test(sql) && /mortgages/.test(sql), 'the migration publishes the seller questions and tasks');
+const personalOff = sql.indexOf("set active = false where code = 'personal_info' and active");
+const personalIn = sql.indexOf("t.code, 6, t.title");
+ok(personalOff > 0 && personalIn > personalOff, 'personal information v5 is turned off before v6 is inserted');
+const rollSql = readFileSync('supabase/rollbacks/20261112020000_spouse_seller_ssn.sql', 'utf8');
+ok(rollSql.indexOf("set active = false where code = 'personal_info' and version = 6") < rollSql.indexOf("set active = true where code = 'personal_info' and version = 5"), 'the rollback turns v6 off before v5 comes back on');
 const hash = createHash('sha256').update(readFileSync('supabase/migrations/20261112020000_spouse_seller_ssn.sql')).digest('hex');
 const roll = createHash('sha256').update(readFileSync('supabase/rollbacks/20261112020000_spouse_seller_ssn.sql')).digest('hex');
 console.log('spouse-seller-migration-sha256', hash);
