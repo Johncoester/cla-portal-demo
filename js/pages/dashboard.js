@@ -2,7 +2,7 @@
 // Transaction Coordinator = Dashboard; Buyer/Listing Agent = Transactions; clients = My Closing.
 import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js?v=202611070139';
 import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611090935';
-import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611100245';
+import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611100830';
 import { themeOn } from '../theme.js?v=202611070139';
 import { mapLimit } from '../data/read-batch.js?v=202611082010';
 import { pendingMine } from '../data/task-actions.js?v=202611090935';
@@ -31,7 +31,7 @@ export async function render(ctx) {
   const v = await pick({ ...ctx, deals, open, all, today });
   // CARD THEME MOCKUP (opt-in): four clickable summary cards above the CLA team dashboards (computed from the orders this person can see)
   const tc = themeOn() && (user.isAdmin || runsOrders(user) || ['Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(user.role));
-  const top = tc ? (await import('./theme-cards.js?v=202611090935')).dashCards(deals) : '';
+  const top = tc ? (await import('./theme-cards.js?v=202611100830')).dashCards(deals) : '';
   return { title: v.title, crumbs: [[v.title]], body: tc ? html`${top}${v.body}` : v.body, mount: v.mount };
 }
 

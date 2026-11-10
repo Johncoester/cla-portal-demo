@@ -19,7 +19,7 @@ import { canManageRoleAccess } from './role-access.js?v=202611100100';
 import { canInviteAgents } from './agent-profile.js?v=202611100005';
 import { canManageModules } from './modules.js?v=202611090935';
 import { hrSectionAllowed } from './hr.js?v=202611091730';
-import { canManageOffices } from './offices.js?v=202611090935';
+import { canManageOffices } from './offices.js?v=202611100830';
 
 export const LOCK_KEY = 'cla-portal-new:locked:v1';
 export function devPickerOn(w = (typeof window !== 'undefined' ? window : {})) {

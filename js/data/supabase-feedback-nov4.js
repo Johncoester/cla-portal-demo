@@ -6,7 +6,7 @@
  *  - Custom views / saved filters: public.crm_views, crm_view_criteria, crm_view_columns, crm_view_shares, crm_view_pins,
  *    crm_saved_filters, crm_saved_filter_values. Already on TEST. Views and saved filters are retired, never deleted.
  *    Criteria values are one row per value_index (no JSON). Child rows are read and replaced in batches. */
-import { CLA_OFFICES, OFFICE_LOCATION } from './cla-offices.js?v=202611090935';
+import { CLA_OFFICES, OFFICE_LOCATION } from './cla-offices.js?v=202611100830';
 import { DISBURSEMENT_FIELDS, cleanDisbursement } from './crm-disbursement.js?v=202611070139';
 import { VIEW_MODULES, VIEW_DEFAULT_COLUMNS, PINS_MAX, nameOk, cleanColumns, cleanFilterValues, SEARCH_COL_MAX } from './crm-views.js?v=202611070139';
 import { moduleFields, cleanCriteria, applyCriteria, display, SHARE_ROLES, DEPARTMENTS } from './crm-analytics.js?v=202611070139';

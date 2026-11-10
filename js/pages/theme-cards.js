@@ -5,7 +5,7 @@
 import { html, raw, fmtDate, fmtMoney } from '../ui.js?v=202611070139';
 import { STAGES, isRefi, localDate } from '../data/constants.js?v=202611090935';
 import { phaseOf, PHASES } from '../data/agent-portal.js?v=202611090935';
-import { placeText } from '../data/cla-offices.js?v=202611090935';
+import { placeText } from '../data/cla-offices.js?v=202611100830';
 import { modAccess } from '../data/modules.js?v=202611090935';
 
 // ---------- icons: 24x24, thin 1.5 stroke, currentColor ----------

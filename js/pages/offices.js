@@ -1,9 +1,9 @@
 // OFFICES (John, Nov 4: "In the admin section create a way for us to add offices so we can add them in that show in the scheduling section").
 // Admin / Super admin page in the Admin / Settings workspace (next to Users, Teams and Modules): add, edit, reorder, retire or reactivate a CLA Title
 // office and pick the counties it serves. The closing "Which CLA Title office" picker lists the ACTIVE offices in this order and defaults to the
-// office that serves the property's county, else the state's main office. Offices are never deleted: Retire hides one from new closings only.
+// office closest to the property. Offices are never deleted: Retire hides one from new closings only.
 import { html, raw, $, $$, guard, toast, modal, closeModal, fmtDateTime } from '../ui.js?v=202611070139';
-import { canManageOffices, cleanOffice, countiesFor, OFFICE_STATES, SAMPLE_IDS } from '../data/offices.js?v=202611090935';
+import { canManageOffices, cleanOffice, countiesFor, OFFICE_STATES, SAMPLE_IDS } from '../data/offices.js?v=202611100830';
 const STATE_NAMES = { MD: 'Maryland', VA: 'Virginia', DC: 'District of Columbia', FL: 'Florida' };
 
 export async function render({ api, user, refresh }) {
@@ -26,7 +26,7 @@ export async function render({ api, user, refresh }) {
   const body = html`<section class="offices-page" data-offices-page>
     <div class="page-head"><div><p class="eyebrow">Admin</p><h2 class="page-title">Offices</h2>
       <p class="muted off-intro">The CLA Title offices people can pick when they propose or schedule a closing "at a CLA Title office". The picker lists the active offices in the order below,
-      and starts on the office that serves the property's county, or else the state's main office. Retire an office to stop new closings there: closings that already use it keep showing it.
+      and starts on the office closest to the property (straight-line distance from the property's latitude and longitude, or from the center of its ZIP). If that distance cannot be worked out, it uses an office in the property's state, then the main office. Staff can change the choice. Retire an office to stop new closings there: closings that already use it keep showing it.
       Nothing is deleted. Only Admins and Super admins see this page.</p></div>
       <button class="m-btn" type="button" data-office-add>+ Add office</button></div>
     ${anySample ? html`<div class="notice info" data-office-sample-note><strong>Sample data.</strong> The offices marked "(sample)" are made-up placeholders, not real CLA Title addresses.
@@ -50,7 +50,7 @@ export async function render({ api, user, refresh }) {
   } };
 
   function officeForm(o) {
-    const v = o || { name: '', addressLine1: '', addressLine2: '', city: '', state: '', zip: '', phone: '', email: '', isMainOfficeForState: false, counties: [] };
+    const v = o || { name: '', addressLine1: '', addressLine2: '', city: '', state: '', zip: '', latitude: '', longitude: '', phone: '', email: '', isMainOfficeForState: false, counties: [] };
     const m = modal(o ? `Edit office: ${o.name}` : 'Add an office', html`<form id="of" class="form-grid off-form" novalidate data-office-form>
       <label class="span2">Office name *<input name="name" maxlength="120" required value="${v.name}" placeholder="e.g. CLA Title - Rockville, MD office"><span class="field-err" data-err="name"></span></label>
       <label class="span2">Address line 1 *<input name="addressLine1" maxlength="120" required value="${v.addressLine1}" autocomplete="address-line1"><span class="field-err" data-err="addressLine1"></span></label>
@@ -58,10 +58,12 @@ export async function render({ api, user, refresh }) {
       <label>City *<input name="city" maxlength="80" required value="${v.city}" autocomplete="address-level2"><span class="field-err" data-err="city"></span></label>
       <label>State *<select name="state" required data-office-state><option value="">Choose&hellip;</option>${OFFICE_STATES.map((s) => html`<option value="${s}" ${s === v.state ? raw('selected') : ''}>${s} - ${STATE_NAMES[s]}</option>`)}</select><span class="field-err" data-err="state"></span></label>
       <label>ZIP code *<input name="zip" maxlength="10" required inputmode="numeric" value="${v.zip}" placeholder="20850" autocomplete="postal-code"><span class="field-err" data-err="zip"></span></label>
+      <label>Latitude <span class="muted small">(optional)</span><input name="latitude" inputmode="decimal" value="${v.latitude ?? ''}" placeholder="Blank uses the ZIP center"><span class="field-err" data-err="latitude"></span></label>
+      <label>Longitude <span class="muted small">(optional)</span><input name="longitude" inputmode="decimal" value="${v.longitude ?? ''}" placeholder="Blank uses the ZIP center"><span class="field-err" data-err="longitude"></span></label>
       <label>Main phone<input name="phone" type="tel" data-phone maxlength="12" value="${v.phone}" placeholder="xxx-xxx-xxxx"><span class="field-err" data-err="phone"></span></label>
       <label class="span2">Email <span class="muted small">(optional)</span><input name="email" type="email" maxlength="200" value="${v.email}"><span class="field-err" data-err="email"></span></label>
       <label class="span2 off-check"><input type="checkbox" name="isMainOfficeForState" ${v.isMainOfficeForState ? raw('checked') : ''} data-office-main-box> Main office for this state
-        <span class="muted small">(used when no office serves the property's county; one per state, so ticking it here moves it from the current main office)</span></label>
+        <span class="muted small">(used when the property's location cannot be measured; one per state, so ticking it here moves it from the current main office)</span></label>
       <fieldset class="span2 off-counties" data-office-counties-box><legend>Counties served</legend>
         <p class="muted small" data-county-hint>Pick the state first.</p>
         <div class="off-county-tools" hidden><input type="search" data-county-filter placeholder="Filter counties" aria-label="Filter counties"> <button type="button" class="ghost small" data-county-clear>Clear all</button> <span class="small muted" data-county-count></span></div>
@@ -80,15 +82,15 @@ export async function render({ api, user, refresh }) {
     f.state.addEventListener('change', drawCounties); $('[data-county-filter]', f).addEventListener('input', filter);
     $('[data-county-clear]', f).addEventListener('click', () => { picked.clear(); drawCounties(); }); drawCounties();
     const read = () => ({ name: f.name.value, addressLine1: f.addressLine1.value, addressLine2: f.addressLine2.value, city: f.city.value, state: f.state.value, zip: f.zip.value,
-      phone: f.phone.value, email: f.email.value, isMainOfficeForState: f.isMainOfficeForState.checked, counties: [...picked].map((county) => ({ state: f.state.value, county })) });
+      latitude: f.latitude.value, longitude: f.longitude.value, phone: f.phone.value, email: f.email.value, isMainOfficeForState: f.isMainOfficeForState.checked, counties: [...picked].map((county) => ({ state: f.state.value, county })) });
     // the same rules as the adapter, shown next to each field before saving
-    const FIELD = [[/Office name/, 'name'], [/Address line 1/, 'addressLine1'], [/City/, 'city'], [/state/i, 'state'], [/ZIP/, 'zip'], [/phone/i, 'phone'], [/Email/, 'email']];
+    const FIELD = [[/Office name/, 'name'], [/Address line 1/, 'addressLine1'], [/City/, 'city'], [/state/i, 'state'], [/ZIP/, 'zip'], [/atitude|ongitude/, 'latitude'], [/phone/i, 'phone'], [/Email/, 'email']];
     const showErrs = (errs) => { $$('[data-err]', f).forEach((e) => { e.textContent = ''; }); $$('.is-invalid', f).forEach((e) => e.classList.remove('is-invalid')); const rest = [];
       errs.forEach((msg) => { const hit = /count(y|ies)|served by/i.test(msg) ? null : FIELD.find(([re]) => re.test(msg)); const slot = hit && $(`[data-err="${hit[1]}"]`, f);
         if (slot && !slot.textContent) { slot.textContent = msg; const el = f.elements[hit[1]]; if (el) el.classList.add('is-invalid'); } else rest.push(msg); });
       const box = $('[data-office-errors]', f); box.hidden = !rest.length; box.textContent = rest.join(' '); };
     // a field's message goes away as soon as it is edited
-    ['name', 'addressLine1', 'city', 'state', 'zip', 'phone', 'email'].forEach((k) => { const el = f.elements[k]; const clear = () => { const slot = $(`[data-err="${k}"]`, f); if (slot) slot.textContent = ''; el.classList.remove('is-invalid'); };
+    ['name', 'addressLine1', 'city', 'state', 'zip', 'latitude', 'longitude', 'phone', 'email'].forEach((k) => { const el = f.elements[k]; const clear = () => { const slot = $(`[data-err="${k}"]`, f); if (slot) slot.textContent = ''; el.classList.remove('is-invalid'); };
       el.addEventListener('input', clear); el.addEventListener('change', clear); });
     f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const input = read();
       try { cleanOffice(input); } catch (err) { showErrs(err.errors || [err.message]); return; } showErrs([]);

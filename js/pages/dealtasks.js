@@ -11,12 +11,12 @@ export const LABEL = { todo: 'to do', in_progress: 'started', done: 'done', bloc
 
 export async function render(ctx) {
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611100245')).render(ctx);
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611100830')).render(ctx);
   const { api, user, deal, refresh } = ctx;
   const allTasks = await api.listTasks(deal.id);
   // BUYER (Nov 4 call): the agreements are to-dos that open the agreement (no Agreements tab for the buyer); the buyer never gets a Listing Agent box (listing agent never shown)
   // SELLER MIRROR (Nov 4): the pure seller gets the same To-do list (agreements as to-dos) and never a Buyer's Agent box (the buyer's agent is never shown to the seller)
-  const { isPureClient, isPureSeller, agreementTasks } = await import('./client-overview.js?v=202611100005'); const pure = user.accountRole && isPureClient(user); const hideBox = pure ? (isPureSeller(user) ? 'buyer-agent' : 'listing-agent') : null;
+  const { isPureClient, isPureSeller, agreementTasks } = await import('./client-overview.js?v=202611100830'); const pure = user.accountRole && isPureClient(user); const hideBox = pure ? (isPureSeller(user) ? 'buyer-agent' : 'listing-agent') : null;
   // CLIENT TASK PRIVACY (Matt, Nov 5, live40): a buyer / seller only ever sees tasks assigned to them (the adapter already filters; this is the UI guard),
   // only their own side's box, and "You're all caught up" once nothing is left. Never the other parties' boxes or tasks.
   const productionView = !pure && new URLSearchParams(location.hash.split('?')[1] || '').get('lane') === 'production';
