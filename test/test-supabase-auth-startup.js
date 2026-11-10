@@ -332,6 +332,7 @@ async function ownedWarmReadIsKept() {
   const first = await api.beginNavigation({ dealId: 'file-1', tab: 'contacts' });
   await first.hr; await first.demo;
   await api.readFileShell('file-1');
+  await api.resetDemoData();   // a write: drops the carried order reads, so the next navigation reads the shell again early
   const afterFirst = reads.length;
   holdUser = true;
   const second = api.beginNavigation({ dealId: 'file-1', tab: 'contacts' });
