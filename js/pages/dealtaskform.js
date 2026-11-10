@@ -23,7 +23,12 @@ export function intakeFormHtml(t, { page = false, state = '' } = {}) {
     // Matt, Nov 3: plain-English help for a select (Title vesting: "What do these mean?")
     const help = f.help ? html` <button type="button" class="ghost" data-help="${f.k}" aria-expanded="false">${f.help.button}</button>
       <div class="note-box" data-help-panel="${f.k}" hidden><strong>${f.help.title}</strong><dl class="answers">${f.help.items.map(([o, txt]) => html`<dt>${o}</dt><dd>${txt}</dd>`)}</dl><p class="small" data-help-note><em>${f.help.note}</em></p></div>` : '';
-    const choices = (field, current) => { const opts = Array.isArray(field.opts) ? [...field.opts] : []; if (current && !opts.includes(current)) opts.push(current); return opts; };
+    const choices = (field, current) => {
+      let opts = Array.isArray(field.opts) ? [...field.opts] : [];
+      if (field.k === 'citizenship') opts = opts.filter((o) => o !== 'US Citizen' || o === current);
+      if (current && !opts.includes(current)) opts.push(current);
+      return opts;
+    };
     if (f.type === 'select' && f.help) return html`<div class="span2 fld" data-k="${f.k}"><label>${f.label} ${req}<select name="${f.k}"><option value="">Choose&hellip;</option>${choices(f, val).map((o) => html`<option ${o === val ? raw('selected') : ''}>${o}</option>`)}</select></label>${help}<span class="ferr"></span></div>`;
     if (f.type === 'checkbox') return html`<label class="check span2 fld" data-k="${f.k}"><input type="checkbox" name="${f.k}" ${val ? html`checked` : ''}> ${f.label} ${req}<span class="ferr"></span></label>`;
     if (f.type === 'select') return html`<label class="fld" data-k="${f.k}">${f.label} ${req}<select name="${f.k}"><option value="">Choose&hellip;</option>${choices(f, val).map((o) => html`<option ${o === val ? raw('selected') : ''}>${o}</option>`)}</select><span class="ferr"></span></label>`;

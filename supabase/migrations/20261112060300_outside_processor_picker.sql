@@ -146,7 +146,7 @@ as $function$
     cross join viewer v
     where v.staff
       or (
-        not v.staff
+        (v.pure_buyer or v.pure_seller)
         and btrim(coalesce(l.email, '')) <> ''
         and l.profile_role = 'Processor'
         and l.id in (
@@ -168,6 +168,27 @@ as $function$
               and pr.status = 'active'
               and pr.role = 'Processor'
               and pr.is_demo is not distinct from (select z.is_demo from public.deals z where z.id = p_deal)
+        )
+      )
+      or (
+        not v.staff
+        and not coalesce(v.pure_buyer, false)
+        and not coalesce(v.pure_seller, false)
+        and (
+          l.profile_role is distinct from 'Outside user'
+          or (
+            v.my_side in ('buyer', 'seller')
+            and (
+              select case when count(distinct s) = 1 then max(s) end
+              from (
+                select case r
+                  when 'Buyer Agent' then 'buyer' when 'Client-Buyer' then 'buyer'
+                  when 'Listing Agent' then 'seller' when 'Client-Seller' then 'seller'
+                end as s
+                from unnest(l.roles) r
+              ) q where s is not null
+            ) = v.my_side
+          )
         )
       )
   ),
@@ -193,8 +214,11 @@ $function$;
 
 do $readback$
 begin
-  if position('profile_role = ''Processor''' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_message_recipients(uuid)'::regprocedure)) = 0 then
-    raise exception 'readback: an outside user can still see someone other than an assigned processor';
+  if position('v.pure_buyer or v.pure_seller' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_message_recipients(uuid)'::regprocedure)) = 0 then
+    raise exception 'readback: the processor-only list is not limited to a pure buyer or seller';
+  end if;
+  if position('l.profile_role is distinct from ''Outside user''' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_message_recipients(uuid)'::regprocedure)) = 0 then
+    raise exception 'readback: an agent viewer lost the staff and same-side list';
   end if;
   if position('btrim(coalesce(l.email' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_message_recipients(uuid)'::regprocedure)) = 0 then
     raise exception 'readback: a processor with no email is still offered';

@@ -16,11 +16,11 @@ const file = {
   ],
 };
 const id = toText(fileIdentityHtml(file));
-ok(id.includes('data-file-identity') && id.includes('data-file-address') && id.includes('16 Oak Lane, Rockville MD 20850') && id.includes('data-file-order') && id.includes('MD-26-97216'), 'the box shows the address and the order number');
+ok(id.includes('data-file-identity') && id.includes('data-file-buyers') && id.includes('Ben Buyer') && !id.includes('data-file-address') && !id.includes('data-file-order'), 'the box lists the parties and leaves the address and order number to the sticky header');
 ok(id.includes('data-file-buyers') && id.includes('Ada Buyer, Ben Buyer') && id.includes('data-file-sellers') && id.includes('>None<'), 'the box shows every buyer and still shows Seller when there is none');
 
 const empty = toText(fileIdentityHtml({ participants: [] }));
-ok(empty.includes('>None<') && (empty.match(/>None</g) || []).length >= 3, 'an empty file still shows the address, order, buyer, and seller lines');
+ok(empty.includes('>None<') && (empty.match(/>None</g) || []).length >= 2 && !empty.includes('data-file-address'), 'an empty file still shows the buyer and seller lines');
 
 const staff = { role: 'Processor', isAdmin: false };
 const closing = toText(closingDateSectionHtml({

@@ -75,6 +75,9 @@ as $titles$
   from visible v
 $titles$;
 
+revoke all on function public.deal_file_titles(uuid) from public, anon;
+grant execute on function public.deal_file_titles(uuid) to authenticated;
+
 do $readback$
 begin
   if position('participant_entities' in (select p.prosrc from pg_proc p where p.oid = 'public.deal_file_titles(uuid)'::regprocedure)) = 0 then

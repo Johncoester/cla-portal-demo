@@ -4,6 +4,22 @@
 begin;
 set local lock_timeout = '3s';
 
+do $drift$
+declare src text;
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'contacts' and column_name = 'mobile' and data_type = 'text' and is_nullable = 'NO'
+  ) then
+    raise exception 'drift: contacts.mobile';
+  end if;
+  select p.prosrc into src from pg_proc p where p.oid = 'private.rpc_my_agents(uuid)'::regprocedure;
+  if md5(src) is distinct from 'b1254fcc094054056bc1f805b8772bb2' and position('c.mobile' in src) = 0 then
+    raise exception 'drift: private.rpc_my_agents';
+  end if;
+end
+$drift$;
+
 update public.task_templates t
 set fields = (
   select jsonb_agg(

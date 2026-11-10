@@ -3,4 +3,5 @@ begin;
 set local lock_timeout = '3s';
 drop trigger if exists hr_designation_portal_role on public.hr_employees;
 drop function if exists private.trg_hr_designation_portal_role();
+drop function if exists private.hr_apply_portal_role(uuid, text, boolean);
 commit;

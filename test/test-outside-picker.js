@@ -17,8 +17,13 @@ await api.signInDev('u-proc');
 const staff = await api.listMessageRecipients('deal-1');
 ok(staff.some((r) => r.role === 'Buyer Agent' || /Agent/.test(r.role)), 'staff still see the wider list');
 
+await api.signInDev('u-bagent');
+const agent = await api.listMessageRecipients('deal-1');
+ok(agent.some((r) => r.role !== 'Processor'), 'a buyer agent still sees people other than the processor');
+ok(agent.some((r) => r.role === 'Client-Buyer' || r.role === 'Transaction Coordinator' || r.role === 'Sales Person' || r.role === 'Preprocessor'), 'a buyer agent still sees the client, coordinator, salesperson, or preprocessor');
+
 const sql = readFileSync('supabase/migrations/20261112060300_outside_processor_picker.sql', 'utf8');
-ok(sql.includes("l.profile_role = 'Processor'") && sql.includes("btrim(coalesce(l.email, '')) <> ''") && !sql.includes('private.participant_visible') && !sql.includes('private.can_message'), 'the hosted picker is one set-based filter');
+ok(sql.includes('v.pure_buyer or v.pure_seller') && sql.includes("l.profile_role = 'Processor'") && sql.includes("l.profile_role is distinct from 'Outside user'") && !sql.includes('private.participant_visible') && !sql.includes('private.can_message'), 'the processor-only list is only for a pure buyer or seller; an agent keeps the older list');
 
 console.log(fail ? fail + ' failed' : 'outside picker passed');
 if (fail) process.exit(1);

@@ -4,6 +4,30 @@
 begin;
 set local lock_timeout = '3s';
 
+-- These four functions are the hosted copies this migration replaces. A second run already
+-- has the participant check, so that copy is accepted too.
+do $drift$
+declare src text;
+begin
+  select p.prosrc into src from pg_proc p where p.oid = 'private.rpc_get_task_form(uuid)'::regprocedure;
+  if md5(src) is distinct from 'b23352093e2aadbd960c7d558a1818ca' and position('t.participant_id is not null' in src) = 0 then
+    raise exception 'drift: private.rpc_get_task_form';
+  end if;
+  select p.prosrc into src from pg_proc p where p.oid = 'private.rpc_save_task_form(uuid,jsonb,boolean)'::regprocedure;
+  if md5(src) is distinct from 'bd0676f0df35436e291918117831e4d5' and position('t.participant_id is not null' in src) = 0 then
+    raise exception 'drift: private.rpc_save_task_form';
+  end if;
+  select p.prosrc into src from pg_proc p where p.oid = 'private.rpc_save_party_ssn(uuid,text,text)'::regprocedure;
+  if md5(src) is distinct from '11e1954a389da9cff4f8ac1415501e07' and position('t.participant_id is not null' in src) = 0 then
+    raise exception 'drift: private.rpc_save_party_ssn';
+  end if;
+  select p.prosrc into src from pg_proc p where p.oid = 'private.rpc_read_party_ssn(uuid,text)'::regprocedure;
+  if md5(src) is distinct from '338bc8b890f1b7bc64b46a5fd66866ba' and position('t.participant_id is not null' in src) = 0 then
+    raise exception 'drift: private.rpc_read_party_ssn';
+  end if;
+end
+$drift$;
+
 update public.tasks t
    set owner_profile_id = c.profile_id
   from public.deal_participants dp
@@ -19,17 +43,23 @@ returns jsonb
 language plpgsql stable security definer
 set search_path to pg_catalog, public, extensions
 as $function$
-declare t public.tasks; d jsonb; k text;
+declare t public.tasks; d jsonb; k text; own_copy boolean;
 begin
   select * into t from public.tasks where id = p_task;
   if not found or not private.can_access_deal(t.deal_id) or not private.task_visible(t.owner_profile_id, t.assigned_role, t.deal_id) then raise exception 'Task not found'; end if;
+  -- A blank owner is this caller only when the task names their own participant. No participant, or another buyer's copy, is denied.
+  own_copy := t.participant_id is not null and exists (
+    select 1 from public.deal_participants dp
+    join public.contacts c on c.id = dp.contact_id
+    where dp.id = t.participant_id and c.profile_id = private.effective_uid()
+  );
   if not (
     private.form_owner_or_manager(t.owner_profile_id)
     or private.agent_can_fill(p_task)
-    or (t.owner_profile_id is null and t.assigned_role = any (private.deal_roles(t.deal_id)))
+    or (t.owner_profile_id is null and own_copy)
   ) then raise exception 'Only the person, the processor and the coordinator can see these answers'; end if;
   d := t.form_data;
-  if not (t.owner_profile_id = private.effective_uid() or private.is_processor() or (t.owner_profile_id is null and t.assigned_role = any (private.deal_roles(t.deal_id)))) then
+  if not (t.owner_profile_id = private.effective_uid() or private.is_processor() or (t.owner_profile_id is null and own_copy)) then
     foreach k in array private.masked_keys(t.template_id) loop
       if d ? k then d := d || jsonb_build_object(k, repeat(chr(8226), 4) || right(d->>k, 4)); end if; end loop; end if;
   return d; end $function$;
@@ -39,12 +69,17 @@ returns text
 language plpgsql security definer
 set search_path to pg_catalog, public, extensions
 as $function$
-declare t public.tasks; tp public.task_templates; clean jsonb; for_client boolean; prev uuid; note text := ''; self_rep boolean; holder boolean;
+declare t public.tasks; tp public.task_templates; clean jsonb; for_client boolean; prev uuid; note text := ''; self_rep boolean; holder boolean; own_copy boolean;
 begin
   p_data := coalesce(p_data, '{}'::jsonb) - 'ssn' - 'social_security' - 'full_ssn' - 'buyer_ssn';
   select * into t from public.tasks where id = p_task;
   if not found or not private.can_access_deal(t.deal_id) or not private.task_visible(t.owner_profile_id, t.assigned_role, t.deal_id) then raise exception 'Task not found'; end if;
-  holder := t.owner_profile_id is null and t.assigned_role = any (private.deal_roles(t.deal_id));
+  own_copy := t.participant_id is not null and exists (
+    select 1 from public.deal_participants dp
+    join public.contacts c on c.id = dp.contact_id
+    where dp.id = t.participant_id and c.profile_id = private.effective_uid()
+  );
+  holder := t.owner_profile_id is null and own_copy;
   if holder then t.owner_profile_id := private.effective_uid(); end if;
   for_client := t.owner_profile_id is distinct from private.effective_uid() and private.agent_can_fill(p_task);
   if t.kind <> 'form' or t.status = 'cancelled' or not (t.owner_profile_id = private.effective_uid() or private.is_manager() or for_client or holder) then raise exception 'You cannot fill in this task.'; end if;
@@ -84,7 +119,7 @@ language plpgsql security definer
 set search_path to pg_catalog, public, extensions
 as $function$
 declare
-  t public.tasks; digits text; key text; who text; staff boolean; holder boolean;
+  t public.tasks; digits text; key text; who text; staff boolean; holder boolean; own_copy boolean;
 begin
   who := case when p_subject = 'spouse' then 'spouse' else 'self' end;
   select * into t from public.tasks where id = p_task;
@@ -94,7 +129,12 @@ begin
     raise exception 'Not available' using errcode = '42501';
   end if;
   staff := private.ssn_staff();
-  holder := t.owner_profile_id is null and t.assigned_role = any (private.deal_roles(t.deal_id));
+  own_copy := t.participant_id is not null and exists (
+    select 1 from public.deal_participants dp
+    join public.contacts c on c.id = dp.contact_id
+    where dp.id = t.participant_id and c.profile_id = private.effective_uid()
+  );
+  holder := t.owner_profile_id is null and own_copy;
   if t.owner_profile_id is distinct from private.effective_uid() and not staff and not holder then
     raise exception 'Not available' using errcode = '42501';
   end if;
@@ -119,7 +159,7 @@ returns text
 language plpgsql stable security definer
 set search_path to pg_catalog, public, extensions
 as $function$
-declare t public.tasks; row private.party_ssn; digits text; who text;
+declare t public.tasks; row private.party_ssn; digits text; who text; own_copy boolean;
 begin
   who := case when p_subject = 'spouse' then 'spouse' else 'self' end;
   select * into t from public.tasks where id = p_task;
@@ -134,8 +174,13 @@ begin
     digits := extensions.pgp_sym_decrypt(row.ciphertext, private.buyer_ssn_key());
     return substr(digits, 1, 3) || '-' || substr(digits, 4, 2) || '-' || substr(digits, 6, 4);
   end if;
+  own_copy := t.participant_id is not null and exists (
+    select 1 from public.deal_participants dp
+    join public.contacts c on c.id = dp.contact_id
+    where dp.id = t.participant_id and c.profile_id = private.effective_uid()
+  );
   if t.owner_profile_id = private.effective_uid()
-     or (t.owner_profile_id is null and t.assigned_role = any (private.deal_roles(t.deal_id))) then
+     or (t.owner_profile_id is null and own_copy) then
     return '***-**-' || row.last4;
   end if;
   raise exception 'Not available' using errcode = '42501';
@@ -144,14 +189,14 @@ $function$;
 
 do $readback$
 begin
-  if position('owner_profile_id is null' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_get_task_form(uuid)'::regprocedure)) = 0 then
-    raise exception 'readback: a buyer still cannot open a task whose owner was never set';
+  if position('t.participant_id is not null' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_get_task_form(uuid)'::regprocedure)) = 0
+     or position('t.participant_id is not null' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_save_task_form(uuid,jsonb,boolean)'::regprocedure)) = 0
+     or position('t.participant_id is not null' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_save_party_ssn(uuid,text,text)'::regprocedure)) = 0
+     or position('t.participant_id is not null' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_read_party_ssn(uuid,text)'::regprocedure)) = 0 then
+    raise exception 'readback: a blank-owner task is not limited to that task''s own participant';
   end if;
-  if position('owner_profile_id is null' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_save_task_form(uuid,jsonb,boolean)'::regprocedure)) = 0 then
-    raise exception 'readback: a buyer still cannot save a task whose owner was never set';
-  end if;
-  if position('owner_profile_id is null' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_save_party_ssn(uuid,text,text)'::regprocedure)) = 0 then
-    raise exception 'readback: a buyer still cannot save a Social Security number on a task whose owner was never set';
+  if position('assigned_role = any (private.deal_roles' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_get_task_form(uuid)'::regprocedure)) > 0 then
+    raise exception 'readback: any client on the file can still open a blank-owner task';
   end if;
 end
 $readback$;
