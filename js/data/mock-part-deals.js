@@ -137,7 +137,9 @@ export function dealsAndAuth(x) {
       const u = needProcessor(); const d = load(); const q = d.deals.find((y) => y.id === id) || fail('Order not found.');
       const prevState = q.state;
       if (patch.state != null) { patch = { ...patch, state: stateCode(patch.state) }; if (patch.state !== q.state && !C.US_STATES.includes(patch.state)) fail('Pick a US state.'); }
-      ['street', 'city', 'state', 'zip', 'lenderName', 'lenderContact', 'lenderEmail', 'lenderPhone', 'lossPayeeName', 'notes'].forEach((k) => { if (patch[k] != null) q[k] = str(patch[k], k === 'notes' ? 2000 : k === 'lossPayeeName' ? 400 : 200); });
+      ['street', 'city', 'state', 'zip', 'lenderName', 'lenderContact', 'lenderEmail', 'lenderPhone', 'lossPayeeName', 'notes'].forEach((k) => { if (patch[k] != null) q[k] = str(patch[k], k === 'notes' ? 2000 : k === 'lossPayeeName' ? 800 : 200); });
+      ['buyerSignStatus', 'sellerSignStatus', 'buyerSignedOn', 'sellerSignedOn', 'buyerPlaceKind', 'sellerPlaceKind', 'buyerOfficeId', 'sellerOfficeId', 'buyerSigningDate', 'sellerSigningDate', 'buyerSigningTime', 'sellerSigningTime', 'buyerManualStreet', 'buyerManualCity', 'buyerManualState', 'buyerManualZip', 'sellerManualStreet', 'sellerManualCity', 'sellerManualState', 'sellerManualZip', 'closingManualStreet', 'closingManualCity', 'closingManualState', 'closingManualZip'].forEach((k) => { if (patch[k] !== undefined) q[k] = patch[k] || ''; });
+      if (patch.lenderHistory !== undefined) q.lenderHistory = Array.isArray(patch.lenderHistory) ? patch.lenderHistory.slice(0, 20) : [];
       if (lenderColumnsTouched(patch)) Object.assign(q, lenderExtras({
         lenderAddress: patch.lenderAddress !== undefined ? patch.lenderAddress : q.lenderAddress,
         cplAddress: patch.cplAddress !== undefined ? patch.cplAddress : q.cplAddress,

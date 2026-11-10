@@ -25,7 +25,7 @@ import { crmSupabase } from './supabase-crm.js?v=202611101600';
 import { hrSupabase } from './supabase-hr.js?v=202611100130';
 import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611101015';
 import { officesSupabase } from './supabase-offices.js?v=202611101015';
-import { closingLocationSupabase } from './supabase-closing-location.js?v=202611101015';
+import { closingLocationSupabase } from './supabase-closing-location.js?v=202611120500';
 import { tcSupabase } from './supabase-tc.js?v=202611101015';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
 import { gmailSupabase } from './supabase-gmail.js?v=202611120400';
@@ -477,7 +477,8 @@ export async function createSupabaseAdapter(cfg) {
       return { ...d, address: `${d.street}, ${d.city}, ${d.state} ${d.zip}` }; },
     async updateDeal(id, patch) {
       const map = { street: 'street', city: 'city', state: 'state', zip: 'zip', county: 'county', openDate: 'open_date', closingDate: 'closing_date', purchasePrice: 'purchase_price', loanAmount: 'loan_amount',
-        emdAmount: 'emd_amount', emdDueDate: 'emd_due_date', lenderName: 'lender_name', lenderContact: 'lender_contact', lenderEmail: 'lender_email', lenderPhone: 'lender_phone', lossPayeeName: 'loss_payee_name', notes: 'notes', processorId: 'processor_id', preprocessorUserId: 'preprocessor_user_id', tcUserId: 'tc_user_id', primaryResidence: 'primary_residence', firstTimeBuyer: 'first_time_buyer', closerName: 'closer_name', closerProfileId: 'closer_profile_id', closingTime: 'closing_time' };
+        emdAmount: 'emd_amount', emdDueDate: 'emd_due_date', lenderName: 'lender_name', lenderContact: 'lender_contact', lenderEmail: 'lender_email', lenderPhone: 'lender_phone', lossPayeeName: 'loss_payee_name', notes: 'notes', processorId: 'processor_id', preprocessorUserId: 'preprocessor_user_id', tcUserId: 'tc_user_id', primaryResidence: 'primary_residence', firstTimeBuyer: 'first_time_buyer', closerName: 'closer_name', closerProfileId: 'closer_profile_id', closingTime: 'closing_time',
+        buyerSignStatus: 'buyer_sign_status', sellerSignStatus: 'seller_sign_status', buyerSignedOn: 'buyer_signed_on', sellerSignedOn: 'seller_signed_on', buyerPlaceKind: 'buyer_place_kind', sellerPlaceKind: 'seller_place_kind', buyerOfficeId: 'buyer_office_id', sellerOfficeId: 'seller_office_id', buyerSigningDate: 'buyer_signing_date', sellerSigningDate: 'seller_signing_date', buyerSigningTime: 'buyer_signing_time', sellerSigningTime: 'seller_signing_time', buyerManualStreet: 'buyer_manual_street', buyerManualCity: 'buyer_manual_city', buyerManualState: 'buyer_manual_state', buyerManualZip: 'buyer_manual_zip', sellerManualStreet: 'seller_manual_street', sellerManualCity: 'seller_manual_city', sellerManualState: 'seller_manual_state', sellerManualZip: 'seller_manual_zip', closingManualStreet: 'closing_manual_street', closingManualCity: 'closing_manual_city', closingManualState: 'closing_manual_state', closingManualZip: 'closing_manual_zip' };
       const money = new Set(['purchase_price', 'loan_amount', 'emd_amount']); const dates = new Set(['open_date', 'closing_date', 'emd_due_date']); const row = {};
       for (const [k, col] of Object.entries(map)) if (patch[k] !== undefined) { const v = patch[k];
         row[col] = money.has(col) ? moneyAmount(v) : dates.has(col) || col === 'processor_id' || col === 'preprocessor_user_id' || col === 'tc_user_id' || col === 'closer_profile_id' ? (v || null) : v; }
@@ -492,6 +493,7 @@ export async function createSupabaseAdapter(cfg) {
         if (patch.cplSameAsLender !== undefined) row.cpl_same_as_lender = x.cplSameAsLender;
         if (patch.mortgageBrokerName !== undefined) row.mortgage_broker_name = x.mortgageBrokerName; }
       if (patch.state !== undefined && String(patch.state || '').toUpperCase() !== 'MD') { row.primary_residence = ''; row.first_time_buyer = ''; }
+      if (patch.lenderHistory !== undefined) row.lender_history = Array.isArray(patch.lenderHistory) ? patch.lenderHistory.slice(0, 20) : [];
       if (Object.keys(row).length) ok(await sb.from('deals').update(row).eq('id', id));
       if (patch.sourceOfBusiness !== undefined) ok(await sb.rpc('set_deal_source', { p_deal: id, p_source: patch.sourceOfBusiness || '' }));
       if (patch.salesIds !== undefined) ok(await sb.rpc('set_deal_sales_people', { p_deal: id, p_sales: [].concat(patch.salesIds || []) }));

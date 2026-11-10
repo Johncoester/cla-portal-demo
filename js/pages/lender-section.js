@@ -7,15 +7,16 @@ import {
   LENDER_CONTACT_ROLES, lenderRoleLabel, lenderExtras, filterClauses, normLenderName,
   lenderCompanyContact, contactDisplayName,
 } from '../data/lender-file.js?v=202611101200';
+import { CPL_CLAUSES, CPL_OTHER, clauseChoice } from '../data/cpl-clauses.js?v=202611120500';
 
 export function lenderFieldsHtml(d = {}) {
   const extras = lenderExtras(d);
   const same = extras.cplSameAsLender;
   return html`<label class="span2">Lender address<input name="lenderAddress" maxlength="300" value="${extras.lenderAddress}" aria-label="Lender address" data-lender-address autocomplete="off"></label>
     <label class="span2">Mortgage broker / brokerage<input name="mortgageBrokerName" maxlength="200" value="${extras.mortgageBrokerName}" aria-label="Mortgage broker" placeholder="Brokerage or mortgage broker name"></label>
-    <label class="span2 clause-field">Loss payee clause <span class="muted small">(search previous clauses for this lender, then edit)</span>
-      <input name="lossPayeeName" maxlength="400" value="${d.lossPayeeName || ''}" aria-label="Loss payee clause" data-loss-payee autocomplete="off" placeholder="Type or pick a clause used for this lender">
-      <ul class="picker-list" data-loss-payee-list hidden></ul></label>
+    <label class="span2 clause-field">CPL lender clause
+      <select data-cpl-clause aria-label="CPL lender clause"><option value="">Choose a clause&hellip;</option>${CPL_CLAUSES.map((c) => html`<option value="${c}" ${clauseChoice(d.lossPayeeName) === c ? raw('selected') : ''}>${c}</option>`)}<option value="${CPL_OTHER}" ${clauseChoice(d.lossPayeeName) === CPL_OTHER ? raw('selected') : ''}>${CPL_OTHER}</option></select>
+      <input name="lossPayeeName" maxlength="800" value="${d.lossPayeeName || ''}" aria-label="Loss payee clause" data-loss-payee autocomplete="off" placeholder="The clause fills this box. You can still edit it."></label>
     <label class="check span2"><input type="checkbox" name="cplSameAsLender" value="1" data-cpl-same ${same ? raw('checked') : ''}> CPL address same as lender</label>
     <label class="span2">CPL address <span class="muted small">(closing protection letter)</span><input name="cplAddress" maxlength="300" value="${extras.cplAddress}" aria-label="CPL address" data-cpl-address autocomplete="off" ${same ? raw('readonly') : ''}></label>`;
 }
@@ -58,7 +59,9 @@ export function lenderSectionHtml(deal, { canEdit } = {}) {
       ${peopleHtml(d)}</section>`;
   }
   return html`<section class="lender-file card" data-lender-file><h3>Lender</h3>
-    <form class="form-grid" data-lender-form>
+    <p data-lender-summary><strong>${d.lenderName || 'Not entered'}</strong>${d.lenderContact ? html` · ${d.lenderContact}` : ''}</p>
+    <p><button type="button" class="m-btn" data-edit-lender>Edit Lender</button> <button type="button" class="ghost" data-switch-lender>Switch Lender</button></p>
+    <form class="form-grid" data-lender-form hidden>
       <label class="span2">Lender company name<input name="lenderName" maxlength="200" value="${d.lenderName || ''}" aria-label="Lender company name" data-lender-company></label>
       <label>Contact<input name="lenderContact" maxlength="200" value="${d.lenderContact || ''}" aria-label="Lender contact"></label>
       <label>Phone<input name="lenderPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${d.lenderPhone || ''}" aria-label="Lender phone"></label>
@@ -80,7 +83,9 @@ export function lenderSectionHtml(deal, { canEdit } = {}) {
 }
 
 export function mountLossPayee(root, api) {
+  const pick = $('[data-cpl-clause]', root);
   const input = $('[data-loss-payee]', root);
+  if (pick && input) pick.addEventListener('change', () => { if (pick.value && pick.value !== CPL_OTHER) input.value = pick.value; if (pick.value === CPL_OTHER) { input.value = ''; input.focus(); } });
   const list = $('[data-loss-payee-list]', root);
   if (!input || !list || !api || !api.listLossPayeeClauses) return;
   let rows = [];
@@ -128,6 +133,17 @@ export function mountLenderSection(root, { api, deal, refresh } = {}) {
   mountLossPayee(host, api);
   mountCplSame(host);
   const form = $('[data-lender-form]', host);
+  const editBtn = $('[data-edit-lender]', host);
+  if (editBtn && form) editBtn.addEventListener('click', () => { form.hidden = false; const box = $('[name=lenderName]', form); if (box) box.focus(); });
+  const switchBtn = $('[data-switch-lender]', host);
+  if (switchBtn && form) switchBtn.addEventListener('click', guard(async () => {
+    const current = { lenderName: deal.lenderName || '', lenderContact: deal.lenderContact || '', lenderPhone: deal.lenderPhone || '', lenderEmail: deal.lenderEmail || '', lossPayeeName: deal.lossPayeeName || '', at: new Date().toISOString() };
+    form.hidden = false;
+    ['lenderName', 'lenderContact', 'lenderPhone', 'lenderEmail', 'lossPayeeName', 'lenderAddress', 'cplAddress', 'mortgageBrokerName'].forEach((n) => { const el = form.elements[n]; if (el) el.value = ''; });
+    form.dataset.switch = '1';
+    form._history = [...(deal.lenderHistory || []), current];
+    toast('Enter the new lender. The previous lender stays in the file history.');
+  }));
   if (form) form.addEventListener('submit', guard(async (e) => {
     e.preventDefault();
     const f = formData(form);
@@ -144,6 +160,7 @@ export function mountLenderSection(root, { api, deal, refresh } = {}) {
       cplAddress: extras.cplAddress,
       cplSameAsLender: extras.cplSameAsLender,
       mortgageBrokerName: extras.mortgageBrokerName,
+      ...(form.dataset.switch === '1' ? { lenderHistory: form._history || deal.lenderHistory || [] } : {}),
     });
     toast('Lender saved');
     if (refresh) refresh();

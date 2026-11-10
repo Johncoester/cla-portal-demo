@@ -16,7 +16,10 @@ export function messagesActivity(x) {
       const add = (id, firstName, lastName, role, email) => { if (!id || id === u.id || seen.has(id)) return; if (!staff && String(id).startsWith('contact:')) return;
         if (!String(id).startsWith('contact:') && !x.canMessage(u, id, dealId)) return; if (wire && (String(id).startsWith('contact:') || !x.wireAllowed(id, dealId))) return;
         const who = String(id).startsWith('contact:') ? {} : profOf(id);
-        seen.add(id); rows.push({ id, firstName: firstName || who.firstName || '', lastName: lastName || who.lastName || '', email: email || who.email || '', role: role || x.fileRoleText(id, dealId), side: String(id).startsWith('contact:') ? null : x.personSide(id, dealId), wireOk: String(id).startsWith('contact:') ? false : x.wireAllowed(id, dealId) }); };
+        const mail = String(email || who.email || '').trim();
+        const staffRole = role === 'Processor' || role === 'Preprocessor' || (!String(id).startsWith('contact:') && (who.role === 'Processor' || who.role === 'Preprocessor'));
+        if (!mail && (staffRole || String(id).startsWith('contact:'))) return;
+        seen.add(id); rows.push({ id, firstName: firstName || who.firstName || '', lastName: lastName || who.lastName || '', email: mail, role: role || x.fileRoleText(id, dealId), side: String(id).startsWith('contact:') ? null : x.personSide(id, dealId), wireOk: String(id).startsWith('contact:') ? false : x.wireAllowed(id, dealId) }); };
       for (const p of participantsOf(dealId, u)) { if (p.removed || !p.contact) continue; const c = p.contact;
         let pid = c.profileId || null; let email = c.email || '';
         if (!pid && (p.role === 'Processor' || p.role === 'Preprocessor')) { const hit = loginFor(c.email, ['Processor', 'Preprocessor']); if (hit) { pid = hit.id; email = hit.email; } }

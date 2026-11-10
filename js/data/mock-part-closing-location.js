@@ -4,6 +4,7 @@
  * Who: the party reads / answers their OWN row; CLA staff read every row on orders they can see; Processor / Admin / Super admin edit any answer and
  * set the signing method; an agent reads their own side's clients (answer only, never the signing method); nobody sees the other side; no deletes. */
 import { cleanLocationAnswer, canManageClosingLocations, locationFlag, whereText, CLIENT_PARTY_ROLES, SIGNING_CODES, signingLabel, reminderTitle, stateName } from './closing-location.js?v=202611101015';
+import { cleanSideSigning, sidePatch, sideFromDeal } from './closing-side.js?v=202611120500';
 import { senderFor } from './email-senders.js?v=202611101015';
 const AGENT_FOR = { 'Buyer Agent': 'Client-Buyer', 'Listing Agent': 'Client-Seller' };
 export function closingLocationPart({ load, save, needUser, now, fail, nid, isStaffView, dealOr404, contactOf, fileRoles, fullName, notify, prof, localDate }) {
@@ -70,6 +71,8 @@ export function closingLocationPart({ load, save, needUser, now, fail, nid, isSt
       return parties(dealId).filter(({ p }) => s.all || s.read.has(p.id)).map((x) => ({ ...view(s.deal, x, s.all), mine: s.own.has(x.p.id), forClient: !!(s.agentRows && s.agentRows.has(x.p.id)), canAnswer: s.own.has(x.p.id) || !!(s.agentRows && s.agentRows.has(x.p.id)) || (s.all && canManageClosingLocations(u)) })); },
     async answerClosingLocation(dealId, participantId, input) { return answer(needUser(), dealId, participantId, input, false); },
     async setClosingLocation(dealId, participantId, input) { return answer(needUser(), dealId, participantId, input, true); },
+    async saveSideSigning(dealId, input) { const u = needUser(); const s = scope(u, dealId); if (!canManageClosingLocations(u)) fail('Only the processor or coordinator can set signing for a side.');
+      let clean; try { clean = cleanSideSigning(input); } catch (e) { fail(e.message); } Object.assign(s.deal, sidePatch(clean)); save(); return sideFromDeal(s.deal, clean.side); },
     async setSigningMethod(dealId, participantId, method) { const u = needUser(); const s = scope(u, dealId);
       if (!canManageClosingLocations(u)) fail('Only the Processor or an Admin sets the signing method.');
       if (!SIGNING_CODES.includes(method)) fail('Pick a signing method from the list.');

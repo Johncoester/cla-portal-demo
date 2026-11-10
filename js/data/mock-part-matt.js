@@ -91,7 +91,7 @@ export function mattP2(x) {
       notify([deal.processorId], { kind: 'settlement', dealId, title: `${nameOf(u.id)} proposed a closing time for ${deal.street}`, link: `#/deals/${dealId}/closing` }, u.id);
       save(); return clone(p);
     },
-    async confirmClosing(dealId, { at, location, officeId, note, proposalId } = {}) {
+    async confirmClosing(dealId, { at, location, officeId, note, proposalId, closingManualStreet, closingManualCity, closingManualState, closingManualZip } = {}) {
       // John, Nov 4: the Processor, TC, Admins AND the Buyer Agent / Listing Agent on the file may schedule the closing. An agent confirms only
       // proposals from their own side (the only ones they can see); scheduledClosing.confirmedByRole records the capacity (typed, for reports).
       let u = needUser(); u = onDeal(u, dealId); const agentRole = isManager(u) ? null : (u.roles || [u.role]).find((r) => ['Buyer Agent', 'Listing Agent'].includes(r));
@@ -100,6 +100,7 @@ export function mattP2(x) {
       if (proposalId) { p = arr('closingProposals').find((z) => z.id === proposalId && z.dealId === dealId && (!agentRole || z.side === C.sideOf(agentRole))) || fail('Proposal not found.'); }
       const loc = locOk(location || (p && p.location)); const off = location ? officeFor(deal, loc, officeId) : p ? (p.officeId ? officeFor(deal, loc, p.officeId) : officeFor(deal, loc, null)) : officeFor(deal, loc, officeId);   // a proposal at a since-retired office cannot be confirmed as is
       const sc = { at: whenOk(at || (p && p.at), 'The closing'), location: loc, officeId: off, note: str(note, 500), confirmedBy: u.id, confirmedByRole: agentRole || u.role, confirmedAt: now(), proposalId: p ? p.id : null, settlementId: null };
+      if (closingManualStreet) { deal.closingManualStreet = str(closingManualStreet, 120); deal.closingManualCity = str(closingManualCity, 80); deal.closingManualState = str(closingManualState, 2).toUpperCase(); deal.closingManualZip = str(closingManualZip, 10); }
       if (p) p.status = 'confirmed';
       deal.scheduledClosing = sc; deal.closingDate = sc.at.slice(0, 10);
       log(dealId, u.id, 'closing.confirmed', 'deal', dealId, `Closing scheduled for ${sc.at.replace('T', ' ')} - ${placeText(sc.location, sc.officeId)}${p ? ` (proposed by ${nameOf(p.proposedBy)})` : ''}`);
