@@ -2,17 +2,20 @@
 import { outsideTypeLabel } from '../data/constants.js?v=202611101015';
 import { html, $, guard, formData, toast } from '../ui.js?v=202611120400';
 import { cleanBirthdate, BIRTHDATE_NOTE } from '../data/agent-info.js?v=202611101015';
-import { agentFormHtml, mountAgentForm } from './agent-profile-form.js?v=202611101015';
+import { agentFormHtml, mountAgentForm } from './agent-profile-form.js?v=202611122100';
+import { consumeAgentOnboard } from '../data/agent-profile.js?v=202611122100';
 import { gmailCardHtml, mountGmailCard } from './gmail-card.js?v=202611121900';
 import { e2eGmailSetupHtml, mountE2eGmailSetup } from './e2e-gmail-setup.js?v=202611120400';
 
-export async function render({ api, refresh }) {
+export async function render({ api, refresh, go }) {
   const p = await api.getMyProfile();
   const agent = p.role === 'Outside user'; const bday = agent && api.getAgentBirthdate ? await api.getAgentBirthdate(p.id).catch(() => null) : null;   // John, Nov 3 call
   // John, Nov 4: an agent who set up their account from an invite edits their agent profile here (picture, DOB month/day, brokerage...)
   const ap = agent && api.getMyAgentProfile ? await api.getMyAgentProfile().catch(() => null) : null;
   if (ap) return { title: 'Profile', crumbs: [['Profile Setting']], body: html`<div class="box-title"><h2><span class="h-ico"></span>My Agent Profile</h2></div><p class="muted">This is what your buyers and sellers see on their portal: your picture, name, brokerage, cell, office phone and email.</p>${agentFormHtml(ap, { emailLocked: true, submitLabel: 'Save profile' })}`,
-    mount(root) { const ctl = mountAgentForm(root); ctl.form.addEventListener('submit', guard(async (e) => { e.preventDefault(); ctl.showErr(''); try { await api.updateMyAgentProfile(ctl.values()); } catch (er) { ctl.showErr(er.message); throw er; } toast('Profile saved'); refresh(); })); } };
+    mount(root) { const ctl = mountAgentForm(root); ctl.form.addEventListener('submit', guard(async (e) => { e.preventDefault(); ctl.showErr(''); try { await api.updateMyAgentProfile(ctl.values()); } catch (er) { ctl.showErr(er.message); throw er; } toast('Profile saved');
+      if (consumeAgentOnboard()) { if (go) go('/orders'); else location.hash = '#/orders'; return; }
+      refresh(); })); } };
   // John, Nov 9: Gmail phase 1 (staff roles only; Live Test only). Google sends the browser back here with ?gmail=<result>.
   const gmail = !agent && api.getGmailStatus ? await api.getGmailStatus().catch(() => null) : null;
   const gmailNote = gmail ? new URLSearchParams((typeof location !== 'undefined' ? location.hash : '').split('?')[1] || '').get('gmail') || '' : '';

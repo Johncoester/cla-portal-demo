@@ -1,7 +1,7 @@
 // Agent account setup from a one-time invite link (#/agent-invite/<token>), John Nov 4. Works without signing in. FAKE DATA ONLY, nothing sent.
 import { html, $, guard, toast } from '../ui.js?v=202611070139';
-import { agentFormHtml, mountAgentForm } from './agent-profile-form.js?v=202611101015';
-import { STATUS_LABEL } from '../data/agent-profile.js?v=202611101015';
+import { agentFormHtml, mountAgentForm } from './agent-profile-form.js?v=202611122100';
+import { STATUS_LABEL, markAgentOnboard } from '../data/agent-profile.js?v=202611122100';
 const shell = (inner) => html`<div class="login-page ap-signup-page"><div class="login-card ap-signup-card"><img src="assets/img/login-logo-new.png" alt="C.L.A. Title &amp; Escrow" class="sched-logo">${inner}</div></div>`;
 const signInPath = (email) => { const e = String(email || '').trim(); return '/login' + (e ? '?email=' + encodeURIComponent(e) : ''); };
 export async function render({ api, params, go }) {
@@ -32,7 +32,7 @@ export async function render({ api, params, go }) {
         if (supa) { const password = ($('[data-invite-password]', ctl.form) || {}).value || ''; const again = ($('[data-invite-password-2]', ctl.form) || {}).value || '';
           if (password.length < 8) throw new Error('Password must be at least 8 characters.'); if (password !== again) throw new Error('Those passwords do not match.'); v.password = password; }
         await api.acceptAgentInvite(params.token, v); } catch (er) { ctl.showErr(er.message); throw er; }
-      toast('Welcome! Your account is set up.'); go('/profile'); }));
+      markAgentOnboard(); toast('Welcome! Your account is set up.'); go('/profile'); }));
   } };
 }
 

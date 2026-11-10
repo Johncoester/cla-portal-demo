@@ -1,6 +1,6 @@
 import { raw, html, $, guard, options, esc } from '../ui.js?v=202611070139';
 import { roleLabel, fileRolesLabel, isOutside, accountTypeLabel } from '../data/constants.js?v=202611101015';
-import { devPickerOn, PLAIN_URL_NOTICE } from '../data/locked-links.js?v=202611102000';
+import { devPickerOn, PLAIN_URL_NOTICE } from '../data/locked-links.js?v=202611122100';
 import { clearSessionWs } from '../workspace.js?v=202611101015';
 
 export async function render({ api, go }) {

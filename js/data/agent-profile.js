@@ -32,8 +32,31 @@ export function cleanMonthDay(month, day) {
 export const monthDayText = (m, d) => (m && d ? `${MONTHS[m - 1]} ${d}` : '');
 // the existing optional agent birthdate (migration 38, YYYY-MM-DD) is reused: its month / day prefill the new month / day fields
 export const monthDayFromBirthdate = (iso) => { const x = /^\d{4}-(\d{2})-(\d{2})$/.exec(String(iso || '')); return x ? { birthMonth: Number(x[1]), birthDay: Number(x[2]) } : { birthMonth: null, birthDay: null }; };
+// No file chosen: the picture is optional. A type check runs only for a file the user actually picked.
+export function photoFileAllowed(file) {
+  if (!file) return true;
+  const type = String(file.type || '').toLowerCase();
+  if (type === 'image/jpg' || PHOTO_TYPES.includes(type)) return true;
+  if (!type && /\.(png|jpe?g|webp|gif)$/i.test(file.name || '')) return true;
+  return false;
+}
+export const AGENT_ONBOARD_KEY = 'cla-agent-onboard';
+export function markAgentOnboard(storage) {
+  const box = storage || (typeof sessionStorage !== 'undefined' ? sessionStorage : null);
+  if (!box) return;
+  try { box.setItem(AGENT_ONBOARD_KEY, '1'); } catch (e) { /* private mode: the next save stays on the profile page */ }
+}
+export function consumeAgentOnboard(storage) {
+  const box = storage || (typeof sessionStorage !== 'undefined' ? sessionStorage : null);
+  if (!box) return false;
+  try {
+    const on = box.getItem(AGENT_ONBOARD_KEY) === '1';
+    if (on) box.removeItem(AGENT_ONBOARD_KEY);
+    return on;
+  } catch (e) { return false; }
+}
 export function cleanPhoto(dataUrl) {
-  if (dataUrl == null || dataUrl === '') return null;
+  if (dataUrl == null || String(dataUrl).trim() === '') return null;
   const v = String(dataUrl); const t = /^data:(image\/(?:png|jpeg|webp|gif));base64,[A-Za-z0-9+/=]+$/.exec(v) || /^data:(image\/svg\+xml);base64,[A-Za-z0-9+/=]+$/.exec(v);
   if (!t) throw new Error('Profile picture must be an image (PNG, JPG, WEBP or GIF).');
   if (t[1] === 'image/svg+xml' && !/^data:image\/svg\+xml;base64,/.test(v)) throw new Error('Profile picture must be an image.');

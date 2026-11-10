@@ -2,7 +2,7 @@
 // Required: first name, last name, email, cell phone. Optional: date of birth as MONTH + DAY (no year), profile picture (image only, max 5 MB picked,
 // cropped in the browser to a 320 x 320 picture shown as a circle or a square), brokerage, license number, office phone, address, other contact info.
 import { html, raw, $, $$ } from '../ui.js?v=202611070139';
-import { MONTHS, PHOTO_MAX_BYTES, PHOTO_TYPES, initialsOf, cleanMonthDay } from '../data/agent-profile.js?v=202611101015';
+import { MONTHS, PHOTO_MAX_BYTES, PHOTO_TYPES, initialsOf, cleanMonthDay, photoFileAllowed } from '../data/agent-profile.js?v=202611122100';
 const sel = (v, x) => (String(v) === String(x) ? raw(' selected') : '');
 export function avatarHtml(p, cls = '') {
   const shape = p.photoShape === 'square' ? 'square' : 'circle';
@@ -60,7 +60,7 @@ export function mountAgentForm(root) {
   const draw = () => { if (!img) return; const c = cv.getContext('2d'); const W = cv.width; const s = scale(); const w = img.width * s; const h = img.height * s;
     ox = Math.min(0, Math.max(W - w, ox)); oy = Math.min(0, Math.max(W - h, oy)); c.fillStyle = '#fff'; c.fillRect(0, 0, W, W); c.drawImage(img, ox, oy, w, h); };
   file.addEventListener('change', () => { const x = file.files && file.files[0]; showErr(''); if (!x) return;
-    if (!PHOTO_TYPES.includes(x.type)) { file.value = ''; showErr('Profile picture must be an image (PNG, JPG, WEBP or GIF).'); return; }
+    if (!photoFileAllowed(x)) { file.value = ''; showErr('Profile picture must be an image (PNG, JPG, WEBP or GIF).'); return; }
     if (x.size > PHOTO_MAX_BYTES) { file.value = ''; showErr('Profile picture is too large (max 5 MB).'); return; }
     const r = new FileReader(); r.onload = () => { const im = new Image(); im.onload = () => { img = im; z = 1; zoom.value = '1'; const s = scale(); ox = (cv.width - im.width * s) / 2; oy = (cv.height - im.height * s) / 2; draw(); crop.hidden = false; };
       im.onerror = () => showErr('That file could not be read as a picture.'); im.src = r.result; }; r.readAsDataURL(x); });
@@ -77,7 +77,13 @@ export function mountAgentForm(root) {
     now.appendChild(im); crop.hidden = true; rm.hidden = false; file.value = ''; });
   rm.addEventListener('click', () => { val.value = ''; const sp = document.createElement('span'); sp.className = `ap-avatar initials ${shape()} xl`; sp.dataset.avatarInitials = '';
     sp.textContent = initialsOf($('[name=firstName]', f).value, $('[name=lastName]', f).value); now.innerHTML = ''; now.appendChild(sp); rm.hidden = true; });
-  return { form: f, showErr, values() { const o = Object.fromEntries(new FormData(f).entries()); o.photoShape = shape(); o.photo = val.value || null;
+  return { form: f, showErr, values() { const o = Object.fromEntries(new FormData(f).entries()); o.photoShape = shape();
+    const chosen = file.files && file.files[0];
+    if (chosen && !photoFileAllowed(chosen)) throw new Error('Profile picture must be an image (PNG, JPG, WEBP or GIF).');
+    const rawPhoto = String(val.value || '').trim();
+    if (!rawPhoto) o.photo = null;
+    else if (/^data:image\/(?:png|jpeg|webp|gif|svg\+xml);base64,/i.test(rawPhoto)) o.photo = rawPhoto;
+    else delete o.photo;   // an existing remote picture, and no new file: leave it, do not re-check its type
     for (const [k, label] of [['firstName', 'First name'], ['lastName', 'Last name'], ['email', 'Email'], ['cellPhone', 'Cell phone']]) if (k in o && !String(o[k] || '').trim()) throw new Error(label + ' is required.');
     cleanMonthDay(o.birthMonth, o.birthDay); return o; } };
 }
