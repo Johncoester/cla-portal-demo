@@ -3,6 +3,8 @@
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
 import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611101015';
 import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611101015';
+import { officeDate } from './office-date.js?v=202611102100';
+import { clientActivityFrom } from './client-activity.js?v=202611102100';
 import { assertRecipients, messageText } from './portal-message.js?v=202611101015';
 import { planDocumentBatch } from './document-batch.js?v=202611101015';
 import { featureFlags } from './features.js?v=202611070139';
@@ -320,7 +322,7 @@ export async function createSupabaseAdapter(cfg) {
       if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611101015'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
       const { data: { user } } = await sb.auth.getUser();
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
-        open_date: input.openDate || localDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : moneyAmount(input.purchasePrice), loan_amount: moneyAmount(input.loanAmount),
+        open_date: input.openDate || officeDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : moneyAmount(input.purchasePrice), loan_amount: moneyAmount(input.loanAmount),
         emd_amount: refi ? null : moneyAmount(input.emdAmount), emd_due_date: refi ? null : input.emdDueDate || null, notes: input.notes || '', processor_id: input.processorId || null, preprocessor_user_id: input.preprocessorUserId || null, created_by: user.id,
         lender_name: input.lenderName || '', lender_contact: input.lenderContact || '', lender_phone: input.lenderPhone || '', lender_email: String(input.lenderEmail || '').trim().toLowerCase(), loss_payee_name: input.lossPayeeName || '',
         primary_residence: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.primaryResidence || ''), first_time_buyer: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.firstTimeBuyer || '') };   // Maryland purchases only (John, Nov 6)
@@ -418,6 +420,24 @@ export async function createSupabaseAdapter(cfg) {
     // activity log: RLS returns rows to CLA staff only (migration 13)
     async listActivity(dealId) { let q = sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(300); q = dealId ? q.eq('deal_id', dealId) : q.is('deal_id', null);
       const items = camel(ok(await q)); return { items, total: items.length, types: [...new Set(items.map((a) => a.action.split('.')[0]))].sort(), actors: [] }; },
+    // Buyers, sellers, and agents never read activity_log. Their tab is the documents,
+    // messages, and own tasks they can already open. A failed read is omitted, not an error.
+    async listMyActivity(dealId) {
+      const u = ident.current() || await me();
+      if (!u) return [];
+      const safe = async (read) => { try { const rows = await read(); return Array.isArray(rows) ? rows : []; } catch (e) { return []; } };
+      const [docs, threads, tasks] = await Promise.all([
+        safe(() => a.listDocuments(dealId)),
+        safe(() => a.listThreads(dealId)),
+        safe(() => a.listTasks(dealId)),
+      ]);
+      let names = new Map();
+      try {
+        const people = await a.listMessageRecipients(dealId);
+        names = new Map((people || []).filter((p) => p && p.id).map((p) => [p.id, `${p.firstName || ''} ${p.lastName || ''}`.trim()]));
+      } catch (e) { names = new Map(); }
+      return clientActivityFrom({ user: u, documents: docs, threads, tasks, names });
+    },
     // tasks.form_data is NOT selectable (column grant); answers come from get_task_form for the owner / processor / coordinator / Admin only
     async listTasks(dealId) {
       const raw = fileRead('taskrows:' + dealId, () => fetchHostedTaskRows(sb, dealId));

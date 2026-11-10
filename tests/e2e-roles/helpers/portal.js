@@ -125,9 +125,7 @@ function audiencePlans(choices, person) {
   return plans;
 }
 
-export function officeToday() {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-}
+export { officeDate as officeToday } from '../../../js/data/office-date.js';
 
 export async function uploadOfferedVisibilities(page, run, person) {
   await page.getByRole('heading', { name: 'Documents & Files' }).waitFor();

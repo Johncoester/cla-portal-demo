@@ -6,6 +6,7 @@ import { closerChoices, resolveCloser } from './closer.js?v=202611101015';
 import { PROCESSOR_PICK_ROLES, referralWriteError } from './place-order.js?v=202611092320';
 import { claRepresentationCode } from './cla-representation.js?v=202611090950';
 import { buildFileNumber, retagFileNumber, sentOutside } from './file-number.js?v=202611092340';
+import { officeDate } from './office-date.js?v=202611102100';
 import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions } from './lender-file.js?v=202611101200';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
@@ -89,7 +90,7 @@ export function dealsAndAuth(x) {
       const city = str(input.city, 100) || fail('City is required.');
       const state = stateCode(input.state); if (!C.US_STATES.includes(state)) fail('Pick a US state.');
       // John, Nov 2: Open Date = the day the order came in (defaults to today; may be backdated, never in the future). createdAt stays the system timestamp.
-      const openDate = dateOrNull(input.openDate, 'Open date') || localDate(); if (openDate > localDate()) fail('Open date cannot be in the future.');
+      const openDate = dateOrNull(input.openDate, 'Open date') || officeDate(); if (openDate > officeDate()) fail('Open date cannot be in the future.');
       const zip = str(input.zip, 10); if (!zipOk(zip)) fail('ZIP must be 5 digits (or ZIP+4).');
       const ac = await autoCounty({ county: str(input.county, C.COUNTY_MAX), zip, state }); const county = str(ac.county, C.COUNTY_MAX);   // John, Nov 2: optional, free text (e.g. Frederick); live40: blank -> from the ZIP
       const transactionType = C.TX_TYPES.includes(input.transactionType) ? input.transactionType : 'Purchase';
@@ -133,7 +134,7 @@ export function dealsAndAuth(x) {
       // John, Nov 9: the prefix follows the property state while nothing carrying the number has gone outside CLA; after that it is kept
       if (patch.state != null && patch.state !== prevState) { const next = retagFileNumber(q.fileNumber, q.state);
         if (next && q.status === 'Open' && !sentOutside({ outbox: (d.outbox || []).filter((o) => o.dealId === id) }) && !d.deals.some((y) => y.id !== id && y.fileNumber === next)) { log(id, u.id, 'deal.file_number', 'deal', id, `File number changed from ${q.fileNumber} to ${next} (property state ${q.state})`); q.fileNumber = next; } }
-      if (patch.openDate) { const o = dateOrNull(patch.openDate, 'Open date'); if (o > localDate()) fail('Open date cannot be in the future.'); q.openDate = o; }
+      if (patch.openDate) { const o = dateOrNull(patch.openDate, 'Open date'); if (o > officeDate()) fail('Open date cannot be in the future.'); q.openDate = o; }
       if (patch.closingDate !== undefined) q.closingDate = dateOrNull(patch.closingDate, 'Closing date');
       if (isRefi(q)) refiNoPrice(patch, fail);   // a refinance keeps no purchase price / EMD (clearing one an old order still has is allowed)
       if (patch.purchasePrice !== undefined) q.purchasePrice = money(patch.purchasePrice, 'Purchase price');
