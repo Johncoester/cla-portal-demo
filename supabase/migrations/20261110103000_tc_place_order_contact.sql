@@ -3,7 +3,9 @@
 -- not create a contact, so the two real TEST coordinators never appear.
 -- This migration:
 --   1. Backfills one contact for each active Transaction Coordinator who has none
---      (same demo flag as the profile). Marked in contacts.custom so rollback can find them.
+--      (same demo flag as the profile). The new ids are recorded in
+--      private.migration_20261110103000_tc_contacts. contacts.custom is not used:
+--      CRM settings rejects unknown custom keys.
 --   2. After insert, or when role/status becomes an active TC, creates that contact.
 --   3. coordinator_choices stays on the caller's demo side (the function is security definer
 --      and was returning demo and real coordinators together).
@@ -27,26 +29,36 @@ begin
   end if;
 end $$;
 
-insert into public.contacts (profile_id, first_name, last_name, email, phone, company, is_demo, custom)
-select p.id,
-       coalesce(p.first_name, ''),
-       coalesce(p.last_name, ''),
-       coalesce(p.email, ''),
-       coalesce(p.phone, ''),
-       '',
-       coalesce(p.is_demo, false),
-       '{"source":"20261110103000_tc_contact"}'::jsonb
-  from public.profiles p
- where p.role = 'Transaction Coordinator'
-   and p.status = 'active'
-   and not exists (select 1 from public.contacts c where c.profile_id = p.id)
-   and not exists (
-     select 1 from public.contacts c
-      where c.email <> '' and p.email <> '' and lower(c.email) = lower(p.email)
-   );
+create table if not exists private.migration_20261110103000_tc_contacts (
+  contact_id uuid primary key
+);
+revoke all on table private.migration_20261110103000_tc_contacts from public, anon, authenticated;
+
+with inserted as (
+  insert into public.contacts (profile_id, first_name, last_name, email, phone, company, is_demo)
+  select p.id,
+         coalesce(p.first_name, ''),
+         coalesce(p.last_name, ''),
+         coalesce(p.email, ''),
+         coalesce(p.phone, ''),
+         '',
+         coalesce(p.is_demo, false)
+    from public.profiles p
+   where p.role = 'Transaction Coordinator'
+     and p.status = 'active'
+     and not exists (select 1 from public.contacts c where c.profile_id = p.id)
+     and not exists (
+       select 1 from public.contacts c
+        where c.email <> '' and p.email <> '' and lower(c.email) = lower(p.email)
+     )
+  returning id
+)
+insert into private.migration_20261110103000_tc_contacts (contact_id)
+select id from inserted;
 
 create function private.profile_ensure_tc_contact() returns trigger
 language plpgsql security definer set search_path = pg_catalog, public, extensions as $$
+declare new_contact uuid;
 begin
   if new.role = 'Transaction Coordinator' and new.status = 'active'
      and not exists (select 1 from public.contacts c where c.profile_id = new.id)
@@ -54,10 +66,11 @@ begin
        select 1 from public.contacts c
         where c.email <> '' and coalesce(new.email, '') <> '' and lower(c.email) = lower(new.email)
      ) then
-    insert into public.contacts (profile_id, first_name, last_name, email, phone, company, is_demo, custom)
+    insert into public.contacts (profile_id, first_name, last_name, email, phone, company, is_demo)
     values (new.id, coalesce(new.first_name, ''), coalesce(new.last_name, ''), coalesce(new.email, ''),
-            coalesce(new.phone, ''), '', coalesce(new.is_demo, false),
-            '{"source":"20261110103000_tc_contact"}'::jsonb);
+            coalesce(new.phone, ''), '', coalesce(new.is_demo, false))
+    returning id into new_contact;
+    insert into private.migration_20261110103000_tc_contacts (contact_id) values (new_contact);
   end if;
   return new;
 exception when unique_violation then
