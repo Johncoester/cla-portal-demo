@@ -50,10 +50,11 @@ end $$;
 -- crm_user() body is not in this repo. crm_editor and crm_all below match the Nov 9
 -- bodies in supabase/rollbacks/20261110010000_role_module_access.sql (before role_can).
 -- The current hosted bodies also consult role_module_access. That table is not loaded here.
-create table private.timing_role (role text not null);
-insert into private.timing_role values ('Processor');
+-- role + uid together, so a Sales Person's visible set is the rows they own.
+create table private.timing_who (role text not null, uid uuid not null);
+insert into private.timing_who values ('Processor', '00000000-0000-4000-8000-0000000000a4');
 
-create function private.me_role() returns text language sql stable as $$ select role from private.timing_role limit 1 $$;
+create function private.me_role() returns text language sql stable as $$ select role from private.timing_who limit 1 $$;
 create function private.is_admin() returns boolean language sql stable as $$
   select coalesce(private.me_role() in ('Admin', 'Super admin'), false) $$;
 create function private.is_processor() returns boolean language sql stable security definer set search_path to 'pg_catalog', 'public' as $$
@@ -67,7 +68,7 @@ create function private.crm_editor() returns boolean language sql stable as $$
 create function private.crm_all() returns boolean language sql stable as $$
   select private.crm_user() and (private.is_admin() or coalesce(private.me_role() in ('Processor', 'Preprocessor'), false)) $$;
 create function private.effective_uid() returns uuid language sql stable as $$
-  select '00000000-0000-4000-8000-000000000001'::uuid $$;
+  select uid from private.timing_who limit 1 $$;
 
 -- Mirrors js/data/crm.js companyKey for ASCII names. Accent folding is not in this stub.
 -- The hosted function body is not in the repo; the migration calls that function and does not replace it.
@@ -160,8 +161,27 @@ from public.crm_accounts a
 cross join generate_series(1, 500) as g
 where a.name = 'Fake Brokerage 1 LLC';
 
+-- Callers. Sam (a1) owns a thin slice. Pat (a3) owns almost everything else.
+insert into public.profiles (id, role) values
+  ('00000000-0000-4000-8000-0000000000a1', 'Sales Person'),
+  ('00000000-0000-4000-8000-0000000000a2', 'Sales Team'),
+  ('00000000-0000-4000-8000-0000000000a3', 'Sales Person'),
+  ('00000000-0000-4000-8000-0000000000a4', 'Processor');
+update public.crm_accounts set owner_id = '00000000-0000-4000-8000-0000000000a3' where archived_at is null;
+with ranked as (
+  select id, row_number() over (order by private.crm_company_key(name) using ~<~) as n
+  from public.crm_accounts
+  where archived_at is null and private.crm_company_key(name) like 'fake brokerage 5%'
+)
+update public.crm_accounts a set owner_id = '00000000-0000-4000-8000-0000000000a1'
+from ranked r where a.id = r.id and r.n % 200 = 0;
+update public.crm_accounts set owner_id = '00000000-0000-4000-8000-0000000000a3' where name = 'Fake Brokerage 50000 LLC';
+insert into public.crm_accounts (name, kind, state, owner_id) values
+  ('Sam Owned Realty LLC', 'brokerage', 'MD', '00000000-0000-4000-8000-0000000000a1');
+
 analyze public.crm_accounts;
 analyze public.contacts;
+analyze public.profiles;
 SQL
 
 echo '===== KEY CHECK ====='
@@ -183,37 +203,108 @@ if ! diff -q /tmp/cla-company-keys-js.txt /tmp/cla-company-keys-sql.txt >/dev/nu
   exit 1
 fi
 
-echo '===== PREFIX EXPLAIN ====='
-"${PSQL[@]}" <<'SQL'
+echo '===== OWNER SLICE ====='
+"${PSQL[@]}" -c "select count(*) filter (where owner_id = '00000000-0000-4000-8000-0000000000a1') as sam_wide, count(*) as wide_rows from public.crm_accounts where archived_at is null and private.crm_company_key(name) like 'fake brokerage 5%';"
+
+# Privacy-on plan: the same SELECT company_lookup runs when v_owner_private is true.
+explain_on() {
+  local label="$1" role="$2" uid="$3" q="$4" lim="$5"
+  echo "===== $label ====="
+  "${PSQL[@]}" <<SQL
+update private.timing_who set role = '${role}', uid = '${uid}';
 explain (analyze, buffers)
 select a.id, a.name, a.kind, a.city, a.state, a.phone
 from public.crm_accounts a
 where a.archived_at is null
-  and private.crm_company_key(a.name) like private.crm_company_key('Fake Brokerage 50000') || '%'
-order by private.crm_company_key(a.name), a.name, a.id
-limit 20;
+  and private.crm_company_key(a.name) like private.crm_company_key('${q}') || '%'
+  and (
+    (select private.crm_all())
+    or a.owner_id is not distinct from (select private.effective_uid())
+    or (
+      (select private.me_role()) = 'Sales Team'
+      and (
+        a.owner_id is null
+        or exists (
+          select 1 from public.profiles p
+          where p.id = a.owner_id and p.role in ('Sales Person', 'Sales Team')
+        )
+      )
+    )
+  )
+order by private.crm_company_key(a.name) using ~<~
+limit ${lim};
+SQL
+  "${PSQL[@]}" <<SQL
+\\timing on
+update private.timing_who set role = '${role}', uid = '${uid}';
+select count(*) as function_rows from public.company_lookup('${q}', ${lim});
+SQL
+}
+
+SAM=00000000-0000-4000-8000-0000000000a1
+TEAM=00000000-0000-4000-8000-0000000000a2
+PROC=00000000-0000-4000-8000-0000000000a4
+explain_on "SALES PERSON ONE MATCH (not theirs)" "Sales Person" "$SAM" "Fake Brokerage 50000" 25
+explain_on "SALES PERSON ONE MATCH (theirs)" "Sales Person" "$SAM" "Sam Owned Realty" 25
+explain_on "SALES PERSON WIDE PREFIX" "Sales Person" "$SAM" "Fake Brokerage 5" 25
+explain_on "SALES TEAM ONE MATCH" "Sales Team" "$TEAM" "Fake Brokerage 50000" 25
+explain_on "SALES TEAM WIDE PREFIX" "Sales Team" "$TEAM" "Fake Brokerage 5" 25
+explain_on "CRM ALL ONE MATCH" "Processor" "$PROC" "Fake Brokerage 50000" 25
+explain_on "CRM ALL WIDE PREFIX" "Processor" "$PROC" "Fake Brokerage 5" 25
+
+echo '===== PRIVACY ASSERTIONS (true) ====='
+"${PSQL[@]}" <<SQL
+update private.timing_who set role = 'Sales Person', uid = '${SAM}';
+do \$\$
+declare n int;
+begin
+  if (select count(*) from public.company_lookup('Fake Brokerage 50000', 25)) <> 0 then
+    raise exception 'sales person saw another owner';
+  end if;
+  if (select count(*) from public.company_lookup('Sam Owned Realty', 25)) <> 1 then
+    raise exception 'sales person missed their own company';
+  end if;
+  update private.timing_who set role = 'Sales Team', uid = '${TEAM}';
+  if (select count(*) from public.company_lookup('Fake Brokerage 50000', 25)) <> 1 then
+    raise exception 'sales team missed a salesperson-owned company';
+  end if;
+  update private.timing_who set role = 'Processor', uid = '${PROC}';
+  if (select count(*) from public.company_lookup('Fake Brokerage 50000', 25)) <> 1 then
+    raise exception 'crm_all missed a company';
+  end if;
+end \$\$;
 SQL
 
-echo '===== SHORT PREFIX EXPLAIN ====='
+echo '===== PRIVACY OFF (scratch only; migration default stays true) ====='
 "${PSQL[@]}" <<'SQL'
-explain (analyze, buffers)
-select a.id, a.name, a.kind, a.city, a.state, a.phone
-from public.crm_accounts a
-where a.archived_at is null
-  and private.crm_company_key(a.name) like private.crm_company_key('Fake Brokerage 5') || '%'
-order by private.crm_company_key(a.name), a.name, a.id
-limit 20;
+do $$
+declare src text;
+begin
+  select pg_get_functiondef(oid) into src from pg_proc where oid = 'public.company_lookup(text, integer)'::regprocedure;
+  if position('v_owner_private boolean := true' in src) = 0 then
+    raise exception 'shipped company_lookup is not owner-private';
+  end if;
+  execute replace(src, 'v_owner_private boolean := true', 'v_owner_private boolean := false');
+end $$;
 SQL
-
-echo '===== SHORT PREFIX PATTERN ORDER ====='
-"${PSQL[@]}" <<'SQL'
+"${PSQL[@]}" <<SQL
+update private.timing_who set role = 'Sales Person', uid = '${SAM}';
 explain (analyze, buffers)
 select a.id, a.name, a.kind, a.city, a.state, a.phone
 from public.crm_accounts a
 where a.archived_at is null
   and private.crm_company_key(a.name) like private.crm_company_key('Fake Brokerage 5') || '%'
 order by private.crm_company_key(a.name) using ~<~
-limit 20;
+limit 25;
+\\timing on
+select count(*) as function_rows from public.company_lookup('Fake Brokerage 50000', 25);
+select count(*) as wide_rows from public.company_lookup('Fake Brokerage 5', 25);
+do \$\$
+begin
+  if (select count(*) from public.company_lookup('Fake Brokerage 50000', 25)) <> 1 then
+    raise exception 'privacy off should show the other owner';
+  end if;
+end \$\$;
 SQL
 
 echo '===== CONTAINS EXPLAIN ====='

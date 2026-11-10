@@ -138,7 +138,7 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
       return { ...c, account: account && camel(account), totals: orderTotals(c.orders), activities: await acts(pairs), opportunities, invitedMeetings: await invited('contact', id), attachments: await files(pairs) }; },
     async createCrmContact(v) { const id = await rpc('crm_create_contact', { p: await withCustom('contact', contactIn(noCf(v)), v) }); return contactRow(await rpc('crm_contact_detail', { p_id: id })); },
     async updateCrmContact(id, v) { await rpc('crm_update_contact', { p_id: id, p: await withCustom('contact', contactIn(noCf(v)), v) }); return contactRow(await rpc('crm_contact_detail', { p_id: id })); },
-    // FF-030: public.company_lookup. Active rows, prefix on the normalized name, cap 25. Owner privacy is off in the function.
+    // FF-030: public.company_lookup. Active rows, prefix on the normalized name, cap 25. Owner privacy is on in the function until the CRM user decides.
     async lookupCompanies(q, limit = 20) {
       on();
       const n = Number(limit);

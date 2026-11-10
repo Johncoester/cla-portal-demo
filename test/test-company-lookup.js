@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
+import { companyLookupFlags } from '../js/data/mock-part-crm.js';
 import { companyKey } from '../js/data/crm.js';
 import { companyDuplicateFromLookup } from '../js/pages/crm-janine.js';
 
@@ -24,7 +25,7 @@ ok(mig.includes('public.company_lookup(p_q text, p_limit integer default 20)') &
 ok(mig.includes('((select private.is_processor()) or (select private.crm_user()))'), 'the role check is hoisted once per call');
 ok(mig.includes('least(25, greatest(1, coalesce(p_limit, 20)))') && mig.includes('a.archived_at is null') && mig.includes("like v_key || '%'"), 'lookup returns active rows, prefix-matches the normalized key, and caps at 25');
 ok(mig.includes('id, name, kind, city, state, phone') || mig.includes('a.id, a.name, a.kind, a.city, a.state, a.phone'), 'lookup returns only id, name, kind, city, state, and phone');
-ok(mig.includes('v_owner_private boolean := false') && mig.includes('private.crm_all()') && mig.includes('No per-row private.* helper'), 'owner privacy is off by default and the cost of turning it on is written down');
+ok(mig.includes('v_owner_private boolean := true') && !/v_owner_private boolean := false/.test(migSql) && mig.includes('private.crm_all()') && mig.includes('No per-row private.* helper'), 'owner privacy is on by default and the default path does not call a per-row private helper');
 ok(!/like\s+'%'\s*\|\|/i.test(migSql) && mig.includes('Contains search'), 'the contains fallback is not in the function');
 ok(mig.includes('text_pattern_ops') && mig.includes('where archived_at is null') && /CONCURRENTLY/.test(mig), 'the active-name index is text_pattern_ops and production is told to build it concurrently');
 ok(mig.includes('((select private.is_processor()) and not (select private.is_preprocessor()))') && mig.includes('private.crm_editor()') && mig.includes('owner_id null') && mig.includes('crm_accounts_name_uq'), 'find-or-create is gated once and inserts with a null owner');
@@ -70,10 +71,22 @@ await Promise.all(caps);
 ok((await api.lookupCompanies('Cap Realty', 100)).length === 25, 'lookup never returns more than 25 rows');
 ok((await api.lookupCompanies('', 20)).length === 0, 'a blank query does not scan the list');
 
+const mine = await api.createCrmAccount({ name: 'Sam Private Realty', kind: 'brokerage', state: 'MD', ownerId: 'u-sp' });
+await api.signInDev('u-team');
+ok((await api.lookupCompanies('Lookup Only Realty', 20)).some((r) => r.id === made.id) && (await api.lookupCompanies('Sam Private', 20)).some((r) => r.id === mine.id), 'sales team still sees salesperson-owned companies when owner privacy is on');
 await api.signInDev('u-sp');
-const seenBySales = await api.lookupCompanies('Lookup Only Realty', 20);
+const hidden = await api.lookupCompanies('Lookup Only Realty', 20);
+const own = await api.lookupCompanies('Sam Private', 20);
 const listed = await api.listCrmAccounts();
-ok(seenBySales.some((r) => r.id === made.id) && !listed.some((r) => r.id === made.id), 'owner privacy is off, so a salesperson sees a company the CRM list hides');
+ok(!hidden.some((r) => r.id === made.id) && own.some((r) => r.id === mine.id) && !listed.some((r) => r.id === made.id), 'owner privacy on: a sales person does not see another owner, and still sees their own');
+companyLookupFlags.ownerPrivate = false;
+try {
+  const open = await api.lookupCompanies('Lookup Only Realty', 20);
+  ok(open.some((r) => r.id === made.id) && !listed.some((r) => r.id === made.id), 'owner privacy off: a sales person sees a company the CRM list hides');
+} finally {
+  companyLookupFlags.ownerPrivate = true;
+}
+ok(!(await api.lookupCompanies('Lookup Only Realty', 20)).some((r) => r.id === made.id), 'the privacy switch is back on after the test');
 
 await api.signInDev('u-proc');
 ok((await api.lookupCompanies('Lookup Only', 5)).some((r) => r.name === 'Lookup Only Realty'), 'a processor can look companies up');

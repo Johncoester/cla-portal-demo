@@ -12,17 +12,31 @@
 -- private.crm_company_key, is_processor, is_preprocessor, crm_user, crm_editor,
 -- and effective_uid are used as they already exist. Their bodies are not replaced.
 --
--- Owner privacy (awaiting the CRM user's decision) is the constant v_owner_private
--- inside company_lookup. It is false. While it is false the lookup reads every
--- active name and does not call a per-row private.* helper. The true branch adds
--- the owner rule the CRM uses today: private.crm_all(), or the row's owner is
--- the caller, or a Sales Team caller and the owner is blank or a salesperson.
+-- Owner privacy is the constant v_owner_private inside company_lookup. It
+-- defaults to true until the CRM user answers the visibility question. A caller
+-- must not see a company name they cannot see in the CRM today.
+-- true (the default) uses the owner rule the CRM uses today:
+--   (select private.crm_all())
+--   or the row's owner is the caller
+--   or the caller is Sales Team and the owner is blank or a salesperson.
 -- Those three checks are hoisted with (select ...). The profiles lookup runs
 -- only for a Sales Team caller, once per candidate row, and it is not a
--- private.* helper. The other half of today's account rule (a company you can
--- see because you can see one of its clients) is not in the switch. That half
--- is a per-contact private helper, which is the cost called out below. Do not
--- add it as a per-row call.
+-- private.* helper. The default path does not call a per-row private.* helper.
+-- The other half of today's account rule (a company you can see because you
+-- can see one of its clients) is not in the switch. That half is a per-contact
+-- private helper. Do not add it as a per-row call.
+-- false shows every active name to every caller who passed the role check,
+-- and that SELECT has no owner predicate. Leave it false only if the CRM user
+-- says every processor and salesperson may see every name.
+--
+-- Scratch timings with the default true, 110,000 companies, 55 of 11,111 wide-prefix
+-- rows visible to one Sales Person (local only, not hosted):
+--   Sales Person, one match they do not own: index scan, 0.23 ms, 0 rows, 12 buffer hits.
+--   Sales Person, wide prefix, 25 rows: same index, 62 ms, 4,975 rows removed by the
+--     owner filter, 9,877 buffer hits. The limit cannot stop at the first 25 keys.
+--   Sales Team, wide prefix: 0.95 ms, 58 buffer hits. The sales-role probe runs once.
+--   crm_all (Processor), wide prefix: 0.88 ms, 55 buffer hits. effective_uid and the
+--     profiles probe are not executed. This matches the privacy-off index scan (0.83 ms).
 --
 -- Contains search (key like '%' || q || '%') is not in the function. A leading
 -- wildcard cannot use the new index. On a local scratch database of 110,000
@@ -167,21 +181,10 @@ security definer
 set search_path to 'pg_catalog', 'public'
 as $fn$
 declare
-  -- OWNER PRIVACY SWITCH. false = every caller who passed the role check sees
-  -- every active company name. The SELECT below does not call a per-row private.* helper.
-  -- true = the owner rule CRM uses today:
-  --   (select private.crm_all())
-  --   or owner_id is the caller
-  --   or the caller is Sales Team and the owner is blank or a salesperson.
-  -- crm_all, effective_uid, and me_role are each one (select ...) per call.
-  -- The profiles probe runs only in that branch, and only per candidate row.
-  -- What this switch does NOT do: today's account list also shows a company
-  -- when the caller can see one of its clients. That needs a per-contact
-  -- private helper on every candidate (and on every contact of that company).
-  -- That is the cost of full parity. It is left out on purpose. Do not add
-  -- private.crm_entity_visible or any other per-row private call to the
-  -- default path. Leave v_owner_private false until the CRM user decides.
-  v_owner_private boolean := false;
+  -- OWNER PRIVACY SWITCH. true until the CRM user decides.
+  -- true: the owner rule above. No per-row private.* helper.
+  -- false: every caller who passed the role check sees every active name.
+  v_owner_private boolean := true;
   v_key text;
   v_lim integer;
 begin
@@ -196,8 +199,9 @@ begin
   end if;
   v_lim := least(25, greatest(1, coalesce(p_limit, 20)));
 
-  -- Default path. The index is (crm_company_key(name) text_pattern_ops) WHERE archived_at is null.
-  -- No per-row private.* helper. Contains (leading '%') is intentionally absent.
+  -- Privacy-off path. Not used while v_owner_private is true.
+  -- The index is (crm_company_key(name) text_pattern_ops) WHERE archived_at is null.
+  -- No owner predicate and no per-row private.* helper. Contains (leading '%') is absent.
   if not v_owner_private then
     return query
     select a.id, a.name, a.kind, a.city, a.state, a.phone
@@ -213,9 +217,8 @@ begin
     return;
   end if;
 
-  -- Owner-privacy path. Not used while v_owner_private is false.
-  -- No per-row private.* helper. The profiles probe is an indexed primary-key
-  -- lookup, and only when the caller is Sales Team.
+  -- Default path (v_owner_private true). No per-row private.* helper.
+  -- The profiles probe is a primary-key lookup, and only when the caller is Sales Team.
   return query
   select a.id, a.name, a.kind, a.city, a.state, a.phone
   from public.crm_accounts a
@@ -241,7 +244,7 @@ end
 $fn$;
 
 comment on function public.company_lookup(text, integer) is
-  'Active CRM companies for a typeahead. Prefix on private.crm_company_key. Owner privacy is off (v_owner_private). Cap 25. Does not search with a leading wildcard.';
+  'Active CRM companies for a typeahead. Prefix on private.crm_company_key. Owner privacy is on (v_owner_private) until the CRM user decides. Cap 25. Does not search with a leading wildcard.';
 
 create function public.company_find_or_create(p_name text, p_kind text, p_state text)
 returns uuid

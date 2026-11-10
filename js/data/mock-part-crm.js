@@ -21,6 +21,11 @@ import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611090905';
 import { crmCallsPart } from './mock-part-crm-calls.js?v=202611070139';
 import { callOpen, callSeconds, durationText, callStatusOf } from './crm-calls.js?v=202611070139';
 
+// FF-030 company_lookup. ownerPrivate stays true until the CRM user says every
+// staff member may see every company name. contains stays false: a leading
+// wildcard cannot use the prefix index. Tests flip ownerPrivate and put it back.
+export const companyLookupFlags = { ownerPrivate: true, contains: false };
+
 export function crmPart(x, flags) {
   const { load, save: save0, nid, needUser, dealsFor, prof, nameOf, fullName, clone, now, fail, str, emailOk, localDate, C } = x;
   // Janine, Nov 3: an import PREVIEW runs the real create rules without saving (dry.on), then the in-memory copy is dropped (x.forget)
@@ -59,11 +64,6 @@ export function crmPart(x, flags) {
   const seen = (u, entity, id) => { try { entityOf(u, entity, id); return true; } catch (e) { return false; } };
 
   // ---------- validation ----------
-  // FF-030 company_lookup. Both stay false. Owner privacy waits on the CRM user.
-  // Contains stays off: a leading wildcard cannot use the prefix index (see the migration).
-  // While owner privacy is off, a processor and a salesperson both see every active name.
-  const companyLookupOwnerPrivate = false;
-  const companyLookupContains = false;
   // blank owner = unassigned; on CREATE a salesperson's record defaults to themselves. A Sales Person assigns to themselves only. (= private.crm_owner_check)
   const owner = (u, v, current = null, create = false) => { let s = str(v, 60) || null;
     if (!s && create && isSales(u)) s = u.id;
@@ -427,8 +427,10 @@ export function crmPart(x, flags) {
       const n = Number(limit);
       const cap = Number.isFinite(n) ? Math.min(25, Math.max(1, Math.trunc(n))) : 20;
       let rows = db().crmAccounts.filter((a) => !a.archivedAt && companyKey(a.name).startsWith(key));
-      if (!rows.length && companyLookupContains) rows = db().crmAccounts.filter((a) => !a.archivedAt && companyKey(a.name).includes(key));
-      if (companyLookupOwnerPrivate) rows = rows.filter((a) => accountSeen(u, a));
+      if (!rows.length && companyLookupFlags.contains) rows = db().crmAccounts.filter((a) => !a.archivedAt && companyKey(a.name).includes(key));
+      // Same owner rule as company_lookup when v_owner_private is true: crm_all, or the
+      // owner, or Sales Team for a blank or salesperson owner. Not the contact-link half of accountSeen.
+      if (companyLookupFlags.ownerPrivate) rows = rows.filter((a) => ownerOk(u, a.ownerId));
       rows.sort((a, b) => companyKey(a.name).localeCompare(companyKey(b.name)) || String(a.name).localeCompare(String(b.name)) || String(a.id).localeCompare(String(b.id)));
       return rows.slice(0, cap).map((a) => ({ id: a.id, name: a.name, kind: a.kind || '', city: a.city || '', state: a.state || '', phone: a.phone || '' }));
     },
