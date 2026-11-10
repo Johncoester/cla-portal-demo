@@ -3,7 +3,7 @@
  * "All Modules" dropdown and one table per module with Zoho's columns. Matches name, email and phone (phone by its digits). Only records you may see. */
 import { html, raw, $, $$, guard, toText, esc, modal, closeModal, toast } from '../ui.js?v=202611070139';
 import { SEARCH_MODULES, moduleName, highlight } from '../data/crm-analytics.js?v=202611070139';
-import { tabs, head } from './crm-kit.js?v=202611101600';
+import { tabs, head } from './crm-kit.js?v=202611120600';
 
 const resultsHref = (q, module = 'all') => `#/crm/search/${encodeURIComponent(q)}${module && module !== 'all' ? '/' + module : ''}`;
 const hl = (text, q) => raw(highlight(text, q).map(([t, on]) => (on ? `<mark>${esc(t)}</mark>` : esc(t))).join(''));
