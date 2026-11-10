@@ -6,14 +6,22 @@ import { modOn } from '../data/modules.js?v=202611101015';   // module switches 
 import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, guessMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importTooBigMessage, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, importErrorCsv, saveImportResume, loadImportResume, IMPORT_RESUME_PREFIX } from '../data/crm-janine.js?v=202611101600';
 import { fopts } from './crm-custom.js?v=202611070139';
 import { importStatusChoices } from '../data/nov5-rules.js?v=202611101015';
+import { crmReadOnly } from '../data/crm.js?v=202611070139';
 import { US_STATES } from '../data/constants.js?v=202611101015';
 
 // ---------- "+" Create New (Home and every CRM page) ----------
 // combined nov3g: skip modules whose Live switch is off for this user (regular users; Admins testing a beta module still get it)
 const CREATE_MODULE = { call: 'calls' };
 export const createNewMenu = (me) => { const list = createModules(me).filter(([k]) => !CREATE_MODULE[k] || modOn(CREATE_MODULE[k])); if (!list.length) return '';
-  return html`<details class="crm-create-new" data-create-new><summary class="m-btn" data-create-new-btn title="Create New" aria-label="Create New">+</summary>
+  return html`<details class="crm-create-new" data-create-new><summary class="m-btn" data-create-new-btn title="Create New" aria-label="Create New">+ Create New</summary>
     <div class="crm-create-list" role="menu" data-create-list><div class="muted small">Create New</div>${list.map(([k, l, href]) => html`<a role="menuitem" href="${href}" data-create="${k}">${l}</a>`)}</div></details>`; };
+// The shell already knows who is signed in. This does not call crmMe.
+export function mountHeaderCreate(user) {
+  const slot = document.querySelector('[data-crm-create-slot]'); if (!slot || !user) return;
+  const me = { canEdit: !crmReadOnly(user) && !!user, isAdmin: !!user.isAdmin, id: user.id };
+  slot.innerHTML = toText(createNewMenu(me));
+  wireCreateNew(slot);
+}
 export function wireCreateNew(root) {
   $$('[data-create-new]', root).forEach((d) => { d.addEventListener('click', (e) => { if (e.target.closest('[data-create]')) d.open = false; }); });
   document.addEventListener('click', (e) => { $$('[data-create-new][open]').forEach((d) => { if (!d.contains(e.target)) d.open = false; }); }, { once: true });
@@ -126,7 +134,8 @@ export async function importPage({ api, me, params, owners = [], cfg = {} }, { t
     ${testBanner}
     <div class="card" data-import="${module}:${kind}"><h3>1. Upload a CSV</h3>
       <p class="muted small">${kind === 'notes' ? `Each note is linked to an existing ${M === 'Leads' ? 'lead' : 'client'} by email, else by first + last name (one match only).` : `Each row becomes a ${M === 'Leads' ? 'lead' : 'client'}, checked like the Create form: Last Name, Role in Company, Relationship Status and State are required; one email / phone across Leads and Clients. A blank County is filled from the ZIP.`}
-        Up to ${IMPORT_MAX_ROWS} rows, ${IMPORT_CHUNK_ROWS} at a time (${IMPORT_MAX_BYTES / 1e6} MB). Nothing is emailed.</p>
+        Up to ${IMPORT_MAX_ROWS} rows, ${IMPORT_CHUNK_ROWS} at a time (${IMPORT_MAX_BYTES / 1e6} MB). Nothing is emailed.
+        <span data-import-retired-note>Retired relationship statuses are not in the default list. A row that names a retired status is marked invalid in the preview and is not imported. Records that already have one are left as they are.</span></p>
       <p><button class="ghost" type="button" data-sample-csv="${tmplName}">Download sample template (fake data)</button>
         <a class="ghost" href="#/crm/import/${module}${kind === 'notes' ? '' : '/notes'}" data-import-other>${kind === 'notes' ? `Import ${M} instead` : 'Import Notes instead'}</a> <a class="ghost" href="#/crm/${module}">Back to ${M}</a></p>
       <input type="file" accept=".csv,text/csv" data-import-file> <span class="muted small" data-import-fname></span></div>

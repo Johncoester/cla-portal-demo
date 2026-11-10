@@ -4,7 +4,7 @@
  * Shared with everyone unless restricted to users / roles. Nothing is deleted: reports are RETIRED (hidden, restorable). Function only. */
 import { html, raw, $, $$, guard, toast, modal, closeModal, toText, fmtDateTime } from '../ui.js?v=202611070139';
 import { REPORT_MODULES, RELATED, moduleName, reportFields, AGG_FNS, NUMERIC, BUCKETS, isDateType } from '../data/crm-analytics.js?v=202611070139';
-import { tabs, head } from './crm-kit.js?v=202611101600';
+import { tabs, head } from './crm-kit.js?v=202611120600';
 import { criteriaEditor } from './crm-criteria.js?v=202611070139';
 import { composeOverlay } from './crm-compose.js?v=202611090905';
 import { fmtNum } from './crm-charts.js?v=202611070139';
@@ -23,7 +23,7 @@ export async function reportsHome(c) {
 async function listPage(c) {
   const { api, me } = c; const [fl, all] = await Promise.all([api.listCrmReportFolders(), api.listCrmReports({ includeRetired: true })]);
   const key = 'cla-crm-report-folder'; let folder = sessionStorage.getItem(key) || 'all';
-  const body = html`${tabs('reports')}${head('Reports', me, html`${me.canEdit ? html`<a class="m-btn" href="#/crm/reports/new" data-create-report>Create Report</a> ` : ''}<a class="ghost" href="#/crm/reports/summary" data-summary-link>Summary by table</a>`)}
+  const body = html`${tabs('reports')}${head('Reports', me, html`${me.canEdit ? html`<a class="m-btn" href="#/crm/reports/new" data-create-report>Create Report</a>` : ''}<a class="ghost" href="#/crm/reports/summary" data-summary-link>Summary by table</a>`)}
     <div style="display:flex;gap:12px"><div style="min-width:220px" data-report-folders><strong>Folders</strong><ul>
       <li><a href="#" data-folder="all">All Reports</a> <span class="muted small">(${all.filter((r) => !r.retired).length})</span></li>
       ${fl.folders.map((f) => html`<li><a href="#" data-folder="${f.id}" data-folder-name="${f.name}">${f.name}</a> <span class="muted small">(${f.count})</span>${f.kind === 'personal' ? html` <span class="muted small">(your folder)</span>` : ''}</li>`)}

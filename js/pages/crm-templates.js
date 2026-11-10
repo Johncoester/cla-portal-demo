@@ -7,7 +7,7 @@
 // shown but cannot send until Gmail is connected; Stats (Opened / Bounced / Clicked) wait for Gmail too. Function first, minimal styling.
 import { html, raw, $, $$, guard, toast, modal, closeModal, pill, fmtDateTime, fmtSize } from '../ui.js?v=202611070139';
 import { TEMPLATE_MODULES, moduleLabel, GALLERY_TABS, GALLERY, starterBlocks, VIEW_FOLDERS, templatesInView, GMAIL_NOTE, STATS_NOTE, templateHtml, textToHtml, ATTACH_EXT, isPersonalFolder } from '../data/crm-templates.js?v=202611090905';
-import { tabs, head } from './crm-kit.js?v=202611101600';
+import { tabs, head } from './crm-kit.js?v=202611120600';
 import { richEditor, wireInputPicker, insertIntoInput, openPicker, copyText, readFile } from './crm-rte.js?v=202611090905';
 import { builder } from './crm-builder.js?v=202611090905';
 
@@ -31,7 +31,7 @@ async function listPage({ api, me, go, refresh }) {
       ${fo.canCreate && f.kind === 'shared' ? html` <button type="button" class="ghost small" data-rename-folder="${f.id}" data-name="${f.name}" aria-label="Rename folder">Rename</button>` : ''}</li>`)}</ul>
     <p class="muted small">${fo.canCreate ? 'Shared folders are seen by everyone with the CRM; your own folder only by you.' : 'Only Admins and Super admins create folders. Your own folder is seen only by you.'}</p>
     <p><a href="#/crm/signature" data-my-signature>My email signature</a></p></nav>`;
-  const body = html`${head('CRM: Email Templates', me, me.canEdit ? html`<a class="m-btn right" href="#/crm/templates/new" data-new-template>+ New Template</a>` : '')}${tabs('templates')}
+  const body = html`${head('CRM: Email Templates', me)}${tabs('templates')}
     <p class="muted small">Templates are tied to one module (a Leads template is only offered on leads). Nothing is sent from the CRM: ${GMAIL_NOTE}</p>
     <div class="tpl-layout">${side}<div class="tpl-main">
       <div class="filter-bar"><label>Search<input type="search" data-tpl-search placeholder="Name, subject, folder, person" value="${p.get('q') || ''}"></label>

@@ -4,7 +4,7 @@ import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pi
 import { CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611101015';
 import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611070139';
 import { modOn, modBeta, BETA_LABEL } from '../data/modules.js?v=202611101015';   // module switches: Deals hidden when not Live (beta badge for Admins)
-import { createNewMenu } from './crm-janine.js?v=202611101600';
+import { columnChooserHtml, columnState, wireColumnChooser } from './crm-columns.js?v=202611120600';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
 import { pageOf, selectionState, selectPage, BULK_PAGE_SIZE } from '../data/crm-bulk.js?v=202611090905';
 import { bulkBar, wireBulk } from './crm-bulk.js?v=202611090905';
@@ -26,10 +26,10 @@ export const SECTIONS = [['home', 'Home'], ['leads', 'Leads'], ['contacts', 'Cli
 // Settings tab: Admin / Super admin only (crm.js calls setCrmAdmin on every CRM page load; the adapter refuses everyone else anyway)
 let ADMIN = false; export const setCrmAdmin = (v) => { ADMIN = !!v; };
 const TAB_MODULE = { deals: 'crm-deals' };
-// Janine, Nov 3: a "+" Create New menu at the end of the tabs on every CRM page (crm.js calls setCrmMe on every CRM page load; only modules this user may add to)
+// Janine, Nov 5: the "+" Create New menu sits in the global header, beside Search CRM. The tab row no longer repeats it.
 let ME = null; export const setCrmMe = (me) => { ME = me || null; };
-export const tabs = (cur) => html`<div class="crm-tabs-row"><ul class="nav-tabs" data-crm-tabs>${[...SECTIONS, ...(ADMIN ? [['settings', 'Settings']] : [])].filter(([k]) => !TAB_MODULE[k] || modOn(TAB_MODULE[k])).map(([k, l]) => html`<li><a class="${k === cur ? 'active' : ''}" href="#/crm/${k}" data-crm-tab="${k}">${l}${TAB_MODULE[k] && modBeta(TAB_MODULE[k]) ? html` <span class="beta-badge" data-beta-badge="${TAB_MODULE[k]}" title="${BETA_LABEL}">Beta</span>` : ''}</a></li>`)}</ul>${ME ? createNewMenu(ME) : ''}</div>`;
-export const head = (title, me, extra = '') => html`<div class="box-title"><h2><span class="h-ico"></span>${title}</h2>${extra}</div>
+export const tabs = (cur) => html`<div class="crm-tabs-row" data-crm-user="${(ME && ME.id) || ''}"><ul class="nav-tabs" data-crm-tabs>${[...SECTIONS, ...(ADMIN ? [['settings', 'Settings']] : [])].filter(([k]) => !TAB_MODULE[k] || modOn(TAB_MODULE[k])).map(([k, l]) => html`<li><a class="${k === cur ? 'active' : ''}" href="#/crm/${k}" data-crm-tab="${k}">${l}${TAB_MODULE[k] && modBeta(TAB_MODULE[k]) ? html` <span class="beta-badge" data-beta-badge="${TAB_MODULE[k]}" title="${BETA_LABEL}">Beta</span>` : ''}</a></li>`)}</ul></div>`;
+export const head = (title, me, extra = '') => html`<div class="box-title crm-page-head"><h2><span class="h-ico"></span>${title}</h2><div class="crm-head-actions">${extra}</div></div>
   ${me.canEdit ? '' : html`<p class="muted" data-readonly>Read-only: the Processor can see the CRM but not change it.</p>`}`;
 export const sel = (name, list, cur, blank) => html`<select name="${name}">${blank != null ? html`<option value="">${blank}</option>` : ''}${list.map(([v, l]) => html`<option value="${v}" ${String(v) === String(cur ?? '') ? raw('selected') : ''}>${l}</option>`)}</select>`;
 export const pairs = (list) => list.map((v) => [v, v]);
@@ -44,7 +44,14 @@ export const dis = (me) => (me.canEdit ? '' : raw('disabled'));
 // exporter(cols, rows) -> { name, csv }: the adapter builds the file and refuses anyone but an Admin / Super admin (John, Nov 3: Clients, Leads, Companies)
 // Janine, Nov 4: bar = the custom-view tabs (crm-views.js viewsBar) shown above the filters; saved = { api, listKey } adds Saved Filters chips
 const datePair = (from, to, label) => html`<label>${label} from<input type="date" name="${from}" data-crm-date></label><label>${label} to<input type="date" name="${to}" data-crm-date></label>`;
-export function listView({ key, rows, cols, filters = [], sorts = [], fields, dflt = {}, sortDefault = 'name:asc', csv = '', exporter = null, bar = '', saved = null, dates = false, bulk = null }) {
+export function listView({ key, rows, cols, catalog = null, userId = '', filters = [], sorts = [], fields, dflt = {}, sortDefault = 'name:asc', csv = '', exporter = null, bar = '', saved = null, dates = false, bulk = null }) {
+  const all = catalog && catalog.length ? catalog : cols;
+  const known = all.map(([k]) => k);
+  const defaults = cols.map(([k]) => k).filter((k) => known.includes(k));
+  let visible = columnState(null, userId, key, known, defaults);
+  const active = () => visible.map((k) => all.find((c) => c[0] === k)).filter(Boolean);
+  const fieldMeta = all.map(([k, l]) => ({ key: k, label: l }));
+  const headRow = () => html`<tr>${bulk ? html`<th><input type="checkbox" data-bulk-page aria-label="Select all on this page"></th>` : ''}${active().map(([, l]) => html`<th>${l}</th>`)}</tr>`;
   const body = html`${bar}<form class="filter-bar" id="crm-f-${key}" onsubmit="return false">
       <label>Search<input name="q" type="search" placeholder="Name, email, company, county, tag" data-crm-search></label>
       ${filters.map(([name, label, opts, blank]) => html`<label>${label}${sel(name, opts, dflt[name] || '', blank)}</label>`)}
@@ -53,22 +60,24 @@ export function listView({ key, rows, cols, filters = [], sorts = [], fields, df
       <button type="button" class="ghost" data-crm-reset>Reset</button>
     </form>${saved ? savedFiltersHtml(saved.listKey) : ''}
     ${bulk ? bulkBar(bulk.module) : ''}
-    <div class="table-tools"><span class="muted" data-count></span>${bulk ? html` <span data-bulk-pager></span>` : ''}${csv ? html` <button class="ghost" type="button" data-list-csv="${key}">Export CSV</button>` : exporter ? html` <span class="muted small" data-csv-admin-only>CSV download: Admins only</span>` : ''}</div>
-    <table class="tbl" id="crm-t-${key}"><thead><tr>${bulk ? html`<th><input type="checkbox" data-bulk-page aria-label="Select all on this page"></th>` : ''}${cols.map(([, l]) => html`<th>${l}</th>`)}</tr></thead><tbody></tbody></table>`;
+    <div class="table-tools"><span class="muted" data-count></span>${bulk ? html` <span data-bulk-pager></span>` : ''}${columnChooserHtml(key, fieldMeta, visible)}${csv ? html` <button class="ghost" type="button" data-list-csv="${key}">Export CSV</button>` : exporter ? html` <span class="muted small" data-csv-admin-only>CSV download: Admins only</span>` : ''}</div>
+    <table class="tbl" id="crm-t-${key}"><thead>${headRow()}</thead><tbody></tbody></table>`;
   function mount(root) {
-    const f = $(`#crm-f-${key}`, root); const tb = $(`#crm-t-${key} tbody`, root); let shown = rows;
+    const f = $(`#crm-f-${key}`, root); const tb = $(`#crm-t-${key} tbody`, root); const thead = $(`#crm-t-${key} thead`, root); let shown = rows;
     let selected = new Set(); let page = 1; let sig = '';
     const paintBar = () => { const barEl = $('[data-bulk-bar]', root); if (!barEl) return; barEl.hidden = selected.size === 0; const n = $('[data-bulk-count]', barEl); if (n) n.textContent = `${selected.size} selected`; };
     const apply = () => { const v = formData(f); const nextSig = JSON.stringify(v); if (bulk && nextSig !== sig) { if (sig) { selected = new Set(); page = 1; } sig = nextSig; }
       const [k, dir] = (v.sort || sortDefault).split(':'); const list = crmSort(crmFilter(rows, v, fields), k, dir); shown = list;
       const view = bulk ? pageOf(list, page, BULK_PAGE_SIZE) : { rows: list, page: 1, pages: 1, total: list.length }; page = view.page;
-      const span = cols.length + (bulk ? 1 : 0);
-      tb.innerHTML = toText(view.rows.length ? view.rows.map((r) => html`<tr data-row="${r.id}">${bulk ? html`<td><input type="checkbox" data-bulk-row value="${r.id}" aria-label="Select ${r.name || 'record'}" ${selected.has(r.id) ? raw('checked') : ''}></td>` : ''}${cols.map(([c, , fn]) => html`<td data-col="${c}">${fn ? fn(r) : r[c] ?? ''}</td>`)}</tr>`) : html`<tr><td colspan="${span}" class="muted">Nothing matches.</td></tr>`);
+      const use = active(); const span = use.length + (bulk ? 1 : 0);
+      if (thead) thead.innerHTML = toText(headRow());
+      tb.innerHTML = toText(view.rows.length ? view.rows.map((r) => html`<tr data-row="${r.id}">${bulk ? html`<td><input type="checkbox" data-bulk-row value="${r.id}" aria-label="Select ${r.name || 'record'}" ${selected.has(r.id) ? raw('checked') : ''}></td>` : ''}${use.map(([c, , fn]) => html`<td data-col="${c}">${fn ? fn(r) : r[c] ?? ''}</td>`)}</tr>`) : html`<tr><td colspan="${span}" class="muted">Nothing matches.</td></tr>`);
       $('[data-count]', root).textContent = bulk && list.length > BULK_PAGE_SIZE ? `${view.rows.length} on this page, ${list.length} of ${rows.length} match` : `${list.length} of ${rows.length} shown`;
       const box = $('[data-bulk-page]', root); if (box) { const st = selectionState(selected, view.rows); box.checked = st.allOnPage; box.indeterminate = st.someOnPage; }
       const pg = $('[data-bulk-pager]', root); if (pg) pg.innerHTML = toText(view.pages > 1 ? html`<button type="button" class="ghost" data-bulk-prev ${view.page <= 1 ? raw('disabled') : ''}>Previous</button> Page ${view.page} of ${view.pages} <button type="button" class="ghost" data-bulk-next ${view.page >= view.pages ? raw('disabled') : ''}>Next</button>` : html``);
       paintBar(); };
     f.addEventListener('input', apply); f.addEventListener('change', apply);
+    wireColumnChooser(root, { module: key, userId, fields: fieldMeta, visible, defaults, known, onChange: (next) => { visible = next; apply(); } });
     wireRowOpen(tb, (id) => `#/crm/${key}/${id}`);
     const resetBtn = $('[data-crm-reset]', f); if (resetBtn) resetBtn.addEventListener('click', () => {
       [...f.elements].forEach((el) => { if (!el.name) return; el.value = el.name === 'sort' ? sortDefault : (dflt[el.name] || ''); });
@@ -76,10 +85,12 @@ export function listView({ key, rows, cols, filters = [], sorts = [], fields, df
     });
     apply();
     if (bulk) {
-      const box = $('[data-bulk-page]', root);
-      if (box) box.addEventListener('change', () => { selected = selectPage(selected, pageOf(shown, page, BULK_PAGE_SIZE).rows, box.checked); apply(); });
-      tb.addEventListener('change', (e) => { const el = e.target; if (!el.matches || !el.matches('[data-bulk-row]')) return; if (el.checked) selected.add(el.value); else selected.delete(el.value);
-        const st = selectionState(selected, pageOf(shown, page, BULK_PAGE_SIZE).rows); box.checked = st.allOnPage; box.indeterminate = st.someOnPage; paintBar(); });
+      $(`#crm-t-${key}`, root).addEventListener('change', (e) => {
+        const el = e.target; if (!el.matches) return;
+        if (el.matches('[data-bulk-page]')) { selected = selectPage(selected, pageOf(shown, page, BULK_PAGE_SIZE).rows, el.checked); apply(); return; }
+        if (!el.matches('[data-bulk-row]')) return; if (el.checked) selected.add(el.value); else selected.delete(el.value);
+        const box = $('[data-bulk-page]', root); const st = selectionState(selected, pageOf(shown, page, BULK_PAGE_SIZE).rows); if (box) { box.checked = st.allOnPage; box.indeterminate = st.someOnPage; } paintBar();
+      });
       root.addEventListener('click', (e) => { const t = e.target; if (t.matches && t.matches('[data-bulk-prev]')) { page -= 1; selected = new Set(); apply(); } if (t.matches && t.matches('[data-bulk-next]')) { page += 1; selected = new Set(); apply(); } });
       wireBulk(root, { ...bulk, getPageRows: () => pageOf(shown, page, BULK_PAGE_SIZE).rows.filter((r) => selected.has(r.id)), clear: () => { selected = new Set(); apply(); } });
     }
@@ -88,9 +99,10 @@ export function listView({ key, rows, cols, filters = [], sorts = [], fields, df
       count: (o) => crmFilter(rows, o, fields).length });
     const cb = $(`[data-list-csv="${key}"]`, root); if (cb) cb.addEventListener('click', guard(async () => {
       const text = (c, r) => { const [k, , fn, csvFn] = c; if (csvFn) return csvFn(r); const v = r[k]; if (fn && (v == null || typeof v === 'object')) return toText(fn(r)).replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim(); return v; };
-      const out = shown.map((r) => Object.fromEntries(cols.map((c) => [c[0], text(c, r)])));
-      if (exporter) { const r = await exporter(cols.map(([k2, l]) => [k2, l]), shown.map((row, i) => ({ id: row.id, ...out[i] }))); downloadText(r.name || csv, r.csv); }
-      else downloadCsv(csv, cols.map(([k2, l]) => [k2, l]), out);
+      const use = active();
+      const out = shown.map((r) => Object.fromEntries(use.map((c) => [c[0], text(c, r)])));
+      if (exporter) { const r = await exporter(use.map(([k2, l]) => [k2, l]), shown.map((row, i) => ({ id: row.id, ...out[i] }))); downloadText(r.name || csv, r.csv); }
+      else downloadCsv(csv, use.map(([k2, l]) => [k2, l]), out);
       toast('CSV downloaded'); }));
   }
   return { body, mount };
