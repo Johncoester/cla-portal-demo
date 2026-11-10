@@ -4,15 +4,15 @@ const TABS = Object.assign(Object.create(null), {
   inbox: './dealmsgs.js?v=202611111700',
   email: './dealemail.js?v=202611111700',   // John, Nov 9: Gmail phase 1 (staff only; the tab module refuses everyone else)
   documents: './dealdocs.js?v=202611111700',
-  contacts: './dealcontacts.js?v=202611112000',
+  contacts: './dealcontacts.js?v=202611112100',
   activity: './dealactivity.js?v=202611102100',
   closing: './dealclosing.js?v=202611101015',
   agreements: './dealagreements.js?v=202611100245',
   accounting: './dealaccounting.js?v=202611111900',
   title: './dealtitle.js?v=202611101015',
-  funding: './dealfwp.js?v=202611112000',
-  wires: './dealfwp.js?v=202611112000',
-  policy: './dealfwp.js?v=202611112000',
+  funding: './dealfwp.js?v=202611112100',
+  wires: './dealfwp.js?v=202611112100',
+  policy: './dealfwp.js?v=202611112100',
 });
 const TASK_FORM = './dealtaskform.js?v=202611111700';
 
