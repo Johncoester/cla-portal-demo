@@ -38,14 +38,15 @@ const profiles = [
   { id: 'tc-demo', role: 'Transaction Coordinator', status: 'active', isDemo: true, firstName: 'Taylor', lastName: 'Demo', email: 'demo.tc@example.test' },
 ];
 const roster = coordinatorRoster(profiles, [], real);
-ok(roster.rows.length === 1 && roster.rows[0].profileId === 'tc-real' && roster.rows[0].needsContact === true, 'a real TC with no contact is offered, and the demo TC is not');
+ok(roster.rows.length === 1 && roster.rows[0].profileId === 'tc-real' && roster.rows[0].needsContact === true && roster.rows[0].contactId === '', 'a real TC with no contact is recorded and not given an id, and the demo TC is left out');
 ok(coordinatorRoster(profiles, [{ id: 'c1', profileId: 'tc-real', firstName: 'Transaction', lastName: 'Coordinator 1' }], real).rows[0].contactId === 'c1' && coordinatorRoster(profiles, [{ id: 'c1', profileId: 'tc-real' }], real).created.length === 0, 'an existing contact is reused');
 
 const store = mem();
 const a = createMockAdapter({ storage: store, sessionStorage: mem() });
 await a.signInDev('u-proc');
+const contactsBefore = (await a.listContacts()).length;
 const tcs = await a.listCoordinators();
-ok(tcs.length >= 2 && tcs.every((t) => t.contactId), 'the mock TC list still has a contact id for each coordinator');
+ok(tcs.length >= 2 && tcs.every((t) => t.contactId) && (await a.listContacts()).length === contactsBefore, 'the mock TC list keeps existing coordinators and does not create a contact');
 const dup = await a.findDuplicateOrders({ street: '145 Main Street', city: 'Rockville', state: 'MD', zip: '20850', buyerIds: ['c-buyer'], sellerIds: [] });
 ok(dup.some((d) => d.fileNumber === 'MD-26-97183' && d.status === 'Open' && d.sameBuyer === true), 'the open seed file at 145 Main Street warns for its buyer');
 const none = await a.findDuplicateOrders({ street: '145 Main St', city: 'Bethesda', state: 'MD', zip: '20814', buyerIds: ['c-buyer'], sellerIds: [] });
@@ -59,7 +60,9 @@ ok(page.includes('data-dup-orders') && page.includes('findDuplicateOrders') && p
 ok(!page.includes('dup-block') && page.includes('data-review-ready'), 'a duplicate is a warning, not a thing to fix');
 ok(page.includes('No salespeople are available for this login.') && page.includes('No preprocessor is available for this login.') && page.includes('No transaction coordinator is available for this login.') && page.includes('(none available for this login)'), 'empty Team and TC lists say none are available for this login');
 ok(page.includes('name="p:Sales Team"') && page.includes('options(salesParty'), 'the Sales team member field already on main is left for PR 106 to remove');
-ok(adapter.includes('coordinatorRoster') && adapter.includes("eq('role', 'Transaction Coordinator')") && adapter.includes('findDuplicateOrders'), 'hosted Place Order fills a missing TC contact and looks up visible files');
+const listCoordinators = adapter.slice(adapter.indexOf('async listCoordinators'), adapter.indexOf('async findDuplicateOrders'));
+ok(listCoordinators.includes('coordinatorRoster') && listCoordinators.includes("eq('role', 'Transaction Coordinator')") && listCoordinators.includes('r.contactId') && !listCoordinators.includes('.insert('), 'the hosted TC list is a read and omits a coordinator who has no contact');
+ok(adapter.includes('findDuplicateOrders'), 'hosted Place Order looks up visible files');
 ok(sql.includes("p.role = 'Transaction Coordinator'") && sql.includes('viewer_is_demo') && sql.includes('profiles_tc_contact') && rollback.includes('drop trigger if exists profiles_tc_contact'), 'the migration backfills TC contacts and the rollback drops that trigger');
 
 console.log(fails ? `order-duplicates: ${fails} failed` : `order-duplicates: ${pass} passed`);

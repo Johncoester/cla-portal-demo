@@ -65,12 +65,9 @@ export function dealsAndAuth(x) {
     async listPreprocessors() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
       return clone(load().profiles.filter((p) => p.status === 'active' && p.role === 'Preprocessor').map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role }))); },
     // John, Nov 2: who can be a file's Transaction Coordinator = active users whose account role is exactly 'Transaction Coordinator' (with their contact id).
-    // A TC login with no contact (HR accept does not create one) gets a contact here so the Place Order dropdown can save them.
+    // A TC login with no contact stays off this list. The migration creates that contact; opening Place Order does not.
     async listCoordinators() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
       const d = load(); const plan = coordinatorRoster(d.profiles, d.contacts, u);
-      for (const draft of plan.created) { const id = nid('c'); d.contacts.push({ id, profileId: draft.profileId, firstName: draft.firstName, lastName: draft.lastName, email: draft.email, phone: draft.phone, company: '', contactType: null, isDemo: draft.isDemo, createdBy: u.id, createdAt: now() });
-        const row = plan.rows.find((r) => r.profileId === draft.profileId); if (row) row.contactId = id; }
-      if (plan.created.length) save();
       return clone(plan.rows.filter((r) => r.contactId).map((r) => ({ id: r.profileId, contactId: r.contactId, firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, company: r.company, role: 'Transaction Coordinator' }))); },
     async findDuplicateOrders({ street, city, state, zip, buyerIds, sellerIds } = {}) { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
       const d = load(); const orders = dealsFor(u).map((q) => ({ id: q.id, fileNumber: q.fileNumber, street: q.street, city: q.city, state: q.state, zip: q.zip, status: q.status,

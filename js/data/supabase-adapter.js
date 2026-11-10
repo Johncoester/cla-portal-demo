@@ -349,18 +349,6 @@ export async function createSupabaseAdapter(cfg) {
       }
       const known = fromRpc.filter((r) => r.profileId && r.contactId).map((r) => ({ id: r.contactId, profileId: r.profileId, firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, company: r.company }));
       const plan = coordinatorRoster(profiles, known, u);
-      for (const draft of plan.created) {
-        const row = plan.rows.find((r) => r.profileId === draft.profileId);
-        try {
-          const made = camel(ok(await sb.from('contacts').insert({ profile_id: draft.profileId, first_name: draft.firstName, last_name: draft.lastName, email: String(draft.email || '').toLowerCase(), phone: draft.phone || '', company: '', is_demo: !!draft.isDemo, custom: { source: '20261110103000_tc_contact' } }).select('id').single()));
-          if (row) row.contactId = made.id;
-        } catch (err) {
-          try {
-            const again = camel(ok(await sb.from('contacts').select('id').eq('profile_id', draft.profileId).maybeSingle()));
-            if (row && again && again.id) row.contactId = again.id;
-          } catch (e2) { /* this login cannot add the contact; the migration does */ }
-        }
-      }
       return plan.rows.filter((r) => r.contactId).map((r) => ({ profileId: r.profileId, contactId: r.contactId, firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, company: r.company }));
     },
     async findDuplicateOrders({ street, city, state, zip, buyerIds, sellerIds } = {}) {

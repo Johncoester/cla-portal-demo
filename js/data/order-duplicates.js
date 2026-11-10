@@ -83,7 +83,7 @@ export function duplicateNotice(matches) {
   return { show: true, title, lines, proceed: 'You can still place this order.' };
 }
 /* Active Transaction Coordinators on this login's side (demo stays with demo).
- * A profile with no contact is returned as needsContact so Place Order can add the contact the dropdown saves. */
+ * A profile with no contact is needsContact and is left out of the dropdown. The migration creates that contact. */
 export function coordinatorRoster(profiles, contacts, actor) {
   const demo = !!(actor && (actor.isDemo || actor.is_demo));
   const rows = [];
