@@ -40,6 +40,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # test-money-save reads an older commit with git show
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -47,8 +49,14 @@ jobs:
         run: |
           mkdir -p /tmp/domtest
           npm install --prefix /tmp/domtest --no-save linkedom@0.18.15
-      - name: Start the runner's Postgres for the sudo -u postgres tests
-        run: sudo systemctl start postgresql.service
+      - name: Postgres 16 (runner) and 17 for the SQL tests
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -q postgresql-17
+          sudo systemctl start postgresql.service
+          # the sudo -u postgres tests read SQL files from the checkout
+          chmod a+x /home/runner /home/runner/work
+          chmod -R a+rX "$GITHUB_WORKSPACE"
       - name: Test suite
         run: node tools/run-tests.mjs
 

@@ -28,7 +28,8 @@ const problems = [];
 let where = 'start';
 page.on('pageerror', (e) => problems.push(`${where}: page error: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') problems.push(`${where}: console: ${m.text()}`); });
-page.on('requestfailed', (r) => { if (r.url().startsWith(base)) problems.push(`${where}: failed to load ${r.url().slice(base.length)}`); });
+// a request the page itself cancelled by moving on (net::ERR_ABORTED) is not a failure; a missing file is a 404 below
+page.on('requestfailed', (r) => { if (r.url().startsWith(base) && !/ERR_ABORTED/.test(r.failure()?.errorText || '')) problems.push(`${where}: failed to load ${r.url().slice(base.length)}`); });
 page.on('response', (r) => { if (r.url().startsWith(base) && r.status() >= 400) problems.push(`${where}: HTTP ${r.status()} ${r.url().slice(base.length)}`); });
 
 async function settle(label) {
