@@ -304,6 +304,12 @@ export async function createSupabaseAdapter(cfg) {
     }
     return lastHeld && lastHeld.id ? lastHeld : null;
   };
+  function attachScheduled(d) {
+    if (!d || (!d.scheduledAt && !d.scheduledLocation)) return d;
+    const at = d.scheduledAt ? String(d.scheduledAt).replace(' ', 'T').slice(0, 16) : '';
+    d.scheduledClosing = { at, location: d.scheduledLocation || '', officeId: d.scheduledOfficeId || null, officeName: '', note: d.scheduledNote || '', confirmedByRole: d.scheduledByRole || '', confirmedAt: d.scheduledConfirmedAt || null };
+    return d;
+  }
   async function fetchDeal(id) {
     const got = await gatherReads({
       roles: fileRoles,
@@ -328,6 +334,7 @@ export async function createSupabaseAdapter(cfg) {
     d.participants.forEach((p) => { p.entity = ents.get(p.id) || null; });
     d.fileTitle = fileTitleOf(d.participants) || d.fileTitle || '';
     const src = got.source[0]; d.sourceOfBusiness = src ? src.value : ''; d.sourceOfBusinessLabel = src ? src.label : '';
+    attachScheduled(d);
     // Who CLA represents (deals.cla_representation, migration 20261109150000): shown to CLA staff only; null = not recorded
     if (ident.current() && ident.current().role === 'Outside user') { d.claRepresentation = null; d.claRepresentationLabel = ''; d.closerName = ''; d.closerProfileId = null; } else { d.claRepresentation = d.claRepresentation || null; d.claRepresentationLabel = claRepresentationLabel(d.claRepresentation); d.closerName = d.closerName || ''; d.closerProfileId = d.closerProfileId || null; }
     return withRole(d, got.roles.get(d.id), got.parties);
@@ -337,6 +344,7 @@ export async function createSupabaseAdapter(cfg) {
     const row = camel(ok(raw));
     Object.assign(row, processorFields(row, names)); row.tcUserId = row.tcUserId || null; row.tcName = row.tcUserId ? (names.get(row.tcUserId) || '') : '';
     row.address = `${row.street}, ${row.city}, ${row.state} ${row.zip}`;
+    attachScheduled(row);
     row.participants = [];
     row.salesPeople = [];
     row.salesPersonIds = [];
@@ -759,7 +767,14 @@ export async function createSupabaseAdapter(cfg) {
     async getWireInstructions(dealId) { const w = camel(ok(await sb.rpc('wire_instructions', { p_deal: dealId }))); return { ...w, amountNote: 'Your exact amount comes from your Closing Disclosure / settlement statement.' }; },
     async listClosingProposals(dealId) { return camel(ok(await sb.from('closing_proposals').select('*').eq('deal_id', dealId).order('created_at', { ascending: false }))).map((p) => ({ ...p, at: String(p.proposedAt).slice(0, 16) })); },
     async proposeClosing(dealId, { at, location, note, officeId }) { return { id: ok(await sb.rpc('propose_closing', { p_deal: dealId, p_at: at, p_location: location, p_note: note || '', p_office: officeId || null })) }; },
-    async confirmClosing(dealId, { at, location, note, proposalId, officeId } = {}) { ok(await sb.rpc('confirm_closing', { p_deal: dealId, p_at: at || null, p_location: location || null, p_note: note || '', p_proposal: proposalId || null, p_office: officeId || null })); },
+    async confirmClosing(dealId, { at, location, note, proposalId, officeId, closingManualStreet, closingManualCity, closingManualState, closingManualZip } = {}) {
+      const typed = location === 'Typed address' && closingManualStreet;
+      ok(await sb.from('deals').update({
+        closing_manual_street: typed ? closingManualStreet : '', closing_manual_city: typed ? (closingManualCity || '') : '',
+        closing_manual_state: typed ? (closingManualState || '') : '', closing_manual_zip: typed ? (closingManualZip || '') : '',
+      }).eq('id', dealId));
+      ok(await sb.rpc('confirm_closing', { p_deal: dealId, p_at: at || null, p_location: location || null, p_note: note || '', p_proposal: proposalId || null, p_office: typed ? null : (officeId || null) }));
+    },
     // e-sign: the RPCs stand in for the provider (esign.js DemoProvider); a DocuSign / Dropbox Sign Edge Function would call the same tables
     async requestSignature() { throw new Error('E-sign is not enabled on CLA Portal Live Test. Nothing was sent.'); },
     async listSignatureRequests(dealId) { return camel(ok(await sb.from('signature_requests').select('*, signers:signature_signers(*)').eq('deal_id', dealId).order('requested_at', { ascending: false }))); },

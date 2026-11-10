@@ -18,6 +18,13 @@ export function composeAddress({ street, city, state, zip } = {}) {
   return [street, city, [state, zip].filter(Boolean).join(' ')].map((s) => String(s || '').trim()).filter(Boolean).join(', ');
 }
 
+export const TYPED_ADDRESS = 'Typed address';
+
+export function scheduledPlace(sc, deal) {
+  if (!sc || sc.location !== TYPED_ADDRESS) return '';
+  return composeAddress({ street: deal && deal.closingManualStreet, city: deal && deal.closingManualCity, state: deal && deal.closingManualState, zip: deal && deal.closingManualZip });
+}
+
 export function cleanManualAddress(input = {}, { required = false } = {}) {
   const street = trim(input.street, 120);
   const city = trim(input.city, 80);

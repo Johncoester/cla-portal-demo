@@ -22,7 +22,7 @@ export function mattP2(x) {
     return [...ids]; };
   const whenOk = (v, label) => { const s = str(v, 16); if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s) || isNaN(Date.parse(s))) fail(`${label} needs a date and a time.`);
     if (Date.parse(s) < Date.now()) fail(`${label} must be in the future.`); return s; };
-  const locOk = (v) => { const s = str(v, 60); if (!C.CLOSING_LOCATIONS.includes(s)) fail(`Pick where to sign: ${C.CLOSING_LOCATIONS.join(', ')}.`); return s; };
+  const locOk = (v) => { const s = str(v, 60); if (s !== 'Typed address' && !C.CLOSING_LOCATIONS.includes(s)) fail(`Pick where to sign: ${C.CLOSING_LOCATIONS.join(', ')}.`); return s; };
   // John, Nov 4 meeting (7:17), Matt: a 'CLA Title office' closing names WHICH office. It defaults to the closest office (straight-line distance, offices.js).
   // Another place (mobile notary / remote) has no office. Older callers that send no office get the nearest one (or none when nothing is near).
   // Offices come from Admin > Offices (stored, mock-part-offices.js): only an ACTIVE office can be picked; a retired one stays on closings that already use it.

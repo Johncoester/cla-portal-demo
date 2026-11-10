@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { CPL_CLAUSES, CPL_OTHER } from '../js/data/cpl-clauses.js';
-import { officeOptionLabel } from '../js/data/closing-side.js';
+import { officeOptionLabel, scheduledPlace } from '../js/data/closing-side.js';
 import { SAMPLE_OFFICES, officeAddress } from '../js/data/offices.js';
 
 const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
@@ -54,9 +54,11 @@ await api.signInDev('u-proc');
 const offices = await api.getClosingOfficeDefault(deal.id);
 ok(offices.offices.every((o) => officeOptionLabel(o) === o.address && o.address.includes(o.state) && /\d{5}/.test(o.address)), 'the closing office list carries a full address for every office');
 const when = '2026-12-20T10:30';
-await api.confirmClosing(deal.id, { at: when, location: 'Mobile notary', closingManualStreet: '9 Fake Pier', closingManualCity: 'Miami', closingManualState: 'FL', closingManualZip: '33131' });
+await api.confirmClosing(deal.id, { at: when, location: 'Typed address', closingManualStreet: '9 Fake Pier', closingManualCity: 'Miami', closingManualState: 'FL', closingManualZip: '33131' });
 const reloaded = await api.getDeal(deal.id);
-ok(reloaded.closingManualStreet === '9 Fake Pier' && reloaded.closingManualZip === '33131', 'a typed closing address reloads with the file');
+ok(reloaded.closingManualStreet === '9 Fake Pier' && reloaded.closingManualZip === '33131' && reloaded.scheduledClosing.location === 'Typed address', 'a typed closing address reloads as a typed address');
+ok(scheduledPlace(reloaded.scheduledClosing, reloaded) === '9 Fake Pier, Miami, FL 33131', 'staff see the typed street on the schedule');
+ok(scheduledPlace({ location: 'Mobile notary' }, reloaded) === '', 'mobile notary stays mobile notary unless that place was picked');
 
 const saved = await api.saveSideSigning(deal.id, { side: 'buyer', status: 'signed', signedOn: '2026-11-02', date: '2026-12-20', time: '10:30', placeKind: 'mobile_notary', street: '9 Fake Pier', city: 'Miami', state: 'FL', zip: '33131' });
 const again = await api.getDeal(deal.id);
@@ -79,7 +81,10 @@ ok(people.some((p) => p.id === 'u-proc' && p.email.includes('@')) && !people.som
 ok(buyer && buyer.tasksCreated >= 0, 'the buyer was added to the file');
 
 const sql = readFileSync('supabase/migrations/20261112040000_closing_lender_batch.sql', 'utf8');
-ok(/btrim\(people\.email\)/.test(sql) && !/can_message\(/.test(sql), 'the picker is one query and does not call can_message per person');
+const fn = sql.slice(0, sql.indexOf('$readback$'));
+ok(/is_staffish\(\)/.test(fn) && !/can_message/.test(fn) && !/participant_visible/.test(fn) && fn.includes("'Typed address'"), 'staff and outside users branch once, and a typed address is its own place');
+const adapter = readFileSync('js/data/supabase-adapter.js', 'utf8');
+ok(adapter.includes('closing_manual_street') && adapter.includes("location === 'Typed address'"), 'hosted confirm keeps the typed street on the deal');
 const hash = createHash('sha256').update(sql).digest('hex');
 const roll = createHash('sha256').update(readFileSync('supabase/rollbacks/20261112040000_closing_lender_batch.sql')).digest('hex');
 console.log('closing-lender-migration-sha256', hash);

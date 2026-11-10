@@ -4,7 +4,7 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, toast, fmtDate, f
 import { runsOrders, viewOnly, isProcessor, isClient, sideOf, isViewOnly, CLOSING_LOCATIONS } from '../data/constants.js?v=202611101015';
 import { placeText, OFFICE_LOCATION } from '../data/cla-offices.js?v=202611101015';
 import { SIGNING_METHODS, COUNTRIES, stateName, sideWord, canManageClosingLocations, canScheduleClosing } from '../data/closing-location.js?v=202611101015';
-import { officeOptionLabel, MANUAL_OFFICE, sideFromDeal, cleanSideSigning, sidePatch, composeAddress, cleanManualAddress, PLACE_KINDS, SIGN_STATUSES } from '../data/closing-side.js?v=202611120500';
+import { officeOptionLabel, MANUAL_OFFICE, sideFromDeal, cleanSideSigning, sidePatch, scheduledPlace, cleanManualAddress, PLACE_KINDS, SIGN_STATUSES, TYPED_ADDRESS } from '../data/closing-side.js?v=202611120500';
 import { US_STATE_NAMES } from '../data/constants.js?v=202611101015';
 // John, Nov 4: "Will you be in <state> at the time of closing?" (Yes / No -> another US state or a country outside the US). One block per party.
 export function locFields(r, pre = '') { const st = stateName(r.propertyState) || "the property's state"; const no = r.inStateAtClosing === false; const abroad = no && !!r.closingLocationCountry;
@@ -45,8 +45,8 @@ export async function render({ api, user, deal, refresh }) {
       ${locs.filter((r) => r.canAnswer).map((r) => html`<form class="form-grid" data-loc-form="${r.participantId}">${locFields(r)}<div class="span2"><button class="m-btn" type="submit">${r.mine ? 'Save my answer' : html`Save for ${r.name}`}</button>${r.answeredAt ? html` <span class="muted small">Saved ${fmtDateTime(r.answeredAt)}</span>` : ''}</div></form>`)}
       ${locs.filter((r) => !r.canAnswer).map((r) => html`<p data-loc-read="${r.participantId}"><strong>${r.name}</strong> (${sideWord(r.partyRole)}): ${r.whereText}</p>`)}
       <p class="muted small">If ${locs.some((r) => r.mine) ? 'you' : 'your client'} will be outside the US or in another state, CLA Title arranges a remote online (RON), embassy or out-of-state signing. Only CLA Title and your own side see this.</p></div>`;
-  const typedPlace = composeAddress({ street: deal.closingManualStreet, city: deal.closingManualCity, state: deal.closingManualState, zip: deal.closingManualZip });
-  const scheduled = html`<div class="card" id="scheduled"><h3>Scheduled closing</h3>${sc ? html`<p><strong>${slotText(sc.at)}</strong> &middot; <span data-scheduled-place>${typedPlace && !sc.officeId ? typedPlace : placeText(sc.location, sc.officeId, sc.officeName)}</span>${sc.officeRetired ? html` <span class="muted small" data-office-retired>(this office is retired)</span>` : ''}${sc.note ? html` &middot; ${sc.note}` : ''}</p><p class="muted small" data-scheduled-by>${sc.confirmedByRole === 'Buyer Agent' || sc.confirmedByRole === 'Listing Agent' ? `Scheduled by the ${sc.confirmedByRole}` : 'Confirmed by CLA Title'} ${fmtDateTime(sc.confirmedAt)}</p>`
+  const typedPlace = scheduledPlace(sc, deal);
+  const scheduled = html`<div class="card" id="scheduled"><h3>Scheduled closing</h3>${sc ? html`<p><strong>${slotText(sc.at)}</strong> &middot; <span data-scheduled-place>${typedPlace || placeText(sc.location, sc.officeId, sc.officeName)}</span>${sc.officeRetired ? html` <span class="muted small" data-office-retired>(this office is retired)</span>` : ''}${sc.note ? html` &middot; ${sc.note}` : ''}</p><p class="muted small" data-scheduled-by>${sc.confirmedByRole === 'Buyer Agent' || sc.confirmedByRole === 'Listing Agent' ? `Scheduled by the ${sc.confirmedByRole}` : 'Confirmed by CLA Title'} ${fmtDateTime(sc.confirmedAt)}</p>`
       : html`<p class="muted">Not scheduled yet.${canPropose ? ' Propose a date, time and place below; CLA Title confirms it.' : ''}</p>`}
     ${manager ? html`<p><button class="ghost" id="confirmnew">${sc ? 'Change the scheduled closing' : 'Schedule the closing'}</button></p>` : ''}</div>`;
   const propTable = proposals.length || canPropose ? html`<div class="card" id="proposals"><div class="deal-card-head"><h3>Proposed closing times</h3>${canPropose ? html`<button class="m-btn" id="propose">+ Propose a closing time</button>` : ''}</div>
@@ -144,7 +144,7 @@ export async function render({ api, user, deal, refresh }) {
       const manualPatch = {};
       ['closingManualStreet', 'closingManualCity', 'closingManualState', 'closingManualZip'].forEach((k) => { if (v[k]) { manualPatch[k] = v[k]; delete v[k]; } });
       ['mstreet', 'mcity', 'mstate', 'mzip'].forEach((k) => delete v[k]);
-      if (manualPatch.closingManualStreet) { Object.assign(v, manualPatch); if (v.location === OFFICE_LOCATION) v.location = 'Mobile notary'; }
+      if (manualPatch.closingManualStreet) { Object.assign(v, manualPatch); v.location = TYPED_ADDRESS; delete v.officeId; }
       for (const r of staffView ? [] : locs.filter((z) => z.mine)) { const pre = `loc_${r.participantId}_`; await api.answerClosingLocation(deal.id, r.participantId, locValue(v, pre)); Object.keys(v).filter((k) => k.startsWith(pre)).forEach((k) => delete v[k]); }
       await save(v); closeModal(); refresh(); }));
   }
