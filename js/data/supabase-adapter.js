@@ -22,7 +22,7 @@ import { closingLocationSupabase } from './supabase-closing-location.js?v=202611
 import { tcSupabase } from './supabase-tc.js?v=202611090935';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611090935';
 import { gmailSupabase } from './supabase-gmail.js?v=202611100130';
-import { nov5Supabase } from './supabase-nov5.js?v=202611091030';
+import { nov5Supabase } from './supabase-nov5.js?v=202611100800';
 import { orderOverviewSupabase } from './supabase-order-overview.js?v=202611092320';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611100130';
 import { staffSupabase } from './supabase-staff.js?v=202611082000';
@@ -601,7 +601,7 @@ export async function createSupabaseAdapter(cfg) {
     if (threadId) {
       if (!text && !savedFiles.length) throw new Error(failedFiles[0] ? failedFiles[0].reason : 'Write a message first.');
       const note = savedFiles.length ? `${text || '(file shared)'}\n\nFiles on this order: ${savedFiles.map((f) => f.name).join(', ')}` : text;
-      ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: note.slice(0, 4000), body_html: messageText(bodyHtml).clean || null }));
+      ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: note.slice(0, 4000), body_html: messageText(bodyHtml).clean || '' }));
     } else if (savedFiles.length) {
       ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: `Files on this order: ${savedFiles.map((f) => f.name).join(', ')}`.slice(0, 4000) }));
     }
