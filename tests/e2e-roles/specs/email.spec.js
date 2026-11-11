@@ -87,7 +87,11 @@ test('file email, invite, and reply arrive only at the test inbox', async ({ pag
       if (hit) hit.checked = true;
     }, bigName);
     const started = Date.now();
-    await page.locator('[data-mail-send]').click();
+    const send = page.locator('[data-mail-send]');
+    if (await send.isDisabled()) {
+      throw new Error(`Send is disabled ("${await send.getAttribute('title')}"). The E2E Processor has no Gmail connected on TEST (mail_accounts). Connect it once in the portal, then rerun.`);
+    }
+    await send.click();
     await expect(page.locator('.toast', { hasText: /Sent from/ })).toBeVisible({ timeout: 60000 });
     const mail = await pollInbox({ token, subjectIncludes: `E2E-RUN-${run}` });
     trashed.push(mail.id);
