@@ -87,7 +87,7 @@ ok(copies.length === 1 && copies[0].returning === false && copyRead.length === 1
 ok(calls.filter((c) => c.op === 'insert' && c.returning).length === 0, 'clone does not ask the insert to return the new row');
 
 const page = read('js/pages/crm-dashboards.js');
-ok(page.includes('Dashboard Name<input name="name" maxlength="100"') && page.includes('Component Name<input name="name" maxlength="120"'), 'the dashboard name field stops at 100 characters');
+ok(page.includes('Dashboard Name<input name="name" maxlength="100"') && page.includes('Component Name<input name="name" maxlength="100"'), 'dashboard and component name fields stop at 100 characters');
 const hosted = read('js/data/supabase-crm-surface.js');
 const createFn = hosted.slice(hosted.indexOf('async createCrmDashboard'), hosted.indexOf('async updateCrmDashboard'));
 ok(createFn.includes('crypto.randomUUID') && createFn.includes('.insert(row)') && !createFn.includes('.insert(row).select') && createFn.includes(".select('*').eq('id', id)"), 'the create source inserts, then reads that id');
