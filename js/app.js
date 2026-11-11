@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611132100';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611131900';
+import { getAdapter } from './data/adapter.js?v=202611141200';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611141000';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611130900';
@@ -11,11 +11,11 @@ import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL 
 import { phaseOf } from './data/agent-portal.js?v=202611101015';
 import { applyTheme, themeOn } from './theme.js?v=202611070139';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
 import { icon } from './pages/theme-cards.js?v=202611101015';
-import { canInviteAgents } from './data/agent-profile.js?v=202611101015';
-import { yourAgentHtml } from './pages/your-agent.js?v=202611101015';
+import { canInviteAgents } from './data/agent-profile.js?v=202611140100';
+import { yourAgentHtml } from './pages/your-agent.js?v=202611140100';
 import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611101015';
-import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611131900';   // John, Nov 4: one locked login link per fake user
+import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611140400';   // John, Nov 4: one locked login link per fake user
 import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080400';
 import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611082000';
 import { botRegistry } from './data/bot-registry.js?v=202611080400';
@@ -32,13 +32,13 @@ document.addEventListener('input', (e) => { const el = e.target; if (el instance
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611131900'),
-  dashboard: () => import('./pages/dashboard.js?v=202611131900'),
-  orders: () => import('./pages/orders.js?v=202611111700'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611131900'),
-  deal: () => import('./pages/deal.js?v=202611131900'),
+  login: () => import('./pages/entry.js?v=202611140400'),
+  dashboard: () => import('./pages/dashboard.js?v=202611141000'),
+  orders: () => import('./pages/orders.js?v=202611140900'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611141000'),
+  deal: () => import('./pages/deal.js?v=202611141000'),
   users: () => import('./pages/users.js?v=202611101015'),
-  profile: () => import('./pages/profile.js?v=202611131900'),
+  profile: () => import('./pages/profile.js?v=202611140100'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
   teams: () => import('./pages/teams.js?v=202611070139'),
   templates: () => import('./pages/templates.js?v=202611131900'),
@@ -46,19 +46,19 @@ const pages = {
   library: () => import('./pages/library.js?v=202611101015'),
   activity: () => import('./pages/activity.js?v=202611070139'),
   outbox: () => import('./pages/outbox.js?v=202611101015'),
-  tasks: () => import('./pages/tasks.js?v=202611131900'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611101015'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  tasks: () => import('./pages/tasks.js?v=202611141000'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611140100'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js?v=202611121300'),   // public closing-time link (no sign-in needed)
-  crm: () => import('./pages/crm.js?v=202611132100'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  crm: () => import('./pages/crm.js?v=202611141200'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => import('./pages/modules.js?v=202611101015'),
   'role-access': () => import('./pages/role-access.js?v=202611100100'),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
-  'agent-invites': () => import('./pages/agent-invites.js?v=202611110300'),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
-  'agent-invite': () => import('./pages/agent-signup.js?v=202611110800'),     // the agent's one-time setup link (no sign-in)
+  'agent-invites': () => import('./pages/agent-invites.js?v=202611140100'),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
+  'agent-invite': () => import('./pages/agent-signup.js?v=202611140100'),     // the agent's one-time setup link (no sign-in)
   underwriters: () => import('./pages/underwriters.js?v=202611070139'),
   hr: () => import('./pages/hr.js?v=202611110300'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
   'hr-invite': () => import('./pages/hr-invite.js?v=202611110800'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => import('./pages/offices.js?v=202611101015'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
-  'admin/email-templates': () => import('./pages/email-templates.js?v=202611110900'),   // John, Nov 9: Admin > Email Templates (file Email tab)
+  'admin/email-templates': () => import('./pages/email-templates.js?v=202611140400'),   // John, Nov 9: Admin > Email Templates (file Email tab)
   demo: () => import('./pages/demo-view.js?v=202611070139'),   // permanent Demo mode: Super admin views a seeded demo user
   'voice-demo': () => import('./pages/voice-demo.js?v=202611091110'),   // signed-in Live Test only; the header Voice test panel is the test, this route is not a file
   'staff-feedback': () => import('./pages/staff-feedback.js?v=202611131900'),
@@ -168,11 +168,14 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
   const betaTag = (id) => html`<span class="beta-badge" data-beta-badge="${id}" title="${BETA_LABEL}">Beta</span>`;
   const hrTip = (n) => (/^hr-/.test(n.id) ? raw(` title="${esc(n.label)}${n.beta ? ` (${BETA_LABEL})` : ''}" aria-label="${esc(n.label)}" data-tip="${esc(n.label)}" data-hr-nav="${n.id}"`) : tip(n.label, n.beta));   // John, Nov 4: HR icons get hover labels
   const core = navFor(u, null, 0, api.features || {}, ws, DEMO_VIEW).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}"${hrTip(n)}${n.beta ? raw(' data-beta-nav') : ''}>${lbl(n.id, n.label)}${n.beta ? betaTag(n.id) : ''}</a></li>`);
-  const t = route.params.tab; const link = (tab, label, cls, beta) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab && !(tab === 'accounting' && route.params.v === 'payoffs') ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}"${tip(label, beta)}${beta ? raw(' data-beta-nav') : ''}>${lbl(tab, label)}${beta ? betaTag(tab) : ''}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : cnt(tab)}</a></li>`;
+  const t = route.params.tab;
+  const mineNav = typeof location !== 'undefined' && /(?:\?|&)mine=1(?:&|$)/.test(location.hash || '');
+  const link = (tab, label, cls, beta) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab && !(tab === 'accounting' && route.params.v === 'payoffs') && !(tab === 'tasks' && mineNav) ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}"${tip(label, beta)}${beta ? raw(' data-beta-nav') : ''}>${lbl(tab, label)}${beta ? betaTag(tab) : ''}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : cnt(tab)}</a></li>`;
+  const myTasksLink = deal ? html`<li class="nav-item"><a class="nav-link task ${t === 'tasks' && mineNav ? 'active' : ''}" href="#/deals/${dealId}/tasks?mine=1" data-nav-my-tasks${tip('My Tasks')}>${lbl('tasks', 'My Tasks')}</a></li>` : '';
   // BUYER (Nov 4 call): plain tab names; no Contacts tab (the Overview lists the closing team) and no Agreements tab (they are to-dos now)
   const pureBuyer = deal && ['Client-Buyer', 'Client-Seller'].some((c) => (deal.myRoles || [deal.myRole]).includes(c)) && !(deal.myRoles || [deal.myRole]).some((r) => /Agent$/.test(r));   // seller mirror (Nov 4): a pure seller gets the same plain tabs
-  const dealNav = deal && pureBuyer ? html`<li class="nav-sep">This file</li>${link('overview', 'Overview', 'orders')}${link('tasks', 'To-do list', 'task')}${link('spouse', 'Spouse', 'contact-us')}${link('inbox', 'Messages', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing appointment', 'task')}${link('activity', 'Activity', 'activity')}`
-    : deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${isStaff(u.role) ? link('spouse', 'Spouse', 'contact-us') : ''}${link('inbox', deal && isClient(deal.myRole) ? 'Messages' : 'Inbox', 'inbox')}${canUseGmail(u) && api.listDealEmails && api.mode === 'supabase' ? link('email', 'Email', 'inbox') : ''}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${link('activity', 'Activity', 'activity')}${(api.features || {}).accounting && acctCanRead(u) && modOn('accounting') ? html`${link('accounting', 'Accounting', 'documents', modBeta('accounting'))}${modOn('post-closing') ? html`<li class="nav-item"><a class="nav-link ${t === 'accounting' && route.params.v === 'postclosing' ? 'active' : ''}" href="#/deals/${dealId}/accounting?v=postclosing" data-nav-postclosing>Post-Closing</a></li>` : ''}${modOn('e-recording') ? html`<li class="nav-item"><a class="nav-link" href="#/deals/${dealId}/accounting?v=postclosing" data-nav-recording>E-Recording</a></li>` : ''}${canReachPayoffs(u) && modOn('payoffs') ? html`<li class="nav-item"><a class="nav-link payoffs ${t === 'accounting' && route.params.v === 'payoffs' ? 'active' : ''}" href="#/deals/${dealId}/accounting?v=payoffs" data-nav-payoffs${tip('Payoffs / HOA', modBeta('payoffs'))}>${lbl('accounting', 'Payoffs / HOA')}</a></li>` : ''}` : ''}${(api.features || {}).funding && fwpCanRead(u) && modOn('funding') ? link('funding', 'Funding', 'documents', modBeta('funding')) : ''}${(api.features || {}).wires && fwpCanRead(u) && modOn('wires') ? link('wires', 'Wires', 'documents', modBeta('wires')) : ''}${(api.features || {}).policy && fwpCanRead(u) && modOn('policy') ? link('policy', 'Final Policy', 'documents', modBeta('policy')) : ''}${(api.features || {}).title && titleCanRead(u) && modOn('title') ? html`<li class="nav-item"><a class="nav-link title-nav ${t === 'title' ? 'active' : ''}" href="#/deals/${dealId}/title" data-nav-title${tip('Title', modBeta('title'))}${modBeta('title') ? raw(' data-beta-nav') : ''}>${lbl('title', 'Title')}${modBeta('title') ? betaTag('title') : ''}</a></li>` : ''}` : '';   // John, Nov 4: Title sits directly under Payoffs / HOA (staff only)   // (buyer branch above)
+  const dealNav = deal && pureBuyer ? html`<li class="nav-sep">This file</li>${link('overview', 'Overview', 'orders')}${link('tasks', 'To-do list', 'task')}${myTasksLink}${link('spouse', 'Spouse', 'contact-us')}${link('inbox', 'Messages', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing appointment', 'task')}${link('activity', 'Activity', 'activity')}`
+    : deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${myTasksLink}${isStaff(u.role) ? link('spouse', 'Spouse', 'contact-us') : ''}${link('inbox', deal && isClient(deal.myRole) ? 'Messages' : 'Inbox', 'inbox')}${canUseGmail(u) && api.listDealEmails && api.mode === 'supabase' ? link('email', 'Email', 'inbox') : ''}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${link('activity', 'Activity', 'activity')}${(api.features || {}).accounting && acctCanRead(u) && modOn('accounting') ? html`${link('accounting', 'Accounting', 'documents', modBeta('accounting'))}${modOn('post-closing') ? html`<li class="nav-item"><a class="nav-link ${t === 'accounting' && route.params.v === 'postclosing' ? 'active' : ''}" href="#/deals/${dealId}/accounting?v=postclosing" data-nav-postclosing>Post-Closing</a></li>` : ''}${modOn('e-recording') ? html`<li class="nav-item"><a class="nav-link" href="#/deals/${dealId}/accounting?v=postclosing" data-nav-recording>E-Recording</a></li>` : ''}${canReachPayoffs(u) && modOn('payoffs') ? html`<li class="nav-item"><a class="nav-link payoffs ${t === 'accounting' && route.params.v === 'payoffs' ? 'active' : ''}" href="#/deals/${dealId}/accounting?v=payoffs" data-nav-payoffs${tip('Payoffs / HOA', modBeta('payoffs'))}>${lbl('accounting', 'Payoffs / HOA')}</a></li>` : ''}` : ''}${(api.features || {}).funding && fwpCanRead(u) && modOn('funding') ? link('funding', 'Funding', 'documents', modBeta('funding')) : ''}${(api.features || {}).wires && fwpCanRead(u) && modOn('wires') ? link('wires', 'Wires', 'documents', modBeta('wires')) : ''}${(api.features || {}).policy && fwpCanRead(u) && modOn('policy') ? link('policy', 'Final Policy', 'documents', modBeta('policy')) : ''}${(api.features || {}).title && titleCanRead(u) && modOn('title') ? html`<li class="nav-item"><a class="nav-link title-nav ${t === 'title' ? 'active' : ''}" href="#/deals/${dealId}/title" data-nav-title${tip('Title', modBeta('title'))}${modBeta('title') ? raw(' data-beta-nav') : ''}>${lbl('title', 'Title')}${modBeta('title') ? betaTag('title') : ''}</a></li>` : ''}` : '';   // John, Nov 4: Title sits directly under Payoffs / HOA (staff only)   // (buyer branch above)
   // Inside a file the portal menu starts closed for every role. The file name and file tabs stay. The button only shows or hides that menu.
   const fileNav = !!deal;
   const contact = isStaff(u.role) || hrOnly(u) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us"${tip('Contact Us')}>${lbl('contact-us', 'Contact Us')}</a></li>`;
@@ -349,8 +352,11 @@ function rememberCounts(api, dealId, userId, token) {
     }
   }).catch(() => {});
 }
+let pageUnmount = null;
 export async function render() {
-  const my = ++rendering; applyTheme(); const root = $('#app'); showRouteLoading(root); await nextPaint(); if (my !== rendering) return;
+  const my = ++rendering;
+  if (pageUnmount) { const stop = pageUnmount; pageUnmount = null; try { stop(); } catch (e) { /* the previous page already left */ } }
+  applyTheme(); const root = $('#app'); showRouteLoading(root); await nextPaint(); if (my !== rendering) return;
   const api = await getAdapter(); const route = parse(); closeModal();
   PORTAL_MODE = api.mode || 'mock';
   const authAt = api.authGeneration ? api.authGeneration() : null;
@@ -519,6 +525,8 @@ export async function render() {
   settle();
   document.title = (view.title ? view.title + ' | ' : '') + 'CLA Portal Live Test';
   if (view.mount) view.mount($('#view') || root, { api, user: u, refresh: render, go });
+  if (my !== rendering) { if (view.unmount) view.unmount(); return; }
+  pageUnmount = view.unmount || null;
 }
 // Nov 3 (b), Zoho video 7: CRM global search in the header (CLA staff with the CRM only; the module loads only then)
 const HEADER_SEARCH = `<div class="crm-global-search" data-global-search-wrap style="position:relative;display:inline-block"><input type="search" data-global-search placeholder="Search CRM (name, email, phone)" aria-label="Search the CRM" autocomplete="off" maxlength="100"><div data-global-search-dd hidden style="position:absolute;right:0;top:100%;z-index:50;background:#fff;color:#222;min-width:420px;max-height:70vh;overflow:auto;border:1px solid #ccc;padding:6px;text-align:left"></div></div><span data-crm-create-slot></span>`;
@@ -556,7 +564,7 @@ function wireChrome(u) {
   if (demoTimer) clearTimeout(demoTimer);
   if (DEMO_VIEW && DEMO_VIEW.active && DEMO_VIEW.expiresAt) { const ms = new Date(DEMO_VIEW.expiresAt).getTime() - Date.now(); demoTimer = setTimeout(() => render(), Math.min(Math.max(ms + 250, 1000), 30 * 60 * 1000)); }
   getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) {
-    import('./pages/crm-search.js?v=202611132100').then((m) => m.wireHeaderSearch(api));
+    import('./pages/crm-search.js?v=202611141200').then((m) => m.wireHeaderSearch(api));
     import('./pages/crm-janine.js?v=202611131900').then((m) => m.mountHeaderCreate(u));
   } });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');

@@ -66,10 +66,18 @@ export function earnestDealPatch(input = {}, opts = {}) {
   if (earnest.commissionPaidBy === 'seller') {
     patch.listingCommissionPct = earnest.commissionPercent;
     patch.listingCommissionAmount = earnest.commissionTotal;
-  }
-  if (earnest.commissionPaidBy === 'buyer') {
+    patch.buyerCommissionPct = null;
+    patch.buyerCommissionAmount = null;
+  } else if (earnest.commissionPaidBy === 'buyer') {
     patch.buyerCommissionPct = earnest.commissionPercent;
     patch.buyerCommissionAmount = earnest.commissionTotal;
+    patch.listingCommissionPct = null;
+    patch.listingCommissionAmount = null;
+  } else {
+    patch.listingCommissionPct = null;
+    patch.listingCommissionAmount = null;
+    patch.buyerCommissionPct = null;
+    patch.buyerCommissionAmount = null;
   }
   return { earnest, patch, financial };
 }
@@ -82,13 +90,95 @@ export function earnestTouched(patch = {}) {
 
 export function earnestView(deal = {}) {
   const f = deal.financial && typeof deal.financial === 'object' ? deal.financial : {};
-  const held = String(f.emdHeldBy || deal.emdHolder || '').trim();
+  const held = String(deal.emdHolder || f.emdHeldBy || '').trim();
   const base = f.commissionBase != null ? f.commissionBase : null;
-  const percent = f.commissionPercent != null ? f.commissionPercent : null;
   const additional = f.commissionAdditional != null ? f.commissionAdditional : null;
-  const total = f.commissionTotal != null ? f.commissionTotal : commissionTotal({ base, percent, additional });
-  const paid = String(f.commissionPaidBy || '').trim();
+  let paid = String(f.commissionPaidBy || '').trim();
+  let percent = f.commissionPercent != null ? f.commissionPercent : null;
+  let total = f.commissionTotal != null ? f.commissionTotal : null;
+  if (deal.listingCommissionPct != null || deal.listingCommissionAmount != null) {
+    paid = paid || 'seller';
+    if (percent == null) percent = deal.listingCommissionPct ?? null;
+    if (total == null) total = deal.listingCommissionAmount ?? null;
+  } else if (deal.buyerCommissionPct != null || deal.buyerCommissionAmount != null) {
+    paid = paid || 'buyer';
+    if (percent == null) percent = deal.buyerCommissionPct ?? null;
+    if (total == null) total = deal.buyerCommissionAmount ?? null;
+  }
+  if (total == null) total = commissionTotal({ base, percent, additional });
   const paidLabel = (COMMISSION_PAID_BY.find(([code]) => code === paid) || [null, ''])[1];
   const any = !!(held || base != null || percent != null || additional != null || paid);
   return { held, base, percent, additional, total, paid, paidLabel, any };
+}
+
+// Earnest money and commissions live on the order. Accounting reads and writes these
+// same fields. The contract sheet does not keep a second copy.
+export const SHARED_EARNEST_KEYS = ['emdAmount', 'emdHolder', 'emdDueOn', 'listingCommissionPercent', 'listingCommissionAmount', 'buyerBrokerPercent', 'buyerBrokerAmount'];
+
+function firstSet(...vals) {
+  for (const v of vals) if (v != null && v !== '') return v;
+  return null;
+}
+
+export function earnestFromDeal(deal = {}) {
+  if (deal.transactionType === 'Refinance' || deal.transaction_type === 'Refinance') {
+    return { emdAmount: null, emdHolder: '', emdDueOn: null, listingCommissionPercent: null, listingCommissionAmount: null, buyerBrokerPercent: null, buyerBrokerAmount: null };
+  }
+  const f = deal.financial && typeof deal.financial === 'object' ? deal.financial : {};
+  const seller = f.commissionPaidBy === 'seller';
+  const buyer = f.commissionPaidBy === 'buyer';
+  return {
+    emdAmount: deal.emdAmount == null || deal.emdAmount === '' ? null : deal.emdAmount,
+    emdHolder: String(deal.emdHolder || f.emdHeldBy || '').trim(),
+    emdDueOn: deal.emdDueDate || null,
+    listingCommissionPercent: firstSet(deal.listingCommissionPct, f.listingCommissionPercent, seller ? f.commissionPercent : null),
+    listingCommissionAmount: firstSet(deal.listingCommissionAmount, f.listingCommissionAmount, seller ? f.commissionTotal : null),
+    buyerBrokerPercent: firstSet(deal.buyerCommissionPct, f.buyerCommissionPercent, buyer ? f.commissionPercent : null),
+    buyerBrokerAmount: firstSet(deal.buyerCommissionAmount, f.buyerCommissionAmount, buyer ? f.commissionTotal : null),
+  };
+}
+
+export function applyEarnestToDeal(deal, fields = {}) {
+  if (!deal) return deal;
+  if ('emdAmount' in fields) deal.emdAmount = fields.emdAmount == null || fields.emdAmount === '' ? null : fields.emdAmount;
+  if ('emdHolder' in fields) deal.emdHolder = String(fields.emdHolder || '').trim();
+  if ('emdDueOn' in fields) deal.emdDueDate = fields.emdDueOn || null;
+  if ('listingCommissionPercent' in fields) deal.listingCommissionPct = fields.listingCommissionPercent == null || fields.listingCommissionPercent === '' ? null : fields.listingCommissionPercent;
+  if ('listingCommissionAmount' in fields) deal.listingCommissionAmount = fields.listingCommissionAmount == null || fields.listingCommissionAmount === '' ? null : fields.listingCommissionAmount;
+  if ('buyerBrokerPercent' in fields) deal.buyerCommissionPct = fields.buyerBrokerPercent == null || fields.buyerBrokerPercent === '' ? null : fields.buyerBrokerPercent;
+  if ('buyerBrokerAmount' in fields) deal.buyerCommissionAmount = fields.buyerBrokerAmount == null || fields.buyerBrokerAmount === '' ? null : fields.buyerBrokerAmount;
+  const financial = { ...(deal.financial && typeof deal.financial === 'object' ? deal.financial : {}) };
+  const keep = (key, value) => { if (value == null || value === '') delete financial[key]; else financial[key] = value; };
+  keep('emdHeldBy', deal.emdHolder);
+  keep('listingCommissionPercent', deal.listingCommissionPct);
+  keep('listingCommissionAmount', deal.listingCommissionAmount);
+  keep('buyerCommissionPercent', deal.buyerCommissionPct);
+  keep('buyerCommissionAmount', deal.buyerCommissionAmount);
+  if (deal.listingCommissionPct != null || deal.listingCommissionAmount != null) {
+    financial.commissionPaidBy = 'seller';
+    financial.commissionPercent = deal.listingCommissionPct;
+    financial.commissionTotal = deal.listingCommissionAmount;
+  } else if (deal.buyerCommissionPct != null || deal.buyerCommissionAmount != null) {
+    financial.commissionPaidBy = 'buyer';
+    financial.commissionPercent = deal.buyerCommissionPct;
+    financial.commissionTotal = deal.buyerCommissionAmount;
+  } else {
+    delete financial.commissionPaidBy;
+    delete financial.commissionPercent;
+    delete financial.commissionTotal;
+    delete financial.commissionBase;
+    delete financial.commissionAdditional;
+  }
+  deal.financial = financial;
+  return deal;
+}
+
+export function overlayEarnestFields(deal, fields = {}) {
+  return { ...fields, ...earnestFromDeal(deal) };
+}
+
+export function blankSharedEarnest(fields = {}) {
+  const next = { ...fields };
+  for (const key of SHARED_EARNEST_KEYS) next[key] = key === 'emdHolder' ? '' : null;
+  return next;
 }

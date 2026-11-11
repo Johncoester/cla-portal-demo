@@ -1,6 +1,6 @@
 /* Mass actions on the current page of a CRM list. Drafts are not sent. Each row uses the existing save. */
 import { html, $, $$, guard, toast, modal, closeModal } from '../ui.js?v=202611070139';
-import { BULK_FIELDS, BULK_TASK_ENTITIES, planRelatedEmails, fieldPatch, ownerAllowed, runEach } from '../data/crm-bulk.js?v=202611132000';
+import { BULK_FIELDS, BULK_TASK_ENTITIES, planRelatedEmails, fieldPatch, ownerAllowed, runEach } from '../data/crm-bulk.js?v=202611141100';
 
 const UPDATERS = { lead: 'updateCrmLead', contact: 'updateCrmContact', account: 'updateCrmAccount', opportunity: 'updateCrmOpportunity', deal: 'updateDeal' };
 const TASK = { lead: 'lead', contact: 'contact', account: 'account', opportunity: 'opportunity', deal: 'deal' };

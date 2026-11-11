@@ -6,6 +6,7 @@
 import { cleanCdDetails, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA, cdFieldLabel } from './cd-pages.js?v=202611070139';
 import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, cleanFee, allEntries, ledgerTotals, altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration, feeChanges } from './accounting.js?v=202611070139';
 import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractMismatch, assertContractPersisted, exactlyOneRow, ESTIMATE_POSTURE } from './contract-terms.js?v=202611091140';
+import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611141000';
 // CLA RATES (migration 36): calculated fees carry calc_source = 'cla-rates' + calc_key / calc_fields / rate_source / calculation / calc_inputs /
 // calc_version / calc_at; the trigger keeps `overridden` (a person changed what the calculation set). The engine loads lazily (flag off = never).
 const engine = () => import('./fee-engine.js?v=202611070139');
@@ -28,6 +29,10 @@ const dealOf = (d) => ({ id: d.id, fileNumber: d.file_number, state: d.state, co
 export function accountingSupabase({ sb, ok, flags }) {
   const on = () => { if (!flags.accounting) throw new Error(ACCOUNTING_OFF); };
   const deal = async (id) => { const d = ok(await sb.from('deals').select('id,file_number,state,county,transaction_type,purchase_price,loan_amount,emd_amount,primary_residence,first_time_buyer,closing_date,lender_name,street,city,zip').eq('id', id).maybeSingle()); if (!d) throw new Error('Order not found.'); return dealOf(d); };
+  const earnestDeal = async (id) => {
+    const d = ok(await sb.from('deals').select('transaction_type,emd_amount,emd_due_date,financial').eq('id', id).maybeSingle()) || {};
+    return { transactionType: d.transaction_type || 'Purchase', emdAmount: d.emd_amount == null || d.emd_amount === '' ? null : Number(d.emd_amount), emdDueDate: d.emd_due_date || null, financial: d.financial && typeof d.financial === 'object' ? d.financial : {} };
+  };
   const access = async (id) => { const a = ok(await sb.rpc('accounting_access', { p_deal: id })); if (a === 'off') throw new Error(ACCOUNTING_OFF); if (a === 'none') throw new Error(ACCOUNTING_STAFF_ONLY); return a; };
   const fees = async (id) => (ok(await sb.from('accounting_fees').select('*').eq('deal_id', id).order('created_at')) || []).map(fromRow);
   const editor = async (id) => { const a = await access(id); if (a !== 'edit') throw new Error(ACCOUNTING_READ_ONLY); return a; };
@@ -121,22 +126,28 @@ export function accountingSupabase({ sb, ok, flags }) {
         }
         throw e;
       }
-      if (!rec) return blankContract(dealId, accessName === 'edit');
-      const parsed = fromContractRow(rec);
-      return { dealId, saved: true, canEdit: accessName === 'edit', posture: ESTIMATE_POSTURE, blocked: '', fields: parsed.fields, flags: parsed.flags, updatedAt: parsed.updatedAt };
+      const order = await earnestDeal(dealId);
+      const base = rec ? fromContractRow(rec) : { fields: blankContract(dealId).fields, flags: {}, updatedAt: null };
+      return { dealId, saved: !!rec, canEdit: accessName === 'edit', posture: ESTIMATE_POSTURE, blocked: '', fields: overlayEarnestFields(order, base.fields), flags: base.flags, updatedAt: base.updatedAt };
     },
     async saveContractTerms(dealId, input) {
       on(); await editor(dealId); const clean = cleanContractTerms(input);
       const existing = ok(await sb.from('accounting_contract_terms').select('*').eq('deal_id', dealId).maybeSingle());
       const prev = existing ? fromContractRow(existing) : { fields: blankContract(dealId).fields, flags: {} };
-      if (existing && !contractMismatch(clean, prev)) return { dealId, saved: true, canEdit: true, posture: ESTIMATE_POSTURE, blocked: '', fields: prev.fields, flags: prev.flags, updatedAt: prev.updatedAt };
-      const payload = toContractRow(clean);
+      const current = await earnestDeal(dealId);
+      const shown = { fields: overlayEarnestFields(current, prev.fields), flags: prev.flags };
+      if (existing && !contractMismatch(clean, shown)) return { dealId, saved: true, canEdit: true, posture: ESTIMATE_POSTURE, blocked: '', fields: shown.fields, flags: shown.flags, updatedAt: prev.updatedAt };
+      const shared = applyEarnestToDeal({ financial: { ...(current.financial || {}) }, transactionType: current.transactionType }, current.transactionType === 'Refinance' ? { emdAmount: null, emdHolder: '', emdDueOn: null, listingCommissionPercent: null, listingCommissionAmount: null, buyerBrokerPercent: null, buyerBrokerAmount: null } : clean.fields);
+      ok(await sb.from('deals').update({ emd_amount: shared.emdAmount, emd_due_date: shared.emdDueDate, financial: shared.financial || {} }).eq('id', dealId));
+      const payload = toContractRow({ ...clean, fields: blankSharedEarnest(clean.fields) });
       const wrote = existing
         ? ok(await sb.from('accounting_contract_terms').update(payload).eq('deal_id', dealId).select('*'))
         : ok(await sb.from('accounting_contract_terms').insert({ deal_id: dealId, ...payload }).select('*').single());
       const row = exactlyOneRow(wrote);
       const back = fromContractRow(row);
-      assertContractPersisted(clean, back);
+      const after = await earnestDeal(dealId);
+      back.fields = overlayEarnestFields(after, back.fields);
+      assertContractPersisted({ ...clean, fields: { ...clean.fields, ...earnestFromDeal(after) } }, back);
       return { dealId, saved: true, canEdit: true, posture: ESTIMATE_POSTURE, blocked: '', fields: back.fields, flags: back.flags, updatedAt: back.updatedAt };
     },
   };

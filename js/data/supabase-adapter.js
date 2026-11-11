@@ -1,14 +1,14 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611101015';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611140100';
 import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611101015';
 import { officeDate } from './office-date.js?v=202611102100';
 import { clientActivityFrom } from './client-activity.js?v=202611102100';
 import { assertRecipients, messageText } from './portal-message.js?v=202611101015';
 import { planDocumentBatch } from './document-batch.js?v=202611101015';
 import { featureFlags } from './features.js?v=202611070139';
-import { accountingSupabase } from './supabase-accounting.js?v=202611131900';
+import { accountingSupabase } from './supabase-accounting.js?v=202611141000';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
 import { titleSupabase } from './supabase-title.js?v=202611112200';
 import { policySupabase } from './supabase-policy.js?v=202611112100';
@@ -21,17 +21,17 @@ import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611120100
 import { callItemsSupabase } from './supabase-callitems.js?v=202611101015';
 import { automationPart } from './automation.js?v=202611101015';
 import { runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
-import { crmSupabase } from './supabase-crm.js?v=202611132100';
+import { crmSupabase } from './supabase-crm.js?v=202611141200';
 import { hrSupabase } from './supabase-hr.js?v=202611100130';
 import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611130900';
 import { officesSupabase } from './supabase-offices.js?v=202611101015';
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611120500';
-import { tcSupabase } from './supabase-tc.js?v=202611101015';
+import { tcSupabase } from './supabase-tc.js?v=202611140800';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
-import { gmailSupabase } from './supabase-gmail.js?v=202611120400';
+import { gmailSupabase } from './supabase-gmail.js?v=202611140900';
 import { nov5Supabase } from './supabase-nov5.js?v=202611131900';
 import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611121900';
-import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611101015';
+import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611140100';
 import { staffSupabase } from './supabase-staff.js?v=202611110300';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611092320';
@@ -40,13 +40,14 @@ import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=2026
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
 import { propertyAddressOf } from './nov5-rules.js?v=202611131900';
 import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611120200';
+import { fetchDashboard, indexDashboardExtras, decorateDashboardDeals, shapeDashboardTask } from './dashboard-load.js?v=202611140700';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow } from './contact-insert.js?v=202611101200';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
 import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole } from './lender-file.js?v=202611101200';
 import { fileTitleOf } from './party-name.js?v=202611102000';
 import { cleanParcel } from './address-fill.js?v=202611131900';
-import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611102000';
+import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611141000';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
@@ -435,6 +436,30 @@ export async function createSupabaseAdapter(cfg) {
       const pn = await withProcessorNames(got.rows, new Map(got.procs));
       return got.rows.map((d) => ({ ...withRole(d, got.roles.get(d.id), got.parties),
         address: `${d.street}, ${d.city}, ${d.state} ${d.zip}`, displayName: propertyAddressOf(d), county: d.county || '', fileTitle: got.titles.get(d.id) || '', partyNames: (ex.get(d.id) || {}).party_names || [], overdueTasks: (ex.get(d.id) || {}).overdue_tasks || 0, ...salesFields(got.sales.get(d.id)), ...processorFields(d, pn) }));
+    },
+    async loadDashboard(opts = {}) {
+      const raw = await fetchDashboard(sb, opts);
+      const extra = indexDashboardExtras(raw);
+      let taskRows = (raw.taskRows || []).map(shapeDashboardTask);
+      let u = ident.current() || await me();
+      if ((!u || !u.id) && lastHeld && lastHeld.id) u = lastHeld;
+      const staff = !!(u && (u.isAdmin || runsOrdersCI(u)));
+      if (!staff && taskRows.length) {
+        const ids = [...new Set(taskRows.map((t) => t.dealId).filter(Boolean))];
+        const onFile = new Map(await Promise.all(ids.map(async (id) => [id, await viewerOnFile(sb, id, u)])));
+        taskRows = taskRows.map((t) => {
+          const f = onFile.get(t.dealId) || { participantIds: [], roles: [] };
+          const shaped = mapHostedTaskList([{ ...t, deal_id: t.dealId }], u, [], { myParticipantIds: f.participantIds, fileRoles: f.roles })[0];
+          return { ...shaped, deal: t.deal, dealId: t.dealId };
+        });
+      } else if (u) {
+        taskRows = taskRows.map((t) => ({ ...mapHostedTaskList([t], u, [], {})[0], deal: t.deal, dealId: t.dealId }));
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      taskRows.forEach((t) => { t.overdue = !!(t.dueDate && t.dueDate < today && ['todo', 'in_progress', 'blocked'].includes(t.status)); });
+      const openRows = decorateDashboardDeals(raw.openRows, extra, taskRows);
+      const otherRows = decorateDashboardDeals(raw.otherRows, extra, taskRows);
+      return { openRows, openTotal: raw.openTotal, otherRows, otherTotal: raw.otherTotal, closedTotal: raw.closedTotal, tasks: taskRows, taskTotal: raw.taskTotal, limit: opts.openLimit };
     },
     // participants come from deal_contacts() (migration 13): the other side's agent/client keep their names but phone/email are blank for outside users
     async getDeal(id) { return fetchDeal(id); },

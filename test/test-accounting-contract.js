@@ -38,7 +38,7 @@ ok(saved.fields.emdMethod === null && saved.fields.emdReceipt === 'pending' && s
 const again = await adapter.getContractTerms('deal-1');
 ok(again.saved && again.fields.loanAmount === 100.5 && again.fields.salePrice === null && again.fields.emdAmount === 25, 'reopening the sheet reads the same figures');
 const deal = await adapter.getDeal('deal-1');
-ok(deal.purchasePrice === before.purchasePrice && deal.loanAmount === before.loanAmount && deal.emdAmount === before.emdAmount, 'saving contract figures does not change the order');
+ok(deal.purchasePrice === before.purchasePrice && deal.loanAmount === before.loanAmount && deal.emdAmount === 25, 'saving contract figures keeps the sale price and loan, and writes the earnest amount onto the order');
 const fees = await adapter.getAccounting('deal-1');
 ok(!fees.entries.some((e) => e.auto) && fees.totals.receipts === 0, 'the fee ledger does not receive the contract figures');
 const cd = await adapter.getClosingDisclosure('deal-1');

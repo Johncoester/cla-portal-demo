@@ -110,6 +110,20 @@ export function portalUnreadByDeal({ parts, threads, messages, userId } = {}) {
   return out;
 }
 
+export function countsFromOpenOrderMail(rows) {
+  const portal = {};
+  const gmail = {};
+  for (const row of rows || []) {
+    const dealId = row.deal_id || row.dealId;
+    if (!dealId) continue;
+    const p = Number(row.portal_count ?? row.portalCount) || 0;
+    const g = Number(row.gmail_count ?? row.gmailCount) || 0;
+    if (p) portal[dealId] = p;
+    if (g) gmail[dealId] = g;
+  }
+  return mergeMailUnread(portal, gmail);
+}
+
 export function mergeMailUnread(portal, gmail) {
   const out = {};
   const ids = new Set([...Object.keys(portal || {}), ...Object.keys(gmail || {})]);

@@ -52,7 +52,11 @@ export function mountPicker(el, source, { onSet, onCreate, createVerb = 'person'
     ul.innerHTML = toText(hits.length ? html`${hits.map((c, i) => html`<li role="option" data-id="${c.id}" aria-selected="${i === active ? 'true' : 'false'}" class="${i === active ? 'active' : ''}"><strong>${personLabel(c)}</strong> <span class="muted small">${detail(c)}</span></li>`)}${all.length > MAX ? html`<li class="muted small" data-more>${all.length - MAX} more &mdash; keep typing to narrow down</li>` : ''}`
       : createRow);
     ul.hidden = false; q.setAttribute('aria-expanded', 'true'); };
-  const set = (c) => { hid.value = c ? c.id : ''; q.value = c ? personLabel(c) : ''; chosen.textContent = c ? `Selected: ${personLabel(c)}${detail(c) ? ' (' + detail(c) + ')' : ''}` : '';
+  // The chosen person lives here, not only in the hidden input. A later input event used to wipe that input
+  // (line below) while the box still showed the name, so Place Order's FormData missed the party.
+  let selected = null;
+  const remember = (person) => { selected = person || null; if (person) hid.value = person.id; };
+  const set = (c) => { remember(c); hid.value = c ? c.id : ''; q.value = c ? personLabel(c) : ''; chosen.textContent = c ? `Selected: ${personLabel(c)}${detail(c) ? ' (' + detail(c) + ')' : ''}` : '';
     el.toggleAttribute('data-selected', !!c); close(); if (onSet && c) onSet(c); };
   const create = async () => {
     if (!onCreate || creating) return; const name = typed(); if (!name) return;
@@ -64,7 +68,14 @@ export function mountPicker(el, source, { onSet, onCreate, createVerb = 'person'
     } catch (e) { chosen.textContent = ''; throw e; }
     finally { creating = false; }
   };
-  q.addEventListener('input', () => { if (hid.value) { hid.value = ''; chosen.textContent = ''; el.removeAttribute('data-selected'); } active = 0; draw(); });
+  q.addEventListener('input', () => {
+    const text = q.value.trim();
+    const known = selected || (hid.value && (source() || []).find((p) => p && p.id === hid.value));
+    // Keep the id when the text is still that person (draft restore, or a stray input after selection).
+    if (known && (!text || text === personLabel(known))) { remember(known); return; }
+    if (hid.value || selected) { hid.value = ''; selected = null; chosen.textContent = ''; el.removeAttribute('data-selected'); }
+    active = 0; draw();
+  });
   q.addEventListener('focus', () => { if (!hid.value) draw(); });
   q.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -82,5 +93,5 @@ export function mountPicker(el, source, { onSet, onCreate, createVerb = 'person'
     const li = e.target.closest('li[data-id]'); if (!li) return; e.preventDefault(); set(hits.find((c) => c.id === li.dataset.id));
   });
   q.addEventListener('blur', () => setTimeout(close, 150));
-  return { set, get value() { return hid.value; }, get typed() { return q.value.trim(); }, el };
+  return { set, get value() { return (selected && selected.id) || hid.value; }, get typed() { return q.value.trim(); }, el };
 }
