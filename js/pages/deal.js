@@ -12,12 +12,12 @@ import { sourceChoices, processorChoices, fileReferralState, referralContacts, r
 import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611101015';
 import { canManageClosingLocations } from '../data/closing-location.js?v=202611101015';
 import { settlementSectionHtml, closingDateSectionHtml, mountSettlement } from './settlement-section.js?v=202611111700';
-import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611101015';
+import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611160700';
 import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611141400';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611141400';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611141400';
+import { prefetchDealTab } from './deal-tab.js?v=202611160700';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';
@@ -443,7 +443,7 @@ function agentPanels(ctx, d, ov, ur, inv) {
     const sa = $('#shareaccess', root); if (sa) sa.addEventListener('click', () => shareModal(ctx, d, ov));
     const ip = $('#invitepreview', root); if (ip) ip.addEventListener('click', guard(async () => {
       const outside = d.participants.filter((p) => p.contact && p.contact.profileId && ['Buyer Agent', 'Listing Agent', 'Client-Buyer', 'Client-Seller'].includes(p.role));
-      const m = modal('Portal invite email', html`<form id="ipf" class="form-grid"><label class="span2">Invite<select name="pid">${outside.map((p) => html`<option value="${p.contact.profileId}">${p.contact.firstName} ${p.contact.lastName} (${p.role})</option>`)}</select></label>
+      const m = modal('Portal invite email', html`<form id="ipf" class="form-grid"><label class="span2">Invite<select name="pid">${outside.map((p) => html`<option value="${p.contact.profileId}">${partyDisplayName(p)} (${p.role})</option>`)}</select></label>
         <div class="span2" id="ip-preview"></div><div class="span2"><button class="m-btn" type="submit">Queue in the outbox (not sent)</button> <button type="button" class="ghost" data-close>Close</button></div></form>`, { wide: true });
       const show = async () => { const e = await api.getPortalWelcomeEmail(d.id, $('[name=pid]', m).value);
         $('#ip-preview', m).innerHTML = toText(html`<div class="card" data-invite-preview><p><strong>To:</strong> ${e.toName} &lt;${e.to}&gt;<br><strong>Subject:</strong> ${e.subject}</p><p>${e.body}</p><p><a class="m-btn" href="${e.link}" data-complete-requests>${e.buttonLabel}</a></p><p class="muted small">The button opens ${e.link} (sign-in first if needed, then straight to this order's tasks).</p></div>`); };
