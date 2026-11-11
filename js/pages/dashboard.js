@@ -4,7 +4,6 @@ import { html, toText, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toas
 import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611101015';
 import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611140400';
 import { themeOn } from '../theme.js?v=202611070139';
-import { mapLimit } from '../data/read-batch.js?v=202611111200';
 import { pendingMine } from '../data/task-actions.js?v=202611120200';
 import { unassignedOpen } from '../data/processor-assign.js?v=202611091600';
 import { workQueueFrom, DASHBOARD_PAGE } from '../data/dashboard-load.js?v=202611140700';
@@ -103,7 +102,10 @@ async function coordinator({ api, user, open, all, today }) {
   const mine = all.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status) && t.deal.status === 'Open' && (t.assignedRole === user.role || t.mine))
     .sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'));
   const summaries = {};
-  await mapLimit(open, 4, async (d) => { try { summaries[d.id] = await api.getTcFileSummary(d.id); } catch (e) { summaries[d.id] = null; } });
+  if (open.length && api.getTcFileSummaries) {
+    const rows = await api.getTcFileSummaries(open.map((d) => d.id));
+    for (const row of rows || []) summaries[row.dealId] = row;
+  }
   const tasks = mine.map((t) => html`<tr data-tc-task="${t.id}"><td><a href="#/deals/${t.deal.id}/tasks${['form', 'sign', 'agent'].includes(t.kind) ? '/' + t.id : ''}">${t.title}</a></td><td><a href="#/deals/${t.deal.id}">${t.deal.fileNumber}</a><br><span class="muted small">${t.deal.address}</span></td><td class="${t.dueDate && t.dueDate < today ? 'bad-text' : ''}">${t.dueDate ? fmtDate(t.dueDate) : '—'}</td><td>${pill(t.status, t.status === 'blocked' ? 'warn' : 'info')}</td></tr>`);
   const files = open.slice().sort((a, b) => (a.closingDate || '9999').localeCompare(b.closingDate || '9999')).map((d) => {
     const s = summaries[d.id]; const e = s && s.emdAlta;
