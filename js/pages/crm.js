@@ -5,22 +5,22 @@ import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, 
 import { CONTACT_TYPES, contactTypeLabel, US_STATES, US_STATE_NAMES } from '../data/constants.js?v=202611101015';
 import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611130900';
 import { display, moduleFields } from '../data/crm-analytics.js?v=202611130900';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin, setCrmMe } from './crm-kit.js?v=202611141300';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin, setCrmMe } from './crm-kit.js?v=202611160600';
 import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-janine.js?v=202611131900';
 import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611130900';
 import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611130900';
-import { settingsPage } from './crm-settings.js?v=202611141300';
-import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611141300';
-import { pipelinePage, reportsPage } from './crm-more.js?v=202611141300';
-import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611141300';
-import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611141300';
+import { settingsPage } from './crm-settings.js?v=202611160600';
+import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611160600';
+import { pipelinePage, reportsPage } from './crm-more.js?v=202611160600';
+import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611160600';
+import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611160600';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611130900';
-import { searchPage } from './crm-search.js?v=202611141300';
-import { dashboardsPage } from './crm-dashboards.js?v=202611141300';
-import { reportsHome } from './crm-reports.js?v=202611141300';
-import { dealsPage } from './crm-deals.js?v=202611141300';
-import { callPage, callModal } from './crm-calls.js?v=202611141300';
-import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611141300';
+import { searchPage } from './crm-search.js?v=202611160600';
+import { dashboardsPage } from './crm-dashboards.js?v=202611160600';
+import { reportsHome } from './crm-reports.js?v=202611160600';
+import { dealsPage } from './crm-deals.js?v=202611160600';
+import { callPage, callModal } from './crm-calls.js?v=202611160600';
+import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611160600';
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
 const archivedOpts = [['only', 'Archived only'], ['all', 'Active + archived']];
@@ -130,7 +130,7 @@ async function leadsList({ api, me, owners, go, cfg, refresh, openCreate = false
       ...(H('leadSource') ? [] : [pk(cfg, 'leadSource', 'leadSource', 'Lead Source')]), ...(H('relationshipStatus') ? [] : [pk(cfg, 'leadRelationshipStatus', 'relationshipStatus', 'Relationship Status')]),
       ...(H('roleInCompany') ? [] : [pk(cfg, 'roleInCompany', 'roleInCompany', 'Role in Company')]), ...(H('county') ? [] : [['county', 'County']]),
       ['ownerName', 'Lead Owner', (r) => r.ownerName || muted('Unassigned'), (r) => r.ownerName], ...TIME_COLS, ...cfCols(cfg, 'lead')];
-  const lv = listView({ bar, saved: { api, listKey: 'leads' }, dates: true, key: 'leads', userId: me.id, rows, cols: leadCols.slice(0, 10), catalog: listCatalog('leads', cfg, leadCols), bulk: me.canEdit ? { module: 'lead', api, me, owners, refresh } : null, fields: ['name', 'email', 'company', 'phone', 'leadSource', 'notes', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'lead')], sortDefault: 'createdAt:desc', csv: me.canConfigure ? 'crm-leads.csv' : '', exporter: (cols, out) => api.exportCrmList('leads', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
+  const lv = listView({ bar, saved: { api, listKey: 'leads' }, dates: true, headerSort: true, key: 'leads', userId: me.id, rows, cols: leadCols.slice(0, 10), catalog: listCatalog('leads', cfg, leadCols), bulk: me.canEdit ? { module: 'lead', api, me, owners, refresh } : null, fields: ['name', 'email', 'company', 'phone', 'leadSource', 'notes', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'lead')], sortDefault: 'createdAt:desc', csv: me.canConfigure ? 'crm-leads.csv' : '', exporter: (cols, out) => api.exportCrmList('leads', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
    
     filters: [['ownerId', 'Lead Owner', ownerOpts(owners), 'Any owner'], ['roleInCompany', 'Role in Company', fopts(cfg, 'roleInCompany'), 'Any role'], ['relationshipStatus', 'Relationship Status', leadStatusOpts(cfg, rows), 'Any status'],
       ['leadSource', 'Lead Source', fopts(cfg, 'leadSource'), 'Any source'], ['county', 'County', countyOpts(rows), 'Any county'], ['state', 'State', stateOpts(rows), 'Any state'], ['contactType', 'Contact type', ctOpts, 'Any type'],
@@ -180,7 +180,7 @@ async function contactsList({ api, me, owners, go, cfg, refresh, openCreate = fa
       ...(H('mobile') ? [] : [['mobile', 'Mobile']]), ...(H('leadSource') ? [] : [pk(cfg, 'leadSource', 'leadSource', 'Lead Source')]), ...(H('relationshipStatus') ? [] : [pk(cfg, 'relationshipStatus', 'relationshipStatus', 'Status')]),
       ['ownerName', 'Client Owner', (r) => r.ownerName || muted('Unassigned'), (r) => r.ownerName], ...CLIENT_TIME_COLS,
       ...(H('county') ? [] : [['county', 'County']]), ...(H('contactType') ? [] : [['contactType', 'Contact type', (r) => ctype(r.contactType), (r) => contactTypeLabel(r.contactType) || '']]), ['orders', 'Orders'], ['volume', 'Volume', (r) => money(r.volume), (r) => r.volume], ...cfCols(cfg, 'contact')];
-  const lv = listView({ bar, saved: { api, listKey: 'contacts' }, dates: true, key: 'contacts', userId: me.id, rows, cols: contactCols.slice(0, 10), catalog: listCatalog('contacts', cfg, contactCols), bulk: me.canEdit ? { module: 'contact', api, me, owners, refresh } : null, fields: ['name', 'email', 'companyName', 'phone', 'mobile', 'tags', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'contact')], csv: me.canConfigure ? 'crm-clients.csv' : '', exporter: (cols, out) => api.exportCrmList('contacts', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
+  const lv = listView({ bar, saved: { api, listKey: 'contacts' }, dates: true, headerSort: true, key: 'contacts', userId: me.id, rows, cols: contactCols.slice(0, 10), catalog: listCatalog('contacts', cfg, contactCols), bulk: me.canEdit ? { module: 'contact', api, me, owners, refresh } : null, fields: ['name', 'email', 'companyName', 'phone', 'mobile', 'tags', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'contact')], csv: me.canConfigure ? 'crm-clients.csv' : '', exporter: (cols, out) => api.exportCrmList('contacts', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
     filters: [['ownerId', 'Client Owner', ownerOpts(owners), 'Any owner'], ['roleInCompany', 'Role in Company', fopts(cfg, 'roleInCompany'), 'Any role'], ['relationshipStatus', 'Status', [...fopts(cfg, 'relationshipStatus'), ['none', 'Not set']], 'Any status'],
       ['leadSource', 'Lead Source', fopts(cfg, 'leadSource'), 'Any source'], ['county', 'County', countyOpts(rows), 'Any county'], ['state', 'State', stateOpts(rows), 'Any state'], ['contactType', 'Contact type', ctOpts, 'Any type'], ['archived', 'Archived', archivedOpts, 'Hide archived'], ...cfFilters(cfg, 'contact')],
     sorts: [['name', 'Client Name'], ['companyName', 'Company Name'], ['relationshipStatus', 'Status'], ['county', 'County'], ['lastContactedOn', 'Last contacted'], ['orders', 'Orders'], ['volume', 'Volume'], ['ownerName', 'Client Owner'], ...TIME_SORTS, ...cfSorts(cfg, 'contact')] });

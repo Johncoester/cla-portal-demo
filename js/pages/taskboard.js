@@ -2,7 +2,7 @@
 // Filtering happens in the browser on what the adapter returned (listAllTasks already applies the person's access). Existing styles only.
 import { html, $, $$, toText, fmtDate, pill, options } from '../ui.js?v=202611070139';
 import { filterTasks, sortTasks, groupTasks, isOverdue, TASK_SORTS, TASK_GROUPS, roleShort } from '../data/task-board.js?v=202611140100';
-import { CLS, LABEL } from './dealtasks.js?v=202611160200';
+import { CLS, LABEL } from './dealtasks.js?v=202611160700';
 
 const STATUS_OPTS = [['open', 'Incomplete (to do, started, blocked)'], ['done', 'Completed'], ['blocked', 'Blocked'], ['cancelled', 'Cancelled'], ['all', 'All statuses']];
 const FILE_OPTS = [['Open', 'Open files'], ['On Hold', 'On-hold files'], ['Closed', 'Closed files'], ['Cancelled', 'Cancelled files'], ['All', 'All files']];

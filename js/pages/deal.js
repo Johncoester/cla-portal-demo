@@ -12,12 +12,12 @@ import { sourceChoices, processorChoices, fileReferralState, referralContacts, r
 import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611101015';
 import { canManageClosingLocations } from '../data/closing-location.js?v=202611101015';
 import { settlementSectionHtml, closingDateSectionHtml, mountSettlement } from './settlement-section.js?v=202611111700';
-import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611160200';
+import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611160700';
 import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611141400';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611141400';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611160200';
+import { prefetchDealTab } from './deal-tab.js?v=202611160700';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';

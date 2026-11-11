@@ -2,7 +2,7 @@
 // Transaction Coordinator = Dashboard; Buyer/Listing Agent = Transactions; clients = My Closing.
 import { html, toText, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js?v=202611070139';
 import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611101015';
-import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611160200';
+import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611160700';
 import { themeOn } from '../theme.js?v=202611070139';
 import { pendingMine } from '../data/task-actions.js?v=202611141400';
 import { unassignedOpen } from '../data/processor-assign.js?v=202611091600';
@@ -41,7 +41,7 @@ export async function render(ctx) {
   const first = await paint();
   const bar = () => html`${state.openRows.length < state.openTotal ? html`<p data-dash-more><button type="button" data-show-more-open>Show more open files</button> <span class="muted">${state.openRows.length} of ${state.openTotal} open</span></p>` : ''}${state.otherTotal && !state.showOther ? html`<p data-dash-other><button type="button" data-show-other>Show closed, on hold, and cancelled</button> <span class="muted">${state.otherTotal} file(s)</span></p>` : ''}`;
   const tc = themeOn() && (user.isAdmin || runsOrders(user) || ['Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(user.role));
-  const cards = tc ? (await import('./theme-cards.js?v=202611160200')).dashCards(state.showOther ? state.openRows.concat(state.otherRows) : state.openRows) : '';
+  const cards = tc ? (await import('./theme-cards.js?v=202611160700')).dashCards(state.showOther ? state.openRows.concat(state.otherRows) : state.openRows) : '';
   return { title: first.title, crumbs: [[first.title]], body: html`<div data-dash-root>${cards}${first.body}${bar()}</div>`, mount(root) {
     const wire = (viewMount) => {
       viewMount && viewMount(root);
@@ -58,7 +58,7 @@ export async function render(ctx) {
     const redraw = async () => {
       const again = await paint();
       const box = $('[data-dash-root]', root); if (!box) return;
-      const top = tc ? (await import('./theme-cards.js?v=202611160200')).dashCards(state.showOther ? state.openRows.concat(state.otherRows) : state.openRows) : '';
+      const top = tc ? (await import('./theme-cards.js?v=202611160700')).dashCards(state.showOther ? state.openRows.concat(state.otherRows) : state.openRows) : '';
       box.innerHTML = toText(html`${top}${again.body}${bar()}`);
       wire(again.mount);
     };
