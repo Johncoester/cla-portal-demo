@@ -1,7 +1,7 @@
 /* supabase-nov5.js : browser adapter for the Nov 5 RPCs plus the document/message reads that were still stubs.
  * RLS and the security-definer RPCs decide access. This file does not embed a project URL or a key.
  * File bytes go to the private deal-documents bucket (migration 3). A missing bucket surfaces as an error; nothing is invented. */
-import { ordinaryCoverageDoc } from './nov5-rules.js?v=202611130900';
+import { ordinaryCoverageDoc } from './nov5-rules.js?v=202611131900';
 import { cleanDueRule } from './due-date.js?v=202611110300';
 import { uploadBytes } from './upload-bytes.js?v=202611070139';
 import { shapePortalThreads } from './portal-threads.js?v=202611101800';

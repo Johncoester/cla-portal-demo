@@ -8,11 +8,11 @@ import { clientActivityFrom } from './client-activity.js?v=202611102100';
 import { assertRecipients, messageText } from './portal-message.js?v=202611101015';
 import { planDocumentBatch } from './document-batch.js?v=202611101015';
 import { featureFlags } from './features.js?v=202611070139';
-import { accountingSupabase } from './supabase-accounting.js?v=202611091140';
+import { accountingSupabase } from './supabase-accounting.js?v=202611131900';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
 import { titleSupabase } from './supabase-title.js?v=202611112200';
 import { policySupabase } from './supabase-policy.js?v=202611112100';
-import { fundingSupabase } from './supabase-funding.js?v=202611112000';
+import { fundingSupabase } from './supabase-funding.js?v=202611131900';
 import { postClosingSupabase } from './supabase-postclosing.js?v=202611111900';
 import { wiresSupabase } from './supabase-wires.js?v=202611111800';
 import { modulesSupabase } from './supabase-modules.js?v=202611101015';
@@ -21,7 +21,7 @@ import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611120100
 import { callItemsSupabase } from './supabase-callitems.js?v=202611101015';
 import { automationPart } from './automation.js?v=202611101015';
 import { runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
-import { crmSupabase } from './supabase-crm.js?v=202611130900';
+import { crmSupabase } from './supabase-crm.js?v=202611131900';
 import { hrSupabase } from './supabase-hr.js?v=202611100130';
 import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611130900';
 import { officesSupabase } from './supabase-offices.js?v=202611101015';
@@ -29,7 +29,7 @@ import { closingLocationSupabase } from './supabase-closing-location.js?v=202611
 import { tcSupabase } from './supabase-tc.js?v=202611101015';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
 import { gmailSupabase } from './supabase-gmail.js?v=202611120400';
-import { nov5Supabase } from './supabase-nov5.js?v=202611130900';
+import { nov5Supabase } from './supabase-nov5.js?v=202611131900';
 import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611121900';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611101015';
 import { staffSupabase } from './supabase-staff.js?v=202611110300';
@@ -38,14 +38,14 @@ import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=
 import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
 import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611101700';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
-import { propertyAddressOf } from './nov5-rules.js?v=202611130900';
+import { propertyAddressOf } from './nov5-rules.js?v=202611131900';
 import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611120200';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow } from './contact-insert.js?v=202611101200';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
 import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole } from './lender-file.js?v=202611101200';
 import { fileTitleOf } from './party-name.js?v=202611102000';
-import { cleanParcel } from './address-fill.js?v=202611102000';
+import { cleanParcel } from './address-fill.js?v=202611131900';
 import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611102000';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
@@ -465,7 +465,7 @@ export async function createSupabaseAdapter(cfg) {
     async createDeal(input) {
       // Refinance (John, Nov 3): no purchase price / EMD; migration 32 (private.deal_refi_guard) refuses them, and sellers / realtors / a TC on the file
       const refi = input.transactionType === 'Refinance';
-      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611101015'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
+      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611131900'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
       const { data: { user } } = await sb.auth.getUser();
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
         open_date: input.openDate || officeDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : moneyAmount(input.purchasePrice), loan_amount: moneyAmount(input.loanAmount),
