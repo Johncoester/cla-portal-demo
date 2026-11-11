@@ -4,17 +4,17 @@ import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, 
 import { crmSort } from '../data/crm.js?v=202611130900';
 import { DEAL_COLS, DEFAULT_HIDDEN, loadHidden } from '../data/crm-deal-cols.js?v=202611070139';
 import { display, moduleFields } from '../data/crm-analytics.js?v=202611130900';
-import { crmDealName, columnKey, loadColumns, normalizeColumns, beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611141100';
-import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611141100';
-import { tabs, head, money, wireRowOpen, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611141300';
+import { crmDealName, columnKey, loadColumns, normalizeColumns, beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611160300';
+import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611160300';
+import { tabs, head, money, wireRowOpen, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611160300';
 import { matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611130900';
-import { viewsBar, wireViewsBar } from './crm-views.js?v=202611141300';
+import { viewsBar, wireViewsBar } from './crm-views.js?v=202611160300';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
 import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070139';
-import { pageOf, selectionState, selectPage, loadPageSize } from '../data/crm-bulk.js?v=202611141100';
-import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611141300';
-import { bulkBar, wireBulk } from './crm-bulk.js?v=202611141200';
+import { pageOf, selectionState, selectPage, loadPageSize } from '../data/crm-bulk.js?v=202611160300';
+import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611160400';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611160400';
 
 export async function dealsPage(c) { return c.params.id ? dealPage(c) : dealsList(c); }
 

@@ -1,12 +1,25 @@
 /* Select every record that matches the current CRM list filter (JN-47).
  * The screen asks for a count, then confirms that count, then asks the server to write.
  * Callers get counts only. Full rows stay in the database.
- * EMAIL_DRAFT_BATCH is how many drafts one insert statement writes. It is not a limit
- * on how many addresses one send may include. */
-import { fieldPatch } from './crm-bulk.js?v=202611141100';
+ * EMAIL_DRAFT_BATCH is how many drafts one insert statement writes.
+ * EMAIL_RECIPIENT_CAP is the deduplicated address limit. A longer list is refused
+ * and nothing is saved. */
+import { fieldPatch } from './crm-bulk.js?v=202611160300';
 import { matchesDateWindow } from './crm-date-filter.js?v=202611141300';
 
 export const EMAIL_DRAFT_BATCH = 500;
+export const EMAIL_RECIPIENT_CAP = 250;
+
+/* The sentence on the confirmation. The number is the server's deduplicated count. */
+export function emailConfirm({ recipients = 0, cap = EMAIL_RECIPIENT_CAP } = {}) {
+  const n = Number(recipients) || 0;
+  const limit = Number(cap) || EMAIL_RECIPIENT_CAP;
+  if (n <= 0) return { ok: false, text: 'None of these records have an email address. Nothing will be saved.' };
+  if (n > limit) return { ok: false, text: `${n} recipients is over the limit of ${limit}. Nothing will be saved.` };
+  const drafts = n === 1 ? 'draft' : 'drafts';
+  const people = n === 1 ? 'recipient' : 'recipients';
+  return { ok: true, text: `Save ${n} email ${drafts} to ${n} ${people}? Nothing is sent.` };
+}
 export const CRM_ZONE = 'America/New_York';
 
 const DATE_PAIRS = [
