@@ -3,24 +3,24 @@
 // Reachable only when the `crm` feature flag is on (app.js never loads this module otherwise) and only for CLA staff (adapter refuses others).
 import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611070139';
 import { CONTACT_TYPES, contactTypeLabel, US_STATES, US_STATE_NAMES } from '../data/constants.js?v=202611101015';
-import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611070139';
-import { display, moduleFields } from '../data/crm-analytics.js?v=202611070139';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin, setCrmMe } from './crm-kit.js?v=202611131200';
-import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-janine.js?v=202611120600';
-import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611070139';
-import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611070139';
-import { settingsPage } from './crm-settings.js?v=202611131200';
-import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611131200';
-import { pipelinePage, reportsPage } from './crm-more.js?v=202611131200';
-import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611131200';
-import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611131200';
-import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611090905';
-import { searchPage } from './crm-search.js?v=202611131200';
-import { dashboardsPage } from './crm-dashboards.js?v=202611131200';
-import { reportsHome } from './crm-reports.js?v=202611131200';
-import { dealsPage } from './crm-deals.js?v=202611131200';
-import { callPage, callModal } from './crm-calls.js?v=202611131200';
-import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611131200';
+import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611130900';
+import { display, moduleFields } from '../data/crm-analytics.js?v=202611130900';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin, setCrmMe } from './crm-kit.js?v=202611132100';
+import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-janine.js?v=202611131900';
+import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611130900';
+import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611130900';
+import { settingsPage } from './crm-settings.js?v=202611132100';
+import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611132100';
+import { pipelinePage, reportsPage } from './crm-more.js?v=202611132100';
+import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611132100';
+import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611132100';
+import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611130900';
+import { searchPage } from './crm-search.js?v=202611132100';
+import { dashboardsPage } from './crm-dashboards.js?v=202611132100';
+import { reportsHome } from './crm-reports.js?v=202611132100';
+import { dealsPage } from './crm-deals.js?v=202611132100';
+import { callPage, callModal } from './crm-calls.js?v=202611132100';
+import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611132100';
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
 const archivedOpts = [['only', 'Archived only'], ['all', 'Active + archived']];
@@ -232,7 +232,7 @@ function accountForm(api, me, owners, a, done, cfg = null) {
     ${cfInputs(cfg, 'account', 'info', vals)}${extra.length ? html`<h4 class="span2" data-additional>Additional Information</h4>${cfInputs(cfg, 'account', 'additional', vals)}` : ''}${cfExtraSections(cfg, 'account', 'form', vals)}
     <p class="err-text span2" data-form-err></p>
     <div class="span2"><button class="ghost" type="button" data-close>Cancel</button> ${a ? '' : html`<button class="ghost" type="button" data-save-new>Save and New</button> `}<button class="m-btn" type="submit">Save</button></div></form>`, { wide: true });
-    const f = $('#acc-form', m); wireCompanyDup(f, api, a ? a.id : null);   // Janine, Nov 3: State is mandatory; duplicates are refused (with a link to the existing company)
+    const f = $('#acc-form', m); wireCompanyDup(f, api, a ? a.id : null);   // company_lookup: active companies only; an exact normalized name warns before save
     const run = (andNew) => guard(async (e) => { if (e) e.preventDefault(); $('[data-form-err]', f).textContent = '';
       try { const r = a ? await api.updateCrmAccount(a.id, formData(f)) : await api.createCrmAccount(formData(f)); toast(a ? 'Company saved' : 'Company created');
         if (andNew) open({ kind: blankKind(), ownerId: me.isAdmin ? '' : me.id }); else { closeModal(); done(r); } } catch (err) { const box = $('[data-form-err]', f); box.textContent = err.message; if (err.duplicate) { box.innerHTML = ''; box.appendChild(document.createRange().createContextualFragment(String(dupHtml(err.duplicate)))); box.dataset.dupBlocked = err.duplicate.id; } throw err; } });

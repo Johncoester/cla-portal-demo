@@ -1,15 +1,15 @@
 // crm-more.js : CRM pipeline (Kanban + list) and Reports (John, Nov 2; follow-ups moved to CRM Home tasks). Function only, minimal styling.
 import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611070139';
 import { localDate } from '../data/constants.js?v=202611101015';
-import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort, inLocalRange } from '../data/crm.js?v=202611070139';
-import { pageOf, loadPageSize, selectPage, selectionState } from '../data/crm-bulk.js?v=202611131100';
-import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611131200';
-import { schedulePageSizeSave } from '../data/crm-columns.js?v=202611131100';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv, pageSizeControl, pageNav } from './crm-kit.js?v=202611131200';
-import { bulkBar, wireBulk } from './crm-bulk.js?v=202611131200';
-import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611070139';
-import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611070139';
-import { wireCompose } from './crm-templates.js?v=202611131200';
+import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort, inLocalRange } from '../data/crm.js?v=202611130900';
+import { pageOf, loadPageSize, selectPage, selectionState } from '../data/crm-bulk.js?v=202611132000';
+import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611132100';
+import { schedulePageSizeSave } from '../data/crm-columns.js?v=202611132000';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv, pageSizeControl, pageNav } from './crm-kit.js?v=202611132100';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611132100';
+import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611130900';
+import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611130900';
+import { wireCompose } from './crm-templates.js?v=202611132100';
 
 const crumbs = (label) => [['CRM', '#/crm'], [label]];
 const q = () => new URLSearchParams(location.hash.split('?')[1] || '');

@@ -59,7 +59,7 @@ ok(read('js/pages/crm-reports.js').includes('data-create-report') && read('js/pa
 const dash = read('js/pages/crm-dashboards.js');
 ok(dash.includes('data-dash-kebab') && dash.includes('data-add-comp') && !dash.includes('Reorder and resize') && !dash.includes('data-dash-menu') && dash.includes('data-resize') && dash.includes('data-drag-handle') && dash.includes('Notes (beta)'), 'the dashboard keeps Add Component, a title kebab, and direct drag');
 ok(dash.includes('data-comp-menu') && dash.includes('Move to another dashboard') && dash.includes('Download (CSV)'), 'each component keeps its own menu');
-ok(!read('js/data/nov5-rules.js').includes('202611120600') && read('js/data/nov5-rules.js').includes('crm-janine.js?v=202611101015') && read('js/data/county-auto.js').includes('crm-janine.js?v=202611101015'), 'nov5-rules.js and county-auto.js stay on the crm-janine pin');
+ok(!read('js/data/nov5-rules.js').includes('202611120600') && read('js/data/nov5-rules.js').includes('crm-janine.js?v=202611101600') && read('js/data/county-auto.js').includes('crm-janine.js?v=202611101600'), 'nov5-rules.js and county-auto.js use the one crm-janine stamp');
 
 const mig = read('supabase/migrations/20261112050000_crm_janine_deal_name_import.sql');
 const rb = read('supabase/rollbacks/20261112050000_crm_janine_deal_name_import.sql');
@@ -105,9 +105,9 @@ for (const [target, hits] of stamps) {
   if (distinct.length > 1) issues.push(target + ' ' + distinct.join(','));
 }
 const janinePins = (stamps.get('js/data/crm-janine.js') || []).filter((h) => allowOld.has(h.from));
-if (janinePins.length !== allowOld.size || janinePins.some((h) => h.stamp !== '202611101015')) issues.push('crm-janine pin moved');
+if (janinePins.length !== allowOld.size || janinePins.some((h) => h.stamp !== '202611101600')) issues.push('crm-janine pin moved');
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
-ok(html.includes('js/app.js?v=202611131200') && html.includes('css/portal.css?v=202611120600'), 'index.html uses the select-all stamp');
+ok(html.includes('js/app.js?v=202611132100') && html.includes('css/portal.css?v=202611120600'), 'index.html uses the select-all stamp');
 
 const tList = performance.now();
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
