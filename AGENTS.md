@@ -8,3 +8,4 @@
 6. TEST only; never touch production (bxixxgcqxmtzkrolywas) or secrets.
 7. Every email sent from jcoester@clatitle.com has a subject starting with '[Written by AI]'.
 8. Portal invite emails are sent from testportal@clatitle.com.
+9. If the walkthrough on main is failing, fix it before starting any new feature.
