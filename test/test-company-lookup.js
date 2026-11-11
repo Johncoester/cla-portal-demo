@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
-import { companyLookupFlags } from '../js/data/mock-part-crm.js';
+import { companyLookupFlags } from '../js/data/mock-part-crm.js?v=202611160600';
 import { ACCOUNT_KINDS, companyKey } from '../js/data/crm.js';
 import { ensureSettings } from '../js/data/crm-config.js';
 import { companyDuplicateFromLookup } from '../js/pages/crm-janine.js';

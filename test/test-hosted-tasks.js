@@ -142,9 +142,9 @@ const linked = withMyAcknowledgements([{ code: 'wire', version: 2, title: 'Wire'
 ok(linked[0].myAck == null && linked[1].myAck == null, 'an acknowledgement of an older version does not count for the current text');
 const current = withMyAcknowledgements([{ code: 'wire', version: 2 }], [{ agreementCode: 'wire', version: 2, acknowledgedAt: '2026-11-02', roleLabel: 'Buyer' }]);
 ok(current[0].myAck && current[0].myAck.at === '2026-11-02', 'the same agreement and version stays linked');
-const docSrc = adapter.slice(adapter.indexOf('async listDocuments'), adapter.indexOf('async listAllTasks'));
+const docSrc = adapter.slice(adapter.indexOf('const rawDocs'), adapter.indexOf('async listAllTasks'));
 const nov5 = readFileSync(new URL('../js/data/supabase-nov5.js', import.meta.url), 'utf8');
-ok(docSrc.includes(".from('documents').select('*').eq('deal_id', dealId)") && !docSrc.includes('share_parties') && nov5.includes('visibility: file.visibility') && !nov5.includes('share_parties'), 'document list and upload use the saved visibility and not the held party-checkbox share');
+ok(docSrc.includes(".from('documents').select('*').eq('deal_id', id)") && docSrc.includes('rawDocs(dealId)') && !docSrc.includes('share_parties') && nov5.includes('visibility: file.visibility') && !nov5.includes('share_parties'), 'document list and upload use the saved visibility and not the held party-checkbox share');
 
 console.log(fail ? fail + ' failed' : 'hosted task path passed');
 if (fail) process.exit(1);
