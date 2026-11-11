@@ -114,8 +114,13 @@ export function dealsAndAuth(x) {
         }
       }
       const page = taskRows.slice(taskOffset, taskOffset + taskLimit);
-      const count = (id) => page.filter((t) => t.dealId === id && ['todo', 'in_progress', 'blocked'].includes(t.status)).length;
-      openRows.forEach((row) => { row.openTasks = count(row.id); });
+      const shown = [...openRows, ...otherRows];
+      const fullTasks = d.tasks;
+      shown.forEach((row) => {
+        const mine = fullTasks.filter((t) => t.dealId === row.id && ['todo', 'in_progress', 'blocked'].includes(t.status) && x.taskVisible(x.scopeTo(u, row.id), t));
+        row.openTasks = mine.length;
+        row.overdueTasks = mine.filter((t) => t.dueDate && t.dueDate < today).length;
+      });
       return { openRows, openTotal: openAll.length, otherRows, otherTotal: otherAll.length, closedTotal: visible.filter((q) => q.status === 'Closed').length, tasks: page, taskTotal: taskRows.length, limit: openLimit };
     },
     async getDeal(id) { const u0 = needUser(); const q = dealOr404(u0, id); const u = x.scopeTo(u0, id); return { ...dealView(u, q), participants: x.participantsOf(id, u) }; },

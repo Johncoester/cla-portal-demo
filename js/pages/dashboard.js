@@ -6,7 +6,7 @@ import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard
 import { themeOn } from '../theme.js?v=202611070139';
 import { pendingMine } from '../data/task-actions.js?v=202611141400';
 import { unassignedOpen } from '../data/processor-assign.js?v=202611091600';
-import { workQueueFrom, DASHBOARD_PAGE } from '../data/dashboard-load.js?v=202611140700';
+import { workQueueFrom, DASHBOARD_PAGE } from '../data/dashboard-load.js?v=202611160800';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>${d.fileTitle ? html` <span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}`;
 // CARD THEME (default look): a tile that repeats one of the four dashboard cards (open orders = "in Pipeline" count, overdue tasks) is not drawn;

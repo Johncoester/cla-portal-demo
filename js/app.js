@@ -1,5 +1,5 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611160600';
+import { getAdapter } from './data/adapter.js?v=202611160800';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611160700';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611101015';
@@ -33,7 +33,7 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611140400'),
-  dashboard: () => import('./pages/dashboard.js?v=202611160700'),
+  dashboard: () => import('./pages/dashboard.js?v=202611160800'),
   orders: () => import('./pages/orders.js?v=202611140900'),
   'orders/new': () => import('./pages/ordernew.js?v=202611141400'),
   deal: () => import('./pages/deal.js?v=202611160700'),
