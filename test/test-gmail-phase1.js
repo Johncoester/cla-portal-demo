@@ -8,8 +8,8 @@ const JOHN = '149e612a-6e14-4ee1-9890-0f29d6f89156'; const DEAL = 'f2c086d7-8043
 const SECRET = 'client-secret-do-not-leak'; const REFRESH = 'refresh-token-do-not-leak';
 
 // ---- allowlist ----
-for (const a of ['clatestportal@gmail.com', 'clatestportal+buyer@gmail.com', 'CLAtestportal+Seller.1@gmail.com', 'fsantos@clatitle.com', 'jcoester-6jkr3p@mail.grokbot.com']) ok(isAllowedTestRecipient(a), `allowed on Live Test: ${a}`);
-for (const a of ['someone@gmail.com', 'clatestportal+x@gmail.com.evil.com', 'x@clatitle.com.evil.com', 'x@sub.clatitle.com', 'clatestportal+@gmail.com', 'c.latestportal@gmail.com', 'jcoester@mail.grokbot.com', 'buyer@example.com', 'a@clatitle.co']) ok(!isAllowedTestRecipient(a), `refused on Live Test: ${a}`);
+for (const a of ['clatestportal@gmail.com', 'clatestportal+buyer@gmail.com', 'CLAtestportal+Seller.1@gmail.com', 'fsantos@clatitle.com', 'jcoester-6jkr3p@mail.grokbot.com', 'testbuyerjohnc@gmail.com', 'TestSellerGael@gmail.com', 'johncoester@gmail.com', 'ListingAgentRosy@gmail.com']) ok(isAllowedTestRecipient(a), `allowed on Live Test: ${a}`);
+for (const a of ['someone@gmail.com', 'clatestportal+x@gmail.com.evil.com', 'x@clatitle.com.evil.com', 'x@sub.clatitle.com', 'clatestportal+@gmail.com', 'c.latestportal@gmail.com', 'jcoester@mail.grokbot.com', 'buyer@example.com', 'a@clatitle.co', 'testbuyerjohnc+x@gmail.com', 'testsellergael@yahoo.com', 'listingagentrosy@gmail.com.evil.com']) ok(!isAllowedTestRecipient(a), `refused on Live Test: ${a}`);
 const pl = parseAddressList('Pat <PAT@clatitle.com>, pat@clatitle.com; not an address');
 ok(pl.ok.length === 1 && pl.ok[0] === 'pat@clatitle.com' && pl.bad.length === 1, 'address list: names stripped, duplicates merged, junk reported');
 ok(formatPropertyAddress({ street: '123 Main St', city: 'Rockville', state: 'MD', zip: '20850' }) === '123 Main St, Rockville MD 20850', 'address format: street, city state zip');

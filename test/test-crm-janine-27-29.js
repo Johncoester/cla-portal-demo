@@ -107,7 +107,7 @@ for (const [target, hits] of stamps) {
 const janinePins = (stamps.get('js/data/crm-janine.js') || []).filter((h) => allowOld.has(h.from));
 if (janinePins.length !== allowOld.size || janinePins.some((h) => h.stamp !== '202611101015')) issues.push('crm-janine pin moved');
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
-ok(html.includes('js/app.js?v=202611122000') && html.includes('css/portal.css?v=202611120600'), 'index.html uses the placeholder stamp');
+ok(html.includes('js/app.js?v=202611122150') && html.includes('css/portal.css?v=202611120600'), 'index.html uses the placeholder stamp');
 
 const tList = performance.now();
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });

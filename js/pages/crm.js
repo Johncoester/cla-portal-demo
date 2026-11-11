@@ -120,6 +120,8 @@ const listCatalog = (module, cfg, cols) => {
 };
 const when = (v) => (v ? fmtDateTime(v) : html`<span class="muted">—</span>`);
 const TIME_COLS = [['createdAt', 'Created Time', (r) => when(r.createdAt), (r) => r.createdAt || ''], ['modifiedAt', 'Modified Time', (r) => when(r.modifiedAt), (r) => r.modifiedAt || ''], ['lastActivityAt', 'Last Activity Time', (r) => when(r.lastActivityAt), (r) => r.lastActivityAt || '']];
+// Clients: modified_at is still null until the next save. Show the created time in that column.
+const CLIENT_TIME_COLS = [['createdAt', 'Created Time', (r) => when(r.createdAt), (r) => r.createdAt || ''], ['modifiedAt', 'Modified Time', (r) => when(r.modifiedAt || r.createdAt), (r) => r.modifiedAt || r.createdAt || ''], ['lastActivityAt', 'Last Activity Time', (r) => when(r.lastActivityAt), (r) => r.lastActivityAt || '']];
 const TIME_SORTS = [['createdAt', 'Created Time'], ['modifiedAt', 'Modified Time'], ['lastActivityAt', 'Last Activity Time']];
 async function leadsList({ api, me, owners, go, cfg, refresh, openCreate = false }) {
   const rows = (await api.listCrmLeads()).map((r) => flattenCustom(cfg, 'lead', r)); const accounts = me.canEdit ? await api.listCrmAccounts() : [];
@@ -170,13 +172,13 @@ async function leadPage({ api, me, owners, assignees, params, refresh, go, cfg }
 
 // ---------------- CLIENTS (Zoho list: Client Name, Company Name, Role in Company, Email, Mobile, Lead Source, Status, Client Owner) ----------------
 async function contactsList({ api, me, owners, go, cfg, refresh, openCreate = false }) {
-  const rows = (await api.listCrmContacts()).map((r) => flattenCustom(cfg, 'contact', r)); const accounts = me.canEdit ? await api.listCrmAccounts() : [];
+  const rows = (await api.listCrmContacts()).map((r) => { const row = flattenCustom(cfg, 'contact', r); return { ...row, modifiedAt: row.modifiedAt || row.createdAt || null }; }); const accounts = me.canEdit ? await api.listCrmAccounts() : [];
   const H = (k) => hiddenField(cfg, 'person', k);
   const bar = await viewsBar(api, 'contacts');
   const contactCols = [['name', 'Client Name', (r) => html`${link('contacts', r)}${r.archived ? html` ${pill('Archived')}` : ''}${r.hasLogin ? html` <span class="muted small">(portal login)</span>` : ''}`, (r) => r.name],
       ['companyName', 'Company Name', (r) => (r.accountId ? html`<a href="#/crm/accounts/${r.accountId}">${r.accountName}</a>` : r.company), (r) => r.companyName], ...(H('roleInCompany') ? [] : [pk(cfg, 'roleInCompany', 'roleInCompany', 'Role in Company')]), ['email', 'Email'],
       ...(H('mobile') ? [] : [['mobile', 'Mobile']]), ...(H('leadSource') ? [] : [pk(cfg, 'leadSource', 'leadSource', 'Lead Source')]), ...(H('relationshipStatus') ? [] : [pk(cfg, 'relationshipStatus', 'relationshipStatus', 'Status')]),
-      ['ownerName', 'Client Owner', (r) => r.ownerName || muted('Unassigned'), (r) => r.ownerName], ...TIME_COLS,
+      ['ownerName', 'Client Owner', (r) => r.ownerName || muted('Unassigned'), (r) => r.ownerName], ...CLIENT_TIME_COLS,
       ...(H('county') ? [] : [['county', 'County']]), ...(H('contactType') ? [] : [['contactType', 'Contact type', (r) => ctype(r.contactType), (r) => contactTypeLabel(r.contactType) || '']]), ['orders', 'Orders'], ['volume', 'Volume', (r) => money(r.volume), (r) => r.volume], ...cfCols(cfg, 'contact')];
   const lv = listView({ bar, saved: { api, listKey: 'contacts' }, dates: true, key: 'contacts', userId: me.id, rows, cols: contactCols.slice(0, 10), catalog: listCatalog('contacts', cfg, contactCols), bulk: me.canEdit ? { module: 'contact', api, me, owners, refresh } : null, fields: ['name', 'email', 'companyName', 'phone', 'mobile', 'tags', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'contact')], csv: me.canConfigure ? 'crm-clients.csv' : '', exporter: (cols, out) => api.exportCrmList('contacts', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
     filters: [['ownerId', 'Client Owner', ownerOpts(owners), 'Any owner'], ['roleInCompany', 'Role in Company', fopts(cfg, 'roleInCompany'), 'Any role'], ['relationshipStatus', 'Status', [...fopts(cfg, 'relationshipStatus'), ['none', 'Not set']], 'Any status'],

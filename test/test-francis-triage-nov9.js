@@ -18,8 +18,8 @@ ok(tplRb.includes('private.is_admin() or private.is_manager()') && tplRb.include
 // UI warns when canFill but fields are empty (what Francis saw as Save/Mark complete with no questions)
 const formSrc = read('js/pages/dealtaskform.js');
 ok(formSrc.includes('data-task-no-fields') && formSrc.includes('no form fields yet'), 'task form warns when the template has no fields');
-ok(read('js/pages/deal-tab.js').includes('dealtaskform.js?v=202611122000'), 'deal-tab loads dealtaskform at the current stamp');
-ok(read('js/pages/deal-buyer-legacy.js').includes('dealtaskform.js?v=202611122000'), 'buyer legacy loads dealtaskform at the current stamp');
+ok(read('js/pages/deal-tab.js').includes('dealtaskform.js?v=202611122150'), 'deal-tab loads dealtaskform at the current stamp');
+ok(read('js/pages/deal-buyer-legacy.js').includes('dealtaskform.js?v=202611122150'), 'buyer legacy loads dealtaskform at the current stamp');
 
 // Hosted path still attaches fields when the template row is returned (agent / buyer)
 const buyer = { id: 'u-buyer', role: 'Client-Buyer', roles: ['Client-Buyer'] };

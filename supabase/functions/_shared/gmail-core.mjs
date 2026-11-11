@@ -1,5 +1,6 @@
 /* Gmail phase 1 (John, Nov 9): pure helpers shared by the gmail-* edge functions and the Node tests.
  * TEST project only. Nothing here reads a secret, calls Google or touches the database. */
+import { AUTH_INVITE_HTML, AUTH_INVITE_LINK_VAR, AUTH_INVITE_SUBJECT } from './auth-invite-template.mjs';
 export const TEST_PROJECT_REF = 'aqcervntopidtcazcmlv';
 export const PORTAL_ORIGIN = 'https://testportal.clatitle.com';
 export const PORTAL_ORIGINS = ['https://testportal.clatitle.com', 'https://johncoester.github.io'];
@@ -40,16 +41,25 @@ export function estimateMimeBytes(fileBytes, extra = 0) {
 export const MAX_SAVE_BYTES = 25_000_000;     // deal-documents bucket limit
 export const MAX_BODY_CHARS = 200_000;
 export const UPLOAD_EXT = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'png', 'jpg', 'jpeg', 'heic', 'heif', 'webp'];   // = private.upload_ext_ok
-export const TEST_ALLOWLIST_NOTE = 'CLA Portal Live Test only sends to test addresses: clatestportal@gmail.com, clatestportal+anything@gmail.com, any @clatitle.com address, and jcoester-6jkr3p@mail.grokbot.com. Every other address is refused.';
+export const TEST_ALLOWLIST_NOTE = 'CLA Portal Live Test only sends to test addresses: clatestportal@gmail.com, clatestportal+anything@gmail.com, any @clatitle.com address, jcoester-6jkr3p@mail.grokbot.com, testbuyerjohnc@gmail.com, testsellergael@gmail.com, johncoester@gmail.com, and listingagentrosy@gmail.com. Every other address is refused.';
 
 const EMAIL_RE = /^[a-z0-9._%+'-]{1,64}@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,24}$/;
 export const isEmail = (a) => EMAIL_RE.test(String(a || '')) && !String(a).includes('..');
 
-/* Live Test recipient allowlist (server-side; the page only mirrors it). */
+/* Live Test recipient allowlist (server-side; the page only mirrors it). The four named Gmail
+ * addresses are exact (case-insensitive). A plus-tag or a different domain is still refused. */
+const EXACT_TEST_RECIPIENTS = new Set([
+  'clatestportal@gmail.com',
+  'jcoester-6jkr3p@mail.grokbot.com',
+  'testbuyerjohnc@gmail.com',
+  'testsellergael@gmail.com',
+  'johncoester@gmail.com',
+  'listingagentrosy@gmail.com',
+]);
 export function isAllowedTestRecipient(addr) {
   const a = String(addr || '').trim().toLowerCase();
   if (!isEmail(a)) return false;
-  if (a === 'clatestportal@gmail.com' || a === 'jcoester-6jkr3p@mail.grokbot.com') return true;
+  if (EXACT_TEST_RECIPIENTS.has(a)) return true;
   if (/^clatestportal\+[a-z0-9._-]{1,64}@gmail\.com$/.test(a)) return true;
   return /^[a-z0-9._%+'-]+@clatitle\.com$/.test(a);
 }
@@ -234,24 +244,27 @@ export function corsHeaders(origin) {
 }
 export const json = (status, body, headers = {}) => new Response(JSON.stringify(body), { status, headers: { ...headers, 'Content-Type': 'application/json' } });
 
-/* Portal invite email (John, Nov 9: "I want the portal to send it"). Built on the server from the invite row, never from the browser.
- * kind 'agent' covers agents and buyers / sellers (agent_invites.invite_kind 'agent' | 'client'); kind 'hr' is a staff (HR) invite. */
+/* Portal invite email. The HTML is the approved TEST Auth "Invite user" template.
+ * Only {{ .ConfirmationURL }} is swapped for this portal's one-time accept link. The subject stays the Auth subject.
+ * kind 'agent' covers agents and buyers / sellers; kind 'hr' is a staff invite. The link path is the only difference. */
+export { AUTH_INVITE_SUBJECT };
 export const INVITE_TOKEN_RE = /^[0-9a-f]{64}$/;
 export function inviteLink(kind, token) { return `${PORTAL_ORIGIN}/#/${kind === 'hr' ? 'hr-invite' : 'agent-invite'}/${token}`; }
-export function inviteEmailContent(info = {}, { token, inviterName = '' } = {}) {
-  const kind = info.kind === 'hr' ? 'hr' : 'agent'; const who = info.inviteKind === 'client' ? 'client' : kind === 'hr' ? 'staff' : 'agent';
-  const link = inviteLink(kind, token); const first = oneLine(info.firstName, 80) || 'there';
-  const address = info.dealId ? formatPropertyAddress(info) : ''; const fileNumber = info.dealId ? oneLine(info.fileNumber, 40) : '';
-  const subject = fileNumber ? subjectWithTag("You're invited to the CLA Title portal", fileNumber, address) : "You're invited to the CLA Title portal";
-  const what = who === 'client' ? `follow your file${address ? ` for ${address}` : ''}, see documents and complete your tasks`
-    : who === 'agent' ? `work with us on your files${address ? `, starting with ${address}` : ''}` : 'set up your CLA Title employee login';
-  const until = info.expiresAt ? new Date(info.expiresAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' }) : '';
-  const btn = who === 'agent' ? 'Set up my agent account' : 'Set up my portal login';
-  const html = `<p>Hi ${escapeHtml(first)},</p>`
-    + `<p>${escapeHtml(inviterName || 'CLA Title & Escrow')} invited you to the CLA Title &amp; Escrow portal so you can ${escapeHtml(what)}.</p>`
-    + `<p><a href="${escapeHtml(link)}" style="display:inline-block;padding:10px 18px;background:#1f5f99;color:#ffffff;text-decoration:none;border-radius:4px;font-weight:bold">${btn}</a></p>`
-    + `<p>Or open this link: <a href="${escapeHtml(link)}">${escapeHtml(link)}</a></p>`
-    + `<p>The link works once${until ? ` and expires on ${escapeHtml(until)}` : ''}. Use this email address (${escapeHtml(info.email || '')}) when you set up your login.</p>`
-    + `<p>If you weren't expecting this, you can ignore this email.</p>`;
-  return { subject, html, link, to: String(info.email || '').trim().toLowerCase() };
+export function invitePlainText(link) {
+  return [
+    "You're invited to the CLA Title Portal",
+    'C.L.A. Title & Escrow has invited you to create an account. Once you accept, you can track your order, documents, tasks, and messages in one place.',
+    `Accept invitation: ${link}`,
+    "If you weren't expecting this, you can ignore this email.",
+    'C.L.A. Title & Escrow',
+    'clatitle.com',
+  ].join('\n\n');
+}
+export function inviteEmailContent(info = {}, { token } = {}) {
+  const kind = info.kind === 'hr' ? 'hr' : 'agent';
+  const link = inviteLink(kind, token);
+  const safe = escapeHtml(link);
+  if (!AUTH_INVITE_HTML.includes(AUTH_INVITE_LINK_VAR)) throw new Error('Invite template is missing its link variable.');
+  const html = AUTH_INVITE_HTML.split(AUTH_INVITE_LINK_VAR).join(safe);
+  return { subject: AUTH_INVITE_SUBJECT, html, link, text: invitePlainText(link), to: String(info.email || '').trim().toLowerCase() };
 }
