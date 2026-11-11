@@ -4,11 +4,11 @@ import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, 
 import { crmSort, inLocalRange } from '../data/crm.js?v=202611121100';
 import { DEAL_COLS, DEFAULT_HIDDEN, loadHidden } from '../data/crm-deal-cols.js?v=202611070139';
 import { display, moduleFields } from '../data/crm-analytics.js?v=202611070139';
-import { crmDealName, columnKey, loadColumns, normalizeColumns } from '../data/crm-columns.js?v=202611120600';
-import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611120600';
-import { tabs, head, money, wireRowOpen } from './crm-kit.js?v=202611120600';
+import { crmDealName, columnKey, loadColumns, normalizeColumns, beginColumnPrefs } from '../data/crm-columns.js?v=202611121000';
+import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611121000';
+import { tabs, head, money, wireRowOpen } from './crm-kit.js?v=202611121000';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611090905';
-import { viewsBar, wireViewsBar } from './crm-views.js?v=202611120600';
+import { viewsBar, wireViewsBar } from './crm-views.js?v=202611121000';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
 import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070139';
 import { pageOf, selectionState, selectPage, BULK_PAGE_SIZE } from '../data/crm-bulk.js?v=202611090905';
@@ -16,8 +16,8 @@ import { bulkBar, wireBulk } from './crm-bulk.js?v=202611090905';
 
 export async function dealsPage(c) { return c.params.id ? dealPage(c) : dealsList(c); }
 
-// John, Nov 3: SORT (click a column header: up / down arrows, click again to reverse), HIDE COLUMNS (Columns chooser, remembered per user in this
-// browser) and FILTERS. Who sees which deals is the adapter's job (and migration 32's): an Admin / Super admin (and the Processor, read-only, and Sales Team)
+// John, Nov 3: SORT (click a column header: up / down arrows, click again to reverse), HIDE COLUMNS (Columns chooser, remembered for this login;
+// this browser paints first) and FILTERS. Who sees which deals is the adapter's job (and migration 32's): an Admin / Super admin (and the Processor, read-only, and Sales Team)
 // see every deal and filter by Deal Owner and Client; a Sales Person sees ONLY their own deals and filters by Source. Everyone can filter by Status
 // (Open by default) and Source, search, sort and hide columns.
 const arrows = html`<span class="sort-arrows" aria-hidden="true"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span>`;
@@ -104,7 +104,17 @@ async function dealsList(c) {
       count: (o) => { const same = (o.status || 'Open') === cur.status && (o.owner || '') === cur.ownerId && (o.client || '') === cur.clientId && (o.source || '') === cur.source;
         if (!same) return '·'; const words = String(o.q || '').toLowerCase().split(/\s+/).filter(Boolean); return rows.filter((r) => { const hay = [r.name, r.fileNumber, r.propertyAddress, r.clientName, r.contactName, r.ownerName, r.salesReps, r.sourceText].join(' ').toLowerCase(); return words.every((w) => hay.includes(w)); }).length; } });
     const defaults = normalizeColumns(DEAL_COLS.map(([k]) => k).filter((k) => !DEFAULT_HIDDEN.includes(k)), known, known);
-    wireColumnChooser(root, { module: 'deals', userId: me.id || fl.me.id, fields: catalog.map(([k, l]) => ({ key: k, label: l })), visible, defaults, known, storage, onChange: (next) => { visible = next; apply(); } });
+    const dealUser = me.id || fl.me.id;
+    const wiredCols = wireColumnChooser(root, { module: 'deals', userId: dealUser, fields: catalog.map(([k, l]) => ({ key: k, label: l })), visible, defaults, known, storage, api, onChange: (next) => { visible = next; apply(); } });
+    if (api && typeof api.getUserUiPrefs === 'function') {
+      const opened = beginColumnPrefs({ api, storage, userId: dealUser, module: 'deals', known, defaults, local: visible });
+      opened.ready.then((order) => {
+        if (!order || order.join('\n') === visible.join('\n')) return;
+        visible = order;
+        if (wiredCols && wiredCols.setOrder) wiredCols.setOrder(order);
+        apply();
+      }).catch(() => {});
+    }
     apply();
     if (canBulk) {
       $('[data-deals-table]', root).addEventListener('change', (e) => {

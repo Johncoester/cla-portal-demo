@@ -5,22 +5,22 @@ import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, 
 import { CONTACT_TYPES, contactTypeLabel, US_STATES, US_STATE_NAMES } from '../data/constants.js?v=202611101015';
 import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611121100';
 import { display, moduleFields } from '../data/crm-analytics.js?v=202611070139';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin, setCrmMe } from './crm-kit.js?v=202611120600';
-import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-janine.js?v=202611121100';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin, setCrmMe } from './crm-kit.js?v=202611121000';
+import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-janine.js?v=202611120600';
 import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611070139';
 import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611070139';
-import { settingsPage } from './crm-settings.js?v=202611120600';
-import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611121100';
-import { pipelinePage, reportsPage } from './crm-more.js?v=202611120600';
-import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611121100';
-import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611120600';
+import { settingsPage } from './crm-settings.js?v=202611121000';
+import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611121000';
+import { pipelinePage, reportsPage } from './crm-more.js?v=202611121000';
+import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611121000';
+import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611121000';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611090905';
-import { searchPage } from './crm-search.js?v=202611120600';
-import { dashboardsPage } from './crm-dashboards.js?v=202611120600';
-import { reportsHome } from './crm-reports.js?v=202611120600';
-import { dealsPage } from './crm-deals.js?v=202611120600';
-import { callPage, callModal } from './crm-calls.js?v=202611120600';
-import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611120600';
+import { searchPage } from './crm-search.js?v=202611121000';
+import { dashboardsPage } from './crm-dashboards.js?v=202611121700';
+import { reportsHome } from './crm-reports.js?v=202611121000';
+import { dealsPage } from './crm-deals.js?v=202611121000';
+import { callPage, callModal } from './crm-calls.js?v=202611121000';
+import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611121000';
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
 const archivedOpts = [['only', 'Archived only'], ['all', 'Active + archived']];
@@ -120,6 +120,8 @@ const listCatalog = (module, cfg, cols) => {
 };
 const when = (v) => (v ? fmtDateTime(v) : html`<span class="muted">—</span>`);
 const TIME_COLS = [['createdAt', 'Created Time', (r) => when(r.createdAt), (r) => r.createdAt || ''], ['modifiedAt', 'Modified Time', (r) => when(r.modifiedAt), (r) => r.modifiedAt || ''], ['lastActivityAt', 'Last Activity Time', (r) => when(r.lastActivityAt), (r) => r.lastActivityAt || '']];
+// Clients: modified_at is still null until the next save. Show the created time in that column.
+const CLIENT_TIME_COLS = [['createdAt', 'Created Time', (r) => when(r.createdAt), (r) => r.createdAt || ''], ['modifiedAt', 'Modified Time', (r) => when(r.modifiedAt || r.createdAt), (r) => r.modifiedAt || r.createdAt || ''], ['lastActivityAt', 'Last Activity Time', (r) => when(r.lastActivityAt), (r) => r.lastActivityAt || '']];
 const TIME_SORTS = [['createdAt', 'Created Time'], ['modifiedAt', 'Modified Time'], ['lastActivityAt', 'Last Activity Time']];
 async function leadsList({ api, me, owners, go, cfg, refresh, openCreate = false }) {
   const rows = (await api.listCrmLeads()).map((r) => flattenCustom(cfg, 'lead', r)); const accounts = me.canEdit ? await api.listCrmAccounts() : [];
@@ -170,13 +172,13 @@ async function leadPage({ api, me, owners, assignees, params, refresh, go, cfg }
 
 // ---------------- CLIENTS (Zoho list: Client Name, Company Name, Role in Company, Email, Mobile, Lead Source, Status, Client Owner) ----------------
 async function contactsList({ api, me, owners, go, cfg, refresh, openCreate = false }) {
-  const rows = (await api.listCrmContacts()).map((r) => flattenCustom(cfg, 'contact', r)); const accounts = me.canEdit ? await api.listCrmAccounts() : [];
+  const rows = (await api.listCrmContacts()).map((r) => { const row = flattenCustom(cfg, 'contact', r); return { ...row, modifiedAt: row.modifiedAt || row.createdAt || null }; }); const accounts = me.canEdit ? await api.listCrmAccounts() : [];
   const H = (k) => hiddenField(cfg, 'person', k);
   const bar = await viewsBar(api, 'contacts');
   const contactCols = [['name', 'Client Name', (r) => html`${link('contacts', r)}${r.archived ? html` ${pill('Archived')}` : ''}${r.hasLogin ? html` <span class="muted small">(portal login)</span>` : ''}`, (r) => r.name],
       ['companyName', 'Company Name', (r) => (r.accountId ? html`<a href="#/crm/accounts/${r.accountId}">${r.accountName}</a>` : r.company), (r) => r.companyName], ...(H('roleInCompany') ? [] : [pk(cfg, 'roleInCompany', 'roleInCompany', 'Role in Company')]), ['email', 'Email'],
       ...(H('mobile') ? [] : [['mobile', 'Mobile']]), ...(H('leadSource') ? [] : [pk(cfg, 'leadSource', 'leadSource', 'Lead Source')]), ...(H('relationshipStatus') ? [] : [pk(cfg, 'relationshipStatus', 'relationshipStatus', 'Status')]),
-      ['ownerName', 'Client Owner', (r) => r.ownerName || muted('Unassigned'), (r) => r.ownerName], ...TIME_COLS,
+      ['ownerName', 'Client Owner', (r) => r.ownerName || muted('Unassigned'), (r) => r.ownerName], ...CLIENT_TIME_COLS,
       ...(H('county') ? [] : [['county', 'County']]), ...(H('contactType') ? [] : [['contactType', 'Contact type', (r) => ctype(r.contactType), (r) => contactTypeLabel(r.contactType) || '']]), ['orders', 'Orders'], ['volume', 'Volume', (r) => money(r.volume), (r) => r.volume], ...cfCols(cfg, 'contact')];
   const lv = listView({ bar, saved: { api, listKey: 'contacts' }, dates: true, key: 'contacts', userId: me.id, rows, cols: contactCols.slice(0, 10), catalog: listCatalog('contacts', cfg, contactCols), bulk: me.canEdit ? { module: 'contact', api, me, owners, refresh } : null, fields: ['name', 'email', 'companyName', 'phone', 'mobile', 'tags', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'contact')], csv: me.canConfigure ? 'crm-clients.csv' : '', exporter: (cols, out) => api.exportCrmList('contacts', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
     filters: [['ownerId', 'Client Owner', ownerOpts(owners), 'Any owner'], ['roleInCompany', 'Role in Company', fopts(cfg, 'roleInCompany'), 'Any role'], ['relationshipStatus', 'Status', [...fopts(cfg, 'relationshipStatus'), ['none', 'Not set']], 'Any status'],

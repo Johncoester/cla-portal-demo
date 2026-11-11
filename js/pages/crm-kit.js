@@ -4,7 +4,8 @@ import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pi
 import { CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611101015';
 import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611121100';
 import { modOn, modBeta, BETA_LABEL } from '../data/modules.js?v=202611101015';   // module switches: Deals hidden when not Live (beta badge for Admins)
-import { columnChooserHtml, columnState, wireColumnChooser } from './crm-columns.js?v=202611120600';
+import { columnChooserHtml, columnState, wireColumnChooser } from './crm-columns.js?v=202611121000';
+import { beginColumnPrefs } from '../data/crm-columns.js?v=202611121000';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
 import { pageOf, selectionState, selectPage, BULK_PAGE_SIZE } from '../data/crm-bulk.js?v=202611090905';
 import { bulkBar, wireBulk } from './crm-bulk.js?v=202611090905';
@@ -77,7 +78,17 @@ export function listView({ key, rows, cols, catalog = null, userId = '', filters
       const pg = $('[data-bulk-pager]', root); if (pg) pg.innerHTML = toText(view.pages > 1 ? html`<button type="button" class="ghost" data-bulk-prev ${view.page <= 1 ? raw('disabled') : ''}>Previous</button> Page ${view.page} of ${view.pages} <button type="button" class="ghost" data-bulk-next ${view.page >= view.pages ? raw('disabled') : ''}>Next</button>` : html``);
       paintBar(); };
     f.addEventListener('input', apply); f.addEventListener('change', apply);
-    wireColumnChooser(root, { module: key, userId, fields: fieldMeta, visible, defaults, known, onChange: (next) => { visible = next; apply(); } });
+    const prefsApi = saved && saved.api;
+    const wiredCols = wireColumnChooser(root, { module: key, userId, fields: fieldMeta, visible, defaults, known, api: prefsApi, onChange: (next) => { visible = next; apply(); } });
+    if (prefsApi && typeof prefsApi.getUserUiPrefs === 'function') {
+      const opened = beginColumnPrefs({ api: prefsApi, userId, module: key, known, defaults, local: visible });
+      opened.ready.then((order) => {
+        if (!order || order.join('\n') === visible.join('\n')) return;
+        visible = order;
+        if (wiredCols && wiredCols.setOrder) wiredCols.setOrder(order);
+        apply();
+      }).catch(() => {});
+    }
     wireRowOpen(tb, (id) => `#/crm/${key}/${id}`);
     const resetBtn = $('[data-crm-reset]', f); if (resetBtn) resetBtn.addEventListener('click', () => {
       [...f.elements].forEach((el) => { if (!el.name) return; el.value = el.name === 'sort' ? sortDefault : (dflt[el.name] || ''); });

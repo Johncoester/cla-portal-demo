@@ -127,12 +127,16 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
     async createCrmDashboard(input = {}) {
       const u = await editor(); const name = String(input.name || '').trim(); if (!name) throw new Error('Dashboard Name is required.');
       const share = { users: input.shareUsers || [], roles: input.shareRoles || [], departments: input.shareDepts || [] };
-      const d = ok(await sb.from('crm_dashboards').insert({ name: name.slice(0, 120), description: String(input.description || '').slice(0, 500), owner_id: u.id, visibility: input.visibility || 'me', share, locked: !!input.locked, created_by: u.id }).select('*').single());
-      return dashOut(u, d);
+      const id = globalThis.crypto && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : '';
+      if (!id) throw new Error('This browser cannot mint a dashboard id.');
+      // No RETURNING on this insert. crm_dashboards_select calls crm_dash_visible, which looks the id up and cannot see this statement's new row.
+      const row = { id, name: name.slice(0, 100), description: String(input.description || '').slice(0, 500), owner_id: u.id, visibility: input.visibility || 'me', share, locked: !!input.locked, created_by: u.id };
+      ok(await sb.from('crm_dashboards').insert(row));
+      return dashOut(u, ok(await sb.from('crm_dashboards').select('*').eq('id', id).single()));
     },
     async updateCrmDashboard(id, patch = {}) {
       const u = await editor(); const o = { modified_by: u.id, modified_at: new Date().toISOString() };
-      if (patch.name != null) o.name = String(patch.name).trim().slice(0, 120);
+      if (patch.name != null) o.name = String(patch.name).trim().slice(0, 100);
       if (patch.description != null) o.description = String(patch.description).slice(0, 500);
       if (patch.visibility) o.visibility = patch.visibility;
       if (patch.locked != null) o.locked = !!patch.locked;
