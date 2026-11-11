@@ -17,12 +17,12 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611121300';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611120200';
 import { gatherReads } from '../data/read-batch.js?v=202611111700';
-import { prefetchDealTab } from './deal-tab.js?v=202611121900';
+import { prefetchDealTab } from './deal-tab.js?v=202611130000';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { earnestView, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611102000';
+import { earnestView, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611130000';
 function staffSections(ctx, dealId) {
   const { api } = ctx;
   const user = ctx.user;
@@ -227,7 +227,7 @@ async function wireModal(api, d) {
 }
 
 async function editModal(api, d, refresh) {
-  const v = (k) => d[k] == null ? '' : d[k]; const refi = isRefi(d);
+  const v = (k) => d[k] == null ? '' : d[k]; const refi = isRefi(d); const ev = earnestView(d);
   // Matt, Nov 3 (b): source of business (CRM Settings Lead Source list; a retired / renamed value already on the order stays selectable) + money with commas
   const preprocs = await api.listPreprocessors(); const procs = api.listProcessors ? await api.listProcessors() : [];
   let closerStaff = []; try { closerStaff = api.listActiveStaff ? await api.listActiveStaff() : []; } catch (e) { closerStaff = []; }
@@ -254,7 +254,7 @@ async function editModal(api, d, refresh) {
     <label>Email<input name="lenderEmail" value="${v('lenderEmail')}"></label><label>Phone<input name="lenderPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${v('lenderPhone')}"></label>
     <label class="span2">Source of business<select name="sourceOfBusiness" aria-label="Source of business"><option value="">(not set)</option>${options(srcOpts, d.sourceOfBusiness || '', (o) => o.label, (o) => o.value)}</select></label>
     <label>Parcel ID<input name="parcelId" maxlength="80" value="${v('parcelId')}" aria-label="Parcel ID"></label>
-    ${refi ? '' : html`<h4 class="span2">Earnest &amp; commissions</h4><label>EMD held by<input name="emdHeldBy" maxlength="200" value="${(d.financial && d.financial.emdHeldBy) || d.emdHolder || ''}" aria-label="EMD held by"></label><label>Commission base<input name="commissionBase" inputmode="decimal" data-money value="${moneyShow(d.financial && d.financial.commissionBase)}" aria-label="Commission base"></label><label>Commission %<input name="commissionPercent" inputmode="decimal" value="${d.financial && d.financial.commissionPercent != null ? d.financial.commissionPercent : ''}" aria-label="Commission percent"></label><label>Additional<input name="commissionAdditional" inputmode="decimal" data-money value="${moneyShow(d.financial && d.financial.commissionAdditional)}" aria-label="Commission additional"></label><label>Paid by<select name="commissionPaidBy" aria-label="Commission paid by"><option value="">Choose&hellip;</option>${COMMISSION_PAID_BY.map(([code, label]) => html`<option value="${code}" ${code === ((d.financial && d.financial.commissionPaidBy) || '') ? raw('selected') : ''}>${label}</option>`)}</select></label>`}
+    ${refi ? '' : html`<h4 class="span2">Earnest &amp; commissions <span class="muted small">(optional)</span></h4><label>EMD held by<input name="emdHeldBy" maxlength="200" value="${ev.held}" aria-label="EMD held by"></label><label>Commission base<input name="commissionBase" inputmode="decimal" data-money value="${moneyShow(ev.base)}" aria-label="Commission base"></label><label>Commission %<input name="commissionPercent" inputmode="decimal" value="${ev.percent != null ? ev.percent : ''}" aria-label="Commission percent"></label><label>Additional<input name="commissionAdditional" inputmode="decimal" data-money value="${moneyShow(ev.additional)}" aria-label="Commission additional"></label><label>Paid by<select name="commissionPaidBy" aria-label="Commission paid by"><option value="">Choose&hellip;</option>${COMMISSION_PAID_BY.map(([code, label]) => html`<option value="${code}" ${code === ev.paid ? raw('selected') : ''}>${label}</option>`)}</select></label>`}
     <label class="span2">Notes<textarea name="notes" rows="3">${v('notes')}</textarea></label>
     <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
   const paintProcessors = (list, keep) => { const sel = $('[name=processorId]', m); const next = processorChoices(list, keep == null ? (sel.value || d.processorId || '') : keep, '');

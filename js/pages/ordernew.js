@@ -21,7 +21,7 @@ import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnab
 import { orderDraftKey, readOrderDraft, writeOrderDraft, clearOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim } from '../data/order-draft.js?v=202611070139';
 import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows } from '../data/lender-file.js?v=202611101200';
 import { fillProperty, cleanParcel } from '../data/address-fill.js?v=202611102000';
-import { readEarnest, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611102000';
+import { readEarnest, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611130000';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611120500';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611110300';
@@ -147,7 +147,7 @@ export async function render({ api, user, go }) {
         <label data-refi-hide="purchasePrice">Purchase price<input name="purchasePrice" inputmode="decimal" placeholder="485,000" data-money autocomplete="off"></label><label>Loan amount<input name="loanAmount" inputmode="decimal" placeholder="388,000" data-money autocomplete="off"></label>
         <label data-refi-hide="emdAmount">EMD amount<input name="emdAmount" inputmode="decimal" placeholder="10,000" aria-label="EMD amount (earnest money deposit)" data-money autocomplete="off"></label><label data-refi-hide="emdDueDate">EMD due date<input name="emdDueDate" type="date"></label>
         <label>Closing date<input name="closingDate" type="date"></label></div>
-        <h4 class="wiz-sub" data-refi-hide="earnestCommission">Earnest &amp; Commissions</h4>
+        <h4 class="wiz-sub" data-refi-hide="earnestCommission">Earnest &amp; Commissions <span class="muted small">(optional)</span></h4>
         <div class="form-grid" data-refi-hide="earnestCommission" data-earnest-commission>
           <label>EMD held by<input name="emdHeldBy" maxlength="200" aria-label="EMD held by" placeholder="CLA Title, listing brokerage, or another holder"></label>
           <label>Commission base<input name="commissionBase" inputmode="decimal" data-money aria-label="Commission base" autocomplete="off"></label>
