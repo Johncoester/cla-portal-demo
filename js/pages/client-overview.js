@@ -38,11 +38,14 @@ const tel = (p) => String(p || '').replace(/[^0-9+]/g, '');
 // active = the route tab ('overview', 'tasks', ...); a buyer's agreement page counts as the To-do list (agreements are to-dos for the buyer).
 const TAB_OF = { overview: 'overview', tasks: 'tasks', spouse: 'spouse', inbox: 'inbox', documents: 'documents', closing: 'closing', activity: 'activity', agreements: 'agreements', contacts: 'contacts' };
 export function clientNav(d, user, active, n = {}) {
-  const pure = isPureClient(user); const on = pure && active === 'agreements' ? 'tasks' : TAB_OF[active] || '';
+  const pure = isPureClient(user);
+  const mine = typeof location !== 'undefined' && /(?:\?|&)mine=1(?:&|$)/.test(location.hash || '');
+  const on = mine && (active === 'tasks' || TAB_OF[active] === 'tasks') ? 'my-tasks' : pure && active === 'agreements' ? 'tasks' : TAB_OF[active] || '';
   const tab = (key, href, label, cnt) => html`<a class="${on === key ? 'on' : ''}" href="${href}" data-co-tab="${label}"${on === key ? raw(' aria-current="page"') : ''}>${label}${cnt ? html` <span class="n">${cnt}</span>` : ''}</a>`;
   const B = `#/deals/${d.id}`; const agent = (user.roles || [user.role]).some((r) => /Agent$/.test(r));
-  return html`<nav class="co-seg" aria-label="This file" data-co-nav>${pure ? html`${tab('overview', B, BUYER_TAB_LABELS.overview, 0)}${tab('tasks', `${B}/tasks`, BUYER_TAB_LABELS.tasks, n.todo)}${tab('spouse', `${B}/spouse`, 'Spouse', 0)}${tab('inbox', `${B}/inbox`, BUYER_TAB_LABELS.inbox, n.msg)}${tab('documents', `${B}/documents`, BUYER_TAB_LABELS.documents, n.docs)}${tab('closing', `${B}/closing`, BUYER_TAB_LABELS.closing, 0)}${tab('activity', `${B}/activity`, BUYER_TAB_LABELS.activity, 0)}`
-    : html`${tab('overview', B, 'Overview', 0)}${tab('tasks', `${B}/tasks`, 'Tasks', n.tasks)}${tab('spouse', `${B}/spouse`, 'Spouse', 0)}${tab('inbox', `${B}/inbox`, 'Messages', n.msg)}${tab('documents', `${B}/documents`, 'Documents', n.docs)}${tab('closing', `${B}/closing`, 'Closing', 0)}${tab('agreements', `${B}/agreements`, 'Agreements', n.ag)}${agent ? tab('contacts', `${B}/contacts`, 'Contacts', 0) : ''}${tab('activity', `${B}/activity`, 'Activity', 0)}`}</nav>`;
+  const myTasks = tab('my-tasks', `${B}/tasks?mine=1`, 'My Tasks', 0);
+  return html`<nav class="co-seg" aria-label="This file" data-co-nav>${pure ? html`${tab('overview', B, BUYER_TAB_LABELS.overview, 0)}${tab('tasks', `${B}/tasks`, BUYER_TAB_LABELS.tasks, n.todo)}${myTasks}${tab('spouse', `${B}/spouse`, 'Spouse', 0)}${tab('inbox', `${B}/inbox`, BUYER_TAB_LABELS.inbox, n.msg)}${tab('documents', `${B}/documents`, BUYER_TAB_LABELS.documents, n.docs)}${tab('closing', `${B}/closing`, BUYER_TAB_LABELS.closing, 0)}${tab('activity', `${B}/activity`, BUYER_TAB_LABELS.activity, 0)}`
+    : html`${tab('overview', B, 'Overview', 0)}${tab('tasks', `${B}/tasks`, 'Tasks', n.tasks)}${myTasks}${tab('spouse', `${B}/spouse`, 'Spouse', 0)}${tab('inbox', `${B}/inbox`, 'Messages', n.msg)}${tab('documents', `${B}/documents`, 'Documents', n.docs)}${tab('closing', `${B}/closing`, 'Closing', 0)}${tab('agreements', `${B}/agreements`, 'Agreements', n.ag)}${agent ? tab('contacts', `${B}/contacts`, 'Contacts', 0) : ''}${tab('activity', `${B}/activity`, 'Activity', 0)}`}</nav>`;
 }
 // The top of every client TAB page: the file line and the same pill tabs as the Overview (counts read the same way as there)
 export async function clientTabChrome({ api, user }, d, active) {

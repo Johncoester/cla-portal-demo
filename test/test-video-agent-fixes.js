@@ -45,7 +45,7 @@ const dealSrc = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'u
 ok(app.includes("${link('tasks', 'Tasks', 'task')}${myTasksLink}"), 'My Tasks sits directly under Tasks for agents and staff');
 ok(app.includes("${link('tasks', 'To-do list', 'task')}${myTasksLink}"), 'My Tasks sits directly under the to-do list for buyers and sellers');
 ok(app.includes('data-nav-my-tasks') && app.includes('tasks?mine=1'), 'My Tasks opens the file tasks already loaded, marked as mine');
-ok(dealSrc.includes('href="#/deals/${d.id}/tasks?mine=1" data-view-tasks'), 'View Tasks opens that person\'s own section');
+ok(dealSrc.includes('viewTasksHref(d.id, user)') && dealSrc.includes('data-view-tasks'), 'View Tasks opens that person\'s own section');
 
 const api = createMockAdapter({ storage: memStore(), sessionStorage: memStore() });
 async function as(id) { await api.signInDev(id); return api.getSession(); }
