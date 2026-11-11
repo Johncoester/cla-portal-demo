@@ -9,7 +9,7 @@
 import { parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, buildIcs, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611101600';
 import { importedStatusDecision } from './crm-import-status.js?v=202611120600';
 import { cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611131100';
-import { rowMatches, applyFieldPatch, emailPlan, EMAIL_DRAFT_BATCH } from './crm-match.js?v=202611131200';
+import { rowMatches, applyFieldPatch, emailPlan, EMAIL_DRAFT_BATCH } from './crm-match.js?v=202611131300';
 import { ensureSettings } from './crm-config.js?v=202611070139';
 import { companyKey, CRM_OWNER_ROLES } from './crm.js?v=202611070139';
 import { US_STATE_NAMES } from './constants.js?v=202611101015';
@@ -187,6 +187,13 @@ export function crmJaninePart(x, ctx) {
       return { module: mod, prefs: out, updatedAt: at };
     },
     // Select-all returns counts only. The write uses the same record methods as one row.
+    async crmListPage(input = {}) {
+      const u = crmUser(); const rows = matchRows(db(), input.module, input.filter || {}, u);
+      const size = Math.min(100, Math.max(1, Number(input.pageSize) || 100));
+      const page = Math.max(1, Number(input.page) || 1);
+      const start = (page - 1) * size;
+      return { total: rows.length, ids: rows.slice(start, start + size).map((r) => r.id) };
+    },
     async crmMatchPlan(input = {}) {
       const u = crmUser(); const rows = matchRows(db(), input.module, input.filter || {}, u);
       if ((input.action || 'update') === 'email') {
