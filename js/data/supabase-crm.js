@@ -261,6 +261,10 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
       if (!row) return null;
       return { module: row.module || mod, prefs: row.prefs || {}, updatedAt: row.updated_at || null };
     },
+    async crmListPage({ module, filter, page, pageSize } = {}) { return await rpc('crm_list_page', { p_module: module, p_filter: filter || {}, p_page: page || 1, p_size: pageSize || 100 }); },
+    async crmMatchPlan({ module, filter, action } = {}) { return await rpc('crm_match_plan', { p_module: module, p_filter: filter || {}, p_action: action || 'update' }); },
+    async crmMassUpdate({ module, filter, field, value } = {}) { return await rpc('crm_mass_update', { p_module: module, p_filter: filter || {}, p_field: field, p_value: value }); },
+    async crmMassEmail({ module, filter, subject, html } = {}) { return await rpc('crm_mass_email', { p_module: module, p_filter: filter || {}, p_subject: subject, p_html: html }); },
     async saveUserUiPrefs(module, prefs) {
       on(); const u = await me(); if (!canUseCrm(u)) throw new Error('The CRM is for CLA staff only.');
       const mod = cleanUiModule(module); const clean = cleanUiPrefs(prefs);
