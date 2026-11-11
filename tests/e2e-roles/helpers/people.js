@@ -62,9 +62,13 @@ export function requiredTabs(person) {
  * A buyer sees a Transaction Coordinator only when that coordinator assists the
  * buyer agent. The E2E file's only coordinator assists the buyer agent
  * (20261114150100), so the seller sees none. */
+/* Sales Person / Sales Team are asserted only when one is on the file (John's rule). The mock sample file has one.
+ * The TEST seed file MD-26-99001 has deals.sales_person_id NULL (checked Nov 11), so a missing "(Sales Person)" there is
+ * the empty assignment, not a missing recipient. */
 export function assignedStaffRoles() {
-  const roles = [/\(Processor\)/, /\(Transaction Coordinator\)/, /\(Sales Person\)|\(Sales Team\)/];
+  const roles = [/\(Processor\)/, /\(Transaction Coordinator\)/];
   if (targetMode() !== 'test') roles.splice(1, 0, /\(Preprocessor\)/);
+  if (targetMode() !== 'test') roles.push(/\(Sales Person\)|\(Sales Team\)/);
   return roles;
 }
 

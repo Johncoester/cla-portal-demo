@@ -9,3 +9,17 @@
 7. Every email sent from jcoester@clatitle.com has a subject starting with '[Written by AI]'.
 8. Portal invite emails are sent from testportal@clatitle.com.
 9. If the walkthrough on main is failing, fix it before starting any new feature.
+
+## Build standards
+
+10. Every pull request description starts with these four parts, in plain English a non-programmer can read (file names and technical detail go below them, under "Technical notes"):
+    - What was asked: who asked, when, and the tracker row.
+    - What it does: what the user will see differently, in 2-4 lines.
+    - How to test it: numbered clicks on testportal.clatitle.com, which role to log in as, and what they should see. Include one test of what happens when something goes wrong (blank field, bad input).
+    - What's not done: known gaps, anything left for later, or "Nothing."
+11. Look and behaviour match the rest of the portal: same buttons, colors, spacing, wording and table layout as existing pages. Reuse existing pieces instead of making new ones.
+12. Error messages tell the user what went wrong and what to do next, in plain words. Never show a raw error code or a technical message to a client or processor.
+13. Nothing half-finished goes live. No buttons, links or menu items that do nothing. If something isn't ready, hide it.
+14. Every page works on a phone screen as well as a computer, especially anything a client uses (Place Order, intake, documents, messages).
+15. Forms check input before saving (required fields, emails, phone numbers, dates, dollar amounts) and never lose what the user typed if saving fails.
+16. Use normal title and escrow terms (buyer, seller, lender, closing date, settlement, payoff) the way CLA's team uses them. If unsure what a term or step means, ask before building.
