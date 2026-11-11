@@ -71,9 +71,13 @@ export function mountPicker(el, source, { onSet, onCreate, createVerb = 'person'
   q.addEventListener('input', () => {
     const text = q.value.trim();
     const known = selected || (hid.value && (source() || []).find((p) => p && p.id === hid.value));
-    // Keep the id when the text is still that person (draft restore, or a stray input after selection).
-    if (known && (!text || text === personLabel(known))) { remember(known); return; }
+    // Keep the id when the text is still that person (a stray input after selection).
+    if (known && text && text === personLabel(known)) { remember(known); return; }
+    // An emptied box means "nobody here" (John, t1500u): drop the person, or the draft would put the old name back.
     if (hid.value || selected) { hid.value = ''; selected = null; chosen.textContent = ''; el.removeAttribute('data-selected'); }
+    // Do not open the full list over the next field when the box was just emptied; a click on Seller 1 would land on it,
+    // pick someone into this box and keep the cursor here.
+    if (!text) { close(); return; }
     active = 0; draw();
   });
   q.addEventListener('focus', () => { if (!hid.value) draw(); });
