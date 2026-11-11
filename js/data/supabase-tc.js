@@ -55,6 +55,10 @@ export function tcSupabase({ sb, ok, camel, api }) {
       const q = await dealRow(id); const tasks = (await api.listTasks(id)).filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status));
       return { deal: await api.getDeal(id), milestones: milestones(q), emdAlta: emdAlta(q), outstanding: tasks.length, tasks: tasks.slice(0, 12) };
     },
+    async getTcFileSummaries(ids) {
+      const rows = camel(ok(await sb.rpc('rpc_tc_file_summaries', { p_deal_ids: ids || [] }))) || [];
+      return rows.map((r) => ({ dealId: r.dealId, milestones: r.milestones || [], emdAlta: r.emdAlta || {}, outstanding: r.outstanding || 0, tasks: r.tasks || [] }));
+    },
     async createAllPartiesThread(id, { subject, body }) {
       return { id: ok(await sb.rpc('create_all_parties_thread', { p_deal: id, p_subject: subject || '', p_body: body || '' })), staffCoordinated: true };
     },

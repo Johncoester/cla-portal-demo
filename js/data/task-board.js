@@ -54,6 +54,25 @@ export function sortTasks(tasks, key = 'dueDate', dir = 'asc') {
 // with the agent group split by WHICH agent (Buyer Agent vs Listing Agent). Every task lands in exactly one box (Other = CLA staff, lender, anything else).
 export const FILE_TASK_BOXES = [['buyer', 'Buyer tasks'], ['seller', 'Seller tasks'], ['buyer-agent', "Buyer's Agent tasks"], ['listing-agent', "Listing (Seller's) Agent tasks"], ['other', 'Other / File tasks']];
 export const boxOfRole = (role) => { const g = groupOfRole(role); return g === 'agent' ? (role === 'Buyer Agent' ? 'buyer-agent' : 'listing-agent') : g === 'staff' ? 'other' : g; };
+// The signed-in person's section on a file. Clients use their side, agents their role, staff the box their own tasks sit in.
+export function ownTaskBox(user) {
+  const roles = (user && (user.roles || [user.role])) || [];
+  const agent = roles.some((r) => /Agent$/.test(r));
+  if (roles.includes('Client-Buyer') && !agent) return 'buyer';
+  if (roles.includes('Client-Seller') && !roles.includes('Client-Buyer') && !agent) return 'seller';
+  if (roles.includes('Listing Agent')) return 'listing-agent';
+  if (roles.includes('Buyer Agent')) return 'buyer-agent';
+  return 'other';
+}
+// Already-loaded rows only. Staff see tasks assigned to them. Everyone else sees their role or side.
+export function tasksForViewer(user, tasks) {
+  const list = tasks || [];
+  if (ownTaskBox(user) === 'other') return list.filter((t) => t.mine);
+  const box = ownTaskBox(user);
+  return list.filter((t) => boxOfRole(t.assignedRole) === box);
+}
+export const viewTasksHref = (dealId, user) => `#/deals/${dealId}/tasks?section=${ownTaskBox(user)}`;
+export const myTasksHref = (dealId) => `#/deals/${dealId}/tasks?mine=1`;
 export const boxTasks = (tasks) => FILE_TASK_BOXES.map(([key, label]) => ({ key, label, tasks: tasks.filter((t) => boxOfRole(t.assignedRole) === key) }));
 // [{ key, label, tasks }] in Buyer, Seller, Agent, Staff order; empty groups kept (so the screen can say "none")
 export const groupTasks = (tasks, groups = TASK_GROUPS) => groups.map(([key, label]) => ({ key, label, tasks: tasks.filter((t) => groupOfRole(t.assignedRole) === key) }));
