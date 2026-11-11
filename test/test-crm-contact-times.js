@@ -91,7 +91,7 @@ ok(at1800.length === 0, 'the previous crm.js stamp 202611121800 is unused' + (at
 const appImporters = (hits.get('js/app.js') || []).map((h) => h.from + '@' + h.stamp);
 ok(appImporters.length === 1 && appImporters[0] === 'index.html@202611141100', 'index.html loads app.js at 202611141100');
 const crmImporters = (hits.get('js/pages/crm.js') || []).map((h) => h.from + '@' + h.stamp);
-ok(crmImporters.length === 1 && crmImporters[0] === 'js/app.js@202611132000', 'app.js loads the CRM page at 202611132000');
+ok(crmImporters.length === 1 && crmImporters[0] === 'js/app.js@202611141100', 'app.js loads the CRM page at 202611141100');
 console.log('cache-stamp issues', issues.length);
 console.log('dual-stamp', dual.length);
 console.log('recursive-import missing', missing.length);
