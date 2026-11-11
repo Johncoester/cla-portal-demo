@@ -6,7 +6,7 @@ import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { modOn } from '../data/modules.js?v=202611101015';
 import { slotText } from './dealclosing.js?v=202611121300';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611131500';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611140200';
 import { composeModal } from './compose.js?v=202611110900';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611092320';
 import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611101015';
@@ -14,14 +14,15 @@ import { canManageClosingLocations } from '../data/closing-location.js?v=2026111
 import { settlementSectionHtml, closingDateSectionHtml, mountSettlement } from './settlement-section.js?v=202611111700';
 import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611101015';
 import { themeOn } from '../theme.js?v=202611070139';
-import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611121300';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611120200';
-import { gatherReads } from '../data/read-batch.js?v=202611111700';
-import { prefetchDealTab } from './deal-tab.js?v=202611131500';
+import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611140100';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611131900';
+import { gatherReads } from '../data/read-batch.js?v=202611111200';
+import { prefetchDealTab } from './deal-tab.js?v=202611140200';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
+import { viewTasksHref } from '../data/task-board.js?v=202611140100';
 import { earnestView, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611102000';
 function staffSections(ctx, dealId) {
   const { api } = ctx;
@@ -420,7 +421,7 @@ function agentPanels(ctx, d, ov, ur, inv) {
   const urRow = (r) => html`<tr data-ur="${r.id}" data-ur-status="${r.status}"><td>${fmtDate(r.createdAt)}</td><td><strong>${r.topic}</strong>${r.note ? html`<br><span class="muted small">${r.note}</span>` : ''}${staffView ? html`<br><span class="muted small">from ${r.requestedByName} (${r.requestedRole})</span>` : ''}</td>
     <td>${r.status === 'answered' ? html`${pill('answered', 'ok')}<br>${r.response}<br><span class="muted small">${r.respondedByName}, ${fmtDate(r.respondedAt)}</span>` : ov.canAnswerUpdates ? html`<form class="inline-form" data-answer="${r.id}"><textarea name="response" rows="2" maxlength="2000" placeholder="Write the update" aria-label="Update for ${r.topic}"></textarea> <button class="m-btn" type="submit">Send update</button></form>` : pill('waiting for CLA Title', 'warn')}</td></tr>`;
   const top = html`<div class="agent-overview" data-agent-overview>
-    ${ov.outstanding ? html`<div class="notice warn" data-outstanding>You have <strong>${ov.outstanding}</strong> outstanding task${ov.outstanding === 1 ? '' : 's'}. <a class="m-btn" href="#/deals/${d.id}/tasks" data-view-tasks>View Tasks</a></div>` : html`<div class="notice info" data-outstanding="0">No outstanding tasks for you on this order.</div>`}
+    ${ov.outstanding ? html`<div class="notice warn" data-outstanding>You have <strong>${ov.outstanding}</strong> outstanding task${ov.outstanding === 1 ? '' : 's'}. <a class="m-btn" href="${viewTasksHref(d.id, user)}" data-view-tasks>View Tasks</a></div>` : html`<div class="notice info" data-outstanding="0">No outstanding tasks for you on this order.</div>`}
     ${ov.canShareAccess ? html`<p><button class="m-btn" id="shareaccess">Share Access</button></p>` : ''}
     ${ov.canRequestUpdate ? html`<form id="requpdate" class="filter-bar" data-request-update><label>Request Update<select name="topic" required><option value="">Choose&hellip;</option>${options(ov.updateTopics, '')}</select></label>
       <label>Note (optional)<input name="note" maxlength="1000"></label><button class="m-btn" type="submit">Submit Request</button></form>` : ''}</div>`;

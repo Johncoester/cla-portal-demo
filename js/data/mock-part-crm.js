@@ -7,19 +7,24 @@
  * Access (mirrored by private.crm_* in migration 22): see crm.js. */
 import { roleAllowed } from './role-access.js?v=202611100100';
 import { CRM_OFF } from './features.js?v=202611070139';
-import { dealDisplayName } from './nov5-rules.js?v=202611101015';
+import { dealDisplayName } from './nov5-rules.js?v=202611131900';
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, OPP_STAGES, ACCOUNT_KIND_CODES, CRM_ENTITIES, accountKindForType, entityLabel,
   TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, LINK_KEYS, LINK_FIELDS, cleanUrl, nextDue, addDaysTo, taskOpen, meetingOpen, localStamp,
-  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals, REPEAT_CODES, LEAD_STATUS_DEFAULT, companyKey } from './crm.js?v=202611070139';
-import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611121000';
-import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611070139';
-import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611070139';
+  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals, REPEAT_CODES, LEAD_STATUS_DEFAULT, companyKey } from './crm.js?v=202611130900';
+import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611131900';
+import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611130900';
+import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611130900';
 import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611070139';
-import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611121700';
-import { feedbackNov4Part } from './mock-part-feedback-nov4.js?v=202611070139';
-import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611090905';
-import { crmCallsPart } from './mock-part-crm-calls.js?v=202611070139';
+import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611131900';
+import { feedbackNov4Part } from './mock-part-feedback-nov4.js?v=202611130900';
+import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611130900';
+import { crmCallsPart } from './mock-part-crm-calls.js?v=202611130900';
 import { callOpen, callSeconds, durationText, callStatusOf } from './crm-calls.js?v=202611070139';
+
+// FF-030 company_lookup. The CRM user said everyone sees every company, so
+// ownerPrivate stays false. The true path remains for a later switch. contains
+// stays false: a leading wildcard cannot use the prefix index.
+export const companyLookupFlags = { ownerPrivate: false, contains: false };
 
 export function crmPart(x, flags) {
   const { load, save: save0, nid, needUser, dealsFor, prof, nameOf, fullName, clone, now, fail, str, emailOk, localDate, C } = x;
@@ -288,7 +293,8 @@ export function crmPart(x, flags) {
   }
 
   // COMPANIES (Janine, Nov 3): State is required (50 states + DC) and a company may not repeat an existing one: same name after normalising (case,
-  // punctuation, spacing, "&" / "and", Inc / LLC / Co ...), in any state, archived ones included (restore it instead). The error carries the existing record.
+  // punctuation, spacing, "&" / "and", Inc / LLC / Co ...), in any state. The form still points at an archived match so the user can restore it.
+  // The database index crm_accounts_name_uq does not include archived rows. It is unique on lower(btrim(name)) where archived_at is null.
   const companyDup = (name, exceptId = null) => { const k = companyKey(name); if (!k) return null; return db().crmAccounts.find((a) => a.id !== exceptId && companyKey(a.name) === k) || null; };
   function companyRules(name, state, exceptId, hint = 'open it instead') {
     if (state !== null) { if (!state) fail('State is required.'); if (!C.US_STATES.includes(state)) fail('Pick a US state (or DC).'); }
@@ -414,6 +420,33 @@ export function crmPart(x, flags) {
     },
 
     // ---------- accounts ----------
+    // Exact auto-link. Returns only the id, and only when one active company has this
+    // normalized name. Prefix and contains never match. Outside users may call this.
+    // They cannot call lookupCompanies or createCrmAccount.
+    async matchCrmCompany(name) {
+      const u = needUser();
+      const allowed = C.isOutside(u.role) || !!u.isAdmin || C.isProcessor(u.role) || canUseCrm(u);
+      if (!allowed) fail('You cannot match a company.');
+      const key = companyKey(name);
+      if (!key) return null;
+      const hits = db().crmAccounts.filter((a) => !a.archivedAt && companyKey(a.name) === key);
+      return hits.length === 1 ? hits[0].id : null;
+    },
+    // Same rows public.company_lookup returns: id, name, kind, city, state, phone. Active only. Cap 25.
+    async lookupCompanies(q, limit = 20) {
+      const u = crmUser();
+      const key = companyKey(q);
+      if (!key) return [];
+      const n = Number(limit);
+      const cap = Number.isFinite(n) ? Math.min(25, Math.max(1, Math.trunc(n))) : 20;
+      let rows = db().crmAccounts.filter((a) => !a.archivedAt && companyKey(a.name).startsWith(key));
+      if (!rows.length && companyLookupFlags.contains) rows = db().crmAccounts.filter((a) => !a.archivedAt && companyKey(a.name).includes(key));
+      // Same owner rule as company_lookup when v_owner_private is true: crm_all, or the
+      // owner, or Sales Team for a blank or salesperson owner. Not the contact-link half of accountSeen.
+      if (companyLookupFlags.ownerPrivate) rows = rows.filter((a) => ownerOk(u, a.ownerId));
+      rows.sort((a, b) => companyKey(a.name).localeCompare(companyKey(b.name)) || String(a.name).localeCompare(String(b.name)) || String(a.id).localeCompare(String(b.id)));
+      return rows.slice(0, cap).map((a) => ({ id: a.id, name: a.name, kind: a.kind || '', city: a.city || '', state: a.state || '', phone: a.phone || '' }));
+    },
     async listCrmAccounts() { const u = crmUser(); return db().crmAccounts.filter((a) => accountSeen(u, a)).map((a) => accountOut(u, a)); },
     async getCrmAccount(id) {
       const u = crmUser(); const a = get.account(u, id); const d = db(); const cs = d.contacts.filter((c) => c.accountId === a.id && inCrm(c));
@@ -430,7 +463,8 @@ export function crmPart(x, flags) {
     },
     async updateCrmAccount(id, patch) {
       const u = crmEditor(); const d = db(); const a = get.account(u, id);
-      if (patch.name != null) { const n = str(patch.name, 160) || fail('Company name is required.'); if (companyKey(n) !== companyKey(a.name)) companyRules(n, null, a.id); a.name = n; }
+      if (patch.name != null) { const n = str(patch.name, 160) || fail('Company name is required.'); if (companyKey(n) !== companyKey(a.name)) companyRules(n, null, a.id);
+        if (n !== a.name) { a.name = n; d.contacts.forEach((c) => { if (c.accountId === a.id && c.company !== n) c.company = n; }); } }
       if (patch.kind != null) a.kind = opt('accountKind', patch.kind, 'Company type', { current: a.kind, required: true });
       if (patch.phone != null) a.phone = x.phone(patch.phone); ['website', 'city', 'notes'].forEach((k) => { if (patch[k] != null) a[k] = str(patch[k], k === 'notes' ? 4000 : 200); });
       if (patch.state != null) { const s = str(patch.state, 2).toUpperCase(); if (!s) fail('State is required.'); if (!C.US_STATES.includes(s)) fail('Pick a US state (or DC).'); a.state = s; }

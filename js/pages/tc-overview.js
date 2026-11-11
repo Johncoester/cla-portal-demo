@@ -4,7 +4,7 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate,
 import { STAGES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, moneyShow, moneyAmount } from '../data/constants.js?v=202611101015';
 import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611111700';
 import { composeModal } from './compose.js?v=202611110900';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611110300';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611131900';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 const OPEN = ['todo', 'in_progress', 'blocked'];
 const long = (d) => { if (!d) return '—'; const [y, m, dd] = String(d).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };

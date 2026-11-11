@@ -1,5 +1,5 @@
 // TEST contract figures. Estimates only. Blank stays blank. Nothing here is a receipt, payoff, or Closing Disclosure.
-import { html, raw, $, $$, guard, formData, toast } from '../ui.js?v=202611071751';
+import { html, raw, $, $$, guard, formData, toast } from '../ui.js?v=202611070139';
 import { CONTRACT_FIELDS, CONTRACT_GROUPS, illustrative } from '../data/contract-terms.js?v=202611091140';
 
 const moneyValue = (n) => (n == null || n === '' ? '' : Number(n).toFixed(2));
