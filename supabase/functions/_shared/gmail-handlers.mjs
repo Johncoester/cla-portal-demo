@@ -9,7 +9,7 @@
  *   deps.newId() -> uuid, deps.now() -> ms */
 import { TEST_PROJECT_REF, PORTAL_ORIGIN, REDIRECT_URI, GMAIL_ROLES, MAX_RECIPIENTS, MAX_DOCS, MAX_ATTACH_BYTES, MAX_MESSAGE_BYTES, MAX_SAVE_BYTES, MAX_BODY_CHARS, TEST_ALLOWLIST_NOTE,
   isAllowedTestRecipient, parseAddressList, subjectWithTag, formatPropertyAddress, sanitizeHtml, htmlToText, hasWireDetails, isWireName, extOk, safeName, matchUploadKeys, buildMime, b64url, b64urlToBytes, utf8, estimateMimeBytes,
-  parseGmailMessage, randomToken, sha256Hex, pkceChallenge, authUrl, decodeJwtPayload, missingScopes, oneLine, json, hasSettingsScope, pickSendAsSignature, withSignature, isEmail, INVITE_TOKEN_RE, inviteEmailContent } from './gmail-core.mjs';
+  parseGmailMessage, randomToken, sha256Hex, pkceChallenge, authUrl, decodeJwtPayload, missingScopes, oneLine, json, hasSettingsScope, pickSendAsSignature, withSignature, isEmail, INVITE_TOKEN_RE, inviteEmailContent, unnotifiedTasks, taskNoticeContent } from './gmail-core.mjs';
 
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -314,7 +314,22 @@ async function inviteSend(inv, user, ctx, deps) {
   const sent = await gmail(deps, access, '/messages/send', { method: 'POST', body: JSON.stringify({ raw: b64url(raw) }) });
   if (!sent.ok || !sent.body || !sent.body.id) { await mark(null, `Gmail refused the send (HTTP ${sent.status}).`); return json(502, { error: `Gmail did not send it (HTTP ${sent.status}). The invite was not emailed.`, to: mail.to }, H); }
   await mark(sent.body.id, null);
-  return json(200, { ok: true, sent: true, to: mail.to, from: tok.email, subject: mail.subject, gmailMessageId: sent.body.id }, H);
+  const batch = kind === 'agent' ? unnotifiedTasks(info) : [];
+  let taskNotice = { sent: false, count: 0 };
+  if (batch.length) {
+    const notice = taskNoticeContent(info, batch, { token });
+    const rawTasks = buildMime({ from: tok.email, fromName, to: [mail.to], cc: [], bcc: [], subject: notice.subject, html: notice.html, text: notice.text, attachments: [], seed: `${deps.newId()}t` });
+    const sentTasks = await gmail(deps, access, '/messages/send', { method: 'POST', body: JSON.stringify({ raw: b64url(rawTasks) }) });
+    const ids = batch.map((t) => t.id).filter(Boolean);
+    if (!sentTasks.ok || !sentTasks.body || !sentTasks.body.id) {
+      try { await deps.svc('invite_svc_mark_task_notice', { p_kind: kind, p_token: token, p_profile: user.id, p_ids: ids, p_message_id: null, p_error: `Gmail refused the task email (HTTP ${sentTasks.status}).` }); } catch (e) { /* the invite itself was sent */ }
+      taskNotice = { sent: false, count: batch.length, error: 'The task email was not sent.' };
+    } else {
+      try { await deps.svc('invite_svc_mark_task_notice', { p_kind: kind, p_token: token, p_profile: user.id, p_ids: ids, p_message_id: sentTasks.body.id, p_error: null }); } catch (e) { /* recorded on the next invite if the row was not updated */ }
+      taskNotice = { sent: true, count: batch.length, subject: notice.subject, gmailMessageId: sentTasks.body.id };
+    }
+  }
+  return json(200, { ok: true, sent: true, to: mail.to, from: tok.email, subject: mail.subject, gmailMessageId: sent.body.id, taskNotice }, H);
 }
 
 /* ---------------- gmail-sync (cron every 3 minutes, or "Check for replies") ---------------- */
