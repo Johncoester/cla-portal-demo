@@ -1,9 +1,9 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=PENDING';
+import { getAdapter } from './data/adapter.js?v=202611132300';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611131900';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611101015';
-import { canUseCrm } from './data/crm.js?v=202611070139';
+import { canUseCrm } from './data/crm.js?v=202611130900';
 import { canManageRoleAccess } from './data/role-access.js?v=202611100100';
 import { canUseGmail } from './data/gmail-email.js?v=202611121900';
 import { acctCanRead } from './data/accounting.js?v=202611070139';
@@ -33,7 +33,7 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611131900'),
-  dashboard: () => import('./pages/dashboard.js?v=PENDING'),
+  dashboard: () => import('./pages/dashboard.js?v=202611132300'),
   orders: () => import('./pages/orders.js?v=202611111700'),
   'orders/new': () => import('./pages/ordernew.js?v=202611131900'),
   deal: () => import('./pages/deal.js?v=202611131900'),
@@ -556,7 +556,7 @@ function wireChrome(u) {
   if (demoTimer) clearTimeout(demoTimer);
   if (DEMO_VIEW && DEMO_VIEW.active && DEMO_VIEW.expiresAt) { const ms = new Date(DEMO_VIEW.expiresAt).getTime() - Date.now(); demoTimer = setTimeout(() => render(), Math.min(Math.max(ms + 250, 1000), 30 * 60 * 1000)); }
   getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) {
-    import('./pages/crm-search.js?v=202611121000').then((m) => m.wireHeaderSearch(api));
+    import('./pages/crm-search.js?v=202611130900').then((m) => m.wireHeaderSearch(api));
     import('./pages/crm-janine.js?v=202611131900').then((m) => m.mountHeaderCreate(u));
   } });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');

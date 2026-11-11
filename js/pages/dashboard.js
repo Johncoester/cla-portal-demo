@@ -7,7 +7,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { mapLimit } from '../data/read-batch.js?v=202611111200';
 import { pendingMine } from '../data/task-actions.js?v=202611120200';
 import { unassignedOpen } from '../data/processor-assign.js?v=202611091600';
-import { workQueueFrom, DASHBOARD_PAGE } from '../data/dashboard-load.js?v=PENDING';
+import { workQueueFrom, DASHBOARD_PAGE } from '../data/dashboard-load.js?v=202611132300';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>${d.fileTitle ? html` <span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}`;
 // CARD THEME (default look): a tile that repeats one of the four dashboard cards (open orders = "in Pipeline" count, overdue tasks) is not drawn;
