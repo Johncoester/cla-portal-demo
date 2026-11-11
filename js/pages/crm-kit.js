@@ -8,7 +8,8 @@ import { columnChooserHtml, columnState, wireColumnChooser } from './crm-columns
 import { beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611141100';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
 import { pageOf, selectionState, selectPage, loadPageSize, normalizePageSize, PAGE_SIZE_OPTIONS } from '../data/crm-bulk.js?v=202611141100';
-import { bulkBar, wireBulk } from './crm-bulk.js?v=202611141100';
+import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611141200';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611141200';
 
 // A click on the row (not on a link, button, or checkbox) opens the record. The name link still navigates on its own.
 export function wireRowOpen(tb, hrefFor) {
@@ -60,15 +61,15 @@ export function listView({ key, rows, cols, catalog = null, userId = '', filters
       <label>Sort<select name="sort">${sorts.flatMap(([k, l]) => [html`<option value="${k}:asc" ${sortDefault === k + ':asc' ? raw('selected') : ''}>${l} &uarr;</option>`, html`<option value="${k}:desc" ${sortDefault === k + ':desc' ? raw('selected') : ''}>${l} &darr;</option>`])}</select></label>
       <button type="button" class="ghost" data-crm-reset>Reset</button>
     </form>${saved ? savedFiltersHtml(saved.listKey) : ''}
-    ${bulk ? bulkBar(bulk.module) : ''}
+    ${bulk ? bulkBar(bulk.module) : ''}${bulk ? html`<p class="notice" data-match-banner hidden></p>` : ''}
     <div class="table-tools"><span class="muted" data-count></span> <span data-bulk-pager></span> ${pageSizeControl(loadPageSize(typeof localStorage !== 'undefined' ? localStorage : null, userId, key))}${columnChooserHtml(key, fieldMeta, visible)}${csv ? html` <button class="ghost" type="button" data-list-csv="${key}">Export CSV</button>` : exporter ? html` <span class="muted small" data-csv-admin-only>CSV download: Admins only</span>` : ''}</div>
     <table class="tbl" id="crm-t-${key}"><thead>${headRow()}</thead><tbody></tbody></table>`;
   function mount(root) {
     const f = $(`#crm-f-${key}`, root); const tb = $(`#crm-t-${key} tbody`, root); const thead = $(`#crm-t-${key} thead`, root); let shown = rows;
     let storage = null; try { storage = typeof localStorage !== 'undefined' ? localStorage : null; } catch (e) { storage = null; }
-    let selected = new Set(); let page = 1; let sig = ''; let pageSize = loadPageSize(storage, userId, key);
-    const paintBar = () => { const barEl = $('[data-bulk-bar]', root); if (!barEl) return; barEl.hidden = selected.size === 0; const n = $('[data-bulk-count]', barEl); if (n) n.textContent = `${selected.size} selected`; };
-    const apply = () => { const v = formData(f); const nextSig = JSON.stringify(v); if (nextSig !== sig) { if (sig) { selected = new Set(); page = 1; } sig = nextSig; }
+    let selected = new Set(); let page = 1; let sig = ''; let pageSize = loadPageSize(storage, userId, key); let allMatching = false; let matchFilter = {};
+    const paintBar = () => { const barEl = $('[data-bulk-bar]', root); if (!barEl) return; const n = allMatching ? shown.length : selected.size; barEl.hidden = n === 0; const label = $('[data-bulk-count]', barEl); if (label) label.textContent = allMatching ? `${n} matching records selected` : `${n} selected`; };
+    const apply = () => { const v = formData(f); const nextSig = JSON.stringify(v); if (nextSig !== sig) { if (sig) { selected = new Set(); allMatching = false; page = 1; } sig = nextSig; } matchFilter = filterFromValues(v);
       const [k, dir] = (v.sort || sortDefault).split(':'); const list = crmSort(crmFilter(rows, v, fields), k, dir); shown = list;
       const view = pageOf(list, page, pageSize); page = view.page;
       const use = active(); const span = use.length + (bulk ? 1 : 0);
@@ -78,6 +79,9 @@ export function listView({ key, rows, cols, catalog = null, userId = '', filters
       const box = $('[data-bulk-page]', root); if (box) { const st = selectionState(selected, view.rows); box.checked = st.allOnPage; box.indeterminate = st.someOnPage; }
       const pg = $('[data-bulk-pager]', root); if (pg) pg.innerHTML = toText(pageNav(view));
       const sizeSel = $('[data-page-size]', root); if (sizeSel && String(sizeSel.value) !== String(pageSize)) sizeSel.value = String(pageSize);
+      const banner = $('[data-match-banner]', root);
+      if (banner) { const st = selectionState(selected, view.rows); const state = matchBannerState({ allOnPage: st.allOnPage, pageCount: view.rows.length, matchCount: list.length, allMatching });
+        banner.hidden = !state; banner.innerHTML = toText(state ? (state.mode === 'all' ? html`All ${state.matchCount} matching records are selected. <button type="button" data-clear-matching>Clear selection</button>` : html`All ${state.pageCount} on this page are selected. <button type="button" data-select-all-matching>Select all ${state.matchCount} matching records</button>`) : html``); }
       paintBar(); };
     f.addEventListener('input', apply); f.addEventListener('change', apply);
     const prefsApi = saved && saved.api;
@@ -103,13 +107,16 @@ export function listView({ key, rows, cols, catalog = null, userId = '', filters
     if (bulk) {
       $(`#crm-t-${key}`, root).addEventListener('change', (e) => {
         const el = e.target; if (!el.matches) return;
-        if (el.matches('[data-bulk-page]')) { selected = selectPage(selected, pageOf(shown, page, pageSize).rows, el.checked); apply(); return; }
+        if (el.matches('[data-bulk-page]')) { if (!el.checked) allMatching = false; selected = selectPage(selected, pageOf(shown, page, pageSize).rows, el.checked); apply(); return; }
         if (!el.matches('[data-bulk-row]')) return; if (el.checked) selected.add(el.value); else selected.delete(el.value);
         const box = $('[data-bulk-page]', root); const st = selectionState(selected, pageOf(shown, page, pageSize).rows); if (box) { box.checked = st.allOnPage; box.indeterminate = st.someOnPage; } paintBar();
       });
-      wireBulk(root, { ...bulk, getPageRows: () => pageOf(shown, page, pageSize).rows.filter((r) => selected.has(r.id)), clear: () => { selected = new Set(); apply(); } });
+      wireBulk(root, { ...bulk, getPageRows: () => pageOf(shown, page, pageSize).rows.filter((r) => selected.has(r.id)), getMatch: () => ({ all: allMatching, filter: matchFilter, count: shown.length }), clear: () => { selected = new Set(); allMatching = false; apply(); } });
     }
-    root.addEventListener('click', (e) => { const t = e.target; if (!(t.matches && (t.matches('[data-bulk-prev]') || t.matches('[data-bulk-next]')))) return; if (t.matches('[data-bulk-prev]')) page -= 1; else page += 1; selected = new Set(); apply(); });
+    root.addEventListener('click', (e) => { const t = e.target; if (!(t && t.matches)) return;
+      if (t.matches('[data-select-all-matching]')) { allMatching = true; apply(); return; }
+      if (t.matches('[data-clear-matching]')) { allMatching = false; selected = new Set(); apply(); return; }
+      if (!(t.matches('[data-bulk-prev]') || t.matches('[data-bulk-next]'))) return; if (t.matches('[data-bulk-prev]')) page -= 1; else page += 1; selected = new Set(); allMatching = false; apply(); });
     if (saved) wireSavedFilters(root, saved.api, saved.listKey, { getValues: () => { const v = formData(f); delete v.sort; return v; },
       setValues: (o) => { [...f.elements].forEach((el) => { if (!el.name || el.name === 'sort') return; el.value = o[el.name] != null ? o[el.name] : ''; }); apply(); },
       count: (o) => crmFilter(rows, o, fields).length });

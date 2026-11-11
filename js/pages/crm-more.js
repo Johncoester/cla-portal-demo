@@ -2,12 +2,14 @@
 import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611070139';
 import { localDate } from '../data/constants.js?v=202611101015';
 import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort, inLocalRange } from '../data/crm.js?v=202611130900';
-import { pageOf, loadPageSize } from '../data/crm-bulk.js?v=202611141100';
+import { pageOf, loadPageSize, selectPage, selectionState } from '../data/crm-bulk.js?v=202611141100';
+import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611141200';
 import { schedulePageSizeSave } from '../data/crm-columns.js?v=202611141100';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv, pageSizeControl, pageNav } from './crm-kit.js?v=202611141100';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv, pageSizeControl, pageNav } from './crm-kit.js?v=202611141200';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611141200';
 import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611130900';
 import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611130900';
-import { wireCompose } from './crm-templates.js?v=202611141100';
+import { wireCompose } from './crm-templates.js?v=202611141200';
 
 const crumbs = (label) => [['CRM', '#/crm'], [label]];
 const q = () => new URLSearchParams(location.hash.split('?')[1] || '');
@@ -38,8 +40,10 @@ export async function pipelinePage({ api, me, owners, refresh, go, cfg, openCrea
     return html`<section class="kanban-col" data-stage="${v}"><h4>${l} <span class="muted small">(${list.length} · ${total(list)})</span></h4>
       ${list.map((i) => html`<div class="kanban-card" data-card="${i.id}">${title(i)}<div class="small">${sub(i)}</div><div class="muted small">${i.ownerName || 'Unassigned'}</div>${mover(i)}${board === 'opps' ? html` <button type="button" class="ghost small" data-compose-btn="opportunity:${i.id}" title="Compose email from template">Email</button>` : ''}</div>`)}</section>`; })}</div>`;
   const pipeModule = board === 'opps' ? 'opportunities' : 'pipeline-partners';
-  const listHtml = html`<div class="table-tools"><span class="muted" data-count></span> <span data-bulk-pager></span> ${pageSizeControl(loadPageSize(typeof localStorage !== 'undefined' ? localStorage : null, me.id, pipeModule))}</div>
-    <table class="tbl" data-pipeline-list><thead><tr><th>${board === 'opps' ? 'Opportunity' : 'Partner'}</th><th>Details</th><th>Owner</th><th>Stage</th></tr></thead><tbody data-pipe-rows></tbody></table>`;
+  const canPick = board === 'opps' && me.canEdit;
+  const listHtml = html`${canPick ? bulkBar('opportunity') : ''}${canPick ? html`<p class="notice" data-match-banner hidden></p>` : ''}
+    <div class="table-tools"><span class="muted" data-count></span> <span data-bulk-pager></span> ${pageSizeControl(loadPageSize(typeof localStorage !== 'undefined' ? localStorage : null, me.id, pipeModule))}</div>
+    <table class="tbl" data-pipeline-list><thead><tr>${canPick ? html`<th><input type="checkbox" data-bulk-page aria-label="Select all on this page"></th>` : ''}<th>${board === 'opps' ? 'Opportunity' : 'Partner'}</th><th>Details</th><th>Owner</th><th>Stage</th></tr></thead><tbody data-pipe-rows></tbody></table>`;
   const body = html`${head('CRM: Pipeline', me)}${tabs('pipeline')}
     <div class="filter-bar"><span>Board: <a class="${board === 'opps' ? 'active-link' : ''}" href="${url({ board: 'opps' })}" data-board-link="opps">Opportunities</a> · <a class="${board === 'partners' ? 'active-link' : ''}" href="${url({ board: 'partners' })}" data-board-link="partners">Referral partners (clients by Relationship Status)</a></span>
       <span>View: <a href="${url({ view: 'board' })}" data-view-link="board">Board</a> · <a href="${url({ view: 'list' })}" data-view-link="list">List</a></span>
@@ -51,16 +55,30 @@ export async function pipelinePage({ api, me, owners, refresh, go, cfg, openCrea
   return { title: 'CRM Pipeline', crumbs: crumbs('Pipeline'), body, mount(root) { wireCompose(root, api, me, refresh);
     if (view === 'list') {
       let storage = null; try { storage = typeof localStorage !== 'undefined' ? localStorage : null; } catch (e) { storage = null; }
-      let page = 1; let pageSize = loadPageSize(storage, me.id, pipeModule);
+      let page = 1; let pageSize = loadPageSize(storage, me.id, pipeModule); let selected = new Set(); let allMatching = false; let pageRows = [];
+      const pipeFilter = filterFromValues({ createdFrom, createdTo, modifiedFrom, modifiedTo, extraFrom, extraTo, ownerId: owner });
       const paint = () => {
-        const sorted = crmSort(items, 'name'); const pg = pageOf(sorted, page, pageSize); page = pg.page;
-        const tb = $('[data-pipe-rows]', root); if (tb) tb.innerHTML = toText(pg.rows.length ? pg.rows.map((i) => html`<tr data-card="${i.id}"><td>${title(i)}</td><td class="small">${sub(i)}</td><td>${i.ownerName || 'Unassigned'}</td><td>${me.canEdit ? mover(i) : (stages.find(([v]) => v === i.stage) || [, ''])[1]}</td></tr>`) : html`<tr><td colspan="4" class="muted">Nothing matches.</td></tr>`);
+        const sorted = crmSort(items, 'name'); const pg = pageOf(sorted, page, pageSize); page = pg.page; pageRows = pg.rows;
+        const tb = $('[data-pipe-rows]', root); const span = canPick ? 5 : 4;
+        if (tb) tb.innerHTML = toText(pg.rows.length ? pg.rows.map((i) => html`<tr data-card="${i.id}" data-row="${i.id}">${canPick ? html`<td><input type="checkbox" data-bulk-row value="${i.id}" aria-label="Select ${i.name || 'record'}" ${selected.has(i.id) ? raw('checked') : ''}></td>` : ''}<td>${title(i)}</td><td class="small">${sub(i)}</td><td>${i.ownerName || 'Unassigned'}</td><td>${me.canEdit ? mover(i) : (stages.find(([v]) => v === i.stage) || [, ''])[1]}</td></tr>`) : html`<tr><td colspan="${span}" class="muted">Nothing matches.</td></tr>`);
         const count = $('[data-count]', root); if (count) count.textContent = pg.pages > 1 ? `${pg.rows.length} on this page, ${pg.total} shown` : `${pg.total} shown`;
         const nav = $('[data-bulk-pager]', root); if (nav) nav.innerHTML = toText(pageNav(pg));
+        const box = $('[data-bulk-page]', root); if (box) { const st = selectionState(selected, pg.rows); box.checked = st.allOnPage; box.indeterminate = st.someOnPage; }
+        const banner = $('[data-match-banner]', root); if (banner) { const st = selectionState(selected, pg.rows); const state = matchBannerState({ allOnPage: st.allOnPage, pageCount: pg.rows.length, matchCount: pg.total, allMatching }); banner.hidden = !state; banner.innerHTML = toText(state ? (state.mode === 'all' ? html`All ${state.matchCount} matching records are selected. <button type="button" data-clear-matching>Clear selection</button>` : html`All ${state.pageCount} on this page are selected. <button type="button" data-select-all-matching>Select all ${state.matchCount} matching records</button>`) : html``); }
+        const barEl = $('[data-bulk-bar]', root); if (barEl) { const n = allMatching ? pg.total : selected.size; barEl.hidden = n === 0; const label = $('[data-bulk-count]', barEl); if (label) label.textContent = allMatching ? `${n} matching records selected` : `${n} selected`; }
       };
       const sizeSel = $('[data-page-size]', root);
       if (sizeSel) sizeSel.addEventListener('change', () => { pageSize = schedulePageSizeSave({ api, storage, userId: me.id, module: pipeModule, pageSize: sizeSel.value }); page = 1; paint(); });
-      root.addEventListener('click', (e) => { const t = e.target; if (!(t.matches && (t.matches('[data-bulk-prev]') || t.matches('[data-bulk-next]')))) return; if (t.matches('[data-bulk-prev]')) page -= 1; else page += 1; paint(); });
+      root.addEventListener('click', (e) => { const t = e.target; if (!(t && t.matches)) return;
+        if (t.matches('[data-select-all-matching]')) { allMatching = true; paint(); return; }
+        if (t.matches('[data-clear-matching]')) { allMatching = false; selected = new Set(); paint(); return; }
+        if (!(t.matches('[data-bulk-prev]') || t.matches('[data-bulk-next]'))) return; if (t.matches('[data-bulk-prev]')) page -= 1; else page += 1; selected = new Set(); allMatching = false; paint(); });
+      if (canPick) {
+        root.addEventListener('change', (e) => { const el = e.target; if (!(el && el.matches)) return;
+          if (el.matches('[data-bulk-page]')) { if (!el.checked) allMatching = false; selected = selectPage(selected, pageRows, el.checked); paint(); }
+          else if (el.matches('[data-bulk-row]')) { if (el.checked) selected.add(el.value); else { selected.delete(el.value); allMatching = false; } paint(); } });
+        wireBulk(root, { module: 'opportunity', api, me, owners, getPageRows: () => pageRows.filter((r) => selected.has(r.id)), getMatch: () => ({ all: allMatching, filter: pipeFilter, count: items.length }), clear: () => { selected = new Set(); allMatching = false; paint(); }, refresh });
+      }
       paint();
     }
     $('[data-pipe-owner]', root).addEventListener('change', (e) => { location.hash = url({ owner: e.target.value }); });

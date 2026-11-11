@@ -128,7 +128,7 @@ while (grew) {
     for (const h of list) if (!closure.has(h.from)) { closure.add(h.from); grew = true; }
   }
 }
-const STAMP = '202611141100';
+const allowed = new Set(['202611141200']);
 const issues = [];
 const dual = [];
 const missing = [];
@@ -137,7 +137,7 @@ for (const target of closure) {
   const list = hits.get(target) || [];
   const stamps = [...new Set(list.map((h) => h.stamp))];
   if (!list.length) missing.push(target);
-  if (stamps.length !== 1 || stamps[0] !== STAMP) issues.push(target + ' ' + (stamps.join(',') || 'none'));
+  if (stamps.length !== 1 || !allowed.has(stamps[0])) issues.push(target + ' ' + (stamps.join(',') || 'none'));
   if (stamps.length > 1) dual.push(target + ' ' + stamps.join(','));
 }
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
