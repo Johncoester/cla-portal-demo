@@ -1,0 +1,254 @@
+/* CRM dashboard chart save (BUG-184). Fake client only. No network and no hosted database.
+ * Quick Chart sends { name, type, config: { module, measure, grouping, criteria, chartType } }.
+ * crm_dash_components.module is not null, the name check allows at most 100 characters,
+ * and the height check allows 1 or 2. */
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { crmSurfaceSupabase } from '../js/data/supabase-crm-surface.js';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const read = (rel) => readFileSync(path.join(root, rel), 'utf8');
+let fail = 0;
+const ok = (c, m) => { if (c) console.log('ok', m); else { fail += 1; console.log('FAIL', m); } };
+const pass = (r) => { if (r.error) throw new Error(r.error.message); return r.data; };
+const camel = (o) => (Array.isArray(o) ? o.map(camel) : o && typeof o === 'object'
+  ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), camel(v)])) : o);
+const copy = (o) => structuredClone(o);
+
+const JANINE = '00000000-0000-4000-8000-0000000000aa';
+const DASH = '00000000-0000-4000-8000-0000000000d1';
+const tables = {
+  crm_dashboards: new Map([[DASH, { id: DASH, name: 'Janine', description: '', owner_id: JANINE, visibility: 'me', share: { users: [], roles: [], departments: [] }, locked: false, builtin: false, created_by: JANINE, retired_at: null }]]),
+  crm_dash_components: new Map(),
+};
+const calls = [];
+let seq = 1;
+const lists = { contacts: 0, leads: 0 };
+
+function from(table) {
+  const q = { table, op: 'select', payload: null, filters: [], returning: false };
+  const bag = () => tables[table] || new Map();
+  const exec = (mode) => {
+    calls.push({ table: q.table, op: q.op, returning: q.returning, payload: q.payload == null ? null : copy(q.payload), filters: q.filters.map((pair) => pair.slice()) });
+    if (q.op === 'insert') {
+      const row = { id: q.payload.id || `dc-${seq++}`, ...q.payload };
+      if (table === 'crm_dash_components') {
+        if (row.module == null || row.module === '') return Promise.resolve({ data: null, error: { message: 'null value in column "module" of relation "crm_dash_components" violates not-null constraint' } });
+        if (String(row.name || '').length < 1 || String(row.name).length > 100) return Promise.resolve({ data: null, error: { message: 'new row for relation "crm_dash_components" violates check constraint "crm_dash_components_name_check"' } });
+        if (row.height !== 1 && row.height !== 2) return Promise.resolve({ data: null, error: { message: 'new row for relation "crm_dash_components" violates check constraint "crm_dash_components_height_check"' } });
+      }
+      bag().set(row.id, row);
+      tables[table] = bag();
+      return Promise.resolve({ data: q.returning ? copy(row) : null, error: null });
+    }
+    if (q.op === 'update') {
+      const rows = [...bag().values()].filter((row) => q.filters.every(([k, v]) => row[k] === v));
+      if (!rows.length) return Promise.resolve({ data: null, error: { message: 'missing' } });
+      if (q.payload && table === 'crm_dash_components') {
+        if (Object.prototype.hasOwnProperty.call(q.payload, 'name') && (String(q.payload.name).length < 1 || String(q.payload.name).length > 100)) return Promise.resolve({ data: null, error: { message: 'crm_dash_components_name_check' } });
+        if (Object.prototype.hasOwnProperty.call(q.payload, 'height') && q.payload.height !== 1 && q.payload.height !== 2) return Promise.resolve({ data: null, error: { message: 'crm_dash_components_height_check' } });
+        if (Object.prototype.hasOwnProperty.call(q.payload, 'module') && (q.payload.module == null || q.payload.module === '')) return Promise.resolve({ data: null, error: { message: 'null value in column "module" of relation "crm_dash_components" violates not-null constraint' } });
+      }
+      rows.forEach((row) => Object.assign(row, q.payload));
+      return Promise.resolve({ data: q.returning ? copy(rows[0]) : null, error: null });
+    }
+    let data = [...bag().values()].filter((row) => q.filters.every(([k, v]) => row[k] === v));
+    if (mode === 'many') return Promise.resolve({ data: data.map(copy), error: null });
+    const row = data[0] || null;
+    if (mode === 'maybe') return Promise.resolve({ data: row ? copy(row) : null, error: null });
+    if (!row) return Promise.resolve({ data: null, error: { message: 'JSON object requested, multiple (or no) rows returned' } });
+    return Promise.resolve({ data: copy(row), error: null });
+  };
+  const api = {
+    insert(row) { q.op = 'insert'; q.payload = row; return api; },
+    update(row) { q.op = 'update'; q.payload = row; return api; },
+    select() { if (q.op === 'insert' || q.op === 'update') q.returning = true; else q.op = 'select'; return api; },
+    eq(k, v) { q.filters.push([k, v]); return api; },
+    order() { return api; },
+    is() { return api; },
+    single() { return exec('single'); },
+    maybeSingle() { return exec('maybe'); },
+    then(resolve, reject) { return exec('many').then(resolve, reject); },
+  };
+  return api;
+}
+
+const contacts = [
+  { id: 'c1', relationshipStatus: 'Prospecting', createdAt: '2026-11-01T12:00:00' },
+  { id: 'c2', relationshipStatus: 'Potential/Warm', createdAt: '2026-11-02T12:00:00' },
+];
+const leads = [
+  { id: 'l1', relationshipStatus: 'Prospecting', createdAt: '2026-11-01T12:00:00' },
+  { id: 'l2', relationshipStatus: 'Hot Prospect', createdAt: '2026-11-01T18:00:00' },
+  { id: 'l3', relationshipStatus: 'Prospecting', createdAt: '2026-11-03T12:00:00' },
+];
+const me = async () => ({ id: JANINE, role: 'Super admin', isAdmin: true, email: 'janine@example.test', firstName: 'Janine', lastName: 'Santos' });
+const surface = crmSurfaceSupabase({
+  sb: { from }, ok: pass, camel, me, on() {},
+  self: {
+    getCrmSettings: async () => ({ picklists: {}, fields: [] }),
+    listCrmContacts: async () => { lists.contacts += 1; return contacts; },
+    listCrmLeads: async () => { lists.leads += 1; return leads; },
+  },
+});
+
+const chart = (module, grouping) => ({ name: module === 'contacts' ? 'Client by Status' : 'Leads by day', type: 'chart', config: { module, measure: { fn: 'count' }, grouping, criteria: [], chartType: 'column' } });
+const inserts = () => calls.filter((c) => c.op === 'insert' && c.table === 'crm_dash_components');
+const updates = () => calls.filter((c) => c.op === 'update' && c.table === 'crm_dash_components');
+
+let missing = '';
+try { await surface.addCrmComponent(DASH, { name: 'Client by Status', type: 'chart', config: { measure: { fn: 'count' }, grouping: { field: 'relationshipStatus', bucket: 'day' }, criteria: [], chartType: 'column' } }); } catch (e) { missing = e.message; }
+ok(missing === 'Pick a module.' && inserts().length === 0, 'a chart with no module is refused before insert');
+calls.length = 0;
+let absent = '';
+try { await surface.addCrmComponent(DASH, { name: 'Client by Status', type: 'chart' }); } catch (e) { absent = e.message; }
+ok(absent === 'Pick a module.' && inserts().length === 0, 'a chart payload without config.module is refused before insert');
+
+calls.length = 0;
+const byStatus = await surface.addCrmComponent(DASH, chart('contacts', { field: 'relationshipStatus', bucket: 'day' }));
+const statusInsert = inserts()[0];
+ok(!!statusInsert && statusInsert.payload.module === 'contacts' && statusInsert.payload.grouping.field === 'relationshipStatus' && statusInsert.payload.grouping.bucket === 'day', 'the clients insert stores module contacts and the Relationship Status grouping');
+ok(statusInsert.payload.chart_type === 'column' && statusInsert.payload.measure.fn === 'count' && Array.isArray(statusInsert.payload.criteria) && statusInsert.payload.criteria.length === 0 && statusInsert.payload.name === 'Client by Status' && statusInsert.payload.height === 1, 'the clients insert keeps column, record count, no filters, and a height inside 1-2');
+ok(byStatus.config.module === 'contacts' && byStatus.config.grouping.field === 'relationshipStatus' && byStatus.config.chartType === 'column' && byStatus.config.measure.fn === 'count', 'adding the clients chart returns the full config');
+
+calls.length = 0;
+const byDay = await surface.addCrmComponent(DASH, chart('leads', { field: 'createdAt', bucket: 'day' }));
+const dayInsert = inserts()[0];
+ok(!!dayInsert && dayInsert.payload.module === 'leads' && dayInsert.payload.grouping.field === 'createdAt' && dayInsert.payload.grouping.bucket === 'day', 'the leads insert stores module leads and Created Time by day');
+ok(byDay.config.module === 'leads' && byDay.config.grouping.field === 'createdAt' && byDay.config.grouping.bucket === 'day', 'adding the leads chart returns that grouping');
+
+calls.length = 0;
+const longName = 'N'.repeat(120);
+const named = await surface.addCrmComponent(DASH, { ...chart('contacts', { field: 'relationshipStatus', bucket: 'day' }), name: longName });
+ok(inserts()[0].payload.name.length === 100 && named.name.length === 100 && named.config.module === 'contacts', 'a component name longer than the check is stored at 100 characters');
+
+calls.length = 0;
+const tall = await surface.addCrmComponent(DASH, { ...chart('contacts', { field: 'ownerId' }), height: 'l', name: 'Tall chart' });
+ok(inserts()[0].payload.height === 2 && tall.height === 'm' && inserts()[0].payload.module === 'contacts', 'tall height is stored as 2, which the height check allows');
+
+const loaded = await surface.getCrmDashboard(DASH);
+const statusCard = loaded.list.find((c) => c.id === byStatus.id);
+const dayCard = loaded.list.find((c) => c.id === byDay.id);
+ok(!!statusCard && statusCard.config.module === 'contacts' && statusCard.config.grouping.field === 'relationshipStatus' && statusCard.config.grouping.bucket === 'day' && statusCard.config.chartType === 'column' && statusCard.config.measure.fn === 'count' && statusCard.config.criteria.length === 0, 'opening the dashboard keeps the clients chart config for Edit');
+ok(!!dayCard && dayCard.config.module === 'leads' && dayCard.config.grouping.field === 'createdAt' && dayCard.config.grouping.bucket === 'day', 'opening the dashboard keeps the leads Created Time grouping for Edit');
+
+calls.length = 0;
+const edited = await surface.updateCrmComponent(statusCard.id, { name: statusCard.name, type: statusCard.type, config: statusCard.config });
+const edit = updates()[0];
+ok(!!edit && edit.payload.module === 'contacts' && edit.payload.grouping.field === 'relationshipStatus' && edit.payload.grouping.bucket === 'day' && edit.payload.chart_type === 'column' && edit.payload.measure.fn === 'count', 'saving Edit writes the same module and grouping back');
+ok(edited.config.module === 'contacts' && edited.config.grouping.field === 'relationshipStatus' && edited.config.chartType === 'column', 'Edit returns the config it saved');
+const reloaded = await surface.getCrmDashboard(DASH);
+const statusAgain = reloaded.list.find((c) => c.id === statusCard.id);
+ok(statusAgain.config.module === statusCard.config.module && statusAgain.config.grouping.field === statusCard.config.grouping.field && statusAgain.config.grouping.bucket === statusCard.config.grouping.bucket && statusAgain.config.chartType === 'column', 'Edit round-trips the clients chart config');
+
+calls.length = 0;
+const editedDay = await surface.updateCrmComponent(dayCard.id, { name: dayCard.name, type: dayCard.type, config: dayCard.config });
+ok(updates()[0].payload.module === 'leads' && updates()[0].payload.grouping.field === 'createdAt' && updates()[0].payload.grouping.bucket === 'day' && editedDay.config.grouping.field === 'createdAt', 'Edit round-trips the leads Created Time grouping');
+
+calls.length = 0;
+let editMissing = '';
+try { await surface.updateCrmComponent(statusCard.id, { name: 'Client by Status', type: 'chart', config: { measure: { fn: 'count' }, grouping: { field: 'relationshipStatus' }, criteria: [], chartType: 'column' } }); } catch (e) { editMissing = e.message; }
+ok(editMissing === 'Pick a module.' && updates().length === 0, 'Edit with no module is refused before update');
+
+calls.length = 0;
+const renamed = await surface.updateCrmComponent(statusCard.id, { name: 'M'.repeat(140), type: 'chart', config: statusAgain.config });
+ok(updates()[0].payload.name.length === 100 && renamed.name.length === 100 && updates()[0].payload.module === 'contacts', 'renaming a component also stops at 100 characters');
+
+const beforeLists = lists.contacts;
+const preview = await surface.previewCrmComponent(chart('contacts', { field: 'relationshipStatus', bucket: 'day' }));
+ok(preview.config.module === 'contacts' && preview.config.grouping.field === 'relationshipStatus' && preview.data.groups.length === 2 && lists.contacts === beforeLists + 1 && inserts().length === 0, 'preview groups Clients by Relationship Status and does not insert');
+const leadsBeforePreview = lists.leads;
+const previewDay = await surface.previewCrmComponent(chart('leads', { field: 'createdAt', bucket: 'day' }));
+ok(previewDay.config.module === 'leads' && previewDay.config.grouping.field === 'createdAt' && previewDay.config.grouping.bucket === 'day' && previewDay.data.groups.length === 2 && lists.leads === leadsBeforePreview + 1, 'preview groups Leads by Created Time by day');
+let previewMissing = '';
+const leadsAfter = lists.leads;
+try { await surface.previewCrmComponent({ name: 'Preview', type: 'chart', config: { measure: { fn: 'count' }, grouping: { field: 'createdAt', bucket: 'day' }, criteria: [], chartType: 'column' } }); } catch (e) { previewMissing = e.message; }
+ok(previewMissing === 'Pick a module.' && lists.leads === leadsAfter && lists.contacts === beforeLists + 1, 'preview with no module is refused before it reads records');
+
+calls.length = 0;
+const stacked = await surface.addCrmComponent(DASH, { name: 'Stacked', type: 'chart', config: { module: 'deals', measure: { fn: 'sum', field: 'amount' }, grouping: { field: 'closingDate', bucket: 'month' }, grouping2: { field: 'stage' }, criteria: [], chartType: 'stacked' } });
+const target = await surface.addCrmComponent(DASH, { name: 'Target', type: 'target', config: { module: 'deals', measure: { fn: 'count' }, criteria: [], target: 50 } });
+ok(inserts()[0].payload.module === 'deals' && inserts()[0].payload.grouping.grouping2.field === 'stage' && stacked.config.grouping.field === 'closingDate' && stacked.config.grouping2.field === 'stage' && !stacked.config.grouping.grouping2, 'a stacked chart keeps its second grouping on the saved config');
+ok(inserts()[1].payload.measure.target === 50 && target.config.target === 50 && target.config.measure.fn === 'count' && target.config.measure.target == null, 'a target meter keeps its target on the saved config');
+const stackedAgain = await surface.updateCrmComponent(stacked.id, { name: stacked.name, type: stacked.type, config: stacked.config });
+ok(stackedAgain.config.grouping2.field === 'stage' && stackedAgain.config.grouping.field === 'closingDate' && stackedAgain.config.module === 'deals', 'Edit round-trips the stacked grouping');
+
+calls.length = 0;
+const cloned = await surface.cloneCrmComponent(byStatus.id);
+const cloneInsert = inserts()[0];
+ok(!!cloneInsert && cloneInsert.payload.module === 'contacts' && cloneInsert.payload.grouping.field === 'relationshipStatus' && cloned.config.module === 'contacts' && cloned.config.grouping.field === 'relationshipStatus', 'clone still stores the module and grouping from the saved row');
+
+calls.length = 0;
+await surface.reorderCrmDashboard(DASH, [{ id: tall.id, width: 1, height: 'l' }, { id: byStatus.id, width: 1, height: 's' }]);
+const heights = updates().map((c) => c.payload.height);
+ok(heights.includes(2) && heights.includes(1) && heights.every((h) => h === 1 || h === 2), 'reordering a tall chart stays inside the height check');
+
+const page = read('js/pages/crm-dashboards.js');
+ok(page.includes('return { name: f.name.value, type, config }') && page.includes('maxlength="100"') && !page.includes('maxlength="120"'), 'the chart form still nests config and the name field stops at 100');
+
+const STAMP = '202611130700';
+const want = new Map([
+  ['js/data/supabase-crm-surface.js', STAMP],
+  ['js/data/supabase-crm.js', STAMP],
+  ['js/data/supabase-adapter.js', STAMP],
+  ['js/data/adapter.js', STAMP],
+  ['js/pages/crm-dashboards.js', STAMP],
+  ['js/pages/crm.js', STAMP],
+  ['js/app.js', STAMP],
+]);
+function walkDir(dir, out = []) {
+  for (const name of readdirSync(dir)) {
+    const full = path.join(dir, name);
+    if (statSync(full).isDirectory()) { if (name !== 'vendor' && name !== 'node_modules') walkDir(full, out); }
+    else if (/\.(js|html)$/.test(name)) out.push(full);
+  }
+  return out;
+}
+const specRe = /(['"])([^'"\s]+?)\?v=(\d+)\1/g;
+const hits = new Map();
+for (const file of walkDir(path.join(root, 'js')).concat(readdirSync(root).filter((n) => n.endsWith('.html')).map((n) => path.join(root, n)))) {
+  const rel = path.relative(root, file);
+  const text = readFileSync(file, 'utf8');
+  for (const m of text.matchAll(specRe)) {
+    if (!m[2].includes('/')) continue;
+    const target = path.normalize(path.join(path.dirname(rel), m[2])).replace(/\\/g, '/');
+    if (!hits.has(target)) hits.set(target, []);
+    hits.get(target).push({ from: rel, stamp: m[3] });
+  }
+}
+const issues = [];
+const dual = [];
+const unimported = [];
+for (const [target, stamp] of want) {
+  const list = hits.get(target) || [];
+  const stamps = [...new Set(list.map((h) => h.stamp))];
+  if (!list.length) unimported.push(target);
+  if (stamps.length !== 1 || stamps[0] !== stamp) issues.push(target + ' ' + (stamps.join(',') || 'none'));
+  if (stamps.length > 1) dual.push(target + ' ' + stamps.join(','));
+}
+function walkImports(file, missingMods, seen = new Set()) {
+  const rel = file.replace(/\\/g, '/');
+  if (seen.has(rel)) return seen;
+  seen.add(rel);
+  if (!existsSync(path.join(root, rel))) { missingMods.push(rel); return seen; }
+  const text = readFileSync(path.join(root, rel), 'utf8');
+  const specs = [...text.matchAll(/(?:from|import)\s*\(\s*['"](\.[^'"]+)['"]|from\s+['"](\.[^'"]+)['"]|['"](\.\/[^'"]+\.js)\?v=\d+['"]/g)].map((m) => m[1] || m[2] || m[3]);
+  for (const spec of specs) {
+    const bare = spec.split('?')[0];
+    walkImports(path.normalize(path.join(path.dirname(rel), bare.endsWith('.js') ? bare : bare + '.js')).replace(/\\/g, '/'), missingMods, seen);
+  }
+  return seen;
+}
+const missingMods = [];
+const seen = walkImports('js/app.js', missingMods);
+ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
+ok(dual.length === 0, 'dual-stamp scan ' + dual.length + (dual.length ? ': ' + dual.join('; ') : ''));
+ok(unimported.length === 0 && missingMods.length === 0, 'recursive import check missing ' + (unimported.length + missingMods.length) + (unimported.length || missingMods.length ? ': ' + unimported.concat(missingMods).join('; ') : ''));
+ok(seen.has('js/data/supabase-crm-surface.js') && seen.has('js/pages/crm-dashboards.js'), 'the chart save modules are on the import walk from app.js');
+console.log('cache-stamp issues', issues.length);
+console.log('dual-stamp', dual.length);
+console.log('recursive-import missing', unimported.length + missingMods.length);
+
+console.log(fail ? fail + ' failed' : 'crm dash component passed');
+if (fail) process.exit(1);
