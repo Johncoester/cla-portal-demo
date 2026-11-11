@@ -2,7 +2,7 @@
    from the inviter's own connected Gmail through gmail-send. Google, Supabase and the browser are all fakes here. Nothing is sent. */
 import { existsSync, readFileSync } from 'node:fs';
 import { handleSend } from '../supabase/functions/_shared/gmail-handlers.mjs';
-import { inviteEmailContent, inviteLink, AUTH_INVITE_SUBJECT } from '../supabase/functions/_shared/gmail-core.mjs';
+import { inviteEmailContent, inviteLink, AUTH_INVITE_SUBJECT, taskNoticeContent, unnotifiedTasks } from '../supabase/functions/_shared/gmail-core.mjs';
 import { tokenOfLink, autoSendInvite, inviteSendNotice } from '../js/data/invite-send.js';
 import { toText } from '../js/ui.js';
 
@@ -17,7 +17,8 @@ function fake({ info = fileInfo, rpcError = null, ctx = {}, sendStatus = 200, pr
   const c = { uid: ME, viewAs: false, allowed: true, role: 'Processor', firstName: 'Francis', lastName: 'Santos', mailbox: 'fsantos@clatitle.com', mailboxStatus: 'connected', signatureHtml: '<p>Francis Santos<br>CLA Title</p>', ...ctx };
   const deps = { projectRef, clientId: 'cid', clientSecret: 'never-shown', headers: {}, now: () => Date.now(), newId: () => 'seed-1',
     fetch: async (url, init = {}) => { calls.fetch.push({ url, body: init.body || '' });
-      const r = url.includes('oauth2.googleapis.com/token') ? { status: 200, body: { access_token: 'ya29.x' } } : url.includes('/messages/send') ? { status: sendStatus, body: sendStatus < 300 ? { id: 'gInv1', threadId: 't1' } : { error: 'no' } } : { status: 404, body: {} };
+      const n = calls.fetch.filter((x) => String(x.url).includes('/messages/send')).length;
+      const r = url.includes('oauth2.googleapis.com/token') ? { status: 200, body: { access_token: 'ya29.x' } } : url.includes('/messages/send') ? { status: sendStatus, body: sendStatus < 300 ? { id: 'gInv' + n, threadId: 't1' } : { error: 'no' } } : { status: 404, body: {} };
       return { ok: r.status < 300, status: r.status, json: async () => r.body }; },
     getUser: async () => ({ id: ME }), myContext: async () => c,
     userRpc: async (fn, args) => { calls.rpc.push({ fn, args }); if (rpcError) throw new Error(rpcError); return { ...info, kind: args.p_kind === 'hr' ? 'hr' : info.kind }; },
@@ -27,18 +28,25 @@ function fake({ info = fileInfo, rpcError = null, ctx = {}, sendStatus = 200, pr
 const post = (body) => new Request('https://x.supabase.co/functions/v1/gmail-send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const run = async (body, opts) => { const f = fake(opts); const res = await handleSend(post(body), f.deps); return { res, j: await res.json(), ...f }; };
 
-// email content: the approved Auth template, with only the link variable swapped
+// email content: approved design, plus the property address in the subject and a welcome line
+const ADDR = '13 Drumcastle Ct, Germantown MD 20876';
 const link = inviteLink('agent', TOKEN);
-const m = inviteEmailContent(fileInfo, { token: TOKEN, inviterName: 'Francis Santos' });
-ok(m.subject === AUTH_INVITE_SUBJECT && m.subject === "You're invited to the CLA Title Portal" && !m.subject.includes('MD-26-97216'), 'invite subject is the Auth subject, with no file tag');
-ok(m.html.includes('href="' + link + '"') && m.html.includes('Accept invitation') && m.html.includes('https://testportal.clatitle.com/assets/img/logo-white.png') && m.html.includes('alt="C.L.A. Title &amp; Escrow"') && m.html.includes('>clatitle.com</a>') && m.html.includes('C.L.A. Title &amp; Escrow') && !m.html.includes('{{ .ConfirmationURL }}') && m.to === 'clatestportal+seller1@gmail.com', 'buyer / seller email is the approved template with the portal link');
+const m = inviteEmailContent({ ...fileInfo, partyRole: 'seller' }, { token: TOKEN, inviterName: 'Francis Santos' });
+ok(m.subject === `CLA Title & Escrow Has Shared Access to ${ADDR}` && !m.subject.includes('MD-26-97216'), 'invite subject names the property address and not the file number');
+ok(m.html.includes('Welcome, Cora.') && m.html.includes('You&#39;re the seller for ' + ADDR) && m.html.includes('href="' + link + '"') && m.html.includes('Accept invitation') && m.html.includes('https://testportal.clatitle.com/assets/img/logo-white.png') && m.html.includes('>clatitle.com</a>') && !m.html.includes('{{ .ConfirmationURL }}') && m.to === 'clatestportal+seller1@gmail.com', 'welcome line names the person, role, and address inside the approved design');
 ok(existsSync(new URL('../assets/img/logo-white.png', import.meta.url)), 'the invite logo path exists in the repo');
-const ag = inviteEmailContent({ ...fileInfo, inviteKind: 'agent' }, { token: TOKEN });
-ok(ag.html.includes('/#/agent-invite/' + TOKEN) && ag.html.includes('Accept invitation') && ag.subject === AUTH_INVITE_SUBJECT, 'agent email uses the same approved design');
+const noAddr = inviteEmailContent({ kind: 'agent', inviteKind: 'client', partyRole: 'buyer', email: 'clatestportal+buyer@gmail.com', firstName: 'Pat' }, { token: TOKEN });
+ok(noAddr.subject === AUTH_INVITE_SUBJECT && !noAddr.html.includes('Welcome, Pat'), 'no address: the Auth subject stays and no welcome line is added');
+const ag = inviteEmailContent({ ...fileInfo, inviteKind: 'agent', partyRole: 'agent', firstName: 'Lee' }, { token: TOKEN });
+ok(ag.html.includes('You&#39;re the agent for ' + ADDR) && ag.subject.startsWith('CLA Title & Escrow Has Shared Access to '), 'an agent invite names the agent role and the same address');
 const hr = inviteEmailContent({ kind: 'hr', inviteKind: 'staff', email: 'clatestportal+newhire@gmail.com', firstName: 'Nina' }, { token: TOKEN });
-ok(hr.subject === AUTH_INVITE_SUBJECT && hr.link.endsWith('/#/hr-invite/' + TOKEN) && hr.html.includes('/#/hr-invite/' + TOKEN), 'HR invite: Auth subject, hr-invite link');
-const nasty = inviteEmailContent({ ...fileInfo, firstName: '<b>x</b>' }, { token: '<script>' });
-ok(!nasty.html.includes('<script>') && !nasty.html.includes('<b>x</b>') && nasty.html.includes('&lt;script&gt;'), 'the invite link is escaped');
+ok(hr.subject === AUTH_INVITE_SUBJECT && hr.link.endsWith('/#/hr-invite/' + TOKEN) && !hr.html.includes('Welcome, Nina'), 'HR invite: Auth subject, no property line');
+const nasty = inviteEmailContent({ ...fileInfo, partyRole: 'buyer', firstName: '<b>x</b>' }, { token: '<script>' });
+ok(!nasty.html.includes('<script>') && !nasty.html.includes('<b>x</b>') && nasty.html.includes('&lt;script&gt;') && nasty.html.includes('&lt;b&gt;x&lt;/b&gt;'), 'the invite link and the welcome name are escaped');
+const batch = unnotifiedTasks({ tasks: [{ id: 't1', title: 'Personal information' }, { id: 't2', title: 'Photo ID' }, { id: 't0', title: 'Old task' }], taskNoticeIds: ['t0'] });
+ok(batch.map((t) => t.title).join('|') === 'Personal information|Photo ID', 'a task notice is one batch and skips tasks already emailed');
+const notice = taskNoticeContent({ ...fileInfo, partyRole: 'seller' }, batch, { token: TOKEN });
+ok(notice.subject === `You have new tasks for ${ADDR}` && notice.html.includes('Personal information, Photo ID') && !notice.html.includes('Old task') && notice.html.includes('See my tasks') && notice.html.includes(link), 'the follow-up uses the approved shell and lists the batch once');
 
 // gmail-send invite mode: the inviter's own Gmail, the approved template, no fallback mailbox
 let r = await run({ invite: { kind: 'agent', token: TOKEN } });
@@ -68,6 +76,16 @@ r = await run({ invite: { kind: 'agent', token: TOKEN } }, { projectRef: 'bxixxg
 ok(r.res.status === 503 && /Live Test only/.test(r.j.error) && !r.calls.fetch.length, 'production is refused before any invite is sent');
 r = await run({ invite: { kind: 'agent', token: TOKEN } }, { sendStatus: 500 });
 ok(r.res.status === 502 && r.calls.svc.some((x) => x.fn === 'invite_svc_mark_sent' && /HTTP 500/.test(x.args.p_error)), 'a Gmail failure is reported and recorded');
+const taskInfo = { ...fileInfo, partyRole: 'buyer', tasks: [{ id: '11111111-1111-4111-8111-111111111111', title: 'Personal information' }, { id: '22222222-2222-4222-8222-222222222222', title: 'Photo ID' }, { id: '33333333-3333-4333-8333-333333333333', title: 'Already sent' }], taskNoticeIds: ['33333333-3333-4333-8333-333333333333'] };
+r = await run({ invite: { kind: 'agent', token: TOKEN } }, { info: taskInfo });
+const sends = r.calls.fetch.filter((x) => String(x.url).includes('/messages/send'));
+const secondRaw = sends[1] ? b64d(JSON.parse(sends[1].body).raw) : '';
+const secondHtml = (() => { const i = secondRaw.indexOf('text/html'); if (i < 0) return ''; const body = secondRaw.slice(i).split('\r\n\r\n')[1] || ''; return b64d(body.split('\r\n--')[0].replace(/\r\n/g, '')); })();
+const noted = r.calls.svc.find((x) => x.fn === 'invite_svc_mark_task_notice');
+ok(r.res.status === 200 && r.j.taskNotice.sent === true && r.j.taskNotice.count === 2 && sends.length === 2 && secondRaw.includes('You have new tasks for 13 Drumcastle Ct') && secondHtml.includes('Personal information, Photo ID') && !secondHtml.includes('Already sent'), 'one follow-up lists the new task batch and skips tasks already emailed');
+ok(noted && noted.args.p_error === null && noted.args.p_ids.join() === '11111111-1111-4111-8111-111111111111,22222222-2222-4222-8222-222222222222' && noted.args.p_profile === ME && noted.args.p_message_id === 'gInv2', 'the batch is recorded once, sent by the inviter');
+r = await run({ invite: { kind: 'agent', token: TOKEN } }, { info: { ...taskInfo, tasks: taskInfo.tasks, taskNoticeIds: taskInfo.tasks.map((t) => t.id) } });
+ok(r.res.status === 200 && r.j.taskNotice.sent === false && r.calls.fetch.filter((x) => String(x.url).includes('/messages/send')).length === 1, 'no new tasks means no second email');
 
 // page helpers
 ok(tokenOfLink('#/agent-invite/' + TOKEN) === TOKEN && tokenOfLink('#/hr-invite/' + TOKEN) === TOKEN && tokenOfLink('#/x/1') === '', 'token is read from the link');
@@ -83,6 +101,10 @@ ok((ai.match(/autoSendInvite\(api, 'agent'/g) || []).length >= 2 && /data-invite
 const hrs = readFileSync('js/pages/hr.js', 'utf8'); ok((hrs.match(/autoSendInvite\(api, 'hr'/g) || []).length >= 2, 'HR: add employee and new invite link both email');
 const sql = readFileSync('supabase/migrations/20261110001000_invite_auto_email.sql', 'utf8');
 ok(/can_invite_agents\(\)/.test(sql) && /hr_admin\(\)/.test(sql) && /to service_role/.test(sql) && /from public, anon, authenticated/.test(sql), 'SQL: inviter checked as the user; mark-sent is service role only');
+const taskSql = readFileSync('supabase/migrations/20261112140000_invite_address_task_notice.sql', 'utf8');
+const taskRb = readFileSync('supabase/rollbacks/20261112140000_invite_address_task_notice.sql', 'utf8');
+ok(/partyRole/.test(taskSql) && /jsonb_agg/.test(taskSql) && /gmail_sync_token/.test(taskSql) && /invite_svc_mark_task_notice/.test(taskSql) && /to service_role/.test(taskSql), 'task notice SQL is TEST-only, one batch, service role');
+ok(/drop function if exists public.invite_svc_mark_task_notice/.test(taskRb) && /drop column if exists task_notice_ids/.test(taskRb), 'rollback removes the task notice and restores invite_send_info');
 
 console.log(fail ? `FAIL ${fail}` : 'all invite auto-email checks passed');
 process.exit(fail ? 1 : 0);
