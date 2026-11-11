@@ -293,7 +293,8 @@ export function crmPart(x, flags) {
   }
 
   // COMPANIES (Janine, Nov 3): State is required (50 states + DC) and a company may not repeat an existing one: same name after normalising (case,
-  // punctuation, spacing, "&" / "and", Inc / LLC / Co ...), in any state, archived ones included (restore it instead). The error carries the existing record.
+  // punctuation, spacing, "&" / "and", Inc / LLC / Co ...), in any state. The form still points at an archived match so the user can restore it.
+  // The database index crm_accounts_name_uq does not include archived rows. It is unique on lower(btrim(name)) where archived_at is null.
   const companyDup = (name, exceptId = null) => { const k = companyKey(name); if (!k) return null; return db().crmAccounts.find((a) => a.id !== exceptId && companyKey(a.name) === k) || null; };
   function companyRules(name, state, exceptId, hint = 'open it instead') {
     if (state !== null) { if (!state) fail('State is required.'); if (!C.US_STATES.includes(state)) fail('Pick a US state (or DC).'); }

@@ -109,9 +109,10 @@ create table public.crm_accounts (
   owner_id uuid,
   archived_at timestamptz,
   created_at timestamptz not null default now(),
-  created_by uuid,
-  constraint crm_accounts_name_uq unique (name)
+  created_by uuid
 );
+-- Same partial unique index as hosted TEST. Not a table constraint.
+create unique index crm_accounts_name_uq on public.crm_accounts (lower(btrim(name))) where archived_at is null;
 create table public.contacts (
   id uuid primary key default gen_random_uuid(),
   company text,
@@ -125,7 +126,78 @@ alter table public.crm_accounts add constraint crm_accounts_kind_check
   check (kind = any (array['brokerage', 'lender', 'other']));
 SQL
 
+echo '===== NAME INDEX ====='
+"${PSQL[@]}" <<'SQL'
+do $$
+declare
+  def text;
+begin
+  select indexdef into def from pg_indexes where schemaname = 'public' and indexname = 'crm_accounts_name_uq';
+  if def is distinct from 'CREATE UNIQUE INDEX crm_accounts_name_uq ON public.crm_accounts USING btree (lower(btrim(name))) WHERE (archived_at IS NULL)' then
+    raise exception 'scratch indexdef is %', def;
+  end if;
+  if exists (select 1 from pg_constraint where conname = 'crm_accounts_name_uq') then
+    raise exception 'crm_accounts_name_uq must be an index, not a constraint';
+  end if;
+end $$;
+-- Archived rows are outside the partial index.
+insert into public.crm_accounts (name, kind, state, archived_at) values ('Archived Only Realty', 'brokerage', 'MD', now());
+insert into public.crm_accounts (name, kind, state) values ('  archived only realty  ', 'brokerage', 'VA');
+-- An active duplicate is rejected.
+do $$
+begin
+  insert into public.crm_accounts (name, kind, state) values ('ARCHIVED ONLY REALTY', 'brokerage', 'DC');
+  raise exception 'active duplicate was allowed';
+exception when unique_violation then
+  null;
+end $$;
+-- ON CONFLICT without the predicate does not see a partial unique index.
+do $$
+begin
+  insert into public.crm_accounts (name, kind, state) values ('Archived Only Realty', 'brokerage', 'MD')
+  on conflict (lower(btrim(name))) do nothing;
+  raise exception 'ON CONFLICT without WHERE matched the partial index';
+exception when invalid_column_reference then
+  null;
+end $$;
+-- The matching expression and WHERE do infer it, and do not insert a second active row.
+insert into public.crm_accounts (name, kind, state) values ('Archived Only Realty', 'brokerage', 'FL')
+on conflict ((lower(btrim(name)))) where archived_at is null do nothing;
+do $$
+begin
+  if (select count(*) from public.crm_accounts where archived_at is null and lower(btrim(name)) = 'archived only realty') <> 1 then
+    raise exception 'partial index allowed two active rows';
+  end if;
+  if (select count(*) from public.crm_accounts where archived_at is not null and lower(btrim(name)) = 'archived only realty') <> 1 then
+    raise exception 'archived row was lost';
+  end if;
+end $$;
+delete from public.crm_accounts where lower(btrim(name)) = 'archived only realty';
+SQL
+
 "${PSQL[@]}" -f "$ROOT/supabase/migrations/20261112080000_company_lookup.sql"
+
+echo '===== FIND OR CREATE VS PARTIAL INDEX ====='
+"${PSQL[@]}" <<'SQL'
+insert into public.crm_accounts (name, kind, state, archived_at) values ('Archived Only Realty', 'brokerage', 'MD', now());
+select public.company_find_or_create('archived only realty', 'brokerage', 'VA') as created_id;
+do $$
+declare
+  n_active int;
+  n_archived int;
+begin
+  select count(*) into n_active from public.crm_accounts where archived_at is null and lower(btrim(name)) = 'archived only realty';
+  select count(*) into n_archived from public.crm_accounts where archived_at is not null and lower(btrim(name)) = 'archived only realty';
+  if n_active <> 1 or n_archived <> 1 then
+    raise exception 'find_or_create treated an archived name as taken (active %, archived %)', n_active, n_archived;
+  end if;
+  if public.company_find_or_create('ARCHIVED ONLY REALTY', 'lender', 'DC')
+     is distinct from (select id from public.crm_accounts where archived_at is null and lower(btrim(name)) = 'archived only realty') then
+    raise exception 'find_or_create did not return the one active row';
+  end if;
+end $$;
+delete from public.crm_accounts where lower(btrim(name)) = 'archived only realty';
+SQL
 
 "${PSQL[@]}" <<'SQL'
 insert into public.crm_accounts (name, kind, state, city, phone)
@@ -320,4 +392,8 @@ fi
 
 echo '===== ROLLBACK ====='
 "${PSQL[@]}" -f "$ROOT/supabase/rollbacks/20261112080000_company_lookup.sql"
-"${PSQL[@]}" -c "select to_regprocedure('public.company_lookup(text, integer)') is null as lookup_gone, to_regclass('public.crm_accounts_company_key_active_idx') is null as index_gone;"
+"${PSQL[@]}" -c "select to_regprocedure('public.company_lookup(text, integer)') is null as lookup_gone, to_regclass('public.crm_accounts_company_key_active_idx') is null as index_gone, (select indexdef from pg_indexes where indexname = 'crm_accounts_name_uq') as name_uq;"
+
+echo '===== RE-APPLY ====='
+"${PSQL[@]}" -f "$ROOT/supabase/migrations/20261112080000_company_lookup.sql"
+"${PSQL[@]}" -c "select to_regprocedure('public.company_lookup(text, integer)') is not null as lookup_back, to_regprocedure('public.company_match_active(text)') is not null as match_back, to_regclass('public.crm_accounts_company_key_active_idx') is not null as index_back;"

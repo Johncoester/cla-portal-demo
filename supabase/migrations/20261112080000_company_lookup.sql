@@ -30,6 +30,13 @@
 -- State on a new company is only the p_state argument. These functions never
 -- read a deal or copy the property's state.
 --
+-- crm_accounts_name_uq is a partial unique index, not a constraint:
+--   unique on lower(btrim(name)) WHERE (archived_at IS NULL).
+-- An archived row is outside that index, so it does not block a new active
+-- row with the same trimmed name. company_find_or_create does not use
+-- ON CONFLICT. A partial index is inferred only when ON CONFLICT repeats the
+-- expression and that WHERE predicate.
+--
 -- Company kinds. The CRM list was brokerage, lender, other. Payoff lender, HOA,
 -- and utility are the same list, not a second table. This file adds only those
 -- three codes (payoff_lender, hoa, utility) to an existing allowed-value check
@@ -109,11 +116,14 @@ begin
   if exists (select 1 from pg_trigger where tgname = 'crm_accounts_name_sync' and tgrelid = 'public.crm_accounts'::regclass and not tgisinternal) then
     raise exception 'drift: trigger crm_accounts_name_sync already exists';
   end if;
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'crm_accounts_name_uq' and conrelid = 'public.crm_accounts'::regclass and contype = 'u'
-  ) then
-    raise exception 'drift: unique constraint crm_accounts_name_uq is missing';
+  if to_regclass('public.crm_accounts_name_uq') is null then
+    raise exception 'drift: unique index crm_accounts_name_uq is missing';
+  end if;
+  -- pg_get_indexdef / pg_indexes.indexdef for the partial index on TEST.
+  if (select indexdef from pg_indexes where schemaname = 'public' and indexname = 'crm_accounts_name_uq')
+     is distinct from 'CREATE UNIQUE INDEX crm_accounts_name_uq ON public.crm_accounts USING btree (lower(btrim(name))) WHERE (archived_at IS NULL)' then
+    raise exception 'drift: crm_accounts_name_uq is %',
+      (select indexdef from pg_indexes where schemaname = 'public' and indexname = 'crm_accounts_name_uq');
   end if;
 
   select data_type, column_default into id_type, id_default
@@ -294,9 +304,11 @@ begin
   end if;
   v_key := private.crm_company_key(v_name);
 
-  -- Active rows only. An archived company with the same key does not count;
-  -- the insert then has to satisfy crm_accounts_name_uq, which still includes
-  -- archived rows. A unique_violation in that case is re-raised.
+  -- Active rows only. crm_accounts_name_uq does not include archived rows:
+  -- it is unique on lower(btrim(name)) where archived_at is null, so a name
+  -- that exists only on an archived row can be inserted. No ON CONFLICT.
+  -- unique_violation is a race with another active row. Return that id when
+  -- the normalized key matches; otherwise re-raise.
   select a.id into v_id
   from public.crm_accounts a
   where a.archived_at is null
@@ -328,7 +340,7 @@ end
 $fn$;
 
 comment on function public.company_find_or_create(text, text, text) is
-  'Returns the active crm_accounts id whose normalized name matches, or inserts one with owner_id null. State is the p_state argument only, never a property state. crm_accounts_name_uq still applies.';
+  'Returns the active crm_accounts id whose normalized name matches, or inserts one with owner_id null. State is the p_state argument only, never a property state. Active names are unique on partial index crm_accounts_name_uq (lower(btrim(name)) where archived_at is null). Archived rows are not in that index.';
 
 -- Exact auto-link. Returns the one active account id whose normalized name
 -- equals p_name, or null. Two or more active matches return null. No prefix,
