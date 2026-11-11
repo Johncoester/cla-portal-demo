@@ -60,6 +60,32 @@ export function buildDeps(req: Request) {
       const { data } = await asUser.from('deal_emails').select('id, deal_id, mailbox_email, gmail_thread_id, rfc_message_id').eq('id', id).maybeSingle();
       return data || null;
     },
+    /* Portal invites (John, Nov 11): TEST Auth sends its approved "Invite user" email from testportal@clatitle.com (custom SMTP). */
+    async authInvite(email: string, opts: { redirectTo: string; data?: Record<string, unknown> }) {
+      const { data, error } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo: opts.redirectTo, data: opts.data });
+      if (error) {
+        const msg = String(error.message || '').replace(/\s+/g, ' ').trim();
+        const code = String((error as { code?: string }).code || '');
+        return { error: msg.slice(0, 160) || `HTTP ${error.status || ''}`.trim(), exists: code === 'email_exists' || /already (been )?registered/i.test(msg) };
+      }
+      return { id: data && data.user ? data.user.id : '' };
+    },
+    async authStub(email: string) {
+      const want = String(email || '').trim().toLowerCase();
+      for (let page = 1; page <= 10; page += 1) {
+        const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+        if (error || !data) return null;
+        const u = data.users.find((x) => String(x.email || '').toLowerCase() === want);
+        if (u) {
+          const { data: p, error: pe } = await admin.from('profiles').select('id').eq('id', u.id).maybeSingle();
+          if (pe) return null;   // unknown: never treat it as replaceable
+          return { id: u.id, invited: !!u.invited_at, hasProfile: !!p };
+        }
+        if (data.users.length < 1000) return null;
+      }
+      return null;
+    },
+    async deleteAuthUser(id: string) { await admin.auth.admin.deleteUser(id); },
     async storeAttachment(path: string, bytes: Uint8Array, mime: string) {
       const { error } = await admin.storage.from('deal-documents').upload(path, bytes, { contentType: mime || 'application/octet-stream', upsert: false });
       if (error) throw new Error('Could not save an attachment.');

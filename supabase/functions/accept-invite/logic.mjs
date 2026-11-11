@@ -1,6 +1,7 @@
 // Decision logic for accept-invite. No service-role key and no network.
 // index.ts wires the Supabase service client. Node tests call this file directly.
-export const ALLOWED_ORIGIN = 'https://johncoester.github.io';
+export const PORTAL_ORIGINS = ['https://johncoester.github.io', 'https://testportal.clatitle.com'];
+export const ALLOWED_ORIGIN = PORTAL_ORIGINS[0];
 export const GENERIC = 'This invite link is not valid or has expired.';
 export const SAFE_FIELD = new Set([
   'First name, last name and cell phone are required.',
@@ -17,8 +18,8 @@ export function corsFor(origin) {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     Vary: 'Origin',
   };
-  const allow = origin === ALLOWED_ORIGIN;
-  if (allow) headers['Access-Control-Allow-Origin'] = ALLOWED_ORIGIN;
+  const allow = PORTAL_ORIGINS.includes(origin);
+  if (allow) headers['Access-Control-Allow-Origin'] = origin;
   return { allow, headers };
 }
 
@@ -41,7 +42,8 @@ function json(headers, status, body) {
   return new Response(JSON.stringify(body), { status, headers: { ...headers, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 }
 
-// deps: { sha256(text), gate(key)->bool, email(kind, token)->string|null, createUser({email,password,email_confirm})->{id}, deleteUser(id), accept(kind, token, userId, profile) }
+// deps: { sha256(text), gate(key)->bool, email(kind, token)->string|null, createUser({email,password,email_confirm})->{id}, deleteUser(id), accept(kind, token, userId, profile),
+//         findStub(email)->{id, invited, hasProfile}|null, claimStub(id, password) }   (an Auth invite-only login, Nov 11)
 export async function handleAcceptInvite(req, deps) {
   const origin = req.headers.get('origin') || '';
   const { allow, headers } = corsFor(origin);
@@ -62,7 +64,13 @@ export async function handleAcceptInvite(req, deps) {
     try {
       user = await deps.createUser({ email, password: checked.password, email_confirm: true });
     } catch {
-      return json(headers, 400, { error: GENERIC });
+      // John, Nov 11: the invite email now comes from TEST Auth (testportal@clatitle.com), which makes an invite-only
+      // login first. That login is claimed here only if Auth invited it and it never became a portal user.
+      let stub = null;
+      try { stub = typeof deps.findStub === 'function' ? await deps.findStub(email) : null; } catch { stub = null; }
+      if (!stub || !stub.id || !stub.invited || stub.hasProfile || typeof deps.claimStub !== 'function') return json(headers, 400, { error: GENERIC });
+      try { await deps.claimStub(stub.id, checked.password); } catch { return json(headers, 400, { error: GENERIC }); }
+      user = { id: stub.id };
     }
     if (!user || !user.id) return json(headers, 400, { error: GENERIC });
     try {

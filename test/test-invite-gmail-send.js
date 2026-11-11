@@ -1,4 +1,4 @@
-/* Buyer and seller portal invites go out through gmail-send. Google is a fake. Nothing is sent.
+/* Buyer and seller portal invites go out through gmail-send, FROM testportal@clatitle.com via TEST Auth (John, Nov 11). Auth and Google are fakes. Nothing is sent.
    The role-suite hold is the same answer the hosted check returns so the e2e logins never reach Google. */
 import { readFileSync } from 'node:fs';
 import { parseHTML } from '/tmp/domtest/node_modules/linkedom/worker.js';
@@ -20,7 +20,7 @@ const ME = '11111111-1111-4111-8111-111111111111';
 const post = (body) => new Request('https://x.supabase.co/functions/v1/gmail-send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
 function makeFake(info, ctx = {}) {
-  const calls = { fetch: [] };
+  const calls = { fetch: [], auth: [] };
   const c = { uid: ME, viewAs: false, allowed: true, role: 'Processor', firstName: 'Francis', lastName: 'Santos', mailbox: 'fsantos@clatitle.com', mailboxStatus: 'connected', signatureHtml: '<p>Francis Santos<br>CLA Title</p>', ...ctx };
   const deps = { projectRef: 'aqcervntopidtcazcmlv', clientId: 'cid', clientSecret: 'never-shown', headers: {}, now: () => Date.now(), newId: () => 'seed-1',
     fetch: async (url, init = {}) => { calls.fetch.push({ url, body: init.body || '' });
@@ -29,10 +29,12 @@ function makeFake(info, ctx = {}) {
       return { ok: r.status < 300, status: r.status, json: async () => r.body }; },
     getUser: async () => ({ id: ME }), myContext: async () => c,
     userRpc: async () => info,
-    svc: async (fn) => { if (fn === 'gmail_svc_token') return [{ email: 'fsantos@clatitle.com', refresh_token: 'r', status: 'connected' }]; return null; } };
+    svc: async (fn) => { if (fn === 'gmail_svc_token') return [{ email: 'fsantos@clatitle.com', refresh_token: 'r', status: 'connected' }]; return null; },
+    authInvite: async (email, opts) => { calls.auth.push({ email, opts }); return { id: 'auth-' + calls.auth.length }; } };
   return { deps, calls };
 }
 const googleSends = (calls) => calls.fetch.filter((x) => String(x.url).includes('/messages/send'));
+const authSends = (calls) => calls.auth.length;
 
 // The browser keeps a reason when gmail-send answers 200 with sent:false (the role suite's no-send hold).
 const asked = [];
@@ -57,7 +59,7 @@ api.sendInviteEmail = async ({ kind, token }) => {
   const fake = makeFake({ kind: 'agent', inviteKind: info.inviteKind || 'client', email: info.email, firstName: info.firstName, lastName: info.lastName, expiresAt: info.expiresAt, dealId: deal.id, fileNumber: deal.fileNumber, street: deal.street, city: deal.city, state: deal.state, zip: deal.zip }, ctx);
   const res = await handleSend(post({ invite: { kind, token } }), fake.deps);
   const j = await res.json();
-  sends.push({ kind, token, status: res.status, j, google: googleSends(fake.calls).length });
+  sends.push({ kind, token, status: res.status, j, google: authSends(fake.calls), gmail: googleSends(fake.calls).length });
   if (res.status >= 400) return { sent: false, error: j.error || 'The invite was not emailed.', connectGmail: j.connectGmail === true, to: j.to || '', refused: j.refused || [] };
   return { sent: j.sent === true, to: j.to || '', from: j.from || '', subject: j.subject || '', error: j.error || '' };
 };
@@ -78,8 +80,8 @@ const open = async (cid, role) => {
 };
 
 let m = await open(buyer.id, 'Client-Buyer');
-ok(sends.length === 1 && sends[0].kind === 'agent' && sends[0].j.sent === true && sends[0].j.to === 'clatestportal+buyer1@gmail.com' && sends[0].google === 1, 'buyer invite sends via gmail-send');
-ok(m.querySelector('[data-invite-sent="yes"]') && /Emailed to clatestportal\+buyer1@gmail\.com/.test(m.textContent) && m.querySelector('[data-invite-link]'), 'buyer dialog says it was emailed and still shows the link');
+ok(sends.length === 1 && sends[0].kind === 'agent' && sends[0].j.sent === true && sends[0].j.to === 'clatestportal+buyer1@gmail.com' && sends[0].j.from === 'testportal@clatitle.com' && sends[0].google === 1 && sends[0].gmail === 0, 'buyer invite sends via gmail-send from testportal (Auth), not the inviter Gmail');
+ok(m.querySelector('[data-invite-sent="yes"]') && /Emailed to clatestportal\+buyer1@gmail\.com from testportal@clatitle\.com/.test(m.textContent) && !/your Gmail/.test(m.textContent) && m.querySelector('[data-invite-link]'), 'buyer dialog says it was emailed from testportal and still shows the link');
 
 m = await open(seller.id, 'Client-Seller');
 ok(sends.length === 2 && sends[1].j.sent === true && sends[1].j.to === 'clatestportal+seller1@gmail.com' && sends[1].google === 1 && sends[1].token !== sends[0].token, 'seller invite sends via gmail-send');
@@ -95,8 +97,8 @@ const quiet = await api.createContact({ firstName: 'Ned', lastName: 'NoGmail', e
 await api.addParticipant('deal-4', quiet.id, 'Client-Buyer');
 const before = sends.length;
 m = await open(quiet.id, 'Client-Buyer');
-ok(sends.length === before + 1 && sends[sends.length - 1].status === 409 && sends[sends.length - 1].j.connectGmail === true && sends[sends.length - 1].google === 0, 'no connected Gmail: gmail-send refuses and Google is not called');
-ok(m.querySelector('[data-invite-sent="connect"]') && /Connect Gmail to send automatically/.test(m.textContent) && m.querySelector('[data-invite-link]'), 'no Gmail: copy link and a plain Connect Gmail reason');
+ok(sends.length === before + 1 && sends[sends.length - 1].status === 200 && sends[sends.length - 1].j.sent === true && sends[sends.length - 1].google === 1 && sends[sends.length - 1].gmail === 0, 'no connected Gmail: the invite still goes from testportal and Google is not called');
+ok(m.querySelector('[data-invite-sent="yes"]') && !/Connect Gmail/.test(m.textContent) && m.querySelector('[data-invite-link]'), 'no Gmail: emailed, no Connect Gmail prompt');
 
 mode.connected = true;
 const blank = await api.createContact({ firstName: 'Nora', lastName: 'Noemail', email: '', contactType: 'buyer_seller' });
