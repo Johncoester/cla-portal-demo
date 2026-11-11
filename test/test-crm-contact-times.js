@@ -72,7 +72,7 @@ for (const file of files) {
     hits.get(target).push({ from: rel, stamp: m[3] });
   }
 }
-const want = new Map([['js/pages/crm.js', '202611121800'], ['js/app.js', '202611122200']]);
+const want = new Map([['js/pages/crm.js', '202611130700'], ['js/app.js', '202611131000']]);
 const issues = [];
 const dual = [];
 const missing = [];
@@ -87,11 +87,11 @@ const at1800 = [...hits.entries()].filter(([, list]) => list.some((h) => h.stamp
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
 ok(dual.length === 0, 'dual-stamp scan ' + dual.length + (dual.length ? ': ' + dual.join('; ') : ''));
 ok(missing.length === 0, 'recursive import check missing ' + missing.length + (missing.length ? ': ' + missing.join('; ') : ''));
-ok(at1800.length === 1 && at1800[0] === 'js/pages/crm.js', 'crm.js is the only module at 202611121800' + (at1800.length === 1 ? '' : ': ' + at1800.join(',')));
+ok(at1800.length === 0, 'the previous crm.js stamp 202611121800 is unused' + (at1800.length ? ': ' + at1800.join(',') : ''));
 const appImporters = (hits.get('js/app.js') || []).map((h) => h.from + '@' + h.stamp);
-ok(appImporters.length === 1 && appImporters[0] === 'index.html@202611122200', 'index.html loads app.js at 202611122200');
+ok(appImporters.length === 1 && appImporters[0] === 'index.html@202611131000', 'index.html loads app.js at 202611131000');
 const crmImporters = (hits.get('js/pages/crm.js') || []).map((h) => h.from + '@' + h.stamp);
-ok(crmImporters.length === 1 && crmImporters[0] === 'js/app.js@202611121800', 'app.js loads the CRM page at 202611121800');
+ok(crmImporters.length === 1 && crmImporters[0] === 'js/app.js@202611130700', 'app.js loads the CRM page at 202611130700');
 console.log('cache-stamp issues', issues.length);
 console.log('dual-stamp', dual.length);
 console.log('recursive-import missing', missing.length);

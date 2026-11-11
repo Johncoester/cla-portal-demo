@@ -6,7 +6,7 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney
 import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611101015';
 import { composeModal } from './compose.js?v=202611110900';
 import { slotText } from './dealclosing.js?v=202611121300';
-import { yourAgentHtml, withContactPhone } from './your-agent.js?v=202611122200';
+import { yourAgentHtml, withContactPhone } from './your-agent.js?v=202611131000';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { UPDATE_TOPICS } from '../data/agent-portal.js?v=202611101015';
 

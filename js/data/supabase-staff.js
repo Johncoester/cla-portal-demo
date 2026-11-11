@@ -1,7 +1,7 @@
 /* Staff screens that were still throwing "not implemented yet" in supabase mode.
  * Reads and writes go through the existing tables and RLS. This file does not create logins
  * and does not contain a service-role key. Nothing is emailed. */
-import { uploadBytes as blobOf, uploadFileName } from './upload-bytes.js?v=202611122200';
+import { uploadBytes as blobOf, uploadFileName } from './upload-bytes.js?v=202611131000';
 const day = (d) => new Date(d).toISOString().slice(0, 10);
 const plusDays = (n) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const full = (p) => `${p.firstName || ''} ${p.lastName || ''}`.trim();
