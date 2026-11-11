@@ -7,7 +7,7 @@
 import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611070139';
 import { splitFor } from '../data/underwriter.js?v=202611070139';
 import { cdDescription } from '../data/accounting.js?v=202611070139';
-import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611070139';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
+import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611071751';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
 import * as Q from '../data/qualia-charges.js?v=202611070139';
 import { modOn } from '../data/modules.js?v=202611101015';   // live40: Payoffs / HOA switch
 

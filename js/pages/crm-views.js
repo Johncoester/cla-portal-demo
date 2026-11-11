@@ -2,10 +2,10 @@
  * "New Custom View" = criteria + columns + sharing, and "Save filter" chips with counts). Routes: #/crm/views/<id> (a view), #/crm/views/new/<module>,
  * #/crm/views/<id>/edit. The adapter decides which rows a person may see; a view only narrows them. Function first, minimal styling. */
 import { html, raw, toText, $, $$, guard, toast, modal, closeModal } from '../ui.js?v=202611070139';
-import { moduleFields } from '../data/crm-analytics.js?v=202611070139';
+import { moduleFields } from '../data/crm-analytics.js?v=202611130900';
 import { VIEW_MODULE_LABEL, VIEW_VISIBILITY, VIEW_DEFAULT_COLUMNS, VIEW_NAME_KEY } from '../data/crm-views.js?v=202611070139';
-import { criteriaEditor } from './crm-criteria.js?v=202611070139';
-import { tabs, head } from './crm-kit.js?v=202611121000';
+import { criteriaEditor } from './crm-criteria.js?v=202611130900';
+import { tabs, head } from './crm-kit.js?v=202611130900';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
 
 const allLabel = (m) => `All ${VIEW_MODULE_LABEL[m]}`;
