@@ -277,10 +277,11 @@ function welcomeParagraph(text) {
 function portalShell(link, { eyebrow, headline, intro, button, welcome } = {}) {
   if (!AUTH_INVITE_HTML.includes(AUTH_INVITE_LINK_VAR)) throw new Error('Invite template is missing its link variable.');
   let html = AUTH_INVITE_HTML.split(AUTH_INVITE_LINK_VAR).join(escapeHtml(link));
-  if (eyebrow) html = html.replace('Invitation', escapeHtml(eyebrow));
+  if (eyebrow) html = html.split('Invitation').join(escapeHtml(eyebrow));
   if (headline) html = html.split("You're invited to the CLA Title Portal").join(escapeHtml(headline));
-  if (intro) html = html.replace(INVITE_INTRO, intro);
-  if (button) html = html.replace('Accept invitation', escapeHtml(button));
+  // split/join, not String.replace: a title like "$&" would otherwise be rewritten as the matched text
+  if (intro) html = html.split(INVITE_INTRO).join(intro);
+  if (button) html = html.split('Accept invitation').join(escapeHtml(button));
   if (welcome) {
     const mark = html.indexOf('in one place.');
     const end = mark >= 0 ? html.indexOf('</p>', mark) : -1;
@@ -307,11 +308,18 @@ export function inviteEmailContent(info = {}, { token } = {}) {
   const html = portalShell(link, { welcome });
   return { subject: kind === 'hr' ? AUTH_INVITE_SUBJECT : inviteSubjectFor(info), html, link, text: invitePlainText(link, kind === 'hr' ? {} : info), to: String(info.email || '').trim().toLowerCase() };
 }
-/* Tasks already covered by a previous notice are skipped. One call is one batch. */
+const OPEN_TASK = new Set(['todo', 'in_progress', 'blocked']);
+/* Done and cancelled tasks are not part of the notice. A row with no status is kept (the SQL query already limited it to open tasks). */
+export function taskIsOpen(t) {
+  if (!t || typeof t !== 'object' || t.status == null || t.status === '') return true;
+  return OPEN_TASK.has(String(t.status));
+}
+/* Tasks already covered by a previous notice are skipped. One call is one batch of open tasks. */
 export function unnotifiedTasks(info = {}) {
   const seen = new Set((Array.isArray(info.taskNoticeIds) ? info.taskNoticeIds : []).map((id) => String(id)));
   const out = [];
   for (const t of (Array.isArray(info.tasks) ? info.tasks : [])) {
+    if (!taskIsOpen(t)) continue;
     const title = oneLine(t && typeof t === 'object' ? t.title : t, 120);
     const id = t && typeof t === 'object' && t.id ? String(t.id) : '';
     if (!title || (id && seen.has(id))) continue;
