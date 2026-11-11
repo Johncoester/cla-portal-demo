@@ -4,6 +4,7 @@
  * EMAIL_DRAFT_BATCH is how many drafts one insert statement writes. It is not a limit
  * on how many addresses one send may include. */
 import { fieldPatch } from './crm-bulk.js?v=202611141100';
+import { matchesDateWindow } from './crm-date-filter.js?v=202611141300';
 
 export const EMAIL_DRAFT_BATCH = 500;
 export const CRM_ZONE = 'America/New_York';
@@ -41,10 +42,18 @@ export function inNyRange(value, from, to) {
 
 export function filterFromValues(values = {}) {
   const dates = [];
+  const seen = new Set();
+  DATE_PAIRS.forEach(([field]) => {
+    const op = values[field + 'Op'] || '';
+    if (!op) return;
+    seen.add(field);
+    dates.push({ field, op, n: values[field + 'N'] || '', unit: values[field + 'Unit'] || 'days', value: values[field + 'Value'] || '', value2: values[field + 'Value2'] || '' });
+  });
   DATE_PAIRS.forEach(([field, fromKey, toKey]) => {
+    if (seen.has(field)) return;
     const from = values[fromKey] || '';
     const to = values[toKey] || '';
-    if (from || to) dates.push({ field, from, to });
+    if (from || to) dates.push({ field, op: 'between', value: from || to, value2: to || from });
   });
   const out = { dates };
   const q = String(values.q || '').trim();
@@ -98,7 +107,7 @@ export function rowMatches(row, filter = {}) {
     return String(have ?? '') !== String(v);
   })) return false;
   const dates = Array.isArray(filter.dates) ? filter.dates : [];
-  if (dates.some((d) => d && d.field && !inNyRange(row[d.field], d.from, d.to))) return false;
+  if (dates.some((d) => d && d.field && !matchesDateWindow(row[d.field], d.op ? d : { op: 'between', value: d.from || d.value, value2: d.to || d.value2 }))) return false;
   return true;
 }
 

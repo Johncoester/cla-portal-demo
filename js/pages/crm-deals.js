@@ -1,18 +1,19 @@
 /* crm-deals.js : DEALS in the CRM (Zoho's Deals module) = the portal's orders you can already see. #/crm/deals[/<id>]. Read-only here (orders are run
  * in the portal); a deal has Send Email (saved, NOT sent) and its Emails list. Function only. */
 import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, toast } from '../ui.js?v=202611070139';
-import { crmSort, inLocalRange } from '../data/crm.js?v=202611130900';
+import { crmSort } from '../data/crm.js?v=202611130900';
 import { DEAL_COLS, DEFAULT_HIDDEN, loadHidden } from '../data/crm-deal-cols.js?v=202611070139';
 import { display, moduleFields } from '../data/crm-analytics.js?v=202611130900';
 import { crmDealName, columnKey, loadColumns, normalizeColumns, beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611141100';
 import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611141100';
-import { tabs, head, money, wireRowOpen, pageSizeControl, pageNav } from './crm-kit.js?v=202611141200';
+import { tabs, head, money, wireRowOpen, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611141300';
+import { matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611130900';
-import { viewsBar, wireViewsBar } from './crm-views.js?v=202611141200';
+import { viewsBar, wireViewsBar } from './crm-views.js?v=202611141300';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
 import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070139';
 import { pageOf, selectionState, selectPage, loadPageSize } from '../data/crm-bulk.js?v=202611141100';
-import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611141200';
+import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611141300';
 import { bulkBar, wireBulk } from './crm-bulk.js?v=202611141200';
 
 export async function dealsPage(c) { return c.params.id ? dealPage(c) : dealsList(c); }
@@ -45,6 +46,7 @@ async function dealsList(c) {
   let visible = dealColumnState(storage, me.id || fl.me.id, known);
   const useCols = () => visible.map((k) => catalog.find((c) => c[0] === k)).filter(Boolean);
   const sel = (name, label, list, value, blank) => html`<label>${label}<select name="${name}" data-deal-filter="${name}" aria-label="${label}">${blank ? html`<option value="">${blank}</option>` : ''}${list.map(([v, l]) => html`<option value="${v}" ${String(v) === String(value) ? raw('selected') : ''}>${l}</option>`)}</select></label>`;
+  // Deals have created_at, open_date, and closing_date. Last activity is the latest crm_activities row. There is no modified_at, so Modified Time is not offered here.
   const body = html`${tabs('deals')}${head('Deals', me)}${bar}<p class="muted small">Deals are the portal's orders${all ? '' : ' you are a salesperson on'}. Run the order itself in the portal.
     ${all ? html`<span data-deal-scope="all">You see every deal owner's deals.</span>` : html`<span data-deal-scope="own">You see only your own deals.</span>`}</p>
     <form class="filter-bar" id="deal-filters" onsubmit="return false">
@@ -53,11 +55,7 @@ async function dealsList(c) {
       ${all ? sel('owner', 'Deal Owner / salesperson', [...fl.owners.map((o) => [o.id, `${o.name} (${o.role})`]), ['none', '(no salesperson)']], cur.ownerId, 'All deal owners') : ''}
       ${all ? sel('client', 'Client', fl.clients.map((x) => [x.id, x.name]), cur.clientId, 'All clients') : ''}
       ${sel('source', 'Source (who sent the deal)', [...fl.sources.map((o) => [o.value, o.label]), ['none', '(not set)']], cur.source, 'All sources')}
-      <label>Created Time from<input type="date" name="createdFrom" data-crm-date></label><label>Created Time to<input type="date" name="createdTo" data-crm-date></label>
-      <label>Modified Time from<input type="date" name="modifiedFrom" data-crm-date></label><label>Modified Time to<input type="date" name="modifiedTo" data-crm-date></label>
-      <label>Last Activity Time from<input type="date" name="activityFrom" data-crm-date></label><label>Last Activity Time to<input type="date" name="activityTo" data-crm-date></label>
-      <label>Open Date from<input type="date" name="openFrom" data-crm-date></label><label>Open Date to<input type="date" name="openTo" data-crm-date></label>
-      <label>Closing Date from<input type="date" name="closingFrom" data-crm-date></label><label>Closing Date to<input type="date" name="closingTo" data-crm-date></label>
+      ${dateOpControl('createdAt', 'Created Time')}${dateOpControl('lastActivityAt', 'Last Activity Time')}${dateOpControl('openDate', 'Open Date')}${dateOpControl('closingDate', 'Closing Date')}
       <button type="button" class="ghost" data-crm-reset>Reset</button>
     </form>${savedFiltersHtml('deals')}
     ${canBulk ? bulkBar('deal') : ''}${canBulk ? html`<p class="notice" data-match-banner hidden></p>` : ''}
@@ -77,7 +75,7 @@ async function dealsList(c) {
       const nextSig = JSON.stringify({ ...v, sort, dir }); if (nextSig !== sig) { if (sig) { selected = new Set(); allMatching = false; page = 1; } sig = nextSig; }
       matchFilter = filterFromValues({ ...v, ownerId: v.owner || '', clientId: v.client || '', source: v.source || '', status: v.status || '' }); matchCount = 0;
       const list = crmSort(rows.filter((r) => { const hay = [r.name, r.fileNumber, r.propertyAddress, r.clientName, r.contactName, r.ownerName, r.salesReps, r.sourceText].join(' ').toLowerCase();
-        return words.every((w) => hay.includes(w)) && inLocalRange(r.createdAt, v.createdFrom, v.createdTo) && inLocalRange(r.modifiedAt, v.modifiedFrom, v.modifiedTo) && inLocalRange(r.lastActivityAt, v.activityFrom, v.activityTo) && inLocalRange(r.openDate, v.openFrom, v.openTo) && inLocalRange(r.closingDate, v.closingFrom, v.closingTo); }), sort, dir);
+        return words.every((w) => hay.includes(w)) && (matchFilter.dates || []).every((d) => matchesDateWindow(r[d.field], d)); }), sort, dir);
       const view = pageOf(list, page, pageSize); page = view.page; viewRows = view.rows; matchCount = list.length;
       const cols = useCols(); const span = cols.length + (canBulk ? 1 : 0);
       head();
@@ -90,12 +88,12 @@ async function dealsList(c) {
       const banner = $('[data-match-banner]', root); if (banner) { const st = selectionState(selected, view.rows); const state = matchBannerState({ allOnPage: st.allOnPage, pageCount: view.rows.length, matchCount: list.length, allMatching }); banner.hidden = !state; banner.innerHTML = toText(state ? (state.mode === 'all' ? html`All ${state.matchCount} matching records are selected. <button type="button" data-clear-matching>Clear selection</button>` : html`All ${state.pageCount} on this page are selected. <button type="button" data-select-all-matching>Select all ${state.matchCount} matching records</button>`) : html``); }
       $$('th[data-sort]', root).forEach((th) => { const on = th.dataset.sort === sort; if (on) th.setAttribute('aria-sort', dir === 'asc' ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort');
         $('.up', th).classList.toggle('on', on && dir === 'asc'); $('.dn', th).classList.toggle('on', on && dir === 'desc'); }); };
-    f.q.addEventListener('input', apply); $$('[data-crm-date]', f).forEach((el) => el.addEventListener('change', apply));
+    f.q.addEventListener('input', apply); f.addEventListener('change', apply); wireDateOps(f);
     wireRowOpen(tb, (id) => `#/crm/deals/${id}`);
     const reset = $('[data-crm-reset]', f); if (reset) reset.addEventListener('click', () => {
       const bare = (location.hash || '').split('?')[0] === '#/crm/deals' && !(location.hash || '').includes('?');
       if (!bare) { location.hash = '#/crm/deals'; return; }
-      f.q.value = ''; $$('[data-crm-date]', f).forEach((el) => { el.value = ''; });
+      f.q.value = ''; $$('[data-date-op]', f).forEach((el) => { el.value = ''; }); $$('[data-date-n],[data-date-value],[data-date-value2]', f).forEach((el) => { el.value = ''; }); wireDateOps(f);
       const st = f.querySelector('[name=status]'); if (st) st.value = 'Open';
       $$('[data-deal-filter]', f).forEach((el) => { if (el.name !== 'status') el.value = ''; });
       apply();

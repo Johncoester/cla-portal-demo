@@ -8,7 +8,8 @@ import { columnChooserHtml, columnState, wireColumnChooser } from './crm-columns
 import { beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611141100';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
 import { pageOf, selectionState, selectPage, loadPageSize, normalizePageSize, PAGE_SIZE_OPTIONS } from '../data/crm-bulk.js?v=202611141100';
-import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611141200';
+import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611141300';
+import { DATE_OPS, DATE_UNITS, matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
 import { bulkBar, wireBulk } from './crm-bulk.js?v=202611141200';
 
 // A click on the row (not on a link, button, or checkbox) opens the record. The name link still navigates on its own.
@@ -45,7 +46,28 @@ export const dis = (me) => (me.canEdit ? '' : raw('disabled'));
 // csv: file name -> an "Export CSV" button that downloads the rows currently shown (filters + sort), with the columns shown.
 // exporter(cols, rows) -> { name, csv }: the adapter builds the file and refuses anyone but an Admin / Super admin (John, Nov 3: Clients, Leads, Companies)
 // Janine, Nov 4: bar = the custom-view tabs (crm-views.js viewsBar) shown above the filters; saved = { api, listKey } adds Saved Filters chips
-const datePair = (from, to, label) => html`<label>${label} from<input type="date" name="${from}" data-crm-date></label><label>${label} to<input type="date" name="${to}" data-crm-date></label>`;
+const N_OPS = new Set(['age_in', 'due_in', 'prev_n', 'next_n']);
+const ONE_OPS = new Set(['on', 'before', 'after']);
+const TWO_OPS = new Set(['between', 'not_between']);
+export function dateOpControl(field, label, cur = {}) {
+  const op = cur.op || '';
+  return html`<fieldset class="date-op" data-date-field="${field}"><legend>${label}</legend>
+    <select name="${field}Op" data-date-op="${field}" aria-label="${label}">${DATE_OPS.map(([k, l]) => html`<option value="${k}" ${k === op ? raw('selected') : ''}>${l}</option>`)}</select>
+    <label data-date-n-label="${field}" ${N_OPS.has(op) ? '' : raw('hidden')}>Number<input name="${field}N" data-date-n="${field}" type="number" min="1" step="1" value="${cur.n || ''}"></label>
+    <label data-date-unit-label="${field}" ${N_OPS.has(op) ? '' : raw('hidden')}>Unit<select name="${field}Unit" data-date-unit="${field}">${DATE_UNITS.map(([k, l]) => html`<option value="${k}" ${(cur.unit || 'days') === k ? raw('selected') : ''}>${l}</option>`)}</select></label>
+    <label data-date-value-label="${field}" ${ONE_OPS.has(op) || TWO_OPS.has(op) ? '' : raw('hidden')}>Date<input name="${field}Value" data-date-value="${field}" type="date" value="${cur.value || ''}"></label>
+    <label data-date-value2-label="${field}" ${TWO_OPS.has(op) ? '' : raw('hidden')}>And<input name="${field}Value2" data-date-value2="${field}" type="date" value="${cur.value2 || ''}"></label>
+  </fieldset>`;
+}
+export function wireDateOps(root) {
+  const sync = (field) => {
+    const opEl = $(`[data-date-op="${field}"]`, root); const op = opEl ? opEl.value : '';
+    const set = (name, on) => { const el = $(`[data-date-${name}-label="${field}"]`, root); if (el) el.hidden = !on; };
+    set('n', N_OPS.has(op)); set('unit', N_OPS.has(op)); set('value', ONE_OPS.has(op) || TWO_OPS.has(op)); set('value2', TWO_OPS.has(op));
+  };
+  $$('[data-date-op]', root).forEach((el) => sync(el.getAttribute('data-date-op')));
+  root.addEventListener('change', (e) => { const t = e.target; if (t && t.matches && t.matches('[data-date-op]')) sync(t.getAttribute('data-date-op')); });
+}
 export function listView({ key, rows, cols, catalog = null, userId = '', filters = [], sorts = [], fields, dflt = {}, sortDefault = 'name:asc', csv = '', exporter = null, bar = '', saved = null, dates = false, bulk = null }) {
   const all = catalog && catalog.length ? catalog : cols;
   const known = all.map(([k]) => k);
@@ -57,7 +79,7 @@ export function listView({ key, rows, cols, catalog = null, userId = '', filters
   const body = html`${bar}<form class="filter-bar" id="crm-f-${key}" onsubmit="return false">
       <label>Search<input name="q" type="search" placeholder="Name, email, company, county, tag" data-crm-search></label>
       ${filters.map(([name, label, opts, blank]) => html`<label>${label}${sel(name, opts, dflt[name] || '', blank)}</label>`)}
-      ${dates ? html`${datePair('createdFrom', 'createdTo', 'Created Time')}${datePair('modifiedFrom', 'modifiedTo', 'Modified Time')}${datePair('activityFrom', 'activityTo', 'Last Activity Time')}` : ''}
+      ${dates ? html`${dateOpControl('createdAt', 'Created Time')}${dateOpControl('modifiedAt', 'Modified Time')}${dateOpControl('lastActivityAt', 'Last Activity Time')}` : ''}
       <label>Sort<select name="sort">${sorts.flatMap(([k, l]) => [html`<option value="${k}:asc" ${sortDefault === k + ':asc' ? raw('selected') : ''}>${l} &uarr;</option>`, html`<option value="${k}:desc" ${sortDefault === k + ':desc' ? raw('selected') : ''}>${l} &darr;</option>`])}</select></label>
       <button type="button" class="ghost" data-crm-reset>Reset</button>
     </form>${saved ? savedFiltersHtml(saved.listKey) : ''}
@@ -70,7 +92,8 @@ export function listView({ key, rows, cols, catalog = null, userId = '', filters
     let selected = new Set(); let page = 1; let sig = ''; let pageSize = loadPageSize(storage, userId, key); let allMatching = false; let matchFilter = {};
     const paintBar = () => { const barEl = $('[data-bulk-bar]', root); if (!barEl) return; const n = allMatching ? shown.length : selected.size; barEl.hidden = n === 0; const label = $('[data-bulk-count]', barEl); if (label) label.textContent = allMatching ? `${n} matching records selected` : `${n} selected`; };
     const apply = () => { const v = formData(f); const nextSig = JSON.stringify(v); if (nextSig !== sig) { if (sig) { selected = new Set(); allMatching = false; page = 1; } sig = nextSig; } matchFilter = filterFromValues(v);
-      const [k, dir] = (v.sort || sortDefault).split(':'); const list = crmSort(crmFilter(rows, v, fields), k, dir); shown = list;
+      const [k, dir] = (v.sort || sortDefault).split(':'); let list = crmSort(crmFilter(rows, v, fields), k, dir);
+      list = list.filter((r) => (matchFilter.dates || []).every((d) => matchesDateWindow(r[d.field], d))); shown = list;
       const view = pageOf(list, page, pageSize); page = view.page;
       const use = active(); const span = use.length + (bulk ? 1 : 0);
       if (thead) thead.innerHTML = toText(headRow());
@@ -83,7 +106,7 @@ export function listView({ key, rows, cols, catalog = null, userId = '', filters
       if (banner) { const st = selectionState(selected, view.rows); const state = matchBannerState({ allOnPage: st.allOnPage, pageCount: view.rows.length, matchCount: list.length, allMatching });
         banner.hidden = !state; banner.innerHTML = toText(state ? (state.mode === 'all' ? html`All ${state.matchCount} matching records are selected. <button type="button" data-clear-matching>Clear selection</button>` : html`All ${state.pageCount} on this page are selected. <button type="button" data-select-all-matching>Select all ${state.matchCount} matching records</button>`) : html``); }
       paintBar(); };
-    f.addEventListener('input', apply); f.addEventListener('change', apply);
+    f.addEventListener('input', apply); f.addEventListener('change', apply); wireDateOps(f);
     const prefsApi = saved && saved.api;
     const wiredCols = wireColumnChooser(root, { module: key, userId, fields: fieldMeta, visible, defaults, known, api: prefsApi, onChange: (next) => { visible = next; apply(); } });
     if (prefsApi && typeof prefsApi.getUserUiPrefs === 'function') {
