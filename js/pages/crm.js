@@ -6,13 +6,13 @@ import { CONTACT_TYPES, contactTypeLabel, US_STATES, US_STATE_NAMES } from '../d
 import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611070139';
 import { display, moduleFields } from '../data/crm-analytics.js?v=202611070139';
 import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin, setCrmMe } from './crm-kit.js?v=202611121000';
-import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-janine.js?v=202611120600';
+import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-janine.js?v=202611131900';
 import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611070139';
 import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611070139';
 import { settingsPage } from './crm-settings.js?v=202611121000';
-import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611121000';
+import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611131900';
 import { pipelinePage, reportsPage } from './crm-more.js?v=202611121000';
-import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611121000';
+import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611131900';
 import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611121000';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611090905';
 import { searchPage } from './crm-search.js?v=202611121000';

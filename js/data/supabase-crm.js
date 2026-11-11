@@ -9,7 +9,7 @@ import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCusto
 import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611101015';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611070139';
 import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611121000';
-import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611120600';
+import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611131900';
 import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611130700';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
