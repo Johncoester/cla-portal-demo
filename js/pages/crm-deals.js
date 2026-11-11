@@ -46,6 +46,7 @@ async function dealsList(c) {
   let visible = dealColumnState(storage, me.id || fl.me.id, known);
   const useCols = () => visible.map((k) => catalog.find((c) => c[0] === k)).filter(Boolean);
   const sel = (name, label, list, value, blank) => html`<label>${label}<select name="${name}" data-deal-filter="${name}" aria-label="${label}">${blank ? html`<option value="">${blank}</option>` : ''}${list.map(([v, l]) => html`<option value="${v}" ${String(v) === String(value) ? raw('selected') : ''}>${l}</option>`)}</select></label>`;
+  // Deals have created_at, open_date, and closing_date. Last activity is the latest crm_activities row. There is no modified_at, so Modified Time is not offered here.
   const body = html`${tabs('deals')}${head('Deals', me)}${bar}<p class="muted small">Deals are the portal's orders${all ? '' : ' you are a salesperson on'}. Run the order itself in the portal.
     ${all ? html`<span data-deal-scope="all">You see every deal owner's deals.</span>` : html`<span data-deal-scope="own">You see only your own deals.</span>`}</p>
     <form class="filter-bar" id="deal-filters" onsubmit="return false">
@@ -54,7 +55,7 @@ async function dealsList(c) {
       ${all ? sel('owner', 'Deal Owner / salesperson', [...fl.owners.map((o) => [o.id, `${o.name} (${o.role})`]), ['none', '(no salesperson)']], cur.ownerId, 'All deal owners') : ''}
       ${all ? sel('client', 'Client', fl.clients.map((x) => [x.id, x.name]), cur.clientId, 'All clients') : ''}
       ${sel('source', 'Source (who sent the deal)', [...fl.sources.map((o) => [o.value, o.label]), ['none', '(not set)']], cur.source, 'All sources')}
-      ${dateOpControl('createdAt', 'Created Time')}${dateOpControl('modifiedAt', 'Modified Time')}${dateOpControl('lastActivityAt', 'Last Activity Time')}${dateOpControl('openDate', 'Open Date')}${dateOpControl('closingDate', 'Closing Date')}
+      ${dateOpControl('createdAt', 'Created Time')}${dateOpControl('lastActivityAt', 'Last Activity Time')}${dateOpControl('openDate', 'Open Date')}${dateOpControl('closingDate', 'Closing Date')}
       <button type="button" class="ghost" data-crm-reset>Reset</button>
     </form>${savedFiltersHtml('deals')}
     ${canBulk ? bulkBar('deal') : ''}${canBulk ? html`<p class="notice" data-match-banner hidden></p>` : ''}
