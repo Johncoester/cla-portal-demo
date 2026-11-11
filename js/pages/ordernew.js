@@ -12,13 +12,13 @@ import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmt
 import { occSelects, yesNo } from './occ-fields.js?v=202611070139';
 import { fmtPhone, TX_TYPES, runsOrders, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount } from '../data/constants.js?v=202611101015';
 import { officeDate } from '../data/office-date.js?v=202611102100';
-import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611101015';
+import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611140200';
 import { ENTITY_TYPES } from '../data/templates.js?v=202611120200';
 import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611092320';
 import { closerChoices, resolveCloser } from '../data/closer.js?v=202611101015';
 import { duplicateNotice } from '../data/order-duplicates.js?v=202611101700';
 import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
-import { orderDraftKey, readOrderDraft, writeOrderDraft, clearOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim } from '../data/order-draft.js?v=202611070139';
+import { orderDraftKey, readOrderDraft, writeOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim, tombstoneOrderDraft } from '../data/order-draft.js?v=202611140200';
 import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows } from '../data/lender-file.js?v=202611101200';
 import { fillProperty, cleanParcel } from '../data/address-fill.js?v=202611131900';
 import { readEarnest, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611102000';
@@ -68,6 +68,12 @@ const SEARCH = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer 
 // people are added to the order in this role order (the order the one-page form used), whichever step they were picked on
 // Sales Team is not collected on Place Order (MF-020). A Sales Team person already on a file stays there.
 const ADD_ORDER = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'Lender', 'Transaction Coordinator'];
+// Form fields can lose the hidden id. The picker state is the person who was actually selected.
+export function partyEntries(formParts, picks) {
+  const merged = new Map((formParts || []).filter((part) => part && part.name && String(part.contactId || '').trim()).map((part) => [part.name, { name: part.name, contactId: String(part.contactId).trim(), role: part.role }]));
+  for (const part of picks || []) if (part && part.name && String(part.contactId || '').trim()) merged.set(part.name, { name: part.name, contactId: String(part.contactId).trim(), role: part.role });
+  return [...merged.values()].sort((a, b) => (ADD_ORDER.indexOf(a.role) - ADD_ORDER.indexOf(b.role)) || a.name.localeCompare(b.name));
+}
 // the steps (key, title, one-line hint). The Agents step is skipped on a refinance (no realtors, no TC).
 export const STEPS = [
   ['transaction', 'Transaction', 'Type, open date, contract'],
@@ -216,7 +222,7 @@ export async function render({ api, user, go }) {
       <p class="muted small" data-draft-note>Save as draft opens the file as Open. Processor can stay Unassigned. Street, city and state are still required. If those are missing, the answers stay in this browser and no order is created.</p>
       </div>
     </form>`;
-  return { title: 'Place Order', crumbs: [['Orders', '#/orders'], ['Place Order']], body, mount(root) {
+  const view = { title: 'Place Order', crumbs: [['Orders', '#/orders'], ['Place Order']], body, unmount() {}, mount(root) {
     const form = $('#nof', root); const people = [...contacts];
     const paintProcessors = (list, keep) => { const sel = $('[name=processorId]', form); const next = processorChoices(list, keep == null ? sel.value : keep, user.id);
       sel.replaceChildren(); for (const o of next.options) { const opt = document.createElement('option'); opt.value = o.value; opt.textContent = o.label; sel.appendChild(opt); } sel.value = next.value; return next; };
@@ -362,9 +368,7 @@ export async function render({ api, user, go }) {
           if (!e.name) errs.push({ el: $('[data-ent="name"]', r.el), msg: `${lab}: entity name is required (or remove the entity).` }); });
       }
       if (k === 'loan') {
-        const company = String((f.lenderName || '')).trim();
-        readLenderContactRows(form).forEach((row, i) => { const built = lenderCompanyContact({ company, ...row }); const host = $$('[data-lender-contact-row]', p)[i];
-          if (!built.ok) errs.push({ el: (host && $('[data-lc="role"]', host)) || $('[name=lenderName]', p), msg: `Lender contact ${i + 1}: ${built.error}` }); });
+        // A blank or incomplete extra lender row is ignored when the order is saved. It does not block the company.
         const refused = (v) => { try { moneyAmount(v); return false; } catch (err) { return true; } };
         if (!refi() && refused(f.emdAmount)) errs.push({ el: $('[name=emdAmount]', p), msg: 'EMD amount must be a number of 0 or more.' });
         if (!refi()) { try { readEarnest(f); } catch (err) { errs.push({ el: $('[name=commissionPercent]', p) || $('[name=emdHeldBy]', p), msg: err.message }); } }
@@ -539,21 +543,26 @@ export async function render({ api, user, go }) {
     const addLcBtn = $('[data-add-lender-contact]', root); if (addLcBtn) addLcBtn.addEventListener('click', () => addLc());
     const draftKey = orderDraftKey(user);
     const draftStore = typeof localStorage !== 'undefined' ? localStorage : null;
-    const syncPickers = () => { $$('[data-picker]', root).forEach((el) => { const hid = $('input[type=hidden]', el); const person = people.find((p) => p.id === hid.value);
+    let placing = false;
+    let sealed = false;   // set when the order is placed; later writers must not recreate the draft
+    const syncPickers = () => { $$('[data-picker]', root).forEach((el) => { const hid = $('input[type=hidden]', el); const person = people.find((p) => p.id === (hid && hid.value));
       if (!person) return; const q = $('.picker-q', el); const chosen = $('[data-chosen]', el);
       if (q) q.value = personLabel(person); if (chosen) chosen.textContent = `Selected: ${personLabel(person)}`; el.setAttribute('data-selected', ''); }); };
     const persistDraft = () => {
-      if (!draftStore || !draftKey || placing) return false;
+      if (sealed || !draftStore || !draftKey || placing) return false;
       const body = collectOrderFields(form);
-      body.savedAt = new Date().toISOString(); body.step = cur; body.fileNames = rememberedFiles([fileIn, txIn]);
-      try { writeOrderDraft(draftStore, draftKey, body); return true; } catch (e) { return false; }
+      body.savedAt = new Date().toISOString(); body.step = cur; body.fileNames = rememberedFiles([fileIn, txIn]); body.fresh = true;
+      try { return writeOrderDraft(draftStore, draftKey, body) !== false; } catch (e) { return false; }
     };
     let draftTimer = 0;
-    const queueDraft = () => { clearTimeout(draftTimer); draftTimer = setTimeout(persistDraft, 400); };
+    const queueDraft = () => { if (sealed) return; clearTimeout(draftTimer); draftTimer = setTimeout(persistDraft, 400); };
     form.addEventListener('input', () => { syncReferral(); paintCommission(); queueDraft(); }); form.addEventListener('change', queueDraft);
     const saveBtn = $('[data-save-draft]', root);
     if (saveBtn) saveBtn.addEventListener('click', () => { commitOrder({ asDraft: true }).catch((err) => toast(err.message || String(err), 'err')); });
-    const prior = draftStore && draftKey ? readOrderDraft(draftStore, draftKey) : null;
+    let placedMark = null;
+    try { placedMark = JSON.parse(sessionStorage.getItem(PLACED_KEY) || 'null'); } catch (e) { placedMark = null; }
+    if (placedMark && placedMark.dealId && draftStore && draftKey) tombstoneOrderDraft(draftStore, draftKey, placedMark);
+    const prior = placedMark && placedMark.dealId ? null : (draftStore && draftKey ? readOrderDraft(draftStore, draftKey) : null);
     if (prior) {
       Object.keys(prior.fields || {}).map((k) => /^lcFirst:(\d+)$/.exec(k)).filter(Boolean).map((m) => Number(m[1])).sort((a, b) => a - b).forEach((i) => addLc(i));
       const restored = applyOrderDraft(form, prior, procs);
@@ -568,11 +577,14 @@ export async function render({ api, user, go }) {
       const names = (prior.fileNames || []).join(', ');
       if (note) { note.hidden = false; note.textContent = `Restored an unplaced draft from this browser${restored.processorDropped ? '. The saved Processor is no longer on the list, so choose one again' : ''}. It is not an order yet.${names ? ' These files were not kept and must be chosen again: ' + names + '.' : ''}`; }
     }
-    document.addEventListener('click', (e) => { if (form.isConnected && !form.contains(e.target)) persistDraft(); }, true);
-    window.addEventListener('beforeunload', (e) => { if (placing || !form.isConnected) return; const body = collectOrderFields(form); const dirty = Object.values(body.fields).some((v) => String(v || '').trim()) || Object.values(body.checks).some((v) => v.length);
-      if (!dirty) return; e.preventDefault(); e.returnValue = ''; });
+    const onDocClick = (e) => { if (sealed || !form.isConnected || form.contains(e.target)) return; persistDraft(); };
+    const onLeave = (e) => { if (sealed || placing || !form.isConnected) return; const body = collectOrderFields(form); const dirty = Object.values(body.fields).some((v) => String(v || '').trim()) || Object.values(body.checks).some((v) => v.length);
+      if (!dirty) return; e.preventDefault(); e.returnValue = ''; };
+    document.addEventListener('click', onDocClick, true);
+    window.addEventListener('beforeunload', onLeave);
+    const unmount = () => { document.removeEventListener('click', onDocClick, true); window.removeEventListener('beforeunload', onLeave); clearTimeout(draftTimer); };
+    view.unmount = unmount;
     // ---------- submit (only from Review; Enter on an earlier step means Next) ----------
-    let placing = false;
     const saveAgentEdits = async () => { for (const role of ['Buyer Agent', 'Listing Agent']) { const pk = pickers[role]; if (!pk || !pk.value) continue; const card = $(`[data-agent-card="${role}"]`, root); if (!card) continue;
       const phone = $('[data-agent-phone]', card).value.trim(); const email = $('[data-agent-email]', card).value.trim().toLowerCase(); const company = $('[data-agent-company]', card).value.trim();
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error(`${role}: email is not valid.`);
@@ -603,7 +615,8 @@ export async function render({ api, user, go }) {
       const lenderPk = pickers.Lender; const lender = lenderPk && lenderPk.value ? people.find((p) => p.id === lenderPk.value) : null;
       const files = [...fileIn.files]; const txFiles = [...txIn.files];
       const pickedReferral = $$('[name=referralSource]', root).find((el) => el.checked);
-      const picks = [...Object.entries(pickers).filter(([role, pk]) => pk && pk.value && counts(role)).map(([role, pk]) => ({ role, contactId: pk.value })), ...Object.keys(MULTI).filter(counts).flatMap((role) => rows[role].filter((r) => r.pk.value).map((r) => ({ role, contactId: r.pk.value })))];
+      const hiddenName = (pk) => (($('input[type=hidden]', pk.el) || {}).name) || '';
+      const picks = [...Object.entries(pickers).filter(([role, pk]) => pk && pk.value && counts(role)).map(([role, pk]) => ({ role, contactId: pk.value, name: hiddenName(pk) })), ...Object.keys(MULTI).filter(counts).flatMap((role) => rows[role].filter((r) => r.pk.value).map((r) => ({ role, contactId: r.pk.value, name: hiddenName(r.pk) })))];
       const referral = referralFromForm({ value: pickedReferral ? pickedReferral.value : '', picks, refinance: refi() });
       f.sourceOfBusiness = ''; delete f.sourceContactId;
       if (!showMdQuestions(f.state, refi())) { f.primaryResidence = ''; f.firstTimeBuyer = ''; }
@@ -624,25 +637,30 @@ export async function render({ api, user, go }) {
       if (draftStore && draftKey) { const claim = claimOrderDraft(draftStore, draftKey); if (!claim.ok) throw new Error(claim.message); }
       placing = true; const btn = $('[data-place-order]', root); if (btn) { btn.disabled = true; btn.textContent = asDraft ? 'Saving draft\u2026' : 'Placing order\u2026'; }
       let deal; try { deal = await api.createDeal(input); } catch (err) { placing = false; if (btn) { btn.disabled = false; btn.textContent = 'Place order'; } if (draftStore && draftKey) releaseOrderClaim(draftStore, draftKey); throw err; }
-      if (draftStore && draftKey) clearOrderDraft(draftStore, draftKey);
+      sealed = true; clearTimeout(draftTimer); unmount();
+      if (draftStore && draftKey) tombstoneOrderDraft(draftStore, draftKey, { dealId: deal.id, fileNumber: deal.fileNumber });
       const problems = []; let tasks = 0; const added = {};
       // Buyer 1, Buyer 2, ..., Seller 1, Seller 2, ..., agents, lender, TC, sales team (p:<role> or p:<role>:<n>); the same order as the one-page form.
       // Empty extra buyer / seller rows (the form starts with two of each) are ignored: a blank value is not a person.
-      const entries = [...new FormData(e.target).entries()].filter(([k, x]) => k.startsWith('p:') && String(x || '').trim()).map(([k, x]) => [k, String(x).trim(), k.slice(2).replace(/:\d+$/, '')])
-        .map((t, i) => [...t, i]).sort((a, b) => (ADD_ORDER.indexOf(a[2]) - ADD_ORDER.indexOf(b[2])) || (a[3] - b[3]));
-      for (const [k, x, role] of entries) { if (!counts(role)) continue;   // refinance: hidden seller / realtor / TC boxes are not saved
-        try { const res = await api.addParticipant(deal.id, x, role, entities[k] ? { entity: entities[k] } : undefined); tasks += (res && res.tasksCreated) || 0; added[role] = (added[role] || 0) + 1; } catch (err) { problems.push(`${role}: ${err.message}`); } }
+      // People come from the picker state. FormData alone misses a party when the hidden id was cleared.
+      const formParts = [...new FormData(e.target).entries()].filter(([k, x]) => k.startsWith('p:') && String(x || '').trim()).map(([k, x]) => ({ name: k, contactId: String(x).trim(), role: k.slice(2).replace(/:\d+$/, '') }));
+      const entries = partyEntries(formParts, picks);
+      for (const { name, contactId, role } of entries) { if (!counts(role)) continue;   // refinance: hidden seller / realtor / TC boxes are not saved
+        try { const res = await api.addParticipant(deal.id, contactId, role, entities[name] ? { entity: entities[name] } : undefined); tasks += (res && res.tasksCreated) || 0; added[role] = (added[role] || 0) + 1; } catch (err) { problems.push(`${role}: ${err.message}`); } }
       const lenderCompany = (input.lenderName || '').trim();
       const extraContacts = readLenderContactRows(e.target);
-      for (const row of extraContacts) { const builtRow = lenderCompanyContact({ company: lenderCompany, ...row });
-        if (!builtRow.ok) { problems.push(builtRow.error); continue; }
-        if (!builtRow.contact.firstName && !builtRow.contact.lastName) continue;
-        try { const c = await api.createContact(builtRow.contact); await api.addParticipant(deal.id, c.id, 'Lender'); added.Lender = (added.Lender || 0) + 1; } catch (err) { problems.push(`Lender contact: ${err.message}`); } }
-      if (lenderCompany && !(lenderPk && lenderPk.value) && !extraContacts.length) {
+      let namedLender = !!(lenderPk && lenderPk.value) || !!added.Lender;
+      for (const row of extraContacts) {
+        const builtRow = lenderCompanyContact({ company: lenderCompany, ...row });
+        const blank = ![row.firstName, row.lastName, row.email, row.phone, row.lenderRole].some((v) => String(v || '').trim());
+        if (blank || !builtRow.ok || (!builtRow.contact.firstName && !builtRow.contact.lastName)) continue;   // a blank or incomplete extra row does not block the company
+        try { const c = await api.createContact(builtRow.contact); await api.addParticipant(deal.id, c.id, 'Lender'); added.Lender = (added.Lender || 0) + 1; namedLender = true; } catch (err) { problems.push(`Lender contact: ${err.message}`); }
+      }
+      if (lenderCompany && !namedLender) {
         try {
-          const list = await api.listContacts();
-          const found = (list || []).find((c) => String(c.company || '').trim().toLowerCase() === lenderCompany.toLowerCase() && !String(c.firstName || '').trim() && !String(c.lastName || '').trim());
+          const found = people.find((c) => String(c.company || '').trim().toLowerCase() === lenderCompany.toLowerCase() && !String(c.firstName || '').trim() && !String(c.lastName || '').trim());
           const c = found || await api.createContact({ firstName: '', lastName: '', company: lenderCompany, email: '', phone: '', contactType: 'lender' });
+          if (!people.some((p) => p.id === c.id)) people.push(c);
           await api.addParticipant(deal.id, c.id, 'Lender'); added.Lender = (added.Lender || 0) + 1;
         } catch (err) { problems.push(`Lender company: ${err.message}`); }
       }
@@ -652,15 +670,20 @@ export async function render({ api, user, go }) {
       const uploadOne = async (file, visibility, docType, wire) => { try { let slot = uploadIds.get(file); if (!slot) uploadIds.set(file, slot = {}); const id = sameUploadId(slot, file); await api.addDocument(deal.id, { id, name: file.name, description: '', mimeType: file.type, size: file.size, dataUrl: await readFile(file), visibility, folderId: null, docType, wireInstructions: wire }); saved++; } catch (err) { problems.push(`${file.name}: ${err.message}`); } };
       for (const file of txFiles) await uploadOne(file, $('#tx-vis', root).value, refi() ? 'Lender documents' : 'Contract / addendum', false);
       for (let i = 0; i < files.length; i++) { const sel = $(`[data-doctype="${i}"]`, root); await uploadOne(files[i], $('#nof-vis', root).value, sel ? sel.value : '', $('#nof-wire', root).checked); }
-      if (skipped.length) toast(`No ${skipped.join(' / ').toLowerCase()} added (nobody was picked from the list). You can add one later on the Contacts tab.`);
-      toast(asDraft ? `Order ${deal.fileNumber} saved as open${deal.processorId ? '' : ' with Processor Unassigned'}` : `Order ${deal.fileNumber} created${saved ? ` with ${saved} document(s)` : ''}`);
-      if (problems.length) toast('Some items were not added: ' + problems.join(' | '), 'err');
-      // the confirmation panel on the new order's page (shown once; deal.js)
       try { sessionStorage.setItem(PLACED_KEY, JSON.stringify({ dealId: deal.id, fileNumber: deal.fileNumber, address: `${deal.street}, ${deal.city}, ${deal.state} ${deal.zip || ''}`.trim(), transactionType: deal.transactionType,
         added, tasks, docs: saved, skipped, problems, at: Date.now() })); } catch (err) { /* private mode: no confirmation panel, the toasts above still say it */ }
+      if (problems.length) {
+        const box = $('[data-wiz-step="review"] [data-wiz-errors]', root);
+        if (box) { box.hidden = false; box.innerHTML = toText(html`<strong>Order ${deal.fileNumber} was created, but these people were not added.</strong><ul>${problems.map((m) => html`<li>${m}</li>`)}</ul><p>You are still on Place Order. <a href="#/deals/${deal.id}">Open ${deal.fileNumber}</a> and add them on Contacts.</p>`); }
+        if (btn) { btn.disabled = true; btn.textContent = 'Place order'; }
+        return;
+      }
+      if (skipped.length) toast(`No ${skipped.join(' / ').toLowerCase()} added (nobody was picked from the list). You can add one later on the Contacts tab.`);
+      toast(asDraft ? `Order ${deal.fileNumber} saved as open${deal.processorId ? '' : ' with Processor Unassigned'}` : `Order ${deal.fileNumber} created${saved ? ` with ${saved} document(s)` : ''}`);
       go('/deals/' + deal.id);
     };
     form.addEventListener('submit', guard(async (ev) => { ev.preventDefault(); await commitOrder({ asDraft: false }); }));
     paint();
   } };
+  return view;
 }
