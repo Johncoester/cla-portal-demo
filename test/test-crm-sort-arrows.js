@@ -191,7 +191,7 @@ while (grew) {
     for (const h of list) if (!closure.has(h.from)) { closure.add(h.from); grew = true; }
   }
 }
-const allowed = new Set(['202611160000']);
+const allowed = new Set(['202611160600']);
 const issues = [];
 const dual = [];
 const missing = [];

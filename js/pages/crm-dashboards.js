@@ -5,7 +5,7 @@
  * Nothing is deleted: dashboards and components are RETIRED (hidden, restorable). Function only (no styling work). */
 import { html, raw, $, $$, guard, toast, modal, closeModal, toText } from '../ui.js?v=202611070139';
 import { DASH_MODULES, moduleName, moduleFields, COMPONENT_TYPES, CHART_TYPES, VISIBILITY, BUCKETS, NUMERIC, isDateType, DATE_PRESETS } from '../data/crm-analytics.js?v=202611130900';
-import { tabs, head } from './crm-kit.js?v=202611160000';
+import { tabs, head } from './crm-kit.js?v=202611160600';
 import { chartSvg, kpiHtml, targetHtml, funnelHtml } from './crm-charts.js?v=202611070139';
 import { criteriaEditor } from './crm-criteria.js?v=202611130900';
 

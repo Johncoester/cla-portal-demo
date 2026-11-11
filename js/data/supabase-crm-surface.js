@@ -85,6 +85,15 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
       createdByName: '', canEdit: !crmReadOnly(u), canExport: !!u.isAdmin, lastAccessedAt: r.last_accessed_at || null };
   };
   const compOut = (c, data) => { const parts = storedParts(c); return { ...camel(c), chartType: parts.chartType, criteria: parts.criteria, grouping: parts.grouping, measure: parts.measure, height: c.height >= 3 ? 'l' : c.height === 2 ? 'm' : 's', data, config: parts.config, error: data && data.error }; };
+  // Same narrowing as the demo dashboard: the component's own criteria, then the dashboard owner and created-time period.
+  const narrowRows = (rows, fields, criteria, filters) => {
+    const today = localDate();
+    let out = applyCriteria(rows, criteria || [], fields, { logic: 'and', today });
+    const df = filters && typeof filters === 'object' && !Array.isArray(filters) ? filters : {};
+    if (df.ownerId) { const f = fields.find((z) => z.type === 'user' && /Owner|Host/.test(z.label)); if (f) out = out.filter((r) => r[f.key] === df.ownerId); }
+    if (df.period) out = applyCriteria(out, [{ field: 'createdAt', op: 'is', value: df.period }], fields, { today });
+    return out;
+  };
 
   return {
     async listCrmModuleRows(module) { await who(); if (!MODULE_CODES.includes(module)) throw new Error('Unknown CRM module.'); return rowsOf(module); },
@@ -158,7 +167,8 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
         if (c.retired_at) { retired.push({ id: c.id, name: c.name, retiredAt: c.retired_at }); continue; }
         let data = { groups: [], value: 0, measureLabel: 'Record Count' };
         try {
-          const parts = storedParts(c); const rows = await rowsOf(c.module); const fields = moduleFields(c.module, cfg);
+          const parts = storedParts(c); const fields = moduleFields(c.module, cfg);
+          const rows = narrowRows(await rowsOf(c.module), fields, parts.criteria, view.filters);
           data = chartData(rows, { grouping: parts.grouping || {}, grouping2: parts.grouping2 || {}, measure: parts.measure }, fields, cfg) || data;
           if (c.type === 'kpi' || c.type === 'target') { const value = measureOf(rows, parts.measure, fields) || 0; data = { ...data, value, count: rows.length }; if (c.type === 'target') { const target = Number(parts.config.target) || 0; data.target = target; data.pct = target ? Math.round((value / target) * 1000) / 10 : 0; } }
         } catch (e) { data = { error: e.message }; }
