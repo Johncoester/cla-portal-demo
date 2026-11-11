@@ -93,6 +93,31 @@ export function dealsAndAuth(x) {
       return dealsFor(u).filter((q) => !status || status === 'All' || q.status === status).map((q) => dealView(u, q))
         .sort((a, b) => (b.openDate || '').localeCompare(a.openDate || '') || b.fileNumber.localeCompare(a.fileNumber));
     },
+    async loadDashboard({ openOffset = 0, openLimit = 40, taskOffset = 0, taskLimit = 200, fileStatus = 'Open', taskStatus = 'open', includeTasks = true, includeOther = false, otherOffset = 0 } = {}) {
+      const u = needUser(); const d = load(); const today = localDate();
+      const sort = (list) => list.slice().sort((a, b) => (b.openDate || '').localeCompare(a.openDate || '') || b.fileNumber.localeCompare(a.fileNumber));
+      const visible = dealsFor(u);
+      const openAll = sort(visible.filter((q) => q.status === 'Open'));
+      const otherAll = sort(visible.filter((q) => q.status !== 'Open'));
+      const openRows = openAll.slice(openOffset, openOffset + openLimit).map((q) => dealView(u, q));
+      const otherRows = includeOther ? otherAll.slice(otherOffset, otherOffset + openLimit).map((q) => dealView(u, q)) : [];
+      const fileOk = (q) => fileStatus === 'All' || q.status === fileStatus;
+      const statusOk = (t) => taskStatus === 'open' ? ['todo', 'in_progress', 'blocked'].includes(t.status) : taskStatus === 'all' || t.status === taskStatus;
+      const taskRows = [];
+      if (includeTasks) {
+        for (const q of visible.filter(fileOk)) {
+          const su = x.scopeTo(u, q.id);
+          for (const t of d.tasks.filter((t) => t.dealId === q.id && x.taskVisible(su, t) && statusOk(t))) {
+            const o = x.taskOut(su, t);
+            taskRows.push({ ...o, dealId: q.id, deal: { id: q.id, fileNumber: q.fileNumber, street: q.street, city: q.city, state: q.state, zip: q.zip, address: `${q.street}, ${q.city}, ${q.state} ${q.zip}`, closingDate: q.closingDate || null, status: q.status }, overdue: !!(t.dueDate && t.dueDate < today && ['todo', 'in_progress', 'blocked'].includes(t.status)) });
+          }
+        }
+      }
+      const page = taskRows.slice(taskOffset, taskOffset + taskLimit);
+      const count = (id) => page.filter((t) => t.dealId === id && ['todo', 'in_progress', 'blocked'].includes(t.status)).length;
+      openRows.forEach((row) => { row.openTasks = count(row.id); });
+      return { openRows, openTotal: openAll.length, otherRows, otherTotal: otherAll.length, closedTotal: visible.filter((q) => q.status === 'Closed').length, tasks: page, taskTotal: taskRows.length, limit: openLimit };
+    },
     async getDeal(id) { const u0 = needUser(); const q = dealOr404(u0, id); const u = x.scopeTo(u0, id); return { ...dealView(u, q), participants: x.participantsOf(id, u) }; },
     async createDeal(input) {
       const u = needProcessor(); const d = load();
