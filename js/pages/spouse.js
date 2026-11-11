@@ -2,7 +2,49 @@
 import { html, raw, $, guard, toast } from '../ui.js?v=202611070139';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 
+export async function loadSpouseRows(api, dealId) {
+  if (!api || !api.getSpouse || !dealId) return [];
+  try { return (await api.getSpouse(dealId)) || []; } catch (e) { return []; }
+}
+
+export function applySpouse(task, rows, user) {
+  if (!task || task.templateCode !== 'personal_info') return task;
+  task.spouseRow = (rows || []).find((r) => r.participantId === task.participantId) || null;
+  task.spouseStaff = ssnStaff(user);
+  return task;
+}
+
 const yn = (name, value) => ['Yes', 'No'].map((o) => html`<option ${o === value ? raw('selected') : ''}>${o}</option>`).join('');
+
+const SPOUSE_FIELDS = [['spouseFullName', 'fullName', 'Full name'], ['spouseCitizenship', 'citizenship', 'Citizenship'], ['spouseCellPhone', 'cellPhone', 'Cell phone'], ['spouseHomePhone', 'homePhone', 'Home phone'], ['spouseWorkPhone', 'workPhone', 'Work phone'], ['spouseEmail', 'email', 'Email']];
+
+export function spouseSectionHtml(row, staff) {
+  if (!row) return '';
+  const ssn = row.ssn || '';
+  const choice = (name, value, options) => html`<label>${name === 'spouseGender' ? 'Gender' : name === 'spouseMaritalStatus' ? 'Marital status' : 'POA given'}<select name="${name}"><option value="">Choose&hellip;</option>${options.map((o) => html`<option ${o === value ? raw('selected') : ''}>${o}</option>`)}</select></label>`;
+  return html`<fieldset class="span2" data-spouse-section data-spouse="${row.participantId}" data-spouse-task="${row.taskId || ''}">
+    <legend>Spouse information</legend>
+    <p class="span2 muted">This is separate from the primary person's information. The same record is saved for this person.</p>
+    ${SPOUSE_FIELDS.map(([name, key, label]) => html`<label>${label}<input name="${name}" value="${row[key] || ''}" maxlength="${name === 'spouseEmail' || name === 'spouseFullName' ? 200 : name === 'spouseCitizenship' ? 80 : 40}"></label>`)}
+    ${choice('spouseGender', row.gender, ['Female', 'Male', 'Nonbinary', 'Prefer not to say'])}
+    ${choice('spouseMaritalStatus', row.maritalStatus, ['Single', 'Married', 'Divorced', 'Widowed'])}
+    <label>Date of birth<input type="date" name="spouseDateOfBirth" value="${row.dateOfBirth || ''}"></label>
+    ${choice('spousePoaGiven', row.poaGiven, ['Yes', 'No'])}
+    <div class="span2" data-spouse-ssn><span>Social Security number</span>
+      ${staff && ssn ? html`<output data-ssn-staff>${ssn}</output>` : ssn ? html`<span data-ssn-mask>${ssn}</span>` : ''}
+      <input data-spouse-ssn-input type="password" inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="11" aria-label="Spouse Social Security number" placeholder="***-**-****">
+    </div>
+  </fieldset>`;
+}
+
+export function spousePayload(form) {
+  const g = (name) => { const el = form.elements[name]; return el ? el.value : ''; };
+  return {
+    fullName: g('spouseFullName'), citizenship: g('spouseCitizenship'), gender: g('spouseGender'), maritalStatus: g('spouseMaritalStatus'),
+    cellPhone: g('spouseCellPhone'), homePhone: g('spouseHomePhone'), workPhone: g('spouseWorkPhone'), email: g('spouseEmail'),
+    dateOfBirth: g('spouseDateOfBirth'), poaGiven: g('spousePoaGiven'),
+  };
+}
 
 function card(row, staff) {
   const ssn = row.ssn || '';

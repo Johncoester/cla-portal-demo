@@ -6,8 +6,19 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney
 import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611101015';
 import { composeModal } from './compose.js?v=202611110900';
 import { slotText } from './dealclosing.js?v=202611121300';
-import { yourAgentHtml } from './your-agent.js?v=202611140100';
+import { yourAgentHtml, withContactPhone } from './your-agent.js?v=202611141400';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
+import { UPDATE_TOPICS } from '../data/agent-portal.js?v=202611101015';
+
+// The signed-in buyer or seller is not part of their own closing team. Match the
+// portal login when the contact row has it, and the email when that login id was not loaded.
+export function closingTeamSelf(person, user) {
+  const c = (person && person.contact) || {};
+  if (user && c.profileId && c.profileId === user.id) return true;
+  const mail = String(c.email || '').trim().toLowerCase();
+  const mine = String((user && user.email) || '').trim().toLowerCase();
+  return !!(mail && mine && mail === mine);
+}
 
 // stage 5 shows as "Wire Fraud Awareness" on the BUYER's view only (display only; the stored stage list is unchanged)
 // live40 (John, Nov 5 meeting): the client tracker's step 2 (internal STAGES[1] 'EMD Receipt', key unchanged for reports) reads "Buyer info received" for buyer and seller.
@@ -36,7 +47,20 @@ const tel = (p) => String(p || '').replace(/[^0-9+]/g, '');
 // Pure buyer AND pure seller (seller mirror, Nov 4): Overview, To-do list, Messages, Documents, Closing appointment, Activity. A client who is also their
 // own agent on the file (self-represented): Overview, Tasks, Messages, Documents, Closing, Agreements, Contacts, Activity.
 // active = the route tab ('overview', 'tasks', ...); a buyer's agreement page counts as the To-do list (agreements are to-dos for the buyer).
-const TAB_OF = { overview: 'overview', tasks: 'tasks', spouse: 'spouse', inbox: 'inbox', documents: 'documents', closing: 'closing', activity: 'activity', agreements: 'agreements', contacts: 'contacts' };
+const TAB_OF = { overview: 'overview', tasks: 'tasks', inbox: 'inbox', documents: 'documents', closing: 'closing', activity: 'activity', agreements: 'agreements', contacts: 'contacts' };
+export function lenderSavedOnFile(deal) {
+  const people = (deal && deal.participants) || [];
+  if (people.some((p) => !p.removed && p.role === 'Lender' && p.contact && `${p.contact.company || ''} ${p.contact.firstName || ''} ${p.contact.lastName || ''}`.trim())) return true;
+  return !!(deal && `${deal.lenderName || ''} ${deal.lenderContact || ''}`.trim());
+}
+export function tasksWithLenderOnFile(tasks, deal) {
+  if (!lenderSavedOnFile(deal)) return tasks || [];
+  return (tasks || []).map((t) => {
+    if (!t || t.templateCode !== 'lender_info' || t.status === 'cancelled' || t.status === 'done' || !t.mine) return t;
+    return { ...t, lenderOnFile: true, status: 'done', completedByLabel: 'Already on the file' };
+  });
+}
+
 export function clientNav(d, user, active, n = {}) {
   const pure = isPureClient(user);
   const mine = typeof location !== 'undefined' && /(?:\?|&)mine=1(?:&|$)/.test(location.hash || '');
@@ -44,14 +68,14 @@ export function clientNav(d, user, active, n = {}) {
   const tab = (key, href, label, cnt) => html`<a class="${on === key ? 'on' : ''}" href="${href}" data-co-tab="${label}"${on === key ? raw(' aria-current="page"') : ''}>${label}${cnt ? html` <span class="n">${cnt}</span>` : ''}</a>`;
   const B = `#/deals/${d.id}`; const agent = (user.roles || [user.role]).some((r) => /Agent$/.test(r));
   const myTasks = tab('my-tasks', `${B}/tasks?mine=1`, 'My Tasks', 0);
-  return html`<nav class="co-seg" aria-label="This file" data-co-nav>${pure ? html`${tab('overview', B, BUYER_TAB_LABELS.overview, 0)}${tab('tasks', `${B}/tasks`, BUYER_TAB_LABELS.tasks, n.todo)}${myTasks}${tab('spouse', `${B}/spouse`, 'Spouse', 0)}${tab('inbox', `${B}/inbox`, BUYER_TAB_LABELS.inbox, n.msg)}${tab('documents', `${B}/documents`, BUYER_TAB_LABELS.documents, n.docs)}${tab('closing', `${B}/closing`, BUYER_TAB_LABELS.closing, 0)}${tab('activity', `${B}/activity`, BUYER_TAB_LABELS.activity, 0)}`
-    : html`${tab('overview', B, 'Overview', 0)}${tab('tasks', `${B}/tasks`, 'Tasks', n.tasks)}${myTasks}${tab('spouse', `${B}/spouse`, 'Spouse', 0)}${tab('inbox', `${B}/inbox`, 'Messages', n.msg)}${tab('documents', `${B}/documents`, 'Documents', n.docs)}${tab('closing', `${B}/closing`, 'Closing', 0)}${tab('agreements', `${B}/agreements`, 'Agreements', n.ag)}${agent ? tab('contacts', `${B}/contacts`, 'Contacts', 0) : ''}${tab('activity', `${B}/activity`, 'Activity', 0)}`}</nav>`;
+  return html`<nav class="co-seg" aria-label="This file" data-co-nav>${pure ? html`${tab('overview', B, BUYER_TAB_LABELS.overview, 0)}${tab('tasks', `${B}/tasks`, BUYER_TAB_LABELS.tasks, n.todo)}${myTasks}${tab('inbox', `${B}/inbox`, BUYER_TAB_LABELS.inbox, n.msg)}${tab('documents', `${B}/documents`, BUYER_TAB_LABELS.documents, n.docs)}${tab('closing', `${B}/closing`, BUYER_TAB_LABELS.closing, 0)}${tab('activity', `${B}/activity`, BUYER_TAB_LABELS.activity, 0)}`
+    : html`${tab('overview', B, 'Overview', 0)}${tab('tasks', `${B}/tasks`, 'Tasks', n.tasks)}${myTasks}${tab('inbox', `${B}/inbox`, 'Messages', n.msg)}${tab('documents', `${B}/documents`, 'Documents', n.docs)}${tab('closing', `${B}/closing`, 'Closing', 0)}${tab('agreements', `${B}/agreements`, 'Agreements', n.ag)}${agent ? tab('contacts', `${B}/contacts`, 'Contacts', 0) : ''}${tab('activity', `${B}/activity`, 'Activity', 0)}`}</nav>`;
 }
 // The top of every client TAB page: the file line and the same pill tabs as the Overview (counts read the same way as there)
 export async function clientTabChrome({ api, user }, d, active) {
   const pure = isPureClient(user);
   const [ov, tasks, ag] = await Promise.all([api.getOrderOverview(d.id).catch(() => ({ counts: {} })), pure ? api.listTasks(d.id).catch(() => []) : [], api.listAgreements(d.id).catch(() => null)]);
-  const todo = pure ? tasks.filter((t) => t.mine && OPEN.includes(t.status)).length + agreementTasks(d, ag).length : 0; const cnt = ov.counts || {};
+  const todo = pure ? tasksWithLenderOnFile(tasks, d).filter((t) => t.mine && OPEN.includes(t.status)).length + agreementTasks(d, ag).length : 0; const cnt = ov.counts || {};
   const msgN = d.unread || cnt.inbox || 0;
   const what = isRefi(d) ? 'refinance' : clientSide(user) === 'buyer' ? 'home purchase' : 'home sale';
   return html`<h1 class="co-greet co-greet-sm" data-co-greet>Your ${what}</h1><p class="co-sub co-file" data-co-file>${d.street}, ${d.city}, ${d.state} ${d.zip} \u00b7 Order ${d.fileNumber}</p>
@@ -66,14 +90,16 @@ export async function renderClientOverview(ctx, d, here) {
   const closed = d.status === 'Closed'; const cur = Math.max(0, Math.min(9, Number(d.stage) || 0)); const done = closed ? 10 : cur; const pct = done * 10;
   const what = refi ? 'refinance' : side === 'buyer' ? 'home purchase' : 'home sale';
   // NEXT STEP: the earliest-due open task that is the viewer's own
-  const mine = tasks.filter((t) => t.mine && OPEN.includes(t.status)).sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'));
+  const shownTasks = tasksWithLenderOnFile(tasks, d);
+  const lenderOnFile = shownTasks.some((t) => t.lenderOnFile);
+  const mine = shownTasks.filter((t) => t.mine && OPEN.includes(t.status)).sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'));
   const hrefOf = (t) => (['form', 'sign', 'agent'].includes(t.kind) ? `#/deals/${d.id}/tasks/${t.id}` : `#/deals/${d.id}/tasks`);
   // AGREEMENTS AS TASKS (buyer, Nov 4 call; seller mirrored): each agreement still to acknowledge is a to-do that opens the agreement; no Agreements tab for either
   const agTasks = pure ? agreementTasks(d, ag) : [];
   const todo = [...mine.map((t) => ({ id: t.id, title: t.title, dueDate: t.dueDate, href: hrefOf(t) })), ...agTasks];
   const next = todo[0];
   // ---------- closing team ----------
-  const ps = d.participants.filter((p) => !p.removed && p.contact); const meC = ps.find((p) => p.contact.profileId === user.id);
+  const ps = d.participants.filter((p) => !p.removed && p.contact); const meC = ps.find((p) => closingTeamSelf(p, user));
   const row = (p, chip, { cla = false, you = false, via = false, big = false } = {}) => { const c = p.contact; const pid = c.profileId; const name = partyDisplayName(p); const bits = name.split(/\s+/).filter(Boolean);
     const em = via ? 'Contact through your agent' : c.contactHidden ? 'Contact through CLA Title' : [c.email, fmtPhone(c.phone)].filter(Boolean).join(' \u00b7 ');
     const acts = you || via || c.contactHidden ? '' : html`<div class="co-acts">${pid && canMsg.has(pid) ? html`<button type="button" data-co-message="${pid}">Message</button>` : ''}${c.phone ? html`<a href="tel:${tel(c.phone)}" data-co-call>Call</a>` : ''}</div>`;
@@ -82,19 +108,19 @@ export async function renderClientOverview(ctx, d, here) {
   const ownAgentRole = side === 'buyer' ? 'Buyer Agent' : 'Listing Agent'; const otherAgentRole = side === 'buyer' ? 'Listing Agent' : 'Buyer Agent';
   const myRole = side === 'buyer' ? 'Client-Buyer' : 'Client-Seller'; const otherRole = side === 'buyer' ? 'Client-Seller' : 'Client-Buyer';
   const B = refi ? 'Borrower' : 'Buyer'; const L = { 'Client-Buyer': B, 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent' };
-  const ownAgents = ps.filter((p) => p.role === ownAgentRole && p.contactId !== (meC && meC.contactId));
-  const selfAgent = ps.some((p) => p.role === ownAgentRole && meC && p.contactId === meC.contactId);
+  const listed = ps.filter((p) => !closingTeamSelf(p, user));
+  const ownAgents = listed.filter((p) => p.role === ownAgentRole && p.contactId !== (meC && meC.contactId));
   // CLA Title & Escrow: the processor, the sales rep(s) and a transaction coordinator who works for CLA (company on the contact)
   const claTc = (p) => /\bCLA\b/i.test(p.contact.company || '');
-  const cla = [...ps.filter((p) => p.role === 'Processor').map((p) => [p, 'Settlement processor']), ...ps.filter((p) => p.role === 'Preprocessor').map((p) => [p, 'Preprocessor']), ...ps.filter((p) => ['Sales Person', 'Sales Team'].includes(p.role)).map((p) => [p, 'CLA Sales Rep']),
-    ...ps.filter((p) => p.role === 'Transaction Coordinator' && claTc(p)).map((p) => [p, 'Transaction coordinator'])];
+  const cla = [...listed.filter((p) => p.role === 'Processor').map((p) => [p, 'Settlement processor']), ...listed.filter((p) => p.role === 'Preprocessor').map((p) => [p, 'Preprocessor']), ...listed.filter((p) => ['Sales Person', 'Sales Team'].includes(p.role)).map((p) => [p, 'CLA Sales Rep']),
+    ...listed.filter((p) => p.role === 'Transaction Coordinator' && claTc(p)).map((p) => [p, 'Transaction coordinator'])];
   const seenCla = new Set(); const claRows = cla.filter(([p]) => (seenCla.has(p.contactId) ? false : seenCla.add(p.contactId)));
-  const mySide = [...ps.filter((p) => p.role === myRole && p.contactId !== (meC && meC.contactId)).map((p) => [p, L[myRole]]), ...ps.filter((p) => p.role === 'Transaction Coordinator' && !claTc(p)).map((p) => [p, 'Transaction coordinator']), ...(side === 'buyer' ? ps.filter((p) => p.role === 'Lender').map((p) => [p, 'Lender']) : [])];
-  const other = pure ? [] : [...ps.filter((p) => p.role === otherAgentRole).map((p) => row(p, L[otherAgentRole])), ...ps.filter((p) => p.role === otherRole).map((p) => row(p, L[otherRole], { via: true }))];
+  const mySide = [...listed.filter((p) => p.role === myRole && p.contactId !== (meC && meC.contactId)).map((p) => [p, L[myRole]]), ...listed.filter((p) => p.role === 'Transaction Coordinator' && !claTc(p)).map((p) => [p, 'Transaction coordinator']), ...(side === 'buyer' ? listed.filter((p) => p.role === 'Lender').map((p) => [p, 'Lender']) : [])];
+  const other = pure ? [] : [...listed.filter((p) => p.role === otherAgentRole).map((p) => row(p, L[otherAgentRole])), ...listed.filter((p) => p.role === otherRole).map((p) => row(p, L[otherRole], { via: true }))];
   // "Your agent" for both (seller mirror, Nov 4): the buyer's agent for the buyer, the listing agent for the seller. Neither ever sees the other side's agent (adapter drops the row).
   const team = html`${(myAgents && myAgents.length) ? '' : ownAgents.map((p) => row(p, 'Your agent', { big: true }))}
     ${claRows.length ? html`<div class="co-sec">CLA Title &amp; Escrow</div>${claRows.map(([p, c]) => row(p, c, { cla: true }))}` : ''}
-    ${mySide.length || meC ? html`<div class="co-sec">Your side</div>${mySide.map(([p, c]) => row(p, c))}${meC ? row(meC, selfAgent ? `${L[myRole]} + ${L[ownAgentRole]}` : L[myRole], { you: true }) : ''}` : ''}
+    ${mySide.length ? html`<div class="co-sec">Your side</div>${mySide.map(([p, c]) => row(p, c))}` : ''}
     ${other.length ? html`<div class="co-sec">Other side of the deal</div>${other}` : ''}`;
   // ---------- progress ----------
   const pills = STAGES.map((s, i) => { const st = i < done ? 'done' : i === cur && !closed ? 'now' : ''; return html`<span class="co-pill ${st}" data-co-stage="${i}" data-co-state="${st || 'upcoming'}"><i>${st === 'done' ? raw('&#10003;') : i + 1}</i>${clientStageName(i, side)}</span>`; });
@@ -107,7 +133,7 @@ export async function renderClientOverview(ctx, d, here) {
   const body = html`<div class="co-page" data-client-overview="${side}">
     <h1 class="co-greet" data-co-greet>Hi ${user.firstName}, here\u2019s your ${what}</h1><p class="co-sub">${d.street}, ${d.city}, ${d.state} ${d.zip} \u00b7 Order ${d.fileNumber}</p>
     ${clientNav(d, user, 'overview', { todo: todo.length, tasks: cnt.tasks, msg: msgCount, docs: cnt.documents, ag: ag && ag.pending })}
-    ${myAgents && myAgents.length ? html`<div class="agent-inline co-your-agent" data-co-your-agent>${yourAgentHtml(myAgents)}</div>` : ''}
+    ${myAgents && myAgents.length ? html`<div class="agent-inline co-your-agent" data-co-your-agent>${yourAgentHtml(withContactPhone(myAgents, d))}</div>` : ''}
     ${d.selfRep ? html`<div class="notice info" data-self-rep>You are the <strong>${d.myRoleLabel}</strong> on this file. Your tasks as the client and as the agent are in one list; the history records which capacity you acted in.</div>` : ''}
     ${sc ? html`<div class="notice info" data-scheduled-closing><strong>Closing scheduled:</strong> ${slotText(sc.at)} &middot; ${sc.location}${sc.note ? html` &middot; ${sc.note}` : ''} <a href="#/deals/${d.id}/closing">details</a></div>` : ''}
     ${!pure && ag && ag.pending ? html`<div class="notice warn" data-agreements-pending>You have <strong>${ag.pending}</strong> agreement(s) to read and acknowledge (including the Wire Fraud Warning). <a href="#/deals/${d.id}/agreements">Open Agreements</a></div>` : ''}
@@ -125,6 +151,7 @@ export async function renderClientOverview(ctx, d, here) {
         <div class="co-agentline"><img src="assets/img/logo-icon.png" alt=""><span>Your settlement agent: <b>CLA Title &amp; Escrow</b></span></div></div></section>
     <section class="co-next" data-co-next="${next ? next.id : ''}" data-co-outstanding="${todo.length}"><div class="co-ic" aria-hidden="true">&#10004;</div><div class="co-next-main">
       <div class="k">${todo.length ? `Your outstanding tasks (${todo.length})` : 'Next step for you'}</div>
+      ${lenderOnFile ? html`<p class="muted small" data-lender-on-file>Lender information is already on this file.</p>` : ''}
       ${todo.length ? html`<ul class="co-todo">${todo.map((t, i) => html`<li data-co-todo="${t.id}"${t.agreement ? html` data-co-agreement="${t.agreement}"` : ''}><span class="t">${t.title}</span><span class="d">${t.dueDate ? html`Due <span ${i === 0 ? raw('data-co-next-due') : ''}>${longDate(t.dueDate)}</span>` : t.agreement ? 'Read and acknowledge' : 'No due date'}</span><a class="co-btn ${i === 0 ? 'p' : 'g'}" href="${t.href}" ${i === 0 ? raw('data-co-start') : ''}>${i === 0 ? 'Start this step' : 'Open'}</a></li>`)}</ul>`
         : html`<div class="t" data-co-caught-up>You\u2019re all caught up</div><div class="d">We will let you know when there is something to do.</div>`}</div></section>
     <section class="co-card" data-co-team><div class="co-ch">Your closing team${ov.canShareAccess ? html`<span class="r"><button type="button" class="co-btn g" id="shareaccess">Share access</button></span>` : ''}</div><div class="co-cb">${team}
@@ -132,9 +159,9 @@ export async function renderClientOverview(ctx, d, here) {
     </div>`;
   return { title: d.fileNumber, clientPage: { deal: d, side }, crumbs: [...here, ['Overview']], body, mount(root) {
     $$('[data-co-message]', root).forEach((b) => b.addEventListener('click', guard(() => composeModal({ api, deal: d, go: ctx.go, user }, { title: 'New Conversation', to: b.dataset.coMessage, withFiles: true }))));
-    const ask = $('[data-co-ask]', root); if (ask) ask.addEventListener('click', () => { const m = modal('Ask for an update', html`<form id="requpdate" class="form-grid" data-request-update><label class="span2">What would you like an update on?<select name="topic" required><option value="">Choose&hellip;</option>${options(ov.updateTopics, '')}</select></label>
+    const ask = $('[data-co-ask]', root); if (ask) ask.addEventListener('click', guard(() => { const topics = Array.isArray(ov.updateTopics) && ov.updateTopics.length ? ov.updateTopics : UPDATE_TOPICS; const m = modal('Ask for an update', html`<form id="requpdate" class="form-grid" data-request-update><label class="span2">What would you like an update on?<select name="topic" required><option value="">Choose&hellip;</option>${options(topics, '')}</select></label>
       <label class="span2">Note (optional)<input name="note" maxlength="1000"></label><p class="muted small span2">CLA Title &amp; Escrow answers here in the portal.</p><div class="span2"><button class="m-btn" type="submit">Submit Request</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
-      $('#requpdate', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); if (!f.topic) throw new Error('Pick what you want an update on.'); await api.requestUpdate(d.id, f); closeModal(); toast('Update requested. CLA Title will answer here.'); ctx.refresh(); })); });
+      $('#requpdate', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); if (!UPDATE_TOPICS.includes(f.topic)) throw new Error('Pick what you want an update on.'); await api.requestUpdate(d.id, f); closeModal(); toast('Update requested. CLA Title will answer here.'); ctx.refresh(); })); }));
     const wb = $('#wirebtn', root); if (wb) wb.addEventListener('click', guard(() => ctx.wireModal(api, d)));
     const sa = $('#shareaccess', root); if (sa) sa.addEventListener('click', () => ctx.shareModal({ buyer: pure && side === 'buyer', seller: pure && side === 'seller' }));
   } };

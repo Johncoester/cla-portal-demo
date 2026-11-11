@@ -50,8 +50,11 @@ const PERSONAL_V4 = [...PERSONAL_V1, F('settlement_type', 'In-person or online s
 // Not included, waiting on John: full SSN, confirmed spouse match.
 const BUYER_ONLY = ['Client-Buyer'];
 const buyerYn = (k, label, extra = {}) => F(k, label, 'select', false, { opts: yn, roles: BUYER_ONLY, ...extra });
+export const CITIZENSHIP_OPTS = ['U.S. Citizen', 'Permanent Resident', 'Non-Resident Alien', 'Other'];
+// "US Citizen" is already stored on a file. It stays a valid answer and is shown when that is the saved value.
+export const CITIZENSHIP_KEPT = ['US Citizen'];
 export const BUYER_PERSONAL_FIELDS = [
-  F('citizenship', 'Citizenship', 'text', false, { roles: BUYER_ONLY }),
+  F('citizenship', 'Citizenship', 'select', false, { opts: CITIZENSHIP_OPTS, keep: CITIZENSHIP_KEPT, roles: BUYER_ONLY }),
   F('gender', 'Gender', 'select', false, { opts: ['Female', 'Male', 'Nonbinary', 'Prefer not to say'], roles: BUYER_ONLY }),
   F('date_of_birth', 'Date of birth', 'date', false, { roles: BUYER_ONLY }),
   F('forwarding_address', 'Forwarding address', 'text', false, { roles: BUYER_ONLY }),
@@ -141,7 +144,7 @@ export const TEMPLATE_DEFS = [
     description: 'Contact details and closing preferences, power of attorney, and whether you are buying or selling as an entity. Buyers also answer citizenship, closing plans, and Maryland questions when the property is in Maryland.',
     fields: PERSONAL_V5 },
   { code: 'personal_info', version: 6, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 121,
-    description: 'Buyer and seller personal details. Sellers also confirm proceeds, the property, and utilities. Spouse details are on the Spouse tab, not here.',
+    description: 'Buyer and seller personal details. Sellers also confirm proceeds, the property, and utilities. Spouse information is a section on this form.',
     fields: PERSONAL_V6 },
   { code: 'title_vesting', version: 2, title: 'Title vesting', roles: ['Client-Buyer'], dueDays: 10, agentRoles: [], migration: 26, description: 'How the buyer(s) will hold title.',
     fields: [F('vesting_names', 'Name(s) exactly as they should appear on the deed', 'textarea', true),
@@ -250,7 +253,7 @@ export function validateForm(fields, input, complete) {
     if (!fieldActive(f, data)) { delete data[f.k]; continue; }
     const v = data[f.k];
     if (v === undefined) { if (complete && f.req) errors.push({ k: f.k, msg: `${f.label} is required.` }); continue; }
-    if (f.type === 'select' && !f.opts.includes(v)) errors.push({ k: f.k, msg: `${f.label}: pick one of the options.` });
+    if (f.type === 'select' && !(f.opts || []).includes(v) && !(f.keep || []).includes(v)) errors.push({ k: f.k, msg: `${f.label}: pick one of the options.` });
     else if (CHECK[f.type] && !CHECK[f.type](v)) errors.push({ k: f.k, msg: `${f.label} ${MSG[f.type]}.` });
   }
   return { data, errors };

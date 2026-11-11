@@ -1,9 +1,8 @@
-/* FF-021 and FF-022. Fake numbers only. Spouse data loads with the Spouse tab, not with the file. */
+/* FF-021 and FF-022. Fake numbers only. Spouse data loads inside Personal information, not with the file. */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { intakeFormHtml } from '../js/pages/dealtaskform.js';
-import { render as spousePage } from '../js/pages/spouse.js';
 import { render as taskPage } from '../js/pages/dealtaskform.js';
 import { toText } from '../js/ui.js';
 
@@ -47,7 +46,7 @@ ok(opened.fields.find((f) => f.k === 'proceeds_ack').req === true, 'the acknowle
 const answers = {
   full_name: 'Sara Seller', email: 'sara.seller@example.test', cell_phone: '3015550100', current_address: '22 Seller Lane, Rockville, MD 20850',
   marital_status: 'Married', attending_closing: 'Yes', settlement_type: 'In person',
-  citizenship: 'United States', gender: 'Female', date_of_birth: '1985-06-15', forwarding_address: '9 Next Street, Rockville, MD 20850',
+  citizenship: 'U.S. Citizen', gender: 'Female', date_of_birth: '1985-06-15', forwarding_address: '9 Next Street, Rockville, MD 20850',
   ground_rent: 'Yes', front_foot: 'No', leaving_town: 'Yes', travel_dates: 'Dec 1 to Dec 4', divorce: 'No', primary_residence: 'Yes',
   homestead: 'Yes', tenants_after: 'No', water_provider: 'WSSC', deceased_owners: 'No', in_state: 'Yes', name_changed: 'No',
   existing_survey: 'Yes', bankruptcy: 'No', water_meter: 'Outside', water_meter_where: 'By the front steps',
@@ -157,7 +156,7 @@ const user = { id: 'u-proc', role: 'Processor', roles: ['Processor'] };
 const quiet = { refresh() {}, go() {} };
 counts.task = 0; counts.ssn = 0; counts.spouse = 0;
 await taskPage({ api, deal, params: { sub: sellerPersonal.id }, user, ...quiet });
-ok(counts.ssn === 1 && counts.spouse === 0, 'opening seller personal information reads the number once and does not read spouse');
+ok(counts.ssn === 1 && counts.spouse === 1, 'opening seller personal information reads the number once and the spouse section once');
 const personalReads = { task: counts.task, ssn: counts.ssn };
 counts.task = 0; counts.ssn = 0; counts.spouse = 0;
 await taskPage({ api, deal, params: { sub: hoa.id }, user, ...quiet });
@@ -169,9 +168,7 @@ counts.task = 0; counts.ssn = 0;
 await taskPage({ api, deal, params: { sub: mortgage.id }, user, ...quiet });
 const loanReads = { task: counts.task, ssn: counts.ssn };
 ok(hoaReads.ssn === 0 && hoaReads.spouse === 0 && idReads.ssn === 0 && loanReads.ssn === 0, 'HOA, identification, and mortgages add no number read');
-const spouseView = await spousePage({ api, deal, user });
-ok(counts.spouse === 1 && spouseView.queries === 1, 'opening the Spouse tab calls getSpouse once');
-console.log('query-count spouse-tab', 1);
+console.log('query-count personal-info-spouse', 1);
 console.log('query-count seller-personal-ssn', personalReads.ssn, 'task-reads', personalReads.task);
 console.log('query-count hoa-task-reads', hoaReads.task, 'extra', hoaReads.ssn);
 console.log('query-count id-task-reads', idReads.task, 'extra', idReads.ssn);

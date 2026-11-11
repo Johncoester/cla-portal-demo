@@ -1,10 +1,11 @@
 // One intake task (form). Save partial work, validate, mark complete. ID-type fields upload a file into the order's "IDs & personal" folder.
 import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611070139';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
-import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611120200';
+import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611141400';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
+import { spouseSectionHtml, spousePayload, loadSpouseRows, applySpouse } from './spouse.js?v=202611141400';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611101015';
-import { CLS, LABEL } from './dealtasks.js?v=202611141000';
+import { CLS, LABEL } from './dealtasks.js?v=202611141400';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 // The task page and the processor Tasks "Expand all" use the same fields, save, and complete rules.
@@ -22,9 +23,15 @@ export function intakeFormHtml(t, { page = false, state = '' } = {}) {
     // Matt, Nov 3: plain-English help for a select (Title vesting: "What do these mean?")
     const help = f.help ? html` <button type="button" class="ghost" data-help="${f.k}" aria-expanded="false">${f.help.button}</button>
       <div class="note-box" data-help-panel="${f.k}" hidden><strong>${f.help.title}</strong><dl class="answers">${f.help.items.map(([o, txt]) => html`<dt>${o}</dt><dd>${txt}</dd>`)}</dl><p class="small" data-help-note><em>${f.help.note}</em></p></div>` : '';
-    if (f.type === 'select' && f.help) return html`<div class="span2 fld" data-k="${f.k}"><label>${f.label} ${req}<select name="${f.k}"><option value="">Choose&hellip;</option>${f.opts.map((o) => html`<option ${o === val ? raw('selected') : ''}>${o}</option>`)}</select></label>${help}<span class="ferr"></span></div>`;
+    const choices = (field, current) => {
+      let opts = Array.isArray(field.opts) ? [...field.opts] : [];
+      if (field.k === 'citizenship') opts = opts.filter((o) => o !== 'US Citizen' || o === current);
+      if (current && !opts.includes(current)) opts.push(current);
+      return opts;
+    };
+    if (f.type === 'select' && f.help) return html`<div class="span2 fld" data-k="${f.k}"><label>${f.label} ${req}<select name="${f.k}"><option value="">Choose&hellip;</option>${choices(f, val).map((o) => html`<option ${o === val ? raw('selected') : ''}>${o}</option>`)}</select></label>${help}<span class="ferr"></span></div>`;
     if (f.type === 'checkbox') return html`<label class="check span2 fld" data-k="${f.k}"><input type="checkbox" name="${f.k}" ${val ? html`checked` : ''}> ${f.label} ${req}<span class="ferr"></span></label>`;
-    if (f.type === 'select') return html`<label class="fld" data-k="${f.k}">${f.label} ${req}<select name="${f.k}"><option value="">Choose&hellip;</option>${f.opts.map((o) => html`<option ${o === val ? raw('selected') : ''}>${o}</option>`)}</select><span class="ferr"></span></label>`;
+    if (f.type === 'select') return html`<label class="fld" data-k="${f.k}">${f.label} ${req}<select name="${f.k}"><option value="">Choose&hellip;</option>${choices(f, val).map((o) => html`<option ${o === val ? raw('selected') : ''}>${o}</option>`)}</select><span class="ferr"></span></label>`;
     if (f.type === 'textarea') return html`<label class="span2 fld" data-k="${f.k}">${f.label} ${req}<textarea name="${f.k}" rows="3" maxlength="2000">${val}</textarea><span class="ferr"></span></label>`;
     if (f.type === 'mortgages') {
       let list = [];
@@ -49,8 +56,9 @@ export function intakeFormHtml(t, { page = false, state = '' } = {}) {
   const completeBtn = t.canComplete === false ? '' : html`<button class="m-btn" type="submit" data-mode="complete">${t.status === 'done' ? 'Save and keep complete' : 'Mark complete'}</button>`;
   const askSsn = t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller') && !t.formHidden;
   const ssn = askSsn ? buyerSsnHtml(t.ssnShown || '', !!t.ssnStaff) : '';
+  const spouse = askSsn ? spouseSectionHtml(t.spouseRow, !!t.spouseStaff) : '';
   return html`<form ${page ? raw('id="tform"') : ''} class="form-grid" data-intake-form="${t.id}" novalidate>${!(fields || []).length ? html`<p class="notice warn span2" data-task-no-fields>This task has no form fields yet (template ${tplLabel}). Tell CLA Title — nothing was marked complete.</p>` : ''}${fields.map(input)}
-    ${ssn}
+    ${ssn}${spouse}
     <div class="span2"><button class="ghost" type="submit" data-mode="save">Save progress</button> ${completeBtn}</div>
     <p class="muted small span2">Fields marked * are needed to mark the task complete. You can save partial work any time.${askSsn ? ' The Social Security number is saved separately and is not emailed.' : ''}</p></form>`;
 }
@@ -69,6 +77,15 @@ export function buyerSsnHtml(shown, staff) {
     <input data-buyer-ssn type="password" inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="11" aria-label="Social Security number" placeholder="***-**-****">
     <button type="button" class="ghost" data-ssn-save>Save Social Security number</button>
     <p class="muted small">CLA Title staff use this to clear judgments. After you save, you see only the last 4 digits.</p></div>`;
+}
+
+// Saving a finished lender form closes the task. A half-filled form stays open.
+export function intakeCompletes(t, data, mode) {
+  if (mode === 'complete') return true;
+  if (!t || t.templateCode !== 'lender_info') return false;
+  const cash = data.none === 'on' || data.none === true || data.none === 'true';
+  const text = (k) => String(data[k] == null ? '' : data[k]).trim();
+  return cash || !!(text('company') && text('officer_name') && text('officer_email') && text('officer_phone'));
 }
 
 export function mountIntakeForm(root, { api, t, afterSave }) {
@@ -104,13 +121,22 @@ export function mountIntakeForm(root, { api, t, afterSave }) {
         if (file.size > MAX_UPLOAD_BYTES) throw new Error('File is too large for this demo.');
         const up = await api.uploadForTask(t.id, { name: file.name, mimeType: file.type, size: file.size, dataUrl: await readFile(file), field: fi.dataset.file }); form.elements[fi.dataset.file].value = up.id; fi.value = ''; }   // stored once: a retry after a form error must not upload it again
       writeMortgages();
-      const data = {}; new FormData(form).forEach((val, k) => { if (typeof val === 'string') data[k] = val; });
-      await api.saveTaskForm(t.id, data, { complete: mode === 'complete' });
+      const data = {}; new FormData(form).forEach((val, k) => { if (typeof val === 'string' && !k.startsWith('spouse')) data[k] = val; });
+      const spouseBox = $('[data-spouse-section]', form);
+      if (spouseBox && api.saveSpouse) await api.saveSpouse(t.dealId, spouseBox.dataset.spouse, spousePayload(form));
+      const spouseSsn = $('[data-spouse-ssn-input]', form);
+      if (spouseSsn && spouseSsn.value && spouseBox && spouseBox.dataset.spouseTask) {
+        await api.savePartySsn(spouseBox.dataset.spouseTask, 'spouse', spouseSsn.value);
+        spouseSsn.value = '';
+      }
       const ssnInput = $('[data-buyer-ssn]', form);
       if (ssnInput && ssnInput.value) {
         await api.saveBuyerSsn(t.id, ssnInput.value);
         ssnInput.value = '';
       }
+      const complete = intakeCompletes(t, data, mode);
+      await api.saveTaskForm(t.id, data, { complete });
+      mode = complete ? 'complete' : mode;
       if (afterSave) afterSave(mode);
     } catch (err) {
       (err.fieldErrors || []).forEach((fe) => { const el = $(`.fld[data-k="${fe.k}"]`, form); if (el) { el.classList.add('has-err'); $('.ferr', el).textContent = fe.msg; } });
@@ -127,6 +153,8 @@ export async function render(c0) {
   if (t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller') && !t.formHidden && api.readBuyerSsn) {
     try { t.ssnShown = await api.readBuyerSsn(t.id) || ''; } catch (e) { t.ssnShown = ''; }
     t.ssnStaff = ssnStaff(c0.user);
+    t.dealId = deal.id;
+    applySpouse(t, await loadSpouseRows(api, deal.id), c0.user);
   }
   const tplLabel = t.template ? html`${t.template.code} v${t.template.version}` : (t.templateCode ? html`${t.templateCode} v${t.templateVersion}` : 'n/a');
   const inner = intakeFormHtml(t, { page: true, state: deal && deal.state });
@@ -164,4 +192,4 @@ function signView({ api, deal, t, refresh, go }) {
 }
 
 // Francis, Nov 3: agent tasks (kind 'agent') have their own page
-async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611141000'); return m.render(c); }
+async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611141400'); return m.render(c); }

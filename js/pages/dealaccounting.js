@@ -12,7 +12,7 @@ import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=20
 import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611070139';
 import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611140400';
 import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611131900';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
-import { contractView } from './dealaccounting-contract.js?v=202611141000';
+import { contractView } from './dealaccounting-contract.js?v=202611141400';
 
 const VIEWS = [['contract', 'Contract figures'], ['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
 // negative amounts (the escrow aggregate adjustment) show as -$x.xx
@@ -53,7 +53,7 @@ export async function render({ api, deal, user }) {
     ${T.issues.length ? html`<div class="notice warn acct-noprint" data-balance-issues><strong>Out of balance.</strong><ul>${T.issues.map((i) => html`<li>${i}</li>`)}</ul></div>` : ''}
     ${(T.warnings || []).length ? html`<div class="notice info acct-noprint" data-acct-warnings><ul>${T.warnings.map((i) => html`<li>${i}</li>`)}</ul></div>` : ''}`;
   let v;
-  if (view === 'contract') v = await contractView(api, deal);
+  if (view === 'contract') v = await contractView(api, deal, user);
   else if (view === 'postclosing') v = await postClosingRender({ api, deal, user, refresh: () => location.reload() });
   else if (view === 'charges') v = await chargesView(api, deal, acc, q, base);
   else if (view === 'payoffs') v = await payoffsView(api, deal, acc, q, base, user);

@@ -114,6 +114,29 @@ export function hrPart(x, flags) {
     d.hrChangeHistory.push({ id: 'hrh-' + d.hrSeq, seq: d.hrSeq, tableName, rowId, employeeId, field, column: COLUMN_OF[field] || field, oldValue: textOf(field, oldV), newValue: textOf(field, newV), action,
       changedBy: u.id, changedByName: nameOf(u.id), changedAt: now() });
   }
+  const STAFF_PORTAL_ROLES = ['Employee', 'Processor', 'Preprocessor', 'Sales Person', 'Transaction Coordinator'];
+  const MAPPED_PORTAL_ROLES = ['Processor', 'Preprocessor', 'Sales Person', 'Transaction Coordinator'];
+  const designationName = (id) => ((db().hrDesignations || []).find((g) => g.id === id) || {}).name;
+  function applyPortalRole(profileId, next, actor, reverting) {
+    const p = profileId && db().profiles.find((z) => z.id === profileId);
+    if (!p || p.isAdmin || ['Admin', 'Super admin', 'Outside user'].includes(p.role)) return;
+    if (actor && p.id === actor.id && !actor.isAdmin && actor.role !== 'Admin' && actor.role !== 'Super admin') return;
+    const allowed = reverting ? MAPPED_PORTAL_ROLES : STAFF_PORTAL_ROLES;
+    if (!allowed.includes(p.role) || p.role === next) return;
+    p.role = next;
+  }
+  // A mapped designation sets that portal role. Clearing it, pointing it at an unmapped title,
+  // unlinking the login, or archiving the employee returns those four roles to Employee.
+  function syncPortalRole(e, actor, before) {
+    if (!e) return;
+    const next = portalRoleForDesignation(designationName(e.designationId));
+    const prevMapped = before ? portalRoleForDesignation(designationName(before.designationId)) : '';
+    if (before && before.profileId && before.profileId !== e.profileId) applyPortalRole(before.profileId, 'Employee', actor, true);
+    if (e.archivedAt) { applyPortalRole(e.profileId, 'Employee', actor, true); return; }
+    if (!e.profileId) return;
+    if (MAPPED_PORTAL_ROLES.includes(next)) applyPortalRole(e.profileId, next, actor, false);
+    else if (MAPPED_PORTAL_ROLES.includes(prevMapped)) applyPortalRole(e.profileId, 'Employee', actor, true);
+  }
   function applyPatch(u, e, patch, action = 'update') {
     let n = 0;
     for (const [k, v] of Object.entries(patch)) { const old = e[k] == null ? null : e[k]; const nv = v === '' && (k.endsWith('Id') || k === 'dateOfJoining' || k.startsWith('pay')) ? null : v;
@@ -194,6 +217,7 @@ export function hrPart(x, flags) {
       d.hrEmployees.push(e);
       for (const k of HR_FIELDS.concat(SELF_FIELDS)) if (e[k] != null && e[k] !== '') hist(u, 'hr_employees', e.id, e.id, k, null, e[k], 'create');
       if (login) hist(u, 'hr_employees', e.id, e.id, 'profileId', null, login.id, 'create');
+      syncPortalRole(e, u, null);
       const invite = login ? null : makeInvite(u, e); save();
       return { employee: view(e), invite, linkedLogin: !!login }; },
     async updateHrEmployee(id, patch = {}) { const { u, role } = gate(); const e = empById(id) || fail('Employee not found.'); const admin = role === 'super' || role === 'hr_manager';
@@ -205,12 +229,15 @@ export function hrPart(x, flags) {
       else if (e.profileId === u.id && !e.archivedAt) v = cleanSelfPatch(patch);
       else fail('You can only edit your own phone, address and emergency contact.');
       if (v.commissionNotes !== undefined && !(v.commissioned !== undefined ? v.commissioned : e.commissioned)) v.commissionNotes = '';
-      const n = applyPatch(u, e, v); if (n) save(); return { employee: admin ? view(e) : view(e), changed: n }; },
+      const before = { designationId: e.designationId, profileId: e.profileId, archivedAt: e.archivedAt };
+      const n = applyPatch(u, e, v); syncPortalRole(e, u, before); save(); return { employee: view(e), changed: n }; },
     async archiveHrEmployee(id, archived = true) { const { u } = needHr(); const d = db(); const e = empById(id) || fail('Employee not found.');
       if (e.profileId === u.id && archived) fail('You cannot archive your own record.');
       if (!!e.archivedAt === !!archived) return view(e);
       if (archived && d.hrEmployees.some((z) => z.reportingToId === e.id && !z.archivedAt)) fail('Move this person\'s direct reports to another manager first.');
+      const before = { designationId: e.designationId, profileId: e.profileId, archivedAt: e.archivedAt };
       const old = e.archivedAt; e.archivedAt = archived ? now() : null; e.archivedBy = archived ? u.id : null; e.updatedAt = now(); e.updatedBy = u.id;
+      syncPortalRole(e, u, before);
       hist(u, 'hr_employees', e.id, e.id, 'archivedAt', old, e.archivedAt, archived ? 'archive' : 'restore');
       if (archived) { d.hrRoleAssignments.filter((a) => a.employeeId === e.id && !a.removedAt).forEach((a) => { a.removedAt = now(); a.removedBy = u.id; hist(u, 'hr_role_assignments', a.id, e.id, 'hrManager', 'Yes', 'No', 'remove'); });
         d.hrInvites.filter((i) => i.employeeId === e.id && !i.acceptedAt && !i.revokedAt).forEach((i) => { i.revokedAt = now(); i.revokedBy = u.id; i.token = null; }); }
@@ -228,7 +255,8 @@ export function hrPart(x, flags) {
       if (p && isOutside(p.role)) fail('That email belongs to an agent or client login. Ask HR to use your work email.');
       if (!p) { p = { id: nextId('u'), email: e.email, firstName: e.firstName, lastName: e.lastName, phone: e.phone || '', role: portalRoleForDesignation(((d.hrDesignations || []).find((g) => g.id === e.designationId) || {}).name), isAdmin: false, status: 'active', createdAt: now(), createdBy: i.createdBy }; d.profiles.push(p); }   // Nov 9: role from the designation (hr.js map), else 'Employee'
       const actor = { id: p.id };
-      e.profileId = p.id; e.updatedAt = now(); e.updatedBy = p.id; i.acceptedAt = now(); i.acceptedProfileId = p.id;
+      const before = { designationId: e.designationId, profileId: e.profileId, archivedAt: e.archivedAt };
+      e.profileId = p.id; syncPortalRole(e, null, before); e.updatedAt = now(); e.updatedBy = p.id; i.acceptedAt = now(); i.acceptedProfileId = p.id;
       hist(actor, 'hr_employees', e.id, e.id, 'profileId', null, p.id, 'invite_accepted');
       save(); sess.setItem(SESSION_KEY, p.id); return { profileId: p.id, employeeId: e.id }; },
     // ---- Departments / Designations (list for everyone in HR, add / archive for HR) ----

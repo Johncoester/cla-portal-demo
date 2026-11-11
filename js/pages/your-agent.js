@@ -7,6 +7,21 @@ import { telHref } from '../data/agent-profile.js?v=202611140100';
 import { avatarHtml } from './agent-profile-form.js?v=202611140100';
 const ico = { phone: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z"/></svg>',
   mail: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 4-8 5-8-5V6l8 5 8-5z"/></svg>' };
+// The card already loaded the agent. When that payload has an email and no phone, use the phone on the file contact
+// (the deal participants this page already has). No extra request.
+export function withContactPhone(agents, deal) {
+  const people = (deal && deal.participants) || [];
+  const phoneFor = (email) => {
+    const hit = people.find((p) => p && p.contact && String(p.contact.email || '').toLowerCase() === String(email || '').toLowerCase());
+    const c = hit && hit.contact;
+    return c ? String(c.phone || c.mobile || '').trim() : '';
+  };
+  return (agents || []).map((a) => {
+    if (!a || a.cellPhone || a.officePhone) return a;
+    const phone = phoneFor(a.email);
+    return phone ? { ...a, cellPhone: phone } : a;
+  });
+}
 export function yourAgentHtml(agents) {
   if (!agents || !agents.length) return '';
   const one = (a) => html`<div class="ya-agent" data-agent-card="${a.side}" data-agent-name="${a.firstName} ${a.lastName}">

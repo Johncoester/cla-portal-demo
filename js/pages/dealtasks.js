@@ -6,7 +6,7 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate,
 import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611101015';
 import { boxTasks, boxOfRole, tasksForViewer } from '../data/task-board.js?v=202611140100';
 import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611131900';
-import { taskOpenHref } from '../data/task-actions.js?v=202611120200';
+import { taskOpenHref } from '../data/task-actions.js?v=202611141400';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
@@ -19,14 +19,15 @@ export async function render(ctx) {
   const { api, user, deal, refresh } = ctx;
   if (intakeDeal !== deal.id) { intakeDeal = deal.id; intakeOpen.clear(); }
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611141000')).render(ctx);
-  const allTasks = await api.listTasks(deal.id);
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611141400')).render(ctx);
+  const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611141400');
+  const allTasks = tasksWithLenderOnFile(await api.listTasks(deal.id), deal);
   const taskQuery = new URLSearchParams(location.hash.split('?')[1] || '');
   const mineOnly = taskQuery.get('mine') === '1';
   const focusSection = taskQuery.get('section') || '';
   // BUYER (Nov 4 call): the agreements are to-dos that open the agreement (no Agreements tab for the buyer); the buyer never gets a Listing Agent box (listing agent never shown)
   // SELLER MIRROR (Nov 4): the pure seller gets the same To-do list (agreements as to-dos) and never a Buyer's Agent box (the buyer's agent is never shown to the seller)
-  const { isPureClient, isPureSeller, agreementTasks } = await import('./client-overview.js?v=202611140100'); const pure = user.accountRole && isPureClient(user); const hideBox = pure ? (isPureSeller(user) ? 'buyer-agent' : 'listing-agent') : null;
+  const pure = user.accountRole && isPureClient(user); const hideBox = pure ? (isPureSeller(user) ? 'buyer-agent' : 'listing-agent') : null;
   // CLIENT TASK PRIVACY (Matt, Nov 5, live40): a buyer / seller only ever sees tasks assigned to them (the adapter already filters; this is the UI guard),
   // only their own side's box, and "You're all caught up" once nothing is left. Never the other parties' boxes or tasks.
   const manage = runsOrders(user) || user.role === 'Transaction Coordinator';
@@ -82,7 +83,10 @@ export async function render(ctx) {
     const slotOf = (id) => $(`[data-intake-slot="${(globalThis.CSS && CSS.escape ? CSS.escape(String(id)) : String(id).replace(/(["\\])/g, '\\$1'))}"]`, root);
     const showIntake = async (ids) => {
       if (!ids.length) return;
-      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611141000');
+      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611141400');
+      const { loadSpouseRows, applySpouse } = await import('./spouse.js?v=202611141400');
+      const wantsSpouse = ids.some((id) => { const t = tasks.find((z) => z.id === id); return t && t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller'); });
+      const spouseRows = wantsSpouse ? await loadSpouseRows(api, deal.id) : [];
       await Promise.all(ids.map(async (id) => {
         const slot = slotOf(id); if (!slot) return;
         const box = slot.closest('details'); if (box) box.open = true;
@@ -95,6 +99,8 @@ export async function render(ctx) {
           if (full.templateCode === 'personal_info' && (full.assignedRole === 'Client-Buyer' || full.assignedRole === 'Client-Seller') && !full.formHidden && api.readBuyerSsn) {
             try { full.ssnShown = await api.readBuyerSsn(id) || ''; } catch (e) { full.ssnShown = ''; }
             full.ssnStaff = ssnStaff(user);
+            full.dealId = deal.id;
+            applySpouse(full, spouseRows, user);
           }
           if (!slot.isConnected) return;
           slot.innerHTML = toText(html`<div class="intake-edit" data-intake-panel="${id}"><p class="intake-edit-note muted small">Edit <strong>${full.title}</strong>${full.ownerName ? html` for ${full.ownerName}` : ''}</p>${intakeFormHtml(full, { state: deal.state })}</div>`);

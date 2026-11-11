@@ -128,7 +128,7 @@ while (grew) {
     for (const h of list) if (!closure.has(h.from)) { closure.add(h.from); grew = true; }
   }
 }
-const allowed = new Set(['202611141300']);
+const allowed = new Set(['202611141400']);
 const issues = [];
 const dual = [];
 const missing = [];
@@ -136,6 +136,7 @@ for (const target of closure) {
   if (target === 'index.html') continue;
   const list = hits.get(target) || [];
   const stamps = [...new Set(list.map((h) => h.stamp))];
+  if (!list.length && !files.some((f) => path.relative(root, f) !== target && readFileSync(f, 'utf8').includes(path.basename(target)))) continue;   // a module nothing imports (deal-buyer-legacy.js) has no stamp to check
   if (!list.length) missing.push(target);
   if (stamps.length !== 1 || !allowed.has(stamps[0])) issues.push(target + ' ' + (stamps.join(',') || 'none'));
   if (stamps.length > 1) dual.push(target + ' ' + stamps.join(','));

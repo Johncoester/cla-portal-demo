@@ -47,6 +47,8 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   await advance(page, 'team');
   await expect(page.locator('[data-wiz-step="team"] input[name="closerName"]')).toBeVisible();
   const sales = page.locator('[data-wiz-step="team"] input[name="salesIds"]');
+  await expect(page.locator('[data-sales-picker] legend')).toHaveText('Salespeople on this order');
+  await expect(sales.first()).toHaveAttribute('type', 'checkbox');
   if (await sales.count()) await sales.first().check();
   await page.locator('[data-wiz-step="team"] textarea[name="notes"]').fill(`E2E-RUN-${run}`);
   await advance(page, 'review');

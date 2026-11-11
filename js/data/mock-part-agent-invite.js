@@ -134,7 +134,7 @@ export function agentInvitePart(x) {
             const c = d.contacts.find((z) => z.id === ap.contactId); if (!c) continue; const p = c.profileId && prof(c.profileId); if (p && p.status !== 'active') continue;
             const a = (p && d.agentProfiles[p.id]) || {}; const key = c.id; const prev = out.get(key);
             if (prev) { if (!prev.dealIds.includes(deal.id)) prev.dealIds.push(deal.id); continue; }
-            out.set(key, cardOf({ agentId: c.id, firstName: p ? p.firstName : c.firstName, lastName: p ? p.lastName : c.lastName, brokerage: a.brokerage || c.company || '', cellPhone: a.cellPhone || c.phone || '',
+            out.set(key, cardOf({ agentId: c.id, firstName: p ? p.firstName : c.firstName, lastName: p ? p.lastName : c.lastName, brokerage: a.brokerage || c.company || '', cellPhone: a.cellPhone || c.phone || c.mobile || '',
               email: (p && p.email) || c.email || '', officePhone: a.officePhone || '', photo: a.photo || '', photoShape: a.photoShape || 'circle', side: sideOf(want), dealIds: [deal.id] })); } } }
       return [...out.values()]; },
   };

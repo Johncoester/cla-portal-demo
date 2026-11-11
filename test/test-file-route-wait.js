@@ -33,7 +33,7 @@ const gate = (name, fn) => async (...args) => {
   return fn(...args);
 };
 
-const { getAdapter } = await import('../js/data/adapter.js');
+const { getAdapter } = await import('../js/data/adapter.js?v=202611121200');
 const api = await getAdapter();
 await api.signInDev('u-admin');
 const orig = {
@@ -129,7 +129,8 @@ const slowOv = (name, value) => async () => { ovMarks.push(name); await wait(25)
 const staff = { id: 'u-admin', role: 'Super admin', isAdmin: true, firstName: 'Ada', lastName: 'Admin', accountRole: null };
 const file = {
   id: 'deal-1', fileNumber: 'MD-26-97183', street: '145 Main Street', city: 'Rockville', state: 'MD', zip: '20850', county: 'Montgomery',
-  transactionType: 'Purchase', stage: 1, status: 'Open', openDate: '2026-11-01', closingDate: '2026-11-17', participants: [], salesPeople: [], salesPersonIds: [],
+  transactionType: 'Purchase', stage: 1, status: 'Open', openDate: '2026-11-01', closingDate: '2026-11-17', salesPeople: [], salesPersonIds: [],
+  participants: [{ role: 'Client-Buyer', contact: { firstName: 'Ada', lastName: 'Buyer' } }],
   myRole: 'Processor', myRoles: ['Processor'], purchasePrice: 1, loanAmount: 1, emdAmount: null, emdDueDate: null, notes: '', unread: 0,
 };
 const ovApi = {
@@ -177,7 +178,7 @@ await wait(20);
 check(overviewNeeds.every((name) => earlyMarks.includes(name)), 'overview section reads start before the file read finishes');
 releaseFile();
 const earlyDone = await earlyView;
-check(earlyDone && earlyDone.body && String(earlyDone.body).includes('145 Main Street'), 'overview still waits for the file and the sections before it is ready');
+check(earlyDone && earlyDone.body && String(earlyDone.body).includes('data-file-buyers') && String(earlyDone.body).includes('Ada Buyer'), 'overview still waits for the file and shows the buyers line once the file is ready');
 
 let shellCalls = 0;
 let fullCalls = 0;

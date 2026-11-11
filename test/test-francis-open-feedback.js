@@ -63,7 +63,8 @@ ok(orderSrc.includes("throw new Error('Only a Processor or Admin can place order
 ok(orderSrc.includes('<option value="">Unassigned</option>') && orderSrc.includes('Processor can stay Unassigned'), 'Processor stays optional, including on Save as draft');
 const editModal = dealSrc.slice(dealSrc.indexOf('async function editModal'), dealSrc.indexOf('async function addPartyModal'));
 const earnestRead = dealSrc.slice(dealSrc.indexOf('function earnestBlock'), dealSrc.indexOf('// ---------------- ORDER PAGE REDESIGN (John, Nov 4): ONE Parties list'));
-ok(editModal.includes('name="emdHeldBy"') && editModal.includes('name="parcelId"') && !earnestRead.includes('<input') && !earnestRead.includes('<button') && !earnestRead.includes('<select'), 'earnest inputs live in the staff edit dialog; the file summary is read-only');
+const parcelFields = readFileSync(new URL('../js/pages/parcel-fields.js', import.meta.url), 'utf8');
+ok(editModal.includes('parcelFieldsHtml') && editModal.includes('name="emdHeldBy"') && parcelFields.includes('parcelId') && parcelFields.includes('data-add-parcel') && !earnestRead.includes('<input') && !earnestRead.includes('<button') && !earnestRead.includes('<select'), 'earnest inputs live in the staff edit dialog; parcel ids use the parcel component; the file summary is read-only');
 ok(dealSrc.includes('edit ? html`<button class="icon-edit" id="editdeal"'), 'the edit control is still limited to staff who can edit the order');
 
 const migration = readFileSync(new URL('../supabase/migrations/20261110200000_parcel_earnest_financial.sql', import.meta.url), 'utf8');

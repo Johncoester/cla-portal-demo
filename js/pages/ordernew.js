@@ -13,18 +13,19 @@ import { occSelects, yesNo } from './occ-fields.js?v=202611070139';
 import { fmtPhone, TX_TYPES, runsOrders, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount } from '../data/constants.js?v=202611101015';
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611140200';
-import { ENTITY_TYPES } from '../data/templates.js?v=202611120200';
+import { ENTITY_TYPES } from '../data/templates.js?v=202611141400';
 import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611092320';
 import { closerChoices, resolveCloser } from '../data/closer.js?v=202611101015';
 import { duplicateNotice } from '../data/order-duplicates.js?v=202611101700';
 import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
 import { orderDraftKey, readOrderDraft, writeOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim, tombstoneOrderDraft } from '../data/order-draft.js?v=202611140200';
 import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows } from '../data/lender-file.js?v=202611101200';
-import { fillProperty, cleanParcel } from '../data/address-fill.js?v=202611131900';
+import { bindAddressFill } from '../data/address-fill.js?v=202611141400';
+import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611141400';
 import { readEarnest, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611141000';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611120500';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611131900';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611141400';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
 // Each person becomes their own deal_participants row, so each buyer / seller gets their own copy of the client intake tasks (existing per-person behaviour).
@@ -139,8 +140,8 @@ export async function render({ api, user, go }) {
         <label>City *<input name="city" required maxlength="100"></label><label>State *<select name="state" required><option value="">Select state</option>${US_STATE_NAMES.map(([c, n]) => html`<option value="${c}">${n} (${c})</option>`)}</select></label>
         <label>ZIP<input name="zip" maxlength="10" placeholder="20850"></label>
         <label>County <span class="muted small">(optional; filled from the address or the ZIP when left blank)</span><input name="county" maxlength="100" placeholder="e.g. Frederick" aria-label="County"></label>
-        <label>Parcel ID <span class="muted small">(optional)</span><input name="parcelId" maxlength="80" aria-label="Parcel ID" data-parcel-id autocomplete="off"></label>
-        <p class="span2 muted small" data-address-fill>Type a full address (street, city, state, ZIP) and the empty city, state, ZIP and county boxes fill in from that address and the bundled ZIP table. A value you already typed stays.</p>
+        ${parcelFieldsHtml([''])}
+        <p class="span2 muted small" data-address-fill>Leave the street box (or pick a full address) and the empty city, state, ZIP and county fill from that line and the bundled ZIP table. A value you already typed stays. Parcel IDs stay typed; use + Parcel ID for another.</p>
         <div class="span2" id="md-occ" hidden><p class="muted small">Maryland purchases only.</p>${occSelects({})}</div></div>`,
         'The address of the property being bought, sold or refinanced.')}
       ${panel('parties', html`<p class="muted small people-optional">People on this order are all optional; you can add or change them later under Contacts. Type a name and pick a match, or choose <strong>Add "…" as a new person</strong> in the list. <strong>Add new user</strong> below still works for full details (email, entity, lender company).</p>
@@ -182,7 +183,7 @@ export async function render({ api, user, go }) {
       ${panel('team', html`<div class="form-grid">
         <label>Processor<select name="processorId" data-processor-select><option value="">Unassigned</option></select> <button type="button" class="ghost" data-refresh-processors>Refresh list</button><span class="field-hint">Leave Unassigned to save the file now. A Processor added after you opened this page appears when you refresh the list. Nothing else on the form is cleared.</span></label><label>Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select>${preprocs.length ? '' : html`<span class="field-hint" data-no-preproc>No preprocessor is available for this login.</span>`}</label>
         <label class="span2">Closer<input name="closerName" list="place-closer-staff" maxlength="120" autocomplete="off" aria-label="Closer" data-closer-input><datalist id="place-closer-staff">${closers.map((c) => html`<option value="${c.label}"></option>`)}</datalist><span class="field-hint">Pick an active CLA staff member, or type a name. Same field as Edit order details.</span></label>
-        <fieldset class="span2" data-sales-picker><legend>Sales Rep</legend><div data-sales-list class="check-grid">${staff.length ? staff.map((s) => salesBox(s)) : html`<p class="muted" data-no-sales>No salespeople are available for this login.</p>`}</div><span class="field-hint">The only sales field on Place Order. Check each salesperson on this order. Someone already saved as a sales team member on an existing file is left as they are.</span></fieldset>
+        <fieldset class="span2" data-sales-picker><legend>Salespeople on this order</legend><div data-sales-list class="check-grid">${staff.length ? staff.map((s) => salesBox(s)) : html`<p class="muted" data-no-sales>No salespeople are available for this login.</p>`}</div><span class="field-hint">Check every salesperson on this order. You can pick more than one.</span></fieldset>
         <label class="span2">Notes<textarea name="notes" rows="3" maxlength="2000" placeholder="Anything the team should know about this order"></textarea></label>
         <fieldset class="span2" id="nof-docs"><legend>Documents (e.g. the sales contract)</legend>
           <label class="dropzone-label">Files <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB each; choose several at once)</span><input type="file" id="nof-files" multiple accept="${ALLOWED_UPLOAD_EXT.map((e) => '.' + e).join(',')}"></label>
@@ -223,7 +224,7 @@ export async function render({ api, user, go }) {
       </div>
     </form>`;
   const view = { title: 'Place Order', crumbs: [['Orders', '#/orders'], ['Place Order']], body, unmount() {}, mount(root) {
-    const form = $('#nof', root); const people = [...contacts];
+    const form = $('#nof', root); const people = [...contacts]; mountParcelFields(root);
     const paintProcessors = (list, keep) => { const sel = $('[name=processorId]', form); const next = processorChoices(list, keep == null ? sel.value : keep, user.id);
       sel.replaceChildren(); for (const o of next.options) { const opt = document.createElement('option'); opt.value = o.value; opt.textContent = o.label; sel.appendChild(opt); } sel.value = next.value; return next; };
     paintProcessors(procs, '');
@@ -278,16 +279,9 @@ export async function render({ api, user, go }) {
     ['Buyer Agent', 'Listing Agent'].forEach((role) => { const card = $(`[data-agent-card="${role}"]`, root); const q = $('.picker-q', card); if (q) q.addEventListener('input', () => { if (!pickers[role].value) $('[data-agent-edit]', card).hidden = true; });
       $('[data-agent-role]', card).addEventListener('change', () => { const nextRole = $('[data-agent-role]', card).value; if (nextRole === role) return; try { moveAgent(role, nextRole); } catch (err) { toast(err.message, 'err'); } }); });
     const paintCommission = () => { const box = $('[data-commission-total]', root); if (!box) return; try { const e = readEarnest(formData(form)); box.value = e.commissionTotal == null ? '' : String(e.commissionTotal); } catch (err) { box.value = ''; } };
-    const fillAddr = async () => { const street = $('[name=street]', form); const city = $('[name=city]', form); const state = $('[name=state]', form); const zip = $('[name=zip]', form); const county = $('[name=county]', form);
-      const next = await fillProperty({ street: street.value, city: city.value, state: state.value, zip: zip.value, county: county.value });
-      if (next.parsed && next.street !== street.value) street.value = next.street;
-      if (!city.value.trim() && next.city) city.value = next.city;
-      if (!state.value && next.state) state.value = next.state;
-      if (!zip.value.trim() && next.zip) zip.value = next.zip;
-      if (!county.value.trim() && next.county) county.value = next.county;
-      syncMd(); };
-    $('[name=street]', form).addEventListener('change', () => { fillAddr().catch(() => {}); });
-    $('[name=zip]', form).addEventListener('change', () => { fillAddr().catch(() => {}); });
+    bindAddressFill(form);
+    const syncAfterAddress = () => syncMd();
+    ['street', 'city', 'state', 'zip'].forEach((name) => { const el = form.querySelector(`[name="${name}"]`); if (el) el.addEventListener('blur', syncAfterAddress); });
     // ---------- several buyers / sellers ----------
     const rows = {};   // role -> [{ pk, el }] in screen order
     const renumber = (role) => { rows[role].forEach(({ pk, el }, i) => { const nm = i ? `p:${role}:${i + 1}` : `p:${role}`; pk.el.dataset.picker = nm; $('input[type=hidden]', pk.el).name = nm; el.dataset.partyRow = String(i + 1);
@@ -359,7 +353,7 @@ export async function render({ api, user, go }) {
       if (k === 'transaction' && f.openDate && f.openDate > officeDate() && !errs.some((e) => e.el && e.el.name === 'openDate')) errs.push({ el: $('[name=openDate]', p), msg: 'Open date cannot be in the future.' });
       if (k === 'transaction' && repOn && !$$('[name=claRepresentation]', p).some((el) => el.checked)) errs.push({ el: $('[name=claRepresentation]', p), msg: 'Choose who CLA represents: Both buyer and seller, Buyer only, or Seller only.' });
       if (k === 'property' && !zipOk(String(f.zip || '').trim())) errs.push({ el: $('[name=zip]', p), msg: 'ZIP must be 5 digits (or ZIP+4).' });
-      if (k === 'property') { try { cleanParcel(f.parcelId); } catch (err) { errs.push({ el: $('[name=parcelId]', p), msg: err.message }); } }
+      if (k === 'property') { try { parcelsFromForm(form); } catch (err) { errs.push({ el: $('[name=parcelId]', p), msg: err.message }); } }
       if (k === 'parties') {
         for (const role of Object.keys(MULTI).filter(counts)) rows[role].forEach((r, i) => { if (r.pk.typed && !r.pk.value) errs.push({ el: $('.picker-q', r.pk.el), msg: `${labelOf(role)}: pick a person from the list, choose Add as a new person, clear the box, or use "Add new user".` }); });
         for (const role of Object.keys(MULTI).filter(counts)) { const ids = rows[role].map((r) => r.pk.value).filter(Boolean); const twice = ids.find((id, i) => ids.indexOf(id) !== i);
@@ -623,7 +617,8 @@ export async function render({ api, user, go }) {
       const extras = lenderExtras({ lenderAddress: f.lenderAddress, cplAddress: f.cplAddress, cplSameAsLender: !!($('[data-cpl-same]', root) && $('[data-cpl-same]', root).checked), mortgageBrokerName: f.mortgageBrokerName });
       const earnest = refi() ? { financial: {} } : readEarnest(f);
       const placedCloser = resolveCloser(f.closerName, closers, {});
-      const input = representationPayload(api, { ...f, closerName: placedCloser.closerName, closerProfileId: placedCloser.closerProfileId, parcelId: cleanParcel(f.parcelId), emdHeldBy: earnest.emdHeldBy || '', commissionBase: earnest.commissionBase, commissionPercent: earnest.commissionPercent, commissionAdditional: earnest.commissionAdditional, commissionPaidBy: earnest.commissionPaidBy || '', emdAmount: amt, purchasePrice: refi() ? '' : moneyAmount(f.purchasePrice), ...(refi() ? { emdDueDate: '' } : {}), loanAmount: moneyAmount(f.loanAmount), salesIds: new FormData(form).getAll('salesIds'),
+      const parcels = parcelsFromForm(form);
+      const input = representationPayload(api, { ...f, closerName: placedCloser.closerName, closerProfileId: placedCloser.closerProfileId, parcelId: parcels.parcelId, parcelIds: parcels.parcelIds, emdHeldBy: earnest.emdHeldBy || '', commissionBase: earnest.commissionBase, commissionPercent: earnest.commissionPercent, commissionAdditional: earnest.commissionAdditional, commissionPaidBy: earnest.commissionPaidBy || '', emdAmount: amt, purchasePrice: refi() ? '' : moneyAmount(f.purchasePrice), ...(refi() ? { emdDueDate: '' } : {}), loanAmount: moneyAmount(f.loanAmount), salesIds: new FormData(form).getAll('salesIds'),
         lenderName: (f.lenderName || (lender && lender.company) || '').trim(),
         lenderContact: lender ? personLabel(lender) : '',
         lenderPhone: (f.lenderPhone || '').trim(),

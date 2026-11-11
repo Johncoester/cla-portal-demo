@@ -1,12 +1,20 @@
 /* Staff screens that were still throwing "not implemented yet" in supabase mode.
  * Reads and writes go through the existing tables and RLS. This file does not create logins
  * and does not contain a service-role key. Nothing is emailed. */
-import { uploadBytes as blobOf } from './upload-bytes.js?v=202611070139';
+import { uploadBytes as blobOf, uploadFileName } from './upload-bytes.js?v=202611141400';
 const day = (d) => new Date(d).toISOString().slice(0, 10);
 const plusDays = (n) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const full = (p) => `${p.firstName || ''} ${p.lastName || ''}`.trim();
-const safeName = (n) => String(n || 'upload').replace(/[\\/]/g, '_').slice(0, 200);
+const safeName = (n, mime) => uploadFileName(n, mime);
 const sideOf = (role) => ({ 'Buyer Agent': 'buyer', 'Client-Buyer': 'buyer', 'Listing Agent': 'seller', 'Client-Seller': 'seller' }[role] || 'staff');
+// A client task upload is buyer or seller. Staff and library uploads stay staff. 'all' is never sent from a task.
+export function taskUploadVisibility(role) {
+  const side = sideOf(role);
+  if (side === 'buyer' || side === 'seller') return side;
+  if (/Seller/.test(role || '')) return 'seller';
+  if (/Buyer|Client/.test(role || '')) return 'buyer';
+  return 'staff';
+}
 export const LOGIN_CLOSED = 'Creating a login is closed here. Add the employee in HR and copy the invite link (#/hr/add). Agents use Agent Invites (#/agent-invites). Nothing is emailed.';
 
 export function staffSupabase({ sb, ok, camel, me, api }) {
@@ -16,12 +24,19 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
     const u = await uid();
     const id = (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID() : null;
     if (!id) throw new Error('This browser cannot mint a document id.');
-    const name = safeName(file.name);
+    const name = safeName(file.name, file.mimeType);
     const path = dealId ? `${dealId}/${id}/${name}` : `library/${folderId}/${id}/${name}`;
     const up = await sb.storage.from('deal-documents').upload(path, await blobOf(file), { contentType: file.mimeType || 'application/octet-stream', upsert: false });
     if (up.error) throw new Error(up.error.message || 'The document bucket refused the upload.');
     const row = { id, deal_id: dealId || null, folder_id: folderId || null, name, description: file.description || '', mime_type: file.mimeType || 'application/octet-stream', size_bytes: file.size || 0, storage_path: path, visibility: visibility || 'all', uploaded_by: u.id, doc_type: file.docType || '', wire_instructions: file.wireInstructions === true };
-    return camel(ok(await sb.from('documents').insert(row).select().single()));
+    // Insert without RETURNING. documents_select is `id in (readable_document_ids())`,
+    // and that function is STABLE, so it cannot see the row this statement is still inserting.
+    // Postgres then reports "new row violates row-level security policy" and rolls the insert
+    // back. The storage object is already uploaded. The browser already knows the id.
+    // On MD-26-97215 the buyer ID task (Closing Locations Flyer - CLA Title.jpg) failed this way.
+    const ins = await sb.from('documents').insert(row);
+    if (ins.error) throw new Error(ins.error.message || 'The document was not saved.');
+    return { id, name, dealId: dealId || null, visibility: row.visibility };
   };
   const directory = async () => {
     await needAdmin();
@@ -197,7 +212,7 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
     async uploadForTask(taskId, file) {
       const t = camel(ok(await sb.from('tasks').select('id, deal_id, title, assigned_role').eq('id', taskId).single()));
       const folders = camel(ok(await sb.from('folders').select('id, name').eq('deal_id', t.dealId).eq('name', 'IDs & personal'))) || [];
-      const doc = await uploadDoc({ dealId: t.dealId, folderId: folders[0] ? folders[0].id : null, file, visibility: sideOf(t.assignedRole) });
+      const doc = await uploadDoc({ dealId: t.dealId, folderId: folders[0] ? folders[0].id : null, file, visibility: taskUploadVisibility(t.assignedRole) });
       return { id: doc.id, name: doc.name };
     },
     async listSettlements(dealId) {

@@ -59,7 +59,7 @@ const rollback = readFileSync(new URL('../supabase/rollbacks/20261110103000_tc_p
 ok(page.includes('data-dup-orders') && page.includes('findDuplicateOrders') && page.includes('You can still place this order.') && page.includes('data-place-order'), 'review asks for duplicates and does not remove Place order');
 ok(!page.includes('dup-block') && page.includes('data-review-ready'), 'a duplicate is a warning, not a thing to fix');
 ok(page.includes('No salespeople are available for this login.') && page.includes('No preprocessor is available for this login.') && page.includes('No transaction coordinator is available for this login.') && page.includes('(none available for this login)'), 'empty Team and TC lists say none are available for this login');
-ok(!page.includes('name="p:Sales Team"') && !page.includes('salesParty') && (page.match(/<legend>Sales Rep<\/legend>/g) || []).length === 1, 'Place Order keeps the Sales Rep field and does not restore Sales team member');
+ok(!page.includes('name="p:Sales Team"') && !page.includes('salesParty') && (page.match(/<legend>Salespeople on this order<\/legend>/g) || []).length === 1, 'Place Order keeps one salespeople field and does not restore Sales team member');
 const listCoordinators = adapter.slice(adapter.indexOf('async listCoordinators'), adapter.indexOf('async findDuplicateOrders'));
 ok(listCoordinators.includes('coordinatorRoster') && listCoordinators.includes("eq('role', 'Transaction Coordinator')") && listCoordinators.includes('r.contactId') && !listCoordinators.includes('.insert('), 'the hosted TC list is a read and omits a coordinator who has no contact');
 ok(adapter.includes('findDuplicateOrders'), 'hosted Place Order looks up visible files');

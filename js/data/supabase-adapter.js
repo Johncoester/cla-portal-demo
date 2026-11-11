@@ -17,7 +17,7 @@ import { postClosingSupabase } from './supabase-postclosing.js?v=202611111900';
 import { wiresSupabase } from './supabase-wires.js?v=202611111800';
 import { modulesSupabase } from './supabase-modules.js?v=202611101015';
 import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611120100';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611141400';
 import { callItemsSupabase } from './supabase-callitems.js?v=202611101015';
 import { automationPart } from './automation.js?v=202611101015';
 import { runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
@@ -29,24 +29,24 @@ import { closingLocationSupabase } from './supabase-closing-location.js?v=202611
 import { tcSupabase } from './supabase-tc.js?v=202611140800';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
 import { gmailSupabase } from './supabase-gmail.js?v=202611140900';
-import { nov5Supabase } from './supabase-nov5.js?v=202611131900';
-import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611121900';
+import { nov5Supabase } from './supabase-nov5.js?v=202611141400';
+import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611141400';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611140100';
-import { staffSupabase } from './supabase-staff.js?v=202611110300';
+import { staffSupabase } from './supabase-staff.js?v=202611141400';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611092320';
 import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
 import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611101700';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
 import { propertyAddressOf } from './nov5-rules.js?v=202611131900';
-import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611120200';
+import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611141400';
 import { fetchDashboard, indexDashboardExtras, decorateDashboardDeals, shapeDashboardTask } from './dashboard-load.js?v=202611140700';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow } from './contact-insert.js?v=202611101200';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
 import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole } from './lender-file.js?v=202611101200';
 import { fileTitleOf } from './party-name.js?v=202611102000';
-import { cleanParcel } from './address-fill.js?v=202611131900';
+import { parcelInput } from './parcels.js?v=202611141400';
 import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611141000';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
@@ -502,7 +502,7 @@ export async function createSupabaseAdapter(cfg) {
       if (input.closingTime) row.closing_time = String(input.closingTime);
       if (input.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(input.claRepresentation);   // Both / Buyer only / Seller only; absent = not recorded
       const wrote = lenderColumnWrite(input); if (wrote) { row.lender_address = wrote.lenderAddress; row.cpl_address = wrote.cplAddress; row.cpl_same_as_lender = wrote.cplSameAsLender; row.mortgage_broker_name = wrote.mortgageBrokerName; }
-      const parcelId = cleanParcel(input.parcelId); if (parcelId) row.parcel_id = parcelId;
+      if (input.parcelId !== undefined || input.parcelIds !== undefined) { const parcels = parcelInput(input); row.parcel_id = parcels.parcelId || null; row.parcel_ids = parcels.parcelIds; }
       const earnest = earnestDealPatch(input, { refinance: refi }); if (Object.keys(earnest.financial).length) row.financial = earnest.financial;
       const d = camel(ok(await sb.from('deals').insert(row).select().single()));
       if (String(input.sourceOfBusiness || '').trim()) ok(await sb.rpc('set_deal_source', { p_deal: d.id, p_source: input.sourceOfBusiness }));   // migration 31 (staff-only table)
@@ -518,7 +518,7 @@ export async function createSupabaseAdapter(cfg) {
       if (row.open_date === null) delete row.open_date;
       if (row.closing_time != null) { const t = String(row.closing_time).trim(); if (t && !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) throw new Error('Enter a time as HH:MM, or clear it.'); row.closing_time = t; }
       if (patch.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(patch.claRepresentation);   // '' = not recorded (null)
-      if (patch.parcelId !== undefined) row.parcel_id = cleanParcel(patch.parcelId);
+      if (patch.parcelId !== undefined || patch.parcelIds !== undefined) { const parcels = parcelInput(patch); row.parcel_id = parcels.parcelId || null; row.parcel_ids = parcels.parcelIds; }
       if (earnestTouched(patch)) { const earnest = earnestDealPatch(patch, { refinance: false }); row.financial = earnest.financial; }
       if (lenderColumnsTouched(patch)) { const x = lenderExtras(patch);
         if (patch.lenderAddress !== undefined) row.lender_address = x.lenderAddress;

@@ -30,7 +30,20 @@ export function messagesActivity(x) {
         add(deal.tcUserId, '', '', 'Transaction Coordinator', profOf(deal.tcUserId).email); }
       for (const s of load().dealSalesPeople || []) if (s.dealId === dealId) { const p = load().profiles.find((z) => z.id === s.salesId); if (p) add(p.id, p.firstName, p.lastName, p.role); }
       if (u.role === 'Transaction Coordinator') add(u.id, u.firstName, u.lastName, u.role);
-      return clone(rows.filter((r) => r.id !== u.id));
+      let out = rows.filter((r) => r.id !== u.id);
+      const onFile = x.fileRoles(u.id, dealId);
+      const agentHere = onFile.some((r) => /Agent$/.test(r));
+      const pureBuyer = !staff && onFile.includes('Client-Buyer') && !agentHere;
+      const pureSeller = !staff && onFile.includes('Client-Seller') && !onFile.includes('Client-Buyer') && !agentHere;
+      if (pureBuyer || pureSeller) {
+        const agentRole = pureBuyer ? 'Buyer Agent' : 'Listing Agent';
+        const d = load();
+        const agentIds = new Set(d.participants.filter((p) => p.dealId === dealId && p.role === agentRole).map((p) => { const c = d.contacts.find((z) => z.id === p.contactId); return c && c.profileId; }).filter(Boolean));
+        const sideTeams = new Set((d.teamMembers || []).filter((m) => m.memberRole === 'agent' && agentIds.has(m.profileId)).map((m) => m.teamId));
+        const sideTcs = new Set((d.teamMembers || []).filter((m) => m.memberRole === 'coordinator' && sideTeams.has(m.teamId)).map((m) => m.profileId));
+        out = out.filter((r) => r.email && (r.role === 'Processor' || r.role === agentRole || (r.role === 'Transaction Coordinator' && sideTcs.has(r.id))));
+      }
+      return clone(out);
     },
     async listThreads(dealId) {
       let u = needUser(); u = onDeal(u, dealId); const d = load();
