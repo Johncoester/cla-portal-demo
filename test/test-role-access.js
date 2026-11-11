@@ -1,7 +1,7 @@
 /* Role access (John, Nov 9): Super admin grid of roles x modules. Seed = today's behaviour; Processor CRM off hides the CRM and refuses its data
  * in the mock, while Accounting / Place Order source options stay. Fake data only. Nothing is sent. */
 import { readFileSync } from 'node:fs';
-import { ROLE_ACCESS_SEED, ELIGIBLE, roleAllowed, roleCan, roleHrOk, setRoleAccess, seedRows, canManageRoleAccess, checkRoleAccessChange } from '../js/data/role-access.js';
+import { ROLE_ACCESS_SEED, ELIGIBLE, roleAllowed, roleCan, roleHrOk, setRoleAccess, seedRows, canManageRoleAccess, checkRoleAccessChange } from '../js/data/role-access.js?v=202611100100';
 import { canUseCrm, CRM_ROLES } from '../js/data/crm.js';
 import { acctCanRead, acctCanEdit, ACCT_EDIT_ROLES, ACCT_READ_ROLES } from '../js/data/accounting.js';
 import { hrVisibleFor } from '../js/data/hr.js';
