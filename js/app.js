@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
-import { getAdapter } from './data/adapter.js?v=202611141400';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611141400';
+import { getAdapter } from './data/adapter.js?v=202611141500';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611141500';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611070139';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611130900';
@@ -33,12 +33,12 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611140400'),
-  dashboard: () => import('./pages/dashboard.js?v=202611141400'),
+  dashboard: () => import('./pages/dashboard.js?v=202611141500'),
   orders: () => import('./pages/orders.js?v=202611140900'),
   'orders/new': () => import('./pages/ordernew.js?v=202611141400'),
-  deal: () => import('./pages/deal.js?v=202611141400'),
+  deal: () => import('./pages/deal.js?v=202611141500'),
   users: () => import('./pages/users.js?v=202611101015'),
-  profile: () => import('./pages/profile.js?v=202611140100'),
+  profile: () => import('./pages/profile.js?v=202611141500'),
   'contact-us': () => import('./pages/contact.js?v=202611070139'),
   teams: () => import('./pages/teams.js?v=202611070139'),
   templates: () => import('./pages/templates.js?v=202611141400'),
@@ -46,7 +46,7 @@ const pages = {
   library: () => import('./pages/library.js?v=202611101015'),
   activity: () => import('./pages/activity.js?v=202611070139'),
   outbox: () => import('./pages/outbox.js?v=202611101015'),
-  tasks: () => import('./pages/tasks.js?v=202611141400'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => import('./pages/tasks.js?v=202611141500'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611140100'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js?v=202611121300'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611141300'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
@@ -58,7 +58,7 @@ const pages = {
   hr: () => import('./pages/hr.js?v=202611110300'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
   'hr-invite': () => import('./pages/hr-invite.js?v=202611110800'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => import('./pages/offices.js?v=202611101015'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
-  'admin/email-templates': () => import('./pages/email-templates.js?v=202611140400'),   // John, Nov 9: Admin > Email Templates (file Email tab)
+  'admin/email-templates': () => import('./pages/email-templates.js?v=202611141500'),   // John, Nov 9: Admin > Email Templates (file Email tab)
   demo: () => import('./pages/demo-view.js?v=202611070139'),   // permanent Demo mode: Super admin views a seeded demo user
   'voice-demo': () => import('./pages/voice-demo.js?v=202611091110'),   // signed-in Live Test only; the header Voice test panel is the test, this route is not a file
   'staff-feedback': () => import('./pages/staff-feedback.js?v=202611131900'),

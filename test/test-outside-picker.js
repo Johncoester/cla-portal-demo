@@ -21,6 +21,12 @@ ok(buyer.some((r) => r.role === 'Buyer Agent'), 'the buyer sees the buyer agent'
 ok(buyer.some((r) => r.id === 'u-tc' && r.role === 'Transaction Coordinator'), 'the buyer sees the buyer-side coordinator');
 ok(!buyer.some((r) => r.id === 'u-tc2' || r.role === 'Listing Agent' || r.role === 'Client-Seller' || r.role === 'Client-Buyer' || r.role === 'Preprocessor' || r.role === 'Sales Person'), 'the buyer does not see the other side, other clients, or unassigned staff');
 
+await api.signInDev('u-admin');
+await api.removeTeamMember('team-harbor', 'u-tc');
+await api.signInDev('u-buyer');
+const noTeam = await api.listMessageRecipients('deal-1');
+ok(noTeam.some((r) => r.id === 'u-tc' && r.role === 'Transaction Coordinator'), 'with no coordinator on the buyer agent team, the coordinator on the file is still offered');
+
 await api.signInDev('u-seller');
 const seller = await api.listMessageRecipients('deal-1');
 ok(seller.length > 0 && allowed(seller), 'the seller list is only processors, their agent, and their coordinator');
@@ -40,6 +46,8 @@ ok(agent.some((r) => r.role === 'Client-Buyer' || r.role === 'Transaction Coordi
 
 const sql = readFileSync('supabase/migrations/20261112220000_client_side_people.sql', 'utf8');
 ok(sql.includes('v.pure_buyer or v.pure_seller') && sql.includes("l.profile_role = 'Processor'") && sql.includes("case when v.pure_buyer then 'Buyer Agent' else 'Listing Agent' end") && sql.includes("co.member_role = 'coordinator'") && !sql.includes("or l.profile_role = 'Transaction Coordinator'") && !sql.includes('private.participant_visible') && !sql.includes('private.can_message'), 'the server list is processors plus that side\'s agent and that side\'s coordinator');
+const fallback = readFileSync('supabase/migrations/20261114150000_file_tc_when_no_team.sql', 'utf8');
+ok(fallback.includes("dp.role = 'Transaction Coordinator'") && fallback.includes('not exists') && !fallback.includes("or l.profile_role = 'Transaction Coordinator'"), 'a file coordinator is offered only when that side has no team coordinator');
 ok(readFileSync('js/data/parcels.js', 'utf8').includes('no parcel lookup'), 'parcel id stays manual entry; there is no lookup');
 
 console.log(fail ? fail + ' failed' : 'outside picker passed');

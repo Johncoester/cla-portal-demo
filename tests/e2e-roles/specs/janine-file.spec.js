@@ -1,4 +1,5 @@
 import { test, expect, signIn, openMockFile, freshIssues } from '../fixtures.js';
+import { targetMode } from '../helpers/gate.js';
 import { advance, dealId, gotoHash } from '../helpers/portal.js';
 
 test('the staff file header stays on screen while the file scrolls', async ({ page, issues }) => {
@@ -10,12 +11,13 @@ test('the staff file header stays on screen while the file scrolls', async ({ pa
   await gotoHash(page, `#/deals/${id}/tasks`);
   const header = page.locator('[data-order-header]');
   await header.waitFor();
+  await page.locator('[data-task-row]').first().waitFor();
   const read = () => header.evaluate((el) => {
     const r = el.getBoundingClientRect();
     return { top: r.top, position: getComputedStyle(el).position };
   });
   const before = await read();
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await page.evaluate(() => window.scrollTo(0, Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)));
   await page.waitForTimeout(200);
   const after = await read();
   const scrolled = await page.evaluate(() => window.scrollY);
@@ -37,7 +39,7 @@ test('the buyer sees the agent phone and not themselves on the closing team', as
   await expect(page.locator('[data-co-you], .co-you')).toHaveCount(0);
   await expect(page.locator('[data-co-person="Ben Buyer"]')).toHaveCount(0);
   await expect(page.locator('[data-agent-tel]').first()).toBeVisible();
-  await expect(page.locator('[data-your-agent]')).toContainText('301-555-0105');
+  await expect(page.locator('[data-your-agent]')).toContainText(targetMode() === 'test' ? '301-555-0148' : '301-555-0105');
   await gotoHash(page, '#/deals/deal-2/tasks');
   await page.getByRole('link', { name: 'Personal information' }).first().click();
   const citizenship = page.locator('#tform select[name="citizenship"]');

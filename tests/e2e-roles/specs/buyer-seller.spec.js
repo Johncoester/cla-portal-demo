@@ -171,6 +171,17 @@ test('buyer personal information completes without an error', async ({ page, iss
   await page.getByRole('link', { name: /Personal information/ }).first().click();
   await page.locator('#tform, [data-task-form-state]').first().waitFor();
   await expect(page.locator('[data-task-form-state]')).toHaveCount(0);
+  const fillIfEmpty = async (sel, value) => {
+    const el = page.locator(sel);
+    if ((await el.inputValue()) === '') await el.fill(value);
+  };
+  await fillIfEmpty('#tform input[name="email"]', 'e2e-buyer@example.test');
+  await fillIfEmpty('#tform input[name="cell_phone"]', '301-555-0199');
+  await fillIfEmpty('#tform input[name="current_address"]', '100 E2E Test File, Annapolis, MD 21401');
+  const marital = page.locator('#tform select[name="marital_status"]');
+  if ((await marital.inputValue()) === '') await marital.selectOption('Single');
+  const attend = page.locator('#tform select[name="attending_closing"]');
+  if ((await attend.inputValue()) === '') await attend.selectOption('Yes');
   await page.locator('#tform [data-buyer-ssn]').fill('900-12-3456');
   await page.locator('#tform button[data-mode="complete"]').click();
   await expect(page.locator('.toast.err')).toHaveCount(0);

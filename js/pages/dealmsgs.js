@@ -4,7 +4,7 @@ import { downloadNamed } from '../data/file-open.js?v=202611091030';
 import { viewOnly, isViewOnly, runsOrders, WIRE_FRAUD_NOTE } from '../data/constants.js?v=202611101015';
 import { raw } from '../ui.js?v=202611070139';
 import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611101015';
-import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611110900';
+import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611141500';
 import { presentThread } from '../data/portal-threads.js?v=202611101800';
 
 export async function render(ctx) {
