@@ -8,7 +8,7 @@
  *   - janineLazyUpgrade: Zillow URL -> Zillow Profile, leads linked to their company. No storage-key bump: lazy, idempotent, lossless. */
 import { parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, buildIcs, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611101600';
 import { importedStatusDecision } from './crm-import-status.js?v=202611131900';
-import { cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611121000';
+import { cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611141100';
 import { ensureSettings } from './crm-config.js?v=202611130900';
 import { companyKey, CRM_OWNER_ROLES } from './crm.js?v=202611130900';
 import { US_STATE_NAMES } from './constants.js?v=202611101015';
@@ -170,16 +170,26 @@ export function crmJaninePart(x, ctx) {
     async getUserUiPrefs(module) {
       const u = crmUser(); const mod = cleanUiModule(module); const d = db();
       const row = (d.userUiPrefs || []).find((r) => r.userId === u.id && r.module === mod);
-      return row ? { module: mod, prefs: { order: row.prefs.order.slice() }, updatedAt: row.updatedAt } : null;
+      if (!row) return null;
+      const prefs = {};
+      if (Array.isArray(row.prefs.order)) prefs.order = row.prefs.order.slice();
+      if (row.prefs.pageSize != null) prefs.pageSize = row.prefs.pageSize;
+      return { module: mod, prefs, updatedAt: row.updatedAt };
     },
     async saveUserUiPrefs(module, prefs) {
       const u = crmUser(); const mod = cleanUiModule(module); const clean = cleanUiPrefs(prefs); const d = db();
       d.userUiPrefs ||= [];
       let row = d.userUiPrefs.find((r) => r.userId === u.id && r.module === mod);
       const at = now();
-      if (!row) { row = { userId: u.id, module: mod }; d.userUiPrefs.push(row); }
-      row.prefs = { order: clean.order.slice() }; row.updatedAt = at; save();
-      return { module: mod, prefs: { order: row.prefs.order.slice() }, updatedAt: at };
+      if (!row) { row = { userId: u.id, module: mod, prefs: {} }; d.userUiPrefs.push(row); }
+      const next = { ...(row.prefs || {}) };
+      if (clean.order) next.order = clean.order.slice();
+      if (clean.pageSize) next.pageSize = clean.pageSize;
+      row.prefs = next; row.updatedAt = at; save();
+      const out = {};
+      if (Array.isArray(next.order)) out.order = next.order.slice();
+      if (next.pageSize != null) out.pageSize = next.pageSize;
+      return { module: mod, prefs: out, updatedAt: at };
     },
   };
   return { api, localDate };

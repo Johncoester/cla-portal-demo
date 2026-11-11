@@ -4,11 +4,11 @@ import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pi
 import { CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611101015';
 import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611130900';
 import { modOn, modBeta, BETA_LABEL } from '../data/modules.js?v=202611101015';   // module switches: Deals hidden when not Live (beta badge for Admins)
-import { columnChooserHtml, columnState, wireColumnChooser } from './crm-columns.js?v=202611121000';
-import { beginColumnPrefs } from '../data/crm-columns.js?v=202611121000';
+import { columnChooserHtml, columnState, wireColumnChooser } from './crm-columns.js?v=202611141100';
+import { beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611141100';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
-import { pageOf, selectionState, selectPage, BULK_PAGE_SIZE } from '../data/crm-bulk.js?v=202611090905';
-import { bulkBar, wireBulk } from './crm-bulk.js?v=202611090905';
+import { pageOf, selectionState, selectPage, loadPageSize, normalizePageSize, PAGE_SIZE_OPTIONS } from '../data/crm-bulk.js?v=202611141100';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611141100';
 
 // A click on the row (not on a link, button, or checkbox) opens the record. The name link still navigates on its own.
 export function wireRowOpen(tb, hrefFor) {
@@ -61,21 +61,23 @@ export function listView({ key, rows, cols, catalog = null, userId = '', filters
       <button type="button" class="ghost" data-crm-reset>Reset</button>
     </form>${saved ? savedFiltersHtml(saved.listKey) : ''}
     ${bulk ? bulkBar(bulk.module) : ''}
-    <div class="table-tools"><span class="muted" data-count></span>${bulk ? html` <span data-bulk-pager></span>` : ''}${columnChooserHtml(key, fieldMeta, visible)}${csv ? html` <button class="ghost" type="button" data-list-csv="${key}">Export CSV</button>` : exporter ? html` <span class="muted small" data-csv-admin-only>CSV download: Admins only</span>` : ''}</div>
+    <div class="table-tools"><span class="muted" data-count></span> <span data-bulk-pager></span> ${pageSizeControl(loadPageSize(typeof localStorage !== 'undefined' ? localStorage : null, userId, key))}${columnChooserHtml(key, fieldMeta, visible)}${csv ? html` <button class="ghost" type="button" data-list-csv="${key}">Export CSV</button>` : exporter ? html` <span class="muted small" data-csv-admin-only>CSV download: Admins only</span>` : ''}</div>
     <table class="tbl" id="crm-t-${key}"><thead>${headRow()}</thead><tbody></tbody></table>`;
   function mount(root) {
     const f = $(`#crm-f-${key}`, root); const tb = $(`#crm-t-${key} tbody`, root); const thead = $(`#crm-t-${key} thead`, root); let shown = rows;
-    let selected = new Set(); let page = 1; let sig = '';
+    let storage = null; try { storage = typeof localStorage !== 'undefined' ? localStorage : null; } catch (e) { storage = null; }
+    let selected = new Set(); let page = 1; let sig = ''; let pageSize = loadPageSize(storage, userId, key);
     const paintBar = () => { const barEl = $('[data-bulk-bar]', root); if (!barEl) return; barEl.hidden = selected.size === 0; const n = $('[data-bulk-count]', barEl); if (n) n.textContent = `${selected.size} selected`; };
-    const apply = () => { const v = formData(f); const nextSig = JSON.stringify(v); if (bulk && nextSig !== sig) { if (sig) { selected = new Set(); page = 1; } sig = nextSig; }
+    const apply = () => { const v = formData(f); const nextSig = JSON.stringify(v); if (nextSig !== sig) { if (sig) { selected = new Set(); page = 1; } sig = nextSig; }
       const [k, dir] = (v.sort || sortDefault).split(':'); const list = crmSort(crmFilter(rows, v, fields), k, dir); shown = list;
-      const view = bulk ? pageOf(list, page, BULK_PAGE_SIZE) : { rows: list, page: 1, pages: 1, total: list.length }; page = view.page;
+      const view = pageOf(list, page, pageSize); page = view.page;
       const use = active(); const span = use.length + (bulk ? 1 : 0);
       if (thead) thead.innerHTML = toText(headRow());
       tb.innerHTML = toText(view.rows.length ? view.rows.map((r) => html`<tr data-row="${r.id}">${bulk ? html`<td><input type="checkbox" data-bulk-row value="${r.id}" aria-label="Select ${r.name || 'record'}" ${selected.has(r.id) ? raw('checked') : ''}></td>` : ''}${use.map(([c, , fn]) => html`<td data-col="${c}">${fn ? fn(r) : r[c] ?? ''}</td>`)}</tr>`) : html`<tr><td colspan="${span}" class="muted">Nothing matches.</td></tr>`);
-      $('[data-count]', root).textContent = bulk && list.length > BULK_PAGE_SIZE ? `${view.rows.length} on this page, ${list.length} of ${rows.length} match` : `${list.length} of ${rows.length} shown`;
+      $('[data-count]', root).textContent = view.pages > 1 ? `${view.rows.length} on this page, ${list.length} of ${rows.length} match` : `${list.length} of ${rows.length} shown`;
       const box = $('[data-bulk-page]', root); if (box) { const st = selectionState(selected, view.rows); box.checked = st.allOnPage; box.indeterminate = st.someOnPage; }
-      const pg = $('[data-bulk-pager]', root); if (pg) pg.innerHTML = toText(view.pages > 1 ? html`<button type="button" class="ghost" data-bulk-prev ${view.page <= 1 ? raw('disabled') : ''}>Previous</button> Page ${view.page} of ${view.pages} <button type="button" class="ghost" data-bulk-next ${view.page >= view.pages ? raw('disabled') : ''}>Next</button>` : html``);
+      const pg = $('[data-bulk-pager]', root); if (pg) pg.innerHTML = toText(pageNav(view));
+      const sizeSel = $('[data-page-size]', root); if (sizeSel && String(sizeSel.value) !== String(pageSize)) sizeSel.value = String(pageSize);
       paintBar(); };
     f.addEventListener('input', apply); f.addEventListener('change', apply);
     const prefsApi = saved && saved.api;
@@ -88,7 +90,10 @@ export function listView({ key, rows, cols, catalog = null, userId = '', filters
         if (wiredCols && wiredCols.setOrder) wiredCols.setOrder(order);
         apply();
       }).catch(() => {});
+      if (opened.pageSizeReady) opened.pageSizeReady.then((n) => { if (!n || n === pageSize) return; pageSize = n; apply(); }).catch(() => {});
     }
+    const sizeSel = $('[data-page-size]', root);
+    if (sizeSel) sizeSel.addEventListener('change', () => { pageSize = schedulePageSizeSave({ api: prefsApi, storage, userId, module: key, pageSize: sizeSel.value }); page = 1; apply(); });
     wireRowOpen(tb, (id) => `#/crm/${key}/${id}`);
     const resetBtn = $('[data-crm-reset]', f); if (resetBtn) resetBtn.addEventListener('click', () => {
       [...f.elements].forEach((el) => { if (!el.name) return; el.value = el.name === 'sort' ? sortDefault : (dflt[el.name] || ''); });
@@ -98,13 +103,13 @@ export function listView({ key, rows, cols, catalog = null, userId = '', filters
     if (bulk) {
       $(`#crm-t-${key}`, root).addEventListener('change', (e) => {
         const el = e.target; if (!el.matches) return;
-        if (el.matches('[data-bulk-page]')) { selected = selectPage(selected, pageOf(shown, page, BULK_PAGE_SIZE).rows, el.checked); apply(); return; }
+        if (el.matches('[data-bulk-page]')) { selected = selectPage(selected, pageOf(shown, page, pageSize).rows, el.checked); apply(); return; }
         if (!el.matches('[data-bulk-row]')) return; if (el.checked) selected.add(el.value); else selected.delete(el.value);
-        const box = $('[data-bulk-page]', root); const st = selectionState(selected, pageOf(shown, page, BULK_PAGE_SIZE).rows); if (box) { box.checked = st.allOnPage; box.indeterminate = st.someOnPage; } paintBar();
+        const box = $('[data-bulk-page]', root); const st = selectionState(selected, pageOf(shown, page, pageSize).rows); if (box) { box.checked = st.allOnPage; box.indeterminate = st.someOnPage; } paintBar();
       });
-      root.addEventListener('click', (e) => { const t = e.target; if (t.matches && t.matches('[data-bulk-prev]')) { page -= 1; selected = new Set(); apply(); } if (t.matches && t.matches('[data-bulk-next]')) { page += 1; selected = new Set(); apply(); } });
-      wireBulk(root, { ...bulk, getPageRows: () => pageOf(shown, page, BULK_PAGE_SIZE).rows.filter((r) => selected.has(r.id)), clear: () => { selected = new Set(); apply(); } });
+      wireBulk(root, { ...bulk, getPageRows: () => pageOf(shown, page, pageSize).rows.filter((r) => selected.has(r.id)), clear: () => { selected = new Set(); apply(); } });
     }
+    root.addEventListener('click', (e) => { const t = e.target; if (!(t.matches && (t.matches('[data-bulk-prev]') || t.matches('[data-bulk-next]')))) return; if (t.matches('[data-bulk-prev]')) page -= 1; else page += 1; selected = new Set(); apply(); });
     if (saved) wireSavedFilters(root, saved.api, saved.listKey, { getValues: () => { const v = formData(f); delete v.sort; return v; },
       setValues: (o) => { [...f.elements].forEach((el) => { if (!el.name || el.name === 'sort') return; el.value = o[el.name] != null ? o[el.name] : ''; }); apply(); },
       count: (o) => crmFilter(rows, o, fields).length });
@@ -135,6 +140,14 @@ export function downloadText(name, text) {
 export function downloadCsv(name, cols, rows) {
   const blob = new Blob([toCsv(cols, rows)], { type: 'text/csv;charset=utf-8' }); const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+export function pageSizeControl(size) {
+  const n = normalizePageSize(size);
+  return html`<label>Records per page<select data-page-size aria-label="Records per page">${PAGE_SIZE_OPTIONS.map((s) => html`<option value="${s}" ${s === n ? raw('selected') : ''}>${s}</option>`)}</select></label>`;
+}
+export function pageNav(view) {
+  if (!view || view.pages <= 1) return html``;
+  return html`<button type="button" class="ghost" data-bulk-prev ${view.page <= 1 ? raw('disabled') : ''}>Previous</button> Page ${view.page} of ${view.pages} <button type="button" class="ghost" data-bulk-next ${view.page >= view.pages ? raw('disabled') : ''}>Next</button>`;
 }
 export const archiveBtn = (me, entity, id, archived) => (me.canEdit ? html`<button class="ghost" data-archive="${entity}:${id}:${archived ? '0' : '1'}">${archived ? 'Restore from archive' : 'Archive'}</button>` : '');
 export function wireArchive(root, api, refresh) {

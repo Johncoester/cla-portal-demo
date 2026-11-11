@@ -4,7 +4,7 @@
  * Shared with everyone unless restricted to users / roles. Nothing is deleted: reports are RETIRED (hidden, restorable). Function only. */
 import { html, raw, $, $$, guard, toast, modal, closeModal, toText, fmtDateTime } from '../ui.js?v=202611070139';
 import { REPORT_MODULES, RELATED, moduleName, reportFields, AGG_FNS, NUMERIC, BUCKETS, isDateType } from '../data/crm-analytics.js?v=202611130900';
-import { tabs, head } from './crm-kit.js?v=202611130900';
+import { tabs, head } from './crm-kit.js?v=202611141100';
 import { criteriaEditor } from './crm-criteria.js?v=202611130900';
 import { composeOverlay } from './crm-compose.js?v=202611130900';
 import { fmtNum } from './crm-charts.js?v=202611070139';

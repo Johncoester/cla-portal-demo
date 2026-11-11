@@ -8,7 +8,7 @@ import { localDate, runsOrders as runsOrdersCI } from './constants.js?v=20261110
 import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611130900';
 import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611130900';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611130900';
-import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611121000';
+import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611141100';
 import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611131900';
 import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611130900';
 
@@ -264,8 +264,13 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async saveUserUiPrefs(module, prefs) {
       on(); const u = await me(); if (!canUseCrm(u)) throw new Error('The CRM is for CLA staff only.');
       const mod = cleanUiModule(module); const clean = cleanUiPrefs(prefs);
-      const row = await one(sb.from('user_ui_prefs').upsert({ user_id: u.id, module: mod, prefs: clean, updated_at: new Date().toISOString() }, { onConflict: 'user_id,module' }));
-      return { module: mod, prefs: row.prefs || clean, updatedAt: row.updated_at || null };
+      const existing = ok(await sb.from('user_ui_prefs').select('prefs').eq('user_id', u.id).eq('module', mod).maybeSingle());
+      const prev = existing && existing.prefs && typeof existing.prefs === 'object' ? existing.prefs : {};
+      const next = { ...prev };
+      if (clean.order) next.order = clean.order;
+      if (clean.pageSize) next.pageSize = clean.pageSize;
+      const row = await one(sb.from('user_ui_prefs').upsert({ user_id: u.id, module: mod, prefs: next, updated_at: new Date().toISOString() }, { onConflict: 'user_id,module' }));
+      return { module: mod, prefs: row.prefs || next, updatedAt: row.updated_at || null };
     },
   };
   // Nov 3 (migration 27): email templates. Nothing is ever sent.

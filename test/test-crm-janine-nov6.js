@@ -1,6 +1,6 @@
 /* Janine Nov 6: template folder counts, image limit wording, mass actions. Fake data only. Nothing is sent. */
 import { folderCounts, imageLimitMessage, INLINE_IMAGE_MAX_BYTES } from '../js/data/crm-templates.js';
-import { dedupeRecipients, fieldPatch, ownerAllowed, pageOf, planRelatedEmails, runEach, selectPage, selectionState, BULK_PAGE_SIZE } from '../js/data/crm-bulk.js';
+import { dedupeRecipients, fieldPatch, ownerAllowed, pageOf, planRelatedEmails, runEach, selectPage, selectionState, BULK_PAGE_SIZE, DEFAULT_PAGE_SIZE } from '../js/data/crm-bulk.js';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 
 let fail = 0;
@@ -19,10 +19,11 @@ ok(msg.includes('4 MB') && msg.includes('3 MB') && !msg.includes('400') && !/[\u
 ok(INLINE_IMAGE_MAX_BYTES === 3 * 1024 * 1024, 'the inline image limit is 3 MB');
 
 const rows = Array.from({ length: 30 }, (_, i) => ({ id: 'r' + i, name: 'R' + i, email: i === 2 ? 'ada@example.test' : i === 3 ? 'Ada@example.test' : i === 4 ? '' : `p${i}@example.test` }));
-const page = pageOf(rows, 2, BULK_PAGE_SIZE);
+const page = pageOf(rows, 2, 25);
 ok(page.page === 2 && page.rows.length === 5 && page.rows[0].id === 'r25', 'page 2 is only the current page');
+ok(BULK_PAGE_SIZE === 100 && DEFAULT_PAGE_SIZE === 100, 'the default page holds 100 records');
 let selected = selectPage(new Set(), page.rows, true);
-ok(selectionState(selected, page.rows).allOnPage && selectionState(selected, pageOf(rows, 1).rows).pageOn === 0, 'select all checks this page only');
+ok(selectionState(selected, page.rows).allOnPage && selectionState(selected, pageOf(rows, 1, 25).rows).pageOn === 0, 'select all checks this page only');
 selected = new Set();
 ok(selectionState(selected, page.rows).count === 0, 'a filter or page change starts with nothing selected');
 

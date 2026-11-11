@@ -1,11 +1,13 @@
 // crm-more.js : CRM pipeline (Kanban + list) and Reports (John, Nov 2; follow-ups moved to CRM Home tasks). Function only, minimal styling.
-import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611070139';
+import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611070139';
 import { localDate } from '../data/constants.js?v=202611101015';
 import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort, inLocalRange } from '../data/crm.js?v=202611130900';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv } from './crm-kit.js?v=202611130900';
+import { pageOf, loadPageSize } from '../data/crm-bulk.js?v=202611141100';
+import { schedulePageSizeSave } from '../data/crm-columns.js?v=202611141100';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv, pageSizeControl, pageNav } from './crm-kit.js?v=202611141100';
 import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611130900';
 import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611130900';
-import { wireCompose } from './crm-templates.js?v=202611130900';
+import { wireCompose } from './crm-templates.js?v=202611141100';
 
 const crumbs = (label) => [['CRM', '#/crm'], [label]];
 const q = () => new URLSearchParams(location.hash.split('?')[1] || '');
@@ -35,8 +37,9 @@ export async function pipelinePage({ api, me, owners, refresh, go, cfg, openCrea
   const boardHtml = html`<div class="kanban" data-board="${board}">${stages.map(([v, l]) => { const list = crmSort(items.filter((i) => (i.stage || '') === v), 'name');
     return html`<section class="kanban-col" data-stage="${v}"><h4>${l} <span class="muted small">(${list.length} · ${total(list)})</span></h4>
       ${list.map((i) => html`<div class="kanban-card" data-card="${i.id}">${title(i)}<div class="small">${sub(i)}</div><div class="muted small">${i.ownerName || 'Unassigned'}</div>${mover(i)}${board === 'opps' ? html` <button type="button" class="ghost small" data-compose-btn="opportunity:${i.id}" title="Compose email from template">Email</button>` : ''}</div>`)}</section>`; })}</div>`;
-  const listHtml = html`<table class="tbl" data-pipeline-list><thead><tr><th>${board === 'opps' ? 'Opportunity' : 'Partner'}</th><th>Details</th><th>Owner</th><th>Stage</th></tr></thead><tbody>
-    ${crmSort(items, 'name').map((i) => html`<tr data-card="${i.id}"><td>${title(i)}</td><td class="small">${sub(i)}</td><td>${i.ownerName || 'Unassigned'}</td><td>${me.canEdit ? mover(i) : (stages.find(([v]) => v === i.stage) || [, ''])[1]}</td></tr>`)}</tbody></table>`;
+  const pipeModule = board === 'opps' ? 'opportunities' : 'pipeline-partners';
+  const listHtml = html`<div class="table-tools"><span class="muted" data-count></span> <span data-bulk-pager></span> ${pageSizeControl(loadPageSize(typeof localStorage !== 'undefined' ? localStorage : null, me.id, pipeModule))}</div>
+    <table class="tbl" data-pipeline-list><thead><tr><th>${board === 'opps' ? 'Opportunity' : 'Partner'}</th><th>Details</th><th>Owner</th><th>Stage</th></tr></thead><tbody data-pipe-rows></tbody></table>`;
   const body = html`${head('CRM: Pipeline', me)}${tabs('pipeline')}
     <div class="filter-bar"><span>Board: <a class="${board === 'opps' ? 'active-link' : ''}" href="${url({ board: 'opps' })}" data-board-link="opps">Opportunities</a> · <a class="${board === 'partners' ? 'active-link' : ''}" href="${url({ board: 'partners' })}" data-board-link="partners">Referral partners (clients by Relationship Status)</a></span>
       <span>View: <a href="${url({ view: 'board' })}" data-view-link="board">Board</a> · <a href="${url({ view: 'list' })}" data-view-link="list">List</a></span>
@@ -46,11 +49,27 @@ export async function pipelinePage({ api, me, owners, refresh, go, cfg, openCrea
       <label>${board === 'opps' ? 'Expected close' : 'Last contacted'} from<input type="date" data-pipe-date="extraFrom" value="${extraFrom}"></label><label>to<input type="date" data-pipe-date="extraTo" value="${extraTo}"></label></div>
     ${view === 'board' ? boardHtml : listHtml}`;
   return { title: 'CRM Pipeline', crumbs: crumbs('Pipeline'), body, mount(root) { wireCompose(root, api, me, refresh);
+    if (view === 'list') {
+      let storage = null; try { storage = typeof localStorage !== 'undefined' ? localStorage : null; } catch (e) { storage = null; }
+      let page = 1; let pageSize = loadPageSize(storage, me.id, pipeModule);
+      const paint = () => {
+        const sorted = crmSort(items, 'name'); const pg = pageOf(sorted, page, pageSize); page = pg.page;
+        const tb = $('[data-pipe-rows]', root); if (tb) tb.innerHTML = toText(pg.rows.length ? pg.rows.map((i) => html`<tr data-card="${i.id}"><td>${title(i)}</td><td class="small">${sub(i)}</td><td>${i.ownerName || 'Unassigned'}</td><td>${me.canEdit ? mover(i) : (stages.find(([v]) => v === i.stage) || [, ''])[1]}</td></tr>`) : html`<tr><td colspan="4" class="muted">Nothing matches.</td></tr>`);
+        const count = $('[data-count]', root); if (count) count.textContent = pg.pages > 1 ? `${pg.rows.length} on this page, ${pg.total} shown` : `${pg.total} shown`;
+        const nav = $('[data-bulk-pager]', root); if (nav) nav.innerHTML = toText(pageNav(pg));
+      };
+      const sizeSel = $('[data-page-size]', root);
+      if (sizeSel) sizeSel.addEventListener('change', () => { pageSize = schedulePageSizeSave({ api, storage, userId: me.id, module: pipeModule, pageSize: sizeSel.value }); page = 1; paint(); });
+      root.addEventListener('click', (e) => { const t = e.target; if (!(t.matches && (t.matches('[data-bulk-prev]') || t.matches('[data-bulk-next]')))) return; if (t.matches('[data-bulk-prev]')) page -= 1; else page += 1; paint(); });
+      paint();
+    }
     $('[data-pipe-owner]', root).addEventListener('change', (e) => { location.hash = url({ owner: e.target.value }); });
     $$('[data-pipe-date]', root).forEach((el) => el.addEventListener('change', () => { const o = {}; $$('[data-pipe-date]', root).forEach((z) => { o[z.dataset.pipeDate] = z.value; }); location.hash = url(o); }));
-    $$('[data-move]', root).forEach((s) => s.addEventListener('change', guard(async () => {
-      if (board === 'opps') await api.moveCrmOpportunity(s.dataset.move, s.value); else await api.updateCrmContact(s.dataset.move, { relationshipStatus: s.value });
-      toast('Moved to ' + (stages.find(([v]) => v === s.value) || [, 'Not set'])[1]); refresh(); })));
+    root.addEventListener('change', (e) => { const s = e.target; if (!(s && s.matches && s.matches('[data-move]'))) return;
+      guard(async () => {
+        if (board === 'opps') await api.moveCrmOpportunity(s.dataset.move, s.value); else await api.updateCrmContact(s.dataset.move, { relationshipStatus: s.value });
+        toast('Moved to ' + (stages.find(([v]) => v === s.value) || [, 'Not set'])[1]); refresh();
+      })(); });
     const openOpp = () => {
       const m = modal('New opportunity', html`<form id="opp-form" class="form-grid"><label class="span2">Name *<input name="name" required maxlength="160" placeholder="e.g. Harbor Realty: monthly referrals"></label>
         <label>Client${sel('contactId', contacts.map((c) => [c.id, c.name]), '', '(none)')}</label><label>Company${sel('accountId', accounts.map((a) => [a.id, a.name]), '', '(none)')}</label>

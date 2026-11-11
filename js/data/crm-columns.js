@@ -1,7 +1,10 @@
 /* Per-user CRM list columns (Janine, Nov 5, item 29; saved on the login Nov 10).
  * This browser paints first. The signed-in row in public.user_ui_prefs wins when it loads.
  * A list asks once per module for this page session, and only once that list is open.
- * At most COLUMN_CAP columns stay visible. */
+ * At most COLUMN_CAP columns stay visible.
+ * The same row also remembers records per page (pageSize). A column save keeps pageSize,
+ * and a page-size save keeps the column order. */
+import { PAGE_SIZE_OPTIONS, normalizePageSize, loadPageSize, savePageSize } from './crm-bulk.js?v=202611141100';
 export const COLUMN_CAP = 10;
 export const COLUMN_PREF_SAVE_MS = 400;
 export const UI_PREF_MODULES = ['leads', 'contacts', 'accounts', 'deals'];
@@ -39,16 +42,25 @@ export function cleanUiModule(module) {
 }
 
 export function cleanUiPrefs(prefs) {
+  const out = {};
   const raw = prefs && Array.isArray(prefs.order) ? prefs.order : null;
-  if (!raw) throw new Error('Column preferences need an order.');
-  const order = [];
-  raw.forEach((k) => {
-    const s = String(k == null ? '' : k).trim();
-    if (!s || s.length > 80 || order.includes(s) || order.length >= COLUMN_CAP) return;
-    order.push(s);
-  });
-  if (!order.length) throw new Error('Keep at least one column.');
-  return { order };
+  if (raw) {
+    const order = [];
+    raw.forEach((k) => {
+      const s = String(k == null ? '' : k).trim();
+      if (!s || s.length > 80 || order.includes(s) || order.length >= COLUMN_CAP) return;
+      order.push(s);
+    });
+    if (!order.length) throw new Error('Keep at least one column.');
+    out.order = order;
+  }
+  if (prefs && prefs.pageSize != null && prefs.pageSize !== '') {
+    const n = Number(prefs.pageSize);
+    if (!PAGE_SIZE_OPTIONS.includes(n)) throw new Error('Choose 10, 20, 30, 40, 50, or 100 records per page.');
+    out.pageSize = n;
+  }
+  if (!out.order && out.pageSize == null) throw new Error('Column preferences need an order.');
+  return out;
 }
 
 const prefSlots = new Map();
@@ -75,9 +87,10 @@ export function beginColumnPrefs({ api, storage, userId, module, known, defaults
   const key = prefKey(userId, module);
   let slot = prefSlots.get(key);
   if (!slot) {
-    slot = { gen: 0, order: instant.slice(), timer: null, fetched: false, edited: false, promise: null };
+    slot = { gen: 0, order: instant.slice(), pageSize: loadPageSize(store, userId, module), pageSizeLoaded: false, pageTimer: null, timer: null, fetched: false, edited: false, pageEdited: false, promise: null };
     prefSlots.set(key, slot);
   }
+  if (slot.pageSize == null) slot.pageSize = loadPageSize(store, userId, module);
   if (!slot.fetched) {
     slot.fetched = true;
     const started = slot.gen;
@@ -85,6 +98,13 @@ export function beginColumnPrefs({ api, storage, userId, module, known, defaults
       try {
         if (!api || typeof api.getUserUiPrefs !== 'function') return slot.order.slice();
         const row = await api.getUserUiPrefs(module);
+        if (!(slot.pageEdited || slot.gen !== started)) {
+          const n = Number(row && row.prefs ? row.prefs.pageSize : NaN);
+          if (PAGE_SIZE_OPTIONS.includes(n)) {
+            slot.pageSize = savePageSize(store, userId, module, n);
+            slot.pageSizeLoaded = true;
+          }
+        }
         if (slot.edited || slot.gen !== started) return slot.order.slice();
         const raw = row && row.prefs && Array.isArray(row.prefs.order) ? row.prefs.order : null;
         if (!raw || !raw.length) return slot.order.slice();
@@ -94,7 +114,8 @@ export function beginColumnPrefs({ api, storage, userId, module, known, defaults
     })();
   }
   const ready = (slot.promise || Promise.resolve(slot.order)).then(() => slot.order.slice());
-  return { local: instant, ready };
+  const pageSizeReady = (slot.promise || Promise.resolve(slot.pageSize)).then(() => normalizePageSize(slot.pageSize));
+  return { local: instant, ready, pageSize: normalizePageSize(slot.pageSize), pageSizeReady };
 }
 
 /* The browser copy is written now. The login row is written once, after the pause, with the last order. */
@@ -104,7 +125,7 @@ export function scheduleColumnSave({ api, storage, userId, module, order, known,
   const key = prefKey(userId, module);
   let slot = prefSlots.get(key);
   if (!slot) {
-    slot = { gen: 0, order: list.slice(), timer: null, fetched: false, edited: false, promise: null };
+    slot = { gen: 0, order: list.slice(), pageSize: null, pageSizeLoaded: false, pageTimer: null, timer: null, fetched: false, edited: false, pageEdited: false, promise: null };
     prefSlots.set(key, slot);
   }
   slot.gen += 1;
@@ -116,10 +137,36 @@ export function scheduleColumnSave({ api, storage, userId, module, order, known,
     slot.timer = setTimeout(() => {
       slot.timer = null;
       const prefs = { order: slot.order.slice() };
+      if ((slot.pageEdited || slot.pageSizeLoaded) && PAGE_SIZE_OPTIONS.includes(slot.pageSize)) prefs.pageSize = slot.pageSize;
       Promise.resolve().then(() => api.saveUserUiPrefs(module, prefs)).catch(() => {});
     }, wait);
   }
   return list;
+}
+
+/* The browser copy is written now. The login row is written once, after the pause, and keeps the column order. */
+export function schedulePageSizeSave({ api, storage, userId, module, pageSize, delay = COLUMN_PREF_SAVE_MS } = {}) {
+  const store = columnStorage(storage);
+  const n = savePageSize(store, userId, module, pageSize);
+  const allowed = UI_PREF_MODULES.includes(String(module || ''));
+  const key = prefKey(userId, module);
+  let slot = prefSlots.get(key);
+  if (!slot) {
+    slot = { gen: 0, order: null, pageSize: n, pageSizeLoaded: false, pageTimer: null, timer: null, fetched: false, edited: false, pageEdited: false, promise: null };
+    prefSlots.set(key, slot);
+  }
+  slot.pageSize = n;
+  slot.pageEdited = true;
+  if (slot.pageTimer) clearTimeout(slot.pageTimer);
+  if (allowed && api && typeof api.saveUserUiPrefs === 'function') {
+    const wait = Number.isFinite(delay) ? delay : COLUMN_PREF_SAVE_MS;
+    slot.pageTimer = setTimeout(() => {
+      slot.pageTimer = null;
+      const prefs = { pageSize: slot.pageSize };
+      Promise.resolve().then(() => api.saveUserUiPrefs(module, prefs)).catch(() => {});
+    }, wait);
+  }
+  return n;
 }
 
 /* CRM deal name is the property address. The file number stays in its own field.
