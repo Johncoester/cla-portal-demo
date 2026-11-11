@@ -4,7 +4,7 @@
 import { localDate } from './constants.js?v=202611101015';
 import { canUseCrm, crmReadOnly } from './crm.js?v=202611070139';
 import {
-  MODULE_CODES, SEARCH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, moduleName, moduleFields, reportFields,
+  MODULE_CODES, COMPONENT_CODES, CHART_CODES, SEARCH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, moduleName, moduleFields, reportFields,
   parseQuery, searchMatch, chartData, measureOf, applyCriteria, runReport, reportCsv, dashboardVisible, dashboardEditable, reportVisible,
 } from './crm-analytics.js?v=202611070139';
 
@@ -12,7 +12,8 @@ const RECENT = new Map();
 const row = (o) => o || {};
 const shareOf = (raw) => { const s = raw && typeof raw === 'object' ? raw : {}; return { users: s.users || [], roles: s.roles || [], departments: s.departments || s.depts || [] }; };
 // Quick Chart sends { name, type, config: { module, measure, grouping, criteria, chartType, grouping2, target } }.
-// crm_dash_components stores those as columns. module is not null, name is at most 100, height is 1 or 2.
+// crm_dash_components has no second-grouping column (repo migrations and the table checks only describe grouping jsonb), so grouping2 stays inside that object.
+// target is its own numeric column. A chart always has a chart_type; every other type sends chart_type null. Name is 1-100 trimmed with no control characters. Height is 1 or 2. Width is 1 to 3. Criteria holds at most 10 items.
 const componentSpec = (v = {}) => {
   const cfg = v.config && typeof v.config === 'object' && !Array.isArray(v.config) ? v.config : null;
   const src = cfg || v;
@@ -22,25 +23,30 @@ const componentSpec = (v = {}) => {
   const grouping = src.grouping && typeof src.grouping === 'object' ? { ...src.grouping } : {};
   const grouping2 = (src.grouping2 && src.grouping2.field ? src.grouping2 : null) || (grouping.grouping2 && grouping.grouping2.field ? grouping.grouping2 : null);
   delete grouping.grouping2;
-  return { name: v.name, type: v.type || 'chart', module: src.module, chartType: src.chartType || 'column', measure, grouping, grouping2, criteria: Array.isArray(src.criteria) ? src.criteria : [], target, width: v.width || 1, height: v.height, hasConfig: !!cfg };
+  return { name: v.name, type: v.type || 'chart', module: src.module, chartType: src.chartType || null, measure, grouping, grouping2, criteria: Array.isArray(src.criteria) ? src.criteria : [], target, width: v.width, height: v.height, hasConfig: !!cfg };
 };
 const requireModule = (module) => { const m = String(module == null ? '' : module).trim(); if (!MODULE_CODES.includes(m)) throw new Error('Pick a module.'); return m; };
-const componentName = (name, fallback = '') => { const n = String(name == null ? '' : name).replace(/[\u0000-\u001f]/g, '').trim().slice(0, 100); if (n) return n; if (fallback) return fallback; throw new Error('Component Name is required.'); };
+const componentType = (type) => { const t = String(type || 'chart'); if (!COMPONENT_CODES.includes(t)) throw new Error('That component type is not available.'); return t; };
+const chartTypeFor = (type, chartType) => (type === 'chart' ? (CHART_CODES.includes(chartType) ? chartType : 'column') : null);
+const componentName = (name, fallback = '') => { const n = String(name == null ? '' : name).replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 100); if (n) return n; if (fallback) return fallback; throw new Error('Component Name is required.'); };
 const componentHeight = (h, missing = 1) => { if (h == null || h === '') return missing; if (h === 's' || h === 1 || h === '1') return 1; return 2; };
-const packMeasure = (spec) => { const m = { ...spec.measure }; if (spec.target != null && spec.target !== '') m.target = spec.target; return m; };
+const componentWidth = (w) => { const n = Number(w); return n === 2 || n === 3 ? n : 1; };
+const componentCriteria = (list) => (Array.isArray(list) ? list : []).filter((c) => c && typeof c === 'object').slice(0, 10);
+const componentTarget = (spec) => { if (spec.type !== 'target') return null; if (spec.target == null || spec.target === '') return null; const n = Number(spec.target); if (!isFinite(n) || n < 0) throw new Error('Enter the target (a number that is 0 or more).'); return n; };
+const packMeasure = (spec) => { const fn = ['count', 'sum', 'avg'].includes(spec.measure && spec.measure.fn) ? spec.measure.fn : 'count'; const m = { fn }; if (fn !== 'count' && spec.measure && spec.measure.field) m.field = spec.measure.field; return m; };
 const packGrouping = (spec) => { const g = { ...spec.grouping }; if (spec.grouping2 && spec.grouping2.field) g.grouping2 = spec.grouping2; return g; };
 const storedParts = (c) => {
   const measure = c.measure && typeof c.measure === 'object' ? { ...c.measure } : { fn: 'count' };
-  const target = c.target != null && c.target !== '' ? c.target : measure.target;
   delete measure.target;
+  const target = c.target == null || c.target === '' || !isFinite(Number(c.target)) ? null : Number(c.target);
   const grouping = c.grouping && typeof c.grouping === 'object' ? { ...c.grouping } : {};
-  const grouping2 = (c.grouping2 && c.grouping2.field ? c.grouping2 : null) || (c.grouping_2 && c.grouping_2.field ? c.grouping_2 : null) || (grouping.grouping2 && grouping.grouping2.field ? grouping.grouping2 : null);
+  const grouping2 = (grouping.grouping2 && grouping.grouping2.field ? grouping.grouping2 : null);
   delete grouping.grouping2;
   const criteria = Array.isArray(c.criteria) ? c.criteria : [];
-  const chartType = c.chart_type || c.chartType || 'column';
+  const chartType = c.chart_type || c.chartType || null;
   const config = { module: c.module, measure, grouping, criteria, chartType };
   if (grouping2) config.grouping2 = grouping2;
-  if (target != null && target !== '') config.target = target;
+  if (target != null) config.target = target;
   return { measure, grouping, grouping2, criteria, chartType, config };
 };
 
@@ -151,7 +157,11 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
       for (const c of comps) {
         if (c.retired_at) { retired.push({ id: c.id, name: c.name, retiredAt: c.retired_at }); continue; }
         let data = { groups: [], value: 0, measureLabel: 'Record Count' };
-        try { const parts = storedParts(c); const rows = await rowsOf(c.module); data = chartData(rows, { grouping: parts.grouping || {}, grouping2: parts.grouping2 || {}, measure: parts.measure }, moduleFields(c.module, cfg), cfg) || data; } catch (e) { data = { error: e.message }; }
+        try {
+          const parts = storedParts(c); const rows = await rowsOf(c.module); const fields = moduleFields(c.module, cfg);
+          data = chartData(rows, { grouping: parts.grouping || {}, grouping2: parts.grouping2 || {}, measure: parts.measure }, fields, cfg) || data;
+          if (c.type === 'kpi' || c.type === 'target') { const value = measureOf(rows, parts.measure, fields) || 0; data = { ...data, value, count: rows.length }; if (c.type === 'target') { const target = Number(parts.config.target) || 0; data.target = target; data.pct = target ? Math.round((value / target) * 1000) / 10 : 0; } }
+        } catch (e) { data = { error: e.message }; }
         live.push(compOut(c, data.error ? { error: data.error } : data));
       }
       return { ...view, list: live, retiredComponents: view.canEdit ? retired : [] };
@@ -179,32 +189,34 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
     async cloneCrmDashboard(id, { name } = {}) { const d = await this.getCrmDashboard(id); return this.createCrmDashboard({ name: name || `Copy of ${d.name}`, description: d.description, visibility: 'me' }); },
     async retireCrmDashboard(id, retired = true) { const u = await editor(); return dashOut(u, ok(await sb.from('crm_dashboards').update({ retired_at: retired ? new Date().toISOString() : null, retired_by: retired ? u.id : null }).eq('id', id).select('*').single())); },
     async addCrmComponent(dashboardId, v = {}) {
-      const u = await editor(); const spec = componentSpec(v); const module = requireModule(spec.module);
-      const c = ok(await sb.from('crm_dash_components').insert({ dashboard_id: dashboardId, name: componentName(spec.name, 'Component'), type: spec.type || 'chart', module, chart_type: spec.chartType || 'column', measure: packMeasure(spec), grouping: packGrouping(spec), criteria: spec.criteria || [], width: spec.width || 1, height: componentHeight(spec.height), created_by: u.id }).select('*').single());
+      const u = await editor(); const spec = componentSpec(v); const module = requireModule(spec.module); const type = componentType(spec.type);
+      const c = ok(await sb.from('crm_dash_components').insert({ dashboard_id: dashboardId, name: componentName(spec.name, 'Component'), type, module, chart_type: chartTypeFor(type, spec.chartType), measure: packMeasure(spec), grouping: packGrouping(spec), criteria: componentCriteria(spec.criteria), target: componentTarget({ ...spec, type }), width: componentWidth(spec.width), height: componentHeight(spec.height), created_by: u.id }).select('*').single());
       return compOut(c, {});
     },
     async updateCrmComponent(id, v = {}) {
-      await editor(); const spec = componentSpec(v); const o = { modified_at: new Date().toISOString() };
+      await editor(); const spec = componentSpec(v); const type = componentType(spec.type); const o = { modified_at: new Date().toISOString() };
       if (v.name != null) o.name = componentName(v.name);
       if (spec.hasConfig || Object.prototype.hasOwnProperty.call(v, 'module')) o.module = requireModule(spec.module);
-      if (spec.hasConfig || v.chartType) o.chart_type = spec.chartType || 'column';
-      if (spec.hasConfig || v.measure || v.target != null) o.measure = packMeasure(spec);
+      if (spec.hasConfig || v.type != null) { o.type = type; o.chart_type = chartTypeFor(type, spec.chartType); o.target = componentTarget({ ...spec, type }); }
+      else if (v.chartType != null) o.chart_type = chartTypeFor('chart', spec.chartType);
+      else if (v.target != null) o.target = componentTarget({ ...spec, type: 'target' });
+      if (spec.hasConfig || v.measure) o.measure = packMeasure(spec);
       if (spec.hasConfig || v.grouping || v.grouping2) o.grouping = packGrouping(spec);
-      if (spec.hasConfig || v.criteria) o.criteria = spec.criteria || [];
-      if (v.width) o.width = v.width; if (v.height != null && v.height !== '') o.height = componentHeight(v.height);
+      if (spec.hasConfig || v.criteria) o.criteria = componentCriteria(spec.criteria);
+      if (v.width) o.width = componentWidth(v.width); if (v.height != null && v.height !== '') o.height = componentHeight(v.height);
       return compOut(ok(await sb.from('crm_dash_components').update(o).eq('id', id).select('*').single()), {});
     },
     async cloneCrmComponent(id) { const c = ok(await sb.from('crm_dash_components').select('*').eq('id', id).maybeSingle()); if (!c) throw new Error('Component not found.'); return this.addCrmComponent(c.dashboard_id, { ...camel(c), name: `Copy of ${c.name}`, chartType: c.chart_type }); },
     async moveCrmComponent(id, dashboardId) { await editor(); return compOut(ok(await sb.from('crm_dash_components').update({ dashboard_id: dashboardId }).eq('id', id).select('*').single()), {}); },
     async retireCrmComponent(id, retired = true) { await editor(); ok(await sb.from('crm_dash_components').update({ retired_at: retired ? new Date().toISOString() : null }).eq('id', id)); return { ok: true }; },
-    async reorderCrmDashboard(id, items = []) { await editor(); await Promise.all(items.map((it, i) => pack(sb.from('crm_dash_components').update({ position: i, width: it.width || 1, height: componentHeight(it.height, 2) }).eq('id', it.id).eq('dashboard_id', id)))); return { ok: true }; },
+    async reorderCrmDashboard(id, items = []) { await editor(); await Promise.all(items.map((it, i) => pack(sb.from('crm_dash_components').update({ position: i, width: componentWidth(it.width), height: componentHeight(it.height, 2) }).eq('id', it.id).eq('dashboard_id', id)))); return { ok: true }; },
     async previewCrmComponent(v = {}) {
-      const u = await who(); const spec = componentSpec(v); const module = requireModule(spec.module); const cfg = await self.getCrmSettings(); const fields = moduleFields(module, cfg);
-      let rows = await rowsOf(module); rows = applyCriteria(rows, spec.criteria, fields, { logic: 'and', today: localDate() });
-      const measure = spec.measure || { fn: 'count' }; const data = chartData(rows, { grouping: spec.grouping || {}, grouping2: spec.grouping2 || {}, measure }, fields, cfg);
-      if (spec.type === 'kpi' || spec.type === 'target') { const value = measureOf(rows, measure, fields) || 0; data.value = value; data.count = rows.length; if (spec.type === 'target') { const target = Number(spec.target) || 0; data.target = target; data.pct = target ? Math.round((value / target) * 1000) / 10 : 0; } }
-      const config = { module, measure, grouping: spec.grouping, criteria: spec.criteria, chartType: spec.chartType || 'column' }; if (spec.grouping2) config.grouping2 = spec.grouping2; if (spec.target != null && spec.target !== '') config.target = spec.target;
-      return { name: componentName(spec.name, 'Preview'), type: spec.type, module, config, data, ownerId: u.id };
+      const u = await who(); const spec = componentSpec(v); const module = requireModule(spec.module); const type = componentType(spec.type); const target = componentTarget({ ...spec, type }); const cfg = await self.getCrmSettings(); const fields = moduleFields(module, cfg);
+      let rows = await rowsOf(module); rows = applyCriteria(rows, componentCriteria(spec.criteria), fields, { logic: 'and', today: localDate() });
+      const measure = packMeasure(spec); const chartType = chartTypeFor(type, spec.chartType); const data = chartData(rows, { grouping: spec.grouping || {}, grouping2: spec.grouping2 || {}, measure }, fields, cfg);
+      if (type === 'kpi' || type === 'target') { const value = measureOf(rows, measure, fields) || 0; data.value = value; data.count = rows.length; if (type === 'target') { data.target = target; data.pct = target ? Math.round((value / target) * 1000) / 10 : 0; } }
+      const config = { module, measure, grouping: spec.grouping, criteria: componentCriteria(spec.criteria), chartType }; if (spec.grouping2) config.grouping2 = spec.grouping2; if (target != null) config.target = target;
+      return { name: componentName(spec.name, 'Preview'), type, module, config, data, ownerId: u.id };
     },
     async crmDrillDown() { await who(); return { title: 'Records', rows: [] }; },
     async listCrmReportFolders() {

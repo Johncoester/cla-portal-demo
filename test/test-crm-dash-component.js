@@ -25,6 +25,27 @@ const tables = {
 const calls = [];
 let seq = 1;
 const lists = { contacts: 0, leads: 0 };
+const CHARTS = new Set(['column', 'bar', 'stacked', 'pie', 'doughnut', 'table', 'line', 'area']);
+const TYPES = new Set(['chart', 'kpi', 'target', 'funnel']);
+const MODULES = new Set(['contacts', 'leads', 'accounts', 'deals', 'tasks', 'meetings', 'calls', 'opportunities']);
+function componentError(row) {
+  if (row.type != null && !TYPES.has(row.type)) return 'type check';
+  if (row.type === 'chart' && !CHARTS.has(row.chart_type)) return 'a chart needs a chart type';
+  if (row.type && row.type !== 'chart' && row.chart_type != null) return 'a non-chart sends a null chart type';
+  if (row.chart_type != null && !CHARTS.has(row.chart_type)) return 'chart type check';
+  if (row.module != null && !MODULES.has(row.module)) return 'module check';
+  if (row.measure != null) {
+    if (typeof row.measure !== 'object' || !['count', 'sum', 'avg'].includes(row.measure.fn)) return 'measure check';
+    if (Object.prototype.hasOwnProperty.call(row.measure, 'target')) return 'target belongs in its column';
+  }
+  if (row.target != null && !(typeof row.target === 'number' && isFinite(row.target) && row.target >= 0)) return 'target check';
+  if (row.criteria != null && (!Array.isArray(row.criteria) || row.criteria.length > 10)) return 'criteria check';
+  if (row.width != null && ![1, 2, 3].includes(row.width)) return 'width check';
+  if (row.grouping != null && (typeof row.grouping !== 'object' || Array.isArray(row.grouping))) return 'grouping check';
+  if (row.name != null && (String(row.name).trim().length < 1 || String(row.name).length > 100 || /[\u0000-\u001f\u007f]/.test(String(row.name)))) return 'name check';
+  if (row.height != null && row.height !== 1 && row.height !== 2) return 'height check';
+  return '';
+}
 
 function from(table) {
   const q = { table, op: 'select', payload: null, filters: [], returning: false };
@@ -35,8 +56,8 @@ function from(table) {
       const row = { id: q.payload.id || `dc-${seq++}`, ...q.payload };
       if (table === 'crm_dash_components') {
         if (row.module == null || row.module === '') return Promise.resolve({ data: null, error: { message: 'null value in column "module" of relation "crm_dash_components" violates not-null constraint' } });
-        if (String(row.name || '').length < 1 || String(row.name).length > 100) return Promise.resolve({ data: null, error: { message: 'new row for relation "crm_dash_components" violates check constraint "crm_dash_components_name_check"' } });
-        if (row.height !== 1 && row.height !== 2) return Promise.resolve({ data: null, error: { message: 'new row for relation "crm_dash_components" violates check constraint "crm_dash_components_height_check"' } });
+        const why = componentError(row);
+        if (why) return Promise.resolve({ data: null, error: { message: why } });
       }
       bag().set(row.id, row);
       tables[table] = bag();
@@ -46,9 +67,9 @@ function from(table) {
       const rows = [...bag().values()].filter((row) => q.filters.every(([k, v]) => row[k] === v));
       if (!rows.length) return Promise.resolve({ data: null, error: { message: 'missing' } });
       if (q.payload && table === 'crm_dash_components') {
-        if (Object.prototype.hasOwnProperty.call(q.payload, 'name') && (String(q.payload.name).length < 1 || String(q.payload.name).length > 100)) return Promise.resolve({ data: null, error: { message: 'crm_dash_components_name_check' } });
-        if (Object.prototype.hasOwnProperty.call(q.payload, 'height') && q.payload.height !== 1 && q.payload.height !== 2) return Promise.resolve({ data: null, error: { message: 'crm_dash_components_height_check' } });
         if (Object.prototype.hasOwnProperty.call(q.payload, 'module') && (q.payload.module == null || q.payload.module === '')) return Promise.resolve({ data: null, error: { message: 'null value in column "module" of relation "crm_dash_components" violates not-null constraint' } });
+        const why = componentError(q.payload);
+        if (why) return Promise.resolve({ data: null, error: { message: why } });
       }
       rows.forEach((row) => Object.assign(row, q.payload));
       return Promise.resolve({ data: q.returning ? copy(rows[0]) : null, error: null });
@@ -109,7 +130,7 @@ calls.length = 0;
 const byStatus = await surface.addCrmComponent(DASH, chart('contacts', { field: 'relationshipStatus', bucket: 'day' }));
 const statusInsert = inserts()[0];
 ok(!!statusInsert && statusInsert.payload.module === 'contacts' && statusInsert.payload.grouping.field === 'relationshipStatus' && statusInsert.payload.grouping.bucket === 'day', 'the clients insert stores module contacts and the Relationship Status grouping');
-ok(statusInsert.payload.chart_type === 'column' && statusInsert.payload.measure.fn === 'count' && Array.isArray(statusInsert.payload.criteria) && statusInsert.payload.criteria.length === 0 && statusInsert.payload.name === 'Client by Status' && statusInsert.payload.height === 1, 'the clients insert keeps column, record count, no filters, and a height inside 1-2');
+ok(statusInsert.payload.chart_type === 'column' && statusInsert.payload.target === null && statusInsert.payload.measure.fn === 'count' && statusInsert.payload.measure.target == null && Array.isArray(statusInsert.payload.criteria) && statusInsert.payload.criteria.length === 0 && statusInsert.payload.name === 'Client by Status' && statusInsert.payload.height === 1, 'the clients insert keeps column, a null target column, record count, no filters, and a height inside 1-2');
 ok(byStatus.config.module === 'contacts' && byStatus.config.grouping.field === 'relationshipStatus' && byStatus.config.chartType === 'column' && byStatus.config.measure.fn === 'count', 'adding the clients chart returns the full config');
 
 calls.length = 0;
@@ -136,7 +157,7 @@ ok(!!dayCard && dayCard.config.module === 'leads' && dayCard.config.grouping.fie
 calls.length = 0;
 const edited = await surface.updateCrmComponent(statusCard.id, { name: statusCard.name, type: statusCard.type, config: statusCard.config });
 const edit = updates()[0];
-ok(!!edit && edit.payload.module === 'contacts' && edit.payload.grouping.field === 'relationshipStatus' && edit.payload.grouping.bucket === 'day' && edit.payload.chart_type === 'column' && edit.payload.measure.fn === 'count', 'saving Edit writes the same module and grouping back');
+ok(!!edit && edit.payload.module === 'contacts' && edit.payload.grouping.field === 'relationshipStatus' && edit.payload.grouping.bucket === 'day' && edit.payload.chart_type === 'column' && edit.payload.target === null && edit.payload.measure.fn === 'count' && edit.payload.measure.target == null, 'saving Edit writes the same module and grouping back');
 ok(edited.config.module === 'contacts' && edited.config.grouping.field === 'relationshipStatus' && edited.config.chartType === 'column', 'Edit returns the config it saved');
 const reloaded = await surface.getCrmDashboard(DASH);
 const statusAgain = reloaded.list.find((c) => c.id === statusCard.id);
@@ -169,10 +190,22 @@ ok(previewMissing === 'Pick a module.' && lists.leads === leadsAfter && lists.co
 calls.length = 0;
 const stacked = await surface.addCrmComponent(DASH, { name: 'Stacked', type: 'chart', config: { module: 'deals', measure: { fn: 'sum', field: 'amount' }, grouping: { field: 'closingDate', bucket: 'month' }, grouping2: { field: 'stage' }, criteria: [], chartType: 'stacked' } });
 const target = await surface.addCrmComponent(DASH, { name: 'Target', type: 'target', config: { module: 'deals', measure: { fn: 'count' }, criteria: [], target: 50 } });
-ok(inserts()[0].payload.module === 'deals' && inserts()[0].payload.grouping.grouping2.field === 'stage' && stacked.config.grouping.field === 'closingDate' && stacked.config.grouping2.field === 'stage' && !stacked.config.grouping.grouping2, 'a stacked chart keeps its second grouping on the saved config');
-ok(inserts()[1].payload.measure.target === 50 && target.config.target === 50 && target.config.measure.fn === 'count' && target.config.measure.target == null, 'a target meter keeps its target on the saved config');
+ok(inserts()[0].payload.module === 'deals' && inserts()[0].payload.chart_type === 'stacked' && inserts()[0].payload.target === null && inserts()[0].payload.measure.fn === 'sum' && inserts()[0].payload.measure.field === 'amount' && inserts()[0].payload.measure.target == null && inserts()[0].payload.grouping.grouping2.field === 'stage' && !Object.prototype.hasOwnProperty.call(inserts()[0].payload, 'grouping2') && stacked.config.grouping.field === 'closingDate' && stacked.config.grouping2.field === 'stage' && !stacked.config.grouping.grouping2, 'a stacked chart keeps its second grouping inside the grouping JSON');
+ok(inserts()[1].payload.target === 50 && inserts()[1].payload.chart_type === null && inserts()[1].payload.type === 'target' && inserts()[1].payload.measure.target == null && inserts()[1].payload.measure.fn === 'count' && target.config.target === 50 && target.config.measure.fn === 'count' && target.config.measure.target == null && target.config.chartType == null, 'a target meter stores target in its column and sends a null chart type');
 const stackedAgain = await surface.updateCrmComponent(stacked.id, { name: stacked.name, type: stacked.type, config: stacked.config });
-ok(stackedAgain.config.grouping2.field === 'stage' && stackedAgain.config.grouping.field === 'closingDate' && stackedAgain.config.module === 'deals', 'Edit round-trips the stacked grouping');
+ok(stackedAgain.config.grouping2.field === 'stage' && stackedAgain.config.grouping.field === 'closingDate' && stackedAgain.config.module === 'deals' && stackedAgain.config.chartType === 'stacked', 'Edit round-trips the stacked grouping');
+calls.length = 0;
+const targetAgain = await surface.updateCrmComponent(target.id, { name: target.name, type: target.type, config: target.config });
+ok(updates()[0].payload.target === 50 && updates()[0].payload.chart_type === null && updates()[0].payload.measure.target == null && targetAgain.config.target === 50, 'Edit writes the target column again and leaves it out of measure');
+calls.length = 0;
+const kpi = await surface.addCrmComponent(DASH, { name: 'Open leads', type: 'kpi', config: { module: 'leads', measure: { fn: 'count' }, criteria: [] } });
+const funnel = await surface.addCrmComponent(DASH, { name: 'Stages', type: 'funnel', config: { module: 'deals', measure: { fn: 'count' }, grouping: { field: 'stage' }, criteria: [] } });
+ok(kpi.config.chartType == null && inserts()[0].payload.chart_type === null && inserts()[0].payload.target === null && funnel.config.chartType == null && inserts()[1].payload.chart_type === null, 'a KPI and a funnel send a null chart type');
+const odd = await surface.addCrmComponent(DASH, { name: 'Odd chart', type: 'chart', config: { module: 'contacts', measure: { fn: 'count' }, grouping: { field: 'relationshipStatus' }, criteria: [], chartType: 'nope' } });
+ok(inserts()[2].payload.chart_type === 'column' && odd.config.chartType === 'column', 'a chart with an unknown type is stored as column');
+let badTarget = '';
+try { await surface.addCrmComponent(DASH, { name: 'Bad target', type: 'target', config: { module: 'deals', measure: { fn: 'count' }, criteria: [], target: -1 } }); } catch (e) { badTarget = e.message; }
+ok(badTarget === 'Enter the target (a number that is 0 or more).' && inserts().length === 3, 'a negative target is refused before insert');
 
 calls.length = 0;
 const cloned = await surface.cloneCrmComponent(byStatus.id);
