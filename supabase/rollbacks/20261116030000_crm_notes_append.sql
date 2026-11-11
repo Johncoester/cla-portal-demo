@@ -1,8 +1,11 @@
--- Restores mass update so Notes is replaced by the submitted text.
+-- Restores mass update so Notes is replaced by the submitted text, and drops the id-list argument.
 begin;
 set local lock_timeout = '3s';
 
-create or replace function public.crm_mass_update(p_module text, p_filter jsonb, p_field text, p_value text)
+drop function if exists public.crm_mass_update(text, jsonb, text, text, uuid[]);
+drop function if exists public.crm_mass_update(text, jsonb, text, text);
+
+create function public.crm_mass_update(p_module text, p_filter jsonb, p_field text, p_value text)
 returns jsonb
 language plpgsql
 volatile

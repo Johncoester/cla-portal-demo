@@ -1,11 +1,17 @@
 -- Mass update appends Notes. The notes already on the row stay, then a separator,
 -- the New York date and the signed-in person's name, then the new text.
--- One update of the matched ids. The author is read once, not once per row.
+-- A filter updates every match. An id list updates only those rows, which is how
+-- a selected page is saved: the list does not carry the existing notes, so the
+-- text is read in this update and never built by the caller.
+-- One update. The author is read once, not once per row.
 -- Other fields still replace. Not applied by this commit.
 begin;
 set local lock_timeout = '3s';
 
-create or replace function public.crm_mass_update(p_module text, p_filter jsonb, p_field text, p_value text)
+drop function if exists public.crm_mass_update(text, jsonb, text, text);
+drop function if exists public.crm_mass_update(text, jsonb, text, text, uuid[]);
+
+create function public.crm_mass_update(p_module text, p_filter jsonb, p_field text, p_value text, p_ids uuid[] default null)
 returns jsonb
 language plpgsql
 volatile
@@ -33,6 +39,7 @@ begin
   if m = 'account' and field not in ('notes', 'kind') then raise exception 'That field cannot be changed for every selected record.' using errcode = '22023'; end if;
   if m = 'opportunity' and field not in ('notes', 'stage') then raise exception 'That field cannot be changed for every selected record.' using errcode = '22023'; end if;
   if m = 'deal' and field <> 'notes' then raise exception 'That field cannot be changed for every selected record.' using errcode = '22023'; end if;
+  if p_ids is not null and cardinality(p_ids) > 100 then raise exception 'Select at most one page of records.' using errcode = '22023'; end if;
   if field = 'notes' then
     select case
       when btrim(coalesce(p.first_name, '') || ' ' || coalesce(p.last_name, '')) <> ''
@@ -44,23 +51,23 @@ begin
   end if;
   if m = 'lead' and field = 'notes' then
     update public.crm_leads set notes = case when btrim(coalesce(notes, '')) = '' then stamp || E'\n' || val else btrim(notes) || E'\n\n---\n' || stamp || E'\n' || val end, modified_at = now()
-    where id in (select public.crm_match_ids(m, p_filter));
-  elsif m = 'lead' and field = 'relationshipStatus' then update public.crm_leads set status = val, modified_at = now() where id in (select public.crm_match_ids(m, p_filter));
-  elsif m = 'lead' and field = 'leadSource' then update public.crm_leads set source = val, modified_at = now() where id in (select public.crm_match_ids(m, p_filter));
+    where case when p_ids is null then id in (select public.crm_match_ids(m, coalesce(p_filter, '{}'::jsonb))) else id = any(p_ids) end;
+  elsif m = 'lead' and field = 'relationshipStatus' then update public.crm_leads set status = val, modified_at = now() where case when p_ids is null then id in (select public.crm_match_ids(m, coalesce(p_filter, '{}'::jsonb))) else id = any(p_ids) end;
+  elsif m = 'lead' and field = 'leadSource' then update public.crm_leads set source = val, modified_at = now() where case when p_ids is null then id in (select public.crm_match_ids(m, coalesce(p_filter, '{}'::jsonb))) else id = any(p_ids) end;
   elsif m = 'contact' then
     update public.contacts set crm_notes = case when btrim(coalesce(crm_notes, '')) = '' then stamp || E'\n' || val else btrim(crm_notes) || E'\n\n---\n' || stamp || E'\n' || val end, modified_at = now(), modified_by = auth.uid()
-    where id in (select public.crm_match_ids(m, p_filter));
+    where case when p_ids is null then id in (select public.crm_match_ids(m, coalesce(p_filter, '{}'::jsonb))) else id = any(p_ids) end;
   elsif m = 'account' and field = 'notes' then
     update public.crm_accounts set notes = case when btrim(coalesce(notes, '')) = '' then stamp || E'\n' || val else btrim(notes) || E'\n\n---\n' || stamp || E'\n' || val end, modified_at = now()
-    where id in (select public.crm_match_ids(m, p_filter));
-  elsif m = 'account' and field = 'kind' then update public.crm_accounts set kind = val, modified_at = now() where id in (select public.crm_match_ids(m, p_filter));
+    where case when p_ids is null then id in (select public.crm_match_ids(m, coalesce(p_filter, '{}'::jsonb))) else id = any(p_ids) end;
+  elsif m = 'account' and field = 'kind' then update public.crm_accounts set kind = val, modified_at = now() where case when p_ids is null then id in (select public.crm_match_ids(m, coalesce(p_filter, '{}'::jsonb))) else id = any(p_ids) end;
   elsif m = 'opportunity' and field = 'notes' then
     update public.crm_opportunities set notes = case when btrim(coalesce(notes, '')) = '' then stamp || E'\n' || val else btrim(notes) || E'\n\n---\n' || stamp || E'\n' || val end, modified_at = now()
-    where id in (select public.crm_match_ids(m, p_filter));
-  elsif m = 'opportunity' and field = 'stage' then update public.crm_opportunities set stage = val, modified_at = now() where id in (select public.crm_match_ids(m, p_filter));
+    where case when p_ids is null then id in (select public.crm_match_ids(m, coalesce(p_filter, '{}'::jsonb))) else id = any(p_ids) end;
+  elsif m = 'opportunity' and field = 'stage' then update public.crm_opportunities set stage = val, modified_at = now() where case when p_ids is null then id in (select public.crm_match_ids(m, coalesce(p_filter, '{}'::jsonb))) else id = any(p_ids) end;
   elsif m = 'deal' then
     update public.deals set notes = case when btrim(coalesce(notes, '')) = '' then stamp || E'\n' || val else btrim(notes) || E'\n\n---\n' || stamp || E'\n' || val end
-    where id in (select public.crm_match_ids(m, p_filter));
+    where case when p_ids is null then id in (select public.crm_match_ids(m, coalesce(p_filter, '{}'::jsonb))) else id = any(p_ids) end;
   else raise exception 'Unknown list.' using errcode = '22023';
   end if;
   get diagnostics n = row_count;
@@ -68,13 +75,19 @@ begin
 end
 $$;
 
-revoke all on function public.crm_mass_update(text, jsonb, text, text) from public, anon;
-grant execute on function public.crm_mass_update(text, jsonb, text, text) to authenticated;
+revoke all on function public.crm_mass_update(text, jsonb, text, text, uuid[]) from public, anon;
+grant execute on function public.crm_mass_update(text, jsonb, text, text, uuid[]) to authenticated;
 
 do $readback$
 declare src text;
 begin
-  select pg_get_functiondef('public.crm_mass_update(text, jsonb, text, text)'::regprocedure) into src;
+  if to_regprocedure('public.crm_mass_update(text, jsonb, text, text)') is not null then
+    raise exception 'readback: the old mass update is still callable';
+  end if;
+  select pg_get_functiondef('public.crm_mass_update(text, jsonb, text, text, uuid[])'::regprocedure) into src;
+  if position('p_ids' in src) = 0 or position('id = any(p_ids)' in src) = 0 then
+    raise exception 'readback: an id list does not select the rows';
+  end if;
   if position('private.' in src) > 0 then
     raise exception 'readback: mass update calls private';
   end if;

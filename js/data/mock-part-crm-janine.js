@@ -211,17 +211,23 @@ export function crmJaninePart(x, ctx) {
     },
     async crmMassUpdate(input = {}) {
       const u = crmEditor(); const module = canonModule(input.module);
-      const rows = matchRows(db(), module, input.filter || {}, u);
+      const ids = Array.isArray(input.ids) ? input.ids.map((id) => String(id)) : null;
+      if (ids && ids.length > 100) throw new Error('Select at most one page of records.');
+      let rows = matchRows(db(), module, ids ? {} : (input.filter || {}), u);
+      if (ids) { const want = new Set(ids); rows = rows.filter((r) => want.has(String(r.id))); }
       const fn = this[{ lead: 'updateCrmLead', contact: 'updateCrmContact', account: 'updateCrmAccount', opportunity: 'updateCrmOpportunity', deal: 'updateDeal' }[module]];
       const notes = input.field === 'notes';
       const stamp = notes ? noteStamp({ author: nameOf(u.id) }) : '';
       const patch = notes ? null : applyFieldPatch(module, input.field, input.value);
       let updated = 0; let failed = 0;
       for (const r of rows) {
-        try { if (typeof fn !== 'function') throw new Error('This list cannot be updated in bulk.'); await fn.call(this, r.id, notes ? { notes: appendCrmNote(r.notes, input.value, stamp) } : patch); updated += 1; }
-        catch (e) { failed += 1; }
+        try {
+          if (typeof fn !== 'function') throw new Error('This list cannot be updated in bulk.');
+          await fn.call(this, r.id, notes ? { notes: appendCrmNote(storedNote(db(), module, r.id), input.value, stamp) } : patch);
+          updated += 1;
+        } catch (e) { failed += 1; }
       }
-      return { count: rows.length, updated, failed };
+      return { count: ids ? ids.length : rows.length, updated, failed };
     },
     async crmMassEmail(input = {}) {
       const u = crmEditor(); const module = canonModule(input.module);
@@ -238,6 +244,13 @@ export function crmJaninePart(x, ctx) {
       return { count: drafted, drafted, skipped: plan.skipped, records: plan.records };
     },
   };
+  function storedNote(d, module, id) {
+    if (module === 'lead') return ((d.crmLeads || []).find((l) => l.id === id) || {}).notes || '';
+    if (module === 'contact') return ((d.contacts || []).find((c) => c.id === id) || {}).crmNotes || '';
+    if (module === 'account') return ((d.crmAccounts || []).find((a) => a.id === id) || {}).notes || '';
+    if (module === 'opportunity') return ((d.crmOpportunities || []).find((o) => o.id === id) || {}).notes || '';
+    return ((d.deals || []).find((q) => q.id === id) || {}).notes || '';
+  }
   function canonModule(module) {
     const m = String(module || '');
     if (m === 'leads') return 'lead'; if (m === 'contacts' || m === 'clients') return 'contact';

@@ -1,6 +1,6 @@
 /* Mass actions on the current page of a CRM list. Drafts are not sent. Each row uses the existing save. */
 import { html, $, $$, guard, toast, modal, closeModal } from '../ui.js?v=202611070139';
-import { BULK_FIELDS, BULK_TASK_ENTITIES, planRelatedEmails, fieldPatch, appendCrmNote, noteStamp, ownerAllowed, runEach } from '../data/crm-bulk.js?v=202611160300';
+import { BULK_FIELDS, BULK_TASK_ENTITIES, planRelatedEmails, fieldPatch, updateSelectedNotes, ownerAllowed, runEach } from '../data/crm-bulk.js?v=202611160300';
 
 const UPDATERS = { lead: 'updateCrmLead', contact: 'updateCrmContact', account: 'updateCrmAccount', opportunity: 'updateCrmOpportunity', deal: 'updateDeal' };
 const TASK = { lead: 'lead', contact: 'contact', account: 'account', opportunity: 'opportunity', deal: 'deal' };
@@ -115,10 +115,16 @@ export function wireBulk(root, { module, api, me, owners, getPageRows, getMatch,
     const notesHint = $('[data-notes-append]', m);
     const showNotes = () => { if (notesHint) notesHint.hidden = fieldSel.value !== 'notes'; };
     fieldSel.addEventListener('change', showNotes); showNotes();
-    $('#bulk-field', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const fn = api[UPDATERS[module]]; if (typeof fn !== 'function') throw new Error('This list cannot be updated in bulk.');
+    $('#bulk-field', m).addEventListener('submit', guard(async (e) => { e.preventDefault();
       const field = e.target.field.value; const value = e.target.value.value;
-      const stamp = noteStamp({ author: `${me.firstName || ''} ${me.lastName || ''}`.trim() });
-      const result = await runEach(rows, (r) => fn.call(api, r.id, field === 'notes' ? { notes: appendCrmNote(r.notes, value, stamp) } : fieldPatch(module, field, value)));
+      if (field === 'notes') {
+        const result = await updateSelectedNotes(api, { module, rows, value });
+        closeModal(); modal('Field update', html`<div data-bulk-result><p>${result.updated || 0} saved, ${result.failed || 0} not saved.</p><p><button type="button" class="m-btn" data-close>Close</button></p></div>`);
+        clear(); if (refresh) refresh();
+        return;
+      }
+      const fn = api[UPDATERS[module]]; if (typeof fn !== 'function') throw new Error('This list cannot be updated in bulk.');
+      const result = await runEach(rows, (r) => fn.call(api, r.id, fieldPatch(module, field, value)));
       closeModal(); report('Field update', result); clear(); if (refresh) refresh(); })); }));
   const ownerBtn = $('[data-bulk-owner]', bar);
   if (ownerBtn) ownerBtn.addEventListener('click', () => { const rows = pageOnly(); const list = owners || [];

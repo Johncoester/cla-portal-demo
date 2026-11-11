@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EMAIL_DRAFT_BATCH, filterFromValues, inNyRange, matchBannerState, nyDay, rowMatches } from '../js/data/crm-match.js';
+import { updateSelectedNotes } from '../js/data/crm-bulk.js';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -67,13 +68,24 @@ let refused = '';
 try { await ro.crmMassUpdate({ module: 'lead', filter: { q: ada.email }, field: 'notes', value: 'no' }); } catch (e) { refused = e.message; }
 ok(/read-only|Processor/i.test(refused), 'a read-only CRM user cannot mass-update');
 
+const deals = await api.listCrmDeals({ status: 'All' });
+ok(deals.length >= 2 && !('notes' in deals[0]) && !('notes' in deals[1]), 'deal list rows carry no notes field');
+await api.updateDeal(deals[0].id, { notes: 'Existing deed note' });
+await api.updateDeal(deals[1].id, { notes: 'Leave this note' });
+const selected = await updateSelectedNotes(api, { module: 'deal', rows: [{ id: deals[0].id, name: deals[0].name }], value: 'Called the lender' });
+const saved = await api.getCrmDeal(deals[0].id);
+const untouched = await api.getCrmDeal(deals[1].id);
+ok(selected.updated === 1 && saved.notes.startsWith('Existing deed note') && saved.notes.includes('\n\n---\n') && saved.notes.includes('Called the lender') && saved.notes !== 'Called the lender' && untouched.notes === 'Leave this note', 'selected deal notes keep the stored text when the list row has no notes field');
+
 const appendSql = read('supabase/migrations/20261116030000_crm_notes_append.sql');
 const appendRb = read('supabase/rollbacks/20261116030000_crm_notes_append.sql');
 const appendBody = appendSql.split('do $readback$')[0];
 ok(appendBody.includes("field = 'notes'") && appendBody.includes('\\n\\n---\\n') && !appendBody.includes('notes = val') && !appendBody.includes('crm_notes = val') && !/for\s+\w+\s+in\s+select/i.test(appendBody), 'the server appends notes in one update of the matched ids; the author is read once, not once per record');
-ok(appendRb.includes('notes = val') && appendRb.includes('crm_notes = val'), 'the rollback replaces notes again');
+ok((appendBody.match(/id = any\(p_ids\)/g) || []).length === 9 && appendBody.includes('p_ids uuid[]') && appendBody.includes('security invoker') && appendBody.includes('search_path = pg_catalog, public'), 'an id list selects leads, clients, companies, opportunities, and deals');
+ok(appendRb.includes('notes = val') && appendRb.includes('crm_notes = val') && appendRb.includes('drop function if exists public.crm_mass_update(text, jsonb, text, text, uuid[])'), 'the rollback drops the id list and replaces notes again');
 const page = read('js/pages/crm-bulk.js');
-ok(page.includes('data-notes-append') && page.includes('Notes are appended'), 'the confirmation says notes are appended');
+ok(page.includes('data-notes-append') && page.includes('Notes are appended') && page.includes('updateSelectedNotes') && !page.includes('appendCrmNote') && !page.includes('r.notes'), 'the confirmation says notes are appended, and the page does not build them');
+ok(read('js/data/supabase-crm.js').includes('p_ids') && !read('js/data/supabase-crm.js').includes('appendCrmNote'), 'the hosted client sends the id list and does not build notes');
 console.log('crm-notes-append-sha256', createHash('sha256').update(readFileSync(path.join(root, 'supabase/migrations/20261116030000_crm_notes_append.sql'))).digest('hex'));
 console.log('crm-notes-append-rollback-sha256', createHash('sha256').update(readFileSync(path.join(root, 'supabase/rollbacks/20261116030000_crm_notes_append.sql'))).digest('hex'));
 

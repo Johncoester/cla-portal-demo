@@ -107,6 +107,17 @@ export function appendCrmNote(existing, addition, stamp) {
   return prev ? `${prev}\n\n---\n${block}` : block;
 }
 
+/* Selected Notes never use the list row. The list for Deals has no notes field, so the
+ * addition and the ids go to crm_mass_update, which appends the text already stored. */
+export async function updateSelectedNotes(api, { module, rows, value } = {}) {
+  fieldPatch(module, 'notes', value);
+  if (!api || typeof api.crmMassUpdate !== 'function') throw new Error('This list cannot be updated in bulk.');
+  const ids = (rows || []).map((r) => r && r.id).filter(Boolean);
+  if (!ids.length) throw new Error('Select at least one record on this page.');
+  if (ids.length > 100) throw new Error('Select at most one page of records.');
+  return api.crmMassUpdate({ module, ids, field: 'notes', value });
+}
+
 export function fieldPatch(module, field, value) {
   const allowed = (BULK_FIELDS[module] || []).map(([k]) => k);
   if (!allowed.includes(field)) throw new Error('That field cannot be changed for every selected record.');
