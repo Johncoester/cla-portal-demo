@@ -4,13 +4,13 @@ import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pi
 import { CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611101015';
 import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611130900';
 import { modOn, modBeta, BETA_LABEL } from '../data/modules.js?v=202611101015';   // module switches: Deals hidden when not Live (beta badge for Admins)
-import { columnChooserHtml, columnState, wireColumnChooser } from './crm-columns.js?v=202611141100';
-import { beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611141100';
+import { columnChooserHtml, columnState, wireColumnChooser } from './crm-columns.js?v=202611160300';
+import { beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611160300';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
-import { pageOf, selectionState, selectPage, loadPageSize, normalizePageSize, PAGE_SIZE_OPTIONS } from '../data/crm-bulk.js?v=202611141100';
-import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611141300';
+import { pageOf, selectionState, selectPage, loadPageSize, normalizePageSize, PAGE_SIZE_OPTIONS } from '../data/crm-bulk.js?v=202611160300';
+import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611160400';
 import { DATE_OPS, DATE_UNITS, matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
-import { bulkBar, wireBulk } from './crm-bulk.js?v=202611141200';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611160400';
 
 // A click on the row (not on a link, button, or checkbox) opens the record. The name link still navigates on its own.
 export function wireRowOpen(tb, hrefFor) {
@@ -49,6 +49,22 @@ export const dis = (me) => (me.canEdit ? '' : raw('disabled'));
 const N_OPS = new Set(['age_in', 'due_in', 'prev_n', 'next_n']);
 const ONE_OPS = new Set(['on', 'before', 'after']);
 const TWO_OPS = new Set(['between', 'not_between']);
+// Same up / down marks as the Deals list. A click sorts that column; a second click reverses it.
+const arrows = html`<span class="sort-arrows" aria-hidden="true"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span>`;
+const listPrefRows = new Map();
+const prefRowKey = (userId, module) => `${userId || ''}:${module}`;
+// A login row may already store a sort (the old menu value "field:dir", or sortField / sortDir). Anything else stays on the default.
+export function savedListSort(row, allowed) {
+  const p = row && row.prefs && typeof row.prefs === 'object' ? row.prefs : row;
+  if (!p || typeof p !== 'object') return null;
+  let field = ''; let dir = '';
+  if (typeof p.sort === 'string') { const i = p.sort.indexOf(':'); field = (i < 0 ? p.sort : p.sort.slice(0, i)).trim(); dir = i < 0 ? 'asc' : p.sort.slice(i + 1).trim(); }
+  else if (p.sort && typeof p.sort === 'object') { field = String(p.sort.field || p.sort.key || '').trim(); dir = String(p.sort.dir || ''); }
+  else if (p.sortField) { field = String(p.sortField).trim(); dir = String(p.sortDir || ''); }
+  else return null;
+  if (!field || field.length > 80 || (allowed && !allowed.has(field))) return null;
+  return { field, dir: dir === 'desc' ? 'desc' : 'asc' };
+}
 export function dateOpControl(field, label, cur = {}) {
   const op = cur.op || '';
   return html`<fieldset class="date-op" data-date-field="${field}"><legend>${label}</legend>
@@ -68,19 +84,20 @@ export function wireDateOps(root) {
   $$('[data-date-op]', root).forEach((el) => sync(el.getAttribute('data-date-op')));
   root.addEventListener('change', (e) => { const t = e.target; if (t && t.matches && t.matches('[data-date-op]')) sync(t.getAttribute('data-date-op')); });
 }
-export function listView({ key, rows, cols, catalog = null, userId = '', filters = [], sorts = [], fields, dflt = {}, sortDefault = 'name:asc', csv = '', exporter = null, bar = '', saved = null, dates = false, bulk = null }) {
+export function listView({ key, rows, cols, catalog = null, userId = '', filters = [], sorts = [], fields, dflt = {}, sortDefault = 'name:asc', csv = '', exporter = null, bar = '', saved = null, dates = false, bulk = null, headerSort = false }) {
   const all = catalog && catalog.length ? catalog : cols;
   const known = all.map(([k]) => k);
   const defaults = cols.map(([k]) => k).filter((k) => known.includes(k));
   let visible = columnState(null, userId, key, known, defaults);
   const active = () => visible.map((k) => all.find((c) => c[0] === k)).filter(Boolean);
   const fieldMeta = all.map(([k, l]) => ({ key: k, label: l }));
-  const headRow = () => html`<tr>${bulk ? html`<th><input type="checkbox" data-bulk-page aria-label="Select all on this page"></th>` : ''}${active().map(([, l]) => html`<th>${l}</th>`)}</tr>`;
+  const headCell = ([k, l]) => (headerSort ? html`<th data-col="${k}" data-sort="${k}"><button type="button" class="th-sort" title="Sort by ${l}">${l} ${arrows}</button></th>` : html`<th>${l}</th>`);
+  const headRow = () => html`<tr>${bulk ? html`<th><input type="checkbox" data-bulk-page aria-label="Select all on this page"></th>` : ''}${active().map(headCell)}</tr>`;
   const body = html`${bar}<form class="filter-bar" id="crm-f-${key}" onsubmit="return false">
       <label>Search<input name="q" type="search" placeholder="Name, email, company, county, tag" data-crm-search></label>
       ${filters.map(([name, label, opts, blank]) => html`<label>${label}${sel(name, opts, dflt[name] || '', blank)}</label>`)}
       ${dates ? html`${dateOpControl('createdAt', 'Created Time')}${dateOpControl('modifiedAt', 'Modified Time')}${dateOpControl('lastActivityAt', 'Last Activity Time')}` : ''}
-      <label>Sort<select name="sort">${sorts.flatMap(([k, l]) => [html`<option value="${k}:asc" ${sortDefault === k + ':asc' ? raw('selected') : ''}>${l} &uarr;</option>`, html`<option value="${k}:desc" ${sortDefault === k + ':desc' ? raw('selected') : ''}>${l} &darr;</option>`])}</select></label>
+      ${headerSort ? '' : html`<label>Sort<select name="sort">${sorts.flatMap(([k, l]) => [html`<option value="${k}:asc" ${sortDefault === k + ':asc' ? raw('selected') : ''}>${l} &uarr;</option>`, html`<option value="${k}:desc" ${sortDefault === k + ':desc' ? raw('selected') : ''}>${l} &darr;</option>`])}</select></label>`}
       <button type="button" class="ghost" data-crm-reset>Reset</button>
     </form>${saved ? savedFiltersHtml(saved.listKey) : ''}
     ${bulk ? bulkBar(bulk.module) : ''}${bulk ? html`<p class="notice" data-match-banner hidden></p>` : ''}
@@ -90,14 +107,22 @@ export function listView({ key, rows, cols, catalog = null, userId = '', filters
     const f = $(`#crm-f-${key}`, root); const tb = $(`#crm-t-${key} tbody`, root); const thead = $(`#crm-t-${key} thead`, root); let shown = rows;
     let storage = null; try { storage = typeof localStorage !== 'undefined' ? localStorage : null; } catch (e) { storage = null; }
     let selected = new Set(); let page = 1; let sig = ''; let pageSize = loadPageSize(storage, userId, key); let allMatching = false; let matchFilter = {};
+    const openedSort = String(sortDefault || 'name:asc').split(':');
+    let sort = openedSort[0] || 'name'; let dir = openedSort[1] === 'desc' ? 'desc' : 'asc';
+    const sortAllowed = new Set([...(sorts || []).map(([k]) => k), ...known]);
     const paintBar = () => { const barEl = $('[data-bulk-bar]', root); if (!barEl) return; const n = allMatching ? shown.length : selected.size; barEl.hidden = n === 0; const label = $('[data-bulk-count]', barEl); if (label) label.textContent = allMatching ? `${n} matching records selected` : `${n} selected`; };
-    const apply = () => { const v = formData(f); const nextSig = JSON.stringify(v); if (nextSig !== sig) { if (sig) { selected = new Set(); allMatching = false; page = 1; } sig = nextSig; } matchFilter = filterFromValues(v);
-      const [k, dir] = (v.sort || sortDefault).split(':'); let list = crmSort(crmFilter(rows, v, fields), k, dir);
+    const paintHead = () => { if (thead) thead.innerHTML = toText(headRow()); if (!headerSort) return;
+      $$('th[data-sort] button', root).forEach((b) => b.addEventListener('click', () => { const k = b.closest('th').dataset.sort; dir = k === sort ? (dir === 'asc' ? 'desc' : 'asc') : 'asc'; sort = k; apply(); })); };
+    const apply = () => { const v = formData(f); const sortKey = headerSort ? sort : String(v.sort || sortDefault).split(':')[0]; const sortDir = headerSort ? dir : (String(v.sort || sortDefault).split(':')[1] === 'desc' ? 'desc' : 'asc');
+      const nextSig = JSON.stringify(headerSort ? { ...v, sort: sortKey, dir: sortDir } : v); if (nextSig !== sig) { if (sig) { selected = new Set(); allMatching = false; page = 1; } sig = nextSig; } matchFilter = filterFromValues(v);
+      let list = crmSort(crmFilter(rows, v, fields), sortKey, sortDir);
       list = list.filter((r) => (matchFilter.dates || []).every((d) => matchesDateWindow(r[d.field], d))); shown = list;
       const view = pageOf(list, page, pageSize); page = view.page;
       const use = active(); const span = use.length + (bulk ? 1 : 0);
-      if (thead) thead.innerHTML = toText(headRow());
+      paintHead();
       tb.innerHTML = toText(view.rows.length ? view.rows.map((r) => html`<tr data-row="${r.id}">${bulk ? html`<td><input type="checkbox" data-bulk-row value="${r.id}" aria-label="Select ${r.name || 'record'}" ${selected.has(r.id) ? raw('checked') : ''}></td>` : ''}${use.map(([c, , fn]) => html`<td data-col="${c}">${fn ? fn(r) : r[c] ?? ''}</td>`)}</tr>`) : html`<tr><td colspan="${span}" class="muted">Nothing matches.</td></tr>`);
+      if (headerSort) $$('th[data-sort]', root).forEach((th) => { const on = th.dataset.sort === sort; if (on) th.setAttribute('aria-sort', dir === 'asc' ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort');
+        $('.up', th).classList.toggle('on', on && dir === 'asc'); $('.dn', th).classList.toggle('on', on && dir === 'desc'); });
       $('[data-count]', root).textContent = view.pages > 1 ? `${view.rows.length} on this page, ${list.length} of ${rows.length} match` : `${list.length} of ${rows.length} shown`;
       const box = $('[data-bulk-page]', root); if (box) { const st = selectionState(selected, view.rows); box.checked = st.allOnPage; box.indeterminate = st.someOnPage; }
       const pg = $('[data-bulk-pager]', root); if (pg) pg.innerHTML = toText(pageNav(view));
@@ -109,13 +134,15 @@ export function listView({ key, rows, cols, catalog = null, userId = '', filters
     f.addEventListener('input', apply); f.addEventListener('change', apply); wireDateOps(f);
     const prefsApi = saved && saved.api;
     const wiredCols = wireColumnChooser(root, { module: key, userId, fields: fieldMeta, visible, defaults, known, api: prefsApi, onChange: (next) => { visible = next; apply(); } });
+    const rowKey = prefRowKey(userId, key);
+    const prefsForList = prefsApi && typeof prefsApi.getUserUiPrefs === 'function' ? { getUserUiPrefs: async (module) => { const row = await prefsApi.getUserUiPrefs(module); listPrefRows.set(prefRowKey(userId, module), row || null); return row; } } : prefsApi;
     if (prefsApi && typeof prefsApi.getUserUiPrefs === 'function') {
-      const opened = beginColumnPrefs({ api: prefsApi, userId, module: key, known, defaults, local: visible });
+      const opened = beginColumnPrefs({ api: prefsForList, userId, module: key, known, defaults, local: visible });
       opened.ready.then((order) => {
-        if (!order || order.join('\n') === visible.join('\n')) return;
-        visible = order;
-        if (wiredCols && wiredCols.setOrder) wiredCols.setOrder(order);
-        apply();
+        let changed = false;
+        if (order && order.join('\n') !== visible.join('\n')) { visible = order; if (wiredCols && wiredCols.setOrder) wiredCols.setOrder(order); changed = true; }
+        if (headerSort) { const s = savedListSort(listPrefRows.get(rowKey), sortAllowed); if (s && (s.field !== sort || s.dir !== dir)) { sort = s.field; dir = s.dir; changed = true; } }
+        if (changed) apply();
       }).catch(() => {});
       if (opened.pageSizeReady) opened.pageSizeReady.then((n) => { if (!n || n === pageSize) return; pageSize = n; apply(); }).catch(() => {});
     }

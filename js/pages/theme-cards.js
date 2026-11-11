@@ -7,6 +7,7 @@ import { STAGES, isRefi, localDate } from '../data/constants.js?v=202611101015';
 import { phaseOf, PHASES } from '../data/agent-portal.js?v=202611101015';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { modAccess } from '../data/modules.js?v=202611101015';
+import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 
 // ---------- icons: 24x24, thin 1.5 stroke, currentColor ----------
 const P = {
@@ -115,7 +116,7 @@ export function orderSummary({ d, user, ov, inv = [], tasks = [], canWire, staff
   const actx = { activeNames: new Set((ov ? ov.recentActivity || [] : []).map((a) => a.actorName).filter(Boolean)), donePids: new Set(tasks.filter((t) => t.status === 'done' && t.participantId).map((t) => t.participantId)),
     invitedEmails: new Set(inv.map((i) => String(i.email || '').toLowerCase())) };
   const ps = ROLES.flatMap(([r, label]) => d.participants.filter((p) => p.role === r && p.contact).map((p) => ({ p, label })));
-  const cells = ps.map(({ p, label }) => { const [k, txt] = accessOf(p, actx); return html`<div class="tc-party" data-tc-party="${p.role}"><div class="tc-l">${label}</div><div class="tc-v">${p.contact.firstName} ${p.contact.lastName}</div><div class="tc-access" data-access="${k}"><span class="tc-dot ${k}"></span>${txt}</div></div>`; });
+  const cells = ps.map(({ p, label }) => { const [k, txt] = accessOf(p, actx); return html`<div class="tc-party" data-tc-party="${p.role}"><div class="tc-l">${label}</div><div class="tc-v">${partyDisplayName(p)}</div><div class="tc-access" data-access="${k}"><span class="tc-dot ${k}"></span>${txt}</div></div>`; });
   const c6 = card('parties', html`${head(`${ps.length} ${ps.length === 1 ? 'Party' : 'Parties'}`, html`Buyer <span class="tc-slash">/</span> Seller <span class="tc-slash">/</span> Agents <span class="tc-slash">/</span> Lender`)}
     <div class="tc-body"><div class="tc-party-grid">${cells.length ? cells : html`<p class="tc-l">Nobody added yet.</p>`}</div>
     <div class="tc-legend"><span><span class="tc-dot active"></span>Active</span><span><span class="tc-dot invited"></span>Invited</span><span><span class="tc-dot none"></span>Not invited</span></div></div>`);
