@@ -43,10 +43,13 @@ const hr = inviteEmailContent({ kind: 'hr', inviteKind: 'staff', email: 'clatest
 ok(hr.subject === AUTH_INVITE_SUBJECT && hr.link.endsWith('/#/hr-invite/' + TOKEN) && !hr.html.includes('Welcome, Nina'), 'HR invite: Auth subject, no property line');
 const nasty = inviteEmailContent({ ...fileInfo, partyRole: 'buyer', firstName: '<b>x</b>' }, { token: '<script>' });
 ok(!nasty.html.includes('<script>') && !nasty.html.includes('<b>x</b>') && nasty.html.includes('&lt;script&gt;') && nasty.html.includes('&lt;b&gt;x&lt;/b&gt;'), 'the invite link and the welcome name are escaped');
-const batch = unnotifiedTasks({ tasks: [{ id: 't1', title: 'Personal information' }, { id: 't2', title: 'Photo ID' }, { id: 't0', title: 'Old task' }], taskNoticeIds: ['t0'] });
-ok(batch.map((t) => t.title).join('|') === 'Personal information|Photo ID', 'a task notice is one batch and skips tasks already emailed');
+const batch = unnotifiedTasks({ tasks: [{ id: 't1', title: 'Personal information', status: 'todo' }, { id: 't2', title: 'Photo ID', status: 'blocked' }, { id: 't0', title: 'Old task', status: 'todo' }, { id: 'td', title: 'Already done', status: 'done' }, { id: 'tx', title: 'Cancelled task', status: 'cancelled' }], taskNoticeIds: ['t0'] });
+ok(batch.map((t) => t.title).join('|') === 'Personal information|Photo ID', 'a task notice is one batch of open tasks and skips tasks already emailed');
+ok(unnotifiedTasks({ tasks: [{ id: 'td', title: 'Already done', status: 'done' }] }).length === 0, 'no open tasks means nothing to email');
 const notice = taskNoticeContent({ ...fileInfo, partyRole: 'seller' }, batch, { token: TOKEN });
-ok(notice.subject === `You have new tasks for ${ADDR}` && notice.html.includes('Personal information, Photo ID') && !notice.html.includes('Old task') && notice.html.includes('See my tasks') && notice.html.includes(link), 'the follow-up uses the approved shell and lists the batch once');
+ok(notice.subject === `You have new tasks for ${ADDR}` && notice.html.includes('Personal information, Photo ID') && !notice.html.includes('Old task') && !notice.html.includes('Already done') && notice.html.includes('See my tasks') && notice.html.includes(link), 'the follow-up uses the approved shell and lists the open batch once');
+const dollar = taskNoticeContent({ ...fileInfo }, [{ id: 't9', title: '$&' }], { token: TOKEN });
+ok(dollar.html.includes('$&amp;') && !dollar.html.includes('in one place'), 'a $& task title is inserted literally');
 
 // gmail-send invite mode: the inviter's own Gmail, the approved template, no fallback mailbox
 let r = await run({ invite: { kind: 'agent', token: TOKEN } });
@@ -86,6 +89,13 @@ ok(r.res.status === 200 && r.j.taskNotice.sent === true && r.j.taskNotice.count 
 ok(noted && noted.args.p_error === null && noted.args.p_ids.join() === '11111111-1111-4111-8111-111111111111,22222222-2222-4222-8222-222222222222' && noted.args.p_profile === ME && noted.args.p_message_id === 'gInv2', 'the batch is recorded once, sent by the inviter');
 r = await run({ invite: { kind: 'agent', token: TOKEN } }, { info: { ...taskInfo, tasks: taskInfo.tasks, taskNoticeIds: taskInfo.tasks.map((t) => t.id) } });
 ok(r.res.status === 200 && r.j.taskNotice.sent === false && r.calls.fetch.filter((x) => String(x.url).includes('/messages/send')).length === 1, 'no new tasks means no second email');
+r = await run({ invite: { kind: 'agent', token: TOKEN } }, { info: { ...fileInfo, tasks: [{ id: '44444444-4444-4444-8444-444444444444', title: 'Finished', status: 'done' }] } });
+ok(r.res.status === 200 && r.j.sent === true && r.j.taskNotice.sent === false && r.calls.fetch.filter((x) => String(x.url).includes('/messages/send')).length === 1 && !r.calls.svc.some((x) => x.fn === 'invite_svc_mark_task_notice'), 'only finished tasks: the invite is sent and no task email goes out');
+r = await run({ invite: { kind: 'agent', token: TOKEN } }, { info: { ...fileInfo, tasks: [{ id: '55555555-5555-4555-8555-555555555555', title: '$&', status: 'todo' }] } });
+const dollarSend = r.calls.fetch.filter((x) => String(x.url).includes('/messages/send'));
+const dollarRaw = dollarSend[1] ? b64d(JSON.parse(dollarSend[1].body).raw) : '';
+const dollarHtml = (() => { const i = dollarRaw.indexOf('text/html'); if (i < 0) return ''; const body = dollarRaw.slice(i).split('\r\n\r\n')[1] || ''; return b64d(body.split('\r\n--')[0].replace(/\r\n/g, '')); })();
+ok(r.j.taskNotice.sent === true && dollarHtml.includes('$&amp;') && !dollarHtml.includes('in one place'), 'the sent task email keeps a $& title literal');
 
 // page helpers
 ok(tokenOfLink('#/agent-invite/' + TOKEN) === TOKEN && tokenOfLink('#/hr-invite/' + TOKEN) === TOKEN && tokenOfLink('#/x/1') === '', 'token is read from the link');
@@ -104,6 +114,10 @@ ok(/can_invite_agents\(\)/.test(sql) && /hr_admin\(\)/.test(sql) && /to service_
 const taskSql = readFileSync('supabase/migrations/20261112140000_invite_address_task_notice.sql', 'utf8');
 const taskRb = readFileSync('supabase/rollbacks/20261112140000_invite_address_task_notice.sql', 'utf8');
 ok(/partyRole/.test(taskSql) && /jsonb_agg/.test(taskSql) && /gmail_sync_token/.test(taskSql) && /invite_svc_mark_task_notice/.test(taskSql) && /to service_role/.test(taskSql), 'task notice SQL is TEST-only, one batch, service role');
+const openSql = readFileSync('supabase/migrations/20261112150000_invite_task_notice_open_only.sql', 'utf8');
+const openRb = readFileSync('supabase/rollbacks/20261112150000_invite_task_notice_open_only.sql', 'utf8');
+ok(/t\.status in \('todo', 'in_progress', 'blocked'\)/.test(openSql) && !/t\.status <> 'cancelled'/.test(openSql) && /gmail_sync_token/.test(openSql), 'the follow-up query returns open tasks only and stays on Live Test');
+ok(/t\.status <> 'cancelled'/.test(openRb) && /gmail_sync_token/.test(openRb), 'rollback restores the previous task list');
 ok(/drop function if exists public.invite_svc_mark_task_notice/.test(taskRb) && /drop column if exists task_notice_ids/.test(taskRb), 'rollback removes the task notice and restores invite_send_info');
 
 console.log(fail ? `FAIL ${fail}` : 'all invite auto-email checks passed');
