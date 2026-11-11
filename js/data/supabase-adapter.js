@@ -1,7 +1,7 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611101015';
+import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611140100';
 import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611101015';
 import { officeDate } from './office-date.js?v=202611102100';
 import { clientActivityFrom } from './client-activity.js?v=202611102100';
@@ -31,7 +31,7 @@ import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015
 import { gmailSupabase } from './supabase-gmail.js?v=202611120400';
 import { nov5Supabase } from './supabase-nov5.js?v=202611131900';
 import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611121900';
-import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611101015';
+import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611140100';
 import { staffSupabase } from './supabase-staff.js?v=202611110300';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611092320';
