@@ -2,7 +2,7 @@
  *   gmail-oauth-start (start | disconnect), gmail-send (also dryRun), gmail-sync (Check for replies). Reads: gmail_my_context(), deal_emails (RLS).
  * File email templates (migration 20261109220000): Admin > Email Templates + "Use template" on a file Email tab. Not CRM templates. */
 import { SEED_SHARED as FILE_EMAIL_SEED, cleanTemplateInput, participantsFromContacts } from './file-email-templates.js?v=202611140400';
-import { browserStorage, countUnreadEmails, gmailUnreadByDeal, laterIso, localCursorMap, mergeMailUnread, portalUnreadByDeal, readLocalCursor, writeLocalCursor } from './file-email-unread.js?v=202611100930';
+import { browserStorage, countUnreadEmails, countsFromOpenOrderMail, gmailUnreadByDeal, laterIso, localCursorMap, mergeMailUnread, portalUnreadByDeal, readLocalCursor, relationMissing, writeLocalCursor } from './file-email-unread.js?v=202611140900';
 
 async function paged(make) {
   const size = 1000;
@@ -197,6 +197,14 @@ export function gmailSupabase({ sb, ok, camel }) {
     async orderMailUnread() {
       const id = await thisUser();
       if (!id) return {};
+      const local = localCursorMap(browserStorage(), id);
+      if (typeof sb.rpc === 'function') {
+        try {
+          const res = await sb.rpc('open_order_mail', { p_local: local });
+          if (!res.error && Array.isArray(res.data)) return countsFromOpenOrderMail(res.data);
+          if (res.error && !relationMissing(res.error)) return {};
+        } catch (e) { if (!relationMissing(e)) return {}; }
+      }
       const [portal, gmail] = await Promise.all([
         portalUnreadMap(sb, camel, id).catch(() => ({})),
         gmailUnreadMap(sb, camel, id).catch(() => ({})),
