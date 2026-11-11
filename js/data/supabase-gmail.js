@@ -1,8 +1,8 @@
 /* [SUPABASE] Gmail phase 1 (John, Nov 9; migration 20261109200000). The edge functions do all Google work; the page never holds a token.
  *   gmail-oauth-start (start | disconnect), gmail-send (also dryRun), gmail-sync (Check for replies). Reads: gmail_my_context(), deal_emails (RLS).
  * File email templates (migration 20261109220000): Admin > Email Templates + "Use template" on a file Email tab. Not CRM templates. */
-import { SEED_SHARED as FILE_EMAIL_SEED, cleanTemplateInput, participantsFromContacts } from './file-email-templates.js?v=202611102000';
-import { browserStorage, countUnreadEmails, countsFromOpenOrderMail, gmailUnreadByDeal, laterIso, localCursorMap, mergeMailUnread, portalUnreadByDeal, readLocalCursor, relationMissing, writeLocalCursor } from './file-email-unread.js?v=202611131800';
+import { SEED_SHARED as FILE_EMAIL_SEED, cleanTemplateInput, participantsFromContacts } from './file-email-templates.js?v=202611140400';
+import { browserStorage, countUnreadEmails, countsFromOpenOrderMail, gmailUnreadByDeal, laterIso, localCursorMap, mergeMailUnread, portalUnreadByDeal, readLocalCursor, relationMissing, writeLocalCursor } from './file-email-unread.js?v=202611140900';
 
 async function paged(make) {
   const size = 1000;
@@ -150,14 +150,14 @@ export function gmailSupabase({ sb, ok, camel }) {
     async createFileEmailTemplate(input = {}) {
       const v = cleanTemplateInput(input); const id = await uid();
       const row = { name: v.name, subject: v.subject, body_html: v.bodyHtml, scope: 'shared', category: v.category || '', active: v.active,
-        owner_profile_id: null, attach_doc_types: v.attachDocTypes || [], default_recipient_roles: v.defaultRecipientRoles || [],
+        owner_profile_id: null, attach_doc_types: v.attachDocTypes || [], default_recipient_roles: v.defaultRecipientRoles || [], default_cc_roles: v.defaultCcRoles || [],
         created_by: id, updated_by: id, updated_at: new Date().toISOString() };
       return camel(ok(await sb.from('email_templates').insert(row).select('*').single()));
     },
     async updateFileEmailTemplate(id, input = {}) {
       const v = cleanTemplateInput(input); const me = await uid();
       const patch = { name: v.name, subject: v.subject, body_html: v.bodyHtml, category: v.category || '', active: v.active, scope: 'shared',
-        owner_profile_id: null, attach_doc_types: v.attachDocTypes || [], default_recipient_roles: v.defaultRecipientRoles || [],
+        owner_profile_id: null, attach_doc_types: v.attachDocTypes || [], default_recipient_roles: v.defaultRecipientRoles || [], default_cc_roles: v.defaultCcRoles || [],
         updated_by: me, updated_at: new Date().toISOString() };
       return camel(ok(await sb.from('email_templates').update(patch).eq('id', id).select('*').single()));
     },
@@ -167,7 +167,7 @@ export function gmailSupabase({ sb, ok, camel }) {
       const me = await uid();
       const row = { name: String(name || `Copy of ${src.name}`).slice(0, 120), subject: src.subject || '', body_html: src.bodyHtml || '',
         scope: 'shared', owner_profile_id: null, category: src.category || '', active: true,
-        attach_doc_types: src.attachDocTypes || src.attach_doc_types || [], default_recipient_roles: src.defaultRecipientRoles || src.default_recipient_roles || [],
+        attach_doc_types: src.attachDocTypes || src.attach_doc_types || [], default_recipient_roles: src.defaultRecipientRoles || src.default_recipient_roles || [], default_cc_roles: src.defaultCcRoles || src.default_cc_roles || [],
         created_by: me, updated_by: me, updated_at: new Date().toISOString() };
       return camel(ok(await sb.from('email_templates').insert(row).select('*').single()));
     },
@@ -250,7 +250,7 @@ export function gmailSupabase({ sb, ok, camel }) {
 export function gmailMock() {
   const off = async () => { throw new Error('Gmail works on CLA Portal Live Test only.'); };
   const store = FILE_EMAIL_SEED.map((t, i) => ({ id: `fet-seed-${i + 1}`, name: t.name, subject: t.subject, bodyHtml: t.bodyHtml, scope: 'shared',
-    ownerProfileId: null, category: t.category || '', active: true, attachDocTypes: t.attachDocTypes || [], defaultRecipientRoles: t.defaultRecipientRoles || [],
+    ownerProfileId: null, category: t.category || '', active: true, attachDocTypes: t.attachDocTypes || [], defaultRecipientRoles: t.defaultRecipientRoles || [], defaultCcRoles: t.defaultCcRoles || [],
     seedKey: t.key, createdAt: '2026-11-09T00:00:00Z', updatedAt: '2026-11-09T00:00:00Z' }));
   return {
     async getGmailStatus() { return { available: false, allowed: false, connected: false }; },

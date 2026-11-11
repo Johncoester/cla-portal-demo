@@ -50,6 +50,11 @@ export function tcPortal(x, api) {
       log(id, u.id, 'deal.emd_alta_updated', 'deal', id, 'EMD / ALTA tracker updated'); save(); return clone(emdAlta(q)); },
     async getTcFileSummary(id) { const u = needUser(); const q = dealOr404(u, id); const tasks = (await api.listTasks(id)).filter((t) => OPEN.includes(t.status));
       return clone({ deal: await api.getDeal(id), milestones: milestones(q), emdAlta: emdAlta(q), outstanding: tasks.length, tasks: tasks.slice(0, 12) }); },
+    async getTcFileSummaries(ids) { const u = needUser(); const want = new Set(ids || []); const rows = [];
+      for (const q of load().deals) { if (!want.has(q.id)) continue; try { dealOr404(u, q.id); } catch (e) { continue; }
+        const tasks = (await api.listTasks(q.id)).filter((t) => OPEN.includes(t.status));
+        rows.push(clone({ dealId: q.id, milestones: milestones(q), emdAlta: emdAlta(q), outstanding: tasks.length, tasks: tasks.slice(0, 12) })); }
+      return rows; },
     async createAllPartiesThread(id, { subject, body }) { const u = canEdit(id); onDeal(u, id); const all = await api.listMessageRecipients(id);
       const staff = all.filter((r) => r.side === 'staff').map((r) => r.id); const t = await api.createThread(id, { subject, participantIds: staff, body });
       const th = load().threads.find((z) => z.id === t.id); th.staffCoordinated = true; th.participantIds = [...new Set([u.id, ...all.map((r) => r.id)])];

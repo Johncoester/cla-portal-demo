@@ -15,17 +15,38 @@ export function readOrderDraft(storage, key, now = Date.now()) {
   let draft = null;
   try { draft = JSON.parse(raw); } catch (e) { return null; }
   if (!draft || typeof draft.fields !== 'object' || !draft.savedAt) return null;
+  if (draft.tombstone || draft.placed) return null;
   const at = Date.parse(draft.savedAt);
   if (!Number.isFinite(at) || now - at > ORDER_DRAFT_MS || now < at) return null;
   return draft;
 }
 
 export function writeOrderDraft(storage, key, draft) {
-  storage.setItem(key, JSON.stringify(draft));
+  if (!draft || !draft.fresh) {
+    let cur = null;
+    try { cur = JSON.parse(storage.getItem(key) || 'null'); } catch (e) { cur = null; }
+    // Once an order is placed, a late click or unload must not put the old answers back.
+    if (cur && (cur.tombstone || cur.placed)) return false;
+  }
+  const copy = { ...(draft || {}) };
+  delete copy.fresh;
+  storage.setItem(key, JSON.stringify(copy));
+  return true;
 }
 
 export function clearOrderDraft(storage, key) {
   try { storage.removeItem(key); } catch (e) { /* a browser that blocks storage has nothing to clear */ }
+}
+
+// Replaces the draft. readOrderDraft ignores it, and writeOrderDraft will not overwrite it.
+export function tombstoneOrderDraft(storage, key, placed = {}) {
+  if (!storage || !key) return;
+  try {
+    storage.setItem(key, JSON.stringify({
+      tombstone: true, placed: true, dealId: placed.dealId || '', fileNumber: placed.fileNumber || '',
+      savedAt: new Date().toISOString(), fields: {}, checks: {},
+    }));
+  } catch (e) { /* private mode: nothing stored, so nothing to restore */ }
 }
 
 export function collectOrderFields(form) {

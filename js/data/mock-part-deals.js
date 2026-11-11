@@ -1,6 +1,6 @@
 /* mock adapter, part 1: auth, profile, dashboard, deals. See mock-adapter.js. */
-import { autoCounty } from './county-auto.js?v=202611101015';
-import { checkSource } from './mock-part-nov3b.js?v=202611120100';
+import { autoCounty } from './county-auto.js?v=202611131900';
+import { checkSource } from './mock-part-nov3b.js?v=202611130900';
 import { isRefi, REFI_BLOCKED_FIELDS, STAFF_ACCOUNT_ROLES } from './constants.js?v=202611101015';
 import { closerChoices, resolveCloser } from './closer.js?v=202611101015';
 import { PROCESSOR_PICK_ROLES, referralWriteError } from './place-order.js?v=202611092320';
@@ -9,7 +9,7 @@ import { claRepresentationCode } from './cla-representation.js?v=202611090950';
 import { buildFileNumber, retagFileNumber, sentOutside } from './file-number.js?v=202611092340';
 import { officeDate } from './office-date.js?v=202611102100';
 import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions } from './lender-file.js?v=202611101200';
-import { cleanParcel } from './address-fill.js?v=202611102000';
+import { cleanParcel } from './address-fill.js?v=202611131900';
 import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611102000';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
@@ -92,6 +92,31 @@ export function dealsAndAuth(x) {
       const u = needUser();
       return dealsFor(u).filter((q) => !status || status === 'All' || q.status === status).map((q) => dealView(u, q))
         .sort((a, b) => (b.openDate || '').localeCompare(a.openDate || '') || b.fileNumber.localeCompare(a.fileNumber));
+    },
+    async loadDashboard({ openOffset = 0, openLimit = 40, taskOffset = 0, taskLimit = 200, fileStatus = 'Open', taskStatus = 'open', includeTasks = true, includeOther = false, otherOffset = 0 } = {}) {
+      const u = needUser(); const d = load(); const today = localDate();
+      const sort = (list) => list.slice().sort((a, b) => (b.openDate || '').localeCompare(a.openDate || '') || b.fileNumber.localeCompare(a.fileNumber));
+      const visible = dealsFor(u);
+      const openAll = sort(visible.filter((q) => q.status === 'Open'));
+      const otherAll = sort(visible.filter((q) => q.status !== 'Open'));
+      const openRows = openAll.slice(openOffset, openOffset + openLimit).map((q) => dealView(u, q));
+      const otherRows = includeOther ? otherAll.slice(otherOffset, otherOffset + openLimit).map((q) => dealView(u, q)) : [];
+      const fileOk = (q) => fileStatus === 'All' || q.status === fileStatus;
+      const statusOk = (t) => taskStatus === 'open' ? ['todo', 'in_progress', 'blocked'].includes(t.status) : taskStatus === 'all' || t.status === taskStatus;
+      const taskRows = [];
+      if (includeTasks) {
+        for (const q of visible.filter(fileOk)) {
+          const su = x.scopeTo(u, q.id);
+          for (const t of d.tasks.filter((t) => t.dealId === q.id && x.taskVisible(su, t) && statusOk(t))) {
+            const o = x.taskOut(su, t);
+            taskRows.push({ ...o, dealId: q.id, deal: { id: q.id, fileNumber: q.fileNumber, street: q.street, city: q.city, state: q.state, zip: q.zip, address: `${q.street}, ${q.city}, ${q.state} ${q.zip}`, closingDate: q.closingDate || null, status: q.status }, overdue: !!(t.dueDate && t.dueDate < today && ['todo', 'in_progress', 'blocked'].includes(t.status)) });
+          }
+        }
+      }
+      const page = taskRows.slice(taskOffset, taskOffset + taskLimit);
+      const count = (id) => page.filter((t) => t.dealId === id && ['todo', 'in_progress', 'blocked'].includes(t.status)).length;
+      openRows.forEach((row) => { row.openTasks = count(row.id); });
+      return { openRows, openTotal: openAll.length, otherRows, otherTotal: otherAll.length, closedTotal: visible.filter((q) => q.status === 'Closed').length, tasks: page, taskTotal: taskRows.length, limit: openLimit };
     },
     async getDeal(id) { const u0 = needUser(); const q = dealOr404(u0, id); const u = x.scopeTo(u0, id); return { ...dealView(u, q), participants: x.participantsOf(id, u) }; },
     async createDeal(input) {
