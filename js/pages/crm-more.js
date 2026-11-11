@@ -3,14 +3,14 @@ import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, mo
 import { localDate } from '../data/constants.js?v=202611101015';
 import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort } from '../data/crm.js?v=202611130900';
 import { matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
-import { pageOf, loadPageSize, selectPage, selectionState } from '../data/crm-bulk.js?v=202611141100';
-import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611141300';
-import { schedulePageSizeSave } from '../data/crm-columns.js?v=202611141100';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611141300';
-import { bulkBar, wireBulk } from './crm-bulk.js?v=202611141200';
+import { pageOf, loadPageSize, selectPage, selectionState } from '../data/crm-bulk.js?v=202611160300';
+import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611160300';
+import { schedulePageSizeSave } from '../data/crm-columns.js?v=202611160300';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611160300';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611160300';
 import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611130900';
 import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611130900';
-import { wireCompose } from './crm-templates.js?v=202611141300';
+import { wireCompose } from './crm-templates.js?v=202611160300';
 
 const crumbs = (label) => [['CRM', '#/crm'], [label]];
 const q = () => new URLSearchParams(location.hash.split('?')[1] || '');

@@ -8,7 +8,7 @@ import { localDate, runsOrders as runsOrdersCI } from './constants.js?v=20261110
 import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611130900';
 import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611130900';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611130900';
-import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611141100';
+import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
 import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611131900';
 import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611130900';
 
@@ -263,7 +263,11 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     },
     async crmListPage({ module, filter, page, pageSize } = {}) { return await rpc('crm_list_page', { p_module: module, p_filter: filter || {}, p_page: page || 1, p_size: pageSize || 100 }); },
     async crmMatchPlan({ module, filter, action } = {}) { return await rpc('crm_match_plan', { p_module: module, p_filter: filter || {}, p_action: action || 'update' }); },
-    async crmMassUpdate({ module, filter, field, value } = {}) { return await rpc('crm_mass_update', { p_module: module, p_filter: filter || {}, p_field: field, p_value: value }); },
+    async crmMassUpdate({ module, filter, ids, field, value } = {}) {
+      const args = { p_module: module, p_filter: filter || {}, p_field: field, p_value: value };
+      if (Array.isArray(ids)) args.p_ids = ids;
+      return await rpc('crm_mass_update', args);
+    },
     async crmMassEmail({ module, filter, subject, html } = {}) { return await rpc('crm_mass_email', { p_module: module, p_filter: filter || {}, p_subject: subject, p_html: html }); },
     async saveUserUiPrefs(module, prefs) {
       on(); const u = await me(); if (!canUseCrm(u)) throw new Error('The CRM is for CLA staff only.');

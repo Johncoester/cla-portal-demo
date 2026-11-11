@@ -8,8 +8,9 @@
  *   - janineLazyUpgrade: Zillow URL -> Zillow Profile, leads linked to their company. No storage-key bump: lazy, idempotent, lossless. */
 import { parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, buildIcs, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611101600';
 import { importedStatusDecision } from './crm-import-status.js?v=202611131900';
-import { cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611141100';
-import { rowMatches, applyFieldPatch, emailPlan, EMAIL_DRAFT_BATCH } from './crm-match.js?v=202611141300';
+import { cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
+import { rowMatches, applyFieldPatch, emailPlan, EMAIL_DRAFT_BATCH } from './crm-match.js?v=202611160300';
+import { appendCrmNote, noteStamp } from './crm-bulk.js?v=202611160300';
 import { ensureSettings } from './crm-config.js?v=202611130900';
 import { companyKey, CRM_OWNER_ROLES } from './crm.js?v=202611130900';
 import { US_STATE_NAMES } from './constants.js?v=202611101015';
@@ -210,15 +211,23 @@ export function crmJaninePart(x, ctx) {
     },
     async crmMassUpdate(input = {}) {
       const u = crmEditor(); const module = canonModule(input.module);
-      const patch = applyFieldPatch(module, input.field, input.value);
-      const rows = matchRows(db(), module, input.filter || {}, u);
+      const ids = Array.isArray(input.ids) ? input.ids.map((id) => String(id)) : null;
+      if (ids && ids.length > 100) throw new Error('Select at most one page of records.');
+      let rows = matchRows(db(), module, ids ? {} : (input.filter || {}), u);
+      if (ids) { const want = new Set(ids); rows = rows.filter((r) => want.has(String(r.id))); }
       const fn = this[{ lead: 'updateCrmLead', contact: 'updateCrmContact', account: 'updateCrmAccount', opportunity: 'updateCrmOpportunity', deal: 'updateDeal' }[module]];
+      const notes = input.field === 'notes';
+      const stamp = notes ? noteStamp({ author: nameOf(u.id) }) : '';
+      const patch = notes ? null : applyFieldPatch(module, input.field, input.value);
       let updated = 0; let failed = 0;
       for (const r of rows) {
-        try { if (typeof fn !== 'function') throw new Error('This list cannot be updated in bulk.'); await fn.call(this, r.id, patch); updated += 1; }
-        catch (e) { failed += 1; }
+        try {
+          if (typeof fn !== 'function') throw new Error('This list cannot be updated in bulk.');
+          await fn.call(this, r.id, notes ? { notes: appendCrmNote(storedNote(db(), module, r.id), input.value, stamp) } : patch);
+          updated += 1;
+        } catch (e) { failed += 1; }
       }
-      return { count: rows.length, updated, failed };
+      return { count: ids ? ids.length : rows.length, updated, failed };
     },
     async crmMassEmail(input = {}) {
       const u = crmEditor(); const module = canonModule(input.module);
@@ -235,6 +244,13 @@ export function crmJaninePart(x, ctx) {
       return { count: drafted, drafted, skipped: plan.skipped, records: plan.records };
     },
   };
+  function storedNote(d, module, id) {
+    if (module === 'lead') return ((d.crmLeads || []).find((l) => l.id === id) || {}).notes || '';
+    if (module === 'contact') return ((d.contacts || []).find((c) => c.id === id) || {}).crmNotes || '';
+    if (module === 'account') return ((d.crmAccounts || []).find((a) => a.id === id) || {}).notes || '';
+    if (module === 'opportunity') return ((d.crmOpportunities || []).find((o) => o.id === id) || {}).notes || '';
+    return ((d.deals || []).find((q) => q.id === id) || {}).notes || '';
+  }
   function canonModule(module) {
     const m = String(module || '');
     if (m === 'leads') return 'lead'; if (m === 'contacts' || m === 'clients') return 'contact';
