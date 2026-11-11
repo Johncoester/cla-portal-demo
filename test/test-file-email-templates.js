@@ -1,6 +1,7 @@
 import {
   mergeValues, renderMerge, applyFileTemplate, matchAttachDocuments, defaultRecipientEmails,
   resolveRecipients, cleanTemplateInput, canManageFileTemplates, canSelectFileTemplates, SEED_SHARED,
+  templateAddressRoles, isWelcomeOpening,
   partyPerson, processorLine, polishMerged, participantsFromContacts,
 } from '../js/data/file-email-templates.js';
 import { readFileSync } from 'fs';
@@ -55,7 +56,13 @@ const missingBuyer = defaultRecipientEmails(noBuyer, ['Client-Buyer']);
 ok(missingBuyer.emails.length === 0 && missingBuyer.warnings.some((w) => /No Buyer with an email on this file/.test(w)), 'explicit warning when no buyer email');
 
 const applied = applyFileTemplate(SEED_SHARED[1], deal, sender, { toEmails: [], documents: docs });
-ok(applied.suggestedTo[0] === 'clatestportal+buyer@gmail.com' && applied.attachDocumentIds.includes('d1'), 'apply seed order-opened: To + attach');
+ok(isWelcomeOpening(SEED_SHARED[1]) && applied.suggestedTo.join() === 'clatestportal+buyer@gmail.com' && !(applied.suggestedCc || []).length && applied.attachDocumentIds.includes('d1'), 'Welcome Opening goes to the buyer only');
+const forced = applyFileTemplate({ ...SEED_SHARED[1], defaultRecipientRoles: ['Client-Buyer', 'Client-Seller', 'Listing Agent'], defaultCcRoles: ['Buyer Agent'] }, deal, sender, { toEmails: [], documents: docs });
+ok(forced.suggestedTo.join() === 'clatestportal+buyer@gmail.com' && !forced.suggestedTo.includes('clatestportal+seller@gmail.com') && forced.suggestedCc.join() === 'bailey@clatitle.com', 'Welcome Opening ignores extra To roles and still applies Cc');
+const introCc = applyFileTemplate({ ...SEED_SHARED[0], defaultCcRoles: ['Transaction Coordinator'] }, { ...deal, participants: deal.participants.concat([{ role: 'Transaction Coordinator', contact: { firstName: 'Terry', lastName: 'Coordinator', email: 'terry@clatitle.com' } }]) }, sender, { toEmails: [], documents: [] });
+ok(introCc.suggestedTo.includes('clatestportal+seller@gmail.com') && introCc.suggestedTo.includes('lee@clatitle.com') && introCc.suggestedCc.join() === 'terry@clatitle.com', 'Processor intro To and Cc come from the roles staff saved');
+const removed = cleanTemplateInput({ name: 'Processor intro', subject: 'Hi', bodyHtml: '<p>Hi</p>', defaultRecipientRoles: ['Client-Buyer'], defaultCcRoles: [] });
+ok(removed.defaultRecipientRoles.join() === 'Client-Buyer' && removed.defaultCcRoles.length === 0, 'clearing Cc and dropping To roles is saved');
 ok(/Hello Alex/.test(applied.html) && /Pat Processor \(pat@clatitle\.com\)/.test(applied.html), 'apply fills buyer_first_name + processor_line');
 ok(applied.attachDocumentIds.filter((id) => id === 'd4' || id === 'd5').length === 1, 'apply dedupes duplicate CONTRACT.pdf');
 
@@ -84,12 +91,14 @@ ok(fromRpc[0].contact.firstName === 'Warren' && fromRpc[0].role === 'Client-Buye
 
 const cleaned = cleanTemplateInput({ name: 'X', subject: 'S {{file_number}}', bodyHtml: '<p>Hi {{recipient_first_name}}</p>', attachDocTypes: ['Contract'], defaultRecipientRoles: ['Client-Buyer', 'nope'] });
 ok(cleaned.scope === 'shared' && cleaned.attachDocTypes.join() === 'Contract' && cleaned.defaultRecipientRoles.join() === 'Client-Buyer', 'clean: shared only, roles filtered');
+const welcomeClean = cleanTemplateInput({ name: 'Order opened / welcome', seedKey: 'order-opened', subject: 'S', bodyHtml: '<p></p>', defaultRecipientRoles: ['Client-Seller', 'Listing Agent'], defaultCcRoles: ['Buyer Agent', 'nope'] });
+ok(templateAddressRoles(welcomeClean).to.join() === 'Client-Buyer' && welcomeClean.defaultCcRoles.join() === 'Buyer Agent', 'saving Welcome Opening keeps To as the buyer and keeps a real Cc role');
 
 ok(canManageFileTemplates({ isAdmin: true, status: 'active' }) && !canManageFileTemplates({ role: 'Processor', isAdmin: false }), 'only Admin authors');
 ok(canSelectFileTemplates({ role: 'Processor' }) && !canSelectFileTemplates({ role: 'Outside user' }), 'staff select; outside no');
 
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-ok(app.includes("'admin/email-templates'") && app.includes('Email Templates') && app.includes('email-templates.js?v=202611131000'), 'app registers Admin Email Templates at stamp');
+ok(app.includes("'admin/email-templates'") && app.includes('Email Templates') && app.includes('email-templates.js?v=202611140400'), 'app registers Admin Email Templates at stamp');
 const dealemail = readFileSync(new URL('../js/pages/dealemail.js', import.meta.url), 'utf8');
 ok(dealemail.includes('data-mail-template') && dealemail.includes('applyFileTemplate') && dealemail.includes('loadDealEmailContext'), 'compose has Use template + loadDealEmailContext');
 const gmail = readFileSync(new URL('../js/data/supabase-gmail.js', import.meta.url), 'utf8');

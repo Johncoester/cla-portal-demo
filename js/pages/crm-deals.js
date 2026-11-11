@@ -1,18 +1,18 @@
 /* crm-deals.js : DEALS in the CRM (Zoho's Deals module) = the portal's orders you can already see. #/crm/deals[/<id>]. Read-only here (orders are run
  * in the portal); a deal has Send Email (saved, NOT sent) and its Emails list. Function only. */
 import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, toast } from '../ui.js?v=202611070139';
-import { crmSort, inLocalRange } from '../data/crm.js?v=202611070139';
+import { crmSort, inLocalRange } from '../data/crm.js?v=202611130900';
 import { DEAL_COLS, DEFAULT_HIDDEN, loadHidden } from '../data/crm-deal-cols.js?v=202611070139';
-import { display, moduleFields } from '../data/crm-analytics.js?v=202611070139';
-import { crmDealName, columnKey, loadColumns, normalizeColumns, beginColumnPrefs } from '../data/crm-columns.js?v=202611121000';
-import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611121000';
-import { tabs, head, money, wireRowOpen } from './crm-kit.js?v=202611121000';
-import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611090905';
-import { viewsBar, wireViewsBar } from './crm-views.js?v=202611121000';
+import { display, moduleFields } from '../data/crm-analytics.js?v=202611130900';
+import { crmDealName, columnKey, loadColumns, normalizeColumns, beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611141100';
+import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611141100';
+import { tabs, head, money, wireRowOpen, pageSizeControl, pageNav } from './crm-kit.js?v=202611141100';
+import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611130900';
+import { viewsBar, wireViewsBar } from './crm-views.js?v=202611141100';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
 import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070139';
-import { pageOf, selectionState, selectPage, BULK_PAGE_SIZE } from '../data/crm-bulk.js?v=202611090905';
-import { bulkBar, wireBulk } from './crm-bulk.js?v=202611090905';
+import { pageOf, selectionState, selectPage, loadPageSize } from '../data/crm-bulk.js?v=202611141100';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611141100';
 
 export async function dealsPage(c) { return c.params.id ? dealPage(c) : dealsList(c); }
 
@@ -60,11 +60,12 @@ async function dealsList(c) {
       <button type="button" class="ghost" data-crm-reset>Reset</button>
     </form>${savedFiltersHtml('deals')}
     ${canBulk ? bulkBar('deal') : ''}
-    <div class="table-tools"><span class="muted" data-count></span> <span data-bulk-pager></span> ${columnChooserHtml('deals', catalog.map(([k, l]) => ({ key: k, label: l })), visible)}</div>
+    <div class="table-tools"><span class="muted" data-count></span> <span data-bulk-pager></span> ${pageSizeControl(loadPageSize(storage, me.id || '', 'deals'))} ${columnChooserHtml('deals', catalog.map(([k, l]) => ({ key: k, label: l })), visible)}</div>
     <table class="tbl" id="crm-t-deals" data-deals-table><thead></thead><tbody></tbody></table>`;
   function mount(root) {
     const f = $('#deal-filters', root); const tb = $('[data-deals-table] tbody', root); let sort = 'closingDate'; let dir = 'desc';
     let selected = new Set(); let page = 1; let sig = ''; let viewRows = [];
+    let pageSize = loadPageSize(storage, me.id || '', 'deals');
     // a changed Status / Owner / Client / Source asks the adapter again (it applies the access rule); the URL keeps them so Back / refresh keep the view
     $$('[data-deal-filter]', f).forEach((s) => s.addEventListener('change', () => { const p = new URLSearchParams(); const v = formData(f);
       if (v.status && v.status !== 'Open') p.set('status', v.status); ['owner', 'client', 'source'].forEach((k) => { if (v[k]) p.set(k, v[k]); });
@@ -75,13 +76,14 @@ async function dealsList(c) {
       const nextSig = JSON.stringify({ ...v, sort, dir }); if (nextSig !== sig) { if (sig) { selected = new Set(); page = 1; } sig = nextSig; }
       const list = crmSort(rows.filter((r) => { const hay = [r.name, r.fileNumber, r.propertyAddress, r.clientName, r.contactName, r.ownerName, r.salesReps, r.sourceText].join(' ').toLowerCase();
         return words.every((w) => hay.includes(w)) && inLocalRange(r.createdAt, v.createdFrom, v.createdTo) && inLocalRange(r.modifiedAt, v.modifiedFrom, v.modifiedTo) && inLocalRange(r.lastActivityAt, v.activityFrom, v.activityTo) && inLocalRange(r.openDate, v.openFrom, v.openTo) && inLocalRange(r.closingDate, v.closingFrom, v.closingTo); }), sort, dir);
-      const view = canBulk ? pageOf(list, page, BULK_PAGE_SIZE) : { rows: list, page: 1, pages: 1 }; page = view.page; viewRows = view.rows;
+      const view = pageOf(list, page, pageSize); page = view.page; viewRows = view.rows;
       const cols = useCols(); const span = cols.length + (canBulk ? 1 : 0);
       head();
       tb.innerHTML = toText(view.rows.length ? view.rows.map((r) => html`<tr data-row="${r.id}">${canBulk ? html`<td><input type="checkbox" data-bulk-row value="${r.id}" aria-label="Select ${crmDealName(r) || 'deal'}" ${selected.has(r.id) ? raw('checked') : ''}></td>` : ''}${cols.map(([k]) => { const f = dealFields.find((z) => z.key === k); const shown = cell[k] ? cell[k](r) : f ? (display(f, r, cfg) || '') : (r[k] ?? ''); return html`<td data-col="${k}">${shown}</td>`; })}</tr>`) : html`<tr><td colspan="${span}" class="muted">Nothing matches.</td></tr>`);
-      $('[data-count]', root).textContent = canBulk && list.length > BULK_PAGE_SIZE ? `${view.rows.length} on this page, ${list.length} of ${rows.length} match` : `${list.length} of ${rows.length} shown`;
+      $('[data-count]', root).textContent = view.pages > 1 ? `${view.rows.length} on this page, ${list.length} of ${rows.length} match` : `${list.length} of ${rows.length} shown`;
       const box = $('[data-bulk-page]', root); if (box) { const st = selectionState(selected, view.rows); box.checked = st.allOnPage; box.indeterminate = st.someOnPage; }
-      const pg = $('[data-bulk-pager]', root); if (pg) pg.innerHTML = toText(view.pages > 1 ? html`<button type="button" class="ghost" data-bulk-prev ${view.page <= 1 ? raw('disabled') : ''}>Previous</button> Page ${view.page} of ${view.pages} <button type="button" class="ghost" data-bulk-next ${view.page >= view.pages ? raw('disabled') : ''}>Next</button>` : html``);
+      const pg = $('[data-bulk-pager]', root); if (pg) pg.innerHTML = toText(pageNav(view));
+      const sizeSel = $('[data-page-size]', root); if (sizeSel && String(sizeSel.value) !== String(pageSize)) sizeSel.value = String(pageSize);
       const barEl = $('[data-bulk-bar]', root); if (barEl) { barEl.hidden = selected.size === 0; const n = $('[data-bulk-count]', barEl); if (n) n.textContent = `${selected.size} selected`; }
       $$('th[data-sort]', root).forEach((th) => { const on = th.dataset.sort === sort; if (on) th.setAttribute('aria-sort', dir === 'asc' ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort');
         $('.up', th).classList.toggle('on', on && dir === 'asc'); $('.dn', th).classList.toggle('on', on && dir === 'desc'); }); };
@@ -114,7 +116,10 @@ async function dealsList(c) {
         if (wiredCols && wiredCols.setOrder) wiredCols.setOrder(order);
         apply();
       }).catch(() => {});
+      if (opened.pageSizeReady) opened.pageSizeReady.then((n) => { if (!n || n === pageSize) return; pageSize = n; apply(); }).catch(() => {});
     }
+    const sizeSel = $('[data-page-size]', root);
+    if (sizeSel) sizeSel.addEventListener('change', () => { pageSize = schedulePageSizeSave({ api, storage, userId: dealUser, module: 'deals', pageSize: sizeSel.value }); page = 1; apply(); });
     apply();
     if (canBulk) {
       $('[data-deals-table]', root).addEventListener('change', (e) => {
@@ -122,9 +127,9 @@ async function dealsList(c) {
         if (el.matches('[data-bulk-page]')) { selected = selectPage(selected, viewRows, el.checked); apply(); return; }
         if (!el.matches('[data-bulk-row]')) return; if (el.checked) selected.add(el.value); else selected.delete(el.value); apply();
       });
-      root.addEventListener('click', (e) => { const t = e.target; if (t.matches && t.matches('[data-bulk-prev]')) { page -= 1; selected = new Set(); apply(); } if (t.matches && t.matches('[data-bulk-next]')) { page += 1; selected = new Set(); apply(); } });
       wireBulk(root, { module: 'deal', api, me, owners: fl.owners || [], getPageRows: () => viewRows.filter((r) => selected.has(r.id)), clear: () => { selected = new Set(); apply(); }, refresh: c.refresh });
     }
+    root.addEventListener('click', (e) => { const t = e.target; if (!(t.matches && (t.matches('[data-bulk-prev]') || t.matches('[data-bulk-next]')))) return; if (t.matches('[data-bulk-prev]')) page -= 1; else page += 1; selected = new Set(); apply(); });
   }
   return { title: 'Deals', crumbs: [['CRM', '#/crm'], ['Deals']], body, mount };
 }

@@ -5,7 +5,7 @@ import { editorHtml, mountEditor } from './compose.js?v=202611110900';
 import {
   FILE_TEMPLATE_FIELDS, DEFAULT_RECIPIENT_ROLES, ATTACH_DOC_MATCH_OPTIONS,
   canManageFileTemplates, cleanTemplateInput,
-} from '../data/file-email-templates.js?v=202611131000';
+} from '../data/file-email-templates.js?v=202611140400';
 
 export async function render(ctx) {
   const { api, user, refresh } = ctx;
@@ -15,7 +15,8 @@ export async function render(ctx) {
     <td><strong data-et-name>${t.name}</strong>${t.category ? html`<br><span class="muted small">${t.category}</span>` : ''}</td>
     <td class="small">${t.subject || html`<span class="muted">(no subject)</span>`}
       ${(t.attachDocTypes || []).length ? html`<br><span class="muted small">Attach: ${(t.attachDocTypes || []).join(', ')}</span>` : ''}
-      ${(t.defaultRecipientRoles || []).length ? html`<br><span class="muted small">To: ${(t.defaultRecipientRoles || []).join(', ')}</span>` : ''}${(t.defaultCcRoles || []).length ? html`<br><span class="muted small">Cc: ${(t.defaultCcRoles || []).join(', ')}</span>` : ''}</td>
+      ${(t.defaultRecipientRoles || []).length ? html`<br><span class="muted small">To: ${(t.defaultRecipientRoles || []).join(', ')}</span>` : ''}
+      ${(t.defaultCcRoles || []).length ? html`<br><span class="muted small">Cc: ${(t.defaultCcRoles || []).join(', ')}</span>` : ''}</td>
     <td>${t.active ? pill('Active', 'ok') : pill('Inactive', 'warn')}</td>
     <td class="small muted">${fmtDateTime(t.updatedAt || t.createdAt)}</td>
     <td class="nowrap">
@@ -46,7 +47,7 @@ export async function render(ctx) {
       const src = await api.getFileEmailTemplate(t.id);
       await api.createFileEmailTemplate({
         name, subject: src.subject, bodyHtml: src.bodyHtml || src.body_html, category: src.category,
-        active: true, attachDocTypes: src.attachDocTypes || [], defaultRecipientRoles: src.defaultRecipientRoles || [], defaultCcRoles: src.defaultCcRoles || src.default_cc_roles || [],
+        active: true, attachDocTypes: src.attachDocTypes || [], defaultRecipientRoles: src.defaultRecipientRoles || [], defaultCcRoles: src.defaultCcRoles || [], seedKey: src.seedKey || src.seed_key || '',
       });
       toast('Duplicated'); refresh();
     })));
@@ -61,7 +62,8 @@ export async function render(ctx) {
     function formModal(t) {
       const creating = !t;
       const attach = new Set(t ? (t.attachDocTypes || t.attach_doc_types || []) : []);
-      const roles = new Set(t ? (t.defaultRecipientRoles || t.default_recipient_roles || []) : []);
+      const welcome = t && (String(t.seedKey || t.seed_key || '') === 'order-opened' || (/welcome/i.test(t.name || '') && /open/i.test(t.name || '')));
+      const roles = new Set(welcome ? ['Client-Buyer'] : (t ? (t.defaultRecipientRoles || t.default_recipient_roles || []) : []));
       const ccRoles = new Set(t ? (t.defaultCcRoles || t.default_cc_roles || []) : []);
       const m = modal(creating ? 'New email template' : `Edit: ${t.name}`, html`<form id="etf" class="form-grid" data-et-form novalidate>
         <label class="span2">Name *<input name="name" maxlength="120" required value="${t ? t.name : ''}"></label>
@@ -76,13 +78,13 @@ export async function render(ctx) {
           ${ATTACH_DOC_MATCH_OPTIONS.map((k) => html`<label class="small"><input type="checkbox" value="${k}" data-et-attach-key ${attach.has(k) ? raw('checked') : ''}> ${k}</label><br>`)}
           <label class="small">Other match text <input name="attachExtra" maxlength="60" placeholder="e.g. Commitment" value=""></label>
         </fieldset>
-        <fieldset class="span2" data-et-roles><legend class="small">Suggest recipients (To) by role</legend>
-          <p class="muted small">Optional. Fills To from people on the file with these roles when To is empty. Staff can add or remove addresses before sending.</p>
-          ${DEFAULT_RECIPIENT_ROLES.map(([k, label]) => html`<label class="small"><input type="checkbox" value="${k}" data-et-role ${roles.has(k) ? raw('checked') : ''}> ${label}</label> `)}
+        <fieldset class="span2" data-et-roles><legend class="small">To</legend>
+          <p class="muted small">${welcome ? 'Welcome Opening goes to the buyer only. Add or remove Cc below.' : 'Add or remove who is suggested in To. Staff can still change the addresses before sending.'}</p>
+          ${DEFAULT_RECIPIENT_ROLES.map(([k, label]) => html`<label class="small"><input type="checkbox" value="${k}" data-et-role ${roles.has(k) ? raw('checked') : ''} ${welcome && k !== 'Client-Buyer' ? raw('disabled') : ''}> ${label}</label> `)}
         </fieldset>
-        <fieldset class="span2" data-et-cc-roles><legend class="small">Suggest Cc by role</legend>
-          <p class="muted small">Optional. Fills Cc when that box is empty. Staff can add or remove Cc the same way.</p>
-          ${DEFAULT_RECIPIENT_ROLES.map(([k, label]) => html`<label class="small"><input type="checkbox" value="${k}" data-et-cc ${ccRoles.has(k) ? raw('checked') : ''}> ${label}</label> `)}
+        <fieldset class="span2" data-et-cc><legend class="small">Cc</legend>
+          <p class="muted small">Add or remove who is suggested in Cc. Leave every box clear for no Cc.</p>
+          ${DEFAULT_RECIPIENT_ROLES.map(([k, label]) => html`<label class="small"><input type="checkbox" value="${k}" data-et-cc-role ${ccRoles.has(k) ? raw('checked') : ''}> ${label}</label> `)}
         </fieldset>
         <label class="span2"><input type="checkbox" name="active" ${!t || t.active ? raw('checked') : ''}> Active (show under Use template on a file)</label>
         <p class="span2 err-text" data-et-err hidden></p>
@@ -105,9 +107,9 @@ export async function render(ctx) {
         try {
           const attachDocTypes = $$('[data-et-attach-key]', m).filter((c) => c.checked).map((c) => c.value);
           const extra = String(f.attachExtra || '').trim(); if (extra) attachDocTypes.push(extra);
-          const defaultRecipientRoles = $$('[data-et-role]', m).filter((c) => c.checked).map((c) => c.value);
-          const defaultCcRoles = $$('[data-et-cc]', m).filter((c) => c.checked).map((c) => c.value);
-          const input = cleanTemplateInput({ name: f.name, subject: f.subject, bodyHtml: ed.html, category: f.category, active: !!f.active, attachDocTypes, defaultRecipientRoles, defaultCcRoles });
+          const defaultRecipientRoles = $$('[data-et-role]', m).filter((c) => c.checked && !c.disabled).map((c) => c.value);
+          const defaultCcRoles = $$('[data-et-cc-role]', m).filter((c) => c.checked).map((c) => c.value);
+          const input = cleanTemplateInput({ name: f.name, subject: f.subject, bodyHtml: ed.html, category: f.category, active: !!f.active, attachDocTypes, defaultRecipientRoles, defaultCcRoles, seedKey: t && (t.seedKey || t.seed_key || t.key) || '' });
           if (creating) await api.createFileEmailTemplate(input); else await api.updateFileEmailTemplate(t.id, input);
           closeModal(); toast(creating ? 'Template created' : 'Template saved'); refresh();
         } catch (ex) { err.hidden = false; err.textContent = ex.message; }

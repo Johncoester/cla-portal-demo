@@ -6,7 +6,7 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney
 import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611101015';
 import { composeModal } from './compose.js?v=202611110900';
 import { slotText } from './dealclosing.js?v=202611121300';
-import { yourAgentHtml, withContactPhone } from './your-agent.js?v=202611131000';
+import { yourAgentHtml, withContactPhone } from './your-agent.js?v=202611141400';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { UPDATE_TOPICS } from '../data/agent-portal.js?v=202611101015';
 
@@ -62,11 +62,14 @@ export function tasksWithLenderOnFile(tasks, deal) {
 }
 
 export function clientNav(d, user, active, n = {}) {
-  const pure = isPureClient(user); const on = pure && active === 'agreements' ? 'tasks' : TAB_OF[active] || '';
+  const pure = isPureClient(user);
+  const mine = typeof location !== 'undefined' && /(?:\?|&)mine=1(?:&|$)/.test(location.hash || '');
+  const on = mine && (active === 'tasks' || TAB_OF[active] === 'tasks') ? 'my-tasks' : pure && active === 'agreements' ? 'tasks' : TAB_OF[active] || '';
   const tab = (key, href, label, cnt) => html`<a class="${on === key ? 'on' : ''}" href="${href}" data-co-tab="${label}"${on === key ? raw(' aria-current="page"') : ''}>${label}${cnt ? html` <span class="n">${cnt}</span>` : ''}</a>`;
   const B = `#/deals/${d.id}`; const agent = (user.roles || [user.role]).some((r) => /Agent$/.test(r));
-  return html`<nav class="co-seg" aria-label="This file" data-co-nav>${pure ? html`${tab('overview', B, BUYER_TAB_LABELS.overview, 0)}${tab('tasks', `${B}/tasks`, BUYER_TAB_LABELS.tasks, n.todo)}${tab('inbox', `${B}/inbox`, BUYER_TAB_LABELS.inbox, n.msg)}${tab('documents', `${B}/documents`, BUYER_TAB_LABELS.documents, n.docs)}${tab('closing', `${B}/closing`, BUYER_TAB_LABELS.closing, 0)}${tab('activity', `${B}/activity`, BUYER_TAB_LABELS.activity, 0)}`
-    : html`${tab('overview', B, 'Overview', 0)}${tab('tasks', `${B}/tasks`, 'Tasks', n.tasks)}${tab('inbox', `${B}/inbox`, 'Messages', n.msg)}${tab('documents', `${B}/documents`, 'Documents', n.docs)}${tab('closing', `${B}/closing`, 'Closing', 0)}${tab('agreements', `${B}/agreements`, 'Agreements', n.ag)}${agent ? tab('contacts', `${B}/contacts`, 'Contacts', 0) : ''}${tab('activity', `${B}/activity`, 'Activity', 0)}`}</nav>`;
+  const myTasks = tab('my-tasks', `${B}/tasks?mine=1`, 'My Tasks', 0);
+  return html`<nav class="co-seg" aria-label="This file" data-co-nav>${pure ? html`${tab('overview', B, BUYER_TAB_LABELS.overview, 0)}${tab('tasks', `${B}/tasks`, BUYER_TAB_LABELS.tasks, n.todo)}${myTasks}${tab('inbox', `${B}/inbox`, BUYER_TAB_LABELS.inbox, n.msg)}${tab('documents', `${B}/documents`, BUYER_TAB_LABELS.documents, n.docs)}${tab('closing', `${B}/closing`, BUYER_TAB_LABELS.closing, 0)}${tab('activity', `${B}/activity`, BUYER_TAB_LABELS.activity, 0)}`
+    : html`${tab('overview', B, 'Overview', 0)}${tab('tasks', `${B}/tasks`, 'Tasks', n.tasks)}${myTasks}${tab('inbox', `${B}/inbox`, 'Messages', n.msg)}${tab('documents', `${B}/documents`, 'Documents', n.docs)}${tab('closing', `${B}/closing`, 'Closing', 0)}${tab('agreements', `${B}/agreements`, 'Agreements', n.ag)}${agent ? tab('contacts', `${B}/contacts`, 'Contacts', 0) : ''}${tab('activity', `${B}/activity`, 'Activity', 0)}`}</nav>`;
 }
 // The top of every client TAB page: the file line and the same pill tabs as the Overview (counts read the same way as there)
 export async function clientTabChrome({ api, user }, d, active) {

@@ -220,15 +220,14 @@ ok(heights.includes(2) && heights.includes(1) && heights.every((h) => h === 1 ||
 const page = read('js/pages/crm-dashboards.js');
 ok(page.includes('return { name: f.name.value, type, config }') && page.includes('maxlength="100"') && !page.includes('maxlength="120"'), 'the chart form still nests config and the name field stops at 100');
 
-const STAMP = '202611130700';
 const want = new Map([
-  ['js/data/supabase-crm-surface.js', STAMP],
-  ['js/data/supabase-crm.js', STAMP],
-  ['js/data/supabase-adapter.js', '202611131000'],
-  ['js/data/adapter.js', '202611131000'],
-  ['js/pages/crm-dashboards.js', STAMP],
-  ['js/pages/crm.js', STAMP],
-  ['js/app.js', '202611131000'],
+  ['js/data/supabase-crm-surface.js', '202611130900'],
+  ['js/data/supabase-crm.js', '202611141100'],
+  ['js/data/supabase-adapter.js', '202611141100'],
+  ['js/data/adapter.js', '202611141100'],
+  ['js/pages/crm-dashboards.js', '202611141100'],
+  ['js/pages/crm.js', '202611141100'],
+  ['js/app.js', '202611141100'],
 ]);
 function walkDir(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -238,7 +237,7 @@ function walkDir(dir, out = []) {
   }
   return out;
 }
-const specRe = /(['"])([^'"\s]+?)\?v=(\d+)\1/g;
+const specRe = /(['"])([^'"\s]+?)\?v=([A-Za-z0-9]+)\1/g;
 const hits = new Map();
 for (const file of walkDir(path.join(root, 'js')).concat(readdirSync(root).filter((n) => n.endsWith('.html')).map((n) => path.join(root, n)))) {
   const rel = path.relative(root, file);

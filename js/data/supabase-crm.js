@@ -3,14 +3,14 @@
  * (features.js, CLA_PORTAL_CONFIG.features.crm, OFF in supabase mode) and the database switch (private.features 'crm', migration 22).
  * With the browser flag off every method refuses before calling the database. Meetings never send invitations; nothing is emailed. */
 import { CRM_OFF } from './features.js?v=202611070139';
-import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED } from './crm.js?v=202611070139';
+import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED, companyKey } from './crm.js?v=202611130900';
 import { localDate, runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
-import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611070139';
-import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611101015';
-import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611070139';
-import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611121000';
-import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611120600';
-import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611130700';
+import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611130900';
+import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611130900';
+import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611130900';
+import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611141100';
+import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611131900';
+import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611130900';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };
@@ -138,6 +138,28 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
       return { ...c, account: account && camel(account), totals: orderTotals(c.orders), activities: await acts(pairs), opportunities, invitedMeetings: await invited('contact', id), attachments: await files(pairs) }; },
     async createCrmContact(v) { const id = await rpc('crm_create_contact', { p: await withCustom('contact', contactIn(noCf(v)), v) }); return contactRow(await rpc('crm_contact_detail', { p_id: id })); },
     async updateCrmContact(id, v) { await rpc('crm_update_contact', { p_id: id, p: await withCustom('contact', contactIn(noCf(v)), v) }); return contactRow(await rpc('crm_contact_detail', { p_id: id })); },
+    // FF-030: public.company_lookup. Active rows, prefix on the normalized name, cap 25. Owner privacy is off: every CRM caller sees every active name.
+    // Exact auto-link for an outside user (and for a processor or CRM user). Id only. No company fields. Does not require the CRM flag.
+    async matchCrmCompany(name) {
+      const id = ok(await sb.rpc('company_match_active', { p_name: String(name == null ? '' : name) }));
+      return id || null;
+    },
+    async lookupCompanies(q, limit = 20) {
+      on();
+      const n = Number(limit);
+      const cap = Number.isFinite(n) ? Math.min(25, Math.max(1, Math.trunc(n))) : 20;
+      const rows = await rpc('company_lookup', { p_q: String(q == null ? '' : q), p_limit: cap }) || [];
+      return (Array.isArray(rows) ? rows : []).map((r) => ({
+        id: r.id, name: r.name || '', kind: r.kind || '', city: r.city || '', state: r.state || '', phone: r.phone || '',
+      }));
+    },
+    async findCrmCompanyDuplicate({ name = '', exceptId = null } = {}) {
+      const key = companyKey(name);
+      if (!key) return null;
+      const hit = (await this.lookupCompanies(name, 25)).find((r) => r.id !== exceptId && companyKey(r.name) === key);
+      if (!hit) return null;
+      return { id: hit.id, name: hit.name, state: hit.state || '', archived: false, canOpen: true, link: `#/crm/accounts/${hit.id}` };
+    },
     async listCrmAccounts() { return withActivity(camel(await rpc('crm_account_list')), 'account'); },
     async getCrmAccount(id) { const a = camel((await rpc('crm_account_list')).find((x) => x.id === id)); if (!a) throw new Error('Company not found.'); const d = await rpc('crm_account_detail', { p_id: id });
       return { ...a, contactList: d.contactList.map(contactRow), orders: d.orders, totals: orderTotals(d.orders), activities: await acts([['account', id]]), invitedMeetings: [], attachments: await files([['account', id]]),
@@ -242,8 +264,13 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async saveUserUiPrefs(module, prefs) {
       on(); const u = await me(); if (!canUseCrm(u)) throw new Error('The CRM is for CLA staff only.');
       const mod = cleanUiModule(module); const clean = cleanUiPrefs(prefs);
-      const row = await one(sb.from('user_ui_prefs').upsert({ user_id: u.id, module: mod, prefs: clean, updated_at: new Date().toISOString() }, { onConflict: 'user_id,module' }));
-      return { module: mod, prefs: row.prefs || clean, updatedAt: row.updated_at || null };
+      const existing = ok(await sb.from('user_ui_prefs').select('prefs').eq('user_id', u.id).eq('module', mod).maybeSingle());
+      const prev = existing && existing.prefs && typeof existing.prefs === 'object' ? existing.prefs : {};
+      const next = { ...prev };
+      if (clean.order) next.order = clean.order;
+      if (clean.pageSize) next.pageSize = clean.pageSize;
+      const row = await one(sb.from('user_ui_prefs').upsert({ user_id: u.id, module: mod, prefs: next, updated_at: new Date().toISOString() }, { onConflict: 'user_id,module' }));
+      return { module: mod, prefs: row.prefs || next, updatedAt: row.updated_at || null };
     },
   };
   // Nov 3 (migration 27): email templates. Nothing is ever sent.

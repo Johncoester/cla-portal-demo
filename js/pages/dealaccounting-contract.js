@@ -1,8 +1,8 @@
 // TEST contract figures. Estimates only. Blank stays blank. Nothing here is a receipt, payoff, or Closing Disclosure.
-import { html, raw, $, $$, guard, formData, toast, fmtMoney } from '../ui.js?v=202611071751';
+import { html, raw, $, $$, guard, formData, toast, fmtMoney } from '../ui.js?v=202611070139';
 import { CONTRACT_FIELDS, CONTRACT_GROUPS, illustrative } from '../data/contract-terms.js?v=202611091140';
 import { runsOrders, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611101015';
-import { earnestView, readEarnest, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611102000';
+import { earnestView, readEarnest, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611141000';
 
 function earnestAccounting(deal, user) {
   if (isRefi(deal)) return '';
@@ -73,7 +73,7 @@ export async function contractView(api, deal, user) {
       ${id === 'credit' ? html`<p class="small muted" data-illustrative="credit" hidden></p><p class="small muted" data-illustrative="broker" hidden></p>` : ''}</fieldset>`;
   });
   const body = html`<div data-contract-sheet data-contract-posture="estimate" data-contract-saved="${terms.saved ? 'yes' : 'no'}">
-    <div class="notice warn" data-contract-banner>TEST contract figures only. An empty box is unknown, not zero. These figures are not funds received, not a payoff, and not a Closing Disclosure. The fee ledger does not import them.</div>
+    <div class="notice warn" data-contract-banner>TEST contract figures only. Earnest money and commissions are optional and stay the same figures as Add New Order. An empty box is unknown, not zero. These figures are not funds received, not a payoff, and not a Closing Disclosure. The fee ledger does not import them.</div>
     ${terms.blocked ? html`<p class="notice warn" data-contract-blocked>${terms.blocked}</p>` : ''}
     ${terms.canEdit ? '' : html`<p class="notice info" data-readonly-note>${READ_ONLY_NOTE}</p>`}
     <form id="acct-contract-form" data-contract-form novalidate>

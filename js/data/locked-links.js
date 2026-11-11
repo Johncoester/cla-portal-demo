@@ -1,4 +1,4 @@
-import { canManageFileTemplates } from './file-email-templates.js?v=202611131000';
+import { canManageFileTemplates } from './file-email-templates.js?v=202611140400';
 /* locked-links.js : ONE LOGIN LINK PER FAKE USER (John, Nov 4). FAKE DATA ONLY, mock mode only.
  * A link like  https://johncoester.github.io/cla-portal-demo/?as=<token>&file=deal-1  signs the visitor in as that one fake user and LOCKS the
  * browser tab to them: no user picker, no switch user, and routes outside that user's own portal are refused (routeAllowed below, enforced in app.js).
@@ -14,9 +14,9 @@ import { runsOrders, isStaff, isOutside } from './constants.js?v=202611101015';
 import { canReportStaffFeedback } from './staff-feedback.js?v=202611080400';
 import { titleCanRead } from './title.js?v=202611101015';
 import { fwpCanRead } from './funding-wire-policy.js?v=202611070139';   // John, Nov 4: order > Title route guard
-import { canUseCrm } from './crm.js?v=202611100100';
+import { canUseCrm } from './crm.js?v=202611130900';
 import { canManageRoleAccess } from './role-access.js?v=202611100100';
-import { canInviteAgents } from './agent-profile.js?v=202611101015';
+import { canInviteAgents } from './agent-profile.js?v=202611140100';
 import { canManageModules } from './modules.js?v=202611101015';
 import { hrSectionAllowed } from './hr.js?v=202611091730';
 import { canManageOffices } from './offices.js?v=202611101015';

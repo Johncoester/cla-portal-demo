@@ -1,6 +1,29 @@
 /* crm-bulk.js : mass actions on the rows currently shown. Nothing is deleted. Email is a draft only.
  * Each write still goes through the existing record method, so a refused row is reported and the rest continue. */
-export const BULK_PAGE_SIZE = 25;
+export const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 100];
+export const DEFAULT_PAGE_SIZE = 100;
+export const BULK_PAGE_SIZE = DEFAULT_PAGE_SIZE;
+
+export function normalizePageSize(value) {
+  const n = Number(value);
+  return PAGE_SIZE_OPTIONS.includes(n) ? n : DEFAULT_PAGE_SIZE;
+}
+
+export const pageSizeKey = (userId, module) => `cla-portal-new:crm-pagesize:v1:${userId || 'anon'}:${module}`;
+
+export function loadPageSize(storage, userId, module) {
+  try {
+    const raw = storage && storage.getItem(pageSizeKey(userId, module));
+    if (raw == null || raw === '') return DEFAULT_PAGE_SIZE;
+    return normalizePageSize(raw);
+  } catch (e) { return DEFAULT_PAGE_SIZE; }
+}
+
+export function savePageSize(storage, userId, module, size) {
+  const n = normalizePageSize(size);
+  try { if (storage) storage.setItem(pageSizeKey(userId, module), String(n)); } catch (e) { /* private mode: this visit only */ }
+  return n;
+}
 
 export const BULK_FIELDS = {
   lead: [['notes', 'Notes'], ['relationshipStatus', 'Relationship status'], ['leadSource', 'Lead source']],
