@@ -8,6 +8,9 @@ import { AUDIENCE_CONTROL, AUDIENCE_NOTE, audienceParties, audienceChoices, chec
 import { uploadDocumentBatch } from '../data/document-batch.js?v=202611101015';
 import { addToQueue, removeFromQueue, uploadFailureText } from '../data/document-queue.js?v=202611090935';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
+import { DOC_SORT_DIR, docMatches, sortDocs } from '../data/doc-list.js?v=202611161500';
+// Search text and sort stay put while you move between All files, Received and Sent on the same order (Matt, Nov 11).
+let keptView = { dealId: '', q: '', sort: '', dir: 'asc' };
 const icon = (n) => (/\.pdf$/i.test(n) ? 'pdf_icon.png' : /\.docx?$/i.test(n) ? 'word_icon.png' : /\.(xlsx?|csv)$/i.test(n) ? 'excel_icon.png' : 'image_icon.png');
 export function docListRow(d, folders = []) {
   const folderId = d.folderId || '';
@@ -63,7 +66,10 @@ export async function render({ api, user, deal, refresh }) {
   const mountAudience = (form) => { const boxes = () => $$('input[name=audience]', form); boxes().forEach((el) => el.addEventListener('change', () => { const now = boxes().filter((i) => i.checked).map((i) => i.value); const next = new Set(audienceSync(now, el.value, choices, AUDIENCE_CONTROL)); boxes().forEach((i) => { i.checked = next.has(i.value); }); })); };
   const chosenType = (form, f) => resolveDocType(f.docType, form.elements.docTypeFree ? form.elements.docTypeFree.value : '');
   const chosenVisibility = (form) => visibilityFromChecked($$('input[name=audience]:checked', form).map((i) => i.value), choices, visOpts);
-  const rows = shown.map((d) => html`<tr><td class="center"><img class="fileico" src="assets/img/${icon(d.name)}" alt=""></td>
+  if (keptView.dealId !== deal.id) keptView = { dealId: deal.id, q: '', sort: '', dir: 'asc' };
+  const view = keptView;
+  const sortHead = (k, label) => html`<th data-sort="${k}"><button type="button" class="th-sort" title="Sort by ${label}">${label} <span class="sort-arrows" aria-hidden="true"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th>`;
+  const rows = shown.map((d) => html`<tr data-doc-item="${d.id}"><td class="center"><img class="fileico" src="assets/img/${icon(d.name)}" alt=""></td>
     <td data-doc-row="${d.id}"${d.wireInstructions ? raw(' data-wire-doc') : ''}><a href="#" data-open="${d.id}" class="doc-link">${d.name}</a>${d.wireInstructions ? html` ${pill('wire instructions - buyer only', 'warn')}` : ''}<br><span class="muted small">${d.docType ? html`<span data-doctype>${d.docType}</span> &middot; ` : ''}${fmtSize(d.size)}${d.hasContent ? '' : ' \u00b7 sample file'}</span></td>
     <td>${d.folderName || html`<span class="muted">Unfiled</span>`}</td><td>${fmtDateTime(d.createdAt)}</td><td>${d.uploadedByName}<br><span class="muted small">${d.uploadedByRole}</span></td><td>${d.description}</td><td>${clientView && d.sharedWithMe ? pill('Shared with you by CLA Title', 'info') : pill(VL(d.visibility), d.visibility === 'all' ? '' : 'info')}${!clientView && d.sharedWithClient ? html`<br><span data-shared-client="${d.id}">${pill('shared with the buyer', 'ok')}</span><br><span class="muted small">by ${d.sharedWithClientByName} ${fmtDateTime(d.sharedWithClientAt)}</span>` : ''}${!clientView && d.sharedWithSeller ? html`<br><span data-shared-seller="${d.id}">${pill('shared with the seller', 'ok')}</span><br><span class="muted small">by ${d.sharedWithSellerByName} ${fmtDateTime(d.sharedWithSellerAt)}</span>` : ''}</td>
     <td class="nowrap">${runsOrders(user) || d.uploadedBy === user.id || manage ? html`<button class="ghost" data-meta="${d.id}">Details</button>` : ''}${manage ? html` <button class="ghost" data-sign="${d.id}">Request signature</button>` : ''}${canShareClient && d.buyerShareable ? html` <button class="ghost" data-share-client="${d.id}" data-share-on="${d.sharedWithClient ? '0' : '1'}">${d.sharedWithClient ? 'Stop sharing with buyer' : 'Share with buyer'}</button>` : ''}${canShareClient && d.sellerShareable ? html` <button class="ghost" data-share-seller="${d.id}" data-share-on="${d.sharedWithSeller ? '0' : '1'}">${d.sharedWithSeller ? 'Stop sharing with seller' : 'Share with seller'}</button>` : ''}</td></tr>`);
@@ -73,13 +79,28 @@ export async function render({ api, user, deal, refresh }) {
     <div class="folder-bar" data-folder-bar hidden><a class="folder ${folder === null ? 'active' : ''}" href="${href(tab, null)}">All folders</a>${folders.map((f) => html`<a class="folder ${folder === f.id ? 'active' : ''}" href="${href(tab, f.id)}" data-fid="${f.id}">${f.name} <span class="muted">${f.count}</span></a>`)}
       ${manage ? html`<button class="ghost" id="newfolder">+ Folder</button>${folder ? html` <button class="ghost" id="renamefolder">Rename folder</button>` : ''}` : ''}</div>
     <ul class="nav-tabs" data-doc-tabs>${[['all', 'All files'], ['received', 'Received'], ['sent', 'Sent']].map(([k, l]) => html`<li><a class="${k === tab ? 'active' : ''}" href="${href(k, folder)}" data-doc-tab="${k}">${l}</a></li>`)}</ul>
-    ${rows.length ? html`<table class="tbl striped"><thead><tr><th>File Type</th><th>File Name</th><th>Folder</th><th>Date</th><th>From</th><th>Additional Instruction</th><th>Access</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : html`<p class="muted" data-docs-empty>No documents have been shared on this file yet.</p>`}
+    ${rows.length ? html`<div class="filter-bar" data-doc-tools><label>Search <input type="search" data-doc-search placeholder="File name, type, folder or sender" autocomplete="off" value="${view.q}"></label> <span class="muted small" data-doc-count role="status"></span></div>
+    <table class="tbl striped" id="doctable"><thead><tr>${sortHead('type', 'File Type')}${sortHead('name', 'File Name')}${sortHead('folder', 'Folder')}${sortHead('date', 'Date')}${sortHead('from', 'From')}<th>Additional Instruction</th><th>Access</th><th></th></tr></thead><tbody>${rows}<tr data-doc-nomatch hidden><td colspan="8" class="muted center">No documents match your search.</td></tr></tbody></table>` : html`<p class="muted" data-docs-empty>No documents have been shared on this file yet.</p>`}
     <p class="muted small">Documents are kept permanently. They cannot be deleted.</p>${entBlock}
     ${sigs.length ? html`<div class="box-title"><h2><span class="h-ico"></span>Signatures</h2></div><p class="muted small">Demo e-sign: not legally binding. A real provider (DocuSign / Dropbox Sign) plugs in at the same place.</p>
       <table class="tbl striped" id="sigtable"><thead><tr><th>Document</th><th>Signers</th><th>Status</th><th></th></tr></thead><tbody>${sigRows}</tbody></table>` : ''}`;
   return { title: 'Documents', crumbs: [['Documents']], body, mount(root) {
     $$('[data-open]', root).forEach((a) => a.addEventListener('click', guard(async (e) => { e.preventDefault(); downloadNamed(await api.getDocumentContent(a.dataset.open)); })));
     $$('[data-meta]', root).forEach((b) => b.addEventListener('click', () => meta(docs.find((d) => d.id === b.dataset.meta))));
+    // Matt, Nov 11: search and sort run in the browser on the rows already loaded for this tab (js/data/doc-list.js).
+    const tbody = $('#doctable tbody', root); const search = $('[data-doc-search]', root);
+    if (tbody && search) {
+      const marks = () => $$('#doctable th[data-sort]', root).forEach((th) => { const on = th.dataset.sort === view.sort; if (on) th.setAttribute('aria-sort', view.dir === 'asc' ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort');
+        $('.up', th).classList.toggle('on', on && view.dir === 'asc'); $('.dn', th).classList.toggle('on', on && view.dir === 'desc'); });
+      const apply = () => { const none = $('[data-doc-nomatch]', tbody); const vis = new Set(shown.filter((d) => docMatches(d, view.q)).map((d) => d.id));
+        (view.sort ? sortDocs(shown, view.sort, view.dir) : shown).forEach((d) => { const tr = $$('tr[data-doc-item]', tbody).find((r) => r.dataset.docItem === d.id); if (tr) { tbody.insertBefore(tr, none); tr.hidden = !vis.has(d.id); } });
+        if (none) none.hidden = vis.size > 0;
+        const count = $('[data-doc-count]', root); if (count) count.textContent = vis.size === shown.length ? '' : `${vis.size} of ${shown.length} shown`; };
+      search.addEventListener('input', () => { view.q = search.value; apply(); });
+      $$('#doctable th[data-sort] button', root).forEach((b) => b.addEventListener('click', () => { const k = b.closest('th').dataset.sort;
+        view.dir = k === view.sort ? (view.dir === 'asc' ? 'desc' : 'asc') : (DOC_SORT_DIR[k] || 'asc'); view.sort = k; marks(); apply(); }));
+      marks(); if (view.q || view.sort) apply();
+    }
     const ub = $('#upbtn', root); if (ub) ub.addEventListener('click', upload);
     const sfb = $('#sharefiles', root); if (sfb) sfb.addEventListener('click', guard(() => composeModal({ api, deal, user, go: (p) => { location.hash = p; } }, { title: 'New Conversation', withFiles: true })));
     $$('[data-share-client]', root).forEach((b) => b.addEventListener('click', guard(async () => { const on = b.dataset.shareOn === '1';
