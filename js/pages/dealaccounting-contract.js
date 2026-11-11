@@ -34,7 +34,7 @@ export async function contractView(api, deal) {
       ${id === 'credit' ? html`<p class="small muted" data-illustrative="credit" hidden></p><p class="small muted" data-illustrative="broker" hidden></p>` : ''}</fieldset>`;
   });
   const body = html`<div data-contract-sheet data-contract-posture="estimate" data-contract-saved="${terms.saved ? 'yes' : 'no'}">
-    <div class="notice warn" data-contract-banner>TEST contract figures only. An empty box is unknown, not zero. These figures are not funds received, not a payoff, and not a Closing Disclosure. The fee ledger does not import them.</div>
+    <div class="notice warn" data-contract-banner>TEST contract figures only. Earnest money and commissions are optional and stay the same figures as Add New Order. An empty box is unknown, not zero. These figures are not funds received, not a payoff, and not a Closing Disclosure. The fee ledger does not import them.</div>
     ${terms.blocked ? html`<p class="notice warn" data-contract-blocked>${terms.blocked}</p>` : ''}
     ${terms.canEdit ? '' : html`<p class="notice info" data-readonly-note>${READ_ONLY_NOTE}</p>`}
     <form id="acct-contract-form" data-contract-form novalidate>

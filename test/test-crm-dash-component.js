@@ -222,12 +222,12 @@ ok(page.includes('return { name: f.name.value, type, config }') && page.includes
 
 const want = new Map([
   ['js/data/supabase-crm-surface.js', '202611130900'],
-  ['js/data/supabase-crm.js', '202611132200'],
-  ['js/data/supabase-adapter.js', '202611132200'],
-  ['js/data/adapter.js', '202611132200'],
-  ['js/pages/crm-dashboards.js', '202611132200'],
-  ['js/pages/crm.js', '202611132200'],
-  ['js/app.js', '202611132200'],
+  ['js/data/supabase-crm.js', '202611141300'],
+  ['js/data/supabase-adapter.js', '202611141300'],
+  ['js/data/adapter.js', '202611141300'],
+  ['js/pages/crm-dashboards.js', '202611141300'],
+  ['js/pages/crm.js', '202611141300'],
+  ['js/app.js', '202611141300'],
 ]);
 function walkDir(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -237,7 +237,7 @@ function walkDir(dir, out = []) {
   }
   return out;
 }
-const specRe = /(['"])([^'"\s]+?)\?v=(\d+)\1/g;
+const specRe = /(['"])([^'"\s]+?)\?v=([A-Za-z0-9]+)\1/g;
 const hits = new Map();
 for (const file of walkDir(path.join(root, 'js')).concat(readdirSync(root).filter((n) => n.endsWith('.html')).map((n) => path.join(root, n)))) {
   const rel = path.relative(root, file);

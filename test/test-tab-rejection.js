@@ -1,7 +1,7 @@
 /* Rejected tab loads and inherited tab names. No hosted project and no secrets. */
 import { parseHTML } from '/tmp/domtest/node_modules/linkedom/worker.js';
-import { dealTabSpec, prefetchDealTab, useDealTabLoader } from '../js/pages/deal-tab.js?v=202611121300';
-import { render as renderDeal } from '../js/pages/deal.js?v=202611121300';
+import { dealTabSpec, prefetchDealTab, useDealTabLoader } from '../js/pages/deal-tab.js?v=202611122100';
+import { render as renderDeal } from '../js/pages/deal.js?v=202611122100';
 import { toText } from '../js/ui.js';
 
 const { window, document } = parseHTML('<!doctype html><html><body><div id="app"></div></body></html>');

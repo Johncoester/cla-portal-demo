@@ -32,10 +32,43 @@ export function cleanMonthDay(month, day) {
 export const monthDayText = (m, d) => (m && d ? `${MONTHS[m - 1]} ${d}` : '');
 // the existing optional agent birthdate (migration 38, YYYY-MM-DD) is reused: its month / day prefill the new month / day fields
 export const monthDayFromBirthdate = (iso) => { const x = /^\d{4}-(\d{2})-(\d{2})$/.exec(String(iso || '')); return x ? { birthMonth: Number(x[1]), birthDay: Number(x[2]) } : { birthMonth: null, birthDay: null }; };
+// A file input with nothing picked is an empty name and zero bytes. That is not a chosen picture.
+export function photoFileChosen(file) {
+  if (!file) return false;
+  const name = String(file.name || '').trim();
+  const size = Number(file.size) || 0;
+  return !!(name || size);
+}
+// No file chosen: the picture is optional. A type check runs only for a file the user actually picked.
+export function photoFileAllowed(file) {
+  if (!photoFileChosen(file)) return true;
+  const type = String(file.type || '').toLowerCase();
+  if (type === 'image/jpg' || PHOTO_TYPES.includes(type)) return true;
+  if (!type && /\.(png|jpe?g|webp|gif)$/i.test(file.name || '')) return true;
+  return false;
+}
+export const PHOTO_TYPE_MSG = 'Profile picture must be an image (PNG, JPG, WEBP or GIF).';
+export const AGENT_ONBOARD_KEY = 'cla-agent-onboard';
+export function markAgentOnboard(storage) {
+  const box = storage || (typeof sessionStorage !== 'undefined' ? sessionStorage : null);
+  if (!box) return;
+  try { box.setItem(AGENT_ONBOARD_KEY, '1'); } catch (e) { /* private mode: the next save stays on the profile page */ }
+}
+export function consumeAgentOnboard(storage) {
+  const box = storage || (typeof sessionStorage !== 'undefined' ? sessionStorage : null);
+  if (!box) return false;
+  try {
+    const on = box.getItem(AGENT_ONBOARD_KEY) === '1';
+    if (on) box.removeItem(AGENT_ONBOARD_KEY);
+    return on;
+  } catch (e) { return false; }
+}
 export function cleanPhoto(dataUrl) {
-  if (dataUrl == null || dataUrl === '') return null;
-  const v = String(dataUrl); const t = /^data:(image\/(?:png|jpeg|webp|gif));base64,[A-Za-z0-9+/=]+$/.exec(v) || /^data:(image\/svg\+xml);base64,[A-Za-z0-9+/=]+$/.exec(v);
-  if (!t) throw new Error('Profile picture must be an image (PNG, JPG, WEBP or GIF).');
+  if (dataUrl == null || String(dataUrl).trim() === '') return null;
+  const v = String(dataUrl).trim();
+  if (/^https?:\/\//i.test(v)) return undefined;
+  const t = /^data:(image\/(?:png|jpeg|webp|gif));base64,[A-Za-z0-9+/=]+$/.exec(v) || /^data:(image\/svg\+xml);base64,[A-Za-z0-9+/=]+$/.exec(v);
+  if (!t) throw new Error(PHOTO_TYPE_MSG);
   if (t[1] === 'image/svg+xml' && !/^data:image\/svg\+xml;base64,/.test(v)) throw new Error('Profile picture must be an image.');
   if (Math.floor((v.length - v.indexOf(',') - 1) * 3 / 4) > PHOTO_STORED_MAX) throw new Error('Profile picture is too large after cropping (max 400 KB).');
   return v;
@@ -53,7 +86,10 @@ export function cleanAgentProfile(f, { partial = false } = {}) {
   for (const [k, n] of [['brokerage', 120], ['licenseNumber', 40], ['street', 120], ['city', 60], ['state', 2], ['zip', 10], ['otherContact', 200]]) if (has(k)) out[k] = s(f[k], n);
   if (out.state) { out.state = out.state.toUpperCase(); if (!/^[A-Z]{2}$/.test(out.state)) throw new Error('State must be 2 letters.'); }
   if (out.zip && !/^\d{5}(-\d{4})?$/.test(out.zip)) throw new Error('ZIP must be 5 digits (or ZIP+4).');
-  if (has('photo')) out.photo = cleanPhoto(f.photo);
+  if (has('photo')) {
+    const photo = cleanPhoto(f.photo);
+    if (photo !== undefined) out.photo = photo;
+  }
   if (has('photoShape')) out.photoShape = PHOTO_SHAPES.includes(f.photoShape) ? f.photoShape : 'circle';
   return out;
 }

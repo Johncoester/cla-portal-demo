@@ -70,9 +70,9 @@ try {
   const span = (fn) => {
     const lines = psql(`
       select set_config('request.jwt.claim.sub', '${buyer}', false);
-      select extract(milliseconds from clock_timestamp())::bigint;
+      select (extract(epoch from clock_timestamp()) * 1000)::bigint;
       select count(*) filter (where ${fn}(id)) from public.documents where deal_id = '${deal}';
-      select extract(milliseconds from clock_timestamp())::bigint;
+      select (extract(epoch from clock_timestamp()) * 1000)::bigint;
     `).stdout.trim().split('\n').filter((line) => /^\d+$/.test(line));
     return Number(lines[2]) - Number(lines[0]);
   };

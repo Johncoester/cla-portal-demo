@@ -4,13 +4,13 @@ import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pi
 import { CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611101015';
 import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611130900';
 import { modOn, modBeta, BETA_LABEL } from '../data/modules.js?v=202611101015';   // module switches: Deals hidden when not Live (beta badge for Admins)
-import { columnChooserHtml, columnState, wireColumnChooser } from './crm-columns.js?v=202611132000';
-import { beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611132000';
+import { columnChooserHtml, columnState, wireColumnChooser } from './crm-columns.js?v=202611141100';
+import { beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611141100';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
-import { pageOf, selectionState, selectPage, loadPageSize, normalizePageSize, PAGE_SIZE_OPTIONS } from '../data/crm-bulk.js?v=202611132000';
-import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611132200';
-import { DATE_OPS, DATE_UNITS, matchesDateWindow } from '../data/crm-date-filter.js?v=202611132200';
-import { bulkBar, wireBulk } from './crm-bulk.js?v=202611132100';
+import { pageOf, selectionState, selectPage, loadPageSize, normalizePageSize, PAGE_SIZE_OPTIONS } from '../data/crm-bulk.js?v=202611141100';
+import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611141300';
+import { DATE_OPS, DATE_UNITS, matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611141200';
 
 // A click on the row (not on a link, button, or checkbox) opens the record. The name link still navigates on its own.
 export function wireRowOpen(tb, hrefFor) {
