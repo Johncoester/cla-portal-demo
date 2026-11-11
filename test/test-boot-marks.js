@@ -49,9 +49,9 @@ const measured = run([
 ]);
 check(measured.data && measured.data.frozen === true && measured.data.authStart === 1876 && measured.data.docEnd === 963, 'the snapshot freezes at the first auth request and keeps the document end');
 const paths = measured.data.resources.map((row) => row.p);
-check(paths.join('|') === '/js/app.js?v=202611102000|/@supabase/supabase-js@2.45.4|/auth/v1/user', 'resources that start after auth are dropped');
+check(paths.join('|') === '/js/app.js?v=202611141000|/@supabase/supabase-js@2.45.4|/auth/v1/user', 'resources that start after auth are dropped');
 check(measured.data.resources.find((row) => row.k === 'esm').t === 50 && measured.data.resources.find((row) => row.k === 'same').t === 0, 'transfer size is kept, including zero when the browser hides or caches it');
-check(measured.data.tasks.length === 1 && measured.data.tasks[0].dur === 80 && measured.data.tasks[0].p === '/js/data/supabase-adapter.js?v=202611102000', 'only a long task that starts before auth is kept');
+check(measured.data.tasks.length === 1 && measured.data.tasks[0].dur === 80 && measured.data.tasks[0].p === '/js/data/supabase-adapter.js?v=202611141000', 'only a long task that starts before auth is kept');
 check(!measured.text.includes('secret'), 'a query secret is not stored');
 check(measured.observers.every((observer) => observer.dead), 'observers stop once auth starts');
 
@@ -64,7 +64,7 @@ const blind = run([], { supported: false });
 check(blind.data.unsupported === true && blind.data.resources.length === 0, 'a browser without the observer says so instead of pretending the gap was empty');
 
 check(!/\bfetch\b|\blocalStorage\b|\bsessionStorage\b|\bsendBeacon\b|\bindexedDB\b|XMLHttpRequest/.test(script), 'the recorder does not read storage or send anything');
-check(html.includes('js/boot-marks.js?v=202611090245') && html.includes('js/app.js?v=202611122100') && html.indexOf('js/boot-marks.js') < html.indexOf('js/app.js'), 'the recorder is a classic script before the module and the module stamp stays');
+check(html.includes('js/boot-marks.js?v=202611090245') && html.includes('js/app.js?v=202611141000') && html.indexOf('js/boot-marks.js') < html.indexOf('js/app.js'), 'the recorder is a classic script before the module and the module stamp stays');
 
 function walk(file, seen = new Set()) {
   const full = path.join(root, file);
@@ -86,7 +86,7 @@ const adapterText = readFileSync(path.join(root, 'js/data/adapter.js'), 'utf8');
 const heavyText = readFileSync(path.join(root, 'js/data/supabase-adapter.js'), 'utf8');
 console.log('GRAPH shell', appFiles.size, 'adapter', heavyFiles.size, 'adapter-only', heavyOnly.length);
 check(![...appFiles].some((file) => file.endsWith('/supabase-adapter.js')) && heavyOnly.length >= 40, 'the sign-in call waits on the adapter module and dozens of modules the shell does not already load');
-check(!appText.includes('esm.sh') && !adapterText.includes('auth.getUser') && heavyText.includes('sb.auth.getUser()') && adapterText.includes("import('./supabase-adapter.js?v=202611120100')") && heavyText.includes('https://esm.sh/@supabase/supabase-js@2.45.4'), 'the pinned client and getUser run only after that adapter module loads');
+check(!appText.includes('esm.sh') && !adapterText.includes('auth.getUser') && heavyText.includes('sb.auth.getUser()') && adapterText.includes("import('./supabase-adapter.js?v=202611141000')") && heavyText.includes('https://esm.sh/@supabase/supabase-js@2.45.4'), 'the pinned client and getUser run only after that adapter module loads');
 
 const money = {
   'js/data/constants.js': '9572d16f9e92bd33db5d131ce7c1acb8ab005110b14727ee50357586b5e3eea2',
