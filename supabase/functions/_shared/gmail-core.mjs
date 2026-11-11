@@ -253,6 +253,11 @@ export { AUTH_INVITE_SUBJECT };
 export const INVITE_TOKEN_RE = /^[0-9a-f]{64}$/;
 const INVITE_INTRO = 'C.L.A. Title &amp; Escrow has invited you to create an account. Once you accept, you can track your order, documents, tasks, and messages in one place.';
 export function inviteLink(kind, token) { return `${PORTAL_ORIGIN}/#/${kind === 'hr' ? 'hr-invite' : 'agent-invite'}/${token}`; }
+/* John, Nov 11 (t1488u / t1490u): every portal invite is sent FROM testportal@clatitle.com, never from the inviter's Gmail.
+ * TEST Auth sends it (custom SMTP smtp.gmail.com as testportal@clatitle.com) with the approved Nov 9 "Invite user" template.
+ * Auth's button verifies, then lands on this address; index.html drops Auth's sign-in and opens the portal accept page. */
+export const PORTAL_INVITE_SENDER = 'testportal@clatitle.com';
+export function inviteAuthRedirect(kind, token) { return `${PORTAL_ORIGIN}/?portal_invite=${kind === 'hr' ? 'hr' : 'agent'}.${token}`; }
 export function inviteAddress(info) { return formatPropertyAddress(info || {}); }
 export function partyWord(info = {}) {
   const r = String(info.partyRole || '').trim().toLowerCase();
