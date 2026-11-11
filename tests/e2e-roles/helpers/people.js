@@ -59,9 +59,9 @@ export function requiredTabs(person) {
  * listMessageRecipients in mock-part-msgs.js and visibility / side rules in constants.js.
  * The mock sample file assigns a preprocessor. The TEST seed file does not, so a
  * missing "(Preprocessor)" there is the empty assignment, not a missing recipient.
- * A Transaction Coordinator is required only because the E2E fixture puts that
- * coordinator on the buyer agent's team and on the listing agent's team
- * (20261114150100). A coordinator who is merely on the file is not listed. */
+ * A buyer sees a Transaction Coordinator only when that coordinator assists the
+ * buyer agent. The E2E file's only coordinator assists the buyer agent
+ * (20261114150100), so the seller sees none. */
 export function assignedStaffRoles() {
   const roles = [/\(Processor\)/, /\(Transaction Coordinator\)/, /\(Sales Person\)|\(Sales Team\)/];
   if (targetMode() !== 'test') roles.splice(1, 0, /\(Preprocessor\)/);
@@ -75,7 +75,8 @@ export function recipientRules(person) {
     return { must: [/Buyer Agent/, ...assigned], mustNot: [/Listing Agent/, /Client-Seller/], staff: true, staffRe: staff };
   }
   if (person.label === 'Client-Seller') {
-    return { must: [/Listing Agent/, ...assigned], mustNot: [/Buyer Agent/, /Client-Buyer/], staff: true, staffRe: staff };
+    const sellerStaff = assigned.filter((re) => !/Transaction Coordinator/.test(re.source));
+    return { must: [/Listing Agent/, ...sellerStaff], mustNot: [/Buyer Agent/, /Client-Buyer/, /Transaction Coordinator/], staff: true, staffRe: staff };
   }
   if (person.label === 'Buyer Agent') {
     return { must: [/Client-Buyer/, ...assigned], mustNot: [/Listing Agent/, /Client-Seller/], staff: true, staffRe: staff };

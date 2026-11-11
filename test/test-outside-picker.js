@@ -35,6 +35,33 @@ ok(seller.some((r) => r.role === 'Listing Agent'), 'the seller sees the listing 
 ok(seller.some((r) => r.id === 'u-tc2' && r.role === 'Transaction Coordinator'), 'the seller sees the listing-side coordinator');
 ok(!seller.some((r) => r.id === 'u-tc' || r.role === 'Buyer Agent' || r.role === 'Client-Buyer' || r.role === 'Client-Seller' || r.role === 'Preprocessor' || r.role === 'Sales Person'), 'the seller does not see the other side, other clients, or unassigned staff');
 
+const fresh = () => createMockAdapter({ storage: mem(), sessionStorage: mem() });
+const ids = (rows, role) => rows.filter((r) => r.role === role).map((r) => r.id).sort().join(',');
+const buyerSide = await fresh();
+await buyerSide.signInDev('u-admin');
+await buyerSide.removeTeamMember('team-harbor', 'u-tc2');
+await buyerSide.addTeamMember('team-oak', 'u-tc2', 'coordinator');
+await buyerSide.signInDev('u-buyer');
+const buyerWithOwn = await buyerSide.listMessageRecipients('deal-1');
+ok(ids(buyerWithOwn, 'Transaction Coordinator') === 'u-tc', 'a buyer sees only the coordinator assisting the buyer agent');
+await buyerSide.signInDev('u-seller');
+const sellerWithOwn = await buyerSide.listMessageRecipients('deal-1');
+ok(ids(sellerWithOwn, 'Transaction Coordinator') === 'u-tc2', 'a seller sees only the coordinator assisting the listing agent');
+
+const listingOnly = await fresh();
+await listingOnly.signInDev('u-admin');
+await listingOnly.removeTeamMember('team-harbor', 'u-tc');
+await listingOnly.removeTeamMember('team-harbor', 'u-tc2');
+await listingOnly.addTeamMember('team-oak', 'u-tc2', 'coordinator');
+await listingOnly.signInDev('u-buyer');
+ok(ids(await listingOnly.listMessageRecipients('deal-1'), 'Transaction Coordinator') === '', 'a buyer sees no coordinator when the file has only a listing-side coordinator');
+
+const buyerOnly = await fresh();
+await buyerOnly.signInDev('u-admin');
+await buyerOnly.removeTeamMember('team-harbor', 'u-tc2');
+await buyerOnly.signInDev('u-seller');
+ok(ids(await buyerOnly.listMessageRecipients('deal-1'), 'Transaction Coordinator') === '', 'a seller sees no coordinator when the file has only a buyer-side coordinator');
+
 await api.signInDev('u-proc');
 const staff = await api.listMessageRecipients('deal-1');
 ok(staff.some((r) => r.role === 'Buyer Agent' || /Agent/.test(r.role)), 'staff still see the wider list');
@@ -47,7 +74,7 @@ ok(agent.some((r) => r.role === 'Client-Buyer' || r.role === 'Transaction Coordi
 const sql = readFileSync('supabase/migrations/20261112220000_client_side_people.sql', 'utf8');
 ok(sql.includes('v.pure_buyer or v.pure_seller') && sql.includes("l.profile_role = 'Processor'") && sql.includes("case when v.pure_buyer then 'Buyer Agent' else 'Listing Agent' end") && sql.includes("co.member_role = 'coordinator'") && !sql.includes("or l.profile_role = 'Transaction Coordinator'") && !sql.includes('private.participant_visible') && !sql.includes('private.can_message'), 'the server list is processors plus that side\'s agent and that side\'s coordinator');
 const fixture = readFileSync('supabase/migrations/20261114150100_e2e_side_tc_teams.sql', 'utf8');
-ok(fixture.includes('E2E Buyer Side') && fixture.includes('E2E Listing Side') && fixture.includes("member_role = 'coordinator'") && fixture.includes("member_role = 'agent'") && !fixture.includes('rpc_message_recipients'), 'the E2E fixture links the coordinator to each side agent and does not widen the recipient rule');
+ok(fixture.includes('E2E Buyer Side') && fixture.includes('must not assist the listing agent') && fixture.includes("member_role = 'coordinator'") && !fixture.includes('E2E Listing Side') && !fixture.includes('rpc_message_recipients'), 'the E2E coordinator assists the buyer agent only and the recipient rule stays side-specific');
 ok(!readFileSync('js/data/message-recipients.js', 'utf8').includes('the coordinator already on the file'), 'the share list does not add a coordinator the recipient query left out');
 ok(readFileSync('js/data/parcels.js', 'utf8').includes('no parcel lookup'), 'parcel id stays manual entry; there is no lookup');
 

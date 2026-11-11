@@ -72,7 +72,7 @@ test('seller document sharing options that are offered must upload', async ({ pa
   expect(freshIssues(issues)).toEqual([]);
 });
 
-test('buyer Share Files lists staff and the buyer agent, not the other side', async ({ page, issues }) => {
+test('buyer Share Files lists the buyer-side coordinator and not the other side', async ({ page, issues }) => {
   onTest('FF-017');
   await signIn(page, 'buyer');
   await openMockFile(page);
@@ -86,7 +86,7 @@ test('buyer Share Files lists staff and the buyer agent, not the other side', as
   expect(freshIssues(issues)).toEqual([]);
 });
 
-test('seller Share Files lists staff and the listing agent, not the other side', async ({ page, issues }) => {
+test('seller Share Files lists the listing agent and no buyer-side coordinator', async ({ page, issues }) => {
   await signIn(page, 'seller');
   await openMockFile(page);
   const id = dealId(page);
