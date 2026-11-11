@@ -62,15 +62,44 @@ jobs:
 
   smoke:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
+    env:
+      PLAYWRIGHT_VERSION: '1.58.2'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      # Nov 11: smoke failed at "Install Playwright" with "Temporary failure resolving azure.archive.ubuntu.com".
+      # The Chromium download is cached by Playwright version, apt retries on its own, and the system-package
+      # step is tried 4 times. If the mirror is still unreachable, the job goes on with the runner's own packages
+      # (ubuntu-24.04 already has what headless Chromium needs) and the smoke itself decides pass or fail.
       - name: Install Playwright
+        run: npm install --no-save playwright@${{ env.PLAYWRIGHT_VERSION }}
+      - name: Cache the Playwright browser
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-ubuntu-24.04-${{ env.PLAYWRIGHT_VERSION }}
+      - name: Download Chromium (cache miss only, with retry)
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: |
-          npm install --no-save playwright@1.58.2
-          npx playwright install --with-deps chromium
+          for i in 1 2 3 4; do
+            npx playwright install chromium && exit 0
+            echo "Chromium download attempt $i failed; retrying in $((i * 15))s"
+            sleep $((i * 15))
+          done
+          exit 1
+      - name: Chromium system packages (with retry)
+        run: |
+          echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80-retries >/dev/null
+          for i in 1 2 3 4; do
+            npx playwright install-deps chromium && exit 0
+            echo "install-deps attempt $i failed; retrying in $((i * 15))s"
+            sleep $((i * 15))
+          done
+          echo "::warning::apt mirror unreachable after 4 tries; using the runner's preinstalled packages"
+          exit 0
       - name: Every role, dashboard and file tabs, mock data
         run: node tools/smoke-mock.mjs
