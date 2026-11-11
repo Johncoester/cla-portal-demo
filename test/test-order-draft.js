@@ -1,5 +1,5 @@
 /* Place Order draft. Fake fields only. A draft is not an order and cannot invent a Processor. */
-import { orderDraftKey, readOrderDraft, writeOrderDraft, clearOrderDraft, collectOrderFields, applyOrderDraft, claimOrderDraft, releaseOrderClaim, rememberedFiles, ORDER_DRAFT_MS } from '../js/data/order-draft.js';
+import { orderDraftKey, readOrderDraft, writeOrderDraft, clearOrderDraft, collectOrderFields, applyOrderDraft, claimOrderDraft, releaseOrderClaim, rememberedFiles, tombstoneOrderDraft, ORDER_DRAFT_MS } from '../js/data/order-draft.js';
 const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
@@ -41,5 +41,11 @@ releaseOrderClaim(store, key);
 ok(claimOrderDraft(store, key).ok, 'a failed place releases the draft for one more try');
 clearOrderDraft(store, key);
 ok(readOrderDraft(store, key) === null, 'placing the order clears the draft');
+writeOrderDraft(store, key, { fields: { street: '9 Draft Lane', step: 'property' }, savedAt: new Date().toISOString(), step: 'property' });
+tombstoneOrderDraft(store, key, { dealId: 'deal-placed', fileNumber: 'VA-26-97260' });
+ok(readOrderDraft(store, key) === null, 'a placed order tombstone is not a draft to restore');
+ok(writeOrderDraft(store, key, { fields: { street: 'should-not-return' }, savedAt: new Date().toISOString() }) === false, 'a leftover write does not bring the draft back');
+ok(readOrderDraft(store, key) === null, 'the tombstone stays after that write');
+ok(writeOrderDraft(store, key, { fields: { street: '1 New St' }, savedAt: new Date().toISOString(), fresh: true }) !== false && readOrderDraft(store, key).fields.street === '1 New St', 'a new visit can save a new draft');
 console.log(fail ? fail + ' failed' : 'order draft passed');
 if (fail) process.exit(1);
