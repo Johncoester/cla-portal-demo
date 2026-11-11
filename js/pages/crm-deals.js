@@ -1,20 +1,20 @@
 /* crm-deals.js : DEALS in the CRM (Zoho's Deals module) = the portal's orders you can already see. #/crm/deals[/<id>]. Read-only here (orders are run
  * in the portal); a deal has Send Email (saved, NOT sent) and its Emails list. Function only. */
 import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, toast } from '../ui.js?v=202611070139';
-import { crmSort } from '../data/crm.js?v=202611070139';
+import { crmSort } from '../data/crm.js?v=202611130900';
 import { DEAL_COLS, DEFAULT_HIDDEN, loadHidden } from '../data/crm-deal-cols.js?v=202611070139';
-import { display, moduleFields } from '../data/crm-analytics.js?v=202611070139';
-import { crmDealName, columnKey, loadColumns, normalizeColumns, beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611131100';
-import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611131100';
-import { tabs, head, money, wireRowOpen, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611131300';
-import { matchesDateWindow } from '../data/crm-date-filter.js?v=202611131300';
-import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611090905';
-import { viewsBar, wireViewsBar } from './crm-views.js?v=202611131300';
+import { display, moduleFields } from '../data/crm-analytics.js?v=202611130900';
+import { crmDealName, columnKey, loadColumns, normalizeColumns, beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611132000';
+import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611132000';
+import { tabs, head, money, wireRowOpen, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611132200';
+import { matchesDateWindow } from '../data/crm-date-filter.js?v=202611132200';
+import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611130900';
+import { viewsBar, wireViewsBar } from './crm-views.js?v=202611132200';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
 import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070139';
-import { pageOf, selectionState, selectPage, loadPageSize } from '../data/crm-bulk.js?v=202611131100';
-import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611131300';
-import { bulkBar, wireBulk } from './crm-bulk.js?v=202611131200';
+import { pageOf, selectionState, selectPage, loadPageSize } from '../data/crm-bulk.js?v=202611132000';
+import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611132200';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611132100';
 
 export async function dealsPage(c) { return c.params.id ? dealPage(c) : dealsList(c); }
 

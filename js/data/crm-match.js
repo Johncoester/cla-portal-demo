@@ -3,8 +3,8 @@
  * Callers get counts only. Full rows stay in the database.
  * EMAIL_DRAFT_BATCH is how many drafts one insert statement writes. It is not a limit
  * on how many addresses one send may include. */
-import { fieldPatch } from './crm-bulk.js?v=202611131100';
-import { matchesDateWindow } from './crm-date-filter.js?v=202611131300';
+import { fieldPatch } from './crm-bulk.js?v=202611132000';
+import { matchesDateWindow } from './crm-date-filter.js?v=202611132200';
 
 export const EMAIL_DRAFT_BATCH = 500;
 export const CRM_ZONE = 'America/New_York';
