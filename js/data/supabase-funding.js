@@ -3,7 +3,7 @@
  * RLS is private.fwp_staff('funding', deal). Agents, buyers, sellers, and TCs are not in that list.
  * The disbursed-status trigger re-checks funds, document checks, and invoices. Nothing is sent. */
 import * as R from './funding-wire-policy.js?v=202611070139';
-import { ledgerTotals } from './accounting.js?v=202611071751';
+import { ledgerTotals } from './accounting.js?v=202611070139';
 
 const OFF = 'Funding is turned off on this portal.';
 const ROLES = ['Processor', 'Preprocessor', 'Funding Team'];
