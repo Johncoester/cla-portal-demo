@@ -16,7 +16,7 @@ function walk(dir, out = []) {
   }
   return out;
 }
-const specRe = /(['"])([^'"\s]+?\.(?:js|css))\?v=(\d+)\1/g;
+const specRe = /(['"])([^'"\s]+?\.(?:js|css))\?v=([A-Za-z0-9]+)\1/g;
 const hits = new Map();
 const files = walk(path.join(root, 'js')).concat(readdirSync(root).filter((n) => n.endsWith('.html')).map((n) => path.join(root, n)));
 for (const file of files) {

@@ -32,10 +32,16 @@ ok(contractMismatch(clean, { ...back, fields: { ...back.fields, salePrice: 1 } }
 // End to end through the hosted adapter with a fake client that stores jsonb
 function fakeSb({ existing = null, tamper = null } = {}) {
   let row = existing;
+  let deal = { transaction_type: 'Purchase', emd_amount: null, emd_due_date: null, financial: {} };
   const writes = [];
   const table = (name) => {
     const q = { _op: 'select', _payload: null };
     const done = async () => {
+      if (name === 'deals') {
+        // PR 187: earnest money and commissions live on the order; the contract sheet reads and writes them there.
+        if (q._op === 'update') { deal = { ...deal, ...q._payload }; return { data: [deal], error: null }; }
+        return { data: deal, error: null };
+      }
       if (name !== 'accounting_contract_terms') return { data: null, error: { message: 'unexpected table ' + name } };
       if (q._op === 'update' || q._op === 'insert') {
         writes.push(q._op);

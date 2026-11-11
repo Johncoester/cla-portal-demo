@@ -10,7 +10,7 @@ import { buildFileNumber, retagFileNumber, sentOutside } from './file-number.js?
 import { officeDate } from './office-date.js?v=202611102100';
 import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions } from './lender-file.js?v=202611101200';
 import { cleanParcel } from './address-fill.js?v=202611131900';
-import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611102000';
+import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611141000';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 // John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only
@@ -93,6 +93,31 @@ export function dealsAndAuth(x) {
       return dealsFor(u).filter((q) => !status || status === 'All' || q.status === status).map((q) => dealView(u, q))
         .sort((a, b) => (b.openDate || '').localeCompare(a.openDate || '') || b.fileNumber.localeCompare(a.fileNumber));
     },
+    async loadDashboard({ openOffset = 0, openLimit = 40, taskOffset = 0, taskLimit = 200, fileStatus = 'Open', taskStatus = 'open', includeTasks = true, includeOther = false, otherOffset = 0 } = {}) {
+      const u = needUser(); const d = load(); const today = localDate();
+      const sort = (list) => list.slice().sort((a, b) => (b.openDate || '').localeCompare(a.openDate || '') || b.fileNumber.localeCompare(a.fileNumber));
+      const visible = dealsFor(u);
+      const openAll = sort(visible.filter((q) => q.status === 'Open'));
+      const otherAll = sort(visible.filter((q) => q.status !== 'Open'));
+      const openRows = openAll.slice(openOffset, openOffset + openLimit).map((q) => dealView(u, q));
+      const otherRows = includeOther ? otherAll.slice(otherOffset, otherOffset + openLimit).map((q) => dealView(u, q)) : [];
+      const fileOk = (q) => fileStatus === 'All' || q.status === fileStatus;
+      const statusOk = (t) => taskStatus === 'open' ? ['todo', 'in_progress', 'blocked'].includes(t.status) : taskStatus === 'all' || t.status === taskStatus;
+      const taskRows = [];
+      if (includeTasks) {
+        for (const q of visible.filter(fileOk)) {
+          const su = x.scopeTo(u, q.id);
+          for (const t of d.tasks.filter((t) => t.dealId === q.id && x.taskVisible(su, t) && statusOk(t))) {
+            const o = x.taskOut(su, t);
+            taskRows.push({ ...o, dealId: q.id, deal: { id: q.id, fileNumber: q.fileNumber, street: q.street, city: q.city, state: q.state, zip: q.zip, address: `${q.street}, ${q.city}, ${q.state} ${q.zip}`, closingDate: q.closingDate || null, status: q.status }, overdue: !!(t.dueDate && t.dueDate < today && ['todo', 'in_progress', 'blocked'].includes(t.status)) });
+          }
+        }
+      }
+      const page = taskRows.slice(taskOffset, taskOffset + taskLimit);
+      const count = (id) => page.filter((t) => t.dealId === id && ['todo', 'in_progress', 'blocked'].includes(t.status)).length;
+      openRows.forEach((row) => { row.openTasks = count(row.id); });
+      return { openRows, openTotal: openAll.length, otherRows, otherTotal: otherAll.length, closedTotal: visible.filter((q) => q.status === 'Closed').length, tasks: page, taskTotal: taskRows.length, limit: openLimit };
+    },
     async getDeal(id) { const u0 = needUser(); const q = dealOr404(u0, id); const u = x.scopeTo(u0, id); return { ...dealView(u, q), participants: x.participantsOf(id, u) }; },
     async createDeal(input) {
       const u = needProcessor(); const d = load();
@@ -168,8 +193,10 @@ export function dealsAndAuth(x) {
         const next = earnestDealPatch(src, { refinance: isRefi(q) });
         q.financial = next.financial;
         if (next.patch.emdHolder !== undefined) q.emdHolder = next.patch.emdHolder; else if (!next.earnest.emdHeldBy) q.emdHolder = '';
-        if (next.earnest.commissionPaidBy === 'seller') { q.listingCommissionPct = next.patch.listingCommissionPct; q.listingCommissionAmount = next.patch.listingCommissionAmount; }
-        if (next.earnest.commissionPaidBy === 'buyer') { q.buyerCommissionPct = next.patch.buyerCommissionPct; q.buyerCommissionAmount = next.patch.buyerCommissionAmount; }
+        if (next.patch.listingCommissionPct !== undefined) q.listingCommissionPct = next.patch.listingCommissionPct;
+        if (next.patch.listingCommissionAmount !== undefined) q.listingCommissionAmount = next.patch.listingCommissionAmount;
+        if (next.patch.buyerCommissionPct !== undefined) q.buyerCommissionPct = next.patch.buyerCommissionPct;
+        if (next.patch.buyerCommissionAmount !== undefined) q.buyerCommissionAmount = next.patch.buyerCommissionAmount;
       }
       if (patch.primaryResidence !== undefined || patch.firstTimeBuyer !== undefined) Object.assign(q, occFields({ primaryResidence: patch.primaryResidence !== undefined ? patch.primaryResidence : q.primaryResidence, firstTimeBuyer: patch.firstTimeBuyer !== undefined ? patch.firstTimeBuyer : q.firstTimeBuyer }, q.transactionType, fail));   // John, Nov 3 call
       if (patch.claRepresentation !== undefined) q.claRepresentation = claRepresentationCode(patch.claRepresentation);
