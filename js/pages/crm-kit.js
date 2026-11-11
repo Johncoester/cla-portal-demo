@@ -8,9 +8,9 @@ import { columnChooserHtml, columnState, wireColumnChooser } from './crm-columns
 import { beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611160300';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
 import { pageOf, selectionState, selectPage, loadPageSize, normalizePageSize, PAGE_SIZE_OPTIONS } from '../data/crm-bulk.js?v=202611160300';
-import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611160300';
+import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611160400';
 import { DATE_OPS, DATE_UNITS, matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
-import { bulkBar, wireBulk } from './crm-bulk.js?v=202611160300';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611160400';
 
 // A click on the row (not on a link, button, or checkbox) opens the record. The name link still navigates on its own.
 export function wireRowOpen(tb, hrefFor) {

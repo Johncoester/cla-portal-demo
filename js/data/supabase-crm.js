@@ -268,7 +268,11 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
       if (Array.isArray(ids)) args.p_ids = ids;
       return await rpc('crm_mass_update', args);
     },
-    async crmMassEmail({ module, filter, subject, html } = {}) { return await rpc('crm_mass_email', { p_module: module, p_filter: filter || {}, p_subject: subject, p_html: html }); },
+    async crmMassEmail({ module, filter, ids, subject, html, dryRun } = {}) {
+      const args = { p_module: module, p_filter: filter || {}, p_subject: subject || '', p_html: html || '', p_dry_run: !!dryRun };
+      if (Array.isArray(ids)) args.p_ids = ids;
+      return await rpc('crm_mass_email', args);
+    },
     async saveUserUiPrefs(module, prefs) {
       on(); const u = await me(); if (!canUseCrm(u)) throw new Error('The CRM is for CLA staff only.');
       const mod = cleanUiModule(module); const clean = cleanUiPrefs(prefs);
