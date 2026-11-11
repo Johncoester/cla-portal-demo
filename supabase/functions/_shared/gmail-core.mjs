@@ -244,27 +244,93 @@ export function corsHeaders(origin) {
 }
 export const json = (status, body, headers = {}) => new Response(JSON.stringify(body), { status, headers: { ...headers, 'Content-Type': 'application/json' } });
 
-/* Portal invite email. The HTML is the approved TEST Auth "Invite user" template.
- * Only {{ .ConfirmationURL }} is swapped for this portal's one-time accept link. The subject stays the Auth subject.
- * kind 'agent' covers agents and buyers / sellers; kind 'hr' is a staff invite. The link path is the only difference. */
+/* Portal invite email. The shell is the approved TEST Auth "Invite user" template.
+ * {{ .ConfirmationURL }} becomes this portal's accept link. When the file has an address, the subject
+ * names that address and a welcome line names the person, their role, and the address.
+ * A file with no address keeps the Auth subject and the template body unchanged.
+ * kind 'agent' covers agents and buyers / sellers; kind 'hr' is a staff invite. */
 export { AUTH_INVITE_SUBJECT };
 export const INVITE_TOKEN_RE = /^[0-9a-f]{64}$/;
+const INVITE_INTRO = 'C.L.A. Title &amp; Escrow has invited you to create an account. Once you accept, you can track your order, documents, tasks, and messages in one place.';
 export function inviteLink(kind, token) { return `${PORTAL_ORIGIN}/#/${kind === 'hr' ? 'hr-invite' : 'agent-invite'}/${token}`; }
-export function invitePlainText(link) {
+export function inviteAddress(info) { return formatPropertyAddress(info || {}); }
+export function partyWord(info = {}) {
+  const r = String(info.partyRole || '').trim().toLowerCase();
+  if (r === 'buyer' || r === 'seller' || r === 'agent') return r;
+  return info.inviteKind === 'agent' ? 'agent' : '';
+}
+export function inviteSubjectFor(info) {
+  const address = inviteAddress(info);
+  return address ? oneLine(`CLA Title & Escrow Has Shared Access to ${address}`, 250) : AUTH_INVITE_SUBJECT;
+}
+export function inviteWelcome(info) {
+  const address = inviteAddress(info);
+  if (!address) return '';
+  const name = oneLine(info && info.firstName, 80);
+  const role = partyWord(info);
+  const hello = name ? `Welcome, ${name}.` : 'Welcome.';
+  return role ? `${hello} You're the ${role} for ${address}.` : `${hello} This is for ${address}.`;
+}
+function welcomeParagraph(text) {
+  return `<p style="margin:-6px 0 22px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:26px;color:#0b2a45;">${escapeHtml(text)}</p>`;
+}
+function portalShell(link, { eyebrow, headline, intro, button, welcome } = {}) {
+  if (!AUTH_INVITE_HTML.includes(AUTH_INVITE_LINK_VAR)) throw new Error('Invite template is missing its link variable.');
+  let html = AUTH_INVITE_HTML.split(AUTH_INVITE_LINK_VAR).join(escapeHtml(link));
+  if (eyebrow) html = html.replace('Invitation', escapeHtml(eyebrow));
+  if (headline) html = html.split("You're invited to the CLA Title Portal").join(escapeHtml(headline));
+  if (intro) html = html.replace(INVITE_INTRO, intro);
+  if (button) html = html.replace('Accept invitation', escapeHtml(button));
+  if (welcome) {
+    const mark = html.indexOf('in one place.');
+    const end = mark >= 0 ? html.indexOf('</p>', mark) : -1;
+    if (end >= 0) html = html.slice(0, end + 4) + welcomeParagraph(welcome) + html.slice(end + 4);
+  }
+  return html;
+}
+export function invitePlainText(link, info = {}) {
+  const welcome = inviteWelcome(info);
   return [
-    "You're invited to the CLA Title Portal",
+    inviteSubjectFor(info),
+    welcome,
     'C.L.A. Title & Escrow has invited you to create an account. Once you accept, you can track your order, documents, tasks, and messages in one place.',
     `Accept invitation: ${link}`,
     "If you weren't expecting this, you can ignore this email.",
     'C.L.A. Title & Escrow',
     'clatitle.com',
-  ].join('\n\n');
+  ].filter(Boolean).join('\n\n');
 }
 export function inviteEmailContent(info = {}, { token } = {}) {
   const kind = info.kind === 'hr' ? 'hr' : 'agent';
   const link = inviteLink(kind, token);
-  const safe = escapeHtml(link);
-  if (!AUTH_INVITE_HTML.includes(AUTH_INVITE_LINK_VAR)) throw new Error('Invite template is missing its link variable.');
-  const html = AUTH_INVITE_HTML.split(AUTH_INVITE_LINK_VAR).join(safe);
-  return { subject: AUTH_INVITE_SUBJECT, html, link, text: invitePlainText(link), to: String(info.email || '').trim().toLowerCase() };
+  const welcome = kind === 'hr' ? '' : inviteWelcome(info);
+  const html = portalShell(link, { welcome });
+  return { subject: kind === 'hr' ? AUTH_INVITE_SUBJECT : inviteSubjectFor(info), html, link, text: invitePlainText(link, kind === 'hr' ? {} : info), to: String(info.email || '').trim().toLowerCase() };
+}
+/* Tasks already covered by a previous notice are skipped. One call is one batch. */
+export function unnotifiedTasks(info = {}) {
+  const seen = new Set((Array.isArray(info.taskNoticeIds) ? info.taskNoticeIds : []).map((id) => String(id)));
+  const out = [];
+  for (const t of (Array.isArray(info.tasks) ? info.tasks : [])) {
+    const title = oneLine(t && typeof t === 'object' ? t.title : t, 120);
+    const id = t && typeof t === 'object' && t.id ? String(t.id) : '';
+    if (!title || (id && seen.has(id))) continue;
+    if (out.some((x) => x.id === id && id)) continue;
+    out.push({ id, title });
+  }
+  return out;
+}
+export function taskNoticeSubject(info) {
+  const address = inviteAddress(info);
+  return address ? oneLine(`You have new tasks for ${address}`, 250) : 'You have new tasks';
+}
+export function taskNoticeContent(info = {}, tasks = [], { token } = {}) {
+  const kind = info.kind === 'hr' ? 'hr' : 'agent';
+  const link = inviteLink(kind, token);
+  const address = inviteAddress(info);
+  const titles = tasks.map((t) => t.title).filter(Boolean);
+  const intro = `${address ? `You have new tasks for ${escapeHtml(address)}` : 'You have new tasks'}: ${titles.map((t) => escapeHtml(t)).join(', ')}.`;
+  const html = portalShell(link, { eyebrow: 'Tasks', headline: taskNoticeSubject(info), intro, button: 'See my tasks' });
+  const text = [taskNoticeSubject(info), titles.join(', '), `See my tasks: ${link}`].filter(Boolean).join('\n\n');
+  return { subject: taskNoticeSubject(info), html, link, text, tasks, to: String(info.email || '').trim().toLowerCase() };
 }
