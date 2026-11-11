@@ -1,6 +1,8 @@
 -- FF-018. A buyer or seller can message the processors assigned on the file,
--- their own side's agent, and that side's transaction coordinator. Staff and
--- agents keep the wider list. One set-based read. Not applied by this commit.
+-- their own side's agent, and that side's transaction coordinator (the
+-- coordinator on the same team as that side's agent). Not the other side's
+-- agent or coordinator, and not the other side's clients. Staff and agents
+-- keep the wider list. One set-based read. Not applied by this commit.
 --
 -- Ask for an update: a buyer or seller whose file role is Client-Buyer or
 -- Client-Seller is that side even when person_side comes back empty.
@@ -177,8 +179,19 @@ as $function$
           )
           or (v.pure_buyer and 'Buyer Agent' = any (l.roles))
           or (v.pure_seller and 'Listing Agent' = any (l.roles))
-          or l.profile_role = 'Transaction Coordinator'
-          or 'Transaction Coordinator' = any (l.roles)
+          or (
+            l.profile_role = 'Transaction Coordinator'
+            and exists (
+              select 1
+              from public.team_members co
+              join public.team_members ag on ag.team_id = co.team_id and ag.member_role = 'agent'
+              join public.deal_participants dp on dp.deal_id = p_deal
+              join public.contacts c on c.id = dp.contact_id and c.profile_id = ag.profile_id
+              where co.profile_id = l.id
+                and co.member_role = 'coordinator'
+                and dp.role = case when v.pure_buyer then 'Buyer Agent' else 'Listing Agent' end
+            )
+          )
         )
       )
       or (
@@ -245,10 +258,12 @@ begin
 
 do $readback$
 begin
-  if position('Buyer Agent' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_message_recipients(uuid)'::regprocedure)) = 0
-     or position('Listing Agent' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_message_recipients(uuid)'::regprocedure)) = 0
-     or position('Transaction Coordinator' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_message_recipients(uuid)'::regprocedure)) = 0 then
-    raise exception 'readback: a buyer or seller cannot see their agent and coordinator';
+  if position('case when v.pure_buyer then ''Buyer Agent'' else ''Listing Agent'' end' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_message_recipients(uuid)'::regprocedure)) = 0
+     or position('co.member_role = ''coordinator''' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_message_recipients(uuid)'::regprocedure)) = 0 then
+    raise exception 'readback: a buyer or seller cannot see only their own side''s agent and coordinator';
+  end if;
+  if position('or l.profile_role = ''Transaction Coordinator''' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_message_recipients(uuid)'::regprocedure)) > 0 then
+    raise exception 'readback: every transaction coordinator is still offered';
   end if;
   if position('l.profile_role = ''Processor''' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_message_recipients(uuid)'::regprocedure)) = 0 then
     raise exception 'readback: assigned processors were dropped';

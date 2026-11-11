@@ -31,12 +31,17 @@ export function messagesActivity(x) {
       for (const s of load().dealSalesPeople || []) if (s.dealId === dealId) { const p = load().profiles.find((z) => z.id === s.salesId); if (p) add(p.id, p.firstName, p.lastName, p.role); }
       if (u.role === 'Transaction Coordinator') add(u.id, u.firstName, u.lastName, u.role);
       let out = rows.filter((r) => r.id !== u.id);
-      const held = (u.roles && u.roles.length) ? u.roles : [u.role];
-      const pureClient = held.length > 0 && held.every((r) => r === 'Client-Buyer' || r === 'Client-Seller');
-      if (pureClient && !staff) {
-        const side = held.includes('Client-Buyer') ? 'buyer' : 'seller';
-        const agentRole = side === 'buyer' ? 'Buyer Agent' : 'Listing Agent';
-        out = out.filter((r) => r.email && (r.role === 'Processor' || r.role === agentRole || r.role === 'Transaction Coordinator'));
+      const onFile = x.fileRoles(u.id, dealId);
+      const agentHere = onFile.some((r) => /Agent$/.test(r));
+      const pureBuyer = !staff && onFile.includes('Client-Buyer') && !agentHere;
+      const pureSeller = !staff && onFile.includes('Client-Seller') && !onFile.includes('Client-Buyer') && !agentHere;
+      if (pureBuyer || pureSeller) {
+        const agentRole = pureBuyer ? 'Buyer Agent' : 'Listing Agent';
+        const d = load();
+        const agentIds = new Set(d.participants.filter((p) => p.dealId === dealId && p.role === agentRole).map((p) => { const c = d.contacts.find((z) => z.id === p.contactId); return c && c.profileId; }).filter(Boolean));
+        const sideTeams = new Set((d.teamMembers || []).filter((m) => m.memberRole === 'agent' && agentIds.has(m.profileId)).map((m) => m.teamId));
+        const sideTcs = new Set((d.teamMembers || []).filter((m) => m.memberRole === 'coordinator' && sideTeams.has(m.teamId)).map((m) => m.profileId));
+        out = out.filter((r) => r.email && (r.role === 'Processor' || r.role === agentRole || (r.role === 'Transaction Coordinator' && sideTcs.has(r.id))));
       }
       return clone(out);
     },
