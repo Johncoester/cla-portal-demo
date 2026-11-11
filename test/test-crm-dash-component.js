@@ -237,7 +237,7 @@ function walkDir(dir, out = []) {
   }
   return out;
 }
-const specRe = /(['"])([^'"\s]+?)\?v=(\d+)\1/g;
+const specRe = /(['"])([^'"\s]+?)\?v=([A-Za-z0-9]+)\1/g;
 const hits = new Map();
 for (const file of walkDir(path.join(root, 'js')).concat(readdirSync(root).filter((n) => n.endsWith('.html')).map((n) => path.join(root, n)))) {
   const rel = path.relative(root, file);
