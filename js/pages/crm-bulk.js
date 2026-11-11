@@ -28,14 +28,41 @@ function report(title, result, extra = '') {
   modal(title, html`<div data-bulk-result><p>${result.ok.length} saved, ${result.failed.length} not saved. ${extra}</p><ul>${lines.map((l) => html`<li>${l}</li>`)}</ul><p><button type="button" class="m-btn" data-close>Close</button></p></div>`);
 }
 
-export function wireBulk(root, { module, api, me, owners, getPageRows, clear, refresh }) {
+export function wireBulk(root, { module, api, me, owners, getPageRows, getMatch, clear, refresh }) {
   if (!me || !me.canEdit) return;
   const bar = $('[data-bulk-bar]', root); if (!bar) return;
-  const paint = () => { const n = $$('[data-bulk-row]:checked', root).length; bar.hidden = n === 0; $('[data-bulk-count]', bar).textContent = `${n} selected`; };
+  const scope = () => (getMatch ? getMatch() : { all: false, count: 0, filter: {} });
+  const paint = () => {
+    const match = scope(); const n = match.all ? match.count : $$('[data-bulk-row]:checked', root).length;
+    bar.hidden = n === 0; $('[data-bulk-count]', bar).textContent = match.all ? `${n} matching records selected` : `${n} selected`;
+  };
   root.addEventListener('change', (e) => { if (e.target && e.target.matches && e.target.matches('[data-bulk-row],[data-bulk-page]')) paint(); });
   const need = () => { const rows = chosen(root, getPageRows()); if (!rows.length) throw new Error('Select at least one record on this page.'); return rows; };
+  const pageOnly = () => { if (scope().all) throw new Error('Select all matching applies to Update a field and Email. Clear it to change the owner or create a task for this page.'); return need(); };
   $('[data-bulk-clear]', bar).addEventListener('click', () => { clear(); paint(); });
-  $('[data-bulk-email]', bar).addEventListener('click', guard(async () => { const rows = need();
+  const exact = async (action) => {
+    const match = scope();
+    if (match.all && typeof api.crmMatchPlan === 'function') return api.crmMatchPlan({ module, filter: match.filter, action });
+    return { count: match.count, records: match.count, recipients: match.count, skipped: 0 };
+  };
+  $('[data-bulk-email]', bar).addEventListener('click', guard(async () => {
+    if (scope().all) {
+      const plan = await exact('email');
+      const m = modal('Email matching records', html`<form id="bulk-mail" class="form-grid"><p class="span2" data-bulk-privacy>Each draft goes to one address. People are not copied on each other's email. Nothing is sent. The addresses stay on the server.</p>
+        <p class="span2" data-match-exact>Save ${plan.count} email draft${plan.count === 1 ? '' : 's'}? ${plan.skipped ? plan.skipped + ' records are skipped.' : ''} Nothing is sent.</p>
+        <label class="span2">Subject<input name="subject" maxlength="250" required></label>
+        <label class="span2">Message<textarea name="body" rows="5" required></textarea></label>
+        <p class="err-text span2" data-form-err></p>
+        <div class="span2"><button class="m-btn" type="submit" data-bulk-send-draft>Save drafts</button> <button class="ghost" type="button" data-close>Cancel</button></div></form>`);
+      $('#bulk-mail', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); if (!plan.count) throw new Error('None of the matching records have an email address.');
+        if (typeof api.crmMassEmail !== 'function') throw new Error('Email drafts are not available here.');
+        const body = e.target.body.value;
+        const result = await api.crmMassEmail({ module, filter: scope().filter, subject: e.target.subject.value, html: `<p>${body.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</p>` });
+        closeModal(); modal('Email drafts', html`<div data-bulk-result><p>${result.drafted || result.count || 0} drafts saved. Nothing was sent.</p><p><button type="button" class="m-btn" data-close>Close</button></p></div>`);
+        clear(); if (refresh) refresh(); }));
+      return;
+    }
+    const rows = need();
     const found = [];
     for (const r of rows) {
       const list = typeof api.crmRelatedEmails === 'function' ? await api.crmRelatedEmails(module, r.id) : [];
@@ -56,7 +83,23 @@ export function wireBulk(root, { module, api, me, owners, getPageRows, clear, re
       const result = await runEach(plan.recipients, (r) => api.saveCrmEmail({ entity: r.storeEntity || module, entityId: r.storeId || r.id, to: [r.email], subject, html: `<p>${body.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</p>`, mode: 'send' }));
       closeModal(); report('Email drafts', result, 'Nothing was sent.'); clear(); if (refresh) refresh(); })); }));
   const fieldBtn = $('[data-bulk-field]', bar);
-  if (fieldBtn) fieldBtn.addEventListener('click', () => { const rows = need(); const fields = BULK_FIELDS[module] || [];
+  if (fieldBtn) fieldBtn.addEventListener('click', guard(async () => {
+    if (scope().all) {
+      const plan = await exact('update'); const fields = BULK_FIELDS[module] || [];
+      const m = modal('Update a field', html`<form id="bulk-field" class="form-grid"><p class="span2" data-match-exact>This changes ${plan.count} matching record${plan.count === 1 ? '' : 's'}. Confirm before it saves.</p>
+        <label>Field<select name="field">${fields.map(([k, l]) => html`<option value="${k}">${l}</option>`)}</select></label>
+        <label>New value<input name="value" maxlength="2000" required></label>
+        <p class="err-text span2" data-form-err></p>
+        <div class="span2"><button class="m-btn" type="submit">Update matching records</button> <button class="ghost" type="button" data-close>Cancel</button></div></form>`);
+      $('#bulk-field', m).addEventListener('submit', guard(async (e) => { e.preventDefault();
+        if (typeof api.crmMassUpdate !== 'function') throw new Error('This list cannot be updated in bulk.');
+        fieldPatch(module, e.target.field.value, e.target.value.value);
+        const result = await api.crmMassUpdate({ module, filter: scope().filter, field: e.target.field.value, value: e.target.value.value });
+        closeModal(); modal('Field update', html`<div data-bulk-result><p>${result.updated || 0} saved, ${result.failed || 0} not saved.</p><p><button type="button" class="m-btn" data-close>Close</button></p></div>`);
+        clear(); if (refresh) refresh(); }));
+      return;
+    }
+    const rows = need(); const fields = BULK_FIELDS[module] || [];
     const m = modal('Update a field', html`<form id="bulk-field" class="form-grid"><p class="span2">This changes ${rows.length} record${rows.length === 1 ? '' : 's'} on this page. Confirm before it saves.</p>
       <label>Field<select name="field">${fields.map(([k, l]) => html`<option value="${k}">${l}</option>`)}</select></label>
       <label>New value<input name="value" maxlength="2000" required></label>
@@ -65,9 +108,9 @@ export function wireBulk(root, { module, api, me, owners, getPageRows, clear, re
     $('#bulk-field', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const fn = api[UPDATERS[module]]; if (typeof fn !== 'function') throw new Error('This list cannot be updated in bulk.');
       const patch = fieldPatch(module, e.target.field.value, e.target.value.value);
       const result = await runEach(rows, (r) => fn.call(api, r.id, patch));
-      closeModal(); report('Field update', result); clear(); if (refresh) refresh(); })); });
+      closeModal(); report('Field update', result); clear(); if (refresh) refresh(); })); }));
   const ownerBtn = $('[data-bulk-owner]', bar);
-  if (ownerBtn) ownerBtn.addEventListener('click', () => { const rows = need(); const list = owners || [];
+  if (ownerBtn) ownerBtn.addEventListener('click', () => { const rows = pageOnly(); const list = owners || [];
     const m = modal('Change owner', html`<form id="bulk-owner" class="form-grid"><p class="span2">Only people who can own a record are listed.</p>
       <label>Owner<select name="ownerId">${list.map((o) => html`<option value="${o.id}">${o.name}</option>`)}</select></label>
       <p class="err-text span2" data-form-err></p>
@@ -78,7 +121,7 @@ export function wireBulk(root, { module, api, me, owners, getPageRows, clear, re
         : await runEach(rows, (r) => { const fn = api[UPDATERS[module]]; if (typeof fn !== 'function') throw new Error('This list cannot be updated in bulk.'); return fn.call(api, r.id, { ownerId: id }); });
       closeModal(); report('Owner change', result); clear(); if (refresh) refresh(); })); });
   const taskBtn = $('[data-bulk-task]', bar);
-  if (taskBtn) taskBtn.addEventListener('click', () => { const rows = need(); if (!TASK[module]) throw new Error('Tasks attach to a lead, client, company, or opportunity.');
+  if (taskBtn) taskBtn.addEventListener('click', () => { const rows = pageOnly(); if (!TASK[module]) throw new Error('Tasks attach to a lead, client, company, or opportunity.');
     const m = modal('Create a task', html`<form id="bulk-task" class="form-grid"><p class="span2">One task on each selected record, using the same task fields as a single task.</p>
       <label class="span2">Subject<input name="subject" maxlength="200" required></label>
       <label>Due date<input name="dueDate" type="date" required></label>

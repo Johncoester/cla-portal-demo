@@ -9,6 +9,7 @@
 import { parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, buildIcs, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611101600';
 import { importedStatusDecision } from './crm-import-status.js?v=202611120600';
 import { cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611130300';
+import { rowMatches, applyFieldPatch, emailPlan, EMAIL_DRAFT_BATCH } from './crm-match.js?v=202611130400';
 import { ensureSettings } from './crm-config.js?v=202611070139';
 import { companyKey, CRM_OWNER_ROLES } from './crm.js?v=202611070139';
 import { US_STATE_NAMES } from './constants.js?v=202611101015';
@@ -185,6 +186,64 @@ export function crmJaninePart(x, ctx) {
       if (next.pageSize != null) out.pageSize = next.pageSize;
       return { module: mod, prefs: out, updatedAt: at };
     },
+    // Select-all returns counts only. The write uses the same record methods as one row.
+    async crmMatchPlan(input = {}) {
+      const u = crmUser(); const rows = matchRows(db(), input.module, input.filter || {}, u);
+      if ((input.action || 'update') === 'email') {
+        const plan = emailPlan(emailPeople(db(), input.module, rows));
+        return { count: plan.recipients, records: rows.length, recipients: plan.recipients, skipped: plan.skipped };
+      }
+      return { count: rows.length, records: rows.length, recipients: rows.length, skipped: 0 };
+    },
+    async crmMassUpdate(input = {}) {
+      const u = crmEditor(); const module = canonModule(input.module);
+      const patch = applyFieldPatch(module, input.field, input.value);
+      const rows = matchRows(db(), module, input.filter || {}, u);
+      const fn = this[{ lead: 'updateCrmLead', contact: 'updateCrmContact', account: 'updateCrmAccount', opportunity: 'updateCrmOpportunity', deal: 'updateDeal' }[module]];
+      let updated = 0; let failed = 0;
+      for (const r of rows) {
+        try { if (typeof fn !== 'function') throw new Error('This list cannot be updated in bulk.'); await fn.call(this, r.id, patch); updated += 1; }
+        catch (e) { failed += 1; }
+      }
+      return { count: rows.length, updated, failed };
+    },
+    async crmMassEmail(input = {}) {
+      const u = crmEditor(); const module = canonModule(input.module);
+      const plan = emailPlan(emailPeople(db(), module, matchRows(db(), module, input.filter || {}, u)));
+      if (typeof this.saveCrmEmail !== 'function') fail('Email drafts are not available here.');
+      let drafted = 0;
+      for (let i = 0; i < plan.drafts.length; i += EMAIL_DRAFT_BATCH) {
+        const chunk = plan.drafts.slice(i, i + EMAIL_DRAFT_BATCH);
+        for (const r of chunk) {
+          await this.saveCrmEmail({ entity: r.entity, entityId: r.id, to: [r.email], subject: input.subject, html: input.html, mode: 'send' });
+          drafted += 1;
+        }
+      }
+      return { count: drafted, drafted, skipped: plan.skipped, records: plan.records };
+    },
   };
+  function canonModule(module) {
+    const m = String(module || '');
+    if (m === 'leads') return 'lead'; if (m === 'contacts' || m === 'clients') return 'contact';
+    if (m === 'accounts' || m === 'companies') return 'account'; if (m === 'opportunities') return 'opportunity'; if (m === 'deals') return 'deal';
+    return m;
+  }
+  function matchRows(d, module, filter, u) {
+    const m = canonModule(module);
+    const seenLead = (l) => ctx.leadSeen(u, l);
+    const seenContact = (c) => ctx.contactSeen(u, c);
+    if (m === 'lead') return d.crmLeads.filter(seenLead).map((l) => ({ id: l.id, name: `${l.firstName || ''} ${l.lastName || ''}`.trim(), email: l.email || '', company: l.company || '', phone: l.phone || '', notes: l.notes || '', ownerId: l.ownerId || '', relationshipStatus: l.status || '', leadSource: l.source || '', status: l.status || '', source: l.source || '', archived: !!l.archivedAt, converted: !!l.convertedAt, createdAt: l.createdAt, modifiedAt: l.modifiedAt, county: l.county || '', state: l.state || '', city: l.city || '', roleInCompany: l.roleInCompany || '', custom: l.custom || {}, tags: l.tags || [] })).filter((r) => rowMatches(r, filter));
+    if (m === 'contact') return (d.contacts || []).filter((c) => seenContact(c) && inCrm(c)).map((c) => ({ id: c.id, name: fullName(c), email: c.email || '', company: c.company || '', phone: c.phone || '', notes: c.crmNotes || '', ownerId: c.crmOwnerId || '', relationshipStatus: c.relationshipStatus || '', leadSource: c.leadSource || '', archived: !!c.crmArchivedAt, createdAt: c.createdAt, modifiedAt: c.modifiedAt, county: c.county || '', state: c.state || '', roleInCompany: c.roleInCompany || '', contactType: c.contactType || '', custom: c.custom || {}, tags: c.tags || [] })).filter((r) => rowMatches(r, filter));
+    if (m === 'account') return (d.crmAccounts || []).filter((a) => ctx.accountSeen(u, a)).map((a) => ({ id: a.id, name: a.name || '', phone: a.phone || '', notes: a.notes || '', city: a.city || '', kind: a.kind || '', ownerId: a.ownerId || '', archived: !!a.archivedAt, createdAt: a.createdAt, modifiedAt: a.modifiedAt, custom: a.custom || {} })).filter((r) => rowMatches(r, filter));
+    if (m === 'opportunity') return (d.crmOpportunities || []).filter((o) => !ctx.oppSeen || ctx.oppSeen(u, o)).map((o) => ({ id: o.id, name: o.name || '', notes: o.notes || '', stage: o.stage || '', ownerId: o.ownerId || '', contactId: o.contactId || '', archived: !!o.archivedAt, createdAt: o.createdAt, modifiedAt: o.modifiedAt, expectedClose: o.expectedClose || '', custom: o.custom || {} })).filter((r) => rowMatches(r, filter));
+    return (d.deals || []).map((q) => ({ id: q.id, name: q.propertyAddress || q.street || '', fileNumber: q.fileNumber || '', propertyAddress: q.propertyAddress || q.street || '', notes: q.notes || '', status: q.status || '', createdAt: q.createdAt, openDate: q.openDate || '', closingDate: q.closingDate || '', city: q.city || '' })).filter((r) => rowMatches(r, filter));
+  }
+  function emailPeople(d, module, rows) {
+    const m = canonModule(module);
+    if (m === 'account') return rows.flatMap((r) => (d.contacts || []).filter((c) => c.accountId === r.id && c.email).map((c) => ({ id: r.id, email: c.email, entity: 'account' })));
+    if (m === 'opportunity') return rows.map((r) => { const c = (d.contacts || []).find((z) => z.id === r.contactId); return { id: c ? c.id : r.id, email: c ? c.email : '', entity: 'contact' }; });
+    if (m === 'deal') return rows.flatMap((r) => (d.participants || []).filter((p) => p.dealId === r.id).map((p) => { const c = (d.contacts || []).find((z) => z.id === p.contactId); return { id: r.id, email: c ? c.email : '', entity: 'deal' }; }));
+    return rows.map((r) => ({ id: r.id, email: r.email, entity: m }));
+  }
   return { api, localDate };
 }
