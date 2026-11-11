@@ -4,7 +4,7 @@
  * At most COLUMN_CAP columns stay visible.
  * The same row also remembers records per page (pageSize). A column save keeps pageSize,
  * and a page-size save keeps the column order. */
-import { PAGE_SIZE_OPTIONS, normalizePageSize, loadPageSize, savePageSize } from './crm-bulk.js?v=202611141100';
+import { PAGE_SIZE_OPTIONS, normalizePageSize, loadPageSize, savePageSize } from './crm-bulk.js?v=202611160300';
 export const COLUMN_CAP = 10;
 export const COLUMN_PREF_SAVE_MS = 400;
 export const UI_PREF_MODULES = ['leads', 'contacts', 'accounts', 'deals'];

@@ -1,7 +1,7 @@
 /* Manage columns (Janine, Nov 5; saved on the login Nov 10). Every field of the module, check to show, drag to reorder, cap 10.
  * The open list paints from this browser, then applies the login's row once. A change is saved after a short pause. */
 import { html, raw, toText, $, $$ } from '../ui.js?v=202611070139';
-import { COLUMN_CAP, loadColumns, scheduleColumnSave } from '../data/crm-columns.js?v=202611141100';
+import { COLUMN_CAP, loadColumns, scheduleColumnSave } from '../data/crm-columns.js?v=202611160300';
 
 const storageOf = (storage) => {
   if (storage) return storage;

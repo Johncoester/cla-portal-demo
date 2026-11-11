@@ -1,6 +1,6 @@
 /* Mass actions on the current page of a CRM list. Drafts are not sent. Each row uses the existing save. */
 import { html, $, $$, guard, toast, modal, closeModal } from '../ui.js?v=202611070139';
-import { BULK_FIELDS, BULK_TASK_ENTITIES, planRelatedEmails, fieldPatch, ownerAllowed, runEach } from '../data/crm-bulk.js?v=202611141100';
+import { BULK_FIELDS, BULK_TASK_ENTITIES, planRelatedEmails, fieldPatch, appendCrmNote, noteStamp, ownerAllowed, runEach } from '../data/crm-bulk.js?v=202611160300';
 
 const UPDATERS = { lead: 'updateCrmLead', contact: 'updateCrmContact', account: 'updateCrmAccount', opportunity: 'updateCrmOpportunity', deal: 'updateDeal' };
 const TASK = { lead: 'lead', contact: 'contact', account: 'account', opportunity: 'opportunity', deal: 'deal' };
@@ -89,8 +89,13 @@ export function wireBulk(root, { module, api, me, owners, getPageRows, getMatch,
       const m = modal('Update a field', html`<form id="bulk-field" class="form-grid"><p class="span2" data-match-exact>This changes ${plan.count} matching record${plan.count === 1 ? '' : 's'}. Confirm before it saves.</p>
         <label>Field<select name="field">${fields.map(([k, l]) => html`<option value="${k}">${l}</option>`)}</select></label>
         <label>New value<input name="value" maxlength="2000" required></label>
+        <p class="span2 muted" data-notes-append>Notes are appended. The notes already on each record stay, then a line with today's date and your name, then this text.</p>
         <p class="err-text span2" data-form-err></p>
         <div class="span2"><button class="m-btn" type="submit">Update matching records</button> <button class="ghost" type="button" data-close>Cancel</button></div></form>`);
+      const fieldSel = $('#bulk-field [name=field]', m);
+      const notesHint = $('[data-notes-append]', m);
+      const showNotes = () => { if (notesHint) notesHint.hidden = fieldSel.value !== 'notes'; };
+      fieldSel.addEventListener('change', showNotes); showNotes();
       $('#bulk-field', m).addEventListener('submit', guard(async (e) => { e.preventDefault();
         if (typeof api.crmMassUpdate !== 'function') throw new Error('This list cannot be updated in bulk.');
         fieldPatch(module, e.target.field.value, e.target.value.value);
@@ -103,11 +108,17 @@ export function wireBulk(root, { module, api, me, owners, getPageRows, getMatch,
     const m = modal('Update a field', html`<form id="bulk-field" class="form-grid"><p class="span2">This changes ${rows.length} record${rows.length === 1 ? '' : 's'} on this page. Confirm before it saves.</p>
       <label>Field<select name="field">${fields.map(([k, l]) => html`<option value="${k}">${l}</option>`)}</select></label>
       <label>New value<input name="value" maxlength="2000" required></label>
+      <p class="span2 muted" data-notes-append>Notes are appended. The notes already on each record stay, then a line with today's date and your name, then this text.</p>
       <p class="err-text span2" data-form-err></p>
       <div class="span2"><button class="m-btn" type="submit">Update selected</button> <button class="ghost" type="button" data-close>Cancel</button></div></form>`);
+    const fieldSel = $('#bulk-field [name=field]', m);
+    const notesHint = $('[data-notes-append]', m);
+    const showNotes = () => { if (notesHint) notesHint.hidden = fieldSel.value !== 'notes'; };
+    fieldSel.addEventListener('change', showNotes); showNotes();
     $('#bulk-field', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const fn = api[UPDATERS[module]]; if (typeof fn !== 'function') throw new Error('This list cannot be updated in bulk.');
-      const patch = fieldPatch(module, e.target.field.value, e.target.value.value);
-      const result = await runEach(rows, (r) => fn.call(api, r.id, patch));
+      const field = e.target.field.value; const value = e.target.value.value;
+      const stamp = noteStamp({ author: `${me.firstName || ''} ${me.lastName || ''}`.trim() });
+      const result = await runEach(rows, (r) => fn.call(api, r.id, field === 'notes' ? { notes: appendCrmNote(r.notes, value, stamp) } : fieldPatch(module, field, value)));
       closeModal(); report('Field update', result); clear(); if (refresh) refresh(); })); }));
   const ownerBtn = $('[data-bulk-owner]', bar);
   if (ownerBtn) ownerBtn.addEventListener('click', () => { const rows = pageOnly(); const list = owners || [];

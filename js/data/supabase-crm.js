@@ -8,7 +8,7 @@ import { localDate, runsOrders as runsOrdersCI } from './constants.js?v=20261110
 import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611130900';
 import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611130900';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611130900';
-import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611141100';
+import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
 import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611131900';
 import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611130900';
 

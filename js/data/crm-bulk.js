@@ -92,6 +92,21 @@ export function ownerAllowed(ownerId, owners) {
   return (owners || []).some((o) => o.id === ownerId);
 }
 
+/* Mass update appends Notes. One expression on the row already being updated: the old text stays, then a separator, the date and author, and the new text. */
+export function noteStamp({ author = '', at = new Date() } = {}) {
+  const when = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric' }).format(at);
+  const who = String(author || '').trim() || 'CLA Title';
+  return `${when} — ${who}`;
+}
+
+export function appendCrmNote(existing, addition, stamp) {
+  const next = String(addition == null ? '' : addition).trim();
+  if (!next) throw new Error('Enter the new value.');
+  const block = `${String(stamp || '').trim()}\n${next}`.trim();
+  const prev = String(existing == null ? '' : existing).trim();
+  return prev ? `${prev}\n\n---\n${block}` : block;
+}
+
 export function fieldPatch(module, field, value) {
   const allowed = (BULK_FIELDS[module] || []).map(([k]) => k);
   if (!allowed.includes(field)) throw new Error('That field cannot be changed for every selected record.');

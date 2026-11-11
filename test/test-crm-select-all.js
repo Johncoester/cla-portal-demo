@@ -47,9 +47,15 @@ const plan = await api.crmMatchPlan({ module: 'lead', filter: { q: ada.email }, 
 ok(plan.count >= 1 && plan.records === plan.count && !('rows' in plan) && !('drafts' in plan) && !Array.isArray(plan.records), 'the plan is a count and does not return rows');
 const mailPlan = await api.crmMatchPlan({ module: 'lead', filter: { q: ada.email }, action: 'email' });
 ok(mailPlan.recipients >= 1 && mailPlan.count === mailPlan.recipients && !('drafts' in mailPlan), 'the email plan counts addresses and does not list them');
+const kept = (await api.getCrmLead(ada.id)).notes || '';
+await api.updateCrmLead(ada.id, { notes: kept ? kept + '\nAlready here' : 'Already here' });
+const before = (await api.getCrmLead(ada.id)).notes;
 const updated = await api.crmMassUpdate({ module: 'lead', filter: { q: ada.email }, field: 'notes', value: 'Called all' });
 ok(updated.updated >= 1 && updated.failed === 0 && !('rows' in updated), 'mass update reports how many saved and not the rows');
-ok((await api.getCrmLead(ada.id)).notes === 'Called all' && (await api.getCrmLead(bea.id)).notes !== 'Called all', 'only the leads that match the filter change');
+const after = (await api.getCrmLead(ada.id)).notes;
+ok(after.startsWith(before) && after.includes('\n\n---\n') && after.includes('Called all') && after !== 'Called all' && (await api.getCrmLead(bea.id)).notes !== after, 'mass update appends notes and leaves the existing text');
+const statusUpdate = await api.crmMassUpdate({ module: 'lead', filter: { q: ada.email }, field: 'relationshipStatus', value: 'Potential/Warm' });
+ok(statusUpdate.updated >= 1 && (await api.getCrmLead(ada.id)).notes === after, 'a mass update of another field still replaces that field and does not rewrite notes');
 const mailed = await api.crmMassEmail({ module: 'lead', filter: { q: ada.email }, subject: 'Hello', html: '<p>Hi</p>' });
 ok(mailed.drafted >= 1 && mailed.count === mailed.drafted && !('rows' in mailed) && !('drafts' in mailed), 'mass email returns a draft count and not the messages');
 const emails = await api.listCrmEmails('lead', ada.id);
@@ -60,6 +66,16 @@ await ro.signInDev('u-proc');
 let refused = '';
 try { await ro.crmMassUpdate({ module: 'lead', filter: { q: ada.email }, field: 'notes', value: 'no' }); } catch (e) { refused = e.message; }
 ok(/read-only|Processor/i.test(refused), 'a read-only CRM user cannot mass-update');
+
+const appendSql = read('supabase/migrations/20261116030000_crm_notes_append.sql');
+const appendRb = read('supabase/rollbacks/20261116030000_crm_notes_append.sql');
+const appendBody = appendSql.split('do $readback$')[0];
+ok(appendBody.includes("field = 'notes'") && appendBody.includes('\\n\\n---\\n') && !appendBody.includes('notes = val') && !appendBody.includes('crm_notes = val') && !/for\s+\w+\s+in\s+select/i.test(appendBody), 'the server appends notes in one update of the matched ids; the author is read once, not once per record');
+ok(appendRb.includes('notes = val') && appendRb.includes('crm_notes = val'), 'the rollback replaces notes again');
+const page = read('js/pages/crm-bulk.js');
+ok(page.includes('data-notes-append') && page.includes('Notes are appended'), 'the confirmation says notes are appended');
+console.log('crm-notes-append-sha256', createHash('sha256').update(readFileSync(path.join(root, 'supabase/migrations/20261116030000_crm_notes_append.sql'))).digest('hex'));
+console.log('crm-notes-append-rollback-sha256', createHash('sha256').update(readFileSync(path.join(root, 'supabase/rollbacks/20261116030000_crm_notes_append.sql'))).digest('hex'));
 
 console.log(fail ? fail + ' failed' : 'crm select all passed');
 if (fail) process.exit(1);
