@@ -10,7 +10,7 @@ import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611130900
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611130900';
 import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611121000';
 import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611131900';
-import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611130700';
+import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611130900';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };

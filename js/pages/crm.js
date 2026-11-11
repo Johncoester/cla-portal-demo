@@ -9,16 +9,16 @@ import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, a
 import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-janine.js?v=202611131900';
 import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611130900';
 import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611130900';
-import { settingsPage } from './crm-settings.js?v=202611121000';
+import { settingsPage } from './crm-settings.js?v=202611130900';
 import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611131900';
 import { pipelinePage, reportsPage } from './crm-more.js?v=202611131900';
 import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611131900';
 import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611130900';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611130900';
-import { searchPage } from './crm-search.js?v=202611121000';
-import { dashboardsPage } from './crm-dashboards.js?v=202611130700';
-import { reportsHome } from './crm-reports.js?v=202611121000';
-import { dealsPage } from './crm-deals.js?v=202611121000';
+import { searchPage } from './crm-search.js?v=202611130900';
+import { dashboardsPage } from './crm-dashboards.js?v=202611130900';
+import { reportsHome } from './crm-reports.js?v=202611130900';
+import { dealsPage } from './crm-deals.js?v=202611130900';
 import { callPage, callModal } from './crm-calls.js?v=202611131900';
 import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611130900';
 
