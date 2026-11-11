@@ -26,9 +26,50 @@ export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 export const formData = (form) => Object.fromEntries(new FormData(form).entries());
 
+// John, t1500u: save errors in plain English, technical detail kept out of the main sentence, and the message stays
+// until the user dismisses it. Database / PostgREST wording is mapped here; our own messages pass through unchanged.
+const COLUMN_WORDS = { id: 'ID', zip: 'ZIP', emd: 'EMD', tc: 'TC', url: 'URL', ssn: 'SSN' };
+const columnLabel = (col) => String(col || '').split('_').filter(Boolean).map((w, i) => COLUMN_WORDS[w] || (i ? w : w[0].toUpperCase() + w.slice(1))).join(' ');
+export function plainError(input) {
+  const raw = String(input && typeof input === 'object' ? (input.message || input.error_description || input.details || '') : (input == null ? '' : input)).trim();
+  const code = input && typeof input === 'object' ? String(input.code || '') : '';
+  const said = (text) => ({ text, detail: raw });
+  let m;
+  if ((m = /null value in column "([^"]+)"(?: of relation "[^"]+")? violates not-null constraint/i.exec(raw)) || code === '23502') {
+    const field = m ? columnLabel(m[1]) : '';
+    return said(field ? `This was not saved: ${field} is required. Fill it in and try again.` : 'This was not saved: a required field is empty. Fill it in and try again.');
+  }
+  if (code === '23505' || /duplicate key value violates unique constraint/i.test(raw)) {
+    const key = /Key \(([^)]+)\)=/i.exec(raw) || /unique constraint "[a-z]+_([a-z_]+?)_(?:uq|key|unique|idx)"/i.exec(raw);
+    const what = key ? columnLabel(key[1].split(',')[0].trim()).toLowerCase() : '';
+    return said(what ? `This was not saved: another record already uses this ${what}. Use the existing one or change it.` : 'This was not saved: it would create a duplicate of a record that already exists.');
+  }
+  if (code === '42501' || /row-level security|permission denied|violates row level security/i.test(raw)) {
+    return said('This was not saved: your login is not allowed to change this. Ask CLA Title if you think you should be able to.');
+  }
+  if (code === '23503' || /violates foreign key constraint/i.test(raw)) return said('This was not saved: it points to something that was removed. Refresh the page and try again.');
+  if (code === '23514' || /violates check constraint/i.test(raw)) return said('This was not saved: one of the values is not allowed here. Check the fields and try again.');
+  if (code === '22P02' || /invalid input syntax for type/i.test(raw)) return said('This was not saved: one of the values is not in the right format. Check the fields and try again.');
+  if (/JWT expired|invalid JWT|refresh token/i.test(raw)) return said('Your sign-in has expired. Sign in again, then retry.');
+  if (/Failed to fetch|NetworkError|Load failed|network request failed/i.test(raw)) return said('Could not reach the server. Check your connection and try again.');
+  return { text: raw || 'Something went wrong. Try again.', detail: '' };
+}
 export function toast(msg, kind = 'ok') {
   let box = $('#toasts'); if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
-  const t = document.createElement('div'); t.className = 'toast ' + kind; t.textContent = msg; box.appendChild(t); setTimeout(() => t.remove(), kind === 'err' ? 6000 : 3000);
+  const t = document.createElement('div'); t.className = 'toast ' + kind;
+  if (kind !== 'err') { t.textContent = msg; box.appendChild(t); setTimeout(() => t.remove(), 3000); return t; }
+  const { text, detail } = plainError(msg);
+  for (const old of box.querySelectorAll('.toast.err')) if (old.dataset.msg === text) old.remove();   // one copy of the same error
+  t.dataset.msg = text; t.setAttribute('role', 'alert');
+  const line = document.createElement('span'); line.className = 'toast-text'; line.textContent = text; t.appendChild(line);
+  const x = document.createElement('button'); x.type = 'button'; x.className = 'toast-x'; x.setAttribute('aria-label', 'Dismiss'); x.textContent = '\u00d7';
+  x.addEventListener('click', () => t.remove()); t.appendChild(x);
+  if (detail && detail !== text) {
+    const more = document.createElement('details'); more.className = 'toast-detail';
+    const sum = document.createElement('summary'); sum.textContent = 'Technical details'; more.appendChild(sum);
+    const pre = document.createElement('div'); pre.textContent = detail; more.appendChild(pre); t.appendChild(more);
+  }
+  box.appendChild(t); return t;
 }
 // Wrap an async action: shows errors as a toast instead of breaking the page.
 export const guard = (fn) => async (...a) => { try { return await fn(...a); } catch (e) { toast(e.message || String(e), 'err'); } };
