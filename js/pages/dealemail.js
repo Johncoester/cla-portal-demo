@@ -6,6 +6,7 @@ import { html, raw, esc, toText, $, $$, guard, modal, closeModal, toast, fmtDate
 import { editorHtml, mountEditor } from './compose.js?v=202611110900';
 import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, hasSignature, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611121900';
 import { applyFileTemplate } from '../data/file-email-templates.js?v=202611140400';
+import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { countUnreadEmails, emailMatchesQuery, isUnreadFileEmail } from '../data/file-email-unread.js?v=202611140900';
 const ROLE = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent', 'Transaction Coordinator': 'TC' };
 const list = (s) => String(s || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
@@ -111,7 +112,7 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     } catch (e) { /* keep the shell deal; warnings will explain missing parties */ }
   }
   const parties = introRecipients(mergeDeal).concat((mergeDeal.participants || []).filter((p) => !p.removed && p.contact && p.contact.email && !p.contact.contactHidden && !Object.keys(ROLE).includes(p.role))
-    .map((p) => ({ name: `${p.contact.firstName || ''} ${p.contact.lastName || ''}`.trim(), email: String(p.contact.email).toLowerCase(), role: p.role })));
+    .map((p) => ({ name: partyDisplayName(p), email: String(p.contact.email).toLowerCase(), role: p.role })));
   const templates = (api.listFileEmailTemplates ? (await api.listFileEmailTemplates({ includeInactive: false }).catch(() => [])) : []).filter((t) => t.scope === 'shared' && t.active !== false);
   const tplOpts = templates.map((t) => html`<option value="${t.id}">${t.name}${t.category ? ` (${t.category})` : ''}</option>`);
   let chosenTemplateKey = pre.templateKey || null;
