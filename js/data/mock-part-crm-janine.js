@@ -9,8 +9,8 @@
 import { parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, buildIcs, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611101600';
 import { importedStatusDecision } from './crm-import-status.js?v=202611131900';
 import { cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611121000';
-import { ensureSettings } from './crm-config.js?v=202611070139';
-import { companyKey, CRM_OWNER_ROLES } from './crm.js?v=202611070139';
+import { ensureSettings } from './crm-config.js?v=202611130900';
+import { companyKey, CRM_OWNER_ROLES } from './crm.js?v=202611130900';
 import { US_STATE_NAMES } from './constants.js?v=202611101015';
 
 const seenData = new WeakSet();
@@ -136,9 +136,15 @@ export function crmJaninePart(x, ctx) {
     // the per-row results of one import (Admin / Super admin, like the log)
     async listCrmImportRows(importId) { admin(); const id = str(importId, 60); if (!db().crmImports.some((r) => r.id === id)) fail('Import not found.');
       return (db().crmImportRows || []).filter((z) => z.importId === id).sort((a, b) => a.line - b.line).map((z) => ({ ...z })); },
-    // Company form: is there already a company with this (normalised) name? Archived ones count too (restore instead).
-    async findCrmCompanyDuplicate({ name = '', exceptId = null } = {}) { const u = crmUser(); const a = companyDup(str(name, 160), exceptId); if (!a) return null;
-      return { id: a.id, name: a.name, state: a.state || '', archived: !!a.archivedAt, canOpen: seen(u, 'account', a.id), link: `#/crm/accounts/${a.id}` }; },
+    // Company form: exact normalized name among active companies from lookupCompanies (company_lookup). Archived rows are not returned.
+    async findCrmCompanyDuplicate({ name = '', exceptId = null } = {}) {
+      crmUser();
+      const key = companyKey(str(name, 160));
+      if (!key) return null;
+      const hit = (await this.lookupCompanies(name, 25)).find((r) => r.id !== exceptId && companyKey(r.name) === key);
+      if (!hit) return null;
+      return { id: hit.id, name: hit.name, state: hit.state || '', archived: false, canOpen: true, link: `#/crm/accounts/${hit.id}` };
+    },
     // MEETING "Send invite": a PREVIEW (To, subject, body, .ics). Nothing is sent. Each preview is recorded on the meeting (status 'preview').
     async previewCrmMeetingInvite(id) {
       const u = crmEditor(); const d = db(); const m = d.crmActivities.find((z) => z.id === id && z.kind === 'meeting'); if (!m || !seen(u, m.entity, m.entityId)) fail('Meeting not found.');

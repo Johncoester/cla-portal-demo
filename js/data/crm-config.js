@@ -9,7 +9,7 @@
  * text as the value, so no stored record had to change. Renaming changes only the label, so every record, filter and report shows the
  * new name at once. Retiring hides the option from new entries; records that already use it keep it and show "(retired)". */
 import { RELATIONSHIP_STATUSES, LEAD_RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, TASK_SUBJECTS, TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, OPP_STAGES,
-  ACCOUNT_KINDS, LINK_FIELDS, cleanUrl } from './crm.js?v=202611070139';
+  ACCOUNT_KINDS, LINK_FIELDS, cleanUrl } from './crm.js?v=202611130900';
 import { CALL_OUTCOMES } from './crm-calls.js?v=202611070139';
 import { ZOHO_FIELD_TYPES, ensureSections, sectionsOf, cleanNewValue, checkMaxChars, newDisplay, addressText, COMPUTED_TYPES, FILE_TYPES } from './crm-fields.js?v=202611070139';
 
@@ -75,7 +75,13 @@ export function defaultSettings() {
 // fills anything missing (older stored settings, a new built-in list) without touching what an Admin changed
 export function ensureSettings(s) {
   const d = defaultSettings(); if (!s || typeof s !== 'object') return d;
-  s.picklists ||= {}; PICKLISTS.forEach((p) => { if (!Array.isArray(s.picklists[p.key]) || !s.picklists[p.key].length) s.picklists[p.key] = d.picklists[p.key]; });
+  s.picklists ||= {}; PICKLISTS.forEach((p) => {
+    if (!Array.isArray(s.picklists[p.key]) || !s.picklists[p.key].length) s.picklists[p.key] = d.picklists[p.key];
+    else if (p.key === 'accountKind') {
+      const have = new Set(s.picklists[p.key].map((o) => o && o.value));
+      d.picklists[p.key].forEach((o) => { if (!have.has(o.value)) s.picklists[p.key].push({ ...o }); });
+    }
+  });
   s.customFields = Array.isArray(s.customFields) ? s.customFields : [];
   s.fields ||= {}; ['person', 'account'].forEach((sc) => { s.fields[sc] ||= {}; Object.entries(d.fields[sc]).forEach(([k, v]) => { if (!s.fields[sc][k]) s.fields[sc][k] = { ...v }; }); });
   s.sections = ensureSections(s.sections);   // Nov 3 (b): layout sections (video 8)
