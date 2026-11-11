@@ -2,7 +2,7 @@
 // Function first, minimal styling. Every rule is enforced by the adapter (and RLS in migration 22), not by these screens.
 import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pill } from '../ui.js?v=202611070139';
 import { CONTACT_TYPES, contactTypeLabel } from '../data/constants.js?v=202611101015';
-import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611121100';
+import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611130200';
 import { modOn, modBeta, BETA_LABEL } from '../data/modules.js?v=202611101015';   // module switches: Deals hidden when not Live (beta badge for Admins)
 import { columnChooserHtml, columnState, wireColumnChooser } from './crm-columns.js?v=202611121000';
 import { beginColumnPrefs } from '../data/crm-columns.js?v=202611121000';

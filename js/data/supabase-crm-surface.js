@@ -2,11 +2,11 @@
  * Tables only: dashboards, reports, layout sections, dup rules, search columns, activities.
  * Recent items have no table, so they last for this page session only. */
 import { localDate } from './constants.js?v=202611101015';
-import { canUseCrm, crmReadOnly } from './crm.js?v=202611121100';
+import { canUseCrm, crmReadOnly } from './crm.js?v=202611130200';
 import {
   MODULE_CODES, SEARCH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, moduleName, moduleFields, reportFields,
   parseQuery, searchMatch, chartData, runReport, reportCsv, dashboardVisible, dashboardEditable, reportVisible,
-} from './crm-analytics.js?v=202611070139';
+} from './crm-analytics.js?v=202611130200';
 
 const RECENT = new Map();
 const row = (o) => o || {};

@@ -2,9 +2,9 @@
 // and pick-list selects that never blank a record holding a retired value. Everything is rendered through html`` (escaped; never raw HTML).
 import { html, raw, fmtDate, fmtMoney, fmtDateTime, $$, guard, toast } from '../ui.js?v=202611070139';
 import { COMPUTED_TYPES, FILE_TYPES, ADDRESS_PARTS, IMAGE_EXT, sectionsOf } from '../data/crm-fields.js?v=202611070139';
-import { maskValue } from '../data/crm-analytics.js?v=202611070139';
-import { safeHref } from '../data/crm.js?v=202611121100';
-import { activeFields, fieldsInSection, customDisplay, selectOptions, filterOptions, optLabel, cfKey, builtinHidden } from '../data/crm-config.js?v=202611070139';
+import { maskValue } from '../data/crm-analytics.js?v=202611130200';
+import { safeHref } from '../data/crm.js?v=202611130200';
+import { activeFields, fieldsInSection, customDisplay, selectOptions, filterOptions, optLabel, cfKey, builtinHidden } from '../data/crm-config.js?v=202611130200';
 
 const v0 = (v) => (v == null ? '' : v);
 const dash = () => html`<span class="muted">&mdash;</span>`;

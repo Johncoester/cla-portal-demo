@@ -1,8 +1,8 @@
 /* [SUPABASE] CRM EMAIL TEMPLATES for supabase-crm.js (Nov 3, migration 27). Same names / shapes as mock-part-crm-templates.js.
  * NOT run against a hosted project (best effort; the mock adapter is the tested one). NOTHING IS SENT: sendCrmTestEmail always refuses.
  * Template files need the private CRM storage bucket, which is not set up yet (as for record attachments), so uploads refuse here. */
-import { MODULE_CODES, moduleLabel, GMAIL_NOTE, mergeFieldsFor, renderTemplate, sanitizeHtml, cleanBlocks, cssColor, personalFolderId, isPersonalFolder, cleanFolderName, folderCounts } from './crm-templates.js?v=202611090905';
-import { canUseCrm, crmReadOnly } from './crm.js?v=202611121100';
+import { MODULE_CODES, moduleLabel, GMAIL_NOTE, mergeFieldsFor, renderTemplate, sanitizeHtml, cleanBlocks, cssColor, personalFolderId, isPersonalFolder, cleanFolderName, folderCounts } from './crm-templates.js?v=202611130200';
+import { canUseCrm, crmReadOnly } from './crm.js?v=202611130200';
 import { localDate } from './constants.js?v=202611101015';
 
 export function crmTemplatesSupabase({ sb, ok, camel, me, on, one, self }) {

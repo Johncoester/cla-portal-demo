@@ -2,12 +2,12 @@
 // Function first, minimal styling. Reminders show in the portal only; nothing is emailed; meetings are never sent as invitations.
 import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611070139';
 import { localDate } from '../data/constants.js?v=202611101015';
-import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY, dueTone, daysOverdue, taskOpen } from '../data/crm.js?v=202611070139';
-import { tabs, head } from './crm-kit.js?v=202611121000';
-import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611121000';
-import { inviteBtn, invitePreview } from './crm-janine.js?v=202611120600';
-import { optionsOf, optLabel } from '../data/crm-config.js?v=202611070139';
-import { lbl } from './crm-custom.js?v=202611070139';
+import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY, dueTone, daysOverdue, taskOpen } from '../data/crm.js?v=202611130200';
+import { tabs, head } from './crm-kit.js?v=202611130200';
+import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611130200';
+import { inviteBtn, invitePreview } from './crm-janine.js?v=202611130200';
+import { optionsOf, optLabel } from '../data/crm-config.js?v=202611130200';
+import { lbl } from './crm-custom.js?v=202611130200';
 const subj = (cfg, s) => optLabel(cfg, 'taskSubject', s, { mark: false });   // Task Subject is free text; a subject that is a list option shows its current name
 const orderOf = (cfg) => ({ priority: optionsOf(cfg, 'taskPriority').map((o) => o.value), status: optionsOf(cfg, 'taskStatus').map((o) => o.value) });
 

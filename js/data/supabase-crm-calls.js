@@ -2,7 +2,7 @@
  * NOT run against a hosted project (best effort; the mock adapter is the tested one). The database (private.crm_call_guard,
  * crm_complete_call, crm_list_export) enforces the rules. Voice recordings: links only here (no 'crm' storage bucket yet). Nothing is sent. */
 import { durationSeconds, defaultCallSubject, CALL_TIME_MSG } from './crm-calls.js?v=202611070139';
-import { toCsv } from './crm.js?v=202611121100';
+import { toCsv } from './crm.js?v=202611130200';
 
 export function crmCallsSupabase({ sb, ok, camel, on, one, actOut, staff }) {
   const secs = (v) => (v.callDurationSec != null && v.callDurationSec !== '' ? Number(v.callDurationSec) : durationSeconds(v.durationMin, v.durationSec));
