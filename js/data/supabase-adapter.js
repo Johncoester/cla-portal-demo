@@ -341,7 +341,9 @@ export async function createSupabaseAdapter(cfg) {
     return withRole(d, got.roles.get(d.id), got.parties);
   }
   async function fetchFileShell(id) {
-    const [raw, names] = await Promise.all([sb.from('deals').select('*').eq('id', id).single(), processorNames()]);
+    // Nov 11 (e2e-roles): the pinned staff file header shows the buyer / seller title. The shell used to leave it blank, so the
+    // header lost the names on every tab but Overview and Contacts. One deal_file_titles read runs alongside; a failed read leaves it blank.
+    const [raw, names, tt] = await Promise.all([sb.from('deals').select('*').eq('id', id).single(), processorNames(), titles(id).catch(() => new Map())]);
     const row = camel(ok(raw));
     Object.assign(row, processorFields(row, names)); row.tcUserId = row.tcUserId || null; row.tcName = row.tcUserId ? (names.get(row.tcUserId) || '') : '';
     row.address = `${row.street}, ${row.city}, ${row.state} ${row.zip}`;
@@ -350,7 +352,7 @@ export async function createSupabaseAdapter(cfg) {
     row.salesPeople = [];
     row.salesPersonIds = [];
     row.county = row.county || '';
-    row.fileTitle = '';
+    row.fileTitle = tt.get(row.id) || '';
     row.sourceOfBusiness = '';
     row.sourceOfBusinessLabel = '';
     if (ident.current() && ident.current().role === 'Outside user') {
