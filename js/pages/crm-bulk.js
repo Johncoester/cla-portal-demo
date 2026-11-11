@@ -1,6 +1,7 @@
 /* Mass actions on the current page of a CRM list. Drafts are not sent. Each row uses the existing save. */
 import { html, $, $$, guard, toast, modal, closeModal } from '../ui.js?v=202611070139';
-import { BULK_FIELDS, BULK_TASK_ENTITIES, planRelatedEmails, fieldPatch, updateSelectedNotes, ownerAllowed, runEach } from '../data/crm-bulk.js?v=202611160300';
+import { BULK_FIELDS, BULK_TASK_ENTITIES, fieldPatch, updateSelectedNotes, ownerAllowed, runEach } from '../data/crm-bulk.js?v=202611160300';
+import { EMAIL_RECIPIENT_CAP, emailConfirm } from '../data/crm-match.js?v=202611160400';
 
 const UPDATERS = { lead: 'updateCrmLead', contact: 'updateCrmContact', account: 'updateCrmAccount', opportunity: 'updateCrmOpportunity', deal: 'updateDeal' };
 const TASK = { lead: 'lead', contact: 'contact', account: 'account', opportunity: 'opportunity', deal: 'deal' };
@@ -45,43 +46,31 @@ export function wireBulk(root, { module, api, me, owners, getPageRows, getMatch,
     if (match.all && typeof api.crmMatchPlan === 'function') return api.crmMatchPlan({ module, filter: match.filter, action });
     return { count: match.count, records: match.count, recipients: match.count, skipped: 0 };
   };
-  $('[data-bulk-email]', bar).addEventListener('click', guard(async () => {
-    if (scope().all) {
-      const plan = await exact('email');
-      const m = modal('Email matching records', html`<form id="bulk-mail" class="form-grid"><p class="span2" data-bulk-privacy>Each draft goes to one address. People are not copied on each other's email. Nothing is sent. The addresses stay on the server.</p>
-        <p class="span2" data-match-exact>Save ${plan.count} email draft${plan.count === 1 ? '' : 's'}? ${plan.skipped ? plan.skipped + ' records are skipped.' : ''} Nothing is sent.</p>
-        <label class="span2">Subject<input name="subject" maxlength="250" required></label>
+  const openEmail = async ({ ids, filter }) => {
+    if (typeof api.crmMassEmail !== 'function') throw new Error('Email drafts are not available here.');
+    const counted = await api.crmMassEmail({ module, filter: filter || {}, ids, dryRun: true });
+    const n = Number(counted && (counted.recipients != null ? counted.recipients : counted.count)) || 0;
+    const cap = Number(counted && counted.cap) || EMAIL_RECIPIENT_CAP;
+    const confirm = emailConfirm({ recipients: n, cap });
+    const m = modal(ids ? 'Email selected records' : 'Email matching records', html`<form id="bulk-mail" class="form-grid"><p class="span2" data-bulk-privacy>Each draft goes to one address. People are not copied on each other's email. Nothing is sent. The addresses stay on the server.</p>
+      <p class="span2" data-email-confirm>${confirm.text}</p>
+      ${confirm.ok ? html`<label class="span2">Subject<input name="subject" maxlength="250" required></label>
         <label class="span2">Message<textarea name="body" rows="5" required></textarea></label>
         <p class="err-text span2" data-form-err></p>
-        <div class="span2"><button class="m-btn" type="submit" data-bulk-send-draft>Save drafts</button> <button class="ghost" type="button" data-close>Cancel</button></div></form>`);
-      $('#bulk-mail', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); if (!plan.count) throw new Error('None of the matching records have an email address.');
-        if (typeof api.crmMassEmail !== 'function') throw new Error('Email drafts are not available here.');
-        const body = e.target.body.value;
-        const result = await api.crmMassEmail({ module, filter: scope().filter, subject: e.target.subject.value, html: `<p>${body.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</p>` });
-        closeModal(); modal('Email drafts', html`<div data-bulk-result><p>${result.drafted || result.count || 0} drafts saved. Nothing was sent.</p><p><button type="button" class="m-btn" data-close>Close</button></p></div>`);
-        clear(); if (refresh) refresh(); }));
-      return;
-    }
+        <div class="span2"><button class="m-btn" type="submit" data-bulk-send-draft>Save drafts</button> <button class="ghost" type="button" data-close>Cancel</button></div>` : html`<div class="span2"><button class="ghost" type="button" data-close>Close</button></div>`}
+    </form>`);
+    if (!confirm.ok) return;
+    $('#bulk-mail', m).addEventListener('submit', guard(async (e) => { e.preventDefault();
+      const body = e.target.body.value;
+      const result = await api.crmMassEmail({ module, filter: filter || {}, ids, subject: e.target.subject.value, html: `<p>${body.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</p>` });
+      closeModal(); modal('Email drafts', html`<div data-bulk-result><p>${result.drafted || result.count || 0} drafts saved. Nothing was sent.</p><p><button type="button" class="m-btn" data-close>Close</button></p></div>`);
+      clear(); if (refresh) refresh(); }));
+  };
+  $('[data-bulk-email]', bar).addEventListener('click', guard(async () => {
+    if (scope().all) { await openEmail({ filter: scope().filter }); return; }
     const rows = need();
-    const found = [];
-    for (const r of rows) {
-      const list = typeof api.crmRelatedEmails === 'function' ? await api.crmRelatedEmails(module, r.id) : [];
-      if (!list.length) found.push({ id: r.id, name: r.name || r.id, email: '' });
-      else list.forEach((p) => found.push({ id: r.id, name: p.name || r.name, email: p.email, contactId: p.contactId || r.contactId || '' }));
-    }
-    const plan = planRelatedEmails(module, found);
-    const m = modal('Email selected records', html`<form id="bulk-mail" class="form-grid"><p class="span2" data-bulk-privacy>Each draft goes to one address. People are not copied on each other's email. Nothing is sent.</p>
-      <p class="span2">${plan.recipients.length} draft${plan.recipients.length === 1 ? '' : 's'}. ${plan.skipped.length ? plan.skipped.length + ' skipped.' : ''}</p>
-      <ul class="span2">${plan.recipients.map((r) => html`<li>${r.name} &lt;${r.email}&gt;</li>`)}${plan.skipped.map((r) => html`<li class="muted">${r.name}: ${r.reason}</li>`)}</ul>
-      <label class="span2">Subject<input name="subject" maxlength="250" required></label>
-      <label class="span2">Message<textarea name="body" rows="5" required></textarea></label>
-      <p class="err-text span2" data-form-err></p>
-      <div class="span2"><button class="m-btn" type="submit" data-bulk-send-draft>Save drafts</button> <button class="ghost" type="button" data-close>Cancel</button></div></form>`);
-    $('#bulk-mail', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); if (!plan.recipients.length) throw new Error('None of the selected records have an email address.');
-      if (typeof api.saveCrmEmail !== 'function') throw new Error('Email drafts are not available here.');
-      const subject = e.target.subject.value; const body = e.target.body.value;
-      const result = await runEach(plan.recipients, (r) => api.saveCrmEmail({ entity: r.storeEntity || module, entityId: r.storeId || r.id, to: [r.email], subject, html: `<p>${body.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</p>`, mode: 'send' }));
-      closeModal(); report('Email drafts', result, 'Nothing was sent.'); clear(); if (refresh) refresh(); })); }));
+    await openEmail({ ids: rows.map((r) => r.id) });
+  }));
   const fieldBtn = $('[data-bulk-field]', bar);
   if (fieldBtn) fieldBtn.addEventListener('click', guard(async () => {
     if (scope().all) {

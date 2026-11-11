@@ -13,8 +13,8 @@ import { viewsBar, wireViewsBar } from './crm-views.js?v=202611160300';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
 import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070139';
 import { pageOf, selectionState, selectPage, loadPageSize } from '../data/crm-bulk.js?v=202611160300';
-import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611160300';
-import { bulkBar, wireBulk } from './crm-bulk.js?v=202611160300';
+import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611160400';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611160400';
 
 export async function dealsPage(c) { return c.params.id ? dealPage(c) : dealsList(c); }
 

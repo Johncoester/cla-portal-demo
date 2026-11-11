@@ -222,7 +222,7 @@ ok(page.includes('return { name: f.name.value, type, config }') && page.includes
 
 const want = new Map([
   ['js/data/supabase-crm-surface.js', '202611130900'],
-  ['js/data/supabase-crm.js', '202611160300'],
+  ['js/data/supabase-crm.js', '202611160400'],
   ['js/data/supabase-adapter.js', '202611160300'],
   ['js/data/adapter.js', '202611160300'],
   ['js/pages/crm-dashboards.js', '202611160300'],

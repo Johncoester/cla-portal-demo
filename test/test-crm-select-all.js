@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { EMAIL_DRAFT_BATCH, filterFromValues, inNyRange, matchBannerState, nyDay, rowMatches } from '../js/data/crm-match.js';
+import { EMAIL_DRAFT_BATCH, EMAIL_RECIPIENT_CAP, emailConfirm, emailPlan, filterFromValues, inNyRange, matchBannerState, nyDay, rowMatches } from '../js/data/crm-match.js';
 import { updateSelectedNotes } from '../js/data/crm-bulk.js';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 
@@ -13,7 +13,12 @@ let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail += 1; console.log('FAIL', m); } };
 const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
 
-ok(EMAIL_DRAFT_BATCH === 500, 'email drafts are inserted 500 at a time, with no recipient cap');
+ok(EMAIL_DRAFT_BATCH === 500 && EMAIL_RECIPIENT_CAP === 250, 'email drafts are inserted 500 at a time, and 250 deduplicated recipients is the cap');
+const sameAddress = emailPlan([{ id: '1', email: 'Ada@example.test', entity: 'lead' }, { id: '2', email: 'ada@example.test', entity: 'lead' }, { id: '3', email: 'bea@example.test', entity: 'lead' }]);
+ok(sameAddress.recipients === 2 && sameAddress.drafts.length === 2, 'the same address is one recipient');
+ok(emailConfirm({ recipients: 37 }).text === 'Save 37 email drafts to 37 recipients? Nothing is sent.' && emailConfirm({ recipients: 37 }).ok, 'the confirmation uses the exact recipient count');
+ok(!emailConfirm({ recipients: 0 }).ok && emailConfirm({ recipients: 0 }).text.includes('Nothing will be saved'), 'zero recipients is blocked');
+ok(!emailConfirm({ recipients: 251, cap: 250 }).ok && emailConfirm({ recipients: 251, cap: 250 }).text.includes('251') && emailConfirm({ recipients: 251, cap: 250 }).text.includes('250'), 'over the cap shows the count and the cap');
 ok(nyDay('2026-11-11T04:30:00Z') === '2026-11-10', 'a timestamp just after midnight UTC is still the previous day in New York');
 ok(nyDay('2026-11-11T15:00:00Z') === '2026-11-11' && inNyRange('2026-11-11T15:00:00Z', '2026-11-11', '2026-11-11') && !inNyRange('2026-11-11T04:30:00Z', '2026-11-11', '2026-11-11'), 'a from/to date is the New York civil day');
 ok(!inNyRange('', '2026-11-11', '2026-11-11') && inNyRange('2026-11-11', '2026-11-11', '2026-11-11'), 'a blank value does not match a date, and a date-only value stays that date');
@@ -88,6 +93,32 @@ ok(page.includes('data-notes-append') && page.includes('Notes are appended') && 
 ok(read('js/data/supabase-crm.js').includes('p_ids') && !read('js/data/supabase-crm.js').includes('appendCrmNote'), 'the hosted client sends the id list and does not build notes');
 console.log('crm-notes-append-sha256', createHash('sha256').update(readFileSync(path.join(root, 'supabase/migrations/20261116030000_crm_notes_append.sql'))).digest('hex'));
 console.log('crm-notes-append-rollback-sha256', createHash('sha256').update(readFileSync(path.join(root, 'supabase/rollbacks/20261116030000_crm_notes_append.sql'))).digest('hex'));
+
+const pair = (await api.listCrmLeads()).filter((l) => l.email).slice(0, 2);
+const counted = await api.crmMassEmail({ module: 'lead', ids: pair.map((l) => l.id), dryRun: true });
+const savedMail = await api.crmMassEmail({ module: 'lead', ids: pair.map((l) => l.id), subject: 'Selected', html: '<p>Hi</p>' });
+ok(counted.recipients === 2 && counted.drafted === 0 && savedMail.drafted === counted.recipients, 'the selected count is the number of drafts saved');
+const preview = await api.crmMassEmail({ module: 'lead', filter: { q: ada.email }, dryRun: true });
+const mailedAgain = await api.crmMassEmail({ module: 'lead', filter: { q: ada.email }, subject: 'Again', html: '<p>Hi</p>' });
+ok(preview.recipients >= 1 && mailedAgain.drafted === preview.recipients, 'the matching count is the number of drafts saved');
+const capLeads = [];
+for (let i = 0; i < 251; i++) capLeads.push(await api.createCrmLead({ firstName: 'Cap', lastName: `Batch${i}`, email: `c${i}@capbatch.example.test`, company: 'CapBatch', roleInCompany: 'Realtor', relationshipStatus: 'Prospecting', state: 'MD' }));
+const over = await api.crmMassEmail({ module: 'lead', ids: capLeads.map((l) => l.id), dryRun: true });
+const overText = emailConfirm({ recipients: over.recipients, cap: over.cap }).text;
+ok(over.recipients === 251 && over.over === true && over.drafted === 0 && overText === '251 recipients is over the limit of 250. Nothing will be saved.', 'a dry run over the cap saves nothing and the confirmation shows both numbers');
+let blocked = '';
+try { await api.crmMassEmail({ module: 'lead', ids: capLeads.map((l) => l.id), subject: 'Too many', html: '<p>Hi</p>' }); } catch (e) { blocked = e.message; }
+const leftover = await api.listCrmEmails('lead', capLeads[0].id);
+ok(blocked === '251 recipients is over the limit of 250. Nothing was saved.' && !leftover.some((e) => e.subject === 'Too many'), 'over the cap inserts nothing');
+ok(page.includes('data-email-confirm') && page.includes('dryRun: true') && page.includes('emailConfirm') && !page.includes('planRelatedEmails'), 'selected rows and all matches confirm the server count before saving');
+const emailSql = read('supabase/migrations/20261116040000_crm_mass_email_cap.sql');
+const emailRb = read('supabase/rollbacks/20261116040000_crm_mass_email_cap.sql');
+const emailBody = emailSql.split('do $readback$')[0];
+ok(emailBody.includes('recipient_cap constant int := 250') && emailBody.includes('security invoker') && emailBody.includes('search_path = pg_catalog, public') && emailBody.includes('grant execute on function public.crm_mass_email(text, jsonb, text, text, uuid[], boolean) to authenticated') && emailBody.includes('revoke all on function public.crm_mass_email(text, jsonb, text, text, uuid[], boolean) from public, anon') && !emailBody.includes('grant execute on function public.crm_mass_email(text, jsonb, text, text, uuid[], boolean) to anon'), 'the cap is one constant on a security-invoker function granted to authenticated only');
+ok(emailBody.indexOf('recipients is over the limit') < emailBody.indexOf('insert into public.crm_emails') && emailBody.includes('p_dry_run') && (emailBody.match(/id = any\(p_ids\)/g) || []).length === 5, 'the cap and the dry-run count use the same id list, and the cap runs before any insert');
+ok(emailRb.includes('drop function if exists public.crm_mass_email(text, jsonb, text, text, uuid[], boolean)') && emailRb.includes('batch_size constant int := 500') && !emailRb.includes('recipient_cap'), 'the rollback removes the cap');
+console.log('crm-mass-email-cap-sha256', createHash('sha256').update(readFileSync(path.join(root, 'supabase/migrations/20261116040000_crm_mass_email_cap.sql'))).digest('hex'));
+console.log('crm-mass-email-cap-rollback-sha256', createHash('sha256').update(readFileSync(path.join(root, 'supabase/rollbacks/20261116040000_crm_mass_email_cap.sql'))).digest('hex'));
 
 console.log(fail ? fail + ' failed' : 'crm select all passed');
 if (fail) process.exit(1);

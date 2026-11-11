@@ -9,7 +9,7 @@
 import { parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, buildIcs, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611101600';
 import { importedStatusDecision } from './crm-import-status.js?v=202611131900';
 import { cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
-import { rowMatches, applyFieldPatch, emailPlan, EMAIL_DRAFT_BATCH } from './crm-match.js?v=202611160300';
+import { rowMatches, applyFieldPatch, emailPlan, EMAIL_DRAFT_BATCH, EMAIL_RECIPIENT_CAP } from './crm-match.js?v=202611160400';
 import { appendCrmNote, noteStamp } from './crm-bulk.js?v=202611160300';
 import { ensureSettings } from './crm-config.js?v=202611130900';
 import { companyKey, CRM_OWNER_ROLES } from './crm.js?v=202611130900';
@@ -231,7 +231,14 @@ export function crmJaninePart(x, ctx) {
     },
     async crmMassEmail(input = {}) {
       const u = crmEditor(); const module = canonModule(input.module);
-      const plan = emailPlan(emailPeople(db(), module, matchRows(db(), module, input.filter || {}, u)));
+      const ids = Array.isArray(input.ids) ? input.ids.map((id) => String(id)) : null;
+      let rows = matchRows(db(), module, ids ? {} : (input.filter || {}), u);
+      if (ids) { const want = new Set(ids); rows = rows.filter((r) => want.has(String(r.id))); }
+      const plan = emailPlan(emailPeople(db(), module, rows));
+      const cap = EMAIL_RECIPIENT_CAP;
+      if (input.dryRun) return { count: plan.recipients, recipients: plan.recipients, drafted: 0, cap, over: plan.recipients > cap };
+      if (!plan.recipients) fail('None of these records have an email address. Nothing was saved.');
+      if (plan.recipients > cap) fail(`${plan.recipients} recipients is over the limit of ${cap}. Nothing was saved.`);
       if (typeof this.saveCrmEmail !== 'function') fail('Email drafts are not available here.');
       let drafted = 0;
       for (let i = 0; i < plan.drafts.length; i += EMAIL_DRAFT_BATCH) {
@@ -241,7 +248,7 @@ export function crmJaninePart(x, ctx) {
           drafted += 1;
         }
       }
-      return { count: drafted, drafted, skipped: plan.skipped, records: plan.records };
+      return { count: drafted, drafted, recipients: plan.recipients, cap, over: false, skipped: plan.skipped, records: plan.records };
     },
   };
   function storedNote(d, module, id) {
