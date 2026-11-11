@@ -32,7 +32,7 @@ export async function render({ api, params, go }) {
         if (supa) { const password = ($('[data-invite-password]', ctl.form) || {}).value || ''; const again = ($('[data-invite-password-2]', ctl.form) || {}).value || '';
           if (password.length < 8) throw new Error('Password must be at least 8 characters.'); if (password !== again) throw new Error('Those passwords do not match.'); v.password = password; }
         await api.acceptAgentInvite(params.token, v); } catch (er) { ctl.showErr(er.message); throw er; }
-      markAgentOnboard(); toast('Welcome! Your account is set up.'); go('/profile'); }));
+      markAgentOnboard(); toast('Welcome! Your account is set up.'); go('/profile?setup=1'); }));
   } };
 }
 

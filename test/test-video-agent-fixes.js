@@ -7,7 +7,8 @@ import { toText } from '../js/ui.js';
 import { render as renderTasks } from '../js/pages/dealtasks.js';
 import { render as renderProfile } from '../js/pages/profile.js';
 import { agentFormHtml, mountAgentForm } from '../js/pages/agent-profile-form.js';
-import { cleanAgentProfile, photoFileAllowed, markAgentOnboard, consumeAgentOnboard } from '../js/data/agent-profile.js';
+import { cleanAgentProfile, photoFileAllowed, photoFileChosen, markAgentOnboard, consumeAgentOnboard } from '../js/data/agent-profile.js';
+import { firstProfileSave } from '../js/pages/profile.js';
 
 const { window, document } = parseHTML('<!doctype html><html><body></body></html>');
 const memStore = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k), clear: () => m.clear(), key: (i) => [...m.keys()][i], get length() { return m.size; } }; };
@@ -80,11 +81,13 @@ ok(processor.calls === 1 && processor.html.includes('data-file-tasks="mine"'), '
 const buyer = await myTasks('u-buyer');
 ok(buyer.calls === 1 && buyer.html.includes('data-file-tasks="mine"'), 'a buyer My Tasks still uses the tasks already loaded');
 
-ok(photoFileAllowed(null) && photoFileAllowed(undefined), 'no chosen picture is allowed');
+ok(!photoFileChosen(null) && !photoFileChosen({ name: '', type: '', size: 0 }) && photoFileAllowed(null) && photoFileAllowed(undefined) && photoFileAllowed({ name: '', type: '', size: 0 }), 'no chosen picture is allowed');
 ok(photoFileAllowed({ type: 'image/png', name: 'a.png' }) && photoFileAllowed({ type: 'image/jpeg', name: 'a.jpg' }) && photoFileAllowed({ type: 'image/jpg', name: 'a.jpg' }) && photoFileAllowed({ type: 'image/webp', name: 'a.webp' }) && photoFileAllowed({ type: 'image/gif', name: 'a.gif' }), 'PNG, JPG, WEBP and GIF are allowed when a file is chosen');
 ok(!photoFileAllowed({ type: 'application/pdf', name: 'a.pdf' }) && !photoFileAllowed({ type: 'text/plain', name: 'a.txt' }), 'another file type is refused only when a file is chosen');
 const blank = cleanAgentProfile({ firstName: 'Bianca', lastName: 'Buyer-Agent', email: 'bianca.buyer-agent@example.test', cellPhone: '301-555-0105', photo: '', photoShape: 'circle' });
 ok(blank.photo === null, 'a profile with no picture cleans without a type error');
+const stored = cleanAgentProfile({ firstName: 'Rosy', lastName: 'Listing', email: 'rosy.listing@example.test', cellPhone: '301-555-0199', photo: 'https://example.test/storage/v1/object/sign/agent-photos/avatar.jpg' }, { partial: true });
+ok(!Object.prototype.hasOwnProperty.call(stored, 'photo'), 'a stored picture address is left alone');
 
 document.body.innerHTML = toText(agentFormHtml({ firstName: 'Bianca', lastName: 'Buyer-Agent', email: 'bianca.buyer-agent@example.test', cellPhone: '301-555-0105', photo: '' }));
 const ctl = mountAgentForm(document.body);
@@ -94,6 +97,16 @@ Object.defineProperty(input, 'files', { configurable: true, value: [bad] });
 let typeErr = '';
 try { ctl.values(); } catch (e) { typeErr = e.message; }
 ok(/PNG, JPG, WEBP or GIF/.test(typeErr), 'a chosen file of the wrong type is refused');
+Object.defineProperty(input, 'files', { configurable: true, value: [{ name: '', type: '', size: 0 }] });
+let emptyErr = '';
+try { ctl.values(); } catch (e) { emptyErr = e.message; }
+ok(!emptyErr && ctl.values().photo == null, 'an empty file input still saves with no picture');
+document.querySelector('[data-photo-value]').value = 'https://example.test/storage/v1/object/sign/agent-photos/rosy.jpg';
+Object.defineProperty(input, 'files', { configurable: true, value: [] });
+let urlErr = '';
+let urlValues;
+try { urlValues = ctl.values(); } catch (e) { urlErr = e.message; }
+ok(!urlErr && !Object.prototype.hasOwnProperty.call(urlValues, 'photo'), 'saving does not recheck a picture that is already stored');
 
 async function saveProfile(id, onboard) {
   const session = await as(id);
@@ -132,6 +145,29 @@ ok(firstListing.posted && firstListing.posted.photo == null, 'Listing Agent save
 ok(firstListing.went === '/orders' && firstListing.refreshed === 0, 'Listing Agent first profile save opens Open Orders');
 const againListing = await saveProfile('u-lagent', false);
 ok(againListing.went === '' && againListing.refreshed === 1, 'Listing Agent later profile save stays on the profile');
+hash.value = '#/profile?setup=1';
+const setupListing = await saveProfile('u-lagent', false);
+ok(setupListing.went === '/orders', 'the invite setup address also opens Open Orders after Save profile');
+hash.value = '#/profile';
+ok(firstProfileSave('#/profile') === false, 'Profile settings is not the first-time path');
+
+async function savePlain(id) {
+  await as(id);
+  let err = '';
+  const view = await renderProfile({ api, refresh() {}, go() {} });
+  document.body.innerHTML = toText(view.body);
+  view.mount(document.body);
+  const form = document.querySelector('#pf');
+  ok(!!form && !form.querySelector('[data-photo-file]'), id + ' profile has no required picture');
+  form.addEventListener('submit', (e) => { e.preventDefault(); });
+  try { form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); } catch (e) { err = e.message; }
+  await new Promise((r) => setTimeout(r, 30));
+  ok(!/Profile picture/.test(err) && !/Profile picture/.test(document.body.textContent), id + ' can save profile with no picture');
+}
+await savePlain('u-buyer');
+await savePlain('u-proc');
+const signup = readFileSync(new URL('../js/pages/agent-signup.js', import.meta.url), 'utf8');
+ok(signup.includes("go('/profile?setup=1')") && signup.includes('markAgentOnboard()'), 'accepting an invite opens My Agent Profile as first-time setup');
 
 console.log(fail ? fail + ' failed' : 'video agent fixes passed');
 if (fail) process.exit(1);
