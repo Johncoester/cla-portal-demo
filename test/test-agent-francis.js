@@ -139,6 +139,22 @@ const explained = explainRecipients({
   allowed: [{ id: 'u-proc', firstName: 'Paula', lastName: 'Processor', role: 'Processor' }, { id: 'u-seller', firstName: 'Sam', lastName: 'Seller', role: 'Client-Seller' }],
 });
 ok(explained.selectable.map((p) => p.id).join() === 'u-proc,u-seller' && explained.unavailable.length === 1 && explained.unavailable[0].name === 'Pat NoLogin' && !JSON.stringify(explained).includes('Bea'), 'the other side stays off the list and a same-side person without a login is shown as unavailable');
+const fileTc = explainRecipients({
+  myRole: 'Client-Buyer',
+  participants: [
+    { role: 'Buyer Agent', contact: { firstName: 'Bianca', lastName: 'Agent', profileId: 'u-bagent', email: 'bianca@example.test' } },
+    { role: 'Transaction Coordinator', contact: { firstName: 'Terry', lastName: 'Coordinator', profileId: 'u-tc', email: 'terry@example.test' } },
+    { role: 'Listing Agent', contact: { firstName: 'Larry', lastName: 'Agent', profileId: 'u-lagent', email: 'larry@example.test' } },
+  ],
+  allowed: [{ id: 'u-proc', firstName: 'Paula', lastName: 'Processor', email: 'paula@example.test', role: 'Processor' }, { id: 'u-bagent', firstName: 'Bianca', lastName: 'Agent', email: 'bianca@example.test', role: 'Buyer Agent' }],
+});
+ok(!fileTc.selectable.some((p) => p.id === 'u-tc') && !fileTc.selectable.some((p) => p.id === 'u-lagent'), 'a coordinator on the file is not offered unless the recipient list already includes that side');
+const already = explainRecipients({
+  myRole: 'Client-Buyer',
+  participants: [{ role: 'Transaction Coordinator', contact: { firstName: 'Morgan', lastName: 'Other', profileId: 'u-tc2', email: 'morgan@example.test' } }],
+  allowed: [{ id: 'u-tc', firstName: 'Terry', lastName: 'Coordinator', email: 'terry@example.test', role: 'Transaction Coordinator' }],
+});
+ok(already.selectable.length === 1 && already.selectable[0].id === 'u-tc', 'a coordinator the team lookup already returned is not joined by the other side');
 
 const adapter = readFileSync(new URL('../js/data/supabase-adapter.js', import.meta.url), 'utf8');
 ok(adapter.includes('a.sendMessage = async') && adapter.includes('assertRecipients') && adapter.includes('emailed: false') && adapter.includes("status: 'in_portal'"), 'a portal message is delivered in the portal and is not marked emailed');
