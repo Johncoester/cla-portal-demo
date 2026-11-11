@@ -8,7 +8,7 @@ import { AUDIENCE_CONTROL, AUDIENCE_NOTE, audienceParties, audienceChoices, chec
 import { uploadDocumentBatch } from '../data/document-batch.js?v=202611101015';
 import { addToQueue, removeFromQueue, uploadFailureText } from '../data/document-queue.js?v=202611090935';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
-import { DOC_SORT_DIR, docMatches, sortDocs } from '../data/doc-list.js?v=202611161600';
+import { DOC_SORT_DIR, docMatches, sortDocs } from '../data/doc-list.js?v=202611161700';
 // Search text and sort stay put while you move between All files, Received and Sent on the same order (Matt, Nov 11).
 let keptView = { dealId: '', q: '', sort: '', dir: 'asc' };
 const icon = (n) => (/\.pdf$/i.test(n) ? 'pdf_icon.png' : /\.docx?$/i.test(n) ? 'word_icon.png' : /\.(xlsx?|csv)$/i.test(n) ? 'excel_icon.png' : 'image_icon.png');
