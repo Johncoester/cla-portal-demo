@@ -204,6 +204,23 @@ export function matchAttachDocuments(docs = [], attachKeys = []) {
   return { matched, missingKeys, notices };
 }
 
+export function isWelcomeOpening(t = {}) {
+  const key = String(t.seedKey || t.seed_key || t.key || '').toLowerCase();
+  const name = String(t.name || '').toLowerCase();
+  return key === 'order-opened' || (name.includes('welcome') && name.includes('open'));
+}
+
+export function cleanRoleList(roles) {
+  return [].concat(roles || []).map((x) => String(x || '').trim()).filter((r) => DEFAULT_RECIPIENT_ROLE_KEYS.includes(r)).slice(0, 8);
+}
+
+// Welcome Opening is addressed to the buyer only. Other templates keep the To and Cc roles staff saved.
+export function templateAddressRoles(t = {}) {
+  const cc = cleanRoleList(t.defaultCcRoles || t.default_cc_roles);
+  if (isWelcomeOpening(t)) return { to: ['Client-Buyer'], cc };
+  return { to: cleanRoleList(t.defaultRecipientRoles || t.default_recipient_roles), cc };
+}
+
 export function defaultRecipientEmails(deal = {}, roles = []) {
   const want = new Set((roles || []).filter((r) => DEFAULT_RECIPIENT_ROLE_KEYS.includes(r)));
   if (!want.size) return { emails: [], missingRoles: [], warnings: [] };
@@ -222,14 +239,15 @@ export function defaultRecipientEmails(deal = {}, roles = []) {
 
 export function applyFileTemplate(t, deal, sender, opts = {}) {
   const toEmails = opts.toEmails || [];
-  const defaultRoles = t.defaultRecipientRoles || t.default_recipient_roles || [];
-  const suggested = opts.applyDefaultRecipients === false ? { emails: [], warnings: [] } : defaultRecipientEmails(deal, defaultRoles);
+  const address = templateAddressRoles(t);
+  const suggested = opts.applyDefaultRecipients === false ? { emails: [], warnings: [] } : defaultRecipientEmails(deal, address.to);
+  const suggestedCc = opts.applyDefaultCc === false ? { emails: [], warnings: [] } : defaultRecipientEmails(deal, address.cc);
   const toForMerge = toEmails.length ? toEmails : suggested.emails;
   const vals = mergeValues(deal, sender, { ...opts, toEmails: toForMerge, processorEmail: opts.processorEmail });
   const subj = renderMerge(t.subject || '', vals, { mode: 'text' });
   const body = renderMerge(t.bodyHtml || t.body_html || '', vals, { mode: 'html' });
   const attach = matchAttachDocuments(opts.documents || [], t.attachDocTypes || t.attach_doc_types || []);
-  const warnings = [...(vals._recipientWarnings || []), ...(suggested.warnings || [])];
+  const warnings = [...(vals._recipientWarnings || []), ...(suggested.warnings || []), ...(suggestedCc.warnings || [])];
   if (subj.unknown.length || body.unknown.length) warnings.push('Unknown fields removed: ' + [...new Set([...subj.unknown, ...body.unknown])].join(', '));
   const missingVisible = [...new Set([...subj.missing, ...body.missing])].filter((k) => k !== 'processor_email' || !vals.processor_line);
   if (missingVisible.length) warnings.push('Blank on this file: ' + missingVisible.map((k) => '{{' + k + '}}').join(', '));
@@ -242,6 +260,7 @@ export function applyFileTemplate(t, deal, sender, opts = {}) {
     templateKey: t.id ? String(t.id).slice(0, 60) : (t.key || null),
     attachDocumentIds: attach.matched.map((d) => d.id),
     suggestedTo: suggested.emails,
+    suggestedCc: suggestedCc.emails,
     warnings,
   };
 }
@@ -257,9 +276,9 @@ export function cleanTemplateInput(v = {}) {
   const category = String(v.category == null ? '' : v.category).replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, CATEGORY_MAX);
   const active = v.active === false ? false : true;
   const attachDocTypes = [].concat(v.attachDocTypes || v.attach_doc_types || []).map((x) => String(x || '').trim()).filter(Boolean).slice(0, 12);
-  const defaultRecipientRoles = [].concat(v.defaultRecipientRoles || v.default_recipient_roles || [])
-    .map((x) => String(x || '').trim()).filter((r) => DEFAULT_RECIPIENT_ROLE_KEYS.includes(r)).slice(0, 8);
-  return { name, subject, bodyHtml, scope: 'shared', category, active, attachDocTypes, defaultRecipientRoles };
+  const draft = { name, seedKey: v.seedKey || v.seed_key || v.key || '', defaultRecipientRoles: v.defaultRecipientRoles || v.default_recipient_roles, defaultCcRoles: v.defaultCcRoles || v.default_cc_roles };
+  const address = templateAddressRoles(draft);
+  return { name, subject, bodyHtml, scope: 'shared', category, active, attachDocTypes, defaultRecipientRoles: address.to, defaultCcRoles: address.cc };
 }
 
 export function canManageFileTemplates(u) {
@@ -299,13 +318,13 @@ export const SEED_SHARED = [
   { key: 'processor-intro', name: 'Processor intro', category: 'Introduction',
     subject: 'Introduction for {{file_number}}',
     bodyHtml: '<p>Hi {{recipient_first_name}},</p><p>My name is {{sender_name}}, and I am your processor at CLA Title &amp; Escrow for {{property_address}} (order {{file_number}}). I will be your point of contact from now until closing.</p><p>Please reply to this email with any questions. If we have a closing date on the file, it currently shows as {{closing_date}}.</p><p><strong>Wire fraud warning:</strong> CLA Title &amp; Escrow will never email you wire instructions or ask you to change them by email.</p><p>Thank you,</p>',
-    attachDocTypes: [], defaultRecipientRoles: ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent'] },
+    attachDocTypes: [], defaultRecipientRoles: ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent'], defaultCcRoles: [] },
   { key: 'order-opened', name: 'Order opened / welcome', category: 'Opening',
     subject: 'Welcome — we opened {{file_number}}',
     bodyHtml: '<p>Hello {{buyer_first_name}},</p><p>We have opened your file <strong>{{file_number}}</strong> for {{property_address}}. Your processor is {{processor_line}}.</p><p>We will be in touch with next steps. If anything looks wrong on the order, reply here.</p><p>Thank you,</p>',
-    attachDocTypes: ['Contract'], defaultRecipientRoles: ['Client-Buyer'] },
+    attachDocTypes: ['Contract'], defaultRecipientRoles: ['Client-Buyer'], defaultCcRoles: [] },
   { key: 'closing-scheduled', name: 'Closing scheduled', category: 'Closing',
     subject: 'Closing scheduled for {{file_number}}',
     bodyHtml: '<p>Hello {{recipient_first_name}},</p><p>Closing for <strong>{{file_number}}</strong> at {{property_address}} is currently set for <strong>{{closing_date}}</strong>.</p><p>Buyers: {{buyer_names}}<br>Sellers: {{seller_names}}<br>Lender: {{lender}}</p><p>Please reply if this date needs to change.</p><p>Thank you,</p>',
-    attachDocTypes: [], defaultRecipientRoles: ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent'] },
+    attachDocTypes: [], defaultRecipientRoles: ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent'], defaultCcRoles: [] },
 ];

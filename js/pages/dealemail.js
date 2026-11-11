@@ -5,7 +5,7 @@
 import { html, raw, esc, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611070139';
 import { editorHtml, mountEditor } from './compose.js?v=202611110900';
 import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, hasSignature, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611121900';
-import { applyFileTemplate } from '../data/file-email-templates.js?v=202611102000';
+import { applyFileTemplate } from '../data/file-email-templates.js?v=202611122300';
 import { countUnreadEmails, emailMatchesQuery, isUnreadFileEmail } from '../data/file-email-unread.js?v=202611100930';
 const ROLE = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent', 'Transaction Coordinator': 'TC' };
 const list = (s) => String(s || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
@@ -140,6 +140,8 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     const opts = { toEmails: toNow, documents: docs, applyDefaultRecipients: toNow.length === 0, processorEmail: mergeDeal.processorEmail };
     const applied = applyFileTemplate(t, mergeDeal, sender, opts);
     if (applied.suggestedTo && applied.suggestedTo.length && toNow.length === 0) $('[data-mail-to]', m).value = applied.suggestedTo.join(', ');
+    const ccNow = list($('[data-mail-cc]', m).value);
+    if (applied.suggestedCc && applied.suggestedCc.length && ccNow.length === 0) $('[data-mail-cc]', m).value = applied.suggestedCc.join(', ');
     const to2 = list($('[data-mail-to]', m).value);
     const applied2 = applyFileTemplate(t, mergeDeal, sender, { toEmails: to2, documents: docs, applyDefaultRecipients: false, processorEmail: mergeDeal.processorEmail });
     $('[data-mail-subject]', m).value = applied2.subject;
