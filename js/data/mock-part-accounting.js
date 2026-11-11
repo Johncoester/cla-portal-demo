@@ -6,6 +6,7 @@
 import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, acctCanRead, acctCanEdit, cleanFee, feeChanges, allEntries, ledgerTotals,
   altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration } from './accounting.js?v=202611070139';
 import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractChanges, contractMismatch, assertContractPersisted, CONTRACT_NOT_SAVED } from './contract-terms.js?v=202611091140';
+import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611141000';
 // Caroline Kim, Nov 4 2026: prorations from the settlement date, the rest of the CD (details, prepaids F, initial escrow G), TCs read-only.
 import { cleanCdDetails, cdDetailChanges, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA } from './cd-pages.js?v=202611070139';
 const PRORATION_VIA = 'Settlement date change (prorations re-saved)';
@@ -125,25 +126,31 @@ export function accountingPart(x, flags) {
     async getAltaStatement(dealId, view = 'combined') { const { deal } = reader(dealId); return altaStatement(deal, feesOf(dealId), view); },
     async getClosingDisclosure(dealId) { const { deal } = reader(dealId); return closingDisclosure(deal, feesOf(dealId)); },
     async getContractTerms(dealId) {
-      const { u } = reader(dealId); const row = db().accountingContractTerms.find((x) => x.deal_id === dealId);
-      if (!row) return blankContract(dealId, acctCanEdit(u));
-      const parsed = fromContractRow(row);
-      return { dealId, saved: true, canEdit: acctCanEdit(u), posture: 'estimate', blocked: '', fields: parsed.fields, flags: parsed.flags, updatedAt: row.updated_at || null };
+      const { u, deal } = reader(dealId); const row = db().accountingContractTerms.find((x) => x.deal_id === dealId);
+      const base = row ? fromContractRow(row) : { fields: blankContract(dealId).fields, flags: {}, updatedAt: null };
+      return { dealId, saved: !!row, canEdit: acctCanEdit(u), posture: 'estimate', blocked: '', fields: overlayEarnestFields(deal, base.fields), flags: base.flags, updatedAt: base.updatedAt };
     },
     async saveContractTerms(dealId, input) {
       const { u, deal } = editor(dealId); const clean = cleanContractTerms(input);
-      const price = deal.purchasePrice; const loan = deal.loanAmount; const emd = deal.emdAmount; const received = deal.emdReceived;
+      const price = deal.purchasePrice; const loan = deal.loanAmount; const received = deal.emdReceived;
       const list = db().accountingContractTerms; const prevRow = list.find((x) => x.deal_id === dealId);
       const prev = prevRow ? fromContractRow(prevRow) : { fields: blankContract(dealId).fields, flags: {} };
-      if (prevRow && !contractMismatch(clean, prev)) return { dealId, saved: true, canEdit: true, posture: 'estimate', blocked: '', fields: prev.fields, flags: prev.flags, updatedAt: prevRow.updated_at || null };
-      const stored = { deal_id: dealId, ...toContractRow(clean), updated_at: now() };
+      const shown = { fields: overlayEarnestFields(deal, prev.fields), flags: prev.flags };
+      if (prevRow && !contractMismatch(clean, shown)) return { dealId, saved: true, canEdit: true, posture: 'estimate', blocked: '', fields: shown.fields, flags: shown.flags, updatedAt: prevRow.updated_at || null };
+      const live = load().deals.find((q) => q.id === dealId);
+      const earnestFields = live.transactionType === 'Refinance'
+        ? { emdAmount: null, emdHolder: '', emdDueOn: null, listingCommissionPercent: null, listingCommissionAmount: null, buyerBrokerPercent: null, buyerBrokerAmount: null }
+        : clean.fields;
+      applyEarnestToDeal(live, earnestFields);
+      const stored = { deal_id: dealId, ...toContractRow({ ...clean, fields: blankSharedEarnest(clean.fields) }), updated_at: now() };
       if (prevRow) Object.assign(prevRow, stored); else list.push(stored);
       const changes = contractChanges(prev, clean);
       if (changes.length) db().accountingLog.push({ id: nid('alog'), dealId, feeId: 'contract', description: 'Contract figures (estimate, not a ledger line)', action: 'edited', at: now(), byId: u.id, byName: nameOf(u.id), changes, via: 'Contract figures' });
       save();
       const again = fromContractRow(db().accountingContractTerms.find((x) => x.deal_id === dealId) || {});
-      assertContractPersisted(clean, again);
-      if (deal.purchasePrice !== price || deal.loanAmount !== loan || deal.emdAmount !== emd || deal.emdReceived !== received) fail(CONTRACT_NOT_SAVED);
+      again.fields = overlayEarnestFields(live, again.fields);
+      assertContractPersisted({ ...clean, fields: { ...clean.fields, ...earnestFromDeal(live) } }, again);
+      if (live.purchasePrice !== price || live.loanAmount !== loan || live.emdReceived !== received) fail(CONTRACT_NOT_SAVED);
       return { dealId, saved: true, canEdit: true, posture: 'estimate', blocked: '', fields: again.fields, flags: again.flags, updatedAt: stored.updated_at };
     },
   };
