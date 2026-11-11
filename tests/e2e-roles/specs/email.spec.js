@@ -123,7 +123,7 @@ test('file email, invite, and reply arrive only at the test inbox', async ({ pag
     assertRecipientsAllowed([inviteEmail], { label: 'invite' });
     await page.locator('[data-invite-create]').click();
     await expect(page.locator('[data-invite-link]')).toBeVisible();
-    const inviteMail = await pollInbox({ token, subjectIncludes: "You're invited to the CLA Title portal" });
+    const inviteMail = await pollInbox({ token, subjectIncludes: 'CLA Title & Escrow Has Shared Access' });
     trashed.push(inviteMail.id);
     expect(inviteMail.latencyMs).toBeLessThan(180000);
   } finally {

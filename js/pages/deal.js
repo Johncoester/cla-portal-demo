@@ -17,12 +17,12 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611121300';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611120200';
 import { gatherReads } from '../data/read-batch.js?v=202611111700';
-import { prefetchDealTab } from './deal-tab.js?v=202611130000';
+import { prefetchDealTab } from './deal-tab.js?v=202611131700';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { earnestView, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611130000';
+import { earnestView, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611131700';
 function staffSections(ctx, dealId) {
   const { api } = ctx;
   const user = ctx.user;

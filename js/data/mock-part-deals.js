@@ -10,7 +10,7 @@ import { buildFileNumber, retagFileNumber, sentOutside } from './file-number.js?
 import { officeDate } from './office-date.js?v=202611102100';
 import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions } from './lender-file.js?v=202611101200';
 import { cleanParcel } from './address-fill.js?v=202611102000';
-import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611130000';
+import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611131700';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 // John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only
