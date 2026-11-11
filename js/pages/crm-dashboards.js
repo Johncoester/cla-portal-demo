@@ -5,7 +5,7 @@
  * Nothing is deleted: dashboards and components are RETIRED (hidden, restorable). Function only (no styling work). */
 import { html, raw, $, $$, guard, toast, modal, closeModal, toText } from '../ui.js?v=202611070139';
 import { DASH_MODULES, moduleName, moduleFields, COMPONENT_TYPES, CHART_TYPES, VISIBILITY, BUCKETS, NUMERIC, isDateType, DATE_PRESETS } from '../data/crm-analytics.js?v=202611070139';
-import { tabs, head } from './crm-kit.js?v=202611130400';
+import { tabs, head } from './crm-kit.js?v=202611131200';
 import { chartSvg, kpiHtml, targetHtml, funnelHtml } from './crm-charts.js?v=202611070139';
 import { criteriaEditor } from './crm-criteria.js?v=202611070139';
 
@@ -170,7 +170,7 @@ function builder(c, dash, type, comp) {
   const { api, cfg, owners } = c; const cf0 = comp ? comp.config : { module: 'leads', measure: { fn: 'count' }, grouping: null, criteria: [], chartType: 'column' };
   const label = (COMPONENT_TYPES.find(([k]) => k === type) || [, type])[1];
   const m = modal(`${comp ? 'Edit' : 'Add'} ${label}${type === 'chart' ? ' (Quick Chart)' : ''}`, html`<form data-builder="${type}" class="form-grid" onsubmit="return false">
-    <label class="span2">Component Name<input name="name" maxlength="120" value="${comp ? comp.name : ''}" required></label>
+    <label class="span2">Component Name<input name="name" maxlength="100" value="${comp ? comp.name : ''}" required></label>
     <label>Module<select name="module" data-b-module>${opts(DASH_MODULES.map((k) => [k, moduleName(k)]), cf0.module)}</select></label>
     ${type === 'chart' ? html`<label>Chart type<select name="chartType">${opts(CHART_TYPES, cf0.chartType || 'column')}</select></label>` : html`<span></span>`}
     <div class="span2" data-b-fields></div>

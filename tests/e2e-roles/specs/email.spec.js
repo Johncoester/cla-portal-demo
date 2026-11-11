@@ -2,7 +2,7 @@ import { test, expect, signIn, openMockFile, freshIssues, runId } from '../fixtu
 import { dealId, gotoHash, tinyPdf } from '../helpers/portal.js';
 import { assertRecipientsAllowed, isPlusAliasOf, plusAlias, portalAllows } from '../helpers/allowlist.js';
 import { targetMode } from '../helpers/gate.js';
-import { attachmentBytes, gmailAccessToken, pollInbox, replyWithAttachment, sha256, trashMessage } from '../helpers/inbox.js';
+import { attachmentBytes, gmailAccessToken, gmailCredentials, pollInbox, replyWithAttachment, sha256, trashMessage } from '../helpers/inbox.js';
 
 test('allowlist keeps mail inside the test inbox', () => {
   expect(plusAlias('clatestportal@gmail.com', 'e2e-buyer')).toBe('clatestportal+e2e-buyer@gmail.com');
@@ -43,8 +43,11 @@ test('file email composer fills a template and does not send from mock', async (
 
 test('file email, invite, and reply arrive only at the test inbox', async ({ page }) => {
   test.skip(targetMode() !== 'test', 'Live Gmail delivery runs only against TEST (E2E_TARGET=test). Mock mode does not send.');
-  const missing = ['E2E_GMAIL_CLIENT_ID', 'E2E_GMAIL_CLIENT_SECRET', 'E2E_GMAIL_REFRESH_TOKEN'].filter((name) => !process.env[name]);
-  test.skip(missing.length > 0, `Skipped: missing secret ${missing.join(', ')}.`);
+  const creds = await gmailCredentials();
+  if (!creds.ok) {
+    if (creds.required) throw new Error(creds.message);
+    test.skip(true, creds.message);
+  }
   test.setTimeout(240000);
   const run = runId();
   const token = await gmailAccessToken();
@@ -120,7 +123,7 @@ test('file email, invite, and reply arrive only at the test inbox', async ({ pag
     assertRecipientsAllowed([inviteEmail], { label: 'invite' });
     await page.locator('[data-invite-create]').click();
     await expect(page.locator('[data-invite-link]')).toBeVisible();
-    const inviteMail = await pollInbox({ token, subjectIncludes: "You're invited to the CLA Title portal" });
+    const inviteMail = await pollInbox({ token, subjectIncludes: 'CLA Title & Escrow Has Shared Access' });
     trashed.push(inviteMail.id);
     expect(inviteMail.latencyMs).toBeLessThan(180000);
   } finally {

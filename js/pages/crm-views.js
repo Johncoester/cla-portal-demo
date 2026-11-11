@@ -5,7 +5,7 @@ import { html, raw, toText, $, $$, guard, toast, modal, closeModal } from '../ui
 import { moduleFields } from '../data/crm-analytics.js?v=202611070139';
 import { VIEW_MODULE_LABEL, VIEW_VISIBILITY, VIEW_DEFAULT_COLUMNS, VIEW_NAME_KEY } from '../data/crm-views.js?v=202611070139';
 import { criteriaEditor } from './crm-criteria.js?v=202611070139';
-import { tabs, head } from './crm-kit.js?v=202611130400';
+import { tabs, head } from './crm-kit.js?v=202611131200';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611070139';
 
 const allLabel = (m) => `All ${VIEW_MODULE_LABEL[m]}`;
