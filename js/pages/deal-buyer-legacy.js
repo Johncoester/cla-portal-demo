@@ -8,12 +8,12 @@ import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, US_STATE_NAME
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { slotText } from './dealclosing.js?v=202611121300';
 import { viewTasksHref } from '../data/task-board.js?v=202611140100';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611101015';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611140200';
 import { composeModal } from './compose.js?v=202611110900';
 import { sourceChoices } from '../data/place-order.js?v=202611092320';
 import { themeOn } from '../theme.js?v=202611070139';
 
-const TABS = { tasks: './dealtasks.js?v=202611140100', spouse: './spouse.js?v=202611120200', inbox: './dealmsgs.js?v=202611111700', documents: './dealdocs.js?v=202611131900', contacts: './dealcontacts.js?v=202611140100', activity: './dealactivity.js?v=202611111700', closing: './dealclosing.js?v=202611121300', agreements: './dealagreements.js?v=202611111700', accounting: './dealaccounting.js?v=202611140100' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611140200', spouse: './spouse.js?v=202611120200', inbox: './dealmsgs.js?v=202611111700', documents: './dealdocs.js?v=202611131900', contacts: './dealcontacts.js?v=202611140200', activity: './dealactivity.js?v=202611111700', closing: './dealclosing.js?v=202611121300', agreements: './dealagreements.js?v=202611111700', accounting: './dealaccounting.js?v=202611140100' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
@@ -22,7 +22,7 @@ export async function render(ctx) {
   const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
   if (tab === 'accounting' && !(api.features || {}).accounting) throw new Error('That page does not exist.');   // John, Nov 3: the Accounting tab follows the module switch on CLA Portal Live Test.
-  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611140100' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
+  if (tab !== 'overview' && TABS[tab]) { const mod = await import(tab === 'tasks' && params.sub ? './dealtaskform.js?v=202611140200' : TABS[tab]); const v = await mod.render({ ...ctx, deal }); return { ...v, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
   const ag = await ctx.api.listAgreements(deal.id).catch(() => ({ pending: 0 }));
   const salesStaff = runsOrders(user) ? await ctx.api.listSalesStaff().catch(() => []) : [];   // add-salesperson picker (Processor / Admins)
