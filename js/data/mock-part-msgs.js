@@ -41,8 +41,7 @@ export function messagesActivity(x) {
         const agentIds = new Set(d.participants.filter((p) => p.dealId === dealId && p.role === agentRole).map((p) => { const c = d.contacts.find((z) => z.id === p.contactId); return c && c.profileId; }).filter(Boolean));
         const sideTeams = new Set((d.teamMembers || []).filter((m) => m.memberRole === 'agent' && agentIds.has(m.profileId)).map((m) => m.teamId));
         const sideTcs = new Set((d.teamMembers || []).filter((m) => m.memberRole === 'coordinator' && sideTeams.has(m.teamId)).map((m) => m.profileId));
-        const fileTcs = sideTcs.size ? sideTcs : new Set(out.filter((r) => r.role === 'Transaction Coordinator').map((r) => r.id));
-        out = out.filter((r) => r.email && (r.role === 'Processor' || r.role === agentRole || (r.role === 'Transaction Coordinator' && fileTcs.has(r.id))));
+        out = out.filter((r) => r.email && (r.role === 'Processor' || r.role === agentRole || (r.role === 'Transaction Coordinator' && sideTcs.has(r.id))));
       }
       return clone(out);
     },

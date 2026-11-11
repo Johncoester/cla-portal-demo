@@ -58,7 +58,10 @@ export function requiredTabs(person) {
 /* Share Files option text is "First Last (Role)". Expectations come from
  * listMessageRecipients in mock-part-msgs.js and visibility / side rules in constants.js.
  * The mock sample file assigns a preprocessor. The TEST seed file does not, so a
- * missing "(Preprocessor)" there is the empty assignment, not a missing recipient. */
+ * missing "(Preprocessor)" there is the empty assignment, not a missing recipient.
+ * A Transaction Coordinator is required only because the E2E fixture puts that
+ * coordinator on the buyer agent's team and on the listing agent's team
+ * (20261114150100). A coordinator who is merely on the file is not listed. */
 export function assignedStaffRoles() {
   const roles = [/\(Processor\)/, /\(Transaction Coordinator\)/, /\(Sales Person\)|\(Sales Team\)/];
   if (targetMode() !== 'test') roles.splice(1, 0, /\(Preprocessor\)/);

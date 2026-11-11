@@ -148,7 +148,7 @@ const fileTc = explainRecipients({
   ],
   allowed: [{ id: 'u-proc', firstName: 'Paula', lastName: 'Processor', email: 'paula@example.test', role: 'Processor' }, { id: 'u-bagent', firstName: 'Bianca', lastName: 'Agent', email: 'bianca@example.test', role: 'Buyer Agent' }],
 });
-ok(fileTc.selectable.some((p) => p.id === 'u-tc' && p.role === 'Transaction Coordinator') && !fileTc.selectable.some((p) => p.id === 'u-lagent'), 'a buyer still sees the coordinator on the file when the team lookup returned nobody');
+ok(!fileTc.selectable.some((p) => p.id === 'u-tc') && !fileTc.selectable.some((p) => p.id === 'u-lagent'), 'a coordinator on the file is not offered unless the recipient list already includes that side');
 const already = explainRecipients({
   myRole: 'Client-Buyer',
   participants: [{ role: 'Transaction Coordinator', contact: { firstName: 'Morgan', lastName: 'Other', profileId: 'u-tc2', email: 'morgan@example.test' } }],

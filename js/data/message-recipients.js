@@ -23,21 +23,5 @@ export function explainRecipients({ myRole = '', participants = [], allowed = []
     if (id && allowedIds.has(id)) continue;
     unavailable.push({ name, role: p.role, reason: id ? 'On this file, but this sign-in cannot message them.' : 'On this file, but they have no portal login yet.' });
   }
-  let selectable = allowed || [];
-  // A buyer or seller's coordinator is the one on their agent's team. When that
-  // team link is missing, the coordinator already on the file is still theirs to message.
-  const pureClient = myRole === 'Client-Buyer' || myRole === 'Client-Seller';
-  if (pureClient && !selectable.some((p) => p.role === 'Transaction Coordinator')) {
-    const extra = [];
-    for (const p of participants || []) {
-      if (p.removed || p.role !== 'Transaction Coordinator') continue;
-      const contact = p.contact || {};
-      const id = contact.profileId || p.profileId || '';
-      const email = String(contact.email || p.email || '').trim();
-      if (!id || !email || allowedIds.has(id)) continue;
-      extra.push({ id, firstName: contact.firstName || p.firstName || '', lastName: contact.lastName || p.lastName || '', email, role: 'Transaction Coordinator', side: 'staff' });
-    }
-    selectable = selectable.concat(extra);
-  }
-  return { selectable, unavailable };
+  return { selectable: allowed || [], unavailable };
 }
