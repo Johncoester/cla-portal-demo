@@ -4,7 +4,7 @@ import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields,
 import { ssnDigits, ssnGrouped, ssnMask, ssnStaff, withoutSsn } from './buyer-ssn.js?v=202611120200';
 import { senderFor } from './email-senders.js?v=202611101015';
 import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611120200';   // Task switch OFF: no new copy (existing copies kept)
-import { templateGenerates, audienceAllowsRole, TASK_AUDIENCES } from './nov5-rules.js?v=202611130200';
+import { templateGenerates, audienceAllowsRole, TASK_AUDIENCES } from './nov5-rules.js?v=202611130900';
 import { maskAccount } from './constants.js?v=202611101015';
 import { taskDueDate } from './due-date.js?v=202611110300';
 export function tasksAndForms(x) {

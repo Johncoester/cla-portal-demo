@@ -6,8 +6,8 @@
  * NO SSN is ever stored (the PACER rows hold party, search type, result and the receipt document only). FAKE DATA ONLY. */
 import * as T from './title.js?v=202611101015';
 import { senderFor } from './email-senders.js?v=202611101015';
-import { ensureNov5 } from './mock-part-nov5.js?v=202611130200';
-import { resolveCplPrice, CPL_UNRESOLVED, attorneyAuthorized } from './nov5-rules.js?v=202611130200';
+import { ensureNov5 } from './mock-part-nov5.js?v=202611130900';
+import { resolveCplPrice, CPL_UNRESOLVED, attorneyAuthorized } from './nov5-rules.js?v=202611130900';
 import { seedTitleSamples } from './title-seed.js?v=202611101015';
 
 const COLS = ['titleReviews', 'titleSteps', 'titlePacer', 'titleDiscrepancies', 'titleChain', 'titleItems', 'titleCpls', 'titlePackageComponents', 'titleSignatures', 'titleSummaries', 'titleCurative', 'orderNotes', 'titleLog', 'titleSearches', 'titleLiens', 'titleEntities', 'titleLienCerts', 'titleCtcChecks', 'titleProcessorNotes'];

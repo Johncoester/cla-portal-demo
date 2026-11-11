@@ -220,7 +220,7 @@ ok(heights.includes(2) && heights.includes(1) && heights.every((h) => h === 1 ||
 const page = read('js/pages/crm-dashboards.js');
 ok(page.includes('return { name: f.name.value, type, config }') && page.includes('maxlength="100"') && !page.includes('maxlength="120"'), 'the chart form still nests config and the name field stops at 100');
 
-const STAMP = '202611130700';
+const STAMP = '202611130900';
 const want = new Map([
   ['js/data/supabase-crm-surface.js', STAMP],
   ['js/data/supabase-crm.js', STAMP],

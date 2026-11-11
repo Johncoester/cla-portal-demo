@@ -4,7 +4,7 @@
  *    Readable by anyone who places or edits orders (Processor, Admin, Super admin), even when the CRM feature itself is switched off.
  * Order fields (sourceOfBusiness, lenderPhone / lenderEmail at placement) and buyer / seller entities live in createDeal / updateDeal / addParticipant.
  * Mirrored in SQL by public.source_of_business_options() (migration 31). */
-import { ensureSettings, activeOptions, optionsOf } from './crm-config.js?v=202611130200';
+import { ensureSettings, activeOptions, optionsOf } from './crm-config.js?v=202611130900';
 import { parseReferral } from './place-order.js?v=202611092320';
 import { ENTITY_TYPES, entityPrefill } from './templates.js?v=202611120200';
 
