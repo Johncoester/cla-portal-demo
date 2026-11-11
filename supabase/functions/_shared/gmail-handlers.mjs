@@ -6,10 +6,12 @@
  *   deps.userDeal(id), deps.userDocs(dealId, ids), deps.userDocBytes(path), deps.userEmail(id)   reads AS THE USER (RLS decides)
  *   deps.storeAttachment(path, bytes, mime)         service-role upload to deal-documents
  *   deps.userRpc(fn, args) -> data                 RPC AS THE USER (their JWT), throws with the database message (invite_send_info)
+ *   deps.authInvite(email, { redirectTo, data }) -> { id } | { error, exists }   TEST Auth "Invite user" email (from testportal@clatitle.com)
+ *   deps.authStub(email) -> { id, invited, hasProfile } | null, deps.deleteAuthUser(id)   an invite-only login that never became a portal user
  *   deps.newId() -> uuid, deps.now() -> ms */
 import { TEST_PROJECT_REF, PORTAL_ORIGIN, REDIRECT_URI, GMAIL_ROLES, MAX_RECIPIENTS, MAX_DOCS, MAX_ATTACH_BYTES, MAX_MESSAGE_BYTES, MAX_SAVE_BYTES, MAX_BODY_CHARS, TEST_ALLOWLIST_NOTE,
   isAllowedTestRecipient, parseAddressList, subjectWithTag, formatPropertyAddress, sanitizeHtml, htmlToText, hasWireDetails, isWireName, extOk, safeName, matchUploadKeys, buildMime, b64url, b64urlToBytes, utf8, estimateMimeBytes,
-  parseGmailMessage, randomToken, sha256Hex, pkceChallenge, authUrl, decodeJwtPayload, missingScopes, oneLine, json, hasSettingsScope, pickSendAsSignature, withSignature, isEmail, INVITE_TOKEN_RE, inviteEmailContent, unnotifiedTasks, taskNoticeContent } from './gmail-core.mjs';
+  parseGmailMessage, randomToken, sha256Hex, pkceChallenge, authUrl, decodeJwtPayload, missingScopes, oneLine, json, hasSettingsScope, pickSendAsSignature, withSignature, isEmail, INVITE_TOKEN_RE, unnotifiedTasks, AUTH_INVITE_SUBJECT, PORTAL_INVITE_SENDER, inviteAuthRedirect } from './gmail-core.mjs';
 
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -282,10 +284,13 @@ export async function handleSend(req, deps) {
 
 /* ---------------- portal invite email ----------------
  * body { invite: { kind: 'agent' | 'hr', token } }. kind 'agent' = agent and buyer / seller invites, 'hr' = staff invites.
- * The recipient comes from invite_send_info() run AS THE INVITER. The body is the approved Nov 9 Auth invite
- * template with this portal's accept link. It is sent from the inviter's own connected Gmail. There is no
- * fallback mailbox. Live Test still refuses non-test addresses. staffGate already refuses every project other
- * than TEST. sent_by is the inviter and sent_via stays gmail. The body is not copied into deal_emails. */
+ * John, Nov 11 (t1488u / t1490u): invites come FROM testportal@clatitle.com, never from the inviter's Gmail or jcoester.
+ * The recipient comes from invite_send_info() run AS THE INVITER. TEST Auth sends its approved Nov 9 "Invite user"
+ * template (subject "You're invited to the CLA Title Portal") through its custom SMTP login testportal@clatitle.com.
+ * The button lands on ?portal_invite=<kind>.<token>, which opens this portal's own accept page (the token stays the credential).
+ * No inviter Gmail is read or used, so no "Connect Gmail" is needed. Live Test still refuses non-test addresses,
+ * staffGate refuses every project other than TEST, sent_by is the inviter, and the body is not copied into deal_emails.
+ * The follow-up task email is NOT sent here: it has no testportal path yet and must not go out from the inviter's Gmail. */
 async function inviteSend(inv, user, ctx, deps) {
   const H = deps.headers;
   const kind = inv && inv.kind === 'hr' ? 'hr' : inv && inv.kind === 'agent' ? 'agent' : '';
@@ -295,41 +300,29 @@ async function inviteSend(inv, user, ctx, deps) {
   try { info = await deps.userRpc('invite_send_info', { p_kind: kind, p_token: token }); }
   catch (e) { return json(403, { error: oneLine(e && e.message, 200) || 'You cannot send this invite.' }, H); }
   if (!info || !isEmail(info.email)) return json(400, { error: 'This invite has no valid email address.' }, H);
-  const fromName = `${ctx.firstName || ''} ${ctx.lastName || ''}`.trim();
-  const mail = inviteEmailContent(info, { token });
-  const mark = async (messageId, error) => { try { await deps.svc('invite_svc_mark_sent', { p_kind: kind, p_token: token, p_profile: user.id, p_to: mail.to, p_message_id: messageId, p_error: error }); } catch (e) { /* the send result still goes back to the page */ } };
+  const to = String(info.email || '').trim().toLowerCase();
+  const mark = async (messageId, error) => { try { await deps.svc('invite_svc_mark_sent', { p_kind: kind, p_token: token, p_profile: user.id, p_to: to, p_message_id: messageId, p_error: error }); } catch (e) { /* the send result still goes back to the page */ } };
   if (deps.projectRef !== TEST_PROJECT_REF) return json(503, { error: 'Gmail phase 1 runs on CLA Portal Live Test only.' }, H);
-  if (!isAllowedTestRecipient(mail.to)) { await mark(null, 'Not sent: Live Test only emails test addresses.'); return json(403, { error: `Not sent. ${TEST_ALLOWLIST_NOTE}`, refused: [mail.to], to: mail.to }, H); }
-  if (!ctx.mailbox) return json(409, { error: 'Connect Gmail to send invites automatically (Profile Setting > Gmail).', connectGmail: true, to: mail.to }, H);
-  if (ctx.mailboxStatus !== 'connected') return json(409, { error: 'Your Gmail needs to be connected again to send invites (Profile Setting > Gmail).', connectGmail: true, to: mail.to }, H);
-  const tok = rowOf(await deps.svc('gmail_svc_token', { p_profile: user.id }));
-  if (!tok || !tok.refresh_token) return json(409, { error: 'Connect Gmail to send invites automatically (Profile Setting > Gmail).', connectGmail: true, to: mail.to }, H);
-  let access;
-  try { access = await accessTokenFor(deps, tok.refresh_token); }
-  catch (e) {
-    if (e instanceof ReconnectError) { await deps.svc('gmail_svc_update_account', { p_profile: user.id, p_status: 'needs_reconnect', p_error: e.message, p_history: null, p_synced: false }); return json(409, { error: e.message, connectGmail: true, to: mail.to }, H); }
-    await mark(null, 'Google did not answer.'); return json(502, { error: 'Google did not answer. The invite was not emailed.', to: mail.to }, H);
+  if (!isAllowedTestRecipient(to)) { await mark(null, 'Not sent: Live Test only emails test addresses.'); return json(403, { error: `Not sent. ${TEST_ALLOWLIST_NOTE}`, refused: [to], to }, H); }
+  if (typeof deps.authInvite !== 'function') return json(503, { error: `The portal mailbox (${PORTAL_INVITE_SENDER}) is not set up here. The invite was not emailed.`, to }, H);
+  // portal_invite also rides in the Auth login itself, so the landing still finds the accept page if Auth falls back to its Site URL
+  const opts = { redirectTo: inviteAuthRedirect(kind, token), data: { portal_invite: `${kind}.${token}` } };
+  // An earlier invite email left an invite-only login that never became a portal user: replace it, so this email carries this link.
+  // A real portal login (not Auth-invited, or already linked to a profile) is never touched.
+  const stub = typeof deps.authStub === 'function' ? await deps.authStub(to) : null;
+  if (stub && stub.id && !(stub.invited && !stub.hasProfile)) { await mark(null, 'Not sent: this email already has a portal login.'); return json(409, { error: 'This email already has a portal login, so the invite was not emailed. Copy the link below and send it yourself.', to }, H); }
+  if (stub && stub.id && typeof deps.deleteAuthUser === 'function') await deps.deleteAuthUser(stub.id);
+  const sent = await deps.authInvite(to, opts);
+  if (sent && sent.exists) { await mark(null, 'Not sent: this email already has a portal login.'); return json(409, { error: 'This email already has a portal login, so the invite was not emailed. Copy the link below and send it yourself.', to }, H); }
+  if (!sent || sent.error || !sent.id) {
+    const why = oneLine(sent && sent.error, 160) || 'no answer';
+    await mark(null, `The portal mailbox did not send it (${why}).`);
+    return json(502, { error: `The portal mailbox (${PORTAL_INVITE_SENDER}) did not send it. The invite was not emailed.`, to }, H);
   }
-  const raw = buildMime({ from: tok.email, fromName, to: [mail.to], cc: [], bcc: [], subject: mail.subject, html: mail.html, text: mail.text, attachments: [], seed: deps.newId() });
-  const sent = await gmail(deps, access, '/messages/send', { method: 'POST', body: JSON.stringify({ raw: b64url(raw) }) });
-  if (!sent.ok || !sent.body || !sent.body.id) { await mark(null, `Gmail refused the send (HTTP ${sent.status}).`); return json(502, { error: `Gmail did not send it (HTTP ${sent.status}). The invite was not emailed.`, to: mail.to }, H); }
-  await mark(sent.body.id, null);
-  const batch = kind === 'agent' ? unnotifiedTasks(info) : [];
-  let taskNotice = { sent: false, count: 0 };
-  if (batch.length) {
-    const notice = taskNoticeContent(info, batch, { token });
-    const rawTasks = buildMime({ from: tok.email, fromName, to: [mail.to], cc: [], bcc: [], subject: notice.subject, html: notice.html, text: notice.text, attachments: [], seed: `${deps.newId()}t` });
-    const sentTasks = await gmail(deps, access, '/messages/send', { method: 'POST', body: JSON.stringify({ raw: b64url(rawTasks) }) });
-    const ids = batch.map((t) => t.id).filter(Boolean);
-    if (!sentTasks.ok || !sentTasks.body || !sentTasks.body.id) {
-      try { await deps.svc('invite_svc_mark_task_notice', { p_kind: kind, p_token: token, p_profile: user.id, p_ids: ids, p_message_id: null, p_error: `Gmail refused the task email (HTTP ${sentTasks.status}).` }); } catch (e) { /* the invite itself was sent */ }
-      taskNotice = { sent: false, count: batch.length, error: 'The task email was not sent.' };
-    } else {
-      try { await deps.svc('invite_svc_mark_task_notice', { p_kind: kind, p_token: token, p_profile: user.id, p_ids: ids, p_message_id: sentTasks.body.id, p_error: null }); } catch (e) { /* recorded on the next invite if the row was not updated */ }
-      taskNotice = { sent: true, count: batch.length, subject: notice.subject, gmailMessageId: sentTasks.body.id };
-    }
-  }
-  return json(200, { ok: true, sent: true, to: mail.to, from: tok.email, subject: mail.subject, gmailMessageId: sent.body.id, taskNotice }, H);
+  await mark(`auth-invite:${sent.id}`, null);
+  const pending = kind === 'agent' ? unnotifiedTasks(info).length : 0;
+  const taskNotice = pending ? { sent: false, count: pending, error: 'The task email is not sent with portal-mailbox invites yet.' } : { sent: false, count: 0 };
+  return json(200, { ok: true, sent: true, via: 'auth', to, from: PORTAL_INVITE_SENDER, subject: AUTH_INVITE_SUBJECT, authUserId: sent.id, taskNotice }, H);
 }
 
 /* ---------------- gmail-sync (cron every 3 minutes, or "Check for replies") ---------------- */

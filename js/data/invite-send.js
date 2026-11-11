@@ -1,6 +1,6 @@
 /* Portal invites email themselves (John, Nov 9: "I want the portal to send it ... just like what staff gets / agents gets").
- * After staff create or Resend an invite (agent, buyer / seller, or HR staff), the page asks gmail-send to email it from the inviter's own
- * connected @clatitle.com Gmail. If it was not sent (Gmail not connected, Live Test address rule, Google error) the copy link stays on screen
+ * After staff create or Resend an invite (agent, buyer / seller, or HR staff), the page asks gmail-send to email it. Since Nov 11 it goes
+ * FROM testportal@clatitle.com (TEST Auth's approved invite email), never from the inviter's Gmail. If it was not sent (Live Test address rule, an existing login, a mail error) the copy link stays on screen
  * with the reason. Nothing here sends by itself; api.sendInviteEmail does, and it never throws. */
 import { html } from '../ui.js?v=202611070139';
 export const tokenOfLink = (link) => { const m = /#\/(?:agent-invite|hr-invite)\/([0-9a-f]{64})$/.exec(String(link || '')); return m ? m[1] : ''; };
@@ -23,7 +23,8 @@ export async function autoSendInvite(api, kind, link) {
 const reason = (e) => String(e || '').trim().replace(/[.\s]+$/, '');
 // the line shown above the copy link
 export function inviteSendNotice(r = {}) {
-  if (r.sent) return html`<p class="notice ok" data-invite-sent="yes">Emailed to <strong>${r.to}</strong> from your Gmail${r.from ? html` (${r.from})` : ''}. You can still copy the link below.</p>`;
+  // John, Nov 11: invites come from the portal mailbox testportal@clatitle.com, never the inviter's Gmail
+  if (r.sent) return html`<p class="notice ok" data-invite-sent="yes">Emailed to <strong>${r.to}</strong> from ${r.from || 'testportal@clatitle.com'}. You can still copy the link below.</p>`;
   if (r.connectGmail) return html`<p class="notice warn" data-invite-sent="connect">Not emailed. <a href="#/profile">Connect Gmail to send automatically</a> (Profile Setting &gt; Gmail).${reason(r.error) ? html` ${reason(r.error)}.` : ''} Copy the link below and send it yourself for now.</p>`;
   const why = reason(r.error);
   return html`<p class="notice warn" data-invite-sent="${r.stale ? 'stale' : 'no'}">Not emailed${why ? html`: ${why}` : ''}.${r.noLink ? '' : ' Until then you can copy the link below and send it yourself.'}</p>`;
