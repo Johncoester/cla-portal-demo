@@ -1,11 +1,11 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
 import { html, raw, toText, esc, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611070139';
-import { TEST_ALLOWLIST_NOTE, isAllowedTestRecipient, textToHtml, hasSignature } from '../data/gmail-email.js?v=202611091801';
+import { TEST_ALLOWLIST_NOTE, isAllowedTestRecipient, textToHtml, hasSignature } from '../data/gmail-email.js?v=202611121900';
 import { occSelects, yesNo } from './occ-fields.js?v=202611070139';
 import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611101015';
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { modOn } from '../data/modules.js?v=202611101015';
-import { slotText } from './dealclosing.js?v=202611121200';
+import { slotText } from './dealclosing.js?v=202611121300';
 import { pickerHtml, mountPicker } from './person-picker.js?v=202611101015';
 import { composeModal } from './compose.js?v=202611110900';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611092320';
@@ -14,17 +14,17 @@ import { canManageClosingLocations } from '../data/closing-location.js?v=2026111
 import { settlementSectionHtml, closingDateSectionHtml, mountSettlement } from './settlement-section.js?v=202611111700';
 import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611101015';
 import { themeOn } from '../theme.js?v=202611070139';
-import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611121200';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611121200';
+import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611122200';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611122200';
 import { gatherReads } from '../data/read-batch.js?v=202611111700';
-import { prefetchDealTab } from './deal-tab.js?v=202611121200';
+import { prefetchDealTab } from './deal-tab.js?v=202611122200';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { earnestView, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611102000';
-import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611121200';
-import { bindAddressFill } from '../data/address-fill.js?v=202611121200';
+import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611122200';
+import { bindAddressFill } from '../data/address-fill.js?v=202611122200';
 function staffSections(ctx, dealId) {
   const { api } = ctx;
   const user = ctx.user;

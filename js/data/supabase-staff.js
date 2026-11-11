@@ -1,7 +1,7 @@
 /* Staff screens that were still throwing "not implemented yet" in supabase mode.
  * Reads and writes go through the existing tables and RLS. This file does not create logins
  * and does not contain a service-role key. Nothing is emailed. */
-import { uploadBytes as blobOf, uploadFileName } from './upload-bytes.js?v=202611121200';
+import { uploadBytes as blobOf, uploadFileName } from './upload-bytes.js?v=202611122200';
 const day = (d) => new Date(d).toISOString().slice(0, 10);
 const plusDays = (n) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const full = (p) => `${p.firstName || ''} ${p.lastName || ''}`.trim();
@@ -29,8 +29,11 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
     const up = await sb.storage.from('deal-documents').upload(path, await blobOf(file), { contentType: file.mimeType || 'application/octet-stream', upsert: false });
     if (up.error) throw new Error(up.error.message || 'The document bucket refused the upload.');
     const row = { id, deal_id: dealId || null, folder_id: folderId || null, name, description: file.description || '', mime_type: file.mimeType || 'application/octet-stream', size_bytes: file.size || 0, storage_path: path, visibility: visibility || 'all', uploaded_by: u.id, doc_type: file.docType || '', wire_instructions: file.wireInstructions === true };
-    // Insert without RETURNING. A buyer who cannot yet read the new row back gets the same
-    // "new row violates row-level security policy" error as a failed check, and the file is lost.
+    // Insert without RETURNING. documents_select is `id in (readable_document_ids())`,
+    // and that function is STABLE, so it cannot see the row this statement is still inserting.
+    // Postgres then reports "new row violates row-level security policy" and rolls the insert
+    // back. The storage object is already uploaded. The browser already knows the id.
+    // On MD-26-97215 the buyer ID task (Closing Locations Flyer - CLA Title.jpg) failed this way.
     const ins = await sb.from('documents').insert(row);
     if (ins.error) throw new Error(ins.error.message || 'The document was not saved.');
     return { id, name, dealId: dealId || null, visibility: row.visibility };

@@ -5,7 +5,7 @@ import { editorHtml, mountEditor } from './compose.js?v=202611110900';
 import {
   FILE_TEMPLATE_FIELDS, DEFAULT_RECIPIENT_ROLES, ATTACH_DOC_MATCH_OPTIONS,
   canManageFileTemplates, cleanTemplateInput,
-} from '../data/file-email-templates.js?v=202611121200';
+} from '../data/file-email-templates.js?v=202611122200';
 
 export async function render(ctx) {
   const { api, user, refresh } = ctx;

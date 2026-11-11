@@ -53,6 +53,8 @@ const form = src('js/pages/dealtaskform.js');
 const ssnAt = form.indexOf('saveBuyerSsn');
 const completeAt = form.indexOf('saveTaskForm(t.id');
 ok(ssnAt > 0 && completeAt > ssnAt, 'the Social Security number is saved before the task is marked complete');
+const staffJs = src('js/data/supabase-staff.js');
+ok(/from\('documents'\)\.insert\(row\)/.test(staffJs) && !/from\('documents'\)\.insert\(row\)\.select\(/.test(staffJs), 'the ID upload does not ask the database to return the new row');
 const overview = src('js/data/supabase-order-overview.js');
 ok(overview.includes("rpc('request_update'"), 'hosted Ask for an update calls request_update');
 const order = src('js/pages/ordernew.js');

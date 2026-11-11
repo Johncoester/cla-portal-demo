@@ -4,7 +4,7 @@ import { readFileSync as read } from 'node:fs';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { intakeFormHtml } from '../js/pages/dealtaskform.js';
 import { yourAgentHtml, withContactPhone } from '../js/pages/your-agent.js';
-import { lenderSavedOnFile, tasksWithLenderOnFile, renderClientOverview } from '../js/pages/client-overview.js';
+import { lenderSavedOnFile, tasksWithLenderOnFile, renderClientOverview, closingTeamSelf } from '../js/pages/client-overview.js';
 import { CITIZENSHIP_OPTS } from '../js/data/templates.js';
 import { toText } from '../js/ui.js';
 
@@ -26,6 +26,8 @@ const deal = await api.getDeal('deal-1');
 const view = await renderClientOverview({ api, user, go() {}, refresh() {}, wireModal() {}, shareModal() {} }, deal, []);
 const html = toText(view.body);
 ok(!html.includes('(you)') && !html.includes('data-co-you"') && !html.includes('data-co-person="Ben Buyer"'), 'the closing team does not list the viewing client');
+ok(closingTeamSelf({ contact: { email: 'ben.buyer@example.test' } }, { id: 'other', email: 'Ben.Buyer@example.test' }), 'a buyer row with no portal id still matches their email');
+ok(!closingTeamSelf({ contact: { email: 'ada@example.test' } }, { id: 'u-buyer', email: 'ben.buyer@example.test' }), 'another person on the file stays on the closing team');
 ok(html.includes('301-555-0105') || html.includes('data-agent-tel'), 'the Your Agent card shows the phone already on the file');
 
 const card = toText(yourAgentHtml(withContactPhone(

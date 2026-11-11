@@ -3,7 +3,7 @@
 // activity_log is not read here. The Activity tab loads it.
 // A failed read is thrown. An empty list is only what the database returned.
 import { buildOrderOverview } from './order-overview.js?v=202611110700';
-import { canUseGmail } from './gmail-email.js?v=202611091801';
+import { canUseGmail } from './gmail-email.js?v=202611121900';
 
 const CONTACT_MS = 2000;
 /* A name lookup made with no user session sends the publishable key as Bearer and PostgREST answers 401.

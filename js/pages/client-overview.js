@@ -5,9 +5,20 @@
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney, pill, toast } from '../ui.js?v=202611070139';
 import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611101015';
 import { composeModal } from './compose.js?v=202611110900';
-import { slotText } from './dealclosing.js?v=202611121200';
-import { yourAgentHtml, withContactPhone } from './your-agent.js?v=202611121200';
+import { slotText } from './dealclosing.js?v=202611121300';
+import { yourAgentHtml, withContactPhone } from './your-agent.js?v=202611122200';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
+import { UPDATE_TOPICS } from '../data/agent-portal.js?v=202611101015';
+
+// The signed-in buyer or seller is not part of their own closing team. Match the
+// portal login when the contact row has it, and the email when that login id was not loaded.
+export function closingTeamSelf(person, user) {
+  const c = (person && person.contact) || {};
+  if (user && c.profileId && c.profileId === user.id) return true;
+  const mail = String(c.email || '').trim().toLowerCase();
+  const mine = String((user && user.email) || '').trim().toLowerCase();
+  return !!(mail && mine && mail === mine);
+}
 
 // stage 5 shows as "Wire Fraud Awareness" on the BUYER's view only (display only; the stored stage list is unchanged)
 // live40 (John, Nov 5 meeting): the client tracker's step 2 (internal STAGES[1] 'EMD Receipt', key unchanged for reports) reads "Buyer info received" for buyer and seller.
@@ -85,7 +96,7 @@ export async function renderClientOverview(ctx, d, here) {
   const todo = [...mine.map((t) => ({ id: t.id, title: t.title, dueDate: t.dueDate, href: hrefOf(t) })), ...agTasks];
   const next = todo[0];
   // ---------- closing team ----------
-  const ps = d.participants.filter((p) => !p.removed && p.contact); const meC = ps.find((p) => p.contact.profileId === user.id);
+  const ps = d.participants.filter((p) => !p.removed && p.contact); const meC = ps.find((p) => closingTeamSelf(p, user));
   const row = (p, chip, { cla = false, you = false, via = false, big = false } = {}) => { const c = p.contact; const pid = c.profileId; const name = partyDisplayName(p); const bits = name.split(/\s+/).filter(Boolean);
     const em = via ? 'Contact through your agent' : c.contactHidden ? 'Contact through CLA Title' : [c.email, fmtPhone(c.phone)].filter(Boolean).join(' \u00b7 ');
     const acts = you || via || c.contactHidden ? '' : html`<div class="co-acts">${pid && canMsg.has(pid) ? html`<button type="button" data-co-message="${pid}">Message</button>` : ''}${c.phone ? html`<a href="tel:${tel(c.phone)}" data-co-call>Call</a>` : ''}</div>`;
@@ -94,7 +105,7 @@ export async function renderClientOverview(ctx, d, here) {
   const ownAgentRole = side === 'buyer' ? 'Buyer Agent' : 'Listing Agent'; const otherAgentRole = side === 'buyer' ? 'Listing Agent' : 'Buyer Agent';
   const myRole = side === 'buyer' ? 'Client-Buyer' : 'Client-Seller'; const otherRole = side === 'buyer' ? 'Client-Seller' : 'Client-Buyer';
   const B = refi ? 'Borrower' : 'Buyer'; const L = { 'Client-Buyer': B, 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent' };
-  const listed = ps.filter((p) => !(p.contact && p.contact.profileId === user.id));
+  const listed = ps.filter((p) => !closingTeamSelf(p, user));
   const ownAgents = listed.filter((p) => p.role === ownAgentRole && p.contactId !== (meC && meC.contactId));
   // CLA Title & Escrow: the processor, the sales rep(s) and a transaction coordinator who works for CLA (company on the contact)
   const claTc = (p) => /\bCLA\b/i.test(p.contact.company || '');
@@ -145,9 +156,9 @@ export async function renderClientOverview(ctx, d, here) {
     </div>`;
   return { title: d.fileNumber, clientPage: { deal: d, side }, crumbs: [...here, ['Overview']], body, mount(root) {
     $$('[data-co-message]', root).forEach((b) => b.addEventListener('click', guard(() => composeModal({ api, deal: d, go: ctx.go, user }, { title: 'New Conversation', to: b.dataset.coMessage, withFiles: true }))));
-    const ask = $('[data-co-ask]', root); if (ask) ask.addEventListener('click', () => { const m = modal('Ask for an update', html`<form id="requpdate" class="form-grid" data-request-update><label class="span2">What would you like an update on?<select name="topic" required><option value="">Choose&hellip;</option>${options(ov.updateTopics, '')}</select></label>
+    const ask = $('[data-co-ask]', root); if (ask) ask.addEventListener('click', guard(() => { const topics = Array.isArray(ov.updateTopics) && ov.updateTopics.length ? ov.updateTopics : UPDATE_TOPICS; const m = modal('Ask for an update', html`<form id="requpdate" class="form-grid" data-request-update><label class="span2">What would you like an update on?<select name="topic" required><option value="">Choose&hellip;</option>${options(topics, '')}</select></label>
       <label class="span2">Note (optional)<input name="note" maxlength="1000"></label><p class="muted small span2">CLA Title &amp; Escrow answers here in the portal.</p><div class="span2"><button class="m-btn" type="submit">Submit Request</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
-      $('#requpdate', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); if (!f.topic) throw new Error('Pick what you want an update on.'); await api.requestUpdate(d.id, f); closeModal(); toast('Update requested. CLA Title will answer here.'); ctx.refresh(); })); });
+      $('#requpdate', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); if (!UPDATE_TOPICS.includes(f.topic)) throw new Error('Pick what you want an update on.'); await api.requestUpdate(d.id, f); closeModal(); toast('Update requested. CLA Title will answer here.'); ctx.refresh(); })); }));
     const wb = $('#wirebtn', root); if (wb) wb.addEventListener('click', guard(() => ctx.wireModal(api, d)));
     const sa = $('#shareaccess', root); if (sa) sa.addEventListener('click', () => ctx.shareModal({ buyer: pure && side === 'buyer', seller: pure && side === 'seller' }));
   } };

@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
 ok(JSON.stringify(GMAIL_ROLES) === JSON.stringify(SERVER_ROLES), 'page and server agree on who can connect Gmail');
-for (const a of ['clatestportal@gmail.com', 'clatestportal+x@gmail.com', 'a@clatitle.com', 'jcoester-6jkr3p@mail.grokbot.com', 'b@gmail.com', 'x@clatitle.com.evil.com', 'clatestportal+@gmail.com', 'A..b@clatitle.com']) ok(pageAllow(a) === serverAllow(a), `page mirrors the server allowlist: ${a}`);
+for (const a of ['clatestportal@gmail.com', 'clatestportal+x@gmail.com', 'a@clatitle.com', 'jcoester-6jkr3p@mail.grokbot.com', 'testbuyerjohnc@gmail.com', 'TESTSELLERGAEL@gmail.com', 'johncoester@gmail.com', 'listingagentrosy@gmail.com', 'b@gmail.com', 'x@clatitle.com.evil.com', 'clatestportal+@gmail.com', 'A..b@clatitle.com', 'testbuyerjohnc+x@gmail.com', 'johncoester@gmail.com.evil.com']) ok(pageAllow(a) === serverAllow(a), `page mirrors the server allowlist: ${a}`);
 for (const r of ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin']) ok(canUseGmail({ role: r }), `${r} can use Gmail`);
 for (const u of [{ role: 'Employee' }, { role: 'Outside user' }, { role: 'Processor', accountRole: 'buyer' }, null]) ok(!canUseGmail(u), `no Gmail for ${JSON.stringify(u)}`);
 const deal = { id: 'd1', fileNumber: 'MD-26-97207', street: '1 Main St', city: 'Annapolis', state: 'MD', closingDate: '2026-12-15', participants: [

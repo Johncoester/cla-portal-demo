@@ -33,7 +33,11 @@ export function messagesActivity(x) {
       let out = rows.filter((r) => r.id !== u.id);
       const held = (u.roles && u.roles.length) ? u.roles : [u.role];
       const pureClient = held.length > 0 && held.every((r) => r === 'Client-Buyer' || r === 'Client-Seller');
-      if (pureClient && !staff) out = out.filter((r) => r.email && r.role === 'Processor');
+      if (pureClient && !staff) {
+        const side = held.includes('Client-Buyer') ? 'buyer' : 'seller';
+        const agentRole = side === 'buyer' ? 'Buyer Agent' : 'Listing Agent';
+        out = out.filter((r) => r.email && (r.role === 'Processor' || r.role === agentRole || r.role === 'Transaction Coordinator'));
+      }
       return clone(out);
     },
     async listThreads(dealId) {
