@@ -175,6 +175,9 @@ export function crmJaninePart(x, ctx) {
       const prefs = {};
       if (Array.isArray(row.prefs.order)) prefs.order = row.prefs.order.slice();
       if (row.prefs.pageSize != null) prefs.pageSize = row.prefs.pageSize;
+      if (typeof row.prefs.sort === 'string' || (row.prefs.sort && typeof row.prefs.sort === 'object' && !Array.isArray(row.prefs.sort))) prefs.sort = typeof row.prefs.sort === 'object' ? { ...row.prefs.sort } : row.prefs.sort;
+      if (row.prefs.sortField) prefs.sortField = String(row.prefs.sortField);
+      if (row.prefs.sortDir === 'asc' || row.prefs.sortDir === 'desc') prefs.sortDir = row.prefs.sortDir;
       return { module: mod, prefs, updatedAt: row.updatedAt };
     },
     async saveUserUiPrefs(module, prefs) {
@@ -190,6 +193,9 @@ export function crmJaninePart(x, ctx) {
       const out = {};
       if (Array.isArray(next.order)) out.order = next.order.slice();
       if (next.pageSize != null) out.pageSize = next.pageSize;
+      if (typeof next.sort === 'string' || (next.sort && typeof next.sort === 'object' && !Array.isArray(next.sort))) out.sort = typeof next.sort === 'object' ? { ...next.sort } : next.sort;
+      if (next.sortField) out.sortField = String(next.sortField);
+      if (next.sortDir === 'asc' || next.sortDir === 'desc') out.sortDir = next.sortDir;
       return { module: mod, prefs: out, updatedAt: at };
     },
     // Select-all returns counts only. The write uses the same record methods as one row.
