@@ -40,6 +40,7 @@ import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=2026
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
 import { propertyAddressOf } from './nov5-rules.js?v=202611131900';
 import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611120200';
+import { fetchDashboard, indexDashboardExtras, decorateDashboardDeals, shapeDashboardTask } from './dashboard-load.js?v=PENDING';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow } from './contact-insert.js?v=202611101200';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
@@ -435,6 +436,30 @@ export async function createSupabaseAdapter(cfg) {
       const pn = await withProcessorNames(got.rows, new Map(got.procs));
       return got.rows.map((d) => ({ ...withRole(d, got.roles.get(d.id), got.parties),
         address: `${d.street}, ${d.city}, ${d.state} ${d.zip}`, displayName: propertyAddressOf(d), county: d.county || '', fileTitle: got.titles.get(d.id) || '', partyNames: (ex.get(d.id) || {}).party_names || [], overdueTasks: (ex.get(d.id) || {}).overdue_tasks || 0, ...salesFields(got.sales.get(d.id)), ...processorFields(d, pn) }));
+    },
+    async loadDashboard(opts = {}) {
+      const raw = await fetchDashboard(sb, opts);
+      const extra = indexDashboardExtras(raw);
+      let taskRows = (raw.taskRows || []).map(shapeDashboardTask);
+      let u = ident.current() || await me();
+      if ((!u || !u.id) && lastHeld && lastHeld.id) u = lastHeld;
+      const staff = !!(u && (u.isAdmin || runsOrdersCI(u)));
+      if (!staff && taskRows.length) {
+        const ids = [...new Set(taskRows.map((t) => t.dealId).filter(Boolean))];
+        const onFile = new Map(await Promise.all(ids.map(async (id) => [id, await viewerOnFile(sb, id, u)])));
+        taskRows = taskRows.map((t) => {
+          const f = onFile.get(t.dealId) || { participantIds: [], roles: [] };
+          const shaped = mapHostedTaskList([{ ...t, deal_id: t.dealId }], u, [], { myParticipantIds: f.participantIds, fileRoles: f.roles })[0];
+          return { ...shaped, deal: t.deal, dealId: t.dealId };
+        });
+      } else if (u) {
+        taskRows = taskRows.map((t) => ({ ...mapHostedTaskList([t], u, [], {})[0], deal: t.deal, dealId: t.dealId }));
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      taskRows.forEach((t) => { t.overdue = !!(t.dueDate && t.dueDate < today && ['todo', 'in_progress', 'blocked'].includes(t.status)); });
+      const openRows = decorateDashboardDeals(raw.openRows, extra, taskRows);
+      const otherRows = decorateDashboardDeals(raw.otherRows, extra, taskRows);
+      return { openRows, openTotal: raw.openTotal, otherRows, otherTotal: raw.otherTotal, closedTotal: raw.closedTotal, tasks: taskRows, taskTotal: raw.taskTotal, limit: opts.openLimit };
     },
     // participants come from deal_contacts() (migration 13): the other side's agent/client keep their names but phone/email are blank for outside users
     async getDeal(id) { return fetchDeal(id); },

@@ -101,7 +101,7 @@ check(failed === 2, 'a failed file read is not reused');
 
 const dash = readFileSync(new URL('../js/pages/dashboard.js', import.meta.url), 'utf8');
 check(!dash.includes('for (const d of deals) tasksByDeal'), 'the dashboard does not walk every order for tasks before choosing the view');
-check(dash.includes('needsTasks') && dash.includes('getWorkQueue({ deals })'), 'a processor reuses the order list already loaded');
+check(dash.includes('loadDashboard') && dash.includes('Promise.all') && !dash.includes("listDeals({ status: 'All' })") && !dash.includes("listAllTasks({ fileStatus: 'All' })"), 'the dashboard loads open files and does not pull every deal and every task');
 const adapter = readFileSync(new URL('../js/data/supabase-adapter.js', import.meta.url), 'utf8');
 check(adapter.includes('gatherReads') && adapter.includes('profile.clear()') && adapter.includes('nav.clear()') && adapter.includes('read-batch.js?v=202611111200') && adapter.includes('supabase-staff.js?v=202611110300'), 'order reads overlap, sign-out drops the profile, and the staff module stamp is current');
 check(adapter.includes('task-actions.js?v=202611120200') && adapter.includes('supabase-order-overview.js?v=202611121900') && adapter.includes('supabase-tc.js?v=202611101015') && !adapter.includes('task-actions.js?v=202611070139') && !adapter.includes('supabase-order-overview.js?v=202611071845'), 'the changed hosted modules are imported at the current stamp');
@@ -110,7 +110,7 @@ const warm = adapter.slice(adapter.indexOf('function warmFile'));
 const overview = warm.slice(warm.indexOf("tab === 'overview'"), warm.indexOf("fileRead('shell:'"));
 check(!overview.includes('listActivity') && warm.includes("tab === 'activity' && a.listActivity"), 'activity_log is requested when the activity tab opens');
 const appSrc = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-check(appSrc.includes("adapter.js?v=202611131900") && appSrc.includes("deal.js?v=202611131900") && appSrc.includes("dashboard.js?v=202611131900") && appSrc.includes("ordernew.js?v=202611131900") && appSrc.includes("prefetchDealTab") && !appSrc.includes('modsEarly'), 'the shell loads the current adapter and does not reuse an early module map');
+check(appSrc.includes("adapter.js?v=PENDING") && appSrc.includes("deal.js?v=202611131900") && appSrc.includes("dashboard.js?v=PENDING") && appSrc.includes("ordernew.js?v=202611131900") && appSrc.includes("prefetchDealTab") && !appSrc.includes('modsEarly'), 'the shell loads the current adapter and does not reuse an early module map');
 const taskPage = readFileSync(new URL('../js/pages/dealtasks.js', import.meta.url), 'utf8');
 const dealTab = readFileSync(new URL('../js/pages/deal-tab.js', import.meta.url), 'utf8');
 const dealPage = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');

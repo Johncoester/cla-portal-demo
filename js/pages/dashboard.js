@@ -1,12 +1,13 @@
 // Role dashboards: Processor = Work Queue; Sales Person / Sales Team = Team Dashboard (view-only);
 // Transaction Coordinator = Dashboard; Buyer/Listing Agent = Transactions; clients = My Closing.
-import { html, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js?v=202611070139';
+import { html, toText, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js?v=202611070139';
 import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611101015';
 import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611131900';
 import { themeOn } from '../theme.js?v=202611070139';
 import { mapLimit } from '../data/read-batch.js?v=202611111200';
 import { pendingMine } from '../data/task-actions.js?v=202611120200';
 import { unassignedOpen } from '../data/processor-assign.js?v=202611091600';
+import { workQueueFrom, DASHBOARD_PAGE } from '../data/dashboard-load.js?v=PENDING';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>${d.fileTitle ? html` <span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}`;
 // CARD THEME (default look): a tile that repeats one of the four dashboard cards (open orders = "in Pipeline" count, overdue tasks) is not drawn;
@@ -20,28 +21,55 @@ const unassignedCard = (open) => { const list = unassignedOpen(open);
   return html`<div class="card" data-unassigned-files><h3>Unassigned files <span class="pill ${list.length ? 'warn' : 'ok'}" data-unassigned-count>${list.length}</span></h3>
     ${list.length ? html`<p class="muted small">Open files with no Processor. Open one and use Edit order details to assign a Processor; they get an in-app notification.</p><ul class="plain">${list.slice(0, 8).map((d) => html`<li>${dealLink(d)} <span class="pill warn">Unassigned</span> <span class="muted">${d.address}</span></li>`)}</ul>${list.length > 8 ? html`<p class="muted small">and ${list.length - 8} more</p>` : ''}<a class="ghost" href="${UNASSIGNED_LINK}">See all unassigned in Orders</a>` : html`<p class="muted">Every open file has a Processor.</p>`}</div>`; };
 
+const viewOf = (user) => user.isAdmin ? 'admin' : runsOrders(user) ? 'processor' : user.role === 'Transaction Coordinator' ? 'coordinator' : isAgent(user.role) ? 'agent' : isClient(user.role) ? 'client' : isOutside(user.role) ? 'outside' : 'team';
+
 export async function render(ctx) {
   const { api, user } = ctx;
-  const deals = await api.listDeals({ status: 'All' });
-  const needsTasks = !(user.isAdmin || runsOrders(user));
-  // speed (Nov 9): the Supabase adapter reads every file's tasks in one go (listTasksForDeals); the mock keeps one listTasks per file
-  const withDeal = (d, ts) => (ts || []).map((t) => ({ ...t, deal: d }));
-  const lists = !needsTasks ? [] : api.listTasksForDeals
-    ? await api.listTasksForDeals(deals.map((d) => d.id)).then((byDeal) => deals.map((d) => withDeal(d, byDeal.get(d.id))))
-    : await mapLimit(deals, 4, (d) => api.listTasks(d.id).then((ts) => withDeal(d, ts)));
-  const all = lists.flat();
-  const open = deals.filter((d) => d.status === 'Open'); const today = localDate();
-  const pick = user.isAdmin ? admin : runsOrders(user) ? processor : user.role === 'Transaction Coordinator' ? coordinator : isAgent(user.role) ? agent : isClient(user.role) ? client : isOutside(user.role) ? outside : team;
-  const v = await pick({ ...ctx, deals, open, all, today });
-  // CARD THEME MOCKUP (opt-in): four clickable summary cards above the CLA team dashboards (computed from the orders this person can see)
+  const view = viewOf(user);
+  const state = { openOffset: 0, otherOffset: 0, showOther: false };
+  const unreadP = view === 'processor' && api.unreadCount ? api.unreadCount() : Promise.resolve(0);
+  const adminP = view === 'admin' ? Promise.all([api.adminListUsers(), api.listTeams(), api.listActivity(null, { type: 'user' })]) : Promise.resolve(null);
+  const [dash, unread, adminBits] = await Promise.all([
+    api.loadDashboard({ openOffset: 0, openLimit: DASHBOARD_PAGE, includeTasks: view !== 'admin', includeOther: false }),
+    unreadP, adminP,
+  ]);
+  state.openRows = dash.openRows; state.openTotal = dash.openTotal; state.otherRows = dash.otherRows || []; state.otherTotal = dash.otherTotal; state.closedTotal = dash.closedTotal; state.tasks = dash.tasks || []; state.taskTotal = dash.taskTotal;
+  const paint = () => {
+    const open = state.openRows; const deals = state.showOther ? open.concat(state.otherRows) : open; const all = state.tasks; const today = localDate();
+    const pick = { admin, processor, coordinator, agent, client, outside, team }[view];
+    return pick({ ...ctx, deals, open, all, today, unread, adminBits, openTotal: state.openTotal, otherTotal: state.otherTotal, closedTotal: state.closedTotal });
+  };
+  const first = await paint();
+  const bar = () => html`${state.openRows.length < state.openTotal ? html`<p data-dash-more><button type="button" data-show-more-open>Show more open files</button> <span class="muted">${state.openRows.length} of ${state.openTotal} open</span></p>` : ''}${state.otherTotal && !state.showOther ? html`<p data-dash-other><button type="button" data-show-other>Show closed, on hold, and cancelled</button> <span class="muted">${state.otherTotal} file(s)</span></p>` : ''}`;
   const tc = themeOn() && (user.isAdmin || runsOrders(user) || ['Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(user.role));
-  const top = tc ? (await import('./theme-cards.js?v=202611101015')).dashCards(deals) : '';
-  return { title: v.title, crumbs: [[v.title]], body: tc ? html`${top}${v.body}` : v.body, mount: v.mount };
+  const cards = tc ? (await import('./theme-cards.js?v=202611101015')).dashCards(state.showOther ? state.openRows.concat(state.otherRows) : state.openRows) : '';
+  return { title: first.title, crumbs: [[first.title]], body: html`<div data-dash-root>${cards}${first.body}${bar()}</div>`, mount(root) {
+    const wire = (viewMount) => {
+      viewMount && viewMount(root);
+      const more = $('[data-show-more-open]', root); const other = $('[data-show-other]', root);
+      if (more) more.addEventListener('click', guard(async () => {
+        const next = await api.loadDashboard({ openOffset: state.openRows.length, openLimit: DASHBOARD_PAGE, includeTasks: false, includeOther: false });
+        state.openRows = state.openRows.concat(next.openRows); state.openTotal = next.openTotal; await redraw();
+      }));
+      if (other) other.addEventListener('click', guard(async () => {
+        const next = await api.loadDashboard({ openOffset: 0, openLimit: DASHBOARD_PAGE, includeTasks: false, includeOther: true, otherOffset: 0 });
+        state.otherRows = next.otherRows; state.otherTotal = next.otherTotal; state.showOther = true; await redraw();
+      }));
+    };
+    const redraw = async () => {
+      const again = await paint();
+      const box = $('[data-dash-root]', root); if (!box) return;
+      const top = tc ? (await import('./theme-cards.js?v=202611101015')).dashCards(state.showOther ? state.openRows.concat(state.otherRows) : state.openRows) : '';
+      box.innerHTML = toText(html`${top}${again.body}${bar()}`);
+      wire(again.mount);
+    };
+    wire(first.mount);
+  } };
 }
 
-async function processor({ api, open, deals, today }) {
-  const wq = await api.getWorkQueue({ deals });
-  const tasks = await api.listAllTasks({ fileStatus: 'All' });   // Matt, Nov 2: default view = incomplete tasks grouped by Buyer / Seller / Agent
+async function processor({ api, open, all, today, unread, openTotal, otherTotal }) {
+  const wq = workQueueFrom({ open, openTotal, otherTotal, tasks: all, unread, today, soon: localDate(21) });
+  const tasks = all;
   const rows = wq.needsAttention.map((r) => html`<tr><td>${dealLink(r.deal)} &middot; ${r.deal.stageName}</td><td>${r.deal.address}</td>
     <td>${r.overdue ? pill(r.overdue + ' overdue', 'bad') : ''} ${r.blocked ? pill(r.blocked + ' blocked', 'warn') : ''} ${r.waitingOnClients ? pill(r.waitingOnClients + ' waiting on clients', 'info') : ''}</td>
     <td><a class="ghost" href="#/deals/${r.deal.id}/tasks">Tasks</a></td></tr>`);
@@ -61,12 +89,12 @@ async function processor({ api, open, deals, today }) {
       mountBoard($('[data-wq-tasks]', root), tasks, today); } };
 }
 
-async function team({ user, open, all, deals, today }) {
+async function team({ user, open, all, today, openTotal, closedTotal }) {
   const overdue = all.filter((t) => t.deal.status === 'Open' && ['todo', 'in_progress', 'blocked'].includes(t.status) && t.dueDate && t.dueDate < today).length;
   const rows = open.map((d) => html`<tr><td>${dealLink(d)}</td><td>${d.address}</td><td>${d.processorName}</td><td>${d.stageName}</td><td>${fmtDate(d.closingDate)}</td><td>${d.openTasks}</td></tr>`);
   return { title: 'Team dashboard', body: html`
     <div class="page-head"><div><div class="eyebrow">CLA TEAM &middot; ${user.role.toUpperCase()}</div><h2 class="page-title">Team dashboard</h2><div class="muted">View-only. Your processor updates files and tasks.</div></div></div>
-    <div class="stat-row">${stat('Open files', open.length, 'right now', '', true)}${stat('Closed', deals.filter((d) => d.status === 'Closed').length, 'all time')}
+    <div class="stat-row">${stat('Open files', openTotal == null ? open.length : openTotal, 'right now', '', true)}${stat('Closed', closedTotal || 0, 'all time')}
       ${stat('Overdue tasks', overdue, 'on open files', overdue ? 'bad' : '', true)}${stat('Closing in 21 days', open.filter((d) => d.closingDate && d.closingDate >= today && d.closingDate <= localDate(21)).length, 'files')}</div>
     <div class="card"><h3>Open files</h3><table class="tbl"><thead><tr><th>Order</th><th>Property</th><th>Processor</th><th>Stage</th><th>Closing</th><th>Open tasks</th></tr></thead><tbody>${rows}</tbody></table></div>` };
 }
@@ -114,15 +142,15 @@ async function client({ user, deals, all }) {
   return { title: 'My closing', body: html`<div class="page-head"><div><div class="eyebrow">${user.role === 'Client-Buyer' ? 'BUYER' : 'SELLER'}</div><h2 class="page-title">My closing</h2></div></div>${blocks.length ? blocks : html`<p class="muted">You have no open closings.</p>`}` };
 }
 
-async function admin({ api, user, deals, open }) {
-  const [users, teams, log] = await Promise.all([api.adminListUsers(), api.listTeams(), api.listActivity(null, { type: 'user' })]);
+async function admin({ user, deals, open, openTotal, otherTotal, adminBits }) {
+  const [users, teams, log] = adminBits;
   const count = (st) => users.filter((u) => u.status === st).length;
   const rows = log.items.slice(0, 8).map((a) => html`<tr><td class="nowrap">${fmtDateTime(a.createdAt)}</td><td>${a.actorName}</td><td>${a.detail}</td></tr>`);
   return { title: 'Admin', body: html`
     <div class="page-head"><div><div class="eyebrow">${user.role === 'Admin' ? 'ADMIN' : html`ADMIN &middot; ${user.role.toUpperCase()}`}</div><h2 class="page-title">Admin overview</h2><div class="muted">Admins (role Admin, or the Admin flag on another role) manage users and teams and can see every order and file.</div></div>
       <div><a class="ghost" href="#/teams">Teams</a> <a class="m-btn" href="#/users/new">+ Create user</a></div></div>
     <div class="stat-row">${stat('Active users', count('active'), users.length + ' accounts')}${stat('Disabled', count('disabled'), 'cannot sign in', count('disabled') ? 'warn' : '')}
-      ${stat('Removed', count('removed'), 'history kept')}${stat('Teams', teams.length, 'coordinator access')}${stat('Orders', deals.length, 'all visible to Admin')}${stat('Unassigned', unassignedOpen(open).length, html`<a href="${UNASSIGNED_LINK}">open files with no Processor</a>`, unassignedOpen(open).length ? 'warn' : '')}</div>
+      ${stat('Removed', count('removed'), 'history kept')}${stat('Teams', teams.length, 'coordinator access')}${stat('Orders', (openTotal == null ? deals.length : openTotal + (otherTotal || 0)), 'visible to Admin')}${stat('Unassigned', unassignedOpen(open).length, html`<a href="${UNASSIGNED_LINK}">open files with no Processor</a>`, unassignedOpen(open).length ? 'warn' : '')}</div>
     ${unassignedCard(open)}
     <div class="two-col"><div class="card"><h3>Recent user changes</h3>${rows.length ? html`<table class="tbl"><tbody>${rows}</tbody></table>` : html`<p class="muted">None yet.</p>`}<a class="ghost" href="#/activity?type=user">Full log</a></div>
       <div class="card"><h3>Teams</h3><ul class="plain">${teams.map((t) => html`<li><strong>${t.name}</strong><br><span class="muted">${t.members.map((m) => `${m.name} (${m.memberRole})`).join(', ') || 'No members'}</span></li>`)}</ul></div></div>` };
@@ -144,11 +172,9 @@ export const myTaskList = (tasks) => { const open = tasks.filter((t) => ['todo',
       <td><a href="#/deals/${t.deal.id}">${t.deal.fileNumber}</a><br><span class="muted small">${t.deal.address}</span></td>
       <td data-my-task-role>${t.myRoleLabel || (t.deal && t.deal.myRoleLabel) || ''}</td><td class="nowrap ${t.overdue ? 'warn' : ''}">${t.dueDate ? fmtDate(t.dueDate) : html`<span class="muted">-</span>`}</td></tr>`)}</tbody></table>`
       : html`<p class="muted">Nothing needed from you right now.</p>`}</div>`; };
-async function outside({ api, deals, all }) {
+async function outside({ deals, all }) {
   const fromFiles = pendingMine(all.filter((t) => !t.deal || t.deal.status === 'Open'));
-  const rpc = api.listMyTasks ? await api.listMyTasks({ fileStatus: 'Open' }).catch(() => []) : [];
-  // Prefer listMyTasks (carries myRoleLabel per file). fromFiles lacked it, so the agent home "My role on this file" column was blank.
-  const mine = (rpc.length ? rpc : fromFiles).map((t) => ({ ...t, myRoleLabel: t.myRoleLabel || (t.deal && t.deal.myRoleLabel) || '' }));
+  const mine = fromFiles.map((t) => ({ ...t, myRoleLabel: t.myRoleLabel || (t.deal && t.deal.myRoleLabel) || '' }));
   const mineOpen = (d) => all.filter((t) => t.deal.id === d.id && t.mine && ['todo', 'in_progress', 'blocked'].includes(t.status)).length;
   const sections = GROUPS.map(([role, label]) => { const list = deals.filter((d) => groupOf(d) === role); if (!list.length) return '';
     const isC = isClient(role); const shown = isC ? list.filter((d) => d.status === 'Open') : list;
