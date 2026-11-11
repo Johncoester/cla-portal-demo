@@ -46,7 +46,7 @@ export const OPP_STAGES = ['New', 'Meeting set', 'Proposal', 'Won', 'Lost'];
 export const ACTIVITY_KINDS = [['call', 'Call'], ['email', 'Email (logged only, nothing is sent)'], ['note', 'Note']];
 export const ACTIVITY_KIND_CODES = ['call', 'email', 'meeting', 'note', 'task'];
 export const activityKindLabel = (c) => ({ call: 'Call', email: 'Email', meeting: 'Meeting', note: 'Note', task: 'Task' })[c] || c;
-export const ACCOUNT_KINDS = [['brokerage', 'Brokerage'], ['lender', 'Lender'], ['other', 'Other']];
+export const ACCOUNT_KINDS = [['brokerage', 'Brokerage'], ['lender', 'Lender'], ['payoff_lender', 'Payoff lender'], ['hoa', 'HOA'], ['utility', 'Utility'], ['other', 'Other']];
 export const ACCOUNT_KIND_CODES = ACCOUNT_KINDS.map(([c]) => c);
 export const accountKindLabel = (c) => (ACCOUNT_KINDS.find(([k]) => k === c) || [null, ''])[1];
 export const CRM_ENTITIES = ['lead', 'contact', 'account', 'opportunity'];

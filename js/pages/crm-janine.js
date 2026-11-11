@@ -4,9 +4,9 @@
 import { html, raw, $, $$, guard, toast, modal, closeModal, fmtDateTime, pill, toText } from '../ui.js?v=202611070139';
 import { modOn } from '../data/modules.js?v=202611101015';   // module switches (combined nov3g)
 import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, guessMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importTooBigMessage, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, importErrorCsv, saveImportResume, loadImportResume, IMPORT_RESUME_PREFIX } from '../data/crm-janine.js?v=202611101600';
-import { fopts } from './crm-custom.js?v=202611070139';
-import { importStatusChoices } from '../data/nov5-rules.js?v=202611101015';
-import { crmReadOnly } from '../data/crm.js?v=202611070139';
+import { fopts } from './crm-custom.js?v=202611130900';
+import { importStatusChoices } from '../data/nov5-rules.js?v=202611130900';
+import { crmReadOnly, companyKey } from '../data/crm.js?v=202611130900';
 import { US_STATES } from '../data/constants.js?v=202611101015';
 
 // ---------- "+" Create New (Home and every CRM page) ----------
@@ -68,11 +68,22 @@ export function wireZipCounty(form) {
   county.setAttribute('title', ZIP_SOURCE);
 }
 
-// ---------- company duplicate warning (Company form). The adapter refuses the save anyway; this shows the existing record early. ----------
+// ---------- company duplicate warning (Company form). company_lookup is the shared list. The save still refuses a duplicate. ----------
+// Exact normalized key only. Prefix hits that are a different company are not a duplicate. Archived rows are not in company_lookup.
+export function companyDuplicateFromLookup(rows, name, exceptId = null) {
+  const key = companyKey(name);
+  if (!key) return null;
+  const hit = (rows || []).find((r) => r && r.id !== exceptId && companyKey(r.name) === key);
+  if (!hit) return null;
+  return { id: hit.id, name: hit.name, state: hit.state || '', archived: false, canOpen: true, link: `#/crm/accounts/${hit.id}` };
+}
 export function wireCompanyDup(form, api, exceptId = null) {
   const name = $('input[name="name"]', form); const box = $('[data-dup-warn]', form); if (!name || !box) return; let t = null;
-  const check = async () => { const d = await api.findCrmCompanyDuplicate({ name: name.value, exceptId }).catch(() => null);
-    box.innerHTML = d ? toText(dupHtml(d)) : ''; };
+  const check = async () => {
+    const rows = await api.lookupCompanies(name.value, 25).catch(() => []);
+    const d = companyDuplicateFromLookup(rows, name.value, exceptId);
+    box.innerHTML = d ? toText(dupHtml(d)) : '';
+  };
   name.addEventListener('input', () => { clearTimeout(t); t = setTimeout(check, 200); });
 }
 export const dupHtml = (d) => html`<span class="dup-warn" data-dup="${d.id}">Already in the CRM: ${d.canOpen ? html`<a href="${d.link}" data-dup-link target="_self">${d.name}</a>` : html`<strong>${d.name}</strong>`}${d.state ? ` (${d.state})` : ''}${d.archived ? ' (archived: restore it instead)' : ''}. Duplicates are not allowed.</span>`;

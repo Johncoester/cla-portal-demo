@@ -1,7 +1,7 @@
 /* nov5-rules.js : approved Nov 5 rules (John). Pure helpers shared by the mock adapter, the screens and the tests.
  * FAKE DATA ONLY. No real staff emails. Nothing here sends mail or talks to a hosted project.
  * Mirrored in supabase/migrations/20261105000096_nov5_feedback_task_admin.sql. */
-import { findOption, activeOptions } from './crm-config.js?v=202611070139';
+import { findOption, activeOptions } from './crm-config.js?v=202611130900';
 import { statusListOf } from './crm-janine.js?v=202611101015';
 
 export const OPEN_TASK = ['todo', 'in_progress', 'blocked'];
