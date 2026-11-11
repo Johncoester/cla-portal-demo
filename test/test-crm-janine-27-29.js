@@ -107,7 +107,7 @@ for (const [target, hits] of stamps) {
 const janinePins = (stamps.get('js/data/crm-janine.js') || []).filter((h) => allowOld.has(h.from));
 if (janinePins.length !== allowOld.size || janinePins.some((h) => h.stamp !== '202611101015')) issues.push('crm-janine pin moved');
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
-ok(html.includes('js/app.js?v=202611130400') && html.includes('css/portal.css?v=202611120600'), 'index.html uses the select-all stamp');
+ok(html.includes('js/app.js?v=202611131200') && html.includes('css/portal.css?v=202611120600'), 'index.html uses the select-all stamp');
 
 const tList = performance.now();
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
