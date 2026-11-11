@@ -92,12 +92,22 @@ export async function fetchDashboard(sb, { openOffset = 0, openLimit = DASHBOARD
   let cursor = 6;
   const tasks = includeTasks ? results[cursor++] : { data: [], count: 0 };
   const more = includeOther ? results[cursor++] : null;
+  const openRows = open.data || [];
+  const otherRows = more ? (more.data || []) : [];
+  const ids = [...new Set([...openRows, ...otherRows].map((r) => r.id || r.deal_id).filter(Boolean))];
+  let countRows = [];
+  if (ids.length) {
+    const counted = await sb.rpc('dashboard_file_task_counts', { p_deal_ids: ids.slice(0, 100) });
+    if (counted && counted.error) throw new Error(counted.error.message || 'The dashboard could not load file task counts.');
+    countRows = (counted && counted.data) || [];
+  }
   return {
-    openRows: open.data || [], openTotal: open.count || 0,
+    openRows, openTotal: open.count || 0,
     otherTotal: other.count || 0, closedTotal: closed.count || 0,
-    otherRows: more ? (more.data || []) : [],
+    otherRows,
     taskRows: tasks.data || [], taskTotal: tasks.count || 0,
     titles: results[3].data || [], roles: results[4].data || [], processors: results[5].data || [],
+    countRows,
   };
 }
 
@@ -105,25 +115,22 @@ export function indexDashboardExtras(raw) {
   const titles = new Map((raw.titles || []).map((r) => [r.deal_id || r.dealId, r.file_title || r.fileTitle || '']));
   const roles = new Map((raw.roles || []).map((r) => [r.deal_id || r.dealId, r]));
   const names = new Map((raw.processors || []).map((p) => [p.id, nameOfProfile(p)]));
-  return { titles, roles, names };
+  const counts = new Map((raw.countRows || []).map((r) => [r.deal_id || r.dealId, r]));
+  return { titles, roles, names, counts };
 }
 
-export function decorateDashboardDeals(rows, extra, taskRows = []) {
-  const openCount = new Map();
-  const overdue = new Map();
-  for (const t of taskRows) {
-    const id = t.dealId || (t.deal && t.deal.id);
-    if (!id) continue;
-    if (['todo', 'in_progress', 'blocked'].includes(t.status)) openCount.set(id, (openCount.get(id) || 0) + 1);
-    if (['todo', 'in_progress', 'blocked'].includes(t.status) && t.dueDate && t.overdue) overdue.set(id, (overdue.get(id) || 0) + 1);
-  }
+export function decorateDashboardDeals(rows, extra, _taskRows = []) {
+  // Per-file open / overdue counts come from dashboard_file_task_counts for the files shown, not from the 200-task page.
   return rows.map((row) => {
     const id = row.id || row.deal_id;
-    const role = extra.roles.get(id) || {};
+    const role = (extra.roles && extra.roles.get(id)) || {};
+    const c = (extra.counts && extra.counts.get(id)) || {};
+    const openTasks = c.open_tasks != null ? c.open_tasks : (c.openTasks || 0);
+    const overdueTasks = c.overdue_tasks != null ? c.overdue_tasks : (c.overdueTasks || 0);
     return shapeDashboardDeal(row, {
-      names: extra.names, fileTitle: extra.titles.get(id) || '',
+      names: extra.names, fileTitle: (extra.titles && extra.titles.get(id)) || '',
       myRole: role.role || null, myRoles: role.roles || [], myRoleLabel: role.label || '', selfRep: !!role.self_rep || !!role.selfRep,
-      openTasks: openCount.get(id) || 0, overdueTasks: overdue.get(id) || 0,
+      openTasks, overdueTasks,
     });
   });
 }
