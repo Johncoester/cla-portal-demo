@@ -96,8 +96,8 @@ function from(table) {
 }
 
 const contacts = [
-  { id: 'c1', relationshipStatus: 'Prospecting', createdAt: '2026-11-01T12:00:00' },
-  { id: 'c2', relationshipStatus: 'Potential/Warm', createdAt: '2026-11-02T12:00:00' },
+  { id: 'c1', relationshipStatus: 'Prospecting', ownerId: 'owner-a', createdAt: '2026-11-01T12:00:00' },
+  { id: 'c2', relationshipStatus: 'Potential/Warm', ownerId: 'owner-b', createdAt: '2026-11-02T12:00:00' },
 ];
 const leads = [
   { id: 'l1', relationshipStatus: 'Prospecting', createdAt: '2026-11-01T12:00:00' },
@@ -217,17 +217,51 @@ await surface.reorderCrmDashboard(DASH, [{ id: tall.id, width: 1, height: 'l' },
 const heights = updates().map((c) => c.payload.height);
 ok(heights.includes(2) && heights.includes(1) && heights.every((h) => h === 1 || h === 2), 'reordering a tall chart stays inside the height check');
 
+const FILTERED = '00000000-0000-4000-8000-0000000000d2';
+tables.crm_dashboards.set(FILTERED, { id: FILTERED, name: 'Filtered', description: '', owner_id: JANINE, visibility: 'me', share: { users: [], roles: [], departments: [] }, locked: false, builtin: false, created_by: JANINE, retired_at: null, filters: { ownerId: 'owner-a' } });
+const prospectChart = await surface.addCrmComponent(FILTERED, { name: 'Prospects', type: 'chart', config: { module: 'contacts', measure: { fn: 'count' }, grouping: { field: 'relationshipStatus' }, criteria: [{ field: 'relationshipStatus', op: 'is', value: 'Prospecting' }], chartType: 'column' } });
+const prospectKpi = await surface.addCrmComponent(FILTERED, { name: 'Prospect KPI', type: 'kpi', config: { module: 'contacts', measure: { fn: 'count' }, criteria: [{ field: 'relationshipStatus', op: 'is', value: 'Prospecting' }] } });
+const visibleKpi = await surface.addCrmComponent(FILTERED, { name: 'Visible', type: 'kpi', config: { module: 'contacts', measure: { fn: 'count' }, criteria: [] } });
+const readsBefore = lists.contacts;
+const queriesBefore = calls.length;
+const filteredDash = await surface.getCrmDashboard(FILTERED);
+const prospectCard = filteredDash.list.find((c) => c.id === prospectChart.id);
+const prospectMeter = filteredDash.list.find((c) => c.id === prospectKpi.id);
+const visibleMeter = filteredDash.list.find((c) => c.id === visibleKpi.id);
+ok(prospectCard.data.groups.length === 1 && prospectCard.data.groups[0].label === 'Prospecting' && prospectCard.data.groups[0].value === 1, 'a component criterion keeps only the matching clients');
+ok(prospectMeter.data.value === 1 && prospectMeter.data.count === 1, 'a KPI uses the same component criterion');
+ok(visibleMeter.data.value === 1 && visibleMeter.data.count === 1, 'the dashboard owner filter drops the other owner');
+ok(lists.contacts === readsBefore + 3 && calls.length === queriesBefore + 2, 'criteria and dashboard filters add no list read and no extra query');
+tables.crm_dashboards.get(FILTERED).filters = { period: 'prev_year' };
+const lastYear = await surface.getCrmDashboard(FILTERED);
+ok(lastYear.list.find((c) => c.id === visibleKpi.id).data.value === 0, 'a dashboard period drops clients created outside that year');
+tables.crm_dashboards.get(FILTERED).filters = {};
+const openDash = await surface.getCrmDashboard(FILTERED);
+ok(openDash.list.find((c) => c.id === visibleKpi.id).data.value === 2 && openDash.list.find((c) => c.id === prospectKpi.id).data.value === 1, 'with no dashboard filter the component criterion still applies');
+
+const big = Array.from({ length: 4000 }, (_, i) => ({ id: 'b' + i, relationshipStatus: i % 2 ? 'Prospecting' : 'Potential/Warm', ownerId: i % 4 === 0 ? 'owner-b' : 'owner-a', createdAt: '2026-06-01T12:00:00' }));
+const kept = contacts.splice(0, contacts.length, ...big);
+tables.crm_dashboards.get(FILTERED).filters = { ownerId: 'owner-a' };
+const tAfter = performance.now();
+const timed = await surface.getCrmDashboard(FILTERED);
+const afterMs = performance.now() - tAfter;
+contacts.splice(0, contacts.length, ...kept);
+const timedKpi = timed.list.find((c) => c.id === prospectKpi.id);
+const expectProspects = big.filter((r) => r.ownerId === 'owner-a' && r.relationshipStatus === 'Prospecting').length;
+ok(timedKpi.data.value === expectProspects && afterMs < 500, 'a few thousand clients still load with both filters (' + afterMs.toFixed(2) + ' ms)');
+console.log('dashboard-load-ms', Math.round(afterMs * 100) / 100);
+
 const page = read('js/pages/crm-dashboards.js');
 ok(page.includes('return { name: f.name.value, type, config }') && page.includes('maxlength="100"') && !page.includes('maxlength="120"'), 'the chart form still nests config and the name field stops at 100');
 
 const want = new Map([
-  ['js/data/supabase-crm-surface.js', '202611130900'],
-  ['js/data/supabase-crm.js', '202611141300'],
-  ['js/data/supabase-adapter.js', '202611141400'],
-  ['js/data/adapter.js', '202611141400'],
+  ['js/data/supabase-crm-surface.js', '202611160100'],
+  ['js/data/supabase-crm.js', '202611160100'],
+  ['js/data/supabase-adapter.js', '202611160100'],
+  ['js/data/adapter.js', '202611160100'],
   ['js/pages/crm-dashboards.js', '202611141300'],
   ['js/pages/crm.js', '202611141300'],
-  ['js/app.js', '202611141400'],
+  ['js/app.js', '202611160100'],
 ]);
 function walkDir(dir, out = []) {
   for (const name of readdirSync(dir)) {
