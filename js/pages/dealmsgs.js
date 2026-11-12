@@ -44,6 +44,8 @@ async function thread({ api, user, deal, refresh, params }) {
     ${canPost && t.participants.some((p) => !p.wireOk) ? html`<p class="muted small" data-no-wire-here>Wire instructions cannot be sent in this conversation: ${t.participants.filter((p) => !p.wireOk).map((p) => `${p.name} (${p.role})`).join(', ')} may not receive them. Use Share Files and send them to the buyer alone.</p>` : ''}
     ${canPost ? html`<form id="rf" class="reply" data-reply><p><strong>Reply to this thread</strong></p>${editorHtml('reply-rte')}${filesHtml()}<button class="m-btn" type="submit" data-send>Send</button></form>` : html`<p class="muted">You can read this conversation but not reply.</p>`}`;
   return { title: t.subject, crumbs: [['Conversation', `#/deals/${deal.id}/inbox`], [t.subject]], body, mount(root) {
+    // FF-070 (Janine, Nov 12): the thread is marked read above; ask the shell to recount the Messages / Inbox badge now, not on the next refresh
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') window.dispatchEvent(new CustomEvent('cla:thread-read', { detail: { dealId: deal.id } }));
     $$('[data-open]', root).forEach((a) => a.addEventListener('click', guard(async (e) => { e.preventDefault(); downloadNamed(await api.getDocumentContent(a.dataset.open)); })));
     const f = $('#rf', root); if (!f) return; const ed = mountEditor(f); const send = $('[data-send]', f);
     const fl = mountFiles(f, (b) => { send.disabled = b > 0; send.textContent = b > 0 ? 'Waiting for upload\u2026' : 'Send'; });

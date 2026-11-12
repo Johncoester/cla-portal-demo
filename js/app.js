@@ -321,11 +321,14 @@ function nextPaint() {
     else setTimeout(resolve, 0);
   });
 }
+// countsSeq: only the newest count read writes the badges, so a slower read started before a thread was marked read cannot put the old number back.
+let countsSeq = 0;
 function rememberCounts(api, dealId, userId, token) {
   const read = api.readOverview || api.getOrderOverview;
   if (!read || !dealId || !userId) return;
+  const seq = ++countsSeq;
   Promise.resolve().then(() => read.call(api, dealId)).then(async (overview) => {
-    if (token !== rendering) return;
+    if (token !== rendering || seq !== countsSeq) return;
     const root = $('#app');
     if (!root || root.getAttribute('data-route-user') !== userId || root.getAttribute('data-route-deal') !== dealId) return;
     const counts = (overview && overview.counts) || {};
@@ -353,6 +356,12 @@ function rememberCounts(api, dealId, userId, token) {
     }
   }).catch(() => {});
 }
+// FF-070 (Janine, Nov 12): opening a conversation marks it read; recount the file's tab badges straight away (fresh reads, not the ones from before the mark).
+if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('cla:thread-read', (e) => {
+  const dealId = e && e.detail && e.detail.dealId; const root = $('#app');
+  if (!dealId || !root || root.getAttribute('data-route-deal') !== dealId) return;
+  getAdapter().then((api) => { if (typeof api.dropFileReads === 'function') api.dropFileReads(); rememberCounts(api, dealId, root.getAttribute('data-route-user'), rendering); }).catch(() => {});
+});
 let pageUnmount = null;
 export async function render() {
   const my = ++rendering;
