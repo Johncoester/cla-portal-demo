@@ -1,6 +1,6 @@
 /* crm-criteria.js : the filter rows used by dashboard components (Criteria) and reports (Filters): field, operator, value (date presets for date fields,
  * the picklist values for picklists, users for user fields). Rows are ANDed (dashboards) or AND / OR (reports). Function only. */
-import { html, raw, $, $$, toText } from '../ui.js?v=202611070139';
+import { html, raw, $, $$, toText } from '../ui.js?v=202611161500';
 import { opsFor, DATE_PRESETS, isDateType, NUMERIC } from '../data/crm-analytics.js?v=202611130900';
 
 const optList = (f, cfg, users) => (f.type === 'boolean' ? [['yes', 'Yes'], ['no', 'No']] : f.type === 'user' ? users.map((u) => [u.id, u.name])

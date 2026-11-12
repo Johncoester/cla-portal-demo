@@ -2,7 +2,7 @@
 //   #/hr/documents        HR Documents: HR managers / Super admins upload company HR documents and share them with all / departments / employees
 //   profile cards         Portal time log (under Portal login), Documents (offer letter, manual, signed policy; signature status recorded by hand),
 //                         "Shared with you" (company documents HR shared with this employee, on My profile)
-import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime, fmtSize } from '../ui.js?v=202611070139';
+import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime, fmtSize } from '../ui.js?v=202611161500';
 import { HR_COMPANY_DOC_CATEGORIES, HR_SHARE_SCOPES, HR_EMP_DOC_TYPES, HR_SIGN_STATUSES, HR_SIGN_PROVIDERS, HR_ESIGN_NOTE, fmtDuration, fullNameOf } from '../data/hr.js?v=202611091730';
 import { ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611101015';
 const opt = (list, sel) => list.map(([v, l]) => html`<option value="${v}"${String(v) === String(sel == null ? '' : sel) ? raw(' selected') : ''}>${l}</option>`);

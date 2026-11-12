@@ -1,5 +1,5 @@
 /* Spouse tab. Loaded only when this tab opens. One getSpouse call, which includes the SSN display. */
-import { html, raw, $, guard, toast } from '../ui.js?v=202611070139';
+import { html, raw, $, guard, toast } from '../ui.js?v=202611161500';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 
 export async function loadSpouseRows(api, dealId) {
