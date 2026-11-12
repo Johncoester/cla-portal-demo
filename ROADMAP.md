@@ -15,7 +15,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## Agent fees flow
 
-**How it should work.** When CLA staff open a file and enter the agents' commissions, admin fees or other agent fees, those amounts show up on each agent's own view of the file. The agent can confirm or change them. Once an agent confirms a fee, their figure wins. Staff can still change it, but they must give a reason, and the agent is told straight away what changed, from what, to what, why and by whom. When an agent changes a fee, they see a "You're changing X from $A to $B" check before it saves, the fee is marked "Agent confirmed", and the file's CLA processor is told. The final figures go straight onto the right lines in the file's Accounting tab, and from there onto the Closing Disclosure (CD) and the ALTA settlement statement, so nobody types them twice. Every change is kept in a history: who, when, old value, new value, reason, and whether staff or the agent made it.
+**How it should work.** When CLA staff open a file, they enter each agent's fees for their side (listing agent and buyer's agent): the commission as a percent or a dollar amount, which always stay in sync with each other using the sales price; an admin fee (paid by the buyer for the buyer's agent and by the seller for the listing agent unless changed); and up to 5 other fees, each with a description, an amount and who it's paid to. Each agent sees and can change their own side in the portal. Before saving, they see a "You're changing X from $A to $B" check, and the fee is then marked "Agent confirmed". A TC can confirm for the agent. Once confirmed, the agent's figure wins. Staff can still change it, but they must give a reason, and the agent is told straight away (old value, new value, reason, who). When an agent changes a fee, the processor, pre-processor and TC on the file are told, in the portal and by email. The fees go straight onto the right lines in Accounting, and from there onto the Closing Disclosure (CD) and the ALTA settlement statement, which can also be generated as PDFs. Buyers and sellers never see commissions or agent fees. Every change is kept in a history: who, when, old value, new value, reason, and whether staff, the agent or the TC made it.
 
 **Status: Partial.**
 
@@ -32,7 +32,8 @@ This file lists the portal's major features: how each one should work, how far a
 - There are no admin fee or "other agent fee" boxes for staff, and only one side's commission can be saved on the order at a time.
 - There's no "Agent confirmed" flag, no required reason for a staff change, no notice to the agent, and no "You're changing X from $A to $B" check.
 - Fees are not posted to Accounting automatically. Today a commission line has to be added there by hand.
-- The "Earnest & commissions" box on a file's overview can be seen by buyers and sellers too, not just staff and agents.
+- The "Earnest & commissions" box on a file's overview can be seen by buyers and sellers too. John decided they must not see it.
+- There are no "Generate CD" or "Generate ALTA" PDF buttons, and no email notices for fee changes.
 - No end-to-end test covers this flow.
 
 **Links**
@@ -44,7 +45,15 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Agent-confirmed fees win. Staff changes need a reason and notify the agent.
 - Agents never write fee tables directly, only through a server function checked against their own side.
-- Still open: seven questions waiting on John (see the spec).
+- Commission can be entered as % or $, and the two always stay in sync using the sales price.
+- Each agent side has a commission, an admin fee (default payer: buyer for the buyer's agent, seller for the listing agent, changeable per file) and up to 5 other fees (description, amount, paid to). All of them post to Accounting automatically.
+- A staff change to an agent-confirmed fee only notifies the agent. There's no re-approval.
+- When an agent changes a fee, the processor, pre-processor and TC on the file are told, in the portal and by email.
+- Buyers and sellers never see commissions or agent fees.
+- Keep the live CD and Settlement Statement tabs, and add "Generate CD" and "Generate ALTA" PDF buttons.
+- A TC can confirm fees for the agent. It's logged as confirmed by the TC, and the agent is notified.
+- John answered all seven open questions on Nov 12 at 2:33 PM ET. See the spec.
+- Queue: behind FF-055 and the work confirmed today, and blocked until the walkthrough on main is green.
 
 ---
 
@@ -62,7 +71,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- There are no "Generate CD" or "Generate ALTA" buttons. The documents are live views rather than saved, generated copies.
+- There are no "Generate CD" or "Generate ALTA" buttons yet. John decided (Nov 12) to keep the live tabs and add these buttons to create a PDF.
 - Agent fees don't reach the ledger automatically yet (see Agent fees flow), so they won't appear on either document until someone adds them by hand.
 
 **Links**
@@ -73,6 +82,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - One fee ledger feeds both the CD and the settlement statement. Nothing is entered twice.
+- Keep the live Closing Disclosure and Settlement Statement tabs (view and print), and add "Generate CD" and "Generate ALTA" buttons that create a PDF (John, Nov 12).
 
 ---
 

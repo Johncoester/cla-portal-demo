@@ -29,10 +29,26 @@ Add tests for each requirement, including:
 
 Every pull request follows the Build standards (AGENTS.md rules 10-16): a plain-English description with what was asked, what it does, how to test it and what's not done.
 
-## Decisions so far
+## Decisions
+
+Recorded so far:
 
 - Agent-confirmed fees win. Staff changes need a reason and notify the agent.
 - Agents never write fee tables directly, only through a server function checked against their own side.
+
+Answers from John, Nov 12 2026, 2:33 PM ET (chat t1544u):
+
+1. **Commission is % or $, always in sync.** The agent can enter the commission as a percent or a dollar amount. Changing the % recalculates the $ from the sales price, and changing the $ recalculates the %. They can never differ.
+2. **Fields for each agent side (listing agent and buyer's agent):**
+   - Commission: % and $, kept in sync.
+   - Admin fee, next to or below the commission. By default the buyer pays the buyer's agent admin fee and the seller pays the listing agent admin fee. Who pays can be changed per file.
+   - Other fees: a section with a + button, up to 5 fees, each with a typed description, an amount and who it's paid to (for example, the brokerage).
+   - All of these post automatically to the correct Accounting lines.
+3. **A staff change to an agent-confirmed fee only notifies the agent.** There's no re-approval and no review step.
+4. **When an agent changes a fee,** the processor, pre-processor and TC on the file are notified, both in the portal and by email.
+5. **Buyers and sellers do not see** commissions or agent fees in the portal.
+6. **CD and ALTA:** keep the existing Closing Disclosure and Settlement Statement tabs (view and print), and add "Generate CD" and "Generate ALTA" buttons that create a PDF.
+7. **A TC can confirm fees for the agent.** It's logged as confirmed by the TC, and the agent is notified.
 
 ## Current state (audit, Nov 12 2026)
 
@@ -100,25 +116,29 @@ Commissions are stored in two places that don't feed each other. Staff enter the
 
 ## Proposed build (one tracker row and one pull request each, AGENTS.md rules 2-3)
 
+Adjusted to John's Nov 12 answers.
+
 | Row | What | Database file? |
 |---|---|---|
-| AF-1 | Fee records and change history: one record per side and fee type (listing and selling commission % and $, admin fee, other fees) with source (staff or agent) and "agent confirmed" time and person; a history of who, when, old, new, reason and source; a server function that requires a reason when staff change an agent-confirmed fee. | Yes |
-| AF-2 | Staff entry and agent view: each agent sees their own side only; the "Earnest & commissions" box is hidden from buyers and sellers; the agent task is pre-filled from the staff figures. | Yes (access rules) |
-| AF-3 | Agent override: the agent's submission writes to AF-1 as "agent", with the "You're changing X from $A to $B" screen and the "Agent confirmed" label, and the processor is told what changed. | Yes |
-| AF-4 | Telling the agent about a staff change, in the portal (and by email if John wants). | Maybe |
-| AF-5 | Fees post to Accounting automatically, one ledger line per side and fee type, the same way payoffs do, without overwriting a line a processor overrode. | Yes |
-| AF-6 | CD and ALTA proof: tests showing the figures on CD section H and the ALTA Commission section, and "Generate" buttons only if John wants them. | No |
+| AF-1 | Fee records and change history. For each agent side (listing and buyer's agent): commission % and $ (always in sync, using the sales price), an admin fee with who pays it (default: buyer for the buyer's agent, seller for the listing agent, changeable per file), and up to 5 other fees (description, amount, paid to). Each fee records its source (staff, agent or TC) and who confirmed it and when. A history keeps who, when, old, new, reason and source. A server function requires a reason when staff change an agent-confirmed fee. | Yes |
+| AF-2 | Staff entry and agent view. Staff enter these fields when opening or editing the file. Each agent sees and edits their own side only. Buyers and sellers never see commissions or agent fees, so the overview's "Earnest & commissions" box is hidden from them. The agent task is pre-filled from the staff figures. | Yes (access rules) |
+| AF-3 | Agent or TC changes. The "You're changing X from $A to $B" confirmation screen, the "Agent confirmed" label (or "Confirmed by TC" when a TC confirms for the agent, and then the agent is notified). Saving notifies the processor, pre-processor and TC on the file, in the portal and by email. | Yes |
+| AF-4 | Telling the agent about a staff change: old value, new value, reason and who, in the portal and by email. Notification only, with no re-approval. | Maybe |
+| AF-5 | Fees post to Accounting automatically, one ledger line per side and fee (commission, admin fee with its payer, each other fee with its payee), the same way payoffs do, without overwriting a line a processor overrode. | Yes |
+| AF-6 | "Generate CD" and "Generate ALTA" buttons that create a PDF from the Accounting ledger, alongside the existing live tabs. Tests show the fees in CD section H and the ALTA Commission section. | Maybe (to store the PDF) |
 
-**Risks:** agents changing money figures (every write goes through a checked server function, never directly into a table); buyers and sellers can read the commission columns today; the same figure stored in three places unless AF-1 replaces the older ones; Accounting has to stay switched on for AF-5; automatic lines must respect a processor's manual override.
+**Risks:** agents and TCs changing money figures (every write goes through a checked server function, never directly into a table); buyers and sellers can read the commission columns today, which has to change; the same figure stored in three places unless AF-1 replaces the older ones; % and $ rounding must never leave them out of step; email notices depend on Gmail sending working; Accounting has to stay switched on for AF-5; automatic lines must respect a processor's manual override.
 
-**Where it sits:** John's hold applies (AGENTS.md rule 9). No new feature starts until the e2e-roles walkthrough on main is green, which needs Gmail connected for the E2E Processor. FF-055 is first in the queue, and this would follow the items already confirmed unless John moves it up.
+**Where it sits:** John's hold applies (AGENTS.md rule 9). No new feature starts until the e2e-roles walkthrough on main is green, which needs Gmail connected for the E2E Processor. Agent fees stays behind FF-055 and the work confirmed today.
 
-## Open questions (awaiting John)
+## Open questions (resolved Nov 12 2026 by John)
 
-1. Does the agent set the commission %, the $ amount, or either one? If both, which wins?
-2. What counts as an "other agent fee"? For example, transaction or compliance fees, or credits too? Is the admin fee per agent side and paid by the buyer, as in the old portal?
-3. If staff change a fee after the agent confirmed it, does the agent need to approve it again, or just be told?
-4. Which processor is told: the file's assigned processor only, or the TC too? In the portal, by email, or both?
-5. Should buyers and sellers see commissions at all? They can today.
-6. Do you want real "Generate CD" and "Generate ALTA" buttons, or are the live tabs enough?
-7. When a TC is linked to the file, does the TC confirm fees for the agent, as in the old portal?
+All seven were answered at 2:33 PM ET (t1544u). The answers are recorded under Decisions above.
+
+1. ~~Does the agent set the commission %, the $ amount, or either one?~~ Either. They stay in sync (Decision 1).
+2. ~~What counts as an "other agent fee"? Is the admin fee per side?~~ Admin fee per side, plus up to 5 other fees (Decision 2).
+3. ~~Does a staff change need the agent's re-approval?~~ No, the agent is just notified (Decision 3).
+4. ~~Who is told when an agent changes a fee, and how?~~ The processor, pre-processor and TC, in the portal and by email (Decision 4).
+5. ~~Should buyers and sellers see commissions?~~ No (Decision 5).
+6. ~~Generate buttons or live tabs?~~ Both. Keep the tabs and add PDF buttons (Decision 6).
+7. ~~Can a TC confirm fees for the agent?~~ Yes, logged as confirmed by the TC, and the agent is notified (Decision 7).
