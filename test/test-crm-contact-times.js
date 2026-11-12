@@ -72,7 +72,7 @@ for (const file of files) {
     hits.get(target).push({ from: rel, stamp: m[3] });
   }
 }
-const want = new Map([['js/pages/crm.js', '202611160600'], ['js/app.js', '202611161500']]);
+const want = new Map([['js/pages/crm.js', '202611161500'], ['js/app.js', '202611161500']]);
 const issues = [];
 const dual = [];
 const missing = [];
@@ -91,7 +91,7 @@ ok(at1800.length === 0, 'the previous crm.js stamp 202611121800 is unused' + (at
 const appImporters = (hits.get('js/app.js') || []).map((h) => h.from + '@' + h.stamp);
 ok(appImporters.length === 1 && appImporters[0] === 'index.html@202611161500', 'index.html loads app.js at 202611161500');
 const crmImporters = (hits.get('js/pages/crm.js') || []).map((h) => h.from + '@' + h.stamp);
-ok(crmImporters.length === 1 && crmImporters[0] === 'js/app.js@202611160600', 'app.js loads the CRM page at 202611160600');
+ok(crmImporters.length === 1 && crmImporters[0] === 'js/app.js@202611161500', 'app.js loads the CRM page at 202611161500');
 console.log('cache-stamp issues', issues.length);
 console.log('dual-stamp', dual.length);
 console.log('recursive-import missing', missing.length);

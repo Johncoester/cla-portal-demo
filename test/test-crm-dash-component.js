@@ -260,7 +260,7 @@ const want = new Map([
   ['js/data/supabase-adapter.js', '202611161400'],
   ['js/data/adapter.js', '202611161400'],
   ['js/pages/crm-dashboards.js', '202611161500'],
-  ['js/pages/crm.js', '202611160600'],
+  ['js/pages/crm.js', '202611161500'],
   ['js/app.js', '202611161500'],
 ]);
 function walkDir(dir, out = []) {
