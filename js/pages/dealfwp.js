@@ -1,5 +1,5 @@
 /* Order > Funding / Wires / Final Policy. Staff only; FAKE records; nothing sent and no bank wire created. */
-import { html, raw, $, $$, guard, toast, formData, options, pill, fmtDate, fmtDateTime, fmtMoney } from '../ui.js?v=202611070139';
+import { html, raw, $, $$, guard, toast, formData, options, pill, fmtDate, fmtDateTime, fmtMoney } from '../ui.js?v=202611161500';
 import * as R from '../data/funding-wire-policy.js?v=202611070139';
 import { modOn } from '../data/modules.js?v=202611101015';
 const val = (v) => v == null ? '' : v;

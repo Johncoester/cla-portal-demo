@@ -1,7 +1,7 @@
 // order > Title (John, Nov 4 2026): the title review, Qualia-style. CLA STAFF ONLY (Processor / TC / Admins edit; Sales read only). FAKE data only.
 // Sections (?v=): Checklist, Notes & Documents, PACER, Search package, Contract, Chain of title, Loan check, Schedule A, Requirements (B-I), Exceptions (B-II),
 // Policies, CPL, Finalize & Package, Summary note. Nothing is ever sent (the lender email is a queued outbox row); no SSN is ever asked for or stored.
-import { html, raw, esc, $, $$, guard, toast, modal, closeModal, options, pill, fmtDate, fmtDateTime, fmtMoney, formData } from '../ui.js?v=202611070139';
+import { html, raw, esc, $, $$, guard, toast, modal, closeModal, options, pill, fmtDate, fmtDateTime, fmtMoney, formData } from '../ui.js?v=202611161500';
 import * as T from '../data/title.js?v=202611101015';
 import { modOn } from '../data/modules.js?v=202611101015';   // live40: Payoffs / HOA switch
 

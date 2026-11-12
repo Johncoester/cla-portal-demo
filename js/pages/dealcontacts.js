@@ -1,12 +1,12 @@
 // Contacts tab: everyone on this file. Processor can add people (existing or new), edit them, and unlink them from the order.
-import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill } from '../ui.js?v=202611070139';
+import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill } from '../ui.js?v=202611161500';
 import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole } from '../data/constants.js?v=202611101015';
-import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611161200';
+import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611161500';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611140100';
-import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611160900';
-import { copyPlainText } from './deal.js?v=202611161200';
+import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611161500';
+import { copyPlainText } from './deal.js?v=202611161500';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
-import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611120500';
+import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611161500';
 import { LENDER_CONTACT_ROLES, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611101200';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 

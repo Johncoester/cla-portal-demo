@@ -1,7 +1,7 @@
 // The agent's account / profile form (John, Nov 4): used by the invite sign-up page and by Profile Setting (edit later).
 // Required: first name, last name, email, cell phone. Optional: date of birth as MONTH + DAY (no year), profile picture (image only, max 5 MB picked,
 // cropped in the browser to a 320 x 320 picture shown as a circle or a square), brokerage, license number, office phone, address, other contact info.
-import { html, raw, $, $$ } from '../ui.js?v=202611070139';
+import { html, raw, $, $$ } from '../ui.js?v=202611161500';
 import { MONTHS, PHOTO_MAX_BYTES, PHOTO_TYPES, PHOTO_TYPE_MSG, initialsOf, cleanMonthDay, photoFileAllowed, photoFileChosen } from '../data/agent-profile.js?v=202611140100';
 const sel = (v, x) => (String(v) === String(x) ? raw(' selected') : '');
 export function avatarHtml(p, cls = '') {

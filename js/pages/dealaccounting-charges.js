@@ -4,10 +4,10 @@
 // click a line -> "Settings · Line NN" + "Payments · <line>", six payment methods, help rail); colours stay ours (baby-blue cards), no Qualia branding.
 // Every line is still ONE fee on the same ledger (accounting.js), so the ALTA, the CD pages, prorations and CLA rates keep working.
 // TEST ONLY. Wire instructions (bank routing / account numbers) are NEVER stored: the Wire block is a reminder only.
-import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611070139';
+import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611161500';
 import { splitFor } from '../data/underwriter.js?v=202611070139';
 import { cdDescription } from '../data/accounting.js?v=202611070139';
-import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611071751';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
+import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611161500';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
 import * as Q from '../data/qualia-charges.js?v=202611070139';
 import { modOn } from '../data/modules.js?v=202611101015';   // live40: Payoffs / HOA switch
 
