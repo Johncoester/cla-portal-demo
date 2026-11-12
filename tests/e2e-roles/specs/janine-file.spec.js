@@ -42,7 +42,8 @@ test('the buyer sees the agent phone and not themselves on the closing team', as
   await expect(page.locator('[data-co-person="Ben Buyer"]')).toHaveCount(0);
   await expect(page.locator('[data-agent-tel]').first()).toBeVisible();
   await expect(page.locator('[data-your-agent]')).toContainText(targetMode() === 'test' ? '301-555-0148' : '301-555-0105');
-  await gotoHash(page, '#/deals/deal-2/tasks');
+  // Nov 11: '#/deals/deal-2' is a mock id; on TEST it answered 'invalid input syntax for type uuid'. Use the file just opened.
+  await gotoHash(page, `#/deals/${dealId(page)}/tasks`);
   await page.getByRole('link', { name: 'Personal information' }).first().click();
   const citizenship = page.locator('#tform select[name="citizenship"]');
   await citizenship.waitFor();

@@ -69,6 +69,9 @@ async function shownInviteLink(page, id) {
 
 async function ensureBuyer(page, id, email) {
   await gotoHash(page, `#/deals/${id}/contacts`);
+  // Nov 11: count() does not wait. Before the table drew, the buyer already on the file looked missing,
+  // the test added them again, and contacts_email_uq answered 409 in the console.
+  await page.locator('[data-contacts-table]').waitFor();
   const row = page.locator('tr', { hasText: email });
   if (await row.count()) return;
   await page.locator('#addp').click();
