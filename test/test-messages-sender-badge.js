@@ -32,5 +32,8 @@ ok(msgs.includes("new CustomEvent('cla:thread-read'") && msgs.indexOf('await api
 ok(app.includes("addEventListener('cla:thread-read'") && app.includes('api.dropFileReads()') && app.includes('seq !== countsSeq'), 'the shell recounts with fresh reads, and an older count read cannot overwrite the new one');
 const adapter = read('js/data/supabase-adapter.js'); const nov5 = read('js/data/supabase-nov5.js');
 ok(adapter.includes('readThreadPeople(sb, [id])') && nov5.includes('readThreadPeople(sb, ids)'), 'the conversation and the conversation list both use thread_people');
+const css = read('css/portal.css'); const msgs = read('js/pages/dealmsgs.js');
+ok(msgs.includes('class="reply" data-reply') && css.includes('.reply[data-reply] { display: block; }'), '#20: the reply form stacks full width instead of squeezing the box into a row');
+ok(/\.reply\[data-reply\] \.rte-box \{ min-height: 140px; max-height: 60vh; overflow-y: auto;/.test(css), '#20: the reply box starts large and grows up to 60% of the screen');
 console.log(fail ? `FAIL ${fail}` : 'all messages sender and badge checks passed');
 process.exit(fail ? 1 : 0);
