@@ -1,4 +1,4 @@
-import { html, $ } from '../ui.js?v=202611070139';
+import { html, $ } from '../ui.js?v=202611161500';
 import { parcelList, parcelPatch } from '../data/parcels.js?v=202611141400';
 
 export function parcelFieldsHtml(dealOrList) {

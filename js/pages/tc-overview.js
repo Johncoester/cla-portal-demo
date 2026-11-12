@@ -1,9 +1,9 @@
 // TC FILE OVERVIEW (John, Nov 5): light, mirrors buyer/seller overview. Order: progress, address/key info, outstanding tasks, contacts.
 // Quick jumps: Contract info, Milestones, EMD & ALTA, Documents/Upload, Messages (all parties). FAKE DATA ONLY.
-import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611070139';
+import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611161500';
 import { STAGES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, moneyShow, moneyAmount } from '../data/constants.js?v=202611101015';
-import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611111700';
-import { composeModal } from './compose.js?v=202611110900';
+import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611161500';
+import { composeModal } from './compose.js?v=202611161500';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611141400';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 const OPEN = ['todo', 'in_progress', 'blocked'];

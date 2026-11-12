@@ -1,7 +1,7 @@
 /* Lender block shared by Place Order and the file Parties / Contacts lender section.
  * Loss-payee suggestions come from clauses already saved for that lender company. The box stays editable.
  * CPL address can follow the lender address. Lender contacts are Loan Officer or Lender TC, and a company can have none. */
-import { html, raw, $, guard, formData, toast, toText } from '../ui.js?v=202611070139';
+import { html, raw, $, guard, formData, toast, toText } from '../ui.js?v=202611161500';
 import { fmtPhone } from '../data/constants.js?v=202611101015';
 import {
   LENDER_CONTACT_ROLES, lenderRoleLabel, lenderExtras, filterClauses, normLenderName,

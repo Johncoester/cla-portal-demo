@@ -1,6 +1,6 @@
 // crm-custom.js : CRM Settings on the screens (Janine / John, Nov 2): custom field inputs, record-page values, list columns / filters / sorts,
 // and pick-list selects that never blank a record holding a retired value. Everything is rendered through html`` (escaped; never raw HTML).
-import { html, raw, fmtDate, fmtMoney, fmtDateTime, $$, guard, toast } from '../ui.js?v=202611070139';
+import { html, raw, fmtDate, fmtMoney, fmtDateTime, $$, guard, toast } from '../ui.js?v=202611161500';
 import { COMPUTED_TYPES, FILE_TYPES, ADDRESS_PARTS, IMAGE_EXT, sectionsOf } from '../data/crm-fields.js?v=202611070139';
 import { maskValue } from '../data/crm-analytics.js?v=202611130900';
 import { safeHref } from '../data/crm.js?v=202611130900';
