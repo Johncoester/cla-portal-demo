@@ -1,0 +1,144 @@
+# Agent fees flow (commissions, admin fees, other agent fees)
+
+**Requested by:** John Coester, Nov 12 2026 (chat t1542u).
+**Status:** Partial. See [ROADMAP.md](../../ROADMAP.md#agent-fees-flow).
+**Audit:** Grok, Nov 12 2026, against main `3966fd07` and the TEST database (read only).
+
+## What John asked for
+
+### 1. File opening → portal sync
+When staff open a file and enter agent commissions, admin fees or other agent fees, those values automatically appear on the agent's portal view of that file.
+
+### 2. Agent values win
+Once an agent confirms a fee, it's the source of truth. Staff can still change it, but only after entering a required reason. The agent is notified right away (old value, new value, reason, who changed it) and can override it again from the portal. Keep a full audit log of every change: who, when, old value, new value, reason, and source (staff or agent).
+
+### 3. Agent override with confirmation
+The agent can edit their own fees in the portal. On save, show a confirmation screen ("You're changing X from $A to $B"). Confirmed agent values are flagged "Agent confirmed." Notify the assigned CLA processor of the change.
+
+### 4. Accounting tab
+The final fees post automatically to the correct lines in the file's Accounting tab (commission split by listing/selling side, admin fees, other fees) as soon as a value is set or changed.
+
+### 5. CD / ALTA generation
+Clicking "Generate CD" or "Generate ALTA" pulls these fees from the Accounting tab into the correct sections. No re-entry.
+
+### Tests John asked for
+Add tests for each requirement, including:
+- a staff change that requires a reason and notifies the agent,
+- an agent override,
+- the values appearing on the generated CD and ALTA.
+
+Every pull request follows the Build standards (AGENTS.md rules 10-16): a plain-English description with what was asked, what it does, how to test it and what's not done.
+
+## Decisions
+
+Recorded so far:
+
+- Agent-confirmed fees win. Staff changes need a reason and notify the agent.
+- Agents never write fee tables directly, only through a server function checked against their own side.
+
+Answers from John, Nov 12 2026, 2:33 PM ET (chat t1544u):
+
+1. **Commission is % or $, always in sync.** The agent can enter the commission as a percent or a dollar amount. Changing the % recalculates the $ from the sales price, and changing the $ recalculates the %. They can never differ.
+2. **Fields for each agent side (listing agent and buyer's agent):**
+   - Commission: % and $, kept in sync.
+   - Admin fee, next to or below the commission. By default the buyer pays the buyer's agent admin fee and the seller pays the listing agent admin fee. Who pays can be changed per file.
+   - Other fees: a section with a + button, up to 5 fees, each with a typed description, an amount and who it's paid to (for example, the brokerage).
+   - All of these post automatically to the correct Accounting lines.
+3. **A staff change to an agent-confirmed fee only notifies the agent.** There's no re-approval and no review step.
+4. **When an agent changes a fee,** the processor, pre-processor and TC on the file are notified, both in the portal and by email.
+5. **Buyers and sellers do not see** commissions or agent fees in the portal.
+6. **CD and ALTA:** keep the existing Closing Disclosure and Settlement Statement tabs (view and print), and add "Generate CD" and "Generate ALTA" buttons that create a PDF.
+7. **A TC can confirm fees for the agent.** It's logged as confirmed by the TC, and the agent is notified.
+
+## Current state (audit, Nov 12 2026)
+
+Commissions are stored in two places that don't feed each other. Staff enter them on the order. Agents enter theirs in the "Confirm Your Transaction Information" task, which saves them on the task only. On TEST, no file has commission values yet, there are no commission lines on the fee ledger, and none of the 4 open agent transaction-info tasks has been submitted.
+
+### 1. File opening → portal sync: Partial
+
+| Piece | Where | Status |
+|---|---|---|
+| Staff enter commission base, %, additional, total and "Paid by" (Buyer or Seller) | Place Order `js/pages/ordernew.js` (Earnest & Commissions, lines 157-164); Edit order details `js/pages/deal.js` line 258; Accounting > Contract figures `js/pages/dealaccounting-contract.js` lines 12-39; TC contract `js/data/supabase-tc.js` (calls `update_tc_contract`) | Done |
+| Storage | `js/data/earnest-commission.js` (`earnestDealPatch`, `earnestView`). Table `deals`: `listing_commission_pct`, `listing_commission_amount`, `buyer_commission_pct`, `buyer_commission_amount`, `financial` (jsonb). Migration `supabase/migrations/20261110200000_parcel_earnest_financial.sql`. Also `accounting_contract_terms` (listing and buyer-broker % and $). | Columns are on TEST. This migration isn't in TEST's migration history (applied as plain SQL). |
+| Both sides' commission at once | "Paid by" picks one side; saving blanks the other side's columns | Partial |
+| Admin fee or "other agent fees" boxes for staff | None (`js/data/fee-engine.js` has an internal `brokerAdminFee: 0` only) | Missing |
+| Agent can read the figures (database) | `deals` policy `deals_select` lets anyone on the file read the row, commission columns included. Agents can't update it (`deals_update` needs `can_run_deal`). | Readable |
+| Agent can see the figures (screen) | The overview's "Earnest & commissions" box (`js/pages/deal.js` lines 181 and 302-311) isn't limited to staff, so agents and buyers and sellers would see it. It shows one total, not one per side. | Partial |
+| Agent task pre-filled from staff figures | The demo pre-fills closing date, price and EMD only (`js/data/mock-part-agent.js` line 28). On TEST, `get_agent_task` returns saved answers only. | Missing |
+| Agent access to Accounting | `private.acct_reader` / `private.acct_editor` allow only staff roles | Not allowed, as intended |
+
+### 2. Agent values win: Missing, with pieces to build on
+
+| Piece | Where | Status |
+|---|---|---|
+| "Agent confirmed" flag | None | Missing |
+| Required reason for a staff change | None for fees | Missing |
+| History of changes | `accounting_fee_log` (old and new row, who, when, filled by the `acct_fee_log` trigger, no reason); `agent_task_revisions` (every agent submission); `activity_log` (text only); `accounting_contract_terms_log` | Partial. There's no one log with old, new, reason and source. |
+| Telling the agent | `notifications` table and `private.notify(...)`, read through `my_notifications`. In-portal only, no email. | Exists, not used for fees |
+| Agent overrides again | The agent can resubmit the task (each version kept), but it doesn't change the order | Partial |
+
+### 3. Agent override with confirmation: Partial
+
+| Piece | Where | Status |
+|---|---|---|
+| Agent edits their fees | `js/pages/dealagenttask.js` lines 22-24 and 42; checks in `js/data/agent-portal.js` lines 66-78 (percent 0-100, needs a percent or an amount; each fee or credit needs a name, Fee or Credit, amount, Buyer or Seller) | Done, saved on the task only |
+| Submit and keep every version | `submit_agent_task` → `private.rpc_submit_agent_task`: only the task's own agent can submit; writes `agent_task_revisions` and `tasks.form_data`; logs activity | Done on TEST |
+| Telling the processor | The same function notifies `deals.processor_id` in the portal ("X completed/revised …") | Done, in-portal only, doesn't say what changed |
+| "You're changing X from $A to $B" screen | None | Missing |
+| "Agent confirmed" label | None | Missing |
+| Agent's figures flow to the order and Accounting | None | Missing |
+
+### 4. Accounting tab: Missing (manual today)
+
+| Piece | Where | Status |
+|---|---|---|
+| Fee ledger | Table `accounting_fees` (`alta_section`, `cd_section`, `cd_line`, `paid_by`, `split_*`, `payee`, `preset_key`, `overridden`, `retired_at`), access through `acct_reader` / `acct_editor` | Exists |
+| Commission line | ALTA section `commission` → CD section H (`js/data/accounting.js` lines 30-43); a manual example "Real estate commission" (`js/data/accounting.js` line 332); not covered by the fee calculator (`js/data/fee-engine.js` line 179) | Manual only |
+| Automatic posting | None. Accounting > Contract figures says outright that "the fee ledger does not import them" (`js/pages/dealaccounting-contract.js` line 76). Payoffs already post their own ledger line with `preset_key` (`js/data/supabase-payoffs.js` line 27), which is the pattern to copy. | Missing |
+| Split by listing and selling side, admin fees, other fees | None | Missing |
+
+### 5. CD / ALTA generation: Partial
+
+| Piece | Where | Status |
+|---|---|---|
+| "Generate CD" / "Generate ALTA" buttons | None. Accounting has live Closing Disclosure and Settlement Statement tabs instead (`js/pages/dealaccounting-charges.js` line 34; `js/pages/dealaccounting-cd.js`; `altaStatement()` in `js/data/accounting.js` line 209), built from the ledger and printable. | Live views, no button |
+| Commission on CD page 2 section H and the ALTA Commission section | Shows once a commission line is on the ledger. CD page 5 already names the buyer-side and seller-side brokers (`js/pages/dealaccounting-cd.js` lines 80-81). | Works once requirement 4 is built |
+| Saved CD details | Tables `accounting_cd_details`, `accounting_cd_log` | Exists |
+
+### Existing tests in this area
+
+- Unit and SQL: `test/test-earnest-accounting-sync.js`, `test/test-accounting-contract.js`, `test/test-accounting-contract-sql.sh`, `test/test-parcel-earnest-sql.sh`, `test/test-money-save.js`, `test/test-agent-task-submit.js`, `test/test-agent-francis.js`, `test/test-accounting-flags-order.js`, `test/test-spouse-parcel-accounting.js`, `test/sql/agent-portal/fixture.sql`, `test/sql/agent-portal/checks.sql`.
+- Walkthrough (e2e-roles): only `tests/e2e-roles/specs/order-entry.spec.js` touches commissions, at entry. Nothing covers an agent submitting fees, Accounting posting or the CD/ALTA.
+
+### Old PHP portal (reference only)
+
+`application/views/commission_information.php` was a per-agent "Commission Information" form: buyer-agent and listing-agent %, base, "Paid by", and "Additional Fee/Admin Fee Paid by Buyer $". Every agent did their own commission task, and a linked TC took over the agent's task (`tests/commission_side_test.php`).
+
+## Proposed build (one tracker row and one pull request each, AGENTS.md rules 2-3)
+
+Adjusted to John's Nov 12 answers.
+
+| Row | What | Database file? |
+|---|---|---|
+| AF-1 | Fee records and change history. For each agent side (listing and buyer's agent): commission % and $ (always in sync, using the sales price), an admin fee with who pays it (default: buyer for the buyer's agent, seller for the listing agent, changeable per file), and up to 5 other fees (description, amount, paid to). Each fee records its source (staff, agent or TC) and who confirmed it and when. A history keeps who, when, old, new, reason and source. A server function requires a reason when staff change an agent-confirmed fee. | Yes |
+| AF-2 | Staff entry and agent view. Staff enter these fields when opening or editing the file. Each agent sees and edits their own side only. Buyers and sellers never see commissions or agent fees, so the overview's "Earnest & commissions" box is hidden from them. The agent task is pre-filled from the staff figures. | Yes (access rules) |
+| AF-3 | Agent or TC changes. The "You're changing X from $A to $B" confirmation screen, the "Agent confirmed" label (or "Confirmed by TC" when a TC confirms for the agent, and then the agent is notified). Saving notifies the processor, pre-processor and TC on the file, in the portal and by email. | Yes |
+| AF-4 | Telling the agent about a staff change: old value, new value, reason and who, in the portal and by email. Notification only, with no re-approval. | Maybe |
+| AF-5 | Fees post to Accounting automatically, one ledger line per side and fee (commission, admin fee with its payer, each other fee with its payee), the same way payoffs do, without overwriting a line a processor overrode. | Yes |
+| AF-6 | "Generate CD" and "Generate ALTA" buttons that create a PDF from the Accounting ledger, alongside the existing live tabs. Tests show the fees in CD section H and the ALTA Commission section. | Maybe (to store the PDF) |
+
+**Risks:** agents and TCs changing money figures (every write goes through a checked server function, never directly into a table); buyers and sellers can read the commission columns today, which has to change; the same figure stored in three places unless AF-1 replaces the older ones; % and $ rounding must never leave them out of step; email notices depend on Gmail sending working; Accounting has to stay switched on for AF-5; automatic lines must respect a processor's manual override.
+
+**Where it sits:** John's hold applies (AGENTS.md rule 9). No new feature starts until the e2e-roles walkthrough on main is green, which needs Gmail connected for the E2E Processor. Agent fees stays behind FF-055 and the work confirmed today.
+
+## Open questions (resolved Nov 12 2026 by John)
+
+All seven were answered at 2:33 PM ET (t1544u). The answers are recorded under Decisions above.
+
+1. ~~Does the agent set the commission %, the $ amount, or either one?~~ Either. They stay in sync (Decision 1).
+2. ~~What counts as an "other agent fee"? Is the admin fee per side?~~ Admin fee per side, plus up to 5 other fees (Decision 2).
+3. ~~Does a staff change need the agent's re-approval?~~ No, the agent is just notified (Decision 3).
+4. ~~Who is told when an agent changes a fee, and how?~~ The processor, pre-processor and TC, in the portal and by email (Decision 4).
+5. ~~Should buyers and sellers see commissions?~~ No (Decision 5).
+6. ~~Generate buttons or live tabs?~~ Both. Keep the tabs and add PDF buttons (Decision 6).
+7. ~~Can a TC confirm fees for the agent?~~ Yes, logged as confirmed by the TC, and the agent is notified (Decision 7).
