@@ -51,6 +51,7 @@ import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=2026
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
+import { activityFilters, actorList, applyActivityFilters, hasActivityFilter, matchesActivity, withActors } from './activity-filter.js?v=202611162000';
 import { authEventAction, carriedReads, gatherReads, identitySlot, mapLimit, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611111200';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -622,12 +623,25 @@ export async function createSupabaseAdapter(cfg) {
     async createThread(dealId, { subject, participantIds, body }) { return { id: ok(await sb.rpc('create_thread', { p_deal: dealId, p_subject: subject, p_participants: participantIds, p_body: body })) }; },
     async postMessage(threadId, body) { const auth = await readAuthUser(); const user = auth && auth.data && auth.data.user; if (!user || auth.signedOut) throw new Error('Please sign in.'); return camel(ok(await sb.from('messages').insert({ thread_id: threadId, author_id: user.id, body }).select().single())); },
     // activity log: RLS returns rows to CLA staff only (migration 13)
-    async listActivity(dealId) {
-      return fileRead('activity#' + fileGen + ':' + (dealId || ''), async () => {
-        let q = sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(300);
-        q = dealId ? q.eq('deal_id', dealId) : q.is('deal_id', null);
-        const items = camel(ok(await q));
-        return { items, total: items.length, types: [...new Set(items.map((a) => a.action.split('.')[0]))].sort(), actors: [] };
+    // FF-071b (Janine, Nov 12): the filters (type, person, from, to, text) now reach the query, and each entry gets a name and role.
+    async listActivity(dealId, filters = {}) {
+      const f = activityFilters(filters);
+      return fileRead('activity#' + fileGen + ':' + (dealId || '') + ':' + JSON.stringify(f), async () => {
+        const scope = (q) => (dealId ? q.eq('deal_id', dealId) : q.is('deal_id', null));
+        const read = (q) => q.order('created_at', { ascending: false }).limit(300);
+        const all = camel(ok(await read(scope(sb.from('activity_log').select('*'))))) || [];
+        const picked = hasActivityFilter(f) ? (camel(ok(await read(applyActivityFilters(scope(sb.from('activity_log').select('*')), f)))) || []).filter((a) => matchesActivity(a, f)) : all;
+        const ids = [...new Set([...all, ...picked].map((a) => a.actorId).filter(Boolean))];
+        const people = new Map(); const fileRoles = new Map();
+        if (ids.length && await profileReadAllowed(sb)) {
+          try { const r = await sb.from('profiles').select('id, first_name, last_name, email, role').in('id', ids); (r.data || []).forEach((p) => people.set(p.id, { name: nameOfProfile(p), role: p.role || '' })); } catch (e) { /* names fall back */ }
+        }
+        if (dealId && ids.length) {
+          try { const r = await sb.from('deal_participants').select('role, contacts(profile_id)').eq('deal_id', dealId); (r.data || []).forEach((x) => { const pid = x.contacts && x.contacts.profile_id; if (pid && !fileRoles.has(pid)) fileRoles.set(pid, x.role); }); } catch (e) { /* roles fall back */ }
+        }
+        const named = withActors(all, people, fileRoles);
+        const items = picked === all ? named : withActors(picked, people, fileRoles);
+        return { items, total: items.length, types: [...new Set(all.map((a) => String(a.action || '').split('.')[0]))].sort(), actors: actorList(named) };
       });
     },
     // Buyers, sellers, and agents never read activity_log. Their tab is the documents,
