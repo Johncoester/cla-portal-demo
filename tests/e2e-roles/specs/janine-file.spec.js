@@ -26,7 +26,9 @@ test('the staff file header stays on screen while the file scrolls', async ({ pa
   expect(after.top).toBeGreaterThan(40);
   expect(after.top).toBeLessThan(80);
   await expect(header).toContainText('Purchase');
-  await expect(header).toContainText('Buyer / Seller');
+  // Nov 11: the used-invite test keeps a second Client-Buyer (E2E UsedInvite) on the TEST file, so the title is
+  // "Buyer & UsedInvite / Seller" there. Require the buyer side, then " / ", then the seller side.
+  await expect(header.locator('[data-oh-parties]')).toHaveText(/\bBuyer\b.* \/ Seller\b/);
   expect(freshIssues(issues)).toEqual([]);
 });
 
@@ -40,7 +42,8 @@ test('the buyer sees the agent phone and not themselves on the closing team', as
   await expect(page.locator('[data-co-person="Ben Buyer"]')).toHaveCount(0);
   await expect(page.locator('[data-agent-tel]').first()).toBeVisible();
   await expect(page.locator('[data-your-agent]')).toContainText(targetMode() === 'test' ? '301-555-0148' : '301-555-0105');
-  await gotoHash(page, '#/deals/deal-2/tasks');
+  // Nov 11: '#/deals/deal-2' is a mock id; on TEST it answered 'invalid input syntax for type uuid'. Use the file just opened.
+  await gotoHash(page, `#/deals/${dealId(page)}/tasks`);
   await page.getByRole('link', { name: 'Personal information' }).first().click();
   const citizenship = page.locator('#tform select[name="citizenship"]');
   await citizenship.waitFor();

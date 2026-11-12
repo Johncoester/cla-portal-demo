@@ -8,7 +8,15 @@
   <link rel="stylesheet" href="css/portal.css?v=202611141400">
   <link rel="stylesheet" href="css/staff-feedback-widget.css?v=202611080400">
   <link rel="stylesheet" href="css/theme-cards.css?v=202611120600">
-  <script type="module" src="js/app.js?v=202611160800"></script>
+  <script>/* Portal invite email (John, Nov 11): TEST Auth sends it from testportal@clatitle.com. Its button lands here as
+     ?portal_invite=<agent|hr>.<token>#<Auth sign-in> (or, if Auth used its Site URL, the same value inside the Auth sign-in).
+     Auth's sign-in is dropped before the portal starts (never stored) and the portal's own accept page opens with the invite token. */
+  (function () { try { var RE = /^(agent|hr)\.([0-9a-f]{64})$/, v = (/(?:^|[?&])portal_invite=([^&#]*)/.exec(location.search || '') || [])[1] || '';
+    if (!RE.test(v)) { var h = String(location.hash || ''), t = (/(?:^#|&)access_token=([^&]+)/.exec(h) || [])[1];
+      if (t && /(?:^#|&)type=invite(?:&|$)/.test(h)) { var p = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); while (p.length % 4) p += '=';
+        var c = JSON.parse(atob(p)); v = String((c && c.user_metadata && c.user_metadata.portal_invite) || ''); } }
+    var m = RE.exec(v); if (m) history.replaceState(null, '', location.pathname + '#/' + (m[1] === 'hr' ? 'hr-invite' : 'agent-invite') + '/' + m[2]); } catch (e) { /* the copy link still works */ } })();</script>
+  <script type="module" src="js/app.js?v=202611161400"></script>
 </head>
 <body class="theme-cards">
   <div id="app"></div>
