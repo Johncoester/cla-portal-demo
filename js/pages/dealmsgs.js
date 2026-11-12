@@ -1,10 +1,10 @@
 // Inbox tab: conversations on this file (only people on the thread see it). Replies, new conversation, unread counts.
-import { html, $, $$, guard, formData, modal, closeModal, fmtDateTime, pill, toast } from '../ui.js?v=202611070139';
+import { html, $, $$, guard, formData, modal, closeModal, fmtDateTime, pill, toast } from '../ui.js?v=202611161500';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
 import { viewOnly, isViewOnly, runsOrders, WIRE_FRAUD_NOTE } from '../data/constants.js?v=202611101015';
-import { raw } from '../ui.js?v=202611070139';
+import { raw } from '../ui.js?v=202611161500';
 import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611101015';
-import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611110900';
+import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611161500';
 import { presentThread } from '../data/portal-threads.js?v=202611101800';
 
 export async function render(ctx) {

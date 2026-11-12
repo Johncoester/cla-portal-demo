@@ -1,5 +1,5 @@
 // TEST contract figures. Estimates only. Blank stays blank. Nothing here is a receipt, payoff, or Closing Disclosure.
-import { html, raw, $, $$, guard, formData, toast, fmtMoney } from '../ui.js?v=202611070139';
+import { html, raw, $, $$, guard, formData, toast, fmtMoney } from '../ui.js?v=202611161500';
 import { CONTRACT_FIELDS, CONTRACT_GROUPS, illustrative } from '../data/contract-terms.js?v=202611091140';
 import { runsOrders, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611101015';
 import { earnestView, readEarnest, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611141000';

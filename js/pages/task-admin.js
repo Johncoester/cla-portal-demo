@@ -1,6 +1,6 @@
 /* Task admin (Nov 5): every template can be added, edited, switched, or soft-retired.
  * Title Portal communications are separate from Title Production work. Audiences are chosen per task. */
-import { html, $, $$, guard, toast, fmtDateTime, pill, formData } from '../ui.js?v=202611070139';
+import { html, $, $$, guard, toast, fmtDateTime, pill, formData } from '../ui.js?v=202611161500';
 import { OPEN_TASK_HANDLING } from '../data/nov5-rules.js?v=202611131900';
 
 const LANES = [['portal', 'Title Portal'], ['production', 'Title Production']];

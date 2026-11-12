@@ -2,6 +2,7 @@
  * Same rows as cleanup-run.sql, but for every run at once: each test makes its own run id, so there is no single id per job.
  *   documents  name like 'e2e-%'          (uploads: e2e-<run>-<visibility>.pdf)
  *   threads    subject like 'E2E-RUN-%'   (and their messages)
+ *   update_requests  note like 'E2E-RUN-%', and open ones on the seeded file (notes = E2E-ROLE-FILE)
  *   deals      notes like 'E2E-RUN-%'     (and their tasks and participants). The seeded file (notes = E2E-ROLE-FILE) never matches.
  * Bob, Nov 10: left behind, these rows grew TEST every deploy (task copies 186 -> 251) and slowed task_board for everyone.
  * Takes a legacy service_role key or a new secret key (sb_secret_...). Does not print the key or row contents. Storage objects behind deleted documents are not removed.
@@ -58,6 +59,15 @@ async function step(label, fn) {
   try { done.push(`${label}: ${await fn()}`); } catch (e) { problems.push(`${label}: ${e.message}`); }
 }
 await step('documents', () => removeLike('documents', 'name', 'e2e-*'));
+// Nov 11: request_update refuses a repeat open request, so a run's requests have to go too.
+await step('update_requests', () => removeLike('update_requests', 'note', 'E2E-RUN-*'));
+const seeded = ids(await rest('GET', `deals?select=id&notes=eq.E2E-ROLE-FILE`));
+await step('update_requests (seeded file, open)', async () => {
+  let n = 0;
+  for (const part of chunks(seeded)) n += dryRun ? (await rest('GET', `update_requests?select=id&status=eq.open&deal_id=in.(${part.join(',')})`)).length
+    : (await rest('DELETE', `update_requests?status=eq.open&deal_id=in.(${part.join(',')})&select=id`)).length;
+  return n;
+});
 const threads = ids(await rest('GET', `threads?select=id&subject=like.${encodeURIComponent('E2E-RUN-*')}`));
 await step('messages', () => removeIn('messages', 'thread_id', threads));
 await step('threads', () => removeIn('threads', 'id', threads));
