@@ -26,7 +26,9 @@ test('the staff file header stays on screen while the file scrolls', async ({ pa
   expect(after.top).toBeGreaterThan(40);
   expect(after.top).toBeLessThan(80);
   await expect(header).toContainText('Purchase');
-  await expect(header).toContainText('Buyer / Seller');
+  // Nov 11: the used-invite test keeps a second Client-Buyer (E2E UsedInvite) on the TEST file, so the title is
+  // "Buyer & UsedInvite / Seller" there. Require the buyer side, then " / ", then the seller side.
+  await expect(header.locator('[data-oh-parties]')).toHaveText(/\bBuyer\b.* \/ Seller\b/);
   expect(freshIssues(issues)).toEqual([]);
 });
 
