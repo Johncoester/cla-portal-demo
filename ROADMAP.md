@@ -86,6 +86,33 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Buyer and seller invites and sign-in
+
+**How it should work.** Staff invite a buyer or seller from a file. The person opens the invite email, sets a password once and lands in the portal. If they forget the password, Forgot password emails them a reset link that opens the TEST portal.
+
+**Status: Partial.**
+
+**What's built**
+
+- Buyer, seller and agent invites from a file's Contacts tab, with an automatic invite email ([PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140)).
+- FF-073a (Janine's buyer recordings, Nov 12): accepting an invite twice (double-click or a second tab) can no longer delete the login. Only a login made in that same request that never became a portal user is cleaned up.
+
+**What's still missing**
+
+- FF-073b: the reset link should open testportal.clatitle.com, not the old GitHub address.
+- FF-073c to FF-073e (waiting on Janine): a clear "invite already used" message, the property address in the invite email, and a new invite when a buyer's email changes.
+
+**Links**
+
+- Spec: none yet.
+- Related pull requests: [PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140), FF-073a (this change).
+
+**Decisions**
+
+- accept-invite never deletes an existing or just-claimed login (John, Nov 12, 6:09 PM ET).
+
+---
+
 ## Contract intake AI
 
 **How it should work.** A spec is still to come.
