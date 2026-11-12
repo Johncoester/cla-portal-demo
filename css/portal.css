@@ -229,6 +229,9 @@ ul.checklist li.warn-text::before { content: '!'; background: var(--warn-bg); co
 .toast .toast-x { background: none; border: 0; color: #fff; font-size: 18px; line-height: 1; padding: 0 2px; cursor: pointer; opacity: .8; } .toast .toast-x:hover { opacity: 1; }
 .toast .toast-detail { grid-column: 1 / -1; font-size: 12px; opacity: .8; } .toast .toast-detail summary { cursor: pointer; } .toast .toast-detail div { margin-top: 4px; word-break: break-word; }
 @keyframes toast-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+/* Phones (rule 14): an error that stays on screen must fit the width, and its close button must be easy to tap */
+.toast .toast-x { min-width: 32px; min-height: 32px; margin: -6px -8px 0 0; }
+@media (max-width: 600px) { #toasts { left: 12px; right: 12px; bottom: 12px; } .toast { max-width: none; } }
 /* ---------- entry (dev picker) page ---------- */
 .login-page { min-height: 100vh; background: radial-gradient(1200px 600px at 10% -10%, var(--navy-100), transparent), var(--bg); display: flex; align-items: center; justify-content: center; gap: 60px; padding: 30px; flex-wrap: wrap; }
 .login-left { max-width: 340px; } .login-left h1 { font-size: 32px; line-height: 1.2; margin-bottom: 14px; color: var(--navy-950); font-weight: 600; } .login-left p { color: var(--ink-3); }
