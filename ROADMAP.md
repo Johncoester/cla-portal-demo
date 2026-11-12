@@ -96,20 +96,22 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Buyer, seller and agent invites from a file's Contacts tab, with an automatic invite email ([PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140)).
 - FF-073a (Janine's buyer recordings, Nov 12): accepting an invite twice (double-click or a second tab) can no longer delete the login. Only a login made in that same request that never became a portal user is cleaned up.
+- FF-073b: the Forgot password email's link opens the portal the person is using (testportal.clatitle.com on TEST), not the old GitHub address.
 
 **What's still missing**
 
-- FF-073b: the reset link should open testportal.clatitle.com, not the old GitHub address.
+- The TEST Auth "Redirect URLs" list must include https://testportal.clatitle.com/ for the reset link to land there; if it doesn't, Auth falls back to its Site URL. John checks that setting.
 - FF-073c to FF-073e (waiting on Janine): a clear "invite already used" message, the property address in the invite email, and a new invite when a buyer's email changes.
 
 **Links**
 
 - Spec: none yet.
-- Related pull requests: [PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140), FF-073a (this change).
+- Related pull requests: [PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140), [PR 219](https://github.com/Johncoester/cla-portal-demo/pull/219) (FF-073a), FF-073b (this change).
 
 **Decisions**
 
 - accept-invite never deletes an existing or just-claimed login (John, Nov 12, 6:09 PM ET).
+- The reset link uses the current portal address; the Auth redirect list is John's setting, not changed by a pull request.
 
 ---
 
