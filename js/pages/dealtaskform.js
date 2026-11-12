@@ -9,7 +9,9 @@ import { CLS, LABEL } from './dealtasks.js?v=202611161800';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 // The task page and the processor Tasks "Expand all" use the same fields, save, and complete rules.
-export function intakeFormHtml(t, { page = false, state = '' } = {}) {
+// doneReadOnly (FF-069d, Janine's video Nov 12; Francis Feedback ticket): a finished task opened by a client or an agent shows the answers
+// read-only with a Back button, no Save buttons. CLA staff keep "Save progress" / "Save and keep complete" on a finished task (unchanged).
+export function intakeFormHtml(t, { page = false, state = '', doneReadOnly = false, backHref = '' } = {}) {
   const fields = fieldsForFile(fieldsForRole(t.fields || [], t.assignedRole), { state });   // Matt, Nov 3: role-only fields (settlement type = sellers only); Maryland questions use the file state already on the page
   t.fields = fields;
   const v = t.formData || {};
@@ -53,6 +55,7 @@ export function intakeFormHtml(t, { page = false, state = '' } = {}) {
   if (t.formError) return html`<p class="notice warn" data-task-form-state="error">This form could not be loaded. Nothing was marked complete.</p>`;
   if (t.formHidden) return html`<p class="muted" data-task-form-state="hidden">Only the assigned person, the processor, and the coordinator can see these answers.</p>`;
   if (!t.canFill) return answers;
+  if (doneReadOnly && t.status === 'done') return html`<p class="muted small" data-task-done-read-only>This task is complete. The answers are below.</p>${answers}<p><a class="back-btn" href="${backHref || '#/dashboard'}" data-task-done-back>Back to tasks</a></p>`;
   const completeBtn = t.canComplete === false ? '' : html`<button class="m-btn" type="submit" data-mode="complete">${t.status === 'done' ? 'Save and keep complete' : 'Mark complete'}</button>`;
   const askSsn = t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller') && !t.formHidden;
   const ssn = askSsn ? buyerSsnHtml(t.ssnShown || '', !!t.ssnStaff) : '';
@@ -157,12 +160,14 @@ export async function render(c0) {
     applySpouse(t, await loadSpouseRows(api, deal.id), c0.user);
   }
   const tplLabel = t.template ? html`${t.template.code} v${t.template.version}` : (t.templateCode ? html`${t.templateCode} v${t.templateVersion}` : 'n/a');
-  const inner = intakeFormHtml(t, { page: true, state: deal && deal.state });
+  const outside = !!(c0.user && (c0.user.accountRole || c0.user.role === 'Outside user'));   // buyers, sellers and agents (staff unchanged)
+  const doneReadOnly = outside && t.status === 'done';
+  const inner = intakeFormHtml(t, { page: true, state: deal && deal.state, doneReadOnly, backHref: `#/deals/${deal.id}/tasks` });
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>${t.title}</h2><a class="ghost right" href="#/deals/${deal.id}/tasks">All tasks</a></div>
     <div class="card"><p>${t.description}</p><p class="muted small">For <strong>${t.ownerName || t.assignedRole}</strong> (${t.assignedRole}) &middot; due ${fmtDate(t.dueDate) || 'n/a'} &middot; ${pill(LABEL[t.status], CLS[t.status])}
       &middot; template ${tplLabel}${t.savedAt ? html` &middot; last saved ${fmtDateTime(t.savedAt)}` : ''}</p>
     ${t.completedByLabel ? html`<p class="done-by"><strong>${t.completedByLabel}</strong> on ${fmtDateTime(t.completedAt)}.</p>` : t.savedByLabel ? html`<p class="muted small done-by">${t.savedByLabel} on ${fmtDateTime(t.savedAt)}.</p>` : ''}
-    ${t.forClient && t.canFill ? html`<p class="note-box" data-agent-no-complete>Only <strong>${t.ownerName || 'the client'}</strong> or CLA Title can mark this task complete.</p>` : ''}
+    ${t.forClient && t.canFill && !doneReadOnly ? html`<p class="note-box" data-agent-no-complete>Only <strong>${t.ownerName || 'the client'}</strong> or CLA Title can mark this task complete.</p>` : ''}
     ${t.mine && t.savedBy && t.savedBy !== t.ownerId ? html`<p class="note-box">Your agent filled this in for you. Please check the answers and correct anything that is wrong.</p>` : ''}
     ${inner}</div>`;
   return { title: t.title, crumbs: [['All Tasks', `#/deals/${deal.id}/tasks`], [t.title]], body, mount(root) {
