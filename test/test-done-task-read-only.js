@@ -17,5 +17,7 @@ const staffDone = text(intakeFormHtml(task('done'), { page: true }));
 ok(staffDone.includes('Save progress') && staffDone.includes('Save and keep complete'), 'CLA staff keep their existing edit on a finished task');
 const src = readFileSync(new URL('../js/pages/dealtaskform.js', import.meta.url), 'utf8');
 ok(src.includes("const outside = !!(c0.user && (c0.user.accountRole || c0.user.role === 'Outside user'));") && src.includes("const doneReadOnly = outside && t.status === 'done';"), 'only buyers, sellers and agents get the read-only view');
+const tasksSrc = readFileSync(new URL('../js/pages/dealtasks.js', import.meta.url), 'utf8');
+ok(tasksSrc.includes("done: 'Done'"), '#17: a finished task\'s status reads "Done" with a capital D');
 console.log(fail ? `FAIL ${fail}` : 'all done task read-only checks passed');
 process.exit(fail ? 1 : 0);
