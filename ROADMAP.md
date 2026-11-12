@@ -108,3 +108,55 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - None recorded yet.
+
+---
+
+## Workflow definitions
+
+**How it should work.** An admin can arrange task templates into a saved flowchart for each role and file type. Saving a workflow definition does not add tasks to a file; it only stores the arrangement so it can be used later.
+
+**Status: Planned.** Nothing has been built on current main yet.
+
+**What's built**
+
+- Nothing on current main. An earlier attempt in [PR 7](https://github.com/Johncoester/cla-portal-demo/pull/7) is not on main and will not be merged.
+
+**What's still missing**
+
+- Everything: the admin screen, saving a workflow by role and file type, and using a saved workflow later. This will be rebuilt from current main. A full spec is still to come.
+
+**Links**
+
+- Spec: to come.
+- Related pull requests: [PR 7](https://github.com/Johncoester/cla-portal-demo/pull/7) (closed; the first attempt, from before main was rebuilt on Nov 10). It will be rebuilt as a new pull request from current main.
+
+**Decisions**
+
+- Do not merge PR 7. It has conflicts with main and is far behind, because it was opened before main was rebuilt on Nov 10. Rebuild from current main (John, Nov 12, 4:41 PM ET, t1550u).
+- Not built yet. This stays Planned until it is scheduled.
+
+---
+
+## CRM import preview 500 fix
+
+**How it should work.** When staff preview a CRM import, the portal shows a normal preview result. The trial rows are still rolled back, so nothing is saved from the preview. The preview should not appear as a server error.
+
+**Status: Planned.** Nothing has been built on current main yet.
+
+**What's built**
+
+- CRM import preview already runs and rolls back the trial rows, as intended. After the preview, the portal still shows a server error even though the preview itself worked.
+
+**What's still missing**
+
+- A new change, built on top of the current CRM import (including the later Janine deal-name import), that returns a normal preview result instead of a server error, without changing that Janine deal-name import work. This will be rebuilt from current main.
+
+**Links**
+
+- Spec: none yet.
+- Related pull requests: [PR 139](https://github.com/Johncoester/cla-portal-demo/pull/139) (closed; the first attempt). It will be rebuilt as a new pull request from current main.
+
+**Decisions**
+
+- Do not merge PR 139. Its database file would overwrite the later Janine deal-name import change. Rebuild on current main as a new database change that does not touch that import work (John, Nov 12, 4:41 PM ET, t1550u).
+- Not built yet. This stays Planned until it is scheduled.
