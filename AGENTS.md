@@ -24,6 +24,9 @@
 15. Forms check input before saving (required fields, emails, phone numbers, dates, dollar amounts) and never lose what the user typed if saving fails.
 16. Use normal title and escrow terms (buyer, seller, lender, closing date, settlement, payoff) the way CLA's team uses them. If unsure what a term or step means, ask before building.
 
+<!-- Rule 22 is a Build standard added after rules 17-21, so it keeps the next free number. -->
+22. Every PR that touches a feature updates ROADMAP.md (status, what's built, what's missing, PR link, decisions). Full feature specs live in docs/specs/, one file per feature, linked from the roadmap.
+
 ## Working with Claude
 
 John, Nov 11 2026 (t1510u, option B at t1512u). Two builders work in this repo: Grok and Claude.

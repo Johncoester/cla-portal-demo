@@ -1,0 +1,100 @@
+# CLA Title Portal roadmap
+
+This file lists the portal's major features: how each one should work, how far along it is, and what is left to do. It is written for the whole team, not only developers.
+
+**What the statuses mean**
+
+- **Planned**: agreed or requested, but nothing has been built yet.
+- **In progress**: someone is building it now, with an open pull request.
+- **Partial**: some of it works on TEST, and some of it is still missing.
+- **Done**: everything described works on TEST and has been checked there.
+
+**The rule:** every pull request that touches a feature updates this file in the same pull request: its status, what's built, what's missing, the pull request link and any new decisions (AGENTS.md rule 22). The full write-up for each feature lives in [docs/specs/](docs/specs/), one file per feature.
+
+---
+
+## Agent fees flow
+
+**How it should work.** When CLA staff open a file and enter the agents' commissions, admin fees or other agent fees, those amounts show up on each agent's own view of the file. The agent can confirm or change them. Once an agent confirms a fee, their figure wins. Staff can still change it, but they must give a reason, and the agent is told straight away what changed, from what, to what, why and by whom. When an agent changes a fee, they see a "You're changing X from $A to $B" check before it saves, the fee is marked "Agent confirmed", and the file's CLA processor is told. The final figures go straight onto the right lines in the file's Accounting tab, and from there onto the Closing Disclosure (CD) and the ALTA settlement statement, so nobody types them twice. Every change is kept in a history: who, when, old value, new value, reason, and whether staff or the agent made it.
+
+**Status: Partial.**
+
+**What's built**
+
+- Staff can enter commission base, percent, any additional amount and who pays it (buyer or seller) on Place Order, in Edit order details, and in Accounting > Contract figures. All three use the same figures.
+- Agents have a "Confirm Your Transaction Information" task where they enter their commission split and any fees or credits. Every version they submit is kept, and the file's processor gets an in-portal notice when they submit or revise it.
+- The Accounting fee ledger already has a "Commission" section that shows on the CD (section H, "Other") and on the settlement statement.
+- The portal has an in-portal notifications list, and Accounting fee changes are already logged.
+
+**What's still missing**
+
+- What staff enter and what the agent enters don't feed each other. The agent's answers stay on their task.
+- There are no admin fee or "other agent fee" boxes for staff, and only one side's commission can be saved on the order at a time.
+- There's no "Agent confirmed" flag, no required reason for a staff change, no notice to the agent, and no "You're changing X from $A to $B" check.
+- Fees are not posted to Accounting automatically. Today a commission line has to be added there by hand.
+- The "Earnest & commissions" box on a file's overview can be seen by buyers and sellers too, not just staff and agents.
+- No end-to-end test covers this flow.
+
+**Links**
+
+- Spec: [docs/specs/agent-fees-flow.md](docs/specs/agent-fees-flow.md)
+- Related pull requests: [PR 23](https://github.com/Johncoester/cla-portal-demo/pull/23) (agent tasks), [PR 53](https://github.com/Johncoester/cla-portal-demo/pull/53) (agent task submit on TEST), [PR 100](https://github.com/Johncoester/cla-portal-demo/pull/100) (agent commission form fields), [PR 134](https://github.com/Johncoester/cla-portal-demo/pull/134) (Place Order earnest and commissions), [PR 187](https://github.com/Johncoester/cla-portal-demo/pull/187) (earnest and commissions kept in sync with Accounting)
+
+**Decisions**
+
+- Agent-confirmed fees win. Staff changes need a reason and notify the agent.
+- Agents never write fee tables directly, only through a server function checked against their own side.
+- Still open: seven questions waiting on John (see the spec).
+
+---
+
+## CD / ALTA generation
+
+**How it should work.** The Closing Disclosure (CD) and the ALTA settlement statement are built from the file's Accounting fee ledger, so every fee is entered once and lands in the right section of both documents.
+
+**Status: Partial.**
+
+**What's built**
+
+- A file's Accounting tab has two live views, **Closing Disclosure** (pages 1-5) and **Settlement Statement**. Both are built from the fee ledger whenever they're opened, and both can be printed.
+- Every ledger line has a CD section and an ALTA section. A commission line goes to CD section H ("Other") and to the ALTA "Commission" section.
+- CD page 5 lists the buyer's and seller's real estate brokers from the file's agents.
+
+**What's still missing**
+
+- There are no "Generate CD" or "Generate ALTA" buttons. The documents are live views rather than saved, generated copies.
+- Agent fees don't reach the ledger automatically yet (see Agent fees flow), so they won't appear on either document until someone adds them by hand.
+
+**Links**
+
+- Spec: none yet. The agent fees parts are in [docs/specs/agent-fees-flow.md](docs/specs/agent-fees-flow.md) (requirement 5).
+- Related pull requests: none on record. The CD and Settlement Statement views were built before the repo's current pull request history.
+
+**Decisions**
+
+- One fee ledger feeds both the CD and the settlement statement. Nothing is entered twice.
+
+---
+
+## Contract intake AI
+
+**How it should work.** A spec is still to come.
+
+**Status: Planned.**
+
+**What's built**
+
+- Nothing that reads a contract automatically. Today, Place Order has an "Upload sales contract" box that saves the file to the order's documents as "Contract / addendum". In Accounting > Contract figures, staff type the contract figures in by hand and can note where each figure came from.
+
+**What's still missing**
+
+- Everything, starting with a spec.
+
+**Links**
+
+- Spec: to come.
+- Related pull requests: none.
+
+**Decisions**
+
+- None recorded yet.
