@@ -253,6 +253,18 @@ export async function fillAssignedTasks(page, run, { requireUpload = true } = {}
       }
     }
   }
+  // Nov 11: later tests in every run complete the client's ID and Personal information forms on the shared TEST file,
+  // and a done task has no "Fill in" link. The next run then saw only forms without a file field. The ID form is
+  // still assigned to this person, so open it (any status) and require its upload control there.
+  if (requireUpload && !sawFile) {
+    await gotoHash(page, `#/deals/${dealId(page)}/tasks`);
+    const idTask = page.getByRole('link', { name: /Upload (photo |identification|your )?ID/i }).first();
+    if (await idTask.count()) {
+      await idTask.click();
+      await page.locator('#tform, [data-task-form-state]').first().waitFor();
+      if (await page.locator('#tform input[type="file"]').count()) sawFile = true;
+    }
+  }
   if (requireUpload) expect(sawFile, 'no assigned form showed an upload control').toBeTruthy();
   expect(saved, 'Save progress did not persist').toBeTruthy();
 }
