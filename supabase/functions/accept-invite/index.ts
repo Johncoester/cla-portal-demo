@@ -46,6 +46,11 @@ Deno.serve((req: Request) => handleAcceptInvite(req, {
     }
     return null;
   },
+  hasProfile: async (id: string) => {
+    const p = await admin.from('profiles').select('id').eq('id', id).maybeSingle();
+    if (p.error) throw new Error('profile');
+    return !!p.data;
+  },
   claimStub: async (id: string, password: string) => {
     const r = await admin.auth.admin.updateUserById(id, { password, email_confirm: true });
     if (r.error) throw new Error('claim');

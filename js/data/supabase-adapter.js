@@ -52,6 +52,7 @@ import { claRepresentationCode, claRepresentationLabel } from './cla-representat
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
 import { activityFilters, actorList, applyActivityFilters, hasActivityFilter, matchesActivity, withActors } from './activity-filter.js?v=202611162000';
+import { resetRedirect } from './reset-redirect.js?v=202611161900';
 import { authEventAction, carriedReads, gatherReads, identitySlot, mapLimit, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611111200';
 const SB = 'https://esm.sh/@supabase/supabase-js@2.45.4';   // pinned. Used only after John confirms the login switch on CLA Portal Live Test.
 const todo = (n) => async () => { throw new Error('Supabase adapter: ' + n + ' is not implemented yet.'); };
@@ -384,7 +385,8 @@ export async function createSupabaseAdapter(cfg) {
       return { ok: true, status: 200, data: res.data || {} };
     },
     async signIn(email, password) { ok(await sb.auth.signInWithPassword({ email, password })); return me(); },
-    async requestPasswordReset(email) { const { error } = await sb.auth.resetPasswordForEmail(String(email || '').trim(), { redirectTo: 'https://johncoester.github.io/cla-portal-demo/' }); if (error) throw new Error(error.message); return { ok: true }; },
+    // FF-073b (Janine, Nov 12): the reset link opens the portal the person is using (testportal.clatitle.com on TEST), not the old GitHub address.
+    async requestPasswordReset(email) { const { error } = await sb.auth.resetPasswordForEmail(String(email || '').trim(), { redirectTo: resetRedirect() }); if (error) throw new Error(error.message); return { ok: true }; },
     async updatePassword(password) { const { data, error } = await sb.auth.updateUser({ password: String(password || '') }); if (error) throw new Error(error.message); return data; },
     async provisionPortalUser(input) { return ok(await sb.rpc('provision_portal_user', { p_user: input.userId, p_role: input.role, p_first: input.firstName, p_last: input.lastName || '' })); },
     async submitPortalFeedback(body, page) { return ok(await sb.rpc('submit_portal_feedback', { p_body: body, p_page: page || '' })); },
