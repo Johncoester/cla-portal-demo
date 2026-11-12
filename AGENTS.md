@@ -23,3 +23,13 @@
 14. Every page works on a phone screen as well as a computer, especially anything a client uses (Place Order, intake, documents, messages).
 15. Forms check input before saving (required fields, emails, phone numbers, dates, dollar amounts) and never lose what the user typed if saving fails.
 16. Use normal title and escrow terms (buyer, seller, lender, closing date, settlement, payoff) the way CLA's team uses them. If unsure what a term or step means, ask before building.
+
+## Working with Claude
+
+John, Nov 11 2026 (t1510u, option B at t1512u). Two builders work in this repo: Grok and Claude.
+
+17. Owner. Grok builds everything by default. Claude builds only the items John assigns to Claude by name (today: the Documents search and sorting, PR 205). The tracker's Owner column says Claude only for those items. Grok leaves the files in Claude's open pull request alone until it merges.
+18. Pull requests. Each builder has at most one open pull request. Merges still happen one at a time, in John's order. Whichever pull request merges second updates onto the latest main and redoes its cache stamps.
+19. Merging. Grok merges Claude's pull requests only after the required checks pass AND John says OK in chat. Claude never merges.
+20. Reviews. Grok and Claude review each other's pull requests against the Build standards (rules 10-16). A review is not testing. Every pull request still needs proof on TEST: the walkthrough (e2e-roles) or a person testing it. Claude can only open TEST through John's browser, so Grok or a tester usually provides that proof.
+21. Claude follows this file too, but never emails the team as John without asking John first.
