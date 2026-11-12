@@ -504,7 +504,7 @@ export async function createSupabaseAdapter(cfg) {
       if (input.closingTime) row.closing_time = String(input.closingTime);
       if (input.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(input.claRepresentation);   // Both / Buyer only / Seller only; absent = not recorded
       const wrote = lenderColumnWrite(input); if (wrote) { row.lender_address = wrote.lenderAddress; row.cpl_address = wrote.cplAddress; row.cpl_same_as_lender = wrote.cplSameAsLender; row.mortgage_broker_name = wrote.mortgageBrokerName; }
-      if (input.parcelId !== undefined || input.parcelIds !== undefined) { const parcels = parcelInput(input); row.parcel_id = parcels.parcelId || null; row.parcel_ids = parcels.parcelIds; }
+      if (input.parcelId !== undefined || input.parcelIds !== undefined) { const parcels = parcelInput(input); row.parcel_id = parcels.parcelId || ''; row.parcel_ids = parcels.parcelIds; }
       const earnest = earnestDealPatch(input, { refinance: refi }); if (Object.keys(earnest.financial).length) row.financial = earnest.financial;
       const d = camel(ok(await sb.from('deals').insert(row).select().single()));
       if (String(input.sourceOfBusiness || '').trim()) ok(await sb.rpc('set_deal_source', { p_deal: d.id, p_source: input.sourceOfBusiness }));   // migration 31 (staff-only table)
@@ -520,7 +520,7 @@ export async function createSupabaseAdapter(cfg) {
       if (row.open_date === null) delete row.open_date;
       if (row.closing_time != null) { const t = String(row.closing_time).trim(); if (t && !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) throw new Error('Enter a time as HH:MM, or clear it.'); row.closing_time = t; }
       if (patch.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(patch.claRepresentation);   // '' = not recorded (null)
-      if (patch.parcelId !== undefined || patch.parcelIds !== undefined) { const parcels = parcelInput(patch); row.parcel_id = parcels.parcelId || null; row.parcel_ids = parcels.parcelIds; }
+      if (patch.parcelId !== undefined || patch.parcelIds !== undefined) { const parcels = parcelInput(patch); row.parcel_id = parcels.parcelId || ''; row.parcel_ids = parcels.parcelIds; }
       if (earnestTouched(patch)) { const earnest = earnestDealPatch(patch, { refinance: false }); row.financial = earnest.financial; }
       if (lenderColumnsTouched(patch)) { const x = lenderExtras(patch);
         if (patch.lenderAddress !== undefined) row.lender_address = x.lenderAddress;
