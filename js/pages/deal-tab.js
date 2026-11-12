@@ -1,20 +1,20 @@
 /* File-tab modules. Loading one evaluates local helpers only. It does not check who is signed in and it does not read a file. */
 const TABS = Object.assign(Object.create(null), {
-  tasks: './dealtasks.js?v=202611161700',
-  inbox: './dealmsgs.js?v=202611111700',
-  email: './dealemail.js?v=202611160700',   // John, Nov 9: Gmail phase 1 (staff only; the tab module refuses everyone else)
-  documents: './dealdocs.js?v=202611161700',
-  contacts: './dealcontacts.js?v=202611161700',
-  activity: './dealactivity.js?v=202611111700',
-  closing: './dealclosing.js?v=202611121300',
-  agreements: './dealagreements.js?v=202611111700',
-  accounting: './dealaccounting.js?v=202611141400',
-  title: './dealtitle.js?v=202611112200',
-  funding: './dealfwp.js?v=202611112100',
-  wires: './dealfwp.js?v=202611112100',
-  policy: './dealfwp.js?v=202611112100',
+  tasks: './dealtasks.js?v=202611161800',
+  inbox: './dealmsgs.js?v=202611161500',
+  email: './dealemail.js?v=202611161500',   // John, Nov 9: Gmail phase 1 (staff only; the tab module refuses everyone else)
+  documents: './dealdocs.js?v=202611161800',
+  contacts: './dealcontacts.js?v=202611161800',
+  activity: './dealactivity.js?v=202611161500',
+  closing: './dealclosing.js?v=202611161500',
+  agreements: './dealagreements.js?v=202611161500',
+  accounting: './dealaccounting.js?v=202611161500',
+  title: './dealtitle.js?v=202611161500',
+  funding: './dealfwp.js?v=202611161500',
+  wires: './dealfwp.js?v=202611161500',
+  policy: './dealfwp.js?v=202611161500',
 });
-const TASK_FORM = './dealtaskform.js?v=202611161700';
+const TASK_FORM = './dealtaskform.js?v=202611161800';
 
 function ownSpec(tab) {
   if (typeof tab !== 'string' || !Object.prototype.hasOwnProperty.call(TABS, tab)) return '';

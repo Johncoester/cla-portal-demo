@@ -2,7 +2,7 @@
 // admins still do, with a "Beta, in testing" badge). Every change is logged below (who, when, old -> new). Nothing is ever deleted.
 // MODULES (John, Nov 3: "an on and off ... for different modules ... controlled through the Admin and Super admins"; "Live on and off switch,
 // which means if it's off, we know that it's in beta [and it] can still be tested through the portal"). Admin / Super admin only.
-import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611070139';
+import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611161500';
 import { canManageModules } from '../data/modules.js?v=202611101015';
 
 const state = (m) => (!m.available ? ['Not available', 'off', 'Turned off in this portal\'s config file, so not even Admins see it. Nothing to switch here.']

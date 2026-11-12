@@ -2,8 +2,8 @@
 // replies in the same Gmail thread come back to the file (checked every few minutes, or "Check for replies"). Attachments on a reply, on
 // mail sent from Gmail, and files added from the computer while composing are saved to Documents for CLA staff only, once. A file picked
 // from Documents is not saved again. The server refuses every address that is not a test address on Live Test, and never emails wire details.
-import { html, raw, esc, toText, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611070139';
-import { editorHtml, mountEditor } from './compose.js?v=202611110900';
+import { html, raw, esc, toText, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611161500';
+import { editorHtml, mountEditor } from './compose.js?v=202611161500';
 import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, hasSignature, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611121900';
 import { applyFileTemplate } from '../data/file-email-templates.js?v=202611140400';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';

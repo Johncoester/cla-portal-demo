@@ -1,6 +1,6 @@
 // Reminder outbox: reminders are QUEUED here only. This build never sends email or SMS.
 import { runsOrders } from '../data/constants.js?v=202611101015';
-import { html, $, guard, toast, fmtDateTime, pill } from '../ui.js?v=202611070139';
+import { html, $, guard, toast, fmtDateTime, pill } from '../ui.js?v=202611161500';
 export async function render({ api, user, refresh }) {
   const list = await api.listOutbox(); const canQueue = runsOrders(user) || user.role === 'Transaction Coordinator';
   const rows = list.map((o) => html`<tr><td class="nowrap">${fmtDateTime(o.createdAt)}</td><td><strong>${o.from || `${o.fromName || ''} <${o.fromEmail || 'unassigned'}>`}</strong>${o.senderFallback ? html`<br><span class="muted small">Portal fallback: no assigned processor</span>` : ''}</td><td>${o.toName}<br><span class="muted small">${o.toEmail}</span></td>

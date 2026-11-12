@@ -113,8 +113,12 @@ test('buyer can ask for an update on every listed topic', async ({ page, issues 
   const select = page.locator('#requpdate select[name="topic"]');
   const values = await select.locator('option').evaluateAll((els) => els.map((el) => el.value).filter(Boolean));
   expect(values.length).toBeGreaterThan(1);
+  const run = runId();
   for (const value of values) {
     await select.selectOption(value);
+    // Nov 11: request_update refuses a second open request on the same topic (by design). The run's note lets
+    // cleanup-runs.mjs remove these, so the next run can ask again.
+    await page.locator('#requpdate input[name="note"]').fill(`E2E-RUN-${run} update`);
     await page.locator('#requpdate button[type="submit"]').click();
     await expect(page.locator('.toast', { hasText: 'Update requested. CLA Title will answer here.' }).last()).toBeVisible();
     await page.locator('#modal').waitFor({ state: 'detached' });

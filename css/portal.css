@@ -224,7 +224,14 @@ ul.checklist li.warn-text::before { content: '!'; background: var(--warn-bg); co
 .modal-x { background: none; border: 0; font-size: 24px; line-height: 1; cursor: pointer; color: var(--ink-3); border-radius: var(--r-sm); padding: 2px 8px; } .modal-x:hover { background: var(--line); color: var(--ink); } .modal-body { padding: var(--s5); }
 #toasts { position: fixed; right: 20px; bottom: 20px; z-index: 60; display: flex; flex-direction: column; gap: 8px; }
 .toast { background: var(--navy-950); color: #fff; padding: 11px 16px 11px 14px; border-radius: var(--r); border-left: 4px solid var(--brand); max-width: 400px; box-shadow: var(--sh-3); font-size: var(--fs-sm); line-height: 1.45; animation: toast-in .18s ease-out; } .toast.err { border-left-color: #f04438; }
+/* John, t1500u: an error stays until dismissed; technical detail is folded away under the plain sentence */
+.toast.err { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: start; }
+.toast .toast-x { background: none; border: 0; color: #fff; font-size: 18px; line-height: 1; padding: 0 2px; cursor: pointer; opacity: .8; } .toast .toast-x:hover { opacity: 1; }
+.toast .toast-detail { grid-column: 1 / -1; font-size: 12px; opacity: .8; } .toast .toast-detail summary { cursor: pointer; } .toast .toast-detail div { margin-top: 4px; word-break: break-word; }
 @keyframes toast-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+/* Phones (rule 14): an error that stays on screen must fit the width, and its close button must be easy to tap */
+.toast .toast-x { min-width: 32px; min-height: 32px; margin: -6px -8px 0 0; }
+@media (max-width: 600px) { #toasts { left: 12px; right: 12px; bottom: 12px; } .toast { max-width: none; } }
 /* ---------- entry (dev picker) page ---------- */
 .login-page { min-height: 100vh; background: radial-gradient(1200px 600px at 10% -10%, var(--navy-100), transparent), var(--bg); display: flex; align-items: center; justify-content: center; gap: 60px; padding: 30px; flex-wrap: wrap; }
 .login-left { max-width: 340px; } .login-left h1 { font-size: 32px; line-height: 1.2; margin-bottom: 14px; color: var(--navy-950); font-weight: 600; } .login-left p { color: var(--ink-3); }
