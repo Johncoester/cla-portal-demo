@@ -9,8 +9,8 @@
  *   deps.authInvite(email, { redirectTo, data }) -> { id } | { error, exists }   TEST Auth "Invite user" email (from testportal@clatitle.com)
  *   deps.authStub(email) -> { id, invited, hasProfile } | null, deps.deleteAuthUser(id)   an invite-only login that never became a portal user
  *   deps.newId() -> uuid, deps.now() -> ms */
-import { TEST_PROJECT_REF, PORTAL_ORIGIN, REDIRECT_URI, GMAIL_ROLES, MAX_RECIPIENTS, MAX_DOCS, MAX_ATTACH_BYTES, MAX_MESSAGE_BYTES, MAX_SAVE_BYTES, MAX_BODY_CHARS, TEST_ALLOWLIST_NOTE,
-  isAllowedTestRecipient, parseAddressList, subjectWithTag, formatPropertyAddress, sanitizeHtml, htmlToText, hasWireDetails, isWireName, extOk, safeName, matchUploadKeys, buildMime, b64url, b64urlToBytes, utf8, estimateMimeBytes,
+import { TEST_PROJECT_REF, PORTAL_ORIGIN, REDIRECT_URI, GMAIL_ROLES, MAX_RECIPIENTS, MAX_DOCS, MAX_ATTACH_BYTES, MAX_MESSAGE_BYTES, MAX_SAVE_BYTES, MAX_BODY_CHARS,
+  parseAddressList, subjectWithTag, formatPropertyAddress, sanitizeHtml, htmlToText, hasWireDetails, isWireName, extOk, safeName, matchUploadKeys, buildMime, b64url, b64urlToBytes, utf8, estimateMimeBytes,
   parseGmailMessage, randomToken, sha256Hex, pkceChallenge, authUrl, decodeJwtPayload, missingScopes, oneLine, json, hasSettingsScope, pickSendAsSignature, withSignature, isEmail, INVITE_TOKEN_RE, unnotifiedTasks, AUTH_INVITE_SUBJECT, PORTAL_INVITE_SENDER, inviteAuthRedirect } from './gmail-core.mjs';
 
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -186,11 +186,7 @@ export async function handleSend(req, deps) {
   const all = [...new Set([...to.ok, ...cc.ok, ...bcc.ok])];
   if (!to.ok.length) return json(400, { error: 'Add at least one To address.' }, H);
   if (all.length > MAX_RECIPIENTS) return json(400, { error: `At most ${MAX_RECIPIENTS} recipients per email.` }, H);
-  const refused = all.filter((a) => !isAllowedTestRecipient(a));
-  if (refused.length) {
-    if (!dryRun) await deps.svc('gmail_svc_audit', { p_profile: user.id, p_deal: deal.id, p_action: 'mail.refused', p_detail: `Refused on Live Test (not a test address): ${refused.join(', ')}` });
-    return json(403, { error: `Not sent. ${TEST_ALLOWLIST_NOTE}`, refused, dryRun }, H);
-  }
+  // Nov 13 (John): no list of allowed test addresses. The team emails real addresses on TEST on purpose.
   const subjectIn = oneLine(b.subject, 250);
   if (!subjectIn) return json(400, { error: 'Add a subject.' }, H);
   const subject = subjectWithTag(subjectIn, deal.file_number || '', formatPropertyAddress(deal));
@@ -303,7 +299,6 @@ async function inviteSend(inv, user, ctx, deps) {
   const to = String(info.email || '').trim().toLowerCase();
   const mark = async (messageId, error) => { try { await deps.svc('invite_svc_mark_sent', { p_kind: kind, p_token: token, p_profile: user.id, p_to: to, p_message_id: messageId, p_error: error }); } catch (e) { /* the send result still goes back to the page */ } };
   if (deps.projectRef !== TEST_PROJECT_REF) return json(503, { error: 'Gmail phase 1 runs on CLA Portal Live Test only.' }, H);
-  if (!isAllowedTestRecipient(to)) { await mark(null, 'Not sent: Live Test only emails test addresses.'); return json(403, { error: `Not sent. ${TEST_ALLOWLIST_NOTE}`, refused: [to], to }, H); }
   if (typeof deps.authInvite !== 'function') return json(503, { error: `The portal mailbox (${PORTAL_INVITE_SENDER}) is not set up here. The invite was not emailed.`, to }, H);
   // portal_invite also rides in the Auth login itself, so the landing still finds the accept page if Auth falls back to its Site URL
   const opts = { redirectTo: inviteAuthRedirect(kind, token), data: { portal_invite: `${kind}.${token}` } };

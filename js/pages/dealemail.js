@@ -1,10 +1,10 @@
 // File > Email tab (John, Nov 9: Gmail phase 1, CLA Portal Live Test). Staff send email from their OWN @clatitle.com Gmail inside the file;
 // replies in the same Gmail thread come back to the file (checked every few minutes, or "Check for replies"). Attachments on a reply, on
 // mail sent from Gmail, and files added from the computer while composing are saved to Documents for CLA staff only, once. A file picked
-// from Documents is not saved again. The server refuses every address that is not a test address on Live Test, and never emails wire details.
+// from Documents is not saved again. The server never emails wire details. Any address can be emailed (John, Nov 13: no test-address list on TEST).
 import { html, raw, esc, toText, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611161500';
 import { editorHtml, mountEditor } from './compose.js?v=202611161500';
-import { canUseGmail, isAllowedTestRecipient, introRecipients, introTemplate, hasSignature, TEST_ALLOWLIST_NOTE, fileTag } from '../data/gmail-email.js?v=202611121900';
+import { canUseGmail, introRecipients, introTemplate, hasSignature, fileTag } from '../data/gmail-email.js?v=202611191000';
 import { applyFileTemplate } from '../data/file-email-templates.js?v=202611140400';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { countUnreadEmails, emailMatchesQuery, isUnreadFileEmail } from '../data/file-email-unread.js?v=202611140900';
@@ -51,7 +51,7 @@ export async function render({ api, deal, user, refresh: reload }) {
       <label>Search email on this file<input type="search" data-mail-search placeholder="Subject, from, or message" aria-label="Search email on this file"></label>
       ${g.connected ? html`<p data-mail-from>Sending from <strong>${g.mailbox}</strong>${g.status === 'needs_reconnect' ? html` <span class="pill bad">connect again on <a href="#/profile">Profile Setting</a></span>` : ''}</p>`
         : html`<div class="notice warn" data-mail-connect>Connect your @clatitle.com Gmail first: <a href="#/profile">Profile Setting &gt; Gmail</a>. You can still check an email below (nothing is sent).</div>`}
-      <p class="small muted" data-mail-allowlist>${TEST_ALLOWLIST_NOTE} Subjects get ${fileTag(deal.fileNumber, deal)} so replies are easy to find.</p>
+      <p class="small muted" data-mail-allowlist>Subjects get ${fileTag(deal.fileNumber, deal)} so replies are easy to find.</p>
       <p><button type="button" class="m-btn" data-mail-new>New email</button> <button type="button" class="m-btn" data-mail-intro>Introduction email</button>
         ${g.connected ? html`<button type="button" class="ghost" data-mail-sync>Check for replies</button>` : ''}</p>
     </div>
@@ -130,7 +130,6 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
       ? html`<input type="checkbox" disabled> ${d.name} <span class="pill bad">wire instructions are never emailed</span>` : html`<input type="checkbox" value="${d.id}" data-mail-doc> ${d.name} <span class="muted">${fmtSize(d.size || 0)}</span>`}</label><br>`)}</fieldset>` : ''}
     <label class="span2">Attach from your computer <span class="muted small">(saved to Documents, CLA staff only, when you send)</span><input type="file" data-mail-files multiple></label>
     <ul class="plain small" data-mail-file-list></ul>
-    <p class="span2 small muted" data-mail-note>${TEST_ALLOWLIST_NOTE}</p>
     <div class="span2" data-mail-check-result></div>
     <div class="span2"><button type="button" class="ghost" data-mail-check>Check (does not send)</button> <button type="button" class="m-btn" data-mail-send ${gmail.connected ? '' : raw('disabled title="Connect Gmail first"')}>Send</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
   const ed = mountEditor($('[data-mail-editor]', m)); ed.box.innerHTML = pre.html || '<p><br></p>';

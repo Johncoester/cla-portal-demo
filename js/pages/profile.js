@@ -10,7 +10,7 @@ export function firstProfileSave(hash) {
   const flagged = consumeAgentOnboard();
   return setup || flagged;
 }
-import { gmailCardHtml, mountGmailCard } from './gmail-card.js?v=202611161500';
+import { gmailCardHtml, mountGmailCard } from './gmail-card.js?v=202611191000';
 import { e2eGmailSetupHtml, mountE2eGmailSetup } from './e2e-gmail-setup.js?v=202611161500';
 
 export async function render({ api, refresh, go }) {
