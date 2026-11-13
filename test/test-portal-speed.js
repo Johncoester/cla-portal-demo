@@ -114,7 +114,7 @@ check(appSrc.includes("adapter.js?v=202611182120") && appSrc.includes("deal.js?v
 const taskPage = readFileSync(new URL('../js/pages/dealtasks.js', import.meta.url), 'utf8');
 const dealTab = readFileSync(new URL('../js/pages/deal-tab.js', import.meta.url), 'utf8');
 const dealPage = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
-check(taskPage.includes('constants.js?v=202611101015') && dealTab.includes('dealtasks.js?v=202611190300') && dealPage.includes('prefetchDealTab') && appSrc.includes('tabFlight.catch'), 'the tasks tab loads the current task module');
+check(taskPage.includes('constants.js?v=202611101015') && dealTab.includes('dealtasks.js?v=202611182110') && dealPage.includes('prefetchDealTab') && appSrc.includes('tabFlight.catch'), 'the tasks tab loads the current task module');
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 check(app.includes('Loading this page.') && app.includes('data-loading-note') && app.includes('#view') && !app.includes('getOrderOverview(dealId).then'), 'a file tab clears the open page before the next read and does not wait on a second overview');
 const widget = readFileSync(new URL('../js/pages/staff-feedback-widget.js', import.meta.url), 'utf8');
