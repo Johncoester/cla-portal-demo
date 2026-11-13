@@ -4,7 +4,7 @@
 import { html, raw, $, $$, guard, modal, closeModal, toast, fmtSize } from '../ui.js?v=202611161500';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isWireDocName, WIRE_BUYER_ONLY } from '../data/constants.js?v=202611101015';
 import { explainRecipients, recipientLabel } from '../data/message-recipients.js?v=202611110900';
-import { NO_LOGIN_TAG, NO_INVITE_TAG, canShareInvite, noLoginContactId, noLoginNote, shareInviteToast } from '../data/share-invite.js?v=202611191000';
+import { NO_LOGIN_TAG, NO_INVITE_TAG, canShareInvite, noLoginContactId, noLoginNote, shareInviteToast } from '../data/share-invite.js?v=202611191100';
 import { autoSendInvite } from '../data/invite-send.js?v=202611161500';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 const TOOLS = [['bold', 'B', 'Bold'], ['italic', 'I', 'Italic'], ['underline', 'U', 'Underline'], ['insertUnorderedList', '\u2022 List', 'Bulleted list'], ['insertOrderedList', '1. List', 'Numbered list'], ['link', 'Link', 'Insert link'], ['removeFormat', 'Clear', 'Clear formatting']];

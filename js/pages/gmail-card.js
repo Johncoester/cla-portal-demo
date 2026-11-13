@@ -1,8 +1,8 @@
 // Profile Setting > Gmail (John, Nov 9: Gmail phase 1, CLA Portal Live Test). Connect / Disconnect your own @clatitle.com Gmail and keep the
 // signature the portal adds to every email you send (the Gmail API does not add your Gmail signature, so the portal imports it: John, Nov 9 2:06 PM).
 import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611161500';
-import { editorHtml, mountEditor } from './compose.js?v=202611191000';
-import { GMAIL_RESULT, TEST_ALLOWLIST_NOTE } from '../data/gmail-email.js?v=202611121900';
+import { editorHtml, mountEditor } from './compose.js?v=202611191100';
+import { GMAIL_RESULT } from '../data/gmail-email.js?v=202611191000';
 export function sigSourceLine(g) {
   const when = g.signatureSyncedAt ? ` (imported ${fmtDateTime(g.signatureSyncedAt)})` : '';
   if (g.signatureSource === 'gmail') return htmlToTextLen(g.signatureHtml) ? `Your Gmail signature${when}.` : `Your Gmail has no signature${when}. Add one in Gmail, then Refresh from Gmail, or type one below.`;
@@ -19,7 +19,7 @@ export function gmailCardHtml(g, note) {
       ${g.viewAs ? html`<p class="muted" data-gmail-viewas>View as is read-only. Go back to your account to connect Gmail.</p>` : g.connected ? html`
         <p data-gmail-connected>Connected: <strong>${g.mailbox}</strong> ${g.status === 'needs_reconnect' ? html`<span class="pill bad" data-gmail-reconnect>Connect again</span>` : html`<span class="pill ok">connected</span>`}
           ${g.lastSyncAt ? html`<span class="muted small">Replies last checked ${fmtDateTime(g.lastSyncAt)}</span>` : ''}</p>
-        <p class="small muted">Emails you send from a file go out from this address and replies in the same thread show up on the file (checked every few minutes). ${TEST_ALLOWLIST_NOTE}</p>
+        <p class="small muted">Emails you send from a file go out from this address and replies in the same thread show up on the file (checked every few minutes).</p>
         <p>${g.status === 'needs_reconnect' ? html`<button type="button" class="m-btn" data-gmail-connect>Connect Gmail again</button> ` : ''}<button type="button" class="ghost" data-gmail-disconnect>Disconnect</button></p>
         <h3 class="small">Email signature (added once to every email you send from the portal)</h3>
         ${g.signatureScope ? '' : html`<div class="notice warn" data-gmail-sig-reconnect>Reconnect Gmail to import your signature. <button type="button" class="m-btn" data-gmail-connect>Reconnect Gmail</button></div>`}
@@ -30,7 +30,6 @@ export function gmailCardHtml(g, note) {
           <div data-gmail-sig-editor>${editorHtml('gmail-sig')}</div>
           <p><button type="button" class="m-btn" data-gmail-sig-save>Save signature</button> <span class="small muted">Refresh from Gmail puts your Gmail signature back.</span></p></details>` : html`
         <p data-gmail-off>Send and receive email inside a file from your own <strong>@clatitle.com</strong> Gmail. Google will ask you to allow the portal to <em>send</em> email as you and <em>read</em> email; the portal only keeps messages in threads started from a file.</p>
-        <p class="small muted">${TEST_ALLOWLIST_NOTE}</p>
         <p><button type="button" class="m-btn" data-gmail-connect>Connect Gmail</button></p>`}
     </div>`;
 }

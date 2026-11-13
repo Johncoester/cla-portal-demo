@@ -31,7 +31,7 @@ import { tcSupabase } from './supabase-tc.js?v=202611140800';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
 import { gmailSupabase } from './supabase-gmail.js?v=202611140900';
 import { nov5Supabase } from './supabase-nov5.js?v=202611162200';
-import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611141400';
+import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611191000';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611140100';
 import { staffSupabase } from './supabase-staff.js?v=202611141400';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
@@ -53,7 +53,7 @@ import { claRepresentationCode, claRepresentationLabel } from './cla-representat
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
 import { readThreadPeople, roleText, withThreadPeople } from './portal-threads.js?v=202611162200';
-import { ensureShareInvite, waitingParticipant } from './share-invite.js?v=202611191000';
+import { ensureShareInvite, waitingParticipant } from './share-invite.js?v=202611191100';
 import { activityFilters, actorList, applyActivityFilters, hasActivityFilter, matchesActivity, withActors } from './activity-filter.js?v=202611162000';
 import { resetRedirect } from './reset-redirect.js?v=202611161900';
 import { authEventAction, carriedReads, gatherReads, identitySlot, mapLimit, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611111200';

@@ -24,7 +24,7 @@ test('file email composer fills a template and does not send from mock', async (
   expect(`${subject}\n${body}`).not.toMatch(/\{\{[^}]+\}\}/);
   await page.locator('[data-mail-to]').fill('buyer@example.test');
   await page.locator('[data-mail-check]').click();
-  await expect(page.locator('[data-mail-check-result]')).toContainText(/Gmail works on CLA Portal Live Test only|Nothing was sent|not a test/i);
+  await expect(page.locator('[data-mail-check-result]')).toContainText(/Gmail works on CLA Portal Live Test only|Nothing was sent/i);
   expect(leaked).toEqual([]);
   expect(freshIssues(issues)).toEqual([]);
 });

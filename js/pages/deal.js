@@ -1,6 +1,6 @@
 // Deal detail: File Overview + dispatcher to the other file tabs (tasks, inbox, documents, contacts, activity).
 import { html, raw, toText, esc, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611161500';
-import { TEST_ALLOWLIST_NOTE, isAllowedTestRecipient, textToHtml, hasSignature } from '../data/gmail-email.js?v=202611121900';
+import { textToHtml, hasSignature } from '../data/gmail-email.js?v=202611191000';
 import { disbursementFor } from '../data/disbursement.js?v=202611190600';
 import { occSelects, yesNo } from './occ-fields.js?v=202611161500';
 import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611101015';
@@ -8,17 +8,17 @@ import { officeDate } from '../data/office-date.js?v=202611102100';
 import { modOn } from '../data/modules.js?v=202611101015';
 import { slotText } from './dealclosing.js?v=202611170800';
 import { pickerHtml, mountPicker } from './person-picker.js?v=202611161500';
-import { composeModal } from './compose.js?v=202611191000';
+import { composeModal } from './compose.js?v=202611191100';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611092320';
 import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611101015';
 import { canManageClosingLocations } from '../data/closing-location.js?v=202611101015';
 import { settlementSectionHtml, closingDateSectionHtml, mountSettlement } from './settlement-section.js?v=202611161500';
 import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611161500';
 import { themeOn } from '../theme.js?v=202611070139';
-import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611191000';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611191000';
+import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611191100';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611191100';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611191000';
+import { prefetchDealTab } from './deal-tab.js?v=202611191100';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';
@@ -482,11 +482,11 @@ async function automationModal(api, d) {
   // one sign-off only: when the portal signature goes on the email, the built-in body leaves the name to it
   const P = await api.previewSellerAgentEmails(d.id, { portalSignature: on && hasSignature(g.signatureHtml) }); const sendable = P.messages.filter((m) => m.email);
   // John, Nov 9 (Gmail phase 1): Send goes out one email per person from the user's own Gmail through gmail-send (the server refuses non-test addresses on Live Test)
-  const m = modal('Email sellers and agents', html`${on ? html`<div class="notice info" data-gmail-on-modal>Sends one email per person from <strong>${g.mailbox}</strong>. ${TEST_ALLOWLIST_NOTE}</div>`
+  const m = modal('Email sellers and agents', html`${on ? html`<div class="notice info" data-gmail-on-modal>Sends one email per person from <strong>${g.mailbox}</strong>.</div>`
       : html`<div class="notice warn" data-gmail-off-modal><strong>Preview only.</strong> Connect your Gmail on <a href="#/profile">Profile Setting</a> to send. Nothing has been sent.</div>`}
     <p class="small muted" data-wire-rule>${P.wireRule}</p>
     ${P.messages.length ? P.messages.map((x) => html`<div class="card preview-msg" data-preview-msg="${x.role}" data-preview-agent="${x.agent ? '1' : '0'}">
-      <div class="small"><strong>To:</strong> ${x.name} &lt;${x.email || 'no email on file'}&gt; &middot; ${x.roleLabel}${x.noEmail ? html` <span class="pill bad">no email</span>` : ''}${x.email && !isAllowedTestRecipient(x.email) ? html` <span class="pill warn">not a test address: Live Test will refuse it</span>` : ''}</div>
+      <div class="small"><strong>To:</strong> ${x.name} &lt;${x.email || 'no email on file'}&gt; &middot; ${x.roleLabel}${x.noEmail ? html` <span class="pill bad">no email</span>` : ''}</div>
       <div class="small"><strong>Template:</strong> <span data-preview-template>${x.template}</span>${x.fromCrm ? html` <span class="pill info">CRM template</span>` : ''}</div>
       <div class="small"><strong>Subject:</strong> <span data-preview-subject>${x.subject}</span></div>
       <pre class="preview-body" data-preview-body>${x.body}</pre>
