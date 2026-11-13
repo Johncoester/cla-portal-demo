@@ -1,7 +1,7 @@
 -- AF-4 Agent fees: when CLA staff change fees an agent (or TC) confirmed, the agent on that side is told right away, in the portal
 -- (bell) and by an email QUEUED in public.outbox (never sent on TEST): old value, new value, the reason and who changed it.
 -- Notification only: the agent is not asked to re-approve (John, Nov 12 2026, decision 3). Staff changes to fees nobody confirmed
--- send nothing. Replaces private.agent_fee_notify from AF-3 (20261117120000_agent_fee_notify.sql); save_agent_fees is unchanged.
+-- send nothing. Replaces private.agent_fee_notify from AF-3 (20261118020000_agent_fee_notify.sql); save_agent_fees is unchanged.
 begin;
 set local lock_timeout = '3s';
 
