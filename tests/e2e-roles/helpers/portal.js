@@ -261,8 +261,12 @@ export async function fillAssignedTasks(page, run, { requireUpload = true } = {}
     const idTask = page.getByRole('link', { name: /Upload (photo |identification|your )?ID/i }).first();
     if (await idTask.count()) {
       await idTask.click();
-      await page.locator('#tform, [data-task-form-state]').first().waitFor();
+      await page.locator('#tform, [data-task-form-state], [data-task-done-read-only]').first().waitFor();
       if (await page.locator('#tform input[type="file"]').count()) sawFile = true;
+      // FF-069d (Nov 12): a finished task is read-only for the client (no form, a Back button), so a done ID task cannot show
+      // an upload control any more. It counts when the read-only view lists the uploaded ID and offers Back to tasks.
+      else if (await page.locator('[data-task-done-read-only]').count() && await page.locator('[data-task-done-back]').count()
+        && await page.locator('#view dl.answers dd').count()) sawFile = true;
     }
   }
   if (requireUpload) expect(sawFile, 'no assigned form showed an upload control').toBeTruthy();
