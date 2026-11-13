@@ -104,8 +104,9 @@ export function mountIntakeForm(root, { api, t, afterSave }) {
     rows.insertAdjacentHTML('beforeend', `<div class="form-grid" data-mortgage-row="${i}"><label>Lender<input data-mlender></label><label>Phone<input data-mphone type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone maxlength="12"></label><label>Loan number<input data-mloan maxlength="30" autocomplete="off"></label><label>Type<input data-mtype></label></div>`); });
   form.addEventListener('change', sync); sync();
   // FF-011: typing a full street line ("12 Main St, Rockville, MD 20850") fills the empty city, state and ZIP boxes on the same form
-  if (form.elements.street && form.elements.city) bindAddressFill(form);
-  if (form.elements.mail_street && form.elements.mail_city) bindAddressFill(form, { prefix: 'mail_' });
+  const named = (n) => form.querySelector(`[name="${n}"]`);
+  if (named('street') && named('city')) bindAddressFill(form);
+  if (named('mail_street') && named('mail_city')) bindAddressFill(form, { prefix: 'mail_' });
   $$('[data-plus]', form).forEach((b) => b.addEventListener('click', () => { const cb = form.elements[b.dataset.plus]; cb.checked = !cb.checked;
     b.textContent = cb.checked ? '\u2212 Remove entity' : '+ Add entity'; b.setAttribute('aria-pressed', String(cb.checked)); sync(); }));
   $$('[data-help]', form).forEach((b) => b.addEventListener('click', () => { const pnl = $(`[data-help-panel="${b.dataset.help}"]`, form); pnl.hidden = !pnl.hidden; b.setAttribute('aria-expanded', String(!pnl.hidden)); }));
