@@ -1,7 +1,7 @@
 # Agent fees flow (commissions, admin fees, other agent fees)
 
 **Requested by:** John Coester, Nov 12 2026 (chat t1542u).
-**Status:** Partial. See [ROADMAP.md](../../ROADMAP.md#agent-fees-flow).
+**Status:** Partial. AF-1 (records and history) is in progress. See [ROADMAP.md](../../ROADMAP.md#agent-fees-flow).
 **Audit:** Grok, Nov 12 2026, against main `3966fd07` and the TEST database (read only).
 
 ## What John asked for
@@ -130,6 +130,16 @@ Adjusted to John's Nov 12 answers.
 **Risks:** agents and TCs changing money figures (every write goes through a checked server function, never directly into a table); buyers and sellers can read the commission columns today, which has to change; the same figure stored in three places unless AF-1 replaces the older ones; % and $ rounding must never leave them out of step; email notices depend on Gmail sending working; Accounting has to stay switched on for AF-5; automatic lines must respect a processor's manual override.
 
 **Where it sits:** John's hold applies (AGENTS.md rule 9). No new feature starts until the e2e-roles walkthrough on main is green, which needs Gmail connected for the E2E Processor. Agent fees stays behind FF-055 and the work confirmed today.
+
+## AF-1 as built (database)
+
+Migration `supabase/migrations/20261117100000_agent_fees.sql` (rollback in `supabase/rollbacks/`), test `test/test-agent-fees-sql.sh`.
+
+- `deal_agent_fees`: one row per file, side (`listing`, `buyer`), kind (`commission`, `admin`, `other`) and slot (0, or 1-5 for other fees). Commission rows keep a `basis` (`percent` or `amount`, whichever was typed), `pct` (8 decimals) and `amount` (cents). Every row has `payer` (`buyer` or `seller`; default buyer on the buyer's agent side, seller on the listing side), `source` (`staff`, `agent`, `tc`, `system`) and `confirmed_by` / `confirmed_role` (`agent` or `tc`) / `confirmed_at`.
+- `deal_agent_fee_log`: every change with old and new value (JSON), reason, source, who and when. Confirming an unchanged value is logged with reason "Confirmed".
+- Nobody reads or writes the tables directly (no grants, row security on). Functions: `agent_fees(deal)` and `agent_fee_history(deal)` return what the caller may see (staff who can open the file: both sides; an agent: their side; a TC: the side of an agent they coordinate for, or both sides if they're the file's TC; buyers and sellers: nothing). `save_agent_fees(deal, side, fees, reason)` replaces one side's fees, checks every value with plain messages, and needs a reason (3+ characters) when staff change or remove a fee an agent or TC confirmed. An agent or TC saving confirms every fee on their side. Staff saving keeps the confirmation record (no re-approval, Decision 3).
+- A trigger on `deals.purchase_price` works each commission out again from its basis and logs it as `system`.
+- Not yet used by any screen (AF-2). The older commission columns on `deals` are untouched until AF-2 moves the screens over.
 
 ## Open questions (resolved Nov 12 2026 by John)
 
