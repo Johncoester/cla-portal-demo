@@ -26,7 +26,7 @@ import { crmSupabase } from './supabase-crm.js?v=202611160500';
 import { hrSupabase } from './supabase-hr.js?v=202611100130';
 import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611130900';
 import { officesSupabase } from './supabase-offices.js?v=202611101015';
-import { closingLocationSupabase } from './supabase-closing-location.js?v=202611120500';
+import { closingLocationSupabase } from './supabase-closing-location.js?v=202611170800';
 import { tcSupabase } from './supabase-tc.js?v=202611140800';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
 import { gmailSupabase } from './supabase-gmail.js?v=202611140900';
@@ -813,7 +813,7 @@ export async function createSupabaseAdapter(cfg) {
     async listClosingProposals(dealId) { return camel(ok(await sb.from('closing_proposals').select('*').eq('deal_id', dealId).order('created_at', { ascending: false }))).map((p) => ({ ...p, at: String(p.proposedAt).slice(0, 16) })); },
     async proposeClosing(dealId, { at, location, note, officeId }) { return { id: ok(await sb.rpc('propose_closing', { p_deal: dealId, p_at: at, p_location: location, p_note: note || '', p_office: officeId || null })) }; },
     async confirmClosing(dealId, { at, location, note, proposalId, officeId, closingManualStreet, closingManualCity, closingManualState, closingManualZip } = {}) {
-      const typed = location === 'Typed address' && closingManualStreet;
+      const typed = (location === 'Typed address' || location === 'Mobile notary') && closingManualStreet;   // FF-063 #3: a mobile notary's signing address is kept the same way
       ok(await sb.from('deals').update({
         closing_manual_street: typed ? closingManualStreet : '', closing_manual_city: typed ? (closingManualCity || '') : '',
         closing_manual_state: typed ? (closingManualState || '') : '', closing_manual_zip: typed ? (closingManualZip || '') : '',
