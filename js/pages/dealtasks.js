@@ -20,7 +20,7 @@ export async function render(ctx) {
   if (intakeDeal !== deal.id) { intakeDeal = deal.id; intakeOpen.clear(); }
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
   if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611171000')).render(ctx);
-  const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611161500');
+  const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611162300');
   const allTasks = tasksWithLenderOnFile(await api.listTasks(deal.id), deal);
   const taskQuery = new URLSearchParams(location.hash.split('?')[1] || '');
   const mineOnly = taskQuery.get('mine') === '1';
