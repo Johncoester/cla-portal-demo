@@ -31,7 +31,9 @@ ok(r.res.status === 400 && !r.calls.claim.length, 'an invite login that already 
 r = await go({ exists: true, stub: null });
 ok(r.res.status === 400 && !r.calls.claim.length, 'an unknown existing login is refused');
 r = await go({ exists: true, stub: { id: 'stub-2', invited: true, hasProfile: false }, acceptError: Object.assign(new Error('Cell phone must be a 10-digit phone number.'), { code: '22023' }) });
-ok(r.res.status === 400 && r.j.error === 'Cell phone must be a 10-digit phone number.' && r.calls.del[0] === 'stub-2', 'a rejected form removes the unlinked login so the person can try again');
+// FF-073a (Nov 12): a claimed invite-only login is no longer deleted on a rejected form. It stays invited with no profile,
+// so the person can still try again (the next submit claims it again), and a duplicate submit can no longer delete a linked login.
+ok(r.res.status === 400 && r.j.error === 'Cell phone must be a 10-digit phone number.' && !r.calls.del.length, 'a rejected form keeps the invite-only login so the person can try again');
 r = await go({}, 'https://evil.example');
 ok(r.res.status === 403 && !r.calls.create, 'other origins are refused');
 
