@@ -71,7 +71,59 @@ export async function allowPendingInvite400(page, issues) {
   });
 }
 
+/* Nov 13: Playwright's own trace recorded every typed value, including the test passwords (the Fill step and the sign-in
+ * request body), and failed runs upload that trace as a downloadable artifact. The runner's trace is off (playwright.config.js).
+ * This fixture records the trace itself, in chunks, and signIn pauses it while the email and password are typed and sent,
+ * so nothing typed on the login form, and no sign-in request, is in any trace. A failed test keeps its chunks
+ * (trace-1.zip, trace-2.zip, ...); a passing test's chunks are deleted. */
+const traceState = new WeakMap();
+
+async function saveChunk(context, state) {
+  state.n += 1;
+  const file = state.testInfo.outputPath(`trace-${state.n}.zip`);
+  await context.tracing.stopChunk({ path: file });
+  state.files.push(file);
+  state.on = false;
+}
+
+export async function pauseTrace(page) {
+  const state = traceState.get(page.context());
+  if (state && state.on) await saveChunk(page.context(), state);
+}
+
+export async function resumeTrace(page) {
+  const state = traceState.get(page.context());
+  if (!state || state.on) return;
+  // The trace's page copies keep what is in each box, so a login box still on screen is emptied before recording starts again.
+  await page.evaluate(() => {
+    document.querySelectorAll('input[type="password"], #login-form input').forEach((el) => { el.value = ''; });
+  }).catch(() => { /* the page is navigating */ });
+  await page.context().tracing.startChunk();
+  state.on = true;
+}
+
 export const test = base.extend({
+  context: async ({ context }, use, testInfo) => {
+    const state = { n: 0, on: false, files: [], testInfo };
+    traceState.set(context, state);
+    await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
+    await context.tracing.startChunk();
+    state.on = true;
+    try {
+      await use(context);
+    } finally {
+      try {
+        if (state.on) await saveChunk(context, state);
+        await context.tracing.stop();
+      } catch (e) { /* the context already closed */ }
+      const failed = testInfo.status !== testInfo.expectedStatus;
+      for (const file of state.files) {
+        if (!fs.existsSync(file)) continue;
+        if (failed) await testInfo.attach(path.basename(file, '.zip'), { path: file, contentType: 'application/zip' });
+        else fs.rmSync(file, { force: true });
+      }
+    }
+  },
   issues: async ({ page }, use) => {
     if (targetMode() !== 'test') {
       await page.route('**/config.js*', (route) => route.fulfill({ status: 404, body: '' }));
@@ -119,9 +171,17 @@ export async function signIn(page, key) {
     const email = process.env[person.emailEnv] || '';
     const password = process.env[person.passwordEnv] || '';
     if (!email || !password) throw new Error(`Missing secret ${person.emailEnv} or ${person.passwordEnv}.`);
-    await page.locator('#login-form input[name="email"]').fill(email);
-    await page.locator('#login-form input[name="password"]').fill(password);
-    await page.locator('#login-form button[type="submit"]').click();
+    // Not traced: the typed email and password, and the sign-in request that carries them (see pauseTrace above).
+    await page.locator('#login-form').waitFor();
+    await pauseTrace(page);
+    try {
+      await page.locator('#login-form input[name="email"]').fill(email);
+      await page.locator('#login-form input[name="password"]').fill(password);
+      await page.locator('#login-form button[type="submit"]').click();
+      await page.waitForFunction(() => !location.hash.includes('/login'));
+    } finally {
+      await resumeTrace(page);
+    }
   } else {
     await page.locator('#who').waitFor();
     await page.locator(`#who option[value="${person.mockId}"]`).waitFor({ state: 'attached' });
