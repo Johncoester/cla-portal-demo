@@ -114,7 +114,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Buyer, seller and agent invites from a file's Contacts tab, with an automatic invite email ([PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140)).
 - FF-073a (Janine's buyer recordings, Nov 12): accepting an invite twice (double-click or a second tab) can no longer delete the login. Only a login made in that same request that never became a portal user is cleaned up.
 - FF-073b: the Forgot password email's link opens the portal the person is using (testportal.clatitle.com on TEST), not the old GitHub address.
-- FF-055 / MF-048 (Francis, Nov 11; John, Nov 13): Share Files to someone on the file who has no portal login yet. For CLA staff the To list marks that person "no portal login yet; will be invited". On Send the portal emails them the usual invite and holds the message and the files; the conversation shows them as "invited, not signed in yet". When they set up their login, the conversation is waiting for them, unread. Before this, Share Files to that person always failed with "Pick at least one recipient on this order". Needs the database change 20261119030000_share_invited_hold on TEST; until it is applied, picking that person gives a plain message instead. Not Live until then.
+- FF-055 / MF-048 (Francis, Nov 11; John, Nov 13): Share Files to someone on the file who has no portal login yet. For CLA staff the To list marks that person "no portal login yet; will be invited". On Send the portal emails them the usual invite and holds the message and the files; the conversation shows them as "invited, not signed in yet". When they set up their login, the conversation is waiting for them, unread. Before this, Share Files to that person always failed with "Pick at least one recipient on this order". Needs the database change 20261119030000_share_invited_hold on TEST; until it is applied, picking that person gives a plain message instead. Not Live until then. ([PR 251](https://github.com/Johncoester/cla-portal-demo/pull/251))
 
 **What's still missing**
 
@@ -124,7 +124,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: none yet.
-- Related pull requests: [PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140), [PR 219](https://github.com/Johncoester/cla-portal-demo/pull/219) (FF-073a), [PR 220](https://github.com/Johncoester/cla-portal-demo/pull/220) (FF-073b).
+- Related pull requests: [PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140), [PR 219](https://github.com/Johncoester/cla-portal-demo/pull/219) (FF-073a), [PR 220](https://github.com/Johncoester/cla-portal-demo/pull/220) (FF-073b), [PR 251](https://github.com/Johncoester/cla-portal-demo/pull/251) (FF-055 / MF-048).
 
 **Decisions**
 
