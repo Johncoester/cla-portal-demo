@@ -2,22 +2,6 @@
  * The server (supabase/functions/_shared/gmail-core.mjs) decides; this only mirrors it so the page can explain before you press Send. */
 export const GMAIL_ROLES = ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin'];
 export const canUseGmail = (u) => !!u && !u.accountRole && u.role !== 'Outside user' && (GMAIL_ROLES.includes(u.role) || (!!u.isAdmin && u.role !== 'Employee'));
-export const TEST_ALLOWLIST_NOTE = 'CLA Portal Live Test only sends to test addresses: clatestportal@gmail.com, clatestportal+anything@gmail.com, any @clatitle.com address, jcoester-6jkr3p@mail.grokbot.com, testbuyerjohnc@gmail.com, testsellergael@gmail.com, johncoester@gmail.com, and listingagentrosy@gmail.com. Every other address is refused.';
-const EXACT_TEST_RECIPIENTS = new Set([
-  'clatestportal@gmail.com',
-  'jcoester-6jkr3p@mail.grokbot.com',
-  'testbuyerjohnc@gmail.com',
-  'testsellergael@gmail.com',
-  'johncoester@gmail.com',
-  'listingagentrosy@gmail.com',
-]);
-export function isAllowedTestRecipient(addr) {
-  const a = String(addr || '').trim().toLowerCase();
-  if (!/^[a-z0-9._%+'-]{1,64}@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,24}$/.test(a) || a.includes('..')) return false;
-  if (EXACT_TEST_RECIPIENTS.has(a)) return true;
-  if (/^clatestportal\+[a-z0-9._-]{1,64}@gmail\.com$/.test(a)) return true;
-  return /^[a-z0-9._%+'-]+@clatitle\.com$/.test(a);
-}
 // "123 Main St, Rockville MD 20850" — comma after street only; empty parts omitted (John, Nov 9)
 export function formatPropertyAddress(deal = {}) {
   const street = String(deal && deal.street || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();

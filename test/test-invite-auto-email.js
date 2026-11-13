@@ -75,8 +75,9 @@ r = await run({ invite: { kind: 'agent', token: 'short' } }); ok(r.res.status ==
 r = await run({ invite: { kind: 'agent', token: TOKEN } }, { rpcError: 'Only CLA staff can send portal invites.' });
 ok(r.res.status === 403 && /Only CLA staff/.test(r.j.error) && !r.calls.auth.length, 'someone who may not invite (e.g. a TC) is refused, nothing sent');
 r = await run({ invite: { kind: 'agent', token: TOKEN } }, { info: { ...fileInfo, email: 'carrie.real@remax.example' } });
-ok(r.res.status === 403 && r.j.refused[0] === 'carrie.real@remax.example' && !r.calls.auth.length, 'Live Test refuses a real (non-test) address');
-ok(r.calls.svc.some((x) => x.fn === 'invite_svc_mark_sent' && /test addresses/.test(x.args.p_error)), 'the refusal is recorded on the invite');
+// Nov 13 (John): no test-address list on TEST. A real address gets its invite like any other.
+ok(r.res.status === 200 && r.j.sent === true && r.calls.auth.length === 1 && r.calls.auth[0].email === 'carrie.real@remax.example', 'Live Test sends the invite to a real (non-test) address');
+ok(!r.calls.svc.some((x) => x.fn === 'invite_svc_mark_sent' && /test addresses/.test(String(x.args.p_error || ''))), 'nothing records a test-address refusal');
 for (const a of ['testbuyerjohnc@gmail.com', 'testsellergael@gmail.com', 'johncoester@gmail.com', 'listingagentrosy@gmail.com']) {
   r = await run({ invite: { kind: 'agent', token: TOKEN } }, { info: { ...fileInfo, email: a } });
   ok(r.j.sent === true && r.calls.auth[0].email === a, `the test inbox ${a} is allowed`);

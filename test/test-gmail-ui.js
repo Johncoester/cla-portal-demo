@@ -1,7 +1,7 @@
 /* Gmail phase 1 (John, Nov 9): page-side rules + Email tab / Profile card markup with a fake adapter. No network. */
-import { canUseGmail, isAllowedTestRecipient as pageAllow, introRecipients, introTemplate, GMAIL_RESULT, hasSignature } from '../js/data/gmail-email.js';
+import { canUseGmail, introRecipients, introTemplate, GMAIL_RESULT, hasSignature } from '../js/data/gmail-email.js';
 import { buildSellerAgentPreview } from '../js/data/automation.js';
-import { isAllowedTestRecipient as serverAllow, hasWireDetails, GMAIL_ROLES as SERVER_ROLES } from '../supabase/functions/_shared/gmail-core.mjs';
+import { hasWireDetails, GMAIL_ROLES as SERVER_ROLES } from '../supabase/functions/_shared/gmail-core.mjs';
 import { GMAIL_ROLES } from '../js/data/gmail-email.js';
 import { toText } from '../js/ui.js';
 import { gmailCardHtml } from '../js/pages/gmail-card.js';
@@ -11,7 +11,6 @@ import { readFileSync } from 'node:fs';
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
 ok(JSON.stringify(GMAIL_ROLES) === JSON.stringify(SERVER_ROLES), 'page and server agree on who can connect Gmail');
-for (const a of ['clatestportal@gmail.com', 'clatestportal+x@gmail.com', 'a@clatitle.com', 'jcoester-6jkr3p@mail.grokbot.com', 'testbuyerjohnc@gmail.com', 'TESTSELLERGAEL@gmail.com', 'johncoester@gmail.com', 'listingagentrosy@gmail.com', 'b@gmail.com', 'x@clatitle.com.evil.com', 'clatestportal+@gmail.com', 'A..b@clatitle.com', 'testbuyerjohnc+x@gmail.com', 'johncoester@gmail.com.evil.com']) ok(pageAllow(a) === serverAllow(a), `page mirrors the server allowlist: ${a}`);
 for (const r of ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin']) ok(canUseGmail({ role: r }), `${r} can use Gmail`);
 for (const u of [{ role: 'Employee' }, { role: 'Outside user' }, { role: 'Processor', accountRole: 'buyer' }, null]) ok(!canUseGmail(u), `no Gmail for ${JSON.stringify(u)}`);
 const deal = { id: 'd1', fileNumber: 'MD-26-97207', street: '1 Main St', city: 'Annapolis', state: 'MD', closingDate: '2026-12-15', participants: [
@@ -54,7 +53,7 @@ const api = { getGmailStatus: async () => ({ available: true, allowed: true, con
 const v = await renderEmail({ api, deal, user: { role: 'Processor', firstName: 'A', lastName: 'B' } });
 const b = toText(v.body);
 ok(b.includes('Sending from <strong>me@clatitle.com</strong>') && (b.match(/data-mail-thread=/g) || []).length === 1 && (b.match(/data-mail-msg=/g) || []).length === 2 && b.includes('data-mail-dir="in"') && b.includes('id.pdf') && b.includes('CLA staff only'), 'Email tab: one thread, sent + received, attachment listed for staff Documents');
-ok(b.includes('data-mail-intro') && b.includes('data-mail-sync') && b.includes('[CLA #MD-26-97207]') && b.includes('test addresses'), 'Email tab: Introduction email, Check for replies, tag + Live Test note');
+ok(b.includes('data-mail-intro') && b.includes('data-mail-sync') && b.includes('[CLA #MD-26-97207]') && !b.includes('test addresses'), 'Email tab: Introduction email, Check for replies, tag, and no test-address note');
 ok(b.includes('data-mail-search') && b.includes('Subject, from, or message') && b.includes('aria-label="Search email on this file"'), 'Email tab: search box for subject, from, and message');
 ok((b.match(/data-mail-unread="1"/g) || []).length === 2 && b.includes('data-mail-unread-count') && b.includes('2 unread'), 'Email tab: mail not yet viewed is counted');
 ok(!b.includes('<p>Thanks</p>'), 'Email tab: message bodies are not put into the page (they open in a sandboxed frame)');

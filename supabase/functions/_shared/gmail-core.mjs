@@ -41,28 +41,9 @@ export function estimateMimeBytes(fileBytes, extra = 0) {
 export const MAX_SAVE_BYTES = 25_000_000;     // deal-documents bucket limit
 export const MAX_BODY_CHARS = 200_000;
 export const UPLOAD_EXT = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'png', 'jpg', 'jpeg', 'heic', 'heif', 'webp'];   // = private.upload_ext_ok
-export const TEST_ALLOWLIST_NOTE = 'CLA Portal Live Test only sends to test addresses: clatestportal@gmail.com, clatestportal+anything@gmail.com, any @clatitle.com address, jcoester-6jkr3p@mail.grokbot.com, testbuyerjohnc@gmail.com, testsellergael@gmail.com, johncoester@gmail.com, and listingagentrosy@gmail.com. Every other address is refused.';
 
 const EMAIL_RE = /^[a-z0-9._%+'-]{1,64}@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,24}$/;
 export const isEmail = (a) => EMAIL_RE.test(String(a || '')) && !String(a).includes('..');
-
-/* Live Test recipient allowlist (server-side; the page only mirrors it). The four named Gmail
- * addresses are exact (case-insensitive). A plus-tag or a different domain is still refused. */
-const EXACT_TEST_RECIPIENTS = new Set([
-  'clatestportal@gmail.com',
-  'jcoester-6jkr3p@mail.grokbot.com',
-  'testbuyerjohnc@gmail.com',
-  'testsellergael@gmail.com',
-  'johncoester@gmail.com',
-  'listingagentrosy@gmail.com',
-]);
-export function isAllowedTestRecipient(addr) {
-  const a = String(addr || '').trim().toLowerCase();
-  if (!isEmail(a)) return false;
-  if (EXACT_TEST_RECIPIENTS.has(a)) return true;
-  if (/^clatestportal\+[a-z0-9._-]{1,64}@gmail\.com$/.test(a)) return true;
-  return /^[a-z0-9._%+'-]+@clatitle\.com$/.test(a);
-}
 
 /* "Name <a@b>, c@d; e@f" or an array -> unique lower-case addresses + the pieces that are not addresses */
 export function parseAddressList(input) {
