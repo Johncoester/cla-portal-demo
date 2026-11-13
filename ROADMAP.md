@@ -26,7 +26,7 @@ This file lists the portal's major features: how each one should work, how far a
 | AF-3 | Agent or TC changes: "You're changing X from $A to $B", "Agent confirmed", notices to staff | Live on TEST, [PR 235](https://github.com/Johncoester/cla-portal-demo/pull/235) |
 | AF-4 | Notice to the agent when staff change a confirmed fee | Live on TEST, [PR 236](https://github.com/Johncoester/cla-portal-demo/pull/236) |
 | AF-5 | Fees post to Accounting automatically | Live on TEST, [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) |
-| AF-6 | "Generate CD" and "Generate ALTA" PDF buttons | In progress, PR AF-6 |
+| AF-6 | "Generate CD" and "Generate ALTA" PDF buttons | Live on TEST, [PR 238](https://github.com/Johncoester/cla-portal-demo/pull/238) |
 
 **What's built**
 
