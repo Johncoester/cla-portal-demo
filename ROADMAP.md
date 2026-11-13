@@ -106,12 +106,38 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: none yet.
-- Related pull requests: [PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140), [PR 219](https://github.com/Johncoester/cla-portal-demo/pull/219) (FF-073a), FF-073b (this change).
+- Related pull requests: [PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140), [PR 219](https://github.com/Johncoester/cla-portal-demo/pull/219) (FF-073a), [PR 220](https://github.com/Johncoester/cla-portal-demo/pull/220) (FF-073b).
 
 **Decisions**
 
 - accept-invite never deletes an existing or just-claimed login (John, Nov 12, 6:09 PM ET).
 - The reset link uses the current portal address; the Auth redirect list is John's setting, not changed by a pull request.
+
+---
+
+## File page fixes from Janine's Nov 12 video
+
+**How it should work.** On a file, the bell, Messages, Closing appointment, tasks, Documents and Activity behave the way Janine and Francis described in the Nov 12 "Processor and Seller Screens" video and Francis's confirm-back (Nov 12, 6:14 PM ET).
+
+**Status: Partial.**
+
+**What's built**
+
+- FF-071b (#22): the Activity tab's filters (type, person, date, words) work, and each row shows who did it.
+
+**What's still missing**
+
+- FF-064/065, FF-070, FF-063, FF-069d and the other confirmed items (#3, #6 to #9, #11, #12, #14, #17, #20, #21, #23, #24, street address lookup) are being built one pull request at a time.
+- On hold: #1, #2, #4, #5, #10, #13, #15, #16, citizenship, spouse marital status, entity documents required, phone and email icons with no app.
+
+**Links**
+
+- Spec: none yet. Source: Janine's video Nov 12 2:57 PM ET; Francis Feedback tickets FF-063 to FF-072.
+- Related pull requests: FF-071b (this change).
+
+**Decisions**
+
+- John approved fixing the bugs without waiting (Nov 12, 6:08 PM ET); Francis confirmed the rest on Nov 12, 6:14 PM ET.
 
 ---
 
