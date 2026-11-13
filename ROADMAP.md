@@ -179,6 +179,34 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Processor file overview cleanup (MF-054 / FF-074)
+
+**How it should work.** On the processor File Overview, the only sections that stay are the light gray file box at the top (address, file number, settlement date), the Order Status milestone box, and Parties (with contact info), Notes, and everything below Notes. The buyer, seller and personal-detail boxes come off this screen. Closing date, time and how many days are left sit at the bottom of the Closing Date button in the left column, and the gray Closing Date box is gone from File Overview. The EMD box is gone too (that information is already in Order Status). This replaces MF-052 and MF-047.
+
+**Status: Built (not Live yet).** The pull request is open. No database change. Mark Live after it is merged.
+
+**What's built**
+
+- Staff File Overview no longer shows the buyer/seller box, the EMD / Earnest & commissions box, or the gray Closing Date card.
+- Order Status stays, with the disbursement date (FF-071c), open tasks, unread email, and Edit order details.
+- Parties, Notes, Automation, Agent fees, and the sections under Notes stay. Source of business is shown with Parties.
+- The Closing Date button in the left column shows the closing date, time and days remaining at the bottom. Client and agent overviews are unchanged.
+
+**What's still missing**
+
+- Nothing from the confirmed list. Signing method and closing location stay on the Closing Date tab (they were too long for the left-column button).
+
+**Links**
+
+- Spec: none yet. Source: Matt's Nov 12 Processor User-File Overview notes (Gmail 1a1d0725a93810ce) and his Nov 12 2:04 PM ET confirmation; FF-074 is the same request, re-forwarded Nov 13 8:52 AM ET. Tracker row 207 (MF-054); FF-074 is the duplicate row.
+- Related pull requests: this change.
+
+**Decisions**
+
+- Matt confirmed the numbered list on Nov 12 at 2:04 PM ET. MF-054 supersedes MF-052 and MF-047. John waived rule 9 at 1:25 PM ET Nov 13 (t1618u) so this could be built while the walkthrough's remaining email failure was set aside. Agent fees stays on the overview because it is a separate live feature (AF-2), not one of the redundant boxes Matt asked to remove.
+
+---
+
 ## Contract intake AI
 
 **How it should work.** A spec is still to come.
