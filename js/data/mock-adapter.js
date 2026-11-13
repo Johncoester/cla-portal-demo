@@ -9,7 +9,7 @@ import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, 
 import { fileTitleOf, partyDisplayName } from './party-name.js?v=202611102000';
 import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611141400';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
-import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks } from './templates.js?v=202611141400';
+import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove } from './templates.js?v=202611141400';
 import { dealsAndAuth } from './mock-part-deals.js?v=202611160800';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
 import { contactsTasksDocs } from './mock-part-docs.js?v=202611141400';
@@ -136,7 +136,7 @@ export function ensurePreprocessorSeed(d) {
 export function upgradeToV30(d, from = 'v29') { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); if (from !== 'v29') upgradeToV29(d, from); ensurePreprocessorSeed(d); d.upgradedFrom = from; return d; }
 export function ensureMattNov3b(d) { applyNov3bTemplates(d); return d; }   // orders are not rewritten: a missing sourceOfBusiness reads as ''
 export function ensureBuyerPersonal(d) { applyBuyerPersonal(d); return d; }
-export function ensureSellerTasks(d) { applySellerTasks(d); return d; }
+export function ensureSellerTasks(d) { applySellerTasks(d); applyProceedsMove(d); return d; }
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();

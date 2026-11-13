@@ -87,6 +87,13 @@ const SELLER_PERSONAL_FIELDS = [
 ];
 const SHARED_WITH_SELLER = ['citizenship', 'gender', 'date_of_birth', 'forwarding_address', 'leaving_town', 'divorce', 'primary_residence'];
 const PERSONAL_V6 = [...PERSONAL_V5.map((f) => SHARED_WITH_SELLER.includes(f.k) ? { ...f, roles: CLIENTS } : f), ...SELLER_PERSONAL_FIELDS];
+/* FF-066 #6 (Janine's video, Nov 12 "CLA Portal Test - Processor and Seller Screens"; Francis confirm-back Nov 12 6:14 PM ET): the seller proceeds
+ * acknowledgment moves out of Personal information into "How you want your proceeds" (seller_proceeds v2), with the $5,000 wire note.
+ * personal_info v7 = v6 without proceeds_statement / proceeds_ack. Answers already saved stay on the copy's own version. */
+export const PROCEEDS_MOVED = ['proceeds_statement', 'proceeds_ack'];
+const PERSONAL_V7 = PERSONAL_V6.filter((f) => !PROCEEDS_MOVED.includes(f.k));
+export const PROCEEDS_WIRE_NOTE = 'Proceeds of $5,000.00 or more must be sent by wire transfer.';
+export const PROCEEDS_STATEMENT = 'I understand that all seller proceeds must be disbursed to the seller(s) of record. If the seller is an entity or trust, the proceeds must be disbursed directly to that entity or trust.';
 const ID_V2 = [
   F('id_type', 'ID type', 'select', true, { opts: ["Driver's license", 'Passport', 'State ID', 'Military ID'] }),
   F('id_expires', 'Expiration date', 'date', true),
@@ -117,6 +124,18 @@ export const VESTING_TYPES = [
   ['Entity (LLC/trust)', 'The property is owned by a company (such as an LLC) or a trust instead of by you personally. The entity\'s own documents decide who can sign, and we will ask for extra documents.']];
 export const VESTING_HELP = { button: 'What do these mean?', title: 'Ways to hold title (plain English)', items: VESTING_TYPES,
   note: 'This is general information only, not legal advice. The right choice depends on your situation (marriage, estate plans, taxes, lender rules). Please ask CLA Title or your own attorney before you choose.' };
+const PROCEEDS_V1 = [F('method', 'How do you want to receive your proceeds?', 'select', true, { opts: ['Wire transfer', 'Check sent by FedEx', 'Check at settlement'] }),
+      F('bank_name', 'Bank name', 'text', true, { when: ['method', 'Wire transfer'] }), F('routing', 'Routing number (9 digits)', 'routing', true, { when: ['method', 'Wire transfer'] }),
+      F('account', 'Account number', 'account', true, { when: ['method', 'Wire transfer'], mask: true }), F('account_name', 'Name on the account', 'text', true, { when: ['method', 'Wire transfer'] }),
+      F('mail_street', 'Mail the check to: street address', 'text', true, { when: ['method', 'Check sent by FedEx'] }), F('mail_unit', 'Apt / unit', 'text', false, { when: ['method', 'Check sent by FedEx'] }),
+      F('mail_city', 'City', 'text', true, { when: ['method', 'Check sent by FedEx'] }), F('mail_state', 'State', 'state', true, { when: ['method', 'Check sent by FedEx'] }),
+      F('mail_zip', 'ZIP', 'zip', true, { when: ['method', 'Check sent by FedEx'] }),
+      F('settlement_conditions', 'Conditions for a check at settlement', 'info', false, { when: ['method', 'Check at settlement'],
+        text: 'PLACEHOLDER - sample wording on CLA Portal Live Test. Example only: the check is made out to the seller(s) on title, is handed over only after the buyer\'s funds are confirmed, and you must show photo ID to receive it.' }),
+      F('settlement_ack', 'I understand the conditions for receiving a check at settlement', 'checkbox', true, { when: ['method', 'Check at settlement'] })];
+const PROCEEDS_V2 = [...PROCEEDS_V1, F('proceeds_wire_note', 'Wire transfers', 'info', false, { text: PROCEEDS_WIRE_NOTE }),
+  F('proceeds_statement', 'Seller proceeds acknowledgment', 'info', false, { text: PROCEEDS_STATEMENT }),
+  F('proceeds_ack', 'I acknowledge and understand the above statement.', 'checkbox', true), F('notes', 'Anything else we should know?', 'textarea')];
 export const TEMPLATE_DEFS = [
   { code: 'id_upload', version: 1, title: 'Upload photo ID', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], description: 'A clear photo or scan of a government ID.',
     fields: [F('id_type', 'ID type', 'select', true, { opts: ["Driver's license", 'Passport', 'State ID', 'Military ID'] }), F('id_expires', 'Expiration date', 'date', true), F('id_document', 'ID document', 'doc', true)] },
@@ -185,16 +204,13 @@ export const TEMPLATE_DEFS = [
       F('zip', 'ZIP', 'zip', true), F('effective', 'Mail should go there from (date)', 'date'), F('phone_after', 'Best phone after closing', 'phone')] },
   { code: 'seller_proceeds', version: 1, title: 'How you want your proceeds', roles: ['Client-Seller'], dueDays: 10, clientOnly: true, agentRoles: [], migration: 14,
     description: 'How you want to receive the money from your sale. Bank details are seen only by you and the CLA processor (others see the last 4 digits).',
-    fields: [F('method', 'How do you want to receive your proceeds?', 'select', true, { opts: ['Wire transfer', 'Check sent by FedEx', 'Check at settlement'] }),
-      F('bank_name', 'Bank name', 'text', true, { when: ['method', 'Wire transfer'] }), F('routing', 'Routing number (9 digits)', 'routing', true, { when: ['method', 'Wire transfer'] }),
-      F('account', 'Account number', 'account', true, { when: ['method', 'Wire transfer'], mask: true }), F('account_name', 'Name on the account', 'text', true, { when: ['method', 'Wire transfer'] }),
-      F('mail_street', 'Mail the check to: street address', 'text', true, { when: ['method', 'Check sent by FedEx'] }), F('mail_unit', 'Apt / unit', 'text', false, { when: ['method', 'Check sent by FedEx'] }),
-      F('mail_city', 'City', 'text', true, { when: ['method', 'Check sent by FedEx'] }), F('mail_state', 'State', 'state', true, { when: ['method', 'Check sent by FedEx'] }),
-      F('mail_zip', 'ZIP', 'zip', true, { when: ['method', 'Check sent by FedEx'] }),
-      F('settlement_conditions', 'Conditions for a check at settlement', 'info', false, { when: ['method', 'Check at settlement'],
-        text: 'PLACEHOLDER - sample wording on CLA Portal Live Test. Example only: the check is made out to the seller(s) on title, is handed over only after the buyer\'s funds are confirmed, and you must show photo ID to receive it.' }),
-      F('settlement_ack', 'I understand the conditions for receiving a check at settlement', 'checkbox', true, { when: ['method', 'Check at settlement'] }),
-      F('notes', 'Anything else we should know?', 'textarea')] },
+    fields: [...PROCEEDS_V1, F('notes', 'Anything else we should know?', 'textarea')] },
+  { code: 'seller_proceeds', version: 2, title: 'How you want your proceeds', roles: ['Client-Seller'], dueDays: 10, clientOnly: true, agentRoles: [], migration: 122,
+    description: 'How you want to receive the money from your sale, and the seller proceeds acknowledgment. Bank details are seen only by you and the CLA processor (others see the last 4 digits).',
+    fields: PROCEEDS_V2 },
+  { code: 'personal_info', version: 7, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 122,
+    description: 'Buyer and seller personal details. Sellers also answer property and utility questions. Spouse information is a section on this form.',
+    fields: PERSONAL_V7 },
 ];
 
 // Personal items stay client-only whatever the setting says: ID / identity, signatures, banking / wire / payment-account details, SSN.
@@ -339,6 +355,27 @@ export function applySellerTasks(d, { at = new Date().toISOString(), by = null }
       const top = vs.slice().sort((a, b) => b.version - a.version)[0]; const version = top ? Math.max(top.version + 1, def.version) : def.version;
       nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: top ? [...(top.agentRoles || [])] : [...def.agentRoles], active: true, publishedBy: by, publishedAt: at };
       if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-seller`;
+      vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
+    }
+    if (!nt.active) continue;
+    d.tasks.filter((t) => t.templateCode === def.code && t.templateId !== nt.id && t.kind === 'form' && t.status === 'todo' && !t.savedAt && !Object.keys(t.formData || {}).length
+      && (d.taskTemplates.find((z) => z.id === t.templateId) || { version: 0 }).version < nt.version)
+      .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
+  }
+  return { added, moved };
+}
+/* FF-066 (migration 122): personal_info v7 (no proceeds acknowledgment) and seller_proceeds v2 (with it). Same move rule: untouched to-do copies
+ * with no answers take the new version; a copy with answers keeps its version and its answers. Idempotent. Mirrored in SQL 20261117040000. */
+const isProceedsV7 = (t) => t.code === 'personal_info' && (t.fields || []).some((f) => f.k === 'water_meter') && !(t.fields || []).some((f) => f.k === 'proceeds_ack');
+const isProceedsV2 = (t) => t.code === 'seller_proceeds' && (t.fields || []).some((f) => f.k === 'proceeds_wire_note');
+export function applyProceedsMove(d, { at = new Date().toISOString(), by = null } = {}) {
+  const added = []; let moved = 0;
+  for (const def of TEMPLATE_DEFS.filter((t) => t.migration === 122)) {
+    const vs = d.taskTemplates.filter((t) => t.code === def.code); let nt = vs.find((t) => isProceedsV7(t) || isProceedsV2(t));
+    if (!nt) {
+      const top = vs.slice().sort((a, b) => b.version - a.version)[0]; const version = top ? Math.max(top.version + 1, def.version) : def.version;
+      nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: top ? [...(top.agentRoles || [])] : [...def.agentRoles], active: true, publishedBy: by, publishedAt: at };
+      if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-proceeds`;
       vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
     }
     if (!nt.active) continue;
