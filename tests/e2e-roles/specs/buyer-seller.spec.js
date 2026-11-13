@@ -145,7 +145,7 @@ test('buyer lender answers mark the task done', async ({ page, issues }) => {
   await page.locator('#tform input[name="officer_phone"]').fill('2025550100');
   await page.locator('#tform button[data-mode="complete"]').click();
   await expect(page.locator('.toast', { hasText: 'Task complete. Thank you!' })).toBeVisible();
-  await expect(page.locator('tr[data-task-row]', { hasText: 'Lender information' }).first()).toContainText('done');
+  await expect(page.locator('tr[data-task-row]', { hasText: 'Lender information' }).first()).toContainText('Done');
   expect(freshIssues(issues)).toEqual([]);
 });
 

@@ -100,7 +100,8 @@ export function mattP2(x) {
       if (proposalId) { p = arr('closingProposals').find((z) => z.id === proposalId && z.dealId === dealId && (!agentRole || z.side === C.sideOf(agentRole))) || fail('Proposal not found.'); }
       const loc = locOk(location || (p && p.location)); const off = location ? officeFor(deal, loc, officeId) : p ? (p.officeId ? officeFor(deal, loc, p.officeId) : officeFor(deal, loc, null)) : officeFor(deal, loc, officeId);   // a proposal at a since-retired office cannot be confirmed as is
       const sc = { at: whenOk(at || (p && p.at), 'The closing'), location: loc, officeId: off, note: str(note, 500), confirmedBy: u.id, confirmedByRole: agentRole || u.role, confirmedAt: now(), proposalId: p ? p.id : null, settlementId: null };
-      if (closingManualStreet) { deal.closingManualStreet = str(closingManualStreet, 120); deal.closingManualCity = str(closingManualCity, 80); deal.closingManualState = str(closingManualState, 2).toUpperCase(); deal.closingManualZip = str(closingManualZip, 10); }
+      const typedHere = (loc === 'Typed address' || loc === 'Mobile notary') && closingManualStreet;   // mirrors supabase-adapter confirmClosing: any other place clears the typed address
+      deal.closingManualStreet = typedHere ? str(closingManualStreet, 120) : ''; deal.closingManualCity = typedHere ? str(closingManualCity, 80) : ''; deal.closingManualState = typedHere ? str(closingManualState, 2).toUpperCase() : ''; deal.closingManualZip = typedHere ? str(closingManualZip, 10) : '';
       if (p) p.status = 'confirmed';
       // FF-063 (Janine, Nov 12): the other proposals on this file are declined (mirrors private.rpc_confirm_closing, migration 20261116150000)
       arr('closingProposals').forEach((z) => { if (z.dealId === dealId && z !== p && (z.status === 'proposed' || z.status === 'confirmed')) z.status = 'declined'; });

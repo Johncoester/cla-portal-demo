@@ -106,9 +106,17 @@ psql_super -f "$ROOT/supabase/migrations/20261117100000_agent_fees.sql"
 # applying twice is harmless
 psql_super -f "$ROOT/supabase/migrations/20261117100000_agent_fees.sql"
 psql_super -f "$ROOT/supabase/migrations/20261117110000_agent_fee_sides.sql"
+<<<<<<< HEAD
 psql_super -f "$ROOT/supabase/migrations/20261117120000_agent_fee_notify.sql"
+<<<<<<< HEAD
 psql_super -f "$ROOT/supabase/migrations/20261117130000_agent_fee_staff_notice.sql"
-psql_super -f "$ROOT/supabase/migrations/20261117160000_agent_fee_ledger.sql"
+psql_super -f "$ROOT/supabase/migrations/20261118040000_agent_fee_ledger.sql"
+=======
+psql_super -f "$ROOT/supabase/migrations/20261118030000_agent_fee_staff_notice.sql"
+=======
+psql_super -f "$ROOT/supabase/migrations/20261118020000_agent_fee_notify.sql"
+>>>>>>> feat/af-3
+>>>>>>> feat/af-4
 
 psql_super -o /dev/null <<'SQL'
 create or replace function pg_temp.as_user(p uuid) returns void language sql as $$ select set_config('request.jwt.claim.sub', p::text, false) $$;
@@ -281,10 +289,18 @@ select pg_temp.ok((select count(*) = 1 from public.accounting_fees where preset_
   and (select count(*) = 0 from public.accounting_fees where preset_key = 'agent_fee:listing:admin:0' and retired_at is null), 'AF-5: a removed fee''s ledger line is retired, not deleted');
 select pg_temp.ok((select count(*) = 0 from public.accounting_fees where deal_id = '44444444-4444-4444-4444-444444444444'), 'AF-5: a refinance posts nothing');
 SQL
-psql_super -f "$ROOT/supabase/rollbacks/20261117160000_agent_fee_ledger.sql"
+<<<<<<< HEAD
+psql_super -f "$ROOT/supabase/rollbacks/20261118040000_agent_fee_ledger.sql"
 psql_super -c "do \$\$ begin if to_regclass('public.deal_agent_fee_ledger') is not null then raise exception 'FAIL AF-5 rollback'; end if; raise notice 'PASS  AF-5 rollback stops the posting'; end \$\$;"
 psql_super -f "$ROOT/supabase/rollbacks/20261117130000_agent_fee_staff_notice.sql"
+=======
+<<<<<<< HEAD
+psql_super -f "$ROOT/supabase/rollbacks/20261118030000_agent_fee_staff_notice.sql"
+>>>>>>> feat/af-4
 psql_super -f "$ROOT/supabase/rollbacks/20261117120000_agent_fee_notify.sql"
+=======
+psql_super -f "$ROOT/supabase/rollbacks/20261118020000_agent_fee_notify.sql"
+>>>>>>> feat/af-3
 psql_super -c "do \$\$ begin if to_regprocedure('private.agent_fee_notify(uuid,text,text,text)') is not null or to_regprocedure('public.save_agent_fees(uuid,text,jsonb,text)') is null then raise exception 'FAIL AF-3 rollback'; end if; raise notice 'PASS  AF-3 rollback keeps the AF-1 save and drops the notices'; end \$\$;"
 psql_super -f "$ROOT/supabase/rollbacks/20261117110000_agent_fee_sides.sql"
 psql_super -f "$ROOT/supabase/rollbacks/20261117100000_agent_fees.sql"
