@@ -25,8 +25,8 @@ This file lists the portal's major features: how each one should work, how far a
 | AF-2 | Staff entry and agent view; buyers and sellers can't see fees | Live on TEST, [PR 227](https://github.com/Johncoester/cla-portal-demo/pull/227) |
 | AF-3 | Agent or TC changes: "You're changing X from $A to $B", "Agent confirmed", notices to staff | Live on TEST, [PR 235](https://github.com/Johncoester/cla-portal-demo/pull/235) |
 | AF-4 | Notice to the agent when staff change a confirmed fee | Live on TEST, [PR 236](https://github.com/Johncoester/cla-portal-demo/pull/236) |
-| AF-5 | Fees post to Accounting automatically | In progress, PR AF-5 |
-| AF-6 | "Generate CD" and "Generate ALTA" PDF buttons | Planned |
+| AF-5 | Fees post to Accounting automatically | Live on TEST, [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) |
+| AF-6 | "Generate CD" and "Generate ALTA" PDF buttons | In progress, PR AF-6 |
 
 **What's built**
 
@@ -35,6 +35,7 @@ This file lists the portal's major features: how each one should work, how far a
 - AF-3: when an agent (or a TC for the agent) saves, they first see "You're changing … from $A to $B" (or "You're confirming these fees as they are"), with "Yes, save and confirm" and "Go back" (which keeps what they typed). Saving marks the side "Agent confirmed" or "Confirmed by TC". The TC's own overview now has the Agent fees box. When an agent or TC changes or confirms fees, the file's processor, pre-processor and TC get a portal notice (who, the file, old and new values) and an email is queued for each. When a TC confirms, the side's agent is told too.
 - AF-4: when CLA staff change fees the agent (or TC) confirmed, the side's agent gets a portal notice and a queued email: who changed it (marked "CLA Title"), old and new values, and the reason. It says no re-approval is needed. Nobody else is told, and nothing is sent when staff change fees nobody has confirmed yet.
 - AF-5: every agent fee posts to the file's Accounting fee ledger by itself. Each fee is one line under ALTA "Commission" and CD section H, paid by the fee's payer. The payee is the agent's company (or "Buyer's Agent" / "Listing Agent" when it has none), or the other fee's "paid to". A line is kept in step when the fee or the sales price changes, and retired (never deleted) when the fee is removed. If a processor changes the line by hand on the Accounting tab, automatic posting leaves it alone from then on.
+- AF-6: Accounting's Closing Disclosure and Settlement Statement tabs stay, and each has a **Generate CD** / **Generate ALTA** button. It opens the print window with the file's document name filled in (for example "MD-26-97262 - Closing Disclosure - TEST") so it can be saved as a PDF. The agent fees appear in CD section H and the ALTA "Commission" section.
 - AF-2 also hides the commission figures in the overview's "Earnest & commissions" box from buyers and sellers. They see only "EMD held by", under "Earnest money".
 - Staff can enter commission base, percent, any additional amount and who pays it (buyer or seller) on Place Order, in Edit order details, and in Accounting > Contract figures. All three use the same figures.
 - Agents have a "Confirm Your Transaction Information" task where they enter their commission split and any fees or credits. Every version they submit is kept, and the file's processor gets an in-portal notice when they submit or revise it.
@@ -48,7 +49,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Notice emails are queued in the portal's outbox but never sent on TEST (the TEST portal sends no email). Sending them needs the production mail switch, which is John's call.
 - The order's old commission fields can still be read by buyers and sellers through the database (the new Agent fees records can't). They're blank on every TEST file today.
 - A sales price change re-posts the commission in the database (TEST); the demo (mock) portal re-posts only when the fees are saved.
-- There are no "Generate CD" or "Generate ALTA" PDF buttons.
+- "Generate CD" and "Generate ALTA" make the PDF with the browser's own "Save as PDF". The portal doesn't store the PDF on the file.
 - No end-to-end test covers this flow.
 
 **Links**
