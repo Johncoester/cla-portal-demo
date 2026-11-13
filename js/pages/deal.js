@@ -18,7 +18,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611170800';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611162200';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611182100';
+import { prefetchDealTab } from './deal-tab.js?v=202611182110';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';
@@ -27,7 +27,7 @@ import { viewTasksHref } from '../data/task-board.js?v=202611140100';
 import { earnestView, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611141000';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611161500';
 import { bindAddressFill } from '../data/address-fill.js?v=202611141400';
-import { agentFeesPanel } from './agent-fees-box.js?v=202611182100';
+import { agentFeesPanel } from './agent-fees-box.js?v=202611182110';
 function staffSections(ctx, dealId) {
   const { api } = ctx;
   const user = ctx.user;
@@ -80,7 +80,12 @@ export async function render(ctx) {
   }
   if (tabP) { const mod = await tabP; const v = await mod.render({ ...ctx, deal }); return { ...v, deal, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
-  if (user.role === 'Transaction Coordinator' && !user.accountRole) { const tc = await renderTcOverview(ctx, deal); return tc && typeof tc === 'object' ? { ...tc, deal } : tc; }
+  if (user.role === 'Transaction Coordinator' && !user.accountRole) {
+    // AF-3 (John, Nov 12): the TC sees the Agent fees box for the agents they work for, above their overview
+    const [tc, fees] = await Promise.all([renderTcOverview(ctx, deal), agentFeesPanel(ctx, deal)]);
+    if (!tc || typeof tc !== 'object') return tc;
+    return { ...tc, deal, body: html`${fees.html}${tc.body}`, mount(root) { if (tc.mount) tc.mount(root); fees.mount(root); } };
+  }
   // CLIENT OVERVIEW (John, Nov 4): the buyer / seller get the redesigned overview (client-overview.js) in place of the old overview + card summary (no Cash to Close / payoff mockup figures for clients).
   if (user.accountRole && clientSide(user)) {
     const ov0 = await ctx.api.getOrderOverview(deal.id);

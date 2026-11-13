@@ -149,6 +149,17 @@ Migration `supabase/migrations/20261118010000_agent_fee_sides.sql` adds `agent_f
 - `js/pages/agent-fees-box.js`: the box on the file overview (`js/pages/deal.js`), loaded alongside the overview's other reads. It shows nothing when the viewer has no side, the file is a refinance, or the database functions aren't there.
 - Tests: `test/test-agent-fees.js` (rules and the demo adapter), `test/test-agent-fees-sql.sh` (AF-1 and the sides function).
 
+## AF-3 as built (agent and TC changes, notices to the CLA team)
+
+Migration `supabase/migrations/20261118020000_agent_fee_notify.sql` re-creates `save_agent_fees` so that a save by an agent or TC calls `private.agent_fee_notify`: one portal notice (kind `agent_fee`, link to the file) to the file's processor, pre-processor and TC, plus the side's agents when a TC saved. The notice names who, the file, and each change as old → new. One email per person is queued in `public.outbox` (subject "Agent fees changed on <file>" or "Agent fees confirmed on <file>"). The TEST portal never sends outbox email.
+
+- The box (`js/pages/agent-fees-box.js`) shows the agent or TC a check screen before saving: "You're changing … from $A to $B", "Yes, save and confirm", "Go back" (keeps what was typed). The TC's overview (`renderTcOverview` in `js/pages/deal.js`) now shows the box.
+- `feeText` / `feeChanges` in `js/data/agent-fees.js` build the old → new lines for the check screen; the database builds the same text for notices.
+
+## AF-4 as built (agent told about staff changes)
+
+Migration `supabase/migrations/20261118030000_agent_fee_staff_notice.sql` re-creates `private.agent_fee_notify` with a staff branch: when CLA staff change a side that was confirmed (or give a reason), only that side's agents get the portal notice ("<name> (CLA Title) changed your fees on <file>: … Reason: …") and a queued email saying no approval is needed. The demo adapter does the same.
+
 ## Open questions (resolved Nov 12 2026 by John)
 
 All seven were answered at 2:33 PM ET (t1544u). The answers are recorded under Decisions above.

@@ -1108,3 +1108,4 @@ fieldset.span2 { display: flex; flex-wrap: wrap; gap: .5rem; border: 1px solid v
 .af-form .form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .af-form .af-other { grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px dashed var(--line); padding-top: var(--s3); margin-top: var(--s3); }
 .af-form .af-reason { display: block; font-weight: 600; margin-bottom: var(--s3); } .af-form .af-reason textarea { width: 100%; margin-top: 6px; }
 @media (max-width: 700px) { .af-form .form-grid, .af-form .af-other { grid-template-columns: 1fr; } .agent-fees .af-list { grid-template-columns: 1fr; } .agent-fees .af-list dt { margin-top: 6px; } }
+.af-check { padding: var(--s3) 0; } .af-check-list { margin: var(--s2, 8px) 0 var(--s3) 20px; } .af-check-list li { margin: 4px 0; }
