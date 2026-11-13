@@ -1,9 +1,9 @@
 /* Delete the rows E2E runs left on CLA Portal Live Test. Runs at the end of every e2e-roles-test job.
  * Same rows as cleanup-run.sql, but for every run at once: each test makes its own run id, so there is no single id per job.
  *   documents  name like 'e2e-%'          (uploads: e2e-<run>-<visibility>.pdf)
- *   threads    subject like 'E2E-RUN-%'   (and their messages)
+ *   threads    subject like 'E2E-RUN-%'   (and their messages and participants)
  *   update_requests  note like 'E2E-RUN-%', and open ones on the seeded file (notes = E2E-ROLE-FILE)
- *   deals      notes like 'E2E-RUN-%'     (and their tasks and participants). The seeded file (notes = E2E-ROLE-FILE) never matches.
+ *   deals      notes like 'E2E-RUN-%'     (and their tasks, participants, folders, business source and activity log). The seeded file (notes = E2E-ROLE-FILE) never matches.
  * Bob, Nov 10: left behind, these rows grew TEST every deploy (task copies 186 -> 251) and slowed task_board for everyone.
  * Takes a legacy service_role key or a new secret key (sb_secret_...). Does not print the key or row contents. Storage objects behind deleted documents are not removed.
  *
@@ -70,10 +70,18 @@ await step('update_requests (seeded file, open)', async () => {
 });
 const threads = ids(await rest('GET', `threads?select=id&subject=like.${encodeURIComponent('E2E-RUN-*')}`));
 await step('messages', () => removeIn('messages', 'thread_id', threads));
+// Nov 13: threads.id is still referenced from thread_participants, so the thread delete failed (409) on every run and
+// E2E-RUN threads piled up (451 on Nov 13). Their participants go first.
+await step('thread_participants', () => removeIn('thread_participants', 'thread_id', threads));
 await step('threads', () => removeIn('threads', 'id', threads));
 const deals = ids(await rest('GET', `deals?select=id&notes=like.${encodeURIComponent('E2E-RUN-*')}`));
 await step('tasks', () => removeIn('tasks', 'deal_id', deals));
 await step('deal_participants', () => removeIn('deal_participants', 'deal_id', deals));
+// Nov 13: deals.id is still referenced from folders, deal_business_sources and activity_log, so the order delete failed (409)
+// on every run (95 E2E-RUN orders left on Nov 13). Those rows go first; activity_log last, after the deletes that log.
+await step('folders', () => removeIn('folders', 'deal_id', deals));
+await step('deal_business_sources', () => removeIn('deal_business_sources', 'deal_id', deals));
+await step('activity_log', () => removeIn('activity_log', 'deal_id', deals));
 await step('deals', () => removeIn('deals', 'id', deals));
 
 console.log(`${dryRun ? 'Would delete' : 'Deleted'} E2E rows on TEST. ${done.join(', ')}`);
