@@ -1,20 +1,8 @@
-/* Recipients this suite is willing to email.
- * A recipient must be E2E_MAIL_TO or a plus-alias of it, and must also be an
- * address the Live Test server itself will accept. */
-
-const EMAIL = /^[a-z0-9._%+'-]{1,64}@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,24}$/;
+/* Test-account address helpers. Nov 13 (John): the walkthrough no longer keeps an allowed-inbox list; the email test sends
+ * to the addresses on the test file. The file name stays so seed-accounts.mjs and the specs keep their imports. */
 
 export function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
-}
-
-/* Same Live Test rule as js/data/gmail-email.js and gmail-core.mjs. */
-export function portalAllows(addr) {
-  const a = normalizeEmail(addr);
-  if (!EMAIL.test(a) || a.includes('..')) return false;
-  if (a === 'clatestportal@gmail.com' || a === 'jcoester-6jkr3p@mail.grokbot.com') return true;
-  if (/^clatestportal\+[a-z0-9._-]{1,64}@gmail\.com$/.test(a)) return true;
-  return /^[a-z0-9._%+'-]+@clatitle\.com$/.test(a);
 }
 
 export function splitMailbox(addr) {
@@ -34,45 +22,8 @@ export function plusAlias(base, tag) {
   return `${box.local}+${extra}@${box.domain}`;
 }
 
-export function isPlusAliasOf(base, addr) {
-  const root = splitMailbox(base);
-  const who = splitMailbox(addr);
-  if (!root || !who || who.domain !== root.domain) return false;
-  if (who.all === root.all) return true;
-  if (root.local.includes('+')) return false;
-  const prefix = root.local + '+';
-  if (!who.local.startsWith(prefix)) return false;
-  const tag = who.local.slice(prefix.length);
-  return /^[a-z0-9._-]{1,64}$/.test(tag);
-}
-
 export function mailTo() {
   return normalizeEmail(process.env.E2E_MAIL_TO || '');
-}
-
-/* Throws. Call this before any invite or file send. */
-export function assertRecipientsAllowed(addresses, { base = mailTo(), label = 'recipient' } = {}) {
-  if (!base) {
-    const err = new Error('Abort: E2E_MAIL_TO is not set, so no email can be sent.');
-    err.code = 'E2E_ALLOWLIST';
-    throw err;
-  }
-  const list = [].concat(addresses || []).map(normalizeEmail).filter(Boolean);
-  if (!list.length) {
-    const err = new Error(`Abort: ${label} list is empty.`);
-    err.code = 'E2E_ALLOWLIST';
-    throw err;
-  }
-  const bad = [];
-  for (const addr of list) {
-    if (!isPlusAliasOf(base, addr) || !portalAllows(addr)) bad.push(addr);
-  }
-  if (bad.length) {
-    const err = new Error(`Abort: ${label} is outside the test inbox allowlist (${bad.join(', ')}). Nothing was sent.`);
-    err.code = 'E2E_ALLOWLIST';
-    throw err;
-  }
-  return list;
 }
 
 export const ROLE_TAGS = {

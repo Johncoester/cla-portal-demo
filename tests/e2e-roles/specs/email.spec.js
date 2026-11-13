@@ -1,19 +1,7 @@
 import { test, expect, signIn, openMockFile, freshIssues, runId } from '../fixtures.js';
 import { dealId, gotoHash, tinyPdf } from '../helpers/portal.js';
-import { assertRecipientsAllowed, isPlusAliasOf, plusAlias, portalAllows } from '../helpers/allowlist.js';
 import { targetMode } from '../helpers/gate.js';
 import { attachmentBytes, gmailAccessToken, gmailCredentials, pollInbox, replyWithAttachment, sha256, trashMessage } from '../helpers/inbox.js';
-
-test('allowlist keeps mail inside the test inbox', () => {
-  expect(plusAlias('clatestportal@gmail.com', 'e2e-buyer')).toBe('clatestportal+e2e-buyer@gmail.com');
-  expect(isPlusAliasOf('clatestportal@gmail.com', 'clatestportal+e2e-buyer@gmail.com')).toBeTruthy();
-  expect(isPlusAliasOf('clatestportal@gmail.com', 'clatestportal@gmail.com')).toBeTruthy();
-  expect(portalAllows('clatestportal+e2e-buyer@gmail.com')).toBeTruthy();
-  expect(portalAllows('buyer@example.test')).toBeFalsy();
-  expect(() => assertRecipientsAllowed(['buyer@example.test'], { base: 'clatestportal@gmail.com' })).toThrow(/Abort/);
-  expect(() => assertRecipientsAllowed(['clatestportal+e2e-buyer@gmail.com'], { base: 'clatestportal@gmail.com' })).not.toThrow();
-  expect(() => assertRecipientsAllowed([], { base: 'clatestportal@gmail.com' })).toThrow(/Abort/);
-});
 
 test('file email composer fills a template and does not send from mock', async ({ page, issues }) => {
   test.skip(targetMode() === 'test', 'The mock composer check runs only in mock mode.');
@@ -41,7 +29,7 @@ test('file email composer fills a template and does not send from mock', async (
   expect(freshIssues(issues)).toEqual([]);
 });
 
-test('file email, invite, and reply arrive only at the test inbox', async ({ page }) => {
+test('file email, invite, and reply arrive at the test inbox', async ({ page }) => {
   test.skip(targetMode() !== 'test', 'Live Gmail delivery runs only against TEST (E2E_TARGET=test). Mock mode does not send.');
   const creds = await gmailCredentials();
   if (!creds.ok) {
@@ -57,8 +45,9 @@ test('file email, invite, and reply arrive only at the test inbox', async ({ pag
     await openMockFile(page);
     const id = dealId(page);
     const parties = await page.locator('[data-parties], [data-co-file]').first().innerText();
-    const found = parties.match(/[A-Z0-9._%+'-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || [];
-    if (found.length) assertRecipientsAllowed(found, { label: 'file party' });
+    // Nov 13 (John): no allowed-inbox list. The file email goes to every address on the test file, plus E2E_MAIL_TO,
+    // the one inbox this test can read to check the email and its attachment arrived.
+    const found = [...new Set((parties.match(/[A-Z0-9._%+'-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).map((a) => a.toLowerCase()))];
 
     const big = Buffer.alloc(5 * 1024 * 1024 + 1024, 0x61);
     big.write('%PDF-1.4\n');
@@ -73,11 +62,14 @@ test('file email, invite, and reply arrive only at the test inbox', async ({ pag
 
     await gotoHash(page, `#/deals/${id}/email`);
     await page.locator('[data-mail-new]').click();
-    const to = process.env.E2E_MAIL_TO;
-    assertRecipientsAllowed([to], { label: 'file email' });
-    await page.locator('[data-mail-to]').fill(to);
+    const inbox = String(process.env.E2E_MAIL_TO || '').trim().toLowerCase();
+    if (!inbox) throw new Error('E2E_MAIL_TO is not set, so the test has no inbox to check.');
+    await page.locator('[data-mail-to]').fill([...new Set([...found, inbox])].join(', '));
     const template = page.locator('[data-mail-template]');
     if (await template.count()) await template.selectOption({ index: 1 });
+    const sentTo = (await page.locator('[data-mail-to]').inputValue()).split(/[,;\n]/).map((a) => a.trim().toLowerCase()).filter(Boolean);
+    expect(sentTo).toContain(inbox);
+    console.log(`File email To: ${sentTo.map((a) => (a === inbox ? 'E2E_MAIL_TO' : a)).join(', ')}`);
     const subject = `E2E-RUN-${run} file note`;
     await page.locator('[data-mail-subject]').fill(subject);
     const merged = await page.locator('[data-rte]').innerText();
@@ -120,7 +112,7 @@ test('file email, invite, and reply arrive only at the test inbox', async ({ pag
     await expect(inviteRow).toBeVisible();
     await inviteRow.click();
     const inviteEmail = await page.locator('[data-invite-email]').inputValue();
-    assertRecipientsAllowed([inviteEmail], { label: 'invite' });
+    console.log(`Invite To: ${inviteEmail === inbox ? 'E2E_MAIL_TO' : inviteEmail}`);
     await page.locator('[data-invite-create]').click();
     await expect(page.locator('[data-invite-link]')).toBeVisible();
     const inviteMail = await pollInbox({ token, subjectIncludes: 'CLA Title & Escrow Has Shared Access' });
