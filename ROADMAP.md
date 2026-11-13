@@ -153,16 +153,16 @@ This file lists the portal's major features: how each one should work, how far a
 - FF-071a (#21): the Documents table uses the full page width (long names wrap) and opens newest first.
 - FF-071c (#23): the file overview shows the Disbursement date: for a refinance, the 4th business day after closing (rescission rule: Saturdays count, Sundays and federal holidays don't); for a purchase, the closing date. The processor can type a different date in Edit order details; clearing it goes back to the automatic date.
 - FF-072 / FF-054b (#24): in a file's email (To, Cc, Bcc), "Start a conversation" and Share files, the people offered are only that file's parties and the CLA staff on it; the browser's saved-address suggestions are off for those boxes. Any address can still be typed.
+- FF-011b (street address lookup): on task forms with an address (for example the forwarding address or a mailed proceeds check), typing a full street line such as "12 Main St, Rockville, MD 20850" fills the empty City, State and ZIP boxes.
 
 **What's still missing**
 
-- The other confirmed item (street address lookup) is being built one pull request at a time.
 - On hold: #1, #2, #4, #5, #10, #13, #15, #16, citizenship, spouse marital status, entity documents required, phone and email icons with no app.
 
 **Links**
 
 - Spec: none yet. Source: Janine's video Nov 12 2:57 PM ET; Francis Feedback tickets FF-063 to FF-072.
-- Related pull requests: [PR 221](https://github.com/Johncoester/cla-portal-demo/pull/221) (FF-071b), [PR 222](https://github.com/Johncoester/cla-portal-demo/pull/222) (FF-064/065), [PR 223](https://github.com/Johncoester/cla-portal-demo/pull/223) (FF-070), [PR 224](https://github.com/Johncoester/cla-portal-demo/pull/224) (FF-063), [PR 226](https://github.com/Johncoester/cla-portal-demo/pull/226) (FF-070b speed fix), [PR 228](https://github.com/Johncoester/cla-portal-demo/pull/228) (FF-069d), [PR 229](https://github.com/Johncoester/cla-portal-demo/pull/229) (FF-063c), [PR 230](https://github.com/Johncoester/cla-portal-demo/pull/230) (FF-066), [PR 231](https://github.com/Johncoester/cla-portal-demo/pull/231) (FF-067), [PR 232](https://github.com/Johncoester/cla-portal-demo/pull/232) (FF-068), [PR 233](https://github.com/Johncoester/cla-portal-demo/pull/233) (FF-069b), [PR 234](https://github.com/Johncoester/cla-portal-demo/pull/234) (FF-071a), [PR 239](https://github.com/Johncoester/cla-portal-demo/pull/239) (FF-071c), FF-072/FF-054b (this change).
+- Related pull requests: [PR 221](https://github.com/Johncoester/cla-portal-demo/pull/221) (FF-071b), [PR 222](https://github.com/Johncoester/cla-portal-demo/pull/222) (FF-064/065), [PR 223](https://github.com/Johncoester/cla-portal-demo/pull/223) (FF-070), [PR 224](https://github.com/Johncoester/cla-portal-demo/pull/224) (FF-063), [PR 226](https://github.com/Johncoester/cla-portal-demo/pull/226) (FF-070b speed fix), [PR 228](https://github.com/Johncoester/cla-portal-demo/pull/228) (FF-069d), [PR 229](https://github.com/Johncoester/cla-portal-demo/pull/229) (FF-063c), [PR 230](https://github.com/Johncoester/cla-portal-demo/pull/230) (FF-066), [PR 231](https://github.com/Johncoester/cla-portal-demo/pull/231) (FF-067), [PR 232](https://github.com/Johncoester/cla-portal-demo/pull/232) (FF-068), [PR 233](https://github.com/Johncoester/cla-portal-demo/pull/233) (FF-069b), [PR 234](https://github.com/Johncoester/cla-portal-demo/pull/234) (FF-071a), [PR 239](https://github.com/Johncoester/cla-portal-demo/pull/239) (FF-071c), [PR 240](https://github.com/Johncoester/cla-portal-demo/pull/240) (FF-072/FF-054b), FF-011b (this change).
 
 **Decisions**
 
