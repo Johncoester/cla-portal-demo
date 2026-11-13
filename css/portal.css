@@ -96,6 +96,9 @@ hr { border: 0; border-top: 1px solid var(--line); margin: var(--s4) 0; }
 .nav-badge { display: inline-block; margin-left: auto; background: var(--orange); color: #fff; border-radius: var(--r-pill); padding: 0 7px; font-size: 11px; font-weight: 700; line-height: 18px; }
 .tab-count { margin-left: auto; font-size: 11px; font-weight: 600; background: var(--line); color: var(--ink-2); border-radius: var(--r-pill); padding: 0 7px; line-height: 18px; }
 .nav-link.active .tab-count { background: var(--navy-200); color: var(--navy-800); }
+.nav-link:has(.nav-closing-meta) { align-items: flex-start; flex-wrap: wrap; background-position: 11px 10px; }
+.nav-closing-meta { display: block; width: 100%; margin-top: 2px; font-size: 11px; font-weight: 600; color: var(--ink-3); line-height: 1.35; }
+
 /* ---------- page headings ---------- */
 .box-title { margin: var(--s6) 0 var(--s3); display: flow-root; } .box-title:first-child { margin-top: var(--s2); }
 .box-title h2 { display: inline-flex; align-items: center; gap: 10px; font-size: var(--fs-lg); text-transform: none; font-weight: 600; color: var(--ink); }
@@ -703,6 +706,11 @@ details.po-card > summary { cursor: pointer; list-style: none; display: flex; al
 .op-hint { margin: 0 0 4px; }
 .op-glance { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; font-size: 13.5px; color: #444; border-top: 1px solid #eee; padding-top: 10px; margin-top: 6px; }
 .op-glance b { color: var(--navy-700, #123a5c); } .op-glance .icon-edit { position: static; margin-left: auto; }
+.op-status-extra { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; font-size: 13.5px; color: #444; border-top: 1px solid #eee; padding-top: 10px; margin-top: 6px; }
+.op-status-extra b { color: var(--navy-700, #123a5c); }
+.op-status-right .icon-edit { position: static; margin-left: 8px; }
+.op-source { margin: 8px 0 0; }
+
 .op-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 16px; margin: 22px 0 2px; }
 .op-title .op-address { font-size: 32px; line-height: 1.15; font-weight: 500; color: #333; margin: 0; }
 .op-title .op-order-no { font-size: 20px; font-weight: 600; color: var(--navy-600, #1d4f7a); }

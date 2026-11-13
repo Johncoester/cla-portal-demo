@@ -205,7 +205,8 @@ export function agentPortal(x) {
       if (externals.length) { const d0 = load(); for (const id of externals) { const c = d0.contacts.find((z) => z.id === id.slice(8)); if (!c) fail('That contact is not on this order.');
         d0.outbox.push({ id: nid('ob'), channel: 'email', status: 'queued', toEmail: c.email || '', toName: `${c.firstName} ${c.lastName}`.trim(), subject: str(subject, 150) || 'Message', body: text || '(file shared)', dealId, createdBy: u.id, createdAt: now(), sentAt: null }); } save(); }
       if (!profiles.length) { const d0 = load(); const t0 = { id: nid('th'), dealId, subject: str(subject, 150) || 'New conversation', createdBy: u.id, createdAt: now(), participantIds: [u.id] };
-        d0.threads.push(t0); d0.messages.push({ id: nid('m'), threadId: t0.id, authorId: u.id, body: text || '(queued to a contact without a portal login)', createdAt: now() }); save(); return clone(t0); }
+        d0.threads.push(t0); d0.messages.push({ id: nid('m'), threadId: t0.id, authorId: u.id, body: text || '(queued to a contact without a portal login)', createdAt: now() }); save();
+        return clone({ ...t0, invited: { contactId: externals[0].slice(8), link: '', already: false, error: 'Demo: nothing is emailed' } }); }   // FF-055 / MF-048: the page says it is held for them
       if (x.mixedSides([u.id, ...profiles], dealId)) fail('A conversation can include CLA Title staff and ONE side of the order, not both.');
       wireGuard(u, [u.id, ...profiles], dealId, files); x.wireTextGuard([u.id, ...profiles], dealId, `${str(subject, 150)}\n${text}`);
       const ids = await attach(u, dealId, files, shareVisibility(u, profiles, dealId));

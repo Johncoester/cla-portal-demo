@@ -178,7 +178,7 @@ await wait(20);
 check(overviewNeeds.every((name) => earlyMarks.includes(name)), 'overview section reads start before the file read finishes');
 releaseFile();
 const earlyDone = await earlyView;
-check(earlyDone && earlyDone.body && String(earlyDone.body).includes('data-file-buyers') && String(earlyDone.body).includes('Ada Buyer'), 'overview still waits for the file and shows the buyers line once the file is ready');
+check(earlyDone && earlyDone.body && earlyDone.title === 'MD-26-97183' && String(earlyDone.body).includes('data-status-bar') && String(earlyDone.body).includes('data-parties'), 'overview still waits for the file and shows Order Status and Parties once the file is ready');
 
 let shellCalls = 0;
 let fullCalls = 0;

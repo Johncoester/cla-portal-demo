@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CLA Portal Live Test</title>
   <link rel="icon" href="assets/img/favicon-cla.png">
-  <link rel="stylesheet" href="css/portal.css?v=202611190500">
+  <link rel="stylesheet" href="css/portal.css?v=202611191200">
   <link rel="stylesheet" href="css/staff-feedback-widget.css?v=202611080400">
   <link rel="stylesheet" href="css/theme-cards.css?v=202611120600">
   <script>/* Portal invite email (John, Nov 11): TEST Auth sends it from testportal@clatitle.com. Its button lands here as
@@ -16,7 +16,7 @@
       if (t && /(?:^#|&)type=invite(?:&|$)/.test(h)) { var p = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); while (p.length % 4) p += '=';
         var c = JSON.parse(atob(p)); v = String((c && c.user_metadata && c.user_metadata.portal_invite) || ''); } }
     var m = RE.exec(v); if (m) history.replaceState(null, '', location.pathname + '#/' + (m[1] === 'hr' ? 'hr-invite' : 'agent-invite') + '/' + m[2]); } catch (e) { /* the copy link still works */ } })();</script>
-  <script type="module" src="js/app.js?v=202611191300"></script>
+  <script type="module" src="js/app.js?v=202611191600"></script>
 </head>
 <body class="theme-cards">
   <div id="app"></div>
