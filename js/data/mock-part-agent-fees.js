@@ -78,6 +78,12 @@ export function agentFeesPart(x) {
         const sideWord = side === 'buyer' ? "buyer's agent" : 'listing agent';
         notify(ids, { kind: 'agent_fee', dealId, title: `${nameOf(u.id)}${actor === 'tc' ? ' (TC)' : ''} ${changed ? 'changed' : 'confirmed'} the ${sideWord} fees on ${deal.fileNumber || 'a file'}`, link: `#/deals/${dealId}` }, u.id);
       }
+      // AF-4: staff changing confirmed fees tells the agent only (who, and the reason). No re-approval.
+      if (actor === 'staff' && mineNow.length && notify && (why || d.agentFees.some((f) => f.dealId === dealId && f.side === side && f.confirmedAt))) {
+        const agents = d.participants.filter((p) => p.dealId === dealId && p.role === (side === 'buyer' ? 'Buyer Agent' : 'Listing Agent') && !p.removed)
+          .map((p) => (d.contacts.find((c) => c.id === p.contactId) || {}).profileId).filter(Boolean);
+        notify(agents, { kind: 'agent_fee', dealId, title: `${nameOf(u.id)} (CLA Title) changed your fees on ${deal.fileNumber || 'a file'}${why ? `. Reason: ${why}` : ''}`, link: `#/deals/${dealId}` }, u.id);
+      }
       save();
       return view(u, deal);
     },
