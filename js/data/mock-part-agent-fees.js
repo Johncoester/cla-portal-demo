@@ -3,12 +3,13 @@
  * their team (or both sides when they are the file's TC); other CLA staff on the file read both sides; buyers and sellers see nothing.
  * An agent or TC saving confirms the side. Staff need a reason to change a confirmed fee (no re-approval). Every change is logged. FAKE DATA. */
 import { runsOrders } from './constants.js?v=202611101015';
-import { readAgentFees, groupAgentFees, SIDE_LABEL, defaultPayer } from './agent-fees.js?v=202611182110';
+import { readAgentFees, groupAgentFees, SIDE_LABEL, defaultPayer, agentFeeLedgerInput, ledgerKey, ledgerShape } from './agent-fees.js?v=202611182130';
+import { cleanFee } from './accounting.js?v=202611070139';
 
 export function ensureAgentFees(d) { for (const k of ['agentFees', 'agentFeeLog']) if (!Array.isArray(d[k])) d[k] = []; return d; }
 
 export function agentFeesPart(x) {
-  const { load, save, needUser, dealOr404, fileRoles, teamAgentIds, isStaffView, nameOf, now, fail, clone, notify } = x;
+  const { load, save, nid, needUser, dealOr404, fileRoles, teamAgentIds, isStaffView, nameOf, now, fail, clone, notify } = x;
   const db = () => ensureAgentFees(load());
   const actorOf = (u, deal, side) => {
     if (runsOrders(u)) return 'staff';
@@ -32,6 +33,29 @@ export function agentFeesPart(x) {
   const jsonOf = (f) => { if (!f) return null; const o = { kind: f.kind, slot: f.slot, amount: f.amount, payer: f.payer };
     if (f.kind === 'commission') { o.basis = f.basis; o.percent = f.percent; } if (f.kind === 'other') { o.description = f.description; o.paidTo = f.paidTo; } return o; };
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  // AF-5: keep the side's fee-ledger lines in step (one per fee; a removed fee's line is retired; a line changed by hand is left alone)
+  const postLedger = (d, deal, side, u) => {
+    if (!Array.isArray(d.accountingFees)) d.accountingFees = []; if (!Array.isArray(d.agentFeeLedger)) d.agentFeeLedger = [];
+    if (deal.transactionType === 'Refinance') return;
+    const role = side === 'buyer' ? 'Buyer Agent' : 'Listing Agent';
+    const part = d.participants.find((p) => p.dealId === deal.id && p.role === role && !p.removed);
+    const company = part ? ((d.contacts.find((c) => c.id === part.contactId) || {}).company || '') : '';
+    const fees = d.agentFees.filter((f) => f.dealId === deal.id && f.side === side);
+    const keys = new Set([...fees.map((f) => ledgerKey(side, f.kind, f.slot)), ...d.agentFeeLedger.filter((l) => l.dealId === deal.id && l.key.startsWith(`agent_fee:${side}:`)).map((l) => l.key)]);
+    for (const key of keys) {
+      const fee = fees.find((f) => ledgerKey(side, f.kind, f.slot) === key);
+      const link = d.agentFeeLedger.find((l) => l.dealId === deal.id && l.key === key);
+      const line = link ? d.accountingFees.find((x) => x.id === link.feeId) : null;
+      if (line && ledgerShape(line) !== link.posted) continue;   // changed by hand on Accounting
+      const at = now();
+      if (!fee || !(Number(fee.amount) > 0)) { if (line && !line.retired) Object.assign(line, { retired: true, retiredAt: at, retiredBy: u.id, updatedAt: at, updatedBy: u.id }); if (line) link.posted = ledgerShape(line); continue; }
+      const clean = cleanFee(agentFeeLedgerInput({ ...fee, side }, { company }), deal);
+      let rec = line;
+      if (rec) Object.assign(rec, clean, { retired: false, retiredAt: null, retiredBy: null, updatedAt: at, updatedBy: u.id });
+      else { rec = { id: nid('fee'), dealId: deal.id, ...clean, retired: false, retiredAt: null, retiredBy: null, createdAt: at, createdBy: u.id, updatedAt: at, updatedBy: u.id }; d.accountingFees.push(rec); }
+      if (link) Object.assign(link, { feeId: rec.id, posted: ledgerShape(rec) }); else d.agentFeeLedger.push({ dealId: deal.id, key, feeId: rec.id, posted: ledgerShape(rec) });
+    }
+  };
   return {
     async getAgentFees(dealId) { const u = needUser(); return view(u, dealOr404(u, dealId)); },
     async getAgentFeeHistory(dealId) {
@@ -84,6 +108,7 @@ export function agentFeesPart(x) {
           .map((p) => (d.contacts.find((c) => c.id === p.contactId) || {}).profileId).filter(Boolean);
         notify(agents, { kind: 'agent_fee', dealId, title: `${nameOf(u.id)} (CLA Title) changed your fees on ${deal.fileNumber || 'a file'}${why ? `. Reason: ${why}` : ''}`, link: `#/deals/${dealId}` }, u.id);
       }
+      postLedger(d, deal, side, u);
       save();
       return view(u, deal);
     },
