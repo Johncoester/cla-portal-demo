@@ -9,6 +9,8 @@ const target = assertSafeTarget();
 
 export default defineConfig({
   testDir: './specs',
+  // John, Nov 13: start every TEST run from clean test data (the E2E buyer's and seller's tasks back to To do).
+  globalSetup: path.join(here, 'global-setup.js'),
   timeout: 90000,
   expect: { timeout: 15000 },
   fullyParallel: true,

@@ -2,6 +2,7 @@ import { test, expect, signIn, openMockFile, freshIssues, runId, onTest } from '
 import { targetMode } from '../helpers/gate.js';
 import { walkFileTabs, uploadOfferedVisibilities, shareFileLabels, messageRecipientLabels, assertRecipients, sendPortalMessage, fillAssignedTasks, gotoHash, dealId } from '../helpers/portal.js';
 import { PEOPLE, recipientRules } from '../helpers/people.js';
+import { reopenSeedBuyerTask } from '../helpers/seed-tasks.js';
 
 async function smoke(page, key) {
   const person = await signIn(page, key);
@@ -134,6 +135,8 @@ test('buyer lender answers mark the task done', async ({ page, issues }) => {
   await signIn(page, 'buyer');
   await openMockFile(page);
   const id = dealId(page);
+  // FF-069d: a Done task is read-only for the buyer. Put the seeded buyer's copy back to To do first (see seed-tasks.js).
+  await reopenSeedBuyerTask(id, 'lender_info');
   await gotoHash(page, `#/deals/${id}/tasks`);
   const lender = page.getByRole('link', { name: /Lender information/ });
   await lender.first().click();
@@ -154,6 +157,8 @@ test('buyer can upload an ID and complete the task', async ({ page, issues }) =>
   await signIn(page, 'buyer');
   await openMockFile(page);
   const id = dealId(page);
+  // FF-069d: a Done task is read-only for the buyer. Put the seeded buyer's copy back to To do first (see seed-tasks.js).
+  await reopenSeedBuyerTask(id, 'id_upload');
   await gotoHash(page, `#/deals/${id}/tasks`);
   await page.getByRole('link', { name: /Upload (photo |identification|your )?ID/i }).first().click();
   await page.locator('#tform').waitFor();
@@ -171,6 +176,8 @@ test('buyer personal information completes without an error', async ({ page, iss
   await signIn(page, 'buyer');
   await openMockFile(page);
   const id = dealId(page);
+  // FF-069d: a Done task is read-only for the buyer. Put the seeded buyer's copy back to To do first (see seed-tasks.js).
+  await reopenSeedBuyerTask(id, 'personal_info');
   await gotoHash(page, `#/deals/${id}/tasks`);
   await page.getByRole('link', { name: /Personal information/ }).first().click();
   await page.locator('#tform, [data-task-form-state]').first().waitFor();

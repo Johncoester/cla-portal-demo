@@ -1,6 +1,7 @@
 import { test, expect, signIn, openMockFile, freshIssues } from '../fixtures.js';
 import { targetMode } from '../helpers/gate.js';
 import { advance, dealId, gotoHash } from '../helpers/portal.js';
+import { reopenSeedBuyerTask } from '../helpers/seed-tasks.js';
 
 test('the staff file header stays on screen while the file scrolls', async ({ page, issues }) => {
   await signIn(page, 'processor');
@@ -43,6 +44,9 @@ test('the buyer sees the agent phone and not themselves on the closing team', as
   await expect(page.locator('[data-agent-tel]').first()).toBeVisible();
   await expect(page.locator('[data-your-agent]')).toContainText(targetMode() === 'test' ? '301-555-0148' : '301-555-0105');
   // Nov 11: '#/deals/deal-2' is a mock id; on TEST it answered 'invalid input syntax for type uuid'. Use the file just opened.
+  // FF-069d: the buyer personal information test completes this task earlier in the run, and a Done task is read-only for
+  // the buyer. Put the seeded buyer's copy back to To do first (see seed-tasks.js).
+  await reopenSeedBuyerTask(dealId(page), 'personal_info');
   await gotoHash(page, `#/deals/${dealId(page)}/tasks`);
   await page.getByRole('link', { name: 'Personal information' }).first().click();
   const citizenship = page.locator('#tform select[name="citizenship"]');
