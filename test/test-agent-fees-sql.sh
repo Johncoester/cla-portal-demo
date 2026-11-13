@@ -100,7 +100,7 @@ SQL
 psql_super -f "$ROOT/supabase/migrations/20261117100000_agent_fees.sql"
 # applying twice is harmless
 psql_super -f "$ROOT/supabase/migrations/20261117100000_agent_fees.sql"
-psql_super -f "$ROOT/supabase/migrations/20261117110000_agent_fee_sides.sql"
+psql_super -f "$ROOT/supabase/migrations/20261118010000_agent_fee_sides.sql"
 psql_super -f "$ROOT/supabase/migrations/20261118020000_agent_fee_notify.sql"
 psql_super -f "$ROOT/supabase/migrations/20261118030000_agent_fee_staff_notice.sql"
 
@@ -252,7 +252,7 @@ SQL
 psql_super -f "$ROOT/supabase/rollbacks/20261118030000_agent_fee_staff_notice.sql"
 psql_super -f "$ROOT/supabase/rollbacks/20261118020000_agent_fee_notify.sql"
 psql_super -c "do \$\$ begin if to_regprocedure('private.agent_fee_notify(uuid,text,text,text)') is not null or to_regprocedure('public.save_agent_fees(uuid,text,jsonb,text)') is null then raise exception 'FAIL AF-3 rollback'; end if; raise notice 'PASS  AF-3 rollback keeps the AF-1 save and drops the notices'; end \$\$;"
-psql_super -f "$ROOT/supabase/rollbacks/20261117110000_agent_fee_sides.sql"
+psql_super -f "$ROOT/supabase/rollbacks/20261118010000_agent_fee_sides.sql"
 psql_super -f "$ROOT/supabase/rollbacks/20261117100000_agent_fees.sql"
 psql_super -c "do \$\$ begin if to_regclass('public.deal_agent_fees') is not null or to_regprocedure('public.save_agent_fees(uuid,text,jsonb,text)') is not null then raise exception 'FAIL rollback'; end if; raise notice 'PASS  rollback removes the tables and functions'; end \$\$;"
 echo "agent fees SQL checks passed"

@@ -143,7 +143,7 @@ Migration `supabase/migrations/20261117100000_agent_fees.sql` (rollback in `supa
 
 ## AF-2 as built (Agent fees box)
 
-Migration `supabase/migrations/20261117110000_agent_fee_sides.sql` adds `agent_fee_sides(deal)`: the sides the caller may see, with `read` or `edit` (none for buyers, sellers or a refinance).
+Migration `supabase/migrations/20261118010000_agent_fee_sides.sql` adds `agent_fee_sides(deal)`: the sides the caller may see, with `read` or `edit` (none for buyers, sellers or a refinance).
 
 - `js/data/agent-fees.js`: the shared rules (% and $ from the sales price, payer defaults, other-fee checks, plain error messages). `js/data/supabase-agent-fees.js` calls the database functions; `js/data/mock-part-agent-fees.js` is the demo copy with the same rules.
 - `js/pages/agent-fees-box.js`: the box on the file overview (`js/pages/deal.js`), loaded alongside the overview's other reads. It shows nothing when the viewer has no side, the file is a refinance, or the database functions aren't there.
