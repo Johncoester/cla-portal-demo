@@ -1,7 +1,7 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611162000';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611161800';
+import { getAdapter } from './data/adapter.js?v=202611162200';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611162200';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611130900';
@@ -34,10 +34,10 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611161500'),
-  dashboard: () => import('./pages/dashboard.js?v=202611161800'),
+  dashboard: () => import('./pages/dashboard.js?v=202611162200'),
   orders: () => import('./pages/orders.js?v=202611161500'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611161500'),
-  deal: () => import('./pages/deal.js?v=202611161800'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611162200'),
+  deal: () => import('./pages/deal.js?v=202611162200'),
   users: () => import('./pages/users.js?v=202611161500'),
   profile: () => import('./pages/profile.js?v=202611161500'),
   'contact-us': () => import('./pages/contact.js?v=202611161500'),
@@ -47,7 +47,7 @@ const pages = {
   library: () => import('./pages/library.js?v=202611161500'),
   activity: () => import('./pages/activity.js?v=202611161500'),
   outbox: () => import('./pages/outbox.js?v=202611161500'),
-  tasks: () => import('./pages/tasks.js?v=202611161800'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => import('./pages/tasks.js?v=202611162200'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611161500'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js?v=202611161500'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611161500'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
@@ -322,11 +322,14 @@ function nextPaint() {
     else setTimeout(resolve, 0);
   });
 }
+// countsSeq: only the newest count read writes the badges, so a slower read started before a thread was marked read cannot put the old number back.
+let countsSeq = 0;
 function rememberCounts(api, dealId, userId, token) {
   const read = api.readOverview || api.getOrderOverview;
   if (!read || !dealId || !userId) return;
+  const seq = ++countsSeq;
   Promise.resolve().then(() => read.call(api, dealId)).then(async (overview) => {
-    if (token !== rendering) return;
+    if (token !== rendering || seq !== countsSeq) return;
     const root = $('#app');
     if (!root || root.getAttribute('data-route-user') !== userId || root.getAttribute('data-route-deal') !== dealId) return;
     const counts = (overview && overview.counts) || {};
@@ -354,6 +357,12 @@ function rememberCounts(api, dealId, userId, token) {
     }
   }).catch(() => {});
 }
+// FF-070 (Janine, Nov 12): opening a conversation marks it read; recount the file's tab badges straight away (fresh reads, not the ones from before the mark).
+if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('cla:thread-read', (e) => {
+  const dealId = e && e.detail && e.detail.dealId; const root = $('#app');
+  if (!dealId || !root || root.getAttribute('data-route-deal') !== dealId) return;
+  getAdapter().then((api) => { if (typeof api.dropFileReads === 'function') api.dropFileReads(); rememberCounts(api, dealId, root.getAttribute('data-route-user'), rendering); }).catch(() => {});
+});
 let pageUnmount = null;
 export async function render() {
   const my = ++rendering;
