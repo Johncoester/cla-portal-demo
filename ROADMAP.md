@@ -86,6 +86,64 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Buyer and seller invites and sign-in
+
+**How it should work.** Staff invite a buyer or seller from a file. The person opens the invite email, sets a password once and lands in the portal. If they forget the password, Forgot password emails them a reset link that opens the TEST portal.
+
+**Status: Partial.**
+
+**What's built**
+
+- Buyer, seller and agent invites from a file's Contacts tab, with an automatic invite email ([PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140)).
+- FF-073a (Janine's buyer recordings, Nov 12): accepting an invite twice (double-click or a second tab) can no longer delete the login. Only a login made in that same request that never became a portal user is cleaned up.
+- FF-073b: the Forgot password email's link opens the portal the person is using (testportal.clatitle.com on TEST), not the old GitHub address.
+
+**What's still missing**
+
+- The TEST Auth "Redirect URLs" list must include https://testportal.clatitle.com/ for the reset link to land there; if it doesn't, Auth falls back to its Site URL. John checks that setting.
+- FF-073c to FF-073e (waiting on Janine): a clear "invite already used" message, the property address in the invite email, and a new invite when a buyer's email changes.
+
+**Links**
+
+- Spec: none yet.
+- Related pull requests: [PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140), [PR 219](https://github.com/Johncoester/cla-portal-demo/pull/219) (FF-073a), [PR 220](https://github.com/Johncoester/cla-portal-demo/pull/220) (FF-073b).
+
+**Decisions**
+
+- accept-invite never deletes an existing or just-claimed login (John, Nov 12, 6:09 PM ET).
+- The reset link uses the current portal address; the Auth redirect list is John's setting, not changed by a pull request.
+
+---
+
+## File page fixes from Janine's Nov 12 video
+
+**How it should work.** On a file, the bell, Messages, Closing appointment, tasks, Documents and Activity behave the way Janine and Francis described in the Nov 12 "Processor and Seller Screens" video and Francis's confirm-back (Nov 12, 6:14 PM ET).
+
+**Status: Partial.**
+
+**What's built**
+
+- FF-071b (#22): the Activity tab's filters (type, person, date, words) work, and each row shows who did it.
+- FF-064/065 (#5, first part): clicking a bell notification closes the menu and opens the item, for sellers and processors.
+- FF-070 (#18 to #20): the Messages badge clears when a conversation is opened, messages show the sender's name and role (not "Participant"), and the reply box is large and grows as you type.
+- FF-063 (closing appointment): when the processor confirms one proposed time, the other proposed times on that file are marked declined, so no one sees leftover proposals.
+
+**What's still missing**
+
+- FF-069d and the other confirmed items (#3, #6 to #9, #11, #12, #14, #17, #21, #23, #24, street address lookup) are being built one pull request at a time.
+- On hold: #1, #2, #4, #5, #10, #13, #15, #16, citizenship, spouse marital status, entity documents required, phone and email icons with no app.
+
+**Links**
+
+- Spec: none yet. Source: Janine's video Nov 12 2:57 PM ET; Francis Feedback tickets FF-063 to FF-072.
+- Related pull requests: [PR 221](https://github.com/Johncoester/cla-portal-demo/pull/221) (FF-071b), [PR 222](https://github.com/Johncoester/cla-portal-demo/pull/222) (FF-064/065), [PR 223](https://github.com/Johncoester/cla-portal-demo/pull/223) (FF-070), FF-063 (this change).
+
+**Decisions**
+
+- John approved fixing the bugs without waiting (Nov 12, 6:08 PM ET); Francis confirmed the rest on Nov 12, 6:14 PM ET.
+
+---
+
 ## Contract intake AI
 
 **How it should work.** A spec is still to come.
