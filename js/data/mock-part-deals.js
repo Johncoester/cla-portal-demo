@@ -187,6 +187,7 @@ export function dealsAndAuth(x) {
         if (next && q.status === 'Open' && !sentOutside({ outbox: (d.outbox || []).filter((o) => o.dealId === id) }) && !d.deals.some((y) => y.id !== id && y.fileNumber === next)) { log(id, u.id, 'deal.file_number', 'deal', id, `File number changed from ${q.fileNumber} to ${next} (property state ${q.state})`); q.fileNumber = next; } }
       if (patch.openDate) { const o = dateOrNull(patch.openDate, 'Open date'); if (o > officeDate()) fail('Open date cannot be in the future.'); q.openDate = o; }
       if (patch.closingDate !== undefined) q.closingDate = dateOrNull(patch.closingDate, 'Closing date');
+      if (patch.disbursementDate !== undefined) q.disbursementDate = dateOrNull(patch.disbursementDate, 'Disbursement date');   // FF-071 #23: blank = automatic
       if (isRefi(q)) refiNoPrice(patch, fail);   // a refinance keeps no purchase price / EMD (clearing one an old order still has is allowed)
       if (patch.purchasePrice !== undefined) q.purchasePrice = money(patch.purchasePrice, 'Purchase price');
       if (patch.loanAmount !== undefined) q.loanAmount = money(patch.loanAmount, 'Loan amount');
