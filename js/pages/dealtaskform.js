@@ -5,6 +5,7 @@ import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 import { spouseSectionHtml, spousePayload, loadSpouseRows, applySpouse } from './spouse.js?v=202611161500';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611101015';
+import { bindAddressFill } from '../data/address-fill.js?v=202611141400';
 import { CLS, LABEL } from './dealtasks.js?v=202611161800';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
@@ -99,6 +100,9 @@ export function mountIntakeForm(root, { api, t, afterSave }) {
   if (addMortgage) addMortgage.addEventListener('click', () => { const rows = $('[data-mortgage-rows]', form); const i = $$('[data-mortgage-row]', rows).length;
     rows.insertAdjacentHTML('beforeend', `<div class="form-grid" data-mortgage-row="${i}"><label>Lender<input data-mlender></label><label>Phone<input data-mphone></label><label>Last 4<input data-mlast4 maxlength="4"></label><label>Type<input data-mtype></label></div>`); });
   form.addEventListener('change', sync); sync();
+  // FF-011: typing a full street line ("12 Main St, Rockville, MD 20850") fills the empty city, state and ZIP boxes on the same form
+  if (form.elements.street && form.elements.city) bindAddressFill(form);
+  if (form.elements.mail_street && form.elements.mail_city) bindAddressFill(form, { prefix: 'mail_' });
   $$('[data-plus]', form).forEach((b) => b.addEventListener('click', () => { const cb = form.elements[b.dataset.plus]; cb.checked = !cb.checked;
     b.textContent = cb.checked ? '\u2212 Remove entity' : '+ Add entity'; b.setAttribute('aria-pressed', String(cb.checked)); sync(); }));
   $$('[data-help]', form).forEach((b) => b.addEventListener('click', () => { const pnl = $(`[data-help-panel="${b.dataset.help}"]`, form); pnl.hidden = !pnl.hidden; b.setAttribute('aria-expanded', String(!pnl.hidden)); }));
