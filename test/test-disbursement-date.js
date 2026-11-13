@@ -24,7 +24,7 @@ const page = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8
 ok(page.includes('<span data-disbursement=') && page.includes('name="disbursementDate"'), 'File Overview shows it, and Edit order details has the override next to Closing date');
 const ad = readFileSync(new URL('../js/data/supabase-adapter.js', import.meta.url), 'utf8');
 ok(ad.includes("disbursementDate: 'disbursement_date'") && ad.includes("'disbursement_date', 'emd_due_date'"), 'the override saves as a date (blank = automatic)');
-const mig = readFileSync(new URL('../supabase/migrations/20261117020000_deal_disbursement_date.sql', import.meta.url), 'utf8');
+const mig = readFileSync(new URL('../supabase/migrations/20261117120000_deal_disbursement_date.sql', import.meta.url), 'utf8');
 ok(/add column if not exists disbursement_date date/.test(mig) && !/create policy|grant /i.test(mig), 'the migration only adds the date column (no policy or grant changes)');
 console.log(fail ? `FAIL ${fail}` : 'all disbursement date checks passed');
 process.exit(fail ? 1 : 0);
