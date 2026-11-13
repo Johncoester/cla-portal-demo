@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { syncCommission, readAgentFees, groupAgentFees, sideStatus, agentFeeError, defaultPayer, feeNumber } from '../js/data/agent-fees.js';
 import { agentFeesPart } from '../js/data/mock-part-agent-fees.js';
+import { altaStatement, closingDisclosure } from '../js/data/accounting.js';
 
 let n = 0; const ok = (name, fn) => { fn(); n += 1; console.log(`ok ${name}`); };
 const throwsMsg = (fn, msg) => assert.throws(fn, (e) => e.message === msg, msg);
@@ -88,5 +89,12 @@ const run = async () => {
   await part.saveAgentFees('d1', 'buyer', { ...fees, commission: { basis: 'percent', percent: 3 }, admin: null, other: [] }, 'Back to 3%');
   assert.equal(com.amount, 1234, 'a line changed by hand is never overwritten');
   n += 1; console.log('ok AF-5 mock: every fee posts to the ledger (ALTA Commission, CD H), removed fees retire, hand changes are kept');
+  // AF-6: the posted fees show on the ALTA statement (Commission) and the CD (section H) that "Generate ALTA" / "Generate CD" print
+  const deal = data.deals[0]; const ledger = data.accountingFees.filter((f) => f.dealId === 'd1');
+  const alta = altaStatement(deal, ledger); const comm = alta.sections.find((x) => x.key === 'commission');
+  assert.ok(comm.rows.some((r) => /Real estate commission - buyer's agent/.test(r.description)), 'ALTA Commission section lists the agent commission');
+  const cd = closingDisclosure(deal, ledger); const H = cd.sections ? cd.sections.find((x) => x.key === 'H') : cd.H;
+  assert.ok(H && H.rows.some((r) => /Real estate commission - buyer's agent/.test(r.description)), 'CD section H lists the agent commission');
+  n += 1; console.log('ok AF-6: agent fees appear in the ALTA Commission section and CD section H');
 };
 run().then(() => console.log(`\n${n} agent fee checks passed`)).catch((e) => { console.error('FAIL', e.message); process.exit(1); });
