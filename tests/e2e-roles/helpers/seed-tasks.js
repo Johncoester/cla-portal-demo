@@ -4,11 +4,15 @@ import { fileURLToPath } from 'node:url';
 import { targetMode, TEST_PROJECT_REF } from './gate.js';
 import { PEOPLE } from './people.js';
 
-/* FF-069d (Janine, Nov 12): a finished task is read-only for the client. The buyer tests below complete the seeded
+/* John, Nov 13 8:49 AM ET: every walkthrough run starts from clean test data. global-setup.js calls reopenSeedClientTasks
+ * before the first test, so the E2E buyer's and E2E seller's form tasks on the seeded file are To do again.
+ *
+ * FF-069d (Janine, Nov 12): a finished task is read-only for the client. The buyer tests below complete the seeded
  * buyer's Lender information, Upload identification and Personal information tasks on MD-26-99001, so the next run
  * (and a later test in the same run) found them Done, saw "This task is complete. The answers are below." and no form,
  * and timed out after 1.5 minutes. Before each of those tests, the processor puts the seeded buyer's own copy back to
- * To do, the same change a processor makes with the Status list on the Tasks tab. The answers stay.
+ * To do, the same change a processor makes with the Status list on the Tasks tab (only status: the portal role may not write
+ * completed_at or completed_by). The answers stay.
  * TEST only. Mock runs start from fresh sample data. Passwords and tokens are never logged. */
 
 const TEST_URL = `https://${TEST_PROJECT_REF}.supabase.co`;
@@ -50,6 +54,26 @@ export async function reopenSeedBuyerTask(dealId, templateCode) {
   const processor = await signInRest(key, PEOPLE.processor);
   if (!buyer.id) throw new Error('The seeded buyer sign-in returned no user.');
   const filter = `deal_id=eq.${dealId}&template_code=eq.${templateCode}&assigned_role=eq.Client-Buyer&owner_profile_id=eq.${buyer.id}&status=eq.done`;
-  const rows = await call('PATCH', `/rest/v1/tasks?${filter}&select=id`, { key, token: processor.token, body: { status: 'todo', completed_at: null, completed_by: null } });
+  const rows = await call('PATCH', `/rest/v1/tasks?${filter}&select=id`, { key, token: processor.token, body: { status: 'todo' } });
   return Array.isArray(rows) ? rows.length : 0;
+}
+
+/* Before the run: every Done form task the E2E buyer or E2E seller owns on the seeded file (notes = E2E-ROLE-FILE) goes back
+ * to To do. Signature tasks are left alone (a signature is completed by signing). Other people on the file are not touched.
+ * Returns { buyer: n, seller: n }. */
+export async function reopenSeedClientTasks() {
+  if (targetMode() !== 'test') return { buyer: 0, seller: 0 };
+  const key = publishableKey();
+  const processor = await signInRest(key, PEOPLE.processor);
+  const deals = await call('GET', '/rest/v1/deals?notes=eq.E2E-ROLE-FILE&select=id', { key, token: processor.token });
+  if (!Array.isArray(deals) || deals.length !== 1) throw new Error(`Expected one seeded test file (E2E-ROLE-FILE), found ${Array.isArray(deals) ? deals.length : 0}.`);
+  const out = {};
+  for (const [name, role] of [['buyer', 'Client-Buyer'], ['seller', 'Client-Seller']]) {
+    const person = await signInRest(key, PEOPLE[name]);
+    if (!person.id) throw new Error(`The seeded ${name} sign-in returned no user.`);
+    const filter = `deal_id=eq.${deals[0].id}&assigned_role=eq.${role}&owner_profile_id=eq.${person.id}&kind=eq.form&status=eq.done`;
+    const rows = await call('PATCH', `/rest/v1/tasks?${filter}&select=id`, { key, token: processor.token, body: { status: 'todo' } });
+    out[name] = Array.isArray(rows) ? rows.length : 0;
+  }
+  return out;
 }
