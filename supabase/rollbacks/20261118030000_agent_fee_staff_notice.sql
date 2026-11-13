@@ -1,4 +1,4 @@
--- Rollback for AF-4 (20261117130000_agent_fee_staff_notice.sql): puts back the AF-3 notices (agent and TC changes only).
+-- Rollback for AF-4 (20261118030000_agent_fee_staff_notice.sql): puts back the AF-3 notices (agent and TC changes only).
 begin;
 -- Notices for the changes this call just logged (same person, same transaction).
 create or replace function private.agent_fee_notify(p_deal uuid, p_side text, p_actor text, p_reason text) returns void

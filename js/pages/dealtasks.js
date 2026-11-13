@@ -10,7 +10,7 @@ import { taskOpenHref } from '../data/task-actions.js?v=202611141400';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
-export const LABEL = { todo: 'to do', in_progress: 'started', done: 'done', blocked: 'blocked', cancelled: 'cancelled' };
+export const LABEL = { todo: 'to do', in_progress: 'started', done: 'Done', blocked: 'blocked', cancelled: 'cancelled' };
 
 let intakeDeal = '';
 const intakeOpen = new Set();
@@ -20,7 +20,7 @@ export async function render(ctx) {
   if (intakeDeal !== deal.id) { intakeDeal = deal.id; intakeOpen.clear(); }
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
   if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611171010')).render(ctx);
-  const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611162300');
+  const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611170800');
   const allTasks = tasksWithLenderOnFile(await api.listTasks(deal.id), deal);
   const taskQuery = new URLSearchParams(location.hash.split('?')[1] || '');
   const mineOnly = taskQuery.get('mine') === '1';
