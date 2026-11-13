@@ -58,7 +58,7 @@ await api.confirmClosing(deal.id, { at: when, location: 'Typed address', closing
 const reloaded = await api.getDeal(deal.id);
 ok(reloaded.closingManualStreet === '9 Fake Pier' && reloaded.closingManualZip === '33131' && reloaded.scheduledClosing.location === 'Typed address', 'a typed closing address reloads as a typed address');
 ok(scheduledPlace(reloaded.scheduledClosing, reloaded) === '9 Fake Pier, Miami, FL 33131', 'staff see the typed street on the schedule');
-ok(scheduledPlace({ location: 'Mobile notary' }, reloaded) === '', 'mobile notary stays mobile notary unless that place was picked');
+ok(scheduledPlace({ location: 'Mobile notary' }, { ...reloaded, closingManualStreet: '', closingManualCity: '', closingManualState: '', closingManualZip: '' }) === '', 'mobile notary stays mobile notary unless an address was typed for it (FF-063 #3: confirming any other place clears the typed address)');
 
 const saved = await api.saveSideSigning(deal.id, { side: 'buyer', status: 'signed', signedOn: '2026-11-02', date: '2026-12-20', time: '10:30', placeKind: 'mobile_notary', street: '9 Fake Pier', city: 'Miami', state: 'FL', zip: '33131' });
 const again = await api.getDeal(deal.id);
