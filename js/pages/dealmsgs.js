@@ -6,6 +6,7 @@ import { raw } from '../ui.js?v=202611161500';
 import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611101015';
 import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611191000';
 import { presentThread } from '../data/portal-threads.js?v=202611162200';
+import { noLoginContactId } from '../data/share-invite.js?v=202611191000';
 
 export async function render(ctx) {
   const { api, user, deal, refresh, params } = ctx; const notViewOnly = !viewOnly(user);
@@ -23,9 +24,11 @@ export async function render(ctx) {
     const sf = $('#sharefiles2', root); if (sf) sf.addEventListener('click', guard(() => composeModal(ctx, { title: 'New Conversation', withFiles: true })));
     const nb = $('#newthread', root); if (nb) nb.addEventListener('click', guard(async () => {
       const people = await api.listMessageRecipients(deal.id);
+      // FF-055 / MF-048: someone with no portal login cannot be in a conversation started here (it used to fail with "Pick at least one recipient"). Share Files invites them.
+      const noLogin = (p) => !!noLoginContactId(p, (deal && deal.participants) || []);
       const m = modal('Start a conversation', html`<form id="ntf" class="form-grid"><label class="span2">Subject<input name="subject" maxlength="150" required></label>
         <p class="span2 muted small">${runsOrders(user) || user.isAdmin || user.role === 'Transaction Coordinator' || user.role === 'Sales Person' || user.role === 'Sales Team' ? 'A conversation can include CLA Title staff and one side of the order (buyer side or seller side), not both.' : 'You can message CLA Title staff and people on your own side of this order.'}</p>
-        <fieldset class="span2 checks"><legend>To</legend>${people.map((p) => html`<label><input type="checkbox" name="to" value="${p.id}"> ${p.firstName} ${p.lastName} <span class="muted">(${p.role})</span></label>`)}</fieldset>
+        <fieldset class="span2 checks"><legend>To</legend>${people.map((p) => html`<label><input type="checkbox" name="to" value="${p.id}" ${noLogin(p) ? raw('disabled data-no-login') : ''}> ${p.firstName} ${p.lastName} <span class="muted">(${p.role})</span>${noLogin(p) ? html` <span class="muted small">No portal login yet. Use Share Files to invite them.</span>` : ''}</label>`)}</fieldset>
         <label class="span2">Message<textarea name="body" rows="4" maxlength="4000" required></textarea></label>
         <div class="span2"><button class="m-btn" type="submit">Send</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
       $('#ntf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = new FormData(e.target);

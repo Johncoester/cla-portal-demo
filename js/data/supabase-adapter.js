@@ -997,7 +997,7 @@ export async function createSupabaseAdapter(cfg) {
     } else if (savedFiles.length) {
       ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: `Files on this order: ${savedFiles.map((f) => f.name).join(', ')}`.slice(0, 4000) }));
     }
-    return { id: thread, threadId: thread, sent: false, emailed: false, deliveredInPortal: true, status: invited ? 'held_for_invite' : 'in_portal', savedFiles, failedFiles, ...(invited ? { invited } : {}) };
+    return { id: thread, threadId: thread, sent: false, emailed: false, deliveredInPortal: true, status: 'in_portal', savedFiles, failedFiles, ...(invited ? { invited, heldForInvite: true } : {}) };
   };
   a.getThreadDetail = async (id) => {
     const user = await me();

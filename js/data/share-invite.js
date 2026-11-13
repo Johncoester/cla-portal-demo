@@ -17,8 +17,19 @@ export function noLoginContactId(person, participants = []) {
   return (hit.contact && hit.contact.profileId) || hit.profileId ? '' : id;
 }
 
+/* Can that person be invited from Share Files? Only when one of their roles on this file is one of the four above.
+ * Rows from the demo data, or with no matching file contact, are judged by the role on the recipient row. */
+export function canShareInvite(person, participants = []) {
+  const cid = noLoginContactId(person, participants);
+  if (!cid) return false;
+  const roles = (participants || []).filter((p) => p && !p.removed && String(p.contactId || (p.contact && p.contact.id) || '') === cid).map((p) => p.role);
+  if (!roles.length) roles.push((person && person.role) || '');
+  return roles.some((r) => SHARE_INVITE_ROLES.includes(r));
+}
+
 // What the To list adds after the name, and the line under it once that person is picked.
 export const NO_LOGIN_TAG = 'no portal login yet; will be invited';
+export const NO_INVITE_TAG = 'no portal login; cannot be invited';
 export function noLoginNote(person) {
   const name = `${(person && person.firstName) || ''} ${(person && person.lastName) || ''}`.trim() || 'This person';
   const mail = person && person.email ? ` (${person.email})` : '';

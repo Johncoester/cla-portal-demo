@@ -1,7 +1,7 @@
 /* FF-055 / MF-048 (Francis, Nov 11; John, Nov 13): Share Files to someone on the file who has no portal login yet.
  * The page spots that person, says what will happen, and the data layer invites them and holds the share. No network. */
 import { readFileSync } from 'node:fs';
-import { SHARE_INVITE_ROLES, NO_LOGIN_TAG, noLoginContactId, noLoginNote, ensureShareInvite, shareInviteToast, waitingParticipant } from '../js/data/share-invite.js';
+import { SHARE_INVITE_ROLES, NO_LOGIN_TAG, NO_INVITE_TAG, canShareInvite, noLoginContactId, noLoginNote, ensureShareInvite, shareInviteToast, waitingParticipant } from '../js/data/share-invite.js';
 
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
@@ -21,6 +21,14 @@ ok(noLoginContactId({ id: 'c-gone' }, parts) === '', 'a contact removed from the
 ok(noLoginContactId({ id: 'p-staff' }, parts) === '' && noLoginContactId(null, parts) === '' && noLoginContactId({ id: 'c-agent' }) === '', 'an id that is not on the file, or no file contacts at all, matches nobody');
 ok(noLoginContactId({ id: 'contact:c9' }, []) === 'c9', 'the demo data marks these people "contact:<id>"');
 ok(SHARE_INVITE_ROLES.join('|') === 'Client-Buyer|Client-Seller|Buyer Agent|Listing Agent', 'the same four file roles as Invite to portal can be invited');
+
+// who can be invited from Share Files
+const lender = [{ id: 'dp9', contactId: 'c-lender', role: 'Lender', contact: { id: 'c-lender', profileId: null } }];
+ok(canShareInvite({ id: 'c-agent' }, parts) === true, 'a Buyer Agent with no login can be invited');
+ok(canShareInvite({ id: 'c-lender' }, lender) === false && NO_INVITE_TAG === 'no portal login; cannot be invited', 'a lender contact with no login cannot be invited, and the list says so');
+ok(canShareInvite({ id: 'c-lender' }, [...lender, { id: 'dp10', contactId: 'c-lender', role: 'Client-Buyer', contact: { id: 'c-lender', profileId: null } }]) === true, 'someone who is also the buyer on the file can be');
+ok(canShareInvite({ id: 'p-buyer' }, parts) === false, 'someone with a login is not an invite case');
+ok(canShareInvite({ id: 'contact:c9', role: 'Client-Seller' }, []) === true && canShareInvite({ id: 'contact:c9', role: 'Lender' }, []) === false, 'the demo rows go by the role on the row');
 
 // what the person sharing is told
 ok(NO_LOGIN_TAG.includes('no portal login yet') && NO_LOGIN_TAG.includes('invited'), 'the To list says the person has no login yet and will be invited');
@@ -55,6 +63,11 @@ ok(page.includes('noLoginContactId(p, (deal && deal.participants) || [])') && pa
 ok(page.includes('data-no-login') && page.includes('NO_LOGIN_TAG') && page.includes('data-invite-note'), 'the To list marks people with no login and a note explains it once picked');
 ok(page.includes('inviteContactId: invitee') && page.includes("autoSendInvite(api, 'agent', inv.link)") && page.includes('shareInviteToast(inv, kept)'), 'Send holds the share, emails the invite through the portal mailbox, and says what happened');
 ok(/toSel\.value = ''; \}\); syncInvite\(\); \};/.test(page), 'wire-instruction mode clears a picked person with no login and hides the note');
+ok(page.includes("raw('disabled data-no-invite')") && page.includes("o.disabled = bad || o.hasAttribute('data-no-invite')"), 'a person who cannot be invited is listed but cannot be picked, in or out of wire mode');
+
+// the Inbox "Start a conversation" box: a person with no login cannot be ticked there, and is pointed to Share Files
+const inbox = read('js/pages/dealmsgs.js');
+ok(inbox.includes("noLogin(p) ? raw('disabled data-no-login') : ''") && inbox.includes('No portal login yet. Use Share Files to invite them.'), 'Start a conversation lists a person with no login, greyed out, with where to go');
 
 // wiring: the data layer
 const ad = read('js/data/supabase-adapter.js');
@@ -64,7 +77,7 @@ ok(ad.includes('Wire instructions cannot be held for someone who has no portal l
 ok(ad.indexOf("sb.rpc('create_thread_invited'") < ad.indexOf('ensureShareInvite(a, { dealId, contactId: inviteContactId })'), 'the conversation is held first, then the invite is made');
 ok(ad.includes('holding files for them is not turned on for this site yet'), 'a site without the database change says so in plain words');
 ok(ad.includes("sb.rpc('thread_invitees_list', { p_threads: [id] })") && ad.includes('...waiting.map(waitingParticipant)'), 'opening the conversation shows who it is still waiting for');
-ok(ad.includes("status: invited ? 'held_for_invite' : 'in_portal'"), 'the result says the share is held');
+ok(ad.includes('...(invited ? { invited, heldForInvite: true } : {})'), 'the result says the share is held and for whom');
 
 // the database change is there, with its rollback
 const sql = read('supabase/migrations/20261119030000_share_invited_hold.sql');
