@@ -10,7 +10,7 @@ import { buildFileNumber, retagFileNumber, sentOutside } from './file-number.js?
 import { officeDate } from './office-date.js?v=202611102100';
 import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions } from './lender-file.js?v=202611101200';
 import { parcelInput } from './parcels.js?v=202611190800';
-import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611141000';
+import { earnestDealPatch, earnestTouched, OLD_COMMISSION_KEYS, OLD_COMMISSION_REFUSED, withoutOldCommission } from './earnest-commission.js?v=202611191700';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 // John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only
@@ -195,15 +195,13 @@ export function dealsAndAuth(x) {
       if (patch.emdAmount !== undefined) q.emdAmount = money(patch.emdAmount, 'EMD amount');
       if (patch.emdDueDate !== undefined) q.emdDueDate = dateOrNull(patch.emdDueDate, 'EMD due date');
       if (patch.parcelId !== undefined || patch.parcelIds !== undefined) { const parcels = parcelInput(patch); q.parcelId = parcels.parcelId; q.parcelIds = parcels.parcelIds; }
+      // one source (Nov 13): commissions are Agent fees, never the order (same message as the database guard)
+      if (['listingCommissionPct', 'listingCommissionAmount', 'buyerCommissionPct', 'buyerCommissionAmount'].some((k) => patch[k] != null && patch[k] !== '')
+        || (patch.financial && OLD_COMMISSION_KEYS.some((k) => patch.financial[k] != null))) fail(OLD_COMMISSION_REFUSED);
       if (earnestTouched(patch)) {
-        const src = { emdHeldBy: q.financial && q.financial.emdHeldBy, commissionBase: q.financial && q.financial.commissionBase, commissionPercent: q.financial && q.financial.commissionPercent, commissionAdditional: q.financial && q.financial.commissionAdditional, commissionPaidBy: q.financial && q.financial.commissionPaidBy, ...patch };
-        const next = earnestDealPatch(src, { refinance: isRefi(q) });
-        q.financial = next.financial;
-        if (next.patch.emdHolder !== undefined) q.emdHolder = next.patch.emdHolder; else if (!next.earnest.emdHeldBy) q.emdHolder = '';
-        if (next.patch.listingCommissionPct !== undefined) q.listingCommissionPct = next.patch.listingCommissionPct;
-        if (next.patch.listingCommissionAmount !== undefined) q.listingCommissionAmount = next.patch.listingCommissionAmount;
-        if (next.patch.buyerCommissionPct !== undefined) q.buyerCommissionPct = next.patch.buyerCommissionPct;
-        if (next.patch.buyerCommissionAmount !== undefined) q.buyerCommissionAmount = next.patch.buyerCommissionAmount;
+        const next = earnestDealPatch({ emdHeldBy: q.financial && q.financial.emdHeldBy, ...patch }, { refinance: isRefi(q) });
+        q.financial = { ...withoutOldCommission(q.financial), ...next.financial }; if (!next.earnest.emdHeldBy) delete q.financial.emdHeldBy;
+        q.emdHolder = next.earnest.emdHeldBy || '';
       }
       if (patch.primaryResidence !== undefined || patch.firstTimeBuyer !== undefined) Object.assign(q, occFields({ primaryResidence: patch.primaryResidence !== undefined ? patch.primaryResidence : q.primaryResidence, firstTimeBuyer: patch.firstTimeBuyer !== undefined ? patch.firstTimeBuyer : q.firstTimeBuyer }, q.transactionType, fail));   // John, Nov 3 call
       if (patch.claRepresentation !== undefined) q.claRepresentation = claRepresentationCode(patch.claRepresentation);

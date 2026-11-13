@@ -1,5 +1,6 @@
 /* contract-terms.js : TEST contract figures for one order. PURE. No storage and no network.
  * These figures are estimates. They are not a fee-ledger line, not funds received, not a payoff, and not a Closing Disclosure.
+ * Commissions are not here: they are Agent fees on the file overview (one place, John Nov 13 2026).
  * A blank amount stays null. Zero is stored only when someone typed zero. A percent never fills a dollar field. */
 const fail = (m) => { throw new Error(m); };
 const roundTo = (n, places) => { const p = 10 ** places; return Math.round((Number(n) + Number.EPSILON) * p) / p; };
@@ -19,10 +20,6 @@ export const CONTRACT_FIELDS = [
   { key: 'downPayment', column: 'down_payment', group: 'price', kind: 'money', label: 'Down payment', basis: ['explicit', 'derived', 'calculated'], hint: 'Blank if it was only derived and not written down.' },
   { key: 'sellerCreditPercent', column: 'seller_credit_percent', group: 'credit', kind: 'percent', places: 4, label: 'Seller credit %', hint: 'Does not fill the credit dollars.' },
   { key: 'sellerCreditAmount', column: 'seller_credit_amount', group: 'credit', kind: 'money', label: 'Seller credit $', basis: ['explicit', 'derived', 'calculated'], hint: 'Blank if no amount is selected. Do not type 0 for unknown.' },
-  { key: 'buyerBrokerPercent', column: 'buyer_broker_percent', group: 'credit', kind: 'percent', places: 4, label: 'Buyer broker %', hint: 'Cooperative compensation percent. Not a payable.' },
-  { key: 'buyerBrokerAmount', column: 'buyer_broker_amount', group: 'credit', kind: 'money', label: 'Buyer broker $', basis: ['explicit', 'derived', 'calculated'], hint: 'Blank if the dollars are not written down.' },
-  { key: 'listingCommissionPercent', column: 'listing_commission_percent', group: 'credit', kind: 'percent', places: 4, label: 'Listing commission %' },
-  { key: 'listingCommissionAmount', column: 'listing_commission_amount', group: 'credit', kind: 'money', label: 'Listing commission $', basis: ['explicit', 'derived', 'calculated'], hint: 'Blank if the listing side was not established.' },
   { key: 'warrantyCap', column: 'warranty_cap', group: 'warranty', kind: 'money', label: 'Warranty cap', basis: ['explicit', 'derived', 'calculated'], hint: 'A cap or "up to" figure. Not an amount paid.' },
   { key: 'warrantyPayer', column: 'warranty_payer', group: 'warranty', kind: 'text', max: 120, label: 'Warranty payer', hint: 'Blank if a warranty was not selected.' },
   { key: 'hoaName', column: 'hoa_name', group: 'hoa', kind: 'text', max: 200, label: 'HOA name' },
@@ -50,7 +47,7 @@ export const CONTRACT_FIELDS = [
   { key: 'internalNote', column: 'internal_note', group: 'notes', kind: 'note', max: 2000, label: 'Internal accounting note', hint: 'Separate from the order review notes. Nothing here is cut short to make room.' },
 ];
 export const CONTRACT_GROUPS = [
-  ['price', 'Price and loan'], ['credit', 'Credits and commissions'], ['warranty', 'Warranty'], ['hoa', 'HOA and condo'],
+  ['price', 'Price and loan'], ['credit', 'Seller credit'], ['warranty', 'Warranty'], ['hoa', 'HOA and condo'],
   ['deferred', 'Deferred charges'], ['tax', 'Historical tax'], ['emd', 'Earnest money'], ['notes', 'Evidence and internal note'],
 ];
 const FIELD = Object.fromEntries(CONTRACT_FIELDS.map((f) => [f.key, f]));

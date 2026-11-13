@@ -22,7 +22,9 @@ import { orderDraftKey, readOrderDraft, writeOrderDraft, collectOrderFields, rem
 import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows } from '../data/lender-file.js?v=202611101200';
 import { bindAddressFill } from '../data/address-fill.js?v=202611190800';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611190800';
-import { readEarnest, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611141000';
+import { readEarnest } from '../data/earnest-commission.js?v=202611191700';
+import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611191700';
+import { SIDE_LABEL as AF_SIDE_LABEL } from '../data/agent-fees.js?v=202611182130';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611161500';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611162200';
@@ -155,14 +157,10 @@ export async function render({ api, user, go }) {
         <label data-refi-hide="emdAmount">EMD amount<input name="emdAmount" inputmode="decimal" placeholder="10,000" aria-label="EMD amount (earnest money deposit)" data-money autocomplete="off"></label><label data-refi-hide="emdDueDate">EMD due date<input name="emdDueDate" type="date"></label>
         <label>Closing date<input name="closingDate" type="date"></label>
         <label>Disbursement date<input name="disbursementDate" type="date" data-disbursement-input><span class="field-hint">Leave blank for the automatic date: the closing date for a purchase, the 4th business day after closing for a refinance.</span></label></div>
-        <h4 class="wiz-sub" data-refi-hide="earnestCommission">Earnest &amp; Commissions <span class="muted small">(optional)</span></h4>
+        <h4 class="wiz-sub" data-refi-hide="earnestCommission">Earnest money &amp; agent fees <span class="muted small">(optional)</span></h4>
         <div class="form-grid" data-refi-hide="earnestCommission" data-earnest-commission>
           <label>EMD held by<input name="emdHeldBy" maxlength="200" aria-label="EMD held by" placeholder="CLA Title, listing brokerage, or another holder"></label>
-          <label>Commission base<input name="commissionBase" inputmode="decimal" data-money aria-label="Commission base" autocomplete="off"></label>
-          <label>Commission %<input name="commissionPercent" inputmode="decimal" aria-label="Commission percent" autocomplete="off"></label>
-          <label>Additional<input name="commissionAdditional" inputmode="decimal" data-money aria-label="Commission additional" autocomplete="off"></label>
-          <label>Total<input name="commissionTotal" data-commission-total readonly aria-label="Commission total" tabindex="-1"></label>
-          <label>Paid by<select name="commissionPaidBy" aria-label="Commission paid by"><option value="">Choose&hellip;</option>${COMMISSION_PAID_BY.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select></label>
+          ${placeOrderFeesHtml()}
         </div>
         <h4 class="wiz-sub">Lender <span class="muted small">(optional)</span></h4>
         <div class="lender-block" data-lender-block>${pickerWithReferral('Lender', 'Lender')}
@@ -279,7 +277,7 @@ export async function render({ api, user, go }) {
       pickers[from].set(null); $('[data-agent-edit]', card).hidden = true; pickers[to].set(c); };
     ['Buyer Agent', 'Listing Agent'].forEach((role) => { const card = $(`[data-agent-card="${role}"]`, root); const q = $('.picker-q', card); if (q) q.addEventListener('input', () => { if (!pickers[role].value) $('[data-agent-edit]', card).hidden = true; });
       $('[data-agent-role]', card).addEventListener('change', () => { const nextRole = $('[data-agent-role]', card).value; if (nextRole === role) return; try { moveAgent(role, nextRole); } catch (err) { toast(err.message, 'err'); } }); });
-    const paintCommission = () => { const box = $('[data-commission-total]', root); if (!box) return; try { const e = readEarnest(formData(form)); box.value = e.commissionTotal == null ? '' : String(e.commissionTotal); } catch (err) { box.value = ''; } };
+    mountPlaceOrderFees(form, () => { try { return moneyAmount(form.elements.purchasePrice ? form.elements.purchasePrice.value : ''); } catch (err) { return null; } });   // Agent fees (Nov 13): % and $ stay in step
     bindAddressFill(form);
     const syncAfterAddress = () => syncMd();
     ['street', 'city', 'state', 'zip'].forEach((name) => { const el = form.querySelector(`[name="${name}"]`); if (el) el.addEventListener('blur', syncAfterAddress); });
@@ -366,7 +364,8 @@ export async function render({ api, user, go }) {
         // A blank or incomplete extra lender row is ignored when the order is saved. It does not block the company.
         const refused = (v) => { try { moneyAmount(v); return false; } catch (err) { return true; } };
         if (!refi() && refused(f.emdAmount)) errs.push({ el: $('[name=emdAmount]', p), msg: 'EMD amount must be a number of 0 or more.' });
-        if (!refi()) { try { readEarnest(f); } catch (err) { errs.push({ el: $('[name=commissionPercent]', p) || $('[name=emdHeldBy]', p), msg: err.message }); } }
+        if (!refi()) { try { readEarnest(f); } catch (err) { errs.push({ el: $('[name=emdHeldBy]', p), msg: err.message }); } }
+        if (!refi()) { try { readPlaceOrderFees(form, refused(f.purchasePrice) ? null : moneyAmount(f.purchasePrice)); } catch (err) { errs.push({ el: $('[name="af.listing.percent"]', p), msg: err.message }); } }
         for (const [key, l] of [['purchasePrice', 'Purchase price'], ['loanAmount', 'Loan amount']]) { if (key === 'purchasePrice' && refi()) continue;
           if (refused(f[key])) errs.push({ el: $(`[name=${key}]`, p), msg: `${l} must be a number of 0 or more.` }); }
       }
@@ -430,7 +429,7 @@ export async function render({ api, user, go }) {
         ${section('property', 'Property', [['Address', f.street ? html`${f.street}<br>${[f.city, f.state].filter(Boolean).join(', ')} ${f.zip || ''}` : dash], ['County', val(f.county)], ['Parcel ID', val(f.parcelId)], ...(mdOn ? [['Primary residence', yesNo(f.primaryResidence)], ['First-time buyer', yesNo(f.firstTimeBuyer)]] : [])])}
         ${section('parties', r ? 'Borrowers' : 'Buyers & Sellers', [[r ? 'Borrowers' : 'Buyers', partyList('Client-Buyer')], ...(r ? [] : [['Sellers', partyList('Client-Seller')]])])}
         ${section('loan', 'Lender & Loan', [...(r ? [] : [['Purchase price', val(fmtMoney(moneyAmount(f.purchasePrice)))]]), ['Loan amount', val(fmtMoney(moneyAmount(f.loanAmount)))],
-          ...(r ? [] : [['EMD amount', val(fmtMoney(moneyAmount(f.emdAmount)))], ['EMD due date', val(fmtDate(f.emdDueDate))], ['EMD held by', val(f.emdHeldBy)], ['Commission', (() => { try { const e = readEarnest(f); if (e.commissionTotal == null && !e.commissionPaidBy && !e.emdHeldBy) return dash; return html`${e.commissionTotal == null ? dash : fmtMoney(e.commissionTotal)} <span class="muted small">${[e.commissionBase != null ? 'base ' + fmtMoney(e.commissionBase) : '', e.commissionPercent != null ? e.commissionPercent + '%' : '', e.commissionAdditional != null ? 'additional ' + fmtMoney(e.commissionAdditional) : '', e.commissionPaidBy ? 'paid by ' + e.commissionPaidBy : ''].filter(Boolean).join(' · ')}</span>`; } catch (err) { return err.message; } })()]]), ['Closing date', val(fmtDate(f.closingDate))], ['Disbursement date', f.disbursementDate ? val(fmtDate(f.disbursementDate)) : html`<span class="muted" data-review-disbursement-auto>Automatic</span>`],
+          ...(r ? [] : [['EMD amount', val(fmtMoney(moneyAmount(f.emdAmount)))], ['EMD due date', val(fmtDate(f.emdDueDate))], ['EMD held by', val(f.emdHeldBy)], ['Agent fees', (() => { try { const fees = readPlaceOrderFees(form, moneyAmount(f.purchasePrice)); const parts = Object.entries(fees).filter(([, v]) => v).map(([k, v]) => `${AF_SIDE_LABEL[k]}: ${[v.commission ? `${Number(v.commission.percent.toFixed(4))}% / ${fmtMoney(v.commission.amount)}` : '', v.admin ? `admin fee ${fmtMoney(v.admin.amount)}` : ''].filter(Boolean).join(', ')}`); return parts.length ? html`<span data-review-agent-fees>${parts.join(' · ')}</span>` : dash; } catch (err) { return err.message; } })()]]), ['Closing date', val(fmtDate(f.closingDate))], ['Disbursement date', f.disbursementDate ? val(fmtDate(f.disbursementDate)) : html`<span class="muted" data-review-disbursement-auto>Automatic</span>`],
                     ['Lender', (pickers.Lender.value || f.lenderName) ? html`${f.lenderName ? html`<strong>${f.lenderName}</strong>${pickers.Lender.value ? html` · ${nameOf(pickers.Lender.value)}` : ''}` : nameOf(pickers.Lender.value)}${f.lenderPhone || f.lenderEmail || f.lossPayeeName || f.mortgageBrokerName || f.cplAddress ? html`<br><span class="muted small">${[f.lenderPhone, f.lenderEmail, f.mortgageBrokerName && ('Broker: ' + f.mortgageBrokerName), f.lossPayeeName && ('Loss payee: ' + f.lossPayeeName), f.cplAddress && ('CPL: ' + f.cplAddress)].filter(Boolean).join(' · ')}</span>` : ''}` : dash],
           ['Lender contacts', readLenderContactRows(form).length ? readLenderContactRows(form).map((row) => html`<div>${[row.firstName, row.lastName].filter(Boolean).join(' ')} <span class="muted small">${row.lenderRole === 'lender_tc' ? 'Lender TC' : row.lenderRole === 'loan_officer' ? 'Loan Officer' : ''}</span></div>`) : dash]])}
         ${section('parties', 'Source of business', [['Source of business', val((() => { const picked = $$('[name=referralSource]', root).find((el) => el.checked && el.value); return picked ? (picked.getAttribute('aria-label') || '').replace(/^Source of business:\s*/, '') : ''; })())]])}
@@ -551,7 +550,7 @@ export async function render({ api, user, go }) {
     };
     let draftTimer = 0;
     const queueDraft = () => { if (sealed) return; clearTimeout(draftTimer); draftTimer = setTimeout(persistDraft, 400); };
-    form.addEventListener('input', () => { syncReferral(); paintCommission(); queueDraft(); }); form.addEventListener('change', queueDraft);
+    form.addEventListener('input', () => { syncReferral(); queueDraft(); }); form.addEventListener('change', queueDraft);
     const saveBtn = $('[data-save-draft]', root);
     if (saveBtn) saveBtn.addEventListener('click', () => { commitOrder({ asDraft: true }).catch((err) => toast(err.message || String(err), 'err')); });
     let placedMark = null;
@@ -601,7 +600,7 @@ export async function render({ api, user, go }) {
         const builtEnt = entityIdentity({ entityName: ent.name, entityType: ent.type, repName: ent.repName, repTitle: ent.repTitle, repEmail: ent.repEmail, repPhone: ent.repPhone });
         if (!builtEnt.ok) throw new Error(builtEnt.error);
         const made = await api.createContact(builtEnt.contact); if (!people.some((p) => p.id === made.id)) people.push(made); r.pk.set(made); } }
-      if (refi()) { REFI_HIDE.forEach((k) => { delete f[k]; }); ['emdHeldBy', 'commissionBase', 'commissionPercent', 'commissionAdditional', 'commissionPaidBy', 'commissionTotal'].forEach((k) => { delete f[k]; }); }
+      if (refi()) { REFI_HIDE.forEach((k) => { delete f[k]; }); Object.keys(f).filter((k) => k === 'emdHeldBy' || k.startsWith('af.')).forEach((k) => { delete f[k]; }); }
       await saveAgentEdits();
       // Matt, Nov 3 (b): amounts are shown with commas (485,000) and sent clean (485000)
       const amt = refi() ? '' : moneyAmount(f.emdAmount);
@@ -617,15 +616,17 @@ export async function render({ api, user, go }) {
       if (!showMdQuestions(f.state, refi())) { f.primaryResidence = ''; f.firstTimeBuyer = ''; }
       const extras = lenderExtras({ lenderAddress: f.lenderAddress, cplAddress: f.cplAddress, cplSameAsLender: !!($('[data-cpl-same]', root) && $('[data-cpl-same]', root).checked), mortgageBrokerName: f.mortgageBrokerName });
       const earnest = refi() ? { financial: {} } : readEarnest(f);
+      const agentFees = refi() ? {} : readPlaceOrderFees(form, moneyAmount(f.purchasePrice));   // checked again here, before the order exists
       const placedCloser = resolveCloser(f.closerName, closers, {});
       const parcels = parcelsFromForm(form);
-      const input = representationPayload(api, { ...f, closerName: placedCloser.closerName, closerProfileId: placedCloser.closerProfileId, parcelId: parcels.parcelId, parcelIds: parcels.parcelIds, emdHeldBy: earnest.emdHeldBy || '', commissionBase: earnest.commissionBase, commissionPercent: earnest.commissionPercent, commissionAdditional: earnest.commissionAdditional, commissionPaidBy: earnest.commissionPaidBy || '', emdAmount: amt, purchasePrice: refi() ? '' : moneyAmount(f.purchasePrice), ...(refi() ? { emdDueDate: '' } : {}), loanAmount: moneyAmount(f.loanAmount), salesIds: new FormData(form).getAll('salesIds'),
+      const input = representationPayload(api, { ...f, closerName: placedCloser.closerName, closerProfileId: placedCloser.closerProfileId, parcelId: parcels.parcelId, parcelIds: parcels.parcelIds, emdHeldBy: earnest.emdHeldBy || '', emdAmount: amt, purchasePrice: refi() ? '' : moneyAmount(f.purchasePrice), ...(refi() ? { emdDueDate: '' } : {}), loanAmount: moneyAmount(f.loanAmount), salesIds: new FormData(form).getAll('salesIds'),
         lenderName: (f.lenderName || (lender && lender.company) || '').trim(),
         lenderContact: lender ? personLabel(lender) : '',
         lenderPhone: (f.lenderPhone || '').trim(),
         lenderEmail: (f.lenderEmail || '').trim(),
         lossPayeeName: (f.lossPayeeName || '').trim(),
         lenderAddress: extras.lenderAddress, cplAddress: extras.cplAddress, cplSameAsLender: extras.cplSameAsLender, mortgageBrokerName: extras.mortgageBrokerName });
+      Object.keys(input).filter((k) => k.startsWith('af.')).forEach((k) => { delete input[k]; });
       if (!extras.lenderAddress) delete input.lenderAddress;
       if (!extras.cplAddress) delete input.cplAddress;
       if (!extras.cplSameAsLender) delete input.cplSameAsLender;
@@ -660,6 +661,9 @@ export async function render({ api, user, go }) {
           await api.addParticipant(deal.id, c.id, 'Lender'); added.Lender = (added.Lender || 0) + 1;
         } catch (err) { problems.push(`Lender company: ${err.message}`); }
       }
+      // Agent fees (Nov 13): saved after the agents are on the file, so Accounting names their company
+      for (const [side, fees] of Object.entries(agentFees)) { if (!fees || !api.saveAgentFees) continue;
+        try { await api.saveAgentFees(deal.id, side, fees, ''); } catch (err) { problems.push(`${AF_SIDE_LABEL[side]} fees were not saved (${err.message}). Enter them in the Agent fees box on the file`); } }
       if (referral) { try { await api.updateDeal(deal.id, { sourceOfBusiness: referral }); } catch (err) { problems.push(`Source of business was not saved: ${err.message}`); } }
       let saved = 0;
       const uploadIds = new WeakMap();
@@ -670,7 +674,7 @@ export async function render({ api, user, go }) {
         added, tasks, docs: saved, skipped, problems, at: Date.now() })); } catch (err) { /* private mode: no confirmation panel, the toasts above still say it */ }
       if (problems.length) {
         const box = $('[data-wiz-step="review"] [data-wiz-errors]', root);
-        if (box) { box.hidden = false; box.innerHTML = toText(html`<strong>Order ${deal.fileNumber} was created, but these people were not added.</strong><ul>${problems.map((m) => html`<li>${m}</li>`)}</ul><p>You are still on Place Order. <a href="#/deals/${deal.id}">Open ${deal.fileNumber}</a> and add them on Contacts.</p>`); }
+        if (box) { box.hidden = false; box.innerHTML = toText(html`<strong>Order ${deal.fileNumber} was created, but ${problems.every((m) => / fees were not saved /.test(m)) ? 'some agent fees were not saved' : 'these were not added'}.</strong><ul>${problems.map((m) => html`<li>${m}</li>`)}</ul><p>You are still on Place Order. <a href="#/deals/${deal.id}">Open ${deal.fileNumber}</a> and add ${problems.every((m) => / fees were not saved /.test(m)) ? 'them in the Agent fees box' : 'people on Contacts'}.</p>`); }
         if (btn) { btn.disabled = true; btn.textContent = 'Place order'; }
         return;
       }

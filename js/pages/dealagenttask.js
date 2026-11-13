@@ -2,8 +2,8 @@
 // Edit -> Submit -> "Task Complete". A completed task opens as View Submission (read-only) with Modify, which turns the button into Submit Revision.
 // "About This Task" sidebar with Send Message (a conversation with the processor tied to this task). Leaving with unsaved edits asks first.
 import { html, raw, toText, $, $$, guard, toast, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611161500';
-import { MARITAL } from '../data/agent-portal.js?v=202611101015';
-import { CLS, LABEL } from './dealtasks.js?v=202611191600';
+import { MARITAL } from '../data/agent-portal.js?v=202611191700';
+import { CLS, LABEL } from './dealtasks.js?v=202611191700';
 
 const yn = (name, val, label) => html`<fieldset class="span2 yn" data-k="${name}"><legend>${label}</legend>${['Yes', 'No'].map((o) => html`<label class="check"><input type="radio" name="${name}" value="${o}" ${val === o ? raw('checked') : ''}> ${o}</label>`)}<span class="ferr"></span></fieldset>`;
 const inp = (name, label, val, type = 'text', extra = '') => html`<label class="fld" data-k="${name}">${label}<input name="${name}" type="${type}" value="${val == null ? '' : val}" ${raw(extra)}><span class="ferr"></span></label>`;
@@ -12,19 +12,14 @@ const PH = 'inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone';
 const personFields = (k, p = {}, { married = true } = {}) => html`${inp(`${k}.firstName`, 'First Name', p.firstName)}${inp(`${k}.lastName`, 'Last Name', p.lastName)}${inp(`${k}.email`, 'Email', p.email, 'email')}${inp(`${k}.phone`, 'Phone', p.phone, 'tel', PH)}
   ${married ? html`${sel(`${k}.maritalStatus`, 'Marital Status', MARITAL, p.maritalStatus)}<div class="span2 form-grid" data-spouse="${k}" ${p.maritalStatus === 'Married' ? '' : raw('hidden')}><h4 class="span2">Spouse</h4>${inp(`${k}.spouse.firstName`, 'Spouse First Name', (p.spouse || {}).firstName)}${inp(`${k}.spouse.lastName`, 'Spouse Last Name', (p.spouse || {}).lastName)}${inp(`${k}.spouse.phone`, 'Spouse Phone', (p.spouse || {}).phone, 'tel', PH)}${inp(`${k}.spouse.email`, 'Spouse Email', (p.spouse || {}).email, 'email')}</div>` : ''}`;
 
-function editForm(t, a) {
+function editForm(t, a, dealId = '') {
   if (t.code === 'agent_client_contacts') return html`<h3 class="span2">Do you represent the following ${t.assignedRole === 'Listing Agent' ? 'sellers' : 'buyers'}?</h3>
     ${(a.clients || []).map((c, i) => { const cl = t.clients.find((z) => z.participantId === c.participantId) || {}; return html`<div class="span2 form-grid card" data-client="${i}"><input type="hidden" name="clients.${i}.participantId" value="${c.participantId}">
       ${yn(`clients.${i}.represent`, c.represent, `Do you represent ${cl.name}?`)}<div class="span2 form-grid" data-represent="${i}" ${c.represent === 'Yes' ? '' : raw('hidden')}>${personFields(`clients.${i}`, c)}</div></div>`; })}
     ${(a.added || []).map((c, i) => html`<div class="span2 form-grid card" data-added="${i}"><h4 class="span2">Added client contact ${i + 1} <button type="button" class="ghost" data-del-row="added.${i}">Remove</button></h4>${personFields(`added.${i}`, c)}</div>`)}
     <div class="span2"><button type="button" class="ghost" data-add-row="added">+ Add Client Contact</button></div>`;
   if (t.code === 'agent_transaction_info') return html`${inp('closingDate', 'Estimated Closing Date', a.closingDate, 'date')}${inp('purchasePrice', 'Purchase Price ($)', a.purchasePrice, 'text', 'inputmode="decimal"')}
-    <h4 class="span2">${t.assignedRole === 'Listing Agent' ? 'Listing' : 'Selling'} commission splits</h4>
-    ${(a.commissions || []).map((c, i) => html`<div class="span2 form-grid" data-commission="${i}">${inp(`commissions.${i}.name`, 'Name', c.name)}${inp(`commissions.${i}.percent`, 'Percent (%)', c.percent, 'text', 'inputmode="decimal"')}${inp(`commissions.${i}.amount`, 'Amount ($)', c.amount, 'text', 'inputmode="decimal"')}${i ? html`<button type="button" class="ghost" data-del-row="commissions.${i}">Remove split</button>` : ''}</div>`)}
-    <div class="span2"><button type="button" class="ghost" data-add-row="commissions">Edit: + add a split</button></div>
-    <h4 class="span2">Fees and credits</h4>
-    ${(a.fees || []).map((f, i) => html`<div class="span2 form-grid" data-fee="${i}">${inp(`fees.${i}.name`, 'Name', f.name)}${sel(`fees.${i}.type`, 'Type', ['Fee', 'Credit'], f.type)}${inp(`fees.${i}.amount`, 'Amount ($)', f.amount, 'text', 'inputmode="decimal"')}${sel(`fees.${i}.paidBy`, 'Paid By', ['Buyer', 'Seller'], f.paidBy)}<button type="button" class="ghost" data-del-row="fees.${i}">Remove</button></div>`)}
-    <div class="span2"><button type="button" class="ghost" data-add-row="fees">+ Add a Fee or Credit</button></div>
+    <p class="span2 notice info" data-agent-task-fees>Your commission and fees are not on this task. Check and confirm them in the <a href="#/deals/${dealId}">Agent fees</a> box on the file overview; that is the one place CLA Title keeps them.</p>
     ${inp('emdAmount', 'Earnest deposit amount ($)', a.emdAmount, 'text', 'inputmode="decimal"')}${inp('licenseId', 'Your Agency License ID', a.licenseId)}
     ${yn('holdingEmd', a.holdingEmd, 'Are you holding earnest money given to you by the buyer?')}
     <h4 class="span2">${t.assignedRole === 'Listing Agent' ? 'Listing' : 'Selling'} team members</h4>
@@ -47,19 +42,19 @@ function viewSubmission(t, a) {
 }
 // read the form back into the answers shape (paths like clients.0.spouse.email)
 function readForm(form, base) {
-  const out = JSON.parse(JSON.stringify(base)); ['added', 'commissions', 'fees', 'team'].forEach((k) => { if (Array.isArray(out[k])) out[k] = out[k].map(() => ({})); });
+  const out = JSON.parse(JSON.stringify(base)); ['added', 'team'].forEach((k) => { if (Array.isArray(out[k])) out[k] = out[k].map(() => ({})); });
   if (Array.isArray(out.clients)) out.clients = out.clients.map((c) => ({ participantId: c.participantId }));
   new FormData(form).forEach((v, k) => { const p = k.split('.'); let o = out; p.slice(0, -1).forEach((s, i) => { const nx = /^\d+$/.test(p[i + 1]) ? [] : {}; if (o[s] == null) o[s] = nx; o = o[s]; }); o[p[p.length - 1]] = v; });
   return out;
 }
-const blank = { added: { firstName: '', lastName: '', email: '', phone: '', maritalStatus: '' }, commissions: { name: 'Split', percent: '', amount: '' }, fees: { name: '', type: '', amount: '', paidBy: '' }, team: { firstName: '', lastName: '', email: '', phone: '', company: '', licenseId: '' } };
+const blank = { added: { firstName: '', lastName: '', email: '', phone: '', maritalStatus: '' }, team: { firstName: '', lastName: '', email: '', phone: '', company: '', licenseId: '' } };
 
 export async function render({ api, deal, params, go }) {
   let t = await api.getAgentTask(params.sub); let editing = t.canSubmit && !t.submitted; let answers = t.answers; let dirty = false; const justDone = /[?&]done=1/.test(location.hash);
   window.claDirty = () => dirty;
   const head = () => html`<p class="muted small">For <strong>${t.ownerName}</strong> (${t.assignedRole}) &middot; due ${fmtDate(t.dueDate) || 'n/a'} &middot; ${pill(t.submitted ? 'complete' : LABEL[t.status], t.submitted ? 'ok' : CLS[t.status])}${t.revisionCount ? html` &middot; submitted ${t.revisionCount === 1 ? 'once' : `${t.revisionCount} times (${t.revisionCount - 1} revision${t.revisionCount > 2 ? 's' : ''})`}` : ''}${t.completedAt ? html` &middot; last ${fmtDateTime(t.completedAt)}` : ''}</p>`;
   const main = () => t.answersHidden ? html`<p class="muted" data-answers-hidden>Only ${t.ownerName}, the processor, the coordinator and Admin can see these answers.</p>`
-    : editing ? html`<form id="atf" class="form-grid" novalidate>${editForm(t, answers)}<div class="span2"><button class="m-btn" type="submit" data-submit>${t.submitted ? 'Submit Revision' : 'Submit'}</button>${t.submitted ? html` <button type="button" class="ghost" data-cancel-modify>Cancel</button>` : ''}</div></form>`
+    : editing ? html`<form id="atf" class="form-grid" novalidate>${editForm(t, answers, deal.id)}<div class="span2"><button class="m-btn" type="submit" data-submit>${t.submitted ? 'Submit Revision' : 'Submit'}</button>${t.submitted ? html` <button type="button" class="ghost" data-cancel-modify>Cancel</button>` : ''}</div></form>`
     : html`<div data-view-submission><h3>View Submission</h3>${answers && (t.submitted || t.revisionCount) ? viewSubmission(t, answers) : html`<p class="muted">Not submitted yet.</p>`}${t.canSubmit && t.submitted ? html`<button type="button" class="m-btn" data-modify>Modify</button>` : ''}
       ${t.revisions.length ? html`<p class="muted small" data-revisions>History: ${t.revisions.map((r) => `${r.kind === 'submission' ? 'Submitted' : 'Revision ' + (r.n - 1)} by ${r.by} ${fmtDateTime(r.at)}`).join('; ')}</p>` : ''}</div>`;
   const draw = (root) => { $('[data-task-main]', root).innerHTML = toText(html`${head()}${main()}`); wire(root); };

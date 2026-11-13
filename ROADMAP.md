@@ -17,7 +17,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When CLA staff open a file, they enter each agent's fees for their side (listing agent and buyer's agent): the commission as a percent or a dollar amount, which always stay in sync with each other using the sales price; an admin fee (paid by the buyer for the buyer's agent and by the seller for the listing agent unless changed); and up to 5 other fees, each with a description, an amount and who it's paid to. Each agent sees and can change their own side in the portal. Before saving, they see a "You're changing X from $A to $B" check, and the fee is then marked "Agent confirmed". A TC can confirm for the agent. Once confirmed, the agent's figure wins. Staff can still change it, but they must give a reason, and the agent is told straight away (old value, new value, reason, who). When an agent changes a fee, the processor, pre-processor and TC on the file are told, in the portal and by email. The fees go straight onto the right lines in Accounting, and from there onto the Closing Disclosure (CD) and the ALTA settlement statement, which can also be generated as PDFs. Buyers and sellers never see commissions or agent fees. Every change is kept in a history: who, when, old value, new value, reason, and whether staff, the agent or the TC made it.
 
-**Status: Partial (being built as AF-1 to AF-6).**
+**Status: Built (AF-1 to AF-6 Live on TEST). The follow-ups (one place for commissions, agent task, walkthrough test) are in review, built by Claude.**
 
 | Step | What | Status |
 |---|---|---|
@@ -27,6 +27,7 @@ This file lists the portal's major features: how each one should work, how far a
 | AF-4 | Notice to the agent when staff change a confirmed fee | Live on TEST, [PR 236](https://github.com/Johncoester/cla-portal-demo/pull/236) |
 | AF-5 | Fees post to Accounting automatically | Live on TEST, [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) |
 | AF-6 | "Generate CD" and "Generate ALTA" PDF buttons | Live on TEST, [PR 238](https://github.com/Johncoester/cla-portal-demo/pull/238) |
+| AF-7 | Follow-ups: one place for commissions, agent task without fee questions, walkthrough test (Owner: Claude) | In review, [PR 257](https://github.com/Johncoester/cla-portal-demo/pull/257). Needs `20261119030000_agent_fee_one_source.sql` applied on TEST before it is Live |
 
 **What's built**
 
@@ -36,21 +37,20 @@ This file lists the portal's major features: how each one should work, how far a
 - AF-4: when CLA staff change fees the agent (or TC) confirmed, the side's agent gets a portal notice and a queued email: who changed it (marked "CLA Title"), old and new values, and the reason. It says no re-approval is needed. Nobody else is told, and nothing is sent when staff change fees nobody has confirmed yet.
 - AF-5: every agent fee posts to the file's Accounting fee ledger by itself. Each fee is one line under ALTA "Commission" and CD section H, paid by the fee's payer. The payee is the agent's company (or "Buyer's Agent" / "Listing Agent" when it has none), or the other fee's "paid to". A line is kept in step when the fee or the sales price changes, and retired (never deleted) when the fee is removed. If a processor changes the line by hand on the Accounting tab, automatic posting leaves it alone from then on.
 - AF-6: Accounting's Closing Disclosure and Settlement Statement tabs stay, and each has a **Generate CD** / **Generate ALTA** button. It opens the print window with the file's document name filled in (for example "MD-26-97262 - Closing Disclosure - TEST") so it can be saved as a PDF. The agent fees appear in CD section H and the ALTA "Commission" section.
-- AF-2 also hides the commission figures in the overview's "Earnest & commissions" box from buyers and sellers. They see only "EMD held by", under "Earnest money".
-- Staff can enter commission base, percent, any additional amount and who pays it (buyer or seller) on Place Order, in Edit order details, and in Accounting > Contract figures. All three use the same figures.
-- Agents have a "Confirm Your Transaction Information" task where they enter their commission split and any fees or credits. Every version they submit is kept, and the file's processor gets an in-portal notice when they submit or revise it.
+- The overview's old "Earnest & commissions" box is now "Earnest money" (EMD held by only) for everyone; commissions show only in the Agent fees box (AF-7).
+- AF-7 (follow-ups, Nov 13; John assigned them to Claude): **one place for commissions.** Place Order now has, for each agent side, Commission % and $ (typing one fills the other from the purchase price) and an admin fee; they are saved as the file's Agent fees once the agents are added. Edit order details, Accounting > Contract figures and the TC's contract figures no longer take a commission: they point to the Agent fees box, and Accounting shows both sides read only. The database file moves any commission still on an order into Agent fees (in the change history), empties the order's old commission fields so buyers and sellers can't read them, and refuses a commission written to the order again with a plain message. The agent's "Confirm Your Transaction Information" task no longer asks for a commission or fees; it points to the Agent fees box. Answers agents already sent are still shown.
+- AF-7 walkthrough: `tests/e2e-roles/specs/agent-fees.spec.js` (Processor enters, listing agent sees only their side and confirms, a staff change needs a reason, the buyer never sees agent fees, the task points to the box) and Place Order agent fees in `order-entry.spec.js`.
+- Agents' earlier "Confirm Your Transaction Information" submissions are kept (every version), and the file's processor gets an in-portal notice when they submit or revise it.
 - The Accounting fee ledger already has a "Commission" section that shows on the CD (section H, "Other") and on the settlement statement.
 - The portal has an in-portal notifications list, and Accounting fee changes are already logged.
 
 **What's still missing**
 
-- The older commission boxes (Place Order "Earnest & Commissions", Edit order details, Accounting > Contract figures, the TC's contract figures) still save to the order's old commission fields and don't feed the Agent fees box. John to decide: remove them, or have them fill the Agent fees box.
-- The agent's "Confirm Your Transaction Information" task isn't pre-filled from the Agent fees box yet; the agent confirms fees in the box instead.
+- AF-7 is not Live until `supabase/migrations/20261119030000_agent_fee_one_source.sql` is applied on TEST. Until then the old commission columns stay readable by buyers and sellers through the database (blank on every TEST file today).
 - Notice emails are queued in the portal's outbox but never sent on TEST (the TEST portal sends no email). Sending them needs the production mail switch, which is John's call.
-- The order's old commission fields can still be read by buyers and sellers through the database (the new Agent fees records can't). They're blank on every TEST file today.
 - A sales price change re-posts the commission in the database (TEST); the demo (mock) portal re-posts only when the fees are saved.
 - "Generate CD" and "Generate ALTA" make the PDF with the browser's own "Save as PDF". The portal doesn't store the PDF on the file.
-- No end-to-end test covers this flow.
+- Other fees are added in the Agent fees box, not on Place Order (Place Order has commission and admin fee only).
 
 **Links**
 
@@ -70,7 +70,8 @@ This file lists the portal's major features: how each one should work, how far a
 - A TC can confirm fees for the agent. It's logged as confirmed by the TC, and the agent is notified.
 - John answered all seven open questions on Nov 12 at 2:33 PM ET. See the spec.
 - Queue: John started the build on Nov 12 at 8 PM ET (t1566u, "Start a second builder tonight"), alongside the bug fixes. Merges stay one at a time.
-- AF-1 choices (simplest option; tell John if any is wrong): a commission can't be saved until the file has a sales price, so % and $ can always be checked against it. The commission and other fees also record who pays them, with the same defaults as the admin fee (buyer for the buyer's agent, seller for the listing agent). When staff change a confirmed fee, the record of who confirmed it stays, so every later staff change still needs a reason. A fixed-$ commission bigger than a new, lower sales price switches to keeping its %. A TC can confirm the side of an agent on their team; the file's own TC can confirm either side. A refinance has no agent fees.
+- Follow-ups (John, Nov 13): one place for commissions (the older commission boxes point to Agent fees instead of keeping a second copy), remove the fee questions from the agent's task, add a walkthrough test, AF-1 choices approved as written. Assigned to Claude; John waived rule 9 for this build (the walkthrough on main was failing for unrelated buyer/seller tests).
+- AF-1 choices (approved as written by John, Nov 13): a commission can't be saved until the file has a sales price, so % and $ can always be checked against it. The commission and other fees also record who pays them, with the same defaults as the admin fee (buyer for the buyer's agent, seller for the listing agent). When staff change a confirmed fee, the record of who confirmed it stays, so every later staff change still needs a reason. A fixed-$ commission bigger than a new, lower sales price switches to keeping its %. A TC can confirm the side of an agent on their team; the file's own TC can confirm either side. A refinance has no agent fees.
 
 ---
 
@@ -78,23 +79,24 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** The Closing Disclosure (CD) and the ALTA settlement statement are built from the file's Accounting fee ledger, so every fee is entered once and lands in the right section of both documents.
 
-**Status: Partial.**
+**Status: Built (Live on TEST through AF-5 and AF-6).**
 
 **What's built**
 
 - A file's Accounting tab has two live views, **Closing Disclosure** (pages 1-5) and **Settlement Statement**. Both are built from the fee ledger whenever they're opened, and both can be printed.
 - Every ledger line has a CD section and an ALTA section. A commission line goes to CD section H ("Other") and to the ALTA "Commission" section.
 - CD page 5 lists the buyer's and seller's real estate brokers from the file's agents.
+- AF-5: every agent fee (commission, admin fee, other fees, per side) posts to the ledger by itself, so it lands in CD section H and the ALTA "Commission" section with no re-entry.
+- AF-6: **Generate CD** and **Generate ALTA** buttons on those tabs open the print window with the file's document name filled in, to save as a PDF.
 
 **What's still missing**
 
-- There are no "Generate CD" or "Generate ALTA" buttons yet. John decided (Nov 12) to keep the live tabs and add these buttons to create a PDF.
-- Agent fees don't reach the ledger automatically yet (see Agent fees flow), so they won't appear on either document until someone adds them by hand.
+- The generated PDF is saved by the browser ("Save as PDF"); the portal doesn't store it on the file.
 
 **Links**
 
 - Spec: none yet. The agent fees parts are in [docs/specs/agent-fees-flow.md](docs/specs/agent-fees-flow.md) (requirement 5).
-- Related pull requests: none on record. The CD and Settlement Statement views were built before the repo's current pull request history.
+- Related pull requests: [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) (AF-5, agent fees post to the ledger), [PR 238](https://github.com/Johncoester/cla-portal-demo/pull/238) (AF-6, Generate CD / ALTA). The CD and Settlement Statement views were built before the repo's current pull request history.
 
 **Decisions**
 

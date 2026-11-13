@@ -3,7 +3,7 @@
  * Modify / Submit Revision, task-tied messages, Request Update (staff answer it), Share Access (RECORDED only: no email, no login is created),
  * "Complete Requests Now" invite email (preview + outbox only), rich-text messages with file attachments (Share Files), and the outside user's own
  * Activity feed (only things they can already open). Nothing here deletes anything; documents stay permanent. */
-import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, COMMISSION_LABEL, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611101015';
+import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611191700';
 import { senderFor } from './email-senders.js?v=202611101015';
 import { CLA_PHONE, isRefi } from './constants.js?v=202611101015';
 export function agentPortal(x) {
@@ -26,7 +26,7 @@ export function agentPortal(x) {
   const prefill = (t) => { const q = deal(t.dealId); const lic = (load().tasks.find((z) => z.participantId === t.participantId && z.templateCode === 'commissions') || { formData: {} }).formData.license_id || '';
     if (t.templateCode === 'agent_client_contacts') return { clients: clientsFor(t).map((c) => ({ participantId: c.participantId, represent: '', firstName: c.firstName, lastName: c.lastName, email: c.email, phone: c.phone, maritalStatus: '' })), added: [] };
     if (t.templateCode === 'agent_transaction_info') return { closingDate: q.closingDate || '', purchasePrice: q.purchasePrice == null ? '' : q.purchasePrice, emdAmount: q.emdAmount == null ? '' : q.emdAmount, holdingEmd: '', licenseId: lic,
-      commissions: [{ name: COMMISSION_LABEL[t.assignedRole] || 'Commission', percent: '', amount: '' }], fees: [], team: [] };
+      team: [] };
     return { willPurchase: '' }; };
   const taskOut = (u, t) => { const o = x.taskOut(u, t); const def = agentTaskDef(t.templateCode) || {}; const vis = answersVisible(u, t);
     const revs = load().agentTaskRevisions.filter((r) => r.taskId === t.id);

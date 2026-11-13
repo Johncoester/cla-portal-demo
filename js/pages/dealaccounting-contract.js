@@ -1,42 +1,36 @@
 // TEST contract figures. Estimates only. Blank stays blank. Nothing here is a receipt, payoff, or Closing Disclosure.
-import { html, raw, $, $$, guard, formData, toast, fmtMoney } from '../ui.js?v=202611161500';
-import { CONTRACT_FIELDS, CONTRACT_GROUPS, illustrative } from '../data/contract-terms.js?v=202611091140';
+import { html, raw, $, $$, guard, formData, toast } from '../ui.js?v=202611161500';
+import { CONTRACT_FIELDS, CONTRACT_GROUPS, illustrative } from '../data/contract-terms.js?v=202611191700';
 import { runsOrders, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611101015';
-import { earnestView, readEarnest, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611141000';
+import { earnestView, readEarnest } from '../data/earnest-commission.js?v=202611191700';
+import { agentFeesSummaryHtml } from './agent-fees-box.js?v=202611191700';
 
 function earnestAccounting(deal, user) {
   if (isRefi(deal)) return '';
   const ev = earnestView(deal);
   const edit = runsOrders(user);
   const moneyBox = (name, label, value) => html`<label>${label}<input name="${name}" inputmode="decimal" data-money value="${moneyShow(value)}" aria-label="${label}" autocomplete="off"></label>`;
-  return html`<form class="card acct-form" data-earnest-accounting data-earnest-edit="${edit ? 'yes' : 'no'}"><h3>Earnest &amp; commissions</h3>
+  return html`<form class="card acct-form" data-earnest-accounting data-earnest-edit="${edit ? 'yes' : 'no'}"><h3>Earnest money</h3>
     <p class="muted small">Optional. Saved on the order, the same place as Add New Order. A refinance has none.</p>
     <div class="form-grid">
       ${moneyBox('emdAmount', 'EMD amount', deal.emdAmount)}
       <label>EMD due date<input type="date" name="emdDueDate" value="${deal.emdDueDate || ''}"></label>
       <label>EMD held by<input name="emdHeldBy" maxlength="200" value="${ev.held}" aria-label="EMD held by"></label>
-      ${moneyBox('commissionBase', 'Commission base', ev.base)}
-      <label>Commission %<input name="commissionPercent" inputmode="decimal" value="${ev.percent == null ? '' : ev.percent}" aria-label="Commission percent" autocomplete="off"></label>
-      ${moneyBox('commissionAdditional', 'Additional', ev.additional)}
-      <label>Total<input name="commissionTotal" data-commission-total readonly aria-label="Commission total" tabindex="-1" value="${ev.total == null ? '' : ev.total}"></label>
-      <label>Paid by<select name="commissionPaidBy" aria-label="Commission paid by"><option value="">Choose&hellip;</option>${COMMISSION_PAID_BY.map(([code, label]) => html`<option value="${code}" ${code === ev.paid ? raw('selected') : ''}>${label}</option>`)}</select></label>
     </div>
-    <p class="acct-form-actions">${edit ? html`<button class="m-btn" type="submit">Save earnest and commissions</button>` : html`<span class="muted small">Read only.</span>`}${ev.any || deal.emdAmount != null ? html` <span class="muted small" data-earnest-now>${ev.total == null ? '' : fmtMoney(ev.total)}</span>` : ''}</p>
+    <p class="acct-form-actions">${edit ? html`<button class="m-btn" type="submit">Save earnest money</button>` : html`<span class="muted small">Read only.</span>`}</p>
   </form>`;
 }
 
 function mountEarnest(root, api, deal, user, refresh) {
   const form = $('[data-earnest-accounting]', root);
   if (!form || isRefi(deal)) return;
-  const paint = () => { const box = $('[data-commission-total]', form); if (!box) return; try { const e = readEarnest(formData(form)); box.value = e.commissionTotal == null ? '' : String(e.commissionTotal); } catch (err) { box.value = ''; } };
-  form.addEventListener('input', paint);
   if (!runsOrders(user)) { $$('input, select, button', form).forEach((el) => { el.disabled = true; }); return; }
   form.addEventListener('submit', guard(async (e) => {
     e.preventDefault();
     const f = formData(form);
     const earnest = readEarnest(f);
     await api.updateDeal(deal.id, { emdAmount: moneyAmount(f.emdAmount), emdDueDate: f.emdDueDate || '', ...earnest });
-    toast('Earnest and commissions saved');
+    toast('Earnest money saved');
     if (refresh) refresh();
   }));
 }
@@ -70,10 +64,10 @@ export async function contractView(api, deal, user) {
     const fields = CONTRACT_FIELDS.filter((f) => f.group === id);
     return html`<fieldset class="card acct-form" data-contract-group="${id}"><legend>${label}</legend><div class="form-grid">${fields.map((f) => fieldHtml(f, terms, locked))}</div>
       ${id === 'price' ? html`<p class="small muted" data-illustrative="loan" hidden></p>` : ''}
-      ${id === 'credit' ? html`<p class="small muted" data-illustrative="credit" hidden></p><p class="small muted" data-illustrative="broker" hidden></p>` : ''}</fieldset>`;
+      ${id === 'credit' ? html`<p class="small muted" data-illustrative="credit" hidden></p>` : ''}</fieldset>`;
   });
   const body = html`<div data-contract-sheet data-contract-posture="estimate" data-contract-saved="${terms.saved ? 'yes' : 'no'}">
-    <div class="notice warn" data-contract-banner>TEST contract figures only. Earnest money and commissions are optional and stay the same figures as Add New Order. An empty box is unknown, not zero. These figures are not funds received, not a payoff, and not a Closing Disclosure. The fee ledger does not import them.</div>
+    <div class="notice warn" data-contract-banner>TEST contract figures only. Earnest money is optional and stays the same figures as Add New Order. Commissions are Agent fees: they post to the fee ledger by themselves. An empty box is unknown, not zero. These figures are not funds received, not a payoff, and not a Closing Disclosure. The fee ledger does not import these contract figures.</div>
     ${terms.blocked ? html`<p class="notice warn" data-contract-blocked>${terms.blocked}</p>` : ''}
     ${terms.canEdit ? '' : html`<p class="notice info" data-readonly-note>${READ_ONLY_NOTE}</p>`}
     <form id="acct-contract-form" data-contract-form novalidate>
@@ -81,7 +75,8 @@ export async function contractView(api, deal, user) {
       <p class="err-text small" data-form-err></p>
       ${terms.canEdit ? html`<div class="acct-form-actions"><button class="m-btn" type="submit" data-save-contract ${terms.blocked ? raw('disabled') : ''}>Save contract figures</button><span class="muted small">${terms.saved ? 'Saved on this order as an estimate.' : 'Nothing is saved until this succeeds.'}</span></div>` : ''}
     </form></div>`;
-  return { body: html`${earnestAccounting(deal, user)}${body}`, mount: (root, c = {}) => { mountContract(root, api, deal, terms, c.refresh); mountEarnest(root, api, deal, user, c.refresh); } };
+  let fees = null; if (!isRefi(deal) && api.getAgentFees) { try { fees = await api.getAgentFees(deal.id); } catch (e) { fees = null; } }   // one place for commissions (Nov 13)
+  return { body: html`${earnestAccounting(deal, user)}${fees ? agentFeesSummaryHtml(fees, deal.id) : ''}${body}`, mount: (root, c = {}) => { mountContract(root, api, deal, terms, c.refresh); mountEarnest(root, api, deal, user, c.refresh); } };
 }
 
 function readNum(form, name) {
@@ -106,7 +101,6 @@ function mountContract(root, api, deal, terms, refresh) {
     const price = readNum(form, 'salePrice');
     showMath(form, 'loan', price, readNum(form, 'loanPercent'), 'Illustrative contract math only, not a loan amount:');
     showMath(form, 'credit', price, readNum(form, 'sellerCreditPercent'), 'Illustrative contract math only, not a seller credit:');
-    showMath(form, 'broker', price, readNum(form, 'buyerBrokerPercent'), 'Illustrative contract math only, not a buyer-broker payable:');
   };
   $$('input', form).forEach((el) => el.addEventListener('input', paint));
   paint();

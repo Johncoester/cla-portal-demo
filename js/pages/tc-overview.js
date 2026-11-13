@@ -6,6 +6,7 @@ import { settlementSectionHtml, mountSettlement } from './settlement-section.js?
 import { composeModal } from './compose.js?v=202611191600';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611162200';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
+import { agentFeesPointer } from './agent-fees-box.js?v=202611191700';
 const OPEN = ['todo', 'in_progress', 'blocked'];
 const long = (d) => { if (!d) return '—'; const [y, m, dd] = String(d).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
 const href = (d, t = '') => `#/deals/${d.id}${t ? '/' + t : ''}`;
@@ -61,13 +62,12 @@ export async function renderTcOverview(ctx, d) {
       const clients = ci.clients;
       const m = modal('Contract info', html`<form id="tc-ci" class="form-grid"><p class="muted small span2">Every field is stored as a typed, reportable column. No wire instructions, Cash to Close or payoffs here.</p>
         <label>Sale price<input name="purchasePrice" data-money inputmode="decimal" value="${moneyShow(ci.purchasePrice)}"></label><label>Contract date<input type="date" name="contractDate" value="${ci.contractDate || ''}"></label>
-        <label>Listing commission %<input name="listingCommissionPct" inputmode="decimal" value="${ci.listingCommissionPct}"></label><label>Listing commission $<input name="listingCommissionAmount" data-money inputmode="decimal" value="${moneyShow(ci.listingCommissionAmount)}"></label>
-        <label>Buyer commission %<input name="buyerCommissionPct" inputmode="decimal" value="${ci.buyerCommissionPct}"></label><label>Buyer commission $<input name="buyerCommissionAmount" data-money inputmode="decimal" value="${moneyShow(ci.buyerCommissionAmount)}"></label>
+        ${agentFeesPointer('modal')}
         <label>Seller concessions<input name="sellerConcessions" data-money inputmode="decimal" value="${moneyShow(ci.sellerConcessions)}"></label><label>Settlement date<input type="date" name="closingDate" value="${ci.closingDate || ''}"></label>
         <label>EMD amount<input name="emdAmount" data-money inputmode="decimal" value="${moneyShow(ci.emdAmount)}"></label><label>EMD holder<input name="emdHolder" value="${ci.emdHolder}"></label>
         <h4 class="span2">Clients</h4>${clients.map((c) => html`<fieldset class="span2" data-client="${c.participantId}"><legend>${c.role === 'Client-Buyer' ? 'Buyer' : 'Seller'}</legend><div class="form-grid"><label>First name<input name="firstName" required value="${c.firstName}"></label><label>Last name<input name="lastName" value="${c.lastName}"></label><label>Email<input type="email" name="email" value="${c.email}"></label><label>Phone<input name="phone" type="tel" value="${c.phone}"></label></div></fieldset>`)}
         <div class="span2"><button class="m-btn" type="submit">Save contract info</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
-      $('#tc-ci', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); ['purchasePrice', 'listingCommissionAmount', 'buyerCommissionAmount', 'sellerConcessions', 'emdAmount'].forEach((k) => { f[k] = moneyAmount(f[k]); });
+      $('#tc-ci', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); ['purchasePrice', 'sellerConcessions', 'emdAmount'].forEach((k) => { f[k] = moneyAmount(f[k]); });
         await api.updateContractInfo(d.id, f); for (const c of clients) { const box = $(`[data-client="${c.participantId}"]`, e.target); await api.updateClientContact(d.id, c.participantId, { firstName: $('[name=firstName]', box).value, lastName: $('[name=lastName]', box).value, email: $('[name=email]', box).value, phone: $('[name=phone]', box).value }); }
         closeModal(); toast('Contract info and client details saved'); refresh(); }));
     }

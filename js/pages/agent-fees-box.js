@@ -198,3 +198,60 @@ export async function agentFeesPanel(ctx, deal) {
   };
   return { html: boxHtml(data, viewer), mount: paint };
 }
+
+/* One place for commissions (John, Nov 13 2026): the other forms that used to take a commission now point here. */
+export function agentFeesPointer(where = 'modal', dealId = '') {
+  const box = where === 'link' && dealId ? html`<a href="#/deals/${dealId}" data-agent-fees-link>Agent fees</a>` : html`<strong>Agent fees</strong>`;
+  return html`<p class="muted small span2" data-agent-fees-pointer>Commissions, admin fees and other agent fees are entered in the ${box} box on the file overview${where === 'modal' ? ' (close this window to get to it)' : ''}. That is the only place they are kept, so they always match Accounting, the CD and the ALTA statement.</p>`;
+}
+
+/* Read-only summary of both sides, for Accounting > Contract figures. data = api.getAgentFees(). */
+export function agentFeesSummaryHtml(data, dealId) {
+  const sides = AGENT_FEE_SIDES.map(([k]) => k).filter((k) => data && data.sides && data.sides[k]);
+  return html`<section class="card acct-form" data-agent-fees-summary><h3>Commissions and agent fees</h3>
+    ${sides.length ? html`<div class="af-sides">${sides.map((k) => sideHtml(k, data.fees[k], 'read'))}</div>` : html`<p class="muted small" data-agent-fees-none>None entered yet.</p>`}
+    ${agentFeesPointer('link', dealId)}</section>`;
+}
+
+/* Place Order (before the file exists): each side's commission (% or $, kept in step with the purchase price typed on the form) and
+ * admin fee. Saved as Agent fees once the order is created; other fees are added later in the Agent fees box. */
+export function placeOrderFeesHtml() {
+  const side = (k, label) => html`<fieldset class="span2 form-grid af-po-side" data-po-agent-fees="${k}"><legend>${label}</legend>
+    <input type="hidden" name="af.${k}.basis" value="percent">
+    <label>Commission %<input name="af.${k}.percent" inputmode="decimal" autocomplete="off" aria-label="${label} commission percent"></label>
+    <label>Commission $<input name="af.${k}.amount" inputmode="decimal" data-money autocomplete="off" aria-label="${label} commission dollars"></label>
+    <label>Admin fee $<input name="af.${k}.admin" inputmode="decimal" data-money autocomplete="off" aria-label="${label} admin fee"></label></fieldset>`;
+  return html`${side('listing', 'Listing agent')}${side('buyer', "Buyer's agent")}
+    <p class="muted small span2">Type the commission as a % or a $ amount; the other one fills in from the purchase price. The admin fee is paid by the buyer on the buyer's agent side and by the seller on the listing side; change that, or add other fees, in the Agent fees box on the file. Agents see only their own side. Buyers and sellers never see these.</p>`;
+}
+
+const poField = (form, n) => form.querySelector(`[name="${n}"]`);
+const poVal = (form, n) => { const f = poField(form, n); return f ? f.value : ''; };
+export function mountPlaceOrderFees(form, priceOf) {
+  for (const [k] of AGENT_FEE_SIDES) {
+    const basis = poField(form, `af.${k}.basis`); const pctIn = poField(form, `af.${k}.percent`); const amtIn = poField(form, `af.${k}.amount`);
+    if (!basis || !pctIn || !amtIn) continue;
+    const fill = (from) => {
+      basis.value = from; const typed = from === 'percent' ? pctIn.value : amtIn.value; const other = from === 'percent' ? amtIn : pctIn;
+      if (!String(typed).trim()) { other.value = ''; return; }
+      try { const r = syncCommission(priceOf(), from, typed); other.value = from === 'percent' ? r.amount.toFixed(2) : String(Math.round(r.percent * 10000) / 10000); } catch (e) { other.value = ''; }
+    };
+    pctIn.addEventListener('input', () => fill('percent'));
+    amtIn.addEventListener('input', () => fill('amount'));
+    form.addEventListener('input', (e) => { if (e.target && e.target.name === 'purchasePrice' && String(basis.value === 'percent' ? pctIn.value : amtIn.value).trim()) fill(basis.value); });
+  }
+}
+
+/* The Place Order fields -> { listing: payload|null, buyer: payload|null } for saveAgentFees. Throws a plain message (checked before the order is placed). */
+export function readPlaceOrderFees(form, price) {
+  const out = {};
+  for (const [k, label] of AGENT_FEE_SIDES) {
+    const p = String(poVal(form, `af.${k}.percent`)).trim(); const a = String(poVal(form, `af.${k}.amount`)).trim();
+    // the box last typed in wins; if only one box has a figure (a restored draft), that one
+    const basis = p && a ? (poVal(form, `af.${k}.basis`) === 'amount' ? 'amount' : 'percent') : a ? 'amount' : 'percent';
+    const input = { commissionBasis: basis, commissionPercent: poVal(form, `af.${k}.percent`), commissionAmount: poVal(form, `af.${k}.amount`), adminAmount: poVal(form, `af.${k}.admin`) };
+    if (!String(input.commissionPercent).trim() && !String(input.commissionAmount).trim() && !String(input.adminAmount).trim()) { out[k] = null; continue; }
+    try { const fees = readAgentFees(input, { side: k, price }); out[k] = fees.commission || fees.admin ? fees : null; } catch (e) { throw new Error(`${label}: ${e.message}`); }
+  }
+  return out;
+}
