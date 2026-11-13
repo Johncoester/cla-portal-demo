@@ -4,11 +4,11 @@
 // app.js draws this page in the light "client shell" (white top bar, no sidebar) because the view sets clientPage.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney, pill, toast } from '../ui.js?v=202611161500';
 import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611101015';
-import { composeModal } from './compose.js?v=202611191100';
+import { composeModal } from './compose.js?v=202611191600';
 import { slotText } from './dealclosing.js?v=202611170800';
 import { yourAgentHtml, withContactPhone } from './your-agent.js?v=202611161500';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { UPDATE_TOPICS } from '../data/agent-portal.js?v=202611191500';
+import { UPDATE_TOPICS } from '../data/agent-portal.js?v=202611191700';
 
 // The signed-in buyer or seller is not part of their own closing team. Match the
 // portal login when the contact row has it, and the email when that login id was not loaded.

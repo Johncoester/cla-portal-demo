@@ -3,8 +3,8 @@ import { html, $, $$, guard, formData, modal, closeModal, fmtDateTime, pill, toa
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
 import { viewOnly, isViewOnly, runsOrders, WIRE_FRAUD_NOTE } from '../data/constants.js?v=202611101015';
 import { raw } from '../ui.js?v=202611161500';
-import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611191500';
-import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611191100';
+import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611191700';
+import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611191600';
 import { presentThread } from '../data/portal-threads.js?v=202611162200';
 import { noLoginContactId } from '../data/share-invite.js?v=202611191100';
 

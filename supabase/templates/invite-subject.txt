@@ -1,0 +1,1 @@
+{{ if index .Data "property_address" }}CLA Title & Escrow Has Shared Access to {{ index .Data "property_address" }}{{ else }}You're invited to the CLA Title Portal{{ end }}

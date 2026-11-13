@@ -3,7 +3,7 @@
    the inviter's Gmail. Google, Supabase Auth and the browser are all fakes here. Nothing is sent. */
 import { existsSync, readFileSync } from 'node:fs';
 import { handleSend } from '../supabase/functions/_shared/gmail-handlers.mjs';
-import { inviteEmailContent, inviteLink, inviteAuthRedirect, PORTAL_INVITE_SENDER, AUTH_INVITE_SUBJECT, taskNoticeContent, unnotifiedTasks } from '../supabase/functions/_shared/gmail-core.mjs';
+import { inviteEmailContent, inviteLink, inviteAuthRedirect, inviteAuthData, inviteSubjectFor, PORTAL_INVITE_SENDER, AUTH_INVITE_SUBJECT, taskNoticeContent, unnotifiedTasks } from '../supabase/functions/_shared/gmail-core.mjs';
 import { tokenOfLink, autoSendInvite, inviteSendNotice } from '../js/data/invite-send.js';
 import { toText } from '../js/ui.js';
 
@@ -11,7 +11,7 @@ let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
 const TOKEN = 'a'.repeat(64); const ME = '11111111-1111-4111-8111-111111111111';
 const b64d = (s) => Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
-const fileInfo = { kind: 'agent', inviteKind: 'client', email: 'clatestportal+seller1@gmail.com', firstName: 'Cora', lastName: 'Seller', expiresAt: '2026-11-23T22:00:00Z',
+const fileInfo = { kind: 'agent', inviteKind: 'client', partyRole: 'seller', email: 'clatestportal+seller1@gmail.com', firstName: 'Cora', lastName: 'Seller', expiresAt: '2026-11-23T22:00:00Z',
   dealId: 'd1', fileNumber: 'MD-26-97216', street: '13 Drumcastle Ct', city: 'Germantown', state: 'MD', zip: '20876' };
 function fake({ info = fileInfo, rpcError = null, ctx = {}, sendStatus = 200, projectRef = 'aqcervntopidtcazcmlv', auth = [{ id: 'auth-u1' }], stub = null } = {}) {
   const calls = { svc: [], fetch: [], rpc: [], auth: [], stub: [], del: [] };
@@ -58,8 +58,9 @@ ok(dollar.html.includes('$&amp;') && !dollar.html.includes('in one place'), 'a $
 // gmail-send invite mode: TEST Auth's approved invite email FROM testportal@clatitle.com. The inviter's Gmail is never read or used.
 const googleSends = (calls) => calls.fetch.filter((x) => String(x.url).includes('googleapis.com'));
 let r = await run({ invite: { kind: 'agent', token: TOKEN } });
-ok(r.res.status === 200 && r.j.sent === true && r.j.via === 'auth' && r.j.to === 'clatestportal+seller1@gmail.com' && r.j.from === 'testportal@clatitle.com' && PORTAL_INVITE_SENDER === 'testportal@clatitle.com' && r.j.subject === AUTH_INVITE_SUBJECT && AUTH_INVITE_SUBJECT === "You're invited to the CLA Title Portal", 'sent FROM testportal@clatitle.com with the approved Auth invite subject');
+ok(r.res.status === 200 && r.j.sent === true && r.j.via === 'auth' && r.j.to === 'clatestportal+seller1@gmail.com' && r.j.from === 'testportal@clatitle.com' && PORTAL_INVITE_SENDER === 'testportal@clatitle.com' && r.j.subject === `CLA Title & Escrow Has Shared Access to ${ADDR}` && r.j.subject === inviteSubjectFor(fileInfo), 'sent FROM testportal@clatitle.com with the property address in the subject');
 ok(r.calls.auth.length === 1 && r.calls.auth[0].email === 'clatestportal+seller1@gmail.com' && r.calls.auth[0].opts.redirectTo === inviteAuthRedirect('agent', TOKEN) && inviteAuthRedirect('agent', TOKEN) === 'https://testportal.clatitle.com/?portal_invite=agent.' + TOKEN, 'Auth is asked once, landing on the portal accept page for this token');
+ok(r.calls.auth[0].opts.data.portal_invite === 'agent.' + TOKEN && r.calls.auth[0].opts.data.property_address === ADDR && r.calls.auth[0].opts.data.first_name === 'Cora' && r.calls.auth[0].opts.data.party_role === 'seller' && JSON.stringify(r.calls.auth[0].opts.data) === JSON.stringify(inviteAuthData({ ...fileInfo, partyRole: 'seller' }, { kind: 'agent', token: TOKEN })), 'Auth metadata carries the property address, name, and role for the invite template');
 ok(!googleSends(r.calls).length && !r.calls.svc.some((x) => x.fn === 'gmail_svc_token'), "the inviter's Gmail token is never read and Google is never called");
 ok(r.calls.rpc[0] && r.calls.rpc[0].fn === 'invite_send_info' && r.calls.rpc[0].args.p_token === TOKEN, 'recipient comes from invite_send_info run as the inviter');
 const mark = r.calls.svc.find((x) => x.fn === 'invite_svc_mark_sent');
@@ -68,7 +69,7 @@ ok(!r.calls.svc.some((x) => x.fn === 'gmail_svc_record'), 'the one-time link is 
 r = await run({ invite: { kind: 'agent', token: TOKEN }, to: ['someone-else@example.com'] });
 ok(r.j.to === 'clatestportal+seller1@gmail.com' && r.calls.auth[0].email === 'clatestportal+seller1@gmail.com', 'a To from the browser is ignored');
 r = await run({ invite: { kind: 'hr', token: TOKEN } });
-ok(r.j.sent === true && r.calls.rpc[0].args.p_kind === 'hr' && r.calls.auth[0].opts.redirectTo === 'https://testportal.clatitle.com/?portal_invite=hr.' + TOKEN, 'HR staff invite is sent too, landing on the HR accept page');
+ok(r.j.sent === true && r.j.subject === AUTH_INVITE_SUBJECT && r.calls.rpc[0].args.p_kind === 'hr' && r.calls.auth[0].opts.redirectTo === 'https://testportal.clatitle.com/?portal_invite=hr.' + TOKEN && r.calls.auth[0].opts.data.portal_invite === 'hr.' + TOKEN && r.calls.auth[0].opts.data.property_address == null, 'HR staff invite is sent too, landing on the HR accept page, with no property line');
 r = await run({ invite: { kind: 'agent', token: TOKEN } }, { ctx: { mailbox: null, mailboxStatus: null } });
 ok(r.res.status === 200 && r.j.sent === true && r.j.from === 'testportal@clatitle.com' && !r.j.connectGmail, 'no connected Gmail is needed: the invite still goes from testportal');
 r = await run({ invite: { kind: 'agent', token: 'short' } }); ok(r.res.status === 400 && !r.calls.auth.length, 'a bad token is refused before anything');
