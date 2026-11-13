@@ -77,6 +77,7 @@ export async function allowPendingInvite400(page, issues) {
  * so nothing typed on the login form, and no sign-in request, is in any trace. A failed test keeps its chunks
  * (trace-1.zip, trace-2.zip, ...); a passing test's chunks are deleted. */
 const traceState = new WeakMap();
+const TRACE_OPTIONS = { screenshots: true, snapshots: true, sources: true };
 
 async function saveChunk(context, state) {
   state.n += 1;
@@ -86,35 +87,44 @@ async function saveChunk(context, state) {
   state.on = false;
 }
 
+/* Nov 13: a paused chunk was not enough. Playwright keeps one network log for the whole recording and copies all of it
+ * into every saved piece, so the sign-in request (email and password) still showed up in the next piece. Pausing now
+ * stops the recording completely, and resuming starts a new one with an empty network log. */
+async function startTrace(context, state) {
+  await context.tracing.start(TRACE_OPTIONS);
+  await context.tracing.startChunk();
+  state.on = true;
+}
+
 export async function pauseTrace(page) {
-  const state = traceState.get(page.context());
-  if (state && state.on) await saveChunk(page.context(), state);
+  const context = page.context();
+  const state = traceState.get(context);
+  if (!state || !state.on) return;
+  await saveChunk(context, state);
+  await context.tracing.stop();
 }
 
 export async function resumeTrace(page) {
-  const state = traceState.get(page.context());
+  const context = page.context();
+  const state = traceState.get(context);
   if (!state || state.on) return;
   // The trace's page copies keep what is in each box, so a login box still on screen is emptied before recording starts again.
   await page.evaluate(() => {
     document.querySelectorAll('input[type="password"], #login-form input').forEach((el) => { el.value = ''; });
   }).catch(() => { /* the page is navigating */ });
-  await page.context().tracing.startChunk();
-  state.on = true;
+  await startTrace(context, state);
 }
 
 export const test = base.extend({
   context: async ({ context }, use, testInfo) => {
     const state = { n: 0, on: false, files: [], testInfo };
     traceState.set(context, state);
-    await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
-    await context.tracing.startChunk();
-    state.on = true;
+    await startTrace(context, state);
     try {
       await use(context);
     } finally {
       try {
-        if (state.on) await saveChunk(context, state);
-        await context.tracing.stop();
+        if (state.on) { await saveChunk(context, state); await context.tracing.stop(); }
       } catch (e) { /* the context already closed */ }
       const failed = testInfo.status !== testInfo.expectedStatus;
       for (const file of state.files) {
