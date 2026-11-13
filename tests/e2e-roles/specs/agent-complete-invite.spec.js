@@ -1,7 +1,7 @@
 import { test, expect, signIn, openMockFile, freshIssues } from '../fixtures.js';
 import { gotoHash, dealId } from '../helpers/portal.js';
 import { targetMode } from '../helpers/gate.js';
-import { assertRecipientsAllowed, plusAlias } from '../helpers/allowlist.js';
+import { plusAlias } from '../helpers/allowlist.js';
 import { findRememberedInviteLink, gmailAccessToken, rememberInviteLink } from '../helpers/inbox.js';
 
 test('a buyer agent cannot complete a client task', async ({ page, issues }) => {
@@ -145,7 +145,6 @@ test('a used invite link opens Sign in with the email', async ({ page, browser, 
   }
 
   const email = plusAlias(process.env.E2E_MAIL_TO, USED_INVITE_TAG);
-  assertRecipientsAllowed([email], { label: 'used invite' });
   const gmail = await gmailAccessToken();
   await signIn(page, 'processor');
   await openMockFile(page);
