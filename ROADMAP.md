@@ -23,8 +23,8 @@ This file lists the portal's major features: how each one should work, how far a
 |---|---|---|
 | AF-1 | Fee records and change history (database only) | Live on TEST, [PR 225](https://github.com/Johncoester/cla-portal-demo/pull/225) |
 | AF-2 | Staff entry and agent view; buyers and sellers can't see fees | Live on TEST, [PR 227](https://github.com/Johncoester/cla-portal-demo/pull/227) |
-| AF-3 | Agent or TC changes: "You're changing X from $A to $B", "Agent confirmed", notices to staff | In progress, [PR 235](https://github.com/Johncoester/cla-portal-demo/pull/235) |
-| AF-4 | Notice to the agent when staff change a confirmed fee | In progress, PR AF-4 |
+| AF-3 | Agent or TC changes: "You're changing X from $A to $B", "Agent confirmed", notices to staff | Live on TEST, [PR 235](https://github.com/Johncoester/cla-portal-demo/pull/235) |
+| AF-4 | Notice to the agent when staff change a confirmed fee | In progress, [PR 236](https://github.com/Johncoester/cla-portal-demo/pull/236) |
 | AF-5 | Fees post to Accounting automatically | In progress, PR AF-5 |
 | AF-6 | "Generate CD" and "Generate ALTA" PDF buttons | Planned |
 
