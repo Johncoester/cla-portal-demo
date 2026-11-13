@@ -3,7 +3,7 @@
 // "About This Task" sidebar with Send Message (a conversation with the processor tied to this task). Leaving with unsaved edits asks first.
 import { html, raw, toText, $, $$, guard, toast, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611161500';
 import { MARITAL } from '../data/agent-portal.js?v=202611101015';
-import { CLS, LABEL } from './dealtasks.js?v=202611162200';
+import { CLS, LABEL } from './dealtasks.js?v=202611162300';
 
 const yn = (name, val, label) => html`<fieldset class="span2 yn" data-k="${name}"><legend>${label}</legend>${['Yes', 'No'].map((o) => html`<label class="check"><input type="radio" name="${name}" value="${o}" ${val === o ? raw('checked') : ''}> ${o}</label>`)}<span class="ferr"></span></fieldset>`;
 const inp = (name, label, val, type = 'text', extra = '') => html`<label class="fld" data-k="${name}">${label}<input name="${name}" type="${type}" value="${val == null ? '' : val}" ${raw(extra)}><span class="ferr"></span></label>`;
