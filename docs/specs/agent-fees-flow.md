@@ -164,6 +164,10 @@ Migration `supabase/migrations/20261117130000_agent_fee_staff_notice.sql` re-cre
 
 Migration `supabase/migrations/20261117140000_agent_fee_ledger.sql` adds a trigger on `deal_agent_fees` (`private.agent_fee_ledger_sync`) and a link table `deal_agent_fee_ledger` (fee → ledger line, plus what was last posted). Each fee keeps one `accounting_fees` line: kind charge, ALTA `commission`, CD `H`, `preset_key` `agent_fee:<side>:<kind>:<slot>`, paid by the fee's payer (the whole amount on that side). A $0 or removed fee retires its line. A line whose description, payee, amount or payer no longer match what was last posted was changed by hand and is left alone. The ledger's own guard and history triggers still run, so the Accounting history shows each automatic change. `agentFeeLedgerInput` in `js/data/agent-fees.js` builds the same line for the demo adapter.
 
+## AF-6 as built (Generate CD / Generate ALTA)
+
+The Print buttons on Accounting's CD and Settlement Statement tabs (`js/pages/dealaccounting.js`, `js/pages/dealaccounting-cd.js`) are now **Generate CD** and **Generate ALTA**. They set the document name to "<file> - Closing Disclosure - TEST" / "<file> - ALTA Settlement Statement - TEST" and open the print window, where "Save as PDF" makes the file. The PDF is what the live tab shows (still marked TEST). `test/test-agent-fees.js` checks that posted agent fees appear in CD section H and the ALTA Commission section.
+
 ## Open questions (resolved Nov 12 2026 by John)
 
 All seven were answered at 2:33 PM ET (t1544u). The answers are recorded under Decisions above.
