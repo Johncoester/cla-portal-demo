@@ -39,10 +39,12 @@ async function rest(method, path) {
 }
 const ids = (rows) => rows.map((r) => r.id);
 const chunks = (a, n = 100) => Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, i * n + n));
+// Nov 13: rows come back with only the filter column. thread_participants and deal_business_sources have no id column,
+// so asking for id made both deletes fail (HTTP 400, 42703) and the thread and order deletes after them failed too.
 async function removeIn(table, col, list) {
   let n = 0;
-  for (const part of chunks(list)) n += dryRun ? (await rest('GET', `${table}?select=id&${col}=in.(${part.join(',')})`)).length
-    : (await rest('DELETE', `${table}?${col}=in.(${part.join(',')})&select=id`)).length;
+  for (const part of chunks(list)) n += dryRun ? (await rest('GET', `${table}?select=${col}&${col}=in.(${part.join(',')})`)).length
+    : (await rest('DELETE', `${table}?${col}=in.(${part.join(',')})&select=${col}`)).length;
   return n;
 }
 async function removeLike(table, col, pattern) {
