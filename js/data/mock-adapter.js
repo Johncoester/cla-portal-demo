@@ -42,6 +42,7 @@ import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.j
 import { underwriterPart } from './mock-part-underwriter.js?v=202611070139';
 import { agentInfoPart } from './mock-part-agentinfo.js?v=202611101015';
 import { agentInvitePart } from './mock-part-agent-invite.js?v=202611141400';
+import { agentFeesPart } from './mock-part-agent-fees.js?v=202611171000';
 import { automationPart } from './automation.js?v=202611101015';
 import { gmailMock } from './supabase-gmail.js?v=202611140900';
 import { hrPart, ensureHr } from './mock-part-hr.js?v=202611141400';
@@ -399,6 +400,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   Object.assign(api, closingLocationPart(ctx));   // John, Nov 4: in the property's state at closing? (RON / embassy flag, staff signing method)
   Object.assign(api, officesPart(ctx));       // John, Nov 4: Admin > Offices (add, edit, reorder, retire / reactivate; the closing office picker reads them)   // John, Nov 3 call: per-state underwriter split (Admin edits, logged)
   Object.assign(api, agentInfoPart(ctx));     // John, Nov 3 call: optional agent birthdate (agent + staff only)
+  Object.assign(api, agentFeesPart(ctx));       // AF-2 (John, Nov 12): agent fees per side (commission, admin fee, other fees)
   Object.assign(api, agentInvitePart(ctx));   // John, Nov 4: agent invites (link shown, nothing sent), agent profiles, the clients' "Your agent" card
   Object.assign(api, recordingPart(ctx, flags, api));
   Object.assign(api, fwpPart(ctx, flags, api));

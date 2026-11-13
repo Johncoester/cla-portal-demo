@@ -26,6 +26,7 @@ import { viewTasksHref } from '../data/task-board.js?v=202611140100';
 import { earnestView, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611141000';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611161500';
 import { bindAddressFill } from '../data/address-fill.js?v=202611141400';
+import { agentFeesPanel } from './agent-fees-box.js?v=202611171000';
 function staffSections(ctx, dealId) {
   const { api } = ctx;
   const user = ctx.user;
@@ -85,6 +86,7 @@ export async function render(ctx) {
     { const co = await renderClientOverview({ ...ctx, wireModal, shareModal: (o) => shareModal(ctx, deal, ov0, o) }, deal, here); const lp = await locPromptHtml(ctx, deal); const body = lp ? { ...co, body: html`${lp}${co.body}` } : co; return { ...body, deal }; }   // John, Nov 4: the buyer / seller closing-location to-do also shows on the client overview
   }
   // The sections need the file id, not the party rows. They run with the file read, and the page still waits for every section.
+  const feesP = agentFeesPanel(ctx, deal);   // AF-2 (John, Nov 12): agent fees per side; staff and the file's agents only. Runs alongside the sections.
   const pack = await (earlySections || staffSections(ctx, deal.id));
   const { ag, salesStaff, ov, ur, inv, locFlags, promptHtml, splits, demoLocked } = pack;
   deal.staffOrderNotes = pack.notes;   // John, Nov 4: staff-only order notes (Title module sticky notes; never clients / agents)
@@ -100,7 +102,8 @@ export async function render(ctx) {
   const locations = staffView && api.listClosingLocations ? await api.listClosingLocations(deal.id).catch(() => []) : [];
   const settlement = { staffView, canEdit, canEditSigning: staffView && canManageClosingLocations(user) && !demoLocked, closerStaff, contactChoices, locations };
   const v = overview({ ...ctx, demoLocked, settlement }, deal, here, ag, salesStaff, ov, splits); const extra = agentPanels(ctx, deal, ov, ur, inv); const done = placedPanel(deal);
-  return { ...v, deal, body: html`${done.html}${promptHtml}${flagHtml}${v.head}${extra.top}${v.body}${extra.bottom}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
+  const fees = await feesP;
+  return { ...v, deal, body: html`${done.html}${promptHtml}${flagHtml}${v.head}${fees.html}${extra.top}${v.body}${extra.bottom}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); fees.mount(root); } };
 }
 
 // REDESIGN (John, Nov 3): the confirmation after Place Order. ordernew.js leaves a note in sessionStorage (key below) and opens the new order; the

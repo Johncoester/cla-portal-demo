@@ -1098,3 +1098,13 @@ fieldset.span2 { display: flex; flex-wrap: wrap; gap: .5rem; border: 1px solid v
   .voice-wrap [data-voice-current] { max-width: 92px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: bottom; }
   .co-top .voice-wrap { margin-left: 0; }
 }
+/* AF-2 Agent fees box (file overview) */
+.agent-fees .af-sides { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--s4); }
+.agent-fees .af-side { border: 1px solid var(--line); border-radius: var(--r); padding: var(--s3) var(--s4); background: var(--surface); }
+.agent-fees .af-side-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: var(--s2, 8px); } .agent-fees .af-edit { margin-left: auto; }
+.agent-fees .af-list { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; } .agent-fees .af-list dt { color: var(--ink-2); font-weight: 600; } .agent-fees .af-list dd { margin: 0; }
+.agent-fees .af-foot { margin: var(--s3) 0 0; } .af-history-wrap { overflow-x: auto; margin-top: var(--s3); }
+.af-form fieldset { border: 1px solid var(--line); border-radius: var(--r); padding: var(--s3) var(--s4); margin-bottom: var(--s3); } .af-form legend { font-weight: 600; padding: 0 4px; }
+.af-form .form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .af-form .af-other { grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px dashed var(--line); padding-top: var(--s3); margin-top: var(--s3); }
+.af-form .af-reason { display: block; font-weight: 600; margin-bottom: var(--s3); } .af-form .af-reason textarea { width: 100%; margin-top: 6px; }
+@media (max-width: 700px) { .af-form .form-grid, .af-form .af-other { grid-template-columns: 1fr; } .agent-fees .af-list { grid-template-columns: 1fr; } .agent-fees .af-list dt { margin-top: 6px; } }

@@ -88,6 +88,7 @@ SQL
 psql_super -f "$ROOT/supabase/migrations/20261117100000_agent_fees.sql"
 # applying twice is harmless
 psql_super -f "$ROOT/supabase/migrations/20261117100000_agent_fees.sql"
+psql_super -f "$ROOT/supabase/migrations/20261117110000_agent_fee_sides.sql"
 
 psql_super -o /dev/null <<'SQL'
 create or replace function pg_temp.as_user(p uuid) returns void language sql as $$ select set_config('request.jwt.claim.sub', p::text, false) $$;
@@ -137,8 +138,12 @@ reset role;
 select pg_temp.ok((select count(*) = 6 from public.deal_agent_fees), 'refused saves changed nothing');
 
 -- 4. who sees what
-select pg_temp.as_user('00000000-0000-0000-0000-0000000000b1');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 set role authenticated;
+select pg_temp.ok((select string_agg(side || ':' || access, ',') = 'listing:edit,buyer:edit' from public.agent_fee_sides('22222222-2222-2222-2222-222222222222')), 'AF-2: the processor may change both sides');
+select pg_temp.ok((select count(*) = 0 from public.agent_fee_sides('44444444-4444-4444-4444-444444444444')), 'AF-2: a refinance has no agent sides');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000b1');
+select pg_temp.ok((select string_agg(side || ':' || access, ',') = 'buyer:edit' from public.agent_fee_sides('22222222-2222-2222-2222-222222222222')), 'AF-2: the buyer''s agent gets only their side');
 select pg_temp.ok((select count(*) = 4 and bool_and(side = 'buyer') and bool_and(can_edit) from public.agent_fees('22222222-2222-2222-2222-222222222222')), 'the buyer''s agent sees only the buyer''s agent side');
 select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'listing', '{"admin":{"amount":"1"}}')$q$)
   = 'You can''t change agent fees on this file.', 'the buyer''s agent can''t change the listing side');
@@ -146,6 +151,7 @@ select pg_temp.ok(pg_temp.err('select count(*) from public.deal_agent_fees') lik
 select pg_temp.ok(pg_temp.err('select count(*) from public.deal_agent_fee_log') like 'permission denied%', 'nobody reads the history table directly');
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000c1');
 select pg_temp.ok((select count(*) = 0 from public.agent_fees('22222222-2222-2222-2222-222222222222')), 'the buyer sees no agent fees');
+select pg_temp.ok((select count(*) = 0 from public.agent_fee_sides('22222222-2222-2222-2222-222222222222')), 'AF-2: the buyer gets no agent sides');
 select pg_temp.ok((select count(*) = 0 from public.agent_fee_history('22222222-2222-2222-2222-222222222222')), 'the buyer sees no fee history');
 select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"admin":{"amount":"1"}}')$q$)
   = 'You can''t change agent fees on this file.', 'the buyer can''t change agent fees');
@@ -213,6 +219,7 @@ select pg_temp.ok((select basis = 'percent' and round(5000 * pct / 100, 2) = amo
 select pg_temp.ok((select bool_and(round(d.purchase_price * f.pct / 100, 2) = f.amount) from public.deal_agent_fees f join public.deals d on d.id = f.deal_id where f.kind = 'commission'),
   'every commission: % and $ agree with the sales price');
 SQL
+psql_super -f "$ROOT/supabase/rollbacks/20261117110000_agent_fee_sides.sql"
 psql_super -f "$ROOT/supabase/rollbacks/20261117100000_agent_fees.sql"
 psql_super -c "do \$\$ begin if to_regclass('public.deal_agent_fees') is not null or to_regprocedure('public.save_agent_fees(uuid,text,jsonb,text)') is not null then raise exception 'FAIL rollback'; end if; raise notice 'PASS  rollback removes the tables and functions'; end \$\$;"
 echo "agent fees SQL checks passed"
