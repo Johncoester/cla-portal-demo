@@ -8,7 +8,7 @@ import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, US_STATE_NAME
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { slotText } from './dealclosing.js?v=202611170800';
 import { viewTasksHref } from '../data/task-board.js?v=202611140100';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611161500';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611191500';
 import { composeModal } from './compose.js?v=202611191100';
 import { sourceChoices } from '../data/place-order.js?v=202611191500';
 import { themeOn } from '../theme.js?v=202611070139';

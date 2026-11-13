@@ -7,7 +7,7 @@ import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { modOn } from '../data/modules.js?v=202611101015';
 import { slotText } from './dealclosing.js?v=202611170800';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611161500';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611191500';
 import { composeModal } from './compose.js?v=202611191100';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611191500';
 import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611101015';

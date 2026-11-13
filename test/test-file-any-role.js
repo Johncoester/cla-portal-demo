@@ -4,6 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { processorChoices, PROCESSOR_PICK_ROLES, SALES_PICK_ROLES, tidyPersonName } from '../js/data/place-order.js';
+import { detail, matchPeople, personLabel } from '../js/pages/person-picker.js';
 
 const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
 let pass = 0, fails = 0;
@@ -52,6 +53,24 @@ await as('u-proc');
 await rejects(() => a.updateDeal(file.id, { processorId: 'u-buyer' }), 'NEG an outside user cannot be the Processor', /active staff login/);
 await rejects(() => a.addDealSalesPerson(file.id, 'u-buyer'), 'NEG an outside user cannot be a salesperson', /active staff login|Salesperson not found/);
 await rejects(() => a.addParticipant(file.id, 'c-buyer', 'Processor'), 'NEG an outside user cannot be added as CLA staff', /outside user cannot be added as CLA staff/);
+
+const contactsSrc = readFileSync(new URL('../js/pages/dealcontacts.js', import.meta.url), 'utf8');
+ok(contactsSrc.includes("tcIds.add('staff:' + t.profileId)") && contactsSrc.includes('isTcPick') && contactsSrc.includes('tcProfileIds.has(c.profileId)'), 'the Contacts tab TC list matches a staff login even when they have no contact row yet');
+ok(contactsSrc.includes('Any active staff login can be the Transaction Coordinator') && !contactsSrc.includes('Only users with the Transaction Coordinator account role'), 'the Contacts tab TC note says any active staff login can be chosen');
+
+const staffJohn = { id: 'staff:u-john', profileId: 'u-john', firstName: 'John', lastName: 'Coester', email: 'jcoester@clatitle.com', accountRole: 'Super admin' };
+const realtorJohn = { id: 'c-realtor', firstName: 'John', lastName: 'Coester', email: 'johncoester@gmail.com', phone: '240-277-2894', company: 'Compass', contactType: 'realtor' };
+ok(detail(staffJohn) === 'Super admin · jcoester@clatitle.com', 'a staff login with no contact type shows the account role and email');
+ok(detail(realtorJohn) === 'Realtor · johncoester@gmail.com · 240-277-2894 · Compass', 'a realtor contact still shows type, email, phone and company');
+ok(personLabel(staffJohn) === 'John Coester' && personLabel(realtorJohn) === 'John Coester', 'both Johns have the same display name');
+const both = matchPeople([staffJohn, realtorJohn], 'john co');
+ok(both.some((c) => c.id === 'staff:u-john') && both.some((c) => c.id === 'c-realtor'), 'typing john co lists the Super admin login and the realtor contact');
+ok(matchPeople([staffJohn, realtorJohn], 'jco').some((c) => c.id === 'staff:u-john' && c.email === 'jcoester@clatitle.com'), 'typing jco finds the staff login by email');
+const tcRows = [{ profileId: 'u-john', contactId: '' }, { profileId: 'u-tc', contactId: 'c-tc' }];
+const tcIds = new Set(); const tcProfileIds = new Set();
+for (const x of tcRows) { if (x.contactId) tcIds.add(x.contactId); if (x.profileId) { tcProfileIds.add(x.profileId); tcIds.add('staff:' + x.profileId); } }
+const isTcPick = (c) => !!(c && (tcIds.has(c.id) || (c.profileId && tcProfileIds.has(c.profileId))));
+ok(isTcPick(staffJohn) && isTcPick({ id: 'c-tc', profileId: 'u-tc' }) && !isTcPick(realtorJohn), 'a staff login with no contact row is still offered when Role on this order is Transaction Coordinator');
 
 const mig = readFileSync(new URL('../supabase/migrations/20261119150000_file_any_staff_roles.sql', import.meta.url), 'utf8');
 const rb = readFileSync(new URL('../supabase/rollbacks/20261119150000_file_any_staff_roles.sql', import.meta.url), 'utf8');

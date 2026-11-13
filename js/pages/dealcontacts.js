@@ -1,7 +1,7 @@
 // Contacts tab: everyone on this file. Processor can add people (existing or new), edit them, and unlink them from the order.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill } from '../ui.js?v=202611161500';
 import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole } from '../data/constants.js?v=202611101015';
-import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611161500';
+import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611191500';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611140100';
 import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611161500';
 import { copyPlainText } from './deal.js?v=202611191500';
@@ -64,14 +64,21 @@ export async function render({ api, user, deal, refresh }) {
     if (staffView) mountLenderSection(root, { api, deal, refresh: repaint });
   } };
 
-  // John, Nov 2: type-to-search picker (name / email / phone / brokerage). Transaction Coordinator: only active TC logins; no new person
-  // (a TC needs a TC login, made by an Admin). Francis, Nov 9: same Place Order inline "Add … as a new person" when there is no match,
+  // John, Nov 2 / ANYROLE-1: type-to-search picker (name / email / phone / brokerage). Transaction Coordinator: any active staff login;
+  // no new person and no outside user. Staff with no contact yet appear as staff:<profileId>, so the list must match that id too.
+  // Francis, Nov 9: same Place Order inline "Add … as a new person" when there is no match,
   // so adding a party on an already-opened file no longer dead-ends on "clear the search box".
   async function addPerson() {
-    const people = await api.listContacts(); const tcs = await api.listCoordinators(); const tcIds = new Set(tcs.map((t) => t.contactId));
+    const people = await api.listContacts(); const tcs = await api.listCoordinators();
+    const tcIds = new Set(); const tcProfileIds = new Set();
+    for (const t of tcs) {
+      if (t.contactId) tcIds.add(t.contactId);
+      if (t.profileId) { tcProfileIds.add(t.profileId); tcIds.add('staff:' + t.profileId); }
+    }
+    const isTcPick = (c) => !!(c && (tcIds.has(c.id) || (c.profileId && tcProfileIds.has(c.profileId))));
     const m = modal('Add contact to this order', html`<form id="apf" class="form-grid"><label class="span2">Role on this order<select name="role">${options(isRefi(deal) ? PARTICIPANT_ROLES.filter((r) => !REFI_BLOCKED_ROLES.includes(r)) : PARTICIPANT_ROLES, 'Other')}</select></label>${isRefi(deal) ? html`<p class="muted small span2" data-refi-roles>Refinance: no seller, realtor or transaction coordinator roles. Add the borrower as Client-Buyer.</p>` : ''}
       <p class="muted small span2">One person can hold two roles on an order only when an agent is buying or selling for themselves: add them once as Client-Buyer and once as Buyer Agent (or Client-Seller and Listing Agent).</p>
-      <p class="muted small span2" data-tc-note hidden>Only users with the Transaction Coordinator account role can be the Transaction Coordinator. An Admin creates them under Create User.</p>
+      <p class="muted small span2" data-tc-note hidden>Any active staff login can be the Transaction Coordinator. An outside user cannot, and you cannot add a new person here.</p>
       <p class="muted small span2">Type a name and pick a match, or choose <strong>Add "…" as a new person</strong> in the list. Use the fields below when you already have email, phone or company details.</p>
       <div class="span2">${pickerHtml('contactId', 'Contact')}</div>
       <div class="span2 form-grid" data-newperson><h4 class="span2">&mdash; or enter full details &mdash;</h4><label data-fn>First name<input name="firstName"></label><label>Last name<input name="lastName"></label><label>Email<input name="email" type="email"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone></label><label data-co>Company / brokerage<input name="company"></label>${ctypeSelect('')}<label data-lrole hidden>Lender contact type<select name="lenderRole" aria-label="Lender contact type"><option value="">No contact person</option>${LENDER_CONTACT_ROLES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select></label></div>
@@ -96,7 +103,7 @@ export async function render({ api, user, deal, refresh }) {
       if (!people.some((x) => x.id === c.id)) people.push(c);
       return c;
     };
-    const pk = mountPicker($('[data-picker=contactId]', m), () => (isTc() ? people.filter((c) => tcIds.has(c.id)) : people), {
+    const pk = mountPicker($('[data-picker=contactId]', m), () => (isTc() ? people.filter(isTcPick) : people), {
       createVerb: () => (roleSel.value === 'Lender' ? 'lender' : 'person'),
       allowCreate: () => !isTc(),
       onCreate: quickCreate,
@@ -106,7 +113,7 @@ export async function render({ api, user, deal, refresh }) {
       $('[data-fn]', m).firstChild.textContent = lender ? 'Contact first name (optional)' : person ? 'First name (leave blank for an entity)' : 'First name';
       $('[data-co]', m).firstChild.textContent = lender ? 'Lender company name' : person ? 'Entity or company name' : 'Company / brokerage';
       const lrole = $('[data-lrole]', m); if (lrole) lrole.hidden = !lender; };
-    roleSel.addEventListener('change', () => { if (!ctTouched) ctSel.value = contactTypeForRole(roleSel.value); const tc = isTc(); $('[data-tc-note]', m).hidden = !tc; $('[data-newperson]', m).hidden = tc; if (tc && pk.value && !tcIds.has(pk.value)) pk.set(null); paintRole(); });
+    roleSel.addEventListener('change', () => { if (!ctTouched) ctSel.value = contactTypeForRole(roleSel.value); const tc = isTc(); $('[data-tc-note]', m).hidden = !tc; $('[data-newperson]', m).hidden = tc; if (tc && pk.value && !isTcPick(people.find((c) => c.id === pk.value) || { id: pk.value })) pk.set(null); paintRole(); });
     paintRole();
     $('#apf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); let id = f.contactId;
       if (!id && pk.typed) throw new Error('Pick a person from the list, choose Add as a new person, or clear the search box and enter full details below.');
