@@ -102,6 +102,7 @@ psql_super -f "$ROOT/supabase/migrations/20261117100000_agent_fees.sql"
 psql_super -f "$ROOT/supabase/migrations/20261117100000_agent_fees.sql"
 psql_super -f "$ROOT/supabase/migrations/20261117110000_agent_fee_sides.sql"
 psql_super -f "$ROOT/supabase/migrations/20261117120000_agent_fee_notify.sql"
+psql_super -f "$ROOT/supabase/migrations/20261117130000_agent_fee_staff_notice.sql"
 
 psql_super -o /dev/null <<'SQL'
 create or replace function pg_temp.as_user(p uuid) returns void language sql as $$ select set_config('request.jwt.claim.sub', p::text, false) $$;
@@ -207,6 +208,12 @@ select pg_temp.ok((select amount = 8250 and source = 'staff' and confirmed_role 
 select pg_temp.ok((select reason = 'Per the signed commission agreement' and source = 'staff' and changed_by = '00000000-0000-0000-0000-0000000000a1'
   from public.deal_agent_fee_log where side = 'buyer' and kind = 'commission' order by id desc limit 1), 'history: who, reason, source staff');
 select pg_temp.ok((select count(*) = 0 from public.deal_agent_fee_log where side = 'buyer' and kind <> 'commission' and source = 'staff' and old_value is not null), 'unchanged fees are not logged as staff changes');
+select pg_temp.ok((select count(*) = 1 from public.notifications where kind = 'agent_fee' and profile_id = '00000000-0000-0000-0000-0000000000b1'
+  and title = 'Pat Processor (CLA Title) changed the buyer''s agent fees on MD-26-00001: Commission: 2.5% / $7,500.00 (paid by Buyer) → 2.75% / $8,250.00 (paid by Buyer). Reason: Per the signed commission agreement'),
+  'AF-4: the buyer''s agent is told: who, old, new and the reason');
+select pg_temp.ok((select count(*) = 0 from public.notifications where kind = 'agent_fee' and title like 'Pat Processor%' and profile_id <> '00000000-0000-0000-0000-0000000000b1'), 'AF-4: only the agent is told (not the listing agent, not the buyer)');
+select pg_temp.ok((select count(*) = 1 and bool_and(to_email = 'bea@example.test' and status = 'queued' and body like '%Reason: Per the signed commission agreement%' and body like '%You don''t need to approve this change.%')
+  from public.outbox where kind = 'agent_fee' and to_profile_id = '00000000-0000-0000-0000-0000000000b1'), 'AF-4: an email to the agent is queued (never sent), no re-approval asked');
 -- staff changing an unconfirmed fee needs no reason
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 set role authenticated;
@@ -228,7 +235,7 @@ select pg_temp.ok((select bool_and(confirmed_role = 'tc' and source = 'tc') from
 select pg_temp.ok((select count(*) = 1 from public.notifications where kind = 'agent_fee' and profile_id = '00000000-0000-0000-0000-0000000000b2'
   and title = 'Tia Coordinator (TC) confirmed the listing agent fees on MD-26-00001'), 'AF-3: when the TC confirms, the listing agent is told');
 select pg_temp.ok((select count(*) = 0 from public.notifications where profile_id = '00000000-0000-0000-0000-0000000000b1' and title like '%listing agent fees%'), 'AF-3: the other side''s agent is not told');
-select pg_temp.ok((select count(*) = 0 from public.notifications where kind = 'agent_fee' and title like 'Pat Processor%'), 'AF-3: staff changes don''t send the AF-3 notice (AF-4 covers them)');
+select pg_temp.ok((select count(*) = 0 from public.notifications where kind = 'agent_fee' and title like 'Pat Processor%listing%'), 'AF-4: staff changes to fees nobody confirmed tell nobody');
 
 -- 8. the sales price changes: % basis keeps the %, $ basis keeps the $, both stay in step
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
@@ -242,6 +249,7 @@ select pg_temp.ok((select basis = 'percent' and round(5000 * pct / 100, 2) = amo
 select pg_temp.ok((select bool_and(round(d.purchase_price * f.pct / 100, 2) = f.amount) from public.deal_agent_fees f join public.deals d on d.id = f.deal_id where f.kind = 'commission'),
   'every commission: % and $ agree with the sales price');
 SQL
+psql_super -f "$ROOT/supabase/rollbacks/20261117130000_agent_fee_staff_notice.sql"
 psql_super -f "$ROOT/supabase/rollbacks/20261117120000_agent_fee_notify.sql"
 psql_super -c "do \$\$ begin if to_regprocedure('private.agent_fee_notify(uuid,text,text,text)') is not null or to_regprocedure('public.save_agent_fees(uuid,text,jsonb,text)') is null then raise exception 'FAIL AF-3 rollback'; end if; raise notice 'PASS  AF-3 rollback keeps the AF-1 save and drops the notices'; end \$\$;"
 psql_super -f "$ROOT/supabase/rollbacks/20261117110000_agent_fee_sides.sql"
