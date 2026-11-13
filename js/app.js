@@ -1,9 +1,9 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
 import { getAdapter } from './data/adapter.js?v=202611191000';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611191000';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611191200';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput } from './data/constants.js?v=202611101015';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611130900';
 import { canManageRoleAccess } from './data/role-access.js?v=202611100100';
 import { canUseGmail } from './data/gmail-email.js?v=202611191000';
@@ -34,10 +34,10 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611161500'),
-  dashboard: () => import('./pages/dashboard.js?v=202611191000'),
+  dashboard: () => import('./pages/dashboard.js?v=202611191200'),
   orders: () => import('./pages/orders.js?v=202611161500'),
   'orders/new': () => import('./pages/ordernew.js?v=202611190800'),
-  deal: () => import('./pages/deal.js?v=202611191000'),
+  deal: () => import('./pages/deal.js?v=202611191200'),
   users: () => import('./pages/users.js?v=202611161500'),
   profile: () => import('./pages/profile.js?v=202611191000'),
   'contact-us': () => import('./pages/contact.js?v=202611161500'),
@@ -47,7 +47,7 @@ const pages = {
   library: () => import('./pages/library.js?v=202611161500'),
   activity: () => import('./pages/activity.js?v=202611161500'),
   outbox: () => import('./pages/outbox.js?v=202611161500'),
-  tasks: () => import('./pages/tasks.js?v=202611191000'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => import('./pages/tasks.js?v=202611191200'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611161500'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js?v=202611170800'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611161500'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
@@ -171,7 +171,8 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
   const core = navFor(u, null, 0, api.features || {}, ws, DEMO_VIEW).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}"${hrTip(n)}${n.beta ? raw(' data-beta-nav') : ''}>${lbl(n.id, n.label)}${n.beta ? betaTag(n.id) : ''}</a></li>`);
   const t = route.params.tab;
   const mineNav = typeof location !== 'undefined' && /(?:\?|&)mine=1(?:&|$)/.test(location.hash || '');
-  const link = (tab, label, cls, beta) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab && !(tab === 'accounting' && route.params.v === 'payoffs') && !(tab === 'tasks' && mineNav) ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}"${tip(label, beta)}${beta ? raw(' data-beta-nav') : ''}>${lbl(tab, label)}${beta ? betaTag(tab) : ''}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : cnt(tab)}</a></li>`;
+  const staffNav = isStaff(u.role) && !u.accountRole;
+  const link = (tab, label, cls, beta) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab && !(tab === 'accounting' && route.params.v === 'payoffs') && !(tab === 'tasks' && mineNav) ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}"${tip(label, beta)}${beta ? raw(' data-beta-nav') : ''}>${lbl(tab, label)}${beta ? betaTag(tab) : ''}${tab === 'closing' ? closingNavMeta(deal, staffNav) : ''}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : cnt(tab)}</a></li>`;
   const myTasksLink = deal ? html`<li class="nav-item"><a class="nav-link task ${t === 'tasks' && mineNav ? 'active' : ''}" href="#/deals/${dealId}/tasks?mine=1" data-nav-my-tasks${tip('My Tasks')}>${lbl('tasks', 'My Tasks')}</a></li>` : '';
   // BUYER (Nov 4 call): plain tab names; no Contacts tab (the Overview lists the closing team) and no Agreements tab (they are to-dos now)
   const pureBuyer = deal && ['Client-Buyer', 'Client-Seller'].some((c) => (deal.myRoles || [deal.myRole]).includes(c)) && !(deal.myRoles || [deal.myRole]).some((r) => /Agent$/.test(r));   // seller mirror (Nov 4): a pure seller gets the same plain tabs
@@ -260,6 +261,22 @@ function betaBanner(route) {
   const m = moduleById(id);
   return html`<div class="beta-banner" data-beta-banner="${id}" role="note"><span class="beta-badge">${BETA_LABEL}</span> <span>${id === 'hr' ? html`<span data-hr-beta-text><strong>HR</strong> isn't live yet, so only Super admins can see it. Turn it live on the <a href="#/modules">Modules</a> page.</span>` : html`<strong>${m.label}</strong> is not Live yet: only ${m.superOnly ? 'Super admins' : 'Admins and Super admins'} can see it.
     Turn it Live on the <a href="#/modules">Modules</a> page.`}</span></div>`;
+}
+
+// MF-054 / FF-074: Closing Date info sits at the bottom of the left-nav Closing Date button (staff).
+function closingNavMeta(deal, show) {
+  if (!show || !deal) return '';
+  const date = fmtDate(deal.closingDate) || 'Not set';
+  const stored = String(deal.closingTime || '').trim();
+  const fromClock = /^\d{2}:\d{2}/.test(stored) ? stored.slice(0, 5) : '';
+  const fromSched = String((deal.scheduledClosing && deal.scheduledClosing.at) || '').match(/T(\d{2}:\d{2})/);
+  const time = fromClock || (fromSched ? fromSched[1] : '');
+  let days = '';
+  if (deal.closingDate) {
+    const toGo = Math.round((Date.parse(deal.closingDate + 'T12:00:00') - Date.parse(localDate() + 'T12:00:00')) / 864e5);
+    days = toGo < 0 ? '' : (toGo === 0 ? 'today' : `${toGo} day${toGo === 1 ? '' : 's'}`);
+  }
+  return html`<span class="nav-closing-meta" data-nav-closing><span data-nav-closing-date>${date}</span>${time ? html` <span data-nav-closing-time>${time}</span>` : ''}${days ? html` <span class="muted" data-nav-closing-days>${days}</span>` : ''}</span>`;
 }
 // REDESIGN (John, Nov 3): the persistent order header on every tab of a file: Order #, progress badge, address, then type / dates / status.
 // Same data-order-header / data-progress-badge / .order-no hooks as before (the badge text is exactly the phase name).
