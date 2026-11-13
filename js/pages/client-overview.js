@@ -8,7 +8,7 @@ import { composeModal } from './compose.js?v=202611161500';
 import { slotText } from './dealclosing.js?v=202611170800';
 import { yourAgentHtml, withContactPhone } from './your-agent.js?v=202611161500';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { UPDATE_TOPICS } from '../data/agent-portal.js?v=202611101015';
+import { UPDATE_TOPICS } from '../data/agent-portal.js?v=202611191100';
 
 // The signed-in buyer or seller is not part of their own closing team. Match the
 // portal login when the contact row has it, and the email when that login id was not loaded.

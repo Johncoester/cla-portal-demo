@@ -281,6 +281,57 @@ select pg_temp.ok((select count(*) = 1 from public.accounting_fees where preset_
   and (select count(*) = 0 from public.accounting_fees where preset_key = 'agent_fee:listing:admin:0' and retired_at is null), 'AF-5: a removed fee''s ledger line is retired, not deleted');
 select pg_temp.ok((select count(*) = 0 from public.accounting_fees where deal_id = '44444444-4444-4444-4444-444444444444'), 'AF-5: a refinance posts nothing');
 SQL
+
+# Agent fees follow-ups (Nov 13): one source. Older order commission fields are moved into Agent fees, emptied, and guarded.
+psql_super <<'SQL'
+alter table public.deals add column listing_commission_pct numeric, add column listing_commission_amount numeric,
+  add column buyer_commission_pct numeric, add column buyer_commission_amount numeric, add column financial jsonb not null default '{}'::jsonb;
+insert into public.deals (id, purchase_price, listing_commission_pct, financial) values
+  ('66666666-6666-6666-6666-666666666666', 200000, 2.5, '{"emdHeldBy":"CLA Title","commissionPaidBy":"buyer","commissionPercent":2,"commissionTotal":4000,"commissionBase":200000}'),
+  ('77777777-7777-7777-7777-777777777777', null, null, '{"commissionPaidBy":"seller","commissionTotal":5000}');
+insert into public.deals (id, purchase_price, transaction_type, buyer_commission_amount) values ('88888888-8888-8888-8888-888888888888', 300000, 'Refinance', 900);
+update public.deals set buyer_commission_amount = 1 where id = '22222222-2222-2222-2222-222222222222';
+SQL
+psql_super -f "$ROOT/supabase/migrations/20261119030000_agent_fee_one_source.sql"
+psql_super -o /dev/null <<'SQL'
+create or replace function pg_temp.err(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'no error'; exception when others then return sqlerrm; end $$;
+create or replace function pg_temp.ok(c boolean, msg text) returns void language plpgsql as $$
+begin if c is not true then raise exception 'FAIL %', msg; end if; raise notice 'PASS  %', msg; end $$;
+select pg_temp.ok((select basis = 'percent' and pct = 2.5 and amount = 5000 and source = 'staff' and confirmed_at is null
+  from public.deal_agent_fees where deal_id = '66666666-6666-6666-6666-666666666666' and side = 'listing' and kind = 'commission'),
+  'one source: the order''s listing 2.5% moved into Agent fees ($5,000 on $200,000)');
+select pg_temp.ok((select basis = 'amount' and amount = 4000 and pct = 2 and payer = 'buyer'
+  from public.deal_agent_fees where deal_id = '66666666-6666-6666-6666-666666666666' and side = 'buyer' and kind = 'commission'),
+  'one source: the Place Order commission (paid by buyer, $4,000) moved to the buyer''s agent side');
+select pg_temp.ok((select count(*) = 2 from public.deal_agent_fee_log where deal_id = '66666666-6666-6666-6666-666666666666' and source = 'system' and reason like 'Moved from the order%'),
+  'one source: each move is in the change history');
+select pg_temp.ok((select count(*) = 1 from public.accounting_fees where deal_id = '66666666-6666-6666-6666-666666666666' and preset_key = 'agent_fee:buyer:commission:0' and amount = 4000),
+  'one source: a moved commission posts to Accounting like any other agent fee');
+select pg_temp.ok((select count(*) = 0 from public.deal_agent_fees where deal_id = '77777777-7777-7777-7777-777777777777')
+  and (select count(*) = 1 from public.deal_agent_fee_log where deal_id = '77777777-7777-7777-7777-777777777777' and new_value is null and old_value ->> 'amount' = '5000' and reason like 'Older commission field cleared%'),
+  'one source: a commission with no sales price is kept in the history, not lost');
+select pg_temp.ok((select count(*) = 0 from public.deal_agent_fees where deal_id = '88888888-8888-8888-8888-888888888888'), 'one source: a refinance gets no agent fees');
+select pg_temp.ok((select buyer_commission_amount is null and listing_commission_pct is null from public.deals where id = '22222222-2222-2222-2222-222222222222')
+  and (select amount <> 1 from public.deal_agent_fees where deal_id = '22222222-2222-2222-2222-222222222222' and side = 'buyer' and kind = 'commission')
+  and (select count(*) = 1 from public.deal_agent_fee_log where deal_id = '22222222-2222-2222-2222-222222222222' and old_value ->> 'amount' = '1' and reason like 'Older commission field cleared: Agent fees already%'),
+  'one source: a side that already had Agent fees keeps them; the older figure is kept in the history');
+select pg_temp.ok((select count(*) = 0 from public.deals where listing_commission_pct is not null or listing_commission_amount is not null
+    or buyer_commission_pct is not null or buyer_commission_amount is not null or financial ?| private.old_commission_keys()),
+  'one source: no order has a commission in its older fields any more (buyers and sellers can''t read one)');
+select pg_temp.ok((select financial = '{"emdHeldBy":"CLA Title"}'::jsonb from public.deals where id = '66666666-6666-6666-6666-666666666666'), 'one source: EMD held by stays');
+select pg_temp.ok(pg_temp.err($q$update public.deals set listing_commission_pct = 3 where id = '66666666-6666-6666-6666-666666666666'$q$)
+  = 'Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter them there. Nothing was saved.',
+  'one source: writing an older commission field is refused with a plain message');
+select pg_temp.ok(pg_temp.err($q$update public.deals set financial = '{"commissionPercent":3}' where id = '66666666-6666-6666-6666-666666666666'$q$) like 'Commissions are now kept%',
+  'one source: a commission in financial is refused too');
+select pg_temp.ok(pg_temp.err($q$update public.deals set financial = '{"emdHeldBy":"Bright Realty"}', purchase_price = 210000 where id = '66666666-6666-6666-6666-666666666666'$q$) = 'no error',
+  'one source: EMD held by and the sales price still save');
+SQL
+psql_super -f "$ROOT/supabase/migrations/20261119030000_agent_fee_one_source.sql"
+psql_super -f "$ROOT/supabase/rollbacks/20261119030000_agent_fee_one_source.sql"
+psql_super -c "update public.deals set listing_commission_pct = 3 where id = '66666666-6666-6666-6666-666666666666';" \
+  -c "do \$\$ begin if to_regprocedure('private.deal_old_commission_guard()') is not null then raise exception 'FAIL one-source rollback'; end if; raise notice 'PASS  one-source rollback removes the guard'; end \$\$;"
 psql_super -f "$ROOT/supabase/rollbacks/20261118040000_agent_fee_ledger.sql"
 psql_super -c "do \$\$ begin if to_regclass('public.deal_agent_fee_ledger') is not null then raise exception 'FAIL AF-5 rollback'; end if; raise notice 'PASS  AF-5 rollback stops the posting'; end \$\$;"
 psql_super -f "$ROOT/supabase/rollbacks/20261118030000_agent_fee_staff_notice.sql"

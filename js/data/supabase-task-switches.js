@@ -2,7 +2,7 @@
  * (best effort; the mock adapter is the tested one). public.task_template_switches is read by staff; only public.set_task_template_enabled()
  * changes it (active Admin / Super admin only, a reason is required for Off); every change goes to public.task_template_switch_log. OFF = not created
  * from now on; existing copies kept but hidden by RLS (tasks_switch_hidden) from everyone except Admin / Super admin. */
-import { switchableTasks, canManageTaskSwitches, cleanReason } from './task-switches.js?v=202611171200';
+import { switchableTasks, canManageTaskSwitches, cleanReason } from './task-switches.js?v=202611191100';
 export function taskSwitchesSupabase({ sb, ok, me }) {
   const admin = async () => { const u = await me(); if (!canManageTaskSwitches(u)) throw new Error('Only an Admin or Super admin can see or change task switches.'); return u; };
   return {

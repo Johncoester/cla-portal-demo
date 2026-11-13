@@ -5,7 +5,7 @@
 // why (a reason is required to switch a task off), old -> new (like the Modules change log).
 // Mirrored by migration 49 (public.task_template_switches + public.task_template_switch_log, both typed / queryable).
 import { TEMPLATE_DEFS } from './templates.js?v=202611171200';
-import { AGENT_TASKS } from './agent-portal.js?v=202611101015';
+import { AGENT_TASKS } from './agent-portal.js?v=202611191100';
 // loan-related tasks: the first ones John wants to switch (shown first, "Showing: loan-related tasks")
 export const LOAN_CODES = ['lender_info', 'mortgage_info'];
 // every switchable code: the intake templates (latest title) + the 3 agent tasks

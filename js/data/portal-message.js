@@ -1,6 +1,6 @@
 /* In-portal message. The caller must already be allowed on the file.
  * This does not send email and does not add a recipient who is not on the allowed list. */
-import { sanitizeMessageHtml, htmlToText } from './agent-portal.js?v=202611101015';
+import { sanitizeMessageHtml, htmlToText } from './agent-portal.js?v=202611191100';
 
 export function messageText(html) {
   const clean = sanitizeMessageHtml(html || '');

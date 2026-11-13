@@ -41,6 +41,11 @@ test('Place Order, edit details, parties, referral source, and the file-number p
 
   await advance(page, 'loan');
   await expect(page.locator('[data-wiz-step="loan"] [data-earnest-commission]')).toBeVisible();
+  // Agent fees at file opening (Nov 13): the listing agent's commission is typed as a %, the $ fills in from the purchase price
+  await page.locator('[data-wiz-step="loan"] input[name="purchasePrice"]').fill('400,000');
+  await page.locator('[data-wiz-step="loan"] input[name="af.listing.percent"]').fill('3');
+  await expect(page.locator('[data-wiz-step="loan"] input[name="af.listing.amount"]')).toHaveValue('12000.00');
+  await page.locator('[data-wiz-step="loan"] input[name="af.buyer.admin"]').fill('395');
   await advance(page, 'agents');
   await expect(page.locator('[data-wiz-step="agents"] select[name="p:Transaction Coordinator"]')).toBeVisible();
   await expect(page.locator('[data-wiz-step="agents"] select[name="p:Transaction Coordinator:2"]')).toBeVisible();
@@ -77,6 +82,10 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   await expect(page.locator('[data-closing-date] [data-settlement-row="time"]')).toBeVisible();
   await expect(page.locator('[data-closing-location]')).toBeVisible();
   await expect(page.locator('[data-closer]')).toBeVisible();
+  // the Place Order figures are the file's Agent fees
+  await expect(page.locator('[data-agent-fees] [data-agent-fee-side="listing"] [data-af-commission]')).toContainText('3%');
+  await expect(page.locator('[data-agent-fees] [data-agent-fee-side="listing"] [data-af-commission]')).toContainText('$12,000');
+  await expect(page.locator('[data-agent-fees] [data-agent-fee-side="buyer"] [data-af-admin]')).toContainText('$395');
 
   await page.locator('#editdeal').click();
   await page.locator('#edf select[name="state"]').selectOption('FL');
