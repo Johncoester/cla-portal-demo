@@ -27,7 +27,7 @@ This file lists the portal's major features: how each one should work, how far a
 | AF-4 | Notice to the agent when staff change a confirmed fee | Live on TEST, [PR 236](https://github.com/Johncoester/cla-portal-demo/pull/236) |
 | AF-5 | Fees post to Accounting automatically | Live on TEST, [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) |
 | AF-6 | "Generate CD" and "Generate ALTA" PDF buttons | Live on TEST, [PR 238](https://github.com/Johncoester/cla-portal-demo/pull/238) |
-| AF-7 | Follow-ups: one place for commissions, agent task without fee questions, walkthrough test (Owner: Claude) | In review. Needs `20261119030000_agent_fee_one_source.sql` applied on TEST before it is Live |
+| AF-7 | Follow-ups: one place for commissions, agent task without fee questions, walkthrough test (Owner: Claude) | In review, [PR 257](https://github.com/Johncoester/cla-portal-demo/pull/257). Needs `20261119030000_agent_fee_one_source.sql` applied on TEST before it is Live |
 
 **What's built**
 
