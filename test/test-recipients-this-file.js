@@ -3,8 +3,8 @@
 import { readFileSync } from 'node:fs';
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
-const mig = readFileSync(new URL('../supabase/migrations/20261117030000_recipients_this_file.sql', import.meta.url), 'utf8');
-const back = readFileSync(new URL('../supabase/rollbacks/20261117030000_recipients_this_file.sql', import.meta.url), 'utf8');
+const mig = readFileSync(new URL('../supabase/migrations/20261117130000_recipients_this_file.sql', import.meta.url), 'utf8');
+const back = readFileSync(new URL('../supabase/rollbacks/20261117130000_recipients_this_file.sql', import.meta.url), 'utf8');
 const mailed = mig.slice(mig.indexOf('mailed as ('), mig.indexOf('select * from portal'));
 ok(/where v\.staff and v\.ok and dp\.deal_id = p_deal/.test(mailed), 'contacts with no portal login come from this file only');
 ok(mig.includes("<> '419cfebe34e89f1fbdd777ab4990873f'") && mig.includes('readback: rpc_message_recipients did not take the file filter'), 'refuses to run on an unexpected version and reads the change back');
