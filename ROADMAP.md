@@ -141,16 +141,17 @@ This file lists the portal's major features: how each one should work, how far a
 - FF-069d (#16, #17): a finished task opens read-only for buyers, sellers and agents (no Save or Complete buttons), and its status reads "Done".
 - FF-063c (#3): when the processor sets the closing at a mobile notary, they enter the notary's street, city, state and ZIP, and the closing shows "Mobile notary at <address>".
 - FF-066 (#6): the seller proceeds acknowledgment (with the $5,000 wire note and a required checkbox) is on How you want your proceeds, not Personal information. Forms already started keep their answers.
+- FF-067 (#7): the seller's Outstanding Mortgage Information takes the full loan number (up to 30 letters, digits or dashes); several mortgages save without being cut off.
 
 **What's still missing**
 
-- The other confirmed items (#7 to #9, #11, #12, #14, #21, #23, #24, street address lookup) are being built one pull request at a time.
+- The other confirmed items (#8, #9, #11, #12, #14, #21, #23, #24, street address lookup) are being built one pull request at a time.
 - On hold: #1, #2, #4, #5, #10, #13, #15, #16, citizenship, spouse marital status, entity documents required, phone and email icons with no app.
 
 **Links**
 
 - Spec: none yet. Source: Janine's video Nov 12 2:57 PM ET; Francis Feedback tickets FF-063 to FF-072.
-- Related pull requests: [PR 221](https://github.com/Johncoester/cla-portal-demo/pull/221) (FF-071b), [PR 222](https://github.com/Johncoester/cla-portal-demo/pull/222) (FF-064/065), [PR 223](https://github.com/Johncoester/cla-portal-demo/pull/223) (FF-070), [PR 224](https://github.com/Johncoester/cla-portal-demo/pull/224) (FF-063), [PR 226](https://github.com/Johncoester/cla-portal-demo/pull/226) (FF-070b speed fix), [PR 228](https://github.com/Johncoester/cla-portal-demo/pull/228) (FF-069d), [PR 229](https://github.com/Johncoester/cla-portal-demo/pull/229) (FF-063c), FF-066 (this change).
+- Related pull requests: [PR 221](https://github.com/Johncoester/cla-portal-demo/pull/221) (FF-071b), [PR 222](https://github.com/Johncoester/cla-portal-demo/pull/222) (FF-064/065), [PR 223](https://github.com/Johncoester/cla-portal-demo/pull/223) (FF-070), [PR 224](https://github.com/Johncoester/cla-portal-demo/pull/224) (FF-063), [PR 226](https://github.com/Johncoester/cla-portal-demo/pull/226) (FF-070b speed fix), [PR 228](https://github.com/Johncoester/cla-portal-demo/pull/228) (FF-069d), [PR 229](https://github.com/Johncoester/cla-portal-demo/pull/229) (FF-063c), [PR 230](https://github.com/Johncoester/cla-portal-demo/pull/230) (FF-066), FF-067 (this change).
 
 **Decisions**
 

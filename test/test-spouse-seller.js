@@ -95,7 +95,7 @@ ok(mortgage.title === 'Outstanding Mortgage Information' && mortgage.fields.some
 const loans = [{ lender: 'First Bank', phone: '3015550111', last4: '1111', loan_type: 'First' }, { lender: 'Second Bank', phone: '3015550222', last4: '2222', loan_type: 'HELOC' }];
 await api.saveTaskForm(mortgage.id, { mortgages: JSON.stringify(loans) });
 const loansAgain = JSON.parse((await api.getTask(mortgage.id)).formData.mortgages);
-ok(loansAgain.length === 2 && loansAgain[0].lender === 'First Bank' && loansAgain[1].lender === 'Second Bank' && loansAgain[1].last4 === '2222', 'two mortgages save and reload');
+ok(loansAgain.length === 2 && loansAgain[0].lender === 'First Bank' && loansAgain[1].lender === 'Second Bank' && loansAgain[1].loan_number === '2222', 'two mortgages save and reload');
 let loanErr = '';
 try { await api.saveTaskForm(mortgage.id, { mortgages: '[]' }, { complete: true }); } catch (e) { loanErr = e.message; }
 ok(loanErr.includes('Add at least one mortgage'), 'an empty mortgage list cannot be submitted');
