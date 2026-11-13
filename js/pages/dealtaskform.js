@@ -1,11 +1,11 @@
 // One intake task (form). Save partial work, validate, mark complete. ID-type fields upload a file into the order's "IDs & personal" folder.
 import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611161500';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
-import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611171000';
+import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611171100';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
-import { spouseSectionHtml, spousePayload, loadSpouseRows, applySpouse } from './spouse.js?v=202611161500';
+import { spouseSectionHtml, spousePayload, loadSpouseRows, applySpouse, bindSsnDash, showSsnMask } from './spouse.js?v=202611171100';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611101015';
-import { CLS, LABEL } from './dealtasks.js?v=202611182100';
+import { CLS, LABEL } from './dealtasks.js?v=202611171100';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 // The task page and the processor Tasks "Expand all" use the same fields, save, and complete rules.
@@ -77,7 +77,7 @@ export function buyerSsnHtml(shown, staff) {
       : '';
   return html`<div class="span2 fld" data-buyer-ssn-box><span>Social Security number</span>
     ${entry}
-    <input data-buyer-ssn type="password" inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="11" aria-label="Social Security number" placeholder="***-**-****">
+    <input data-buyer-ssn type="text" inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="11" data-ssn-dash aria-label="Social Security number" placeholder="***-**-****">
     <button type="button" class="ghost" data-ssn-save>Save Social Security number</button>
     <p class="muted small">CLA Title staff use this to clear judgments. After you save, you see only the last 4 digits.</p></div>`;
 }
@@ -106,13 +106,14 @@ export function mountIntakeForm(root, { api, t, afterSave }) {
     b.textContent = cb.checked ? '\u2212 Remove entity' : '+ Add entity'; b.setAttribute('aria-pressed', String(cb.checked)); sync(); }));
   $$('[data-help]', form).forEach((b) => b.addEventListener('click', () => { const pnl = $(`[data-help-panel="${b.dataset.help}"]`, form); pnl.hidden = !pnl.hidden; b.setAttribute('aria-expanded', String(!pnl.hidden)); }));
   let mode = 'save'; $$('button[data-mode]', form).forEach((b) => b.addEventListener('click', () => { mode = b.dataset.mode; }));
+  bindSsnDash(form);   // FF-068 #9: visible SSN with automatic dashes
   const ssnBtn = $('[data-ssn-save]', form);
   if (ssnBtn) ssnBtn.addEventListener('click', async () => {
     const ssnInput = $('[data-buyer-ssn]', form);
     try {
       if (!ssnInput || !ssnInput.value) throw new Error('Enter a 9-digit Social Security number.');
       await api.saveBuyerSsn(t.id, ssnInput.value);
-      ssnInput.value = '';
+      showSsnMask(ssnInput);
       toast('Social Security number saved');
       if (afterSave) afterSave('save');
     } catch (err) { toast(err.message, 'err'); }
@@ -130,12 +131,12 @@ export function mountIntakeForm(root, { api, t, afterSave }) {
       const spouseSsn = $('[data-spouse-ssn-input]', form);
       if (spouseSsn && spouseSsn.value && spouseBox && spouseBox.dataset.spouseTask) {
         await api.savePartySsn(spouseBox.dataset.spouseTask, 'spouse', spouseSsn.value);
-        spouseSsn.value = '';
+        showSsnMask(spouseSsn);
       }
       const ssnInput = $('[data-buyer-ssn]', form);
       if (ssnInput && ssnInput.value) {
         await api.saveBuyerSsn(t.id, ssnInput.value);
-        ssnInput.value = '';
+        showSsnMask(ssnInput);
       }
       const complete = intakeCompletes(t, data, mode);
       await api.saveTaskForm(t.id, data, { complete });
@@ -197,4 +198,4 @@ function signView({ api, deal, t, refresh, go }) {
 }
 
 // Francis, Nov 3: agent tasks (kind 'agent') have their own page
-async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611182100'); return m.render(c); }
+async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611171100'); return m.render(c); }
