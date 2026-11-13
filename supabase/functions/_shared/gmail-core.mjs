@@ -239,6 +239,21 @@ export function inviteLink(kind, token) { return `${PORTAL_ORIGIN}/#/${kind === 
  * Auth's button verifies, then lands on this address; index.html drops Auth's sign-in and opens the portal accept page. */
 export const PORTAL_INVITE_SENDER = 'testportal@clatitle.com';
 export function inviteAuthRedirect(kind, token) { return `${PORTAL_ORIGIN}/?portal_invite=${kind === 'hr' ? 'hr' : 'agent'}.${token}`; }
+// Metadata Auth stores on the invite-only login. The approved Invite user template can
+// read {{ .Data.property_address }}, {{ .Data.first_name }} and {{ .Data.party_role }}
+// so the welcome email names the property (FF-073d / MF-055.3). portal_invite is still
+// what index.html uses to open the accept page.
+export function inviteAuthData(info = {}, { kind, token } = {}) {
+  const data = { portal_invite: `${kind === 'hr' ? 'hr' : 'agent'}.${token}` };
+  if (kind === 'hr') return data;
+  const address = inviteAddress(info);
+  const name = oneLine(info && info.firstName, 80);
+  const role = partyWord(info);
+  if (address) data.property_address = address;
+  if (name) data.first_name = name;
+  if (role) data.party_role = role;
+  return data;
+}
 export function inviteAddress(info) { return formatPropertyAddress(info || {}); }
 export function partyWord(info = {}) {
   const r = String(info.partyRole || '').trim().toLowerCase();

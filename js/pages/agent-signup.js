@@ -3,15 +3,20 @@ import { html, $, guard, toast } from '../ui.js?v=202611161500';
 import { agentFormHtml, mountAgentForm } from './agent-profile-form.js?v=202611161500';
 import { STATUS_LABEL, markAgentOnboard } from '../data/agent-profile.js?v=202611140100';
 const shell = (inner) => html`<div class="login-page ap-signup-page"><div class="login-card ap-signup-card"><img src="assets/img/login-logo-new.png" alt="C.L.A. Title &amp; Escrow" class="sched-logo">${inner}</div></div>`;
-const signInPath = (email) => { const e = String(email || '').trim(); return '/login' + (e ? '?email=' + encodeURIComponent(e) : ''); };
+const signInPath = (email) => { const e = String(email || '').trim(); return '#/login' + (e ? '?email=' + encodeURIComponent(e) : ''); };
 export async function render({ api, params, go }) {
   const inv = await api.getAgentInvite(params.token);
+  // FF-073c / MF-055.4 (Janine YES 10:43 AM ET Nov 13): a used invite stays on this page
+  // with a clear "already used" message and a Sign in button. It must not jump to login
+  // with no explanation. A still-pending invite keeps the registration form.
   if (inv.status === 'accepted' || inv.status === 'exists') {
-    if (go) go(signInPath(inv.email));
-    return { title: 'Sign in', body: shell(html`<p data-invite-redirect="signin"></p>`) };
+    const why = inv.status === 'exists'
+      ? 'This email already has a portal login. Sign in with that email.'
+      : 'This invitation was already used. Sign in to the portal with the email that was invited.';
+    return { title: 'Sign in', body: shell(html`<div class="eyebrow">PORTAL INVITE</div><h2 data-invite-state="${inv.status}">Invitation already used</h2><p data-invite-used>${why}</p><p><a class="m-btn" href="${signInPath(inv.email)}" data-invite-signin>Sign in</a></p>`) };
   }
   if (inv.status !== 'pending') {
-    const why = { expired: 'This invite link has expired. Ask your CLA Title contact to resend it.', accepted: 'This invite was already used. Sign in to the portal instead.', revoked: 'This invite is no longer active.', invalid: 'This invite link is not valid. It may have been replaced by a newer link.' }[inv.status] || 'This invite link is not valid.';
+    const why = { expired: 'This invite link has expired. Ask your CLA Title contact to resend it.', revoked: 'This invite is no longer active.', invalid: 'This invite link is not valid. It may have been replaced by a newer link.' }[inv.status] || 'This invite link is not valid.';
     return { title: 'Agent invite', body: shell(html`<div class="eyebrow">AGENT INVITE</div><h2 data-invite-state="${inv.status}">Invite ${STATUS_LABEL[inv.status] || 'not valid'}</h2><p>${why}</p><p><a class="m-btn" href="#/login">Go to sign in</a></p>`) };
   }
   const supa = api.mode === 'supabase';

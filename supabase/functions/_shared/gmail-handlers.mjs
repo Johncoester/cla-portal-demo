@@ -11,7 +11,7 @@
  *   deps.newId() -> uuid, deps.now() -> ms */
 import { TEST_PROJECT_REF, PORTAL_ORIGIN, REDIRECT_URI, GMAIL_ROLES, MAX_RECIPIENTS, MAX_DOCS, MAX_ATTACH_BYTES, MAX_MESSAGE_BYTES, MAX_SAVE_BYTES, MAX_BODY_CHARS,
   parseAddressList, subjectWithTag, formatPropertyAddress, sanitizeHtml, htmlToText, hasWireDetails, isWireName, extOk, safeName, matchUploadKeys, buildMime, b64url, b64urlToBytes, utf8, estimateMimeBytes,
-  parseGmailMessage, randomToken, sha256Hex, pkceChallenge, authUrl, decodeJwtPayload, missingScopes, oneLine, json, hasSettingsScope, pickSendAsSignature, withSignature, isEmail, INVITE_TOKEN_RE, unnotifiedTasks, AUTH_INVITE_SUBJECT, PORTAL_INVITE_SENDER, inviteAuthRedirect } from './gmail-core.mjs';
+  parseGmailMessage, randomToken, sha256Hex, pkceChallenge, authUrl, decodeJwtPayload, missingScopes, oneLine, json, hasSettingsScope, pickSendAsSignature, withSignature, isEmail, INVITE_TOKEN_RE, unnotifiedTasks, AUTH_INVITE_SUBJECT, PORTAL_INVITE_SENDER, inviteAuthRedirect, inviteAuthData, inviteSubjectFor } from './gmail-core.mjs';
 
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -300,8 +300,9 @@ async function inviteSend(inv, user, ctx, deps) {
   const mark = async (messageId, error) => { try { await deps.svc('invite_svc_mark_sent', { p_kind: kind, p_token: token, p_profile: user.id, p_to: to, p_message_id: messageId, p_error: error }); } catch (e) { /* the send result still goes back to the page */ } };
   if (deps.projectRef !== TEST_PROJECT_REF) return json(503, { error: 'Gmail phase 1 runs on CLA Portal Live Test only.' }, H);
   if (typeof deps.authInvite !== 'function') return json(503, { error: `The portal mailbox (${PORTAL_INVITE_SENDER}) is not set up here. The invite was not emailed.`, to }, H);
-  // portal_invite also rides in the Auth login itself, so the landing still finds the accept page if Auth falls back to its Site URL
-  const opts = { redirectTo: inviteAuthRedirect(kind, token), data: { portal_invite: `${kind}.${token}` } };
+  // portal_invite also rides in the Auth login itself, so the landing still finds the accept page if Auth falls back to its Site URL.
+  // first_name / party_role / property_address go in the same metadata so the Auth invite template can name the property (FF-073d).
+  const opts = { redirectTo: inviteAuthRedirect(kind, token), data: inviteAuthData(info, { kind, token }) };
   // An earlier invite email left an invite-only login that never became a portal user: replace it, so this email carries this link.
   // A real portal login (not Auth-invited, or already linked to a profile) is never touched.
   const stub = typeof deps.authStub === 'function' ? await deps.authStub(to) : null;
@@ -317,7 +318,8 @@ async function inviteSend(inv, user, ctx, deps) {
   await mark(`auth-invite:${sent.id}`, null);
   const pending = kind === 'agent' ? unnotifiedTasks(info).length : 0;
   const taskNotice = pending ? { sent: false, count: pending, error: 'The task email is not sent with portal-mailbox invites yet.' } : { sent: false, count: 0 };
-  return json(200, { ok: true, sent: true, via: 'auth', to, from: PORTAL_INVITE_SENDER, subject: AUTH_INVITE_SUBJECT, authUserId: sent.id, taskNotice }, H);
+  const subject = kind === 'hr' ? AUTH_INVITE_SUBJECT : inviteSubjectFor(info);
+  return json(200, { ok: true, sent: true, via: 'auth', to, from: PORTAL_INVITE_SENDER, subject, authUserId: sent.id, taskNotice }, H);
 }
 
 /* ---------------- gmail-sync (cron every 3 minutes, or "Check for replies") ---------------- */

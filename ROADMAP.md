@@ -114,22 +114,28 @@ This file lists the portal's major features: how each one should work, how far a
 - Buyer, seller and agent invites from a file's Contacts tab, with an automatic invite email ([PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140)).
 - FF-073a (Janine's buyer recordings, Nov 12): accepting an invite twice (double-click or a second tab) can no longer delete the login. Only a login made in that same request that never became a portal user is cleaned up.
 - FF-073b: the Forgot password email's link opens the portal the person is using (testportal.clatitle.com on TEST), not the old GitHub address.
+- FF-073c / MF-055 point 4: a still-open invite opens the registration form. An invite that was already used stays on that page with a clear "This invitation was already used" message and a Sign in button that opens login with that email.
+- FF-073d / MF-055 point 3: the invite email names the property address (subject and a welcome line with the person's name and role) so the buyer can tell which file it is for. Invites still come from testportal@clatitle.com.
+- FF-073e / MF-055 point 2: changing a buyer, seller or agent email on a file automatically sends a new invite to the new address, matching their role, from testportal@clatitle.com (John, 1:30 PM ET Nov 13).
 - FF-055 / MF-048 (Francis, Nov 11; John, Nov 13): Share Files to someone on the file who has no portal login yet. For CLA staff the To list marks that person "no portal login yet; will be invited". On Send the portal emails them the usual invite and holds the message and the files; the conversation shows them as "invited, not signed in yet". When they set up their login, the conversation is waiting for them, unread. Before this, Share Files to that person always failed with "Pick at least one recipient on this order". Needs the database change 20261119030000_share_invited_hold on TEST; until it is applied, picking that person gives a plain message instead. Not Live until then. ([PR 251](https://github.com/Johncoester/cla-portal-demo/pull/251))
 
 **What's still missing**
 
 - The TEST Auth "Redirect URLs" list must include https://testportal.clatitle.com/ for the reset link to land there; if it doesn't, Auth falls back to its Site URL. John checks that setting.
-- FF-073c to FF-073e (waiting on Janine): a clear "invite already used" message, the property address in the invite email, and a new invite when a buyer's email changes.
+- The TEST Auth "Invite user" template must be updated once to the version in supabase/templates/ (subject and body) so the received email shows the property address already being sent with each invite. Until that paste, the portal still sends the address in Auth metadata, but the current Nov 9 template does not print it.
+- MF-055 points 1 and 5 (password reset email, saved password / invalid login) are covered by FF-073b and the LOGIN-1 / LOGIN-2 items, not this change.
+- The database file for the automatic email-change invite is in this pull request and has a rollback. It is not applied on TEST until after merge (rule 4).
 
 **Links**
 
 - Spec: none yet.
-- Related pull requests: [PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140), [PR 219](https://github.com/Johncoester/cla-portal-demo/pull/219) (FF-073a), [PR 220](https://github.com/Johncoester/cla-portal-demo/pull/220) (FF-073b), [PR 251](https://github.com/Johncoester/cla-portal-demo/pull/251) (FF-055 / MF-048).
+- Related pull requests: [PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140), [PR 219](https://github.com/Johncoester/cla-portal-demo/pull/219) (FF-073a), [PR 220](https://github.com/Johncoester/cla-portal-demo/pull/220) (FF-073b), [PR 251](https://github.com/Johncoester/cla-portal-demo/pull/251) (FF-055 / MF-048), [PR 254](https://github.com/Johncoester/cla-portal-demo/pull/254) (FF-073c/d/e and MF-055 points 2-4).
 
 **Decisions**
 
 - accept-invite never deletes an existing or just-claimed login (John, Nov 12, 6:09 PM ET).
 - The reset link uses the current portal address; the Auth redirect list is John's setting, not changed by a pull request.
+- Janine confirmed FF-073c/d/e on Nov 13 at 10:43 AM ET (YES to John's 9:08 AM list). John decided at 1:30 PM ET Nov 13 that a new invite is sent automatically when a buyer, seller or agent email changes (not a Resend button).
 - Sharing with someone who has no portal login invites them and holds the files until they sign in (John, Nov 13, by voice: option B). Only a buyer, seller, buyer agent or listing agent on the file can be invited this way. Wire instructions are never held. Someone who already has a pending invite is not emailed a second link.
 
 ---
