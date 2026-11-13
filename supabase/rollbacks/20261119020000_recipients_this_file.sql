@@ -1,4 +1,4 @@
--- Rollback for 20261117130000_recipients_this_file.sql: puts back the version without the file filter on contacts with no login.
+-- Rollback for 20261119020000_recipients_this_file.sql: puts back the version without the file filter on contacts with no login.
 begin;
 create or replace function private.rpc_message_recipients(p_deal uuid)
  RETURNS TABLE(id uuid, first_name text, last_name text, email text, role text, side text)
