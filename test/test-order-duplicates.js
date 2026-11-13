@@ -61,7 +61,7 @@ ok(!page.includes('dup-block') && page.includes('data-review-ready'), 'a duplica
 ok(page.includes('No salespeople are available for this login.') && page.includes('No preprocessor is available for this login.') && page.includes('No transaction coordinator is available for this login.') && page.includes('(none available for this login)'), 'empty Team and TC lists say none are available for this login');
 ok(!page.includes('name="p:Sales Team"') && !page.includes('salesParty') && (page.match(/<legend>Salespeople on this order<\/legend>/g) || []).length === 1, 'Place Order keeps one salespeople field and does not restore Sales team member');
 const listCoordinators = adapter.slice(adapter.indexOf('async listCoordinators'), adapter.indexOf('async findDuplicateOrders'));
-ok(listCoordinators.includes('coordinatorRoster') && listCoordinators.includes("eq('role', 'Transaction Coordinator')") && listCoordinators.includes('r.contactId') && !listCoordinators.includes('.insert('), 'the hosted TC list is a read and omits a coordinator who has no contact');
+ok(listCoordinators.includes('coordinatorRoster') && listCoordinators.includes("in('role', PROCESSOR_PICK_ROLES)") && listCoordinators.includes('plan.rows.map') && !listCoordinators.includes('.insert('), 'the hosted TC list is a read of every staff role and does not insert contacts (ANYROLE-1)');
 ok(adapter.includes('findDuplicateOrders'), 'hosted Place Order looks up visible files');
 ok(sql.includes("p.role = 'Transaction Coordinator'") && sql.includes('viewer_is_demo') && sql.includes('profiles_tc_contact') && rollback.includes('drop trigger if exists profiles_tc_contact'), 'the migration backfills TC contacts and the rollback drops that trigger');
 

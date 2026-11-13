@@ -208,6 +208,35 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Any staff role on a file (ANYROLE-1)
+
+**How it should work.** At the admin level, each login still has one account role. On a file, any active staff login (Super admin, Admin, Processor, Preprocessor, Sales Person, Sales Team or Transaction Coordinator) can be picked as the Processor, a salesperson, the Transaction Coordinator, or a party such as the buyer, seller, buyer agent, listing agent or lender. A staff login added as the buyer or seller can open that file in the portal. Demo and real logins stay in their own world. The CRM Owner field is unchanged.
+
+**Status: In progress.** Tracker row ANYROLE-1 (Requests row 288). The pull request is open. It includes a database change that must be applied on TEST after this merges, before the item is marked Live.
+
+**What's built**
+
+- The Processor, salesperson and Transaction Coordinator lists include every active staff role in the same real or demo world. Edit order details labels the signed-in person with "(you)". Names with extra spaces, such as a trailing space in a first name, display as a normal name.
+- A staff login can be added as a buyer, seller, agent, lender or other party from Place Order or File Contacts. If they do not already have a contact record, one is created and linked to their login so they can open the file.
+- A Sales Person (or other staff who do not run orders) added as a buyer or seller sees that file in their portal in the buyer or seller view. Super admins, Admins and Processors keep the staff file view and still see themselves listed as a party.
+- An outside user still cannot be added as CLA staff.
+
+**What's still missing**
+
+- The database change is not applied on TEST yet (it waits until this pull request merges). An Employee (HR-only) login is not offered on files, because that role has no order work.
+- A Super admin who is also the buyer still sees the staff File Overview, not the buyer overview. They can open the file and are listed as the buyer.
+
+**Links**
+
+- Spec: none yet. Source: John, call + chat 3:07 PM ET Nov 13. Tracker row ANYROLE-1.
+- Related pull requests: this change.
+
+**Decisions**
+
+- John confirmed "add every role" and approved the recap in chat at 3:07 PM ET Nov 13 (t1637u, t1638u). Account roles stay the same at the admin level; only the file-level pickers open up.
+
+---
+
 ## Contract intake AI
 
 **How it should work.** A spec is still to come.

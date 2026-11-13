@@ -4,15 +4,15 @@
  * Deliberately absent: any way to delete a document (no method, no UI, no policy) - Admin included.
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
 import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, localDate, localDayOf, isRealDate,
-  isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
+  isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, STAFF_ACCOUNT_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
   phoneOk, fmtPhone, PHONE_MSG, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611101015';
 import { fileTitleOf, partyDisplayName } from './party-name.js?v=202611102000';
 import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611171200';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
 import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8 } from './templates.js?v=202611171200';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611191400';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611191500';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611171200';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611191500';
 import { tasksAndForms } from './mock-part-tasks.js?v=202611171200';
 import { messagesActivity } from './mock-part-msgs.js?v=202611141400';
 import { adminUsersTeams } from './mock-part-admin.js?v=202611070139';
@@ -21,16 +21,16 @@ import { closingSchedule } from './mock-part-schedule.js?v=202611101015';
 import { notificationsPart } from './mock-part-notify.js?v=202611070139';
 import { mattP2 } from './mock-part-matt.js?v=202611170800';
 import { mattNov2 } from './mock-part-nov2.js?v=202611140100';
-import { crmPart } from './mock-part-crm.js?v=202611160600';
+import { crmPart } from './mock-part-crm.js?v=202611191500';
 import { featureFlags } from './features.js?v=202611070139';
 import { crmZohoUpgrade } from './crm.js?v=202611130900';
 import { ensureEmailTemplates } from './crm-templates.js?v=202611130900';
 import { ensureNov3b as ensureCrmNov3b } from './crm-nov3b.js?v=202611070139';
 import { ensureAgentPortal } from './agent-portal.js?v=202611101015';
 import { agentPortal } from './mock-part-agent.js?v=202611191100';
-import { mattNov3b } from './mock-part-nov3b.js?v=202611171200';
+import { mattNov3b } from './mock-part-nov3b.js?v=202611191500';
 import { ensureSettings, optLabel } from './crm-config.js?v=202611130900';
-import { referralLabel } from './place-order.js?v=202611092320';
+import { referralLabel } from './place-order.js?v=202611191500';
 import { upgradeCalls } from './crm-calls.js?v=202611070139';
 import { accountingPart, ensureAccounting } from './mock-part-accounting.js?v=202611141000';
 import { payoffsPart, ensurePayoffs } from './mock-part-payoffs.js?v=202611070139';
@@ -198,7 +198,11 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   function dealsFor(u) {
     const d = load();
     if (seesAll(u)) return d.deals;
-    if (u.role === 'Preprocessor') return d.deals.filter((q) => q.preprocessorUserId === u.id);
+    if (u.role === 'Preprocessor') {
+      const c = contactOf(u.id);
+      const mine = new Set(c ? d.participants.filter((p) => p.contactId === c.id).map((p) => p.dealId) : []);
+      return d.deals.filter((q) => q.preprocessorUserId === u.id || mine.has(q.id));
+    }
     // John / Francis, Nov 9 (option B): a Transaction Coordinator sees every file, like a Processor (migration 20261109190000)
     if (u.role === 'Transaction Coordinator') return d.deals;
     const c = contactOf(u.id);
@@ -214,12 +218,17 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   // SELF-REPRESENTATION (migration 11): one person may hold a client role AND their side's agent role on one order. Then `role` is the AGENT
   // role (the wider of the two: an agent already sees everything on its side) and `roles` lists both, so their own client copies,
   // client-assigned tasks and the union of both roles apply. Mirrored by private.deal_roles(deal) / private.file_roles_of in SQL.
+  function partyRolesOnFile(profileId, dealId) {
+    const c = contactOf(profileId); if (!c || !dealId) return [];
+    const mine = load().participants.filter((z) => z.dealId === dealId && z.contactId === c.id).map((z) => z.role);
+    return OUTSIDE_FILE_ROLES.filter((r) => mine.includes(r));
+  }
   function fileRoles(profileId, dealId) {
     const p = load().profiles.find((x) => x.id === profileId); if (!p) return [];
-    if (!isOutside(p.role)) return [p.role];
-    const c = contactOf(p.id); if (!c || !dealId) return [OUTSIDE];
-    const mine = load().participants.filter((z) => z.dealId === dealId && z.contactId === c.id).map((z) => z.role);
-    const held = OUTSIDE_FILE_ROLES.filter((r) => mine.includes(r)); return held.length ? held : [OUTSIDE];   // agent roles sort first
+    const held = partyRolesOnFile(profileId, dealId);
+    if (!isOutside(p.role)) return held.length ? [p.role, ...held] : [p.role];
+    if (!contactOf(p.id) || !dealId) return [OUTSIDE];
+    return held.length ? held : [OUTSIDE];   // agent roles sort first
   }
   const fileRole = (profileId, dealId) => fileRoles(profileId, dealId)[0];
   const fileRoleText = (profileId, dealId) => { const rs = fileRoles(profileId, dealId); return rs.length ? fileRoleLabel(rs) : undefined; };   // display: 'Buyer + Buyer\'s Agent' or the one role
@@ -240,8 +249,17 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   const hiddenFromClient = hiddenFromBuyer;
   const selfRep = (roles) => roles.length === 2 && pairAllowed(roles[0], roles[1]);
   // The signed-in user as they act on ONE order (all deal-scoped rules take this, never the bare session user).
-  const scopeTo = (u, dealId) => { if (!u || !isOutside(u.role)) return u; const roles = fileRoles(u.id, dealId);
-    return { ...u, role: roles[0], roles, selfRep: selfRep(roles), accountRole: u.role }; };
+  const scopeTo = (u, dealId) => {
+    if (!u) return u;
+    const held = partyRolesOnFile(u.id, dealId);
+    // Staff who run orders keep their staff view. Other staff on the file as a buyer/seller/agent act in that file role.
+    if (!isOutside(u.role)) {
+      if (held.length && !runsOrders(u)) return { ...u, role: held[0], roles: held, selfRep: selfRep(held), accountRole: u.role };
+      return held.length ? { ...u, roles: [u.role, ...held], selfRep: selfRep(held) } : u;
+    }
+    const roles = fileRoles(u.id, dealId);
+    return { ...u, role: roles[0], roles, selfRep: selfRep(roles), accountRole: u.role };
+  };
   const onDeal = (u, id) => { dealOr404(u, id); return scopeTo(u, id); };
   // Roles an outside user holds across their files (for the dashboard groups and the login picker)
   const fileRolesOf = (u) => [...new Set(dealsFor(u).flatMap((x) => fileRoles(u.id, x.id)).filter((r) => r && r !== OUTSIDE))].sort((a, b) => OUTSIDE_FILE_ROLES.indexOf(a) - OUTSIDE_FILE_ROLES.indexOf(b));
@@ -385,7 +403,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     async keepFile(doc) { if (!files || !doc.dataUrl) return doc; try { await files.put(doc.id, doc.dataUrl); } catch (e) { throw new Error('This browser could not store the file (private browsing or storage full). Try a smaller file or another browser.'); }
       doc.dataUrl = null; doc.hasFile = true; return doc; },
     async fileContent(z) { if (z.dataUrl) return z.dataUrl; if (z.hasFile && files) return (await files.get(z.id)) || null; return null; },
-    C: { ROLES, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel , COUNTY_MAX } };
+    C: { ROLES, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, STAFF_ACCOUNT_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel , COUNTY_MAX } };
   Object.assign(api, devAuth(ctx), dealsAndAuth(ctx), contactsTasksDocs(ctx), tasksAndForms(ctx), messagesActivity(ctx), adminUsersTeams(ctx), libraryFolders(ctx), closingSchedule(ctx), notificationsPart(ctx), mattP2(ctx), mattNov2(ctx), crmPart(ctx, flags), agentPortal(ctx));
   Object.assign(api, accountingPart(ctx, flags));
   Object.assign(api, gmailMock());   // Gmail phase 1 runs on CLA Portal Live Test only

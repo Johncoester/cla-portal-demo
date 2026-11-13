@@ -3,13 +3,13 @@ import { html, raw, toText, esc, $, $$, guard, formData, modal, closeModal, opti
 import { textToHtml, hasSignature } from '../data/gmail-email.js?v=202611191000';
 import { disbursementFor } from '../data/disbursement.js?v=202611190600';
 import { occSelects, yesNo } from './occ-fields.js?v=202611161500';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611101015';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount, OUTSIDE_FILE_ROLES } from '../data/constants.js?v=202611101015';
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { modOn } from '../data/modules.js?v=202611101015';
 import { slotText } from './dealclosing.js?v=202611170800';
 import { pickerHtml, mountPicker } from './person-picker.js?v=202611161500';
 import { composeModal } from './compose.js?v=202611191100';
-import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611092320';
+import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611191500';
 import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611101015';
 import { canManageClosingLocations } from '../data/closing-location.js?v=202611101015';
 import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611161500';
@@ -18,7 +18,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611191100';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611191100';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611191200';
+import { prefetchDealTab } from './deal-tab.js?v=202611191500';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';
@@ -59,8 +59,15 @@ export async function render(ctx) {
   let earlySections = null;
   if (staffOverview) { try { earlySections = staffSections(ctx, params.id); } catch (e) { earlySections = Promise.reject(e); } if (earlySections) earlySections.catch(() => {}); }
   const deal = await dealP;
-  // per-file roles: on this order an outside user acts as their role HERE (deal.myRole), e.g. Buyer Agent here, Client-Buyer elsewhere
-  const user = ctx.user.role === 'Outside user' && deal.myRole ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role } : ctx.user; ctx = { ...ctx, user };
+  // per-file roles: on this order an outside user acts as their role HERE (deal.myRole), e.g. Buyer Agent here, Client-Buyer elsewhere.
+  // Staff who run orders keep the staff file view. Other staff added as a buyer, seller or agent on this file act in that file role.
+  const partyOnFile = (deal.myRoles || []).filter((r) => OUTSIDE_FILE_ROLES.includes(r));
+  const user = ctx.user.role === 'Outside user' && deal.myRole
+    ? { ...ctx.user, role: deal.myRole, roles: deal.myRoles || [deal.myRole], selfRep: !!deal.selfRep, accountRole: ctx.user.role }
+    : (partyOnFile.length && !runsOrders(ctx.user)
+      ? { ...ctx.user, role: partyOnFile[0], roles: partyOnFile, selfRep: !!deal.selfRep, accountRole: ctx.user.role }
+      : ctx.user);
+  ctx = { ...ctx, user };
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
   if (tab === 'spouse') throw new Error('That page does not exist.');
   if (tab === 'accounting' && !(api.features || {}).accounting) throw new Error('That page does not exist.');
@@ -217,13 +224,13 @@ function overview({ api, user, refresh, demoLocked, settlement = null }, d, crum
   return { title: d.fileNumber, crumbs: [...crumbs, ['Order Details']], head, body, mount(root) {
     $$('.step', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.setStage(d.id, b.dataset.stage); toast('Stage updated'); refresh(); })));
     const ss = $('#statussel', root); if (ss) ss.addEventListener('change', guard(async () => { await api.setDealStatus(d.id, ss.value); toast('Status updated'); refresh(); }));
-    const eb = $('#editdeal', root); if (eb) eb.addEventListener('click', guard(() => editModal(api, d, refresh)));
+    const eb = $('#editdeal', root); if (eb) eb.addEventListener('click', guard(() => editModal(api, d, refresh, user.id)));
     const as = $('#addsales', root); if (as) as.addEventListener('change', guard(async () => { if (!as.value) return; await api.addDealSalesPerson(d.id, as.value); toast('Salesperson added'); refresh(); }));
     $$('[data-rm-sales]', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.removeDealSalesPerson(d.id, b.dataset.rmSales); toast('Salesperson removed'); refresh(); })));
     const ab = $('[data-email-sellers-agents]', root); if (ab) ab.addEventListener('click', guard(() => automationModal(api, d)));
     const wb = $('#wirebtn', root); if (wb) wb.addEventListener('click', guard(() => wireModal(api, d)));
     $$('[data-add-party]', root).forEach((b) => b.addEventListener('click', guard(() => addPartyModal(api, d, b.dataset.addParty, refresh))));
-    const en = $('[data-edit-notes]', root); if (en) en.addEventListener('click', guard(() => editModal(api, d, refresh)));
+    const en = $('[data-edit-notes]', root); if (en) en.addEventListener('click', guard(() => editModal(api, d, refresh, user.id)));
     mountParties(root, { api, d, refresh, canEdit: edit && staffView });
     mountSettlement(root, { api, deal: d, refresh, user, demoLocked, contacts: (settlement && settlement.contactChoices) || [], closerStaff: (settlement && settlement.closerStaff) || [] });
   } };
@@ -240,7 +247,7 @@ async function wireModal(api, d) {
     <div><button type="button" class="ghost" data-close>Close</button></div>`, { wide: true });
 }
 
-async function editModal(api, d, refresh) {
+async function editModal(api, d, refresh, meId) {
   const v = (k) => d[k] == null ? '' : d[k]; const refi = isRefi(d); const ev = earnestView(d);
   // Matt, Nov 3 (b): source of business (CRM Settings Lead Source list; a retired / renamed value already on the order stays selectable) + money with commas
   const preprocs = await api.listPreprocessors(); const procs = api.listProcessors ? await api.listProcessors() : [];
@@ -271,7 +278,7 @@ async function editModal(api, d, refresh) {
     ${refi ? '' : html`<h4 class="span2">Earnest &amp; commissions <span class="muted small">(optional)</span></h4><label>EMD held by<input name="emdHeldBy" maxlength="200" value="${ev.held}" aria-label="EMD held by"></label><label>Commission base<input name="commissionBase" inputmode="decimal" data-money value="${moneyShow(ev.base)}" aria-label="Commission base"></label><label>Commission %<input name="commissionPercent" inputmode="decimal" value="${ev.percent != null ? ev.percent : ''}" aria-label="Commission percent"></label><label>Additional<input name="commissionAdditional" inputmode="decimal" data-money value="${moneyShow(ev.additional)}" aria-label="Commission additional"></label><label>Paid by<select name="commissionPaidBy" aria-label="Commission paid by"><option value="">Choose&hellip;</option>${COMMISSION_PAID_BY.map(([code, label]) => html`<option value="${code}" ${code === ev.paid ? raw('selected') : ''}>${label}</option>`)}</select></label>`}
     <label class="span2">Notes<textarea name="notes" rows="3">${v('notes')}</textarea></label>
     <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
-  const paintProcessors = (list, keep) => { const sel = $('[name=processorId]', m); const next = processorChoices(list, keep == null ? (sel.value || d.processorId || '') : keep, '');
+  const paintProcessors = (list, keep) => { const sel = $('[name=processorId]', m); const next = processorChoices(list, keep == null ? (sel.value || d.processorId || '') : keep, meId || '');
     sel.replaceChildren(); for (const o of next.options) { const opt = document.createElement('option'); opt.value = o.value; opt.textContent = o.label; sel.appendChild(opt); }
     if (keep == null && d.processorId && ![...sel.options].some((o) => o.value === d.processorId)) { const cur = document.createElement('option'); cur.value = d.processorId; cur.textContent = d.processorName || 'Current Processor'; sel.appendChild(cur); }
     sel.value = [...sel.options].some((o) => o.value === (keep == null ? (d.processorId || '') : next.value)) ? (keep == null ? (d.processorId || '') : next.value) : ''; };

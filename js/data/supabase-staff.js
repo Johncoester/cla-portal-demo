@@ -2,9 +2,10 @@
  * Reads and writes go through the existing tables and RLS. This file does not create logins
  * and does not contain a service-role key. Nothing is emailed. */
 import { uploadBytes as blobOf, uploadFileName } from './upload-bytes.js?v=202611141400';
+import { SALES_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611191500';
 const day = (d) => new Date(d).toISOString().slice(0, 10);
 const plusDays = (n) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-const full = (p) => `${p.firstName || ''} ${p.lastName || ''}`.trim();
+const full = (p) => tidyPersonName(p).name;
 const safeName = (n, mime) => uploadFileName(n, mime);
 const sideOf = (role) => ({ 'Buyer Agent': 'buyer', 'Client-Buyer': 'buyer', 'Listing Agent': 'seller', 'Client-Seller': 'seller' }[role] || 'staff');
 // A client task upload is buyer or seller. Staff and library uploads stay staff. 'all' is never sent from a task.
@@ -62,9 +63,12 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
   };
   return {
     async listSalesStaff() {
-      await uid();
-      const rows = camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status').in('role', ['Sales Person', 'Sales Team']).eq('status', 'active').order('first_name'))) || [];
-      return rows.map((p) => ({ ...p, name: full(p) }));
+      const u = await uid();
+      const rows = camel(ok(await sb.from('profiles').select('id, first_name, last_name, email, role, status, is_demo').in('role', SALES_PICK_ROLES).eq('status', 'active').order('first_name'))) || [];
+      return rows.filter((p) => !!p.isDemo === !!u.isDemo).map((p) => {
+        const n = tidyPersonName(p);
+        return { ...p, firstName: n.firstName, lastName: n.lastName, name: n.name };
+      });
     },
     async adminListUsers() { return directory(); },
     async adminGetUser(id) { const row = (await directory()).find((u) => u.id === id); if (!row) throw new Error('User not found.'); return row; },

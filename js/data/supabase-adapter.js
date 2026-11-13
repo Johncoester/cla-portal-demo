@@ -33,15 +33,15 @@ import { gmailSupabase } from './supabase-gmail.js?v=202611140900';
 import { nov5Supabase } from './supabase-nov5.js?v=202611162200';
 import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611191000';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611140100';
-import { staffSupabase } from './supabase-staff.js?v=202611141400';
+import { staffSupabase } from './supabase-staff.js?v=202611191500';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
-import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES } from './place-order.js?v=202611092320';
+import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611191500';
 import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
-import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611101700';
+import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611191500';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
 import { propertyAddressOf } from './nov5-rules.js?v=202611131900';
 import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611171200';
-import { fetchDashboard, indexDashboardExtras, decorateDashboardDeals, shapeDashboardTask } from './dashboard-load.js?v=202611160800';
+import { fetchDashboard, indexDashboardExtras, decorateDashboardDeals, shapeDashboardTask } from './dashboard-load.js?v=202611191500';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow } from './contact-insert.js?v=202611101200';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
@@ -484,7 +484,7 @@ export async function createSupabaseAdapter(cfg) {
     },
     async listProcessors() {
       const u = await me();
-      const shape = (res) => (camel(ok(res)) || []).filter((p) => !!p.isDemo === !!(u && u.isDemo)).map((p) => ({ ...p, name: `${p.firstName} ${p.lastName}` }));
+      const shape = (res) => (camel(ok(res)) || []).filter((p) => !!p.isDemo === !!(u && u.isDemo)).map((p) => { const n = tidyPersonName(p); return { ...p, firstName: n.firstName, lastName: n.lastName, name: n.name }; });
       const narrow = () => sb.from('profiles').select('id, first_name, last_name, role, status, is_demo').in('role', PROCESSOR_PICK_ROLES).eq('status', 'active').order('first_name');
       const wide = () => sb.from('profiles').select('id, first_name, last_name, email, role, status, is_demo').in('role', PROCESSOR_PICK_ROLES).eq('status', 'active').order('first_name');
       let timer;
@@ -569,11 +569,13 @@ export async function createSupabaseAdapter(cfg) {
     // participants: the triggers (migrations 10, 11, 20) enforce outside-user roles, self-representation pairs and "TC = Transaction Coordinator accounts only"
     // Matt, Nov 3b: opts.entity = { name, type, repName, repTitle, repPhone, repEmail } on a buyer / seller row (set_participant_entity, migration 31)
     async addParticipant(dealId, contactId, role, opts = {}) {
-      const contact = camel(ok(await sb.from('contacts').select('id, first_name, last_name, email, company').eq('id', contactId).maybeSingle()));
+      let cid = contactId;
+      if (String(cid || '').startsWith('staff:')) cid = ok(await sb.rpc('ensure_staff_contact', { p_profile: String(cid).slice(6) }));
+      const contact = camel(ok(await sb.from('contacts').select('id, first_name, last_name, email, company').eq('id', cid).maybeSingle()));
       if (!contact) throw new Error('Contact not found.');
       const onFile = (ok(await sb.rpc('deal_contacts', { p_deal: dealId })) || []).map((r) => ({ role: r.role, contactId: r.contact_id, contact: { id: r.contact_id, firstName: r.first_name, lastName: r.last_name, email: r.email, company: r.company } }));
       if (sameParty(onFile, contact, role)) throw new Error(duplicatePartyMessage(contact, role));
-      const p = ok(await sb.from('deal_participants').insert({ deal_id: dealId, contact_id: contactId, role }).select('id').single());
+      const p = ok(await sb.from('deal_participants').insert({ deal_id: dealId, contact_id: cid, role }).select('id').single());
       if (opts && opts.entity) ok(await sb.rpc('set_participant_entity', { p_participant: p.id, p_entity: opts.entity }));
       dropFileReads();
       return { ok: true, id: p.id };
@@ -585,14 +587,14 @@ export async function createSupabaseAdapter(cfg) {
       const fromRpc = (ok(await sb.rpc('coordinator_choices')) || []).map((r) => camel(r));
       let profiles = [];
       try {
-        profiles = camel(ok(await sb.from('profiles').select('id, first_name, last_name, email, phone, is_demo, role, status').eq('role', 'Transaction Coordinator').eq('status', 'active'))) || [];
+        profiles = camel(ok(await sb.from('profiles').select('id, first_name, last_name, email, phone, is_demo, role, status').in('role', PROCESSOR_PICK_ROLES).eq('status', 'active'))) || [];
       } catch (e) {
         const visible = new Set((camel(ok(await sb.from('profiles').select('id'))) || []).map((p) => p.id));
         return fromRpc.filter((r) => r.contactId && visible.has(r.profileId));
       }
       const known = fromRpc.filter((r) => r.profileId && r.contactId).map((r) => ({ id: r.contactId, profileId: r.profileId, firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, company: r.company }));
       const plan = coordinatorRoster(profiles, known, u);
-      return plan.rows.filter((r) => r.contactId).map((r) => ({ profileId: r.profileId, contactId: r.contactId, firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, company: r.company }));
+      return plan.rows.map((r) => { const n = tidyPersonName(r); return { profileId: r.profileId, contactId: r.contactId || '', firstName: n.firstName, lastName: n.lastName, email: r.email, phone: r.phone, company: r.company, role: (profiles.find((p) => p.id === r.profileId) || {}).role }; });
     },
     async findDuplicateOrders({ street, city, state, zip, buyerIds, sellerIds } = {}) {
       const u = await me();
@@ -615,10 +617,23 @@ export async function createSupabaseAdapter(cfg) {
     // contact type (migration 21): contact_directory() / deal_contacts() keep their shape; types come from contact_types(ids)
     async listContacts(search = '') {
       const cs = camel(ok(await sb.rpc('contact_directory', { p_search: search }))) || [];
+      const u = await me();
+      if (u && (runsOrdersCI(u) || u.isAdmin)) {
+        const staff = camel(ok(await sb.from('profiles').select('id, first_name, last_name, email, phone, role, status, is_demo').in('role', PROCESSOR_PICK_ROLES).eq('status', 'active'))) || [];
+        const have = new Set(cs.map((c) => c.profileId).filter(Boolean));
+        const q = String(search || '').trim().toLowerCase();
+        staff.filter((p) => !!p.isDemo === !!u.isDemo && !have.has(p.id)).forEach((p) => {
+          const n = tidyPersonName(p);
+          const row = { id: 'staff:' + p.id, profileId: p.id, firstName: n.firstName, lastName: n.lastName, email: p.email || '', phone: p.phone || '', company: '', accountRole: p.role, needsContact: true, contactHidden: false };
+          const hay = `${n.name} ${row.email} ${row.company}`.toLowerCase();
+          if (!q || hay.includes(q)) cs.push(row);
+        });
+      }
       const wanted = [...new Set(cs.map((c) => c.profileId).filter(Boolean))];
       const visible = new Set(wanted.length ? (camel(ok(await sb.from('profiles').select('id').in('id', wanted))) || []).map((p) => p.id) : []);
-      const real = withoutHiddenProfiles(cs, visible);
-      const t = await types(real.map((c) => c.id));
+      const staffIds = new Set(cs.filter((c) => String(c.id || '').startsWith('staff:')).map((c) => c.profileId));
+      const real = withoutHiddenProfiles(cs, new Set([...visible, ...staffIds]));
+      const t = await types(real.map((c) => c.id).filter((id) => id && !String(id).startsWith('staff:')));
       return real.map((c) => ({ ...c, contactType: t.get(c.id) || null }));
     },
     // messaging (migration 13): recipients = CLA staff + own side for outside users; a conversation never mixes the two sides
