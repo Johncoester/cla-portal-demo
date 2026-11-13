@@ -20,9 +20,13 @@ export function composeAddress({ street, city, state, zip } = {}) {
 
 export const TYPED_ADDRESS = 'Typed address';
 
+export const MOBILE_NOTARY = 'Mobile notary';
+
+// FF-063 #3: a mobile notary closing can carry the signing address the processor typed (same deal columns as a typed address).
 export function scheduledPlace(sc, deal) {
-  if (!sc || sc.location !== TYPED_ADDRESS) return '';
-  return composeAddress({ street: deal && deal.closingManualStreet, city: deal && deal.closingManualCity, state: deal && deal.closingManualState, zip: deal && deal.closingManualZip });
+  if (!sc || (sc.location !== TYPED_ADDRESS && sc.location !== MOBILE_NOTARY)) return '';
+  const addr = composeAddress({ street: deal && deal.closingManualStreet, city: deal && deal.closingManualCity, state: deal && deal.closingManualState, zip: deal && deal.closingManualZip });
+  return sc.location === MOBILE_NOTARY ? (addr ? `Mobile notary at ${addr}` : '') : addr;
 }
 
 export function cleanManualAddress(input = {}, { required = false } = {}) {

@@ -1,15 +1,17 @@
 // One intake task (form). Save partial work, validate, mark complete. ID-type fields upload a file into the order's "IDs & personal" folder.
 import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611161500';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
-import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611141400';
+import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611171200';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
-import { spouseSectionHtml, spousePayload, loadSpouseRows, applySpouse } from './spouse.js?v=202611161500';
-import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611101015';
-import { CLS, LABEL } from './dealtasks.js?v=202611171040';
+import { spouseSectionHtml, spousePayload, spousePhoneError, loadSpouseRows, applySpouse, bindSsnDash, showSsnMask } from './spouse.js?v=202611171200';
+import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, phoneOk, PHONE_MSG } from '../data/constants.js?v=202611101015';
+import { CLS, LABEL } from './dealtasks.js?v=202611182130';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 // The task page and the processor Tasks "Expand all" use the same fields, save, and complete rules.
-export function intakeFormHtml(t, { page = false, state = '' } = {}) {
+// doneReadOnly (FF-069d, Janine's video Nov 12; Francis Feedback ticket): a finished task opened by a client or an agent shows the answers
+// read-only with a Back button, no Save buttons. CLA staff keep "Save progress" / "Save and keep complete" on a finished task (unchanged).
+export function intakeFormHtml(t, { page = false, state = '', doneReadOnly = false, backHref = '' } = {}) {
   const fields = fieldsForFile(fieldsForRole(t.fields || [], t.assignedRole), { state });   // Matt, Nov 3: role-only fields (settlement type = sellers only); Maryland questions use the file state already on the page
   t.fields = fields;
   const v = t.formData || {};
@@ -37,8 +39,8 @@ export function intakeFormHtml(t, { page = false, state = '' } = {}) {
       let list = [];
       if (Array.isArray(val)) list = val;
       else try { const parsed = JSON.parse(val || '[]'); if (Array.isArray(parsed)) list = parsed; } catch (e) { list = []; }
-      if (!list.length) list = [{ lender: '', phone: '', last4: '', loan_type: '' }];
-      const row = (m, i) => html`<div class="form-grid" data-mortgage-row="${i}"><label>Lender<input data-mlender value="${m.lender || ''}"></label><label>Phone<input data-mphone value="${m.phone || ''}"></label><label>Last 4<input data-mlast4 maxlength="4" value="${m.last4 || ''}"></label><label>Type<input data-mtype value="${m.loan_type || ''}"></label></div>`;
+      if (!list.length) list = [{ lender: '', phone: '', loan_number: '', loan_type: '' }];
+      const row = (m, i) => html`<div class="form-grid" data-mortgage-row="${i}"><label>Lender<input data-mlender value="${m.lender || ''}"></label><label>Phone<input data-mphone type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone maxlength="12" value="${m.phone || ''}"></label><label>Loan number<input data-mloan maxlength="30" autocomplete="off" value="${m.loan_number || m.last4 || ''}"></label><label>Type<input data-mtype value="${m.loan_type || ''}"></label></div>`;
       return html`<div class="span2 fld" data-k="${f.k}" data-mortgages><input type="hidden" name="${f.k}" value="[]"><div data-mortgage-rows>${list.map(row)}</div><button type="button" class="ghost" data-add-mortgage>Add another mortgage</button></div>`;
     }
     if (f.type === 'doc') return html`<label class="span2 fld" data-k="${f.k}">${f.label} ${req} <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB)</span>
@@ -53,6 +55,7 @@ export function intakeFormHtml(t, { page = false, state = '' } = {}) {
   if (t.formError) return html`<p class="notice warn" data-task-form-state="error">This form could not be loaded. Nothing was marked complete.</p>`;
   if (t.formHidden) return html`<p class="muted" data-task-form-state="hidden">Only the assigned person, the processor, and the coordinator can see these answers.</p>`;
   if (!t.canFill) return answers;
+  if (doneReadOnly && t.status === 'done') return html`<p class="muted small" data-task-done-read-only>This task is complete. The answers are below.</p>${answers}<p><a class="back-btn" href="${backHref || '#/dashboard'}" data-task-done-back>Back to tasks</a></p>`;
   const completeBtn = t.canComplete === false ? '' : html`<button class="m-btn" type="submit" data-mode="complete">${t.status === 'done' ? 'Save and keep complete' : 'Mark complete'}</button>`;
   const askSsn = t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller') && !t.formHidden;
   const ssn = askSsn ? buyerSsnHtml(t.ssnShown || '', !!t.ssnStaff) : '';
@@ -74,7 +77,7 @@ export function buyerSsnHtml(shown, staff) {
       : '';
   return html`<div class="span2 fld" data-buyer-ssn-box><span>Social Security number</span>
     ${entry}
-    <input data-buyer-ssn type="password" inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="11" aria-label="Social Security number" placeholder="***-**-****">
+    <input data-buyer-ssn type="text" inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="11" data-ssn-dash aria-label="Social Security number" placeholder="***-**-****">
     <button type="button" class="ghost" data-ssn-save>Save Social Security number</button>
     <p class="muted small">CLA Title staff use this to clear judgments. After you save, you see only the last 4 digits.</p></div>`;
 }
@@ -93,23 +96,24 @@ export function mountIntakeForm(root, { api, t, afterSave }) {
   form.dataset.bound = '1';
   const sync = () => { const cur = {}; new FormData(form).forEach((val, k) => { cur[k] = val; }); t.fields.filter((f) => f.type === 'checkbox').forEach((f) => { if (cur[f.k]) cur[f.k] = true; });   /* a ticked box counts as true ("+ Add entity") */ t.fields.forEach((f) => { const el = $(`.fld[data-k="${f.k}"]`, form); if (el) el.hidden = !fieldActive(f, cur); }); };
   const writeMortgages = () => { const box = $('[data-mortgages]', form); if (!box) return; const hidden = $('input[type="hidden"]', box);
-    const rows = $$('[data-mortgage-row]', box).map((row) => ({ lender: $('[data-mlender]', row).value, phone: $('[data-mphone]', row).value, last4: $('[data-mlast4]', row).value, loan_type: $('[data-mtype]', row).value }));
+    const rows = $$('[data-mortgage-row]', box).map((row) => ({ lender: $('[data-mlender]', row).value, phone: $('[data-mphone]', row).value, loan_number: $('[data-mloan]', row).value, loan_type: $('[data-mtype]', row).value }));
     hidden.value = JSON.stringify(rows); };
   const addMortgage = $('[data-add-mortgage]', form);
   if (addMortgage) addMortgage.addEventListener('click', () => { const rows = $('[data-mortgage-rows]', form); const i = $$('[data-mortgage-row]', rows).length;
-    rows.insertAdjacentHTML('beforeend', `<div class="form-grid" data-mortgage-row="${i}"><label>Lender<input data-mlender></label><label>Phone<input data-mphone></label><label>Last 4<input data-mlast4 maxlength="4"></label><label>Type<input data-mtype></label></div>`); });
+    rows.insertAdjacentHTML('beforeend', `<div class="form-grid" data-mortgage-row="${i}"><label>Lender<input data-mlender></label><label>Phone<input data-mphone type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone maxlength="12"></label><label>Loan number<input data-mloan maxlength="30" autocomplete="off"></label><label>Type<input data-mtype></label></div>`); });
   form.addEventListener('change', sync); sync();
   $$('[data-plus]', form).forEach((b) => b.addEventListener('click', () => { const cb = form.elements[b.dataset.plus]; cb.checked = !cb.checked;
     b.textContent = cb.checked ? '\u2212 Remove entity' : '+ Add entity'; b.setAttribute('aria-pressed', String(cb.checked)); sync(); }));
   $$('[data-help]', form).forEach((b) => b.addEventListener('click', () => { const pnl = $(`[data-help-panel="${b.dataset.help}"]`, form); pnl.hidden = !pnl.hidden; b.setAttribute('aria-expanded', String(!pnl.hidden)); }));
   let mode = 'save'; $$('button[data-mode]', form).forEach((b) => b.addEventListener('click', () => { mode = b.dataset.mode; }));
+  bindSsnDash(form);   // FF-068 #9: visible SSN with automatic dashes
   const ssnBtn = $('[data-ssn-save]', form);
   if (ssnBtn) ssnBtn.addEventListener('click', async () => {
     const ssnInput = $('[data-buyer-ssn]', form);
     try {
       if (!ssnInput || !ssnInput.value) throw new Error('Enter a 9-digit Social Security number.');
       await api.saveBuyerSsn(t.id, ssnInput.value);
-      ssnInput.value = '';
+      showSsnMask(ssnInput);
       toast('Social Security number saved');
       if (afterSave) afterSave('save');
     } catch (err) { toast(err.message, 'err'); }
@@ -121,18 +125,21 @@ export function mountIntakeForm(root, { api, t, afterSave }) {
         if (file.size > MAX_UPLOAD_BYTES) throw new Error('File is too large for this demo.');
         const up = await api.uploadForTask(t.id, { name: file.name, mimeType: file.type, size: file.size, dataUrl: await readFile(file), field: fi.dataset.file }); form.elements[fi.dataset.file].value = up.id; fi.value = ''; }   // stored once: a retry after a form error must not upload it again
       writeMortgages();
+      const mortBox = $('[data-mortgages] input[type="hidden"]', form);   // FF-069 #14: a mortgage phone must be exactly 10 digits (blank is fine)
+      if (mortBox && JSON.parse(mortBox.value || '[]').some((m) => String(m.phone || '').trim() && !phoneOk(m.phone))) throw new Error(`Mortgage phone ${PHONE_MSG}.`);
       const data = {}; new FormData(form).forEach((val, k) => { if (typeof val === 'string' && !k.startsWith('spouse')) data[k] = val; });
       const spouseBox = $('[data-spouse-section]', form);
+      if (spouseBox) { const bad = spousePhoneError(spousePayload(form)); if (bad) throw new Error(bad); }
       if (spouseBox && api.saveSpouse) await api.saveSpouse(t.dealId, spouseBox.dataset.spouse, spousePayload(form));
       const spouseSsn = $('[data-spouse-ssn-input]', form);
       if (spouseSsn && spouseSsn.value && spouseBox && spouseBox.dataset.spouseTask) {
         await api.savePartySsn(spouseBox.dataset.spouseTask, 'spouse', spouseSsn.value);
-        spouseSsn.value = '';
+        showSsnMask(spouseSsn);
       }
       const ssnInput = $('[data-buyer-ssn]', form);
       if (ssnInput && ssnInput.value) {
         await api.saveBuyerSsn(t.id, ssnInput.value);
-        ssnInput.value = '';
+        showSsnMask(ssnInput);
       }
       const complete = intakeCompletes(t, data, mode);
       await api.saveTaskForm(t.id, data, { complete });
@@ -157,12 +164,14 @@ export async function render(c0) {
     applySpouse(t, await loadSpouseRows(api, deal.id), c0.user);
   }
   const tplLabel = t.template ? html`${t.template.code} v${t.template.version}` : (t.templateCode ? html`${t.templateCode} v${t.templateVersion}` : 'n/a');
-  const inner = intakeFormHtml(t, { page: true, state: deal && deal.state });
+  const outside = !!(c0.user && (c0.user.accountRole || c0.user.role === 'Outside user'));   // buyers, sellers and agents (staff unchanged)
+  const doneReadOnly = outside && t.status === 'done';
+  const inner = intakeFormHtml(t, { page: true, state: deal && deal.state, doneReadOnly, backHref: `#/deals/${deal.id}/tasks` });
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>${t.title}</h2><a class="ghost right" href="#/deals/${deal.id}/tasks">All tasks</a></div>
     <div class="card"><p>${t.description}</p><p class="muted small">For <strong>${t.ownerName || t.assignedRole}</strong> (${t.assignedRole}) &middot; due ${fmtDate(t.dueDate) || 'n/a'} &middot; ${pill(LABEL[t.status], CLS[t.status])}
       &middot; template ${tplLabel}${t.savedAt ? html` &middot; last saved ${fmtDateTime(t.savedAt)}` : ''}</p>
     ${t.completedByLabel ? html`<p class="done-by"><strong>${t.completedByLabel}</strong> on ${fmtDateTime(t.completedAt)}.</p>` : t.savedByLabel ? html`<p class="muted small done-by">${t.savedByLabel} on ${fmtDateTime(t.savedAt)}.</p>` : ''}
-    ${t.forClient && t.canFill ? html`<p class="note-box" data-agent-no-complete>Only <strong>${t.ownerName || 'the client'}</strong> or CLA Title can mark this task complete.</p>` : ''}
+    ${t.forClient && t.canFill && !doneReadOnly ? html`<p class="note-box" data-agent-no-complete>Only <strong>${t.ownerName || 'the client'}</strong> or CLA Title can mark this task complete.</p>` : ''}
     ${t.mine && t.savedBy && t.savedBy !== t.ownerId ? html`<p class="note-box">Your agent filled this in for you. Please check the answers and correct anything that is wrong.</p>` : ''}
     ${inner}</div>`;
   return { title: t.title, crumbs: [['All Tasks', `#/deals/${deal.id}/tasks`], [t.title]], body, mount(root) {
@@ -192,4 +201,4 @@ function signView({ api, deal, t, refresh, go }) {
 }
 
 // Francis, Nov 3: agent tasks (kind 'agent') have their own page
-async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611171040'); return m.render(c); }
+async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611182130'); return m.render(c); }
