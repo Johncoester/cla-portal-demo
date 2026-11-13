@@ -114,6 +114,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Buyer, seller and agent invites from a file's Contacts tab, with an automatic invite email ([PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140)).
 - FF-073a (Janine's buyer recordings, Nov 12): accepting an invite twice (double-click or a second tab) can no longer delete the login. Only a login made in that same request that never became a portal user is cleaned up.
 - FF-073b: the Forgot password email's link opens the portal the person is using (testportal.clatitle.com on TEST), not the old GitHub address.
+- FF-055 / MF-048 (Francis, Nov 11; John, Nov 13): Share Files to someone on the file who has no portal login yet. For CLA staff the To list marks that person "no portal login yet; will be invited". On Send the portal emails them the usual invite and holds the message and the files; the conversation shows them as "invited, not signed in yet". When they set up their login, the conversation is waiting for them, unread. Before this, Share Files to that person always failed with "Pick at least one recipient on this order". Needs the database change 20261119030000_share_invited_hold on TEST; until it is applied, picking that person gives a plain message instead. Not Live until then. ([PR 251](https://github.com/Johncoester/cla-portal-demo/pull/251))
 
 **What's still missing**
 
@@ -123,12 +124,13 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: none yet.
-- Related pull requests: [PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140), [PR 219](https://github.com/Johncoester/cla-portal-demo/pull/219) (FF-073a), [PR 220](https://github.com/Johncoester/cla-portal-demo/pull/220) (FF-073b).
+- Related pull requests: [PR 95](https://github.com/Johncoester/cla-portal-demo/pull/95), [PR 140](https://github.com/Johncoester/cla-portal-demo/pull/140), [PR 219](https://github.com/Johncoester/cla-portal-demo/pull/219) (FF-073a), [PR 220](https://github.com/Johncoester/cla-portal-demo/pull/220) (FF-073b), [PR 251](https://github.com/Johncoester/cla-portal-demo/pull/251) (FF-055 / MF-048).
 
 **Decisions**
 
 - accept-invite never deletes an existing or just-claimed login (John, Nov 12, 6:09 PM ET).
 - The reset link uses the current portal address; the Auth redirect list is John's setting, not changed by a pull request.
+- Sharing with someone who has no portal login invites them and holds the files until they sign in (John, Nov 13, by voice: option B). Only a buyer, seller, buyer agent or listing agent on the file can be invited this way. Wire instructions are never held. Someone who already has a pending invite is not emailed a second link.
 
 ---
 
@@ -175,6 +177,34 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - John approved fixing the bugs without waiting (Nov 12, 6:08 PM ET); Francis confirmed the rest on Nov 12, 6:14 PM ET.
+
+---
+
+## Processor file overview cleanup (MF-054 / FF-074)
+
+**How it should work.** On the processor File Overview, the only sections that stay are the light gray file box at the top (address, file number, settlement date), the Order Status milestone box, and Parties (with contact info), Notes, and everything below Notes. The buyer, seller and personal-detail boxes come off this screen. Closing date, time and how many days are left sit at the bottom of the Closing Date button in the left column, and the gray Closing Date box is gone from File Overview. The EMD box is gone too (that information is already in Order Status). This replaces MF-052 and MF-047.
+
+**Status: Built (not Live yet).** The pull request is open. No database change. Mark Live after it is merged.
+
+**What's built**
+
+- Staff File Overview no longer shows the buyer/seller box, the EMD / Earnest & commissions box, or the gray Closing Date card.
+- Order Status stays, with the disbursement date (FF-071c), open tasks, unread email, and Edit order details.
+- Parties, Notes, Automation, Agent fees, and the sections under Notes stay. Source of business is shown with Parties.
+- The Closing Date button in the left column shows the closing date, time and days remaining at the bottom. Client and agent overviews are unchanged.
+
+**What's still missing**
+
+- Nothing from the confirmed list. Signing method and closing location stay on the Closing Date tab (they were too long for the left-column button).
+
+**Links**
+
+- Spec: none yet. Source: Matt's Nov 12 Processor User-File Overview notes (Gmail 1a1d0725a93810ce) and his Nov 12 2:04 PM ET confirmation; FF-074 is the same request, re-forwarded Nov 13 8:52 AM ET. Tracker row 207 (MF-054); FF-074 is the duplicate row.
+- Related pull requests: this change.
+
+**Decisions**
+
+- Matt confirmed the numbered list on Nov 12 at 2:04 PM ET. MF-054 supersedes MF-052 and MF-047. John waived rule 9 at 1:25 PM ET Nov 13 (t1618u) so this could be built while the walkthrough's remaining email failure was set aside. Agent fees stays on the overview because it is a separate live feature (AF-2), not one of the redundant boxes Matt asked to remove.
 
 ---
 
