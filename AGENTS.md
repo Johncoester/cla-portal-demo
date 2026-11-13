@@ -9,6 +9,8 @@
 7. Every email sent from jcoester@clatitle.com has a subject starting with '[Written by AI]'.
 8. Portal invite emails are sent from testportal@clatitle.com.
 9. If the walkthrough on main is failing, fix it before starting any new feature.
+<!-- Rule 23 is a permanent rule added after rule 22 (John, Nov 13 2026, 8:39 AM ET), so it keeps the next free number. -->
+23. A general instruction from John like 'get everything fixed' never waives a numbered rule. If a rule is in your way, stop and ask John to waive that rule by number.
 
 ## Build standards
 
