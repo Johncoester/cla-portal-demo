@@ -3,7 +3,7 @@
 --   * entity_tax_id "EIN/Tax ID", required when "Add entity" is ticked (after the state the entity was formed in)
 --   * primary_residence gets roleLabels {"Client-Seller": "Is the property your primary residence?"} (buyers keep their wording)
 --   * water_meter_where "Where is the water meter?" removed (water_meter stays)
--- Same publish rule as 20261117040000: only untouched to-do copies with no answers move to v8. Copies with saved answers keep their
+-- Same publish rule as 20261117140000: only untouched to-do copies with no answers move to v8. Copies with saved answers keep their
 -- version and answers. #9 (SSN shown with dashes, masked after save) is front end only. No policy, grant or function changes.
 begin;
 set local lock_timeout = '3s';

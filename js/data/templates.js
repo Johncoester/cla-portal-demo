@@ -377,7 +377,7 @@ export function applySellerTasks(d, { at = new Date().toISOString(), by = null }
   return { added, moved };
 }
 /* FF-066 (migration 122): personal_info v7 (no proceeds acknowledgment) and seller_proceeds v2 (with it). Same move rule: untouched to-do copies
- * with no answers take the new version; a copy with answers keeps its version and its answers. Idempotent. Mirrored in SQL 20261117040000. */
+ * with no answers take the new version; a copy with answers keeps its version and its answers. Idempotent. Mirrored in SQL 20261117140000. */
 const isProceedsV7 = (t) => t.code === 'personal_info' && (t.fields || []).some((f) => f.k === 'water_meter') && !(t.fields || []).some((f) => f.k === 'proceeds_ack');
 const isProceedsV2 = (t) => t.code === 'seller_proceeds' && (t.fields || []).some((f) => f.k === 'proceeds_wire_note');
 export function applyProceedsMove(d, { at = new Date().toISOString(), by = null } = {}) {
@@ -398,7 +398,7 @@ export function applyProceedsMove(d, { at = new Date().toISOString(), by = null 
   return { added, moved };
 }
 /* FF-068 (migration 123): personal_info v8. Same move rule as above: only untouched to-do copies with no answers move. Idempotent.
- * Mirrored in SQL 20261117060000. */
+ * Mirrored in SQL 20261117150000. */
 const isPersonalV8 = (t) => t.code === 'personal_info' && (t.fields || []).some((f) => f.k === 'entity_tax_id');
 export function applyPersonalV8(d, { at = new Date().toISOString(), by = null } = {}) {
   const def = TEMPLATE_DEFS.find((t) => t.migration === 123); const added = []; let moved = 0;

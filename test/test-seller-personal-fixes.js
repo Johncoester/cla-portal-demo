@@ -38,7 +38,7 @@ const d = { taskTemplates: [{ ...v7, id: 'tt-personal_info-v7', active: true }],
 const r = applyPersonalV8(d);
 ok(r.added.length === 1 && r.moved === 1 && d.tasks[0].templateId === 'tt-personal_info-v7' && d.tasks[0].formData.water_meter_where === 'By the steps' && d.tasks[1].templateVersion === 8, 'only the untouched copy moves; saved answers stay');
 ok(applyPersonalV8(d).added.length === 0, 'running it again changes nothing');
-const sql = readFileSync(new URL('../supabase/migrations/20261117060000_personal_info_v8.sql', import.meta.url), 'utf8');
+const sql = readFileSync(new URL('../supabase/migrations/20261117150000_personal_info_v8.sql', import.meta.url), 'utf8');
 ok(/drift/.test(sql) && /entity_tax_id/.test(sql) && /roleLabels/.test(sql) && /water_meter_where/.test(sql) && /task\.saved_at is null/.test(sql), 'the database file publishes the same version and moves only untouched copies');
 if (fail) { console.log(fail + ' failed'); process.exit(1); }
 console.log('seller personal fixes passed');

@@ -1,4 +1,4 @@
--- Rollback for 20261117060000_personal_info_v8.sql: personal_info v7 active again; untouched v8 copies move back. Copies with answers on
+-- Rollback for 20261117150000_personal_info_v8.sql: personal_info v7 active again; untouched v8 copies move back. Copies with answers on
 -- v8 keep them (nothing deleted); the v8 row stays inactive so those copies still open.
 begin;
 update public.tasks task set template_id = prev.id, template_version = prev.version, title = prev.title, description = prev.description

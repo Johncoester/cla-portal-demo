@@ -46,7 +46,7 @@ ok(d.tasks[2].templateId === 'tt-seller_proceeds-v1' && d.tasks[2].formData.meth
 ok(d.tasks[1].templateVersion === 7, 'an untouched copy moves to the new Personal information');
 ok(applyProceedsMove(d).added.length === 0, 'running it again changes nothing');
 
-const sql = readFileSync(new URL('../supabase/migrations/20261117040000_proceeds_ack_move.sql', import.meta.url), 'utf8');
+const sql = readFileSync(new URL('../supabase/migrations/20261117140000_proceeds_ack_move.sql', import.meta.url), 'utf8');
 ok(/drift/.test(sql) && /pi_active is distinct from 6/.test(sql) && /task\.saved_at is null/.test(sql) && /form_data, '\{\}'::jsonb\) = '\{\}'::jsonb/.test(sql), 'the migration checks versions and only moves untouched copies');
 ok(sql.includes(PROCEEDS_WIRE_NOTE), 'the database uses the same wire note');
 ok(!/policy|grant /i.test(sql.replace(/No policy, grant or function changes\./, '')), 'no policy or grant changes');
