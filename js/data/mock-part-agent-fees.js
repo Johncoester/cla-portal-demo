@@ -1,9 +1,9 @@
-/* mock adapter: AGENT FEES (AF-2; John, Nov 12 2026). The same rules as the database functions in migrations 20261117100000 / 20261117110000:
+/* mock adapter: AGENT FEES (AF-2; John, Nov 12 2026). The same rules as the database functions in migrations 20261117100000 / 20261118010000:
  * staff who run the file see and change both sides; an agent sees and changes only their own side; a TC changes the side of an agent on
  * their team (or both sides when they are the file's TC); other CLA staff on the file read both sides; buyers and sellers see nothing.
  * An agent or TC saving confirms the side. Staff need a reason to change a confirmed fee (no re-approval). Every change is logged. FAKE DATA. */
 import { runsOrders } from './constants.js?v=202611101015';
-import { readAgentFees, groupAgentFees, SIDE_LABEL, defaultPayer, agentFeeLedgerInput, ledgerKey, ledgerShape } from './agent-fees.js?v=202611171030';
+import { readAgentFees, groupAgentFees, SIDE_LABEL, defaultPayer, agentFeeLedgerInput, ledgerKey, ledgerShape } from './agent-fees.js?v=202611182110';
 import { cleanFee } from './accounting.js?v=202611070139';
 
 export function ensureAgentFees(d) { for (const k of ['agentFees', 'agentFeeLog']) if (!Array.isArray(d[k])) d[k] = []; return d; }
