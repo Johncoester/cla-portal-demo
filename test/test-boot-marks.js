@@ -64,7 +64,7 @@ const blind = run([], { supported: false });
 check(blind.data.unsupported === true && blind.data.resources.length === 0, 'a browser without the observer says so instead of pretending the gap was empty');
 
 check(!/\bfetch\b|\blocalStorage\b|\bsessionStorage\b|\bsendBeacon\b|\bindexedDB\b|XMLHttpRequest/.test(script), 'the recorder does not read storage or send anything');
-check(html.includes('js/boot-marks.js?v=202611090245') && html.includes('js/app.js?v=202611171030') && html.indexOf('js/boot-marks.js') < html.indexOf('js/app.js'), 'the recorder is a classic script before the module and the module stamp stays');
+check(html.includes('js/boot-marks.js?v=202611090245') && html.includes('js/app.js?v=202611171040') && html.indexOf('js/boot-marks.js') < html.indexOf('js/app.js'), 'the recorder is a classic script before the module and the module stamp stays');
 
 function walk(file, seen = new Set()) {
   const full = path.join(root, file);
