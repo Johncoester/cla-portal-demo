@@ -21,7 +21,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 | Step | What | Status |
 |---|---|---|
-| AF-1 | Fee records and change history (database only) | In progress, [PR AF-1](#) |
+| AF-1 | Fee records and change history (database only) | In progress, [PR 225](https://github.com/Johncoester/cla-portal-demo/pull/225) |
 | AF-2 | Staff entry and agent view; buyers and sellers can't see fees | Planned |
 | AF-3 | Agent or TC changes: "You're changing X from $A to $B", "Agent confirmed", notices to staff | Planned |
 | AF-4 | Notice to the agent when staff change a confirmed fee | Planned |
