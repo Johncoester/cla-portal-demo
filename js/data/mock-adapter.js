@@ -42,7 +42,7 @@ import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.j
 import { underwriterPart } from './mock-part-underwriter.js?v=202611070139';
 import { agentInfoPart } from './mock-part-agentinfo.js?v=202611101015';
 import { agentInvitePart } from './mock-part-agent-invite.js?v=202611141400';
-import { agentFeesPart } from './mock-part-agent-fees.js?v=202611182100';
+import { agentFeesPart } from './mock-part-agent-fees.js?v=202611182110';
 import { automationPart } from './automation.js?v=202611101015';
 import { gmailMock } from './supabase-gmail.js?v=202611140900';
 import { hrPart, ensureHr } from './mock-part-hr.js?v=202611141400';
