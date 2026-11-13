@@ -4,7 +4,7 @@ import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor,
 import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611161500';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611140100';
 import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611161500';
-import { copyPlainText } from './deal.js?v=202611170800';
+import { copyPlainText } from './deal.js?v=202611170900';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611161500';
 import { LENDER_CONTACT_ROLES, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611101200';
