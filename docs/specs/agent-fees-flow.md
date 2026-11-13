@@ -1,7 +1,7 @@
 # Agent fees flow (commissions, admin fees, other agent fees)
 
 **Requested by:** John Coester, Nov 12 2026 (chat t1542u).
-**Status:** Partial. AF-1 (records and history) is in progress. See [ROADMAP.md](../../ROADMAP.md#agent-fees-flow).
+**Status:** Partial. AF-1 (records and history) is done; AF-2 (Agent fees box) is in progress. See [ROADMAP.md](../../ROADMAP.md#agent-fees-flow).
 **Audit:** Grok, Nov 12 2026, against main `3966fd07` and the TEST database (read only).
 
 ## What John asked for
@@ -140,6 +140,14 @@ Migration `supabase/migrations/20261117100000_agent_fees.sql` (rollback in `supa
 - Nobody reads or writes the tables directly (no grants, row security on). Functions: `agent_fees(deal)` and `agent_fee_history(deal)` return what the caller may see (staff who can open the file: both sides; an agent: their side; a TC: the side of an agent they coordinate for, or both sides if they're the file's TC; buyers and sellers: nothing). `save_agent_fees(deal, side, fees, reason)` replaces one side's fees, checks every value with plain messages, and needs a reason (3+ characters) when staff change or remove a fee an agent or TC confirmed. An agent or TC saving confirms every fee on their side. Staff saving keeps the confirmation record (no re-approval, Decision 3).
 - A trigger on `deals.purchase_price` works each commission out again from its basis and logs it as `system`.
 - Not yet used by any screen (AF-2). The older commission columns on `deals` are untouched until AF-2 moves the screens over.
+
+## AF-2 as built (Agent fees box)
+
+Migration `supabase/migrations/20261118010000_agent_fee_sides.sql` adds `agent_fee_sides(deal)`: the sides the caller may see, with `read` or `edit` (none for buyers, sellers or a refinance).
+
+- `js/data/agent-fees.js`: the shared rules (% and $ from the sales price, payer defaults, other-fee checks, plain error messages). `js/data/supabase-agent-fees.js` calls the database functions; `js/data/mock-part-agent-fees.js` is the demo copy with the same rules.
+- `js/pages/agent-fees-box.js`: the box on the file overview (`js/pages/deal.js`), loaded alongside the overview's other reads. It shows nothing when the viewer has no side, the file is a refinance, or the database functions aren't there.
+- Tests: `test/test-agent-fees.js` (rules and the demo adapter), `test/test-agent-fees-sql.sh` (AF-1 and the sides function).
 
 ## Open questions (resolved Nov 12 2026 by John)
 
