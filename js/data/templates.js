@@ -14,7 +14,8 @@ const PERSONAL_V1 = [F('full_name', 'Full legal name', 'text', true), F('email',
 // ---- Matt, Nov 3 (migration 26) ----
 // Field option `roles`: the field is only on copies for those roles (settlement type is a SELLER-only choice; buyers always settle in person).
 // fieldsForRole() is applied wherever a copy's fields are shown or validated (mock getTask / saveTaskForm / updateTask; SQL private.fields_for_role).
-export const fieldsForRole = (fields, role) => (fields || []).filter((f) => !f.roles || f.roles.includes(role));
+export const fieldsForRole = (fields, role) => (fields || []).filter((f) => !f.roles || f.roles.includes(role))
+  .map((f) => (f.roleLabels && f.roleLabels[role] ? { ...f, label: f.roleLabels[role] } : f));   // FF-068 #11: one question, worded per role
 // Power of attorney (buyers and sellers): who the attorney-in-fact ("your Agent") is, how they are related, how to reach them, and why a POA is needed.
 const POA_YES = ['power_of_attorney', 'Yes'];
 export const POA_FIELDS = [F('power_of_attorney', 'Will you use a power of attorney?', 'select', false, { opts: yn }),
@@ -92,6 +93,14 @@ const PERSONAL_V6 = [...PERSONAL_V5.map((f) => SHARED_WITH_SELLER.includes(f.k) 
  * personal_info v7 = v6 without proceeds_statement / proceeds_ack. Answers already saved stay on the copy's own version. */
 export const PROCEEDS_MOVED = ['proceeds_statement', 'proceeds_ack'];
 const PERSONAL_V7 = PERSONAL_V6.filter((f) => !PROCEEDS_MOVED.includes(f.k));
+/* FF-068 #8/#11/#12 (Janine's Nov 12 video; Francis confirm-back Nov 12 6:14 PM ET): personal_info v8 = v7 plus an EIN/Tax ID for entities
+ * (required when "Add entity" is ticked), the seller wording "Is the property your primary residence?", and no "Where is the water meter?". */
+export const SELLER_PRIMARY_LABEL = 'Is the property your primary residence?';
+const PERSONAL_V8 = PERSONAL_V7.filter((f) => f.k !== 'water_meter_where').flatMap((f) => {
+  if (f.k === 'primary_residence') return [{ ...f, roleLabels: { 'Client-Seller': SELLER_PRIMARY_LABEL } }];
+  if (f.k === 'entity_state') return [f, F('entity_tax_id', 'EIN/Tax ID', 'text', true, { when: ENT })];
+  return [f];
+});
 export const PROCEEDS_WIRE_NOTE = 'Proceeds of $5,000.00 or more must be sent by wire transfer.';
 export const PROCEEDS_STATEMENT = 'I understand that all seller proceeds must be disbursed to the seller(s) of record. If the seller is an entity or trust, the proceeds must be disbursed directly to that entity or trust.';
 const ID_V2 = [
@@ -211,6 +220,9 @@ export const TEMPLATE_DEFS = [
   { code: 'personal_info', version: 7, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 122,
     description: 'Buyer and seller personal details. Sellers also answer property and utility questions. Spouse information is a section on this form.',
     fields: PERSONAL_V7 },
+  { code: 'personal_info', version: 8, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 123,
+    description: 'Buyer and seller personal details. Sellers also answer property and utility questions. Spouse information is a section on this form.',
+    fields: PERSONAL_V8 },
 ];
 
 // Personal items stay client-only whatever the setting says: ID / identity, signatures, banking / wire / payment-account details, SSN.
@@ -383,6 +395,23 @@ export function applyProceedsMove(d, { at = new Date().toISOString(), by = null 
       && (d.taskTemplates.find((z) => z.id === t.templateId) || { version: 0 }).version < nt.version)
       .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
   }
+  return { added, moved };
+}
+/* FF-068 (migration 123): personal_info v8. Same move rule as above: only untouched to-do copies with no answers move. Idempotent.
+ * Mirrored in SQL 20261117150000. */
+const isPersonalV8 = (t) => t.code === 'personal_info' && (t.fields || []).some((f) => f.k === 'entity_tax_id');
+export function applyPersonalV8(d, { at = new Date().toISOString(), by = null } = {}) {
+  const def = TEMPLATE_DEFS.find((t) => t.migration === 123); const added = []; let moved = 0;
+  const vs = d.taskTemplates.filter((t) => t.code === def.code); let nt = vs.find(isPersonalV8);
+  if (!nt) {
+    const top = vs.slice().sort((a, b) => b.version - a.version)[0]; const version = top ? Math.max(top.version + 1, def.version) : def.version;
+    nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: top ? [...(top.agentRoles || [])] : [...def.agentRoles], active: true, publishedBy: by, publishedAt: at };
+    if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-ein`;
+    vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
+  }
+  if (nt.active) d.tasks.filter((t) => t.templateCode === def.code && t.templateId !== nt.id && t.kind === 'form' && t.status === 'todo' && !t.savedAt && !Object.keys(t.formData || {}).length
+      && (d.taskTemplates.find((z) => z.id === t.templateId) || { version: 0 }).version < nt.version)
+    .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
   return { added, moved };
 }
 // Place Order entity (participant.entity) -> answers pre-filled on that person's Personal information copy (only when the copy has no answers yet)

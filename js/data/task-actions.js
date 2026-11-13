@@ -2,7 +2,7 @@
  * from the signed-in profile. They do not add tasks, do not return another person's
  * answers, and do not treat Demo view-only as a missing task. */
 import { runsOrders, viewOnly, maskAccount } from './constants.js?v=202611101015';
-import { fieldsForRole, maskedFields } from './templates.js?v=202611171000';
+import { fieldsForRole, maskedFields } from './templates.js?v=202611171100';
 
 export const HOSTED_TASK_COLUMNS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 
