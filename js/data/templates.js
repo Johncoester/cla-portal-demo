@@ -224,9 +224,9 @@ function cleanMortgages(raw) {
   return list.map((m) => ({
     lender: String((m && m.lender) || '').trim().slice(0, 200),
     phone: String((m && m.phone) || '').trim().slice(0, 40),
-    last4: String((m && m.last4) || '').replace(/\D/g, '').slice(0, 4),
+    loan_number: String((m && (m.loan_number || m.last4)) || '').replace(/[^0-9A-Za-z-]/g, '').slice(0, 30),   // FF-067: the full loan number (older answers kept their last 4 here)
     loan_type: String((m && m.loan_type) || '').trim().slice(0, 40),
-  })).filter((m) => m.lender || m.last4 || m.phone);
+  })).filter((m) => m.lender || m.loan_number || m.phone);
 }
 export function validateForm(fields, input, complete) {
   const data = {}; const errors = [];
