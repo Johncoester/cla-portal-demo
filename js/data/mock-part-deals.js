@@ -10,7 +10,7 @@ import { buildFileNumber, retagFileNumber, sentOutside } from './file-number.js?
 import { officeDate } from './office-date.js?v=202611102100';
 import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions } from './lender-file.js?v=202611101200';
 import { parcelInput } from './parcels.js?v=202611190800';
-import { earnestDealPatch, earnestTouched, OLD_COMMISSION_KEYS, OLD_COMMISSION_REFUSED, withoutOldCommission } from './earnest-commission.js?v=202611191300';
+import { earnestDealPatch, earnestTouched, OLD_COMMISSION_KEYS, OLD_COMMISSION_REFUSED, withoutOldCommission } from './earnest-commission.js?v=202611191500';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 // John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only
@@ -143,7 +143,7 @@ export function dealsAndAuth(x) {
       const earnest = earnestDealPatch(input, { refinance: isRefi(transactionType) });
       const parcels = parcelInput(input);
       const deal = { id: nid('deal'), fileNumber: buildFileNumber(state, localDate().slice(2, 4), nextNum), street, city, state, zip, county, countySource: ac.countySource, parcelId: parcels.parcelId, parcelIds: parcels.parcelIds, transactionType, stage: 0, status: 'Open',
-        openDate, closingDate: dateOrNull(input.closingDate, 'Closing date'), purchasePrice: money(input.purchasePrice, 'Purchase price'), loanAmount: money(input.loanAmount, 'Loan amount'),
+        openDate, closingDate: dateOrNull(input.closingDate, 'Closing date'), disbursementDate: dateOrNull(input.disbursementDate, 'Disbursement date'), purchasePrice: money(input.purchasePrice, 'Purchase price'), loanAmount: money(input.loanAmount, 'Loan amount'),
         emdAmount: money(input.emdAmount, 'EMD amount'), emdDueDate: dateOrNull(input.emdDueDate, 'EMD due date'),
         financial: earnest.financial, ...earnest.patch,
         // Matt, Nov 3 (b): lender phone + email (and the picked lender's name / company) and the source of business are set at placement

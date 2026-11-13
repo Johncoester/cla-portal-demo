@@ -6,7 +6,7 @@ import { settlementSectionHtml, mountSettlement } from './settlement-section.js?
 import { composeModal } from './compose.js?v=202611191100';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611162200';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { agentFeesPointer } from './agent-fees-box.js?v=202611191300';
+import { agentFeesPointer } from './agent-fees-box.js?v=202611191500';
 const OPEN = ['todo', 'in_progress', 'blocked'];
 const long = (d) => { if (!d) return '—'; const [y, m, dd] = String(d).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
 const href = (d, t = '') => `#/deals/${d.id}${t ? '/' + t : ''}`;

@@ -5,10 +5,10 @@ import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611140100';
 import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611101015';
 import { officeDate } from './office-date.js?v=202611102100';
 import { clientActivityFrom } from './client-activity.js?v=202611102100';
-import { assertRecipients, messageText } from './portal-message.js?v=202611191300';
+import { assertRecipients, messageText } from './portal-message.js?v=202611191500';
 import { planDocumentBatch } from './document-batch.js?v=202611101015';
 import { featureFlags } from './features.js?v=202611070139';
-import { accountingSupabase } from './supabase-accounting.js?v=202611191300';
+import { accountingSupabase } from './supabase-accounting.js?v=202611191500';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
 import { agentFeesSupabase } from './supabase-agent-fees.js?v=202611182130';
 import { titleSupabase } from './supabase-title.js?v=202611112200';
@@ -18,7 +18,7 @@ import { postClosingSupabase } from './supabase-postclosing.js?v=202611111900';
 import { wiresSupabase } from './supabase-wires.js?v=202611111800';
 import { modulesSupabase } from './supabase-modules.js?v=202611101015';
 import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611191300';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611191500';
 import { callItemsSupabase } from './supabase-callitems.js?v=202611101015';
 import { automationPart } from './automation.js?v=202611101015';
 import { runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
@@ -27,11 +27,11 @@ import { hrSupabase } from './supabase-hr.js?v=202611100130';
 import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611130900';
 import { officesSupabase } from './supabase-offices.js?v=202611101015';
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611170800';
-import { tcSupabase } from './supabase-tc.js?v=202611191300';
+import { tcSupabase } from './supabase-tc.js?v=202611191500';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
 import { gmailSupabase } from './supabase-gmail.js?v=202611140900';
 import { nov5Supabase } from './supabase-nov5.js?v=202611162200';
-import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611191300';
+import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611191500';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611140100';
 import { staffSupabase } from './supabase-staff.js?v=202611141400';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
@@ -48,7 +48,7 @@ import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty }
 import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole } from './lender-file.js?v=202611101200';
 import { fileTitleOf } from './party-name.js?v=202611102000';
 import { parcelInput } from './parcels.js?v=202611190800';
-import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611191300';
+import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611191500';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
@@ -503,7 +503,7 @@ export async function createSupabaseAdapter(cfg) {
       if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611131900'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
       const { data: { user } } = await sb.auth.getUser();
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
-        open_date: input.openDate || officeDate(), closing_date: input.closingDate || null, purchase_price: refi ? null : moneyAmount(input.purchasePrice), loan_amount: moneyAmount(input.loanAmount),
+        open_date: input.openDate || officeDate(), closing_date: input.closingDate || null, ...(input.disbursementDate ? { disbursement_date: input.disbursementDate } : {}), purchase_price: refi ? null : moneyAmount(input.purchasePrice), loan_amount: moneyAmount(input.loanAmount),
         emd_amount: refi ? null : moneyAmount(input.emdAmount), emd_due_date: refi ? null : input.emdDueDate || null, notes: input.notes || '', processor_id: input.processorId || null, preprocessor_user_id: input.preprocessorUserId || null, created_by: user.id,
         lender_name: input.lenderName || '', lender_contact: input.lenderContact || '', lender_phone: input.lenderPhone || '', lender_email: String(input.lenderEmail || '').trim().toLowerCase(), loss_payee_name: input.lossPayeeName || '',
         primary_residence: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.primaryResidence || ''), first_time_buyer: refi || String(input.state || '').toUpperCase() !== 'MD' ? '' : String(input.firstTimeBuyer || '') };   // Maryland purchases only (John, Nov 6)

@@ -13,21 +13,21 @@ import { sourceChoices, processorChoices, fileReferralState, referralContacts, r
 import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611101015';
 import { canManageClosingLocations } from '../data/closing-location.js?v=202611101015';
 import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611161500';
-import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611191300';
+import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611191500';
 import { themeOn } from '../theme.js?v=202611070139';
-import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611191300';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611191300';
+import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611191500';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611191500';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611191300';
+import { prefetchDealTab } from './deal-tab.js?v=202611191500';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { viewTasksHref } from '../data/task-board.js?v=202611140100';
-import { earnestView } from '../data/earnest-commission.js?v=202611191300';
+import { earnestView } from '../data/earnest-commission.js?v=202611191500';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611190800';
 import { bindAddressFill } from '../data/address-fill.js?v=202611190800';
-import { agentFeesPanel, agentFeesPointer } from './agent-fees-box.js?v=202611191300';
+import { agentFeesPanel, agentFeesPointer } from './agent-fees-box.js?v=202611191500';
 function staffSections(ctx, dealId) {
   const { api } = ctx;
   const user = ctx.user;
