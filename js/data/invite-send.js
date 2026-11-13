@@ -3,6 +3,7 @@
  * FROM testportal@clatitle.com (TEST Auth's approved invite email), never from the inviter's Gmail. If it was not sent (Live Test address rule, an existing login, a mail error) the copy link stays on screen
  * with the reason. Nothing here sends by itself; api.sendInviteEmail does, and it never throws. */
 import { html } from '../ui.js?v=202611161500';
+import { PORTAL_INVITE_ROLES } from './agent-profile.js?v=202611140100';
 export const tokenOfLink = (link) => { const m = /#\/(?:agent-invite|hr-invite)\/([0-9a-f]{64})$/.exec(String(link || '')); return m ? m[1] : ''; };
 /* The hosted role check answers gmail-send with this and never reaches Google. The dialog has to show this reason. */
 export const E2E_INVITE_HOLD = { sent: false, error: 'E2E checked the copy link only.' };
@@ -30,3 +31,43 @@ export function inviteSendNotice(r = {}) {
   return html`<p class="notice warn" data-invite-sent="${r.stale ? 'stale' : 'no'}">Not emailed${why ? html`: ${why}` : ''}.${r.noLink ? '' : ' Until then you can copy the link below and send it yourself.'}</p>`;
 }
 export const inviteToast = (r = {}) => (r.sent ? `Invite emailed to ${r.to}` : 'Invite link made (not emailed)');
+
+// FF-073e / MF-055.2 (Janine YES 10:43 AM ET Nov 13; John 1:30 PM ET Nov 13):
+// when a buyer, seller or agent email changes on a file, automatically make a new invite
+// for that role and email it from testportal@clatitle.com. Callers pass the file and contact;
+// this function creates the link and sends it. A later resend option can reuse the same helper
+// by calling it from a button instead of from the save.
+export function emailChanged(previousEmail, newEmail) {
+  const prev = String(previousEmail || '').trim().toLowerCase();
+  const next = String(newEmail || '').trim().toLowerCase();
+  return !!(next && next !== prev);
+}
+export function shouldInviteAfterEmailChange(role, previousEmail, newEmail) {
+  return PORTAL_INVITE_ROLES.includes(role) && emailChanged(previousEmail, newEmail);
+}
+export async function inviteAfterEmailChange(api, { dealId, contactId, role, previousEmail, newEmail } = {}) {
+  if (!shouldInviteAfterEmailChange(role, previousEmail, newEmail)) {
+    return { sent: false, skipped: PORTAL_INVITE_ROLES.includes(role) ? 'unchanged' : 'role' };
+  }
+  const next = String(newEmail || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next)) {
+    return { sent: false, skipped: 'invalid', error: 'Enter a valid email for this person.' };
+  }
+  if (!api || typeof api.inviteAfterEmailChange !== 'function') {
+    return { sent: false, stale: true, error: 'The portal was updated while this page was open, so the new invite was not emailed. Reload the page (Ctrl+Shift+R), then use Invite to portal' };
+  }
+  let r;
+  try { r = await api.inviteAfterEmailChange({ dealId, contactId }); }
+  catch (e) {
+    const error = String((e && e.message) || e || 'The invite was not created.');
+    return { sent: false, error, to: next };
+  }
+  const sendR = await autoSendInvite(api, 'agent', r && r.link);
+  return { ...sendR, to: sendR.to || next, link: r && r.link, inviteKind: r && r.inviteKind };
+}
+export const inviteAfterEmailChangeToast = (r = {}) => {
+  if (r.skipped === 'unchanged' || r.skipped === 'role') return '';
+  if (r.sent) return `Invite emailed to ${r.to} from testportal@clatitle.com`;
+  const why = String(r.error || '').trim().replace(/[.\s]+$/, '');
+  return why ? `The new invite was not emailed: ${why}.` : 'The new invite was not emailed.';
+};

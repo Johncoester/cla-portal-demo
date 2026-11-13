@@ -88,6 +88,27 @@ export function agentInvitePart(x) {
         resentCount: 0, createdBy: u.id, createdAt: at, acceptedAt: null, acceptedProfileId: null, revokedAt: null, revokedBy: null, inviteKind: kind };
       d.agentInvites.push(inv); log(dealId, u.id, kind === 'agent' ? 'agent.invited' : 'client.invited', 'agent_invite', inv.id, `${v.firstName} ${v.lastName} (${role}) invited to the portal (link shown, nothing sent)`); save();
       return { ...row(inv, true), role, sent: false }; },
+    // FF-073e: a new invite for a changed buyer / seller / agent email. Revokes this contact's
+    // pending invites first. Does not refuse just because they already had a login on the old email;
+    // it does refuse when the new email already belongs to someone else's login.
+    async inviteAfterEmailChange({ dealId = null, contactId = null } = {}) { const u = needInviter(); const d = db();
+      if (!dealId || !dealsFor(u).some((z) => z.id === dealId)) fail('Order not found.');
+      const c = d.contacts.find((z) => z.id === contactId) || fail('Contact not found.');
+      const parts = d.participants.filter((p) => p.dealId === dealId && p.contactId === c.id && !p.removed && PORTAL_INVITE_ROLES.includes(p.role));
+      if (!parts.length) fail('Only a buyer, seller, buyer agent or listing agent on this file can be invited.');
+      const role = (parts.find((p) => inviteKindForRole(p.role) === 'agent') || parts[0]).role; const kind = inviteKindForRole(role);
+      if (!String(c.firstName || '').trim() || !String(c.lastName || '').trim()) fail('Add a first and last name to this contact (Edit) before inviting.');
+      const em = String(c.email || '').trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) fail('Enter a valid email for this person.');
+      const ownProfile = c.profileId && prof(c.profileId);
+      if (d.profiles.some((p) => p.email.toLowerCase() === em && p.status === 'active' && p.id !== (ownProfile && ownProfile.id))) fail('Someone with that email already has a portal login.');
+      d.agentInvites.forEach((i) => {
+        if (i.contactId === c.id && inviteStatus(i, now()) === 'pending') { i.status = 'revoked'; i.revokedAt = now(); i.revokedBy = u.id; i.token = null; }
+      });
+      const at = now(); const inv = { id: nid('inv'), token: rnd() + rnd(), contactId: c.id, dealId, firstName: c.firstName.trim(), lastName: c.lastName.trim(), email: em, status: 'pending', expiresAt: plusDays(at, INVITE_DAYS),
+        resentCount: 0, createdBy: u.id, createdAt: at, acceptedAt: null, acceptedProfileId: null, revokedAt: null, revokedBy: null, inviteKind: kind };
+      d.agentInvites.push(inv); log(dealId, u.id, kind === 'agent' ? 'agent.invited' : 'client.invited', 'agent_invite', inv.id, `${c.firstName.trim()} ${c.lastName.trim()} (${role}) invited to the portal after an email change`); save();
+      return { ...row(inv, true), role, sent: false }; },
     async resendAgentInvite(id) { const u = needInviter(); const inv = db().agentInvites.find((i) => i.id === id && tcScope(u, i)) || fail('Invite not found.');
       if (inv.status === 'accepted') fail('This invite was already accepted.'); if (inv.status === 'revoked') fail('This invite was revoked. Make a new invite instead.');
       if (db().profiles.some((p) => p.email.toLowerCase() === inv.email.toLowerCase() && p.status === 'active')) fail('Someone with that email already has a portal login.');

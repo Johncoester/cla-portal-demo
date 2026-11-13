@@ -22,6 +22,10 @@ export function agentInviteSupabase({ sb, ok, me }) {
       const r = (ok(await sb.rpc('create_portal_invite', { p_deal: dealId, p_contact: contactId, p_email: String(email || '').trim() || null })) || [])[0];
       if (!r) throw new Error('The invite was not created. Try again.');
       return { id: r.invite_id, status: 'pending', inviteKind: r.invite_kind, firstName: r.first_name, lastName: r.last_name, email: r.email, expiresAt: r.expires_at, link: '#/agent-invite/' + r.token, sent: false }; },
+    async inviteAfterEmailChange({ dealId = null, contactId = null } = {}) {
+      const r = (ok(await sb.rpc('invite_after_email_change', { p_deal: dealId, p_contact: contactId })) || [])[0];
+      if (!r) throw new Error('The invite was not created. Try again.');
+      return { id: r.invite_id, status: 'pending', inviteKind: r.invite_kind, firstName: r.first_name, lastName: r.last_name, email: r.email, expiresAt: r.expires_at, link: '#/agent-invite/' + r.token, sent: false }; },
     async resendAgentInvite(id) { const r = (ok(await sb.rpc('resend_agent_invite', { p_invite: id })) || [])[0]; return { id, status: 'pending', expiresAt: r.expires_at, link: '#/agent-invite/' + r.token, resentCount: 1, sent: false }; },
     async revokeAgentInvite(id) { ok(await sb.rpc('revoke_agent_invite', { p_invite: id })); return { id, status: 'revoked' }; },
     async getAgentInvite(token) { let res = await sb.rpc('portal_invite_lookup', { p_token: token });
