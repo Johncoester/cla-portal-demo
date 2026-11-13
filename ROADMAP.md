@@ -17,10 +17,20 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When CLA staff open a file, they enter each agent's fees for their side (listing agent and buyer's agent): the commission as a percent or a dollar amount, which always stay in sync with each other using the sales price; an admin fee (paid by the buyer for the buyer's agent and by the seller for the listing agent unless changed); and up to 5 other fees, each with a description, an amount and who it's paid to. Each agent sees and can change their own side in the portal. Before saving, they see a "You're changing X from $A to $B" check, and the fee is then marked "Agent confirmed". A TC can confirm for the agent. Once confirmed, the agent's figure wins. Staff can still change it, but they must give a reason, and the agent is told straight away (old value, new value, reason, who). When an agent changes a fee, the processor, pre-processor and TC on the file are told, in the portal and by email. The fees go straight onto the right lines in Accounting, and from there onto the Closing Disclosure (CD) and the ALTA settlement statement, which can also be generated as PDFs. Buyers and sellers never see commissions or agent fees. Every change is kept in a history: who, when, old value, new value, reason, and whether staff, the agent or the TC made it.
 
-**Status: Partial.**
+**Status: Partial (being built as AF-1 to AF-6).**
+
+| Step | What | Status |
+|---|---|---|
+| AF-1 | Fee records and change history (database only) | In progress, [PR 225](https://github.com/Johncoester/cla-portal-demo/pull/225) |
+| AF-2 | Staff entry and agent view; buyers and sellers can't see fees | Planned |
+| AF-3 | Agent or TC changes: "You're changing X from $A to $B", "Agent confirmed", notices to staff | Planned |
+| AF-4 | Notice to the agent when staff change a confirmed fee | Planned |
+| AF-5 | Fees post to Accounting automatically | Planned |
+| AF-6 | "Generate CD" and "Generate ALTA" PDF buttons | Planned |
 
 **What's built**
 
+- AF-1 (database only, nothing on screen yet): each file keeps, per agent side, a commission (% and $ always in step with the sales price), an admin fee with who pays it, and up to 5 other fees. Each fee records whether staff, the agent or a TC set it, and who confirmed it and when. A history keeps who, when, old value, new value, reason and source. Staff can't change a fee the agent or TC confirmed without a reason. When the sales price changes, each commission is worked out again and the change goes in the history.
 - Staff can enter commission base, percent, any additional amount and who pays it (buyer or seller) on Place Order, in Edit order details, and in Accounting > Contract figures. All three use the same figures.
 - Agents have a "Confirm Your Transaction Information" task where they enter their commission split and any fees or credits. Every version they submit is kept, and the file's processor gets an in-portal notice when they submit or revise it.
 - The Accounting fee ledger already has a "Commission" section that shows on the CD (section H, "Other") and on the settlement statement.
@@ -28,9 +38,9 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- What staff enter and what the agent enters don't feed each other. The agent's answers stay on their task.
-- There are no admin fee or "other agent fee" boxes for staff, and only one side's commission can be saved on the order at a time.
-- There's no "Agent confirmed" flag, no required reason for a staff change, no notice to the agent, and no "You're changing X from $A to $B" check.
+- Screens for the AF-1 records (AF-2): what staff enter and what the agent enters don't feed each other yet. The agent's answers stay on their task.
+- There are no admin fee or "other agent fee" boxes on screen yet, and only one side's commission can be saved on the order at a time.
+- No "Agent confirmed" label on screen, no notice to the agent, and no "You're changing X from $A to $B" check yet (the reason rule is in the database from AF-1).
 - Fees are not posted to Accounting automatically. Today a commission line has to be added there by hand.
 - The "Earnest & commissions" box on a file's overview can be seen by buyers and sellers too. John decided they must not see it.
 - There are no "Generate CD" or "Generate ALTA" PDF buttons, and no email notices for fee changes.
@@ -53,7 +63,8 @@ This file lists the portal's major features: how each one should work, how far a
 - Keep the live CD and Settlement Statement tabs, and add "Generate CD" and "Generate ALTA" PDF buttons.
 - A TC can confirm fees for the agent. It's logged as confirmed by the TC, and the agent is notified.
 - John answered all seven open questions on Nov 12 at 2:33 PM ET. See the spec.
-- Queue: behind FF-055 and the work confirmed today, and blocked until the walkthrough on main is green.
+- Queue: John started the build on Nov 12 at 8 PM ET (t1566u, "Start a second builder tonight"), alongside the bug fixes. Merges stay one at a time.
+- AF-1 choices (simplest option; tell John if any is wrong): a commission can't be saved until the file has a sales price, so % and $ can always be checked against it. The commission and other fees also record who pays them, with the same defaults as the admin fee (buyer for the buyer's agent, seller for the listing agent). When staff change a confirmed fee, the record of who confirmed it stays, so every later staff change still needs a reason. A fixed-$ commission bigger than a new, lower sales price switches to keeping its %. A TC can confirm the side of an agent on their team; the file's own TC can confirm either side. A refinance has no agent fees.
 
 ---
 
@@ -125,18 +136,20 @@ This file lists the portal's major features: how each one should work, how far a
 
 - FF-071b (#22): the Activity tab's filters (type, person, date, words) work, and each row shows who did it.
 - FF-064/065 (#5, first part): clicking a bell notification closes the menu and opens the item, for sellers and processors.
-- FF-070 (#18 to #20): the Messages badge clears when a conversation is opened, messages show the sender's name and role (not "Participant"), and the reply box is large and grows as you type.
+- FF-070 (#18 to #20): the Messages badge clears when a conversation is opened, messages show the sender's name and role (not "Participant"), and the reply box is large and grows as you type. Names and roles load in about 4 ms even on a file with 200 conversations (was about 230 ms).
 - FF-063 (closing appointment): when the processor confirms one proposed time, the other proposed times on that file are marked declined, so no one sees leftover proposals.
+- FF-069d (#16, #17): a finished task opens read-only for buyers, sellers and agents (no Save or Complete buttons), and its status reads "Done".
+- FF-063c (#3): when the processor sets the closing at a mobile notary, they enter the notary's street, city, state and ZIP, and the closing shows "Mobile notary at <address>".
 
 **What's still missing**
 
-- FF-069d and the other confirmed items (#3, #6 to #9, #11, #12, #14, #17, #21, #23, #24, street address lookup) are being built one pull request at a time.
+- The other confirmed items (#6 to #9, #11, #12, #14, #21, #23, #24, street address lookup) are being built one pull request at a time.
 - On hold: #1, #2, #4, #5, #10, #13, #15, #16, citizenship, spouse marital status, entity documents required, phone and email icons with no app.
 
 **Links**
 
 - Spec: none yet. Source: Janine's video Nov 12 2:57 PM ET; Francis Feedback tickets FF-063 to FF-072.
-- Related pull requests: [PR 221](https://github.com/Johncoester/cla-portal-demo/pull/221) (FF-071b), [PR 222](https://github.com/Johncoester/cla-portal-demo/pull/222) (FF-064/065), [PR 223](https://github.com/Johncoester/cla-portal-demo/pull/223) (FF-070), FF-063 (this change).
+- Related pull requests: [PR 221](https://github.com/Johncoester/cla-portal-demo/pull/221) (FF-071b), [PR 222](https://github.com/Johncoester/cla-portal-demo/pull/222) (FF-064/065), [PR 223](https://github.com/Johncoester/cla-portal-demo/pull/223) (FF-070), [PR 224](https://github.com/Johncoester/cla-portal-demo/pull/224) (FF-063), [PR 226](https://github.com/Johncoester/cla-portal-demo/pull/226) (FF-070b speed fix), [PR 228](https://github.com/Johncoester/cla-portal-demo/pull/228) (FF-069d), FF-063c (this change).
 
 **Decisions**
 
