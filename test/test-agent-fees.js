@@ -50,12 +50,13 @@ ok('database errors become plain messages (rule 12)', () => {
 // mock adapter: who sees and changes what
 const data = { deals: [{ id: 'd1', purchasePrice: 300000, transactionType: 'Purchase', tcUserId: null }], participants: [
   { dealId: 'd1', contactId: 'c-ba', role: 'Buyer Agent' }, { dealId: 'd1', contactId: 'c-la', role: 'Listing Agent' }, { dealId: 'd1', contactId: 'c-b', role: 'Client-Buyer' }],
-  contacts: [{ id: 'c-ba', profileId: 'ba' }, { id: 'c-la', profileId: 'la' }, { id: 'c-b', profileId: 'b' }] };
+  contacts: [{ id: 'c-ba', profileId: 'ba', company: 'Example Realty' }, { id: 'c-la', profileId: 'la' }, { id: 'c-b', profileId: 'b' }] };
 const people = { pro: { id: 'pro', role: 'Processor' }, ba: { id: 'ba', role: 'Outside user' }, la: { id: 'la', role: 'Outside user' }, b: { id: 'b', role: 'Outside user' },
   tc: { id: 'tc', role: 'Transaction Coordinator' }, sales: { id: 'sales', role: 'Sales Person' } };
 let who = 'pro';
 const roles = { ba: ['Buyer Agent'], la: ['Listing Agent'], b: ['Client-Buyer'] };
-const part = agentFeesPart({ load: () => data, save() {}, needUser: () => people[who], dealOr404: (u, id) => data.deals.find((d) => d.id === id),
+let seq = 0;
+const part = agentFeesPart({ load: () => data, save() {}, nid: (p) => `${p}-${seq += 1}`, needUser: () => people[who], dealOr404: (u, id) => data.deals.find((d) => d.id === id),
   fileRoles: (pid) => roles[pid] || [people[pid].role], teamAgentIds: (u) => new Set(u.id === 'tc' ? ['la'] : []),
   isStaffView: (u) => u.role !== 'Outside user', nameOf: (id) => id.toUpperCase(), now: () => '2026-11-12T21:00:00Z', fail: (m) => { throw new Error(m); }, clone: (x) => JSON.parse(JSON.stringify(x)) });
 const run = async () => {
@@ -74,5 +75,18 @@ const run = async () => {
   who = 'sales'; v = await part.getAgentFees('d1'); assert.deepEqual(v.sides, { listing: 'read', buyer: 'read' });
   await assert.rejects(part.saveAgentFees('d1', 'buyer', fees), /You can't change agent fees on this file\./);
   n += 1; console.log('ok mock adapter: staff both sides, agent own side, buyer nothing, reason rule, TC on the agent\'s team, sales read only');
+  // AF-5: fees post to the fee ledger
+  const live = () => data.accountingFees.filter((f) => !f.retired && String(f.presetKey).startsWith('agent_fee:'));
+  assert.equal(live().length, 2);
+  const com = live().find((f) => f.presetKey === 'agent_fee:buyer:commission:0');
+  assert.equal(com.amount, 8250); assert.equal(com.altaSection, 'commission'); assert.equal(com.cdSection, 'H'); assert.equal(com.paidBy, 'buyer'); assert.equal(com.split.buyer, 8250);
+  assert.equal(com.payee, 'Example Realty'); assert.equal(com.description, "Real estate commission - buyer's agent (2.75%)");
+  who = 'pro'; await part.saveAgentFees('d1', 'buyer', { ...fees, commission: { basis: 'percent', percent: 2.75 }, admin: null, other: [{ description: 'Referral fee', amount: 100, paidTo: 'Example Referral Co.', payer: 'seller' }] }, 'Admin fee waived');
+  assert.ok(data.accountingFees.find((f) => f.presetKey === 'agent_fee:buyer:admin:0').retired, 'a removed fee retires its line');
+  const oth = live().find((f) => f.presetKey === 'agent_fee:buyer:other:1'); assert.equal(oth.payee, 'Example Referral Co.'); assert.equal(oth.paidBy, 'seller');
+  com.amount = 1234; com.split = { buyer: 1234, seller: 0, lender: 0, other: 0 };   // a processor changes the line by hand
+  await part.saveAgentFees('d1', 'buyer', { ...fees, commission: { basis: 'percent', percent: 3 }, admin: null, other: [] }, 'Back to 3%');
+  assert.equal(com.amount, 1234, 'a line changed by hand is never overwritten');
+  n += 1; console.log('ok AF-5 mock: every fee posts to the ledger (ALTA Commission, CD H), removed fees retire, hand changes are kept');
 };
 run().then(() => console.log(`\n${n} agent fee checks passed`)).catch((e) => { console.error('FAIL', e.message); process.exit(1); });

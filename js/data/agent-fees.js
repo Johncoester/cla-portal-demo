@@ -129,3 +129,20 @@ export function agentFeeError(e) {
   if (/^[A-Z][^{}<>]{3,200}$/.test(m) && !/sql|syntax|relation|column|constraint|violates|null value|uuid/i.test(m)) return m;
   return 'Agent fees could not be saved. Try again, or ask CLA Title for help.';
 }
+
+// AF-5: the fee-ledger line an agent fee posts to (same rules as private.agent_fee_ledger_sync on Supabase):
+// ALTA "Commission", CD section H, paid by the fee's payer, payee = the agent's company (or the other fee's "paid to").
+export const ledgerKey = (side, kind, slot) => `agent_fee:${side}:${kind}:${slot || 0}`;
+export function agentFeeLedgerInput(f, { company = '' } = {}) {
+  const sideWord = f.side === 'buyer' ? "buyer's agent" : 'listing agent';
+  const payer = f.payer || defaultPayer(f.side);
+  const pct = f.pct != null ? f.pct : f.percent;
+  const description = f.kind === 'commission' ? `Real estate commission - ${sideWord} (${Number(Number(pct).toFixed(4))}%)`
+    : f.kind === 'admin' ? `Admin fee - ${sideWord}` : `${String(f.description || '').slice(0, 170)} - ${sideWord}`;
+  const payee = String((f.kind === 'other' && f.paidTo) || company || (f.side === 'buyer' ? "Buyer's Agent" : 'Listing Agent')).slice(0, 120);
+  const amount = Number(f.amount);
+  return { kind: 'charge', description, altaSection: 'commission', cdSection: 'H', cdLine: '', payee, amount: amount.toFixed(2), paidBy: payer, timing: 'at',
+    note: 'From Agent fees on the file overview. Change it there; a change made here stops the automatic updates for this line.', presetKey: ledgerKey(f.side, f.kind, f.slot) };
+}
+// what was posted, to tell a line a processor changed by hand (left alone) from one still in step
+export const ledgerShape = (e) => JSON.stringify({ d: e.description, p: e.payee, a: Number(e.amount), b: e.paidBy, s: e.split || null });
