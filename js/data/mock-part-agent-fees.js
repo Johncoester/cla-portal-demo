@@ -3,12 +3,12 @@
  * their team (or both sides when they are the file's TC); other CLA staff on the file read both sides; buyers and sellers see nothing.
  * An agent or TC saving confirms the side. Staff need a reason to change a confirmed fee (no re-approval). Every change is logged. FAKE DATA. */
 import { runsOrders } from './constants.js?v=202611101015';
-import { readAgentFees, groupAgentFees, SIDE_LABEL, defaultPayer } from './agent-fees.js?v=202611182100';
+import { readAgentFees, groupAgentFees, SIDE_LABEL, defaultPayer } from './agent-fees.js?v=202611182110';
 
 export function ensureAgentFees(d) { for (const k of ['agentFees', 'agentFeeLog']) if (!Array.isArray(d[k])) d[k] = []; return d; }
 
 export function agentFeesPart(x) {
-  const { load, save, needUser, dealOr404, fileRoles, teamAgentIds, isStaffView, nameOf, now, fail, clone } = x;
+  const { load, save, needUser, dealOr404, fileRoles, teamAgentIds, isStaffView, nameOf, now, fail, clone, notify } = x;
   const db = () => ensureAgentFees(load());
   const actorOf = (u, deal, side) => {
     if (runsOrders(u)) return 'staff';
@@ -67,6 +67,16 @@ export function agentFeesPart(x) {
         Object.assign(rec, { basis: w.basis || null, percent: w.percent == null ? null : w.percent, amount: w.amount, payer: w.payer, description: w.description || '', paidTo: w.paidTo || '', source: actor, updatedAt: at, updatedBy: u.id });
         if (confirm) Object.assign(rec, { confirmedBy: u.id, confirmedRole: actor, confirmedAt: at });
         logIt(w.kind, w.slot, before, jsonOf(rec), changed ? why : (why || 'Confirmed'));
+      }
+      // AF-3: an agent or TC change tells the file's processor, pre-processor and TC (and, for a TC, the agent) in the portal
+      const mineNow = d.agentFeeLog.filter((l) => l.dealId === dealId && l.side === side && l.at === at && l.byId === u.id);
+      if (confirm && mineNow.length && notify) {
+        const agents = d.participants.filter((p) => p.dealId === dealId && p.role === (side === 'buyer' ? 'Buyer Agent' : 'Listing Agent') && !p.removed)
+          .map((p) => (d.contacts.find((c) => c.id === p.contactId) || {}).profileId).filter(Boolean);
+        const ids = [deal.processorId, deal.preprocessorUserId, deal.tcUserId, ...(actor === 'tc' ? agents : [])].filter(Boolean);
+        const changed = mineNow.filter((l) => !same(l.oldValue, l.newValue)).length;
+        const sideWord = side === 'buyer' ? "buyer's agent" : 'listing agent';
+        notify(ids, { kind: 'agent_fee', dealId, title: `${nameOf(u.id)}${actor === 'tc' ? ' (TC)' : ''} ${changed ? 'changed' : 'confirmed'} the ${sideWord} fees on ${deal.fileNumber || 'a file'}`, link: `#/deals/${dealId}` }, u.id);
       }
       save();
       return view(u, deal);
