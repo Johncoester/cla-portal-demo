@@ -5,7 +5,8 @@ import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 import { spouseSectionHtml, spousePayload, spousePhoneError, loadSpouseRows, applySpouse, bindSsnDash, showSsnMask } from './spouse.js?v=202611171200';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, phoneOk, PHONE_MSG } from '../data/constants.js?v=202611101015';
-import { CLS, LABEL } from './dealtasks.js?v=202611190700';
+import { CLS, LABEL } from './dealtasks.js?v=202611190800';
+import { bindAddressFill } from '../data/address-fill.js?v=202611190800';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 // The task page and the processor Tasks "Expand all" use the same fields, save, and complete rules.
@@ -102,6 +103,10 @@ export function mountIntakeForm(root, { api, t, afterSave }) {
   if (addMortgage) addMortgage.addEventListener('click', () => { const rows = $('[data-mortgage-rows]', form); const i = $$('[data-mortgage-row]', rows).length;
     rows.insertAdjacentHTML('beforeend', `<div class="form-grid" data-mortgage-row="${i}"><label>Lender<input data-mlender></label><label>Phone<input data-mphone type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone maxlength="12"></label><label>Loan number<input data-mloan maxlength="30" autocomplete="off"></label><label>Type<input data-mtype></label></div>`); });
   form.addEventListener('change', sync); sync();
+  // FF-011: typing a full street line ("12 Main St, Rockville, MD 20850") fills the empty city, state and ZIP boxes on the same form
+  const named = (n) => form.querySelector(`[name="${n}"]`);
+  if (named('street') && named('city')) bindAddressFill(form);
+  if (named('mail_street') && named('mail_city')) bindAddressFill(form, { prefix: 'mail_' });
   $$('[data-plus]', form).forEach((b) => b.addEventListener('click', () => { const cb = form.elements[b.dataset.plus]; cb.checked = !cb.checked;
     b.textContent = cb.checked ? '\u2212 Remove entity' : '+ Add entity'; b.setAttribute('aria-pressed', String(cb.checked)); sync(); }));
   $$('[data-help]', form).forEach((b) => b.addEventListener('click', () => { const pnl = $(`[data-help-panel="${b.dataset.help}"]`, form); pnl.hidden = !pnl.hidden; b.setAttribute('aria-expanded', String(!pnl.hidden)); }));
@@ -201,4 +206,4 @@ function signView({ api, deal, t, refresh, go }) {
 }
 
 // Francis, Nov 3: agent tasks (kind 'agent') have their own page
-async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611190700'); return m.render(c); }
+async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611190800'); return m.render(c); }
