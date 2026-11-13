@@ -104,13 +104,13 @@ check(!dash.includes('for (const d of deals) tasksByDeal'), 'the dashboard does 
 check(dash.includes('loadDashboard') && dash.includes('Promise.all') && !dash.includes("listDeals({ status: 'All' })") && !dash.includes("listAllTasks({ fileStatus: 'All' })"), 'the dashboard loads open files and does not pull every deal and every task');
 const adapter = readFileSync(new URL('../js/data/supabase-adapter.js', import.meta.url), 'utf8');
 check(adapter.includes('gatherReads') && adapter.includes('profile.clear()') && adapter.includes('nav.clear()') && adapter.includes('read-batch.js?v=202611111200') && adapter.includes('supabase-staff.js?v=202611141400'), 'order reads overlap, sign-out drops the profile, and the staff module stamp is current');
-check(adapter.includes('task-actions.js?v=202611170900') && adapter.includes('supabase-order-overview.js?v=202611141400') && adapter.includes('supabase-tc.js?v=202611140800') && !adapter.includes('task-actions.js?v=202611070139') && !adapter.includes('supabase-order-overview.js?v=202611071845'), 'the changed hosted modules are imported at the current stamp');
+check(adapter.includes('task-actions.js?v=202611171000') && adapter.includes('supabase-order-overview.js?v=202611141400') && adapter.includes('supabase-tc.js?v=202611140800') && !adapter.includes('task-actions.js?v=202611070139') && !adapter.includes('supabase-order-overview.js?v=202611071845'), 'the changed hosted modules are imported at the current stamp');
 check(adapter.includes("sessionCache('roles'") && adapter.includes("sessionCache('parties'") && adapter.includes("fileRead('activity#' + fileGen"), 'file roles and agent parties stay for the session, and the activity log stays for the page');
 const warm = adapter.slice(adapter.indexOf('function warmFile'));
 const overview = warm.slice(warm.indexOf("tab === 'overview'"), warm.indexOf("fileRead('shell:'"));
 check(!overview.includes('listActivity') && warm.includes("tab === 'activity' && a.listActivity"), 'activity_log is requested when the activity tab opens');
 const appSrc = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-check(appSrc.includes("adapter.js?v=202611171000") && appSrc.includes("deal.js?v=202611171000") && appSrc.includes("dashboard.js?v=202611171000") && appSrc.includes("ordernew.js?v=202611170900") && appSrc.includes("prefetchDealTab") && !appSrc.includes('modsEarly'), 'the shell loads the current adapter and does not reuse an early module map');
+check(appSrc.includes("adapter.js?v=202611171000") && appSrc.includes("deal.js?v=202611171000") && appSrc.includes("dashboard.js?v=202611171000") && appSrc.includes("ordernew.js?v=202611171000") && appSrc.includes("prefetchDealTab") && !appSrc.includes('modsEarly'), 'the shell loads the current adapter and does not reuse an early module map');
 const taskPage = readFileSync(new URL('../js/pages/dealtasks.js', import.meta.url), 'utf8');
 const dealTab = readFileSync(new URL('../js/pages/deal-tab.js', import.meta.url), 'utf8');
 const dealPage = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');

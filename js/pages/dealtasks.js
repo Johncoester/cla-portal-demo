@@ -6,7 +6,7 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate,
 import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611101015';
 import { boxTasks, boxOfRole, tasksForViewer } from '../data/task-board.js?v=202611140100';
 import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611131900';
-import { taskOpenHref } from '../data/task-actions.js?v=202611170900';
+import { taskOpenHref } from '../data/task-actions.js?v=202611171000';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };

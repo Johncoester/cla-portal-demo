@@ -5,7 +5,7 @@
 // Same data and permissions as the task pages: listTasks + getTask / getAgentTask (answers only where the viewer may already read them, bank
 // numbers masked as before). Expand all / Collapse all; everything starts expanded.
 import { html, $, $$, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611161500';
-import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611170900';
+import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611171000';
 import { localDate, fmtPhone, isRefi } from '../data/constants.js?v=202611101015';
 import { CLS, LABEL } from './dealtasks.js?v=202611171000';
 import { entityLine } from './deal.js?v=202611171000';
