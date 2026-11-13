@@ -36,7 +36,8 @@ const taskOf = async (who, code, role) => {
 
 const sellerPersonal = await taskOf('u-seller', 'personal_info', 'Client-Seller');
 const opened = await api.getTask(sellerPersonal.id);
-const sellerKeys = ['citizenship', 'gender', 'date_of_birth', 'current_address', 'forwarding_address', 'ground_rent', 'front_foot', 'leaving_town', 'travel_dates', 'divorce', 'primary_residence', 'homestead', 'tenants_after', 'water_provider', 'deceased_owners', 'in_state', 'name_changed', 'existing_survey', 'bankruptcy', 'water_meter', 'water_meter_where'];
+const sellerKeys = ['citizenship', 'gender', 'date_of_birth', 'current_address', 'forwarding_address', 'ground_rent', 'front_foot', 'leaving_town', 'travel_dates', 'divorce', 'primary_residence', 'homestead', 'tenants_after', 'water_provider', 'deceased_owners', 'in_state', 'name_changed', 'existing_survey', 'bankruptcy', 'water_meter'];
+ok(!opened.fields.some((f) => f.k === 'water_meter_where'), 'FF-068 #12: "Where is the water meter?" was removed');
 for (const key of sellerKeys) ok(opened.fields.some((f) => f.k === key), `the seller form includes ${key}`);
 ok(!opened.fields.some((f) => /ssn|social.?security|spouse/i.test(`${f.k} ${f.label}`)), 'SSN and spouse match are not fields on the seller form');
 // FF-066 #6 (Francis confirm-back Nov 12 6:14 PM ET): the proceeds acknowledgment moved from Personal information to the proceeds task.
@@ -52,12 +53,12 @@ const answers = {
   citizenship: 'U.S. Citizen', gender: 'Female', date_of_birth: '1985-06-15', forwarding_address: '9 Next Street, Rockville, MD 20850',
   ground_rent: 'Yes', front_foot: 'No', leaving_town: 'Yes', travel_dates: 'Dec 1 to Dec 4', divorce: 'No', primary_residence: 'Yes',
   homestead: 'Yes', tenants_after: 'No', water_provider: 'WSSC', deceased_owners: 'No', in_state: 'Yes', name_changed: 'No',
-  existing_survey: 'Yes', bankruptcy: 'No', water_meter: 'Outside', water_meter_where: 'By the front steps',
+  existing_survey: 'Yes', bankruptcy: 'No', water_meter: 'Outside',
 };
 const saved = await api.saveTaskForm(sellerPersonal.id, answers);
 for (const key of Object.keys(answers)) ok(saved.formData[key] === answers[key] || (key === 'cell_phone' && String(saved.formData[key]).includes('301')), `saved ${key}`);
 const again = await api.getTask(sellerPersonal.id);
-for (const key of ['citizenship', 'gender', 'date_of_birth', 'forwarding_address', 'ground_rent', 'front_foot', 'travel_dates', 'homestead', 'tenants_after', 'water_provider', 'deceased_owners', 'in_state', 'name_changed', 'existing_survey', 'bankruptcy', 'water_meter', 'water_meter_where']) {
+for (const key of ['citizenship', 'gender', 'date_of_birth', 'forwarding_address', 'ground_rent', 'front_foot', 'travel_dates', 'homestead', 'tenants_after', 'water_provider', 'deceased_owners', 'in_state', 'name_changed', 'existing_survey', 'bankruptcy', 'water_meter']) {
   ok(again.formData[key] === answers[key], `reopen keeps ${key}`);
 }
 const done = await api.saveTaskForm(sellerPersonal.id, answers, { complete: true });
