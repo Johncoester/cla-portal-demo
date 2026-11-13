@@ -17,7 +17,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611170800';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611162200';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611171200';
+import { prefetchDealTab } from './deal-tab.js?v=202611182100';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';
@@ -26,6 +26,7 @@ import { viewTasksHref } from '../data/task-board.js?v=202611140100';
 import { earnestView, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611141000';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611161500';
 import { bindAddressFill } from '../data/address-fill.js?v=202611141400';
+import { agentFeesPanel } from './agent-fees-box.js?v=202611182100';
 function staffSections(ctx, dealId) {
   const { api } = ctx;
   const user = ctx.user;
@@ -85,6 +86,7 @@ export async function render(ctx) {
     { const co = await renderClientOverview({ ...ctx, wireModal, shareModal: (o) => shareModal(ctx, deal, ov0, o) }, deal, here); const lp = await locPromptHtml(ctx, deal); const body = lp ? { ...co, body: html`${lp}${co.body}` } : co; return { ...body, deal }; }   // John, Nov 4: the buyer / seller closing-location to-do also shows on the client overview
   }
   // The sections need the file id, not the party rows. They run with the file read, and the page still waits for every section.
+  const feesP = agentFeesPanel(ctx, deal);   // AF-2 (John, Nov 12): agent fees per side; staff and the file's agents only. Runs alongside the sections.
   const pack = await (earlySections || staffSections(ctx, deal.id));
   const { ag, salesStaff, ov, ur, inv, locFlags, promptHtml, splits, demoLocked } = pack;
   deal.staffOrderNotes = pack.notes;   // John, Nov 4: staff-only order notes (Title module sticky notes; never clients / agents)
@@ -100,7 +102,8 @@ export async function render(ctx) {
   const locations = staffView && api.listClosingLocations ? await api.listClosingLocations(deal.id).catch(() => []) : [];
   const settlement = { staffView, canEdit, canEditSigning: staffView && canManageClosingLocations(user) && !demoLocked, closerStaff, contactChoices, locations };
   const v = overview({ ...ctx, demoLocked, settlement }, deal, here, ag, salesStaff, ov, splits); const extra = agentPanels(ctx, deal, ov, ur, inv); const done = placedPanel(deal);
-  return { ...v, deal, body: html`${done.html}${promptHtml}${flagHtml}${v.head}${extra.top}${v.body}${extra.bottom}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
+  const fees = await feesP;
+  return { ...v, deal, body: html`${done.html}${promptHtml}${flagHtml}${v.head}${fees.html}${extra.top}${v.body}${extra.bottom}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); fees.mount(root); } };
 }
 
 // REDESIGN (John, Nov 3): the confirmation after Place Order. ordernew.js leaves a note in sessionStorage (key below) and opens the new order; the
@@ -178,7 +181,7 @@ function overview({ api, user, refresh, demoLocked, settlement = null }, d, crum
       ${glance}</section>
     ${staffView ? (d.fileTitle || (d.agentParties && d.agentParties.length) ? html`<div class="op-title deal-head">${d.fileTitle ? html`<span class="file-title" data-file-title>${d.fileTitle}</span>` : ''}${d.agentParties && d.agentParties.length ? html` <span class="pill warn agent-party">Agent is a party</span>` : ''}</div>` : '') : html`<div class="op-title deal-head"><h1 class="op-address" data-op-address>${d.street}, ${d.city}, ${d.state} ${d.zip}</h1><span class="op-order-no order-no" data-op-order-no>Order # ${d.fileNumber}</span>${d.fileTitle ? html` <span class="file-title" data-file-title>${d.fileTitle}</span>` : ''}${d.agentParties && d.agentParties.length ? html` <span class="pill warn agent-party">Agent is a party</span>` : ''}</div>`}
     <p class="op-sub muted" data-op-sub>${d.transactionType || 'Purchase'}${d.county ? html` &middot; <span data-county-head>${d.county} County</span>` : ''}${d.parcelId ? html` &middot; Parcel <span data-parcel-id>${d.parcelId}</span>` : ''}<span data-county hidden>${d.county || '\u2014'}</span> &middot; Opened ${fmtDate(d.openDate)} &middot; Processor ${d.processorId ? html`<span data-processor-name>${d.processorName || 'assigned'}</span>` : staffView ? html`<span class="pill warn" data-unassigned-processor title="Assign one with Edit order details">Unassigned</span>` : 'not set'}${d.preprocessorName ? html` &middot; Preprocessor ${d.preprocessorName}` : ''}${staffView ? html` &middot; Closer <span data-closer>${d.closerName || 'not set'}</span>` : ''}${d.tcUserId ? html` &middot; TC <span data-tc-name>${d.tcName || 'assigned'}</span>` : staffView ? html` &middot; TC <span class="muted" data-tc-none>not assigned</span>` : ''}${staffView && (claRepresentationWritesEnabled(api) || d.claRepresentation) ? html` &middot; <span data-cla-representation>CLA represents: ${d.claRepresentationLabel || 'Not recorded'}</span>` : ''}${staffView ? html` &middot; <span data-source-of-business>Source of business: ${d.sourceOfBusinessLabel || 'Not set'}</span>` : ''}${ov && ov.orderDetails.agencyLicenseId ? html` &middot; Agency License ID <span data-license>${ov.orderDetails.agencyLicenseId}</span>` : ''}</p>
-    ${moneyRow(d, { canWire: staffView ? false : canWire, staffView, showEmd })}${earnestBlock(d, showEmd)}
+    ${moneyRow(d, { canWire: staffView ? false : canWire, staffView, showEmd })}${earnestBlock(d, showEmd, staffView || (user.roles || [user.role]).some((r) => r === 'Buyer Agent' || r === 'Listing Agent'))}
     ${portalN ? html`<div class="op-actions"><a class="new-msg" href="#/deals/${d.id}/inbox" data-portal-unread="${portalN}">${portalN} new message(s)</a></div>` : ''}
     ${d.agentParties && d.agentParties.length ? html`<div class="notice warn" data-agent-party><strong>Agent is a party.</strong> ${d.agentParties.map((p) => `${p.name} is the ${p.label}`).join('; ')} on this file (a licensee buying or selling for themselves). Make sure the licensee disclosure is on file.</div>` : ''}
     ${d.selfRep ? html`<div class="notice info" data-self-rep>You are the <strong>${d.myRoleLabel}</strong> on this file. Your tasks as the client and as the agent are in one list; the history records which capacity you acted in.</div>` : ''}
@@ -299,10 +302,12 @@ function moneyRow(d, { canWire, staffView, showEmd }) {
       <p class="muted small">Buyer funds only. Agents never see this box. Call CLA Title to confirm any wire (use a number you already have).</p></section>` : '';
   return emd || wire ? html`<div class="op-money" data-money-row>${emd}${wire}</div>` : '';
 }
-function earnestBlock(d, showEmd) {
-  const ev = earnestView(d);
+// AF-2 (John, Nov 12): buyers and sellers never see commissions or agent fees: they see only "EMD held by" here; CLA staff and the file's agents see it all.
+function earnestBlock(d, showEmd, seesFees = true) {
+  const full = earnestView(d);
+  const ev = seesFees ? full : { held: full.held, any: !!full.held, base: null, percent: null, additional: null, total: null, paidLabel: '' };
   if (!showEmd || !ev.any) return '';
-  return html`<section class="op-emd" data-earnest-commission aria-label="Earnest and commissions"><span class="op-box-label">Earnest &amp; commissions</span>
+  return html`<section class="op-emd" data-earnest-commission aria-label="Earnest and commissions"><span class="op-box-label">${seesFees ? html`Earnest &amp; commissions` : 'Earnest money'}</span>
     ${ev.held ? html`<span data-emd-held-by>EMD held by <b>${ev.held}</b></span>` : ''}
     ${ev.base != null ? html`<span data-commission-base>Base <b>${fmtMoney(ev.base)}</b></span>` : ''}
     ${ev.percent != null ? html`<span data-commission-percent><b>${ev.percent}%</b></span>` : ''}
