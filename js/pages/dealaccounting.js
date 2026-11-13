@@ -242,7 +242,7 @@ function mountCalc(root, api, deal, acc, refresh) {
 // ---------------- ALTA Settlement Statement ----------------
 // AF-6 (John, Nov 12): "Generate CD" / "Generate ALTA" make a PDF of the live tab: the browser's print window opens with the file's
 // document name filled in; choose "Save as PDF". The CD and ALTA tabs stay as they are.
-const printBtn = (what, deal) => html`<button type="button" class="acct-noprint" data-print="${what}" data-generate="${what}" data-pdf-name="${pdfName(deal, what)}" title="Opens the print window. Choose Save as PDF.">Generate ${what === 'alta' ? 'ALTA' : 'CD'}</button>`;
+const printBtn = (what, deal) => html`<button type="button" class="ghost acct-noprint" data-print="${what}" data-generate="${what}" data-pdf-name="${pdfName(deal, what)}" title="Opens the print window. Choose Save as PDF.">Generate ${what === 'alta' ? 'ALTA' : 'CD'}</button>`;
 export const pdfName = (deal, what) => `${(deal && deal.fileNumber) || 'File'} - ${what === 'alta' ? 'ALTA Settlement Statement' : 'Closing Disclosure'} - TEST`;
 const mountPrint = (root) => $$('[data-print]', root).forEach((b) => b.addEventListener('click', () => {
   const was = document.title; document.title = b.dataset.pdfName || was;
