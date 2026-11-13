@@ -26,7 +26,7 @@ This file lists the portal's major features: how each one should work, how far a
 | AF-3 | Agent or TC changes: "You're changing X from $A to $B", "Agent confirmed", notices to staff | Live on TEST, [PR 235](https://github.com/Johncoester/cla-portal-demo/pull/235) |
 | AF-4 | Notice to the agent when staff change a confirmed fee | Live on TEST, [PR 236](https://github.com/Johncoester/cla-portal-demo/pull/236) |
 | AF-5 | Fees post to Accounting automatically | Live on TEST, [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) |
-| AF-6 | "Generate CD" and "Generate ALTA" PDF buttons | In progress, PR AF-6 |
+| AF-6 | "Generate CD" and "Generate ALTA" PDF buttons | Live on TEST, [PR 238](https://github.com/Johncoester/cla-portal-demo/pull/238) |
 
 **What's built**
 
@@ -150,16 +150,19 @@ This file lists the portal's major features: how each one should work, how far a
 - FF-067 (#7): the seller's Outstanding Mortgage Information takes the full loan number (up to 30 letters, digits or dashes); several mortgages save without being cut off.
 - FF-068 (#8, #9, #11, #12): EIN/Tax ID for entities; the Social Security number is visible while typed with automatic dashes and masked after save (person and spouse); sellers read "Is the property your primary residence?"; "Where is the water meter?" is removed. Forms already started keep their answers.
 - FF-069b (#14): mortgage and spouse phone numbers must be exactly 10 digits (shown as xxx-xxx-xxxx) before the form saves.
+- FF-071a (#21): the Documents table uses the full page width (long names wrap) and opens newest first.
+- FF-071c (#23): the file overview shows the Disbursement date: for a refinance, the 4th business day after closing (rescission rule: Saturdays count, Sundays and federal holidays don't); for a purchase, the closing date. The processor can type a different date in Edit order details; clearing it goes back to the automatic date.
+- FF-072 / FF-054b (#24): in a file's email (To, Cc, Bcc), "Start a conversation" and Share files, the people offered are only that file's parties and the CLA staff on it; the browser's saved-address suggestions are off for those boxes. Any address can still be typed.
 
 **What's still missing**
 
-- The other confirmed items (#21, #23, #24, street address lookup) are being built one pull request at a time.
+- The other confirmed item (street address lookup) is being built one pull request at a time.
 - On hold: #1, #2, #4, #5, #10, #13, #15, #16, citizenship, spouse marital status, entity documents required, phone and email icons with no app.
 
 **Links**
 
 - Spec: none yet. Source: Janine's video Nov 12 2:57 PM ET; Francis Feedback tickets FF-063 to FF-072.
-- Related pull requests: [PR 221](https://github.com/Johncoester/cla-portal-demo/pull/221) (FF-071b), [PR 222](https://github.com/Johncoester/cla-portal-demo/pull/222) (FF-064/065), [PR 223](https://github.com/Johncoester/cla-portal-demo/pull/223) (FF-070), [PR 224](https://github.com/Johncoester/cla-portal-demo/pull/224) (FF-063), [PR 226](https://github.com/Johncoester/cla-portal-demo/pull/226) (FF-070b speed fix), [PR 228](https://github.com/Johncoester/cla-portal-demo/pull/228) (FF-069d), [PR 229](https://github.com/Johncoester/cla-portal-demo/pull/229) (FF-063c), [PR 230](https://github.com/Johncoester/cla-portal-demo/pull/230) (FF-066), [PR 231](https://github.com/Johncoester/cla-portal-demo/pull/231) (FF-067), [PR 232](https://github.com/Johncoester/cla-portal-demo/pull/232) (FF-068), FF-069b (this change).
+- Related pull requests: [PR 221](https://github.com/Johncoester/cla-portal-demo/pull/221) (FF-071b), [PR 222](https://github.com/Johncoester/cla-portal-demo/pull/222) (FF-064/065), [PR 223](https://github.com/Johncoester/cla-portal-demo/pull/223) (FF-070), [PR 224](https://github.com/Johncoester/cla-portal-demo/pull/224) (FF-063), [PR 226](https://github.com/Johncoester/cla-portal-demo/pull/226) (FF-070b speed fix), [PR 228](https://github.com/Johncoester/cla-portal-demo/pull/228) (FF-069d), [PR 229](https://github.com/Johncoester/cla-portal-demo/pull/229) (FF-063c), [PR 230](https://github.com/Johncoester/cla-portal-demo/pull/230) (FF-066), [PR 231](https://github.com/Johncoester/cla-portal-demo/pull/231) (FF-067), [PR 232](https://github.com/Johncoester/cla-portal-demo/pull/232) (FF-068), [PR 233](https://github.com/Johncoester/cla-portal-demo/pull/233) (FF-069b), [PR 234](https://github.com/Johncoester/cla-portal-demo/pull/234) (FF-071a), [PR 239](https://github.com/Johncoester/cla-portal-demo/pull/239) (FF-071c), FF-072/FF-054b (this change).
 
 **Decisions**
 
