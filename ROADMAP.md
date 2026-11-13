@@ -24,8 +24,8 @@ This file lists the portal's major features: how each one should work, how far a
 | AF-1 | Fee records and change history (database only) | Live on TEST, [PR 225](https://github.com/Johncoester/cla-portal-demo/pull/225) |
 | AF-2 | Staff entry and agent view; buyers and sellers can't see fees | Live on TEST, [PR 227](https://github.com/Johncoester/cla-portal-demo/pull/227) |
 | AF-3 | Agent or TC changes: "You're changing X from $A to $B", "Agent confirmed", notices to staff | Live on TEST, [PR 235](https://github.com/Johncoester/cla-portal-demo/pull/235) |
-| AF-4 | Notice to the agent when staff change a confirmed fee | In progress, [PR 236](https://github.com/Johncoester/cla-portal-demo/pull/236) |
-| AF-5 | Fees post to Accounting automatically | Planned |
+| AF-4 | Notice to the agent when staff change a confirmed fee | Live on TEST, [PR 236](https://github.com/Johncoester/cla-portal-demo/pull/236) |
+| AF-5 | Fees post to Accounting automatically | In progress, PR AF-5 |
 | AF-6 | "Generate CD" and "Generate ALTA" PDF buttons | Planned |
 
 **What's built**
@@ -34,6 +34,7 @@ This file lists the portal's major features: how each one should work, how far a
 - AF-2: an **Agent fees** box on the file overview. Processors (and pre-processors on their files, and admins) see both agent sides and can edit them; other CLA staff on the file see them read only; each agent sees and edits only their own side; buyers and sellers never see it. In the edit window, typing the commission % fills in the $ (or the other way round) from the sales price. Admin fee with Paid by, up to 5 other fees (description, amount, paid to, paid by). When the agent confirmed the side, staff must type a reason before saving. A "Change history" button lists every change (when, who, was, now, reason). The box shows "Not confirmed by the agent yet", "Agent confirmed", "Confirmed by TC", or "Agent confirmed, then changed by CLA staff".
 - AF-3: when an agent (or a TC for the agent) saves, they first see "You're changing … from $A to $B" (or "You're confirming these fees as they are"), with "Yes, save and confirm" and "Go back" (which keeps what they typed). Saving marks the side "Agent confirmed" or "Confirmed by TC". The TC's own overview now has the Agent fees box. When an agent or TC changes or confirms fees, the file's processor, pre-processor and TC get a portal notice (who, the file, old and new values) and an email is queued for each. When a TC confirms, the side's agent is told too.
 - AF-4: when CLA staff change fees the agent (or TC) confirmed, the side's agent gets a portal notice and a queued email: who changed it (marked "CLA Title"), old and new values, and the reason. It says no re-approval is needed. Nobody else is told, and nothing is sent when staff change fees nobody has confirmed yet.
+- AF-5: every agent fee posts to the file's Accounting fee ledger by itself. Each fee is one line under ALTA "Commission" and CD section H, paid by the fee's payer. The payee is the agent's company (or "Buyer's Agent" / "Listing Agent" when it has none), or the other fee's "paid to". A line is kept in step when the fee or the sales price changes, and retired (never deleted) when the fee is removed. If a processor changes the line by hand on the Accounting tab, automatic posting leaves it alone from then on.
 - AF-2 also hides the commission figures in the overview's "Earnest & commissions" box from buyers and sellers. They see only "EMD held by", under "Earnest money".
 - Staff can enter commission base, percent, any additional amount and who pays it (buyer or seller) on Place Order, in Edit order details, and in Accounting > Contract figures. All three use the same figures.
 - Agents have a "Confirm Your Transaction Information" task where they enter their commission split and any fees or credits. Every version they submit is kept, and the file's processor gets an in-portal notice when they submit or revise it.
@@ -46,7 +47,7 @@ This file lists the portal's major features: how each one should work, how far a
 - The agent's "Confirm Your Transaction Information" task isn't pre-filled from the Agent fees box yet; the agent confirms fees in the box instead.
 - Notice emails are queued in the portal's outbox but never sent on TEST (the TEST portal sends no email). Sending them needs the production mail switch, which is John's call.
 - The order's old commission fields can still be read by buyers and sellers through the database (the new Agent fees records can't). They're blank on every TEST file today.
-- Fees are not posted to Accounting automatically. Today a commission line has to be added there by hand.
+- A sales price change re-posts the commission in the database (TEST); the demo (mock) portal re-posts only when the fees are saved.
 - There are no "Generate CD" or "Generate ALTA" PDF buttons.
 - No end-to-end test covers this flow.
 

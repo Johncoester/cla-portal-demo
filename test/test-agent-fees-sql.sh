@@ -34,7 +34,12 @@ create or replace function private.notify(p_ids uuid[], p_kind text, p_deal uuid
   where x is distinct from private.effective_uid() $$;
 create or replace function private.person_name(pid uuid) returns text language sql stable security definer set search_path to pg_catalog, public as $$
   select coalesce((select trim(first_name || ' ' || last_name) from public.profiles where id = pid), 'Unknown') $$;
-create table public.contacts (id uuid primary key, profile_id uuid);
+create table public.contacts (id uuid primary key, profile_id uuid, company text);
+create table public.accounting_fees (id uuid primary key default gen_random_uuid(), deal_id uuid, kind text default 'charge', description text, alta_section text default 'misc',
+  cd_section text default '', cd_line text default '', payee text default '', amount numeric(12,2), paid_by text, split_buyer numeric(12,2) default 0, split_seller numeric(12,2) default 0,
+  split_lender numeric(12,2) default 0, split_other numeric(12,2) default 0, timing text default 'at', note text default '', preset_key text, retired_at timestamptz,
+  check (amount > 0 and split_buyer + split_seller + split_lender + split_other <= amount and cd_line ~ '^((0[1-9])|([1-9][0-9]))?$'));
+create rule accounting_fees_no_delete as on delete to public.accounting_fees do instead nothing;
 create table public.deal_participants (id uuid primary key default gen_random_uuid(), deal_id uuid, contact_id uuid, role text, created_at timestamptz default now());
 create table public.deal_sales_people (deal_id uuid, sales_id uuid);
 create table public.team_members (team_id uuid, profile_id uuid, member_role text);
@@ -103,6 +108,7 @@ psql_super -f "$ROOT/supabase/migrations/20261117100000_agent_fees.sql"
 psql_super -f "$ROOT/supabase/migrations/20261118010000_agent_fee_sides.sql"
 psql_super -f "$ROOT/supabase/migrations/20261118020000_agent_fee_notify.sql"
 psql_super -f "$ROOT/supabase/migrations/20261118030000_agent_fee_staff_notice.sql"
+psql_super -f "$ROOT/supabase/migrations/20261118040000_agent_fee_ledger.sql"
 
 psql_super -o /dev/null <<'SQL'
 create or replace function pg_temp.as_user(p uuid) returns void language sql as $$ select set_config('request.jwt.claim.sub', p::text, false) $$;
@@ -248,7 +254,35 @@ select pg_temp.ok((select basis = 'percent' and round(5000 * pct / 100, 2) = amo
   'a fixed $ commission bigger than the new price switches to keeping its % (still in step)');
 select pg_temp.ok((select bool_and(round(d.purchase_price * f.pct / 100, 2) = f.amount) from public.deal_agent_fees f join public.deals d on d.id = f.deal_id where f.kind = 'commission'),
   'every commission: % and $ agree with the sales price');
+-- 9. AF-5: every fee posts to the fee ledger (ALTA Commission, CD section H), kept in step, never overwriting a hand change
+reset role;
+select pg_temp.ok((select count(*) = (select count(*) from public.deal_agent_fees where amount > 0) from public.accounting_fees where preset_key like 'agent_fee:%' and retired_at is null),
+  'AF-5: one live ledger line per agent fee');
+select pg_temp.ok((select bool_and(f.amount = a.amount and a.alta_section = 'commission' and a.cd_section = 'H' and a.kind = 'charge' and a.paid_by = coalesce(f.payer, case f.side when 'buyer' then 'buyer' else 'seller' end)
+    and (case a.paid_by when 'buyer' then a.split_buyer else a.split_seller end) = a.amount)
+  from public.deal_agent_fees f join public.accounting_fees a on a.preset_key = 'agent_fee:' || f.side || ':' || f.kind || ':' || f.slot and a.deal_id = f.deal_id where f.amount > 0),
+  'AF-5: ledger amount, payer, ALTA Commission and CD section H match each fee');
+select pg_temp.ok((select description = 'Real estate commission - buyer''s agent (2.75%)' and amount = 137.5 from public.accounting_fees where preset_key = 'agent_fee:buyer:commission:0'),
+  'AF-5: the commission line followed the price change');
+-- a processor changes the buyer commission line by hand; a later price change leaves it alone, but the listing line still follows
+update public.accounting_fees set amount = 999 where preset_key = 'agent_fee:buyer:commission:0';
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+update public.deals set purchase_price = 400000 where id = '22222222-2222-2222-2222-222222222222';
+reset role;
+select pg_temp.ok((select amount = 999 from public.accounting_fees where preset_key = 'agent_fee:buyer:commission:0'), 'AF-5: a line changed by hand on Accounting is never overwritten');
+select pg_temp.ok((select a.amount = f.amount and f.amount > 137.5 from public.accounting_fees a join public.deal_agent_fees f on f.side = 'listing' and f.kind = 'commission' where a.preset_key = 'agent_fee:listing:commission:0'),
+  'AF-5: other lines keep following the fees');
+-- removing a fee retires its line (fees are never deleted from the ledger)
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select count(*) from public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'listing',
+  (select jsonb_build_object('commission', jsonb_build_object('basis', 'amount', 'amount', amount::text)) from public.deal_agent_fees where side = 'listing' and kind = 'commission'), 'Admin fee waived');
+reset role;
+select pg_temp.ok((select count(*) = 1 from public.accounting_fees where preset_key = 'agent_fee:listing:admin:0' and retired_at is not null)
+  and (select count(*) = 0 from public.accounting_fees where preset_key = 'agent_fee:listing:admin:0' and retired_at is null), 'AF-5: a removed fee''s ledger line is retired, not deleted');
+select pg_temp.ok((select count(*) = 0 from public.accounting_fees where deal_id = '44444444-4444-4444-4444-444444444444'), 'AF-5: a refinance posts nothing');
 SQL
+psql_super -f "$ROOT/supabase/rollbacks/20261118040000_agent_fee_ledger.sql"
+psql_super -c "do \$\$ begin if to_regclass('public.deal_agent_fee_ledger') is not null then raise exception 'FAIL AF-5 rollback'; end if; raise notice 'PASS  AF-5 rollback stops the posting'; end \$\$;"
 psql_super -f "$ROOT/supabase/rollbacks/20261118030000_agent_fee_staff_notice.sql"
 psql_super -f "$ROOT/supabase/rollbacks/20261118020000_agent_fee_notify.sql"
 psql_super -c "do \$\$ begin if to_regprocedure('private.agent_fee_notify(uuid,text,text,text)') is not null or to_regprocedure('public.save_agent_fees(uuid,text,jsonb,text)') is null then raise exception 'FAIL AF-3 rollback'; end if; raise notice 'PASS  AF-3 rollback keeps the AF-1 save and drops the notices'; end \$\$;"
