@@ -21,6 +21,6 @@ ok(el(b, 'mail_city').value === 'Bethesda' && el(b, 'mail_state').value === 'MD'
 ok(el(b, 'street').value === '', 'a prefixed form does not touch other address boxes');
 ok(b.dataset.addressBound_mail === '1' && b.dataset.addressBound !== '1', 'each prefix is wired once');
 const src = readFileSync(new URL('../js/pages/dealtaskform.js', import.meta.url), 'utf8');
-ok(src.includes('if (form.elements.street && form.elements.city) bindAddressFill(form);') && src.includes("bindAddressFill(form, { prefix: 'mail_' });"), 'task forms with street/city boxes (forwarding address, mailed proceeds check) get the lookup');
+ok(src.includes("if (named('street') && named('city')) bindAddressFill(form);") && src.includes("bindAddressFill(form, { prefix: 'mail_' });"), 'task forms with street/city boxes (forwarding address, mailed proceeds check) get the lookup');
 console.log(fail ? `FAIL ${fail}` : 'all task address fill checks passed');
 process.exit(fail ? 1 : 0);
