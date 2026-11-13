@@ -367,7 +367,9 @@ export async function createSupabaseAdapter(cfg) {
     row.closerName = row.closerName || ''; row.closerProfileId = row.closerProfileId || null;
     return withRole(row, null, new Map());
   }
-  const rawDocs = async (id) => camel(ok(await sb.from('documents').select('*').eq('deal_id', id)));
+  // Nov 13: newest first in the query itself. The API returns at most 1,000 rows, and an unordered read of a file with more
+  // than that (the walkthrough's test file has about 1,300 uploads) left out the newest documents, so a fresh upload never appeared.
+  const rawDocs = async (id) => camel(ok(await sb.from('documents').select('*').eq('deal_id', id).order('created_at', { ascending: false })));
   const a = {
     mode: 'supabase',
     // ---- auth (real logins; the dev picker and ?as= links are mock-only and ignored in this mode) ----
