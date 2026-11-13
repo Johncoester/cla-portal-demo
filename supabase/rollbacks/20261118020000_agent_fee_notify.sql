@@ -1,4 +1,4 @@
--- Rollback for AF-3 (20261117120000_agent_fee_notify.sql): puts back the AF-1 save_agent_fees (no notices) and drops the notice helpers.
+-- Rollback for AF-3 (20261118020000_agent_fee_notify.sql): puts back the AF-1 save_agent_fees (no notices) and drops the notice helpers.
 -- Notices and queued outbox rows already written are kept.
 begin;
 create or replace function public.save_agent_fees(p_deal uuid, p_side text, p_fees jsonb, p_reason text default null)

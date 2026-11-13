@@ -151,7 +151,7 @@ Migration `supabase/migrations/20261117110000_agent_fee_sides.sql` adds `agent_f
 
 ## AF-3 as built (agent and TC changes, notices to the CLA team)
 
-Migration `supabase/migrations/20261117120000_agent_fee_notify.sql` re-creates `save_agent_fees` so that a save by an agent or TC calls `private.agent_fee_notify`: one portal notice (kind `agent_fee`, link to the file) to the file's processor, pre-processor and TC, plus the side's agents when a TC saved. The notice names who, the file, and each change as old → new. One email per person is queued in `public.outbox` (subject "Agent fees changed on <file>" or "Agent fees confirmed on <file>"). The TEST portal never sends outbox email.
+Migration `supabase/migrations/20261118020000_agent_fee_notify.sql` re-creates `save_agent_fees` so that a save by an agent or TC calls `private.agent_fee_notify`: one portal notice (kind `agent_fee`, link to the file) to the file's processor, pre-processor and TC, plus the side's agents when a TC saved. The notice names who, the file, and each change as old → new. One email per person is queued in `public.outbox` (subject "Agent fees changed on <file>" or "Agent fees confirmed on <file>"). The TEST portal never sends outbox email.
 
 - The box (`js/pages/agent-fees-box.js`) shows the agent or TC a check screen before saving: "You're changing … from $A to $B", "Yes, save and confirm", "Go back" (keeps what was typed). The TC's overview (`renderTcOverview` in `js/pages/deal.js`) now shows the box.
 - `feeText` / `feeChanges` in `js/data/agent-fees.js` build the old → new lines for the check screen; the database builds the same text for notices.
