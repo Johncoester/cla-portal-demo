@@ -17,7 +17,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611170800';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611162200';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611171010';
+import { prefetchDealTab } from './deal-tab.js?v=202611182100';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';
@@ -26,7 +26,7 @@ import { viewTasksHref } from '../data/task-board.js?v=202611140100';
 import { earnestView, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611141000';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611161500';
 import { bindAddressFill } from '../data/address-fill.js?v=202611141400';
-import { agentFeesPanel } from './agent-fees-box.js?v=202611171010';
+import { agentFeesPanel } from './agent-fees-box.js?v=202611182100';
 function staffSections(ctx, dealId) {
   const { api } = ctx;
   const user = ctx.user;
