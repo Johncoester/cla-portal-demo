@@ -15,7 +15,7 @@ ok(app.includes('data-order-only-nav'), 'the existing order-page marker stays');
 ok(app.includes('${dealNav}'), 'file tabs stay in the sidebar');
 ok(css.includes('.nav-global-wrap') && css.includes('.file-nav-toggle'), 'the collapsed menu has its own spacing');
 ok(css.includes('[hidden] { display: none !important; }'), 'a hidden menu stays hidden');
-ok(html.includes('js/app.js?v=202611182100') && html.includes('css/portal.css?v=202611182100') && html.includes('css/staff-feedback-widget.css?v=202611080400'), 'the published page loads the updated shell');
+ok(html.includes('js/app.js?v=202611182130') && html.includes('css/portal.css?v=202611182110') && html.includes('css/staff-feedback-widget.css?v=202611080400'), 'the published page loads the updated shell');
 ok(html.includes('testportal.clatitle.com') === false && readFileSync(new URL('../CNAME', import.meta.url), 'utf8').trim() === 'testportal.clatitle.com', 'the custom domain file is unchanged');
 console.log(fail ? fail + ' failed' : 'file nav passed');
 if (fail) process.exit(1);
