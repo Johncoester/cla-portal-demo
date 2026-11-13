@@ -3,8 +3,8 @@ import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
 import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611171200';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
-import { spouseSectionHtml, spousePayload, loadSpouseRows, applySpouse } from './spouse.js?v=202611171200';
-import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611101015';
+import { spouseSectionHtml, spousePayload, spousePhoneError, loadSpouseRows, applySpouse, bindSsnDash, showSsnMask } from './spouse.js?v=202611171200';
+import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, phoneOk, PHONE_MSG } from '../data/constants.js?v=202611101015';
 import { bindAddressFill } from '../data/address-fill.js?v=202611141400';
 import { CLS, LABEL } from './dealtasks.js?v=202611171200';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
