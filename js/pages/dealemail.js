@@ -3,7 +3,7 @@
 // mail sent from Gmail, and files added from the computer while composing are saved to Documents for CLA staff only, once. A file picked
 // from Documents is not saved again. The server never emails wire details. Any address can be emailed (John, Nov 13: no test-address list on TEST).
 import { html, raw, esc, toText, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611161500';
-import { editorHtml, mountEditor } from './compose.js?v=202611161500';
+import { editorHtml, mountEditor } from './compose.js?v=202611191100';
 import { canUseGmail, introRecipients, introTemplate, hasSignature, fileTag } from '../data/gmail-email.js?v=202611191000';
 import { applyFileTemplate } from '../data/file-email-templates.js?v=202611140400';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';

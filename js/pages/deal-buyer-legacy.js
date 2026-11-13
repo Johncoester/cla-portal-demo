@@ -9,12 +9,12 @@ import { officeDate } from '../data/office-date.js?v=202611102100';
 import { slotText } from './dealclosing.js?v=202611170800';
 import { viewTasksHref } from '../data/task-board.js?v=202611140100';
 import { pickerHtml, mountPicker } from './person-picker.js?v=202611161500';
-import { composeModal } from './compose.js?v=202611161500';
+import { composeModal } from './compose.js?v=202611191100';
 import { sourceChoices } from '../data/place-order.js?v=202611092320';
 import { themeOn } from '../theme.js?v=202611070139';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 
-const TABS = { tasks: './dealtasks.js?v=202611191200', inbox: './dealmsgs.js?v=202611162200', documents: './dealdocs.js?v=202611190500', contacts: './dealcontacts.js?v=202611191200', activity: './dealactivity.js?v=202611161500', closing: './dealclosing.js?v=202611170800', agreements: './dealagreements.js?v=202611161500', accounting: './dealaccounting.js?v=202611182140' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611191200', inbox: './dealmsgs.js?v=202611191100', documents: './dealdocs.js?v=202611191100', contacts: './dealcontacts.js?v=202611191200', activity: './dealactivity.js?v=202611161500', closing: './dealclosing.js?v=202611170800', agreements: './dealagreements.js?v=202611161500', accounting: './dealaccounting.js?v=202611182140' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
