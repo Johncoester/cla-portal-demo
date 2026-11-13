@@ -1,4 +1,4 @@
--- Rollback for AF-5 (20261117140000_agent_fee_ledger.sql): stops automatic posting. Ledger lines already posted stay on the ledger
+-- Rollback for AF-5 (20261117160000_agent_fee_ledger.sql): stops automatic posting. Ledger lines already posted stay on the ledger
 -- (fees are never deleted); retire them on the Accounting tab if needed.
 begin;
 drop trigger if exists zz_agent_fee_ledger on public.deal_agent_fees;
