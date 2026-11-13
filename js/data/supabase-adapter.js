@@ -29,7 +29,7 @@ import { closingLocationSupabase } from './supabase-closing-location.js?v=202611
 import { tcSupabase } from './supabase-tc.js?v=202611140800';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
 import { gmailSupabase } from './supabase-gmail.js?v=202611140900';
-import { nov5Supabase } from './supabase-nov5.js?v=202611141400';
+import { nov5Supabase } from './supabase-nov5.js?v=202611162200';
 import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611141400';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611140100';
 import { staffSupabase } from './supabase-staff.js?v=202611141400';
@@ -51,6 +51,7 @@ import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=2026
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
+import { readThreadPeople, roleText, withThreadPeople } from './portal-threads.js?v=202611162200';
 import { activityFilters, actorList, applyActivityFilters, hasActivityFilter, matchesActivity, withActors } from './activity-filter.js?v=202611162000';
 import { resetRedirect } from './reset-redirect.js?v=202611161900';
 import { authEventAction, carriedReads, gatherReads, identitySlot, mapLimit, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611111200';
@@ -985,10 +986,13 @@ export async function createSupabaseAdapter(cfg) {
     const parts = camel(ok(await sb.from('thread_participants').select('profile_id').eq('thread_id', id))) || [];
     const ids = parts.map((p) => p.profileId).filter(Boolean);
     if (user && !ids.includes(user.id)) throw new Error('You are not part of this conversation.');
-    const profiles = ids.length ? camel(ok(await sb.from('profiles').select('id, first_name, last_name, role').in('id', ids))) || [] : [];
+    // FF-070 (Janine, Nov 12): thread_people fills the name and role of people (usually CLA staff) the viewer's profiles read hides
+    const [read, people] = await Promise.all([ids.length ? sb.from('profiles').select('id, first_name, last_name, role').in('id', ids) : { data: [] }, readThreadPeople(sb, [id])]);
+    const profiles = withThreadPeople(camel(ok(read)) || [], people);
     const who = (pid) => profiles.find((p) => p.id === pid);
-    return { ...t, participantIds: ids, participants: ids.map((pid) => { const p = who(pid); return { id: pid, name: p ? `${p.firstName || ''} ${p.lastName || ''}`.trim() : 'Participant', role: p ? p.role : '', wireOk: true }; }),
-      messages: (t.messages || []).map((m) => ({ ...m, authorName: (who(m.authorId) && `${who(m.authorId).firstName || ''} ${who(m.authorId).lastName || ''}`.trim()) || 'Participant', mine: !!(user && m.authorId === user.id), body: m.body || '', attachments: m.attachments || [] })) };
+    const nameOf = (p) => (p ? `${p.firstName || ''} ${p.lastName || ''}`.trim() || roleText(p.role) : '') || 'Participant';
+    return { ...t, participantIds: ids, participants: ids.map((pid) => { const p = who(pid); return { id: pid, name: nameOf(p), role: p ? roleText(p.role) : '', wireOk: true }; }),
+      messages: (t.messages || []).map((m) => ({ ...m, authorName: nameOf(who(m.authorId)), mine: !!(user && m.authorId === user.id), body: m.body || '', attachments: m.attachments || [] })) };
   };
   a.cancelSignatureRequest = async () => { throw new Error(NOT_ENABLED); };
   const shareRead = (name) => {
