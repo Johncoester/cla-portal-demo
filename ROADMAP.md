@@ -32,6 +32,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 - AF-1 (database only, nothing on screen yet): each file keeps, per agent side, a commission (% and $ always in step with the sales price), an admin fee with who pays it, and up to 5 other fees. Each fee records whether staff, the agent or a TC set it, and who confirmed it and when. A history keeps who, when, old value, new value, reason and source. Staff can't change a fee the agent or TC confirmed without a reason. When the sales price changes, each commission is worked out again and the change goes in the history.
 - AF-2: an **Agent fees** box on the file overview. Processors (and pre-processors on their files, and admins) see both agent sides and can edit them; other CLA staff on the file see them read only; each agent sees and edits only their own side; buyers and sellers never see it. In the edit window, typing the commission % fills in the $ (or the other way round) from the sales price. Admin fee with Paid by, up to 5 other fees (description, amount, paid to, paid by). When the agent confirmed the side, staff must type a reason before saving. A "Change history" button lists every change (when, who, was, now, reason). The box shows "Not confirmed by the agent yet", "Agent confirmed", "Confirmed by TC", or "Agent confirmed, then changed by CLA staff".
+- AF-2 also hides the commission figures in the overview's "Earnest & commissions" box from buyers and sellers. They see only "EMD held by", under "Earnest money".
 - Staff can enter commission base, percent, any additional amount and who pays it (buyer or seller) on Place Order, in Edit order details, and in Accounting > Contract figures. All three use the same figures.
 - Agents have a "Confirm Your Transaction Information" task where they enter their commission split and any fees or credits. Every version they submit is kept, and the file's processor gets an in-portal notice when they submit or revise it.
 - The Accounting fee ledger already has a "Commission" section that shows on the CD (section H, "Other") and on the settlement statement.
@@ -45,7 +46,6 @@ This file lists the portal's major features: how each one should work, how far a
 - No notice to the agent and no "You're changing X from $A to $B" check yet (AF-3, AF-4).
 - The order's old commission fields can still be read by buyers and sellers through the database (the new Agent fees records can't). They're blank on every TEST file today.
 - Fees are not posted to Accounting automatically. Today a commission line has to be added there by hand.
-- The "Earnest & commissions" box on a file's overview can be seen by buyers and sellers too. John decided they must not see it.
 - There are no "Generate CD" or "Generate ALTA" PDF buttons, and no email notices for fee changes.
 - No end-to-end test covers this flow.
 
