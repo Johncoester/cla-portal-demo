@@ -32,6 +32,15 @@ while IFS= read -r f; do
   fi
 done < <(find "$ROOT/supabase/migrations" -name '*.sql' | sort)
 
+# Columns added to deals by migrations newer than the parcel file are set aside here, so the
+# count checks below still see the Nov 10 shape this test is about (FF-071c added disbursement_date).
+for col in disbursement_date; do
+  if "${PSQL[@]}" -tAc "select 1 from information_schema.columns where table_schema='public' and table_name='deals' and column_name='$col'" | grep -q 1; then
+    echo "PARK deals.$col (added after the parcel migration)"
+    "${PSQL[@]}" -c "alter table public.deals drop column $col;"
+  fi
+done
+
 # Migrations whose drift checks need the live TEST function bodies cannot run here.
 # Apply only the column they add, using the statement from that file, when it is still missing,
 # so the later count-checked migrations see the same deals shape main has.
