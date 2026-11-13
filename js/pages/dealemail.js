@@ -118,8 +118,8 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
   let chosenTemplateKey = pre.templateKey || null;
   const m = modal(pre.replyToEmailId ? 'Reply' : pre.templateKey === 'intro' ? 'Introduction email' : 'New email', html`<form data-mail-compose onsubmit="return false" class="form-grid">
     <label class="span2">From<input value="${gmail.connected ? gmail.mailbox : 'Connect Gmail on Profile Setting first'}" disabled data-mail-compose-from></label>
-    <label class="span2">To<input name="to" value="${(pre.to || []).join(', ')}" placeholder="name@example.com, ..." data-mail-to></label>
-    <label>Cc<input name="cc" value="${(pre.cc || []).join(', ')}" data-mail-cc></label><label>Bcc<input name="bcc" data-mail-bcc></label>
+    <label class="span2">To<input name="to" value="${(pre.to || []).join(', ')}" placeholder="name@example.com, ..." autocomplete="off" data-mail-to></label>
+    <label>Cc<input name="cc" value="${(pre.cc || []).join(', ')}" autocomplete="off" data-mail-cc></label><label>Bcc<input name="bcc" autocomplete="off" data-mail-bcc></label>
     <div class="span2 small" data-mail-people></div>
     ${templates.length && !pre.replyToEmailId ? html`<label class="span2">Use template<select data-mail-template><option value="">(blank — no template)</option>${tplOpts}</select></label>
       <div class="span2 notice warn" data-mail-tpl-warn hidden></div>` : ''}
