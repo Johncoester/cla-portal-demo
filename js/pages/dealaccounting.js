@@ -6,7 +6,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { modOn } from '../data/modules.js?v=202611101015';
 import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611070139';
 import { prorationsView } from './dealaccounting-prorations.js?v=202611161500';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
-import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611161500'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
+import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611182140'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
 import { render as postClosingRender } from './dealpostclosing.js?v=202611161500';
 import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611161500';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611070139';
@@ -240,8 +240,13 @@ function mountCalc(root, api, deal, acc, refresh) {
 }
 
 // ---------------- ALTA Settlement Statement ----------------
-const printBtn = (what) => html`<button type="button" class="ghost acct-noprint" data-print="${what}">Print ${what === 'alta' ? 'ALTA statement' : 'CD fee pages'}</button>`;
-const mountPrint = (root) => $$('[data-print]', root).forEach((b) => b.addEventListener('click', () => { document.body.classList.add('acct-printing'); setTimeout(() => { window.print(); document.body.classList.remove('acct-printing'); }, 30); }));
+// AF-6 (John, Nov 12): "Generate CD" / "Generate ALTA" make a PDF of the live tab: the browser's print window opens with the file's
+// document name filled in; choose "Save as PDF". The CD and ALTA tabs stay as they are.
+const printBtn = (what, deal) => html`<button type="button" class="ghost acct-noprint" data-print="${what}" data-generate="${what}" data-pdf-name="${pdfName(deal, what)}" title="Opens the print window. Choose Save as PDF.">Generate ${what === 'alta' ? 'ALTA' : 'CD'}</button>`;
+export const pdfName = (deal, what) => `${(deal && deal.fileNumber) || 'File'} - ${what === 'alta' ? 'ALTA Settlement Statement' : 'Closing Disclosure'} - TEST`;
+const mountPrint = (root) => $$('[data-print]', root).forEach((b) => b.addEventListener('click', () => {
+  const was = document.title; document.title = b.dataset.pdfName || was;
+  document.body.classList.add('acct-printing'); setTimeout(() => { window.print(); document.body.classList.remove('acct-printing'); document.title = was; }, 30); }));
 const docHead = (deal, title, sub) => html`<header class="acct-doc-head"><div class="acct-mark" data-print-mark>${TEST_MARK}</div>
   <h2>${title}</h2>${sub ? html`<p class="muted">${sub}</p>` : ''}
   <dl class="acct-doc-meta"><div><dt>File #</dt><dd>${deal.fileNumber}</dd></div><div><dt>Property</dt><dd>${deal.street}, ${deal.city}, ${deal.state} ${deal.zip}</dd></div>
@@ -253,7 +258,7 @@ async function altaView(api, deal, acc, q, base) {
   const view = ['combined', 'buyer', 'seller'].includes(q.get('view')) ? q.get('view') : 'combined';
   const st = await api.getAltaStatement(deal.id, view); const V = st.view; const combined = V === 'combined';
   const choices = (acc.refi ? [['buyer', 'Borrower']] : [['combined', 'Combined'], ['buyer', 'Buyer / borrower'], ['seller', 'Seller']]);
-  const seg = html`<div class="acct-toolbar acct-noprint"><div class="seg" data-alta-views>${choices.map(([k, l]) => html`<a class="seg-btn ${k === V ? 'on' : ''}" href="${base}?v=alta&view=${k}" data-alta-view="${k}">${l}</a>`)}</div><span class="spacer"></span>${printBtn('alta')}</div>`;
+  const seg = html`<div class="acct-toolbar acct-noprint"><div class="seg" data-alta-views>${choices.map(([k, l]) => html`<a class="seg-btn ${k === V ? 'on' : ''}" href="${base}?v=alta&view=${k}" data-alta-view="${k}">${l}</a>`)}</div><span class="spacer"></span>${printBtn('alta', deal)}</div>`;
   const cols = combined ? 5 : 3;
   const amt = (n) => html`<td class="num">${m2(n)}</td>`;
   const line = (r) => combined ? html`<tr data-alta-row="${r.id}">${amt(r.sellerDebit)}${amt(r.sellerCredit)}<td>${r.description}${r.memo ? html`<div class="small muted">${r.memo}</div>` : ''}</td>${amt(r.buyerDebit)}${amt(r.buyerCredit)}</tr>`
