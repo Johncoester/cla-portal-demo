@@ -16,7 +16,7 @@
       if (t && /(?:^#|&)type=invite(?:&|$)/.test(h)) { var p = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); while (p.length % 4) p += '=';
         var c = JSON.parse(atob(p)); v = String((c && c.user_metadata && c.user_metadata.portal_invite) || ''); } }
     var m = RE.exec(v); if (m) history.replaceState(null, '', location.pathname + '#/' + (m[1] === 'hr' ? 'hr-invite' : 'agent-invite') + '/' + m[2]); } catch (e) { /* the copy link still works */ } })();</script>
-  <script type="module" src="js/app.js?v=202611191000"></script>
+  <script type="module" src="js/app.js?v=202611191200"></script>
 </head>
 <body class="theme-cards">
   <div id="app"></div>
