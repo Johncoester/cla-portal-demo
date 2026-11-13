@@ -365,7 +365,7 @@ export function applySellerTasks(d, { at = new Date().toISOString(), by = null }
   return { added, moved };
 }
 /* FF-066 (migration 122): personal_info v7 (no proceeds acknowledgment) and seller_proceeds v2 (with it). Same move rule: untouched to-do copies
- * with no answers take the new version; a copy with answers keeps its version and its answers. Idempotent. Mirrored in SQL 20261117040000. */
+ * with no answers take the new version; a copy with answers keeps its version and its answers. Idempotent. Mirrored in SQL 20261117140000. */
 const isProceedsV7 = (t) => t.code === 'personal_info' && (t.fields || []).some((f) => f.k === 'water_meter') && !(t.fields || []).some((f) => f.k === 'proceeds_ack');
 const isProceedsV2 = (t) => t.code === 'seller_proceeds' && (t.fields || []).some((f) => f.k === 'proceeds_wire_note');
 export function applyProceedsMove(d, { at = new Date().toISOString(), by = null } = {}) {

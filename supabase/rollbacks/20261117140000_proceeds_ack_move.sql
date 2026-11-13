@@ -1,4 +1,4 @@
--- Rollback for 20261117040000_proceeds_ack_move.sql: makes personal_info v6 and seller_proceeds v1 active again and moves untouched
+-- Rollback for 20261117140000_proceeds_ack_move.sql: makes personal_info v6 and seller_proceeds v1 active again and moves untouched
 -- copies back. Copies with answers on v7 / v2 keep them (nothing is deleted); the v7 / v2 rows stay, inactive, so those copies still open.
 begin;
 update public.tasks task set template_id = prev.id, template_version = prev.version, title = prev.title, description = prev.description
