@@ -162,7 +162,7 @@ Migration `supabase/migrations/20261117130000_agent_fee_staff_notice.sql` re-cre
 
 ## AF-5 as built (posting to Accounting)
 
-Migration `supabase/migrations/20261117140000_agent_fee_ledger.sql` adds a trigger on `deal_agent_fees` (`private.agent_fee_ledger_sync`) and a link table `deal_agent_fee_ledger` (fee → ledger line, plus what was last posted). Each fee keeps one `accounting_fees` line: kind charge, ALTA `commission`, CD `H`, `preset_key` `agent_fee:<side>:<kind>:<slot>`, paid by the fee's payer (the whole amount on that side). A $0 or removed fee retires its line. A line whose description, payee, amount or payer no longer match what was last posted was changed by hand and is left alone. The ledger's own guard and history triggers still run, so the Accounting history shows each automatic change. `agentFeeLedgerInput` in `js/data/agent-fees.js` builds the same line for the demo adapter.
+Migration `supabase/migrations/20261117160000_agent_fee_ledger.sql` adds a trigger on `deal_agent_fees` (`private.agent_fee_ledger_sync`) and a link table `deal_agent_fee_ledger` (fee → ledger line, plus what was last posted). Each fee keeps one `accounting_fees` line: kind charge, ALTA `commission`, CD `H`, `preset_key` `agent_fee:<side>:<kind>:<slot>`, paid by the fee's payer (the whole amount on that side). A $0 or removed fee retires its line. A line whose description, payee, amount or payer no longer match what was last posted was changed by hand and is left alone. The ledger's own guard and history triggers still run, so the Accounting history shows each automatic change. `agentFeeLedgerInput` in `js/data/agent-fees.js` builds the same line for the demo adapter.
 
 ## Open questions (resolved Nov 12 2026 by John)
 
