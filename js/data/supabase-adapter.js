@@ -53,6 +53,7 @@ import { claRepresentationCode, claRepresentationLabel } from './cla-representat
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
 import { readThreadPeople, roleText, withThreadPeople } from './portal-threads.js?v=202611162200';
+import { ensureShareInvite, waitingParticipant } from './share-invite.js?v=202611191000';
 import { activityFilters, actorList, applyActivityFilters, hasActivityFilter, matchesActivity, withActors } from './activity-filter.js?v=202611162000';
 import { resetRedirect } from './reset-redirect.js?v=202611161900';
 import { authEventAction, carriedReads, gatherReads, identitySlot, mapLimit, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611111200';
@@ -946,14 +947,16 @@ export async function createSupabaseAdapter(cfg) {
   // Staff create and resend invite links here. The page then calls sendInviteEmail (gmail-send) from the inviter's Gmail. Accepting a link goes through the accept-invite function, not a browser sign-up.
   Object.assign(a, staffFeedbackSupabase({ sb, ok, camel }));
   a.claRepresentationReady = true;   // deals.cla_representation exists on TEST (20261109150000)
-  a.sendMessage = async ({ dealId, threadId, subject, to, bodyHtml, files } = {}) => {
+  // FF-055 / MF-048: inviteContactId = the picked person is a file contact with no portal login yet. The invite is made here (the page
+  // emails it), and create_thread_invited holds the conversation for them until they sign in (20261119030000_share_invited_hold).
+  a.sendMessage = async ({ dealId, threadId, subject, to, bodyHtml, files, inviteContactId = '' } = {}) => {
     const user = await me();
     if (!user || !user.id) throw new Error('Please sign in.');
     if (viewOnly(user)) throw new Error('This sign-in cannot send messages.');
     const { text } = messageText(bodyHtml);
     const incoming = Array.isArray(files) ? files : [];
     if (!text && !incoming.length) throw new Error('Write a message first.');
-    let thread = threadId || '';
+    let thread = threadId || ''; let invited = null;
     if (thread) {
       const parts = camel(ok(await sb.from('thread_participants').select('profile_id').eq('thread_id', thread))) || [];
       if (!parts.some((p) => p.profileId === user.id)) throw new Error('You are not part of this conversation.');
@@ -962,8 +965,19 @@ export async function createSupabaseAdapter(cfg) {
     } else {
       const allowed = (await a.listMessageRecipients(dealId)).map((p) => p.id);
       const ids = assertRecipients(to, allowed);
-      const created = ok(await sb.rpc('create_thread', { p_deal: dealId, p_subject: subject || (incoming.length ? 'Shared files' : 'New conversation'), p_participants: ids, p_body: text || '(file shared)' }));
-      thread = created && created.id ? created.id : created;
+      const title = subject || (incoming.length ? 'Shared files' : 'New conversation');
+      if (inviteContactId) {
+        if (ids.length !== 1 || ids[0] !== inviteContactId) throw new Error('Someone with no portal login yet has to be the only person in the conversation.');
+        if (incoming.some((f) => f && f.wireInstructions)) throw new Error('Wire instructions cannot be held for someone who has no portal login yet.');
+        const res = await sb.rpc('create_thread_invited', { p_deal: dealId, p_subject: title, p_contact: inviteContactId, p_body: text || '(file shared)' });
+        if (res.error && /create_thread_invited|PGRST202|42883/i.test(`${res.error.code || ''} ${res.error.message || ''}`)) throw new Error('This person has no portal login yet, and holding files for them is not turned on for this site yet. Use Invite to portal on File Contacts, then share after they sign in.');
+        thread = ok(res);
+        try { invited = { contactId: inviteContactId, ...(await ensureShareInvite(a, { dealId, contactId: inviteContactId })) }; }
+        catch (e) { invited = { contactId: inviteContactId, link: '', already: false, error: e && e.message ? e.message : 'The invite was not created.' }; }
+      } else {
+        const created = ok(await sb.rpc('create_thread', { p_deal: dealId, p_subject: title, p_participants: ids, p_body: text || '(file shared)' }));
+        thread = created && created.id ? created.id : created;
+      }
     }
     const names = [];
     try { names.push(...((await a.listDocuments(dealId)) || []).map((d) => d.name)); } catch (e) { /* a list the caller cannot read does not add names */ }
@@ -983,7 +997,7 @@ export async function createSupabaseAdapter(cfg) {
     } else if (savedFiles.length) {
       ok(await sb.from('messages').insert({ thread_id: thread, author_id: user.id, body: `Files on this order: ${savedFiles.map((f) => f.name).join(', ')}`.slice(0, 4000) }));
     }
-    return { id: thread, threadId: thread, sent: false, emailed: false, deliveredInPortal: true, status: 'in_portal', savedFiles, failedFiles };
+    return { id: thread, threadId: thread, sent: false, emailed: false, deliveredInPortal: true, status: invited ? 'held_for_invite' : 'in_portal', savedFiles, failedFiles, ...(invited ? { invited } : {}) };
   };
   a.getThreadDetail = async (id) => {
     const user = await me();
@@ -992,11 +1006,13 @@ export async function createSupabaseAdapter(cfg) {
     const ids = parts.map((p) => p.profileId).filter(Boolean);
     if (user && !ids.includes(user.id)) throw new Error('You are not part of this conversation.');
     // FF-070 (Janine, Nov 12): thread_people fills the name and role of people (usually CLA staff) the viewer's profiles read hides
-    const [read, people] = await Promise.all([ids.length ? sb.from('profiles').select('id, first_name, last_name, role').in('id', ids) : { data: [] }, readThreadPeople(sb, [id])]);
+    // FF-055 / MF-048: people the conversation is held for (invited, no portal login yet). A site without the function shows none.
+    const held = sb.rpc('thread_invitees_list', { p_threads: [id] }).then((r) => (r && !r.error && Array.isArray(r.data) ? r.data : []), () => []);
+    const [read, people, waiting] = await Promise.all([ids.length ? sb.from('profiles').select('id, first_name, last_name, role').in('id', ids) : { data: [] }, readThreadPeople(sb, [id]), held]);
     const profiles = withThreadPeople(camel(ok(read)) || [], people);
     const who = (pid) => profiles.find((p) => p.id === pid);
     const nameOf = (p) => (p ? `${p.firstName || ''} ${p.lastName || ''}`.trim() || roleText(p.role) : '') || 'Participant';
-    return { ...t, participantIds: ids, participants: ids.map((pid) => { const p = who(pid); return { id: pid, name: nameOf(p), role: p ? roleText(p.role) : '', wireOk: true }; }),
+    return { ...t, participantIds: ids, participants: [...ids.map((pid) => { const p = who(pid); return { id: pid, name: nameOf(p), role: p ? roleText(p.role) : '', wireOk: true }; }), ...waiting.map(waitingParticipant)],
       messages: (t.messages || []).map((m) => ({ ...m, authorName: nameOf(who(m.authorId)), mine: !!(user && m.authorId === user.id), body: m.body || '', attachments: m.attachments || [] })) };
   };
   a.cancelSignatureRequest = async () => { throw new Error(NOT_ENABLED); };
