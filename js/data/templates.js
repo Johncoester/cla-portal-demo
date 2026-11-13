@@ -223,7 +223,7 @@ function cleanMortgages(raw) {
   else if (raw) { try { const parsed = JSON.parse(String(raw)); if (Array.isArray(parsed)) list = parsed; } catch (e) { list = []; } }
   return list.map((m) => ({
     lender: String((m && m.lender) || '').trim().slice(0, 200),
-    phone: String((m && m.phone) || '').trim().slice(0, 40),
+    phone: (() => { const ph = String((m && m.phone) || '').trim().slice(0, 40); return phoneOk(ph) ? fmtPhone(ph) : ph; })(),
     loan_number: String((m && (m.loan_number || m.last4)) || '').replace(/[^0-9A-Za-z-]/g, '').slice(0, 30),   // FF-067: the full loan number (older answers kept their last 4 here)
     loan_type: String((m && m.loan_type) || '').trim().slice(0, 40),
   })).filter((m) => m.lender || m.loan_number || m.phone);
@@ -246,6 +246,7 @@ export function validateForm(fields, input, complete) {
     if (f.type === 'mortgages') {
       if (!fieldActive(f, data)) { delete data[f.k]; continue; }
       if (complete && !cleanMortgages(data[f.k]).length) errors.push({ k: f.k, msg: 'Add at least one mortgage, or mark that there is none.' });
+      if (cleanMortgages(data[f.k]).some((m) => m.phone && !phoneOk(m.phone))) errors.push({ k: f.k, msg: `Mortgage phone ${PHONE_MSG}.` });   // FF-069 #14
       continue;
     }
     if (f.type === 'checkbox') { if (!fieldActive(f, data)) delete data[f.k]; else if (complete && f.req && !data[f.k]) errors.push({ k: f.k, msg: `Please tick: ${f.label}.` }); continue; }
