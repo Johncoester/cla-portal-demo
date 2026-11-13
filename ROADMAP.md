@@ -22,7 +22,7 @@ This file lists the portal's major features: how each one should work, how far a
 | Step | What | Status |
 |---|---|---|
 | AF-1 | Fee records and change history (database only) | In progress, [PR 225](https://github.com/Johncoester/cla-portal-demo/pull/225) |
-| AF-2 | Staff entry and agent view; buyers and sellers can't see fees | Planned |
+| AF-2 | Staff entry and agent view; buyers and sellers can't see fees | In progress, PR AF-2 |
 | AF-3 | Agent or TC changes: "You're changing X from $A to $B", "Agent confirmed", notices to staff | Planned |
 | AF-4 | Notice to the agent when staff change a confirmed fee | Planned |
 | AF-5 | Fees post to Accounting automatically | Planned |
@@ -31,6 +31,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's built**
 
 - AF-1 (database only, nothing on screen yet): each file keeps, per agent side, a commission (% and $ always in step with the sales price), an admin fee with who pays it, and up to 5 other fees. Each fee records whether staff, the agent or a TC set it, and who confirmed it and when. A history keeps who, when, old value, new value, reason and source. Staff can't change a fee the agent or TC confirmed without a reason. When the sales price changes, each commission is worked out again and the change goes in the history.
+- AF-2: an **Agent fees** box on the file overview. Processors (and pre-processors on their files, and admins) see both agent sides and can edit them; other CLA staff on the file see them read only; each agent sees and edits only their own side; buyers and sellers never see it. In the edit window, typing the commission % fills in the $ (or the other way round) from the sales price. Admin fee with Paid by, up to 5 other fees (description, amount, paid to, paid by). When the agent confirmed the side, staff must type a reason before saving. A "Change history" button lists every change (when, who, was, now, reason). The box shows "Not confirmed by the agent yet", "Agent confirmed", "Confirmed by TC", or "Agent confirmed, then changed by CLA staff".
 - Staff can enter commission base, percent, any additional amount and who pays it (buyer or seller) on Place Order, in Edit order details, and in Accounting > Contract figures. All three use the same figures.
 - Agents have a "Confirm Your Transaction Information" task where they enter their commission split and any fees or credits. Every version they submit is kept, and the file's processor gets an in-portal notice when they submit or revise it.
 - The Accounting fee ledger already has a "Commission" section that shows on the CD (section H, "Other") and on the settlement statement.
@@ -38,9 +39,11 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Screens for the AF-1 records (AF-2): what staff enter and what the agent enters don't feed each other yet. The agent's answers stay on their task.
-- There are no admin fee or "other agent fee" boxes on screen yet, and only one side's commission can be saved on the order at a time.
-- No "Agent confirmed" label on screen, no notice to the agent, and no "You're changing X from $A to $B" check yet (the reason rule is in the database from AF-1).
+- The older commission boxes (Place Order "Earnest & Commissions", Edit order details, Accounting > Contract figures, the TC's contract figures) still save to the order's old commission fields and don't feed the Agent fees box. John to decide: remove them, or have them fill the Agent fees box.
+- The agent's "Confirm Your Transaction Information" task isn't pre-filled from the Agent fees box yet; the agent confirms fees in the box instead.
+- TCs don't see the Agent fees box yet (their overview is separate); AF-3 adds it.
+- No notice to the agent and no "You're changing X from $A to $B" check yet (AF-3, AF-4).
+- The order's old commission fields can still be read by buyers and sellers through the database (the new Agent fees records can't). They're blank on every TEST file today.
 - Fees are not posted to Accounting automatically. Today a commission line has to be added there by hand.
 - The "Earnest & commissions" box on a file's overview can be seen by buyers and sellers too. John decided they must not see it.
 - There are no "Generate CD" or "Generate ALTA" PDF buttons, and no email notices for fee changes.
