@@ -22,7 +22,8 @@ export default defineConfig({
   use: {
     ...devices['Desktop Chrome'],
     baseURL: target.url,
-    trace: 'retain-on-failure',
+    // Nov 13: off here. fixtures.js records the trace itself and leaves the sign-in step out, so no test password is in it.
+    trace: 'off',
     screenshot: 'only-on-failure',
     video: 'off',
   },
