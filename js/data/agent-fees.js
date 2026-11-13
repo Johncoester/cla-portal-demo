@@ -96,7 +96,7 @@ export function sideStatus(s) {
     const who = s.confirmed.role === 'tc' ? 'Confirmed by TC' : 'Agent confirmed';
     return { text: staffAfter ? `${who}, then changed by CLA staff` : who, cls: staffAfter ? 'warn' : 'ok', by: s.confirmed.by, at: s.confirmed.at };
   }
-  return { text: 'Entered by CLA staff, not confirmed by the agent yet', cls: 'warn' };
+  return { text: 'Not confirmed by the agent yet', cls: 'warn' };
 }
 
 /* Map database / network errors to something a person can act on (AGENTS.md rule 12). Our own messages pass through. */
