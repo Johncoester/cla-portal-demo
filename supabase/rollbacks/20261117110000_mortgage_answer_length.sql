@@ -1,4 +1,4 @@
--- Rollback for 20261117010000_mortgage_answer_length.sql: put back the 300-character cut for mortgages answers.
+-- Rollback for 20261117110000_mortgage_answer_length.sql: put back the 300-character cut for mortgages answers.
 begin;
 create or replace function private.validate_form(p_fields jsonb, p_data jsonb, p_complete boolean, p_deal uuid)
  RETURNS jsonb
