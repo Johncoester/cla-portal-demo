@@ -200,7 +200,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: none yet. Source: Matt's Nov 12 Processor User-File Overview notes (Gmail 1a1d0725a93810ce) and his Nov 12 2:04 PM ET confirmation; FF-074 is the same request, re-forwarded Nov 13 8:52 AM ET. Tracker row 207 (MF-054); FF-074 is the duplicate row.
-- Related pull requests: this change.
+- Related pull requests: [PR 258](https://github.com/Johncoester/cla-portal-demo/pull/258).
 
 **Decisions**
 
@@ -212,7 +212,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** At the admin level, each login still has one account role. On a file, any active staff login (Super admin, Admin, Processor, Preprocessor, Sales Person, Sales Team or Transaction Coordinator) can be picked as the Processor, a salesperson, the Transaction Coordinator, or a party such as the buyer, seller, buyer agent, listing agent or lender. A staff login added as the buyer or seller can open that file in the portal. Demo and real logins stay in their own world. The CRM Owner field is unchanged.
 
-**Status: In progress.** Tracker row ANYROLE-1 (Requests row 288). The pull request is open. It includes a database change that must be applied on TEST after this merges, before the item is marked Live.
+**Status: In progress.** Tracker row ANYROLE-1 (Requests row 288). Pull request: [PR 258](https://github.com/Johncoester/cla-portal-demo/pull/258). It includes a database change that must be applied on TEST after this merges, before the item is marked Live.
 
 **What's built**
 
@@ -229,7 +229,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: none yet. Source: John, call + chat 3:07 PM ET Nov 13. Tracker row ANYROLE-1.
-- Related pull requests: this change.
+- Related pull requests: [PR 258](https://github.com/Johncoester/cla-portal-demo/pull/258).
 
 **Decisions**
 
