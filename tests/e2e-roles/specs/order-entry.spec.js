@@ -69,25 +69,26 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   console.log(`E2E placed file ${number[0]}`);
   await expect(page.locator('[data-parties]')).toContainText(buyer);
   await expect(page.locator('[data-parties]')).toContainText(seller);
-  await expect(page.locator('[data-parcel-id]')).toContainText(parcel);
-  await expect(page.locator('[data-file-identity]')).toBeVisible();
   await expect(page.locator('[data-file-address]')).toContainText('100 E2E Test File');
   await expect(page.locator('[data-file-order]')).toContainText(number[0]);
-  await expect(page.locator('[data-file-buyers]')).toContainText(buyer);
-  await expect(page.locator('[data-file-sellers]')).toContainText(seller);
+  await expect(page.locator('[data-order-header]')).toContainText('Settlement date');
+  await expect(page.locator('[data-file-identity]')).toHaveCount(0);
+  await expect(page.locator('[data-emd-box]')).toHaveCount(0);
+  await expect(page.locator('[data-earnest-commission]')).toHaveCount(0);
   await expect(page.locator('[data-wire-box]')).toHaveCount(0);
   await expect(page.locator('[data-settlement-section]')).toHaveCount(0);
   await expect(page.locator('[data-order-contacts]')).toHaveCount(0);
-  await expect(page.locator('[data-closing-date] [data-settlement-row="date"]')).toBeVisible();
-  await expect(page.locator('[data-closing-date] [data-settlement-row="time"]')).toBeVisible();
-  await expect(page.locator('[data-closing-location]')).toBeVisible();
-  await expect(page.locator('[data-closer]')).toBeVisible();
+  await expect(page.locator('[data-closing-date]')).toHaveCount(0);
+  await expect(page.locator('[data-nav-closing-date]')).toBeVisible();
+  await expect(page.locator('[data-status-bar]')).toBeVisible();
   // the Place Order figures are the file's Agent fees
   await expect(page.locator('[data-agent-fees] [data-agent-fee-side="listing"] [data-af-commission]')).toContainText('3%');
   await expect(page.locator('[data-agent-fees] [data-agent-fee-side="listing"] [data-af-commission]')).toContainText('$12,000');
   await expect(page.locator('[data-agent-fees] [data-agent-fee-side="buyer"] [data-af-admin]')).toContainText('$395');
 
   await page.locator('#editdeal').click();
+  await expect(page.locator('#edf input[name="parcelId"]')).toHaveValue(parcel);
+  await expect(page.locator('#edf [data-closer-input]')).toBeVisible();
   await page.locator('#edf select[name="state"]').selectOption('FL');
   await page.locator('#edf input[name="city"]').fill('Miami');
   await page.locator('#edf input[name="purchasePrice"]').fill('450000');
@@ -95,11 +96,11 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   await expect(page.locator('.toast', { hasText: 'Order saved' })).toBeVisible();
   await expect(page.locator('[data-op-address]')).toContainText('Miami');
   await expect(page.locator('[data-op-order-no]')).toContainText(`FL-${number[2]}-${number[3]}`);
-  await expect(page.locator('[data-purchase-price]')).toContainText('450,000');
+  await expect(page.locator('[data-oh-purchase]')).toContainText('450,000');
   await page.reload();
   await expect(page.locator('[data-op-order-no]')).toContainText(`FL-${number[2]}-${number[3]}`);
   await expect(page.locator('[data-op-address]')).toContainText('Miami');
-  await expect(page.locator('[data-purchase-price]')).toContainText('450,000');
+  await expect(page.locator('[data-oh-purchase]')).toContainText('450,000');
 
   await page.locator('input[data-referral-source^="buyer:"]').first().check();
   await expect(page.locator('[data-source-of-business]')).toContainText(/Buyer/i);

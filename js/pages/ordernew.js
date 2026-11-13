@@ -22,8 +22,8 @@ import { orderDraftKey, readOrderDraft, writeOrderDraft, collectOrderFields, rem
 import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows } from '../data/lender-file.js?v=202611101200';
 import { bindAddressFill } from '../data/address-fill.js?v=202611190800';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611190800';
-import { readEarnest } from '../data/earnest-commission.js?v=202611191100';
-import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611191100';
+import { readEarnest } from '../data/earnest-commission.js?v=202611191300';
+import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611191300';
 import { SIDE_LABEL as AF_SIDE_LABEL } from '../data/agent-fees.js?v=202611182130';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611161500';

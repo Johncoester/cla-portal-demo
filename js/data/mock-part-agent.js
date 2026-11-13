@@ -3,7 +3,7 @@
  * Modify / Submit Revision, task-tied messages, Request Update (staff answer it), Share Access (RECORDED only: no email, no login is created),
  * "Complete Requests Now" invite email (preview + outbox only), rich-text messages with file attachments (Share Files), and the outside user's own
  * Activity feed (only things they can already open). Nothing here deletes anything; documents stay permanent. */
-import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611191100';
+import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611191300';
 import { senderFor } from './email-senders.js?v=202611101015';
 import { CLA_PHONE, isRefi } from './constants.js?v=202611101015';
 export function agentPortal(x) {
@@ -205,7 +205,8 @@ export function agentPortal(x) {
       if (externals.length) { const d0 = load(); for (const id of externals) { const c = d0.contacts.find((z) => z.id === id.slice(8)); if (!c) fail('That contact is not on this order.');
         d0.outbox.push({ id: nid('ob'), channel: 'email', status: 'queued', toEmail: c.email || '', toName: `${c.firstName} ${c.lastName}`.trim(), subject: str(subject, 150) || 'Message', body: text || '(file shared)', dealId, createdBy: u.id, createdAt: now(), sentAt: null }); } save(); }
       if (!profiles.length) { const d0 = load(); const t0 = { id: nid('th'), dealId, subject: str(subject, 150) || 'New conversation', createdBy: u.id, createdAt: now(), participantIds: [u.id] };
-        d0.threads.push(t0); d0.messages.push({ id: nid('m'), threadId: t0.id, authorId: u.id, body: text || '(queued to a contact without a portal login)', createdAt: now() }); save(); return clone(t0); }
+        d0.threads.push(t0); d0.messages.push({ id: nid('m'), threadId: t0.id, authorId: u.id, body: text || '(queued to a contact without a portal login)', createdAt: now() }); save();
+        return clone({ ...t0, invited: { contactId: externals[0].slice(8), link: '', already: false, error: 'Demo: nothing is emailed' } }); }   // FF-055 / MF-048: the page says it is held for them
       if (x.mixedSides([u.id, ...profiles], dealId)) fail('A conversation can include CLA Title staff and ONE side of the order, not both.');
       wireGuard(u, [u.id, ...profiles], dealId, files); x.wireTextGuard([u.id, ...profiles], dealId, `${str(subject, 150)}\n${text}`);
       const ids = await attach(u, dealId, files, shareVisibility(u, profiles, dealId));
