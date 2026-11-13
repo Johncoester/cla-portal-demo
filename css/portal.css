@@ -217,6 +217,8 @@ ul.checklist li.warn-text::before { content: '!'; background: var(--warn-bg); co
 /* ---------- messages ---------- */
 .thread { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; } .bubble { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 10px 14px; max-width: 80%; box-shadow: var(--sh-1); } .bubble.mine { align-self: flex-end; background: var(--navy-50); border-color: var(--navy-100); } .bubble .text { white-space: pre-wrap; }
 .reply { display: flex; gap: 10px; align-items: flex-end; } .reply textarea { flex: 1; }
+/* FF-070 #20: the thread reply box is a full-width, clearly bordered box that grows as you type (up to 60% of the screen, then scrolls). */
+.reply[data-reply] { display: block; } .reply[data-reply] .rte-box { min-height: 140px; max-height: 60vh; overflow-y: auto; border-color: var(--ink-4, #8a94a6); font-size: 15px; line-height: 1.45; } .reply[data-reply] .rte-box:focus { outline: 2px solid var(--navy-500, #2f5aa8); outline-offset: 1px; }
 /* ---------- modal + toasts ---------- */
 .modal-back { position: fixed; inset: 0; background: rgba(11, 23, 48, .5); backdrop-filter: blur(2px); z-index: 50; display: flex; align-items: flex-start; justify-content: center; padding: 7vh 12px 24px; overflow: auto; }
 .modal-box { background: var(--surface); border-radius: var(--r-xl); width: min(540px, 94vw); box-shadow: var(--sh-4); overflow: hidden; } .modal-box.wide { width: min(760px, 94vw); }
