@@ -4,7 +4,7 @@
 import { ordinaryCoverageDoc } from './nov5-rules.js?v=202611131900';
 import { cleanDueRule } from './due-date.js?v=202611110300';
 import { uploadBytes } from './upload-bytes.js?v=202611141400';
-import { shapePortalThreads } from './portal-threads.js?v=202611101800';
+import { readThreadPeople, shapePortalThreads, withThreadPeople } from './portal-threads.js?v=202611162200';
 
 export const SAVED_UNCONFIRMED = 'This file was saved but the list could not be refreshed. It is already stored, so sending it again will not add a second copy.';
 
@@ -73,7 +73,8 @@ export function nov5Supabase({ sb, ok, camel, me }) {
       const messages = ids.length ? camel(ok(await sb.from('messages').select('*').in('thread_id', ids).order('created_at'))) || [] : [];
       const participants = ids.length ? camel(ok(await sb.from('thread_participants').select('thread_id, profile_id, last_read_at').in('thread_id', ids))) || [] : [];
       const profileIds = [...new Set(participants.map((p) => p.profileId).concat(messages.map((m) => m.authorId)).filter(Boolean))];
-      const profiles = profileIds.length ? camel(ok(await sb.from('profiles').select('id, first_name, last_name, role').in('id', profileIds))) || [] : [];
+      const [read, people] = await Promise.all([profileIds.length ? sb.from('profiles').select('id, first_name, last_name, role').in('id', profileIds) : { data: [] }, readThreadPeople(sb, ids)]);
+      const profiles = withThreadPeople(camel(ok(read)) || [], people);   // FF-070: names and roles of staff the viewer cannot read
       return shapePortalThreads({ threads, messages, participants, profiles, userId: user && user.id });
     },
     async getThread(id) {
