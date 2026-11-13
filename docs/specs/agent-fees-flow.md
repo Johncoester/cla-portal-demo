@@ -160,6 +160,10 @@ Migration `supabase/migrations/20261117120000_agent_fee_notify.sql` re-creates `
 
 Migration `supabase/migrations/20261117130000_agent_fee_staff_notice.sql` re-creates `private.agent_fee_notify` with a staff branch: when CLA staff change a side that was confirmed (or give a reason), only that side's agents get the portal notice ("<name> (CLA Title) changed your fees on <file>: … Reason: …") and a queued email saying no approval is needed. The demo adapter does the same.
 
+## AF-5 as built (posting to Accounting)
+
+Migration `supabase/migrations/20261117140000_agent_fee_ledger.sql` adds a trigger on `deal_agent_fees` (`private.agent_fee_ledger_sync`) and a link table `deal_agent_fee_ledger` (fee → ledger line, plus what was last posted). Each fee keeps one `accounting_fees` line: kind charge, ALTA `commission`, CD `H`, `preset_key` `agent_fee:<side>:<kind>:<slot>`, paid by the fee's payer (the whole amount on that side). A $0 or removed fee retires its line. A line whose description, payee, amount or payer no longer match what was last posted was changed by hand and is left alone. The ledger's own guard and history triggers still run, so the Accounting history shows each automatic change. `agentFeeLedgerInput` in `js/data/agent-fees.js` builds the same line for the demo adapter.
+
 ## Open questions (resolved Nov 12 2026 by John)
 
 All seven were answered at 2:33 PM ET (t1544u). The answers are recorded under Decisions above.
