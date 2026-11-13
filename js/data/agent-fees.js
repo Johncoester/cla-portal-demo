@@ -99,6 +99,27 @@ export function sideStatus(s) {
   return { text: 'Not confirmed by the agent yet', cls: 'warn' };
 }
 
+/* What a save will change, for the "You're changing X from $A to $B" check (AF-3). before = one side from groupAgentFees, after = readAgentFees output. */
+const money2 = (n) => `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const pctText = (n) => `${Number(n).toLocaleString('en-US', { maximumFractionDigits: 4 })}%`;
+const paidBy = (p) => (p ? ` (paid by ${PAYER_LABEL[p] || p})` : '');
+export function feeText(kind, f) {
+  if (!f) return 'none';
+  if (kind === 'commission') return `${pctText(f.percent)} / ${money2(f.amount)}${paidBy(f.payer)}`;
+  if (kind === 'other') return `${f.description} ${money2(f.amount)} to ${f.paidTo}${paidBy(f.payer)}`;
+  return `${money2(f.amount)}${paidBy(f.payer)}`;
+}
+export function feeChanges(before, after) {
+  const b = before || {}; const out = [];
+  const same = (kind, x, y) => feeText(kind, x) === feeText(kind, y);
+  const add = (label, kind, x, y) => { if (!same(kind, x, y)) out.push({ label, from: feeText(kind, x), to: feeText(kind, y) }); };
+  add('Commission', 'commission', b.commission, after.commission);
+  add('Admin fee', 'admin', b.admin, after.admin);
+  const n = Math.max((b.other || []).length, (after.other || []).length);
+  for (let i = 0; i < n; i += 1) add(`Other fee ${i + 1}`, 'other', (b.other || [])[i], (after.other || [])[i]);
+  return out;
+}
+
 /* Map database / network errors to something a person can act on (AGENTS.md rule 12). Our own messages pass through. */
 export function agentFeeError(e) {
   const m = String((e && e.message) || e || '');

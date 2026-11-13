@@ -5,7 +5,7 @@
  * Up to 5 other fees (description, amount, paid to). Staff changing a fee the agent confirmed must give a reason. Nothing is sent. */
 import { html, raw, $, $$, modal, closeModal, toast, fmtMoney, fmtDateTime, pill } from '../ui.js?v=202611161500';
 import { isRefi } from '../data/constants.js?v=202611101015';
-import { AGENT_FEE_SIDES, SIDE_LABEL, AGENT_ROLE_SIDE, PAYERS, PAYER_LABEL, MAX_OTHER_FEES, defaultPayer, readAgentFees, syncCommission, sideStatus, agentFeeError } from '../data/agent-fees.js?v=202611171000';
+import { AGENT_FEE_SIDES, SIDE_LABEL, AGENT_ROLE_SIDE, PAYERS, PAYER_LABEL, MAX_OTHER_FEES, defaultPayer, readAgentFees, syncCommission, sideStatus, agentFeeError, feeChanges } from '../data/agent-fees.js?v=202611171000';
 
 const pct = (n) => (n == null ? '' : `${Number(n).toLocaleString('en-US', { maximumFractionDigits: 4 })}%`);
 const payerText = (p) => (p ? ` (paid by ${PAYER_LABEL[p] || p})` : '');
@@ -15,6 +15,7 @@ export function viewerOf(user) {
   const roles = user.roles || [user.role];
   const agentSides = roles.map((r) => AGENT_ROLE_SIDE[r]).filter(Boolean);
   if (agentSides.length) return { kind: 'agent', sides: agentSides };
+  if (!user.accountRole && user.role === 'Transaction Coordinator') return { kind: 'tc' };   // AF-3: confirms for the agents they work for
   if (!user.accountRole && user.role !== 'Outside user') return { kind: 'staff' };
   return null;   // buyers, sellers, other outside users
 }
@@ -36,7 +37,8 @@ export function sideHtml(side, s, access) {
 export function boxHtml(data, viewer) {
   const sides = AGENT_FEE_SIDES.map(([k]) => k).filter((k) => data.sides[k]);
   if (!sides.length) return '';
-  const intro = viewer.kind === 'agent' ? 'Your commission and fees on this file. Check them and click Edit to change or confirm them.' : 'Each agent\'s commission, admin fee and other fees. Agents see only their own side. Buyers and sellers never see these.';
+  const intro = viewer.kind === 'agent' ? 'Your commission and fees on this file. Check them and click Edit to change or confirm them.'
+    : viewer.kind === 'tc' ? 'The commission and fees of the agents you work for. You can confirm or change them for the agent; the agent is told.' : 'Each agent\'s commission, admin fee and other fees. Agents see only their own side. Buyers and sellers never see these.';
   return html`<section class="card agent-fees" data-agent-fees aria-label="Agent fees"><h3>Agent fees</h3><p class="muted small">${intro}</p>
     <div class="af-sides">${sides.map((k) => sideHtml(k, data.fees[k], data.sides[k]))}</div>
     <p class="af-foot"><button type="button" class="ghost" data-af-history-btn aria-expanded="false">Change history</button></p>
@@ -103,6 +105,17 @@ function mountForm(form, side, price) {
   form.addEventListener('click', (e) => { const b = e.target.closest('[data-af-remove]'); if (!b) return; const row = b.closest('[data-af-other-edit]'); if (row) row.remove(); add.hidden = count() >= MAX_OTHER_FEES; });
 }
 
+/* AF-3: "You're changing X from $A to $B" before an agent or TC saves */
+export function checkHtml(side, changes, viewer) {
+  const who = viewer.kind === 'tc' ? 'for the agent ' : '';
+  return html`<div class="af-check" data-af-check>
+    ${changes.length ? html`<p><strong>You're changing ${who}the ${SIDE_LABEL[side].toLowerCase()} fees:</strong></p>
+      <ul class="af-check-list">${changes.map((c) => html`<li data-af-change>${c.label}: from <b>${c.from}</b> to <b>${c.to}</b></li>`)}</ul>`
+      : html`<p data-af-no-change><strong>You're confirming ${who}these fees as they are.</strong></p>`}
+    <p class="muted small">Saving marks them "${viewer.kind === 'tc' ? 'Confirmed by TC' : 'Agent confirmed'}" and tells the CLA processor${viewer.kind === 'tc' ? ' and the agent' : ''}.</p>
+    <p class="acct-form-actions"><button type="button" class="m-btn" data-af-confirm>Yes, save and confirm</button> <button type="button" class="ghost" data-af-back>Go back</button></p></div>`;
+}
+
 const KIND = { commission: 'Commission', admin: 'Admin fee', other: 'Other fee' };
 const SOURCE = { staff: 'CLA staff', agent: 'Agent', tc: 'TC', system: 'Automatic' };
 export function valueText(v) {
@@ -151,7 +164,8 @@ export async function agentFeesPanel(ctx, deal) {
     const s = data.fees[side];
     const confirmed = !!(s && s.confirmed);
     const needReason = viewer.kind === 'staff' && confirmed;
-    const m = modal(`${SIDE_LABEL[side]} fees`, formHtml(side, s, { price, needReason, asAgent: viewer.kind === 'agent' }), { wide: true });
+    const confirmer = viewer.kind === 'agent' || viewer.kind === 'tc';
+    const m = modal(`${SIDE_LABEL[side]} fees`, formHtml(side, s, { price, needReason, asAgent: confirmer }), { wide: true });
     const form = $('[data-af-form]', m); mountForm(form, side, price);
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -161,11 +175,24 @@ export async function agentFeesPanel(ctx, deal) {
         const input = readForm(form);
         const fees = readAgentFees(input, { side, price });
         if (needReason && String(input.reason || '').trim().length < 3) throw new Error('The agent confirmed these fees. Enter a reason for the change.');
-        btn.disabled = true;
-        await api.saveAgentFees(deal.id, side, fees, input.reason || '');
-        closeModal();
-        toast(viewer.kind === 'agent' ? 'Your fees are saved and confirmed.' : 'Agent fees saved.');
-        await repaint();
+        const doSave = async () => {
+          btn.disabled = true;
+          await api.saveAgentFees(deal.id, side, fees, input.reason || '');
+          closeModal();
+          toast(viewer.kind === 'agent' ? 'Your fees are saved and confirmed.' : viewer.kind === 'tc' ? 'Fees saved and confirmed for the agent.' : 'Agent fees saved.');
+          await repaint();
+        };
+        if (!confirmer) { await doSave(); return; }
+        // AF-3: show what changes first; the form stays underneath with everything typed
+        const old = $('[data-af-check]', m); if (old) old.remove();
+        form.hidden = true;
+        form.insertAdjacentHTML('afterend', String(checkHtml(side, feeChanges(s, fees), viewer)));
+        const check = $('[data-af-check]', m);
+        $('[data-af-back]', check).addEventListener('click', () => { check.remove(); form.hidden = false; });
+        $('[data-af-confirm]', check).addEventListener('click', async (ev) => {
+          ev.currentTarget.disabled = true;
+          try { await doSave(); } catch (x) { check.remove(); form.hidden = false; err.textContent = agentFeeError(x); btn.disabled = false; }
+        });
       } catch (x) { err.textContent = agentFeeError(x); btn.disabled = false; }   // the form stays open with what was typed (rule 15)
     });
   };

@@ -79,7 +79,12 @@ export async function render(ctx) {
   }
   if (tabP) { const mod = await tabP; const v = await mod.render({ ...ctx, deal }); return { ...v, deal, crumbs: [...here, ...(v.crumbs || [])] }; }
   if (tab !== 'overview') throw new Error('That page does not exist.');
-  if (user.role === 'Transaction Coordinator' && !user.accountRole) { const tc = await renderTcOverview(ctx, deal); return tc && typeof tc === 'object' ? { ...tc, deal } : tc; }
+  if (user.role === 'Transaction Coordinator' && !user.accountRole) {
+    // AF-3 (John, Nov 12): the TC sees the Agent fees box for the agents they work for, above their overview
+    const [tc, fees] = await Promise.all([renderTcOverview(ctx, deal), agentFeesPanel(ctx, deal)]);
+    if (!tc || typeof tc !== 'object') return tc;
+    return { ...tc, deal, body: html`${fees.html}${tc.body}`, mount(root) { if (tc.mount) tc.mount(root); fees.mount(root); } };
+  }
   // CLIENT OVERVIEW (John, Nov 4): the buyer / seller get the redesigned overview (client-overview.js) in place of the old overview + card summary (no Cash to Close / payoff mockup figures for clients).
   if (user.accountRole && clientSide(user)) {
     const ov0 = await ctx.api.getOrderOverview(deal.id);
