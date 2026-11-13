@@ -88,7 +88,7 @@ SQL
 psql_super -f "$ROOT/supabase/migrations/20261117100000_agent_fees.sql"
 # applying twice is harmless
 psql_super -f "$ROOT/supabase/migrations/20261117100000_agent_fees.sql"
-psql_super -f "$ROOT/supabase/migrations/20261117110000_agent_fee_sides.sql"
+psql_super -f "$ROOT/supabase/migrations/20261118010000_agent_fee_sides.sql"
 
 psql_super -o /dev/null <<'SQL'
 create or replace function pg_temp.as_user(p uuid) returns void language sql as $$ select set_config('request.jwt.claim.sub', p::text, false) $$;
@@ -219,7 +219,7 @@ select pg_temp.ok((select basis = 'percent' and round(5000 * pct / 100, 2) = amo
 select pg_temp.ok((select bool_and(round(d.purchase_price * f.pct / 100, 2) = f.amount) from public.deal_agent_fees f join public.deals d on d.id = f.deal_id where f.kind = 'commission'),
   'every commission: % and $ agree with the sales price');
 SQL
-psql_super -f "$ROOT/supabase/rollbacks/20261117110000_agent_fee_sides.sql"
+psql_super -f "$ROOT/supabase/rollbacks/20261118010000_agent_fee_sides.sql"
 psql_super -f "$ROOT/supabase/rollbacks/20261117100000_agent_fees.sql"
 psql_super -c "do \$\$ begin if to_regclass('public.deal_agent_fees') is not null or to_regprocedure('public.save_agent_fees(uuid,text,jsonb,text)') is not null then raise exception 'FAIL rollback'; end if; raise notice 'PASS  rollback removes the tables and functions'; end \$\$;"
 echo "agent fees SQL checks passed"

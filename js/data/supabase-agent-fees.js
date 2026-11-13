@@ -1,5 +1,5 @@
 /* [SUPABASE] AGENT FEES (AF-2; John, Nov 12 2026). Same names and shapes as mock-part-agent-fees.js. Every read and write goes through the
- * database functions agent_fee_sides / agent_fees / agent_fee_history / save_agent_fees (migrations 20261117100000 and 20261117110000),
+ * database functions agent_fee_sides / agent_fees / agent_fee_history / save_agent_fees (migrations 20261117100000 and 20261118010000),
  * which decide what the viewer may see and change. Buyers and sellers get nothing. Nothing is sent. */
 import { groupAgentFees, agentFeeError } from './agent-fees.js?v=202611171000';
 
