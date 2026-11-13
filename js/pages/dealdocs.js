@@ -10,7 +10,7 @@ import { addToQueue, removeFromQueue, uploadFailureText } from '../data/document
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
 import { DOC_SORT_DIR, docMatches, sortDocs } from '../data/doc-list.js?v=202611161800';
 // Search text and sort stay put while you move between All files, Received and Sent on the same order (Matt, Nov 11).
-let keptView = { dealId: '', q: '', sort: '', dir: 'asc' };
+let keptView = { dealId: '', q: '', sort: 'date', dir: 'desc' };   // FF-071 #21: newest first by default
 const icon = (n) => (/\.pdf$/i.test(n) ? 'pdf_icon.png' : /\.docx?$/i.test(n) ? 'word_icon.png' : /\.(xlsx?|csv)$/i.test(n) ? 'excel_icon.png' : 'image_icon.png');
 export function docListRow(d, folders = []) {
   const folderId = d.folderId || '';
@@ -66,10 +66,10 @@ export async function render({ api, user, deal, refresh }) {
   const mountAudience = (form) => { const boxes = () => $$('input[name=audience]', form); boxes().forEach((el) => el.addEventListener('change', () => { const now = boxes().filter((i) => i.checked).map((i) => i.value); const next = new Set(audienceSync(now, el.value, choices, AUDIENCE_CONTROL)); boxes().forEach((i) => { i.checked = next.has(i.value); }); })); };
   const chosenType = (form, f) => resolveDocType(f.docType, form.elements.docTypeFree ? form.elements.docTypeFree.value : '');
   const chosenVisibility = (form) => visibilityFromChecked($$('input[name=audience]:checked', form).map((i) => i.value), choices, visOpts);
-  if (keptView.dealId !== deal.id) keptView = { dealId: deal.id, q: '', sort: '', dir: 'asc' };
+  if (keptView.dealId !== deal.id) keptView = { dealId: deal.id, q: '', sort: 'date', dir: 'desc' };
   const view = keptView;
   const sortHead = (k, label) => html`<th data-sort="${k}"><button type="button" class="th-sort" title="Sort by ${label}">${label} <span class="sort-arrows" aria-hidden="true"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th>`;
-  const rows = shown.map((d) => html`<tr data-doc-item="${d.id}"><td class="center"><img class="fileico" src="assets/img/${icon(d.name)}" alt=""></td>
+  const rows = (view.sort ? sortDocs(shown, view.sort, view.dir) : shown).map((d) => html`<tr data-doc-item="${d.id}"><td class="center"><img class="fileico" src="assets/img/${icon(d.name)}" alt=""></td>
     <td data-doc-row="${d.id}"${d.wireInstructions ? raw(' data-wire-doc') : ''}><a href="#" data-open="${d.id}" class="doc-link">${d.name}</a>${d.wireInstructions ? html` ${pill('wire instructions - buyer only', 'warn')}` : ''}<br><span class="muted small">${d.docType ? html`<span data-doctype>${d.docType}</span> &middot; ` : ''}${fmtSize(d.size)}${d.hasContent ? '' : ' \u00b7 sample file'}</span></td>
     <td>${d.folderName || html`<span class="muted">Unfiled</span>`}</td><td>${fmtDateTime(d.createdAt)}</td><td>${d.uploadedByName}<br><span class="muted small">${d.uploadedByRole}</span></td><td>${d.description}</td><td>${clientView && d.sharedWithMe ? pill('Shared with you by CLA Title', 'info') : pill(VL(d.visibility), d.visibility === 'all' ? '' : 'info')}${!clientView && d.sharedWithClient ? html`<br><span data-shared-client="${d.id}">${pill('shared with the buyer', 'ok')}</span><br><span class="muted small">by ${d.sharedWithClientByName} ${fmtDateTime(d.sharedWithClientAt)}</span>` : ''}${!clientView && d.sharedWithSeller ? html`<br><span data-shared-seller="${d.id}">${pill('shared with the seller', 'ok')}</span><br><span class="muted small">by ${d.sharedWithSellerByName} ${fmtDateTime(d.sharedWithSellerAt)}</span>` : ''}</td>
     <td class="nowrap">${runsOrders(user) || d.uploadedBy === user.id || manage ? html`<button class="ghost" data-meta="${d.id}">Details</button>` : ''}${manage ? html` <button class="ghost" data-sign="${d.id}">Request signature</button>` : ''}${canShareClient && d.buyerShareable ? html` <button class="ghost" data-share-client="${d.id}" data-share-on="${d.sharedWithClient ? '0' : '1'}">${d.sharedWithClient ? 'Stop sharing with buyer' : 'Share with buyer'}</button>` : ''}${canShareClient && d.sellerShareable ? html` <button class="ghost" data-share-seller="${d.id}" data-share-on="${d.sharedWithSeller ? '0' : '1'}">${d.sharedWithSeller ? 'Stop sharing with seller' : 'Share with seller'}</button>` : ''}</td></tr>`);

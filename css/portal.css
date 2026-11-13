@@ -127,6 +127,11 @@ hr { border: 0; border-top: 1px solid var(--line); margin: var(--s4) 0; }
 ul.plain { list-style: none; margin: 0; padding: 0; } ul.plain li { padding: 8px 0; border-bottom: 1px solid var(--line); } ul.plain li:last-child { border-bottom: 0; }
 /* ---------- tables ---------- */
 .tbl { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: var(--s4); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--sh-1); }
+/* FF-071 #21 (Francis confirm-back Nov 12 6:14 PM ET): the Documents table fits the page width on a desktop with no sideways scroll.
+   Long file names and instructions wrap, and the row buttons stack in their cell instead of forcing the table wider. */
+#doctable { table-layout: auto; } #doctable td { overflow-wrap: anywhere; } #doctable .doc-link { word-break: break-word; }
+#doctable td.nowrap { white-space: normal; } #doctable td.nowrap .ghost { display: block; width: 100%; margin: 0 0 4px; white-space: nowrap; text-align: center; } #doctable td.nowrap .ghost:last-child { margin-bottom: 0; }
+#doctable th[data-sort] .th-sort { white-space: nowrap; } #doctable .pill { white-space: normal; }
 .tbl > thead > tr:first-child > th:first-child, .tbl > tbody:first-child > tr:first-child > :first-child { border-top-left-radius: var(--r-lg); } .tbl > thead > tr:first-child > th:last-child, .tbl > tbody:first-child > tr:first-child > :last-child { border-top-right-radius: var(--r-lg); }
 .tbl > tbody > tr:last-child > :first-child { border-bottom-left-radius: var(--r-lg); } .tbl > tbody > tr:last-child > :last-child { border-bottom-right-radius: var(--r-lg); }
 .card .tbl, .sum-card .tbl, .modal-box .tbl { box-shadow: none; }
