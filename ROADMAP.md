@@ -124,16 +124,17 @@ This file lists the portal's major features: how each one should work, how far a
 **What's built**
 
 - FF-071b (#22): the Activity tab's filters (type, person, date, words) work, and each row shows who did it.
+- FF-064/065 (#5, first part): clicking a bell notification closes the menu and opens the item, for sellers and processors.
 
 **What's still missing**
 
-- FF-064/065, FF-070, FF-063, FF-069d and the other confirmed items (#3, #6 to #9, #11, #12, #14, #17, #20, #21, #23, #24, street address lookup) are being built one pull request at a time.
+- FF-070, FF-063, FF-069d and the other confirmed items (#3, #6 to #9, #11, #12, #14, #17, #20, #21, #23, #24, street address lookup) are being built one pull request at a time.
 - On hold: #1, #2, #4, #5, #10, #13, #15, #16, citizenship, spouse marital status, entity documents required, phone and email icons with no app.
 
 **Links**
 
 - Spec: none yet. Source: Janine's video Nov 12 2:57 PM ET; Francis Feedback tickets FF-063 to FF-072.
-- Related pull requests: FF-071b (this change).
+- Related pull requests: [PR 221](https://github.com/Johncoester/cla-portal-demo/pull/221) (FF-071b), FF-064/065 (this change).
 
 **Decisions**
 

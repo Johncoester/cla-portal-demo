@@ -1,4 +1,5 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
+import { openNotification } from './data/bell-open.js?v=202611162100';
 import { getAdapter } from './data/adapter.js?v=202611162000';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611161800';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
@@ -584,7 +585,10 @@ function wireBell() {
   const b = $('[data-bell]'); const dd = $('.notif-dd'); if (!b) return;
   const fill = async () => { const api = await getAdapter(); const list = await api.listNotifications({ limit: 12 });
     $('.notif-list', dd).innerHTML = toText(list.length ? list.map((n) => html`<li class="${n.readAt ? '' : 'unread'}"><a href="${n.link || '#/dashboard'}" data-nid="${n.id}">${n.fileNumber ? html`<strong data-notif-file>${n.fileNumber}</strong> <span class="muted small" data-notif-address>${n.address}</span><br>` : ''}${n.title}<br><span class="muted small">${new Date(n.createdAt).toLocaleString('en-US')}</span></a></li>`) : html`<li class="muted">No notifications.</li>`);
-    $$('[data-nid]', dd).forEach((a) => a.addEventListener('click', async () => { const api2 = await getAdapter(); await api2.markNotificationRead(a.dataset.nid); })); };
+    // FF-064 / FF-065: close the menu and open the item (draw again when it is the page already showing)
+    $$('[data-nid]', dd).forEach((a) => a.addEventListener('click', (e) => { e.preventDefault();
+      openNotification({ href: a.getAttribute('href'), dd, getHash: () => location.hash, setHash: (h) => { location.hash = h; }, rerender: () => render(),
+        markRead: () => getAdapter().then((api2) => api2.markNotificationRead(a.dataset.nid)) }); })); };
   b.addEventListener('click', async (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; if (!dd.hidden) await fill(); });
   dd.addEventListener('click', (e) => e.stopPropagation());
   $('[data-readall]', dd).addEventListener('click', async () => { const api = await getAdapter(); await api.markAllNotificationsRead(); render(); });
