@@ -4,7 +4,7 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, toast, fmtDate, f
 import { runsOrders, viewOnly, isProcessor, isClient, sideOf, isViewOnly, CLOSING_LOCATIONS } from '../data/constants.js?v=202611101015';
 import { placeText, OFFICE_LOCATION } from '../data/cla-offices.js?v=202611101015';
 import { SIGNING_METHODS, COUNTRIES, stateName, sideWord, canManageClosingLocations, canScheduleClosing } from '../data/closing-location.js?v=202611101015';
-import { officeOptionLabel, MANUAL_OFFICE, sideFromDeal, cleanSideSigning, sidePatch, scheduledPlace, cleanManualAddress, composeAddress, PLACE_KINDS, SIGN_STATUSES, TYPED_ADDRESS } from '../data/closing-side.js?v=202611120500';
+import { officeOptionLabel, MANUAL_OFFICE, sideFromDeal, cleanSideSigning, sidePatch, scheduledPlace, cleanManualAddress, composeAddress, PLACE_KINDS, SIGN_STATUSES, TYPED_ADDRESS, MOBILE_NOTARY } from '../data/closing-side.js?v=202611120500';
 import { US_STATE_NAMES } from '../data/constants.js?v=202611101015';
 // John, Nov 4: "Will you be in <state> at the time of closing?" (Yes / No -> another US state or a country outside the US). One block per party.
 export function locFields(r, pre = '') { const st = stateName(r.propertyState) || "the property's state"; const no = r.inStateAtClosing === false; const abroad = no && !!r.closingLocationCountry;
@@ -99,7 +99,7 @@ export async function render({ api, user, deal, refresh }) {
     const nb = $('#newreq', root); if (nb) nb.addEventListener('click', guard(() => slotsModal('New closing date request', async (f) => { await api.createSettlementRequest(deal.id, f); toast('Request created. Copy the links to send them.'); }, true)));
     $$('[data-confirm]', root).forEach((b) => b.addEventListener('click', guard(async () => { if (!confirm('Confirm this closing time? It becomes the settlement date.')) return; await api.confirmSettlement(b.dataset.confirm, Number(b.dataset.slot)); toast('Closing time confirmed'); refresh(); })));
     const pb = $('#propose', root); if (pb) pb.addEventListener('click', guard(() => whenModal('Propose a closing time', async (f) => { await api.proposeClosing(deal.id, f); toast('Proposal sent to CLA Title'); })));
-    const cn = $('#confirmnew', root); if (cn) cn.addEventListener('click', guard(() => whenModal(sc ? 'Change the scheduled closing' : 'Schedule the closing', async (f) => { await api.confirmClosing(deal.id, f); toast('Closing scheduled. Everyone on the file can see it.'); })));
+    const cn = $('#confirmnew', root); if (cn) cn.addEventListener('click', guard(() => whenModal(sc ? 'Change the scheduled closing' : 'Schedule the closing', async (f) => { await api.confirmClosing(deal.id, f); toast('Closing scheduled. Everyone on the file can see it.'); }, { notaryAddress: true })));
     $$('[data-accept]', root).forEach((b) => b.addEventListener('click', guard(async () => { if (!confirm('Confirm this closing time and place? Everyone on the file will see it.')) return; await api.confirmClosing(deal.id, { proposalId: b.dataset.accept }); toast('Closing scheduled'); refresh(); })));
     wireLocFields(root);
     $$('[data-loc-form]', root).forEach((f) => f.addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.answerClosingLocation(deal.id, f.dataset.locForm, locValue(formData(f))); toast('Thanks, saved'); refresh(); })));
@@ -122,19 +122,21 @@ export async function render({ api, user, deal, refresh }) {
 
   // Matt: "Where" defaults to a CLA Title office, the one closest to the property (straight-line distance). The offices are the ACTIVE ones
   // from Admin > Offices (retired offices are not offered). Staff can change the office before sending.
-  async function whenModal(title, save) {
+  async function whenModal(title, save, { notaryAddress = false } = {}) {
     const od = await api.getClosingOfficeDefault(deal.id); const offices = od.offices;
     const m = modal(title, html`<form id="wf" class="form-grid"><label>Date and time *<input type="datetime-local" name="at" required></label>
       <label>Where *<select name="location" required data-closing-where><option value="">Choose&hellip;</option>${CLOSING_LOCATIONS.map((l) => html`<option ${l === OFFICE_LOCATION ? raw('selected') : ''}>${l}</option>`)}</select></label>
       <label class="span2" data-office-wrap>Which CLA Title office *<select name="officeId" data-closing-office><option value="">Choose an office&hellip;</option>${offices.map((o) => html`<option value="${o.id}" ${o.id === od.officeId ? raw('selected') : ''}>${officeOptionLabel(o)}</option>`)}<option value="${MANUAL_OFFICE}">Type an address</option></select>
         <span class="muted small" data-office-hint>${od.officeId ? html`Closest to the property: ${od.text}. You can change it.` : od.text} <span data-office-address>${(offices.find((o) => o.id === od.officeId) || {}).address || ''}</span></span></label>
       <div class="span2 form-grid" data-manual-place hidden><label>Street<input name="mstreet" maxlength="120" data-manual-street></label><label>City<input name="mcity" maxlength="80"></label><label>State<input name="mstate" maxlength="2" placeholder="FL"></label><label>ZIP<input name="mzip" maxlength="10"></label></div>
+      ${notaryAddress ? html`<div class="span2 form-grid" data-notary-place hidden><p class="span2 muted small">Mobile notary: where the signing takes place.</p><label>Street *<input name="nstreet" maxlength="120" value="${(sc && sc.location === MOBILE_NOTARY ? deal : {}).closingManualStreet || ''}"></label><label>City *<input name="ncity" maxlength="80" value="${(sc && sc.location === MOBILE_NOTARY ? deal : {}).closingManualCity || ''}"></label><label>State *<input name="nstate" maxlength="2" placeholder="MD" value="${(sc && sc.location === MOBILE_NOTARY ? deal : {}).closingManualState || ''}"></label><label>ZIP *<input name="nzip" maxlength="10" inputmode="numeric" value="${(sc && sc.location === MOBILE_NOTARY ? deal : {}).closingManualZip || ''}"></label></div>` : ''}
       <label class="span2">Note<input name="note" maxlength="500" placeholder="e.g. mornings only"></label>
       ${!staffView ? locs.filter((r) => r.mine).map((r) => locFields(r, `loc_${r.participantId}_`)) : flags.length ? html`<div class="span2 notice warn" data-modal-flags>${flags.map((r) => html`<div>${r.flag.text} (signing method: ${r.signingLabel})</div>`)}</div>` : ''}
       <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
     const f = $('#wf', m); const wrap = $('[data-office-wrap]', f); const offSel = $('[data-closing-office]', f);
     const manual = $('[data-manual-place]', f);
-    const sync = () => { const on = f.location.value === OFFICE_LOCATION; wrap.hidden = !on; const typing = on && offSel.value === MANUAL_OFFICE; offSel.required = on && !typing; if (manual) manual.hidden = !typing; };
+    const notary = $('[data-notary-place]', f);   // FF-063 #3: the processor types the mobile notary's signing address
+    const sync = () => { const on = f.location.value === OFFICE_LOCATION; wrap.hidden = !on; const typing = on && offSel.value === MANUAL_OFFICE; offSel.required = on && !typing; if (manual) manual.hidden = !typing; if (notary) notary.hidden = f.location.value !== MOBILE_NOTARY; };
     f.location.addEventListener('change', sync); offSel.addEventListener('change', sync); sync();
     offSel.addEventListener('change', () => { $('[data-office-address]', f).textContent = offSel.value === MANUAL_OFFICE ? '' : ((offices.find((o) => o.id === offSel.value) || {}).address || ''); });
     wireLocFields(f);
@@ -145,6 +147,8 @@ export async function render({ api, user, deal, refresh }) {
       ['closingManualStreet', 'closingManualCity', 'closingManualState', 'closingManualZip'].forEach((k) => { if (v[k]) { manualPatch[k] = v[k]; delete v[k]; } });
       ['mstreet', 'mcity', 'mstate', 'mzip'].forEach((k) => delete v[k]);
       if (manualPatch.closingManualStreet) { Object.assign(v, manualPatch); v.location = TYPED_ADDRESS; delete v.officeId; }
+      if (notary && v.location === MOBILE_NOTARY) { const addr = cleanManualAddress({ street: v.nstreet, city: v.ncity, state: v.nstate, zip: v.nzip }, { required: true }); Object.assign(v, { closingManualStreet: addr.street, closingManualCity: addr.city, closingManualState: addr.state, closingManualZip: addr.zip }); delete v.officeId; }
+      ['nstreet', 'ncity', 'nstate', 'nzip'].forEach((k) => delete v[k]);
       for (const r of staffView ? [] : locs.filter((z) => z.mine)) { const pre = `loc_${r.participantId}_`; await api.answerClosingLocation(deal.id, r.participantId, locValue(v, pre)); Object.keys(v).filter((k) => k.startsWith(pre)).forEach((k) => delete v[k]); }
       await save(v); closeModal(); refresh(); }));
   }
