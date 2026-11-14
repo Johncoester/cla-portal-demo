@@ -1,9 +1,10 @@
 /* mock adapter, part 1: auth, profile, dashboard, deals. See mock-adapter.js. */
 import { autoCounty } from './county-auto.js?v=202611131900';
-import { checkSource } from './mock-part-nov3b.js?v=202611221400';
+import { checkSource } from './mock-part-nov3b.js?v=202611221900';
 import { isRefi, REFI_BLOCKED_FIELDS, STAFF_ACCOUNT_ROLES } from './constants.js?v=202611101015';
 import { closerChoices, resolveCloser } from './closer.js?v=202611101015';
 import { PROCESSOR_PICK_ROLES, SALES_PICK_ROLES, tidyPersonName, referralWriteError } from './place-order.js?v=202611191800';
+import { assignProcessorParty, clearProcessorParties } from './processor-party.js?v=202611221800';
 import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611191800';
 import { claRepresentationCode } from './cla-representation.js?v=202611090950';
 import { buildFileNumber, retagFileNumber, sentOutside } from './file-number.js?v=202611092340';
@@ -154,7 +155,7 @@ export function dealsAndAuth(x) {
       deal.closerName = placedCloser.closerName; deal.closerProfileId = placedCloser.closerProfileId; deal.closingTime = closingTimeOf(input.closingTime);
       if (deal.lenderEmail && !emailOk(deal.lenderEmail)) fail('Lender email is not valid.');
       d.deals.push(deal);
-      const pc = procId && contactOf(procId); if (pc) d.participants.push({ id: nid('dp'), dealId: deal.id, contactId: pc.id, role: 'Processor', createdAt: now() });
+      if (proc) { const linked = assignProcessorParty(d, { dealId: deal.id, profile: proc, actor: u, now, newParticipantId: () => nid('dp'), newContactId: () => nid('c'), actorId: u.id }); if (linked.error) fail(linked.error); }
       const prec = preprocId && contactOf(preprocId.id); if (prec) d.participants.push({ id: nid('dp'), dealId: deal.id, contactId: prec.id, role: 'Preprocessor', createdAt: now() });
       x.DEAL_FOLDERS.forEach((name) => d.folders.push({ id: nid('f'), scope: 'deal', dealId: deal.id, name, staffOnly: false, createdBy: u.id, createdAt: now() }));
       // Staff task; participants' intake tasks are copied from the current task templates when each person is added (addParticipant).
@@ -208,9 +209,9 @@ export function dealsAndAuth(x) {
       if (patch.sourceOfBusiness !== undefined) { const src = checkSource(load(), patch.sourceOfBusiness, q.sourceOfBusiness, fail); const msg = referralWriteError({ source: src, contacts: d.contacts, profiles: d.profiles, actor: u, participants: d.participants, dealId: id }); if (msg) fail(msg); q.sourceOfBusiness = src; }   // Matt, Nov 3 (b); Nov 7: one contact on the file, or a legacy value left as stored
       if (patch.preprocessorUserId !== undefined) { const pre = checkPreprocessor(patch.preprocessorUserId || null); const next = pre ? pre.id : null; if (next !== (q.preprocessorUserId || null)) { q.preprocessorUserId = next; const c = next && contactOf(next); d.participants = d.participants.filter((p) => !(p.dealId === id && p.role === 'Preprocessor')); if (c) d.participants.push({ id: nid('dp'), dealId: id, contactId: c.id, role: 'Preprocessor', createdAt: now() }); log(id, u.id, 'deal.preprocessor', 'deal', id, `Preprocessor ${next ? 'set to ' + nameOf(next) : 'cleared'}`); } }
       if (patch.processorId !== undefined) { const next = checkProcessor(patch.processorId || null, u); const nextId = next ? next.id : null; const prev = q.processorId || null;
-        if (nextId !== prev) { q.processorId = nextId; const prevContact = prev && contactOf(prev); if (prevContact) d.participants = d.participants.filter((p) => !(p.dealId === id && p.role === 'Processor' && p.contactId === prevContact.id));
-          const nc = next && contactOf(next.id); if (nc && !d.participants.some((p) => p.dealId === id && p.role === 'Processor' && p.contactId === nc.id)) d.participants.push({ id: nid('dp'), dealId: id, contactId: nc.id, role: 'Processor', createdAt: now() });
-          log(id, u.id, 'deal.processor', 'deal', id, nextId ? `Processor set to ${nameOf(nextId)}` : 'Processor unassigned'); } }
+        if (nextId !== prev) { q.processorId = nextId; q.processorUnassigned = !nextId; log(id, u.id, 'deal.processor', 'deal', id, nextId ? `Processor set to ${nameOf(nextId)}` : 'Processor unassigned'); }
+        if (!nextId) clearProcessorParties(d, id);
+        else { const linked = assignProcessorParty(d, { dealId: id, profile: next, actor: u, now, newParticipantId: () => nid('dp'), newContactId: () => nid('c'), actorId: u.id }); if (linked.error) fail(linked.error); } }
       // John, Nov 9: the file's Transaction Coordinator (informational; staff set / change / clear it any time). Same activity + one notification as the hosted trigger.
       if (patch.tcUserId !== undefined) { const nextId = patch.tcUserId || null; const prev = q.tcUserId || null;
         if (nextId) { const tc = d.profiles.find((p) => p.id === nextId); if (!tc || tc.status !== 'active' || !PROCESSOR_PICK_ROLES.includes(tc.role)) fail('The Transaction Coordinator on an order must be an active staff login.'); if (!!tc.isDemo !== !!u.isDemo) fail('A real order cannot use a demo login, and a demo order cannot use a real login.'); }

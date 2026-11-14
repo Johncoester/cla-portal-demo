@@ -1,10 +1,11 @@
 // Contacts tab: everyone on this file. Processor can add people (existing or new), edit them, and unlink them from the order.
-import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill } from '../ui.js?v=202611161500';
+import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill, toText } from '../ui.js?v=202611161500';
 import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole } from '../data/constants.js?v=202611101015';
 import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611191800';
+import { directoryModel, directoryChoice } from '../data/file-party.js?v=202611221600';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611140100';
 import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611191600';
-import { copyPlainText } from './deal.js?v=202611221400';
+import { copyPlainText } from './deal.js?v=202611221900';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611161500';
 import { LENDER_CONTACT_ROLES, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611101200';
@@ -79,11 +80,27 @@ export async function render({ api, user, deal, refresh }) {
     const m = modal('Add contact to this order', html`<form id="apf" class="form-grid"><label class="span2">Role on this order<select name="role">${options(isRefi(deal) ? PARTICIPANT_ROLES.filter((r) => !REFI_BLOCKED_ROLES.includes(r)) : PARTICIPANT_ROLES, 'Other')}</select></label>${isRefi(deal) ? html`<p class="muted small span2" data-refi-roles>Refinance: no seller, realtor or transaction coordinator roles. Add the borrower as Client-Buyer.</p>` : ''}
       <p class="muted small span2">One person can hold two roles on an order only when an agent is buying or selling for themselves: add them once as Client-Buyer and once as Buyer Agent (or Client-Seller and Listing Agent).</p>
       <p class="muted small span2" data-tc-note hidden>Any active staff login can be the Transaction Coordinator. An outside user cannot, and you cannot add a new person here.</p>
-      <p class="muted small span2">Type a name and pick a match, or choose <strong>Add "…" as a new person</strong> in the list. Use the fields below when you already have email, phone or company details.</p>
+      <p class="muted small span2">Type a name, email and phone in the fields below. You do not have to pick an existing contact, and no portal login or invite is created. Invite them later with Invite to portal. The search box and, for an agent or lender, the company list are optional.</p>
+      <label class="span2" data-dir-wrap hidden>Existing company or person<select data-dir-select aria-label="Existing company or person"><option value="">Not listed — type them below</option></select></label>
       <div class="span2">${pickerHtml('contactId', 'Contact')}</div>
       <div class="span2 form-grid" data-newperson><h4 class="span2">&mdash; or enter full details &mdash;</h4><label data-fn>First name<input name="firstName"></label><label>Last name<input name="lastName"></label><label>Email<input name="email" type="email"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone></label><label data-co>Company / brokerage<input name="company"></label>${ctypeSelect('')}<label data-lrole hidden>Lender contact type<select name="lenderRole" aria-label="Lender contact type"><option value="">No contact person</option>${LENDER_CONTACT_ROLES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select></label></div>
       <div class="span2"><button class="m-btn" type="submit">Add</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
     const roleSel = $('[name=role]', m); const isTc = () => roleSel.value === 'Transaction Coordinator';
+    const dirWrap = $('[data-dir-wrap]', m); const dirSel = $('[data-dir-select]', m);
+    const paintDir = () => {
+      const role = roleSel.value;
+      const show = role === 'Buyer Agent' || role === 'Listing Agent' || role === 'Lender';
+      dirWrap.hidden = !show;
+      if (!show) { dirSel.value = ''; return; }
+      const model = directoryModel(isTc() ? [] : people, role === 'Lender' ? 'lender' : 'agent');
+      const group = (label, options) => (options.length ? html`<optgroup label="${label}">${options.map((o) => html`<option value="${o.value}">${o.label}</option>`)}</optgroup>` : '');
+      dirSel.innerHTML = toText(html`<option value="">Not listed — type them below</option>${group(model.companyLabel, model.companies)}${group(model.peopleLabel, model.people)}`);
+    };
+    dirSel.addEventListener('change', () => {
+      const choice = directoryChoice(dirSel.value);
+      if (choice.kind === 'person') { const c = people.find((p) => p.id === choice.contactId); if (c) pk.set(c); }
+      else if (choice.kind === 'company') { const co = $('[name=company]', m); if (co) co.value = choice.company; }
+    });
     // Same quick-create rules as Place Order (ordernew.js): split the typed name; lender company-ish strings become company-only.
     const quickCreate = async (typed) => {
       const name = String(typed || '').trim(); if (!name) throw new Error('Type a name first.');
@@ -113,11 +130,13 @@ export async function render({ api, user, deal, refresh }) {
       $('[data-fn]', m).firstChild.textContent = lender ? 'Contact first name (optional)' : person ? 'First name (leave blank for an entity)' : 'First name';
       $('[data-co]', m).firstChild.textContent = lender ? 'Lender company name' : person ? 'Entity or company name' : 'Company / brokerage';
       const lrole = $('[data-lrole]', m); if (lrole) lrole.hidden = !lender; };
-    roleSel.addEventListener('change', () => { if (!ctTouched) ctSel.value = contactTypeForRole(roleSel.value); const tc = isTc(); $('[data-tc-note]', m).hidden = !tc; $('[data-newperson]', m).hidden = tc; if (tc && pk.value && !isTcPick(people.find((c) => c.id === pk.value) || { id: pk.value })) pk.set(null); paintRole(); });
-    paintRole();
-    $('#apf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); let id = f.contactId;
-      if (!id && pk.typed) throw new Error('Pick a person from the list, choose Add as a new person, or clear the search box and enter full details below.');
+    roleSel.addEventListener('change', () => { if (!ctTouched) ctSel.value = contactTypeForRole(roleSel.value); const tc = isTc(); $('[data-tc-note]', m).hidden = !tc; $('[data-newperson]', m).hidden = tc; if (tc && pk.value && !isTcPick(people.find((c) => c.id === pk.value) || { id: pk.value })) pk.set(null); paintRole(); paintDir(); });
+    paintRole(); paintDir();
+    $('#apf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); let id = f.contactId || (pk && pk.value) || '';
+      const choice = directoryChoice(dirSel.value);
+      if (!id && choice.kind === 'person') id = choice.contactId;
       if (!id && isTc()) throw new Error('Pick a Transaction Coordinator from the list.');
+      if (!id && pk.typed && !String(f.firstName || '').trim() && !String(f.company || '').trim()) { const split = splitPersonName(pk.typed); f.firstName = split.firstName; f.lastName = f.lastName || split.lastName; }
       if (!id && f.role === 'Lender') { const built = lenderCompanyContact({ company: f.company, firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone, lenderRole: f.lenderRole }); if (!built.ok) throw new Error(built.error); id = (await api.createContact(built.contact)).id; }
       if (!id && (f.role === 'Client-Buyer' || f.role === 'Client-Seller') && !String(f.firstName || '').trim() && String(f.company || '').trim()) id = (await api.createContact({ firstName: '', lastName: f.lastName, email: f.email, phone: f.phone, company: f.company, contactType: f.contactType || 'buyer_seller' })).id;
       if (!id && !String(f.firstName || '').trim() && !String(f.company || '').trim()) throw new Error('Enter a first name, or a company or entity name.');

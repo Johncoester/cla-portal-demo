@@ -1,9 +1,9 @@
 // crm-janine.js : screens for Janine's Nov 3 CRM feedback (John approved). FAKE DATA ONLY. Nothing is emailed or sent anywhere.
-//   "+" Create New menu (every CRM page), #/crm/new/<module>, CSV import (#/crm/import/<leads|contacts>[/notes], Admin / Super admin),
+//   "+" Create New menu (every CRM page), #/crm/new/<module>, CSV or Excel import (#/crm/import/<leads|contacts>[/notes], Admin / Super admin),
 //   county from the ZIP on the person form, the company duplicate warning, the meeting "Send invite" PREVIEW (.ics), the task Subject type-ahead.
 import { html, raw, $, $$, guard, toast, modal, closeModal, fmtDateTime, pill, toText } from '../ui.js?v=202611161500';
 import { modOn } from '../data/modules.js?v=202611101015';   // module switches (combined nov3g)
-import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, guessMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importTooBigMessage, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, importErrorCsv, saveImportResume, loadImportResume, IMPORT_RESUME_PREFIX } from '../data/crm-janine.js?v=202611101600';
+import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, toCsvText, guessMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importTooBigMessage, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, importErrorCsv, saveImportResume, loadImportResume, IMPORT_RESUME_PREFIX } from '../data/crm-janine.js?v=202611101600';
 import { fopts } from './crm-custom.js?v=202611161500';
 import { importStatusChoices } from '../data/nov5-rules.js?v=202611131900';
 import { crmReadOnly, companyKey } from '../data/crm.js?v=202611130900';
@@ -12,7 +12,7 @@ import { US_STATES } from '../data/constants.js?v=202611101015';
 // ---------- "+" Create New (Home and every CRM page) ----------
 // combined nov3g: skip modules whose Live switch is off for this user (regular users; Admins testing a beta module still get it)
 const CREATE_MODULE = { call: 'calls' };
-export const createNewMenu = (me) => { const list = createModules(me).filter(([k]) => !CREATE_MODULE[k] || modOn(CREATE_MODULE[k])); if (!list.length) return '';
+export const createNewMenu = (me) => { const list = createModules(me).filter(([k]) => !CREATE_MODULE[k] || modOn(CREATE_MODULE[k])).map(([k, l, href]) => [k, String(l).replace(' (CSV)', ' (CSV or Excel)'), href]); if (!list.length) return '';
   return html`<details class="crm-create-new" data-create-new><summary class="m-btn" data-create-new-btn title="Create New" aria-label="Create New">+ Create New</summary>
     <div class="crm-create-list" role="menu" data-create-list><div class="muted small">Create New</div>${list.map(([k, l, href]) => html`<a role="menuitem" href="${href}" data-create="${k}">${l}</a>`)}</div></details>`; };
 // The shell already knows who is signed in. This does not call crmMe.
@@ -143,13 +143,14 @@ export async function importPage({ api, me, params, owners = [], cfg = {} }, { t
   const tmplName = kind === 'notes' ? `sample-${module}-notes.csv` : `sample-${module}.csv`;
   const body = html`${head('Import ' + what, me)}${tabs(module)}
     ${testBanner}
-    <div class="card" data-import="${module}:${kind}"><h3>1. Upload a CSV</h3>
-      <p class="muted small">${kind === 'notes' ? `Each note is linked to an existing ${M === 'Leads' ? 'lead' : 'client'} by email, else by first + last name (one match only).` : `Each row becomes a ${M === 'Leads' ? 'lead' : 'client'}, checked like the Create form: Last Name, Role in Company, Relationship Status and State are required; one email / phone across Leads and Clients. A blank County is filled from the ZIP.`}
+    <div class="card" data-import="${module}:${kind}"><h3>1. Upload a CSV or Excel file</h3>
+      <p class="muted small">Upload a CSV or Excel file. ${kind === 'notes' ? `Each note is linked to an existing ${M === 'Leads' ? 'lead' : 'client'} by email, else by first + last name (one match only).` : `Each row becomes a ${M === 'Leads' ? 'lead' : 'client'}, checked like the Create form: Last Name, Role in Company, Relationship Status and State are required; one email / phone across Leads and Clients. A blank County is filled from the ZIP.`}
         Up to ${IMPORT_MAX_ROWS} rows, ${IMPORT_CHUNK_ROWS} at a time (${IMPORT_MAX_BYTES / 1e6} MB). Nothing is emailed.
         <span data-import-retired-note>Retired relationship statuses are not in the default list. A row that names a retired status is marked invalid in the preview and is not imported. Records that already have one are left as they are.</span></p>
       <p><button class="ghost" type="button" data-sample-csv="${tmplName}">Download sample template (fake data)</button>
         <a class="ghost" href="#/crm/import/${module}${kind === 'notes' ? '' : '/notes'}" data-import-other>${kind === 'notes' ? `Import ${M} instead` : 'Import Notes instead'}</a> <a class="ghost" href="#/crm/${module}">Back to ${M}</a></p>
-      <input type="file" accept=".csv,text/csv" data-import-file> <span class="muted small" data-import-fname></span></div>
+      <input type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-import-file> <span class="muted small" data-import-fname></span>
+      <p class="notice" data-import-sheet hidden></p></div>
     <div class="card" data-import-map hidden><h3>2. Map the columns</h3><table class="tbl"><thead><tr><th>Column in the file</th><th>First value</th><th>Field in the CRM</th></tr></thead><tbody data-map-rows></tbody></table>
       ${kind === 'records' ? defaultsCard(module, owners, cfg) : ''}
       <p><button class="m-btn" type="button" data-import-preview>Preview</button> <button class="m-btn" type="button" data-import-resume hidden>Resume import</button></p>
@@ -175,9 +176,16 @@ export async function importPage({ api, me, params, owners = [], cfg = {} }, { t
     $$('[data-hist-rows]', root).forEach((b) => b.addEventListener('click', guard(async () => { const rows = await api.listCrmImportRows(b.dataset.histRows);
       modal('Import rows', html`<table class="tbl" data-import-rows><thead><tr><th>Line</th><th>Result</th><th>Record</th><th>Message</th></tr></thead><tbody>${rows.map((z) => html`<tr data-import-row-status="${z.status}"><td>${z.line}</td><td>${pill(z.status === 'ok' ? 'Created' : z.status === 'duplicate' ? 'Duplicate' : 'Error', z.status === 'ok' ? 'ok' : z.status === 'duplicate' ? 'warn' : 'bad')}</td>
         <td>${z.recordId ? html`<a href="#/crm/${module}/${z.recordId}">${z.recordName || z.recordId}</a>` : ''}</td><td class="small">${z.message}</td></tr>`)}</tbody></table>`, { wide: true }); })));
+    const excelFile = (file) => { const name = String(file && file.name || ''); if (/\.csv$/i.test(name)) return false; if (/\.(xlsx|xls)$/i.test(name)) return true;
+      const type = String(file && file.type || '').toLowerCase(); return type === 'application/vnd.ms-excel' || type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'; };
+    const sheetNote = (msg) => { const el = $('[data-import-sheet]', root); if (!el) return; el.hidden = !msg; el.textContent = msg || ''; };
     $('[data-import-file]', root).addEventListener('change', guard(async (e) => { const f = e.target.files[0]; if (!f) return; if (f.size > IMPORT_MAX_BYTES) throw new Error('The file is too large.');
-      text = await f.text(); fileName = f.name; $('[data-import-fname]', root).textContent = f.name; const rows = parseCsv(text); if (rows.length < 2) throw new Error('The file needs a header row and at least one row of data.');
+      let rows; let nextText; let notice = '';
+      if (excelFile(f)) { const { rowsFromExcel } = await import('../data/crm-excel.js?v=202611221700'); const parsed = await rowsFromExcel(await f.arrayBuffer()); rows = parsed.rows; nextText = toCsvText(rows); notice = parsed.notice || ''; }
+      else { nextText = await f.text(); rows = parseCsv(nextText); }
+      if (rows.length < 2) throw new Error('The file needs a header row and at least one row of data.');
       if (rows.length - 1 > IMPORT_MAX_ROWS) throw new Error(importTooBigMessage(rows.length - 1));
+      text = nextText; fileName = f.name; $('[data-import-fname]', root).textContent = f.name; sheetNote(notice);
       header = rows[0]; const guess = guessMapping(header, fields);
       $('[data-map-rows]', root).innerHTML = toText(header.map((h, i) => html`<tr><td>${h}</td><td class="muted small">${(rows[1] || [])[i] || ''}</td><td><select data-map="${i}" aria-label="Field for ${h}"><option value="">(skip this column)</option>${fields.map(([k, l]) => html`<option value="${k}" ${guess[i] === k ? raw('selected') : ''}>${l}</option>`)}</select></td></tr>`));
       $('[data-import-map]', root).hidden = false; $('[data-import-prev]', root).hidden = true; $('[data-import-summary]', root).hidden = true; }));

@@ -12,6 +12,12 @@ async function choose(page, picker, id, query) {
   await expect(page.locator(`[data-picker="${picker}"] [data-chosen]`)).toContainText('Selected:');
 }
 
+// FF-049 / MF-046: agents and the lender are a dropdown of existing companies and people, not the search box.
+async function chooseListed(page, role, id) {
+  const sel = page.locator(`[data-dir="p:${role}"] [data-dir-select]`);
+  await sel.selectOption(id);
+}
+
 test('preselected seller, agents and lender stay on the file, and the draft does not return', async ({ page, issues }) => {
   test.skip(targetMode() === 'test', 'mock only; this must not place a file on TEST');
   test.setTimeout(120000);
@@ -33,16 +39,17 @@ test('preselected seller, agents and lender stay on the file, and the draft does
   await choose(page, 'p:Client-Buyer', 'c-buyer', 'Ben');
   await choose(page, 'p:Client-Seller', 'c-seller', 'Sally');
   await advance(page, 'loan');
-  await choose(page, 'p:Lender', 'c-lender1', 'Linda');
+  await chooseListed(page, 'Lender', 'c-lender1');
   await advance(page, 'agents');
-  await choose(page, 'p:Buyer Agent', 'c-bagent', 'Bianca');
-  await choose(page, 'p:Listing Agent', 'c-lagent', 'Larry');
+  await chooseListed(page, 'Buyer Agent', 'c-bagent');
+  await chooseListed(page, 'Listing Agent', 'c-lagent');
   await advance(page, 'team');
   await advance(page, 'review');
   const before = calls.length;
   await page.evaluate(() => {
     for (const name of ['p:Client-Seller', 'p:Buyer Agent', 'p:Listing Agent', 'p:Lender']) {
-      const hid = document.querySelector(`[data-picker="${name}"] input[type=hidden]`);
+      const hid = document.querySelector(`[data-picker="${name}"] input[type=hidden]`)
+        || document.querySelector(`[data-dir="p:${name.replace(/^p:/, '')}"] input[type=hidden]`);
       if (hid) hid.value = '';
     }
   });

@@ -1,7 +1,7 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611221400';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611221400';
+import { getAdapter } from './data/adapter.js?v=202611221900';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611221900';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611130900';
@@ -34,23 +34,23 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611221200'),
-  dashboard: () => import('./pages/dashboard.js?v=202611221400'),
+  dashboard: () => import('./pages/dashboard.js?v=202611221900'),
   orders: () => import('./pages/orders.js?v=202611161500'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611221400'),
-  deal: () => import('./pages/deal.js?v=202611221400'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611221900'),
+  deal: () => import('./pages/deal.js?v=202611221900'),
   users: () => import('./pages/users.js?v=202611161500'),
   profile: () => import('./pages/profile.js?v=202611191600'),
   'contact-us': () => import('./pages/contact.js?v=202611161500'),
   teams: () => import('./pages/teams.js?v=202611161500'),
-  templates: () => import('./pages/templates.js?v=202611221400'),
-  'admin/templates': () => import('./pages/templates.js?v=202611221400'),
+  templates: () => import('./pages/templates.js?v=202611221900'),
+  'admin/templates': () => import('./pages/templates.js?v=202611221900'),
   library: () => import('./pages/library.js?v=202611161500'),
   activity: () => import('./pages/activity.js?v=202611161500'),
   outbox: () => import('./pages/outbox.js?v=202611161500'),
-  tasks: () => import('./pages/tasks.js?v=202611221400'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => import('./pages/tasks.js?v=202611221900'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611221200'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down. MF-053: party status columns.
   schedule: () => import('./pages/schedule.js?v=202611170800'),   // public closing-time link (no sign-in needed)
-  crm: () => import('./pages/crm.js?v=202611161500'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  crm: () => import('./pages/crm.js?v=202611221700'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => import('./pages/modules.js?v=202611161500'),
   'role-access': () => import('./pages/role-access.js?v=202611161500'),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => import('./pages/agent-invites.js?v=202611191600'),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
@@ -601,7 +601,7 @@ function wireChrome(u) {
   if (DEMO_VIEW && DEMO_VIEW.active && DEMO_VIEW.expiresAt) { const ms = new Date(DEMO_VIEW.expiresAt).getTime() - Date.now(); demoTimer = setTimeout(() => render(), Math.min(Math.max(ms + 250, 1000), 30 * 60 * 1000)); }
   getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) {
     import('./pages/crm-search.js?v=202611161500').then((m) => m.wireHeaderSearch(api));
-    import('./pages/crm-janine.js?v=202611161500').then((m) => m.mountHeaderCreate(u));
+    import('./pages/crm-janine.js?v=202611221700').then((m) => m.mountHeaderCreate(u));
   } });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');
   if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; });

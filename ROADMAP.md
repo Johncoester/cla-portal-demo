@@ -282,6 +282,63 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Type parties onto a file (FF-049 / MF-046)
+
+**How it should work.** On Place Order, and when adding someone on a file's Parties list or Contacts, staff can type a buyer, seller, buyer's agent, listing agent, or lender. They do not have to pick an existing contact, and the portal does not create a login or send an invite. Email is checked when it is filled in, and it is not required. Picking someone already saved still works. For agents and the lender, the list shows companies and agents or loan officers, and a person and company can also be typed by hand.
+
+**Status: In progress.** Not Live until this is on TEST and a processor has tried it there. No database file.
+
+**What's built**
+
+- Place Order buyer and seller rows take a name, email, and phone (and the entity fields that were already there). The search box remains for an existing contact. A typed name no longer stops on "pick a person from the list."
+- Buyer's agent, listing agent, and lender: a list of saved companies and agents or loan officers, plus boxes to type a person and a company.
+- The same entry is on the file's Parties buttons and on Contacts → Add contact.
+- A typed person is stored as a contact with no portal login. Invite to portal is unchanged and is still a separate action. An existing contact that is picked is not rewritten.
+
+**What's still missing**
+
+- Proof on TEST (testportal.clatitle.com) after this is merged. Not Live until then.
+
+**Links**
+
+- Spec: [docs/specs/file-parties.md](docs/specs/file-parties.md). Source: Francis, Nov 11 email via Matt's ticket; Francis confirmed option 3 on Nov 13, 2026, 9:14 AM ET. Tracker rows FF-049 and MF-046.
+- Related pull requests: this change. No database file.
+
+**Decisions**
+
+- Francis chose option 3 on Nov 13 at 9:14 AM ET, with a list plus manual entry for agents and lenders. Typed people are saved as contacts so the file can show them and Invite to portal still works later. No login is created and no invite is sent. Who can see the file stays the same, because a contact with no login cannot open it.
+
+---
+
+## File processor on Parties and Contacts (PROC-1)
+
+**How it should work.** The Processor on a file is one person. Adding a staff login on the order's Contacts screen, with the role Processor, shows them on File Overview > Parties. Removing them from Contacts clears the Processor. Setting or clearing the Processor anywhere else (Edit order details, or Place Order) shows the same person on Contacts, or takes them off. Any active staff login can be the Processor. A contact with no portal login can still be listed on Contacts as Processor, and that listing is not the file's Processor.
+
+**Status: In progress.** Tracker row PROC-1. John Coester, screen recording "Adding a processor" (Nov 14 2026, 1:55 PM ET; Drive file 19lS81bxUsHUwQPRdLXIGi79dmpFhXdn7), confirmed Nov 14, 2:00 PM ET, on order MD-26-97260. Not Live until the database file is applied on TEST.
+
+**What's built**
+
+- Contacts and File Overview were reading two different places. Contacts stored a person on the file with the role Processor. File Overview read the file's processor field, so it still said "Not specified" and showed the red "no processor yet" warning. They now stay in step both ways.
+- A Super admin, Admin, Processor, Preprocessor, Sales Person, Sales Team, or Transaction Coordinator can be that person. An outside user is refused in plain words. A contact with no portal login can still be listed on Contacts as Processor, and that listing does not become the file's Processor.
+- A one-time copy lines up existing fake TEST files (a demo file, a note that says it is fake, a DEMO- file number, or a generated file number whose contacts use example.test or example.com only). A file that also has another email address is left as it is. MD-26-97260 is not rewritten by that copy when a contact on it uses a CLA email. After the database file is applied, remove the Processor and add them again, or set the Processor on Edit order details, and both screens match.
+
+**What's still missing**
+
+- Not Live until this is merged and `supabase/migrations/20261122180000_processor_party_sync.sql` is applied on TEST. Clicking the Processor row on File Overview to pick someone is a separate item (PROC-2).
+- Open tasks that were tied to a previous Processor row are cancelled in the demo when that row is replaced. On TEST, removing the person with Remove from order still cancels those tasks. The automatic replace does not cancel them.
+
+**Links**
+
+- Spec: [docs/specs/file-processor.md](docs/specs/file-processor.md)
+- Source: John Coester, Nov 14 2026, 1:55 PM ET, recording "Adding a processor". Tracker row PROC-1.
+
+**Decisions**
+
+- The file's processor field stays the one the rest of the portal already uses (notices, messages, the red warning). Contacts is kept as a matching row, not a second Processor.
+- John confirmed this list on Nov 14, 2:00 PM ET. The role walkthrough on main was already failing for a separate reason. This change does not touch that walkthrough. Rule 9 was not waived.
+
+---
+
 ## Contract intake AI
 
 **How it should work.** A spec is still to come.
@@ -371,3 +428,31 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - John, Nov 13: its own admin menu item (not under Task Templates); Admins and Super admins only; tasks can be assigned by role or to a named person; a backup person is optional, added on each task. John, Nov 14: a flow can be tried on one file first, and turning it on defaults to new files only. Still open: whether clients and agents can tick off tasks.
+
+---
+
+## CRM Excel import (CRM-IMPORT-XLSX)
+
+**How it should work.** On every CRM import screen (Import Leads, Import Clients, and Import Notes on either), an admin can pick a CSV or an Excel file (.xlsx or .xls). Windows' file picker was hiding Excel files because the box only accepted CSV. The first sheet is read. Dates show as month/day/year. Empty cells stay empty. The rest of the import is the same as a CSV: map the columns, preview, then import, with the same size and row limits.
+
+**Status: In progress.** Tracker row CRM-IMPORT-XLSX. Requested by John Coester, Nov 14 2026, 1:42 PM ET, after a screen recording of the file picker on Import Notes (on Leads). Pull request: [PR 270](https://github.com/Johncoester/cla-portal-demo/pull/270). Not Live until this is merged and someone tries an Excel file on TEST. No database change.
+
+**What's built**
+
+- The upload box accepts .csv, .xlsx, and .xls. The heading and the help text say CSV or Excel. The Create New menu says the same.
+- An Excel file's first sheet becomes the same rows the CSV import already uses. A file with more than one sheet says which sheet was used. A password-protected or unreadable file says what to do, in plain words.
+- The spreadsheet reader is stored in the portal and loads only after an Excel file is picked.
+
+**What's still missing**
+
+- Not checked on TEST yet. Companies do not have their own import screen; this does not add one.
+- A date cell that also has a time keeps the time after the date. A date with no time is month/day/year only.
+
+**Links**
+
+- Spec: [docs/specs/crm-import-excel.md](docs/specs/crm-import-excel.md)
+- Related pull requests: [PR 270](https://github.com/Johncoester/cla-portal-demo/pull/270).
+
+**Decisions**
+
+- John, Nov 14: accept .xlsx and .xls on the CRM import screens built from the Janine import page, and keep mapping, preview, limits, chunks, the error CSV, and resume the same. Read the first sheet only. No database change.
