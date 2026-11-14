@@ -35,7 +35,7 @@ export const LINK_TOKENS = {
   '8f35592f04f1ff466320a8fe': 'u-proc', 'b6662f52b1113fb211268fc3': 'u-preproc', '0647edc4ee2a4d029a0f8930': 'u-sp', '1d23d39566522fce5c6952bd': 'u-team', '3fbd6a653b1b49e5ae4bd016': 'u-tc',
   'f1fefad2347ba878391dd44d': 'u-bagent', '9dd9de8b9c327645419f86bb': 'u-lagent', '6279357492dca5e12fc800d9': 'u-buyer', '6e7d6ca958d6fb3b4285894d': 'u-seller',
   'c356ab42259b4c120f77c9d3': 'u-multi', 'd5be9004fe1a25635731fc06': 'u-selfrep', '3455a01bbb58d0a8fc801ec9': 'u-adam', '50f70c55b90611bcd9a49ce1': 'u-admin', 'f0678aacef75b9ab555e8bbc': 'u-tc2',
-  'd9324aeb920aff3bb132baaf': 'u-hr1', 'c648b06c6b1da945bae4cc6c': 'u-ph1',   // HR (Nov 4): Hana HR-Manager, Pia Processor-PH (HR-only 'Employee' logins; fake, not secrets)
+  'd9324aeb920aff3bb132baaf': 'u-hr1', 'c648b06c6b1da945bae4cc6c': 'u-ph1',   // HR (Nov 4): Hana is an HR-only Employee. Pia is an HR-created Processor (fake, not secrets)
 };
 // LANDING FILE (John, Nov 4, file-first): an optional  &file=<deal id>  only picks the FIRST page (that file's view). It never widens access:
 // the token alone decides the person; the file must be one the person is on (the adapter's getDeal refuses others), and the person can still

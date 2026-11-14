@@ -17,6 +17,32 @@ import { HR_INVITE_DAYS, portalRoleForDesignation, SELF_FIELDS, HR_FIELDS, SENSI
 const rnd = () => { const a = new Uint8Array(16); (globalThis.crypto || { getRandomValues: (x) => x.map(() => Math.floor(Math.random() * 256)) }).getRandomValues(a); return [...a].map((b) => b.toString(16).padStart(2, '0')).join(''); };
 const plusDays = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString();
 const SEED_AT = '2026-11-04T14:00:00Z';
+const MAPPED_AT_LOAD = ['Processor', 'Preprocessor', 'Sales Person', 'Transaction Coordinator'];
+// Same rule as the database backfill (20261112060500): a designation of Processor, Preprocessor,
+// Sales Person, or Transaction Coordinator gives that portal role. It does not take a Processor
+// login away when the job title is something else (Processing Manager stays a Processor).
+function alignMappedPortalRoles(d) {
+  if (!Array.isArray(d.hrEmployees) || !Array.isArray(d.profiles)) return;
+  const movable = ['Employee', ...MAPPED_AT_LOAD];
+  for (const e of d.hrEmployees) {
+    if (!e || e.archivedAt || !e.profileId) continue;
+    const name = ((d.hrDesignations || []).find((g) => g.id === e.designationId) || {}).name;
+    const next = portalRoleForDesignation(name);
+    if (!MAPPED_AT_LOAD.includes(next)) continue;
+    const p = d.profiles.find((z) => z.id === e.profileId);
+    if (!p || p.isAdmin || !movable.includes(p.role)) continue;
+    if (p.role !== next) p.role = next;
+    // A Processor (or the other mapped roles) is offered as a file's transaction coordinator.
+    // That list uses the contact that already exists for the login. Listing it must not create one.
+    if (!Array.isArray(d.contacts) || d.contacts.some((c) => c && c.profileId === p.id)) continue;
+    const email = String(p.email || '').trim().toLowerCase();
+    const loose = email ? d.contacts.find((c) => c && !c.profileId && String(c.email || '').toLowerCase() === email) : null;
+    if (loose) { loose.profileId = p.id; continue; }
+    const id = 'c-' + String(p.id).replace(/^u-/, '');
+    if (d.contacts.some((c) => c && c.id === id)) continue;
+    d.contacts.push({ id, profileId: p.id, firstName: p.firstName || '', lastName: p.lastName || '', email, phone: p.phone || '', company: 'CLA Title & Escrow', contactType: null, createdBy: 'u-admin', createdAt: p.createdAt || SEED_AT });
+  }
+}
 const BLANK = { jobTitle: '', workPhone: '', phone: '', addressLine1: '', addressLine2: '', city: '', stateProvince: '', postalCode: '', addressCountry: '', emergencyName: '', emergencyRelationship: '', emergencyPhone: '',
   payType: null, payRate: null, payCurrency: null, commissioned: false, commissionNotes: '', employmentType: 'full_time', employmentStatus: 'active', reportingToId: null, profileId: null, archivedAt: null, archivedBy: null, updatedAt: null, updatedBy: null };
 
@@ -26,8 +52,9 @@ export function ensureHr(d) {
   const addProfile = (p) => { if (!d.profiles.some((x) => x.id === p.id)) d.profiles.push({ isAdmin: false, status: 'active', createdAt: SEED_AT, ...p }); };
   // two HR-only logins (account role 'Employee'): the seeded HR manager and one Philippines processor who already accepted her invite
   addProfile({ id: 'u-hr1', email: 'hana.hr-manager@example.test', firstName: 'Hana', lastName: 'HR-Manager', phone: '301-555-0115', role: EMPLOYEE_ROLE });
+  // Pia is an HR-created Processor (designation Processor). The login starts as Employee only until alignMappedPortalRoles runs, same as the database backfill.
   addProfile({ id: 'u-ph1', email: 'pia.processor-ph@example.test', firstName: 'Pia', lastName: 'Processor-PH', phone: '+63 917 555 0101', role: EMPLOYEE_ROLE });
-  if (Array.isArray(d.hrEmployees)) return ensureHrFeedback(d);
+  if (Array.isArray(d.hrEmployees)) { alignMappedPortalRoles(d); return ensureHrFeedback(d); }
   const at = (x) => ({ createdAt: SEED_AT, createdBy: 'u-admin', updatedAt: null, updatedBy: null, archivedAt: null, archivedBy: null, ...x });
   d.hrDepartments = [['hrd-proc', 'Processing'], ['hrd-exam', 'Title Examiners'], ['hrd-admin', 'Administrative'], ['hrd-recr', 'Recruiting'], ['hrd-close', 'Closing'], ['hrd-sales', 'Sales']]
     .map(([id, name], i) => at({ id, name, sort: (i + 1) * 10 }));
@@ -66,6 +93,7 @@ export function ensureHr(d) {
   H({ tableName: 'hr_role_assignments', rowId: 'hra-1', employeeId: 'hre-08', field: 'hrManager', column: 'hr_manager', oldValue: 'No', newValue: 'Yes', action: 'assign' });
   H({ tableName: 'hr_employees', rowId: 'hre-13', employeeId: 'hre-13', field: 'archivedAt', column: 'archived_at', oldValue: '', newValue: '2026-06-30T16:00:00Z', action: 'archive', changedAt: '2026-06-30T16:00:00Z' });
   d.hrSeq = seq;
+  alignMappedPortalRoles(d);
   return ensureHrFeedback(d);
 }
 
