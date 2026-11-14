@@ -58,3 +58,12 @@ The end goal is a drag-and-drop flowchart screen where "almost any task can be a
 - A **History** card lists who created, changed, turned on or turned off each flow, and what changed.
 - A notice at the top says flows do not run on files yet.
 - Database: `supabase/migrations/20261120010000_task_builder_flows.sql` adds `task_flows` (with an empty `steps` list for TB-2) and `task_flow_log`. Nobody reads or writes the tables directly; `list_task_flows`, `save_task_flow` and `set_task_flow_active` are Admin / Super admin only. Rollback in `supabase/rollbacks/`.
+
+## TB-2 as built
+
+- **Which files** (on the flow): transaction type (Purchase with a loan, Cash purchase with no loan, Refinance), state (MD, VA, DC, FL), sales person. A blank group means any; every filled group must match; any value inside a group matches. Checked when the flow first runs on a file, so people added after the order count.
+- **Steps**, up to 20, in order: create a task (name, for whom, due in 0–60 days), create a phone call task (same, marked "Phone call."), wait 1–60 days, stop if the EMD has been received. Steps can be added, changed, moved up or down, and removed. A flow needs one task step before it can be turned on, and an On flow can't lose its last one.
+- **Who gets a task:** everyone on the file with that role (processor, pre-processor, sales person, buyer's agent, listing agent, buyer, seller, transaction coordinator, lender). For the processor, pre-processor and TC, the person set on the order gets it when the party list has nobody in that role. Each task says which flow added it. Staff mark tasks done.
+- **Runs:** one flow on one file. A flow starts once per file; "Closing date set or changed" can start again after its last run ended. Only open files run; a turned-off flow's runs wait. The page shows recent runs and a **Check files now** button.
+- **Hosted:** a trigger on deals starts runs for order opened, EMD received (`emd_received` turned on) and closing date set or changed; a pg_cron job every 15 minutes starts the day-based triggers and moves runs on. Any engine problem is written to `task_flow_errors` and never stops an order from saving. Migration `20261121010000_task_flow_engine.sql`, rollback in `supabase/rollbacks/`.
+- **Not yet:** "Contract received" and "Title commitment received" can't be turned on; named person, optional backup and who can see it (TB-3); emails (TB-4); drag and drop (TB-5).

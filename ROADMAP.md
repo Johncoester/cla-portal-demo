@@ -283,7 +283,7 @@ This file lists the portal's major features: how each one should work, how far a
 | Step | What | Status |
 |---|---|---|
 | TB-1 | Admin page and permissions, list of flows (name, what starts it, On / Off), history (Owner: Claude) | Pull request open. Not Live until `20261120010000_task_builder_flows.sql` is applied on TEST |
-| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST | Planned |
+| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) | Built on branch `claude/task-builder-2`; its pull request opens after PR 261 merges. Not Live until `20261121010000_task_flow_engine.sql` is applied on TEST |
 | TB-3 | Task settings: assigned to (role or named person), optional backup person, who can see it | Planned |
 | TB-4 | Email actions with templates and "send as" | Planned |
 | TB-5 | Drag-and-drop flowchart screen | Planned |
@@ -294,8 +294,15 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- TB-1 is not Live: its database file has to be applied on TEST. Until then the TEST page says Task Builder isn't set up yet.
-- Flows do not run on files yet: no conditions or actions (TB-2 onward).
+- TB-2: each flow says **which files** it applies to (transaction type: purchase, cash purchase or refinance; state; sales person — blank means any) and has **steps** run in order: create a task, create a phone call task, wait a number of days, or stop if the EMD has been received. A task goes to everyone on the file with the chosen role (processor, pre-processor, sales person, buyer's agent, listing agent, buyer, seller, transaction coordinator, lender). The page shows each flow's steps, recent runs (flow, file, status, latest step) and a **Check files now** button. A flow needs at least one task step before it can be turned on. The database starts flows when an order is opened, the EMD is marked received, or the closing date is set or changed, and every 15 minutes checks the day-based triggers and waits. Nothing in it can stop an order from saving.
+
+**What's still missing**
+
+- TB-1 and TB-2 are not Live: their database files have to be applied on TEST (TB-2 also needs pg_cron, already on TEST).
+- "Contract received" and "Title commitment received" can be saved but not turned on yet.
+- On TEST a new order's flow tasks appear at the next 15-minute check (or **Check files now**), after Place Order has added the people.
+- Named person, optional backup person, and who can see a task (TB-3); emails (TB-4); drag and drop (TB-5).
+- Clients and agents can see tasks assigned to them but only staff mark them done (open question for John).
 
 **Links**
 
