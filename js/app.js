@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611221100';
+import { getAdapter } from './data/adapter.js?v=202611221200';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611201000';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611101015';
@@ -48,7 +48,7 @@ const pages = {
   activity: () => import('./pages/activity.js?v=202611161500'),
   outbox: () => import('./pages/outbox.js?v=202611161500'),
   tasks: () => import('./pages/tasks.js?v=202611201000'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611161500'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
+  'task-grid': () => import('./pages/taskgrid.js?v=202611221200'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down. MF-053: party status columns.
   schedule: () => import('./pages/schedule.js?v=202611170800'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611161500'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => import('./pages/modules.js?v=202611161500'),

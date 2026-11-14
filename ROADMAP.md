@@ -220,6 +220,36 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Task grid party status (MF-053)
+
+**How it should work.** On the Processor Task Grid, File No, Property and Closing Date stay as they are. Four columns follow: Buyer, Seller, Buyer's Agent and Listing Agent. A green check means every task for that party on the file is done. A red X means any of that party's tasks is overdue. The cell is empty when that party's tasks are still open and not overdue, and blank when that party is not on the file. The individual task columns stay to the right.
+
+**Status: In progress.** Tracker row MF-053. Pull request: [PR 266](https://github.com/Johncoester/cla-portal-demo/pull/266). No database change. Not Live until this is merged and checked on TEST.
+
+**What's built**
+
+- The Task Grid shows the four party columns after Closing Date. The marks use the same green check and red X as the task columns.
+- An overdue task wins over completed tasks for that party. Cancelled tasks are ignored.
+- The columns sort like the task columns: overdue first, then open, then complete. A blank party cell stays last.
+- Who is on the file comes from one read of the parties for the whole grid, together with the tasks the grid already loads. There is no extra read per file. A person on the file who has no tasks yet gets an empty cell, not a check. A party who is not on the file gets a blank cell.
+
+**What's still missing**
+
+- Not Live until this is merged and an Admin checks it on TEST.
+
+**Links**
+
+- Spec: [docs/specs/task-grid-party-status.md](docs/specs/task-grid-party-status.md)
+- Source: Matt's Nov 11 Processor User-Task Grid notes; confirmed by email Nov 12, 8:47 AM ET. Tracker row MF-053.
+- Related pull requests: [PR 266](https://github.com/Johncoester/cla-portal-demo/pull/266). No database file.
+
+**Decisions**
+
+- Matt confirmed on Nov 12 at 8:47 AM ET: four columns only (Buyer, Seller, Buyer's Agent, Listing Agent); open-but-not-overdue shows nothing; a missing party leaves the cell blank. File number, property and closing date stay.
+- The existing task columns stay. The party columns are a summary in front of them.
+
+---
+
 ## Any staff role on a file (ANYROLE-1)
 
 **How it should work.** At the admin level, each login still has one account role. On a file, any active staff login (Super admin, Admin, Processor, Preprocessor, Sales Person, Sales Team or Transaction Coordinator) can be picked as the Processor, a salesperson, the Transaction Coordinator, or a party such as the buyer, seller, buyer agent, listing agent or lender. A staff login added as the buyer or seller can open that file in the portal. Demo and real logins stay in their own world. The CRM Owner field is unchanged.
