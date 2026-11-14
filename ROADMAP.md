@@ -27,7 +27,7 @@ This file lists the portal's major features: how each one should work, how far a
 | AF-4 | Notice to the agent when staff change a confirmed fee | Live on TEST, [PR 236](https://github.com/Johncoester/cla-portal-demo/pull/236) |
 | AF-5 | Fees post to Accounting automatically | Live on TEST, [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) |
 | AF-6 | "Generate CD" and "Generate ALTA" PDF buttons | Live on TEST, [PR 238](https://github.com/Johncoester/cla-portal-demo/pull/238) |
-| AF-7 | Follow-ups: one place for commissions, agent task without fee questions, walkthrough test (Owner: Claude) | On TEST, not Live. [PR 257](https://github.com/Johncoester/cla-portal-demo/pull/257) is merged and its database file is applied, but Place Order fails with a permission error. Follow-up [PR 259](https://github.com/Johncoester/cla-portal-demo/pull/259) is not Live until `20261119180000_old_commission_keys_permissions.sql` is applied on TEST and Place Order is checked there |
+| AF-7 | Follow-ups: one place for commissions, agent task without fee questions, walkthrough test (Owner: Claude) | Live on TEST, Nov 13 2026. [PR 257](https://github.com/Johncoester/cla-portal-demo/pull/257) + fix [PR 259](https://github.com/Johncoester/cla-portal-demo/pull/259), migrations 20261119030000 and 20261119180000 applied on TEST |
 
 **What's built**
 
