@@ -317,7 +317,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's built**
 
 - Contacts and File Overview were reading two different places. Contacts stored a person on the file with the role Processor. File Overview read the file's processor field, so it still said "Not specified" and showed the red "no processor yet" warning. They now stay in step both ways.
-- A Super admin, Admin, Processor, Preprocessor, Sales Person, Sales Team, or Transaction Coordinator can be that person. An outside user, or a contact with no login, is refused in plain words.
+- A Super admin, Admin, Processor, Preprocessor, Sales Person, Sales Team, or Transaction Coordinator can be that person. An outside user is refused in plain words. A contact with no portal login can still be listed on Contacts as Processor, and that listing does not become the file's Processor.
 - A one-time copy lines up existing fake TEST files (a demo file, a note that says it is fake, a DEMO- file number, or a generated file number whose contacts use example.test or example.com only). A file that also has another email address is left as it is. MD-26-97260 is not rewritten by that copy when a contact on it uses a CLA email. After the database file is applied, remove the Processor and add them again, or set the Processor on Edit order details, and both screens match.
 
 **What's still missing**

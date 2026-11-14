@@ -3,7 +3,6 @@
 import { readFileSync } from 'node:fs';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { buildOrderOverview } from '../js/data/order-overview.js';
-import { PROCESSOR_NO_LOGIN } from '../js/data/processor-party.js';
 
 const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
 let pass = 0, fails = 0;
@@ -44,16 +43,17 @@ await a.updateDeal(file.id, { processorId: '' });
 const blank = await a.getDeal(file.id);
 ok(!blank.processorId && !blank.participants.some((p) => p.role === 'Processor'), 'clearing the Processor on the order takes them off Contacts');
 
-await rejects(() => a.addParticipant(file.id, 'c-cora', 'Processor'), 'NEG a person with no portal login cannot be the Processor', new RegExp(PROCESSOR_NO_LOGIN.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-const still = await a.getDeal(file.id);
-ok(!still.processorId && !still.participants.some((p) => p.role === 'Processor'), 'a refused Processor is not left on the file');
+await a.addParticipant(file.id, 'c-cora', 'Processor');
+const loose = await a.getDeal(file.id);
+ok(!loose.processorId && loose.participants.some((p) => p.role === 'Processor' && p.contactId === 'c-cora'), 'a contact with no login can stay on Contacts and is not the file Processor');
+await a.removeParticipant(file.id, loose.participants.find((p) => p.contactId === 'c-cora').id);
 
 await rejects(() => a.addParticipant(file.id, 'c-buyer', 'Processor'), 'NEG an outside user cannot be the Processor', /outside user cannot be added as CLA staff/);
 
 const mig = readFileSync(new URL('../supabase/migrations/20261122180000_processor_party_sync.sql', import.meta.url), 'utf8');
 const rb = readFileSync(new URL('../supabase/rollbacks/20261122180000_processor_party_sync.sql', import.meta.url), 'utf8');
 ok(mig.includes('participants_processor_sync') && mig.includes('deals_processor_party') && mig.includes('private.processor_backfill_fake') && mig.includes('@example') && mig.includes('ANYROLE-1'), 'the database file syncs both ways and limits the copy to fake patterns');
-ok(mig.includes("role in ('Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin')") && mig.includes('A person with no portal login cannot be the Processor'), 'the database file keeps the any-staff Processor rule');
+ok(mig.includes("role in ('Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin')") && mig.includes('no portal login can still be listed'), 'the database file keeps the any-staff Processor rule and still allows a contact with no login');
 ok(!mig.includes('bxixxgcqxmtzkrolywas'), 'the database file does not name the production project');
 ok(rb.includes('drop trigger if exists participants_processor_sync') && rb.includes('drop function if exists private.processor_backfill_fake') && rb.includes('left as they are'), 'the rollback drops the sync and says the copied rows stay');
 

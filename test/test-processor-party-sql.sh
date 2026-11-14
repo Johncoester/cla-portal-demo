@@ -150,14 +150,18 @@ do $$ begin
   ) then raise exception 'a staff login with no contact did not get a Contacts row'; end if;
 end $$;
 
+insert into public.deal_participants (id, deal_id, contact_id, role)
+values ('a1000000-0000-4000-8000-000000000006', 'd1000000-0000-4000-8000-000000000004', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'Processor');
 do $$ begin
-  begin
-    insert into public.deal_participants (id, deal_id, contact_id, role)
-    values ('a1000000-0000-4000-8000-000000000006', 'd1000000-0000-4000-8000-000000000004', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'Processor');
-    raise exception 'a person with no login was accepted';
-  exception when others then
-    if sqlerrm not like '%no portal login%' then raise; end if;
-  end;
+  if (select processor_id from public.deals where id = 'd1000000-0000-4000-8000-000000000004')
+     is distinct from '66666666-6666-4666-8666-666666666666' then
+    raise exception 'a contact with no login changed the file Processor';
+  end if;
+  if not exists (select 1 from public.deal_participants where id = 'a1000000-0000-4000-8000-000000000006') then
+    raise exception 'a contact with no login was not kept on Contacts';
+  end if;
+end $$;
+do $$ begin
   begin
     insert into public.deal_participants (id, deal_id, contact_id, role)
     values ('a1000000-0000-4000-8000-000000000007', 'd1000000-0000-4000-8000-000000000004', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'Processor');

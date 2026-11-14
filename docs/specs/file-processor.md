@@ -19,7 +19,7 @@ The file's processor field stays the Processor the rest of the portal already us
 - Adding a Processor on Contacts sets the field, and drops any other Processor row on that file so there is one.
 - Removing that person from Contacts clears the field.
 - Setting or clearing the field (Edit order details, Place Order) adds or removes the Contacts row.
-- The person must be an active staff login: Super admin, Admin, Processor, Preprocessor, Sales Person, Sales Team, or Transaction Coordinator (ANYROLE-1). A person with no portal login is refused. A demo login and a real file stay apart.
+- The person must be an active staff login: Super admin, Admin, Processor, Preprocessor, Sales Person, Sales Team, or Transaction Coordinator (ANYROLE-1). A contact with no portal login can still be listed on Contacts as Processor. That listing is not the file's Processor. A demo login and a real file stay apart.
 
 The one-time copy only updates files that look like seeded fake TEST data. It does not rewrite a file that has some other email on it. It does not run on production.
 

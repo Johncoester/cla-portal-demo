@@ -6,8 +6,9 @@
 -- This file keeps them in step both ways. deals.processor_id stays the file's Processor.
 -- Adding or removing the Processor on Contacts updates that field. Setting or clearing
 -- it anywhere else (Edit order details, Place Order) adds or removes the Contacts row.
--- Any active staff login can be the Processor (ANYROLE-1, 20261119150000). A person with
--- no portal login cannot. Demo and real logins stay in their own world.
+-- Any active staff login can be the Processor (ANYROLE-1, 20261119150000). A contact with
+-- no portal login can still be listed on Contacts as Processor. That row is not the file's
+-- Processor, which is what Share Files and closing already expect. Demo and real logins stay apart.
 -- The one-time copy at the bottom only touches files that look like seeded fake TEST data.
 -- It does not rewrite a file that has a real-looking email on it. Not applied by this commit.
 -- Do not apply this file on production.
@@ -87,7 +88,7 @@ begin
     left join public.profiles p on p.id = c.profile_id
    where c.id = p_contact;
   if v_profile is null or v_role is null then
-    raise exception 'Pick an active staff login. A person with no portal login cannot be the Processor.' using errcode = 'P0001';
+    return null;
   end if;
   if v_role = 'Outside user' then
     raise exception 'An outside user cannot be added as CLA staff. Pick Buyer Agent, Listing Agent, Client-Buyer or Client-Seller.' using errcode = 'P0001';
@@ -145,7 +146,7 @@ begin
 end $$;
 revoke all on function private.processor_party_contact(uuid) from public, anon, authenticated;
 
--- Make the Contacts Processor row match deals.processor_id. Empty means no Processor row.
+-- Make the staff Contacts row match deals.processor_id. A Processor row whose contact has no login is left alone.
 create function private.apply_processor_party(p_deal uuid) returns void
 language plpgsql security definer
 set search_path to pg_catalog, public as $$
@@ -154,11 +155,15 @@ begin
   perform set_config('cla.processor_sync', 'on', true);
   select processor_id into v_proc from public.deals where id = p_deal;
   if v_proc is null then
-    delete from public.deal_participants where deal_id = p_deal and role = 'Processor';
+    delete from public.deal_participants dp
+     using public.contacts c
+     where dp.deal_id = p_deal and dp.role = 'Processor' and c.id = dp.contact_id and c.profile_id is not null;
   else
     cid := private.processor_party_contact(v_proc);
-    delete from public.deal_participants
-     where deal_id = p_deal and role = 'Processor' and contact_id is distinct from cid;
+    delete from public.deal_participants dp
+     using public.contacts c
+     where dp.deal_id = p_deal and dp.role = 'Processor' and dp.contact_id is distinct from cid
+       and c.id = dp.contact_id and c.profile_id is not null;
     insert into public.deal_participants (id, deal_id, contact_id, role)
     select gen_random_uuid(), p_deal, cid, 'Processor'
      where not exists (
@@ -181,6 +186,13 @@ begin
   if tg_op = 'INSERT' and new.role is distinct from 'Processor' then return new; end if;
   if tg_op = 'DELETE' and old.role is distinct from 'Processor' then return old; end if;
   if tg_op = 'UPDATE' and old.role is distinct from 'Processor' and new.role is distinct from 'Processor' then return new; end if;
+  -- A contact with no login can be listed as Processor. That does not change who the file's Processor is.
+  if tg_op <> 'DELETE' and new.role = 'Processor'
+     and not exists (select 1 from public.contacts c where c.id = new.contact_id and c.profile_id is not null)
+     and not (tg_op = 'UPDATE' and old.role = 'Processor' and exists (
+       select 1 from public.contacts c where c.id = old.contact_id and c.profile_id is not null)) then
+    return new;
+  end if;
 
   perform set_config('cla.processor_sync', 'on', true);
 
@@ -192,17 +204,23 @@ begin
       from public.contacts c
      where d.id = v_deal and c.id = v_contact and d.processor_id is not distinct from c.profile_id;
     delete from public.deal_participants dp
-     where dp.deal_id = v_deal and dp.role = 'Processor' and dp.id is distinct from old.id;
+     using public.contacts c
+     where dp.deal_id = v_deal and dp.role = 'Processor' and dp.id is distinct from old.id
+       and c.id = dp.contact_id and c.profile_id is not null;
   end if;
 
   if tg_op = 'INSERT'
      or (tg_op = 'UPDATE' and new.role = 'Processor'
          and (old.role is distinct from 'Processor' or old.contact_id is distinct from new.contact_id)) then
     v_profile := private.processor_staff_id(new.contact_id, new.deal_id);
-    update public.deals set processor_id = v_profile
-     where id = new.deal_id and processor_id is distinct from v_profile;
-    delete from public.deal_participants
-     where deal_id = new.deal_id and role = 'Processor' and id is distinct from new.id;
+    if v_profile is not null then
+      update public.deals set processor_id = v_profile
+       where id = new.deal_id and processor_id is distinct from v_profile;
+      delete from public.deal_participants dp
+       using public.contacts c
+       where dp.deal_id = new.deal_id and dp.role = 'Processor' and dp.id is distinct from new.id
+         and c.id = dp.contact_id and c.profile_id is not null;
+    end if;
   end if;
 
   perform set_config('cla.processor_sync', 'off', true);

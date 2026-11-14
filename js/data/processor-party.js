@@ -48,24 +48,30 @@ export function ensureProcessorContact(db, profile, { newContactId, now, actorId
   return c;
 }
 
-/* One Processor row for this file, for this staff login. Other Processor rows are taken off. */
+function staffContact(db, contactId) {
+  const c = (db.contacts || []).find((z) => z.id === contactId);
+  return !!(c && c.profileId);
+}
+
+/* The staff login's Processor row. A Contacts row with no portal login is left as it is:
+ * Share Files and closing already allow that row, and it is not the file's Processor. */
 export function assignProcessorParty(db, { dealId, profile, actor, now, newParticipantId, newContactId, actorId }) {
   const msg = processorStaffError(profile, actor);
   if (msg) return { error: msg };
   const contact = ensureProcessorContact(db, profile, { newContactId, now, actorId });
   if (contact.error) return contact;
-  const dropped = (db.participants || []).filter((p) => p.dealId === dealId && p.role === 'Processor' && p.contactId !== contact.id);
+  const dropped = (db.participants || []).filter((p) => p.dealId === dealId && p.role === 'Processor' && p.contactId !== contact.id && staffContact(db, p.contactId));
   cancelOpenTasks(db, dropped);
-  db.participants = (db.participants || []).filter((p) => !(p.dealId === dealId && p.role === 'Processor' && p.contactId !== contact.id));
+  db.participants = (db.participants || []).filter((p) => !(p.dealId === dealId && p.role === 'Processor' && p.contactId !== contact.id && staffContact(db, p.contactId)));
   if (!db.participants.some((p) => p.dealId === dealId && p.role === 'Processor' && p.contactId === contact.id)) {
     db.participants.push({ id: newParticipantId(), dealId, contactId: contact.id, role: 'Processor', createdAt: now() });
   }
   return { contact };
 }
 
-/* Take every Processor row off this file. Used when the file processor is cleared. */
+/* Take the staff Processor row off this file. A contact with no login stays on Contacts. */
 export function clearProcessorParties(db, dealId) {
-  const dropped = (db.participants || []).filter((p) => p.dealId === dealId && p.role === 'Processor');
+  const dropped = (db.participants || []).filter((p) => p.dealId === dealId && p.role === 'Processor' && staffContact(db, p.contactId));
   cancelOpenTasks(db, dropped);
-  db.participants = (db.participants || []).filter((p) => !(p.dealId === dealId && p.role === 'Processor'));
+  db.participants = (db.participants || []).filter((p) => !(p.dealId === dealId && p.role === 'Processor' && staffContact(db, p.contactId)));
 }

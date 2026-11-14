@@ -107,16 +107,18 @@ export function contactsTasksDocs(x) {
       // John, ANYROLE-1: any active staff login can be the file's Transaction Coordinator.
       if (role === 'Transaction Coordinator' && !(login && login.status === 'active' && C.STAFF_ACCOUNT_ROLES.includes(login.role)))
         fail('Only an active staff login can be the Transaction Coordinator on an order.');
-      // PROC-1: a Processor on Contacts is the file's processor (File Overview reads that field).
-      if (role === 'Processor') { const msg = processorStaffError(login, u); if (msg) fail(msg); }
+      // PROC-1: a staff login added as Processor is the file's processor. A contact with no login
+      // can still be listed (Share Files and closing already allow that) and is not the file processor.
+      if (role === 'Processor' && login) { const msg = processorStaffError(login, u); if (msg) fail(msg); }
       const entity = cleanEntity(opts && opts.entity, role, x);
       const p = { id: nid('dp'), dealId, contactId, role, createdAt: now(), ...(entity ? { entity } : {}) }; d.participants.push(p);
-      if (role === 'Processor') {
+      if (role === 'Processor' && login) {
         const prev = deal.processorId || null;
         deal.processorId = login.id; deal.processorUnassigned = false;
-        const dropped = d.participants.filter((row) => row.dealId === dealId && row.role === 'Processor' && row.id !== p.id);
+        const staffRow = (row) => { const who = d.contacts.find((z) => z.id === row.contactId); return !!(who && who.profileId); };
+        const dropped = d.participants.filter((row) => row.dealId === dealId && row.role === 'Processor' && row.id !== p.id && staffRow(row));
         d.tasks.filter((t) => dropped.some((row) => row.id === t.participantId) && ['todo', 'in_progress', 'blocked'].includes(t.status)).forEach((t) => { t.status = 'cancelled'; });
-        d.participants = d.participants.filter((row) => !(row.dealId === dealId && row.role === 'Processor' && row.id !== p.id));
+        d.participants = d.participants.filter((row) => !(row.dealId === dealId && row.role === 'Processor' && row.id !== p.id && staffRow(row)));
         if (login.id !== prev) log(dealId, u.id, 'deal.processor', 'deal', dealId, `Processor set to ${fullName(c)}`);
       }
       log(dealId, u.id, 'participant.added', 'contact', contactId, `${fullName(c)} added as ${role}`);
