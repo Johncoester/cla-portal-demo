@@ -1,11 +1,11 @@
 /* TC PORTAL (John, Nov 5): typed contract / EMD / ALTA fields + staff-coordinated all-parties thread.
  * Mirrors supabase/migrations/20261105000071_tc_contract_emd_alta.sql. FAKE DATA ONLY. */
-export const TC_CONTRACT_FIELDS = ['purchasePrice', 'contractDate', 'listingCommissionPct', 'listingCommissionAmount', 'buyerCommissionPct', 'buyerCommissionAmount', 'sellerConcessions', 'emdAmount', 'emdHolder', 'closingDate'];
+// Commissions are not contract figures any more: they are Agent fees (one place, John Nov 13 2026).
+export const TC_CONTRACT_FIELDS = ['purchasePrice', 'contractDate', 'sellerConcessions', 'emdAmount', 'emdHolder', 'closingDate'];
 export function ensureTc(d) {
   (d.deals || []).forEach((q) => {
     const defaults = { contractDate: q.openDate || null, emdHolder: '', emdReceived: false, emdReceivedDate: null, emdReceivedAmount: null,
-      altaReceived: false, altaReceivedDate: null, altaDocumentId: null, stageDates: {}, sellerConcessions: null,
-      listingCommissionPct: null, listingCommissionAmount: null, buyerCommissionPct: null, buyerCommissionAmount: null };
+      altaReceived: false, altaReceivedDate: null, altaDocumentId: null, stageDates: {}, sellerConcessions: null };
     Object.keys(defaults).forEach((k) => { if (q[k] === undefined) q[k] = defaults[k]; });
   });
   return d;
@@ -25,8 +25,8 @@ export function tcPortal(x, api) {
       return clone({ ...Object.fromEntries(TC_CONTRACT_FIELDS.map((k) => [k, q[k] == null ? '' : q[k]])),
         clients: deal.participants.filter((p) => ['Client-Buyer', 'Client-Seller'].includes(p.role)).map((p) => ({ participantId: p.id, contactId: p.contactId, role: p.role, firstName: p.contact.firstName, lastName: p.contact.lastName, email: p.contact.email || '', phone: p.contact.phone || '' })) }); },
     async updateContractInfo(id, patch = {}) { const u = canEdit(id); const q = load().deals.find((z) => z.id === id);
-      const nums = { purchasePrice: 'Purchase price', listingCommissionPct: 'Listing commission %', listingCommissionAmount: 'Listing commission $', buyerCommissionPct: 'Buyer commission %', buyerCommissionAmount: 'Buyer commission $', sellerConcessions: 'Seller concessions', emdAmount: 'EMD amount' };
-      for (const [k, label] of Object.entries(nums)) if (patch[k] !== undefined) { const n = num(patch[k], label); if (k.endsWith('Pct') && n !== null && n > 100) fail(`${label} must be 0-100.`); q[k] = n; }
+      const nums = { purchasePrice: 'Purchase price', sellerConcessions: 'Seller concessions', emdAmount: 'EMD amount' };
+      for (const [k, label] of Object.entries(nums)) if (patch[k] !== undefined) q[k] = num(patch[k], label);
       if (patch.contractDate !== undefined) q.contractDate = dt(patch.contractDate, 'Contract date');
       if (patch.closingDate !== undefined) q.closingDate = dt(patch.closingDate, 'Settlement date');
       if (patch.emdHolder !== undefined) q.emdHolder = str(patch.emdHolder, 200);

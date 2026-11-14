@@ -5,8 +5,8 @@
  * Every add / edit / retire / restore is logged in d.accountingLog (who, when, field, old, new). Fees are RETIRED, never deleted. */
 import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, acctCanRead, acctCanEdit, cleanFee, feeChanges, allEntries, ledgerTotals,
   altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration } from './accounting.js?v=202611070139';
-import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractChanges, contractMismatch, assertContractPersisted, CONTRACT_NOT_SAVED } from './contract-terms.js?v=202611091140';
-import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611141000';
+import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractChanges, contractMismatch, assertContractPersisted, CONTRACT_NOT_SAVED } from './contract-terms.js?v=202611191700';
+import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611191700';
 // Caroline Kim, Nov 4 2026: prorations from the settlement date, the rest of the CD (details, prepaids F, initial escrow G), TCs read-only.
 import { cleanCdDetails, cdDetailChanges, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA } from './cd-pages.js?v=202611070139';
 const PRORATION_VIA = 'Settlement date change (prorations re-saved)';
@@ -139,7 +139,7 @@ export function accountingPart(x, flags) {
       if (prevRow && !contractMismatch(clean, shown)) return { dealId, saved: true, canEdit: true, posture: 'estimate', blocked: '', fields: shown.fields, flags: shown.flags, updatedAt: prevRow.updated_at || null };
       const live = load().deals.find((q) => q.id === dealId);
       const earnestFields = live.transactionType === 'Refinance'
-        ? { emdAmount: null, emdHolder: '', emdDueOn: null, listingCommissionPercent: null, listingCommissionAmount: null, buyerBrokerPercent: null, buyerBrokerAmount: null }
+        ? { emdAmount: null, emdHolder: '', emdDueOn: null }
         : clean.fields;
       applyEarnestToDeal(live, earnestFields);
       const stored = { deal_id: dealId, ...toContractRow({ ...clean, fields: blankSharedEarnest(clean.fields) }), updated_at: now() };

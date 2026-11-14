@@ -16,7 +16,7 @@ import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderI
 import { crmReadOnly, CRM_OWNER_ROLES } from './crm.js?v=202611130900';
 import { dealDisplayName } from './nov5-rules.js?v=202611131900';
 import { roleAllowed } from './role-access.js?v=202611100100';
-import { referralLabel, REFERRALS } from './place-order.js?v=202611191500';
+import { referralLabel, REFERRALS } from './place-order.js?v=202611191800';
 
 export const SEND_NOTE = 'Not sent: Gmail is not connected yet. The email was saved on this record only.';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

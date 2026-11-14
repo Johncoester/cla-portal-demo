@@ -1,7 +1,7 @@
 # Agent fees flow (commissions, admin fees, other agent fees)
 
 **Requested by:** John Coester, Nov 12 2026 (chat t1542u).
-**Status:** Partial. AF-1 (records and history) is done; AF-2 (Agent fees box) is in progress. See [ROADMAP.md](../../ROADMAP.md#agent-fees-flow).
+**Status:** AF-1 to AF-6 Live on TEST. AF-7 is on TEST but not Live until the permission follow-up is applied and Place Order is checked there. See [ROADMAP.md](../../ROADMAP.md#agent-fees-flow).
 **Audit:** Grok, Nov 12 2026, against main `3966fd07` and the TEST database (read only).
 
 ## What John asked for
@@ -179,3 +179,14 @@ All seven were answered at 2:33 PM ET (t1544u). The answers are recorded under D
 5. ~~Should buyers and sellers see commissions?~~ No (Decision 5).
 6. ~~Generate buttons or live tabs?~~ Both. Keep the tabs and add PDF buttons (Decision 6).
 7. ~~Can a TC confirm fees for the agent?~~ Yes, logged as confirmed by the TC, and the agent is notified (Decision 7).
+
+## Follow-ups as built (AF-7, John Nov 13 2026; assigned to Claude)
+
+What John asked (Nov 13): make the older commission boxes use the Agent fees records so there is one source, and lock the order's old commission fields so buyers and sellers can't read them; remove the commission and fee questions from the agent's "Confirm Your Transaction Information" task; add a walkthrough test; AF-1 choices approved as written.
+
+- **One place.** Agent fees are the only home for commissions. Place Order has, per agent side, Commission % / $ (kept in step with the purchase price typed on the form) and an admin fee (`placeOrderFeesHtml` / `readPlaceOrderFees` in `js/pages/agent-fees-box.js`); they are saved with `saveAgentFees` after the agents are added, so the Accounting line names the agent's company. A failure there doesn't lose the order: Place Order lists it and says to use the Agent fees box. Edit order details, Accounting > Contract figures and the TC's contract figures no longer take a commission: they point to the Agent fees box (`agentFeesPointer`), and Accounting shows both sides read only (`agentFeesSummaryHtml`). Editing after opening happens in one place, the box, so the reason rule and the agent's confirmation screen can't be skipped from another form.
+- **Database** (`supabase/migrations/20261119030000_agent_fee_one_source.sql`, rollback in `supabase/rollbacks/`): moves any commission still on an order (the four `deals` commission columns and the commission keys of `deals.financial`) into `deal_agent_fees` as a staff entry, unless that side already has one; every move, and any figure that couldn't be moved (no sales price, or above the price), is in the change history. Then it empties those fields and adds a guard that refuses a commission written to the order with "Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter them there. Nothing was saved." EMD held by stays. The demo adapter refuses the same way. That file also took away the signed-in user's right to run the key list the guard calls, so on TEST every save of an order failed with a permission error. `supabase/migrations/20261119180000_old_commission_keys_permissions.sql` (rollback alongside it; [PR 259](https://github.com/Johncoester/cla-portal-demo/pull/259)) gives that right back, keeps the same nine keys, and does not mark AF-7 Live. It is not applied on TEST by the pull request.
+- **Agent task:** no commission splits and no fees/credits rows; a note points to the Agent fees box. Answers already submitted are still shown.
+- **Contract sheet:** the Buyer broker % / $ and Listing commission % / $ boxes are gone; the group is "Seller credit".
+- **Tests:** `test/test-agent-fees-sql.sh` (move, history, guard, rollback, and a signed-in insert and update that must not get a permission error), `test/test-agent-fees-one-place.js`, `test/test-earnest-accounting-sync.js` (rewritten for one place), walkthrough `tests/e2e-roles/specs/agent-fees.spec.js` and Place Order agent fees in `order-entry.spec.js`.
+

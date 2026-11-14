@@ -1,10 +1,10 @@
 // Contacts tab: everyone on this file. Processor can add people (existing or new), edit them, and unlink them from the order.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill } from '../ui.js?v=202611161500';
 import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole } from '../data/constants.js?v=202611101015';
-import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611191500';
+import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611191800';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611140100';
-import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611161500';
-import { copyPlainText } from './deal.js?v=202611191500';
+import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611191600';
+import { copyPlainText } from './deal.js?v=202611191800';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611161500';
 import { LENDER_CONTACT_ROLES, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611101200';
@@ -57,7 +57,7 @@ export async function render({ api, user, deal, refresh }) {
       toast(outcome.message, outcome.level);
     })));
     $$('[data-unlink]', root).forEach((b) => b.addEventListener('click', guard(async () => { if (!confirm('Remove this person from the order? (Their contact record, documents and messages are kept.)')) return; await api.removeParticipant(deal.id, b.dataset.unlink); toast('Removed from order'); repaint(); })));
-    $$('[data-edit]', root).forEach((b) => b.addEventListener('click', () => { const row = deal.participants.find((p) => p.id === b.dataset.edit); if (!row || !row.contact || !row.contact.id) { toast('This contact cannot be edited from this row.', 'err'); return; } const same = deal.participants.filter((p) => p.contactId === row.contactId); editContact(row.contact, same.some((p) => STAFF_ROLES.includes(p.role))); }));
+    $$('[data-edit]', root).forEach((b) => b.addEventListener('click', () => { const row = deal.participants.find((p) => p.id === b.dataset.edit); if (!row || !row.contact || !row.contact.id) { toast('This contact cannot be edited from this row.', 'err'); return; } const same = deal.participants.filter((p) => p.contactId === row.contactId); editContact(row.contact, same.some((p) => STAFF_ROLES.includes(p.role)), same); }));
     const ab = $('#addp', root); if (ab) ab.addEventListener('click', guard(addPerson));
     $$('[data-invite-portal]', root).forEach((b) => b.addEventListener('click', () => invitePortal(b.dataset.invitePortal, b.dataset.inviteRole)));
     const cf = $('#ctfilter [name=ctype]', root); cf.addEventListener('change', () => { $$('[data-contact-row]', root).forEach((tr) => { tr.hidden = !!cf.value && tr.dataset.rowCtype !== cf.value; }); });
@@ -171,7 +171,7 @@ export async function render({ api, user, deal, refresh }) {
       toast(inviteToast(sendR)); }));
     $$('[data-close]', m).forEach((b) => b.addEventListener('click', () => { if (made) repaint(); }));   // repaint the tab; Resend / Revoke stay on Agent Invites
   }
-  function editContact(c, staff) {
+  function editContact(c, staff, same = []) {
     const opened = { firstName: c.firstName || '', lastName: c.lastName || '', email: c.email || '', phone: c.phone || '', company: c.company || '', contactType: c.contactType || '', lenderRole: c.lenderRole || '' };
     const m = modal('Edit contact', html`<form id="ecf" class="form-grid"><label>First name<input name="firstName" value="${opened.firstName}"></label><label>Last name<input name="lastName" value="${opened.lastName}"></label>
       <label>Email<input name="email" type="email" autocomplete="off" value="${opened.email}"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${opened.phone}"></label><label>Company<input name="company" value="${opened.company}"></label>${staff ? html`<p class="muted small">CLA staff have no contact type.</p>` : ctypeSelect(opened.contactType || '')}${!staff && (c.contactType === 'lender' || c.lenderRole) ? html`<label>Lender contact type<select name="lenderRole" aria-label="Lender contact type"><option value="">Not set</option>${LENDER_CONTACT_ROLES.map(([v, l]) => html`<option value="${v}" ${v === (c.lenderRole || '') ? raw('selected') : ''}>${l}</option>`)}</select></label>` : ''}
@@ -194,7 +194,15 @@ export async function render({ api, user, deal, refresh }) {
       if (!Object.keys(patch).length) { closeModal(); toast('No changes to save'); return; }
       const saved = await api.updateContact(c.id, patch);
       assertContactSaved(patch, saved);
-      closeModal(); toast('Contact saved'); repaint();
+      // Prefer an agent role when the same person is both agent and client on this file,
+      // so the automatic invite matches that role (FF-073e / John, 1:30 PM ET Nov 13).
+      const inviteRole = (same.find((p) => inviteKindForRole(p.role) === 'agent') || same.find((p) => shouldInviteAfterEmailChange(p.role, opened.email, submitted.email)) || {}).role || '';
+      let note = 'Contact saved';
+      if (shouldInviteAfterEmailChange(inviteRole, opened.email, submitted.email)) {
+        const sendR = await inviteAfterEmailChange(api, { dealId: deal.id, contactId: c.id, role: inviteRole, previousEmail: opened.email, newEmail: submitted.email });
+        note = [note, inviteAfterEmailChangeToast(sendR)].filter(Boolean).join('. ');
+      }
+      closeModal(); toast(note); repaint();
     }));
   }
 }

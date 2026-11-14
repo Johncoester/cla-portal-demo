@@ -30,7 +30,7 @@ export const AGENT_TASKS = [
   { code: 'agent_client_contacts', title: 'Confirm Client Contact Information', dueDays: 3,
     about: 'Tell us which of the clients on this order you represent and confirm how to reach them (and their spouse, if married). Add anyone we are missing.' },
   { code: 'agent_transaction_info', title: 'Confirm Your Transaction Information', dueDays: 3,
-    about: 'Check the closing date and price we have, give your commission split, any fees or credits for the settlement statement, the earnest money, and the people on your team.' },
+    about: 'Check the closing date and price we have, the earnest money, and the people on your team. Your commission and fees are confirmed in the Agent fees box on the file overview.' },
   { code: 'agent_home_warranty', title: 'Confirm Home Warranty Information', dueDays: 5,
     about: 'Let us know whether you or someone else will be purchasing a home warranty for this property.' },
 ];
@@ -65,17 +65,9 @@ export function validateAgentAnswers(code, input = {}, { clients = [] } = {}) {
     if (!out.clients.length && !out.added.length) e('added', 'Add at least one client contact.');
   } else if (code === 'agent_transaction_info') {
     out = { closingDate: s(input.closingDate, 10), purchasePrice: num(input.purchasePrice), emdAmount: num(input.emdAmount), holdingEmd: s(input.holdingEmd, 3), licenseId: s(input.licenseId, 40),
-      commissions: rows(input.commissions).map((c, i) => { const o = { name: s(c.name, 80) || 'Commission', percent: num(c.percent), amount: num(c.amount) };
-        if (Number.isNaN(o.percent) || (o.percent != null && o.percent > 100)) e(`commissions.${i}.percent`, 'Percent must be 0 to 100.');
-        if (Number.isNaN(o.amount)) e(`commissions.${i}.amount`, 'Amount must be a positive number.');
-        if (o.percent == null && o.amount == null) e(`commissions.${i}.amount`, 'Give a percent or an amount.'); return o; }),
-      fees: rows(input.fees).map((f, i) => { const o = { name: s(f.name, 80), type: s(f.type, 10), amount: num(f.amount), paidBy: s(f.paidBy, 10) };
-        if (!o.name) e(`fees.${i}.name`, 'Name the fee or credit.'); if (!['Fee', 'Credit'].includes(o.type)) e(`fees.${i}.type`, 'Fee or Credit?');
-        if (o.amount == null || Number.isNaN(o.amount)) e(`fees.${i}.amount`, 'Amount is required.'); if (!['Buyer', 'Seller'].includes(o.paidBy)) e(`fees.${i}.paidBy`, 'Paid by Buyer or Seller?'); return o; }),
       team: rows(input.team).map((p, i) => ({ ...person(p, `team.${i}`, { needPhone: false }), company: s(p.company, 120), licenseId: s(p.licenseId, 40) })) };
     if (!out.closingDate) e('closingDate', 'Estimated closing date is required.'); else if (!isRealDate(out.closingDate)) e('closingDate', 'Enter a real date (YYYY-MM-DD).');
     if (out.purchasePrice == null || Number.isNaN(out.purchasePrice)) e('purchasePrice', 'Purchase price is required.');
-    if (!out.commissions.length) e('commissions', 'Add your commission (percent or amount).');
     if (out.emdAmount == null || Number.isNaN(out.emdAmount)) e('emdAmount', 'Earnest deposit amount is required (0 if none).');
     if (!YES_NO.includes(out.holdingEmd)) e('holdingEmd', 'Are you holding earnest money given to you by the buyer? Choose Yes or No.');
   } else if (code === 'agent_home_warranty') {

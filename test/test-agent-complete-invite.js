@@ -1,4 +1,4 @@
-/* V-4: an agent cannot mark a client's task complete. V-6: a used invite opens Sign in with the email. */
+/* V-4: an agent cannot mark a client's task complete. FF-073c: a used invite stays on the invite page with an already-used message and a Sign in button. */
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { shapeListedTask } from '../js/data/task-actions.js';
 import { toText } from '../js/ui.js';
@@ -36,11 +36,14 @@ ok(used.status === 'accepted' && used.email === 'bianca.buyeragent@example.test'
 let dest = '';
 const signup = await import('../js/pages/agent-signup.js');
 const view = await signup.render({ api, params: { token: 'demo-used-ai-1' }, go(p) { dest = p; } });
-ok(dest === '/login?email=bianca.buyeragent%40example.test', 'the used invite opens Sign in with that email');
+ok(!dest, 'the used invite stays on the invite page instead of jumping to login');
 const text = toText(view.body);
-ok(text.includes('data-invite-redirect="signin"') && !/account exists/i.test(text) && !/already used/i.test(text), 'the used invite does not show Account exists');
+ok(view.body && /already used/i.test(text) && text.includes('data-invite-used') && text.includes('data-invite-state="accepted"') && text.includes('data-invite-signin') && text.includes('#/login?email=bianca.buyeragent%40example.test') && !/account exists/i.test(text), 'the used invite shows that it was already used and offers Sign in with that email');
 const pending = await api.getAgentInvite('demo-lena-pending-0001');
 ok(pending.status === 'pending', 'a pending invite still opens the setup form');
+const pendingView = await signup.render({ api, params: { token: 'demo-lena-pending-0001' }, go(p) { dest = p; } });
+const pendingText = toText(pendingView.body);
+ok(/data-invite-state="pending"/.test(pendingText) && /Set up your agent account/.test(pendingText) && !/already used/i.test(pendingText) && !dest, 'a pending invite still opens registration, not login');
 
 console.log(fail ? fail + ' failed' : 'agent complete and invite sign-in passed');
 if (fail) process.exit(1);

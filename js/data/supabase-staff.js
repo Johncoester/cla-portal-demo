@@ -2,7 +2,7 @@
  * Reads and writes go through the existing tables and RLS. This file does not create logins
  * and does not contain a service-role key. Nothing is emailed. */
 import { uploadBytes as blobOf, uploadFileName } from './upload-bytes.js?v=202611141400';
-import { SALES_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611191500';
+import { SALES_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611191800';
 const day = (d) => new Date(d).toISOString().slice(0, 10);
 const plusDays = (n) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const full = (p) => tidyPersonName(p).name;

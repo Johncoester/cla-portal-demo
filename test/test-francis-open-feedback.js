@@ -1,9 +1,9 @@
-/* Francis open items: editable agent details, optional processor draft, earnest and commissions,
+/* Francis open items: editable agent details, optional processor draft, earnest money (commissions are Agent fees since Nov 13),
  * address fill from the bundled ZIP table, parcel id, and entity names. Fake data only. */
 import { readFileSync } from 'node:fs';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { fillProperty, parsePropertyAddress, cleanParcel } from '../js/data/address-fill.js';
-import { commissionTotal, readEarnest, earnestView } from '../js/data/earnest-commission.js';
+import { readEarnest, earnestView } from '../js/data/earnest-commission.js';
 import { fileTitleOf, partyDisplayName } from '../js/data/party-name.js';
 import { LENDER_CONTACT_ROLES, lenderCompanyContact } from '../js/data/lender-file.js';
 import { runsOrders } from '../js/data/constants.js';
@@ -23,22 +23,20 @@ const zipOnly = await fillProperty({ street: '9 Zip Lane', city: '', state: '', 
 ok(zipOnly.state === 'MD' && zipOnly.county === 'Montgomery' && zipOnly.city === '', 'a ZIP fills state and county, and does not invent a city');
 ok((() => { try { cleanParcel('x'.repeat(81)); return false; } catch (e) { return /too long/.test(e.message); } })(), 'a parcel id over 80 characters is refused');
 
-ok(commissionTotal({ base: 400000, percent: 2.5, additional: 250 }) === 10250, 'commission total is base times percent plus additional');
-ok(commissionTotal({}) == null, 'a blank commission has no total');
-const earnest = readEarnest({ emdHeldBy: 'CLA Title', commissionBase: '400,000', commissionPercent: '2.5', commissionAdditional: '250', commissionPaidBy: 'seller' });
-ok(earnest.commissionTotal === 10250 && earnest.emdHeldBy === 'CLA Title' && earnest.commissionPaidBy === 'seller', 'Place Order earnest fields parse and compute the total');
-ok((() => { try { readEarnest({ emdHeldBy: 'CLA Title' }, { refinance: true }); return false; } catch (e) { return /refinance/i.test(e.message); } })(), 'a refinance cannot save earnest or commission');
+const earnest = readEarnest({ emdHeldBy: 'CLA Title', commissionBase: '400,000', commissionPercent: '2.5' });
+ok(earnest.emdHeldBy === 'CLA Title' && !('commissionTotal' in earnest), 'Place Order earnest money parses; commission fields are not order fields any more');
+ok((() => { try { readEarnest({ emdHeldBy: 'CLA Title' }, { refinance: true }); return false; } catch (e) { return /refinance/i.test(e.message); } })(), 'a refinance cannot save earnest money');
 
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
 await api.signInDev('u-admin');
-const draft = await api.createDeal({ street: '4 Draft Way', city: 'Rockville', state: 'MD', zip: '20850', transactionType: 'Purchase', processorId: '', parcelId: '12-345-678', emdHeldBy: 'Listing brokerage', commissionBase: 400000, commissionPercent: 3, commissionAdditional: 100, commissionPaidBy: 'buyer' });
+const draft = await api.createDeal({ street: '4 Draft Way', city: 'Rockville', state: 'MD', zip: '20850', transactionType: 'Purchase', processorId: '', parcelId: '12-345-678', emdHeldBy: 'Listing brokerage' });
 ok(draft.status === 'Open' && !draft.processorId && draft.processorName === 'Unassigned', 'Save as draft opens the file as Open with Processor Unassigned');
 ok(draft.parcelId === '12-345-678', 'parcel id is saved on the order');
 const view = earnestView(draft);
-ok(view.held === 'Listing brokerage' && view.base === 400000 && view.percent === 3 && view.additional === 100 && view.total === 12100 && view.paid === 'buyer', 'earnest and commission figures are on the file');
-ok(draft.emdHolder === 'Listing brokerage' && draft.buyerCommissionPct === 3 && draft.buyerCommissionAmount === 12100, 'EMD held by and the buyer commission mirror the existing deal columns');
+ok(view.held === 'Listing brokerage', 'EMD held by is on the file');
+ok(draft.emdHolder === 'Listing brokerage' && draft.buyerCommissionPct == null && draft.listingCommissionPct == null, 'EMD held by mirrors the deal column; the order keeps no commission');
 const again = await api.getDeal(draft.id);
-ok(again.parcelId === '12-345-678' && again.financial.commissionTotal === 12100, 'the file read still shows the parcel and the commission total');
+ok(again.parcelId === '12-345-678' && again.financial.emdHeldBy === 'Listing brokerage', 'the file read still shows the parcel and EMD held by');
 
 const seller = { role: 'Client-Seller', contact: { firstName: 'Warren', lastName: 'Spencer', company: 'Spencer LLC' }, entity: { name: 'Spencer LLC', repName: 'Warren Spencer' } };
 const buyer = { role: 'Client-Buyer', contact: { firstName: 'Ada', lastName: 'Buyer' } };
@@ -59,7 +57,7 @@ ok(roles.every(([role, staff]) => runsOrders({ role, isAdmin: role === 'Admin' |
 
 const orderSrc = readFileSync(new URL('../js/pages/ordernew.js', import.meta.url), 'utf8');
 const dealSrc = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
-ok(orderSrc.includes("throw new Error('Only a Processor or Admin can place orders.')") && orderSrc.includes('data-agent-edit') && orderSrc.includes('data-earnest-commission') && orderSrc.includes('data-save-draft') && orderSrc.includes('Save as draft'), 'Place Order is staff-only and has agent edits, earnest and commissions, and Save as draft');
+ok(orderSrc.includes("throw new Error('Only a Processor or Admin can place orders.')") && orderSrc.includes('data-agent-edit') && orderSrc.includes('data-earnest-commission') && orderSrc.includes('data-save-draft') && orderSrc.includes('Save as draft'), 'Place Order is staff-only and has agent edits, earnest money and agent fees, and Save as draft');
 ok(orderSrc.includes('<option value="">Unassigned</option>') && orderSrc.includes('Processor can stay Unassigned'), 'Processor stays optional, including on Save as draft');
 const editModal = dealSrc.slice(dealSrc.indexOf('async function editModal'), dealSrc.indexOf('async function addPartyModal'));
 const earnestRead = dealSrc.slice(dealSrc.indexOf('function earnestBlock'), dealSrc.indexOf('// ---------------- ORDER PAGE REDESIGN (John, Nov 4): ONE Parties list'));

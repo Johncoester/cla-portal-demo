@@ -7,27 +7,27 @@ import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { modOn } from '../data/modules.js?v=202611101015';
 import { slotText } from './dealclosing.js?v=202611170800';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611191500';
-import { composeModal } from './compose.js?v=202611191100';
-import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611191500';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611191800';
+import { composeModal } from './compose.js?v=202611191600';
+import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611191800';
 import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611101015';
 import { canManageClosingLocations } from '../data/closing-location.js?v=202611101015';
 import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611161500';
-import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611161500';
+import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611191700';
 import { themeOn } from '../theme.js?v=202611070139';
-import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611191100';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611191100';
+import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611191700';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611191700';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611191500';
+import { prefetchDealTab } from './deal-tab.js?v=202611191800';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { viewTasksHref } from '../data/task-board.js?v=202611140100';
-import { earnestView, COMMISSION_PAID_BY } from '../data/earnest-commission.js?v=202611141000';
+import { earnestView } from '../data/earnest-commission.js?v=202611191700';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611190800';
 import { bindAddressFill } from '../data/address-fill.js?v=202611190800';
-import { agentFeesPanel } from './agent-fees-box.js?v=202611182130';
+import { agentFeesPanel, agentFeesPointer } from './agent-fees-box.js?v=202611191700';
 function staffSections(ctx, dealId) {
   const { api } = ctx;
   const user = ctx.user;
@@ -198,7 +198,7 @@ function overview({ api, user, refresh, demoLocked, settlement = null }, d, crum
       ${staffView ? staffStatus : glance}</section>
     ${staffView ? '' : html`<div class="op-title deal-head"><h1 class="op-address" data-op-address>${d.street}, ${d.city}, ${d.state} ${d.zip}</h1><span class="op-order-no order-no" data-op-order-no>Order # ${d.fileNumber}</span>${d.fileTitle ? html` <span class="file-title" data-file-title>${d.fileTitle}</span>` : ''}${d.agentParties && d.agentParties.length ? html` <span class="pill warn agent-party">Agent is a party</span>` : ''}</div>`}
     ${staffView ? (edit && !d.processorId ? html`<div class="notice warn" data-unassigned-processor>This file has no processor yet. Assign one with Edit order details.</div>` : '') : html`<p class="op-sub muted" data-op-sub>${d.transactionType || 'Purchase'}${d.county ? html` &middot; <span data-county-head>${d.county} County</span>` : ''}${d.parcelId ? html` &middot; Parcel <span data-parcel-id>${d.parcelId}</span>` : ''}<span data-county hidden>${d.county || '\u2014'}</span> &middot; Opened ${fmtDate(d.openDate)} &middot; Processor ${d.processorId ? html`<span data-processor-name>${d.processorName || 'assigned'}</span>` : staffView ? html`<span class="pill warn" data-unassigned-processor title="Assign one with Edit order details">Unassigned</span>` : 'not set'}${d.preprocessorName ? html` &middot; Preprocessor ${d.preprocessorName}` : ''}${staffView ? html` &middot; Closer <span data-closer>${d.closerName || 'not set'}</span>` : ''}${d.tcUserId ? html` &middot; TC <span data-tc-name>${d.tcName || 'assigned'}</span>` : staffView ? html` &middot; TC <span class="muted" data-tc-none>not assigned</span>` : ''}${staffView && (claRepresentationWritesEnabled(api) || d.claRepresentation) ? html` &middot; <span data-cla-representation>CLA represents: ${d.claRepresentationLabel || 'Not recorded'}</span>` : ''}${staffView ? html` &middot; <span data-source-of-business>Source of business: ${d.sourceOfBusinessLabel || 'Not set'}</span>` : ''}${ov && ov.orderDetails.agencyLicenseId ? html` &middot; Agency License ID <span data-license>${ov.orderDetails.agencyLicenseId}</span>` : ''}</p>`}
-    ${staffView ? '' : html`${moneyRow(d, { canWire: staffView ? false : canWire, staffView, showEmd })}${earnestBlock(d, showEmd, staffView || (user.roles || [user.role]).some((r) => r === 'Buyer Agent' || r === 'Listing Agent'))}`}
+    ${staffView ? '' : html`${moneyRow(d, { canWire: staffView ? false : canWire, staffView, showEmd })}${earnestBlock(d, showEmd)}`}
     ${!staffView && portalN ? html`<div class="op-actions"><a class="new-msg" href="#/deals/${d.id}/inbox" data-portal-unread="${portalN}">${portalN} new message(s)</a></div>` : ''}
     ${d.agentParties && d.agentParties.length ? html`<div class="notice warn" data-agent-party><strong>Agent is a party.</strong> ${d.agentParties.map((p) => `${p.name} is the ${p.label}`).join('; ')} on this file (a licensee buying or selling for themselves). Make sure the licensee disclosure is on file.</div>` : ''}
     ${d.selfRep ? html`<div class="notice info" data-self-rep>You are the <strong>${d.myRoleLabel}</strong> on this file. Your tasks as the client and as the agent are in one list; the history records which capacity you acted in.</div>` : ''}
@@ -275,7 +275,7 @@ async function editModal(api, d, refresh, meId) {
     <label>Email<input name="lenderEmail" value="${v('lenderEmail')}"></label><label>Phone<input name="lenderPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${v('lenderPhone')}"></label>
     <label class="span2">Source of business<select name="sourceOfBusiness" aria-label="Source of business"><option value="">(not set)</option>${options(srcOpts, d.sourceOfBusiness || '', (o) => o.label, (o) => o.value)}</select></label>
     ${parcelFieldsHtml(d)}
-    ${refi ? '' : html`<h4 class="span2">Earnest &amp; commissions <span class="muted small">(optional)</span></h4><label>EMD held by<input name="emdHeldBy" maxlength="200" value="${ev.held}" aria-label="EMD held by"></label><label>Commission base<input name="commissionBase" inputmode="decimal" data-money value="${moneyShow(ev.base)}" aria-label="Commission base"></label><label>Commission %<input name="commissionPercent" inputmode="decimal" value="${ev.percent != null ? ev.percent : ''}" aria-label="Commission percent"></label><label>Additional<input name="commissionAdditional" inputmode="decimal" data-money value="${moneyShow(ev.additional)}" aria-label="Commission additional"></label><label>Paid by<select name="commissionPaidBy" aria-label="Commission paid by"><option value="">Choose&hellip;</option>${COMMISSION_PAID_BY.map(([code, label]) => html`<option value="${code}" ${code === ev.paid ? raw('selected') : ''}>${label}</option>`)}</select></label>`}
+    ${refi ? '' : html`<h4 class="span2">Earnest money <span class="muted small">(optional)</span></h4><label>EMD held by<input name="emdHeldBy" maxlength="200" value="${ev.held}" aria-label="EMD held by"></label>${agentFeesPointer('modal')}`}
     <label class="span2">Notes<textarea name="notes" rows="3">${v('notes')}</textarea></label>
     <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
   const paintProcessors = (list, keep) => { const sel = $('[name=processorId]', m); const next = processorChoices(list, keep == null ? (sel.value || d.processorId || '') : keep, meId || '');
@@ -289,7 +289,7 @@ async function editModal(api, d, refresh, meId) {
     if ($('[name=street]', m).value !== street) throw new Error('Refreshing the Processor list must not clear the form.'); toast('Processor list updated. The other fields were kept.'); }));
   $('#edf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); ['purchasePrice', 'loanAmount', 'emdAmount'].forEach((k) => { if (f[k] !== undefined) f[k] = moneyAmount(f[k]); });
     const closer = resolveCloser(f.closerName, closers, { closerName: d.closerName || '', closerProfileId: d.closerProfileId || null }); f.closerName = closer.closerName; f.closerProfileId = closer.closerProfileId;
-    if (refi) { f.purchasePrice = ''; f.emdAmount = ''; f.emdDueDate = ''; f.emdHeldBy = ''; f.commissionBase = ''; f.commissionPercent = ''; f.commissionAdditional = ''; f.commissionPaidBy = ''; }   // a refinance saves no purchase price / EMD (clears what an older order had)
+    if (refi) { f.purchasePrice = ''; f.emdAmount = ''; f.emdDueDate = ''; f.emdHeldBy = ''; }   // a refinance saves no purchase price / EMD (clears what an older order had)
     if (refi || String(f.state || '').toUpperCase() !== 'MD') { f.primaryResidence = ''; f.firstTimeBuyer = ''; }
     const parcels = parcelsFromForm(e.target); f.parcelId = parcels.parcelId; f.parcelIds = parcels.parcelIds;
     await api.updateDeal(d.id, f); closeModal(); toast('Order saved'); refresh(); }));
@@ -319,18 +319,12 @@ function moneyRow(d, { canWire, staffView, showEmd }) {
       <p class="muted small">Buyer funds only. Agents never see this box. Call CLA Title to confirm any wire (use a number you already have).</p></section>` : '';
   return emd || wire ? html`<div class="op-money" data-money-row>${emd}${wire}</div>` : '';
 }
-// AF-2 (John, Nov 12): buyers and sellers never see commissions or agent fees: they see only "EMD held by" here; CLA staff and the file's agents see it all.
-function earnestBlock(d, showEmd, seesFees = true) {
-  const full = earnestView(d);
-  const ev = seesFees ? full : { held: full.held, any: !!full.held, base: null, percent: null, additional: null, total: null, paidLabel: '' };
+// EMD held by. Commissions are no longer on the order (one place, Nov 13): they are in the Agent fees box, which buyers and sellers never get.
+function earnestBlock(d, showEmd) {
+  const ev = earnestView(d);
   if (!showEmd || !ev.any) return '';
-  return html`<section class="op-emd" data-earnest-commission aria-label="Earnest and commissions"><span class="op-box-label">${seesFees ? html`Earnest &amp; commissions` : 'Earnest money'}</span>
-    ${ev.held ? html`<span data-emd-held-by>EMD held by <b>${ev.held}</b></span>` : ''}
-    ${ev.base != null ? html`<span data-commission-base>Base <b>${fmtMoney(ev.base)}</b></span>` : ''}
-    ${ev.percent != null ? html`<span data-commission-percent><b>${ev.percent}%</b></span>` : ''}
-    ${ev.additional != null ? html`<span data-commission-additional>Additional <b>${fmtMoney(ev.additional)}</b></span>` : ''}
-    ${ev.total != null ? html`<span data-commission-total>Total <b>${fmtMoney(ev.total)}</b></span>` : ''}
-    ${ev.paidLabel ? html`<span data-commission-paid-by>Paid by <b>${ev.paidLabel}</b></span>` : ''}</section>`;
+  return html`<section class="op-emd" data-earnest-commission aria-label="Earnest money"><span class="op-box-label">Earnest money</span>
+    <span data-emd-held-by>EMD held by <b>${ev.held}</b></span></section>`;
 }
 
 // ---------------- ORDER PAGE REDESIGN (John, Nov 4): ONE Parties list ----------------

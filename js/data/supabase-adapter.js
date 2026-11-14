@@ -5,10 +5,10 @@ import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611140100';
 import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611101015';
 import { officeDate } from './office-date.js?v=202611102100';
 import { clientActivityFrom } from './client-activity.js?v=202611102100';
-import { assertRecipients, messageText } from './portal-message.js?v=202611101015';
+import { assertRecipients, messageText } from './portal-message.js?v=202611191700';
 import { planDocumentBatch } from './document-batch.js?v=202611101015';
 import { featureFlags } from './features.js?v=202611070139';
-import { accountingSupabase } from './supabase-accounting.js?v=202611141000';
+import { accountingSupabase } from './supabase-accounting.js?v=202611191700';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611070139';
 import { agentFeesSupabase } from './supabase-agent-fees.js?v=202611182130';
 import { titleSupabase } from './supabase-title.js?v=202611112200';
@@ -18,7 +18,7 @@ import { postClosingSupabase } from './supabase-postclosing.js?v=202611111900';
 import { wiresSupabase } from './supabase-wires.js?v=202611111800';
 import { modulesSupabase } from './supabase-modules.js?v=202611101015';
 import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611171200';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611191700';
 import { callItemsSupabase } from './supabase-callitems.js?v=202611101015';
 import { automationPart } from './automation.js?v=202611101015';
 import { runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
@@ -27,31 +27,32 @@ import { hrSupabase } from './supabase-hr.js?v=202611100130';
 import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611130900';
 import { officesSupabase } from './supabase-offices.js?v=202611101015';
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611170800';
-import { tcSupabase } from './supabase-tc.js?v=202611140800';
+import { tcSupabase } from './supabase-tc.js?v=202611191700';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
 import { gmailSupabase } from './supabase-gmail.js?v=202611140900';
 import { nov5Supabase } from './supabase-nov5.js?v=202611162200';
-import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611191000';
-import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611140100';
-import { staffSupabase } from './supabase-staff.js?v=202611191500';
+import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611191700';
+import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611191600';
+import { staffSupabase } from './supabase-staff.js?v=202611191800';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
-import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611191500';
+import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611191800';
 import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
-import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611191500';
+import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611191800';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
 import { propertyAddressOf } from './nov5-rules.js?v=202611131900';
 import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611171200';
-import { fetchDashboard, indexDashboardExtras, decorateDashboardDeals, shapeDashboardTask } from './dashboard-load.js?v=202611191500';
+import { fetchDashboard, indexDashboardExtras, decorateDashboardDeals, shapeDashboardTask } from './dashboard-load.js?v=202611191800';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow } from './contact-insert.js?v=202611101200';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
 import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole } from './lender-file.js?v=202611101200';
 import { fileTitleOf } from './party-name.js?v=202611102000';
 import { parcelInput } from './parcels.js?v=202611190800';
-import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611141000';
+import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611191700';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
+import { nameDocSenders, sendersToLookUp } from './doc-senders.js?v=202611191500';
 import { readThreadPeople, roleText, withThreadPeople } from './portal-threads.js?v=202611162200';
 import { ensureShareInvite, waitingParticipant } from './share-invite.js?v=202611191100';
 import { activityFilters, actorList, applyActivityFilters, hasActivityFilter, matchesActivity, withActors } from './activity-filter.js?v=202611162000';
@@ -790,7 +791,17 @@ export async function createSupabaseAdapter(cfg) {
       if (patch.status != null) return ok(await sb.rpc('set_task_status', { p_task: id, p_status: patch.status }));
       return ok(await sb.from('tasks').select('id, deal_id, title, status, due_date, assigned_role, audiences').eq('id', id).single());
     },
-    async listDocuments(dealId, { folderId } = {}) { const rows = (await fileRead('docs:' + dealId, () => rawDocs(dealId))) || []; return filterListedDocuments(rows, folderId).map((d) => shapeListedDocument(d)); },   // folder filter + stored size/content flag (no extra query)
+    // MF-045 (Matt): each row also says who shared it (name and role). The file's parties come from the file read already made for the page;
+    // one profiles read covers senders who are not on the file (CLA staff). A viewer who cannot read a sender sees "CLA Title & Escrow".
+    // Only the Documents tab asks for it ({ senders: true }); the other callers get the rows as before, with no extra read.
+    async listDocuments(dealId, { folderId, senders = false } = {}) { const rows = (await fileRead('docs:' + dealId, () => rawDocs(dealId))) || []; const listed = filterListedDocuments(rows, folderId).map((d) => shapeListedDocument(d));
+      if (!senders || !listed.some((d) => d && d.uploadedBy && !d.uploadedByName)) return listed;
+      let user = null; let participants = [];
+      try { user = await me(); } catch (e) { user = null; }
+      try { participants = ((await a.readDeal(dealId)) || {}).participants || []; } catch (e) { participants = []; }
+      const ids = sendersToLookUp(listed, { user, participants }).slice(0, 200); let profiles = [];
+      if (ids.length) { try { const r = await sb.from('profiles').select('id, first_name, last_name, role').in('id', ids); profiles = r && !r.error ? camel(r.data || []) : []; } catch (e) { profiles = []; } }
+      return nameDocSenders(listed, { user, participants, profiles }); },   // folder filter + stored size/content flag (no extra query)
     // ---- Matt, Nov 2 (migration 16): cross-file task list + Processor / Admin task grid. task_board / task_grid are SECURITY INVOKER (RLS decides). ----
     async listAllTasks({ fileStatus = 'All' } = {}) {
       const who = ident.current();

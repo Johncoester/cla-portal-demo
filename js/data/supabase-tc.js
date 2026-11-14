@@ -1,8 +1,8 @@
 /* [SUPABASE] TC PORTAL (John, Nov 5; migration 71). Same names as mock-part-tc.js. NOT run against a hosted project
  * (best effort; the mock adapter and the SQL tests are the tested parts).
  *  - public.update_tc_contract / update_tc_client_contact / update_tc_emd_alta / create_all_parties_thread
- *  - typed columns on deals (contract, commissions, EMD received, signed ALTA); threads.staff_coordinated */
-import { STAGES, moneyAmount, plainNumber } from './constants.js?v=202611101015';
+ *  - typed columns on deals (contract, EMD received, signed ALTA). Commissions are Agent fees (Nov 13 2026), not contract figures.; threads.staff_coordinated */
+import { STAGES, moneyAmount } from './constants.js?v=202611101015';
 export function tcSupabase({ sb, ok, camel, api }) {
   const dealRow = async (id) => camel(ok(await sb.from('deals').select('*').eq('id', id).single()));
   const milestones = (q) => STAGES.map((name, i) => ({ index: i, name,
@@ -14,9 +14,7 @@ export function tcSupabase({ sb, ok, camel, api }) {
   return {
     async getContractInfo(id) {
       const q = await dealRow(id); const deal = await api.getDeal(id);
-      return { purchasePrice: q.purchasePrice ?? '', contractDate: q.contractDate || '', listingCommissionPct: q.listingCommissionPct ?? '',
-        listingCommissionAmount: q.listingCommissionAmount ?? '', buyerCommissionPct: q.buyerCommissionPct ?? '',
-        buyerCommissionAmount: q.buyerCommissionAmount ?? '', sellerConcessions: q.sellerConcessions ?? '',
+      return { purchasePrice: q.purchasePrice ?? '', contractDate: q.contractDate || '', sellerConcessions: q.sellerConcessions ?? '',
         emdAmount: q.emdAmount ?? '', emdHolder: q.emdHolder || '', closingDate: q.closingDate || '',
         clients: deal.participants.filter((p) => ['Client-Buyer', 'Client-Seller'].includes(p.role)).map((p) => ({
           participantId: p.id, contactId: p.contactId, role: p.role, firstName: p.contact.firstName, lastName: p.contact.lastName,
@@ -25,10 +23,9 @@ export function tcSupabase({ sb, ok, camel, api }) {
     async updateContractInfo(id, patch = {}) {
       ok(await sb.rpc('update_tc_contract', {
         p_deal: id, p_purchase_price: patch.purchasePrice !== undefined ? moneyAmount(patch.purchasePrice) : null,
-        p_contract_date: patch.contractDate || null, p_listing_commission_pct: patch.listingCommissionPct !== undefined ? plainNumber(patch.listingCommissionPct) : null,
-        p_listing_commission_amount: patch.listingCommissionAmount !== undefined ? moneyAmount(patch.listingCommissionAmount) : null,
-        p_buyer_commission_pct: patch.buyerCommissionPct !== undefined ? plainNumber(patch.buyerCommissionPct) : null,
-        p_buyer_commission_amount: patch.buyerCommissionAmount !== undefined ? moneyAmount(patch.buyerCommissionAmount) : null,
+        p_contract_date: patch.contractDate || null,
+        // commissions are Agent fees now (one place, Nov 13 2026): the order's older commission fields are never written
+        p_listing_commission_pct: null, p_listing_commission_amount: null, p_buyer_commission_pct: null, p_buyer_commission_amount: null,
         p_seller_concessions: patch.sellerConcessions !== undefined ? moneyAmount(patch.sellerConcessions) : null,
         p_emd_amount: patch.emdAmount !== undefined ? moneyAmount(patch.emdAmount) : null, p_emd_holder: patch.emdHolder != null ? patch.emdHolder : null,
         p_closing_date: patch.closingDate || null,
