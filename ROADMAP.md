@@ -17,7 +17,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When CLA staff open a file, they enter each agent's fees for their side (listing agent and buyer's agent): the commission as a percent or a dollar amount, which always stay in sync with each other using the sales price; an admin fee (paid by the buyer for the buyer's agent and by the seller for the listing agent unless changed); and up to 5 other fees, each with a description, an amount and who it's paid to. Each agent sees and can change their own side in the portal. Before saving, they see a "You're changing X from $A to $B" check, and the fee is then marked "Agent confirmed". A TC can confirm for the agent. Once confirmed, the agent's figure wins. Staff can still change it, but they must give a reason, and the agent is told straight away (old value, new value, reason, who). When an agent changes a fee, the processor, pre-processor and TC on the file are told, in the portal and by email. The fees go straight onto the right lines in Accounting, and from there onto the Closing Disclosure (CD) and the ALTA settlement statement, which can also be generated as PDFs. Buyers and sellers never see commissions or agent fees. Every change is kept in a history: who, when, old value, new value, reason, and whether staff, the agent or the TC made it.
 
-**Status: Built (AF-1 to AF-7 Live on TEST as of Nov 13 2026, fix [PR 259](https://github.com/Johncoester/cla-portal-demo/pull/259)). AF-8 in review.**
+**Status: Built (AF-1 to AF-7 Live on TEST as of Nov 13 2026, fix [PR 259](https://github.com/Johncoester/cla-portal-demo/pull/259); AF-8 Live on TEST as of Nov 14 2026, [PR 274](https://github.com/Johncoester/cla-portal-demo/pull/274)).**
 
 | Step | What | Status |
 |---|---|---|
@@ -28,7 +28,7 @@ This file lists the portal's major features: how each one should work, how far a
 | AF-5 | Fees post to Accounting automatically | Live on TEST, [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) |
 | AF-6 | "Generate CD" and "Generate ALTA" PDF buttons | Live on TEST, [PR 238](https://github.com/Johncoester/cla-portal-demo/pull/238) |
 | AF-7 | Follow-ups: one place for commissions, agent task without fee questions, walkthrough test (Owner: Claude) | Live on TEST, Nov 13 2026. [PR 257](https://github.com/Johncoester/cla-portal-demo/pull/257) + fix [PR 259](https://github.com/Johncoester/cla-portal-demo/pull/259), migrations 20261119030000 and 20261119180000 applied on TEST |
-| AF-8 | The old "Commission information" agent task goes through Agent fees (Owner: Claude) | In review, [PR 274](https://github.com/Johncoester/cla-portal-demo/pull/274). Needs `20261123010000_commission_task_agent_fees.sql` applied on TEST before it is Live |
+| AF-8 | The old "Commission information" agent task goes through Agent fees (Owner: Claude) | Live on TEST, Nov 14 2026. [PR 274](https://github.com/Johncoester/cla-portal-demo/pull/274), migration 20261123010000 applied on TEST |
 
 **What's built**
 
@@ -49,7 +49,6 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- AF-8 is not Live until `supabase/migrations/20261123010000_commission_task_agent_fees.sql` is applied on TEST. Then MD-26-97260 should show $28,500 / 3%, paid by Seller.
 - Notice emails are queued in the portal's outbox but never sent on TEST (the TEST portal sends no email). Sending them needs the production mail switch, which is John's call.
 - A sales price change re-posts the commission in the database (TEST); the demo (mock) portal re-posts only when the fees are saved.
 - "Generate CD" and "Generate ALTA" make the PDF with the browser's own "Save as PDF". The portal doesn't store the PDF on the file.
