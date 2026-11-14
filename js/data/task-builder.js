@@ -6,7 +6,8 @@
  * Shared by the mock adapter (mock-part-task-builder.js), the Supabase adapter (supabase-task-builder.js) and the page. */
 
 export const TASK_BUILDER_ADMIN_ONLY = 'Only an Admin or Super admin can use Task Builder.';
-export const FLOWS_RUN_NOTE = 'Flows that are On check open files about every 15 minutes and add their tasks to the file\'s Tasks tab. A flow starts once per file (a closing date change can start it again).';
+export const FLOWS_RUN_NOTE = 'Flows that are On check open files about every 15 minutes and add their tasks to the file\'s Tasks tab. A flow starts once per file (a closing date change can start it again). Use Try on one file to see a flow work on a single order first.';
+export const TRIAL_NOTE = 'Runs every step on this one file now, even while the flow is Off. Waits are skipped so you see everything at once. The tasks are real tasks on this file, marked "Test run". It does not count as the flow\'s real run on this file.';
 
 // What starts a flow. `days` = the trigger needs a number of days (1 to 60).
 export const TRIGGERS = [
@@ -161,31 +162,44 @@ export const dateOnly = (iso) => String(iso).slice(0, 10);
 const dayDiff = (a, b) => Math.round((Date.parse(dateOnly(a) + 'T00:00:00Z') - Date.parse(dateOnly(b) + 'T00:00:00Z')) / DAY);
 export const dealRuns = (deal) => !!deal && (deal.status || 'Open') === 'Open';
 
+/* NEW FILES ONLY or EXISTING FILES TOO (John, Nov 14 2026): chosen when a flow is turned on. "New files only" (the default) means files
+ * opened after the flow was turned on, so turning a flow on never sweeps the open files already there. Turning it off and on again
+ * starts "from now" again. "Existing open files too" also covers the open files already there. */
+export const SCOPES = [['new', 'New files only (opened from now on)'], ['all', 'Existing open files too']];
+export const scopeText = (f) => (f && f.scope === 'all' ? 'New and existing open files' : 'New files only');
+export const cleanScope = (v) => (v === 'all' ? 'all' : 'new');
+export function inScope(flow, deal) {
+  if (!flow || flow.scope === 'all' || !flow.activatedAt) return true;
+  const made = Date.parse((deal && deal.createdAt) || '');
+  return Number.isFinite(made) && made >= Date.parse(flow.activatedAt);
+}
 // Which active, runnable flows an event on a file starts. events: 'order_opened' | 'emd_received' | 'closing_date_set'.
-export function flowsForEvent(flows, event) {
-  return (flows || []).filter((f) => f.active && f.trigger === event && triggerRuns(f.trigger) && hasTaskStep(f.steps));
+export function flowsForEvent(flows, event, deal) {
+  return (flows || []).filter((f) => f.active && f.trigger === event && triggerRuns(f.trigger) && hasTaskStep(f.steps) && (!deal || inScope(f, deal)));
 }
 // Time-based triggers: does this file meet the flow's trigger today?
 export function timeTriggerMet(flow, deal, todayIso) {
-  if (!dealRuns(deal)) return false;
+  if (!dealRuns(deal) || !inScope(flow, deal)) return false;
   if (flow.trigger === 'emd_not_received') return !deal.emdReceived && !!deal.openDate && dayDiff(todayIso, deal.openDate) >= flow.triggerDays;
   if (flow.trigger === 'days_before_closing') { if (!deal.closingDate) return false; const left = dayDiff(deal.closingDate, todayIso); return left >= 0 && left <= flow.triggerDays; }
   return false;
 }
 // May this flow start on this file now? (no run yet; or, for closing date changes, the last run has ended)
 export function mayStart(flow, runs) {
-  const mine = (runs || []).filter((r) => r.flowId === flow.id);
+  const mine = (runs || []).filter((r) => r.flowId === flow.id && !r.trial);   // a test run never blocks the real one
   if (!mine.length) return true;
   return flow.trigger === 'closing_date_set' && mine.every((r) => r.status !== 'waiting');
 }
-export const newRun = (flow, dealId, nowIso) => ({ flowId: flow.id, dealId, stepIndex: 0, nextAt: nowIso, status: 'waiting', checked: false, startedAt: nowIso, finishedAt: null, log: [] });
+export const newRun = (flow, dealId, nowIso, trial = false) => ({ flowId: flow.id, dealId, stepIndex: 0, nextAt: nowIso, status: 'waiting', checked: false, trial: !!trial, startedAt: nowIso, finishedAt: null, log: [] });
 
 /* Move a run forward as far as it can go now. ctx: { deal, salesIds, emdReceived, nowIso }.
  * Returns the tasks to create ({ step, title, assignTo, dueDate, call }) and changes the run in place.
- * The flow's conditions are checked on the run's first move, so people added to the order after it was opened count. */
+ * The flow's conditions are checked on the run's first move, so people added to the order after it was opened count.
+ * A TEST RUN (run.trial, "Try on one file", John Nov 14) runs whether the flow is On or Off and skips its waits, so the admin sees every
+ * step on that one file at once. Its tasks are real tasks on that file, marked "Test run". */
 export function advanceRun(run, flow, ctx) {
   const out = [];
-  if (run.status !== 'waiting' || !flow || !flow.active || Date.parse(run.nextAt) > Date.parse(ctx.nowIso)) return out;
+  if (run.status !== 'waiting' || !flow || (!flow.active && !run.trial) || Date.parse(run.nextAt) > Date.parse(ctx.nowIso)) return out;
   const end = (status, text) => { run.status = status; run.finishedAt = ctx.nowIso; run.log.push({ at: ctx.nowIso, text }); };
   if (!dealRuns(ctx.deal)) { end('stopped', 'Stopped: the file is no longer open.'); return out; }
   if (!run.checked) {
@@ -200,6 +214,8 @@ export function advanceRun(run, flow, ctx) {
     if (s.type === 'create_task' || s.type === 'call_task') {
       out.push({ step: run.stepIndex, title: s.title, assignTo: s.assignTo, call: s.type === 'call_task', dueDate: dateOnly(addDays(ctx.nowIso, s.dueDays)) });
       run.log.push({ at: ctx.nowIso, text: `Step ${run.stepIndex}: ${stepText(s)}` });
+    } else if (s.type === 'wait' && run.trial) {
+      run.log.push({ at: ctx.nowIso, text: `Step ${run.stepIndex}: wait ${s.days} ${s.days === 1 ? 'day' : 'days'} (skipped in a test run)` });
     } else if (s.type === 'wait') {
       run.nextAt = addDays(ctx.nowIso, s.days); run.log.push({ at: ctx.nowIso, text: `Step ${run.stepIndex}: waiting ${s.days} ${s.days === 1 ? 'day' : 'days'}` }); return out;
     } else if (s.type === 'stop_if_emd_received') {
