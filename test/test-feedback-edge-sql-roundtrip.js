@@ -1,13 +1,43 @@
 /* Real edge handler plus disposable Postgres. The webhook is a fake HTTP response.
- * The handler still has to call it. This is not the portal UI mock. */
+ * The handler still has to call it. This is not the portal UI mock.
+ * Builds its own scratch database from the SQL files named by
+ * test-staff-feedback-edge-roundtrip.sh. It does not run that script, because the script runs this test. */
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { handleStaffFeedbackDispatch, productionDeps } from '../supabase/functions/staff-feedback-dispatch/logic.mjs';
 
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DB = process.env.CLA_EDGE_TEST_DB || 'cla_portal_edge_roundtrip';
+if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(DB)) {
+  console.log('FAIL the scratch database name may only use letters, digits, and underscores');
+  process.exit(1);
+}
 let fail = 0;
 const check = (cond, message) => { if (cond) console.log('ok', message); else { fail++; console.log('FAIL', message); } };
 const JOHN = '149e612a-6e14-4ee1-9890-0f29d6f89156';
-const sql = (q) => execFileSync('sudo', ['-u', 'postgres', 'psql', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-tA', '-c', q], { encoding: 'utf8', env: { ...process.env, COLUMNS: '200000', PAGER: 'cat' } }).trim();
+const psqlEnv = { ...process.env, COLUMNS: '200000', PAGER: 'cat' };
+function psql(db, args) {
+  return execFileSync('sudo', ['-u', 'postgres', 'psql', '-q', '-v', 'ON_ERROR_STOP=1', '-d', db, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...psqlEnv, PGOPTIONS: '-c client_min_messages=warning' } });
+}
+const setupFiles = [...readFileSync(path.join(root, 'test/test-staff-feedback-edge-roundtrip.sh'), 'utf8').matchAll(/-f "\$ROOT\/([^"]+)"/g)].map((match) => match[1]);
+if (!setupFiles.length) {
+  console.log('FAIL the edge setup script does not name any SQL files');
+  process.exit(1);
+}
+try {
+  psql('postgres', ['-c', `select pg_terminate_backend(pid) from pg_stat_activity where datname = '${DB}' and pid <> pg_backend_pid()`]);
+  psql('postgres', ['-c', `drop database if exists "${DB}"`]);
+  psql('postgres', ['-c', `create database "${DB}"`]);
+  for (const rel of setupFiles) psql(DB, ['-f', path.join(root, rel)]);
+} catch (err) {
+  console.log('FAIL could not build the scratch database ' + DB);
+  console.log(String((err && (err.stderr || err.message)) || err).trim().split('\n').slice(-30).join('\n'));
+  process.exit(1);
+}
+console.log('scratch database', DB, 'from', setupFiles.join(', '));
+const sql = (q) => execFileSync('sudo', ['-u', 'postgres', 'psql', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-tA', '-c', q], { encoding: 'utf8', env: psqlEnv }).trim();
 const session = (sub, role, q) => sql(`select ${q.replace(/^\s*select\s+/i, '')} from (select set_config('request.jwt.claim.sub', '${sub}', true), set_config('request.jwt.claim.role', '${role}', true)) cfg`);
 const asUser = (q) => session(JOHN, 'authenticated', q);
 const asService = (q) => session('', 'service_role', q);
