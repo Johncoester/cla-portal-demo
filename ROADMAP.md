@@ -278,12 +278,12 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A **Task Builder** page in the admin section where Admins and Super admins build automated workflows ("flows") for title files without code. Each flow starts when something happens on a file (the trigger: order opened, contract received, EMD received or not received after a number of days, title commitment received, closing date set or changed, a number of days before closing). Conditions pick which files it applies to (sales rep, client, transaction type, state, combined with and/or). Actions then run in order: create a task, send an email as a chosen person, create a call task, wait, check again, continue or stop. Each task a flow creates says who it's assigned to (a role on the file or a named person), an optional backup person, who can see it (CLA only, or also the agent, buyer, seller or lender), and its due date. The end goal is a drag-and-drop flowchart screen. This replaces "Workflow definitions" (PR 7, closed) and builds on Task Templates (PR 141).
 
-**Status: In progress. TB-1 built by Claude, pull request open; not Live until its database file is applied on TEST.**
+**Status: In progress. TB-1 Live on TEST (Nov 14). TB-2 built by Claude, pull request open; not Live until its database file is applied on TEST.**
 
 | Step | What | Status |
 |---|---|---|
-| TB-1 | Admin page and permissions, list of flows (name, what starts it, On / Off), history (Owner: Claude) | Pull request open. Not Live until `20261120010000_task_builder_flows.sql` is applied on TEST |
-| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST | Planned |
+| TB-1 | Admin page and permissions, list of flows (name, what starts it, On / Off), history (Owner: Claude) | Live on TEST, [PR 261](https://github.com/Johncoester/cla-portal-demo/pull/261). Grok checked steps 1–7 on TEST, Nov 14 |
+| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) | [PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263) open. Not Live until `20261121010000_task_flow_engine.sql` is applied on TEST |
 | TB-3 | Task settings: assigned to (role or named person), optional backup person, who can see it | Planned |
 | TB-4 | Email actions with templates and "send as" | Planned |
 | TB-5 | Drag-and-drop flowchart screen | Planned |
@@ -294,8 +294,15 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- TB-1 is not Live: its database file has to be applied on TEST. Until then the TEST page says Task Builder isn't set up yet.
-- Flows do not run on files yet: no conditions or actions (TB-2 onward).
+- TB-2: each flow says **which files** it applies to (transaction type: purchase, cash purchase or refinance; state; sales person — blank means any) and has **steps** run in order: create a task, create a phone call task, wait a number of days, or stop if the EMD has been received. A task goes to everyone on the file with the chosen role (processor, pre-processor, sales person, buyer's agent, listing agent, buyer, seller, transaction coordinator, lender). The page shows each flow's steps, recent runs (flow, file, status, latest step) and a **Check files now** button. A flow needs at least one task step before it can be turned on. The database starts flows when an order is opened, the EMD is marked received, or the closing date is set or changed, and every 15 minutes checks the day-based triggers and waits. Nothing in it can stop an order from saving.
+
+**What's still missing**
+
+- TB-2 is not Live: `20261121010000_task_flow_engine.sql` has to be applied on TEST (it needs TB-1's file, already applied, and pg_cron, already on TEST).
+- "Contract received" and "Title commitment received" can be saved but not turned on yet.
+- On TEST a new order's flow tasks appear at the next 15-minute check (or **Check files now**), after Place Order has added the people.
+- Named person, optional backup person, and who can see a task (TB-3); emails (TB-4); drag and drop (TB-5).
+- Clients and agents can see tasks assigned to them but only staff mark them done (open question for John).
 
 **Links**
 

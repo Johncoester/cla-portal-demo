@@ -42,7 +42,7 @@ ok(SECTIONS['task-builder'] === '/task-builder' && routeWs(route) === 'admin', '
 // menu: its own item, not under Task Templates
 const app = read('js/app.js');
 ok(/add\('task-builder', 'Task Builder', '#\/task-builder', 'task'\)/.test(app) && app.includes("if (canOpenTaskSetup(u, demo)) add('task-builder'"), 'Task Builder is its own admin menu item for Admins and Super admins');
-ok(app.includes("'task-builder': () => import('./pages/task-builder.js?v=202611201000')"), 'the page is registered at its stamp');
+ok(app.includes("'task-builder': () => import('./pages/task-builder.js?v=202611211000')"), 'the page is registered at its stamp');
 
 // the mock portal
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
@@ -50,11 +50,15 @@ await api.signInDev('u-proc');
 ok(/Only an Admin or Super admin/.test(await aerr(api.listTaskFlows())) && /Only an Admin or Super admin/.test(await aerr(api.createTaskFlow({ name: 'Sneaky', trigger: 'order_opened' }))), 'a Processor cannot read or add flows');
 await api.signInDev('u-adam');
 ok((await api.listTaskFlows()).flows.length === 0, 'no flows to start with');
-const f1 = await api.createTaskFlow({ name: 'EMD reminder', trigger: 'emd_not_received', triggerDays: 2, description: 'Chase the EMD' });
-ok(f1.active === false && f1.triggerText === 'EMD not received, 2 days after the order was opened' && f1.steps.length === 0, 'a new flow starts Off with no steps');
+const f0 = await api.createTaskFlow({ name: 'No steps yet', trigger: 'order_opened' });
+ok(f0.active === false && f0.steps.length === 0, 'a new flow starts Off, and can be saved with no steps');
+ok(/Add at least one/.test(await aerr(api.setTaskFlowActive(f0.id, true))), 'TB-2: a flow with no task step cannot be turned on');
+const STEPS = [{ type: 'create_task', title: 'Chase the EMD', assignTo: 'Buyer Agent', dueDays: 1 }];
+const f1 = await api.createTaskFlow({ name: 'EMD reminder', trigger: 'emd_not_received', triggerDays: 2, description: 'Chase the EMD', steps: STEPS });
+ok(f1.active === false && f1.triggerText === 'EMD not received, 2 days after the order was opened' && f1.steps.length === 1, 'a new flow with a step starts Off');
 ok(/already has that name/.test(await aerr(api.createTaskFlow({ name: 'emd  REMINDER', trigger: 'order_opened' }))), 'two flows cannot share a name (case and spacing do not count)');
 ok(/Days must be/.test(await aerr(api.createTaskFlow({ name: 'Too long wait', trigger: 'days_before_closing', triggerDays: 90 }))), 'the adapter checks days too');
-await api.updateTaskFlow(f1.id, { name: 'EMD reminder', trigger: 'emd_not_received', triggerDays: 3, description: 'Chase the EMD' });
+await api.updateTaskFlow(f1.id, { name: 'EMD reminder', trigger: 'emd_not_received', triggerDays: 3, description: 'Chase the EMD', steps: STEPS });
 const on = await api.setTaskFlowActive(f1.id, true);
 ok(on.active === true, 'a flow can be turned on');
 await api.setTaskFlowActive(f1.id, true);
@@ -62,15 +66,17 @@ await api.signInDev('u-admin');
 const off = await api.setTaskFlowActive(f1.id, false);
 ok(off.active === false && off.updatedByName === 'King John Admin', 'a Super admin can turn it off, and the change shows who');
 const list = await api.listTaskFlows();
-ok(list.log.map((l) => l.action).join() === 'turned off,turned on,changed,created', 'the history keeps each change once, newest first');
-ok(/2 days after .* now EMD not received, 3 days/.test(list.log[2].detail) && list.log[3].byName === 'Adam Admin', 'the history says what changed and who did it');
+const mine = list.log.filter((l) => l.flowId === f1.id);
+ok(mine.map((l) => l.action).join() === 'turned off,turned on,changed,created', 'the history keeps each change once, newest first');
+ok(/2 days after .* now EMD not received, 3 days/.test(mine[2].detail) && mine[3].byName === 'Adam Admin', 'the history says what changed and who did it');
 ok(/not found/.test(await aerr(api.setTaskFlowActive('flow-nope', true))), 'a missing flow gives a plain message');
 
 // the page
 const page = await render({ api, user: { id: 'u-admin', role: 'Super admin', isAdmin: true, status: 'active' }, refresh() {} });
 const body = toText(page.body);
-ok(page.title === 'Task Builder' && body.includes('data-tb-new') && body.includes('EMD reminder') && body.includes('data-tb-on=') && body.includes('Not running yet'), 'the page lists flows with an On / Off switch and says flows are not running yet');
+ok(page.title === 'Task Builder' && body.includes('data-tb-new') && body.includes('EMD reminder') && body.includes('data-tb-on=') && body.includes('check open files about every 15 minutes') && body.includes('data-tb-run-now') && body.includes('data-tb-runs'), 'the page lists flows with an On / Off switch, Check files now and recent runs');
 ok(/does not exist/.test(await aerr(render({ api, user: user('Processor'), refresh() {} }))), 'the page refuses a Processor');
+ok(/created: <br><span class="muted small" data-tb-log-detail>Starts:/.test(body), 'History keeps a space between the action and its detail (Grok, Nov 14: "createdStarts")');
 
 // the database file
 const mig = read('supabase/migrations/20261120010000_task_builder_flows.sql');

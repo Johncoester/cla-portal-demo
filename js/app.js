@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611201000';
+import { getAdapter } from './data/adapter.js?v=202611211000';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611201000';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611101015';
@@ -60,7 +60,7 @@ const pages = {
   'hr-invite': () => import('./pages/hr-invite.js?v=202611161500'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => import('./pages/offices.js?v=202611161500'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
   'admin/email-templates': () => import('./pages/email-templates.js?v=202611191600'),   // John, Nov 9: Admin > Email Templates (file Email tab)
-  'task-builder': () => import('./pages/task-builder.js?v=202611201000'),   // John, Nov 13: Admin > Task Builder (Admin / Super admin; TB-1 list of flows)
+  'task-builder': () => import('./pages/task-builder.js?v=202611211000'),   // John, Nov 13: Admin > Task Builder (Admin / Super admin; TB-1 list of flows)
   demo: () => import('./pages/demo-view.js?v=202611161500'),   // permanent Demo mode: Super admin views a seeded demo user
   'voice-demo': () => import('./pages/voice-demo.js?v=202611161500'),   // signed-in Live Test only; the header Voice test panel is the test, this route is not a file
   'staff-feedback': () => import('./pages/staff-feedback.js?v=202611161500'),
