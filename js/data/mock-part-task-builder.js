@@ -4,9 +4,11 @@
  * Nothing is deleted: a flow is switched Off. Every create, change and switch is kept in a history (who, when, what).
  * TB-2: conditions and steps, and the engine. Events on a file (order opened, EMD received, closing date set) start runs; waits and the
  * day-based triggers are checked whenever the demo portal reads a file or task list (the hosted portal checks every 15 minutes).
- * Tasks a flow makes go to everyone on the file with the chosen role, like template copies (staff mark them done). */
+ * Tasks a flow makes go to everyone on the file with the chosen role, like template copies (staff mark them done).
+ * Nov 14 (John): turning a flow on asks "new files only" (default) or "existing open files too"; "Try on one file" runs a flow once on a
+ * chosen file as a test run (On or Off, waits skipped, tasks marked "Test run"). */
 import { cleanFlow, canManageTaskBuilder, TASK_BUILDER_ADMIN_ONLY, sameName, DUPLICATE_NAME, triggerText, triggerRuns, TRIGGER_NOT_RUNNING,
-  hasTaskStep, NO_TASK_STEP, flowsForEvent, timeTriggerMet, mayStart, newRun, advanceRun, dealRuns, stepText, conditionsText } from './task-builder.js?v=202611211000';
+  hasTaskStep, NO_TASK_STEP, flowsForEvent, timeTriggerMet, mayStart, newRun, advanceRun, dealRuns, stepText, conditionsText, cleanScope, scopeText } from './task-builder.js?v=202611221100';
 
 export function ensureTaskFlows(d) {
   if (!Array.isArray(d.taskFlows)) d.taskFlows = [];
@@ -21,7 +23,7 @@ export function taskBuilderPart({ load, save, needUser, nid, now, fail, nameOf, 
   const admin = () => { const u = needUser(); if (!canManageTaskBuilder(u)) fail(TASK_BUILDER_ADMIN_ONLY); return u; };
   const clean = (input) => { try { return cleanFlow(input); } catch (e) { return fail(e.message); } };
   const view = (f) => ({ ...f, steps: (f.steps || []).map((s) => ({ ...s, text: stepText(s) })), conditions: { ...f.conditions }, triggerText: triggerText(f.trigger, f.triggerDays),
-    conditionsText: conditionsText(f.conditions), runsNow: triggerRuns(f.trigger),
+    conditionsText: conditionsText(f.conditions), runsNow: triggerRuns(f.trigger), scope: f.scope || 'new', scopeText: scopeText(f), activatedAt: f.activatedAt || null,
     createdByName: f.createdBy ? nameOf(f.createdBy) : '', updatedByName: f.updatedBy ? nameOf(f.updatedBy) : '' });
   const one = (d, id) => d.taskFlows.find((f) => f.id === id) || fail('That flow was not found. Refresh the page and try again.');
   const nameTaken = (d, name, id) => d.taskFlows.some((f) => f.id !== id && sameName(f.name, name));
@@ -47,7 +49,7 @@ export function taskBuilderPart({ load, save, needUser, nid, now, fail, nameOf, 
       if (!people.length) { notes.push({ at, text: `No ${t.assignTo} on this file, so "${t.title}" was not created.` }); return; }
       people.forEach((p) => {
         d.tasks.push({ id: nid('t'), dealId: deal.id, participantId: p.participantId, templateId: null, templateCode: null, templateVersion: null, kind: 'simple', title: t.title,
-          description: `${t.call ? 'Phone call. ' : ''}Added by the "${flow.name}" flow (Task Builder).`, assignedRole: t.assignTo, status: 'todo', dueDate: t.dueDate, dueOverridden: false,
+          description: `${run.trial ? 'Test run. ' : ''}${t.call ? 'Phone call. ' : ''}Added by the "${flow.name}" flow (Task Builder).`, assignedRole: t.assignTo, status: 'todo', dueDate: t.dueDate, dueOverridden: false,
           formData: {}, savedAt: null, savedBy: null, completedAt: null, completedBy: null, createdBy: null, createdAt: at, lane: null, audiences: null, flowId: flow.id, flowRunId: run.id });
         made++;
         if (p.profileId && notify) notify([p.profileId], { kind: 'task', dealId: deal.id, title: `New task: ${t.title}`, link: `#/deals/${deal.id}/tasks` }, null);
@@ -67,7 +69,7 @@ export function taskBuilderPart({ load, save, needUser, nid, now, fail, nameOf, 
   // an EMD or closing date change moves them on straight away.
   function onEvent(dealId, event) {
     const d = db(); const deal = d.deals.find((x) => x.id === dealId); if (!dealRuns(deal)) return 0; const at = now(); let n = 0;
-    flowsForEvent(d.taskFlows, event).forEach((f) => { if (mayStart(f, d.taskFlowRuns.filter((r) => r.dealId === dealId))) { start(d, f, deal, at); n++; } });
+    flowsForEvent(d.taskFlows, event, deal).forEach((f) => { if (mayStart(f, d.taskFlowRuns.filter((r) => r.dealId === dealId))) { start(d, f, deal, at); n++; } });
     if (!n) return 0;
     save(); lastTick = 0;
     if (event !== 'order_opened') tick();
@@ -107,10 +109,19 @@ export function taskBuilderPart({ load, save, needUser, nid, now, fail, nameOf, 
       if (!changes.length) return view(f);
       if (f.active && canRun(v)) fail(canRun(v));
       Object.assign(f, v, { updatedAt: now(), updatedBy: u.id }); log(d, u, f, 'changed', changes.join('; ')); save(); return view(f); },
-    async setTaskFlowActive(id, active) { const u = admin(); const d = db(); const f = one(d, id); const on = !!active;
+    async setTaskFlowActive(id, active, { scope } = {}) { const u = admin(); const d = db(); const f = one(d, id); const on = !!active;
       if (f.active === on) return view(f);
       if (on && canRun(f)) fail(canRun(f));
-      f.active = on; f.updatedAt = now(); f.updatedBy = u.id; log(d, u, f, on ? 'turned on' : 'turned off'); save(); return view(f); },
+      if (on) { f.scope = cleanScope(scope); f.activatedAt = now(); }
+      f.active = on; f.updatedAt = now(); f.updatedBy = u.id; log(d, u, f, on ? 'turned on' : 'turned off', on ? `${scopeText(f)}.` : ''); save(); return view(f); },
+    // Try on one file (John, Nov 14): one test run of this flow on one open file, now
+    async tryTaskFlowOnFile(id, dealId) { admin(); const d = db(); const f = one(d, id);
+      if (!hasTaskStep(f.steps)) fail(NO_TASK_STEP);
+      const deal = d.deals.find((x) => x.id === dealId); if (!deal) fail('Choose a file to try the flow on.');
+      if (!dealRuns(deal)) fail('That file is not open. Choose an open file.');
+      const at = now(); const run = start(d, f, deal, at); run.trial = true;
+      const tasks = step(d, run, at); save();
+      return { runId: run.id, status: run.status, tasks, log: [...run.log], fileNumber: deal.fileNumber || '' }; },
     // Admin button: check every file now instead of waiting for the next check
     async runTaskFlowsNow() { admin(); lastTick = Date.now(); return tick(); },
     // used by the adapter's wrappers (mock-adapter.js): not for the page

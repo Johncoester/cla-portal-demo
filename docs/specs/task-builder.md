@@ -1,7 +1,7 @@
 # Task Builder (automated workflows for title files)
 
 **Requested by:** John Coester, Nov 13 2026 (chat with Claude, "Task Builder – Spec for Grok").
-**Status:** TB-1 Live on TEST (PR 261, Nov 14). TB-2 built by Claude, pull request open, not Live. See [ROADMAP.md](../../ROADMAP.md#task-builder).
+**Status:** TB-1 Live on TEST (PR 261, Nov 14). TB-2 merged (PR 263), not Live. TB-2b pull request open. See [ROADMAP.md](../../ROADMAP.md#task-builder).
 **Replaces:** the "Workflow definitions" idea (PR 7, closed, never merged; roadmap PR 218). Builds on Task Templates ([PR 141](https://github.com/Johncoester/cla-portal-demo/pull/141)).
 
 ## What John asked for
@@ -67,3 +67,12 @@ The end goal is a drag-and-drop flowchart screen where "almost any task can be a
 - **Runs:** one flow on one file. A flow starts once per file; "Closing date set or changed" can start again after its last run ended. Only open files run; a turned-off flow's runs wait. The page shows recent runs and a **Check files now** button.
 - **Hosted:** a trigger on deals starts runs for order opened, EMD received (`emd_received` turned on) and closing date set or changed; a pg_cron job every 15 minutes starts the day-based triggers and moves runs on. Any engine problem is written to `task_flow_errors` and never stops an order from saving. Migration `20261121010000_task_flow_engine.sql`, rollback in `supabase/rollbacks/`.
 - **Not yet:** "Contract received" and "Title commitment received" can't be turned on; named person, optional backup and who can see it (TB-3); emails (TB-4); drag and drop (TB-5).
+
+## TB-2b: Try on one file, and new files only (John, Nov 14 2026)
+
+John: turning a flow on with a hundred open orders gives no safe way to test it. So:
+
+- **Try on one file** (on any flow with a task step): pick one open file; the flow runs on it now, whether the flow is On or Off. Waits are skipped so every step shows at once; "Stop if the EMD has been received" still checks the file. Its tasks are real tasks on that file, marked "Test run", and the window links to the file's tasks. A test run never counts as, or blocks, the flow's real run on that file. A closed or missing file, or a flow with no task step, gets a plain message.
+- **Turn on** asks which files: **New files only** (the default) = files opened after the flow was turned on; **Existing open files too** = also the open files already there. Turning it off and on again starts "from now" again. An "Order opened" flow only ever runs on new orders, so it asks nothing. The list shows the choice under On, and History records it.
+- Flows already On before this change keep running on existing files.
+- Migration `20261122010000_task_flow_try_and_scope.sql` (after TB-2's), rollback in `supabase/rollbacks/`.

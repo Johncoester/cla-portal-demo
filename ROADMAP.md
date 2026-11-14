@@ -279,27 +279,26 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A **Task Builder** page in the admin section where Admins and Super admins build automated workflows ("flows") for title files without code. Each flow starts when something happens on a file (the trigger: order opened, contract received, EMD received or not received after a number of days, title commitment received, closing date set or changed, a number of days before closing). Conditions pick which files it applies to (sales rep, client, transaction type, state, combined with and/or). Actions then run in order: create a task, send an email as a chosen person, create a call task, wait, check again, continue or stop. Each task a flow creates says who it's assigned to (a role on the file or a named person), an optional backup person, who can see it (CLA only, or also the agent, buyer, seller or lender), and its due date. The end goal is a drag-and-drop flowchart screen. This replaces "Workflow definitions" (PR 7, closed) and builds on Task Templates (PR 141).
 
-**Status: In progress. TB-1 Live on TEST (Nov 14). TB-2 built by Claude, pull request open; not Live until its database file is applied on TEST.**
+**Status: In progress. TB-1 Live on TEST (Nov 14). TB-2 merged (PR 263, Nov 14); not Live until its database file is applied on TEST. TB-2b (Try on one file, new files only) pull request open.**
 
 | Step | What | Status |
 |---|---|---|
 | TB-1 | Admin page and permissions, list of flows (name, what starts it, On / Off), history (Owner: Claude) | Live on TEST, [PR 261](https://github.com/Johncoester/cla-portal-demo/pull/261). Grok checked steps 1–7 on TEST, Nov 14 |
-| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) | [PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263) open. Not Live until `20261121010000_task_flow_engine.sql` is applied on TEST |
+| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) Merged, [PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263). Not Live until `20261121010000_task_flow_engine.sql` is applied on TEST |
+| TB-2b | Try on one file; turning on asks new files only or existing open files too (John, Nov 14) (Owner: Claude) | [PR 265](https://github.com/Johncoester/cla-portal-demo/pull/265) open. Not Live until `20261122010000_task_flow_try_and_scope.sql` is applied on TEST, after TB-2's file |
 | TB-3 | Task settings: assigned to (role or named person), optional backup person, who can see it | Planned |
 | TB-4 | Email actions with templates and "send as" | Planned |
 | TB-5 | Drag-and-drop flowchart screen | Planned |
 
 **What's built**
 
-- TB-1: **Admin > Task Builder**, its own menu item, for Admins and Super admins only (everyone else gets "Not authorized"). It lists flows with name, description, what starts it, On / Off, and who changed it last. **+ New flow** and **Edit** take a name, what starts it, days (for "EMD not received" and "Days before closing") and a description. New flows start Off; Turn on / Turn off switch them; nothing is deleted. A History card shows every change. A notice says flows don't run on files yet.
-
-**What's still missing**
-
+- TB-1: **Admin > Task Builder**, its own menu item, for Admins and Super admins only (everyone else gets "Not authorized"). It lists flows with name, description, what starts it, On / Off, and who changed it last. **+ New flow** and **Edit** take a name, what starts it, days (for "EMD not received" and "Days before closing") and a description. New flows start Off; Turn on / Turn off switch them; nothing is deleted. A History card shows every change.
 - TB-2: each flow says **which files** it applies to (transaction type: purchase, cash purchase or refinance; state; sales person — blank means any) and has **steps** run in order: create a task, create a phone call task, wait a number of days, or stop if the EMD has been received. A task goes to everyone on the file with the chosen role (processor, pre-processor, sales person, buyer's agent, listing agent, buyer, seller, transaction coordinator, lender). The page shows each flow's steps, recent runs (flow, file, status, latest step) and a **Check files now** button. A flow needs at least one task step before it can be turned on. The database starts flows when an order is opened, the EMD is marked received, or the closing date is set or changed, and every 15 minutes checks the day-based triggers and waits. Nothing in it can stop an order from saving.
+- TB-2b (John, Nov 14): **Try on one file** runs a flow once on a chosen open file, now, even while the flow is Off, with waits skipped so every step shows at once. Its tasks are real tasks on that file marked "Test run", and it never counts as the flow's real run there. **Turn on** asks which files: **New files only** (the default: files opened after it was turned on) or **Existing open files too**, so turning a flow on never sweeps the open files already there by surprise. An "Order opened" flow only ever runs on new orders. The list and History show which was picked.
 
 **What's still missing**
 
-- TB-2 is not Live: `20261121010000_task_flow_engine.sql` has to be applied on TEST (it needs TB-1's file, already applied, and pg_cron, already on TEST).
+- TB-2 and TB-2b are not Live: apply `20261121010000_task_flow_engine.sql`, then `20261122010000_task_flow_try_and_scope.sql`, on TEST (they need TB-1's file, already applied, and pg_cron, already on TEST). John wants to try it himself before Grok tests it.
 - "Contract received" and "Title commitment received" can be saved but not turned on yet.
 - On TEST a new order's flow tasks appear at the next 15-minute check (or **Check files now**), after Place Order has added the people.
 - Named person, optional backup person, and who can see a task (TB-3); emails (TB-4); drag and drop (TB-5).
@@ -312,4 +311,4 @@ This file lists the portal's major features: how each one should work, how far a
 
 **Decisions**
 
-- John, Nov 13: its own admin menu item (not under Task Templates); Admins and Super admins only; tasks can be assigned by role or to a named person; a backup person is optional, added on each task. Still open: whether clients and agents can tick off tasks.
+- John, Nov 13: its own admin menu item (not under Task Templates); Admins and Super admins only; tasks can be assigned by role or to a named person; a backup person is optional, added on each task. John, Nov 14: a flow can be tried on one file first, and turning it on defaults to new files only. Still open: whether clients and agents can tick off tasks.
