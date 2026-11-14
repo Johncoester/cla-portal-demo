@@ -83,6 +83,7 @@ export function routeAllowed(u, route, { locked = false, demo = null } = {}) {
   if (p === 'role-access') return canManageRoleAccess(u);   // John, Nov 9: Super admin only
   if (p === 'orders/new' || p === 'activity') return runsOrders(u) || !!u.isAdmin;
   if (p === 'task-grid' || p === 'templates' || p === 'admin/templates') return canOpenTaskSetup(u, demo);   // Task Templates (all three tabs) and the Task Grid
+  if (p === 'task-builder') return canOpenTaskSetup(u, demo);   // John, Nov 13: Admin > Task Builder (Admin / Super admin only)
   if (p === 'tasks') return !!u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator';
   if (p === 'outbox') return runsOrders(u) || !!u.isAdmin || u.role === 'Transaction Coordinator';
   if (p === 'agent-invites') return canInviteAgents(u);
@@ -100,7 +101,7 @@ const ACCT_VIEWS = ['charges', 'cd', 'cddetails', 'prorations', 'payments', 'led
 export const SECTIONS = { home: '/dashboard', 'my-tasks': '/dashboard', orders: '/orders', 'place-order': '/orders/new', tasks: '/tasks', 'task-grid': '/task-grid', library: '/library',
   crm: '/crm', 'crm-deals': '/crm/deals', 'crm-leads': '/crm/leads', 'crm-calls': '/crm', 'crm-templates': '/crm/templates', 'crm-pipeline': '/crm/pipeline', 'crm-reports': '/crm/reports',
   admin: '/users', users: '/users', 'create-user': '/users/new', teams: '/teams', 'admin-offices': '/offices', modules: '/modules', 'role-access': '/role-access', underwriters: '/underwriters', 'agent-invites': '/agent-invites',
-  templates: '/admin/templates', 'email-templates': '/admin/email-templates', outbox: '/outbox', activity: '/activity', profile: '/profile', hr: '/hr', 'my-profile': '/hr/me',
+  templates: '/admin/templates', 'email-templates': '/admin/email-templates', 'task-builder': '/task-builder', outbox: '/outbox', activity: '/activity', profile: '/profile', hr: '/hr', 'my-profile': '/hr/me',
   // HR section links (John, Nov 4: "HR should have a link"). Only pick the first page: app.js still applies hrSectionAllowed + the 'hr' module switch
   // (Super admins only while HR is off; HR managers once Live; an employee only their own profile; HR Settings = Super admin only).
   'hr-home': '/hr', 'hr-employees': '/hr/employees', 'hr-managers': '/hr/settings', 'hr-my-profile': '/hr/me' };   // hr: refused for outside users by routeAllowed
