@@ -286,6 +286,10 @@ a.active-link, .active-link { font-weight: 700; text-decoration: underline; } tr
 .multi-party { background: var(--surface-2); } .multi-party .multi-row { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 8px; } .multi-party .multi-row .picker { flex: 1; }
 .multi-party .multi-row { align-items: flex-start; } .multi-party .multi-row > .ghost { margin-top: 25px; height: 39px; }
 .party-row-wrap + .party-row-wrap { border-top: 1px dashed var(--line-2); padding-top: 10px; }
+.party-fields { margin: 4px 0 10px; }
+.party-dir { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.party-dir > label, .agent-card > label { display: block; font-size: var(--fs-sm); color: var(--ink-2); font-weight: 600; }
+.party-dir > label select, .agent-card > label select, .party-dir > label input { margin-top: 6px; font-weight: 400; }
 .multi-party .entity-panel { margin: 0 0 12px; padding: var(--s3) var(--s4); border: 1px solid var(--navy-100); border-left: 3px solid var(--navy-500); border-radius: var(--r); background: var(--surface); }
 .lender-block .form-grid { margin-top: var(--s3); }
 .clause-field { position: relative; }

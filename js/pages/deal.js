@@ -8,6 +8,7 @@ import { officeDate } from '../data/office-date.js?v=202611102100';
 import { modOn } from '../data/modules.js?v=202611101015';
 import { slotText } from './dealclosing.js?v=202611170800';
 import { pickerHtml, mountPicker } from './person-picker.js?v=202611191800';
+import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice } from '../data/file-party.js?v=202611221600';
 import { composeModal } from './compose.js?v=202611191600';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611191800';
 import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611101015';
@@ -18,7 +19,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611191700';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611191700';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611201000';
+import { prefetchDealTab } from './deal-tab.js?v=202611221600';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';
@@ -211,7 +212,7 @@ function overview({ api, user, refresh, demoLocked, settlement = null }, d, crum
     ${staffView ? '' : settlementSectionHtml({ deal: d, user, demoLocked, contacts: (settlement && settlement.contactChoices) || [], closerStaff: (settlement && settlement.closerStaff) || [], locations: (settlement && settlement.locations) || [] })}
     <div class="box-title"><h2><span class="h-ico"></span>Parties</h2><a class="ghost right" href="#/deals/${d.id}/contacts">All contacts</a></div>
     ${partiesList(d, ov, staffView, { splits, edit, source: staffView ? (d.sourceOfBusiness || '') : '', sourceLabel: staffView ? (d.sourceOfBusinessLabel || '') : '' })}
-    ${staffView ? html`<div class="op-party-tools" data-party-tools>${edit ? html`<button type="button" class="ghost" data-add-party="Client-Buyer">+ Add ${B.toLowerCase()}</button>${!refi ? html` <button type="button" class="ghost" data-add-party="Client-Seller">+ Add seller</button>` : ''}` : ''}
+    ${staffView ? html`<div class="op-party-tools" data-party-tools>${edit ? html`<button type="button" class="ghost" data-add-party="Client-Buyer">+ Add ${B.toLowerCase()}</button>${!refi ? html` <button type="button" class="ghost" data-add-party="Client-Seller">+ Add seller</button> <button type="button" class="ghost" data-add-party="Buyer Agent">+ Add buyer's agent</button> <button type="button" class="ghost" data-add-party="Listing Agent">+ Add listing agent</button>` : ''} <button type="button" class="ghost" data-add-party="Lender">+ Add lender</button>` : ''}
       <span class="op-sales">Salespeople: ${(d.salesPeople || []).length ? (d.salesPeople || []).map((s, i) => html`${i ? ', ' : ''}<span class="nowrap" data-sales-person="${s.id}">${s.name}${edit ? html` <button class="ghost" data-rm-sales="${s.id}" title="Remove from this order" aria-label="Remove ${s.name}">&times;</button>` : ''}</span>`) : 'Not specified'}
       ${edit && salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)).length ? html` <select id="addsales" aria-label="Add a salesperson"><option value="">+ Add salesperson&hellip;</option>${options(salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)), '', (s) => `${s.firstName} ${s.lastName} (${s.role})`, (s) => s.id)}</select>` : ''}</span></div>` : ''}
     <div class="box-title"><h2><span class="h-ico"></span>Notes</h2></div>
@@ -295,15 +296,61 @@ async function editModal(api, d, refresh, meId) {
     await api.updateDeal(d.id, f); closeModal(); toast('Order saved'); refresh(); }));
 }
 
-// John, Nov 2: add another buyer / seller to an existing order (Edit order flow). Same type-to-search picker; a new person is added on the Contacts tab.
+// FF-049 / MF-046: type a buyer, seller, agent or lender onto this file. Picking an existing contact is optional.
+// A typed person is saved as a contact with no portal login. Invite stays on Contacts.
+const PARTY_LABEL = { 'Client-Buyer': 'buyer', 'Client-Seller': 'seller', 'Buyer Agent': "buyer's agent", 'Listing Agent': 'listing agent', Lender: 'lender' };
+function directoryOptionsHtml(model) {
+  const group = (label, options) => (options.length ? html`<optgroup label="${label}">${options.map((o) => html`<option value="${o.value}">${o.label}</option>`)}</optgroup>` : '');
+  return html`<option value="">Not listed — type them below</option>${group(model.companyLabel, model.companies)}${group(model.peopleLabel, model.people)}`;
+}
 async function addPartyModal(api, d, role, refresh) {
-  const label = role === 'Client-Buyer' ? (isRefi(d) ? 'borrower' : 'buyer') : 'seller'; const all = await api.listContacts(); const on = new Set(d.participants.filter((p) => p.role === role).map((p) => p.contactId));
-  const m = modal(`Add a ${label}`, html`<form id="apty" class="form-grid">${pickerHtml('contactId', `Another ${label}`)}
-    <p class="muted small span2">They get their own copy of the ${label}'s intake tasks. Someone new? Use <a href="#/deals/${d.id}/contacts">Contacts &rarr; Add contact</a>. To take someone off the order use Contacts &rarr; Remove from order (their documents are kept).</p>
-    <div class="span2"><button class="m-btn" type="submit">Add ${label}</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
-  const pk = mountPicker($('[data-picker=contactId]', m), () => all.filter((c) => !on.has(c.id)));
-  $('#apty', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); if (!pk.value) throw new Error('Pick a person from the list.');
-    await api.addParticipant(d.id, pk.value, role); closeModal(); toast(`${label[0].toUpperCase() + label.slice(1)} added`); refresh(); }));
+  const label = role === 'Client-Buyer' && isRefi(d) ? 'borrower' : (PARTY_LABEL[role] || 'person');
+  const directory = role === 'Buyer Agent' || role === 'Listing Agent' || role === 'Lender';
+  const all = await api.listContacts();
+  const on = new Set(d.participants.filter((p) => p.role === role && !p.removed).map((p) => p.contactId));
+  const choices = all.filter((c) => !on.has(c.id));
+  const model = directory ? directoryModel(choices, role === 'Lender' ? 'lender' : 'agent') : null;
+  const m = modal(`Add a ${label}`, html`<form id="apty" class="form-grid">
+    <p class="span2 muted small">Type the name, email and phone onto this file. You do not have to pick an existing contact, and no portal login is created. Invite them later from Contacts.</p>
+    ${directory ? html`<label class="span2">Existing company or ${role === 'Lender' ? 'loan officer' : 'agent'}<select data-dir-select aria-label="Existing company or person">${directoryOptionsHtml(model)}</select></label>` : html`<div class="span2">${pickerHtml('contactId', 'Existing contact (optional)')}</div>`}
+    <label>First name<input name="firstName" maxlength="80" autocomplete="off" aria-label="First name"></label>
+    <label>Last name<input name="lastName" maxlength="80" autocomplete="off" aria-label="Last name"></label>
+    <label>Email<input name="email" type="email" maxlength="200" autocomplete="off" aria-label="Email"></label>
+    <label>Phone<input name="phone" type="tel" inputmode="tel" maxlength="40" placeholder="xxx-xxx-xxxx" data-phone autocomplete="off" aria-label="Phone"></label>
+    <label class="span2">${role === 'Lender' ? 'Lender company' : directory ? 'Company / brokerage' : 'Company or entity name'}<input name="company" maxlength="120" autocomplete="off" aria-label="Company"></label>
+    ${role === 'Lender' ? html`<label class="span2">This person is<select name="lenderRole" aria-label="Lender contact type"><option value="">Company only</option><option value="loan_officer">Loan Officer</option><option value="lender_tc">Lender TC</option></select></label>` : ''}
+    <div class="span2"><button class="m-btn" type="submit">Add ${label}</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
+  const pk = directory ? null : mountPicker($('[data-picker=contactId]', m), () => choices);
+  const dir = $('[data-dir-select]', m);
+  if (dir) dir.addEventListener('change', () => {
+    const choice = directoryChoice(dir.value);
+    if (choice.kind !== 'company') return;
+    const co = $('[name=company]', m); if (co && !co.value.trim()) co.value = choice.company;
+  });
+  $('#apty', m).addEventListener('submit', guard(async (e) => {
+    e.preventDefault();
+    const f = formData(e.target);
+    const picked = (pk && pk.value) || (dir && directoryChoice(dir.value).kind === 'person' ? directoryChoice(dir.value).contactId : '');
+    const typedName = pk && !picked ? pk.typed : '';
+    const entry = directory
+      ? manualPartyEntry({ label, contactId: picked, person: `${f.firstName || ''} ${f.lastName || ''}`.trim(), company: f.company, email: f.email, phone: f.phone, contactType: role === 'Lender' ? 'lender' : 'realtor', lenderRole: f.lenderRole })
+      : buyerSellerEntry({ label, contactId: picked, typedName, firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone, company: f.company });
+    if (!entry.ok) throw new Error(entry.error);
+    if (entry.action === 'skip') throw new Error(`Enter a name for this ${label}, or pick an existing contact.`);
+    let id = entry.action === 'existing' ? entry.contactId : '';
+    if (!id) {
+      try { id = (await api.createContact(entry.contact)).id; }
+      catch (err) {
+        const msg = String((err && err.message) || err || '');
+        if (/already exists/i.test(msg)) throw new Error('That email is already saved on a contact. Pick that person from the list, or enter a different email.');
+        throw err;
+      }
+    }
+    await api.addParticipant(d.id, id, role);
+    closeModal();
+    toast(`${label[0].toUpperCase() + label.slice(1)} added. No portal invite was sent.`);
+    refresh();
+  }));
 }
 
 // ---------------- ORDER PAGE REDESIGN (John, Nov 4): a SMALL EMD box + the Wire instructions box ----------------
