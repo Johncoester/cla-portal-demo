@@ -1,6 +1,9 @@
 #!/bin/sh
 # AF-1 agent fees (John, Nov 12 2026 decisions). Disposable database only: applies
 # supabase/migrations/20261117100000_agent_fees.sql on a small stand-in schema and checks the rules.
+# The one-source section also signs in as role authenticated, in a fresh connection, and checks
+# insert and update of an order. Running those checks as the superuser (or later in the same
+# connection) hid "permission denied for function old_commission_keys".
 # Does not connect to the hosted TEST project and does not use its data.
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
@@ -327,6 +330,83 @@ select pg_temp.ok(pg_temp.err($q$update public.deals set financial = '{"commissi
   'one source: a commission in financial is refused too');
 select pg_temp.ok(pg_temp.err($q$update public.deals set financial = '{"emdHeldBy":"Bright Realty"}', purchase_price = 210000 where id = '66666666-6666-6666-6666-666666666666'$q$) = 'no error',
   'one source: EMD held by and the sales price still save');
+SQL
+# The stand-in only let authenticated change purchase_price. Place Order inserts a row and
+# updates other columns, so this check grants that on the disposable table. Not a migration.
+psql_super -c "grant insert, update on public.deals to authenticated;"
+# Fresh connection: the superuser block above already ran the guard, and PL/pgSQL would reuse
+# that plan for a later SET ROLE in the same connection, which hides the permission error.
+psql_super -o /dev/null <<'SQL'
+create or replace function pg_temp.errstate(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'no error'; exception when others then return sqlstate || ' ' || sqlerrm; end $$;
+create or replace function pg_temp.eq(got text, expected text, msg text) returns void language plpgsql as $$
+begin if got is distinct from expected then raise exception 'FAIL % (saw: %)', msg, got; end if; raise notice 'PASS  %', msg; end $$;
+grant execute on function pg_temp.errstate(text), pg_temp.eq(text, text, text) to authenticated;
+begin;
+set local role authenticated;
+select pg_temp.eq(pg_temp.errstate($q$update public.deals set purchase_price = purchase_price where id = '66666666-6666-6666-6666-666666666666'$q$),
+  '42501 permission denied for function old_commission_keys',
+  'before the permission fix, a signed-in user cannot update an order');
+select pg_temp.eq(pg_temp.errstate($q$insert into public.deals (id, purchase_price, financial) values ('99999999-9999-9999-9999-999999999999', 180000, '{"emdHeldBy":"CLA Title"}')$q$),
+  '42501 permission denied for function old_commission_keys',
+  'before the permission fix, a signed-in user cannot insert an order');
+rollback;
+SQL
+psql_super -f "$ROOT/supabase/migrations/20261119180000_old_commission_keys_permissions.sql"
+psql_super -o /dev/null <<'SQL'
+create or replace function pg_temp.errstate(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'no error'; exception when others then return sqlstate || ' ' || sqlerrm; end $$;
+create or replace function pg_temp.eq(got text, expected text, msg text) returns void language plpgsql as $$
+begin if got is distinct from expected then raise exception 'FAIL % (saw: %)', msg, got; end if; raise notice 'PASS  %', msg; end $$;
+create or replace function pg_temp.ok(c boolean, msg text) returns void language plpgsql as $$
+begin if c is not true then raise exception 'FAIL %', msg; end if; raise notice 'PASS  %', msg; end $$;
+grant execute on function pg_temp.errstate(text), pg_temp.eq(text, text, text), pg_temp.ok(boolean, text) to authenticated;
+begin;
+set local role authenticated;
+insert into public.deals (id, purchase_price, financial) values ('99999999-9999-9999-9999-999999999999', 180000, '{"emdHeldBy":"CLA Title"}');
+select pg_temp.eq(pg_temp.errstate($q$update public.deals set purchase_price = 181000, financial = '{"emdHeldBy":"Bright Realty"}' where id = '99999999-9999-9999-9999-999999999999'$q$),
+  'no error', 'signed-in user can update an order that has no old commission');
+select pg_temp.eq(pg_temp.errstate($q$update public.deals set purchase_price = 220000 where id = '66666666-6666-6666-6666-666666666666'$q$),
+  'no error', 'signed-in user can update the sales price on an order that already has agent fees');
+select pg_temp.eq(pg_temp.errstate($q$update public.deals set listing_commission_pct = 3 where id = '99999999-9999-9999-9999-999999999999'$q$),
+  'P0001 Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter them there. Nothing was saved.',
+  'signed-in user writing an old commission column gets the plain message, not permission denied');
+select pg_temp.eq(pg_temp.errstate($q$update public.deals set financial = '{"emdHeldBy":"CLA Title","commissionPercent":3}' where id = '99999999-9999-9999-9999-999999999999'$q$),
+  'P0001 Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter them there. Nothing was saved.',
+  'signed-in user writing a commission key in financial gets the plain message, not permission denied');
+select pg_temp.eq(pg_temp.errstate($q$insert into public.deals (id, purchase_price, buyer_commission_amount) values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 1000, 50)$q$),
+  'P0001 Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter them there. Nothing was saved.',
+  'signed-in insert of an old commission column gets the plain message, not permission denied');
+select pg_temp.eq(pg_temp.errstate($q$insert into public.deals (id, financial) values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2', '{"listingCommissionAmount":9}')$q$),
+  'P0001 Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter them there. Nothing was saved.',
+  'signed-in insert of a commission key in financial gets the plain message, not permission denied');
+select pg_temp.ok((select purchase_price = 181000 and financial = '{"emdHeldBy":"Bright Realty"}'::jsonb and listing_commission_pct is null
+  from public.deals where id = '99999999-9999-9999-9999-999999999999'),
+  'the signed-in save kept the sales price and EMD held by, and did not keep a refused commission');
+select pg_temp.ok((select purchase_price = 220000 from public.deals where id = '66666666-6666-6666-6666-666666666666'),
+  'the signed-in sales price update was saved');
+select pg_temp.ok((select count(*) = 0 from public.deals where id in ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2')),
+  'a refused commission insert saved nothing');
+select pg_temp.ok(private.old_commission_keys() = array['commissionBase', 'commissionPercent', 'commissionAdditional', 'commissionTotal', 'commissionPaidBy',
+  'listingCommissionPercent', 'listingCommissionAmount', 'buyerCommissionPercent', 'buyerCommissionAmount']::text[],
+  'a signed-in user still gets the same nine commission keys');
+commit;
+SQL
+psql_super -f "$ROOT/supabase/migrations/20261119180000_old_commission_keys_permissions.sql"
+psql_super -c "do \$\$ begin if not (select prosecdef and proconfig = array['search_path=public'] and has_function_privilege('authenticated', 'private.old_commission_keys()', 'execute') and not has_function_privilege('anon', 'private.old_commission_keys()', 'execute') from pg_proc where oid = 'private.old_commission_keys()'::regprocedure) then raise exception 'FAIL permission fix did not stick when applied twice'; end if; raise notice 'PASS  applying the permission fix twice is harmless'; end \$\$;"
+psql_super -f "$ROOT/supabase/rollbacks/20261119180000_old_commission_keys_permissions.sql"
+psql_super -o /dev/null <<'SQL'
+create or replace function pg_temp.errstate(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'no error'; exception when others then return sqlstate || ' ' || sqlerrm; end $$;
+create or replace function pg_temp.eq(got text, expected text, msg text) returns void language plpgsql as $$
+begin if got is distinct from expected then raise exception 'FAIL % (saw: %)', msg, got; end if; raise notice 'PASS  %', msg; end $$;
+grant execute on function pg_temp.errstate(text), pg_temp.eq(text, text, text) to authenticated;
+begin;
+set local role authenticated;
+select pg_temp.eq(pg_temp.errstate($q$update public.deals set purchase_price = purchase_price where id = '99999999-9999-9999-9999-999999999999'$q$),
+  '42501 permission denied for function old_commission_keys',
+  'rolling back the permission fix blocks a signed-in update again');
+rollback;
 SQL
 psql_super -f "$ROOT/supabase/migrations/20261119030000_agent_fee_one_source.sql"
 psql_super -f "$ROOT/supabase/rollbacks/20261119030000_agent_fee_one_source.sql"

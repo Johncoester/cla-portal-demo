@@ -17,7 +17,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When CLA staff open a file, they enter each agent's fees for their side (listing agent and buyer's agent): the commission as a percent or a dollar amount, which always stay in sync with each other using the sales price; an admin fee (paid by the buyer for the buyer's agent and by the seller for the listing agent unless changed); and up to 5 other fees, each with a description, an amount and who it's paid to. Each agent sees and can change their own side in the portal. Before saving, they see a "You're changing X from $A to $B" check, and the fee is then marked "Agent confirmed". A TC can confirm for the agent. Once confirmed, the agent's figure wins. Staff can still change it, but they must give a reason, and the agent is told straight away (old value, new value, reason, who). When an agent changes a fee, the processor, pre-processor and TC on the file are told, in the portal and by email. The fees go straight onto the right lines in Accounting, and from there onto the Closing Disclosure (CD) and the ALTA settlement statement, which can also be generated as PDFs. Buyers and sellers never see commissions or agent fees. Every change is kept in a history: who, when, old value, new value, reason, and whether staff, the agent or the TC made it.
 
-**Status: Built (AF-1 to AF-6 Live on TEST). The follow-ups (one place for commissions, agent task, walkthrough test) are in review, built by Claude.**
+**Status: Built (AF-1 to AF-6 Live on TEST). AF-7 is on TEST but not Live: saving an order fails until the permission fix is applied and checked there.**
 
 | Step | What | Status |
 |---|---|---|
@@ -27,7 +27,7 @@ This file lists the portal's major features: how each one should work, how far a
 | AF-4 | Notice to the agent when staff change a confirmed fee | Live on TEST, [PR 236](https://github.com/Johncoester/cla-portal-demo/pull/236) |
 | AF-5 | Fees post to Accounting automatically | Live on TEST, [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) |
 | AF-6 | "Generate CD" and "Generate ALTA" PDF buttons | Live on TEST, [PR 238](https://github.com/Johncoester/cla-portal-demo/pull/238) |
-| AF-7 | Follow-ups: one place for commissions, agent task without fee questions, walkthrough test (Owner: Claude) | In review, [PR 257](https://github.com/Johncoester/cla-portal-demo/pull/257). Needs `20261119030000_agent_fee_one_source.sql` applied on TEST before it is Live |
+| AF-7 | Follow-ups: one place for commissions, agent task without fee questions, walkthrough test (Owner: Claude) | On TEST, not Live. [PR 257](https://github.com/Johncoester/cla-portal-demo/pull/257) is merged and its database file is applied, but Place Order fails with a permission error. The follow-up fix is not Live until `20261119180000_old_commission_keys_permissions.sql` is applied on TEST and Place Order is checked there |
 
 **What's built**
 
@@ -40,13 +40,14 @@ This file lists the portal's major features: how each one should work, how far a
 - The overview's old "Earnest & commissions" box is now "Earnest money" (EMD held by only) for everyone; commissions show only in the Agent fees box (AF-7).
 - AF-7 (follow-ups, Nov 13; John assigned them to Claude): **one place for commissions.** Place Order now has, for each agent side, Commission % and $ (typing one fills the other from the purchase price) and an admin fee; they are saved as the file's Agent fees once the agents are added. Edit order details, Accounting > Contract figures and the TC's contract figures no longer take a commission: they point to the Agent fees box, and Accounting shows both sides read only. The database file moves any commission still on an order into Agent fees (in the change history), empties the order's old commission fields so buyers and sellers can't read them, and refuses a commission written to the order again with a plain message. The agent's "Confirm Your Transaction Information" task no longer asks for a commission or fees; it points to the Agent fees box. Answers agents already sent are still shown.
 - AF-7 walkthrough: `tests/e2e-roles/specs/agent-fees.spec.js` (Processor enters, listing agent sees only their side and confirms, a staff change needs a reason, the buyer never sees agent fees, the task points to the box) and Place Order agent fees in `order-entry.spec.js`.
+- AF-7 follow-up (Nov 14): after the one-place database file was applied on TEST, every save of an order failed with a permission error, including a normal Place Order. The follow-up database file lets a signed-in user save an order again. Writing an old commission is still refused with the plain Agent fees message. Not Live until that file is applied on TEST and Place Order is checked there.
 - Agents' earlier "Confirm Your Transaction Information" submissions are kept (every version), and the file's processor gets an in-portal notice when they submit or revise it.
 - The Accounting fee ledger already has a "Commission" section that shows on the CD (section H, "Other") and on the settlement statement.
 - The portal has an in-portal notifications list, and Accounting fee changes are already logged.
 
 **What's still missing**
 
-- AF-7 is not Live until `supabase/migrations/20261119030000_agent_fee_one_source.sql` is applied on TEST. Until then the old commission columns stay readable by buyers and sellers through the database (blank on every TEST file today).
+- AF-7 is not Live. The one-place database file is already on TEST, and it stopped Place Order (and any other save of an order) with a permission error. `supabase/migrations/20261119180000_old_commission_keys_permissions.sql` has to be applied on TEST, and Place Order checked there, before AF-7 can be marked Live.
 - Notice emails are queued in the portal's outbox but never sent on TEST (the TEST portal sends no email). Sending them needs the production mail switch, which is John's call.
 - A sales price change re-posts the commission in the database (TEST); the demo (mock) portal re-posts only when the fees are saved.
 - "Generate CD" and "Generate ALTA" make the PDF with the browser's own "Save as PDF". The portal doesn't store the PDF on the file.
@@ -72,6 +73,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Queue: John started the build on Nov 12 at 8 PM ET (t1566u, "Start a second builder tonight"), alongside the bug fixes. Merges stay one at a time.
 - Follow-ups (John, Nov 13): one place for commissions (the older commission boxes point to Agent fees instead of keeping a second copy), remove the fee questions from the agent's task, add a walkthrough test, AF-1 choices approved as written. Assigned to Claude; John waived rule 9 for this build (the walkthrough on main was failing for unrelated buyer/seller tests).
 - AF-1 choices (approved as written by John, Nov 13): a commission can't be saved until the file has a sales price, so % and $ can always be checked against it. The commission and other fees also record who pays them, with the same defaults as the admin fee (buyer for the buyer's agent, seller for the listing agent). When staff change a confirmed fee, the record of who confirmed it stays, so every later staff change still needs a reason. A fixed-$ commission bigger than a new, lower sales price switches to keeping its %. A TC can confirm the side of an agent on their team; the file's own TC can confirm either side. A refinance has no agent fees.
+- Nov 14: the list of old commission keys stays the same. A signed-in user can save an order that does not write those keys. Writing an old commission still shows the plain Agent fees message, not a permission error. AF-7 stays not Live until that permission fix is applied on TEST and Place Order is checked there.
 
 ---
 
