@@ -6,7 +6,9 @@ import { raw } from '../ui.js?v=202611161500';
 import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611191700';
 import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611191600';
 import { presentThread } from '../data/portal-threads.js?v=202611162200';
-import { noLoginContactId } from '../data/share-invite.js?v=202611191100';
+import { noLoginContactId, canShareInvite, shareInviteToast } from '../data/share-invite.js?v=202611191100';
+import { autoSendInvite } from '../data/invite-send.js?v=202611191600';
+import { TYPED_ROLES, cleanTypedRecipient, personByEmail, heldContactId, plainMessageHtml, addTypedRecipient } from '../data/typed-recipient.js?v=202611221200';
 
 export async function render(ctx) {
   const { api, user, deal, refresh, params } = ctx; const notViewOnly = !viewOnly(user);
@@ -24,15 +26,53 @@ export async function render(ctx) {
     const sf = $('#sharefiles2', root); if (sf) sf.addEventListener('click', guard(() => composeModal(ctx, { title: 'New Conversation', withFiles: true })));
     const nb = $('#newthread', root); if (nb) nb.addEventListener('click', guard(async () => {
       const people = await api.listMessageRecipients(deal.id);
-      // FF-055 / MF-048: someone with no portal login cannot be in a conversation started here (it used to fail with "Pick at least one recipient"). Share Files invites them.
-      const noLogin = (p) => !!noLoginContactId(p, (deal && deal.participants) || []);
+      let parts = (deal && deal.participants) || [];
+      if (!parts.length && api.getDeal) { try { const full = await api.getDeal(deal.id); parts = (full && full.participants) || []; } catch (err) { parts = []; } }
+      // FF-055 / MF-048: someone with no portal login cannot be ticked here (it used to fail with "Pick at least one recipient"). Share Files invites them.
+      // MF-049: the list is only people on this file. A processor can also type a name and email.
+      const noLogin = (p) => !!noLoginContactId(p, parts);
+      const canType = !!(runsOrders(user) || user.isAdmin);
       const m = modal('Start a conversation', html`<form id="ntf" class="form-grid"><label class="span2">Subject<input name="subject" maxlength="150" required></label>
         <p class="span2 muted small">${runsOrders(user) || user.isAdmin || user.role === 'Transaction Coordinator' || user.role === 'Sales Person' || user.role === 'Sales Team' ? 'A conversation can include CLA Title staff and one side of the order (buyer side or seller side), not both.' : 'You can message CLA Title staff and people on your own side of this order.'}</p>
-        <fieldset class="span2 checks"><legend>To</legend>${people.map((p) => html`<label><input type="checkbox" name="to" value="${p.id}" ${noLogin(p) ? raw('disabled data-no-login') : ''}> ${p.firstName} ${p.lastName} <span class="muted">(${p.role})</span>${noLogin(p) ? html` <span class="muted small">No portal login yet. Use Share Files to invite them.</span>` : ''}</label>`)}</fieldset>
+        <fieldset class="span2 checks"><legend>To</legend>${people.length ? people.map((p) => html`<label><input type="checkbox" name="to" value="${p.id}" ${noLogin(p) ? raw('disabled data-no-login') : ''}> ${p.firstName} ${p.lastName} <span class="muted">(${p.role})</span>${noLogin(p) ? html` <span class="muted small">No portal login yet. Use Share Files to invite them.</span>` : ''}</label>`) : html`<p class="muted">No one else on this file can be messaged yet.</p>`}</fieldset>
+        ${canType ? html`<fieldset class="span2" data-typed-recipient><legend>Or type a recipient</legend>
+          <p class="muted small">Use this for someone who is not in the list. If they are not already on this file, choose buyer, seller, buyer's agent, or listing agent. The portal adds them to this file, emails an invite, and holds this message until they sign in.</p>
+          <label>First name<input name="typedFirst" maxlength="80" autocomplete="off"></label>
+          <label>Last name<input name="typedLast" maxlength="80" autocomplete="off"></label>
+          <label class="span2">Email<input name="typedEmail" maxlength="200" autocomplete="off" inputmode="email" spellcheck="false"></label>
+          <label class="span2">How they are on this file<select name="typedRole"><option value="">Only if they are not already on this file</option>${TYPED_ROLES.map(([id, label]) => html`<option value="${id}">${label}</option>`)}</select></label>
+        </fieldset>` : ''}
         <label class="span2">Message<textarea name="body" rows="4" maxlength="4000" required></textarea></label>
         <div class="span2"><button class="m-btn" type="submit">Send</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
       $('#ntf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = new FormData(e.target);
-        const t = await api.createThread(deal.id, { subject: f.get('subject'), participantIds: f.getAll('to'), body: f.get('body') }); closeModal(); toast('Conversation started'); ctx.go(`/deals/${deal.id}/inbox/${t.id}`); }));
+        const checked = f.getAll('to').map((id) => String(id || '')).filter(Boolean);
+        const typed = cleanTypedRecipient({ firstName: f.get('typedFirst'), lastName: f.get('typedLast'), email: f.get('typedEmail') });
+        if (typed.error) throw new Error(typed.error);
+        let inviteContactId = '';
+        let picked = null;
+        if (!typed.empty) {
+          picked = personByEmail(people, typed.email);
+          if (picked) {
+            inviteContactId = heldContactId(picked, parts);
+            if (inviteContactId && !canShareInvite(picked, parts)) throw new Error("That person is on this file but has no portal login, and only a buyer, seller, buyer's agent, or listing agent can be invited.");
+          } else {
+            if (!f.get('typedRole')) throw new Error("Pick how this person is on the file: buyer, seller, buyer's agent, or listing agent.");
+            const added = await addTypedRecipient(api, deal, typed, f.get('typedRole'));
+            picked = added.person;
+            inviteContactId = added.inviteContactId || '';
+          }
+        }
+        if (inviteContactId) {
+          if (checked.length) throw new Error('Someone with no portal login yet has to be the only person in this conversation. Uncheck the others, or clear the typed name and email.');
+          const t = await api.sendMessage({ dealId: deal.id, to: [picked.id], subject: f.get('subject'), bodyHtml: plainMessageHtml(f.get('body')), files: [], inviteContactId });
+          const got = (t && t.invited) || {};
+          const inv = { ...got, name: got.name || `${picked.firstName || ''} ${picked.lastName || ''}`.trim(), email: got.email || picked.email || '' };
+          if (inv.link) { const r = await autoSendInvite(api, 'agent', inv.link); inv.sent = !!r.sent; if (r.to) inv.email = r.to; if (!r.sent) inv.error = r.error || ''; }
+          closeModal(); toast(shareInviteToast(inv, 0), inv.sent || inv.already ? undefined : 'err'); ctx.go(`/deals/${deal.id}/inbox/${t.id}`); return;
+        }
+        const ids = [...new Set([...checked, ...(picked ? [picked.id] : [])])];
+        if (!ids.length) throw new Error('Pick at least one person, or type a name and email.');
+        const t = await api.createThread(deal.id, { subject: f.get('subject'), participantIds: ids, body: f.get('body') }); closeModal(); toast('Conversation started'); ctx.go(`/deals/${deal.id}/inbox/${t.id}`); }));
     }));
   } };
 }

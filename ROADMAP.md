@@ -275,6 +275,33 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Conversation recipients and HR Processor rights (MF-049)
+
+**How it should work.** A Processor created in HR has the same menu and the same file sections as any other Processor, including Accounting when that module is Live. On a file, Start conversation offers only the people on that file (parties, agents, lender, transaction coordinator, and CLA staff assigned to the file). A processor can also type a name and email. That person gets the message the same way Share Files already reaches someone with no portal login: an invite email, and the message waits until they sign in.
+
+**Status: Built (not Live yet).** The pull request is open. No new database file. Mark Live after it is merged. Part 1 of the original note (Accounting missing) was the Admin > Modules switch, turned Live on TEST on Nov 12. This change checks that an HR-created Processor is not still treated as an HR-only Employee.
+
+**What's built**
+
+- An employee whose HR designation is already Processor, Preprocessor, Sales Person, or Transaction Coordinator gets that portal role, including a login that was stored as Employee. Changing the designation to a title that is not one of those four, or archiving the employee, still returns those roles to Employee. A Processing Manager who is already a Processor stays a Processor. Admins and Super admins are left as they are.
+- Start conversation lists only people on that file. A contact who exists only on another file is not offered.
+- Processors and admins can type a first name, last name, and email. A bad email or a missing name stays on the form and says what to fix. If the email is already on the file and that person has a portal login, they are included. If they have no portal login, or they are not on the file yet, the sender picks buyer, seller, buyer's agent, or listing agent. The portal adds them to the file when needed, then uses the existing Share Files path: invite email, message held until they sign in.
+
+**What's still missing**
+
+- Nothing from the confirmed list. A typed person who is not a buyer, seller, or agent still cannot be invited; that is the same limit Share Files already has. Someone with no portal login still has to be the only person in that conversation.
+
+**Links**
+
+- Spec: [docs/specs/mf-049-conversations.md](docs/specs/mf-049-conversations.md). Source: Francis Santos, Nov 11 2026, "Missing Accounting Section and Conversation Recipient Issues" (forwarded with Matt's ticket). Francis replied "That's correct" the same day.
+- Related pull requests: this change. The file-only recipient list for the earlier video note is [PR 240](https://github.com/Johncoester/cla-portal-demo/pull/240) (FF-072). Share Files holding a message for someone with no login is [PR 251](https://github.com/Johncoester/cla-portal-demo/pull/251).
+
+**Decisions**
+
+- Francis, Nov 11: Processor 1 should match a regular Processor, the To list should be people on that file, and staff should be able to type a name and email. Francis, Nov 12: an HR-created Processor gets full normal Processor rights. A typed person who is not already on the file is added as a buyer, seller, buyer's agent, or listing agent so the existing invite-and-hold path can be used. No new send path.
+
+---
+
 ## Task Builder
 
 **How it should work.** A **Task Builder** page in the admin section where Admins and Super admins build automated workflows ("flows") for title files without code. Each flow starts when something happens on a file (the trigger: order opened, contract received, EMD received or not received after a number of days, title commitment received, closing date set or changed, a number of days before closing). Conditions pick which files it applies to (sales rep, client, transaction type, state, combined with and/or). Actions then run in order: create a task, send an email as a chosen person, create a call task, wait, check again, continue or stop. Each task a flow creates says who it's assigned to (a role on the file or a named person), an optional backup person, who can see it (CLA only, or also the agent, buyer, seller or lender), and its due date. The end goal is a drag-and-drop flowchart screen. This replaces "Workflow definitions" (PR 7, closed) and builds on Task Templates (PR 141).
