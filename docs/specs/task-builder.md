@@ -17,7 +17,7 @@ The end goal is a drag-and-drop flowchart screen where "almost any task can be a
 ### Settings on every task a flow creates
 
 - **Assigned to:** a role on the file (the file's processor, closer, sales rep…; the portal fills in the actual person) or a specific named person (for example, always Janine).
-- **Backup:** none for now (John, Nov 13). May be added later.
+- **Backup (optional):** an "Add backup person" option on any task. Left blank, the task has no backup (John, Nov 13).
 - **Who can see it:** internal to CLA only, or also the agent, buyer, seller or lender in the portal.
 - **Due date:** counted from the opened, contract or closing date, as in PR 141.
 
@@ -26,7 +26,7 @@ The end goal is a drag-and-drop flowchart screen where "almost any task can be a
 - Task Builder is **its own admin menu item**, not under Task Templates.
 - Only **Admins and Super admins** can open it and change flows.
 - A task can be assigned by role **or** to a named person.
-- No backup person for now (decided Nov 13, 8:54 PM ET).
+- Backup person is optional, added per task (Nov 13, 8:54 PM ET).
 
 ### Still to confirm with John
 
@@ -37,7 +37,7 @@ The end goal is a drag-and-drop flowchart screen where "almost any task can be a
 
 - Trigger: order opened. Wait 2 days. Check: has the EMD been received?
 - If no: email the buyer's agent a reminder (template, sent as the file's processor).
-- Wait 1 more day. Check again. If still no: a call task for the file's processor, due today (no backup for now).
+- Wait 1 more day. Check again. If still no: a call task for the file's processor, due today (backup only if one was added to that task).
 - If the EMD is received at any point: stop.
 
 ## Build steps (one pull request each)
@@ -46,7 +46,7 @@ The end goal is a drag-and-drop flowchart screen where "almost any task can be a
 |---|---|
 | TB-1 | Task Builder admin page and permissions (Admin / Super admin), list of flows with name, what starts it, and an On / Off switch; history of changes |
 | TB-2 | The flow engine: conditions and actions (create task, wait, check again) with a simple form; the EMD flow above working on TEST |
-| TB-3 | Task settings: assigned to (role or named person), who can see it |
+| TB-3 | Task settings: assigned to (role or named person), optional backup person, who can see it |
 | TB-4 | Email actions with templates and "send as" |
 | TB-5 | Drag-and-drop flowchart screen |
 
