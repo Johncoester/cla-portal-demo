@@ -50,7 +50,7 @@ import { titlePart, ensureTitle } from './mock-part-title.js?v=202611191700';
 import { tcPortal, ensureTc, tcMessageViews } from './mock-part-tc.js?v=202611191700';
 import { emailSendersPart, ensureEmailSenders } from './email-senders.js?v=202611101015';   // John, Nov 4: the Title review module (staff only; in place, no storage bump)
 import { officesPart, officeById } from './mock-part-offices.js?v=202611101015';
-import { taskBuilderPart } from './mock-part-task-builder.js?v=202611201000';   // John, Nov 13: Admin > Task Builder (TB-1)
+import { taskBuilderPart, watchTaskFlowEvents } from './mock-part-task-builder.js?v=202611211000';   // John, Nov 13: Admin > Task Builder (TB-1 flows, TB-2 engine)
 import { closingLocationPart } from './mock-part-closing-location.js?v=202611170800';
 import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611191700';
 import { fwpCanRead, FWP_STAFF_ONLY } from './funding-wire-policy.js?v=202611070139';
@@ -453,6 +453,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   for (const k of ['proposeClosing', 'createSettlementRequest']) { const f = api[k]; api[k] = async function (dealId, ...a) { const r = await f.call(this, dealId, ...a); api._sweepClosingLocationReminders(dealId); return r; }; }
   { const addP = api.addParticipant; api.addParticipant = async function (...a) { const r = await addP.apply(this, a); ensureAgentPortal(load()); save(); return r; }; }
   Object.assign(api, staffFeedbackPart(ctx));
+  watchTaskFlowEvents(api, load);   // TB-2: Task Builder flows start on order opened / EMD received / closing date set; waits checked on reads
   // Every call is all-or-nothing: if it throws (validation error, or browser storage full), drop the in-memory copy so the next call
   // reloads the last SAVED state. Without this a half-applied edit (e.g. a rejected lender email) stayed in memory and broke later saves.
   for (const [k, fn] of Object.entries(api)) if (typeof fn === 'function') api[k] = async function (...a) {
