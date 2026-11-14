@@ -1,7 +1,7 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole } from './task-board.js?v=202611140100';
+import { buildTaskGrid, groupOfRole, GRID_ROLES } from './task-board.js?v=202611140100';
 import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611101015';
 import { officeDate } from './office-date.js?v=202611102100';
 import { clientActivityFrom } from './client-activity.js?v=202611102100';
@@ -817,10 +817,21 @@ export async function createSupabaseAdapter(cfg) {
       const fs = fileStatus || 'Open';
       return nav.share(u.id, 'grid:' + fs, async () => {
         let q = sb.from('deals').select('id, file_number, street, city, state, zip, closing_date, status'); if (fs !== 'All') q = q.eq('status', fs);
-        const [rawRows, rawDeals] = await Promise.all([sb.rpc('task_grid', { p_file_status: fs }), q]);
+        // One read for every file, not one per row. A failed read leaves party roles empty; task cells still decide the marks.
+        const partyRead = sb.from('deal_participants').select('deal_id, role').in('role', GRID_ROLES).then((r) => (r && !r.error && Array.isArray(r.data) ? r.data : []), () => []);
+        const [rawRows, rawDeals, rawParties] = await Promise.all([sb.rpc('task_grid', { p_file_status: fs }), q, partyRead]);
         const rows = boardRows(ok(rawRows));
-        const deals = camel(ok(rawDeals)).map((d) => ({ ...d, address: `${d.street}, ${d.city}, ${d.state} ${d.zip}` }));
-        return buildTaskGrid(rows, deals, localDate());
+        const roles = new Map();
+        for (const p of rawParties || []) {
+          const id = p.deal_id || p.dealId; const role = p.role;
+          if (!id || !GRID_ROLES.includes(role)) continue;
+          if (!roles.has(id)) roles.set(id, []);
+          if (!roles.get(id).includes(role)) roles.get(id).push(role);
+        }
+        const deals = camel(ok(rawDeals)).map((d) => ({ ...d, address: `${d.street}, ${d.city}, ${d.state} ${d.zip}`, partyRoles: roles.get(d.id) || [] }));
+        const grid = buildTaskGrid(rows, deals, localDate());
+        grid.columns.forEach((c) => { c.partyRoles = roles.get(c.id) || []; });
+        return grid;
       }); },
     // NOTE: there is intentionally no deleteDocument anywhere.
     // ---- Matt, Oct 31, priority 2 (migration 14) ----
