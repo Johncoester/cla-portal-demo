@@ -241,3 +241,37 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - None recorded yet.
+
+---
+
+## Task Builder
+
+**How it should work.** A **Task Builder** page in the admin section where Admins and Super admins build automated workflows ("flows") for title files without code. Each flow starts when something happens on a file (the trigger: order opened, contract received, EMD received or not received after a number of days, title commitment received, closing date set or changed, a number of days before closing). Conditions pick which files it applies to (sales rep, client, transaction type, state, combined with and/or). Actions then run in order: create a task, send an email as a chosen person, create a call task, wait, check again, continue or stop. Each task a flow creates says who it's assigned to (a role on the file or a named person), a backup so it never gets lost, who can see it (CLA only, or also the agent, buyer, seller or lender), and its due date. The end goal is a drag-and-drop flowchart screen. This replaces "Workflow definitions" (PR 7, closed) and builds on Task Templates (PR 141).
+
+**Status: In progress. TB-1 built by Claude, pull request open; not Live until its database file is applied on TEST.**
+
+| Step | What | Status |
+|---|---|---|
+| TB-1 | Admin page and permissions, list of flows (name, what starts it, On / Off), history (Owner: Claude) | Pull request open. Not Live until `20261120010000_task_builder_flows.sql` is applied on TEST |
+| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST | Planned |
+| TB-3 | Task settings: assigned to (role or named person), backup, who can see it | Planned |
+| TB-4 | Email actions with templates and "send as" | Planned |
+| TB-5 | Drag-and-drop flowchart screen | Planned |
+
+**What's built**
+
+- TB-1: **Admin > Task Builder**, its own menu item, for Admins and Super admins only (everyone else gets "Not authorized"). It lists flows with name, description, what starts it, On / Off, and who changed it last. **+ New flow** and **Edit** take a name, what starts it, days (for "EMD not received" and "Days before closing") and a description. New flows start Off; Turn on / Turn off switch them; nothing is deleted. A History card shows every change. A notice says flows don't run on files yet.
+
+**What's still missing**
+
+- TB-1 is not Live: its database file has to be applied on TEST. Until then the TEST page says Task Builder isn't set up yet.
+- Flows do not run on files yet: no conditions or actions (TB-2 onward).
+
+**Links**
+
+- Spec: [docs/specs/task-builder.md](docs/specs/task-builder.md)
+- Related pull requests: [PR 7](https://github.com/Johncoester/cla-portal-demo/pull/7) (workflow definitions, closed), [PR 141](https://github.com/Johncoester/cla-portal-demo/pull/141) (task templates with due dates), [PR 218](https://github.com/Johncoester/cla-portal-demo/pull/218) (roadmap: Workflow definitions as Planned)
+
+**Decisions**
+
+- John, Nov 13: its own admin menu item (not under Task Templates); Admins and Super admins only; tasks can be assigned by role or to a named person; every task needs a backup. Still open: one default backup or per task; whether clients and agents can tick off tasks.

@@ -26,6 +26,7 @@ import { crmSupabase } from './supabase-crm.js?v=202611160500';
 import { hrSupabase } from './supabase-hr.js?v=202611100130';
 import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611130900';
 import { officesSupabase } from './supabase-offices.js?v=202611101015';
+import { taskBuilderSupabase } from './supabase-task-builder.js?v=202611201000';   // John, Nov 13: Admin > Task Builder (TB-1)
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611170800';
 import { tcSupabase } from './supabase-tc.js?v=202611191700';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
@@ -947,6 +948,7 @@ export async function createSupabaseAdapter(cfg) {
     }; }
   Object.assign(a, feedbackNov4Supabase({ sb, ok, me }));
   Object.assign(a, closingLocationSupabase({ sb, ok }));   // John, Nov 4 (migration 58): where each buyer / seller will be at closing
+  Object.assign(a, taskBuilderSupabase({ sb, ok }));   // John, Nov 13 (migration 20261120010000): Admin > Task Builder, TB-1
   Object.assign(a, officesSupabase({ sb, ok, me }, { listClosingProposals: a.listClosingProposals }));   // John, Nov 4 (migration 57): Admin > Offices + the closing office picker   // John + Janine, Nov 4 (migration 56): closing office default, disbursement, search columns   // John, Nov 4 (migration 41): agent invites (nothing sent), agent profiles, the clients' agent card
   Object.assign(a, automationPart(a, { runsOrders: runsOrdersCI, me }));   // Email sellers and agents: preview only, nothing sent
   Object.assign(a, tcSupabase({ sb, ok, camel, api: a }));   // John, Nov 5 (migration 71): TC contract / EMD / ALTA / all-parties thread

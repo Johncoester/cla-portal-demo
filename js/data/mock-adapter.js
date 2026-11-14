@@ -50,6 +50,7 @@ import { titlePart, ensureTitle } from './mock-part-title.js?v=202611191700';
 import { tcPortal, ensureTc, tcMessageViews } from './mock-part-tc.js?v=202611191700';
 import { emailSendersPart, ensureEmailSenders } from './email-senders.js?v=202611101015';   // John, Nov 4: the Title review module (staff only; in place, no storage bump)
 import { officesPart, officeById } from './mock-part-offices.js?v=202611101015';
+import { taskBuilderPart } from './mock-part-task-builder.js?v=202611201000';   // John, Nov 13: Admin > Task Builder (TB-1)
 import { closingLocationPart } from './mock-part-closing-location.js?v=202611170800';
 import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611191700';
 import { fwpCanRead, FWP_STAFF_ONLY } from './funding-wire-policy.js?v=202611070139';
@@ -398,6 +399,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   Object.assign(api, emailSendersPart(ctx));   // John, Nov 3: Admin-only Modules page, one "Live" switch per module (off = beta: Admins only)
   Object.assign(api, underwriterPart(ctx));
   Object.assign(api, closingLocationPart(ctx));   // John, Nov 4: in the property's state at closing? (RON / embassy flag, staff signing method)
+  Object.assign(api, taskBuilderPart(ctx));   // John, Nov 13: Admin > Task Builder, TB-1 (list of flows; Admin / Super admin)
   Object.assign(api, officesPart(ctx));       // John, Nov 4: Admin > Offices (add, edit, reorder, retire / reactivate; the closing office picker reads them)   // John, Nov 3 call: per-state underwriter split (Admin edits, logged)
   Object.assign(api, agentInfoPart(ctx));     // John, Nov 3 call: optional agent birthdate (agent + staff only)
   Object.assign(api, agentFeesPart(ctx));       // AF-2 (John, Nov 12): agent fees per side (commission, admin fee, other fees)

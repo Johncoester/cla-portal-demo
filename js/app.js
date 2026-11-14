@@ -1,7 +1,7 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611191700';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611191700';
+import { getAdapter } from './data/adapter.js?v=202611201000';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611201000';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611130900';
@@ -16,14 +16,14 @@ import { canInviteAgents } from './data/agent-profile.js?v=202611140100';
 import { yourAgentHtml, withContactPhone } from './pages/your-agent.js?v=202611161500';
 import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611101015';
-import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611140400';   // John, Nov 4: one locked login link per fake user
+import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611201000';   // John, Nov 4: one locked login link per fake user
 import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080400';
 import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611082000';
 import { botRegistry } from './data/bot-registry.js?v=202611080400';
 import { canRequestVoice, voiceRouteOk } from './data/voice-demo.js?v=202611102100';
 import { mountVoiceChrome, prepareVoiceShell, stopVoiceNow, voiceMenuHtml } from './pages/voice-panel.js?v=202611161500';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611161500';   // John, Nov 4 call: sidebar search + pinned order nav
-import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611131900';
+import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611201000';
 import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611091730';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
@@ -33,11 +33,11 @@ document.addEventListener('input', (e) => { const el = e.target; if (el instance
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611161500'),
-  dashboard: () => import('./pages/dashboard.js?v=202611191700'),
+  login: () => import('./pages/entry.js?v=202611201000'),
+  dashboard: () => import('./pages/dashboard.js?v=202611201000'),
   orders: () => import('./pages/orders.js?v=202611161500'),
   'orders/new': () => import('./pages/ordernew.js?v=202611191700'),
-  deal: () => import('./pages/deal.js?v=202611191700'),
+  deal: () => import('./pages/deal.js?v=202611201000'),
   users: () => import('./pages/users.js?v=202611161500'),
   profile: () => import('./pages/profile.js?v=202611191600'),
   'contact-us': () => import('./pages/contact.js?v=202611161500'),
@@ -47,7 +47,7 @@ const pages = {
   library: () => import('./pages/library.js?v=202611161500'),
   activity: () => import('./pages/activity.js?v=202611161500'),
   outbox: () => import('./pages/outbox.js?v=202611161500'),
-  tasks: () => import('./pages/tasks.js?v=202611191700'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => import('./pages/tasks.js?v=202611201000'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611161500'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down
   schedule: () => import('./pages/schedule.js?v=202611170800'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611161500'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
@@ -60,6 +60,7 @@ const pages = {
   'hr-invite': () => import('./pages/hr-invite.js?v=202611161500'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => import('./pages/offices.js?v=202611161500'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
   'admin/email-templates': () => import('./pages/email-templates.js?v=202611191600'),   // John, Nov 9: Admin > Email Templates (file Email tab)
+  'task-builder': () => import('./pages/task-builder.js?v=202611201000'),   // John, Nov 13: Admin > Task Builder (Admin / Super admin; TB-1 list of flows)
   demo: () => import('./pages/demo-view.js?v=202611161500'),   // permanent Demo mode: Super admin views a seeded demo user
   'voice-demo': () => import('./pages/voice-demo.js?v=202611161500'),   // signed-in Live Test only; the header Voice test panel is the test, this route is not a file
   'staff-feedback': () => import('./pages/staff-feedback.js?v=202611161500'),
@@ -132,6 +133,7 @@ export function navFor(u, dealId, unread, features = {}, ws = 'everything', demo
   if (runsOrders(u) || u.isAdmin) add('activity', 'Activity Log', '#/activity', 'activity');
   if (canOpenTaskSetup(u, demo)) add('templates', 'Task Templates', '#/admin/templates', 'task');
   if (u.isAdmin) add('email-templates', 'Email Templates', '#/admin/email-templates', 'inbox');   // John, Nov 9: Admins build; staff select on a file
+  if (canOpenTaskSetup(u, demo)) add('task-builder', 'Task Builder', '#/task-builder', 'task');   // John, Nov 13: its own admin item (Admin / Super admin)
   if (runsOrders(u) || u.isAdmin || u.role === 'Transaction Coordinator') add('outbox', 'Reminder Outbox', '#/outbox', 'inbox');
   if (isFeedbackPilot(u, { demoActive: !!(demo && demo.active) }) ) add('staff-feedback', 'Portal feedback', '#/staff-feedback', 'inbox');
   if (canInviteAgents(u)) add('agent-invites', 'Agent Invites', '#/agent-invites', 'contact-us');   // John, Nov 4
@@ -526,7 +528,7 @@ export async function render() {
   };
   if (voiceBlocked || !routeAllowed(u, route, { locked: !!lockedId, demo: DEMO_VIEW })) {   // not part of this user's portal: refused for menu AND typed URLs
     if (!u) { location.hash = '#/login'; return; }
-    const setup = route.page === 'templates' || route.page === 'admin/templates' || route.page === 'admin/email-templates' || route.page === 'task-grid';
+    const setup = route.page === 'templates' || route.page === 'admin/templates' || route.page === 'admin/email-templates' || route.page === 'task-grid' || route.page === 'task-builder';
     const refused = setup ? 'You are not authorized to open this page.' : route.page === 'crm' ? 'The CRM is for CLA staff only.' : route.page === 'hr' ? 'HR is not available for your account. You are still in your own portal.' : 'That section is not available for your account. You are still in your own portal.';
     const refusedShell = await layout(u, { body: html`<div class="box-title" data-route-refused><h2>${setup ? 'Not authorized' : 'Not available'}</h2></div><p data-refused-msg>${refused}</p>` }, route, hrOnly(u) ? 'hr' : 'everything');
     if (my !== rendering) return; root.innerHTML = toText(refusedShell); wireChrome(u); settle(); return; }
