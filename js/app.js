@@ -54,7 +54,7 @@ const pages = {
   modules: () => import('./pages/modules.js?v=202611161500'),
   'role-access': () => import('./pages/role-access.js?v=202611161500'),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => import('./pages/agent-invites.js?v=202611191600'),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
-  'agent-invite': () => import('./pages/agent-signup.js?v=202611221100'),     // the agent's one-time setup link (no sign-in)
+  'agent-invite': () => import('./pages/agent-signup.js?v=202611211100'),     // the agent's one-time setup link (no sign-in)
   underwriters: () => import('./pages/underwriters.js?v=202611161500'),
   hr: () => import('./pages/hr.js?v=202611191600'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
   'hr-invite': () => import('./pages/hr-invite.js?v=202611161500'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
