@@ -5,6 +5,7 @@
 import globals from 'globals';
 
 export default [
+  { ignores: ['js/data/vendor/sheetjs/**'] },
   { files: ['js/**/*.js'], languageOptions: { ecmaVersion: 2024, sourceType: 'module', globals: { ...globals.browser } }, rules: { 'no-undef': 'error' } },
   // both guard Buffer behind `typeof btoa` for the node tests
   { files: ['js/data/agent-profile.js', 'js/data/mock-part-hr-feedback.js'], languageOptions: { globals: { Buffer: 'readonly' } } },

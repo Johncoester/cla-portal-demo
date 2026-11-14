@@ -1,0 +1,10 @@
+{
+  "name": "SheetJS Community Edition",
+  "version": "0.20.3",
+  "license": "Apache-2.0",
+  "source": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+  "file": "dist/xlsx.core.min.js",
+  "sha256": "197255b0c278588117e45c14c1b25398562864cd9ffa9752c4b4d29f6d9bfd27",
+  "why": "Reads .xlsx and .xls in the browser. The smaller mini build does not actually read .xls. The full build is about twice as big because it embeds every code page. This core build reads the English and accented text these imports use.",
+  "change": "One line added at the end of xlsx.core.min.js: export { XLSX }; so the portal can import it as a module. Nothing else in the library was edited."
+}

@@ -369,3 +369,31 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - John, Nov 13: its own admin menu item (not under Task Templates); Admins and Super admins only; tasks can be assigned by role or to a named person; a backup person is optional, added on each task. John, Nov 14: a flow can be tried on one file first, and turning it on defaults to new files only. Still open: whether clients and agents can tick off tasks.
+
+---
+
+## CRM Excel import (CRM-IMPORT-XLSX)
+
+**How it should work.** On every CRM import screen (Import Leads, Import Clients, and Import Notes on either), an admin can pick a CSV or an Excel file (.xlsx or .xls). Windows' file picker was hiding Excel files because the box only accepted CSV. The first sheet is read. Dates show as month/day/year. Empty cells stay empty. The rest of the import is the same as a CSV: map the columns, preview, then import, with the same size and row limits.
+
+**Status: In progress.** Tracker row CRM-IMPORT-XLSX. Requested by John Coester, Nov 14 2026, 1:42 PM ET, after a screen recording of the file picker on Import Notes (on Leads). Not Live until this is merged and someone tries an Excel file on TEST. No database change.
+
+**What's built**
+
+- The upload box accepts .csv, .xlsx, and .xls. The heading and the help text say CSV or Excel. The Create New menu says the same.
+- An Excel file's first sheet becomes the same rows the CSV import already uses. A file with more than one sheet says which sheet was used. A password-protected or unreadable file says what to do, in plain words.
+- The spreadsheet reader is stored in the portal and loads only after an Excel file is picked.
+
+**What's still missing**
+
+- Not checked on TEST yet. Companies do not have their own import screen; this does not add one.
+- A date cell that also has a time keeps the time after the date. A date with no time is month/day/year only.
+
+**Links**
+
+- Spec: [docs/specs/crm-import-excel.md](docs/specs/crm-import-excel.md)
+- Related pull requests: this change.
+
+**Decisions**
+
+- John, Nov 14: accept .xlsx and .xls on the CRM import screens built from the Janine import page, and keep mapping, preview, limits, chunks, the error CSV, and resume the same. Read the first sheet only. No database change.
