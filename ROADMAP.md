@@ -278,12 +278,12 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A **Task Builder** page in the admin section where Admins and Super admins build automated workflows ("flows") for title files without code. Each flow starts when something happens on a file (the trigger: order opened, contract received, EMD received or not received after a number of days, title commitment received, closing date set or changed, a number of days before closing). Conditions pick which files it applies to (sales rep, client, transaction type, state, combined with and/or). Actions then run in order: create a task, send an email as a chosen person, create a call task, wait, check again, continue or stop. Each task a flow creates says who it's assigned to (a role on the file or a named person), an optional backup person, who can see it (CLA only, or also the agent, buyer, seller or lender), and its due date. The end goal is a drag-and-drop flowchart screen. This replaces "Workflow definitions" (PR 7, closed) and builds on Task Templates (PR 141).
 
-**Status: In progress. TB-1 built by Claude, pull request open; not Live until its database file is applied on TEST.**
+**Status: In progress. TB-1 Live on TEST (Nov 14). TB-2 built by Claude, pull request open; not Live until its database file is applied on TEST.**
 
 | Step | What | Status |
 |---|---|---|
-| TB-1 | Admin page and permissions, list of flows (name, what starts it, On / Off), history (Owner: Claude) | Pull request open. Not Live until `20261120010000_task_builder_flows.sql` is applied on TEST |
-| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) | Built on branch `claude/task-builder-2`; its pull request opens after PR 261 merges. Not Live until `20261121010000_task_flow_engine.sql` is applied on TEST |
+| TB-1 | Admin page and permissions, list of flows (name, what starts it, On / Off), history (Owner: Claude) | Live on TEST, [PR 261](https://github.com/Johncoester/cla-portal-demo/pull/261). Grok checked steps 1–7 on TEST, Nov 14 |
+| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) | Pull request open. Not Live until `20261121010000_task_flow_engine.sql` is applied on TEST |
 | TB-3 | Task settings: assigned to (role or named person), optional backup person, who can see it | Planned |
 | TB-4 | Email actions with templates and "send as" | Planned |
 | TB-5 | Drag-and-drop flowchart screen | Planned |
@@ -298,7 +298,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- TB-1 and TB-2 are not Live: their database files have to be applied on TEST (TB-2 also needs pg_cron, already on TEST).
+- TB-2 is not Live: `20261121010000_task_flow_engine.sql` has to be applied on TEST (it needs TB-1's file, already applied, and pg_cron, already on TEST).
 - "Contract received" and "Title commitment received" can be saved but not turned on yet.
 - On TEST a new order's flow tasks appear at the next 15-minute check (or **Check files now**), after Place Order has added the people.
 - Named person, optional backup person, and who can see a task (TB-3); emails (TB-4); drag and drop (TB-5).

@@ -1,7 +1,7 @@
 # Task Builder (automated workflows for title files)
 
 **Requested by:** John Coester, Nov 13 2026 (chat with Claude, "Task Builder – Spec for Grok").
-**Status:** TB-1 built by Claude (pull request open, not Live). See [ROADMAP.md](../../ROADMAP.md#task-builder).
+**Status:** TB-1 Live on TEST (PR 261, Nov 14). TB-2 built by Claude, pull request open, not Live. See [ROADMAP.md](../../ROADMAP.md#task-builder).
 **Replaces:** the "Workflow definitions" idea (PR 7, closed, never merged; roadmap PR 218). Builds on Task Templates ([PR 141](https://github.com/Johncoester/cla-portal-demo/pull/141)).
 
 ## What John asked for
