@@ -1,3 +1,4 @@
+import { STAFF_ACCOUNT_ROLES } from './constants.js?v=202611101015';
 /* Place Order: warn when this address is already on a file. No network.
  * An open file at the same address warns even when the buyer and seller are different.
  * A closed or on-hold file warns only when this order also picks that file's buyer or seller.
@@ -82,14 +83,14 @@ export function duplicateNotice(matches) {
   });
   return { show: true, title, lines, proceed: 'You can still place this order.' };
 }
-/* Active Transaction Coordinators on this login's side (demo stays with demo).
- * A profile with no contact is needsContact and is left out of the dropdown. The migration creates that contact. */
+/* Active staff logins on this login's side (demo stays with demo) who can be the file's Transaction Coordinator
+ * (John, call + chat 3:07 PM ET Nov 13, ANYROLE-1). A profile with no contact is needsContact; the TC field uses the profile id. */
 export function coordinatorRoster(profiles, contacts, actor) {
   const demo = !!(actor && (actor.isDemo || actor.is_demo));
   const rows = [];
   const created = [];
   for (const p of profiles || []) {
-    if (!p || p.status !== 'active' || p.role !== 'Transaction Coordinator') continue;
+    if (!p || p.status !== 'active' || !STAFF_ACCOUNT_ROLES.includes(p.role)) continue;
     const pDemo = !!(p.isDemo || p.is_demo);
     if (pDemo !== demo) continue;
     const c = (contacts || []).find((z) => z && (z.profileId || z.profile_id) === p.id);
@@ -100,9 +101,9 @@ export function coordinatorRoster(profiles, contacts, actor) {
     const company = (c && c.company) || '';
     if (!c) {
       created.push({ profileId: p.id, firstName, lastName, email, phone, company, isDemo: pDemo });
-      rows.push({ profileId: p.id, contactId: '', firstName, lastName, email, phone, company, needsContact: true });
+      rows.push({ profileId: p.id, contactId: '', firstName, lastName, email, phone, company, role: p.role, needsContact: true });
     } else {
-      rows.push({ profileId: p.id, contactId: c.id, firstName, lastName, email, phone, company, needsContact: false });
+      rows.push({ profileId: p.id, contactId: c.id, firstName, lastName, email, phone, company, role: p.role, needsContact: false });
     }
   }
   return { rows, created };

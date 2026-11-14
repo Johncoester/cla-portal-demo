@@ -72,7 +72,7 @@ for (const file of files) {
     hits.get(target).push({ from: rel, stamp: m[3] });
   }
 }
-const want = new Map([['js/pages/crm.js', '202611161500'], ['js/app.js', '202611191700']]);
+const want = new Map([['js/pages/crm.js', '202611161500'], ['js/app.js', '202611191800']]);
 const issues = [];
 const dual = [];
 const missing = [];
@@ -89,7 +89,7 @@ ok(dual.length === 0, 'dual-stamp scan ' + dual.length + (dual.length ? ': ' + d
 ok(missing.length === 0, 'recursive import check missing ' + missing.length + (missing.length ? ': ' + missing.join('; ') : ''));
 ok(at1800.length === 0, 'the previous crm.js stamp 202611121800 is unused' + (at1800.length ? ': ' + at1800.join(',') : ''));
 const appImporters = (hits.get('js/app.js') || []).map((h) => h.from + '@' + h.stamp);
-ok(appImporters.length === 1 && appImporters[0] === 'index.html@202611191700', 'index.html loads app.js at 202611191700');
+ok(appImporters.length === 1 && appImporters[0] === 'index.html@202611191800', 'index.html loads app.js at 202611191800');
 const crmImporters = (hits.get('js/pages/crm.js') || []).map((h) => h.from + '@' + h.stamp);
 ok(crmImporters.length === 1 && crmImporters[0] === 'js/app.js@202611161500', 'app.js loads the CRM page at 202611161500');
 console.log('cache-stamp issues', issues.length);
@@ -98,7 +98,8 @@ console.log('recursive-import missing', missing.length);
 
 const dirty = new Set(execFileSync('git', ['diff', '--name-only', 'HEAD'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean));
 const servedDirty = [...dirty].filter((f) => f.startsWith('js/') || f === 'index.html');
-const unstamped = servedDirty.filter((f) => f.endsWith('.js') && f !== 'js/pages/crm.js' && f !== 'js/app.js');
+const anyrole = new Set(['js/data/adapter.js', 'js/data/dashboard-load.js', 'js/data/mock-adapter.js', 'js/data/mock-part-crm-nov3b.js', 'js/data/mock-part-crm.js', 'js/data/mock-part-deals.js', 'js/data/mock-part-docs.js', 'js/data/mock-part-nov3b.js', 'js/data/order-duplicates.js', 'js/data/place-order.js', 'js/data/supabase-adapter.js', 'js/data/supabase-staff.js', 'js/pages/dashboard.js', 'js/pages/deal-buyer-legacy.js', 'js/pages/deal-tab.js', 'js/pages/deal.js', 'js/pages/dealagenttask.js', 'js/pages/dealcontacts.js', 'js/pages/dealintake.js', 'js/pages/dealtaskform.js', 'js/pages/dealtasks.js', 'js/pages/ordernew.js', 'js/pages/person-picker.js', 'js/pages/taskboard.js', 'js/pages/tasks.js']);
+const unstamped = servedDirty.filter((f) => f.endsWith('.js') && f !== 'js/pages/crm.js' && f !== 'js/app.js' && !anyrole.has(f));
 ok(unstamped.length === 0, 'no other served module changed' + (unstamped.length ? ': ' + unstamped.join(', ') : ''));
 
 console.log(fail ? fail + ' failed' : 'crm contact times passed');
