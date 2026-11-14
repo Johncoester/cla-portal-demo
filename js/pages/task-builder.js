@@ -1,10 +1,11 @@
 /* Admin > Task Builder (John, Nov 13 2026; spec docs/specs/task-builder.md). Its own admin menu item, Admin / Super admin only.
  * TB-1: the list of flows (name, what starts it, On / Off), add / edit, history.
  * TB-2: which files a flow applies to (conditions), its steps (task, phone call task, wait, stop if EMD received), recent runs,
- * and "Check files now". Flows that are On run on open files; the hosted portal checks about every 15 minutes. */
+ * and "Check files now". Flows that are On run on open files; the hosted portal checks about every 15 minutes.
+ * Nov 14 (John): Turn on asks "new files only" or "existing open files too"; "Try on one file" runs a flow once on one chosen file. */
 import { html, raw, toText, $, $$, guard, toast, fmtDateTime, fmtDate, pill, modal, closeModal, formData } from '../ui.js?v=202611161500';
 import { TRIGGERS, triggerNeedsDays, triggerOf, canManageTaskBuilder, cleanFlow, FLOWS_RUN_NOTE, DAYS_MIN, DAYS_MAX, NAME_MAX, DESC_MAX,
-  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns } from '../data/task-builder.js?v=202611211000';
+  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns, SCOPES, TRIAL_NOTE } from '../data/task-builder.js?v=202611221100';
 
 const RUN_STATUS = { waiting: ['Waiting', 'info'], done: ['Finished', 'ok'], stopped: ['Stopped', ''], skipped: ['Skipped', ''] };
 
@@ -24,17 +25,18 @@ export async function render(ctx) {
       ${(f.steps || []).length ? html`<ol class="small muted" data-tb-steps>${f.steps.map((s) => html`<li>${s.text}</li>`)}</ol>` : html`<br><span class="muted small" data-tb-no-steps>No steps yet.</span>`}</td>
     <td data-tb-trigger>${f.triggerText}${f.runsNow ? '' : html`<br><span class="muted small">Doesn't run yet</span>`}</td>
     <td class="small" data-tb-which>${whichFiles(f.conditions || {})}</td>
-    <td>${f.active ? pill('On', 'ok') : pill('Off', '')}</td>
+    <td>${f.active ? html`${pill('On', 'ok')}<br><span class="muted small" data-tb-scope>${f.scopeText || 'New files only'}</span>` : pill('Off', '')}</td>
     <td class="small muted">${fmtDateTime(f.updatedAt || f.createdAt)}${f.updatedByName ? html`<br>${f.updatedByName}` : ''}</td>
     <td class="nowrap">
       <button type="button" class="m-btn small" data-tb-edit="${f.id}">Edit</button>
+      ${(f.steps || []).some((s) => s.type === 'create_task' || s.type === 'call_task') ? html`<button type="button" class="ghost small" data-tb-try="${f.id}">Try on one file</button>` : ''}
       ${f.active
         ? html`<button type="button" class="ghost small" data-tb-off="${f.id}">Turn off</button>`
         : html`<button type="button" class="ghost small" data-tb-on="${f.id}">Turn on</button>`}
     </td></tr>`;
   const runRow = (r) => { const [label, cls] = RUN_STATUS[r.status] || [r.status, ''];
     return html`<tr data-tb-run="${r.id}"><td class="small">${fmtDateTime(r.startedAt)}</td><td><strong>${r.flowName}</strong><br><a href="#/deals/${r.dealId}/tasks">${r.fileNumber || 'File'}</a></td>
-      <td>${pill(label, cls)}${r.status === 'waiting' && r.nextAt ? html`<br><span class="muted small">Next: ${fmtDate(r.nextAt)}</span>` : ''}</td>
+      <td>${pill(label, cls)}${r.trial ? html` ${pill('Test run', 'warn')}` : ''}${r.status === 'waiting' && r.nextAt ? html`<br><span class="muted small">Next: ${fmtDate(r.nextAt)}</span>` : ''}</td>
       <td class="small">${(r.log || []).slice(-3).map((l) => html`${l.text}<br>`)}</td></tr>`; };
   const body = html`<section class="task-builder-page" data-task-builder>
     <div class="page-head"><div><p class="eyebrow">Admin</p><h2 class="page-title">Task Builder</h2>
@@ -59,9 +61,50 @@ export async function render(ctx) {
       const r = await api.runTaskFlowsNow(); toast(`Checked. ${r.started || 0} flow run(s) started, ${r.tasks || 0} task(s) created.`); refresh();
     }));
     $$('[data-tb-edit]', root).forEach((b) => b.addEventListener('click', () => formModal(byId.get(b.dataset.tbEdit))));
-    $$('[data-tb-on]', root).forEach((b) => b.addEventListener('click', guard(async () => {
-      await api.setTaskFlowActive(b.dataset.tbOn, true); toast('Turned on. It runs on open files from now on.'); refresh();
-    })));
+    $$('[data-tb-on]', root).forEach((b) => b.addEventListener('click', () => turnOnModal(byId.get(b.dataset.tbOn))));
+    $$('[data-tb-try]', root).forEach((b) => b.addEventListener('click', () => tryModal(byId.get(b.dataset.tbTry))));
+
+    // Turn on: which files (John, Nov 14). New files only is the default, so turning a flow on never sweeps the open files already there.
+    function turnOnModal(f) {
+      const onlyNew = f.trigger === 'order_opened';
+      const m = modal(`Turn on: ${f.name}`, html`<form id="tbon" class="form-grid" data-tb-on-form>
+        ${onlyNew ? html`<p class="span2">This flow starts when an order is opened, so it runs on orders placed from now on. Open orders already there are not touched.</p>`
+          : html`<fieldset class="span2" data-tb-scope-pick><legend>Run it on</legend>
+            ${SCOPES.map(([v, l], i) => html`<label class="chk"><input type="radio" name="scope" value="${v}" data-tb-scope-opt="${v}" ${i === 0 ? raw('checked') : ''}> ${l}</label><br>`)}
+            <p class="muted small" data-tb-scope-hint>New files only: files opened after you turn it on. Existing open files too: the open files already there also get the flow if they match. Try it on one file first if you're not sure.</p></fieldset>`}
+        <p class="span2 err-text" data-tb-on-err hidden></p>
+        <div class="span2"><button class="m-btn" type="submit" data-tb-on-save>Turn on</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
+      $('#tbon', m).addEventListener('submit', async (e) => { e.preventDefault(); const err = $('[data-tb-on-err]', m); err.hidden = true;
+        const pick = $$('[data-tb-scope-opt]', m).find((x) => x.checked); const scope = onlyNew ? 'new' : (pick ? pick.value : 'new');
+        try { await api.setTaskFlowActive(f.id, true, { scope }); closeModal();
+          toast(scope === 'all' ? 'Turned on for new and existing open files.' : 'Turned on for new files only.'); refresh();
+        } catch (ex) { err.hidden = false; err.textContent = ex.message || 'Could not turn the flow on. Try again.'; } });
+    }
+
+    // Try on one file (John, Nov 14): run the flow once on one open file, now, to see how it works
+    async function tryModal(f) {
+      let files = []; try { files = ((await api.listDeals({ status: 'Open' })) || []).filter((d) => (d.status || 'Open') === 'Open'); } catch (e) { files = []; }
+      const m = modal(`Try on one file: ${f.name}`, html`<form id="tbtry" class="form-grid" data-tb-try-form>
+        <p class="span2 notice info">${TRIAL_NOTE}</p>
+        <label class="span2">File *<select name="dealId" required data-tb-try-file><option value="">Choose an open file…</option>
+          ${files.map((d) => html`<option value="${d.id}">${d.fileNumber || d.id} · ${[d.street, d.city, d.state].filter(Boolean).join(', ')}</option>`)}</select></label>
+        ${files.length ? '' : html`<p class="span2 muted">No open files found.</p>`}
+        <p class="span2 err-text" data-tb-try-err hidden></p>
+        <div class="span2" data-tb-try-result hidden></div>
+        <div class="span2"><button class="m-btn" type="submit" data-tb-try-run>Run test</button> <button type="button" class="ghost" data-close>Close</button></div></form>`, { wide: true });
+      let ran = false;
+      $$('[data-close]', m).forEach((b) => b.addEventListener('click', () => { if (ran) refresh(); }));
+      $('#tbtry', m).addEventListener('submit', async (e) => { e.preventDefault(); const err = $('[data-tb-try-err]', m); const out = $('[data-tb-try-result]', m); err.hidden = true;
+        const dealId = $('[data-tb-try-file]', m).value;
+        if (!dealId) { err.hidden = false; err.textContent = 'Choose a file to try the flow on.'; return; }
+        const btn = $('[data-tb-try-run]', m); btn.disabled = true;
+        try { const r = await api.tryTaskFlowOnFile(f.id, dealId); ran = true;
+          out.hidden = false;
+          out.innerHTML = toText(html`<div class="card" data-tb-try-done><p><strong>${r.fileNumber}:</strong> ${r.status === 'skipped' ? 'this file does not match the flow\'s Which files, so nothing was created.' : `${r.tasks} task(s) created.`}
+            <a href="#/deals/${dealId}/tasks" data-tb-try-open>Open the file's tasks</a></p><ul class="small">${(r.log || []).map((l) => html`<li>${l.text}</li>`)}</ul></div>`);
+        } catch (ex) { err.hidden = false; err.textContent = ex.message || 'Could not run the test. Try again.'; }
+        btn.disabled = false; });
+    }
     $$('[data-tb-off]', root).forEach((b) => b.addEventListener('click', guard(async () => {
       if (!confirm('Turn this flow off? Runs already started pause, and it can be turned back on.')) return;
       await api.setTaskFlowActive(b.dataset.tbOff, false); toast('Turned off.'); refresh();

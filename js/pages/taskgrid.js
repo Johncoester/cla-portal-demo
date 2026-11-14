@@ -6,8 +6,8 @@
 // Green check = every live task for that party is done. Red X = any of them is overdue. Empty = open and not overdue, or that party is not on the file.
 import { html, fmtDate, raw, $, $$ } from '../ui.js?v=202611161500';
 import { TASK_GROUPS } from '../data/task-board.js?v=202611140100';
-import { sortGridFiles } from '../data/task-grid-sort.js?v=202611211200';
-import { PARTY_COLUMNS, partyStatusForFile } from '../data/task-grid-parties.js?v=202611211200';
+import { sortGridFiles } from '../data/task-grid-sort.js?v=202611221200';
+import { PARTY_COLUMNS, partyStatusForFile } from '../data/task-grid-parties.js?v=202611221200';
 import { isRefi } from '../data/constants.js?v=202611101015';
 
 const FILES = [['Open', 'Open files'], ['On Hold', 'On-hold files'], ['Closed', 'Closed files'], ['All', 'All files']];

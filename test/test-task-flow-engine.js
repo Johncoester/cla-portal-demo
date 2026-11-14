@@ -57,7 +57,7 @@ ok(/Add at least one/.test(await aerr(api.setTaskFlowActive((await api.createTas
 const later = await api.createTaskFlow({ name: 'Contract in', trigger: 'contract_received', steps: [{ type: 'create_task', title: 'Review the contract', assignTo: 'Processor', dueDays: 1 }] });
 ok(/cannot be turned on yet/.test(await aerr(api.setTaskFlowActive(later.id, true))), 'contract received cannot be turned on yet');
 const emd = await api.createTaskFlow({ name: 'EMD reminder', trigger: 'emd_not_received', triggerDays: 2, conditions: { transactionTypes: ['Purchase'], states: ['MD'] }, steps });
-await api.setTaskFlowActive(emd.id, true);
+await api.setTaskFlowActive(emd.id, true, { scope: 'all' });   // Nov 14: turning on defaults to new files only; this check is about existing open files
 ok(/Add at least one/.test(await aerr(api.updateTaskFlow(emd.id, { name: 'EMD reminder', trigger: 'emd_not_received', triggerDays: 2, steps: [] }))), 'an On flow cannot lose its last task step');
 const r1 = await api.runTaskFlowsNow();
 const tasks1 = (await api.listTasks('deal-1')).filter((t) => t.title === 'Chase the EMD');
