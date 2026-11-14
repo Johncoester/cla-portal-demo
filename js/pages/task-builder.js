@@ -5,7 +5,7 @@
  * Nov 14 (John): Turn on asks "new files only" or "existing open files too"; "Try on one file" runs a flow once on one chosen file. */
 import { html, raw, toText, $, $$, guard, toast, fmtDateTime, fmtDate, pill, modal, closeModal, formData } from '../ui.js?v=202611161500';
 import { TRIGGERS, triggerNeedsDays, triggerOf, canManageTaskBuilder, cleanFlow, FLOWS_RUN_NOTE, DAYS_MIN, DAYS_MAX, NAME_MAX, DESC_MAX,
-  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns, SCOPES, TRIAL_NOTE } from '../data/task-builder.js?v=202611221000';
+  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns, SCOPES, TRIAL_NOTE } from '../data/task-builder.js?v=202611221100';
 
 const RUN_STATUS = { waiting: ['Waiting', 'info'], done: ['Finished', 'ok'], stopped: ['Stopped', ''], skipped: ['Skipped', ''] };
 

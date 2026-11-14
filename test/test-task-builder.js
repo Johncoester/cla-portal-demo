@@ -42,7 +42,7 @@ ok(SECTIONS['task-builder'] === '/task-builder' && routeWs(route) === 'admin', '
 // menu: its own item, not under Task Templates
 const app = read('js/app.js');
 ok(/add\('task-builder', 'Task Builder', '#\/task-builder', 'task'\)/.test(app) && app.includes("if (canOpenTaskSetup(u, demo)) add('task-builder'"), 'Task Builder is its own admin menu item for Admins and Super admins');
-ok(app.includes("'task-builder': () => import('./pages/task-builder.js?v=202611221000')"), 'the page is registered at its stamp');
+ok(app.includes("'task-builder': () => import('./pages/task-builder.js?v=202611221100')"), 'the page is registered at its stamp');
 
 // the mock portal
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });

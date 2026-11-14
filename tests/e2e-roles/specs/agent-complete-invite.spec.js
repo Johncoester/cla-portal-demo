@@ -120,29 +120,34 @@ async function assertUsedInviteOpensSignIn(browser, link, email) {
       await guestPage.waitForFunction(() => location.hash.includes('/login') || !document.querySelector('[data-usermenu]'));
       await guestPage.goto(link);
     }
-    // FF-073c: a used invite stays on the invite page with a clear message and a Sign in button.
-    await expect(guestPage.locator('[data-invite-used]')).toBeVisible();
-    await expect(guestPage.locator('body')).toContainText(/already used/i);
-    await expect(guestPage.locator('body')).not.toContainText(/account exists/i);
+    // John, Nov 14 2026 (t1667u): a used invite goes straight to Sign in. No message page.
+    await expect(guestPage).toHaveURL(/#\/login(?:\?|$)/, { timeout: 30000 });
+    await expect(guestPage).not.toHaveURL(/agent-invite/);
+    await expect(guestPage.locator('#login-form')).toBeVisible();
+    await expect(guestPage.locator('body')).not.toContainText(/already used/i);
+    await expect(guestPage.locator('body')).not.toContainText(/not valid/i);
+    await expect(guestPage.locator('body')).not.toContainText(/expired/i);
+    await expect(guestPage.locator('[data-invite-used]')).toHaveCount(0);
     await expect(guestPage.locator('[data-client-signup]')).toHaveCount(0);
-    await guestPage.locator('[data-invite-signin]').click();
-    await expect(guestPage).toHaveURL(/#\/login\?email=/);
     await expect(guestPage.locator('#login-form input[name="email"]')).toHaveValue(email);
     await expect(guestPage.locator('#login-form')).toHaveAttribute('data-login-email', email);
+    await expect(guestPage.locator('#login-form [data-form-err]')).toHaveText('');
   } finally {
     await guest.close();
   }
 }
 
-test('a used invite link explains it was already used and offers Sign in', async ({ page, browser, issues }) => {
+test('a used invite link goes straight to Sign in', async ({ page, browser, issues }) => {
   test.setTimeout(180000);
   if (targetMode() !== 'test') {
     await page.goto('/#/agent-invite/demo-used-ai-1');
-    await expect(page).toHaveURL(/#\/agent-invite\/demo-used-ai-1/);
-    await expect(page.locator('[data-invite-used]')).toBeVisible();
-    await expect(page.locator('body')).toContainText(/already used/i);
-    await expect(page.locator('body')).not.toContainText(/account exists/i);
-    await page.locator('[data-invite-signin]').click();
+    await expect(page).toHaveURL(/#\/login(?:\?|$)/);
+    await expect(page).not.toHaveURL(/agent-invite/);
+    await expect(page.locator('body')).not.toContainText(/already used/i);
+    await expect(page.locator('body')).not.toContainText(/not valid/i);
+    await expect(page.locator('body')).not.toContainText(/expired/i);
+    await expect(page.locator('[data-invite-used]')).toHaveCount(0);
+    await expect(page.locator('#pickform')).toBeVisible();
     await expect(page).toHaveURL(/#\/login\?email=bianca\.buyeragent%40example\.test/);
     await expect(page.locator('#who')).toHaveValue('u-bagent');
     await expect(page.locator('#pickform')).toHaveAttribute('data-login-email', 'bianca.buyeragent@example.test');

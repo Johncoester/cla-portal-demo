@@ -5,7 +5,7 @@
  * Every read and write goes through the database functions (Admin / Super admin only); nobody reads the tables directly.
  * Nov 14 (migration 20261122010000_task_flow_try_and_scope.sql): new files only / existing files too, and Try on one file.
  * Until a migration is applied on TEST, the page says so in plain words instead of showing a database error. */
-import { cleanFlow, triggerText, stepText, conditionsText, triggerRuns, cleanConditions, cleanScope, scopeText } from './task-builder.js?v=202611221000';
+import { cleanFlow, triggerText, stepText, conditionsText, triggerRuns, cleanConditions, cleanScope, scopeText } from './task-builder.js?v=202611221100';
 
 export const NOT_SET_UP = 'Task Builder is not set up on this site yet. Its database file has to be applied first.';
 const plainErr = (e) => {

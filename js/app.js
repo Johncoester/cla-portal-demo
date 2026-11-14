@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611221000';
+import { getAdapter } from './data/adapter.js?v=202611221100';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611201000';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611101015';
@@ -54,13 +54,13 @@ const pages = {
   modules: () => import('./pages/modules.js?v=202611161500'),
   'role-access': () => import('./pages/role-access.js?v=202611161500'),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => import('./pages/agent-invites.js?v=202611191600'),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
-  'agent-invite': () => import('./pages/agent-signup.js?v=202611191600'),     // the agent's one-time setup link (no sign-in)
+  'agent-invite': () => import('./pages/agent-signup.js?v=202611221100'),     // the agent's one-time setup link (no sign-in)
   underwriters: () => import('./pages/underwriters.js?v=202611161500'),
   hr: () => import('./pages/hr.js?v=202611191600'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
   'hr-invite': () => import('./pages/hr-invite.js?v=202611161500'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => import('./pages/offices.js?v=202611161500'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
   'admin/email-templates': () => import('./pages/email-templates.js?v=202611191600'),   // John, Nov 9: Admin > Email Templates (file Email tab)
-  'task-builder': () => import('./pages/task-builder.js?v=202611221000'),   // John, Nov 13: Admin > Task Builder (Admin / Super admin; TB-1 list of flows)
+  'task-builder': () => import('./pages/task-builder.js?v=202611221100'),   // John, Nov 13: Admin > Task Builder (Admin / Super admin; TB-1 list of flows)
   demo: () => import('./pages/demo-view.js?v=202611161500'),   // permanent Demo mode: Super admin views a seeded demo user
   'voice-demo': () => import('./pages/voice-demo.js?v=202611161500'),   // signed-in Live Test only; the header Voice test panel is the test, this route is not a file
   'staff-feedback': () => import('./pages/staff-feedback.js?v=202611161500'),
@@ -548,6 +548,12 @@ export async function render() {
     view = { crumbs: [['Not available']], body: html`<div class="box-title"><h2>Not available</h2></div><p class="err-text">${e.message}</p><p><a class="back-btn" href="#${homeFor(u)}">Back</a></p>` };
   }
   if (!keepCurrent()) return;
+  // A used invite (and an email that already has a login) leaves for Sign in before this screen is drawn.
+  if (view && view.redirect) {
+    const path = String(view.redirect);
+    if (location.hash !== '#' + path) go(path);
+    return;
+  }
   if (PUBLIC.has(route.page)) { stopVoiceNow(); root.innerHTML = toText(view.body); syncFeedback(u); }
   else { let shell; try { shell = await layout(u, view, route, ws, { unread: unreadP }); } catch (e) { if (replaced()) return; if (personMoved()) return render(); if (/sign in/i.test(e.message || '')) { stopVoiceNow(); location.hash = '#/login'; return; } throw e; }   // session ended mid-render
     if (!keepCurrent()) return;
