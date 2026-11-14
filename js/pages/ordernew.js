@@ -14,7 +14,7 @@ import { fmtPhone, TX_TYPES, runsOrders, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_B
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611191800';
 import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice, companyOnlyContact } from '../data/file-party.js?v=202611221600';
-import { ENTITY_TYPES } from '../data/templates.js?v=202611171200';
+import { ENTITY_TYPES } from '../data/templates.js?v=202611221900';
 import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611191800';
 import { closerChoices, resolveCloser } from '../data/closer.js?v=202611101015';
 import { duplicateNotice } from '../data/order-duplicates.js?v=202611191800';
@@ -24,8 +24,8 @@ import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyCont
 import { bindAddressFill } from '../data/address-fill.js?v=202611190800';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611190800';
 import { readEarnest } from '../data/earnest-commission.js?v=202611191700';
-import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611191700';
-import { SIDE_LABEL as AF_SIDE_LABEL } from '../data/agent-fees.js?v=202611182130';
+import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611221900';
+import { SIDE_LABEL as AF_SIDE_LABEL } from '../data/agent-fees.js?v=202611221900';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611161500';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611162200';

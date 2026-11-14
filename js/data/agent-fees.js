@@ -9,6 +9,8 @@ export const AGENT_ROLE_SIDE = { 'Listing Agent': 'listing', 'Buyer Agent': 'buy
 export const PAYERS = [['buyer', 'Buyer'], ['seller', 'Seller']];
 export const PAYER_LABEL = Object.fromEntries(PAYERS);
 export const MAX_OTHER_FEES = 5;
+// AF-8: the old Commission information task no longer takes an amount (same message as the database guard)
+export const COMMISSION_TASK_REFUSED = 'Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter it there. Nothing was saved.';
 export const defaultPayer = (side) => (side === 'buyer' ? 'buyer' : 'seller');
 
 const blank = (v) => v == null || String(v).trim() === '';

@@ -412,6 +412,103 @@ psql_super -f "$ROOT/supabase/migrations/20261119030000_agent_fee_one_source.sql
 psql_super -f "$ROOT/supabase/rollbacks/20261119030000_agent_fee_one_source.sql"
 psql_super -c "update public.deals set listing_commission_pct = 3 where id = '66666666-6666-6666-6666-666666666666';" \
   -c "do \$\$ begin if to_regprocedure('private.deal_old_commission_guard()') is not null then raise exception 'FAIL one-source rollback'; end if; raise notice 'PASS  one-source rollback removes the guard'; end \$\$;"
+# AF-8 (Nov 14): the old "Commission information" task (template commissions) is moved into Agent fees and stops asking for an amount.
+psql_super <<'SQL'
+create table public.task_templates (id uuid primary key default gen_random_uuid(), code text, version int, title text, description text, roles text[],
+  due_days int, due_anchor text default 'opened', fields jsonb, active boolean, published_at timestamptz, agent_roles text[] default '{}', client_only boolean default false,
+  lane text default 'party', audiences text[], retired_at timestamptz);
+create table public.tasks (id uuid primary key default gen_random_uuid(), deal_id uuid, title text, description text, assigned_role text, status text, kind text default 'form',
+  participant_id uuid, owner_profile_id uuid, template_id uuid, template_code text, template_version int, form_data jsonb default '{}'::jsonb, saved_at timestamptz,
+  saved_by uuid, completed_at timestamptz, completed_by uuid, created_at timestamptz default now());
+grant select, update (form_data, saved_at) on public.tasks to authenticated;
+insert into public.task_templates (id, code, version, title, description, roles, due_days, fields, active) values ('aaaaaaaa-0000-0000-0000-000000000001', 'commissions', 1,
+  'Commission information', 'Confirm your commission for the settlement statement.', array['Buyer Agent', 'Listing Agent'], 10,
+  '[{"k":"brokerage","label":"Brokerage","type":"text","req":true},{"k":"license_id","label":"License ID","type":"text","req":true},{"k":"commission_amount","label":"Commission ($)","type":"money","req":true},{"k":"paid_by","label":"Paid by","type":"select","req":true,"opts":["Seller","Buyer","Split"]},{"k":"notes","label":"Notes","type":"textarea","req":false}]', true);
+insert into public.deals (id, purchase_price, transaction_type) values
+  ('a1000000-0000-0000-0000-000000000001', 950000, 'Purchase'), ('a1000000-0000-0000-0000-000000000002', 400000, 'Purchase'),
+  ('a1000000-0000-0000-0000-000000000003', null, 'Purchase'), ('a1000000-0000-0000-0000-000000000004', 500000, 'Purchase'),
+  ('a1000000-0000-0000-0000-000000000005', 300000, 'Refinance');
+insert into public.deal_agent_fees (deal_id, side, kind, slot, basis, pct, amount, payer, source) values ('a1000000-0000-0000-0000-000000000002', 'buyer', 'commission', 0, 'percent', 2, 8000, 'buyer', 'staff');
+insert into public.tasks (id, deal_id, title, assigned_role, status, template_id, template_code, template_version, form_data, saved_at, saved_by, completed_at, completed_by) values
+  -- MD-26-97260: the buyer's agent submitted $28,500, paid by Seller
+  ('b1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000001', 'Commission information', 'Buyer Agent', 'done', 'aaaaaaaa-0000-0000-0000-000000000001', 'commissions', 1,
+   '{"paid_by":"Seller","brokerage":"CLA Broker","license_id":"1209183","commission_amount":"28,500"}', '2026-11-13 16:14+00', '00000000-0000-0000-0000-0000000000b1', '2026-11-13 16:14+00', '00000000-0000-0000-0000-0000000000b1'),
+  -- a newer unfinished draft on the same side loses to the submitted task
+  ('b1000000-0000-0000-0000-000000000002', 'a1000000-0000-0000-0000-000000000001', 'Commission information', 'Buyer Agent', 'in_progress', 'aaaaaaaa-0000-0000-0000-000000000001', 'commissions', 1,
+   '{"commission_amount":"1"}', '2026-11-14 10:00+00', '00000000-0000-0000-0000-0000000000b1', null, null),
+  -- Agent fees already has this side: left alone
+  ('b1000000-0000-0000-0000-000000000003', 'a1000000-0000-0000-0000-000000000002', 'Commission information', 'Buyer Agent', 'done', 'aaaaaaaa-0000-0000-0000-000000000001', 'commissions', 1,
+   '{"commission_amount":"9,999","paid_by":"Seller"}', now(), null, now(), null),
+  -- no sales price: kept in the history only
+  ('b1000000-0000-0000-0000-000000000004', 'a1000000-0000-0000-0000-000000000003', 'Commission information', 'Listing Agent', 'done', 'aaaaaaaa-0000-0000-0000-000000000001', 'commissions', 1,
+   '{"commission_amount":"20,000","paid_by":"Seller"}', now(), null, now(), null),
+  -- an unfinished draft: moved, not confirmed; Split -> the side's default payer
+  ('b1000000-0000-0000-0000-000000000005', 'a1000000-0000-0000-0000-000000000004', 'Commission information', 'Listing Agent', 'in_progress', 'aaaaaaaa-0000-0000-0000-000000000001', 'commissions', 1,
+   '{"commission_amount":"$10,000.00","paid_by":"Split","brokerage":"Bright Realty"}', now(), '00000000-0000-0000-0000-0000000000b2', null, null),
+  -- a refinance: never moved
+  ('b1000000-0000-0000-0000-000000000006', 'a1000000-0000-0000-0000-000000000005', 'Commission information', 'Buyer Agent', 'done', 'aaaaaaaa-0000-0000-0000-000000000001', 'commissions', 1,
+   '{"commission_amount":"500"}', now(), null, now(), null),
+  -- an untouched to-do copy
+  ('b1000000-0000-0000-0000-000000000007', 'a1000000-0000-0000-0000-000000000004', 'Commission information', 'Buyer Agent', 'todo', 'aaaaaaaa-0000-0000-0000-000000000001', 'commissions', 1,
+   '{}', null, null, null, null);
+SQL
+psql_super -f "$ROOT/supabase/migrations/20261123010000_commission_task_agent_fees.sql"
+# applying twice changes nothing
+psql_super -f "$ROOT/supabase/migrations/20261123010000_commission_task_agent_fees.sql"
+psql_super -o /dev/null <<'SQL'
+create or replace function pg_temp.err(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'no error'; exception when others then return sqlerrm; end $$;
+create or replace function pg_temp.ok(c boolean, msg text) returns void language plpgsql as $$
+begin if c is not true then raise exception 'FAIL %', msg; end if; raise notice 'PASS  %', msg; end $$;
+grant execute on all functions in schema pg_temp to authenticated;
+select pg_temp.ok((select amount = 28500 and pct = 3 and basis = 'amount' and payer = 'seller' and source = 'agent' and confirmed_role = 'agent'
+    and confirmed_by = '00000000-0000-0000-0000-0000000000b1' and updated_by = '00000000-0000-0000-0000-0000000000b1'
+  from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000001' and side = 'buyer' and kind = 'commission'),
+  'AF-8: MD-26-97260 now shows $28,500 / 3%, paid by Seller, confirmed by the agent who submitted it');
+select pg_temp.ok((select count(*) = 1 from public.deal_agent_fee_log where deal_id = 'a1000000-0000-0000-0000-000000000001' and source = 'agent' and reason like 'From the agent''s Commission information task (submitted Nov 13, 2026)'),
+  'AF-8: the move is in the change history, with the submitted date');
+select pg_temp.ok((select count(*) = 1 from public.accounting_fees where deal_id = 'a1000000-0000-0000-0000-000000000001' and preset_key = 'agent_fee:buyer:commission:0' and amount = 28500 and paid_by = 'seller'),
+  'AF-8: the commission posts to Accounting (so Contract figures, the CD and the ALTA statement show it)');
+select pg_temp.ok((select amount = 8000 and source = 'staff' from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000002' and side = 'buyer' and kind = 'commission'),
+  'AF-8: a side that already has an Agent fees commission is left alone');
+select pg_temp.ok((select count(*) = 0 from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000003')
+  and (select count(*) = 1 from public.deal_agent_fee_log where deal_id = 'a1000000-0000-0000-0000-000000000003' and new_value is null and old_value ->> 'amountTyped' = '20,000' and reason like 'Commission information task not moved: Add the sales price%'),
+  'AF-8: with no sales price the figure is kept in the history, not lost');
+select pg_temp.ok((select amount = 10000 and pct = 2 and payer = 'seller' and source = 'agent' and confirmed_at is null and updated_by = '00000000-0000-0000-0000-0000000000b2'
+  from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000004' and side = 'listing' and kind = 'commission'),
+  'AF-8: an unfinished draft is moved but not confirmed; Split uses the side''s default payer');
+select pg_temp.ok((select count(*) = 0 from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000005')
+  and (select count(*) = 1 from public.deal_agent_fee_log where deal_id = 'a1000000-0000-0000-0000-000000000005' and reason like '%a refinance has no agent fees%'),
+  'AF-8: a refinance gets no agent fees');
+select pg_temp.ok((select count(*) = 1 from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000001' and kind = 'commission'), 'AF-8: running the file twice adds nothing');
+-- the template
+select pg_temp.ok((select count(*) = 1 from public.task_templates where code = 'commissions' and active) and (select version = 2 and fields::text not like '%commission_amount%' and fields::text not like '%"paid_by"%'
+    and fields::text like '%agent_fees_note%' and fields::text like '%license_id%' and fields::text like '%brokerage%' from public.task_templates where code = 'commissions' and active),
+  'AF-8: the task no longer asks for Commission ($) or Paid by; Brokerage and License ID stay, with a note pointing to Agent fees');
+select pg_temp.ok((select bool_and(template_version = 2) from public.tasks where id in ('b1000000-0000-0000-0000-000000000002', 'b1000000-0000-0000-0000-000000000005', 'b1000000-0000-0000-0000-000000000007'))
+  and (select bool_and(template_version = 1) from public.tasks where status = 'done'),
+  'AF-8: open copies move to the new version; finished copies keep the version they were answered on');
+select pg_temp.ok((select form_data ->> 'brokerage' = 'Bright Realty' from public.tasks where id = 'b1000000-0000-0000-0000-000000000005'), 'AF-8: a moved copy keeps its answers');
+-- the guard, as a signed-in user (a guard that fails on permissions would block every task save)
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000b2', false);
+set role authenticated;
+select pg_temp.ok(pg_temp.err($q$update public.tasks set form_data = form_data || '{"commission_amount":"12,000"}' where id = 'b1000000-0000-0000-0000-000000000007'$q$)
+  = 'Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter it there. Nothing was saved.',
+  'AF-8: a new commission amount on the task is refused with a plain message');
+select pg_temp.ok(pg_temp.err($q$update public.tasks set form_data = '{"brokerage":"Bright Realty","license_id":"X-1"}', saved_at = now() where id = 'b1000000-0000-0000-0000-000000000007'$q$) = 'no error',
+  'AF-8: a signed-in agent can still save Brokerage and License ID');
+select pg_temp.ok(pg_temp.err($q$update public.tasks set saved_at = now() where id = 'b1000000-0000-0000-0000-000000000001'$q$) = 'no error'
+  and pg_temp.err($q$update public.tasks set form_data = form_data || '{"notes":"thanks"}' where id = 'b1000000-0000-0000-0000-000000000001'$q$) = 'no error',
+  'AF-8: a finished task that already holds an amount still saves when the amount does not change');
+reset role;
+SQL
+psql_super -f "$ROOT/supabase/rollbacks/20261123010000_commission_task_agent_fees.sql"
+psql_super -c "do \$\$ begin
+  if to_regprocedure('private.commission_task_guard()') is not null then raise exception 'FAIL AF-8 rollback guard'; end if;
+  if (select version from public.task_templates where code = 'commissions' and active) <> 1 then raise exception 'FAIL AF-8 rollback template'; end if;
+  if exists (select 1 from public.tasks where template_version = 2 and status <> 'done') then raise exception 'FAIL AF-8 rollback copies'; end if;
+  if not exists (select 1 from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000001') then raise exception 'FAIL AF-8 rollback keeps fees'; end if;
+  raise notice 'PASS  AF-8 rollback removes the guard and restores the previous version; moved fees stay'; end \$\$;"
 psql_super -f "$ROOT/supabase/rollbacks/20261118040000_agent_fee_ledger.sql"
 psql_super -c "do \$\$ begin if to_regclass('public.deal_agent_fee_ledger') is not null then raise exception 'FAIL AF-5 rollback'; end if; raise notice 'PASS  AF-5 rollback stops the posting'; end \$\$;"
 psql_super -f "$ROOT/supabase/rollbacks/20261118030000_agent_fee_staff_notice.sql"
