@@ -376,7 +376,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On every CRM import screen (Import Leads, Import Clients, and Import Notes on either), an admin can pick a CSV or an Excel file (.xlsx or .xls). Windows' file picker was hiding Excel files because the box only accepted CSV. The first sheet is read. Dates show as month/day/year. Empty cells stay empty. The rest of the import is the same as a CSV: map the columns, preview, then import, with the same size and row limits.
 
-**Status: In progress.** Tracker row CRM-IMPORT-XLSX. Requested by John Coester, Nov 14 2026, 1:42 PM ET, after a screen recording of the file picker on Import Notes (on Leads). Not Live until this is merged and someone tries an Excel file on TEST. No database change.
+**Status: In progress.** Tracker row CRM-IMPORT-XLSX. Requested by John Coester, Nov 14 2026, 1:42 PM ET, after a screen recording of the file picker on Import Notes (on Leads). Pull request: [PR 270](https://github.com/Johncoester/cla-portal-demo/pull/270). Not Live until this is merged and someone tries an Excel file on TEST. No database change.
 
 **What's built**
 
@@ -392,7 +392,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/crm-import-excel.md](docs/specs/crm-import-excel.md)
-- Related pull requests: this change.
+- Related pull requests: [PR 270](https://github.com/Johncoester/cla-portal-demo/pull/270).
 
 **Decisions**
 

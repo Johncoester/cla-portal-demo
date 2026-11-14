@@ -2,7 +2,7 @@
 
 **Requested by:** John Coester, Nov 14 2026, 1:42 PM ET, after a screen recording of Import Notes (on Leads). Windows' file picker hid his Excel files because the box only accepted CSV.
 
-**Status:** In progress. Not Live until this is merged and an Excel file is tried on TEST. See [ROADMAP.md](../../ROADMAP.md).
+**Status:** In progress. Pull request [270](https://github.com/Johncoester/cla-portal-demo/pull/270). Not Live until this is merged and an Excel file is tried on TEST. See [ROADMAP.md](../../ROADMAP.md).
 
 ## What the user sees
 
