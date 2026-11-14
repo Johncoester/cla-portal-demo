@@ -30,8 +30,17 @@ function alignMappedPortalRoles(d) {
     const next = portalRoleForDesignation(name);
     if (!MAPPED_AT_LOAD.includes(next)) continue;
     const p = d.profiles.find((z) => z.id === e.profileId);
-    if (!p || p.isAdmin || !movable.includes(p.role) || p.role === next) continue;
-    p.role = next;
+    if (!p || p.isAdmin || !movable.includes(p.role)) continue;
+    if (p.role !== next) p.role = next;
+    // A Processor (or the other mapped roles) is offered as a file's transaction coordinator.
+    // That list uses the contact that already exists for the login. Listing it must not create one.
+    if (!Array.isArray(d.contacts) || d.contacts.some((c) => c && c.profileId === p.id)) continue;
+    const email = String(p.email || '').trim().toLowerCase();
+    const loose = email ? d.contacts.find((c) => c && !c.profileId && String(c.email || '').toLowerCase() === email) : null;
+    if (loose) { loose.profileId = p.id; continue; }
+    const id = 'c-' + String(p.id).replace(/^u-/, '');
+    if (d.contacts.some((c) => c && c.id === id)) continue;
+    d.contacts.push({ id, profileId: p.id, firstName: p.firstName || '', lastName: p.lastName || '', email, phone: p.phone || '', company: 'CLA Title & Escrow', contactType: null, createdBy: 'u-admin', createdAt: p.createdAt || SEED_AT });
   }
 }
 const BLANK = { jobTitle: '', workPhone: '', phone: '', addressLine1: '', addressLine2: '', city: '', stateProvince: '', postalCode: '', addressCountry: '', emergencyName: '', emergencyRelationship: '', emergencyPhone: '',
