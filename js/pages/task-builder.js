@@ -48,7 +48,7 @@ export async function render(ctx) {
     <div class="card" data-tb-runs><h3>Recent runs</h3><p class="muted small">Each row is one flow on one file.</p><table class="tbl"><thead><tr><th>Started</th><th>Flow / file</th><th>Status</th><th>Latest</th></tr></thead><tbody>
       ${runs.length ? runs.slice(0, 25).map(runRow) : html`<tr><td colspan="4" class="muted">No flow has run on a file yet.</td></tr>`}</tbody></table></div>
     <div class="card" data-tb-history><h3>History</h3><table class="tbl"><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody>
-      ${log.length ? log.slice(0, 20).map((l) => html`<tr data-tb-log><td class="small">${fmtDateTime(l.at)}</td><td>${l.byName || ''}</td><td><strong>${l.flowName}</strong> ${l.action}${l.detail ? html`<br><span class="muted small">${l.detail}</span>` : ''}</td></tr>`)
+      ${log.length ? log.slice(0, 20).map((l) => html`<tr data-tb-log><td class="small">${fmtDateTime(l.at)}</td><td>${l.byName || ''}</td><td><strong>${l.flowName}</strong> ${l.action}${l.detail ? html`: <br><span class="muted small" data-tb-log-detail>${l.detail}</span>` : ''}</td></tr>`)
         : html`<tr><td colspan="3" class="muted">No changes yet.</td></tr>`}</tbody></table></div>
   </section>`;
   return { title: 'Task Builder', crumbs: [['Task Builder']], body, mount(root) {

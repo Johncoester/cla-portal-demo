@@ -76,6 +76,7 @@ const page = await render({ api, user: { id: 'u-admin', role: 'Super admin', isA
 const body = toText(page.body);
 ok(page.title === 'Task Builder' && body.includes('data-tb-new') && body.includes('EMD reminder') && body.includes('data-tb-on=') && body.includes('check open files about every 15 minutes') && body.includes('data-tb-run-now') && body.includes('data-tb-runs'), 'the page lists flows with an On / Off switch, Check files now and recent runs');
 ok(/does not exist/.test(await aerr(render({ api, user: user('Processor'), refresh() {} }))), 'the page refuses a Processor');
+ok(/created: <br><span class="muted small" data-tb-log-detail>Starts:/.test(body), 'History keeps a space between the action and its detail (Grok, Nov 14: "createdStarts")');
 
 // the database file
 const mig = read('supabase/migrations/20261120010000_task_builder_flows.sql');
