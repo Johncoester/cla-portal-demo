@@ -324,13 +324,14 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- PROC-1 is not Live until it is merged and `supabase/migrations/20261122180000_processor_party_sync.sql` is applied on TEST. PROC-2 is not on TEST until it is merged after PROC-1.
+- PROC-1 is merged ([PR 271](https://github.com/Johncoester/cla-portal-demo/pull/271)) and is not Live until `supabase/migrations/20261122180000_processor_party_sync.sql` is applied on TEST. PROC-2 is not on TEST until [PR 272](https://github.com/Johncoester/cla-portal-demo/pull/272) is merged.
 - Open tasks that were tied to a previous Processor row are cancelled in the demo when that row is replaced. On TEST, removing the person with Remove from order still cancels those tasks. The automatic replace does not cancel them.
 
 **Links**
 
 - Spec: [docs/specs/file-processor.md](docs/specs/file-processor.md)
 - Source: John Coester, Nov 14 2026, 1:55 PM ET, recording "Adding a processor". Tracker rows PROC-1 and PROC-2.
+- PROC-1: [PR 271](https://github.com/Johncoester/cla-portal-demo/pull/271). PROC-2: [PR 272](https://github.com/Johncoester/cla-portal-demo/pull/272).
 
 **Decisions**
 
