@@ -57,7 +57,7 @@ const partyFields = (label) => html`<div class="form-grid party-fields" data-par
 const partyRow = (role, label, n = 1) => html`<div class="party-row-wrap" data-party-row="${n}"><div class="multi-row">${pickerHtml('p:' + role, rowLabel(label, n))}${referralSlot(role)}<button type="button" class="ghost" data-ent-toggle aria-pressed="false" title="This ${label.toLowerCase()} is an LLC, corporation, partnership or trust">+ Add entity</button><button type="button" class="ghost" data-rm-row title="Remove this ${label.toLowerCase()} (before the order is created)" hidden>Remove</button></div>
   ${partyFields(rowLabel(label, n))}${entityPanel(label)}</div>`;
 const dirSelect = (label) => html`<label>${label}<select data-dir-select aria-label="${label}"><option value="">Not listed — type them below</option></select></label>`;
-const dirFields = (label) => html`<div class="form-grid party-fields" data-dir-manual data-agent-edit>`
+const dirFields = (label) => html`<div class="form-grid party-fields" data-dir-manual data-agent-edit>
   <label>Person<input data-dir-field="person" maxlength="120" aria-label="${label} person" autocomplete="off"></label>
   <label>Company<input data-dir-field="company" maxlength="120" aria-label="${label} company" autocomplete="off"></label>
   <label>Phone<input data-dir-field="phone" type="tel" inputmode="tel" maxlength="40" placeholder="xxx-xxx-xxxx" data-phone aria-label="${label} phone" autocomplete="off"></label>
