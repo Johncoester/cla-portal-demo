@@ -283,7 +283,7 @@ This file lists the portal's major features: how each one should work, how far a
 | Step | What | Status |
 |---|---|---|
 | TB-1 | Admin page and permissions, list of flows (name, what starts it, On / Off), history (Owner: Claude) | Live on TEST, [PR 261](https://github.com/Johncoester/cla-portal-demo/pull/261). Grok checked steps 1–7 on TEST, Nov 14 |
-| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) | Pull request open. Not Live until `20261121010000_task_flow_engine.sql` is applied on TEST |
+| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) | [PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263) open. Not Live until `20261121010000_task_flow_engine.sql` is applied on TEST |
 | TB-3 | Task settings: assigned to (role or named person), optional backup person, who can see it | Planned |
 | TB-4 | Email actions with templates and "send as" | Planned |
 | TB-5 | Drag-and-drop flowchart screen | Planned |
