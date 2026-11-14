@@ -48,8 +48,9 @@ const rb = readFileSync('supabase/rollbacks/20261119130000_invite_after_email_ch
 ok(/invite_after_email_change/.test(mig) && /after an email change/.test(mig) && /drop function if exists public.invite_after_email_change/.test(rb), 'the email-change invite has a migration and a rollback');
 
 const signup = await import('../js/pages/agent-signup.js');
-const used = await signup.render({ api, params: { token: 'demo-used-ai-1' }, go() {} });
-ok(/already used/i.test(toText(used.body)) && toText(used.body).includes('data-invite-signin'), 'a used invite shows the already-used message and Sign in');
+let went = '';
+const used = await signup.render({ api, params: { token: 'demo-used-ai-1' }, go(p) { went = p; } });
+ok(went === '/login?email=bianca.buyeragent%40example.test' && used.redirect === went && !/already used/i.test(toText(used.body)), 'a used invite goes straight to Sign in with no already-used message');
 
 console.log(fail ? `FAIL ${fail}` : 'all FF-073 invite email checks passed');
 process.exit(fail ? 1 : 0);
