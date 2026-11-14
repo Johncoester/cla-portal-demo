@@ -24,9 +24,9 @@ ok(read('js/pages/parcel-fields.js').includes('data-add-parcel') && read('js/pag
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
 await api.signInDev('u-admin');
 const roleOf = async (id) => ((await api.adminListUsers()).find((u) => u.id === id) || {}).role;
-ok(await roleOf('u-ph1') === 'Employee', 'the HR Processor login starts as Employee');
+ok(await roleOf('u-ph1') === 'Processor', 'an HR employee whose designation is already Processor starts as a Processor');
 await api.updateHrEmployee('hre-09', { designationId: 'hrg-proc' });
-ok(await roleOf('u-ph1') === 'Processor', 'saving the Processor designation gives a normal Processor login');
+ok(await roleOf('u-ph1') === 'Processor', 'saving the Processor designation again keeps the Processor login');
 ok(await roleOf('u-proc') === 'Processor', 'a Processor whose designation is Processing Manager stays a Processor');
 await api.updateHrEmployee('hre-02', { jobTitle: 'Processing Manager' });
 ok(await roleOf('u-proc') === 'Processor', 'editing that Processor does not take the role away');
