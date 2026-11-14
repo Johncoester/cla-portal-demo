@@ -64,6 +64,30 @@ for (const u of picks) {
   }
   rows.push(`${who.padEnd(32)} ${deal ? `file + ${tabs.length} tabs (${tabs.join(', ')})` : 'no file on the dashboard'}`);
 }
+const syncProblem = await page.evaluate(async () => {
+  try {
+    const mods = performance.getEntriesByType('resource').map((e) => e.name).filter((n) => /\/js\/data\/adapter\.js\?v=\d+/.test(n));
+    const { getAdapter } = await import(mods[0]);
+    const api = await getAdapter();
+    await api.signInDev('u-admin');
+    const made = await api.createDeal({ street: '1 Processor Sync Lane', city: 'Rockville', state: 'MD', zip: '20850' });
+    if (made.processorId) return 'a new mock file started with a Processor';
+    await api.addParticipant(made.id, 'c-admin', 'Processor');
+    const got = await api.getDeal(made.id);
+    if (got.processorId !== 'u-admin') return 'adding a Super admin as Processor on Contacts did not set the file processor';
+    if (!(got.participants || []).some((p) => p.role === 'Processor' && p.contactId === 'c-admin')) return 'Contacts is missing the Processor row';
+    const row = (got.participants || []).find((p) => p.role === 'Processor');
+    await api.removeParticipant(made.id, row.id);
+    const cleared = await api.getDeal(made.id);
+    if (cleared.processorId) return 'removing the Processor from Contacts left them on the file';
+    await api.updateDeal(made.id, { processorId: 'u-sp' });
+    const set = await api.getDeal(made.id);
+    if (set.processorId !== 'u-sp') return 'setting the Processor did not save';
+    if (!(set.participants || []).some((p) => p.role === 'Processor')) return 'setting the Processor did not show on Contacts';
+    return '';
+  } catch (e) { return 'processor sync: ' + (e && e.message ? e.message : String(e)); }
+});
+if (syncProblem) problems.push(`processor sync: ${syncProblem}`);
 await browser.close(); server.close();
 console.log(rows.join('\n'));
 const unique = [...new Set(problems)];

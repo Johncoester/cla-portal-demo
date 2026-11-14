@@ -4,6 +4,7 @@ import { cleanLenderRole } from './lender-file.js?v=202611101200';
 import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611101015';
 import { acceptDocType } from './document-type.js?v=202611100945';
 import { assertContactSaved, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
+import { processorStaffError, clearProcessorParties } from './processor-party.js?v=202611221800';
 export function contactsTasksDocs(x) {
   const { load, save, nid, needUser, needProcessor, isManager, notViewOnly, seesAll, dealsFor, dealOr404, onDeal, fileRole, log, prof, nameOf, roleOf, fullName, folderOf, docVisible, participantsOf, notify, dealProfileIds, clone, now, fail, str, emailOk, C } = x;
   // u = the deal-scoped viewer (optional). A pure buyer never gets the name, role or id of another party who uploaded a file CLA staff shared with
@@ -106,8 +107,18 @@ export function contactsTasksDocs(x) {
       // John, ANYROLE-1: any active staff login can be the file's Transaction Coordinator.
       if (role === 'Transaction Coordinator' && !(login && login.status === 'active' && C.STAFF_ACCOUNT_ROLES.includes(login.role)))
         fail('Only an active staff login can be the Transaction Coordinator on an order.');
+      // PROC-1: a Processor on Contacts is the file's processor (File Overview reads that field).
+      if (role === 'Processor') { const msg = processorStaffError(login, u); if (msg) fail(msg); }
       const entity = cleanEntity(opts && opts.entity, role, x);
       const p = { id: nid('dp'), dealId, contactId, role, createdAt: now(), ...(entity ? { entity } : {}) }; d.participants.push(p);
+      if (role === 'Processor') {
+        const prev = deal.processorId || null;
+        deal.processorId = login.id; deal.processorUnassigned = false;
+        const dropped = d.participants.filter((row) => row.dealId === dealId && row.role === 'Processor' && row.id !== p.id);
+        d.tasks.filter((t) => dropped.some((row) => row.id === t.participantId) && ['todo', 'in_progress', 'blocked'].includes(t.status)).forEach((t) => { t.status = 'cancelled'; });
+        d.participants = d.participants.filter((row) => !(row.dealId === dealId && row.role === 'Processor' && row.id !== p.id));
+        if (login.id !== prev) log(dealId, u.id, 'deal.processor', 'deal', dealId, `Processor set to ${fullName(c)}`);
+      }
       log(dealId, u.id, 'participant.added', 'contact', contactId, `${fullName(c)} added as ${role}`);
       const n = x.makeCopies(dealId, p, u.id); save(); return { ok: true, tasksCreated: n };
     },
@@ -115,6 +126,15 @@ export function contactsTasksDocs(x) {
       const u = needProcessor(); const d = load(); const i = d.participants.findIndex((p) => p.id === participantId && p.dealId === dealId); if (i < 0) fail('Participant not found.');
       const c = d.contacts.find((z) => z.id === d.participants[i].contactId); const role = d.participants[i].role; d.participants.splice(i, 1);
       d.tasks.filter((t) => t.participantId === participantId && ['todo', 'in_progress', 'blocked'].includes(t.status)).forEach((t) => { t.status = 'cancelled'; });
+      // PROC-1: removing the file's Processor from Contacts clears the file processor, and any other Processor row with it.
+      if (role === 'Processor') {
+        const deal = d.deals.find((z) => z.id === dealId);
+        if (deal && deal.processorId && c && c.profileId === deal.processorId) {
+          clearProcessorParties(d, dealId);
+          deal.processorId = null; deal.processorUnassigned = true;
+          log(dealId, u.id, 'deal.processor', 'deal', dealId, 'Processor unassigned');
+        }
+      }
       log(dealId, u.id, 'participant.removed', 'contact', c && c.id, `${c ? fullName(c) : 'Contact'} removed from role ${role}`); save(); return true;
     },
     // ---------- Documents: list / add / move / edit details / open. There is NO delete, by design. ----------
