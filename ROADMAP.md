@@ -28,7 +28,7 @@ This file lists the portal's major features: how each one should work, how far a
 | AF-5 | Fees post to Accounting automatically | Live on TEST, [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) |
 | AF-6 | "Generate CD" and "Generate ALTA" PDF buttons | Live on TEST, [PR 238](https://github.com/Johncoester/cla-portal-demo/pull/238) |
 | AF-7 | Follow-ups: one place for commissions, agent task without fee questions, walkthrough test (Owner: Claude) | Live on TEST, Nov 13 2026. [PR 257](https://github.com/Johncoester/cla-portal-demo/pull/257) + fix [PR 259](https://github.com/Johncoester/cla-portal-demo/pull/259), migrations 20261119030000 and 20261119180000 applied on TEST |
-| AF-8 | The old "Commission information" agent task goes through Agent fees (Owner: Claude) | In review. Needs `20261123010000_commission_task_agent_fees.sql` applied on TEST before it is Live |
+| AF-8 | The old "Commission information" agent task goes through Agent fees (Owner: Claude) | In review, [PR 274](https://github.com/Johncoester/cla-portal-demo/pull/274). Needs `20261123010000_commission_task_agent_fees.sql` applied on TEST before it is Live |
 
 **What's built**
 
