@@ -1,12 +1,13 @@
 /* mock adapter: tasks. Templates (versioned definitions) are separate from each participant's task COPY; a copy records templateId + templateVersion.
  * Intake forms: save partial work, validate, mark complete. Reminders are QUEUED in an outbox only and never sent. Tasks are cancelled, never deleted. */
-import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, fieldsForFile, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611171200';
+import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, fieldsForFile, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611221400';
 import { ssnDigits, ssnGrouped, ssnMask, ssnStaff, withoutSsn } from './buyer-ssn.js?v=202611120200';
 import { senderFor } from './email-senders.js?v=202611101015';
-import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611191700';   // Task switch OFF: no new copy (existing copies kept)
+import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611221400';   // Task switch OFF: no new copy (existing copies kept)
 import { templateGenerates, audienceAllowsRole, TASK_AUDIENCES } from './nov5-rules.js?v=202611131900';
 import { maskAccount } from './constants.js?v=202611101015';
 import { taskDueDate } from './due-date.js?v=202611110300';
+import { COMMISSION_TASK_REFUSED } from './agent-fees.js?v=202611221400';
 export function tasksAndForms(x) {
   const { load, save, nid, needUser, needAdmin, isManager, dealOr404, onDeal, fileRole, fileRoles, holds, dealsFor, log, prof, nameOf, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, dateOrNull, localDate, localDayOf, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
@@ -134,6 +135,8 @@ export function tasksAndForms(x) {
       }
       if (r.errors.length) { const e = new Error(r.errors.map((z) => z.msg).join(' ')); e.fieldErrors = r.errors; throw e; }
       const owner = ownerOf(t); const prevBy = t.savedBy || t.completedBy; const forClient = !!owner && owner !== u.id && agentCanFill(u, t);
+      // AF-8: an old page can't put a commission back on the Commission information task (it is an Agent fee)
+      if (t.templateCode === 'commissions' && String(r.data.commission_amount || '').trim() && r.data.commission_amount !== (t.formData || {}).commission_amount) fail(COMMISSION_TASK_REFUSED);
       t.formData = r.data; t.savedAt = now(); t.savedBy = u.id;
       // who did it: agent on behalf of the client, or the client correcting answers an agent entered
       const selfRep = fileRoles(u.id, t.dealId).length > 1;   // self-represented: always record the capacity, even on their own copy

@@ -190,3 +190,12 @@ What John asked (Nov 13): make the older commission boxes use the Agent fees rec
 - **Contract sheet:** the Buyer broker % / $ and Listing commission % / $ boxes are gone; the group is "Seller credit".
 - **Tests:** `test/test-agent-fees-sql.sh` (move, history, guard, rollback, and a signed-in insert and update that must not get a permission error), `test/test-agent-fees-one-place.js`, `test/test-earnest-accounting-sync.js` (rewritten for one place), walkthrough `tests/e2e-roles/specs/agent-fees.spec.js` and Place Order agent fees in `order-entry.spec.js`.
 
+## AF-8 as built (John Nov 14 2026; assigned to Claude)
+
+The old agent task "Commission information" (template `commissions`) kept `commission_amount` and `paid_by` in `tasks.form_data` only, so Agent fees (and Accounting, the CD and the ALTA statement) never saw it. `supabase/migrations/20261123010000_commission_task_agent_fees.sql`:
+- Backfill: per file side, the newest commissions task with an amount (a submitted one before a draft) becomes that side's Agent fees commission when the side has none. Basis $, % from the sales price (`private.agent_fee_sync`), payer from Paid by (Seller / Buyer, anything else the side's default), `source = 'agent'`, `updated_by` = whoever saved it; a submitted task also sets the agent confirmation (an agent saving in the box does the same), a draft doesn't. Moves and anything not moved (no price, above the price, refinance, not a number) are in `deal_agent_fee_log`, each task noted once. AF-5 posts it to Accounting.
+- Template: a new version without Commission ($) and Paid by, with an info note pointing to the Agent fees box. Open copies (to do, in progress, blocked) move to it and keep their answers; finished copies stay on the version they were answered on.
+- Guard: `tasks_commission_task_guard` refuses a new `commission_amount` on a commissions task with "Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter it there. Nothing was saved." It runs no helper function, so a signed-in agent's save can't hit a permission error (the AF-7 lesson, PR 259).
+- Demo adapter: `backfillCommissionTasks` and `applyCommissionTaskV2` do the same at load; `saveTaskForm` refuses the same way.
+- Tests: `test/test-agent-fees-sql.sh` (AF-8 block, including the guard as a signed-in user), `test/test-commission-task-agent-fees.js`.
+

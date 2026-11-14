@@ -3,10 +3,44 @@
  * their team (or both sides when they are the file's TC); other CLA staff on the file read both sides; buyers and sellers see nothing.
  * An agent or TC saving confirms the side. Staff need a reason to change a confirmed fee (no re-approval). Every change is logged. FAKE DATA. */
 import { runsOrders } from './constants.js?v=202611101015';
-import { readAgentFees, groupAgentFees, SIDE_LABEL, defaultPayer, agentFeeLedgerInput, ledgerKey, ledgerShape } from './agent-fees.js?v=202611182130';
+import { readAgentFees, groupAgentFees, SIDE_LABEL, defaultPayer, agentFeeLedgerInput, ledgerKey, ledgerShape } from './agent-fees.js?v=202611221400';
 import { cleanFee } from './accounting.js?v=202611070139';
 
 export function ensureAgentFees(d) { for (const k of ['agentFees', 'agentFeeLog']) if (!Array.isArray(d[k])) d[k] = []; return d; }
+
+/* AF-8 (John, Nov 14; same rule as SQL 20261123010000): a commission an agent typed on the old "Commission information" task becomes that
+ * side's Agent fees commission ($ basis, % from the sales price), only where the side has none. A submitted task counts as the agent
+ * confirming it; an unfinished draft does not. A figure that can't be moved (no price, above the price, refinance) is noted in the
+ * history once. Idempotent. The demo posts the Accounting line the next time the side is saved. FAKE DATA. */
+export function backfillCommissionTasks(d) {
+  ensureAgentFees(d); if (!Array.isArray(d.tasks) || !Array.isArray(d.deals)) return d;
+  const sideOf = (role) => (role === 'Buyer Agent' ? 'buyer' : role === 'Listing Agent' ? 'listing' : null);
+  const amountOf = (t) => String((t.formData || {}).commission_amount || '').trim();
+  const picks = new Map();
+  d.tasks.filter((t) => t.templateCode === 'commissions' && t.status !== 'cancelled' && sideOf(t.assignedRole) && amountOf(t))
+    .sort((a, b) => (Number(b.status === 'done') - Number(a.status === 'done')) || String(b.completedAt || b.savedAt || '').localeCompare(String(a.completedAt || a.savedAt || '')))
+    .forEach((t) => { const k = `${t.dealId}|${sideOf(t.assignedRole)}`; if (!picks.has(k)) picks.set(k, t); });
+  for (const t of picks.values()) {
+    const side = sideOf(t.assignedRole); const deal = d.deals.find((q) => q.id === t.dealId); if (!deal) continue;
+    if (d.agentFeeLog.some((l) => l.dealId === deal.id && l.oldValue && l.oldValue.task === t.id)) continue;
+    if (d.agentFees.some((f) => f.dealId === deal.id && f.side === side && f.kind === 'commission')) continue;
+    const done = t.status === 'done'; const who = t.completedBy || t.savedBy || null; const at = t.completedAt || t.savedAt || new Date().toISOString();
+    const paid = String((t.formData || {}).paid_by || '').trim().toLowerCase(); const payer = paid === 'seller' || paid === 'buyer' ? paid : defaultPayer(side);
+    const old = { kind: 'commission', from: 'Commission information task', task: t.id, amountTyped: amountOf(t), paidBy: (t.formData || {}).paid_by || '' };
+    const note = (reason) => d.agentFeeLog.push({ dealId: deal.id, side, kind: 'commission', slot: 0, oldValue: old, newValue: null, reason, source: 'system', byId: null, at: new Date().toISOString() });
+    if (deal.transactionType === 'Refinance') { note('Commission information task not moved: a refinance has no agent fees.'); continue; }
+    let fee;
+    try { fee = readAgentFees({ commissionBasis: 'amount', commissionAmount: amountOf(t), commissionPayer: payer }, { side, price: deal.purchasePrice }).commission; }
+    catch (e) { note(`Commission information task not moved: ${e.message} Enter it in Agent fees.`); continue; }
+    if (!fee) continue;
+    d.agentFees.push({ dealId: deal.id, side, kind: 'commission', slot: 0, basis: 'amount', percent: fee.percent, amount: fee.amount, payer, description: '', paidTo: '',
+      source: 'agent', confirmedBy: done ? who : null, confirmedRole: done ? 'agent' : null, confirmedAt: done ? at : null, updatedBy: who, updatedAt: at });
+    d.agentFeeLog.push({ dealId: deal.id, side, kind: 'commission', slot: 0, oldValue: null,
+      newValue: { side, kind: 'commission', slot: 0, basis: 'amount', percent: fee.percent, amount: fee.amount, payer },
+      reason: done ? "From the agent's Commission information task" : "From the agent's unfinished Commission information task (not confirmed)", source: 'agent', byId: who, at: new Date().toISOString() });
+  }
+  return d;
+}
 
 export function agentFeesPart(x) {
   const { load, save, nid, needUser, dealOr404, fileRoles, teamAgentIds, isStaffView, nameOf, now, fail, clone, notify } = x;

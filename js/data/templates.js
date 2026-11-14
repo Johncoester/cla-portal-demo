@@ -145,6 +145,7 @@ const PROCEEDS_V1 = [F('method', 'How do you want to receive your proceeds?', 's
 const PROCEEDS_V2 = [...PROCEEDS_V1, F('proceeds_wire_note', 'Wire transfers', 'info', false, { text: PROCEEDS_WIRE_NOTE }),
   F('proceeds_statement', 'Seller proceeds acknowledgment', 'info', false, { text: PROCEEDS_STATEMENT }),
   F('proceeds_ack', 'I acknowledge and understand the above statement.', 'checkbox', true), F('notes', 'Anything else we should know?', 'textarea')];
+export const AGENT_FEES_NOTE = 'Your commission, admin fee and any other fees are entered in the Agent fees box on the file overview. That is the one place CLA Title keeps them, so they match Accounting, the Closing Disclosure and the ALTA statement.';
 export const TEMPLATE_DEFS = [
   { code: 'id_upload', version: 1, title: 'Upload photo ID', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], description: 'A clear photo or scan of a government ID.',
     fields: [F('id_type', 'ID type', 'select', true, { opts: ["Driver's license", 'Passport', 'State ID', 'Military ID'] }), F('id_expires', 'Expiration date', 'date', true), F('id_document', 'ID document', 'doc', true)] },
@@ -206,6 +207,12 @@ export const TEMPLATE_DEFS = [
   { code: 'commissions', version: 1, title: 'Commission information', roles: ['Buyer Agent', 'Listing Agent'], dueDays: 10, agentRoles: [], description: 'Confirm your commission for the settlement statement.',
     fields: [F('brokerage', 'Brokerage', 'text', true), F('license_id', 'License ID', 'text', true), F('commission_amount', 'Commission ($)', 'money', true),
       F('paid_by', 'Paid by', 'select', true, { opts: ['Seller', 'Buyer', 'Split'] }), F('notes', 'Notes', 'textarea')] },
+  // AF-8 (John, Nov 14; migration 124 = SQL 20261123010000): the commission is no longer asked here. It is an Agent fee (one place);
+  // the amount and Paid by are replaced by a note pointing to the Agent fees box. Brokerage, License ID and Notes stay.
+  { code: 'commissions', version: 2, title: 'Commission information', roles: ['Buyer Agent', 'Listing Agent'], dueDays: 10, agentRoles: [], migration: 124,
+    description: 'Confirm your brokerage and license. Your commission and fees are entered in the Agent fees box on the file overview.',
+    fields: [F('brokerage', 'Brokerage', 'text', true), F('license_id', 'License ID', 'text', true),
+      F('agent_fees_note', 'Your commission', 'info', false, { text: AGENT_FEES_NOTE }), F('notes', 'Notes', 'textarea')] },
   // ---- Matt, Oct 31 (migration 14): seller forwarding address + how the seller gets their proceeds ----
   { code: 'forwarding_address', version: 1, title: 'Forwarding address', roles: ['Client-Seller'], dueDays: 10, agentRoles: [], migration: 14,
     description: 'Where should we send your mail after closing (the recorded deed, any escrow refund, your 1099-S and other closing papers)?',
@@ -424,3 +431,25 @@ export function entityPrefill(entity, fields) {
   [['repName', 'entity_rep_name'], ['repTitle', 'entity_rep_title'], ['repPhone', 'entity_rep_phone'], ['repEmail', 'entity_rep_email']].forEach(([a, k]) => { if (entity[a] && keys.has(k)) out[k] = entity[a]; });
   return out;
 }
+
+/* AF-8 (migration 124, mirrored in SQL 20261123010000): commissions v2 without the amount. Unlike the intake versions above, every OPEN copy
+ * (to do, in progress, blocked) moves to it and keeps its answers, so nobody is asked for a commission again; finished copies keep their version.
+ * Idempotent: v2 is recognised by its agent_fees_note field. */
+const isCommissionsV2 = (t) => t.code === 'commissions' && (t.fields || []).some((f) => f.k === 'agent_fees_note');
+export function applyCommissionTaskV2(d, { at = new Date().toISOString(), by = null } = {}) {
+  const def = TEMPLATE_DEFS.find((t) => t.migration === 124); const added = []; let moved = 0;
+  if (!Array.isArray(d.taskTemplates) || !Array.isArray(d.tasks)) return { added, moved };
+  const vs = d.taskTemplates.filter((t) => t.code === def.code); let nt = vs.find(isCommissionsV2);
+  if (!nt) {
+    if (!vs.length) return { added, moved };
+    const top = vs.slice().sort((a, b) => b.version - a.version)[0]; const version = Math.max(top.version + 1, def.version);
+    nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: [...(top.agentRoles || [])], active: true, publishedBy: by, publishedAt: at };
+    if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-agent-fees`;
+    vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
+  }
+  if (nt.active) d.tasks.filter((t) => t.templateCode === def.code && t.templateId !== nt.id && ['todo', 'in_progress', 'blocked'].includes(t.status)
+      && (d.taskTemplates.find((z) => z.id === t.templateId) || { version: 0 }).version < nt.version)
+    .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
+  return { added, moved };
+}
+
