@@ -11,6 +11,7 @@ import { pickerHtml, mountPicker } from './person-picker.js?v=202611191800';
 import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice } from '../data/file-party.js?v=202611221600';
 import { composeModal } from './compose.js?v=202611191600';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611191800';
+import { processorPickLabel, processorPickError } from '../data/processor-pick.js?v=202611221900';
 import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611101015';
 import { canManageClosingLocations } from '../data/closing-location.js?v=202611101015';
 import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611161500';
@@ -198,7 +199,7 @@ function overview({ api, user, refresh, demoLocked, settlement = null }, d, crum
       <ol class="tracker op-steps" data-milestones>${tracker}</ol>${edit ? html`<p class="muted small op-hint">Click a step to set the stage. The last step closes the order.</p>` : ''}
       ${staffView ? staffStatus : glance}</section>
     ${staffView ? '' : html`<div class="op-title deal-head"><h1 class="op-address" data-op-address>${d.street}, ${d.city}, ${d.state} ${d.zip}</h1><span class="op-order-no order-no" data-op-order-no>Order # ${d.fileNumber}</span>${d.fileTitle ? html` <span class="file-title" data-file-title>${d.fileTitle}</span>` : ''}${d.agentParties && d.agentParties.length ? html` <span class="pill warn agent-party">Agent is a party</span>` : ''}</div>`}
-    ${staffView ? (edit && !d.processorId ? html`<div class="notice warn" data-unassigned-processor>This file has no processor yet. Assign one with Edit order details.</div>` : '') : html`<p class="op-sub muted" data-op-sub>${d.transactionType || 'Purchase'}${d.county ? html` &middot; <span data-county-head>${d.county} County</span>` : ''}${d.parcelId ? html` &middot; Parcel <span data-parcel-id>${d.parcelId}</span>` : ''}<span data-county hidden>${d.county || '\u2014'}</span> &middot; Opened ${fmtDate(d.openDate)} &middot; Processor ${d.processorId ? html`<span data-processor-name>${d.processorName || 'assigned'}</span>` : staffView ? html`<span class="pill warn" data-unassigned-processor title="Assign one with Edit order details">Unassigned</span>` : 'not set'}${d.preprocessorName ? html` &middot; Preprocessor ${d.preprocessorName}` : ''}${staffView ? html` &middot; Closer <span data-closer>${d.closerName || 'not set'}</span>` : ''}${d.tcUserId ? html` &middot; TC <span data-tc-name>${d.tcName || 'assigned'}</span>` : staffView ? html` &middot; TC <span class="muted" data-tc-none>not assigned</span>` : ''}${staffView && (claRepresentationWritesEnabled(api) || d.claRepresentation) ? html` &middot; <span data-cla-representation>CLA represents: ${d.claRepresentationLabel || 'Not recorded'}</span>` : ''}${staffView ? html` &middot; <span data-source-of-business>Source of business: ${d.sourceOfBusinessLabel || 'Not set'}</span>` : ''}${ov && ov.orderDetails.agencyLicenseId ? html` &middot; Agency License ID <span data-license>${ov.orderDetails.agencyLicenseId}</span>` : ''}</p>`}
+    ${staffView ? (edit && !d.processorId ? html`<div class="notice warn" data-unassigned-processor>This file has no processor yet. Click the Processor row to assign one.</div>` : '') : html`<p class="op-sub muted" data-op-sub>${d.transactionType || 'Purchase'}${d.county ? html` &middot; <span data-county-head>${d.county} County</span>` : ''}${d.parcelId ? html` &middot; Parcel <span data-parcel-id>${d.parcelId}</span>` : ''}<span data-county hidden>${d.county || '\u2014'}</span> &middot; Opened ${fmtDate(d.openDate)} &middot; Processor ${d.processorId ? html`<span data-processor-name>${d.processorName || 'assigned'}</span>` : staffView ? html`<span class="pill warn" data-unassigned-processor title="Click the Processor row to assign one">Unassigned</span>` : 'not set'}${d.preprocessorName ? html` &middot; Preprocessor ${d.preprocessorName}` : ''}${staffView ? html` &middot; Closer <span data-closer>${d.closerName || 'not set'}</span>` : ''}${d.tcUserId ? html` &middot; TC <span data-tc-name>${d.tcName || 'assigned'}</span>` : staffView ? html` &middot; TC <span class="muted" data-tc-none>not assigned</span>` : ''}${staffView && (claRepresentationWritesEnabled(api) || d.claRepresentation) ? html` &middot; <span data-cla-representation>CLA represents: ${d.claRepresentationLabel || 'Not recorded'}</span>` : ''}${staffView ? html` &middot; <span data-source-of-business>Source of business: ${d.sourceOfBusinessLabel || 'Not set'}</span>` : ''}${ov && ov.orderDetails.agencyLicenseId ? html` &middot; Agency License ID <span data-license>${ov.orderDetails.agencyLicenseId}</span>` : ''}</p>`}
     ${staffView ? '' : html`${moneyRow(d, { canWire: staffView ? false : canWire, staffView, showEmd })}${earnestBlock(d, showEmd)}`}
     ${!staffView && portalN ? html`<div class="op-actions"><a class="new-msg" href="#/deals/${d.id}/inbox" data-portal-unread="${portalN}">${portalN} new message(s)</a></div>` : ''}
     ${d.agentParties && d.agentParties.length ? html`<div class="notice warn" data-agent-party><strong>Agent is a party.</strong> ${d.agentParties.map((p) => `${p.name} is the ${p.label}`).join('; ')} on this file (a licensee buying or selling for themselves). Make sure the licensee disclosure is on file.</div>` : ''}
@@ -232,7 +233,7 @@ function overview({ api, user, refresh, demoLocked, settlement = null }, d, crum
     const wb = $('#wirebtn', root); if (wb) wb.addEventListener('click', guard(() => wireModal(api, d)));
     $$('[data-add-party]', root).forEach((b) => b.addEventListener('click', guard(() => addPartyModal(api, d, b.dataset.addParty, refresh))));
     const en = $('[data-edit-notes]', root); if (en) en.addEventListener('click', guard(() => editModal(api, d, refresh, user.id)));
-    mountParties(root, { api, d, refresh, canEdit: edit && staffView });
+    mountParties(root, { api, d, refresh, canEdit: edit && staffView, meId: user.id });
     mountSettlement(root, { api, deal: d, refresh, user, demoLocked, contacts: (settlement && settlement.contactChoices) || [], closerStaff: (settlement && settlement.closerStaff) || [] });
   } };
 }
@@ -432,14 +433,16 @@ function partiesList(d, ov, staffView, { splits = [], edit = false, source = '',
   const rows = partyRows(d, ov, staffView, splits);
   const referral = staffView ? fileReferralState({ source, sourceLabel, rows, canEdit: edit }) : null;
   const avatar = (p) => (p.salesRep && p.profileId ? (p.photo ? html`<img class="party-avatar" src="${p.photo}" alt="" data-sales-photo>` : html`<span class="party-avatar" aria-hidden="true" data-sales-initials>${p.initials}</span>`) : '');
-  const row = (p, i) => { const hid = p.contactHidden; const tel = hid ? '' : telOf(p.phone); const em = hid ? '' : p.email || '';
+    const row = (p, i) => { const hid = p.contactHidden; const tel = hid ? '' : telOf(p.phone); const em = hid ? '' : p.email || '';
     const ref = referral ? referralCell(p, referral.rows[i], edit) : '';
-    return html`<div class="op-prow${p.salesRep ? ' sales-rep-party' : ''}${p.placeholder ? ' is-placeholder' : ''}" data-party="${p.label}"${p.placeholder ? html` data-party-placeholder` : ''}${p.salesRep ? html` data-sales-rep="${p.profileId || ''}"` : ''} data-party-row="${i}">
+    const pickProcessor = p.label === 'Processor' && edit;
+    return html`<div class="op-prow${p.salesRep ? ' sales-rep-party' : ''}${p.placeholder ? ' is-placeholder' : ''}" data-party="${p.label}"${p.placeholder ? html` data-party-placeholder` : ''}${pickProcessor ? html` data-processor-editable` : ''}${p.salesRep ? html` data-sales-rep="${p.profileId || ''}"` : ''} data-party-row="${i}">
       <span class="op-role">${p.label}</span><span class="op-nm">${avatar(p)}${p.entity && p.name === p.entity.name ? '' : entityLine(p.entity)}<strong>${p.name}</strong>${p.entity && p.name === p.entity.name && (p.entity.repName || p.entity.type) ? html`<small data-entity-rep>${[p.entity.type, p.entity.repName].filter(Boolean).join(' · ')}</small>` : ''}${p.company ? html`<small>${p.company}</small>` : ''}</span>
       ${hid ? html`<span class="op-ph op-hidden muted small contact-hidden" data-contact-hidden>${HIDDEN_CONTACT}</span><span class="op-em"></span>` : html`<span class="op-ph">${tel ? html`<span class="op-copy-val">${fmtPhone(p.phone)}</span>${partyCopyButton('phone', fmtPhone(p.phone))}` : html`<span class="muted">&mdash;</span>`}</span><span class="op-em">${em ? html`<span class="op-copy-val">${em}</span>${partyCopyButton('email', em)}` : html`<span class="muted">&mdash;</span>`}</span>`}
       <span class="op-acts">${tel ? html`<a class="op-act" href="tel:${tel}" data-call aria-label="Call ${p.name}">&#9742; Call</a>` : html`<span class="op-act is-off" aria-disabled="true">&#9742; Call</span>`}
         ${em ? html`<a class="op-act" href="mailto:${em}" data-email aria-label="Email ${p.name} (opens your mail app)">&#9993; Email</a>` : html`<span class="op-act is-off" aria-disabled="true">&#9993; Email</span>`}
         ${p.canMessage ? html`<button type="button" class="op-act" data-message-to="${p.profileId}">Message</button>` : ''}
+        ${pickProcessor ? html`<button type="button" class="op-act" data-pick-processor>${processorPickLabel(p.name)}</button>` : ''}
         ${p.placeholder && edit ? html`<a class="op-act" href="#/deals/${d.id}/contacts" data-add-role="${p.label}" aria-label="Add ${p.label.toLowerCase()} on Contacts">+ Add</a>` : ''}</span>${ref}</div>`; };
   const legacy = referral && referral.legacy ? html`<p class="op-ref-legacy" data-referral-unmatched>Source of business: ${referral.unmatched}. This value is not tied to one person on the file.</p>` : '';
   const clear = referral && edit ? html`<label class="referral-source op-ref-clear"><input type="radio" name="fileReferral" value="" data-referral-clear aria-label="Source of business: Not set" ${referral.clearChecked ? raw('checked') : ''}> Not set</label>` : '';
@@ -448,7 +451,7 @@ function partiesList(d, ov, staffView, { splits = [], edit = false, source = '',
     ${staffView && edit ? html`<div class="op-ref-tools" data-referral-tools>${clear}</div>` : ''}${legacy}${hint}${staffView ? html`<p class="op-source muted" data-source-of-business>Source of business: ${sourceLabel || 'Not set'}</p>` : ''}
     <p class="muted small op-pnote">Call and Email open your phone or mail app. The portal does not send anything.</p>`;
 }
-function mountParties(root, { api, d, refresh, canEdit } = {}) {
+function mountParties(root, { api, d, refresh, canEdit, meId } = {}) {
   $$('[data-copy-field]', root).forEach((b) => b.addEventListener('click', async () => {
     const kind = b.dataset.copyKind === 'email' ? 'email address' : 'phone number';
     const label = copyLabel(b.dataset.copyKind === 'email' ? 'email' : 'phone');
@@ -462,6 +465,37 @@ function mountParties(root, { api, d, refresh, canEdit } = {}) {
     setTimeout(() => { if (!b.isConnected) return; b.classList.remove('is-copied'); b.setAttribute('aria-label', label); if (note && note.isConnected) note.hidden = true; }, 2000);
   }));
   if (!canEdit || !api || !d) return;
+  const openProcessorPicker = guard(async () => {
+    let procs = [];
+    try { procs = api.listProcessors ? await api.listProcessors() : []; }
+    catch (e) { throw new Error('The staff list could not be loaded. Close this and try again.'); }
+    const choices = processorChoices(procs, d.processorId || '', meId || '');
+    if (choices.options.length < 2) throw new Error('No staff logins are available right now. Close this and try again.');
+    const m = modal('Processor', html`<form id="ppick" class="form-grid" data-processor-pick>
+      <p class="span2">Choose the staff login who is the Processor on this file. The same person shows on Contacts.</p>
+      <label class="span2">Processor<select name="processorId" data-processor-select aria-label="Processor"></select></label>
+      <p class="muted small span2">Any active staff login can be the Processor. Unassigned clears it.</p>
+      <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
+    const sel = $('[name=processorId]', m);
+    for (const o of choices.options) { const opt = document.createElement('option'); opt.value = o.value; opt.textContent = o.label; sel.appendChild(opt); }
+    if (d.processorId && ![...sel.options].some((o) => o.value === d.processorId)) { const cur = document.createElement('option'); cur.value = d.processorId; cur.textContent = d.processorName || 'Current Processor'; sel.appendChild(cur); }
+    sel.value = [...sel.options].some((o) => o.value === (d.processorId || '')) ? (d.processorId || '') : '';
+    $('#ppick', m).addEventListener('submit', guard(async (e) => {
+      e.preventDefault();
+      const nextId = sel.value || '';
+      const why = processorPickError({ currentId: d.processorId || '', nextId });
+      if (why) throw new Error(why);
+      await api.updateDeal(d.id, { processorId: nextId });
+      closeModal();
+      toast(nextId ? 'Processor saved' : 'Processor cleared');
+      refresh();
+    }));
+  });
+  $$('[data-pick-processor]', root).forEach((b) => b.addEventListener('click', openProcessorPicker));
+  $$('[data-processor-editable]', root).forEach((row) => row.addEventListener('click', (e) => {
+    if (e.target.closest('a, button, input, label, select, textarea')) return;
+    openProcessorPicker();
+  }));
   const group = () => $$('[name=fileReferral]', root);
   const restore = (value) => { const els = group();
     if (!value) { els.forEach((el) => { el.checked = el.value === ''; }); return; }

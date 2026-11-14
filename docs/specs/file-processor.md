@@ -2,7 +2,7 @@
 
 **Requested by:** John Coester, screen recording "Adding a processor" (Nov 14 2026, 1:55 PM ET; Drive file 19lS81bxUsHUwQPRdLXIGi79dmpFhXdn7). Confirmed Nov 14, 2:00 PM ET. Order MD-26-97260 on TEST.
 
-**Status:** PROC-1 in progress. See [ROADMAP.md](../../ROADMAP.md).
+**Status:** PROC-1 and PROC-2 in progress. See [ROADMAP.md](../../ROADMAP.md).
 
 ## What John saw
 
@@ -23,9 +23,9 @@ The file's processor field stays the Processor the rest of the portal already us
 
 The one-time copy only updates files that look like seeded fake TEST data. It does not rewrite a file that has some other email on it. It does not run on production.
 
-## What PROC-2 will do
+## What PROC-2 does
 
-Clicking the Processor row on File Overview, when the person can already edit parties, opens the same staff list and saves through this path so Contacts updates too. Someone who cannot edit parties sees the row as it is.
+On File Overview, a person who can already edit parties clicks the Processor row, or Choose processor / Change processor. The list is every active staff login. Saving uses the same order update as Edit order details, so Contacts stays in step. Unassigned clears the Processor. Saving Unassigned when nobody is assigned says to choose a staff login or close the window, and leaves the form open. Anyone who cannot edit parties sees the row with no button.
 
 ## Not in this change
 
