@@ -16,7 +16,7 @@ The end goal is a drag-and-drop flowchart screen where "almost any task can be a
 
 ### Settings on every task a flow creates
 
-- **Assigned to:** usually a role on the file; the portal fills in the actual person. Main roles (John, Nov 13): processor, pre-processor, sales person, buyer's agent, listing agent, buyer, seller. A specific named person (for example, always Janine) is also possible but less common.
+- **Assigned to:** usually a role on the file; the portal fills in the actual person. Main roles (John, Nov 13): processor, pre-processor, sales person, buyer's agent, listing agent, buyer, seller, transaction coordinator, lender. A specific named person (for example, always Janine) is also possible but less common.
 - **Backup (optional):** an "Add backup person" option on any task. Left blank, the task has no backup (John, Nov 13).
 - **Who can see it:** internal to CLA only, or also the agent, buyer, seller or lender in the portal.
 - **Due date:** counted from the opened, contract or closing date, as in PR 141.
