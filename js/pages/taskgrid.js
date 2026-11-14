@@ -2,9 +2,12 @@
 // the buyer / seller / agent tasks ACROSS THE TOP (grouped Buyer / Seller / Agent). Every column header sorts (up / down arrows, click again to reverse).
 // Cell: green check + completion date = completed; red X = overdue (past due, not complete); blank = not complete and not yet due;
 // dash = that task is not on that file. Existing status colours only (ok-text / bad-text / muted).
+// MF-053 (Matt, Nov 11 notes; confirmed Nov 12 8:47 AM ET): four party columns after Closing Date — Buyer, Seller, Buyer's Agent, Listing Agent.
+// Green check = every live task for that party is done. Red X = any of them is overdue. Empty = open and not overdue, or that party is not on the file.
 import { html, fmtDate, raw, $, $$ } from '../ui.js?v=202611161500';
 import { TASK_GROUPS } from '../data/task-board.js?v=202611140100';
-import { sortGridFiles } from '../data/task-grid-sort.js?v=202611070139';
+import { sortGridFiles } from '../data/task-grid-sort.js?v=202611221200';
+import { PARTY_COLUMNS, partyStatusForFile } from '../data/task-grid-parties.js?v=202611221200';
 import { isRefi } from '../data/constants.js?v=202611101015';
 
 const FILES = [['Open', 'Open files'], ['On Hold', 'On-hold files'], ['Closed', 'Closed files'], ['All', 'All files']];
@@ -15,26 +18,34 @@ const cell = (c, taskKey) => {
   if (c.state === 'pending') return html`<td class="center" data-task="${taskKey}" data-state="pending" title="${c.dueDate ? 'Not yet due - due ' + fmtDate(c.dueDate) : 'Not complete, no due date'}">${part}</td>`;
   return html`<td class="center muted" data-task="${taskKey}" data-state="na" title="${c.refi ? 'Refinance: no sellers or agents' : 'Not on this file'}">&ndash;</td>`;
 };
+const partyCell = (p, key, label) => {
+  const state = (p && p.state) || 'blank';
+  if (state === 'done') return html`<td class="center" data-party="${key}" data-state="done" title="All ${label} tasks are complete"><span class="ok-text" aria-label="Completed">&#10004;</span></td>`;
+  if (state === 'overdue') return html`<td class="center" data-party="${key}" data-state="overdue" title="A ${label} task is overdue"><span class="bad-text" aria-label="Overdue">&#10008;</span></td>`;
+  if (state === 'open') return html`<td class="center" data-party="${key}" data-state="open" title="${label} tasks are not all done, and none are overdue"></td>`;
+  return html`<td class="center" data-party="${key}" data-state="blank" title="No ${label} on this file"></td>`;
+};
 const arrows = html`<span class="sort-arrows" aria-hidden="true"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span>`;
 const sortTh = (key, label, extra = '') => html`<th data-sort="${key}" class="${extra}"><button type="button" class="th-sort" title="Sort by ${label}">${label} ${arrows}</button></th>`;
 
 export async function render({ api }) {
   const q = new URLSearchParams(location.hash.split('?')[1] || ''); const fs = FILES.some((f) => f[0] === q.get('s')) ? q.get('s') : 'Open';
   const g = await api.getTaskGrid({ fileStatus: fs });
+  g.columns.forEach((f) => { f.parties = partyStatusForFile(g.rows, f.id, f.partyRoles); });
   const groups = TASK_GROUPS.filter(([k]) => k !== 'staff').map(([k, label]) => [k, label, g.rows.filter((r) => r.group === k)]).filter(([, , rs]) => rs.length);
   const tasks = groups.flatMap(([, , rs]) => rs);
-  const head = html`<tr data-grid-groups><th colspan="3"></th>${groups.map(([k, label, rs]) => html`<th class="center" colspan="${rs.length}" data-grid-group="${k}">${label}</th>`)}</tr>
-    <tr>${sortTh('fileNumber', 'File No')}${sortTh('address', 'Property')}${sortTh('closingDate', 'Closing Date')}${tasks.map((r) => html`<th data-sort="task:${r.key}" data-col-task="${r.key}" class="center"><button type="button" class="th-sort" title="Sort by ${r.label}">${r.title}<br><span class="muted small">${r.roleLabel}</span> ${arrows}</button></th>`)}</tr>`;
+  const head = html`<tr data-grid-groups><th colspan="3"></th><th class="center" colspan="${PARTY_COLUMNS.length}" data-grid-group="parties">Party status</th>${groups.map(([k, label, rs]) => html`<th class="center" colspan="${rs.length}" data-grid-group="${k}">${label}</th>`)}</tr>
+    <tr>${sortTh('fileNumber', 'File No')}${sortTh('address', 'Property')}${sortTh('closingDate', 'Closing Date')}${PARTY_COLUMNS.map(([key, label]) => sortTh('party:' + key, label, 'center'))}${tasks.map((r) => html`<th data-sort="task:${r.key}" data-col-task="${r.key}" class="center"><button type="button" class="th-sort" title="Sort by ${r.label}">${r.title}<br><span class="muted small">${r.roleLabel}</span> ${arrows}</button></th>`)}</tr>`;
   const fileRow = (f) => html`<tr data-file="${f.id}"><th scope="row" class="nowrap"><a href="#/deals/${f.id}/tasks">${f.fileNumber}</a>${isRefi(f) ? html`<br><span class="pill" data-refi-file>Refinance</span>` : ''}</th><td>${f.street}</td>
-    <td class="nowrap" data-closing="${f.closingDate || ''}">${f.closingDate ? fmtDate(f.closingDate) : html`<span class="muted">not set</span>`}</td>${tasks.map((r) => cell({ ...(r.cells[f.id] || { state: 'na' }), refi: isRefi(f) && r.group !== 'buyer' }, r.key))}</tr>`;
+    <td class="nowrap" data-closing="${f.closingDate || ''}">${f.closingDate ? fmtDate(f.closingDate) : html`<span class="muted">not set</span>`}</td>${PARTY_COLUMNS.map(([key, label]) => partyCell(f.parties[key], key, label))}${tasks.map((r) => cell({ ...(r.cells[f.id] || { state: 'na' }), refi: isRefi(f) && r.group !== 'buyer' }, r.key))}</tr>`;
   const t = g.totals;
   return { title: 'Task grid', crumbs: [['Task Grid']], body: html`
     <div class="page-head" data-task-grid-ready data-file-count="${g.columns.length}"><div><div class="eyebrow">PROCESSOR</div><h2 class="page-title">Task grid</h2>
-      <div class="muted">Files down the side, buyer / seller / agent tasks across the top. Click a column header to sort (click again to reverse). ${g.columns.length} file(s) &middot; ${t.done} done &middot; ${t.overdue} overdue &middot; ${t.pending} not yet due.</div></div>
+      <div class="muted">Files down the side. Buyer, Seller, Buyer's Agent and Listing Agent show whether that party's tasks are done. The tasks themselves stay across the top. Click a column header to sort (click again to reverse). ${g.columns.length} file(s) &middot; ${t.done} done &middot; ${t.overdue} overdue &middot; ${t.pending} not yet due.</div></div>
       <div><a class="ghost" href="#/tasks">Task list</a></div></div>
     <ul class="nav-tabs">${FILES.map(([k, label]) => html`<li><a class="${k === fs ? 'active' : ''}" href="#/task-grid?s=${encodeURIComponent(k)}" ${k === fs ? raw('aria-current="page"') : ''}>${label}</a></li>`)}</ul>
-    <p class="muted small" data-legend><span class="ok-text">&#10004;</span> completed (date) &nbsp; <span class="bad-text">&#10008;</span> overdue &nbsp; blank = not yet due &nbsp; &ndash; = not on this file. Sorting a task column puts overdue first, then not yet due, then completed.</p>
-    ${g.columns.length ? html`<div class="grid-scroll"><table class="tbl" data-taskgrid data-orientation="files-down"><thead>${head}</thead><tbody>${sortGridFiles(g.columns, g.rows, 'fileNumber', 'asc').map(fileRow)}</tbody></table></div>` : html`<p class="muted" data-grid-empty>No files.</p>`}`,
+    <p class="muted small" data-legend>Party columns: <span class="ok-text">&#10004;</span> every task for that party is done &nbsp; <span class="bad-text">&#10008;</span> a task is overdue &nbsp; empty = still open and not overdue, or that party is not on the file. Task columns: <span class="ok-text">&#10004;</span> completed (date) &nbsp; <span class="bad-text">&#10008;</span> overdue &nbsp; blank = not yet due &nbsp; &ndash; = not on this file. Sorting a task or party column puts overdue first, then not yet due, then completed.</p>
+    ${g.columns.length ? html`<div class="grid-scroll"><table class="tbl" data-taskgrid data-orientation="files-down" data-party-columns="${PARTY_COLUMNS.length}"><thead>${head}</thead><tbody>${sortGridFiles(g.columns, g.rows, 'fileNumber', 'asc').map(fileRow)}</tbody></table></div>` : html`<p class="muted" data-grid-empty>No files.</p>`}`,
   mount(root) {
     const tb = $('[data-taskgrid] tbody', root); if (!tb) return; let sort = 'fileNumber'; let dir = 'asc';
     const marks = () => $$('th[data-sort]', root).forEach((th) => { const on = th.dataset.sort === sort; if (on) th.setAttribute('aria-sort', dir === 'asc' ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort');

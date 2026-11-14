@@ -7,7 +7,7 @@
  *    file; which tasks exist there comes from their role on THAT file (buyer's-agent vs listing-agent templates). Rows carry the file and myRoles /
  *    myRoleLabel (their role on that file). Never filtered by one role: every file's own per-file rules (scopeTo + taskVisible) still decide what shows.
  *    Mirrored in SQL by public.my_task_list() (migration 45). */
-import { buildTaskGrid, groupOfRole, isOverdue } from './task-board.js?v=202611140100';
+import { buildTaskGrid, groupOfRole, isOverdue, GRID_ROLES } from './task-board.js?v=202611140100';
 import { fileRoleLabel } from './constants.js?v=202611101015';
 
 export function mattNov2(x) {
@@ -32,7 +32,16 @@ export function mattNov2(x) {
     // Admin and Super admin only (John, Nov 6). fileStatus 'Open' (default) or 'All' / a deal status.
     async getTaskGrid({ fileStatus = 'Open' } = {}) {
       const u = needUser(); if (!u.isAdmin) fail('Only an Admin or Super admin can open the task grid.');
-      const { deals, rows } = allTasks(u, { fileStatus }); return buildTaskGrid(rows, deals.map(fileOf), localDate());
+      const { deals, rows } = allTasks(u, { fileStatus });
+      const roles = new Map();
+      for (const p of load().participants) {
+        if (!GRID_ROLES.includes(p.role)) continue;
+        if (!roles.has(p.dealId)) roles.set(p.dealId, []);
+        if (!roles.get(p.dealId).includes(p.role)) roles.get(p.dealId).push(p.role);
+      }
+      const grid = buildTaskGrid(rows, deals.map(fileOf), localDate());
+      grid.columns.forEach((c) => { c.partyRoles = roles.get(c.id) || []; });
+      return grid;
     },
   };
 }
