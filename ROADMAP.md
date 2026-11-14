@@ -311,7 +311,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## File processor on Parties and Contacts (PROC-1 / PROC-2)
 
-**How it should work.** The Processor on a file is one person. Adding that person on the order's Contacts screen, with the role Processor, shows them on File Overview > Parties. Removing them from Contacts clears the Processor. Setting or clearing the Processor anywhere else (Edit order details, or Place Order, or the Processor row on File Overview) shows the same person on Contacts, or takes them off. Any active staff login can be the Processor. A person with no portal login cannot. Only people who can already edit parties can change it from the row.
+**How it should work.** The Processor on a file is one person. Adding that person on the order's Contacts screen, with the role Processor, shows them on File Overview > Parties. Removing them from Contacts clears the Processor. Setting or clearing the Processor anywhere else (Edit order details, or Place Order, or the Processor row on File Overview) shows the same person on Contacts, or takes them off. Any active staff login can be the Processor. A contact with no portal login can still be listed on Contacts as Processor, and that listing is not the file's Processor. Only people who can already edit parties can change it from the row.
 
 **Status: In progress.** Tracker rows PROC-1 and PROC-2. John Coester, screen recording "Adding a processor" (Nov 14 2026, 1:55 PM ET; Drive file 19lS81bxUsHUwQPRdLXIGi79dmpFhXdn7), confirmed Nov 14, 2:00 PM ET, on order MD-26-97260. PROC-1 is not Live until its database file is applied on TEST. PROC-2 has no database file.
 
