@@ -294,7 +294,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/mf-049-conversations.md](docs/specs/mf-049-conversations.md). Source: Francis Santos, Nov 11 2026, "Missing Accounting Section and Conversation Recipient Issues" (forwarded with Matt's ticket). Francis replied "That's correct" the same day.
-- Related pull requests: this change. The file-only recipient list for the earlier video note is [PR 240](https://github.com/Johncoester/cla-portal-demo/pull/240) (FF-072). Share Files holding a message for someone with no login is [PR 251](https://github.com/Johncoester/cla-portal-demo/pull/251).
+- Related pull requests: [PR 267](https://github.com/Johncoester/cla-portal-demo/pull/267). The file-only recipient list for the earlier video note is [PR 240](https://github.com/Johncoester/cla-portal-demo/pull/240) (FF-072). Share Files holding a message for someone with no login is [PR 251](https://github.com/Johncoester/cla-portal-demo/pull/251).
 
 **Decisions**
 
