@@ -1,4 +1,7 @@
-/* V-4: an agent cannot mark a client's task complete. FF-073c: a used invite stays on the invite page with an already-used message and a Sign in button. */
+/* V-4: an agent cannot mark a client's task complete.
+   John, Nov 14 2026 (t1667u): a used invite goes straight to Sign in. The old test expected an
+   "already used" page because that was the behavior Janine confirmed on Nov 13. John changed it. */
+import { readFileSync } from 'node:fs';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { shapeListedTask } from '../js/data/task-actions.js';
 import { toText } from '../js/ui.js';
@@ -36,14 +39,32 @@ ok(used.status === 'accepted' && used.email === 'bianca.buyeragent@example.test'
 let dest = '';
 const signup = await import('../js/pages/agent-signup.js');
 const view = await signup.render({ api, params: { token: 'demo-used-ai-1' }, go(p) { dest = p; } });
-ok(!dest, 'the used invite stays on the invite page instead of jumping to login');
 const text = toText(view.body);
-ok(view.body && /already used/i.test(text) && text.includes('data-invite-used') && text.includes('data-invite-state="accepted"') && text.includes('data-invite-signin') && text.includes('#/login?email=bianca.buyeragent%40example.test') && !/account exists/i.test(text), 'the used invite shows that it was already used and offers Sign in with that email');
+ok(dest === '/login?email=bianca.buyeragent%40example.test' && view.redirect === dest, 'a used invite goes straight to Sign in with that email');
+ok(!/already used/i.test(text) && !text.includes('data-invite-used') && !text.includes('data-invite-signin') && !/not valid/i.test(text) && !/expired/i.test(text), 'the used invite shows no error and no in-between page');
+const existsApi = { getAgentInvite: async () => ({ status: 'exists', email: 'ada@example.test', firstName: 'Ada', lastName: 'Buyer', inviteKind: 'client' }) };
+dest = '';
+const existsView = await signup.render({ api: existsApi, params: { token: 'exists-token' }, go(p) { dest = p; } });
+ok(dest === '/login?email=ada%40example.test' && existsView.redirect === dest && !/already used/i.test(toText(existsView.body)) && !/portal login/i.test(toText(existsView.body)), 'an email that already has a login takes the same path to Sign in');
 const pending = await api.getAgentInvite('demo-lena-pending-0001');
 ok(pending.status === 'pending', 'a pending invite still opens the setup form');
+dest = '';
 const pendingView = await signup.render({ api, params: { token: 'demo-lena-pending-0001' }, go(p) { dest = p; } });
 const pendingText = toText(pendingView.body);
-ok(/data-invite-state="pending"/.test(pendingText) && /Set up your agent account/.test(pendingText) && !/already used/i.test(pendingText) && !dest, 'a pending invite still opens registration, not login');
+ok(/data-invite-state="pending"/.test(pendingText) && /Set up your agent account/.test(pendingText) && !/already used/i.test(pendingText) && !dest && !pendingView.redirect, 'a pending invite still opens registration, not login');
+dest = '';
+const expiredView = await signup.render({ api, params: { token: 'demo-expired-0001' }, go(p) { dest = p; } });
+const expiredText = toText(expiredView.body);
+ok(!dest && !expiredView.redirect && /data-invite-state="expired"/.test(expiredText) && /expired/i.test(expiredText) && /#\/login/.test(expiredText), 'an expired invite still explains itself and offers sign in');
+dest = '';
+const invalidView = await signup.render({ api, params: { token: 'not-a-real-token' }, go(p) { dest = p; } });
+const invalidText = toText(invalidView.body);
+ok(!dest && !invalidView.redirect && /data-invite-state="invalid"/.test(invalidText) && /not valid/i.test(invalidText), 'an unknown invite still says the link is not valid');
+dest = '';
+const revokedView = await signup.render({ api: { getAgentInvite: async () => ({ status: 'revoked', email: 'old@example.test' }) }, params: { token: 'revoked' }, go(p) { dest = p; } });
+ok(!dest && !revokedView.redirect && /no longer active/i.test(toText(revokedView.body)), 'a revoked invite still says it is no longer active');
+const appSrc = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+ok(/if \(view && view\.redirect\)/.test(appSrc) && appSrc.includes("import('./pages/agent-signup.js?v=202611211100')"), 'the router leaves for Sign in before drawing a used invite');
 
 console.log(fail ? fail + ' failed' : 'agent complete and invite sign-in passed');
 if (fail) process.exit(1);
