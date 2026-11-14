@@ -19,15 +19,16 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611191700';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611221900';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611221900';
+import { prefetchDealTab } from './deal-tab.js?v=202611222100';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { viewTasksHref } from '../data/task-board.js?v=202611140100';
 import { earnestView } from '../data/earnest-commission.js?v=202611191700';
-import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611190800';
-import { bindAddressFill } from '../data/address-fill.js?v=202611190800';
+import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611222100';
+import { bindAddressFill } from '../data/address-fill.js?v=202611222100';
+import { countyFieldHtml, mountCountySelect } from './county-field.js?v=202611222100';
 import { agentFeesPanel, agentFeesPointer } from './agent-fees-box.js?v=202611221900';
 function staffSections(ctx, dealId) {
   const { api } = ctx;
@@ -261,7 +262,7 @@ async function editModal(api, d, refresh, meId) {
   const srcOpts = sourceChoices(d.sourceOfBusiness, d.sourceOfBusinessLabel, refi, referralContacts(d.participants));
   const m = modal('Edit order details', html`<form id="edf" class="form-grid">
     <label class="span2">Street<input name="street" required value="${v('street')}"></label><label>City<input name="city" required value="${v('city')}"></label>
-    <label>State<select name="state" required><option value="">Select state</option>${US_STATE_NAMES.map(([c, n]) => html`<option value="${c}" ${c === d.state ? raw('selected') : ''}>${n} (${c})</option>`)}${d.state && !US_STATES.includes(d.state) ? html`<option value="${d.state}" selected>${d.state}</option>` : ''}</select></label><label>ZIP<input name="zip" value="${v('zip')}"></label><label>County<input name="county" maxlength="100" value="${v('county')}" aria-label="County"></label>
+    <label>State<select name="state" required><option value="">Select state</option>${US_STATE_NAMES.map(([c, n]) => html`<option value="${c}" ${c === d.state ? raw('selected') : ''}>${n} (${c})</option>`)}${d.state && !US_STATES.includes(d.state) ? html`<option value="${d.state}" selected>${d.state}</option>` : ''}</select></label><label>ZIP<input name="zip" value="${v('zip')}"></label>${countyFieldHtml(d.state, d.county, '(pick from the list)')}
     <label>Open date<input type="date" name="openDate" required value="${v('openDate')}" max="${officeDate()}"></label>    <label>Closing date<input type="date" name="closingDate" value="${v('closingDate')}"></label><label>Disbursement date<input type="date" name="disbursementDate" value="${v('disbursementDate')}" data-disbursement-input><span class="field-hint">Leave blank for the automatic date (${disbursementFor({ ...d, disbursementDate: '' }).note}).</span></label>
     ${refi ? html`<p class="span2 muted small" data-refi-edit>Refinance: no purchase price or EMD.${d.purchasePrice != null || d.emdAmount != null || d.emdDueDate ? ' This older order still has one; saving clears it.' : ''}</p><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>`
       : html`<label>Purchase price<input name="purchasePrice" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.purchasePrice)}"></label><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>
@@ -285,6 +286,7 @@ async function editModal(api, d, refresh, meId) {
     sel.value = [...sel.options].some((o) => o.value === (keep == null ? (d.processorId || '') : next.value)) ? (keep == null ? (d.processorId || '') : next.value) : ''; };
   paintProcessors(procs, null);
   mountParcelFields(m);
+  mountCountySelect($('#edf', m));
   bindAddressFill($('#edf', m));
   $('[data-refresh-processors]', m).addEventListener('click', guard(async () => { const street = $('[name=street]', m).value; const keep = $('[name=processorId]', m).value; paintProcessors(await api.listProcessors(), keep);
     if ($('[name=street]', m).value !== street) throw new Error('Refreshing the Processor list must not clear the form.'); toast('Processor list updated. The other fields were kept.'); }));

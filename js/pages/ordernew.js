@@ -21,8 +21,9 @@ import { duplicateNotice } from '../data/order-duplicates.js?v=202611191800';
 import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
 import { orderDraftKey, readOrderDraft, writeOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim, tombstoneOrderDraft } from '../data/order-draft.js?v=202611140200';
 import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows } from '../data/lender-file.js?v=202611101200';
-import { bindAddressFill } from '../data/address-fill.js?v=202611190800';
-import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611190800';
+import { bindAddressFill } from '../data/address-fill.js?v=202611222100';
+import { countyFieldHtml, mountCountySelect, paintCountyOptions } from './county-field.js?v=202611222100';
+import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611222100';
 import { readEarnest } from '../data/earnest-commission.js?v=202611191700';
 import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611221900';
 import { SIDE_LABEL as AF_SIDE_LABEL } from '../data/agent-fees.js?v=202611221900';
@@ -153,7 +154,7 @@ export async function render({ api, user, go }) {
         <label class="span2">Street address *<input name="street" required maxlength="200" autocomplete="off"></label>
         <label>City *<input name="city" required maxlength="100"></label><label>State *<select name="state" required><option value="">Select state</option>${US_STATE_NAMES.map(([c, n]) => html`<option value="${c}">${n} (${c})</option>`)}</select></label>
         <label>ZIP<input name="zip" maxlength="10" placeholder="20850"></label>
-        <label>County <span class="muted small">(optional; filled from the address or the ZIP when left blank)</span><input name="county" maxlength="100" placeholder="e.g. Frederick" aria-label="County"></label>
+        ${countyFieldHtml('', '', '(optional; pick from the list, or leave blank to fill from the address or the ZIP)')}
         ${parcelFieldsHtml([''])}
         <p class="span2 muted small" data-address-fill>Leave the street box (or pick a full address) and the empty city, state, ZIP and county fill from that line and the bundled ZIP table. A value you already typed stays. Parcel IDs stay typed; use + Parcel ID for another.</p>
         <div class="span2" id="md-occ" hidden><p class="muted small">Maryland purchases only.</p>${occSelects({})}</div></div>`,
@@ -386,6 +387,7 @@ export async function render({ api, user, go }) {
     ['Buyer Agent', 'Listing Agent'].forEach((role) => { const card = $(`[data-agent-card="${role}"]`, root);
       $('[data-agent-role]', card).addEventListener('change', () => { const nextRole = $('[data-agent-role]', card).value; if (nextRole === role) return; try { moveAgent(role, nextRole); } catch (err) { toast(err.message, 'err'); } }); });
     mountPlaceOrderFees(form, () => { try { return moneyAmount(form.elements.purchasePrice ? form.elements.purchasePrice.value : ''); } catch (err) { return null; } });   // Agent fees (Nov 13): % and $ stay in step
+    mountCountySelect(form);
     bindAddressFill(form);
     const syncAfterAddress = () => syncMd();
     ['street', 'city', 'state', 'zip'].forEach((name) => { const el = form.querySelector(`[name="${name}"]`); if (el) el.addEventListener('blur', syncAfterAddress); });
@@ -684,6 +686,8 @@ export async function render({ api, user, go }) {
     if (prior) {
       Object.keys(prior.fields || {}).map((k) => /^lcFirst:(\d+)$/.exec(k)).filter(Boolean).map((m) => Number(m[1])).sort((a, b) => a - b).forEach((i) => addLc(i));
       const restored = applyOrderDraft(form, prior, procs);
+      const countySel = $('select[name="county"]', form);
+      if (countySel) paintCountyOptions(countySel, (prior.fields || {}).state, (prior.fields || {}).county);
       if (repOn && draftKeepsUnrecordedRepresentation(prior.fields)) $$('[name=claRepresentation]', form).forEach((el) => { el.checked = false; });
       applyRefi();
       syncPickers();

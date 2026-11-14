@@ -88,6 +88,57 @@ const syncProblem = await page.evaluate(async () => {
   } catch (e) { return 'processor sync: ' + (e && e.message ? e.message : String(e)); }
 });
 if (syncProblem) problems.push(`processor sync: ${syncProblem}`);
+
+// REC-CALC-1: a misspelled county shows the plain message and no fee lines. A listed county still calculates.
+await page.evaluate(async () => {
+  const mods = performance.getEntriesByType('resource').map((e) => e.name).filter((n) => /\/js\/data\/adapter\.js\?v=\d+/.test(n));
+  const { getAdapter } = await import(mods[0]);
+  const api = await getAdapter();
+  await api.signInDev('u-admin');
+  await api.setModuleLive('accounting', true);
+});
+await page.goto(`${base}#/deals/deal-1/accounting?calc=1`); await page.reload(); await settle('montgomery calculator');
+try {
+  await page.waitForSelector('[data-calc-form]', { timeout: 10000 });
+  await page.click('[data-calc-preview]');
+  await page.waitForSelector('[data-calc-diff] tr[data-calc-row]', { timeout: 10000 });
+  const countyLines = await page.locator('[data-calc-row]').evaluateAll((rows) => rows.map((r) => r.innerText).filter((t) => /County (recordation|transfer) tax/i.test(t)));
+  if (countyLines.length < 2) problems.push(`Montgomery preview is missing county taxes (${countyLines.length})`);
+} catch (e) { problems.push('valid county did not calculate: ' + (e && e.message ? e.message : e)); }
+await page.evaluate(async () => {
+  const mods = performance.getEntriesByType('resource').map((e) => e.name).filter((n) => /\/js\/data\/adapter\.js\?v=\d+/.test(n));
+  const { getAdapter } = await import(mods[0]);
+  const api = await getAdapter();
+  await api.signInDev('u-admin');
+  await api.updateDeal('deal-1', { county: 'Mongomery' });
+});
+await page.goto(`${base}#/deals/deal-1/accounting?calc=1`); await page.reload(); await settle('misspelled county calculator');
+try {
+  await page.waitForSelector('[data-calc-not-ready]', { timeout: 10000 });
+  const note = await page.locator('[data-calc-not-ready]').innerText();
+  if (!note.includes("We couldn't find this county in CLA's rates. Pick the county from the list, then calculate again.")) problems.push('misspelled county message: ' + note);
+  if (await page.locator('[data-calc-diff]').count()) problems.push('misspelled county still showed fee lines');
+  if (await page.locator('[data-calc-form]').count()) problems.push('misspelled county still offered Calculate');
+} catch (e) { problems.push('misspelled county screen: ' + (e && e.message ? e.message : e)); }
+await page.goto(`${base}#/deals/deal-1`); await settle('edit order county');
+try {
+  await page.click('#editdeal');
+  await page.waitForSelector('#edf select[name="county"]', { timeout: 10000 });
+  const label = await page.locator('#edf select[name="county"] option[data-county-unmatched]').evaluate((o) => o.textContent || '');
+  const selected = await page.locator('#edf select[name="county"]').inputValue();
+  if (selected !== 'Mongomery' || !label.includes('Mongomery') || !label.includes('not matched')) problems.push('saved county was not shown as not matched: ' + selected + ' / ' + label);
+} catch (e) { problems.push('edit order county list: ' + (e && e.message ? e.message : e)); }
+await page.goto(`${base}#/orders/new`); await settle('place order county');
+try {
+  await page.click('[data-wiz-tab="property"]');
+  await page.waitForSelector('[data-wiz-step="property"] select[name="county"]', { timeout: 10000 });
+  await page.selectOption('[data-wiz-step="property"] select[name="state"]', 'MD');
+  const names = await page.locator('[data-wiz-step="property"] select[name="county"] option').evaluateAll((opts) => opts.map((o) => o.value).filter(Boolean));
+  if (!names.includes('Montgomery')) problems.push('Place Order county list is missing Montgomery');
+  if (names.includes('Miami-Dade')) problems.push('Place Order county list is not limited to Maryland');
+  if (await page.locator('[data-wiz-step="property"] input[name="county"]').count()) problems.push('Place Order county is still a typed box');
+} catch (e) { problems.push('place order county list: ' + (e && e.message ? e.message : e)); }
+
 await browser.close(); server.close();
 console.log(rows.join('\n'));
 const unique = [...new Set(problems)];
