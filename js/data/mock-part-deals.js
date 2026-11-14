@@ -1,10 +1,10 @@
 /* mock adapter, part 1: auth, profile, dashboard, deals. See mock-adapter.js. */
 import { autoCounty } from './county-auto.js?v=202611131900';
-import { checkSource } from './mock-part-nov3b.js?v=202611171200';
+import { checkSource } from './mock-part-nov3b.js?v=202611191800';
 import { isRefi, REFI_BLOCKED_FIELDS, STAFF_ACCOUNT_ROLES } from './constants.js?v=202611101015';
 import { closerChoices, resolveCloser } from './closer.js?v=202611101015';
-import { PROCESSOR_PICK_ROLES, referralWriteError } from './place-order.js?v=202611092320';
-import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611101700';
+import { PROCESSOR_PICK_ROLES, SALES_PICK_ROLES, tidyPersonName, referralWriteError } from './place-order.js?v=202611191800';
+import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611191800';
 import { claRepresentationCode } from './cla-representation.js?v=202611090950';
 import { buildFileNumber, retagFileNumber, sentOutside } from './file-number.js?v=202611092340';
 import { officeDate } from './office-date.js?v=202611102100';
@@ -27,11 +27,12 @@ export function dealsAndAuth(x) {
   const { load, save, nid, me, needUser, needProcessor, contactOf, dealsFor, dealOr404, log, notify, nameOf, dealView, taskVisible, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
   // John, Nov 2: several salespeople per file; each must be an ACTIVE Sales Person or Sales Team user. The file's Processor must be an active Processor.
-  const checkSales = (id) => { const p = x.prof(id) || fail('Salesperson not found.'); if (!['Sales Person', 'Sales Team'].includes(p.role)) fail('Only a Sales Person or Sales Team user can be a salesperson on an order.');
-    if (p.status !== 'active') fail('Only an active salesperson can be added to an order.'); return p; };
+  const checkSales = (id, actor) => { const p = x.prof(id) || fail('Salesperson not found.');
+    if (!SALES_PICK_ROLES.includes(p.role) || p.status !== 'active') fail('Only an active staff login can be a salesperson on an order.');
+    if (!!p.isDemo !== !!(actor && actor.isDemo)) fail('A real order cannot use a demo login, and a demo order cannot use a real login.'); return p; };
   const checkPreprocessor = (id) => { if (id == null || id === '') return null; const p = x.prof(id) || fail('Preprocessor not found.'); if (p.role !== 'Preprocessor' || p.status !== 'active') fail('The Preprocessor on an order must be an active Preprocessor.'); return p; };
   const checkProcessor = (id, actor) => { if (id == null || id === '') return null; const p = x.prof(id) || fail('Processor not found.');
-    if (!PROCESSOR_PICK_ROLES.includes(p.role) || p.status !== 'active') fail('The Processor on an order must be an active Processor, Preprocessor, Admin or Super admin.');
+    if (!PROCESSOR_PICK_ROLES.includes(p.role) || p.status !== 'active') fail('The Processor on an order must be an active staff login.');
     if (!!p.isDemo !== !!(actor && actor.isDemo)) fail('A real order cannot use a demo Processor, and a demo order cannot use a real Processor.'); return p; };
   const salesList = (inp) => { const v = inp.salesIds !== undefined ? inp.salesIds : inp.salesPersonId; return [...new Set((v == null ? [] : Array.isArray(v) ? v : String(v).split(',')).map((z) => String(z).trim()).filter(Boolean))]; };
   const closerOn = (u, text, current) => {
@@ -71,20 +72,19 @@ export function dealsAndAuth(x) {
     },
     // Place Order: who can be the file's Processor (John, Nov 2: an Admin placing an order must pick one)
     async listProcessors() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
-      return clone(load().profiles.filter((p) => p.status === 'active' && PROCESSOR_PICK_ROLES.includes(p.role) && !!p.isDemo === !!u.isDemo).map(({ id, firstName, lastName, role, isDemo }) => ({ id, firstName, lastName, role, isDemo: !!isDemo }))); },
+      return clone(load().profiles.filter((p) => p.status === 'active' && PROCESSOR_PICK_ROLES.includes(p.role) && !!p.isDemo === !!u.isDemo).map((p) => { const n = tidyPersonName(p); return { id: p.id, firstName: n.firstName, lastName: n.lastName, role: p.role, isDemo: !!p.isDemo, name: n.name }; })); },
     async listPreprocessors() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
       return clone(load().profiles.filter((p) => p.status === 'active' && p.role === 'Preprocessor').map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role }))); },
-    // John, Nov 2: who can be a file's Transaction Coordinator = active users whose account role is exactly 'Transaction Coordinator' (with their contact id).
-    // A TC login with no contact stays off this list. The migration creates that contact; opening Place Order does not.
+    // John, ANYROLE-1: any active staff login can be the file's Transaction Coordinator. The field uses the profile id.
     async listCoordinators() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
       const d = load(); const plan = coordinatorRoster(d.profiles, d.contacts, u);
-      return clone(plan.rows.filter((r) => r.contactId).map((r) => ({ id: r.profileId, contactId: r.contactId, firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, company: r.company, role: 'Transaction Coordinator' }))); },
+      return clone(plan.rows.map((r) => ({ id: r.profileId, profileId: r.profileId, contactId: r.contactId || '', firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, company: r.company, role: r.role }))); },
     async findDuplicateOrders({ street, city, state, zip, buyerIds, sellerIds } = {}) { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
       const d = load(); const orders = dealsFor(u).map((q) => ({ id: q.id, fileNumber: q.fileNumber, street: q.street, city: q.city, state: q.state, zip: q.zip, status: q.status,
         buyerIds: d.participants.filter((p) => p.dealId === q.id && p.role === 'Client-Buyer').map((p) => p.contactId),
         sellerIds: d.participants.filter((p) => p.dealId === q.id && p.role === 'Client-Seller').map((p) => p.contactId) }));
       return duplicateOrders({ street, city, state, zip, buyerIds, sellerIds, orders }); },
-    async listSalesStaff() { needUser(); return clone(load().profiles.filter((p) => p.status === 'active' && ['Sales Person', 'Sales Team'].includes(p.role)).map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role }))); },
+    async listSalesStaff() { const u = needUser(); return clone(load().profiles.filter((p) => p.status === 'active' && SALES_PICK_ROLES.includes(p.role) && !!p.isDemo === !!u.isDemo).map((p) => { const n = tidyPersonName(p); return { id: p.id, firstName: n.firstName, lastName: n.lastName, role: p.role, name: n.name }; })); },
     async listActiveStaff() { const u = needUser(); return clone(load().profiles.filter((p) => p.status === 'active' && STAFF_ACCOUNT_ROLES.includes(p.role) && !!p.isDemo === !!u.isDemo).map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role, status: 'active' }))); },
     async unreadCount() { const u = needUser(); return dealsFor(u).reduce((n, q) => n + dealView(u, q).unread, 0); },
     // ---------- Deals ----------
@@ -129,7 +129,7 @@ export function dealsAndAuth(x) {
       const proc = checkProcessor(input.processorId || null, u); const procId = proc ? proc.id : null;
       const claRepresentation = input.claRepresentation === undefined ? null : claRepresentationCode(input.claRepresentation);
       const preprocId = checkPreprocessor(input.preprocessorUserId || null);
-      const salesIds = salesList(input); salesIds.forEach(checkSales);
+      const salesIds = salesList(input); salesIds.forEach((sid) => checkSales(sid, u));
       const street = str(input.street, 200) || fail('Street address is required.');
       const city = str(input.city, 100) || fail('City is required.');
       const state = stateCode(input.state); if (!C.US_STATES.includes(state)) fail('Pick a US state.');
@@ -213,10 +213,10 @@ export function dealsAndAuth(x) {
           log(id, u.id, 'deal.processor', 'deal', id, nextId ? `Processor set to ${nameOf(nextId)}` : 'Processor unassigned'); } }
       // John, Nov 9: the file's Transaction Coordinator (informational; staff set / change / clear it any time). Same activity + one notification as the hosted trigger.
       if (patch.tcUserId !== undefined) { const nextId = patch.tcUserId || null; const prev = q.tcUserId || null;
-        if (nextId && !d.profiles.some((p) => p.id === nextId && p.status === 'active' && p.role === 'Transaction Coordinator')) fail('The Transaction Coordinator on an order must be an active Transaction Coordinator.');
+        if (nextId) { const tc = d.profiles.find((p) => p.id === nextId); if (!tc || tc.status !== 'active' || !PROCESSOR_PICK_ROLES.includes(tc.role)) fail('The Transaction Coordinator on an order must be an active staff login.'); if (!!tc.isDemo !== !!u.isDemo) fail('A real order cannot use a demo login, and a demo order cannot use a real login.'); }
         if (nextId !== prev) { q.tcUserId = nextId; log(id, u.id, 'deal.tc', 'deal', id, nextId ? `Transaction Coordinator set to ${nameOf(nextId)}` : 'Transaction Coordinator unassigned');
           if (nextId) notify([nextId], { kind: 'tc', dealId: id, title: `You are now the Transaction Coordinator on ${q.fileNumber || 'an order'}`, link: `#/deals/${id}` }, u.id); } }
-      if (patch.salesIds !== undefined || patch.salesPersonId !== undefined) { const ids = salesList(patch); ids.forEach((sid) => { if (!x.salesOf(id).some((s) => s.salesId === sid)) checkSales(sid); }); setSales(u, id, ids); }
+      if (patch.salesIds !== undefined || patch.salesPersonId !== undefined) { const ids = salesList(patch); ids.forEach((sid) => { if (!x.salesOf(id).some((s) => s.salesId === sid)) checkSales(sid, u); }); setSales(u, id, ids); }
       if (patch.closingTime !== undefined) q.closingTime = closingTimeOf(patch.closingTime);
       if (patch.closerName !== undefined || patch.closerProfileId !== undefined) {
         const next = closerOn(u, patch.closerName, { closerName: q.closerName || '', closerProfileId: q.closerProfileId || null });
@@ -233,13 +233,13 @@ export function dealsAndAuth(x) {
     },
     // ---------- salespeople on a file (John, Nov 2; mirrors public.deal_sales_people, migration 19): Processor and Admins only ----------
     async addDealSalesPerson(dealId, salesId) { const u = needProcessor(); dealOr404(u, dealId);
-      if (x.salesOf(dealId).some((s) => s.salesId === salesId)) fail('Already on this order.'); checkSales(salesId);
+      if (x.salesOf(dealId).some((s) => s.salesId === salesId)) fail('Already on this order.'); checkSales(salesId, u);
       setSales(u, dealId, [...x.salesOf(dealId).map((s) => s.salesId), salesId]); save(); return clone(dealView(u, load().deals.find((q) => q.id === dealId)).salesPeople); },
     async removeDealSalesPerson(dealId, salesId) { const u = needProcessor(); dealOr404(u, dealId);
       if (!x.salesOf(dealId).some((s) => s.salesId === salesId)) fail('Not on this order.');
       setSales(u, dealId, x.salesOf(dealId).map((s) => s.salesId).filter((sid) => sid !== salesId)); save(); return clone(dealView(u, load().deals.find((q) => q.id === dealId)).salesPeople); },
     async setDealSalesPeople(dealId, salesIds) { const u = needProcessor(); dealOr404(u, dealId); const ids = salesList({ salesIds });
-      ids.forEach((sid) => { if (!x.salesOf(dealId).some((s) => s.salesId === sid)) checkSales(sid); }); setSales(u, dealId, ids); save();
+      ids.forEach((sid) => { if (!x.salesOf(dealId).some((s) => s.salesId === sid)) checkSales(sid, u); }); setSales(u, dealId, ids); save();
       return clone(dealView(u, load().deals.find((q) => q.id === dealId)).salesPeople); },
     async setStage(id, stage) {
       const u = needProcessor(); const d = load(); const q = d.deals.find((y) => y.id === id) || fail('Order not found.');

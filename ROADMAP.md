@@ -17,7 +17,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When CLA staff open a file, they enter each agent's fees for their side (listing agent and buyer's agent): the commission as a percent or a dollar amount, which always stay in sync with each other using the sales price; an admin fee (paid by the buyer for the buyer's agent and by the seller for the listing agent unless changed); and up to 5 other fees, each with a description, an amount and who it's paid to. Each agent sees and can change their own side in the portal. Before saving, they see a "You're changing X from $A to $B" check, and the fee is then marked "Agent confirmed". A TC can confirm for the agent. Once confirmed, the agent's figure wins. Staff can still change it, but they must give a reason, and the agent is told straight away (old value, new value, reason, who). When an agent changes a fee, the processor, pre-processor and TC on the file are told, in the portal and by email. The fees go straight onto the right lines in Accounting, and from there onto the Closing Disclosure (CD) and the ALTA settlement statement, which can also be generated as PDFs. Buyers and sellers never see commissions or agent fees. Every change is kept in a history: who, when, old value, new value, reason, and whether staff, the agent or the TC made it.
 
-**Status: Built (AF-1 to AF-6 Live on TEST). AF-7 is on TEST but not Live: saving an order fails until the permission fix is applied and checked there.**
+**Status: Built (AF-1 to AF-7 Live on TEST as of Nov 13 2026, fix [PR 259](https://github.com/Johncoester/cla-portal-demo/pull/259)).**
 
 | Step | What | Status |
 |---|---|---|
@@ -27,7 +27,7 @@ This file lists the portal's major features: how each one should work, how far a
 | AF-4 | Notice to the agent when staff change a confirmed fee | Live on TEST, [PR 236](https://github.com/Johncoester/cla-portal-demo/pull/236) |
 | AF-5 | Fees post to Accounting automatically | Live on TEST, [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) |
 | AF-6 | "Generate CD" and "Generate ALTA" PDF buttons | Live on TEST, [PR 238](https://github.com/Johncoester/cla-portal-demo/pull/238) |
-| AF-7 | Follow-ups: one place for commissions, agent task without fee questions, walkthrough test (Owner: Claude) | On TEST, not Live. [PR 257](https://github.com/Johncoester/cla-portal-demo/pull/257) is merged and its database file is applied, but Place Order fails with a permission error. Follow-up [PR 259](https://github.com/Johncoester/cla-portal-demo/pull/259) is not Live until `20261119180000_old_commission_keys_permissions.sql` is applied on TEST and Place Order is checked there |
+| AF-7 | Follow-ups: one place for commissions, agent task without fee questions, walkthrough test (Owner: Claude) | Live on TEST, Nov 13 2026. [PR 257](https://github.com/Johncoester/cla-portal-demo/pull/257) + fix [PR 259](https://github.com/Johncoester/cla-portal-demo/pull/259), migrations 20261119030000 and 20261119180000 applied on TEST |
 
 **What's built**
 
@@ -216,6 +216,36 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - Matt confirmed the numbered list on Nov 12 at 2:04 PM ET. MF-054 supersedes MF-052 and MF-047. John waived rule 9 at 1:25 PM ET Nov 13 (t1618u) so this could be built while the walkthrough's remaining email failure was set aside. Agent fees stays on the overview because it is a separate live feature (AF-2), not one of the redundant boxes Matt asked to remove.
+
+---
+
+## Any staff role on a file (ANYROLE-1)
+
+**How it should work.** At the admin level, each login still has one account role. On a file, any active staff login (Super admin, Admin, Processor, Preprocessor, Sales Person, Sales Team or Transaction Coordinator) can be picked as the Processor, a salesperson, the Transaction Coordinator, or a party such as the buyer, seller, buyer agent, listing agent or lender. A staff login added as the buyer or seller can open that file in the portal. Demo and real logins stay in their own world. The CRM Owner field is unchanged.
+
+**Status: In progress.** Tracker row ANYROLE-1 (Requests row 288). Pull request: [PR 258](https://github.com/Johncoester/cla-portal-demo/pull/258). It includes a database change that must be applied on TEST after this merges, before the item is marked Live.
+
+**What's built**
+
+- The Processor, salesperson and Transaction Coordinator lists include every active staff role in the same real or demo world. Edit order details labels the signed-in person with "(you)". Names with extra spaces, such as a trailing space in a first name, display as a normal name.
+- A staff login can be added as a buyer, seller, agent, lender or other party from Place Order or File Contacts. If they do not already have a contact record, one is created and linked to their login so they can open the file.
+- A Sales Person (or other staff who do not run orders) added as a buyer or seller sees that file in their portal in the buyer or seller view. Super admins, Admins and Processors keep the staff file view and still see themselves listed as a party.
+- An outside user still cannot be added as CLA staff.
+
+**What's still missing**
+
+- The database change is not applied on TEST yet (it waits until this pull request merges). An Employee (HR-only) login is not offered on files, because that role has no order work.
+- A Super admin who is also the buyer still sees the staff File Overview, not the buyer overview. They can open the file and are listed as the buyer.
+
+**Links**
+
+- Spec: none yet. Source: John, call + chat 3:07 PM ET Nov 13. Tracker row ANYROLE-1.
+- Related pull requests: [PR 258](https://github.com/Johncoester/cla-portal-demo/pull/258).
+
+**Decisions**
+
+- John confirmed "add every role" and approved the recap in chat at 3:07 PM ET Nov 13 (t1637u, t1638u). Account roles stay the same at the admin level; only the file-level pickers open up.
+- Nov 14: this pull request was brought up to date with main, including AF-7 (one place for commissions), FF-073 invites, MF-054 file overview, MF-045 Documents From, and FF-052 disbursement date. The database file stays `20261119150000_file_any_staff_roles.sql`. The later database files on main do not replace these functions.
 
 ---
 

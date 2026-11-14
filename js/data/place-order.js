@@ -1,3 +1,4 @@
+import { STAFF_ACCOUNT_ROLES } from './constants.js?v=202611101015';
 /* Place Order helpers (John, Nov 6; party referral Nov 7). No network. Used by the wizard and by tests.
  * One order has one source-of-business text. A person on the file is "<code>:<contact id>".
  * Buyer and seller are separate codes. "homeowner" stays a legacy value and is never rewritten into either.
@@ -126,14 +127,25 @@ export function withoutHiddenProfiles(contacts, visibleProfileIds) {
   const ids = visibleProfileIds instanceof Set ? visibleProfileIds : new Set(visibleProfileIds || []);
   return (contacts || []).filter((c) => !c.profileId || ids.has(c.profileId));
 }
-export const PROCESSOR_PICK_ROLES = ['Processor', 'Preprocessor', 'Admin', 'Super admin'];
+/* File-level pickers (John, call + chat 3:07 PM ET Nov 13, ANYROLE-1): any active staff login
+ * can be the file's Processor, salesperson or Transaction Coordinator. Account roles stay as they are. */
+export const PROCESSOR_PICK_ROLES = [...STAFF_ACCOUNT_ROLES];
+export const SALES_PICK_ROLES = [...STAFF_ACCOUNT_ROLES];
+export const FILE_STAFF_ROLES = [...STAFF_ACCOUNT_ROLES];
+export function tidyPersonName(p) {
+  const first = String((p && (p.firstName || p.first_name)) || '').replace(/\s+/g, ' ').trim();
+  const last = String((p && (p.lastName || p.last_name)) || '').replace(/\s+/g, ' ').trim();
+  const name = `${first} ${last}`.trim() || String((p && p.name) || '').replace(/\s+/g, ' ').trim();
+  return { firstName: first, lastName: last, name };
+}
 /* Unassigned is a real choice. A blank id is not filled with the person who is signed in. */
 export function processorChoices(procs, keepId, meId) {
   // Unassigned clears the assignment (John Nov 6 / Francis Nov 9: staff must be able to remove a Processor).
   const options = [{ value: '', label: 'Unassigned' }];
   for (const p of procs || []) {
     if (!p || !p.id) continue;
-    const name = `${p.firstName || ''} ${p.lastName || ''}`.trim() || p.name || 'Processor';
+    const names = tidyPersonName(p);
+    const name = names.name || 'Processor';
     const role = p.role && p.role !== 'Processor' ? ` (${p.role})` : '';
     const you = meId && p.id === meId ? ' (you)' : '';
     const email = p.email ? ` — ${p.email}` : '';
@@ -142,7 +154,6 @@ export function processorChoices(procs, keepId, meId) {
   const value = keepId && options.some((o) => o.value === keepId) ? keepId : '';
   return { options, value, dropped: !!(keepId && value !== keepId) };
 }
-export const SALES_PICK_ROLES = ['Sales Person', 'Sales Team'];
 /* Edit order. With the people on the file, one option per eligible contact (the same value as the Parties radio).
  * Without that list, the role names, and a refinance keeps the older lender-only role list.
  * A stored value that is not one of those choices stays on the list unchanged (homeowner, a marketing Lead Source, a bare code). */
