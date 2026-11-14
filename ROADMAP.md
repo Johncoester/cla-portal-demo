@@ -17,7 +17,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When CLA staff open a file, they enter each agent's fees for their side (listing agent and buyer's agent): the commission as a percent or a dollar amount, which always stay in sync with each other using the sales price; an admin fee (paid by the buyer for the buyer's agent and by the seller for the listing agent unless changed); and up to 5 other fees, each with a description, an amount and who it's paid to. Each agent sees and can change their own side in the portal. Before saving, they see a "You're changing X from $A to $B" check, and the fee is then marked "Agent confirmed". A TC can confirm for the agent. Once confirmed, the agent's figure wins. Staff can still change it, but they must give a reason, and the agent is told straight away (old value, new value, reason, who). When an agent changes a fee, the processor, pre-processor and TC on the file are told, in the portal and by email. The fees go straight onto the right lines in Accounting, and from there onto the Closing Disclosure (CD) and the ALTA settlement statement, which can also be generated as PDFs. Buyers and sellers never see commissions or agent fees. Every change is kept in a history: who, when, old value, new value, reason, and whether staff, the agent or the TC made it.
 
-**Status: Built (AF-1 to AF-6 Live on TEST). AF-7 is on TEST but not Live: saving an order fails until the permission fix is applied and checked there.**
+**Status: Built (AF-1 to AF-7 Live on TEST as of Nov 13 2026, fix [PR 259](https://github.com/Johncoester/cla-portal-demo/pull/259)).**
 
 | Step | What | Status |
 |---|---|---|
