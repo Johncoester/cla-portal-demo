@@ -280,6 +280,34 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Type parties onto a file (FF-049 / MF-046)
+
+**How it should work.** On Place Order, and when adding someone on a file's Parties list or Contacts, staff can type a buyer, seller, buyer's agent, listing agent, or lender. They do not have to pick an existing contact, and the portal does not create a login or send an invite. Email is checked when it is filled in, and it is not required. Picking someone already saved still works. For agents and the lender, the list shows companies and agents or loan officers, and a person and company can also be typed by hand.
+
+**Status: In progress.** Not Live until this is on TEST and a processor has tried it there. No database file.
+
+**What's built**
+
+- Place Order buyer and seller rows take a name, email, and phone (and the entity fields that were already there). The search box remains for an existing contact. A typed name no longer stops on "pick a person from the list."
+- Buyer's agent, listing agent, and lender: a list of saved companies and agents or loan officers, plus boxes to type a person and a company.
+- The same entry is on the file's Parties buttons and on Contacts → Add contact.
+- A typed person is stored as a contact with no portal login. Invite to portal is unchanged and is still a separate action. An existing contact that is picked is not rewritten.
+
+**What's still missing**
+
+- Proof on TEST (testportal.clatitle.com) after this is merged. Not Live until then.
+
+**Links**
+
+- Spec: [docs/specs/file-parties.md](docs/specs/file-parties.md). Source: Francis, Nov 11 email via Matt's ticket; Francis confirmed option 3 on Nov 13, 2026, 9:14 AM ET. Tracker rows FF-049 and MF-046.
+- Related pull requests: this change. No database file.
+
+**Decisions**
+
+- Francis chose option 3 on Nov 13 at 9:14 AM ET, with a list plus manual entry for agents and lenders. Typed people are saved as contacts so the file can show them and Invite to portal still works later. No login is created and no invite is sent. Who can see the file stays the same, because a contact with no login cannot open it.
+
+---
+
 ## Contract intake AI
 
 **How it should work.** A spec is still to come.
