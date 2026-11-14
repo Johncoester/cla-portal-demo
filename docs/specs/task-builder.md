@@ -17,7 +17,7 @@ The end goal is a drag-and-drop flowchart screen where "almost any task can be a
 ### Settings on every task a flow creates
 
 - **Assigned to:** a role on the file (the file's processor, closer, sales rep…; the portal fills in the actual person) or a specific named person (for example, always Janine).
-- **Backup:** if the named person or role isn't available on that file, the task falls back to a backup so it doesn't get lost.
+- **Backup:** none for now (John, Nov 13). May be added later.
 - **Who can see it:** internal to CLA only, or also the agent, buyer, seller or lender in the portal.
 - **Due date:** counted from the opened, contract or closing date, as in PR 141.
 
@@ -26,11 +26,10 @@ The end goal is a drag-and-drop flowchart screen where "almost any task can be a
 - Task Builder is **its own admin menu item**, not under Task Templates.
 - Only **Admins and Super admins** can open it and change flows.
 - A task can be assigned by role **or** to a named person.
-- Tasks must have a backup so they don't get lost.
+- No backup person for now (decided Nov 13, 8:54 PM ET).
 
 ### Still to confirm with John
 
-- Backup: one default person for all tasks, or set per task.
 - Whether clients and agents can tick off tasks they can see, or only staff mark tasks done.
 - Two or three real rules from Francis to test against.
 
@@ -38,7 +37,7 @@ The end goal is a drag-and-drop flowchart screen where "almost any task can be a
 
 - Trigger: order opened. Wait 2 days. Check: has the EMD been received?
 - If no: email the buyer's agent a reminder (template, sent as the file's processor).
-- Wait 1 more day. Check again. If still no: a call task for the file's processor, due today (backup if no processor).
+- Wait 1 more day. Check again. If still no: a call task for the file's processor, due today (no backup for now).
 - If the EMD is received at any point: stop.
 
 ## Build steps (one pull request each)
@@ -47,7 +46,7 @@ The end goal is a drag-and-drop flowchart screen where "almost any task can be a
 |---|---|
 | TB-1 | Task Builder admin page and permissions (Admin / Super admin), list of flows with name, what starts it, and an On / Off switch; history of changes |
 | TB-2 | The flow engine: conditions and actions (create task, wait, check again) with a simple form; the EMD flow above working on TEST |
-| TB-3 | Task settings: assigned to (role or named person), backup, who can see it |
+| TB-3 | Task settings: assigned to (role or named person), who can see it |
 | TB-4 | Email actions with templates and "send as" |
 | TB-5 | Drag-and-drop flowchart screen |
 
