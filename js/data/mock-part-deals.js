@@ -9,7 +9,7 @@ import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=2026
 import { claRepresentationCode } from './cla-representation.js?v=202611090950';
 import { buildFileNumber, retagFileNumber, sentOutside, cleanFileNumber, FILE_NUMBER_TAKEN } from './file-number.js?v=202611222500';
 import { officeDate } from './office-date.js?v=202611102100';
-import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions } from './lender-file.js?v=202611101200';
+import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions } from './lender-file.js?v=202611222700';
 import { parcelInput } from './parcels.js?v=202611222100';
 import { earnestDealPatch, earnestTouched, OLD_COMMISSION_KEYS, OLD_COMMISSION_REFUSED, withoutOldCommission } from './earnest-commission.js?v=202611191700';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).

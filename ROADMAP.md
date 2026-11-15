@@ -665,3 +665,34 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Option (a): derive the lines when the page is read. Do not store them. That keeps the Nov 7 rule that contract figures are not a second copy on the fee ledger.
 - A typed line with the same name is the one copy. The screen says to remove it if File Overview should be the source.
+
+---
+
+## Loan split (FF-053)
+
+**How it should work.** Under Loan, Mortgage Brokerage and Mortgage Broker are two sections. Mortgage Brokerage is the company, with Edit and Switch. Mortgage Broker is the person: search and select people already saved at that brokerage, or add a new contact. One brokerage can have more than one broker.
+
+**Status: In progress.** Tracker row 184 (FF-053). Francis confirmed it by email on Nov 11 2026, 2:37 PM ET. John Coester, Nov 15 2026, next weekend item. Not Live until this is merged and `supabase/migrations/20261123030000_loan_broker_split.sql` is applied on TEST.
+
+**What's built**
+
+- Mortgage Brokerage shows the company name, with Edit Mortgage Brokerage and Switch Mortgage Brokerage.
+- Mortgage Broker shows each broker's name, phone, and email. Search stays inside that brokerage. Add Mortgage Broker creates the contact. A second broker can be added.
+- The loan officer and the lender processor stay under Lender contacts.
+- Place Order still asks for the brokerage company name only.
+- A blank brokerage, a blank broker name, or an email that is not valid is pointed out, and what was typed stays.
+
+**What's still missing**
+
+- Not checked on TEST yet. Not Live until the database file is applied on TEST.
+- The brokerage has no separate phone, email, or address. Switching the company does not remove brokers already on the file.
+
+**Links**
+
+- Spec: [docs/specs/loan-split.md](docs/specs/loan-split.md)
+- Source: Francis, tracker row 184. Confirmed Nov 11 2026, 2:37 PM ET.
+
+**Decisions**
+
+- A broker is a lender contact marked Mortgage Broker, not a new role on the file. That keeps file access the same.
+- The brokerage stays the company name already stored on the order.
