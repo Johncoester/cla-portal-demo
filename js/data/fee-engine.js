@@ -64,14 +64,18 @@ export const NO_OO = /^(FL|VA)$/;   // the calculator hides principal residence 
 // false = the owner's policy is REMOVED: no owner's line, no owner's endorsements, and the lender's policy is priced at the full basic rate.
 export const DEFAULT_OPTIONS = { occ: true, fthb: false, pol: 'enhanced', rate: 'basic', pres: 'trid', ownPay: '', payoff: 0, assessed: 0, ends: null, owner: true };
 // REC-CALC-2 (John, Nov 14 2026): documents to record. Shape matches the calculator's docs input: { "Deed": [count, pages], ... }.
-// Starting counts are the calculator's own DOC_DEFAULTS for this kind of file (a refinance still starts with one release; tying releases to payoffs is REC-CALC-3).
+// REC-CALC-3: on a purchase, the release count starts as the number of payoffs. A refinance keeps the calculator's own starting count. A saved count wins.
 export const RECORDING_DOCS = ['Deed', 'Deed of Trust', 'Release', 'Power of Attorney'];
 const DOC_PLAIN = { Deed: 'deed', 'Deed of Trust': 'deed of trust', Release: 'release', 'Power of Attorney': 'power of attorney' };
 export const DOC_LABELS = { Deed: 'Deed', 'Deed of Trust': 'Deed of Trust (DOT)', Release: 'Release', 'Power of Attorney': 'Power of Attorney (POA)' };
 const wholeNumber = (raw) => { const s = String(raw == null ? '' : raw).trim(); if (!/^\d+$/.test(s)) return null; const n = Number(s); return Number.isSafeInteger(n) ? n : null; };
-export function defaultRecordingDocs(type) {
+export function defaultRecordingDocs(type, payoffCount) {
   const src = C.DOC_DEFAULTS[type] || C.DOC_DEFAULTS.purchase; const out = {};
   for (const name of RECORDING_DOCS) out[name] = [src[name][0], src[name][1]];
+  if (type !== 'refi' && payoffCount != null && payoffCount !== '') {
+    const n = Math.floor(Number(payoffCount));
+    if (Number.isInteger(n) && n >= 0) out.Release = [Math.min(10, n), out.Release[1]];
+  }
   return out;
 }
 export function recordingDocsProblem(raw) {
@@ -85,8 +89,8 @@ export function recordingDocsProblem(raw) {
   }
   return null;
 }
-export function cleanRecordingDocs(raw, type) {
-  if (raw == null) return defaultRecordingDocs(type);
+export function cleanRecordingDocs(raw, type, payoffCount) {
+  if (raw == null) return defaultRecordingDocs(type, payoffCount);
   const problem = recordingDocsProblem(raw); if (problem) fail(problem.message);
   const out = {}; for (const name of RECORDING_DOCS) { const row = raw[name]; out[name] = [wholeNumber(Array.isArray(row) ? row[0] : row.count), wholeNumber(Array.isArray(row) ? row[1] : row.pages)]; }
   return out;
@@ -137,7 +141,7 @@ export function calcInputs(deal, options = {}, R = vendoredTables()) {
   if (type === 'refi' && !(loan > 0)) fail('Enter the loan amount on the order first (File Overview).');
   const county = countyOf(R, deal);
   const ends = o.ends != null ? o.ends : endorsementChoices(R, state, type).filter((e) => e.defaultOn).map((e) => e.code);
-  const docs = cleanRecordingDocs(o.docs, type);
+  const docs = cleanRecordingDocs(o.docs, type, deal && deal.payoffCount);
   return { type, state, county, uw: UNDERWRITER, price: type === 'refi' ? 0 : price, assessed: state === 'VA' && type !== 'refi' ? o.assessed : 0, loan: type === 'cash' ? 0 : loan, payoff: type === 'refi' ? o.payoff : 0,
     pol: o.pol, rate: o.rate, fthb: o.fthb && !NO_OO.test(state) && type !== 'refi', occ: NO_OO.test(state) || o.occ, ownPay: type === 'refi' ? '' : o.ownPay, pres: o.pres, ends,
     fees: claFeeInputs(R, state, type), docs, buyerPaidComm: { mode: 'pct', val: 0 }, brokerAdminFee: 0, buyerPaysSellerTax: false, taxPayers: undefined,
@@ -296,15 +300,15 @@ export const calcBlock = (line, proposal, at) => ({ key: line.key, fields: calcF
 export const feeInput = (line) => ({ kind: 'charge', description: line.description, altaSection: line.altaSection, cdSection: line.cdSection, cdLine: line.cdLine, payee: line.payee, amount: line.amount,
   paidBy: line.paidBy === 'split' ? 'split' : line.paidBy, split: line.paidBy === 'split' ? line.split : null, titlePrefix: line.titlePrefix, timing: 'at', poc: false, note: `${CALC_TAG}: ${line.calculation}`.slice(0, 1000), presetKey: 'cla:' + line.key });
 // the options a re-run should start from: the inputs stored on the newest calculated fee (the order's price / loan always come from the order)
-const docsFromSaved = (raw, type) => {
-  const out = defaultRecordingDocs(type); if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+const docsFromSaved = (raw, type, payoffCount) => {
+  const out = defaultRecordingDocs(type, payoffCount); if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
   for (const name of RECORDING_DOCS) { const row = raw[name]; if (Array.isArray(row) && row.length >= 2) out[name] = [row[0], row[1]]; }
   return out;
 };
 export function lastOptions(fees, deal) {
-  const type = calcTypeOf(deal || {});
-  const f = (fees || []).filter(isCalculated).sort((a, b) => String(b.calc.at || '').localeCompare(String(a.calc.at || '')))[0]; if (!f) return { ...DEFAULT_OPTIONS, docs: defaultRecordingDocs(type), ...orderOptions(deal) };
-  const x = f.calc.inputs || {}; return { ...cleanOptions({ occ: x.occ, fthb: x.fthb, pol: x.pol, rate: x.rate, pres: x.pres, ownPay: x.ownPay, payoff: x.payoff, assessed: x.assessed, ends: x.ends, owner: x.owner !== false }), docs: docsFromSaved(x.docs, type), ...orderOptions(deal) };
+  const type = calcTypeOf(deal || {}); const payoffCount = deal && deal.payoffCount;
+  const f = (fees || []).filter(isCalculated).sort((a, b) => String(b.calc.at || '').localeCompare(String(a.calc.at || '')))[0]; if (!f) return { ...DEFAULT_OPTIONS, docs: defaultRecordingDocs(type, payoffCount), ...orderOptions(deal) };
+  const x = f.calc.inputs || {}; return { ...cleanOptions({ occ: x.occ, fthb: x.fthb, pol: x.pol, rate: x.rate, pres: x.pres, ownPay: x.ownPay, payoff: x.payoff, assessed: x.assessed, ends: x.ends, owner: x.owner !== false }), docs: docsFromSaved(x.docs, type, payoffCount), ...orderOptions(deal) };
 }
 // John, Nov 3 call: the order's own First-time buyer / Primary residence answers (Place Order / Edit order) win over the last run's options
 export const orderAnswers = (deal) => ({ occ: deal && deal.primaryResidence ? deal.primaryResidence : '', fthb: deal && deal.firstTimeBuyer ? deal.firstTimeBuyer : '' });
