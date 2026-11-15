@@ -672,7 +672,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** Under Loan, Mortgage Brokerage and Mortgage Broker are two sections. Mortgage Brokerage is the company, with Edit and Switch. Mortgage Broker is the person: search and select people already saved at that brokerage, or add a new contact. One brokerage can have more than one broker.
 
-**Status: In progress.** Tracker row 184 (FF-053). Francis confirmed it by email on Nov 11 2026, 2:37 PM ET. John Coester, Nov 15 2026, next weekend item. Not Live until this is merged and `supabase/migrations/20261123030000_loan_broker_split.sql` is applied on TEST.
+**Status: In progress.** Tracker row 184 (FF-053). Francis confirmed it by email on Nov 11 2026, 2:37 PM ET. John Coester, Nov 15 2026, next weekend item. Pull request: [PR 284](https://github.com/Johncoester/cla-portal-demo/pull/284). Not Live until this is merged and `supabase/migrations/20261123030000_loan_broker_split.sql` is applied on TEST.
 
 **What's built**
 
