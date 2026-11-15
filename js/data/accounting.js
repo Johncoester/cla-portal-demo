@@ -12,8 +12,8 @@
  *                  of closing (always "before"; shown as a memo on the ALTA, in the Before Closing column on the CD). titlePrefix = "Title - " on the CD.
  *   kind 'credit'  money moved between the sides: from (buyer | seller | lender | deposit | other) -> to (buyer | seller). The "from" side is
  *                  debited, the "to" side credited. Prorations / adjustments, seller credits, deposits and the loan amount are credits.
- * Auto entries (never stored, always in step with the order): Sales price (buyer -> seller), Deposit / EMD (deposit -> buyer), Loan amount
- * (lender -> buyer). A refinance has no seller side: no sales price, no deposit, no seller amounts. */
+ * Order lines (never stored, read from the order each time): Sales price (buyer -> seller), Deposit / EMD (deposit -> buyer), Loan amount
+ * (lender -> buyer). A refinance has no seller side: no sales price, no deposit, no seller amounts. Shown read-only, from the order. */
 import { roleAllowed } from './role-access.js?v=202611100100';
 export const ACCOUNTING_OFF = 'Accounting is turned off on this portal.';
 export const ACCOUNTING_STAFF_ONLY = 'Accounting is for CLA staff only.';
@@ -150,12 +150,34 @@ export const isOverridden = (f) => isCalculated(f) && CALC_FIELDS.some((k) => !s
 // what the page and the statements see: the stored fee + overridden (derived)
 export const withCalcFlags = (f) => (isCalculated(f) ? { ...f, overridden: isOverridden(f) } : f);
 
-// ---------- order figures are not ledger lines ----------
-// A contract sale price, loan, or earnest-money promise is not funds received and not a Closing Disclosure line.
-// Those amounts are entered on Contract figures (an estimate). This stays empty so a filled order cannot post them by itself.
-export function autoEntries(deal) {
+// ---------- order figures, read each time, never stored (QF-1, John Nov 15: the Qualia way) ----------
+// Sale price, deposit and loan amount feed K/L/M and Cash to Close. They are not saved as fee rows (Nov 7: no second copy of the contract).
+// Change them on File Overview. A typed fee that already uses the same name is left as the one copy, so the order figure is not added again.
+const orderRaw = (deal, key) => {
+  const raw = key === 'salesPrice' ? (deal.purchasePrice ?? deal.purchase_price) : key === 'deposit' ? (deal.emdAmount ?? deal.emd_amount) : (deal.loanAmount ?? deal.loan_amount);
+  if (raw === '' || raw == null) return null;
+  const n = Number(raw); return Number.isFinite(n) ? round2(n) : null;
+};
+const ORDER_FIGURES = {
+  salesPrice: { description: 'Sale Price of Property', from: 'buyer', to: 'seller', purchaseOnly: true },
+  deposit: { description: 'Deposit', from: 'deposit', to: 'buyer', purchaseOnly: true },
+  loanAmount: { description: 'Loan Amount', from: 'lender', to: 'buyer', purchaseOnly: false },
+};
+export function manualOrderFigure(fees, key) {
+  const name = new RegExp('^' + ORDER_FIGURES[key].description.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i');
+  return (fees || []).find((f) => f && !f.retired && !f.auto && (f.autoKey === key || name.test(String(f.description || '').trim()))) || null;
+}
+export function autoEntries(deal, fees = []) {
   if (!deal) return [];
-  return [];
+  const refi = isRefiDeal(deal); const out = [];
+  for (const [key, spec] of Object.entries(ORDER_FIGURES)) {
+    if (refi && spec.purchaseOnly) continue;
+    const amount = orderRaw(deal, key);
+    if (!(amount > 0) || manualOrderFigure(fees, key)) continue;
+    out.push({ id: 'auto-' + key, auto: true, autoKey: key, kind: 'credit', description: spec.description, amount, from: spec.from, to: spec.to,
+      altaSection: 'financial', cdSection: '', cdLine: '', payee: '', note: 'From the order. Change it on File Overview.', timing: 'at', poc: false, titlePrefix: false, retired: false });
+  }
+  return out;
 }
 // PRORATIONS follow the order's CURRENT settlement date (Caroline, Nov 4: "calculated automatically from the settlement date"): the statements
 // use the live calculation; prorationStale says the saved amount / date differ (an editor re-saves it, which logs the change).
@@ -167,7 +189,7 @@ export function liveProration(f, deal) {
     return { ...f, amount: c.amount, from: c.from, to: c.to, prorationLive: c, prorationStale: stale ? { savedAmount: Number(f.amount), savedDate: saved.settlementDate || null } : null };
   } catch (e) { return { ...f, prorationError: e.message }; }
 }
-export const allEntries = (deal, fees, { includeRetired = false } = {}) => [...autoEntries(deal), ...(fees || []).filter((f) => includeRetired || !f.retired).map((f) => liveProration(f, deal))];
+export const allEntries = (deal, fees, { includeRetired = false } = {}) => [...autoEntries(deal, fees), ...(fees || []).filter((f) => includeRetired || !f.retired).map((f) => liveProration(f, deal))];
 
 // ---------- running totals + balance check ----------
 export function ledgerTotals(deal, fees) {
@@ -188,6 +210,13 @@ export function ledgerTotals(deal, fees) {
       if (e.from === 'buyer') t.bD += amt; else if (e.from === 'seller') t.sD += amt; else t.receiptsIn += amt;   // lender / deposit / other money comes in
       if (e.to === 'buyer') t.bC += amt; else if (e.to === 'seller') t.sC += amt; else issues.push(`"${e.description}": credit has no receiving side.`);
     }
+  }
+  if (!refi && !(orderRaw(deal, 'salesPrice') > 0)) issues.push('Enter the sale price on File Overview. This purchase is not balanced until the sale price is on the order.');
+  if (orderRaw(deal, 'loanAmount') == null) issues.push('Enter the loan amount on File Overview. Use 0 if this file has no loan. This file is not balanced until the loan amount is on the order.');
+  for (const [key, spec] of Object.entries(ORDER_FIGURES)) {
+    if (refi && spec.purchaseOnly) continue;
+    const typed = manualOrderFigure(fees, key);
+    if (typed && orderRaw(deal, key) > 0) warnings.push(`${spec.description} is already on the fee ledger, so the amount on the order was not added again. Remove the typed "${typed.description}" line if File Overview should be the source.`);
   }
   const dueFromBuyer = Math.max(0, t.bD - t.bC), dueToBuyer = Math.max(0, t.bC - t.bD), dueFromSeller = Math.max(0, t.sD - t.sC), dueToSeller = Math.max(0, t.sC - t.sD);
   const receipts = t.receiptsIn + dueFromBuyer + dueFromSeller; const disbursements = t.disbursed + dueToBuyer + dueToSeller;

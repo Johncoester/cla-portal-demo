@@ -636,3 +636,32 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Only staff who can already edit the file can change the number. A sales person, buyer, seller, or agent cannot.
 - The database file writes the activity note when the number changes, and refuses a blank or duplicate number in the same words as the screen. New files still get their number from the existing automatic numbering.
+
+---
+
+## Cash to close from the order (QF-1)
+
+**How it should work.** The sale price, the deposit and the loan amount show on the Closing Disclosure as read-only lines from the order, the way Qualia shows them in teal. They count in Cash to Close. They are not saved as extra fee rows. Staff change them on File Overview.
+
+**Status: In progress.** QF-1. Francis's Qualia Fees / Closing Disclosure video, file MD-26-32954. John Coester, Nov 14 2026, 10:42 PM ET, "Fix it", option (a). Not Live until this is merged and checked on TEST. No database file.
+
+**What's built**
+
+- K.01 and M.01 are the sale price. L.01 is the deposit. L.02 is the loan amount. Each says "From the order" and cannot be typed over.
+- On the video's figures (sale $625,000, loan $500,000, deposit $10,000, seller credit $3,000, borrower closing costs $36,610.67, and $847.36 of adjustments) cash to close is $149,458.03.
+- A purchase with no sale price, or with no loan amount at all, is not called Balanced. A loan of 0 is a cash purchase.
+- A typed fee already named Sale Price of Property, Deposit, or Loan Amount is kept, and the order figure for that line is not added again.
+
+**What's still missing**
+
+- Not checked on TEST yet. The other gaps in that video are not part of this item.
+
+**Links**
+
+- Spec: [docs/specs/cash-to-close-order-lines.md](docs/specs/cash-to-close-order-lines.md)
+- Source: Francis's Qualia Fees / Closing Disclosure video, and John's email of Nov 14 2026, 10:42 PM ET, section 6.2 item 1.
+
+**Decisions**
+
+- Option (a): derive the lines when the page is read. Do not store them. That keeps the Nov 7 rule that contract figures are not a second copy on the fee ledger.
+- A typed line with the same name is the one copy. The screen says to remove it if File Overview should be the source.
