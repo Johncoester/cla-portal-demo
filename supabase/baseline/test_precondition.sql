@@ -1,3 +1,4 @@
+set check_function_bodies = off;
 -- Source: TEST catalog (project aqcervntopidtcazcmlv), read on November 15, 2026.
 -- Idempotent precondition for a fresh database. Not a migration and not applied to TEST.
 -- It creates only objects the repo files assume and never create: roles, an auth.uid stub,
@@ -796,13 +797,6 @@ do $pk84$ begin
     alter table public.offices add primary key (id);
   end if;
 end $pk84$;
-do $pk85$ begin
-  if to_regclass('public.order_notes') is not null and not exists (
-    select 1 from pg_constraint where conrelid = to_regclass('public.order_notes') and contype = 'p'
-  ) then
-    alter table public.order_notes add primary key (id);
-  end if;
-end $pk85$;
 do $pk86$ begin
   if to_regclass('public.outbox') is not null and not exists (
     select 1 from pg_constraint where conrelid = 'public.outbox'::regclass and contype = 'p'
@@ -6512,9 +6506,6 @@ $guard348$;
 do $hr$
 begin
   if to_regprocedure('private.hr_open()') is null then
-    -- module_settings is created by 20261105222955_module_switches.sql, which runs
-    -- after this file. The body is checked then, not now.
-    perform set_config('check_function_bodies', 'off', true);
     create function private.hr_open() returns boolean language sql stable security definer
     set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
       select coalesce((select live from public.module_settings where module = 'hr'), false) $fn$;
@@ -6841,9 +6832,6 @@ $hr_role$;
 do $crm_att$
 begin
   if to_regprocedure('private.crm_on()') is null then
-    -- private.features is created by 20261105222910_private_features.sql, which
-    -- runs after this file. The body is checked then, not now.
-    perform set_config('check_function_bodies', 'off', true);
     create function private.crm_on() returns boolean language sql stable security definer
       set search_path to 'pg_catalog', 'public', 'extensions' as $function$
   select coalesce((select enabled from private.features where name = 'crm'), false) $function$;
