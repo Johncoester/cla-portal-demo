@@ -15,7 +15,7 @@
  *   vendoredRateSource          the built-in Nov 2 snapshot (also the fallback, and what tests use)
  *   live sheet                  the calculator's loadFees(), shown on the form with the time it loaded
  *   calculatorSupabaseRateSource NOT CONNECTED: a placeholder showing where a reader of the calculator's tables would plug in. It refuses. */
-import * as C from './vendor/cla-calculator/calc-core.js?v=202611152200';
+import * as C from './vendor/cla-calculator/calc-core.js?v=202611222800';
 import { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden } from './accounting.js?v=202611223000';
 export { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden };
 

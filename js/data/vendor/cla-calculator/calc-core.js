@@ -2,7 +2,7 @@
  * READ-ONLY SOURCE: do not edit here. Copied 2026-11-04 (tools/vendor-cla-calculator.js, no longer in the repo); re-copied by hand by Claude on 2026-11-15
  * (VA refinance with no payoff; Hampton Roads fee). Refresh with a newer calculator commit (see docs/CALCULATOR-FEES.md). Only the ES-module wrapper (this header, the import and the export line) is added.
  * sha256 of the copied text: 525c4b624918d92c894314040ec7f0f67f754bbd66930d036fa87b235f981199 */
-import { CLA_FEES_SNAPSHOT } from './fee-snapshot.js?v=202611152200';
+import { CLA_FEES_SNAPSHOT } from './fee-snapshot.js?v=202611222800';
 // ---- verbatim from cla-calculator index.html ----
 // ---------- config ----------
 const SHEET_ID="1kVBo3hchS-B5-g8NHn5ZSAdAZxXxOjuaHTv6SuXamOM"; // "CLA Fee Tables (Live - Calculator)" (anyone-with-link viewer)
