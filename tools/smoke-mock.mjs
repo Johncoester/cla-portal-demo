@@ -59,6 +59,14 @@ for (const u of picks) {
   let tabs = [];
   if (deal) {
     await page.goto(`${base}#/deals/${deal}`); await settle(`${who} file`);
+    const pickState = await page.evaluate(() => {
+      const row = document.querySelector('[data-party="Processor"]');
+      if (!row) return 'absent';
+      return row.querySelector('[data-pick-processor]') ? 'open' : 'readonly';
+    });
+    const canEditParty = !!(u.admin || u.role === 'Processor' || u.role === 'Preprocessor');
+    if (pickState === 'open' && !canEditParty) problems.push(`${who}: Processor row opens a picker for someone who cannot edit parties`);
+    if (pickState === 'readonly' && canEditParty) problems.push(`${who}: Processor row does nothing for someone who can edit parties`);
     tabs = await page.evaluate((id) => [...new Set([...document.querySelectorAll(`a[href^="#/deals/${id}/"]`)].map((a) => a.getAttribute('href').split('/')[3]).filter(Boolean))], deal);
     for (const tab of tabs) { await page.goto(`${base}#/deals/${deal}/${tab}`); await settle(`${who} file tab ${tab}`); }
   }
@@ -83,11 +91,30 @@ const syncProblem = await page.evaluate(async () => {
     await api.updateDeal(made.id, { processorId: 'u-sp' });
     const set = await api.getDeal(made.id);
     if (set.processorId !== 'u-sp') return 'setting the Processor did not save';
-    if (!(set.participants || []).some((p) => p.role === 'Processor')) return 'setting the Processor did not show on Contacts';
-    return '';
-  } catch (e) { return 'processor sync: ' + (e && e.message ? e.message : String(e)); }
+    if (!(set.participants || []).some((p) => p.role === 'Processor')) return { error: 'setting the Processor did not show on Contacts' };
+    const blank = await api.createDeal({ street: '2 Processor Pick Lane', city: 'Rockville', state: 'MD', zip: '20850' });
+    if (blank.processorId) return { error: 'the picker file started with a Processor' };
+    return { error: '', id: blank.id };
+  } catch (e) { return { error: 'processor sync: ' + (e && e.message ? e.message : String(e)) }; }
 });
-if (syncProblem) problems.push(`processor sync: ${syncProblem}`);
+if (!syncProblem || syncProblem.error) problems.push(`processor sync: ${(syncProblem && syncProblem.error) || 'no result'}`);
+else {
+  await page.goto(`${base}#/deals/${syncProblem.id}`); await page.reload(); await settle('processor picker file');
+  const opened = await page.evaluate(() => {
+    const btn = document.querySelector('[data-party="Processor"] [data-pick-processor]');
+    return btn ? btn.textContent.trim() : '';
+  });
+  if (opened !== 'Choose processor') problems.push(`unassigned Processor row should say Choose processor, got ${opened || 'nothing'}`);
+  else {
+    await page.click('[data-pick-processor]');
+    await page.waitForSelector('[data-processor-pick] select', { timeout: 5000 });
+    await page.click('[data-processor-pick] button[type="submit"]');
+    const said = await page.evaluate(() => { const t = document.querySelector('#toasts .toast.err'); return t ? (t.dataset.msg || t.textContent || '') : ''; });
+    if (!/Choose a staff login/.test(said)) problems.push(`saving with no Processor chosen said: ${said || 'nothing'}`);
+    const still = await page.evaluate(() => !!document.querySelector('[data-processor-pick]'));
+    if (!still) problems.push('the Processor form closed after a blank save');
+  }
+}
 
 // REC-CALC-1: a misspelled county shows the plain message and no fee lines. A listed county still calculates.
 await page.evaluate(async () => {
