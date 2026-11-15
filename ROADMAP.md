@@ -570,6 +570,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/recording-calculator-live-sheet.md](docs/specs/recording-calculator-live-sheet.md)
+- How a calculator rate change is copied into the portal: [docs/CALCULATOR-FEES.md](docs/CALCULATOR-FEES.md)
 - Source: John Coester, Nov 14 2026, 6:52 PM ET, item 4 of Claude's review of the recording calculator. Tracker row 300.
 - [PR 279](https://github.com/Johncoester/cla-portal-demo/pull/279), merged at 8bc66f6c. No database file.
 

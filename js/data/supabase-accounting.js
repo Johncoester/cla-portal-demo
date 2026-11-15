@@ -1,5 +1,5 @@
-/* [SUPABASE] ACCOUNTING (John, Nov 3; migration 34). Same names / shapes as mock-part-accounting.js. NOT run against a hosted project (best
- * effort; the mock adapter is the tested one). Two switches: the browser flag (features.accounting, off unless the config says true) and the
+/* [SUPABASE] ACCOUNTING (John, Nov 3; migration 34). Same names / shapes as mock-part-accounting.js. TEST has used this
+ * against the hosted TEST project since Nov 7 2026. Two switches: the browser flag (features.accounting, off unless the config says true) and the
  * database switch (private.features 'accounting', off by default; RLS refuses everything while it is off). RLS + triggers enforce the rules
  * (staff only, Sales read-only, no deletes, refinance has no seller side, every change logged in accounting_fee_log). Nothing is sent. */
 // Caroline, Nov 4 (migration 39): prorations, CD details (accounting_cd_details + accounting_cd_log), prepaids / escrow lines, TCs read-only.
