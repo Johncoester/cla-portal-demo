@@ -100,7 +100,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: none yet. The agent fees parts are in [docs/specs/agent-fees-flow.md](docs/specs/agent-fees-flow.md) (requirement 5).
-- Related pull requests: [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) (AF-5, agent fees post to the ledger), [PR 238](https://github.com/Johncoester/cla-portal-demo/pull/238) (AF-6, Generate CD / ALTA). The CD and Settlement Statement views were built before the repo's current pull request history. The seven TEST database files copied into the repo are in the pull request opened from `cursor/accounting-migrations-export`.
+- Related pull requests: [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) (AF-5, agent fees post to the ledger), [PR 238](https://github.com/Johncoester/cla-portal-demo/pull/238) (AF-6, Generate CD / ALTA). The CD and Settlement Statement views were built before the repo's current pull request history. The seven TEST database files copied into the repo are in [PR 288](https://github.com/Johncoester/cla-portal-demo/pull/288).
 
 **Decisions**
 
