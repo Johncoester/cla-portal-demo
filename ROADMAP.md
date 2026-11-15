@@ -703,7 +703,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** Under Earnest and Commission, Listing Agent Commission and Selling Agent Commission are two panels, side by side. Each one is commission base × commission percent, plus an additional amount, equaling the commission amount. Paid by is Buyer, Seller, or Split. Split is a dollar amount from each. The base starts as the sales price. This is the layout of the Agent fees box.
 
-**Status: In progress.** Tracker row 182 (MF-051), which is the same item as FF-051 (row 177) and FF-075 (row 274). Francis confirmed the numbered list on Nov 11 2026, 2:36 PM ET, and chose option 1 on Nov 13 2026, 12:46 PM ET. John Coester, Nov 15 2026. Pull request: [PR 285](https://github.com/Johncoester/cla-portal-demo/pull/285). Not Live until this is merged and `supabase/migrations/20261123040000_earnest_commission_panels.sql` is applied on TEST.
+**Status: In progress.** Tracker row 182 (MF-051), which is the same item as FF-051 (row 177) and FF-075 (row 274). Francis confirmed the numbered list on Nov 11 2026, 2:36 PM ET, and chose option 1 on Nov 13 2026, 12:46 PM ET. John Coester, Nov 15 2026. Pull request: [PR 285](https://github.com/Johncoester/cla-portal-demo/pull/285), merged. `supabase/migrations/20261123040000_earnest_commission_panels.sql` is applied on TEST. Not Live until the walkthrough is checked again.
 
 **What's built**
 
@@ -712,10 +712,11 @@ This file lists the portal's major features: how each one should work, how far a
 - Paid by can be Buyer, Seller, or Split. The two split amounts must add up to the commission amount.
 - The admin fee and the other fees stay. A commission of 3% on a $950,000 sale is still $28,500, paid by Seller, when there is no additional amount.
 - Accounting still gets the commission from Agent fees, in section H.
+- The walkthrough reads the percent from Commission % and the dollar amount and payer from Commission amount. The database file finds the existing payer rule in the form Postgres stores (`payer = ANY (ARRAY[...])`).
 
 **What's still missing**
 
-- Not checked on TEST yet. Not Live until the database file is applied on TEST.
+- The database file was applied on TEST. Not Live until the walkthrough is checked again. The first apply stopped on the payer-rule check; it was applied again after that check was pointed at the form Postgres stores.
 - A split, or a commission with its own base, is not rewritten when the sales price changes.
 
 **Links**

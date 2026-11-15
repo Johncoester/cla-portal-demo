@@ -40,11 +40,15 @@ test('agent fees: staff enter them, the agent confirms, a staff change needs a r
   await expect(form.locator('[data-af-price]')).toContainText('$');
   await form.locator('input[name="commissionPercent"]').fill(pct);
   await expect(form.locator('input[name="commissionAmount"]')).not.toHaveValue('');
+  const dollars = await form.locator('input[name="commissionAmount"]').inputValue();
+  const shown = (() => { const n = Number(String(dollars).replace(/[$,]/g, '')); const cents = Math.round(n * 100) % 100 !== 0; return '$' + n.toLocaleString('en-US', { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: cents ? 2 : 0 }); })();
   await form.locator('input[name="adminAmount"]').fill('395');
   if (await form.locator('textarea[name="reason"]').count()) await form.locator('textarea[name="reason"]').fill(`E2E-RUN-${run} staff entry`);
   await form.locator('[data-af-save]').click();
   await expect(page.locator('.toast', { hasText: 'Agent fees saved' }).last()).toBeVisible();
-  await expect(side(page, 'listing').locator('[data-af-commission]')).toContainText(`${pct}%`);
+  await expect(side(page, 'listing').locator('[data-af-percent]')).toContainText(`${pct}%`);
+  await expect(side(page, 'listing').locator('[data-af-commission]')).toContainText(shown);
+  await expect(side(page, 'listing').locator('[data-af-commission]')).toContainText('paid by Seller');
   await expect(side(page, 'listing').locator('[data-af-admin]')).toContainText('$395');
 
   // Edit order details no longer takes a commission: it points to the Agent fees box
@@ -58,7 +62,9 @@ test('agent fees: staff enter them, the agent confirms, a staff change needs a r
   await openMockFile(page);
   await expect(side(page, 'listing')).toBeVisible();
   await expect(side(page, 'buyer')).toHaveCount(0);
-  await expect(side(page, 'listing').locator('[data-af-commission]')).toContainText(`${pct}%`);
+  await expect(side(page, 'listing').locator('[data-af-percent]')).toContainText(`${pct}%`);
+  await expect(side(page, 'listing').locator('[data-af-commission]')).toContainText(shown);
+  await expect(side(page, 'listing').locator('[data-af-commission]')).toContainText('paid by Seller');
   form = await openEdit(page, 'listing');
   await form.locator('[data-af-save]').click();
   const check = page.locator('#modal [data-af-check]');

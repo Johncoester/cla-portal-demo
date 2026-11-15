@@ -14,9 +14,15 @@ alter table public.deal_agent_fees add column if not exists split_seller numeric
 do $chk$
 declare n text;
 begin
+  -- Postgres stores "payer in ('buyer', 'seller')" as "payer = ANY (ARRAY['buyer'::text, 'seller'::text])".
   select c.conname into n from pg_constraint c
    where c.conrelid = 'public.deal_agent_fees'::regclass and c.contype = 'c'
-     and pg_get_constraintdef(c.oid) ilike '%payer in%';
+     and (
+       pg_get_constraintdef(c.oid) ilike '%payer in (%'
+       or pg_get_constraintdef(c.oid) ilike '%payer = any (array[%'
+     )
+   order by c.conname
+   limit 1;
   if n is null then raise exception 'drift: the agent fee payer check is missing'; end if;
   execute format('alter table public.deal_agent_fees drop constraint %I', n);
 end $chk$;

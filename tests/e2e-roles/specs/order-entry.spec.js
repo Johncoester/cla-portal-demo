@@ -82,8 +82,9 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   await expect(page.locator('[data-nav-closing-date]')).toBeVisible();
   await expect(page.locator('[data-status-bar]')).toBeVisible();
   // the Place Order figures are the file's Agent fees
-  await expect(page.locator('[data-agent-fees] [data-agent-fee-side="listing"] [data-af-commission]')).toContainText('3%');
+  await expect(page.locator('[data-agent-fees] [data-agent-fee-side="listing"] [data-af-percent]')).toContainText('3%');
   await expect(page.locator('[data-agent-fees] [data-agent-fee-side="listing"] [data-af-commission]')).toContainText('$12,000');
+  await expect(page.locator('[data-agent-fees] [data-agent-fee-side="listing"] [data-af-commission]')).toContainText('paid by Seller');
   await expect(page.locator('[data-agent-fees] [data-agent-fee-side="buyer"] [data-af-admin]')).toContainText('$395');
 
   await page.locator('#editdeal').click();

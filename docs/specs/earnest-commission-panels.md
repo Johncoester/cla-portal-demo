@@ -24,4 +24,4 @@ A split commission, or a commission with its own base, is not rewritten when the
 
 The old Commission information task still does not take a commission amount. License ID and email recipients are not part of this change.
 
-The database file must be applied on TEST before a custom base, an additional amount, or a split can be saved there.
+The database file must be applied on TEST before a custom base, an additional amount, or a split can be saved there. Postgres stores the old payer rule as `payer = ANY (ARRAY[...])`. The file looks for that stored form when it checks the database still has the rule.
