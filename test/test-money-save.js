@@ -2,8 +2,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { parseHTML } from '/tmp/domtest/node_modules/linkedom/worker.js';
-import { moneyAmount } from '../js/data/constants.js';
-import { formatMoneyInput } from '../js/pages/money-input.js';
+import { moneyAmount, formatMoneyInput } from '../js/data/constants.js';
 import { tcSupabase } from '../js/data/supabase-tc.js';
 import { toText } from '../js/ui.js';
 import { renderTcOverview } from '../js/pages/tc-overview.js';

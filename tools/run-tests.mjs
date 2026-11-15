@@ -5,7 +5,7 @@
 // The base: in CI the checkout is the PR merged into main (or a merge-queue commit), so it is that commit's first parent,
 // the exact main it was merged into (the pull_request event's base.sha can be older). Elsewhere BASE_SHA, else origin/main.
 // Most tests do not name their loader, so each .js test runs bare first, then with the repo's loader hooks. A missing loader
-// fails within seconds, so only a fast failure is retried: a slow failing test is not run four times.
+// fails within seconds, so only a fast failure is retried: a slow failing test is not run three times.
 // Run: node tools/run-tests.mjs [test/test-one.js ...]      BASE_SHA=<commit> overrides the base
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
@@ -13,8 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const LOADERS = [[], ['--import', './test/register-supabase-fake.mjs'],
-  ['--import', './test/delay-tab-load.mjs', '--import', './test/register-supabase-fake.mjs'],
-  ['--import', './test/fail-money-input.mjs', '--import', './test/register-supabase-fake.mjs']];
+  ['--import', './test/delay-tab-load.mjs', '--import', './test/register-supabase-fake.mjs']];
 const tests = process.argv.slice(2).length ? process.argv.slice(2)
   : readdirSync('test').filter((f) => /^test-.*\.(js|sh)$/.test(f)).sort().map((f) => `test/${f}`);
 const sh = (cmd, args, cwd) => spawnSync(cmd, args, { cwd, encoding: 'utf8', timeout: 600000, env: { ...process.env, CI: '1' } });
