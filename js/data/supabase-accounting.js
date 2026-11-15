@@ -4,12 +4,12 @@
  * (staff only, Sales read-only, no deletes, refinance has no seller side, every change logged in accounting_fee_log). Nothing is sent. */
 // Caroline, Nov 4 (migration 39): prorations, CD details (accounting_cd_details + accounting_cd_log), prepaids / escrow lines, TCs read-only.
 import { cleanCdDetails, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA, cdFieldLabel } from './cd-pages.js?v=202611070139';
-import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, cleanFee, allEntries, ledgerTotals, altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration, feeChanges } from './accounting.js?v=202611222600';
+import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, cleanFee, allEntries, ledgerTotals, altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration, feeChanges } from './accounting.js?v=202611223000';
 import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractMismatch, assertContractPersisted, exactlyOneRow, ESTIMATE_POSTURE } from './contract-terms.js?v=202611191700';
-import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611191700';
+import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611223000';
 // CLA RATES (migration 36): calculated fees carry calc_source = 'cla-rates' + calc_key / calc_fields / rate_source / calculation / calc_inputs /
 // calc_version / calc_at; the trigger keeps `overridden` (a person changed what the calculation set). The engine loads lazily (flag off = never).
-const engine = () => import('./fee-engine.js?v=202611222600');
+const engine = () => import('./fee-engine.js?v=202611223000');
 const calcRow = (f) => (f.calc ? { calc_source: CALC_SOURCE_ID, calc_key: f.calc.key, calc_fields: f.calc.fields, rate_source: f.calc.rateSource, calculation: f.calc.calculation, calc_inputs: f.calc.inputs, calc_version: f.calc.version, calc_at: f.calc.at } : {});
 
 const toRow = (f) => ({ kind: f.kind, description: f.description, alta_section: f.altaSection, cd_section: f.cdSection, cd_line: f.cdLine, payee: f.payee, amount: f.amount, note: f.note, preset_key: f.presetKey,
@@ -24,11 +24,11 @@ const fromRow = (r) => ({ id: r.id, dealId: r.deal_id, kind: r.kind, description
   ...(r.reduces ? { reduces: true } : {}), ...(r.lender_credit ? { lenderCredit: true } : {}), ...(r.proration ? { proration: r.proration } : {}), ...(r.charge_meta ? { meta: r.charge_meta } : {}),
   ...(r.calc_source ? { source: r.calc_source, calc: { key: r.calc_key, fields: r.calc_fields, rateSource: r.rate_source, calculation: r.calculation, inputs: r.calc_inputs, version: r.calc_version, at: r.calc_at } } : {}) });
 const dealOf = (d) => ({ id: d.id, fileNumber: d.file_number, state: d.state, county: d.county || '', primaryResidence: d.primary_residence || '', firstTimeBuyer: d.first_time_buyer || '', transactionType: d.transaction_type, purchasePrice: d.purchase_price == null ? null : Number(d.purchase_price), loanAmount: d.loan_amount == null ? null : Number(d.loan_amount), emdAmount: d.emd_amount == null ? null : Number(d.emd_amount),
-  closingDate: d.closing_date || null, lenderName: d.lender_name || '', street: d.street || '', city: d.city || '', zip: d.zip || '' });
+  closingDate: d.closing_date || null, lenderName: d.lender_name || '', street: d.street || '', city: d.city || '', zip: d.zip || '', financial: d.financial && typeof d.financial === 'object' ? d.financial : {} });
 
 export function accountingSupabase({ sb, ok, flags }) {
   const on = () => { if (!flags.accounting) throw new Error(ACCOUNTING_OFF); };
-  const deal = async (id) => { const d = ok(await sb.from('deals').select('id,file_number,state,county,transaction_type,purchase_price,loan_amount,emd_amount,primary_residence,first_time_buyer,closing_date,lender_name,street,city,zip').eq('id', id).maybeSingle()); if (!d) throw new Error('Order not found.'); return dealOf(d); };
+  const deal = async (id) => { const d = ok(await sb.from('deals').select('id,file_number,state,county,transaction_type,purchase_price,loan_amount,emd_amount,primary_residence,first_time_buyer,closing_date,lender_name,street,city,zip,financial').eq('id', id).maybeSingle()); if (!d) throw new Error('Order not found.'); return dealOf(d); };
   const withPayoffs = async (d) => ({ ...d, payoffCount: (ok(await sb.from('deal_payoffs').select('id').eq('deal_id', d.id).is('retired_at', null)) || []).length });
   const earnestDeal = async (id) => {
     const d = ok(await sb.from('deals').select('transaction_type,emd_amount,emd_due_date,financial').eq('id', id).maybeSingle()) || {};

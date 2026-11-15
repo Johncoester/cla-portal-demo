@@ -2,7 +2,7 @@
 import { html, raw, $, $$, guard, formData, toast } from '../ui.js?v=202611161500';
 import { CONTRACT_FIELDS, CONTRACT_GROUPS, illustrative } from '../data/contract-terms.js?v=202611191700';
 import { runsOrders, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611101015';
-import { earnestView, readEarnest } from '../data/earnest-commission.js?v=202611191700';
+import { earnestView, readEarnest } from '../data/earnest-commission.js?v=202611223000';
 import { agentFeesSummaryHtml } from './agent-fees-box.js?v=202611222800';
 
 function earnestAccounting(deal, user) {
@@ -16,7 +16,9 @@ function earnestAccounting(deal, user) {
       ${moneyBox('emdAmount', 'EMD amount', deal.emdAmount)}
       <label>EMD due date<input type="date" name="emdDueDate" value="${deal.emdDueDate || ''}"></label>
       <label>EMD held by<input name="emdHeldBy" maxlength="200" value="${ev.held}" aria-label="EMD held by"></label>
+      ${moneyBox('emdToSeller', 'Deposit already paid to the seller', ev.toSeller)}
     </div>
+    <p class="muted small" data-excess-deposit-help>Fill in "Deposit already paid to the seller" only when someone other than CLA holds the deposit and has given it to the seller. It shows as Excess Deposit on the seller's side (CD line N.01), comes off the seller's proceeds, and is not counted as money CLA receives. The buyer still gets credit for the whole deposit.</p>
     <p class="acct-form-actions">${edit ? html`<button class="m-btn" type="submit">Save earnest money</button>` : html`<span class="muted small">Read only.</span>`}</p>
   </form>`;
 }
@@ -28,7 +30,7 @@ function mountEarnest(root, api, deal, user, refresh) {
   form.addEventListener('submit', guard(async (e) => {
     e.preventDefault();
     const f = formData(form);
-    const earnest = readEarnest(f);
+    const earnest = readEarnest(f, { emdAmount: moneyAmount(f.emdAmount) });
     await api.updateDeal(deal.id, { emdAmount: moneyAmount(f.emdAmount), emdDueDate: f.emdDueDate || '', ...earnest });
     toast('Earnest money saved');
     if (refresh) refresh();

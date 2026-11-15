@@ -11,7 +11,7 @@ import { buildFileNumber, retagFileNumber, sentOutside, cleanFileNumber, FILE_NU
 import { officeDate } from './office-date.js?v=202611102100';
 import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions } from './lender-file.js?v=202611222700';
 import { parcelInput } from './parcels.js?v=202611222100';
-import { earnestDealPatch, earnestTouched, OLD_COMMISSION_KEYS, OLD_COMMISSION_REFUSED, withoutOldCommission } from './earnest-commission.js?v=202611191700';
+import { earnestDealPatch, earnestTouched, OLD_COMMISSION_KEYS, OLD_COMMISSION_REFUSED, withoutOldCommission } from './earnest-commission.js?v=202611223000';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 // John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only
@@ -200,8 +200,8 @@ export function dealsAndAuth(x) {
       if (['listingCommissionPct', 'listingCommissionAmount', 'buyerCommissionPct', 'buyerCommissionAmount'].some((k) => patch[k] != null && patch[k] !== '')
         || (patch.financial && OLD_COMMISSION_KEYS.some((k) => patch.financial[k] != null))) fail(OLD_COMMISSION_REFUSED);
       if (earnestTouched(patch)) {
-        const next = earnestDealPatch({ emdHeldBy: q.financial && q.financial.emdHeldBy, ...patch }, { refinance: isRefi(q) });
-        q.financial = { ...withoutOldCommission(q.financial), ...next.financial }; if (!next.earnest.emdHeldBy) delete q.financial.emdHeldBy;
+        const next = earnestDealPatch({ emdHeldBy: q.financial && q.financial.emdHeldBy, emdToSeller: q.financial && q.financial.emdToSeller, ...patch }, { refinance: isRefi(q), emdAmount: q.emdAmount });
+        q.financial = { ...withoutOldCommission(q.financial), ...next.financial }; if (!next.earnest.emdHeldBy) delete q.financial.emdHeldBy; if (!next.earnest.emdToSeller) delete q.financial.emdToSeller;
         q.emdHolder = next.earnest.emdHeldBy || '';
       }
       if (patch.primaryResidence !== undefined || patch.firstTimeBuyer !== undefined) Object.assign(q, occFields({ primaryResidence: patch.primaryResidence !== undefined ? patch.primaryResidence : q.primaryResidence, firstTimeBuyer: patch.firstTimeBuyer !== undefined ? patch.firstTimeBuyer : q.firstTimeBuyer }, q.transactionType, fail));   // John, Nov 3 call

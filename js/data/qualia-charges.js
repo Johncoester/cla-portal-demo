@@ -264,7 +264,7 @@ const linesIn = (side, group) => { let g = null; const out = []; for (const [l, 
 const itemSlot = (e) => (/city|town/i.test(e.description + ' ' + ((e.proration || {}).item || '')) ? 0 : /assess/i.test(e.description) ? 2 : /count|property tax/i.test(e.description + ' ' + ((e.proration || {}).item || '')) ? 1 : 3);
 // where a credit / summary entry sits: { side, line } on its own side; its linked line (if any) on the other side
 export function summaryPlace(e) {
-  if (e.autoKey === 'salesPrice') return [['K', '01'], ['M', '01']]; if (e.autoKey === 'deposit') return [['L', '01']]; if (e.autoKey === 'loanAmount') return [['L', '02']];
+  if (e.autoKey === 'salesPrice') return [['K', '01'], ['M', '01']]; if (e.autoKey === 'deposit') return [['L', '01']]; if (e.autoKey === 'loanAmount') return [['L', '02']]; if (e.autoKey === 'excessDeposit') return [['N', '01']];
   const own = e.cdSection && ['K', 'L', 'M', 'N'].includes(e.cdSection) && e.cdLine ? [e.cdSection, e.cdLine] : null;
   if (e.kind === 'charge') { const sp = e.split || {}; if (Number(sp.seller) > 0) return [own && own[0] === 'N' ? own : ['N', /second/i.test(e.description) ? '05' : /payoff|first mortgage/i.test(e.description) ? '04' : null]]; return [own || ['K', '04']]; }
   if (e.lenderCredit) return [];
@@ -291,7 +291,7 @@ export function summaryScreens(deal, cd, entries) {
     if (e.kind === 'charge' && (e.timing === 'before' || e.poc)) continue;
     const places = summaryPlace(e); if (!places.length) continue;
     const amount = e.kind === 'charge' ? (Number((e.split || {}).seller) > 0 ? Number(e.split.seller) : Number((e.split || {}).buyer) || 0) : e.amount;
-    const label = e.autoKey === 'salesPrice' ? 'Sale Price of Property' : e.autoKey === 'deposit' ? 'Deposit' : e.autoKey === 'loanAmount' ? 'Loan Amount' : e.description;
+    const label = e.autoKey === 'salesPrice' ? 'Sale Price of Property' : e.autoKey === 'deposit' ? 'Deposit' : e.autoKey === 'loanAmount' ? 'Loan Amount' : e.autoKey === 'excessDeposit' ? 'Excess Deposit' : e.description;
     const [a, b] = places; const ra = put(a[0], a[1], a[2] || groupOf(a[0], a[1]), e, amount, label);
     if (b) { const rb = put(b[0], b[1], b[2] || null, e, amount, label, ra.side + ra.line); ra.linked = rb.side + rb.line; } }
   // J (closing costs paid at closing) from the CD: K.03 (borrower) and N.02 (seller)
