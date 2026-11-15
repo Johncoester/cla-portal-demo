@@ -578,3 +578,31 @@ This file lists the portal's major features: how each one should work, how far a
 - Use the calculator's own loader. Do not change the calculator or the sheet.
 - If the sheet needed a password, stop. It did not.
 - Tests do not call the live sheet. A failed read is tested with a stand-in. No new database file.
+
+---
+
+## Unused money-input files (TEST-CLEANUP-MONEY)
+
+**How it should work.** The money helpers live in one place. A page file that only passes them through, and test loaders that only exist for that page file, are not kept.
+
+**Status: In progress.** Tracker row 292 (TEST-CLEANUP-MONEY). John Coester, Nov 14 2026, 1:41 PM ET, after Claude approved PR 269 (TEST-CLEANUP-4). Not Live until this is merged. No database file. Nothing on a screen changes.
+
+**What's built**
+
+- The portal already reads the money helpers from the shared constants. The extra page file that only passed them through is removed.
+- The money-save check reads those same helpers from the shared constants.
+- The two test loaders that pretended the extra page file had failed are removed, and the test runner no longer loads them.
+
+**What's still missing**
+
+- Not checked as merged yet.
+
+**Links**
+
+- Spec: [docs/specs/test-cleanup-money.md](docs/specs/test-cleanup-money.md)
+- Source: John Coester, Nov 14 2026, 1:41 PM ET, after Claude approved [PR 269](https://github.com/Johncoester/cla-portal-demo/pull/269). Tracker row 292.
+
+**Decisions**
+
+- A repo-wide search found no page, home page, smoke check, or walk-through import of these files. The only import was the money-save check, which now uses the shared constants.
+- No cache stamp. No served page import changed. No database file.
