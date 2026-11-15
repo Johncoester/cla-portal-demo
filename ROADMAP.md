@@ -696,3 +696,34 @@ This file lists the portal's major features: how each one should work, how far a
 
 - A broker is a lender contact marked Mortgage Broker, not a new role on the file. That keeps file access the same.
 - The brokerage stays the company name already stored on the order.
+
+---
+
+## Earnest and commission panels (MF-051)
+
+**How it should work.** Under Earnest and Commission, Listing Agent Commission and Selling Agent Commission are two panels, side by side. Each one is commission base × commission percent, plus an additional amount, equaling the commission amount. Paid by is Buyer, Seller, or Split. Split is a dollar amount from each. The base starts as the sales price. This is the layout of the Agent fees box.
+
+**Status: In progress.** Tracker row 182 (MF-051), which is the same item as FF-051 (row 177) and FF-075 (row 274). Francis confirmed the numbered list on Nov 11 2026, 2:36 PM ET, and chose option 1 on Nov 13 2026, 12:46 PM ET. John Coester, Nov 15 2026. Pull request: [PR 285](https://github.com/Johncoester/cla-portal-demo/pull/285). Not Live until this is merged and `supabase/migrations/20261123040000_earnest_commission_panels.sql` is applied on TEST.
+
+**What's built**
+
+- The Agent fees box shows Listing Agent Commission and Selling Agent Commission next to each other on a computer, and one under the other on a phone. The selling agent panel is the buyer's agent side.
+- Commission base defaults to the sales price. The percent and the commission amount stay in step. An additional amount is added on top.
+- Paid by can be Buyer, Seller, or Split. The two split amounts must add up to the commission amount.
+- The admin fee and the other fees stay. A commission of 3% on a $950,000 sale is still $28,500, paid by Seller, when there is no additional amount.
+- Accounting still gets the commission from Agent fees, in section H.
+
+**What's still missing**
+
+- Not checked on TEST yet. Not Live until the database file is applied on TEST.
+- A split, or a commission with its own base, is not rewritten when the sales price changes.
+
+**Links**
+
+- Spec: [docs/specs/earnest-commission-panels.md](docs/specs/earnest-commission-panels.md)
+- Source: Francis, Earnest & Commission Section, Nov 11 2026, 10:02 AM ET, confirmed 2:36 PM ET. Option 1 confirmed Nov 13 2026, 12:46 PM ET.
+
+**Decisions**
+
+- Option 1: the panels are the Agent fees box, not a second commission section. The amounts stay in deal_agent_fees.
+- The selling agent is the buyer's agent side already on the file. The panel title is Selling Agent Commission.
