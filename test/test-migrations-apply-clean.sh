@@ -87,51 +87,70 @@ EOF
 write_standin pg_net extensions
 write_standin pg_cron pg_catalog
 
-# These three guards name function text that is not on TEST, not in the repo, and
-# not in TEST's migration history. A fresh database can never match them. The
-# migration file itself is not changed. This scratch run skips only these three
-# checks, and creates empty stand-ins so the file's later DROP can find them.
-bypass_nearest_office() {
-  "${PSQL[@]}" -d "$DB" >/dev/null <<'SQL'
+# Earlier-version checks whose pre-change function text is not on TEST, not in
+# the repo, and not in TEST's migration history. Each line is one skip, written
+# by hand: file, function, exact md5. Nothing else is skipped. The migration
+# files on disk are not changed. An empty stand-in lets the check see a
+# function; the file then replaces or drops it. A stand-in still present at the
+# end means no migration replaced it, and this check fails.
+SKIP_LIST="$(mktemp)"
+cat > "$SKIP_LIST" <<'EOF'
+20261110083000_closing_nearest_office.sql private.rpc_scheduling_respond 7ee11b702f7e960e308fe74a4e95ede8
+20261110083000_closing_nearest_office.sql private.rpc_create_settlement_request bb0d287b7086ed5d04f793cd147ffdcc
+20261110083000_closing_nearest_office.sql private.rpc_save_office 73a635e78fd090bf50ac539fa6615a7e
+20261112060400_citizenship_and_agent_phone.sql private.rpc_my_agents b1254fcc094054056bc1f805b8772bb2
+EOF
+
+apply_listed_skips() {
+  local base="$1" src="$2"
+  local hits
+  hits="$(awk -v b="$base" '$1 == b { print }' "$SKIP_LIST")"
+  if [ -z "$hits" ]; then
+    echo "$src"
+    return 0
+  fi
+  case "$base" in
+    20261110083000_closing_nearest_office.sql)
+      "${PSQL[@]}" -d "$DB" >/dev/null <<'SQL'
 create or replace function private.rpc_scheduling_respond(p_token text, p_picks integer[], p_name text, p_note text default '')
-returns void language plpgsql as $$ begin return; end $$;
+returns void language plpgsql as $fn$ begin /* scratch-empty-stand-in */ return; end $fn$;
 create or replace function public.scheduling_respond(p_token text, p_picks integer[], p_name text, p_note text default '')
-returns void language plpgsql as $$ begin return; end $$;
+returns void language plpgsql as $fn$ begin /* scratch-empty-stand-in */ return; end $fn$;
 create or replace function private.rpc_create_settlement_request(p_deal uuid, p_slots timestamp without time zone[], p_location text default '', p_note text default '')
-returns table(settlement_id uuid, buyer_token text, seller_token text) language sql as $$ select null::uuid, null::text, null::text $$;
+returns table(settlement_id uuid, buyer_token text, seller_token text) language sql as $fn$ select null::uuid, null::text, null::text where false /* scratch-empty-stand-in */ $fn$;
 create or replace function public.create_settlement_request(p_deal uuid, p_slots timestamp without time zone[], p_location text default '', p_note text default '')
-returns table(settlement_id uuid, buyer_token text, seller_token text) language sql as $$ select null::uuid, null::text, null::text $$;
+returns table(settlement_id uuid, buyer_token text, seller_token text) language sql as $fn$ select null::uuid, null::text, null::text where false /* scratch-empty-stand-in */ $fn$;
 create or replace function private.rpc_save_office(p_id text, p_name text, p_address_line1 text, p_address_line2 text, p_city text, p_state text, p_zip text, p_main_phone text default '', p_email text default null, p_is_main boolean default false, p_counties text[] default '{}')
-returns text language sql as $$ select null::text $$;
+returns text language sql as $fn$ select null::text where false /* scratch-empty-stand-in */ $fn$;
 create or replace function public.save_office(p_id text, p_name text, p_address_line1 text, p_address_line2 text, p_city text, p_state text, p_zip text, p_main_phone text default '', p_email text default null, p_is_main boolean default false, p_counties text[] default '{}')
-returns text language sql as $$ select null::text $$;
+returns text language sql as $fn$ select null::text where false /* scratch-empty-stand-in */ $fn$;
 SQL
+      ;;
+    20261112060400_citizenship_and_agent_phone.sql)
+      "${PSQL[@]}" -d "$DB" >/dev/null <<'SQL'
+create or replace function private.rpc_my_agents(p_deal uuid default null)
+returns table(agent_contact uuid, side text, first_name text, last_name text, brokerage text, cell_phone text, email text, office_phone text, photo_path text, photo_shape text, deal_ids uuid[])
+language sql stable security definer set search_path to pg_catalog, public, extensions
+as $fn$ select null::uuid, null::text, null::text, null::text, null::text, null::text, null::text, null::text, null::text, null::text, null::uuid[] where false /* scratch-empty-stand-in */ $fn$;
+SQL
+      ;;
+  esac
   local out
   out="$(mktemp)"
-  python3 - "$1" "$out" <<'PY'
-import sys
-src, dest = sys.argv[1], sys.argv[2]
+  SKIP_LIST="$SKIP_LIST" python3 - "$src" "$out" "$base" <<'PY'
+import os, sys
+src, dest, base = sys.argv[1:]
 text = open(src).read()
-skip = {
-    "private.rpc_scheduling_respond": "7ee11b702f7e960e308fe74a4e95ede8",
-    "private.rpc_create_settlement_request": "bb0d287b7086ed5d04f793cd147ffdcc",
-    "private.rpc_save_office": "73a635e78fd090bf50ac539fa6615a7e",
-}
-for name, digest in skip.items():
-    old = (
-        "if m is distinct from '" + digest + "' then\n"
-        "    raise exception 'drift: " + name + " changed or missing (md5 %)', coalesce(m, 'missing');\n"
-        "  end if;"
-    )
-    new = (
-        "-- Scratch check only: " + name + " md5 " + digest + " is not on TEST, in the repo, or in TEST history.\n"
-        "  if false then\n"
-        "    raise exception 'drift: " + name + " changed or missing (md5 %)', coalesce(m, 'missing');\n"
-        "  end if;"
-    )
-    if old not in text:
-        raise SystemExit("bypass pattern missing for " + name)
-    text = text.replace(old, new, 1)
+listed = []
+for line in open(os.environ["SKIP_LIST"]):
+    file_name, fn, digest = line.split()
+    if file_name == base:
+        listed.append((fn, digest))
+for fn, digest in listed:
+    needle = "is distinct from '" + digest + "'"
+    if text.count(needle) != 1:
+        raise SystemExit(fn + " md5 " + digest + " appears " + str(text.count(needle)) + " times")
+    text = text.replace(needle, needle + " and false", 1)
 open(dest, "w").write(text)
 PY
   chmod a+r "$out"
@@ -144,6 +163,7 @@ while IFS= read -r f; do
     *rollback*) continue ;;
   esac
   apply="$f"
+  apply="$(apply_listed_skips "$base" "$apply")"
   if [ "$base" = "20261112060200_buyer_task_holder.sql" ]; then
     # These three bodies are the rollback's captured text. party_ssn does not
     # exist until the previous file, so they cannot be created in the precondition.
@@ -167,16 +187,19 @@ PY
     chmod a+r /tmp/cla-migrate-form-pre.sql
     "${PSQL[@]}" -d "$DB" -f /tmp/cla-migrate-form-pre.sql >/dev/null
   fi
-  if [ "$base" = "20261110083000_closing_nearest_office.sql" ]; then
-    bypass_nearest_office "$f" >/tmp/cla-migrate-bypass.path
-    apply="$(cat /tmp/cla-migrate-bypass.path)"
-  fi
   if ! "${PSQL[@]}" -d "$DB" -f "$apply" >/tmp/cla-migrate-clean.out 2>/tmp/cla-migrate-clean.err; then
     echo "FAIL $base" >&2
     cat /tmp/cla-migrate-clean.err >&2
     exit 1
   fi
 done < <(find "$ROOT/supabase/migrations" -name '*.sql' | sort)
+
+left="$("${PSQL[@]}" -d "$DB" -tAc "select n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')' from pg_proc p join pg_namespace n on n.oid = p.pronamespace where p.prosrc like '%scratch-empty-stand-in%' order by 1")"
+if [ -n "$left" ]; then
+  echo "FAIL an empty stand-in was not replaced:" >&2
+  echo "$left" >&2
+  exit 1
+fi
 
 got="$(mktemp)"
 "${PSQL[@]}" -d "$DB" -tAc "select n.nspname||'.'||c.relname||'.'||a.attname from pg_attribute a join pg_class c on c.oid=a.attrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','private') and c.relkind='r' and a.attnum>0 and not a.attisdropped order by 1" > "$got"
