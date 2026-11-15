@@ -8,14 +8,17 @@
  *   payoff $40,000 · buyer fees $2,375 · seller fees $700 · county tax $3,650 a year, settlement July 1 2026
  *   Qualia: cash to close $45,550.00 · others due $44,075.00 · balanced $0.00
  *
- * One known difference, left as it is until it is built: on Qualia's file the deposit was held by the selling agent and
- * sent to the seller, so Qualia also took it off the seller ("Excess Deposit", CD N.01) and showed seller due $51,475.00.
- * The portal has no excess deposit yet, so its seller proceeds are $5,000.00 higher: $56,475.00. */
+ *
+ * Excess deposit (built Nov 15 2026): on Qualia's file the deposit was held by the selling agent and sent to the seller, so Qualia
+ * took it off the seller ("Excess Deposit", CD N.01) and showed seller due $51,475.00. The last part of this test enters the same
+ * thing on Contract figures, Earnest money ("Deposit already paid to the seller") and checks the same $51,475.00. */
 import { readFileSync } from 'node:fs';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { readAgentFees } from '../js/data/agent-fees.js';
 import { computeProration } from '../js/data/prorations.js';
 import { partyNames, brokerOf, withStatementParties } from '../js/data/statement-parties.js';
+import { readEarnest, excessDepositOf, earnestDealPatch, EXCESS_OVER_DEPOSIT } from '../js/data/earnest-commission.js';
+import { summaryScreens } from '../js/data/qualia-charges.js';
 
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
@@ -57,7 +60,7 @@ await api.addAccountingFee(deal.id, { kind: 'credit', altaSection: 'prorations',
 acc = await api.getAccounting(deal.id);
 const T = acc.totals;
 ok(T.dueFromBuyer === 45550, 'buyer / borrower due at closing is $45,550.00 (Qualia "borrower owes": $45,550.00)');
-ok(T.dueToSeller === 56475, 'seller proceeds are $56,475.00 (Qualia $51,475.00 plus the $5,000.00 excess deposit the portal does not have yet)');
+ok(T.dueToSeller === 56475, 'seller proceeds are $56,475.00 while CLA holds the deposit (no excess deposit entered yet)');
 ok(T.balanced === true && T.receipts === T.disbursements && T.issues.length === 0, 'the file balances: funds in equal funds out (Qualia "balanced": $0.00)');
 
 // ---- the Closing Disclosure summaries ----
@@ -76,6 +79,36 @@ ok(others === 44075, 'the charges paid out to others add up to $44,075.00: commi
 // ---- the ALTA statement carries the same figures ----
 const alta = await api.getAltaStatement(deal.id, 'combined'); const flat = JSON.stringify(alta);
 ok(flat.includes('Wells Fargo Bank, N.A (TEST)') || /Payoff/.test(flat), 'the payoff is on the ALTA statement');
+
+// ---- Excess deposit: the selling agent held the $5,000.00 deposit and already paid it to the seller (Qualia: Earnest & Commissions, "excess earnest") ----
+const throws = (fn) => { try { fn(); return ''; } catch (e) { return e.message; } };
+ok(readEarnest({ emdToSeller: '5,000.00' }).emdToSeller === 5000 && readEarnest({ emdToSeller: '' }).emdToSeller === null && readEarnest({}).emdToSeller === null, 'the deposit paid to the seller is read as dollars; empty means none');
+ok(throws(() => readEarnest({ emdToSeller: '6000' }, { emdAmount: 5000 })) === EXCESS_OVER_DEPOSIT && /dollar amount/.test(throws(() => readEarnest({ emdToSeller: 'abc' }))) && /refinance/i.test(throws(() => readEarnest({ emdToSeller: '100' }, { refinance: true }))), 'more than the deposit, a non-number, and a refinance are all refused with a plain message');
+ok(JSON.stringify(earnestDealPatch({ emdHeldBy: 'Agent', emdToSeller: '250' }).financial) === '{"emdHeldBy":"Agent","emdToSeller":250}' && excessDepositOf({ financial: { emdToSeller: 250 } }) === 250 && excessDepositOf({ transactionType: 'Refinance', financial: { emdToSeller: 250 } }) === null && excessDepositOf({}) === null, 'it is kept with EMD held by on the order; a refinance or an empty order has none');
+let refused = ''; try { await api.updateDeal(deal.id, { emdToSeller: '5000.01' }); } catch (e) { refused = e.message; }
+ok(refused === EXCESS_OVER_DEPOSIT && excessDepositOf(await api.getDeal(deal.id)) === null, 'the portal refuses a deposit paid to the seller that is more than the deposit, and saves nothing');
+await api.updateDeal(deal.id, { emdAmount: '5000', emdDueDate: '', emdHeldBy: 'Selling agent brokerage', emdToSeller: '5000' });   // what the Earnest money card sends
+await api.updateDeal(deal.id, { emdHeldBy: 'Selling agent brokerage' });   // Edit order details sends EMD held by alone: the excess deposit stays
+ok(excessDepositOf(await api.getDeal(deal.id)) === 5000, 'the deposit paid to the seller is saved on the order and survives an Edit order details save');
+acc = await api.getAccounting(deal.id); const TX = acc.totals;
+const ex = acc.entries.find((e) => e.autoKey === 'excessDeposit');
+ok(ex && ex.auto === true && ex.amount === 5000 && ex.description === 'Excess Deposit', 'the fee ledger shows an Excess Deposit line read from the order, not typed');
+ok(TX.dueFromBuyer === 45550, 'the buyer still owes $45,550.00: the whole deposit is still credited to the buyer');
+ok(TX.dueToSeller === 51475, 'seller proceeds are $51,475.00 (Qualia "seller due": $51,475.00)');
+ok(TX.balanced === true && TX.issues.length === 0 && TX.receipts === 95550 && TX.disbursements === 95550, 'the file still balances: CLA takes in and pays out $95,550.00, because the $5,000.00 deposit never reaches CLA');
+const XX = await api.getAccountingCd(deal.id); const SN = XX.cd.summaries.N; const SLx = XX.cd.summaries.L;
+ok(SN.rows[0].label === 'Excess Deposit' && SN.rows[0].amount === 5000 && /Closing Costs Paid at Closing/.test(SN.rows[1].label), 'CD section N starts with Excess Deposit $5,000.00, then the closing costs (Qualia N.01 and N.02)');
+ok(row(SLx, /^Deposit/).amount === 5000 && XX.cd.cashToClose === 45550 && XX.cd.cashToSeller === 51475, 'CD: L.01 Deposit stays $5,000.00, cash to close $45,550.00, cash to seller $51,475.00');
+const scr = summaryScreens(deal, XX.cd, acc.entries); const n01 = scr.N.find((r) => r.line === '01'); const n02 = scr.N.find((r) => r.line === '02');
+ok(n01.amount === 5000 && n01.auto === true && n02.amount === 1700 && scr.totals.N === 48525, 'the Charges page shows N.01 Excess Deposit $5,000.00 and N.02 closing costs $1,700.00; section N totals $48,525.00');
+const altaX = await api.getAltaStatement(deal.id, 'combined'); const exRow = altaX.sections.flatMap((x) => x.rows).find((r) => r.description === 'Excess Deposit');
+ok(exRow && exRow.sellerDebit === 5000 && !exRow.buyerDebit && !exRow.buyerCredit && !exRow.sellerCredit && /already paid to the seller/.test(exRow.memo) && altaX.due.toSeller === 51475, 'the ALTA statement charges the seller $5,000.00 for the Excess Deposit and shows $51,475.00 due to the seller');
+await api.updateDeal(deal.id, { emdAmount: '4000' });   // the deposit is lowered somewhere else: the file says so instead of balancing on a wrong number
+ok((await api.getAccounting(deal.id)).totals.issues.some((m) => /more than the deposit/.test(m)), 'a deposit lowered below the part paid to the seller is flagged on the balance check');
+await api.updateDeal(deal.id, { emdAmount: '5000', emdToSeller: '' });
+const cleared = await api.getAccounting(deal.id);
+ok(excessDepositOf(await api.getDeal(deal.id)) === null && cleared.totals.dueToSeller === 56475 && !cleared.entries.some((e) => e.autoKey === 'excessDeposit'), 'clearing it puts the seller proceeds back to $56,475.00');
+await api.updateDeal(deal.id, { emdToSeller: '5000' });
 
 // ---- names on the statements ----
 const people = [
@@ -103,6 +136,9 @@ ok(broken === shell, 'a failed read leaves the statement names blank and the pag
 const hosted = readFileSync(new URL('../js/data/supabase-accounting.js', import.meta.url), 'utf8');
 const getAcc = hosted.slice(hosted.indexOf('async getAccounting('), hosted.indexOf('async listAccountingPresets('));
 ok(/closingDate: d\.closingDate/.test(getAcc), 'the hosted Accounting read returns the settlement date, the same as the demo portal');
+ok(/zip,financial'\)/.test(hosted) && /financial: d\.financial/.test(hosted), 'the hosted Accounting read carries the order earnest data, so the Excess Deposit reaches the ledger, ALTA and CD on TEST');
+const hostedDeals = readFileSync(new URL('../js/data/supabase-adapter.js', import.meta.url), 'utf8');
+ok(hostedDeals.includes("earnestDealPatch({ emdToSeller: kept.emdToSeller, ...patch }"), 'a hosted order save keeps the deposit paid to the seller unless that save changes it');
 const page = readFileSync(new URL('../js/pages/dealaccounting.js', import.meta.url), 'utf8');
 ok(page.includes("if (view === 'alta' || view === 'cd') deal = await withStatementParties(api, deal);"), 'the ALTA and CD tabs load the people on the file before they print names');
 
