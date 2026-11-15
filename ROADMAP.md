@@ -504,7 +504,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Not checked on TEST yet. [PR 277](https://github.com/Johncoester/cla-portal-demo/pull/277) is merged. The release count now starts from the payoffs on a purchase (REC-CALC-3). The live fee sheet is not connected (REC-CALC-4).
+- Not checked on TEST yet. [PR 277](https://github.com/Johncoester/cla-portal-demo/pull/277) is merged. The release count now starts from the payoffs on a purchase (REC-CALC-3). The live fee sheet is REC-CALC-4.
 
 **Links**
 
@@ -533,7 +533,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Not checked on TEST yet. The live fee sheet is not connected (REC-CALC-4).
+- Not checked on TEST yet. The live fee sheet is REC-CALC-4.
 
 **Links**
 
@@ -544,3 +544,33 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Only purchases use the payoff count. A refinance keeps the calculator's starting release count.
 - A saved release count wins over the number of payoffs. No new database file.
+
+---
+
+## Recording calculator live sheet (REC-CALC-4)
+
+**How it should work.** Calculate fees reads CLA's live rate sheet. The form says when those rates were loaded. If the sheet cannot be reached, the form says so and the fees stay on the saved November 2 copy.
+
+**Status: In progress.** Tracker row 300 (REC-CALC-4). John Coester, Nov 14 2026, 6:52 PM ET, item 4 of the recording calculator fixes from Claude's review. Not Live until this is merged and someone checks it on TEST. No database file.
+
+**What's built**
+
+- The form loads the live "CLA Fee Tables (Live - Calculator)" sheet with the calculator's own loader. No password is used. The sheet is already shared to anyone with the link.
+- When that works, the form says "Rates from the live sheet, loaded [date and time]" in Eastern time, and the preview uses those rates.
+- When it does not work, the form says "Using the saved copy from Nov 2 because the live sheet couldn't be reached" and the fees come from that saved copy.
+- The portal's numbers are checked against the calculator for Montgomery, Prince George's, Baltimore City, DC under and over $400,000, Fairfax, and a Maryland refinance. Those checks use the saved copy.
+
+**What's still missing**
+
+- Not checked on TEST yet.
+
+**Links**
+
+- Spec: [docs/specs/recording-calculator-live-sheet.md](docs/specs/recording-calculator-live-sheet.md)
+- Source: John Coester, Nov 14 2026, 6:52 PM ET, item 4 of Claude's review of the recording calculator. Tracker row 300.
+
+**Decisions**
+
+- Use the calculator's own loader. Do not change the calculator or the sheet.
+- If the sheet needed a password, stop. It did not.
+- Tests do not call the live sheet. A failed read is tested with a stand-in. No new database file.

@@ -9,7 +9,7 @@ import { blankContract, cleanContractTerms, fromContractRow, toContractRow, cont
 import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611191700';
 // CLA RATES (migration 36): calculated fees carry calc_source = 'cla-rates' + calc_key / calc_fields / rate_source / calculation / calc_inputs /
 // calc_version / calc_at; the trigger keeps `overridden` (a person changed what the calculation set). The engine loads lazily (flag off = never).
-const engine = () => import('./fee-engine.js?v=202611222300');
+const engine = () => import('./fee-engine.js?v=202611222400');
 const calcRow = (f) => (f.calc ? { calc_source: CALC_SOURCE_ID, calc_key: f.calc.key, calc_fields: f.calc.fields, rate_source: f.calc.rateSource, calculation: f.calc.calculation, calc_inputs: f.calc.inputs, calc_version: f.calc.version, calc_at: f.calc.at } : {});
 
 const toRow = (f) => ({ kind: f.kind, description: f.description, alta_section: f.altaSection, cd_section: f.cdSection, cd_line: f.cdLine, payee: f.payee, amount: f.amount, note: f.note, preset_key: f.presetKey,
@@ -46,27 +46,27 @@ export function accountingSupabase({ sb, ok, flags }) {
     async getAccounting(dealId, { includeRetired = false } = {}) { on(); const a = await access(dealId); const d = await deal(dealId); const all = await fees(dealId); const live = all.filter((f) => !f.retired);
       return { dealId, fileNumber: d.fileNumber, state: d.state, transactionType: d.transactionType, refi: d.transactionType === 'Refinance', purchasePrice: d.purchasePrice, loanAmount: d.loanAmount, emdAmount: d.emdAmount,
         canEdit: a === 'edit', mark: TEST_MARK, entries: allEntries(d, all, { includeRetired }).map(withCalcFlags), retiredCount: all.length - live.length, totals: ledgerTotals(d, live) }; },
-    async listAccountingPresets(dealId) { on(); await access(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const ch = E.presetChoices(d, E.lastOptions(await fees(dealId), d));
+    async listAccountingPresets(dealId) { on(); await access(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const rates = await E.loadCalculatorRates(); const ch = E.presetChoices(d, E.lastOptions(await fees(dealId), d), rates.tables);
       return [...ch.calculated, ...presetsFor(d.state).filter((p) => !ch.replaced.includes(p.key)).map((p) => ({ ...p, exampleAmount: presetAmount(p, d), fee: presetFee(p.key, d) }))]; },
     async addAccountingFee(dealId, input) { on(); const d = await deal(dealId);
-      if (input && /^cla:/.test(String(input.presetKey || ''))) { await editor(dealId); const E = await engine(); const all = await fees(dealId); const calcDeal = await withPayoffs(d); const P = E.proposeFees(calcDeal, E.lastOptions(all, calcDeal));
+      if (input && /^cla:/.test(String(input.presetKey || ''))) { await editor(dealId); const E = await engine(); const all = await fees(dealId); const calcDeal = await withPayoffs(d); const rates = await E.loadCalculatorRates(); const P = E.proposeFees(calcDeal, E.lastOptions(all, calcDeal), rates.tables, rates.source);
         const line = P.lines.find((l) => 'cla:' + l.key === input.presetKey); if (!line) throw new Error('That CLA rate does not apply to this order any more. Pick the preset again.');
         return insertCalc(E, d, all, line, P, input); }
       const clean = cleanFee(input, d);
       return fromRow(ok(await sb.from('accounting_fees').insert({ deal_id: dealId, ...toRow(clean) }).select('*').single())); },
-    async addAccountingPreset(dealId, key, overrides = {}) { on(); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const all = await fees(dealId);
-      let P = null; try { P = E.proposeFees(d, E.lastOptions(all, d)); } catch (e) { if (/^cla:/.test(key)) throw e; }
+    async addAccountingPreset(dealId, key, overrides = {}) { on(); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const all = await fees(dealId); const rates = await E.loadCalculatorRates();
+      let P = null; try { P = E.proposeFees(d, E.lastOptions(all, d), rates.tables, rates.source); } catch (e) { if (/^cla:/.test(key)) throw e; }
       const active = (k) => all.some((f) => !f.retired && isCalculated(f) && f.calc.key === k);
       const lines = !P ? [] : /^cla:/.test(key) ? P.lines.filter((l) => 'cla:' + l.key === key) : P.lines.filter((l) => l.replacesPresets.includes(key) && !active(l.key));
       if (/^cla:/.test(key) && !lines.length) throw new Error('That CLA rate does not apply to this order.');
       if (!lines.length) return this.addAccountingFee(dealId, { ...presetFee(key, d), ...overrides });
       await editor(dealId); const added = []; for (const [k, l] of lines.entries()) added.push(await insertCalc(E, d, all, l, P, k === 0 ? overrides : {})); return { ...added[0], alsoAdded: added.slice(1).map((f) => f.id) }; },
-    async getCalculatorSetup(dealId) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); return E.calcSetup(d, await fees(dealId)); },
+    async getCalculatorSetup(dealId) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const rates = await E.loadCalculatorRates(); return E.calcSetup(d, await fees(dealId), rates.tables, rates); },
     async previewCalculatedFees(dealId, options) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const all = await fees(dealId); const opts = E.cleanOptions(options || E.lastOptions(all, d));
-      const P = E.proposeFees(d, opts); return E.previewView(P, E.diffProposal(P, all), opts); },
+      const rates = await E.loadCalculatorRates(); const P = E.proposeFees(d, opts, rates.tables, rates.source); return E.previewView(P, E.diffProposal(P, all), opts); },
     async applyCalculatedFees(dealId, options, { token = null, retireExamples = true } = {}) {
       on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const all = await fees(dealId); const opts = E.cleanOptions(options || E.lastOptions(all, d));
-      const P = E.proposeFees(d, opts); const D = E.diffProposal(P, all); if (token && token !== D.token) throw new Error('The fee ledger or the order changed since the preview. Preview again before applying.');
+      const rates = await E.loadCalculatorRates(); const P = E.proposeFees(d, opts, rates.tables, rates.source); const D = E.diffProposal(P, all); if (token && token !== D.token) throw new Error('The fee ledger or the order changed since the preview. Preview again before applying.');
       const at = new Date().toISOString(); const r = { added: 0, updated: 0, retired: 0, examplesRetired: 0, kept: D.counts.overridden, unchanged: D.counts.unchanged, skipped: D.counts.retired };
       for (const row of D.rows) {
         if (row.status === 'new') { await insertCalc(E, d, all, row.proposed, P, {}, at); r.added++; }
