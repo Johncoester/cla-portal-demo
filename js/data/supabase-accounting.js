@@ -44,7 +44,7 @@ export function accountingSupabase({ sb, ok, flags }) {
   const feeRow = async (id) => { const r = ok(await sb.from('accounting_fees').select('*').eq('id', id).maybeSingle()); if (!r) throw new Error('Fee not found.'); return fromRow(r); };
   return {
     async getAccounting(dealId, { includeRetired = false } = {}) { on(); const a = await access(dealId); const d = await deal(dealId); const all = await fees(dealId); const live = all.filter((f) => !f.retired);
-      return { dealId, fileNumber: d.fileNumber, state: d.state, transactionType: d.transactionType, refi: d.transactionType === 'Refinance', purchasePrice: d.purchasePrice, loanAmount: d.loanAmount, emdAmount: d.emdAmount,
+      return { dealId, fileNumber: d.fileNumber, state: d.state, transactionType: d.transactionType, refi: d.transactionType === 'Refinance', purchasePrice: d.purchasePrice, loanAmount: d.loanAmount, emdAmount: d.emdAmount, closingDate: d.closingDate,   // the settlement date: Taxes & Prorations calculate from it
         canEdit: a === 'edit', mark: TEST_MARK, entries: allEntries(d, all, { includeRetired }).map(withCalcFlags), retiredCount: all.length - live.length, totals: ledgerTotals(d, live) }; },
     async listAccountingPresets(dealId) { on(); await access(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const rates = await E.loadCalculatorRates(); const ch = E.presetChoices(d, E.lastOptions(await fees(dealId), d), rates.tables);
       return [...ch.calculated, ...presetsFor(d.state).filter((p) => !ch.replaced.includes(p.key)).map((p) => ({ ...p, exampleAmount: presetAmount(p, d), fee: presetFee(p.key, d) }))]; },
