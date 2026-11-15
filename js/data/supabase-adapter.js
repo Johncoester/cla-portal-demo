@@ -3,6 +3,7 @@
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
 import { buildTaskGrid, groupOfRole, GRID_ROLES } from './task-board.js?v=202611140100';
 import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611101015';
+import { cleanFileNumber, FILE_NUMBER_TAKEN } from './file-number.js?v=202611222500';
 import { officeDate } from './office-date.js?v=202611102100';
 import { clientActivityFrom } from './client-activity.js?v=202611102100';
 import { assertRecipients, messageText } from './portal-message.js?v=202611191700';
@@ -542,6 +543,20 @@ export async function createSupabaseAdapter(cfg) {
       if (Object.keys(row).length) ok(await sb.from('deals').update(row).eq('id', id));
       if (patch.sourceOfBusiness !== undefined) ok(await sb.rpc('set_deal_source', { p_deal: id, p_source: patch.sourceOfBusiness || '' }));
       if (patch.salesIds !== undefined) ok(await sb.rpc('set_deal_sales_people', { p_deal: id, p_sales: [].concat(patch.salesIds || []) }));
+      return a.getDeal(id); },
+    // FF-050: staff who can already edit the file may change its number. New files still get a number from the database. The activity note is written by the database trigger.
+    async updateFileNumber(id, fileNumber) {
+      const cleaned = cleanFileNumber(fileNumber); if (!cleaned.ok) throw new Error(cleaned.error);
+      let saved;
+      try { saved = ok(await sb.from('deals').update({ file_number: cleaned.value }).eq('id', id).select('id, file_number').maybeSingle()); }
+      catch (e) {
+        const msg = String((e && e.message) || e || '');
+        if (/already on another file|Enter a file number|up to 40 characters|these marks only/i.test(msg)) throw new Error(msg);
+        if (/duplicate key|unique constraint|23505/i.test(msg)) throw new Error(FILE_NUMBER_TAKEN);
+        throw new Error('The file number was not saved. Check the number and try again.');
+      }
+      if (!saved || !saved.id) throw new Error('Order not found.');
+      dropFileReads();
       return a.getDeal(id); },
     // contacts: unique email (contacts_email_uq); a new contact has no login and no invite is sent
     async createContact(input) { return camel(ok(await sb.from('contacts').insert(contactInsertRow(input)).select().single())); },

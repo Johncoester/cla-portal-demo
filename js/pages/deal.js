@@ -9,6 +9,7 @@ import { modOn } from '../data/modules.js?v=202611101015';
 import { slotText } from './dealclosing.js?v=202611170800';
 import { pickerHtml, mountPicker } from './person-picker.js?v=202611191800';
 import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice } from '../data/file-party.js?v=202611221600';
+import { cleanFileNumber } from '../data/file-number.js?v=202611222500';
 import { composeModal } from './compose.js?v=202611191600';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611191800';
 import { processorPickLabel, processorPickError } from '../data/processor-pick.js?v=202611222000';
@@ -20,7 +21,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611191700';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611221900';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611222400';
+import { prefetchDealTab } from './deal-tab.js?v=202611222500';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611101200';
@@ -166,6 +167,33 @@ export function fileIdentityHtml(d) {
     <div><span class="op-box-label">Seller</span> <b data-file-sellers>${who(sellers)}</b></div></section>`;
 }
 
+// FF-050 (Francis, Nov 11 email): Edit File Number sits under Configuration. New files still get a number on their own.
+export function configurationSection(d) {
+  return html`<section data-file-config aria-label="Configuration">
+    <div class="box-title"><h2>Configuration</h2></div>
+    <div class="card"><p>File number <strong data-config-file-number>${d.fileNumber}</strong></p>
+      <p class="muted small">New files still get a number automatically. Use this when the number should match CLA's internal numbering or a transaction reference.</p>
+      <button type="button" class="ghost" data-edit-file-number>Edit File Number</button></div></section>`;
+}
+function editFileNumberModal(api, d, refresh) {
+  const m = modal('Edit File Number', html`<form id="efn" class="form-grid" novalidate>
+    <p class="span2 muted small">This file is <strong>${d.fileNumber}</strong>. Saving a new number updates Open Orders, the file header, and search. New orders still get a number on their own.</p>
+    <label class="span2">File number<input name="fileNumber" required maxlength="40" value="${d.fileNumber}" data-file-number-input autocomplete="off"></label>
+    <p class="span2 notice warn small" data-file-number-error hidden></p>
+    <div class="span2"><button class="m-btn" type="submit">Save file number</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
+  const form = $('#efn', m); const err = $('[data-file-number-error]', form); const input = $('[name=fileNumber]', form);
+  const show = (message) => { err.hidden = false; err.textContent = message; input.focus(); };
+  form.addEventListener('submit', guard(async (e) => {
+    e.preventDefault();
+    const cleaned = cleanFileNumber(input.value);
+    if (!cleaned.ok) { show(cleaned.error); return; }
+    err.hidden = true; err.textContent = '';
+    try { await api.updateFileNumber(d.id, cleaned.value); }
+    catch (ex) { show((ex && ex.message) || 'The file number was not saved. Check the number and try again.'); return; }
+    closeModal(); toast('File number saved'); refresh();
+  }));
+}
+
 function overview({ api, user, refresh, demoLocked, settlement = null }, d, crumbs, ag, salesStaff = [], ov = null, splits = []) {
   const staffView = !user.accountRole && user.role !== 'Outside user';
   const canWire = staffView || (user.roles || [user.role]).includes('Client-Buyer');   // Matt, Oct 31: buyer only (plus CLA staff)
@@ -211,6 +239,7 @@ function overview({ api, user, refresh, demoLocked, settlement = null }, d, crum
   const lenderLine = d.lenderName || d.lenderContact || d.lenderEmail || d.lenderPhone ? html`<b>${d.lenderName || d.lenderContact}</b>${d.lenderName && d.lenderContact ? html` &middot; ${d.lenderContact}` : ''}${d.lenderEmail || d.lenderPhone ? html`<br><span class="muted small">${[d.lenderEmail, fmtPhone(d.lenderPhone)].filter(Boolean).join(' \u00b7 ')}</span>` : ''}`
     : by('Lender') ? html`<b>${by('Lender').contact.firstName} ${by('Lender').contact.lastName}</b>${by('Lender').contact.company ? html`<br><span class="muted small">${by('Lender').contact.company}</span>` : ''}` : Number(d.loanAmount) ? html`<b>Not yet entered</b>` : html`<b>None (cash)</b>`;
   const body = html`
+    ${staffView && edit ? configurationSection(d) : ''}
     ${staffView ? '' : settlementSectionHtml({ deal: d, user, demoLocked, contacts: (settlement && settlement.contactChoices) || [], closerStaff: (settlement && settlement.closerStaff) || [], locations: (settlement && settlement.locations) || [] })}
     <div class="box-title"><h2><span class="h-ico"></span>Parties</h2><a class="ghost right" href="#/deals/${d.id}/contacts">All contacts</a></div>
     ${partiesList(d, ov, staffView, { splits, edit, source: staffView ? (d.sourceOfBusiness || '') : '', sourceLabel: staffView ? (d.sourceOfBusinessLabel || '') : '' })}
@@ -234,6 +263,7 @@ function overview({ api, user, refresh, demoLocked, settlement = null }, d, crum
     const wb = $('#wirebtn', root); if (wb) wb.addEventListener('click', guard(() => wireModal(api, d)));
     $$('[data-add-party]', root).forEach((b) => b.addEventListener('click', guard(() => addPartyModal(api, d, b.dataset.addParty, refresh))));
     const en = $('[data-edit-notes]', root); if (en) en.addEventListener('click', guard(() => editModal(api, d, refresh, user.id)));
+    const ef = $('[data-edit-file-number]', root); if (ef) ef.addEventListener('click', guard(() => editFileNumberModal(api, d, refresh)));
     mountParties(root, { api, d, refresh, canEdit: edit && staffView, meId: user.id });
     mountSettlement(root, { api, deal: d, refresh, user, demoLocked, contacts: (settlement && settlement.contactChoices) || [], closerStaff: (settlement && settlement.closerStaff) || [] });
   } };
