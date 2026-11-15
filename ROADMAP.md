@@ -313,25 +313,25 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** The Processor on a file is one person. Adding that person on the order's Contacts screen, with the role Processor, shows them on File Overview > Parties. Removing them from Contacts clears the Processor. Setting or clearing the Processor anywhere else (Edit order details, or Place Order, or the Processor row on File Overview) shows the same person on Contacts, or takes them off. Any active staff login can be the Processor. A contact with no portal login can still be listed on Contacts as Processor, and that listing is not the file's Processor. Only people who can already edit parties can change it from the row.
 
-**Status: In progress.** Tracker rows PROC-1 and PROC-2. John Coester, screen recording "Adding a processor" (Nov 14 2026, 1:55 PM ET; Drive file 19lS81bxUsHUwQPRdLXIGi79dmpFhXdn7), confirmed Nov 14, 2:00 PM ET, on order MD-26-97260. PROC-1 is not Live until its database file is applied on TEST. PROC-2 has no database file.
+**Status: Live on TEST (Nov 15 2026).** Tracker row 294 (PROC-1) and tracker row 295 (PROC-2). John Coester, screen recording "Adding a processor" (Nov 14 2026, 1:55 PM ET; Drive file 19lS81bxUsHUwQPRdLXIGi79dmpFhXdn7), confirmed Nov 14, 2:00 PM ET, on order MD-26-97260. PROC-1 is [PR 271](https://github.com/Johncoester/cla-portal-demo/pull/271), merged at 9d84a0ed, and `supabase/migrations/20261122180000_processor_party_sync.sql` is applied on TEST. PROC-2 is [PR 272](https://github.com/Johncoester/cla-portal-demo/pull/272), merged at b6356798, with no database file.
 
 **What's built**
 
 - Contacts and File Overview were reading two different places. Contacts stored a person on the file with the role Processor. File Overview read the file's processor field, so it still said "Not specified" and showed the red "no processor yet" warning. They now stay in step both ways.
 - A Super admin, Admin, Processor, Preprocessor, Sales Person, Sales Team, or Transaction Coordinator can be that person. An outside user is refused in plain words. A contact with no portal login can still be listed on Contacts as Processor, and that listing does not become the file's Processor.
-- A one-time copy lines up existing fake TEST files (a demo file, a note that says it is fake, a DEMO- file number, or a generated file number whose contacts use example.test or example.com only). A file that also has another email address is left as it is. MD-26-97260 is not rewritten by that copy when a contact on it uses a CLA email. After the database file is applied, remove the Processor and add them again, or set the Processor on Edit order details, and both screens match.
+- A one-time copy lines up existing fake TEST files (a demo file, a note that says it is fake, a DEMO- file number, or a generated file number whose contacts use example.test or example.com only). A file that also has another email address is left as it is. MD-26-97260 is not rewritten by that copy when a contact on it uses a CLA email. That database file is applied on TEST. To line a file up, remove the Processor and add them again, or set the Processor on Edit order details, and both screens match.
 - On File Overview, people who can already edit parties can click the Processor row, or Choose processor / Change processor. A list of active staff logins opens. The choice is saved the same way as Edit order details, so Contacts shows the same person. Unassigned clears the Processor. Saving Unassigned when the file already has nobody says to choose a staff login or close the window, and the form stays open. A Sales Person, a buyer, or anyone else who cannot edit parties sees the row as it is, with no button.
 
 **What's still missing**
 
-- PROC-1 is merged ([PR 271](https://github.com/Johncoester/cla-portal-demo/pull/271)) and is not Live until `supabase/migrations/20261122180000_processor_party_sync.sql` is applied on TEST. PROC-2 is not on TEST until [PR 272](https://github.com/Johncoester/cla-portal-demo/pull/272) is merged.
+- Nothing left to put this on TEST. PROC-1 and PROC-2 are Live.
 - Open tasks that were tied to a previous Processor row are cancelled in the demo when that row is replaced. On TEST, removing the person with Remove from order still cancels those tasks. The automatic replace does not cancel them.
 
 **Links**
 
 - Spec: [docs/specs/file-processor.md](docs/specs/file-processor.md)
-- Source: John Coester, Nov 14 2026, 1:55 PM ET, recording "Adding a processor". Tracker rows PROC-1 and PROC-2.
-- PROC-1: [PR 271](https://github.com/Johncoester/cla-portal-demo/pull/271). PROC-2: [PR 272](https://github.com/Johncoester/cla-portal-demo/pull/272).
+- Source: John Coester, Nov 14 2026, 1:55 PM ET, recording "Adding a processor". Tracker row 294 (PROC-1) and tracker row 295 (PROC-2).
+- PROC-1: [PR 271](https://github.com/Johncoester/cla-portal-demo/pull/271), merged at 9d84a0ed. Database file `supabase/migrations/20261122180000_processor_party_sync.sql`, applied on TEST. PROC-2: [PR 272](https://github.com/Johncoester/cla-portal-demo/pull/272), merged at b6356798. No database file.
 
 **Decisions**
 
@@ -464,7 +464,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On the Accounting tab, Calculate fees from CLA rates uses the order's county. If that county is not on CLA's rate list, the calculator stops and says so, in plain words, and it does not add fee lines. On Place Order and Edit order details, County is a list of the counties CLA has rates for in that state, so it cannot be typed wrong. A county already saved that is not on the list stays visible and is marked not matched until someone picks one that is.
 
-**Status: In progress.** Tracker row REC-CALC-1. John Coester, Nov 14 2026, 6:07 PM ET, item 1 of the recording calculator fixes from Claude's review. Not Live until this is merged and someone checks it on TEST. No database file.
+**Status: Live on TEST (Nov 15 2026).** Tracker row 297 (REC-CALC-1). John Coester, Nov 14 2026, 6:07 PM ET, item 1 of the recording calculator fixes from Claude's review. [PR 276](https://github.com/Johncoester/cla-portal-demo/pull/276) is merged. No database file.
 
 **What's built**
 
@@ -474,13 +474,14 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Not checked on TEST yet. [PR 276](https://github.com/Johncoester/cla-portal-demo/pull/276) is merged. The other recording-calculator items from that same message are separate.
+- Nothing left on this item.
 - States other than Maryland, Virginia, the District of Columbia, and Florida still are not in CLA's rates. The calculator already said so, and it still does.
 
 **Links**
 
 - Spec: [docs/specs/recording-calculator-county.md](docs/specs/recording-calculator-county.md)
-- Source: John Coester, Nov 14 2026, 6:07 PM ET, item 1 of Claude's review of the recording calculator. Tracker row REC-CALC-1.
+- Source: John Coester, Nov 14 2026, 6:07 PM ET, item 1 of Claude's review of the recording calculator. Tracker row 297.
+- [PR 276](https://github.com/Johncoester/cla-portal-demo/pull/276). No database file.
 
 **Decisions**
 
@@ -493,23 +494,24 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On the Accounting tab, Calculate fees from CLA rates asks how many documents to record and how many pages each one has. The four documents are the deed, the deed of trust, a release, and a power of attorney. A purchase with a loan starts at 1 deed of 3 pages, 1 deed of trust of 30 pages, and no release or power of attorney. Those counts are what the fee calculation uses. They are saved with the other calculator answers and come back the next time. A count or a page number that is not a whole number in the allowed range is pointed out in plain words, and nothing is calculated until it is fixed.
 
-**Status: In progress.** Tracker row 298 (REC-CALC-2). John Coester, Nov 14 2026, 6:52 PM ET, item 2 of the recording calculator fixes from Claude's review. Not Live until this is merged and someone checks it on TEST. No database file.
+**Status: Live on TEST (Nov 15 2026).** Tracker row 298 (REC-CALC-2). John Coester, Nov 14 2026, 6:52 PM ET, item 2 of the recording calculator fixes from Claude's review. [PR 277](https://github.com/Johncoester/cla-portal-demo/pull/277) is merged. No database file.
 
 **What's built**
 
 - Documents to record, with a count and a pages box for the deed, the deed of trust (DOT), a release, and a power of attorney (POA).
-- Starting counts match the calculator for that kind of file. A purchase with a loan: deed 1 and 3 pages, deed of trust 1 and 30 pages, release 0, power of attorney 0. A file with no loan starts with no deed of trust. A refinance still starts the way the calculator starts today, including one release. Tying the release count to the payoffs is a later item.
+- Starting counts match the calculator for that kind of file. A purchase with a loan: deed 1 and 3 pages, deed of trust 1 and 30 pages, release 0, power of attorney 0. A file with no loan starts with no deed of trust. A refinance still starts the way the calculator starts today, including one release. On a purchase, the release count that follows the payoffs is REC-CALC-3.
 - The counts are sent into the fee calculation and saved with the other calculator answers, so they are filled in again next time.
 - A count must be a whole number from 0 to 10. Pages must be a whole number from 1 to 500. Anything else shows a plain message under the list and does not calculate. What was typed stays on the screen.
 
 **What's still missing**
 
-- Not checked on TEST yet. [PR 277](https://github.com/Johncoester/cla-portal-demo/pull/277) is merged. The release count now starts from the payoffs on a purchase (REC-CALC-3). The live fee sheet is REC-CALC-4.
+- Nothing left on this item. The release count on a purchase is REC-CALC-3, and the live fee sheet is REC-CALC-4. Both are Live.
 
 **Links**
 
 - Spec: [docs/specs/recording-calculator-documents.md](docs/specs/recording-calculator-documents.md)
 - Source: John Coester, Nov 14 2026, 6:52 PM ET, item 2 of Claude's review of the recording calculator. Tracker row 298.
+- [PR 277](https://github.com/Johncoester/cla-portal-demo/pull/277). No database file.
 
 **Decisions**
 
@@ -522,7 +524,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On a purchase, Documents to record starts the release count at the number of payoffs on the file. The person can change that number. A count they already saved stays, even if the payoffs later change. A refinance is unchanged.
 
-**Status: In progress.** Tracker row 299 (REC-CALC-3). John Coester, Nov 14 2026, 6:52 PM ET, item 3 of the recording calculator fixes from Claude's review. Not Live until this is merged and someone checks it on TEST. No database file.
+**Status: Live on TEST (Nov 15 2026).** Tracker row 299 (REC-CALC-3). John Coester, Nov 14 2026, 6:52 PM ET, item 3 of the recording calculator fixes from Claude's review. [PR 278](https://github.com/Johncoester/cla-portal-demo/pull/278) is merged. No database file.
 
 **What's built**
 
@@ -533,12 +535,13 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Not checked on TEST yet. The live fee sheet is REC-CALC-4.
+- Nothing left on this item. The live fee sheet is REC-CALC-4, and it is Live.
 
 **Links**
 
 - Spec: [docs/specs/recording-calculator-releases.md](docs/specs/recording-calculator-releases.md)
 - Source: John Coester, Nov 14 2026, 6:52 PM ET, item 3 of Claude's review of the recording calculator. Tracker row 299.
+- [PR 278](https://github.com/Johncoester/cla-portal-demo/pull/278). No database file.
 
 **Decisions**
 
@@ -551,7 +554,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** Calculate fees reads CLA's live rate sheet. The form says when those rates were loaded. If the sheet cannot be reached, the form says so and the fees stay on the saved November 2 copy.
 
-**Status: In progress.** Tracker row 300 (REC-CALC-4). John Coester, Nov 14 2026, 6:52 PM ET, item 4 of the recording calculator fixes from Claude's review. Not Live until this is merged and someone checks it on TEST. No database file.
+**Status: Live on TEST (Nov 15 2026).** Tracker row 300 (REC-CALC-4). John Coester, Nov 14 2026, 6:52 PM ET, item 4 of the recording calculator fixes from Claude's review. [PR 279](https://github.com/Johncoester/cla-portal-demo/pull/279) is merged at 8bc66f6c. Nothing else was left on this item. No database file.
 
 **What's built**
 
@@ -562,12 +565,13 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Not checked on TEST yet.
+- Nothing.
 
 **Links**
 
 - Spec: [docs/specs/recording-calculator-live-sheet.md](docs/specs/recording-calculator-live-sheet.md)
 - Source: John Coester, Nov 14 2026, 6:52 PM ET, item 4 of Claude's review of the recording calculator. Tracker row 300.
+- [PR 279](https://github.com/Johncoester/cla-portal-demo/pull/279), merged at 8bc66f6c. No database file.
 
 **Decisions**
 
