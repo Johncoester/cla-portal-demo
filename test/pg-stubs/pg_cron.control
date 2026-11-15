@@ -1,0 +1,4 @@
+comment = 'SQL stand-in for pg_cron so the scratch database can load the scheduled jobs'
+default_version = '1.6'
+relocatable = false
+schema = pg_catalog

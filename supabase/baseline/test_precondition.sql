@@ -33,12 +33,13 @@ begin
 end
 $auth$;
 
-create extension if not exists pgcrypto;
+create extension if not exists pgcrypto with schema extensions;
 
 create sequence if not exists public.hr_change_history_id_seq;
 create sequence if not exists public.task_template_admin_log_id_seq;
 create sequence if not exists public.task_template_switch_log_id_seq;
 create sequence if not exists public.underwriter_split_log_id_seq;
+create sequence if not exists public.file_number_seq;
 
 create table if not exists private.backfills (name text not null, done_at timestamp with time zone not null default now());
 create table if not exists private.party_ssn (task_id uuid not null, ciphertext bytea not null, last4 text not null, updated_at timestamp with time zone not null default now(), updated_by uuid, subject text not null default 'self'::text);
@@ -105,7 +106,7 @@ create table if not exists public.deal_disbursement_log (id bigint not null, dea
 create table if not exists public.deal_disbursements (deal_id uuid not null, disbursement_date date, actual_revenue numeric(12,2), net_title_insurance numeric(12,2), settlement_fee numeric(12,2), net_endorsement_fee numeric(12,2), qualia_fee numeric(12,2), shipping_fee numeric(12,2), national_title_resource numeric(12,2), notary_fee numeric(12,2), searches_fee numeric(12,2), updated_by uuid, updated_at timestamp with time zone not null default now());
 create table if not exists public.deal_participants (id uuid not null default gen_random_uuid(), deal_id uuid not null, contact_id uuid not null, role text not null, created_at timestamp with time zone not null default now());
 create table if not exists public.deal_sales_people (deal_id uuid not null, sales_id uuid not null, added_by uuid, added_at timestamp with time zone not null default now());
-create table if not exists public.deals (id uuid not null default gen_random_uuid(), file_number text not null, street text not null, city text not null, state text not null, zip text not null default ''::text, transaction_type text not null default 'Purchase'::text, stage smallint not null default 0, status text not null default 'Open'::text, open_date date not null default ((now() AT TIME ZONE 'America/New_York'::text))::date, closing_date date, purchase_price numeric(14,2), loan_amount numeric(14,2), lender_name text not null default ''::text, lender_contact text not null default ''::text, lender_email text not null default ''::text, lender_phone text not null default ''::text, notes text not null default ''::text, processor_id uuid, sales_person_id uuid, created_by uuid, created_at timestamp with time zone not null default now(), scheduled_at timestamp without time zone, scheduled_location text, scheduled_note text not null default ''::text, scheduled_by uuid, scheduled_confirmed_at timestamp with time zone, emd_amount numeric(14,2), emd_due_date date, county text not null default ''::text, primary_residence text not null default ''::text, first_time_buyer text not null default ''::text, scheduled_office_id text, scheduled_by_role text, title_review_status text not null default 'not_started'::text, loan_id_number text not null default ''::text, loss_payee_name text not null default ''::text, uses_mers boolean, funding_type text, first_payment_date date, interest_type text, loan_type text not null default ''::text, contract_date date, listing_commission_pct numeric(8,4), listing_commission_amount numeric(14,2), buyer_commission_pct numeric(8,4), buyer_commission_amount numeric(14,2), seller_concessions numeric(14,2), emd_holder text, emd_received boolean not null default false, emd_received_date date, emd_received_amount numeric(14,2), alta_received boolean not null default false, alta_received_date date, alta_document_id uuid, preprocessor_user_id uuid, is_demo boolean not null default false, latitude double precision, longitude double precision, buyer_sign_status text not null default 'pending'::text, seller_sign_status text not null default 'pending'::text, buyer_signed_on date, seller_signed_on date, buyer_place_kind text not null default ''::text, seller_place_kind text not null default ''::text, buyer_office_id text, seller_office_id text, buyer_signing_date date, seller_signing_date date, buyer_signing_time text not null default ''::text, seller_signing_time text not null default ''::text, buyer_manual_street text not null default ''::text, buyer_manual_city text not null default ''::text, buyer_manual_state text not null default ''::text, buyer_manual_zip text not null default ''::text, seller_manual_street text not null default ''::text, seller_manual_city text not null default ''::text, seller_manual_state text not null default ''::text, seller_manual_zip text not null default ''::text, closing_manual_street text not null default ''::text, closing_manual_city text not null default ''::text, closing_manual_state text not null default ''::text, closing_manual_zip text not null default ''::text, lender_history jsonb not null default '[]'::jsonb, parcel_ids jsonb not null default '[]'::jsonb, disbursement_date date);
+create table if not exists public.deals (id uuid not null default gen_random_uuid(), file_number text not null default ('MD-26-'::text || nextval('file_number_seq'::regclass)), street text not null, city text not null, state text not null, zip text not null default ''::text, transaction_type text not null default 'Purchase'::text, stage smallint not null default 0, status text not null default 'Open'::text, open_date date not null default ((now() AT TIME ZONE 'America/New_York'::text))::date, closing_date date, purchase_price numeric(14,2), loan_amount numeric(14,2), lender_name text not null default ''::text, lender_contact text not null default ''::text, lender_email text not null default ''::text, lender_phone text not null default ''::text, notes text not null default ''::text, processor_id uuid, sales_person_id uuid, created_by uuid, created_at timestamp with time zone not null default now(), scheduled_at timestamp without time zone, scheduled_location text, scheduled_note text not null default ''::text, scheduled_by uuid, scheduled_confirmed_at timestamp with time zone, emd_amount numeric(14,2), emd_due_date date, county text not null default ''::text, primary_residence text not null default ''::text, first_time_buyer text not null default ''::text, scheduled_office_id text, scheduled_by_role text, title_review_status text not null default 'not_started'::text, loan_id_number text not null default ''::text, loss_payee_name text not null default ''::text, uses_mers boolean, funding_type text, first_payment_date date, interest_type text, loan_type text not null default ''::text, contract_date date, listing_commission_pct numeric(8,4), listing_commission_amount numeric(14,2), buyer_commission_pct numeric(8,4), buyer_commission_amount numeric(14,2), seller_concessions numeric(14,2), emd_holder text, emd_received boolean not null default false, emd_received_date date, emd_received_amount numeric(14,2), alta_received boolean not null default false, alta_received_date date, alta_document_id uuid, preprocessor_user_id uuid, is_demo boolean not null default false);
 create table if not exists public.documents (id uuid not null default gen_random_uuid(), deal_id uuid, name text not null, description text not null default ''::text, mime_type text not null default 'application/octet-stream'::text, size_bytes bigint not null default 0, storage_path text, visibility text not null default 'all'::text, uploaded_by uuid not null, created_at timestamp with time zone not null default now(), folder_id uuid, doc_type text not null default ''::text, wire_instructions boolean not null default false, shared_with_client boolean not null default false, shared_with_client_by uuid, shared_with_client_at timestamp with time zone, title_doc_kind text, title_generated boolean not null default false, shared_with_seller boolean not null default false, shared_with_seller_by uuid, shared_with_seller_at timestamp with time zone, final_policy boolean not null default false, policy_side text);
 create table if not exists public.email_sender_settings (sender_type text not null, email text not null, display_name text not null, updated_at timestamp with time zone, updated_by uuid);
 create table if not exists public.entity_review_attorneys (id text not null, profile_id uuid, display_name text not null, assignment_role text not null, active boolean not null default true, retired_at timestamp with time zone);
@@ -1930,19 +1931,10 @@ begin
   if not exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='private' and p.proname='effective_uid' and p.pronargs=0) then
     execute $pf62$CREATE OR REPLACE FUNCTION private.effective_uid()
  RETURNS uuid
- LANGUAGE plpgsql
+ LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'pg_catalog', 'public', 'extensions'
-AS $function$
-declare
-  actor text;
-  found uuid;
-begin
-  actor := coalesce(auth.uid()::text, '');
-  if current_setting('cla.effective_uid_for', true) is not distinct from actor
-     and current_setting('cla.effective_uid_for', true) is not null then
-    return nullif(current_setting('cla.effective_uid', true), '')::uuid;
-  end if;
+AS $cap$
   select coalesce(
     (select s.target_id
        from private.view_as_sessions s
@@ -1952,12 +1944,7 @@ begin
         and s.stopped_at is null
         and s.expires_at > pg_catalog.now()),
     auth.uid())
-  into found;
-  perform set_config('cla.effective_uid_for', actor, true);
-  perform set_config('cla.effective_uid', coalesce(found::text, ''), true);
-  return found;
-end
-$function$$pf62$;
+$cap$$pf62$;
   end if;
 end
 $guard62$;
@@ -2706,8 +2693,8 @@ begin
  LANGUAGE sql
  IMMUTABLE
  SET search_path TO 'pg_catalog', 'public', 'extensions'
-AS $function$
-  select case r when 'Buyer Agent' then 'buyer' when 'Client-Buyer' then 'buyer' when 'Listing Agent' then 'seller' when 'Client-Seller' then 'seller' end $function$$pf105$;
+AS $cap$
+  select case r when 'Buyer Agent' then 'buyer' when 'Client-Buyer' then 'buyer' when 'Listing Agent' then 'seller' when 'Client-Seller' then 'seller' end $cap$$pf105$;
   end if;
 end
 $guard105$;
@@ -3537,7 +3524,7 @@ end
 $guard170$;
 do $guard171$
 begin
-  if not exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='digest' and p.pronargs=2) then
+  if to_regprocedure('public.digest(text, text)') is null then
     execute $pf171$CREATE OR REPLACE FUNCTION public.digest(data text, type text)
  RETURNS bytea
  LANGUAGE sql
@@ -4782,8 +4769,8 @@ begin
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'pg_catalog', 'public', 'extensions'
-AS $function$
-  select coalesce((select is_admin from public.profiles where id = private.effective_uid() and status = 'active'), false) $function$$pf259$;
+AS $cap$
+  select coalesce((select is_admin from public.profiles where id = private.effective_uid() and status = 'active'), false) $cap$$pf259$;
   end if;
 end
 $guard259$;
@@ -4821,8 +4808,8 @@ begin
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'pg_catalog', 'public', 'extensions'
-AS $function$
-  select role from public.profiles where id = private.effective_uid() and status = 'active' $function$$pf262$;
+AS $cap$
+  select role from public.profiles where id = private.effective_uid() and status = 'active' $cap$$pf262$;
   end if;
 end
 $guard262$;
@@ -4834,8 +4821,8 @@ begin
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'pg_catalog', 'public', 'extensions'
-AS $function$
-  select id from public.contacts where profile_id = private.effective_uid() $function$$pf263$;
+AS $cap$
+  select id from public.contacts where profile_id = private.effective_uid() $cap$$pf263$;
   end if;
 end
 $guard263$;
@@ -5017,9 +5004,9 @@ begin
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'pg_catalog', 'public', 'extensions'
-AS $function$
+AS $cap$
   select coalesce((select p.is_demo from public.profiles p where p.id = private.effective_uid() and p.status = 'active'), false)
-$function$$pf273$;
+$cap$$pf273$;
   end if;
 end
 $guard273$;
@@ -5861,8 +5848,8 @@ begin
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'pg_catalog', 'public', 'extensions'
-AS $function$
-  select case when private.me_role() is null then null when private.me_role() <> 'Outside user' then private.me_role() else private.file_role_of(private.effective_uid(), d) end $function$$pf308$;
+AS $cap$
+  select case when private.me_role() is null then null when private.me_role() <> 'Outside user' then private.me_role() else private.file_role_of(private.effective_uid(), d) end $cap$$pf308$;
   end if;
 end
 $guard308$;
@@ -5939,8 +5926,8 @@ begin
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'pg_catalog', 'public', 'extensions'
-AS $function$
-  select private.is_admin() or coalesce(private.me_role() in ('Processor', 'Preprocessor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin'), false) $function$$pf314$;
+AS $cap$
+  select private.is_admin() or coalesce(private.me_role() in ('Processor', 'Preprocessor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin'), false) $cap$$pf314$;
   end if;
 end
 $guard314$;
@@ -5978,12 +5965,16 @@ begin
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'pg_catalog', 'public', 'extensions'
-AS $function$
+AS $cap$
   select private.me_role() is not null and (
-    private.is_admin() or private.me_role() in ('Processor', 'Sales Team', 'Transaction Coordinator')
+    private.is_admin() or private.me_role() in ('Processor', 'Sales Team')
     or (private.me_role() = 'Preprocessor' and exists (select 1 from public.deals x where x.id = d and x.preprocessor_user_id = private.effective_uid()))
-    or (private.me_role() in ('Sales Person', 'Sales Team') and exists (select 1 from public.deal_sales_people s where s.deal_id = d and s.sales_id = private.effective_uid()))
-    or exists (select 1 from public.deal_participants p where p.deal_id = d and p.contact_id = private.my_contact_id())) $function$$pf317$;
+    or (private.me_role() = 'Transaction Coordinator' and exists (
+          select 1 from public.deal_participants p join public.contacts c on c.id = p.contact_id
+          where p.deal_id = d and p.role in ('Buyer Agent', 'Listing Agent') and c.profile_id in (select private.my_team_agents())))
+    or (private.me_role() <> 'Transaction Coordinator' and (
+          (private.me_role() in ('Sales Person', 'Sales Team') and exists (select 1 from public.deal_sales_people s where s.deal_id = d and s.sales_id = private.effective_uid()))
+          or exists (select 1 from public.deal_participants p where p.deal_id = d and p.contact_id = private.my_contact_id())))) $cap$$pf317$;
   end if;
 end
 $guard317$;
@@ -6577,3 +6568,446 @@ revoke all on function private.can_access_deal(uuid) from public, anon;
 grant execute on function private.can_access_deal(uuid) to authenticated;
 revoke all on function private.effective_uid() from public;
 grant execute on function private.effective_uid() to anon, authenticated;
+
+-- The November 9 tasks file expects eight policies and these helpers already present.
+do $tasks_pre$
+begin
+  if to_regprocedure('private.file_roles_of(uuid, uuid)') is null then
+    create function private.file_roles_of(pid uuid, d uuid) returns text[]
+    language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+      select case when pr.role is null then '{}'::text[] when pr.role <> 'Outside user' then array[pr.role]
+        else coalesce((select array_agg(x.role order by array_position(array['Buyer Agent', 'Listing Agent', 'Client-Buyer', 'Client-Seller'], x.role))
+                       from (select distinct p.role from public.deal_participants p join public.contacts c on c.id = p.contact_id
+                             where p.deal_id = d and c.profile_id = pid and p.role in ('Buyer Agent', 'Listing Agent', 'Client-Buyer', 'Client-Seller')) x), array['Outside user']) end
+      from (select (select role from public.profiles where id = pid) as role) pr
+    $fn$;
+  end if;
+  if to_regprocedure('private.deal_roles(uuid)') is null then
+    create function private.deal_roles(d uuid) returns text[]
+    language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+      select case when private.me_role() is null then '{}'::text[] else private.file_roles_of(private.effective_uid(), d) end
+    $fn$;
+  end if;
+  if to_regprocedure('private.person_side(uuid, uuid)') is null then
+    create function private.person_side(pid uuid, d uuid) returns text
+    language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+      select case when (select role from public.profiles where id = pid) is distinct from 'Outside user' then 'staff'
+        else (select case when count(distinct s) = 1 then max(s) end from (select private.side_of(r) s from unnest(private.file_roles_of(pid, d)) r) x where s is not null) end
+    $fn$;
+  end if;
+  if to_regprocedure('private.person_pure_buyer(uuid, uuid)') is null then
+    create function private.person_pure_buyer(pid uuid, d uuid) returns boolean
+    language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+      select pid is not null and d is not null and coalesce(private.person_side(pid, d) <> 'staff', false)
+         and 'Client-Buyer' = any (private.file_roles_of(pid, d)) and not (private.file_roles_of(pid, d) && array['Buyer Agent', 'Listing Agent'])
+    $fn$;
+  end if;
+  if to_regprocedure('private.is_pure_buyer(uuid)') is null then
+    create function private.is_pure_buyer(d uuid) returns boolean
+    language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+  select private.effective_uid() is not null and not private.is_staffish() and private.person_pure_buyer(private.effective_uid(), d) $fn$;
+  end if;
+  if to_regprocedure('private.task_visible(uuid, text, uuid)') is null then
+    create function private.task_visible(owner uuid, assigned text, d uuid) returns boolean
+    language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+  select private.is_staffish() or owner = private.effective_uid()
+      or (owner is null and assigned = any (private.deal_roles(d)))
+      or (private.deal_role(d) in ('Buyer Agent', 'Listing Agent') and private.side_of(assigned) = private.side_of(private.deal_role(d))) $fn$;
+  end if;
+  revoke all on function private.is_staffish() from public, anon;
+  grant execute on function private.is_staffish() to authenticated;
+  revoke all on function private.task_visible(uuid, text, uuid) from public, anon;
+  grant execute on function private.task_visible(uuid, text, uuid) to authenticated;
+
+  if not exists (select 1 from pg_policy where polrelid = 'public.tasks'::regclass and polname = 'tasks_select') then
+    execute $p$create policy tasks_select on public.tasks for select to authenticated using (private.can_access_deal(deal_id) and private.task_visible(owner_profile_id, assigned_role, deal_id) and not (assigned_role = 'Client-Buyer' and private.emd_receipt_title(title) and private.is_pure_buyer(deal_id)))$p$;
+  end if;
+  if not exists (select 1 from pg_policy where polrelid = 'public.tasks'::regclass and polname = 'demo_scope') then
+    execute $p$create policy demo_scope on public.tasks as restrictive for all to authenticated using (case when deal_id is null then not private.viewer_is_demo() else (select d.is_demo from deals d where d.id = tasks.deal_id) = private.viewer_is_demo() end) with check (case when deal_id is null then not private.viewer_is_demo() else (select d.is_demo from deals d where d.id = tasks.deal_id) = private.viewer_is_demo() end)$p$;
+  end if;
+  if not exists (select 1 from pg_policy where polrelid = 'public.tasks'::regclass and polname = 'tasks_insert') then
+    execute 'create policy tasks_insert on public.tasks for insert to authenticated with check (true)';
+  end if;
+  if not exists (select 1 from pg_policy where polrelid = 'public.tasks'::regclass and polname = 'tasks_update') then
+    execute 'create policy tasks_update on public.tasks for update to authenticated using (true) with check (true)';
+  end if;
+  if not exists (select 1 from pg_policy where polrelid = 'public.tasks'::regclass and polname = 'tasks_audience_limit') then
+    execute 'create policy tasks_audience_limit on public.tasks as restrictive for select to authenticated using (true)';
+  end if;
+  if not exists (select 1 from pg_policy where polrelid = 'public.tasks'::regclass and polname = 'tasks_retired_kept') then
+    execute 'create policy tasks_retired_kept on public.tasks as restrictive for select to authenticated using (true)';
+  end if;
+  if not exists (select 1 from pg_policy where polrelid = 'public.tasks'::regclass and polname = 'tasks_switch_hidden') then
+    execute 'create policy tasks_switch_hidden on public.tasks as restrictive for select to authenticated using (true)';
+  end if;
+  if not exists (select 1 from pg_policy where polrelid = 'public.tasks'::regclass and polname = 'tasks_switch_hidden_upd') then
+    execute 'create policy tasks_switch_hidden_upd on public.tasks as restrictive for update to authenticated using (true) with check (true)';
+  end if;
+end
+$tasks_pre$;
+
+-- Captured preimage for the deal-contacts hoist. Created only when missing.
+do $contacts_pre$
+begin
+  if to_regprocedure('private.person_pure_seller(uuid, uuid)') is null then
+    create function private.person_pure_seller(pid uuid, d uuid) returns boolean
+    language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+  select pid is not null and d is not null and coalesce(private.person_side(pid, d) <> 'staff', false)
+     and 'Client-Seller' = any (private.file_roles_of(pid, d)) and not ('Client-Buyer' = any (private.file_roles_of(pid, d)))
+     and not (private.file_roles_of(pid, d) && array['Buyer Agent', 'Listing Agent'])
+$fn$;
+  end if;
+  if to_regprocedure('private.is_pure_seller(uuid)') is null then
+    execute $c1$CREATE OR REPLACE FUNCTION private.is_pure_seller(d uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $inner$
+  select private.effective_uid() is not null and not private.is_staffish() and private.person_pure_seller(private.effective_uid(), d) $inner$$c1$;
+  end if;
+  if to_regprocedure('private.my_side(uuid)') is null then
+    execute $c2$CREATE OR REPLACE FUNCTION private.my_side(d uuid)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $inner$
+  select case when private.is_staffish() then 'staff' else private.person_side(private.effective_uid(), d) end $inner$$c2$;
+  end if;
+  if to_regprocedure('private.participant_visible(uuid, text)') is null then
+    execute $c3$CREATE OR REPLACE FUNCTION private.participant_visible(d uuid, prole text)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $inner$
+  select private.can_access_deal(d) and not (private.deal_role(d) in ('Client-Buyer', 'Client-Seller') and prole like 'Client-%' and prole <> private.deal_role(d))
+     and not (prole = 'Listing Agent' and private.is_pure_buyer(d))
+     and not (prole = 'Buyer Agent' and private.is_pure_seller(d)) $inner$$c3$;
+  end if;
+  if to_regprocedure('private.rpc_deal_contacts(uuid)') is null then
+    execute $c4$CREATE OR REPLACE FUNCTION private.rpc_deal_contacts(p_deal uuid)
+ RETURNS TABLE(participant_id uuid, deal_id uuid, contact_id uuid, role text, profile_id uuid, first_name text, last_name text, company text, email text, phone text, contact_hidden boolean)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $inner$
+  select dp.id, dp.deal_id, c.id, dp.role, c.profile_id, c.first_name, c.last_name, c.company,
+    case when h then '' else c.email end, case when h then '' else c.phone end, h
+  from public.deal_participants dp join public.contacts c on c.id = dp.contact_id
+  cross join lateral (select not (private.is_staffish() or c.id = private.my_contact_id() or private.side_of(dp.role) is null or private.side_of(dp.role) = private.my_side(p_deal)) h) z
+  where dp.deal_id = p_deal and private.participant_visible(p_deal, dp.role) $inner$$c4$;
+  end if;
+  if to_regprocedure('public.deal_contacts(uuid)') is null then
+    execute $c5$CREATE OR REPLACE FUNCTION public.deal_contacts(p_deal uuid)
+ RETURNS TABLE(participant_id uuid, deal_id uuid, contact_id uuid, role text, profile_id uuid, first_name text, last_name text, company text, email text, phone text, contact_hidden boolean)
+ LANGUAGE plpgsql
+ STABLE SECURITY INVOKER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $inner$ BEGIN RETURN QUERY SELECT * FROM private.rpc_deal_contacts(p_deal); END; $inner$$c5$;
+  end if;
+  revoke all on function private.rpc_deal_contacts(uuid) from public, anon;
+  grant execute on function private.rpc_deal_contacts(uuid) to authenticated;
+  revoke all on function private.participant_visible(uuid, text) from public, anon;
+  grant execute on function private.participant_visible(uuid, text) to authenticated;
+  revoke all on function private.my_side(uuid) from public, anon;
+  grant execute on function private.my_side(uuid) to authenticated;
+  revoke all on function private.is_pure_seller(uuid) from public, anon;
+  grant execute on function private.is_pure_seller(uuid) to authenticated;
+  revoke all on function private.side_of(text) from public, anon;
+  grant execute on function private.side_of(text) to authenticated;
+  revoke all on function private.deal_role(uuid) from public, anon;
+  grant execute on function private.deal_role(uuid) to authenticated;
+  revoke all on function private.is_pure_buyer(uuid) from public, anon;
+  grant execute on function private.is_pure_buyer(uuid) to authenticated;
+  revoke all on function private.my_contact_id() from public, anon;
+  grant execute on function private.my_contact_id() to authenticated;
+end
+$contacts_pre$;
+
+-- Documents policies as they stood before the agent-insert migration. Created only when missing.
+alter table public.documents enable row level security;
+do $docs_pre$
+begin
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='documents' and policyname='documents_insert') then
+    create policy documents_insert on public.documents for insert to authenticated with check (
+      (uploaded_by = private.effective_uid()) AND private.upload_ext_ok(name) AND (((deal_id IS NOT NULL) AND private.can_access_deal(deal_id) AND (NOT private.is_view_only()) AND private.visibility_allowed(deal_id, visibility) AND ((folder_id IS NULL) OR private.folder_visible(folder_id))) OR ((deal_id IS NULL) AND (private.is_processor() OR private.is_admin()) AND (visibility = 'all'::text)))
+    );
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='documents' and policyname='documents_select') then
+    create policy documents_select on public.documents for select to authenticated using (true);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='documents' and policyname='documents_update') then
+    create policy documents_update on public.documents for update to authenticated using (true) with check (true);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='documents' and policyname='demo_scope') then
+    create policy demo_scope on public.documents as restrictive for all to authenticated using (true) with check (true);
+  end if;
+end
+$docs_pre$;
+
+-- profiles role list as TEST has it, and the HR accept function before the portal-role migration. Created only when missing.
+do $hr_role$
+begin
+  if not exists (select 1 from pg_constraint where conrelid = 'public.profiles'::regclass and conname = 'profiles_role_check') then
+    alter table public.profiles add constraint profiles_role_check check (role = any (array['Processor','Preprocessor','Sales Person','Sales Team','Transaction Coordinator','Admin','Super admin','Outside user','Employee']));
+  end if;
+  if to_regprocedure('private.rpc_hr_accept_invite(text)') is null then
+    create function private.rpc_hr_accept_invite(p_token text) returns uuid
+    language plpgsql security definer set search_path to 'pg_catalog', 'public', 'extensions' as $function$
+declare v public.hr_invites; e public.hr_employees; me uuid := private.effective_uid(); pr public.profiles;
+begin
+  if me is null then raise exception 'Create your sign-in first.' using errcode = '42501'; end if;
+  select * into v from public.hr_invites where token_hash = encode(digest(coalesce(p_token, ''), 'sha256'), 'hex') for update;
+  if found then select * into e from public.hr_employees where id = v.employee_id for update; end if;
+  if v.id is null or v.accepted_at is not null or v.revoked_at is not null or v.expires_at < now() or e.archived_at is not null then
+    raise exception 'This invite link is not valid or has expired. Ask HR for a new one.' using errcode = 'P0001'; end if;
+  if e.profile_id is not null then raise exception 'This employee already has a portal login.' using errcode = 'P0001'; end if;
+  select * into pr from public.profiles where id = me;
+  if found then
+    if pr.role = 'Outside user' or pr.status <> 'active' then raise exception 'This sign-in belongs to an agent or client login. Ask HR to use your work email.' using errcode = 'P0001'; end if;
+    if lower(pr.email) <> lower(e.email) then raise exception 'This sign-in has a different email than the invite.' using errcode = 'P0001'; end if;
+    if exists (select 1 from public.hr_employees z where z.profile_id = me) then raise exception 'This login is already linked to an employee.' using errcode = 'P0001'; end if;
+  else
+    if exists (select 1 from public.profiles where lower(email) = lower(e.email)) then raise exception 'Someone with that email already has a portal login.' using errcode = 'P0001'; end if;
+    insert into public.profiles (id, email, first_name, last_name, phone, role) values (me, e.email, e.first_name, e.last_name,
+      case when e.country = 'US' and length(regexp_replace(e.phone, '\D', '', 'g')) = 10 then private.fmt_phone(e.phone) else '' end, 'Employee');   -- profiles.phone is US-only
+  end if;
+  update public.hr_invites set accepted_at = now(), accepted_profile = me, token_hash = null where id = v.id;
+  update public.hr_employees set profile_id = me where id = e.id;   -- the guard lets the new login link ONLY itself, after the invite above
+  return e.id;
+end $function$;
+  end if;
+end
+$hr_role$;
+
+-- CRM attachment policies as they stood before the email-policy fix. Created only when missing.
+do $crm_att$
+begin
+  create table if not exists private.features (
+    name text primary key,
+    enabled boolean not null default false,
+    note text not null default ''
+  );
+  if to_regprocedure('private.crm_on()') is null then
+    create function private.crm_on() returns boolean language sql stable security definer
+      set search_path to 'pg_catalog', 'public', 'extensions' as $function$
+  select coalesce((select enabled from private.features where name = 'crm'), false) $function$;
+  end if;
+  if to_regprocedure('private.crm_user()') is null then
+    create function private.crm_user() returns boolean language sql stable security definer
+      set search_path to 'pg_catalog', 'public', 'extensions' as $function$
+  select private.crm_on() and (private.is_admin() or coalesce(private.me_role() in ('Processor', 'Preprocessor', 'Sales Person', 'Sales Team'), false)) $function$;
+  end if;
+  if to_regprocedure('private.crm_editor()') is null then
+    create function private.crm_editor() returns boolean language sql stable security definer
+      set search_path to 'pg_catalog', 'public', 'extensions' as $function$
+  select private.crm_user() and (private.is_admin() or coalesce(private.me_role() in ('Sales Person', 'Sales Team'), false)) $function$;
+  end if;
+  if to_regprocedure('private.crm_email_record_visible(text, uuid)') is null then
+    create function private.crm_email_record_visible(entity text, entity_id uuid) returns boolean language sql stable security definer
+      set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ select false $fn$;
+  end if;
+  if to_regprocedure('private.crm_entity_visible(text, uuid)') is null then
+    create function private.crm_entity_visible(entity text, entity_id uuid) returns boolean language sql stable security definer
+      set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ select false $fn$;
+  end if;
+  if to_regprocedure('private.crm_template_visible(uuid)') is null then
+    create function private.crm_template_visible(entity_id uuid) returns boolean language sql stable security definer
+      set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ select false $fn$;
+  end if;
+  if to_regprocedure('private.crm_template_editable(uuid)') is null then
+    create function private.crm_template_editable(entity_id uuid) returns boolean language sql stable security definer
+      set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ select false $fn$;
+  end if;
+  alter table public.crm_attachments enable row level security;
+  if not exists (select 1 from pg_policy where polrelid = 'public.crm_attachments'::regclass and polname = 'crm_att_select_email') then
+    create policy crm_att_select_email on public.crm_attachments for select to authenticated using (
+      (entity = 'email'::text) AND (EXISTS ( SELECT 1
+         FROM crm_emails e
+        WHERE ((e.id = e.entity_id) AND private.crm_email_record_visible(e.entity, e.entity_id))))
+    );
+  end if;
+  if not exists (select 1 from pg_policy where polrelid = 'public.crm_attachments'::regclass and polname = 'crm_att_insert_email') then
+    create policy crm_att_insert_email on public.crm_attachments for insert to authenticated with check (
+      (entity = 'email'::text) AND private.crm_editor() AND (EXISTS ( SELECT 1
+         FROM crm_emails e
+        WHERE ((e.id = e.entity_id) AND (e.created_by = private.effective_uid()))))
+    );
+  end if;
+  if not exists (select 1 from pg_policy where polrelid = 'public.crm_attachments'::regclass and polname = 'crm_att_select') then
+    create policy crm_att_select on public.crm_attachments for select to authenticated using (private.crm_entity_visible(entity, entity_id));
+  end if;
+  if not exists (select 1 from pg_policy where polrelid = 'public.crm_attachments'::regclass and polname = 'crm_att_insert') then
+    create policy crm_att_insert on public.crm_attachments for insert to authenticated with check (private.crm_editor() AND private.crm_entity_visible(entity, entity_id));
+  end if;
+  if not exists (select 1 from pg_policy where polrelid = 'public.crm_attachments'::regclass and polname = 'crm_att_select_tpl') then
+    create policy crm_att_select_tpl on public.crm_attachments for select to authenticated using ((entity = 'template'::text) AND private.crm_template_visible(entity_id));
+  end if;
+  if not exists (select 1 from pg_policy where polrelid = 'public.crm_attachments'::regclass and polname = 'crm_att_insert_tpl') then
+    create policy crm_att_insert_tpl on public.crm_attachments for insert to authenticated with check ((entity = 'template'::text) AND private.crm_template_editable(entity_id));
+  end if;
+end
+$crm_att$;
+
+-- Supabase Vault, which the Gmail files assume and never install. Created only when missing.
+create schema if not exists vault;
+do $vault_pre$
+begin
+  if to_regclass('vault.secrets') is null then
+    create table vault.secrets (
+      id uuid primary key default gen_random_uuid(),
+      name text,
+      description text not null default '',
+      secret text not null default '',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  end if;
+  if to_regclass('vault.decrypted_secrets') is null then
+    create view vault.decrypted_secrets as
+      select id, name, description, secret as decrypted_secret, created_at, updated_at from vault.secrets;
+  end if;
+  if not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'vault' and p.proname = 'create_secret') then
+    create function vault.create_secret(new_secret text, new_name text default null, new_description text default '') returns uuid
+    language plpgsql set search_path to pg_catalog, vault as $fn$
+    declare i uuid;
+    begin
+      insert into vault.secrets (name, description, secret)
+      values (new_name, coalesce(new_description, ''), coalesce(new_secret, ''))
+      returning id into i;
+      return i;
+    end $fn$;
+  end if;
+  if not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'vault' and p.proname = 'update_secret') then
+    create function vault.update_secret(secret_id uuid, new_secret text default null, new_name text default null, new_description text default null) returns void
+    language plpgsql set search_path to pg_catalog, vault as $fn$
+    begin
+      update vault.secrets
+         set secret = coalesce(new_secret, secret),
+             name = coalesce(new_name, name),
+             description = coalesce(new_description, description),
+             updated_at = pg_catalog.now()
+       where id = secret_id;
+    end $fn$;
+  end if;
+  if not exists (select 1 from pg_extension where extname = 'supabase_vault') then
+    insert into pg_extension (oid, extname, extowner, extnamespace, extrelocatable, extversion)
+    values (
+      999900,
+      'supabase_vault',
+      (select oid from pg_roles where rolname = current_user),
+      (select oid from pg_namespace where nspname = 'vault'),
+      false,
+      '0.2.8'
+    );
+  end if;
+end
+$vault_pre$;
+
+-- CRM helpers as they stood on Nov 9, before role access. Created only when missing.
+do $crm_nov9$
+begin
+  if to_regprocedure('private.crm_all()') is null then
+CREATE OR REPLACE FUNCTION private.crm_all()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $function$
+  select private.crm_user() and (private.is_admin() or coalesce(private.me_role() in ('Processor', 'Preprocessor'), false)) $function$;
+  end if;
+  if to_regprocedure('private.crm_read_all()') is null then
+CREATE OR REPLACE FUNCTION private.crm_read_all()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $function$
+  select private.crm_user() and (private.is_admin() or coalesce(private.me_role() in ('Processor', 'Preprocessor'), false)) $function$;
+  end if;
+  if to_regprocedure('private.crm_deal_scope_all()') is null then
+CREATE OR REPLACE FUNCTION private.crm_deal_scope_all()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $function$
+  select private.crm_user() and (private.is_admin() or coalesce(private.me_role() in ('Processor', 'Preprocessor', 'Sales Team'), false)) $function$;
+  end if;
+  if to_regprocedure('private.crm_need(boolean)') is null then
+CREATE OR REPLACE FUNCTION private.crm_need(p_edit boolean DEFAULT false)
+ RETURNS void
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $function$
+begin
+  if not private.crm_on() then raise exception 'The CRM is turned off on this portal.' using errcode = '42501'; end if;
+  if not private.crm_user() then raise exception 'The CRM is for CLA staff only.' using errcode = '42501'; end if;
+  if p_edit and not private.crm_editor() then raise exception 'The Processor has read-only access to the CRM.' using errcode = '42501'; end if;
+end $function$;
+  end if;
+  if to_regprocedure('private.rpc_crm_deal_filters()') is null then
+CREATE OR REPLACE FUNCTION private.rpc_crm_deal_filters()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $function$
+declare everyone boolean;
+begin
+  if not private.crm_user() then raise exception 'The CRM is for CLA staff only.' using errcode = '42501'; end if;
+  everyone := private.crm_deal_scope_all();
+  return jsonb_build_object('scope', case when everyone then 'all' else 'own' end, 'role', private.me_role(),
+    'me', jsonb_build_object('id', private.effective_uid(), 'name', private.crm_name(private.effective_uid())),
+    'owners', case when everyone then coalesce((select jsonb_agg(jsonb_build_object('id', p.id, 'name', btrim(p.first_name || ' ' || p.last_name), 'role', p.role) order by p.first_name, p.last_name)
+      from public.profiles p where p.role in ('Sales Person', 'Sales Team') and (p.status = 'active' or exists (select 1 from public.deal_sales_people s where s.sales_id = p.id))), '[]') else '[]' end,
+    'clients', case when everyone then coalesce((select jsonb_agg(jsonb_build_object('id', c.id, 'name', btrim(c.first_name || ' ' || c.last_name)) order by c.first_name, c.last_name)
+      from public.contacts c where exists (select 1 from public.deal_participants p where p.contact_id = c.id and p.role in ('Client-Buyer', 'Client-Seller') and private.crm_deal_visible(p.deal_id))), '[]') else '[]' end,
+    'sources', coalesce((select jsonb_agg(jsonb_build_object('value', o.value, 'label', o.label || case when o.retired then ' (retired)' else '' end) order by o.position, o.value)
+      from public.crm_picklist_options o where o.list_key = 'leadSource' and (not o.retired or exists (select 1 from public.deal_business_sources b where b.source = o.value and private.crm_deal_visible(b.deal_id)))), '[]'),
+    'statuses', '["Open", "Closed", "On Hold", "Cancelled", "All"]'::jsonb);
+end $function$;
+  end if;
+  if to_regprocedure('private.rpc_crm_deals(text, text, uuid, text)') is null then
+CREATE OR REPLACE FUNCTION private.rpc_crm_deals(p_status text DEFAULT NULL::text, p_owner text DEFAULT NULL::text, p_client uuid DEFAULT NULL::uuid, p_source text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $function$
+declare st text := nullif(btrim(coalesce(p_status, '')), ''); ow text := nullif(btrim(coalesce(p_owner, '')), ''); src text := nullif(btrim(coalesce(p_source, '')), '');
+begin
+  if not private.crm_user() then raise exception 'The CRM is for CLA staff only.' using errcode = '42501'; end if;
+  if st is not null and st <> 'All' and st not in ('Open', 'Closed', 'On Hold', 'Cancelled') then raise exception 'Unknown status.' using errcode = '22023'; end if;
+  if ow is not null and ow <> 'none' and ow !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then raise exception 'Unknown deal owner.' using errcode = '22023'; end if;
+  if ow is not null and not private.crm_deal_scope_all() and ow <> private.effective_uid()::text then raise exception 'A Sales Person sees only their own deals.' using errcode = '42501'; end if;
+  return coalesce((select jsonb_agg(private.crm_deal_row(g) order by g.closing_date desc nulls last, g.file_number) from public.deals g
+    where private.crm_deal_visible(g.id)
+      and (st is null or st = 'All' or g.status = st)
+      and (ow is null or (ow = 'none' and not exists (select 1 from public.deal_sales_people s where s.deal_id = g.id))
+           or exists (select 1 from public.deal_sales_people s where s.deal_id = g.id and s.sales_id::text = ow))
+      and (p_client is null or exists (select 1 from public.deal_participants p where p.deal_id = g.id and p.contact_id = p_client and p.role in ('Client-Buyer', 'Client-Seller')))
+      and (src is null or (src = 'none' and coalesce((select b.source from public.deal_business_sources b where b.deal_id = g.id), '') = '')
+           or exists (select 1 from public.deal_business_sources b where b.deal_id = g.id and b.source = src))), '[]');
+end $function$;
+  end if;
+  if to_regprocedure('private.rpc_crm_list_export(text, integer)') is null then
+CREATE OR REPLACE FUNCTION private.rpc_crm_list_export(p_module text, p_rows integer DEFAULT 0)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $function$
+declare v uuid;
+begin
+  if not private.crm_user() then raise exception 'The CRM is for CLA staff only.' using errcode = '42501'; end if;
+  if not private.is_admin() then raise exception 'Only an Admin or Super admin can download CSV files from the CRM lists.' using errcode = '42501'; end if;
+  if p_module not in ('contacts', 'leads', 'accounts') then raise exception 'CSV downloads are for the Clients, Leads and Companies lists.' using errcode = '22023'; end if;
+  insert into public.crm_list_exports (module, exported_by, row_count) values (p_module, private.effective_uid(), greatest(coalesce(p_rows, 0), 0)) returning id into v;
+  return v; end $function$;
+  end if;
+end
+$crm_nov9$;

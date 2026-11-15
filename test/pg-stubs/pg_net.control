@@ -1,0 +1,4 @@
+comment = 'SQL stand-in for pg_net so the scratch database can load the Gmail schedule'
+default_version = '0.14.0'
+relocatable = false
+schema = extensions

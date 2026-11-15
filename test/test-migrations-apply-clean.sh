@@ -14,9 +14,19 @@ PSQL=(sudo -u postgres psql -v ON_ERROR_STOP=1 -X -q)
 cleanup() { sudo -u postgres psql -d postgres -c "drop database if exists \"$DB\";" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
+# pg_net and pg_cron are installed on TEST by a migration. Stock Postgres does not
+# ship them, so the scratch server gets a SQL-only stand-in (no HTTP, no scheduler).
+# A real install is left in place.
+share="$(sudo -u postgres pg_config --sharedir)/extension"
+for ext in pg_net pg_cron; do
+  if [ ! -f "$share/$ext.control" ]; then
+    sudo cp "$ROOT/test/pg-stubs/$ext.control" "$ROOT/test/pg-stubs/$ext"--*.sql "$share/"
+  fi
+done
+
 "${PSQL[@]}" -d postgres -c "drop database if exists \"$DB\";"
 "${PSQL[@]}" -d postgres -c "create database \"$DB\";"
-"${PSQL[@]}" -d "$DB" -c "create extension if not exists pgcrypto;"
+"${PSQL[@]}" -d "$DB" -c "create schema if not exists extensions; create extension if not exists pgcrypto with schema extensions;"
 "${PSQL[@]}" -d "$DB" -f "$PRE"
 
 while IFS= read -r f; do
