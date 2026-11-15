@@ -703,7 +703,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** Under Earnest and Commission, Listing Agent Commission and Selling Agent Commission are two panels, side by side. Each one is commission base × commission percent, plus an additional amount, equaling the commission amount. Paid by is Buyer, Seller, or Split. Split is a dollar amount from each. The base starts as the sales price. This is the layout of the Agent fees box.
 
-**Status: In progress.** Tracker row 182 (MF-051), which is the same item as FF-051 (row 177) and FF-075 (row 274). Francis confirmed the numbered list on Nov 11 2026, 2:36 PM ET, and chose option 1 on Nov 13 2026, 12:46 PM ET. John Coester, Nov 15 2026. Not Live until this is merged and `supabase/migrations/20261123040000_earnest_commission_panels.sql` is applied on TEST.
+**Status: In progress.** Tracker row 182 (MF-051), which is the same item as FF-051 (row 177) and FF-075 (row 274). Francis confirmed the numbered list on Nov 11 2026, 2:36 PM ET, and chose option 1 on Nov 13 2026, 12:46 PM ET. John Coester, Nov 15 2026. Pull request: [PR 285](https://github.com/Johncoester/cla-portal-demo/pull/285). Not Live until this is merged and `supabase/migrations/20261123040000_earnest_commission_panels.sql` is applied on TEST.
 
 **What's built**
 
