@@ -309,27 +309,29 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
-## File processor on Parties and Contacts (PROC-1)
+## File processor on Parties and Contacts (PROC-1 / PROC-2)
 
-**How it should work.** The Processor on a file is one person. Adding a staff login on the order's Contacts screen, with the role Processor, shows them on File Overview > Parties. Removing them from Contacts clears the Processor. Setting or clearing the Processor anywhere else (Edit order details, or Place Order) shows the same person on Contacts, or takes them off. Any active staff login can be the Processor. A contact with no portal login can still be listed on Contacts as Processor, and that listing is not the file's Processor.
+**How it should work.** The Processor on a file is one person. Adding that person on the order's Contacts screen, with the role Processor, shows them on File Overview > Parties. Removing them from Contacts clears the Processor. Setting or clearing the Processor anywhere else (Edit order details, or Place Order, or the Processor row on File Overview) shows the same person on Contacts, or takes them off. Any active staff login can be the Processor. A contact with no portal login can still be listed on Contacts as Processor, and that listing is not the file's Processor. Only people who can already edit parties can change it from the row.
 
-**Status: In progress.** Tracker row PROC-1. John Coester, screen recording "Adding a processor" (Nov 14 2026, 1:55 PM ET; Drive file 19lS81bxUsHUwQPRdLXIGi79dmpFhXdn7), confirmed Nov 14, 2:00 PM ET, on order MD-26-97260. Not Live until the database file is applied on TEST.
+**Status: In progress.** Tracker rows PROC-1 and PROC-2. John Coester, screen recording "Adding a processor" (Nov 14 2026, 1:55 PM ET; Drive file 19lS81bxUsHUwQPRdLXIGi79dmpFhXdn7), confirmed Nov 14, 2:00 PM ET, on order MD-26-97260. PROC-1 is not Live until its database file is applied on TEST. PROC-2 has no database file.
 
 **What's built**
 
 - Contacts and File Overview were reading two different places. Contacts stored a person on the file with the role Processor. File Overview read the file's processor field, so it still said "Not specified" and showed the red "no processor yet" warning. They now stay in step both ways.
 - A Super admin, Admin, Processor, Preprocessor, Sales Person, Sales Team, or Transaction Coordinator can be that person. An outside user is refused in plain words. A contact with no portal login can still be listed on Contacts as Processor, and that listing does not become the file's Processor.
 - A one-time copy lines up existing fake TEST files (a demo file, a note that says it is fake, a DEMO- file number, or a generated file number whose contacts use example.test or example.com only). A file that also has another email address is left as it is. MD-26-97260 is not rewritten by that copy when a contact on it uses a CLA email. After the database file is applied, remove the Processor and add them again, or set the Processor on Edit order details, and both screens match.
+- On File Overview, people who can already edit parties can click the Processor row, or Choose processor / Change processor. A list of active staff logins opens. The choice is saved the same way as Edit order details, so Contacts shows the same person. Unassigned clears the Processor. Saving Unassigned when the file already has nobody says to choose a staff login or close the window, and the form stays open. A Sales Person, a buyer, or anyone else who cannot edit parties sees the row as it is, with no button.
 
 **What's still missing**
 
-- Not Live until this is merged and `supabase/migrations/20261122180000_processor_party_sync.sql` is applied on TEST. Clicking the Processor row on File Overview to pick someone is a separate item (PROC-2).
+- PROC-1 is merged ([PR 271](https://github.com/Johncoester/cla-portal-demo/pull/271)) and is not Live until `supabase/migrations/20261122180000_processor_party_sync.sql` is applied on TEST. PROC-2 is not on TEST until [PR 272](https://github.com/Johncoester/cla-portal-demo/pull/272) is merged.
 - Open tasks that were tied to a previous Processor row are cancelled in the demo when that row is replaced. On TEST, removing the person with Remove from order still cancels those tasks. The automatic replace does not cancel them.
 
 **Links**
 
 - Spec: [docs/specs/file-processor.md](docs/specs/file-processor.md)
-- Source: John Coester, Nov 14 2026, 1:55 PM ET, recording "Adding a processor". Tracker row PROC-1.
+- Source: John Coester, Nov 14 2026, 1:55 PM ET, recording "Adding a processor". Tracker rows PROC-1 and PROC-2.
+- PROC-1: [PR 271](https://github.com/Johncoester/cla-portal-demo/pull/271). PROC-2: [PR 272](https://github.com/Johncoester/cla-portal-demo/pull/272).
 
 **Decisions**
 
