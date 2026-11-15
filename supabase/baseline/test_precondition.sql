@@ -65,6 +65,32 @@ create table if not exists public.closing_proposals (id uuid not null default ge
 create table if not exists public.contacts (id uuid not null default gen_random_uuid(), profile_id uuid, first_name text not null, last_name text not null default ''::text, email text not null default ''::text, phone text not null default ''::text, company text not null default ''::text, created_by uuid, created_at timestamp with time zone not null default now(), contact_type text, crm_owner_id uuid, account_id uuid, crm_stage text, last_contacted_on date, tags text[] not null default '{}'::text[], crm_notes text not null default ''::text, crm_lead_id uuid, crm_archived_at timestamp with time zone, role_in_company text not null default ''::text, title text not null default ''::text, mobile text not null default ''::text, assistant text not null default ''::text, asst_phone text not null default ''::text, agent_split numeric(5,2), license_no text not null default ''::text, sales_volume_last_year numeric(16,2), deals_closed_last_year integer, zillow_url text not null default ''::text, crm_street text not null default ''::text, crm_city text not null default ''::text, crm_state text not null default ''::text, crm_zip text not null default ''::text, crm_county text not null default ''::text, links jsonb not null default '{}'::jsonb, modified_by uuid, modified_at timestamp with time zone, lead_source text not null default ''::text, relationship_status text, custom jsonb not null default '{}'::jsonb, zillow_moved boolean not null default false, is_demo boolean not null default false);
 create table if not exists public.cpl_prices (id uuid not null default gen_random_uuid(), state text not null, underwriter text not null, amount numeric(10,2), retired_at timestamp with time zone, updated_at timestamp with time zone not null default now(), updated_by uuid);
 create table if not exists public.crm_accounts (id uuid not null default gen_random_uuid(), name text not null, kind text not null default 'other'::text, phone text not null default ''::text, website text not null default ''::text, city text not null default ''::text, state text not null default ''::text, owner_id uuid, notes text not null default ''::text, archived_at timestamp with time zone, created_by uuid, created_at timestamp with time zone not null default now(), modified_by uuid, modified_at timestamp with time zone, custom jsonb not null default '{}'::jsonb);
+-- TEST history version 20261105222910, name crm. That row is not in the repo
+-- (the repo file with this stamp only creates private.features). The company
+-- lookup file requires this index and does not create it. Created only when
+-- contacts.account_id exists, and only when the index is missing.
+do $contacts_account_idx$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'contacts' and column_name = 'account_id'
+  ) then
+    create index if not exists contacts_account_idx on public.contacts using btree (account_id);
+  end if;
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'crm_accounts' and column_name = 'name'
+  ) and exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'crm_accounts' and column_name = 'archived_at'
+  ) then
+    create unique index if not exists crm_accounts_name_uq
+      on public.crm_accounts (lower(btrim(name)))
+      where archived_at is null;
+  end if;
+end
+$contacts_account_idx$;
+
 create table if not exists public.crm_activities (id uuid not null default gen_random_uuid(), entity text not null, entity_id uuid not null, kind text not null, subject text not null, body text not null default ''::text, status text not null default 'done'::text, due_date date, occurred_on date, owner_id uuid, system boolean not null default false, created_by uuid, created_at timestamp with time zone not null default now(), done_at timestamp with time zone, priority text not null default 'High'::text, reminder boolean not null default false, reminder_at timestamp without time zone, repeat_every text not null default ''::text, repeat_until date, repeat_of uuid, closed_at timestamp with time zone, cancelled boolean not null default false, modified_by uuid, modified_at timestamp with time zone, all_day boolean not null default false, starts_at timestamp without time zone, ends_at timestamp without time zone, location text not null default ''::text, meeting_type text not null default ''::text, host_id uuid, participants text[] not null default '{}'::text[], call_type text, call_start timestamp with time zone, call_duration integer, call_mode text, call_status text, call_duration_sec integer, from_number text not null default ''::text, to_number text not null default ''::text, related_entity text, related_id uuid, call_reminder integer, call_reminder_at timestamp with time zone, call_outcome text not null default ''::text, reason_not_interested text not null default ''::text, call_notes text not null default ''::text, voice_recording_url text, voice_recording_name text, completed_at timestamp with time zone, repeat_anchor_day smallint);
 create table if not exists public.crm_attachments (id uuid not null default gen_random_uuid(), entity text not null, entity_id uuid not null, name text not null, mime_type text not null default 'application/octet-stream'::text, size bigint not null default 0, storage_path text not null default ''::text, uploaded_by uuid, created_at timestamp with time zone not null default now());
 create table if not exists public.crm_custom_fields (id uuid not null default gen_random_uuid(), entity text not null, label text not null, type text not null, required boolean not null default false, section text not null default 'additional'::text, "position" integer not null default 0, show_in_list boolean not null default true, archived_at timestamp with time zone, created_by uuid, created_at timestamp with time zone not null default now(), modified_by uuid, modified_at timestamp with time zone, tooltip text not null default ''::text, show_tooltip boolean not null default false, max_chars integer, unique_values boolean not null default false, encrypted boolean not null default false, perm_view text[], perm_edit text[], config jsonb not null default '{}'::jsonb, default_value jsonb);
@@ -7721,10 +7747,34 @@ end
 $editors_pre$;
 
 -- The buyer personal-info file expects the active version 4 template. Inserted only when that code is absent.
-insert into public.task_templates (code, version, title, roles, fields, active)
-select 'personal_info', 4, 'Personal info', array['Client-Buyer','Client-Seller']::text[],
-  '[{"k":"entity_rep_name","label":"Entity representative","type":"text"},{"k":"current_address","label":"Current address","type":"text"},{"k":"attending_closing","label":"Attending closing","type":"text"}]'::jsonb, true
+-- Personal information version 4, copied from TEST. Later files publish versions
+-- 5 through 8 from this row. Inserted only when that code is absent.
+insert into public.task_templates (code, version, title, description, roles, due_days, fields, active, agent_roles, client_only)
+select 'personal_info', 4, 'Personal information',
+  'Contact details and closing preferences, power of attorney, and whether you are buying or selling as an entity (LLC, corporation, partnership or trust) and who represents it.',
+  array['Client-Buyer','Client-Seller']::text[], 7,
+  '[{"k":"full_name","req":true,"type":"text","label":"Full legal name"},{"k":"email","req":true,"type":"email","label":"Email"},{"k":"cell_phone","req":true,"type":"phone","label":"Cell phone"},{"k":"current_address","req":true,"type":"text","label":"Current address"},{"k":"marital_status","req":true,"opts":["Single","Married","Divorced","Widowed"],"type":"select","label":"Marital status"},{"k":"attending_closing","req":true,"opts":["Yes","No"],"type":"select","label":"Will you attend the closing?"},{"k":"settlement_type","req":true,"opts":["In person","Online"],"type":"select","label":"In-person or online settlement?","roles":["Client-Seller"]},{"k":"power_of_attorney","req":false,"opts":["Yes","No"],"type":"select","label":"Will you use a power of attorney?"},{"k":"poa_agent_name","req":true,"type":"text","when":["power_of_attorney","Yes"],"label":"Who is your Agent? (the person who will sign for you under the power of attorney)"},{"k":"poa_agent_relationship","req":true,"type":"text","when":["power_of_attorney","Yes"],"label":"Relationship to you"},{"k":"poa_agent_phone","req":true,"type":"phone","when":["power_of_attorney","Yes"],"label":"Agent''s phone"},{"k":"poa_agent_email","req":false,"type":"email","when":["power_of_attorney","Yes"],"label":"Agent''s email"},{"k":"poa_reason","req":true,"type":"textarea","when":["power_of_attorney","Yes"],"label":"Why is a power of attorney needed?"},{"k":"is_entity","req":false,"plus":true,"type":"checkbox","label":"Add entity (I am buying / selling as an LLC, corporation, partnership or trust)"},{"k":"entity_name","req":true,"type":"text","when":["is_entity",true],"label":"Entity name (exactly as registered)"},{"k":"entity_type","req":true,"opts":["LLC","Corporation","Partnership","Trust","Other"],"type":"select","when":["is_entity",true],"label":"Entity type"},{"k":"entity_state","req":true,"type":"state","when":["is_entity",true],"label":"State where the entity was formed"},{"k":"entity_signer_name","req":true,"type":"text","when":["is_entity",true],"label":"Authorized signer (full name)"},{"k":"entity_signer_title","req":true,"type":"text","when":["is_entity",true],"label":"Signer''s title (e.g. Managing Member, President, Trustee)"},{"k":"entity_rep_name","req":false,"type":"text","when":["is_entity",true],"label":"Entity Representative (full name; leave blank if it is the authorized signer)"},{"k":"entity_rep_title","req":false,"type":"text","when":["is_entity",true],"label":"Representative''s title or role"},{"k":"entity_rep_phone","req":false,"type":"phone","when":["is_entity",true],"label":"Representative''s phone"},{"k":"entity_rep_email","req":false,"type":"email","when":["is_entity",true],"label":"Representative''s email"},{"k":"entity_docs_note","req":false,"text":"Please attach the Operating Agreement and any amendments, a Certificate of Good Standing, and the Articles of Organization. If you do not have one yet, save your progress and add it later, or upload it on the Documents tab.","type":"info","when":["is_entity",true],"label":"Entity documents we need"},{"k":"entity_doc_operating","req":false,"type":"doc","when":["is_entity",true],"label":"Operating Agreement","docType":"Operating agreement / amendments"},{"k":"entity_doc_amendments","req":false,"type":"doc","when":["is_entity",true],"label":"Amendments to the Operating Agreement (if any)","docType":"Operating agreement / amendments"},{"k":"entity_doc_good_standing","req":false,"type":"doc","when":["is_entity",true],"label":"Certificate of Good Standing","docType":"Certificate of good standing"},{"k":"entity_doc_articles","req":false,"type":"doc","when":["is_entity",true],"label":"Articles of Organization","docType":"Articles of organization"},{"k":"notes","req":false,"type":"textarea","label":"Anything else we should know?"}]'::jsonb, true, '{}'::text[], true
 where not exists (select 1 from public.task_templates where code = 'personal_info');
+
+-- Seller proceeds version 1, copied from TEST. The proceeds file expects this
+-- active row and does not create it. Inserted only when that code is absent.
+-- due_anchor is added later and defaults to opened, which is what TEST has.
+insert into public.task_templates (code, version, title, description, roles, due_days, fields, active, agent_roles, client_only)
+select 'seller_proceeds', 1, 'How you want your proceeds',
+  'How you want to receive the money from your sale. Bank details are seen only by you and the CLA processor (others see the last 4 digits).',
+  array['Client-Seller']::text[], 10,
+  '[{"k":"method","req":true,"opts":["Wire transfer","Check sent by FedEx","Check at settlement"],"type":"select","label":"How do you want to receive your proceeds?"},{"k":"bank_name","req":true,"type":"text","when":["method","Wire transfer"],"label":"Bank name"},{"k":"routing","req":true,"type":"routing","when":["method","Wire transfer"],"label":"Routing number (9 digits)"},{"k":"account","req":true,"mask":true,"type":"account","when":["method","Wire transfer"],"label":"Account number"},{"k":"account_name","req":true,"type":"text","when":["method","Wire transfer"],"label":"Name on the account"},{"k":"mail_street","req":true,"type":"text","when":["method","Check sent by FedEx"],"label":"Mail the check to: street address"},{"k":"mail_unit","req":false,"type":"text","when":["method","Check sent by FedEx"],"label":"Apt / unit"},{"k":"mail_city","req":true,"type":"text","when":["method","Check sent by FedEx"],"label":"City"},{"k":"mail_state","req":true,"type":"state","when":["method","Check sent by FedEx"],"label":"State"},{"k":"mail_zip","req":true,"type":"zip","when":["method","Check sent by FedEx"],"label":"ZIP"},{"k":"settlement_conditions","req":false,"text":"PLACEHOLDER - CLA Title to supply the real conditions before go-live. Example only: the check is made out to the seller(s) on title, is handed over only after the buyer''s funds are confirmed, and you must show photo ID to receive it.","type":"info","when":["method","Check at settlement"],"label":"Conditions for a check at settlement"},{"k":"settlement_ack","req":true,"type":"checkbox","when":["method","Check at settlement"],"label":"I understand the conditions for receiving a check at settlement"},{"k":"notes","req":false,"type":"textarea","label":"Anything else we should know?"}]'::jsonb,
+  true, '{}'::text[], true
+where not exists (select 1 from public.task_templates where code = 'seller_proceeds');
+
+-- Commission information version 1, copied from TEST. The agent-fees file
+-- expects this task and publishes the next version. Inserted only when absent.
+insert into public.task_templates (code, version, title, description, roles, due_days, fields, active, agent_roles, client_only)
+select 'commissions', 1, 'Commission information',
+  'Confirm your commission for the settlement statement.',
+  array['Buyer Agent','Listing Agent']::text[], 10,
+  '[{"k":"brokerage","req":true,"type":"text","label":"Brokerage"},{"k":"license_id","req":true,"type":"text","label":"License ID"},{"k":"commission_amount","req":true,"type":"money","label":"Commission ($)"},{"k":"paid_by","req":true,"opts":["Seller","Buyer","Split"],"type":"select","label":"Paid by"},{"k":"notes","req":false,"type":"textarea","label":"Notes"}]'::jsonb, true, '{}'::text[], false
+where not exists (select 1 from public.task_templates where code = 'commissions');
 insert into public.task_templates (code, version, title, roles, fields, active)
 select v.code, 1, v.title, array['Client-Buyer','Client-Seller']::text[], v.fields::jsonb, true
 from (values
@@ -7744,3 +7794,164 @@ begin
   end if;
 end
 $tasks_pk$;
+
+-- Company visibility and the Clients card, copied from TEST. The repo never
+-- creates these. crm_contact_json and rpc_crm_update_contact are the Nov 10
+-- definitions the contact-times file checks (the rollback file), not today's
+-- bodies, which that file has already replaced on TEST. Each is created only
+-- when missing, so this does not change TEST.
+do $crm_contact_times_pre$
+begin
+  if to_regprocedure('private.crm_owner_ok(uuid)') is null then
+CREATE OR REPLACE FUNCTION private.crm_owner_ok(p_owner uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $function$
+  select private.crm_user() and (private.crm_all() or p_owner = private.effective_uid()
+    or (coalesce(private.me_role() = 'Sales Team', false) and (p_owner is null or private.crm_sales_profile(p_owner)))) $function$;
+  end if;
+  if to_regprocedure('private.crm_contact_visible(uuid)') is null then
+CREATE OR REPLACE FUNCTION private.crm_contact_visible(p_contact uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $function$
+  select private.crm_user() and private.crm_in_pool(p_contact)
+    and (private.crm_owner_ok((select crm_owner_id from public.contacts where id = p_contact)) or private.crm_linked(p_contact)) $function$;
+  end if;
+  if to_regprocedure('private.crm_account_visible(uuid)') is null then
+CREATE OR REPLACE FUNCTION private.crm_account_visible(p_account uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $function$
+  select private.crm_user() and exists (select 1 from public.crm_accounts a where a.id = p_account)
+    and (private.crm_owner_ok((select owner_id from public.crm_accounts where id = p_account))
+      or exists (select 1 from public.contacts c where c.account_id = p_account and private.crm_contact_visible(c.id))) $function$;
+  end if;
+  if to_regprocedure('private.crm_contact_json(uuid)') is null then
+CREATE OR REPLACE FUNCTION private.crm_contact_json(p_id uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $function$
+  select jsonb_build_object('id', c.id, 'name', btrim(c.first_name || ' ' || c.last_name), 'firstName', c.first_name, 'lastName', c.last_name, 'email', c.email, 'phone', c.phone, 'company', c.company,
+    'contactType', c.contact_type, 'hasLogin', c.profile_id is not null, 'ownerId', c.crm_owner_id, 'ownerName', coalesce(private.crm_name(c.crm_owner_id), ''),
+    'accountId', c.account_id, 'accountName', coalesce((select name from public.crm_accounts where id = c.account_id), ''), 'stage', c.crm_stage, 'lastContactedOn', c.last_contacted_on,
+    'companyName', coalesce((select name from public.crm_accounts where id = c.account_id), c.company),
+    'tags', to_jsonb(c.tags), 'notes', c.crm_notes, 'description', c.crm_notes, 'archived', c.crm_archived_at is not null, 'fromLeadId', c.crm_lead_id, 'linked', private.crm_linked(c.id), 'canEdit', private.crm_editor(),
+    'leadSource', c.lead_source, 'relationshipStatus', coalesce(c.relationship_status, ''), 'custom', c.custom,
+    'salesReps', coalesce((select jsonb_agg(jsonb_build_object('id', l.sales_id, 'name', private.crm_name(l.sales_id))) from public.client_sales_reps l where l.client_id = c.profile_id), '[]'::jsonb),
+    'orders', (select count(distinct dp.deal_id) from public.deal_participants dp where dp.contact_id = c.id),
+    'volume', coalesce((select sum(d.purchase_price) from public.deals d where d.status <> 'Cancelled' and exists (select 1 from public.deal_participants dp where dp.deal_id = d.id and dp.contact_id = c.id)), 0))
+    || private.crm_person_json(to_jsonb(c))
+  from public.contacts c where c.id = p_id $function$;
+  end if;
+  if to_regprocedure('private.rpc_crm_update_contact(uuid, jsonb)') is null then
+CREATE OR REPLACE FUNCTION private.rpc_crm_update_contact(p_id uuid, p jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $function$
+declare v_acc uuid;
+begin perform set_config('crm.person_write', '1', true); perform private.crm_need(true);
+  if not private.crm_contact_visible(p_id) then raise exception 'Client not found.' using errcode = 'P0002'; end if;
+  if p ? 'accountId' then v_acc := nullif(p->>'accountId', '')::uuid; if v_acc is not null and not private.crm_account_visible(v_acc) then raise exception 'Company not found.' using errcode = 'P0002'; end if; end if;
+  if p ? 'roleInCompany' and coalesce(p->>'roleInCompany', '') = '' and private.crm_required('roleInCompany') then raise exception 'Role in Company is required.' using errcode = 'P0001'; end if;
+  if p ? 'relationshipStatus' and coalesce(p->>'relationshipStatus', '') = '' and private.crm_required('relationshipStatus') then raise exception 'Relationship Status is required.' using errcode = 'P0001'; end if;
+  if p ? 'state' and coalesce(p->>'state', '') = '' and private.crm_required('state') then raise exception 'State is required.' using errcode = 'P0001'; end if;
+  if p ? 'custom' and jsonb_typeof(p->'custom') <> 'object' then raise exception 'Custom values must be a JSON object.' using errcode = '23514'; end if;
+  update public.contacts set
+    crm_owner_id = case when p ? 'ownerId' then nullif(p->>'ownerId', '')::uuid else crm_owner_id end,
+    account_id = case when p ? 'accountId' then v_acc else account_id end,
+    crm_stage = case when p ? 'stage' then nullif(p->>'stage', '') else crm_stage end,
+    last_contacted_on = case when p ? 'lastContactedOn' then nullif(p->>'lastContactedOn', '')::date else last_contacted_on end,
+    tags = case when p ? 'tags' then coalesce((select array_agg(distinct lower(btrim(t))) from jsonb_array_elements_text(p->'tags') t where btrim(t) <> ''), '{}') else tags end,
+    crm_notes = case when p ? 'description' then coalesce(p->>'description', '') when p ? 'notes' then coalesce(p->>'notes', '') else crm_notes end,
+    contact_type = case when p ? 'contactType' then nullif(p->>'contactType', '') else contact_type end,
+    company = case when p ? 'company' then coalesce(p->>'company', '') else company end,
+    role_in_company = case when p ? 'roleInCompany' then coalesce(p->>'roleInCompany', '') else role_in_company end,
+    title = case when p ? 'title' then btrim(coalesce(p->>'title', '')) else title end,
+    mobile = case when p ? 'mobile' then btrim(coalesce(p->>'mobile', '')) else mobile end,
+    assistant = case when p ? 'assistant' then btrim(coalesce(p->>'assistant', '')) else assistant end,
+    asst_phone = case when p ? 'asstPhone' then btrim(coalesce(p->>'asstPhone', '')) else asst_phone end,
+    agent_split = case when p ? 'agentSplit' then nullif(btrim(coalesce(p->>'agentSplit', '')), '')::numeric else agent_split end,
+    license_no = case when p ? 'licenseNo' then btrim(coalesce(p->>'licenseNo', '')) else license_no end,
+    sales_volume_last_year = case when p ? 'salesVolumeLastYear' then nullif(regexp_replace(coalesce(p->>'salesVolumeLastYear', ''), '[$,\s]', '', 'g'), '')::numeric else sales_volume_last_year end,
+    deals_closed_last_year = case when p ? 'dealsClosedLastYear' then nullif(btrim(coalesce(p->>'dealsClosedLastYear', '')), '')::int else deals_closed_last_year end,
+    zillow_url = case when p ? 'zillowUrl' then private.crm_url_in(p->>'zillowUrl') else zillow_url end,
+    crm_street = case when p ? 'street' then btrim(coalesce(p->>'street', '')) else crm_street end,
+    crm_city = case when p ? 'city' then btrim(coalesce(p->>'city', '')) else crm_city end,
+    crm_state = case when p ? 'state' then upper(btrim(coalesce(p->>'state', ''))) else crm_state end,
+    crm_zip = case when p ? 'zip' then btrim(coalesce(p->>'zip', '')) else crm_zip end,
+    crm_county = case when p ? 'county' then btrim(coalesce(p->>'county', '')) else crm_county end,
+    links = case when p ? 'links' then private.crm_links_in(p->'links') else links end,
+    lead_source = case when p ? 'leadSource' then coalesce(p->>'leadSource', '') else lead_source end,
+    relationship_status = case when p ? 'relationshipStatus' then p->>'relationshipStatus' else relationship_status end,
+    custom = case when p ? 'custom' then custom || (p->'custom') else custom end
+  where id = p_id; end $function$;
+  end if;
+end
+$crm_contact_times_pre$;
+
+-- Outstanding Mortgage file checks this earlier validate_form text (md5
+-- 8cb72a12781bf731c24fe65a77ec392e). That text is the rollback body. TEST today
+-- already has the later body, so this is created only when the function is missing.
+do $validate_form_pre$
+begin
+  if to_regprocedure('private.validate_form(jsonb,jsonb,boolean,uuid)') is null then
+create or replace function private.validate_form(p_fields jsonb, p_data jsonb, p_complete boolean, p_deal uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $function$
+declare f jsonb; k text; typ text; v text; clean jsonb := '{}'; errs text[] := '{}'; active boolean;
+begin
+  for f in select * from jsonb_array_elements(p_fields) loop
+    k := f->>'k'; typ := f->>'type';
+    if typ = 'checkbox' then if coalesce(p_data->>k, '') in ('true', 'on') then clean := clean || jsonb_build_object(k, true); end if; continue; end if;
+    if typ = 'info' then continue; end if;   -- text shown on the form, never an answer
+    v := trim(coalesce(p_data->>k, ''));
+    if v = '' then continue; end if;
+    v := left(v, case when typ = 'textarea' then 2000 else 300 end);
+    if typ = 'phone' and private.fmt_phone(v) is not null then v := private.fmt_phone(v); end if;
+    if typ = 'state' then v := upper(v); end if;
+    if typ in ('routing', 'account') then v := regexp_replace(v, '[\s-]', '', 'g'); end if;
+    clean := clean || jsonb_build_object(k, v);
+  end loop;
+  for f in select * from jsonb_array_elements(p_fields) loop
+    k := f->>'k'; typ := f->>'type';
+    active := not (k <> 'none' and clean ? 'none') and (f->'when' is null or coalesce(clean->>(f->'when'->>0) = f->'when'->>1, false));
+    if typ = 'info' then continue; end if;
+    if typ = 'checkbox' then
+      if not active then clean := clean - k;
+      elsif p_complete and coalesce((f->>'req')::boolean, false) and not (clean ? k) then errs := errs || ('Please tick: ' || (f->>'label') || '.'); end if;
+      continue; end if;
+    if not active then clean := clean - k; continue; end if;
+    v := clean->>k;
+    if v is null then if p_complete and coalesce((f->>'req')::boolean, false) then errs := errs || ((f->>'label') || ' is required.'); end if; continue; end if;
+    if typ = 'select' and not (f->'opts' ? v) then errs := errs || ((f->>'label') || ': pick one of the options.');
+    elsif typ = 'email' and v !~ '^[^\s@]+@[^\s@]+\.[^\s@]+$' then errs := errs || ((f->>'label') || ' must be a valid email.');
+    elsif typ = 'phone' and v !~ '^\d{3}-\d{3}-\d{4}$' then errs := errs || ((f->>'label') || ' must be a 10-digit phone number (xxx-xxx-xxxx).');
+    elsif typ = 'date' and v !~ '^\d{4}-\d{2}-\d{2}$' then errs := errs || ((f->>'label') || ' must be a date.');
+    elsif typ = 'money' and replace(replace(v, '$', ''), ',', '') !~ '^\d+(\.\d+)?$' then errs := errs || ((f->>'label') || ' must be a positive amount.');
+    elsif typ = 'digits4' and v !~ '^\d{4}$' then errs := errs || ((f->>'label') || ' must be exactly 4 digits.');
+    elsif typ = 'routing' and not private.routing_ok(v) then errs := errs || ((f->>'label') || ' must be a valid 9-digit routing number.');
+    elsif typ = 'account' and v !~ '^\d{4,17}$' then errs := errs || ((f->>'label') || ' must be 4 to 17 digits.');
+    elsif typ = 'state' and v !~ '^[A-Z]{2}$' then errs := errs || ((f->>'label') || ' must be a 2-letter code (e.g. MD).');
+    elsif typ = 'zip' and v !~ '^\d{5}(-\d{4})?$' then errs := errs || ((f->>'label') || ' must be a 5-digit ZIP.');
+    elsif typ = 'doc' and (v !~ '^[0-9a-f-]{36}$' or not exists (select 1 from public.documents d where d.id = v::uuid and d.deal_id = p_deal)) then errs := errs || ((f->>'label') || ': upload the file again.');
+    end if;
+  end loop;
+  if cardinality(errs) > 0 then raise exception '%', array_to_string(errs, ' ') using errcode = 'P0001'; end if;
+  return clean; end $function$;
+  end if;
+end
+$validate_form_pre$;
