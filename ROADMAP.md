@@ -91,6 +91,7 @@ This file lists the portal's major features: how each one should work, how far a
 - CD page 5 lists the buyer's and seller's real estate brokers from the file's agents.
 - AF-5: every agent fee (commission, admin fee, other fees, per side) posts to the ledger by itself, so it lands in CD section H and the ALTA "Commission" section with no re-entry.
 - AF-6: **Generate CD** and **Generate ALTA** buttons on those tabs open the print window with the file's document name filled in, to save as a PDF.
+- The Accounting and payoffs database files, plus the feature-switch table (`private.features`), are a verbatim record of what is already on TEST. They do not load on a fresh database by themselves. TEST's base permission helpers (`private.me_role`, `private.can_access_deal`, and the others they call) and the deal columns those helpers use are not in the repo. A full TEST schema export is the next separate item. John Coester asked for the copy on Nov 15 2026, 9:56 AM ET, and for this label on Nov 15 2026, 1:22 PM ET. Nothing is applied again, and this copy is not marked Live.
 
 **What's still missing**
 
@@ -99,7 +100,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: none yet. The agent fees parts are in [docs/specs/agent-fees-flow.md](docs/specs/agent-fees-flow.md) (requirement 5).
-- Related pull requests: [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) (AF-5, agent fees post to the ledger), [PR 238](https://github.com/Johncoester/cla-portal-demo/pull/238) (AF-6, Generate CD / ALTA). The CD and Settlement Statement views were built before the repo's current pull request history.
+- Related pull requests: [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) (AF-5, agent fees post to the ledger), [PR 238](https://github.com/Johncoester/cla-portal-demo/pull/238) (AF-6, Generate CD / ALTA). The CD and Settlement Statement views were built before the repo's current pull request history. The TEST database files copied into the repo, including the feature-switch table, are in [PR 288](https://github.com/Johncoester/cla-portal-demo/pull/288).
 
 **Decisions**
 
