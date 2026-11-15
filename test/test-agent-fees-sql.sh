@@ -502,6 +502,30 @@ select pg_temp.ok(pg_temp.err($q$update public.tasks set saved_at = now() where 
   'AF-8: a finished task that already holds an amount still saves when the amount does not change');
 reset role;
 SQL
+# MF-051: the panel fields. Applied after AF-8 so the $28,500 row is already there, then rolled back before the older rollbacks.
+psql_super -f "$ROOT/supabase/migrations/20261123040000_earnest_commission_panels.sql"
+psql_super -o /dev/null <<'SQL'
+create or replace function pg_temp.err(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'no error'; exception when others then return sqlerrm; end $$;
+create or replace function pg_temp.ok(c boolean, msg text) returns void language plpgsql as $$
+begin if c is not true then raise exception 'FAIL %', msg; end if; raise notice 'PASS  %', msg; end $$;
+select pg_temp.ok((select amount = 28500 and pct = 3 and payer = 'seller' and base_amount is null and additional_amount = 0
+  from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000001' and side = 'buyer' and kind = 'commission'),
+  'MF-051: MD-26-97260 is still $28,500 / 3%, paid by Seller');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', false);
+select count(*) from public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'listing',
+  '{"commission":{"basis":"percent","percent":"3","additional":"1000","payer":"split","splitBuyer":"6000","splitSeller":"7000"}}', 'Panel layout test');
+select pg_temp.ok((select amount = 13000 and pct = 3 and additional_amount = 1000 and payer = 'split' and split_buyer = 6000 and split_seller = 7000
+  from public.deal_agent_fees where deal_id = '22222222-2222-2222-2222-222222222222' and side = 'listing' and kind = 'commission'),
+  'MF-051: additional amount is added on, and Split stores both dollar amounts');
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"commission":{"basis":"percent","percent":"3","payer":"split","splitBuyer":"1","splitSeller":"1"}}')$q$)
+  like 'Split needs a dollar amount%', 'MF-051: a split that does not add up is refused in plain words');
+SQL
+psql_super -f "$ROOT/supabase/rollbacks/20261123040000_earnest_commission_panels.sql"
+psql_super -c "do \$\$ begin
+  if exists (select 1 from information_schema.columns where table_name = 'deal_agent_fees' and column_name = 'base_amount') then raise exception 'FAIL MF-051 rollback columns'; end if;
+  if not exists (select 1 from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000001' and amount = 28500 and payer = 'seller') then raise exception 'FAIL MF-051 rollback keeps the commission'; end if;
+  raise notice 'PASS  MF-051 rollback removes the extra fields and keeps the commission'; end \$\$;"
 psql_super -f "$ROOT/supabase/rollbacks/20261123010000_commission_task_agent_fees.sql"
 psql_super -c "do \$\$ begin
   if to_regprocedure('private.commission_task_guard()') is not null then raise exception 'FAIL AF-8 rollback guard'; end if;

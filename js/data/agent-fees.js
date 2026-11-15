@@ -5,9 +5,12 @@
 
 export const AGENT_FEE_SIDES = [['listing', 'Listing agent'], ['buyer', "Buyer's agent"]];
 export const SIDE_LABEL = Object.fromEntries(AGENT_FEE_SIDES);
+// FF-051 / MF-051 (Francis, confirmed Nov 11 and option 1 on Nov 13): the two panels on the Agent fees box.
+export const PANEL_TITLE = { listing: 'Listing Agent Commission', buyer: 'Selling Agent Commission' };
 export const AGENT_ROLE_SIDE = { 'Listing Agent': 'listing', 'Buyer Agent': 'buyer' };
 export const PAYERS = [['buyer', 'Buyer'], ['seller', 'Seller']];
-export const PAYER_LABEL = Object.fromEntries(PAYERS);
+export const COMMISSION_PAYERS = [...PAYERS, ['split', 'Split']];
+export const PAYER_LABEL = Object.fromEntries(COMMISSION_PAYERS);
 export const MAX_OTHER_FEES = 5;
 // AF-8: the old Commission information task no longer takes an amount (same message as the database guard)
 export const COMMISSION_TASK_REFUSED = 'Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter it there. Nothing was saved.';
@@ -25,22 +28,39 @@ export function feeNumber(v, label) {
   return Number(t);
 }
 
-/* % and $ from the sales price: percent basis -> $ = price x % to the cent; amount basis -> % to 8 places (gives back the same cent). */
-export function syncCommission(price, basis, value) {
+/* Commission amount = commission base × % + additional amount.
+ * The base defaults to the sales price. % and $ still convert both ways: typing the % fills the amount, and typing the amount fills the %.
+ * With no base and no additional amount this is the same as price × %. */
+export function syncCommission(price, basis, value, { base, additional } = {}) {
   const p = Number(price);
-  if (!(p > 0)) throw new Error('Add the sales price before entering a commission, so the % and $ stay in step.');
+  const addBlank = additional == null || String(additional).trim() === '';
+  const add = addBlank ? 0 : feeNumber(additional, 'Additional amount');
+  if (add == null || add < 0) throw new Error('Additional amount must be a dollar amount of 0 or more.');
+  const baseBlank = base == null || String(base).trim() === '';
+  if (baseBlank && !(p > 0)) throw new Error('Add the sales price before entering a commission, so the % and $ stay in step.');
+  const baseNum = baseBlank ? p : feeNumber(base, 'Commission base');
+  if (!(baseNum > 0)) throw new Error('Commission base must be more than 0.');
+  const out = { basis };
   if (basis === 'percent') {
     const pct = feeNumber(value, 'Commission %');
     if (pct == null || pct > 100) throw new Error('Commission % must be a number from 0 to 100.');
-    return { basis, percent: r8(pct), amount: r2((p * r8(pct)) / 100) };
-  }
-  if (basis === 'amount') {
+    out.percent = r8(pct);
+    out.amount = r2(r2((baseNum * out.percent) / 100) + add);
+  } else if (basis === 'amount') {
     const amt = feeNumber(value, 'Commission $');
     if (amt == null) throw new Error('Commission $ must be a dollar amount of 0 or more.');
-    if (amt > p) throw new Error("The commission $ can't be more than the sales price.");
-    return { basis, percent: r8((r2(amt) * 100) / p), amount: r2(amt) };
-  }
-  throw new Error('Enter the commission as a % or a $ amount.');
+    if (amt < add) throw new Error('Commission amount must be at least the additional amount. The additional amount is added on top of the percent.');
+    const fromBase = r2(amt - add);
+    if (fromBase > baseNum) {
+      if (add === 0 && baseBlank) throw new Error("The commission $ can't be more than the sales price.");
+      throw new Error("The commission from the base can't be more than the commission base.");
+    }
+    out.amount = r2(amt);
+    out.percent = r8((fromBase * 100) / baseNum);
+  } else throw new Error('Enter the commission as a % or a $ amount.');
+  if (!baseBlank) out.base = r2(baseNum);
+  if (add) out.additional = r2(add);
+  return out;
 }
 
 const money = (v, label, max = 1000000) => {
@@ -50,8 +70,21 @@ const money = (v, label, max = 1000000) => {
 };
 const payerOf = (v, side) => {
   const p = blank(v) ? defaultPayer(side) : String(v).trim().toLowerCase();
-  if (!PAYER_LABEL[p]) throw new Error('Paid by must be Buyer or Seller.');
+  if (p !== 'buyer' && p !== 'seller') throw new Error('Paid by must be Buyer or Seller.');
   return p;
+};
+const commissionPayer = (v, side, amount, splits = {}) => {
+  const p = blank(v) ? defaultPayer(side) : String(v).trim().toLowerCase();
+  if (p === 'split') {
+    const buyer = feeNumber(splits.buyer, 'Buyer amount');
+    const seller = feeNumber(splits.seller, 'Seller amount');
+    if (buyer == null || seller == null || buyer <= 0 || seller <= 0 || r2(buyer + seller) !== r2(amount)) {
+      throw new Error('Split needs a dollar amount from the buyer and from the seller, and the two amounts must add up to the commission amount.');
+    }
+    return { payer: 'split', splitBuyer: r2(buyer), splitSeller: r2(seller) };
+  }
+  if (p !== 'buyer' && p !== 'seller') throw new Error('Paid by must be Buyer, Seller, or Split.');
+  return { payer: p };
 };
 
 /* One side's form -> the save payload {commission, admin, other}. Blank commission / admin = none. Throws a plain message. */
@@ -60,7 +93,12 @@ export function readAgentFees(input = {}, { side, price } = {}) {
   const out = { commission: null, admin: null, other: [] };
   const basis = input.commissionBasis === 'amount' ? 'amount' : 'percent';
   const typed = basis === 'amount' ? input.commissionAmount : input.commissionPercent;
-  if (!blank(typed)) out.commission = { ...syncCommission(price, basis, typed), payer: payerOf(input.commissionPayer, side) };
+  const extra = !blank(input.additionalAmount) || !blank(input.commissionBase);
+  if (!blank(typed) || extra) {
+    if (blank(typed)) throw new Error('Enter the commission % or the commission amount. The additional amount is added on top.');
+    const synced = syncCommission(price, basis, typed, { base: input.commissionBase, additional: input.additionalAmount });
+    out.commission = { ...synced, ...commissionPayer(input.commissionPayer, side, synced.amount, { buyer: input.splitBuyer, seller: input.splitSeller }) };
+  }
   if (!blank(input.adminAmount)) out.admin = { amount: money(input.adminAmount, 'Admin fee'), payer: payerOf(input.adminPayer, side) };
   const others = Array.isArray(input.other) ? input.other : [];
   const filled = others.filter((o) => o && !(blank(o.description) && blank(o.amount) && blank(o.paidTo)));
@@ -107,7 +145,11 @@ const pctText = (n) => `${Number(n).toLocaleString('en-US', { maximumFractionDig
 const paidBy = (p) => (p ? ` (paid by ${PAYER_LABEL[p] || p})` : '');
 export function feeText(kind, f) {
   if (!f) return 'none';
-  if (kind === 'commission') return `${pctText(f.percent)} / ${money2(f.amount)}${paidBy(f.payer)}`;
+  if (kind === 'commission') {
+    const extra = `${f.base ? ` on ${money2(f.base)}` : ''}${f.additional ? ` + ${money2(f.additional)}` : ''}`;
+    const who = f.payer === 'split' ? ` (split: buyer ${money2(f.splitBuyer)}, seller ${money2(f.splitSeller)})` : paidBy(f.payer);
+    return `${pctText(f.percent)} / ${money2(f.amount)}${extra}${who}`;
+  }
   if (kind === 'other') return `${f.description} ${money2(f.amount)} to ${f.paidTo}${paidBy(f.payer)}`;
   return `${money2(f.amount)}${paidBy(f.payer)}`;
 }
@@ -143,7 +185,8 @@ export function agentFeeLedgerInput(f, { company = '' } = {}) {
     : f.kind === 'admin' ? `Admin fee - ${sideWord}` : `${String(f.description || '').slice(0, 170)} - ${sideWord}`;
   const payee = String((f.kind === 'other' && f.paidTo) || company || (f.side === 'buyer' ? "Buyer's Agent" : 'Listing Agent')).slice(0, 120);
   const amount = Number(f.amount);
-  return { kind: 'charge', description, altaSection: 'commission', cdSection: 'H', cdLine: '', payee, amount: amount.toFixed(2), paidBy: payer, timing: 'at',
+  const split = payer === 'split' ? { buyer: Number(f.splitBuyer) || 0, seller: Number(f.splitSeller) || 0, lender: 0, other: 0 } : undefined;
+  return { kind: 'charge', description, altaSection: 'commission', cdSection: 'H', cdLine: '', payee, amount: amount.toFixed(2), paidBy: payer, ...(split ? { split } : {}), timing: 'at',
     note: 'From Agent fees on the file overview. Change it there; a change made here stops the automatic updates for this line.', presetKey: ledgerKey(f.side, f.kind, f.slot) };
 }
 // what was posted, to tell a line a processor changed by hand (left alone) from one still in step

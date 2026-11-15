@@ -5,10 +5,10 @@
  * Up to 5 other fees (description, amount, paid to). Staff changing a fee the agent confirmed must give a reason. Nothing is sent. */
 import { html, raw, $, $$, modal, closeModal, toast, fmtMoney, fmtDateTime, pill } from '../ui.js?v=202611161500';
 import { isRefi } from '../data/constants.js?v=202611101015';
-import { AGENT_FEE_SIDES, SIDE_LABEL, AGENT_ROLE_SIDE, PAYERS, PAYER_LABEL, MAX_OTHER_FEES, defaultPayer, readAgentFees, syncCommission, sideStatus, agentFeeError, feeChanges } from '../data/agent-fees.js?v=202611221900';
+import { AGENT_FEE_SIDES, SIDE_LABEL, PANEL_TITLE, AGENT_ROLE_SIDE, PAYERS, COMMISSION_PAYERS, PAYER_LABEL, MAX_OTHER_FEES, defaultPayer, readAgentFees, syncCommission, sideStatus, agentFeeError, feeChanges } from '../data/agent-fees.js?v=202611222800';
 
 const pct = (n) => (n == null ? '' : `${Number(n).toLocaleString('en-US', { maximumFractionDigits: 4 })}%`);
-const payerText = (p) => (p ? ` (paid by ${PAYER_LABEL[p] || p})` : '');
+const payerText = (p, f) => (f && f.payer === 'split' ? ` (split: buyer ${fmtMoney(f.splitBuyer)}, seller ${fmtMoney(f.splitSeller)})` : (p ? ` (paid by ${PAYER_LABEL[p] || p})` : ''));
 
 export function viewerOf(user) {
   if (!user) return null;
@@ -24,9 +24,12 @@ export function sideHtml(side, s, access) {
   const st = sideStatus(s);
   const c = s && s.commission; const a = s && s.admin; const others = (s && s.other) || [];
   return html`<div class="af-side" data-agent-fee-side="${side}">
-    <div class="af-side-head"><strong>${SIDE_LABEL[side]}</strong> ${pill(st.text, st.cls)}${access === 'edit' ? html` <button type="button" class="ghost af-edit" data-af-edit="${side}">Edit</button>` : ''}</div>
+    <div class="af-side-head"><strong>${PANEL_TITLE[side]}</strong> ${pill(st.text, st.cls)}${access === 'edit' ? html` <button type="button" class="ghost af-edit" data-af-edit="${side}">Edit</button>` : ''}</div>
     <dl class="af-list">
-      <dt>Commission</dt><dd data-af-commission>${c ? html`<b>${pct(c.percent)}</b> &middot; <b>${fmtMoney(c.amount)}</b>${payerText(c.payer)}` : html`<span class="muted">Not entered</span>`}</dd>
+      <dt>Commission base</dt><dd data-af-base>${c ? (c.base ? fmtMoney(c.base) : 'Sales price') : html`<span class="muted">Sales price</span>`}</dd>
+      <dt>Commission %</dt><dd data-af-percent>${c ? html`<b>${pct(c.percent)}</b>` : html`<span class="muted">Not entered</span>`}</dd>
+      <dt>Additional amount</dt><dd data-af-additional>${c && c.additional ? fmtMoney(c.additional) : html`<span class="muted">None</span>`}</dd>
+      <dt>Commission amount</dt><dd data-af-commission>${c ? html`<b>${fmtMoney(c.amount)}</b>${payerText(c.payer, c)}` : html`<span class="muted">Not entered</span>`}</dd>
       <dt>Admin fee</dt><dd data-af-admin>${a ? html`<b>${fmtMoney(a.amount)}</b>${payerText(a.payer)}` : html`<span class="muted">None</span>`}</dd>
       <dt>Other fees</dt><dd data-af-other>${others.length ? others.map((o) => html`<div data-af-other-row="${o.slot}">${o.description} <b>${fmtMoney(o.amount)}</b> to ${o.paidTo}${payerText(o.payer)}</div>`) : html`<span class="muted">None</span>`}</dd>
     </dl>
@@ -54,14 +57,19 @@ const otherRow = (o, i, side) => html`<div class="af-other form-grid" data-af-ot
 
 export function formHtml(side, s, { price, needReason, asAgent = false }) {
   const c = (s && s.commission) || {}; const a = (s && s.admin) || {}; const others = (s && s.other) || [];
-  const payerSel = (name, val) => html`<select name="${name}">${PAYERS.map(([k, l]) => html`<option value="${k}" ${k === (val || defaultPayer(side)) ? raw('selected') : ''}>${l}</option>`)}</select>`;
+  const payerSel = (name, val, list = PAYERS) => html`<select name="${name}">${list.map(([k, l]) => html`<option value="${k}" ${k === (val || defaultPayer(side)) ? raw('selected') : ''}>${l}</option>`)}</select>`;
+  const splitOn = c.payer === 'split';
   return html`<form class="af-form" data-af-form="${side}" novalidate>
-    <p class="muted small">Sales price on this file: <b data-af-price>${Number(price) > 0 ? fmtMoney(price) : 'not entered yet'}</b>. Type the commission as a % or a $ amount; the other one fills in.</p>
+    <p class="muted small">Sales price on this file: <b data-af-price>${Number(price) > 0 ? fmtMoney(price) : 'not entered yet'}</b>. Commission amount = commission base × commission % + additional amount. Leave the base blank to use the sales price. Type the % or the amount; the other one fills in.</p>
     <input type="hidden" name="commissionBasis" value="${c.basis || 'percent'}">
-    <fieldset class="form-grid"><legend>Commission</legend>
+    <fieldset class="form-grid"><legend>${PANEL_TITLE[side]}</legend>
+      <label>Commission base<input name="commissionBase" inputmode="decimal" data-money autocomplete="off" placeholder="Sales price" aria-label="Commission base" value="${c.base == null ? '' : Number(c.base).toFixed(2)}"></label>
       <label>Commission %<input name="commissionPercent" inputmode="decimal" autocomplete="off" value="${c.percent == null ? '' : Number(c.percent).toLocaleString('en-US', { maximumFractionDigits: 4, useGrouping: false })}"></label>
-      <label>Commission $<input name="commissionAmount" inputmode="decimal" data-money autocomplete="off" value="${c.amount == null ? '' : Number(c.amount).toFixed(2)}"></label>
-      <label>Paid by${payerSel('commissionPayer', c.payer)}</label>
+      <label>Additional amount<input name="additionalAmount" inputmode="decimal" data-money autocomplete="off" aria-label="Additional amount" value="${c.additional ? Number(c.additional).toFixed(2) : ''}"></label>
+      <label>Commission amount<input name="commissionAmount" inputmode="decimal" data-money autocomplete="off" aria-label="Commission amount" value="${c.amount == null ? '' : Number(c.amount).toFixed(2)}"></label>
+      <label>Paid by${payerSel('commissionPayer', c.payer, COMMISSION_PAYERS)}</label>
+      <label data-af-split="buyer" ${splitOn ? '' : raw('hidden')}>Buyer amount<input name="splitBuyer" inputmode="decimal" data-money autocomplete="off" aria-label="Buyer amount" value="${c.splitBuyer == null ? '' : Number(c.splitBuyer).toFixed(2)}"></label>
+      <label data-af-split="seller" ${splitOn ? '' : raw('hidden')}>Seller amount<input name="splitSeller" inputmode="decimal" data-money autocomplete="off" aria-label="Seller amount" value="${c.splitSeller == null ? '' : Number(c.splitSeller).toFixed(2)}"></label>
     </fieldset>
     <fieldset class="form-grid"><legend>Admin fee</legend>
       <label>Admin fee $<input name="adminAmount" inputmode="decimal" data-money autocomplete="off" value="${a.amount == null ? '' : Number(a.amount).toFixed(2)}"></label>
@@ -81,18 +89,28 @@ export function readForm(form) {
   const other = $$('[data-af-other-edit]', form).map((row) => { const i = row.getAttribute('data-af-other-edit');
     return { description: v(`other.${i}.description`), amount: v(`other.${i}.amount`), paidTo: v(`other.${i}.paidTo`), payer: v(`other.${i}.payer`) }; });
   return { commissionBasis: v('commissionBasis'), commissionPercent: v('commissionPercent'), commissionAmount: v('commissionAmount'), commissionPayer: v('commissionPayer'),
+    commissionBase: v('commissionBase'), additionalAmount: v('additionalAmount'), splitBuyer: v('splitBuyer'), splitSeller: v('splitSeller'),
     adminAmount: v('adminAmount'), adminPayer: v('adminPayer'), other, reason: v('reason') };
 }
 
 function mountForm(form, side, price) {
-  const basis = form.elements.commissionBasis; const pctIn = form.elements.commissionPercent; const amtIn = form.elements.commissionAmount;
+  const field = (n) => form.querySelector(`[name="${n}"]`);
+  const basis = field('commissionBasis'); const pctIn = field('commissionPercent'); const amtIn = field('commissionAmount');
+  const baseIn = field('commissionBase'); const addIn = field('additionalAmount'); const payer = field('commissionPayer');
   const fill = (from) => {
     basis.value = from; const typed = from === 'percent' ? pctIn.value : amtIn.value; const other = from === 'percent' ? amtIn : pctIn;
     if (!String(typed).trim()) { other.value = ''; return; }
-    try { const r = syncCommission(price, from, typed); other.value = from === 'percent' ? r.amount.toFixed(2) : String(Math.round(r.percent * 10000) / 10000); } catch (e) { other.value = ''; }
+    try {
+      const r = syncCommission(price, from, typed, { base: baseIn.value, additional: addIn.value });
+      other.value = from === 'percent' ? r.amount.toFixed(2) : String(Math.round(r.percent * 10000) / 10000);
+    } catch (e) { other.value = ''; }
   };
   pctIn.addEventListener('input', () => fill('percent'));
   amtIn.addEventListener('input', () => fill('amount'));
+  baseIn.addEventListener('input', () => fill(basis.value === 'amount' ? 'amount' : 'percent'));
+  addIn.addEventListener('input', () => fill(basis.value === 'amount' ? 'amount' : 'percent'));
+  const showSplit = () => { const on = payer.value === 'split'; form.querySelectorAll('[data-af-split]').forEach((el) => { el.hidden = !on; }); };
+  payer.addEventListener('change', showSplit); showSplit();
   const list = $('[data-af-others]', form); const add = $('[data-af-add]', form);
   const count = () => $$('[data-af-other-edit]', form).length;
   add.addEventListener('click', () => {

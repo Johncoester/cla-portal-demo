@@ -3,7 +3,7 @@
  * their team (or both sides when they are the file's TC); other CLA staff on the file read both sides; buyers and sellers see nothing.
  * An agent or TC saving confirms the side. Staff need a reason to change a confirmed fee (no re-approval). Every change is logged. FAKE DATA. */
 import { runsOrders } from './constants.js?v=202611101015';
-import { readAgentFees, groupAgentFees, SIDE_LABEL, defaultPayer, agentFeeLedgerInput, ledgerKey, ledgerShape } from './agent-fees.js?v=202611221900';
+import { readAgentFees, groupAgentFees, SIDE_LABEL, defaultPayer, agentFeeLedgerInput, ledgerKey, ledgerShape } from './agent-fees.js?v=202611222800';
 import { cleanFee } from './accounting.js?v=202611222600';
 
 export function ensureAgentFees(d) { for (const k of ['agentFees', 'agentFeeLog']) if (!Array.isArray(d[k])) d[k] = []; return d; }
@@ -65,7 +65,8 @@ export function agentFeesPart(x) {
     return { sides, fees: groupAgentFees(rows) };
   };
   const jsonOf = (f) => { if (!f) return null; const o = { kind: f.kind, slot: f.slot, amount: f.amount, payer: f.payer };
-    if (f.kind === 'commission') { o.basis = f.basis; o.percent = f.percent; } if (f.kind === 'other') { o.description = f.description; o.paidTo = f.paidTo; } return o; };
+    if (f.kind === 'commission') { o.basis = f.basis; o.percent = f.percent; if (f.base) o.base = f.base; if (f.additional) o.additional = f.additional; if (f.payer === 'split') { o.splitBuyer = f.splitBuyer; o.splitSeller = f.splitSeller; } }
+    if (f.kind === 'other') { o.description = f.description; o.paidTo = f.paidTo; } return o; };
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   // AF-5: keep the side's fee-ledger lines in step (one per fee; a removed fee's line is retired; a line changed by hand is left alone)
   const postLedger = (d, deal, side, u) => {
@@ -101,8 +102,11 @@ export function agentFeesPart(x) {
       if (!actor || actor === 'reader') fail("You can't change agent fees on this file.");
       if (deal.transactionType === 'Refinance') fail('A refinance has no agent fees.');
       // check again with the shared rules (the database does the same)
-      const back = { commissionBasis: fees.commission ? fees.commission.basis : '', commissionPercent: fees.commission ? fees.commission.percent : '', commissionAmount: fees.commission ? fees.commission.amount : '',
-        commissionPayer: fees.commission ? fees.commission.payer : '', adminAmount: fees.admin ? fees.admin.amount : '', adminPayer: fees.admin ? fees.admin.payer : '', other: fees.other || [] };
+      const c0 = fees.commission || {};
+      const back = { commissionBasis: c0.basis || '', commissionPercent: c0.percent == null ? '' : c0.percent, commissionAmount: c0.amount == null ? '' : c0.amount,
+        commissionPayer: c0.payer || '', commissionBase: c0.base == null ? '' : c0.base, additionalAmount: c0.additional == null ? '' : c0.additional,
+        splitBuyer: c0.splitBuyer == null ? '' : c0.splitBuyer, splitSeller: c0.splitSeller == null ? '' : c0.splitSeller,
+        adminAmount: fees.admin ? fees.admin.amount : '', adminPayer: fees.admin ? fees.admin.payer : '', other: fees.other || [] };
       const clean = readAgentFees(back, { side, price: deal.purchasePrice });
       const want = [];
       if (clean.commission) want.push({ kind: 'commission', slot: 0, ...clean.commission });
@@ -122,7 +126,8 @@ export function agentFeesPart(x) {
         const rec = cur || { dealId, side, kind: w.kind, slot: w.slot };
         if (!cur) d.agentFees.push(rec);
         const before = jsonOf(cur);
-        Object.assign(rec, { basis: w.basis || null, percent: w.percent == null ? null : w.percent, amount: w.amount, payer: w.payer, description: w.description || '', paidTo: w.paidTo || '', source: actor, updatedAt: at, updatedBy: u.id });
+        Object.assign(rec, { basis: w.basis || null, percent: w.percent == null ? null : w.percent, amount: w.amount, payer: w.payer, description: w.description || '', paidTo: w.paidTo || '',
+          base: w.base || null, additional: w.additional || 0, splitBuyer: w.payer === 'split' ? w.splitBuyer : null, splitSeller: w.payer === 'split' ? w.splitSeller : null, source: actor, updatedAt: at, updatedBy: u.id });
         if (confirm) Object.assign(rec, { confirmedBy: u.id, confirmedRole: actor, confirmedAt: at });
         logIt(w.kind, w.slot, before, jsonOf(rec), changed ? why : (why || 'Confirmed'));
       }

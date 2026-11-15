@@ -1,10 +1,11 @@
 /* [SUPABASE] AGENT FEES (AF-2; John, Nov 12 2026). Same names and shapes as mock-part-agent-fees.js. Every read and write goes through the
  * database functions agent_fee_sides / agent_fees / agent_fee_history / save_agent_fees (migrations 20261117100000 and 20261118010000),
  * which decide what the viewer may see and change. Buyers and sellers get nothing. Nothing is sent. */
-import { groupAgentFees, agentFeeError } from './agent-fees.js?v=202611221900';
+import { groupAgentFees, agentFeeError } from './agent-fees.js?v=202611222800';
 
 const num = (x) => (x == null ? null : Number(x));
 const feeOf = (r) => ({ side: r.side, kind: r.kind, slot: r.slot, basis: r.basis || null, percent: num(r.percent), amount: num(r.amount), payer: r.payer || null,
+  base: num(r.base_amount), additional: num(r.additional_amount) || 0, splitBuyer: num(r.split_buyer), splitSeller: num(r.split_seller),
   description: r.description || '', paidTo: r.paid_to || '', source: r.source, confirmedRole: r.confirmed_role || null, confirmedByName: r.confirmed_by_name || '',
   confirmedAt: r.confirmed_at || null, updatedAt: r.updated_at || null, canEdit: !!r.can_edit });
 const histOf = (r) => ({ side: r.side, kind: r.kind, slot: r.slot, oldValue: r.old_value || null, newValue: r.new_value || null, reason: r.reason || '', source: r.source,
