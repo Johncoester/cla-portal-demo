@@ -7011,3 +7011,171 @@ begin
   end if;
 end
 $crm_nov9$;
+
+-- task_templates read policy as it stood before assignees could see field definitions. Created only when missing.
+do $tpl_pre$
+begin
+  if to_regclass('public.task_templates') is not null
+     and not exists (select 1 from pg_policy where polrelid = 'public.task_templates'::regclass and polname = 'templates_select') then
+    create policy templates_select on public.task_templates for select to authenticated using (
+      private.is_admin() or private.is_manager()
+    );
+  end if;
+end
+$tpl_pre$;
+
+-- Listed document types, as they stood before free-text labels. Added only when missing.
+do $doctype_pre$
+begin
+  if to_regclass('public.documents') is not null
+     and not exists (select 1 from pg_constraint where conname = 'documents_doc_type_check') then
+    alter table public.documents add constraint documents_doc_type_check
+      check (doc_type = '' or doc_type = any (private.doc_types('staff')));
+  end if;
+  if to_regclass('public.documents') is not null then
+    alter table public.documents enable row level security;
+  end if;
+end
+$doctype_pre$;
+
+-- CRM duplicate check as it stood before the indexed rewrite. Created only when missing.
+do $dup_pre$
+begin
+  if to_regprocedure('private.crm_person_dup()') is null then
+create or replace function private.crm_person_dup()
+ returns trigger
+ language plpgsql
+ security definer
+ set search_path to 'pg_catalog', 'public', 'extensions'
+as $function$
+declare j jsonb := to_jsonb(new); em text := lower(btrim(coalesce(new.email, ''))); ph text := regexp_replace(coalesce(new.phone, ''), '\D', '', 'g'); hit record;
+  my_lead uuid := case when tg_table_name = 'crm_leads' then new.id end; my_contact uuid := case when tg_table_name = 'contacts' then new.id end;
+  from_lead uuid := case when tg_table_name = 'contacts' then (j ->> 'crm_lead_id')::uuid end;
+begin
+  if tg_table_name = 'contacts' then
+    if coalesce(current_setting('crm.person_write', true), '') <> '1' then return new; end if;   -- only the CRM's client functions are checked (portal order parties are not CRM writes)
+    if j ->> 'profile_id' is not null and exists (select 1 from public.profiles p where p.id = (j ->> 'profile_id')::uuid and p.role <> 'Outside user') then return new; end if;   -- CLA staff are not CRM people
+  elsif j ->> 'converted_at' is not null or j ->> 'archived_at' is not null then return new; end if;
+  if tg_op = 'UPDATE' then
+    if lower(btrim(coalesce(old.email, ''))) = em then em := ''; end if;
+    if regexp_replace(coalesce(old.phone, ''), '\D', '', 'g') = ph then ph := ''; end if; end if;
+  if char_length(ph) < 7 or not coalesce((select enabled from public.crm_dup_rules where key = 'phone'), true) then ph := ''; end if;
+  if em = '' and ph = '' then return new; end if;
+  select 'Lead' as kind, l.first_name, l.last_name, l.owner_id as owner, (em <> '' and lower(l.email) = em) as by_email into hit from public.crm_leads l
+    where l.id is distinct from my_lead and l.id is distinct from from_lead and l.converted_at is null and l.archived_at is null
+      and ((em <> '' and lower(l.email) = em) or (ph <> '' and regexp_replace(l.phone, '\D', '', 'g') = ph)) limit 1;
+  if hit.kind is null then
+    select 'Client' as kind, c.first_name, c.last_name, c.crm_owner_id as owner, (em <> '' and lower(c.email) = em) as by_email into hit from public.contacts c
+      where c.id is distinct from my_contact and c.crm_archived_at is null and private.crm_in_pool(c.id)
+        and ((em <> '' and lower(c.email) = em) or (ph <> '' and regexp_replace(c.phone, '\D', '', 'g') = ph))
+        and not (tg_table_name = 'crm_leads' and tg_op = 'UPDATE' and c.crm_lead_id = new.id) limit 1; end if;
+  if hit.kind is not null then
+    raise exception 'This % is already used by % % (owner %). Duplicates are not allowed.', case when hit.by_email then 'email' else 'phone number' end,
+      hit.kind, btrim(hit.first_name || ' ' || hit.last_name), coalesce(private.crm_name(hit.owner), 'none') using errcode = '23505'; end if;
+  return new; end $function$;
+    revoke all on function private.crm_person_dup() from public, anon;
+    grant execute on function private.crm_person_dup() to authenticated;
+  end if;
+  if to_regclass('public.crm_leads') is not null and not exists (
+       select 1 from pg_trigger where tgname = 'crm_leads_person_dup' and tgrelid = 'public.crm_leads'::regclass) then
+    create trigger crm_leads_person_dup before insert or update of email, phone on public.crm_leads
+      for each row execute function private.crm_person_dup();
+  end if;
+  if to_regclass('public.contacts') is not null and not exists (
+       select 1 from pg_trigger where tgname = 'contacts_person_dup' and tgrelid = 'public.contacts'::regclass) then
+    create trigger contacts_person_dup before insert or update of email, phone on public.contacts
+      for each row execute function private.crm_person_dup();
+  end if;
+end
+$dup_pre$;
+create unique index if not exists crm_leads_open_email_uq on public.crm_leads (lower(email))
+  where email <> '' and converted_at is null and archived_at is null;
+create unique index if not exists contacts_email_uq on public.contacts (lower(email))
+  where email <> '';
+
+-- Message policies as they stood before the everyone-on-the-file document insert. Created only when missing.
+do $msg_pre$
+begin
+  if to_regprocedure('private.message_readable(uuid)') is null then
+    create function private.message_readable(id uuid) returns boolean language sql stable security definer
+      set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ select false $fn$;
+  end if;
+  if to_regprocedure('private.thread_member(uuid)') is null then
+    create function private.thread_member(id uuid) returns boolean language sql stable security definer
+      set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ select false $fn$;
+  end if;
+  if to_regprocedure('private.thread_postable(uuid)') is null then
+    create function private.thread_postable(id uuid) returns boolean language sql stable security definer
+      set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ select false $fn$;
+  end if;
+  if to_regclass('public.messages') is not null
+     and not exists (select 1 from pg_policy where polrelid = 'public.messages'::regclass and polname = 'messages_select') then
+    create policy messages_select on public.messages for select to authenticated using (private.message_readable(id));
+  end if;
+  if to_regclass('public.messages') is not null
+     and not exists (select 1 from pg_policy where polrelid = 'public.messages'::regclass and polname = 'messages_insert') then
+    create policy messages_insert on public.messages for insert to authenticated with check (
+      author_id = private.effective_uid() and not private.is_view_only()
+      and exists (select 1 from public.thread_participants tp where tp.thread_id = messages.thread_id and tp.profile_id = private.effective_uid())
+      and private.thread_member(thread_id) and private.thread_postable(thread_id)
+    );
+  end if;
+end
+$msg_pre$;
+
+-- Contact type list and row security the lender-file migration expects. Added only when missing.
+do $ctype_pre$
+begin
+  if to_regclass('public.contacts') is not null
+     and not exists (select 1 from pg_constraint where conname = 'contacts_contact_type_check') then
+    alter table public.contacts add constraint contacts_contact_type_check
+      check (contact_type is null or contact_type in ('realtor', 'lender', 'buyer_seller'));
+  end if;
+  if to_regclass('public.contacts') is not null then
+    alter table public.contacts enable row level security;
+  end if;
+end
+$ctype_pre$;
+
+-- Staff table grants the lender-file migration expects to already cover new columns.
+grant select, insert, update on public.deals, public.contacts to authenticated;
+
+-- County-based closing default and scheduling read, from the nearest-office rollback. Created only when missing.
+do $settle_pre$
+begin
+  if to_regprocedure('private.rpc_closing_office_default(uuid)') is null then
+create or replace function private.rpc_closing_office_default(p_deal uuid)
+returns table(office_id text, reason text, office_name text, office_address text)
+language plpgsql
+stable
+security definer
+set search_path to 'pg_catalog', 'public', 'extensions'
+as $function$
+declare s text; c text;
+begin
+  if not private.can_access_deal(p_deal) then raise exception 'Order not found' using errcode = '42501'; end if;
+  select d.state, d.county into s, c from public.deals d where d.id = p_deal;
+  return query select n.office_id, n.reason, o.name, private.office_address(o) from private.nearest_cla_office(s, c) n left join public.offices o on o.id = n.office_id;
+end $function$;
+  end if;
+  if to_regprocedure('private.rpc_scheduling_get(text)') is null then
+create or replace function private.rpc_scheduling_get(p_token text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path to 'pg_catalog', 'public', 'extensions'
+as $function$
+declare r record; file_number text; resp public.settlement_responses;
+begin
+  select * into r from private.settlement_by_token(p_token);
+  if r.side is null then raise exception 'This scheduling link is not valid. Ask your title processor for a new one.'; end if;
+  select d.file_number into file_number from public.deals d where d.id = (r.s).deal_id;
+  select * into resp from public.settlement_responses where settlement_id = (r.s).id and round = (r.s).round and side = r.side;
+  return jsonb_build_object('side', r.side, 'fileNumber', file_number, 'status', (r.s).status, 'round', (r.s).round,
+    'slots', to_jsonb((r.s).slots), 'location', (r.s).location, 'note', (r.s).note, 'confirmedSlot', (r.s).confirmed_slot,
+    'response', case when resp.id is null then null else jsonb_build_object('picks', resp.picks, 'note', resp.note, 'name', resp.responder_name, 'at', resp.at) end);
+end $function$;
+  end if;
+end
+$settle_pre$;
