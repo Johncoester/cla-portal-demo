@@ -9,18 +9,18 @@ import { clientActivityFrom } from './client-activity.js?v=202611102100';
 import { assertRecipients, messageText } from './portal-message.js?v=202611191700';
 import { planDocumentBatch } from './document-batch.js?v=202611101015';
 import { featureFlags } from './features.js?v=202611070139';
-import { accountingSupabase } from './supabase-accounting.js?v=202611222900';
-import { payoffsSupabase } from './supabase-payoffs.js?v=202611222600';
+import { accountingSupabase } from './supabase-accounting.js?v=202611223000';
+import { payoffsSupabase } from './supabase-payoffs.js?v=202611223000';
 import { agentFeesSupabase } from './supabase-agent-fees.js?v=202611222800';
 import { titleSupabase } from './supabase-title.js?v=202611112200';
 import { policySupabase } from './supabase-policy.js?v=202611112100';
-import { fundingSupabase } from './supabase-funding.js?v=202611222600';
+import { fundingSupabase } from './supabase-funding.js?v=202611223000';
 import { postClosingSupabase } from './supabase-postclosing.js?v=202611111900';
 import { wiresSupabase } from './supabase-wires.js?v=202611111800';
 import { modulesSupabase } from './supabase-modules.js?v=202611101015';
 import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access
 import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611221900';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611222600';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611223000';
 import { automationPart } from './automation.js?v=202611101015';
 import { runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
 import { crmSupabase } from './supabase-crm.js?v=202611160500';
@@ -50,7 +50,7 @@ import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty }
 import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole } from './lender-file.js?v=202611222700';
 import { fileTitleOf } from './party-name.js?v=202611102000';
 import { parcelInput } from './parcels.js?v=202611222100';
-import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611191700';
+import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611223000';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
@@ -532,7 +532,9 @@ export async function createSupabaseAdapter(cfg) {
       if (row.closing_time != null) { const t = String(row.closing_time).trim(); if (t && !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) throw new Error('Enter a time as HH:MM, or clear it.'); row.closing_time = t; }
       if (patch.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(patch.claRepresentation);   // '' = not recorded (null)
       if (patch.parcelId !== undefined || patch.parcelIds !== undefined) { const parcels = parcelInput(patch); row.parcel_id = parcels.parcelId || ''; row.parcel_ids = parcels.parcelIds; }
-      if (earnestTouched(patch)) { const earnest = earnestDealPatch(patch, { refinance: false }); row.financial = earnest.financial; }
+      if (earnestTouched(patch)) {   // the deposit already paid to the seller stays unless this save changes it, and can never be more than the deposit
+        const cur = ok(await sb.from('deals').select('emd_amount,financial').eq('id', id).maybeSingle()) || {}; const kept = cur.financial && typeof cur.financial === 'object' ? cur.financial : {};
+        const earnest = earnestDealPatch({ emdToSeller: kept.emdToSeller, ...patch }, { refinance: false, emdAmount: patch.emdAmount !== undefined ? moneyAmount(patch.emdAmount) : cur.emd_amount }); row.financial = earnest.financial; }
       if (lenderColumnsTouched(patch)) { const x = lenderExtras(patch);
         if (patch.lenderAddress !== undefined) row.lender_address = x.lenderAddress;
         if (patch.cplAddress !== undefined || patch.cplSameAsLender !== undefined) row.cpl_address = x.cplAddress;

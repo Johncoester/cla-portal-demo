@@ -119,15 +119,16 @@ This file lists the portal's major features: how each one should work, how far a
 - The same purchase was entered on TEST as file MD-26-97379 (Nov 15 2026). Price, loan, deposit, the 1% commission from Place Order, the payoff and the fees all reached the fee ledger, the CD summaries, the payment summary and the balance check with the same figures as Qualia.
 - Fix: on TEST, Taxes & Prorations said "Set the settlement (closing) date on the order first" on a file that had one, so no proration could be added. The hosted Accounting read left the settlement date out. It now sends it, the same as the demo portal.
 - Fix: on TEST, the ALTA statement and the Closing Disclosure showed a dash for the buyer, the seller and the real estate brokers. Staff open Accounting from the light file header, which has no people. The two statements now read the people on the file, typed people included. The CD names each brokerage with its agent as the contact.
+- Excess deposit (PR NEXTPR, Nov 15 2026, built by Claude, not merged yet). When someone other than CLA holds the deposit and has already paid it to the seller, the processor types that amount under Accounting, Contract figures, Earnest money, in "Deposit already paid to the seller". It shows as Excess Deposit on CD line N.01, on the ALTA and on the fee ledger, comes off the seller's proceeds, and is not counted as money CLA receives. The buyer still gets credit for the whole deposit. On the Qualia file this makes seller proceeds $51,475.00, the same as Qualia. It is saved with "EMD held by" on the order, so no database file is needed. It cannot be more than the deposit.
 - A test (`test/test-qualia-scenario.js`) enters the purchase the way a processor does and checks every figure against Qualia's. It runs with the other tests on every pull request.
 
 **What's still missing**
 
-- Excess deposit. When an agent holds the deposit and sends it to the seller, Qualia takes it off the seller on CD line N.01. The portal has no place to say so, so its seller proceeds are $5,000.00 higher than Qualia's on this file ($56,475.00, Qualia $51,475.00).
 - The Title tab's Schedule A, Requirements and Policy info start blank. Qualia fills the proposed insured, the commitment number, the policy amounts and the standard requirements from the file.
 - The printed CD numbers its summary lines in order (K.02, N.01, N.02). The Charges pages and the real form keep fixed numbers (K.03, N.02, N.04).
 - The payoff line reads "Payoff of First Mortgage Loan". Qualia adds the lender's name.
 - Taxes & Prorations starts on a 365-day year with the settlement day charged to the seller. This file matched Qualia's $1,825.00 on a 360-day year with the settlement day charged to the buyer. Which one CLA uses is John's or Caroline's call.
+- The Funding page's "balanced" check on TEST adds up the typed fees only. It does not yet read the sale price, deposit, loan or excess deposit from the order the way the Accounting pages do.
 - On the Charges pages the cursor leaves the table after each cell is saved, and every Accounting page is headed "Contract figures".
 
 **Links**
