@@ -606,3 +606,33 @@ This file lists the portal's major features: how each one should work, how far a
 
 - A repo-wide search found no page, home page, smoke check, or walk-through import of these files. The only import was the money-save check, which now uses the shared constants.
 - No cache stamp. No served page import changed. No database file.
+
+---
+
+## Edit File Number (FF-050)
+
+**How it should work.** New files still get a number automatically. On a file, Configuration has Edit File Number so staff can change that file's number to match CLA's internal numbering or a transaction reference. The new number shows on Open Orders, the file header, and search. A number already used on another file is refused. The activity log keeps the old number.
+
+**Status: In progress.** Tracker row 176 (FF-050). Francis's email, no video. John Coester, Nov 15 2026. Not Live until this is merged and `supabase/migrations/20261123020000_edit_file_number.sql` is applied on TEST.
+
+**What's built**
+
+- Configuration on the file overview, for staff who can already edit the file, with Edit File Number under it.
+- The number is checked before it is saved. A blank number, a number that is too long, or a mark that is not allowed is pointed out in plain words, and what was typed stays on the form.
+- A number already on another file is refused, and the old number stays.
+- The activity log says the old number and the new one.
+- A new order still gets a generated number.
+
+**What's still missing**
+
+- Not checked on TEST yet. Not Live until the database file is applied on TEST.
+
+**Links**
+
+- Spec: [docs/specs/edit-file-number.md](docs/specs/edit-file-number.md)
+- Source: Francis's email, tracker row 176. No video.
+
+**Decisions**
+
+- Only staff who can already edit the file can change the number. A sales person, buyer, seller, or agent cannot.
+- The database file writes the activity note when the number changes, and refuses a blank or duplicate number in the same words as the screen. New files still get their number from the existing automatic numbering.

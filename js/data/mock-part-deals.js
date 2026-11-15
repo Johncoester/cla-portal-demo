@@ -7,7 +7,7 @@ import { PROCESSOR_PICK_ROLES, SALES_PICK_ROLES, tidyPersonName, referralWriteEr
 import { assignProcessorParty, clearProcessorParties } from './processor-party.js?v=202611221800';
 import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611191800';
 import { claRepresentationCode } from './cla-representation.js?v=202611090950';
-import { buildFileNumber, retagFileNumber, sentOutside } from './file-number.js?v=202611092340';
+import { buildFileNumber, retagFileNumber, sentOutside, cleanFileNumber, FILE_NUMBER_TAKEN } from './file-number.js?v=202611222500';
 import { officeDate } from './office-date.js?v=202611102100';
 import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions } from './lender-file.js?v=202611101200';
 import { parcelInput } from './parcels.js?v=202611222100';
@@ -227,6 +227,16 @@ export function dealsAndAuth(x) {
         }
       }
       log(id, u.id, 'deal.updated', 'deal', id, 'Order details updated'); save(); return clone(dealView(u, q));
+    },
+    // FF-050 (Francis, Nov 11 email; John, Nov 15): staff who can edit the file may set its number. New files stay auto-generated.
+    async updateFileNumber(id, fileNumber) {
+      const u = needProcessor(); const d = load(); const q = d.deals.find((y) => y.id === id) || fail('Order not found.');
+      const cleaned = cleanFileNumber(fileNumber); if (!cleaned.ok) fail(cleaned.error);
+      if (cleaned.value === q.fileNumber) return clone(dealView(u, q));
+      if (d.deals.some((y) => y.id !== id && String(y.fileNumber).toLowerCase() === cleaned.value.toLowerCase())) fail(FILE_NUMBER_TAKEN);
+      const old = q.fileNumber; q.fileNumber = cleaned.value;
+      log(id, u.id, 'deal.file_number', 'deal', id, `File number changed from ${old} to ${cleaned.value}`);
+      save(); return clone(dealView(u, q));
     },
     async listLossPayeeClauses(lenderName) {
       const u = needUser(); if (!(u.isAdmin || C.runsOrders(u))) fail('Only a Processor or Admin can look up lender clauses.');
