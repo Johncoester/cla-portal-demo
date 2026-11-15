@@ -63,6 +63,34 @@ export const NO_OO = /^(FL|VA)$/;   // the calculator hides principal residence 
 // owner (Caroline Kim, Nov 4 2026): true = an owner's policy is issued (simultaneous issue with the lender's policy on a financed purchase);
 // false = the owner's policy is REMOVED: no owner's line, no owner's endorsements, and the lender's policy is priced at the full basic rate.
 export const DEFAULT_OPTIONS = { occ: true, fthb: false, pol: 'enhanced', rate: 'basic', pres: 'trid', ownPay: '', payoff: 0, assessed: 0, ends: null, owner: true };
+// REC-CALC-2 (John, Nov 14 2026): documents to record. Shape matches the calculator's docs input: { "Deed": [count, pages], ... }.
+// Starting counts are the calculator's own DOC_DEFAULTS for this kind of file (a refinance still starts with one release; tying releases to payoffs is REC-CALC-3).
+export const RECORDING_DOCS = ['Deed', 'Deed of Trust', 'Release', 'Power of Attorney'];
+const DOC_PLAIN = { Deed: 'deed', 'Deed of Trust': 'deed of trust', Release: 'release', 'Power of Attorney': 'power of attorney' };
+export const DOC_LABELS = { Deed: 'Deed', 'Deed of Trust': 'Deed of Trust (DOT)', Release: 'Release', 'Power of Attorney': 'Power of Attorney (POA)' };
+const wholeNumber = (raw) => { const s = String(raw == null ? '' : raw).trim(); if (!/^\d+$/.test(s)) return null; const n = Number(s); return Number.isSafeInteger(n) ? n : null; };
+export function defaultRecordingDocs(type) {
+  const src = C.DOC_DEFAULTS[type] || C.DOC_DEFAULTS.purchase; const out = {};
+  for (const name of RECORDING_DOCS) out[name] = [src[name][0], src[name][1]];
+  return out;
+}
+export function recordingDocsProblem(raw) {
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return { message: 'Fill in how many of each document to record, and how many pages each one has.', name: 'Deed', part: 'count' };
+  for (const name of RECORDING_DOCS) {
+    const row = raw[name]; const countRaw = Array.isArray(row) ? row[0] : (row && (row.count != null ? row.count : row[0])); const pagesRaw = Array.isArray(row) ? row[1] : (row && (row.pages != null ? row.pages : row[1]));
+    const label = DOC_PLAIN[name]; const count = wholeNumber(countRaw);
+    if (count == null || count > 10) return { message: `Enter a whole number from 0 to 10 for how many ${label} documents to record.`, name, part: 'count' };
+    const pages = wholeNumber(pagesRaw);
+    if (pages == null || pages < 1 || pages > 500) return { message: `Enter a whole number from 1 to 500 for how many pages the ${label} has.`, name, part: 'pages' };
+  }
+  return null;
+}
+export function cleanRecordingDocs(raw, type) {
+  if (raw == null) return defaultRecordingDocs(type);
+  const problem = recordingDocsProblem(raw); if (problem) fail(problem.message);
+  const out = {}; for (const name of RECORDING_DOCS) { const row = raw[name]; out[name] = [wholeNumber(Array.isArray(row) ? row[0] : row.count), wholeNumber(Array.isArray(row) ? row[1] : row.pages)]; }
+  return out;
+}
 // BASIC vs ENHANCED owner's policy (Caroline, Nov 4: "in states where applicable"): what the calculator's rate data supports per state.
 //   bands = Premium_Tiers has Owner / Enhanced bands; pct = Premium_Rules enhanced_owner_pct (ALTA Homeowner's = pct% of basic); none = no
 //   enhanced rate in the data (FL today): the toggle is shown as a PLACEHOLDER and the basic rate is used (open question for Caroline).
@@ -85,8 +113,10 @@ export function cleanOptions(o = {}) {
   if (!['', 'Buyer', 'Seller', 'MDB', 'CHA'].includes(v.ownPay)) fail("Owner's policy paid by must be local custom, buyer or seller (Florida: MDB / CHA too).");
   if (v.ends != null && (!Array.isArray(v.ends) || v.ends.some((x) => typeof x !== 'string' || x.length > 40))) fail('Endorsements must be a list of codes.');
   if (![true, false, 'true', 'false'].includes(v.owner)) fail("Owner's policy must be included (true) or removed (false).");
-  return { occ: v.occ !== false && v.occ !== 'false', fthb: v.fthb === true || v.fthb === 'true', pol: v.pol, rate: v.rate, pres: v.pres, ownPay: v.ownPay, payoff: money(v.payoff, 'Payoff'), assessed: money(v.assessed, 'Assessed value'), ends: v.ends ? [...v.ends] : null,
+  const out = { occ: v.occ !== false && v.occ !== 'false', fthb: v.fthb === true || v.fthb === 'true', pol: v.pol, rate: v.rate, pres: v.pres, ownPay: v.ownPay, payoff: money(v.payoff, 'Payoff'), assessed: money(v.assessed, 'Assessed value'), ends: v.ends ? [...v.ends] : null,
     owner: v.owner !== false && v.owner !== 'false' };
+  if (v.docs != null) out.docs = v.docs;
+  return out;
 }
 export function endorsementChoices(R, state, type) {
   return C.uwRows(R.Endorsements, UNDERWRITER, state).filter((e) => C.txOK(e.Transaction, type) && !(type === 'cash' && C.eq(e['Applies To'], 'Lender')))
@@ -107,9 +137,10 @@ export function calcInputs(deal, options = {}, R = vendoredTables()) {
   if (type === 'refi' && !(loan > 0)) fail('Enter the loan amount on the order first (File Overview).');
   const county = countyOf(R, deal);
   const ends = o.ends != null ? o.ends : endorsementChoices(R, state, type).filter((e) => e.defaultOn).map((e) => e.code);
+  const docs = cleanRecordingDocs(o.docs, type);
   return { type, state, county, uw: UNDERWRITER, price: type === 'refi' ? 0 : price, assessed: state === 'VA' && type !== 'refi' ? o.assessed : 0, loan: type === 'cash' ? 0 : loan, payoff: type === 'refi' ? o.payoff : 0,
     pol: o.pol, rate: o.rate, fthb: o.fthb && !NO_OO.test(state) && type !== 'refi', occ: NO_OO.test(state) || o.occ, ownPay: type === 'refi' ? '' : o.ownPay, pres: o.pres, ends,
-    fees: claFeeInputs(R, state, type), docs: JSON.parse(JSON.stringify(C.DOC_DEFAULTS[type])), buyerPaidComm: { mode: 'pct', val: 0 }, brokerAdminFee: 0, buyerPaysSellerTax: false, taxPayers: undefined,
+    fees: claFeeInputs(R, state, type), docs, buyerPaidComm: { mode: 'pct', val: 0 }, brokerAdminFee: 0, buyerPaysSellerTax: false, taxPayers: undefined,
     owner: type === 'refi' ? false : o.owner, enhancedPlaceholder };   // pol is passed as given: with no enhanced rate the calculator itself uses the basic rate
 }
 
@@ -164,7 +195,7 @@ function recordingExplain(R, i, doc, n, pg) {
   const rows = C.pick(R.Recording_Fees, i.state, i.county, i.type, (r) => r.Document + '|' + r['Fee Name'], null).filter((r) => C.eq(r.Document, doc) && (C.num(r['Page Tier From']) == null || pg >= C.num(r['Page Tier From'])) && (C.num(r['Page Tier To']) == null || pg <= C.num(r['Page Tier To'])) && !C.LIEN_CERT.test(r['Fee Name']));
   const parts = rows.map((r) => { const inc = C.num(r['Pages Included']); const add = inc != null ? Math.max(0, pg - inc) * (C.num(r["Per Add'l Page ($)"]) || 0) : 0; return `${r['Fee Name']} ${usd(C.num(r['Flat Fee ($)']) || 0)}${add ? ` + ${Math.max(0, pg - inc)} add'l page(s) × ${usd(C.num(r["Per Add'l Page ($)"]))}` : ''}`; });
   const big = i.state === 'MD' && i.occ === false && C.MD_BIG_INSTR[doc] ? ` Not a principal residence: Maryland records the ${doc.toLowerCase()} for ${usd0(C.MD_BIG_INSTR[doc])} (RP 3-601).` : '';
-  return { rateSource: `${SRC} · Recording_Fees (${i.state}${rows.some((r) => !C.isAll(r['County/City'])) ? ' ' + i.county : ', all counties'}, ${doc})`, calculation: `${doc}: ${n} document${n === 1 ? '' : 's'}, ${pg} page${pg === 1 ? '' : 's'} (calculator default): ${parts.join(' + ')}${n > 1 ? ` × ${n}` : ''}.${big}` };
+  return { rateSource: `${SRC} · Recording_Fees (${i.state}${rows.some((r) => !C.isAll(r['County/City'])) ? ' ' + i.county : ', all counties'}, ${doc})`, calculation: `${doc}: ${n} document${n === 1 ? '' : 's'}, ${pg} page${pg === 1 ? '' : 's'}: ${parts.join(' + ')}${n > 1 ? ` × ${n}` : ''}.${big}` };
 }
 
 // ---------------- payee / sections ----------------
@@ -260,14 +291,20 @@ const hash = (s) => { let h = 5381; for (let k = 0; k < s.length; k++) h = ((h *
 export const calcBlock = (line, proposal, at) => ({ key: line.key, fields: calcFields(line), rateSource: line.rateSource, calculation: line.calculation, version: `${CALC_SOURCE.commit}/${CALC_SOURCE.snapshot}`, sourceId: proposal.source.id,
   inputs: { type: proposal.inputs.type, state: proposal.inputs.state, county: proposal.inputs.county, price: proposal.inputs.price, loan: proposal.inputs.loan, payoff: proposal.inputs.payoff, assessed: proposal.inputs.assessed,
     occ: proposal.inputs.occ, fthb: proposal.inputs.fthb, pol: proposal.inputs.pol, rate: proposal.inputs.rate, pres: proposal.inputs.pres, ownPay: proposal.inputs.ownPay, ends: proposal.inputs.ends,
-    owner: proposal.inputs.type === 'refi' ? true : proposal.inputs.owner !== false }, at });
+    docs: proposal.inputs.docs, owner: proposal.inputs.type === 'refi' ? true : proposal.inputs.owner !== false }, at });
 // fee input (for accounting.js cleanFee) from a calculated line
 export const feeInput = (line) => ({ kind: 'charge', description: line.description, altaSection: line.altaSection, cdSection: line.cdSection, cdLine: line.cdLine, payee: line.payee, amount: line.amount,
   paidBy: line.paidBy === 'split' ? 'split' : line.paidBy, split: line.paidBy === 'split' ? line.split : null, titlePrefix: line.titlePrefix, timing: 'at', poc: false, note: `${CALC_TAG}: ${line.calculation}`.slice(0, 1000), presetKey: 'cla:' + line.key });
 // the options a re-run should start from: the inputs stored on the newest calculated fee (the order's price / loan always come from the order)
+const docsFromSaved = (raw, type) => {
+  const out = defaultRecordingDocs(type); if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const name of RECORDING_DOCS) { const row = raw[name]; if (Array.isArray(row) && row.length >= 2) out[name] = [row[0], row[1]]; }
+  return out;
+};
 export function lastOptions(fees, deal) {
-  const f = (fees || []).filter(isCalculated).sort((a, b) => String(b.calc.at || '').localeCompare(String(a.calc.at || '')))[0]; if (!f) return { ...DEFAULT_OPTIONS, ...orderOptions(deal) };
-  const x = f.calc.inputs || {}; return { ...cleanOptions({ occ: x.occ, fthb: x.fthb, pol: x.pol, rate: x.rate, pres: x.pres, ownPay: x.ownPay, payoff: x.payoff, assessed: x.assessed, ends: x.ends, owner: x.owner !== false }), ...orderOptions(deal) };
+  const type = calcTypeOf(deal || {});
+  const f = (fees || []).filter(isCalculated).sort((a, b) => String(b.calc.at || '').localeCompare(String(a.calc.at || '')))[0]; if (!f) return { ...DEFAULT_OPTIONS, docs: defaultRecordingDocs(type), ...orderOptions(deal) };
+  const x = f.calc.inputs || {}; return { ...cleanOptions({ occ: x.occ, fthb: x.fthb, pol: x.pol, rate: x.rate, pres: x.pres, ownPay: x.ownPay, payoff: x.payoff, assessed: x.assessed, ends: x.ends, owner: x.owner !== false }), docs: docsFromSaved(x.docs, type), ...orderOptions(deal) };
 }
 // John, Nov 3 call: the order's own First-time buyer / Primary residence answers (Place Order / Edit order) win over the last run's options
 export const orderAnswers = (deal) => ({ occ: deal && deal.primaryResidence ? deal.primaryResidence : '', fthb: deal && deal.firstTimeBuyer ? deal.firstTimeBuyer : '' });

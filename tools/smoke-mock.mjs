@@ -127,10 +127,21 @@ await page.evaluate(async () => {
 await page.goto(`${base}#/deals/deal-1/accounting?calc=1`); await page.reload(); await settle('montgomery calculator');
 try {
   await page.waitForSelector('[data-calc-form]', { timeout: 10000 });
+  const docs = await page.locator('[data-doc]').evaluateAll((els) => Object.fromEntries(els.map((el) => [`${el.dataset.doc}|${el.dataset.docPart}`, el.value])));
+  if (docs['Deed|count'] !== '1' || docs['Deed|pages'] !== '3') problems.push('Deed should start at 1 document and 3 pages');
+  if (docs['Deed of Trust|count'] !== '1' || docs['Deed of Trust|pages'] !== '30') problems.push('Deed of trust should start at 1 document and 30 pages');
+  if (docs['Release|count'] !== '0' || docs['Power of Attorney|count'] !== '0') problems.push('Release and power of attorney should start at 0');
   await page.click('[data-calc-preview]');
   await page.waitForSelector('[data-calc-diff] tr[data-calc-row]', { timeout: 10000 });
   const countyLines = await page.locator('[data-calc-row]').evaluateAll((rows) => rows.map((r) => r.innerText).filter((t) => /County (recordation|transfer) tax/i.test(t)));
   if (countyLines.length < 2) problems.push(`Montgomery preview is missing county taxes (${countyLines.length})`);
+  await page.locator('[data-doc="Deed"][data-doc-part="pages"]').fill('0');
+  await page.click('[data-calc-preview]');
+  await page.waitForSelector('[data-docs-error]', { timeout: 5000 });
+  const badPages = await page.locator('[data-docs-error]').innerText();
+  if (!/whole number from 1 to 500/.test(badPages)) problems.push('bad page count said: ' + badPages);
+  if (await page.locator('[data-calc-diff]').count()) problems.push('an invalid page count still calculated fee lines');
+  await page.locator('[data-doc="Deed"][data-doc-part="pages"]').fill('3');
 } catch (e) { problems.push('valid county did not calculate: ' + (e && e.message ? e.message : e)); }
 await page.evaluate(async () => {
   const mods = performance.getEntriesByType('resource').map((e) => e.name).filter((n) => /\/js\/data\/adapter\.js\?v=\d+/.test(n));

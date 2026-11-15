@@ -179,6 +179,17 @@ const calcDetail = (e) => html`<div class="small muted">${e.payee ? `to ${e.paye
 const STATUS = { new: ['New', 'ok'], changed: ['Changed', 'info'], unchanged: ['Unchanged', ''], overridden: ['Overridden, kept', 'warn'], 'stale-overridden': ['Overridden, no longer calculated, kept', 'warn'], retire: ['Will be retired', 'bad'], retired: ['Retired by you, skipped', ''] };
 const payText = (l, refi) => { if (!l) return ''; const B = refi ? 'Borrower' : 'Buyer'; if (l.paidBy !== 'split') return { buyer: B, seller: 'Seller', lender: 'Lender', other: 'Other' }[l.paidBy] || l.paidBy;
   return 'Split: ' + Object.entries(l.split || {}).filter(([, x]) => Number(x)).map(([k, x]) => `${k === 'buyer' ? B : k[0].toUpperCase() + k.slice(1)} ${m2z(x)}`).join(' / '); };
+const DOC_ROWS = [['Deed', 'Deed'], ['Deed of Trust', 'Deed of Trust (DOT)'], ['Release', 'Release'], ['Power of Attorney', 'Power of Attorney (POA)']];
+function docsToRecord(docs) {
+  const row = docs || {};
+  const val = (name, i) => { const pair = row[name]; return Array.isArray(pair) && pair[i] != null && pair[i] !== '' ? pair[i] : ''; };
+  return html`<fieldset class="acct-calc-docs" data-calc-docs><legend class="small">Documents to record</legend>
+    <p class="muted small">How many of each document to record, and how many pages each one has. A deed of trust is included only when the file has a loan.</p>
+    ${DOC_ROWS.map(([name, label]) => html`<div class="acct-doc-row" data-doc-row="${name}"><span>${label}</span>
+      <label>How many<input inputmode="numeric" data-doc="${name}" data-doc-part="count" aria-label="${label}, how many" value="${val(name, 0)}"></label>
+      <label>Pages<input inputmode="numeric" data-doc="${name}" data-doc-part="pages" aria-label="${label}, pages" value="${val(name, 1)}"></label></div>`)}
+    <p class="notice warn small" data-docs-error hidden></p></fieldset>`;
+}
 function calcOptionsForm(S) {
   const o = S.options || {}; const ends = o.ends; const sel = (n, list, v) => html`<select name="${n}">${list.map(([k, l]) => opt(k, l, v))}</select>`;
   const ownL = { Buyer: 'Buyer', Seller: 'Seller', MDB: 'Miami-Dade / Broward custom', CHA: 'Charlotte custom' };
@@ -196,6 +207,7 @@ function calcOptionsForm(S) {
       ${S.asks.payoff ? html`<label>Payoff of the existing loan<input name="payoff" inputmode="decimal" value="${o.payoff || ''}" placeholder="0.00"></label>` : ''}
       ${S.asks.assessed ? html`<label>Assessed value <span class="muted">(if higher than the price)</span><input name="assessed" inputmode="decimal" value="${o.assessed || ''}" placeholder="0.00"></label>` : ''}
     </div>
+    ${docsToRecord(o.docs)}
     ${S.endorsements.length ? html`<fieldset class="acct-calc-ends" data-calc-ends><legend class="small">Endorsements</legend>${S.endorsements.map((e) => html`<label class="check small"><input type="checkbox" name="end" value="${e.code}" ${(ends ? ends.includes(e.code) : e.defaultOn) ? raw('checked') : ''}> ${e.code} <span class="muted">${e.name}</span></label>`)}</fieldset>` : html`<p class="small muted" data-calc-no-ends>No endorsements in the calculator for ${S.state}.</p>`}
     <div class="acct-form-actions"><button class="m-btn" type="submit" data-calc-preview>Preview changes</button><span class="muted small">Nothing changes until you apply.</span></div></form><div data-calc-result></div>`;
 }
@@ -224,11 +236,17 @@ function mountCalc(root, api, deal, acc, refresh) {
   const read = (f) => { const v = (n) => (f.elements[n] ? f.elements[n].value : undefined); const o = { rate: v('rate') };
     if (f.elements.occ) o.occ = f.elements.occ.checked; else o.occ = true; if (f.elements.fthb) o.fthb = f.elements.fthb.checked;
     if (f.elements.pol) o.pol = v('pol'); if (f.elements.owner) o.owner = v('owner') !== 'false'; if (f.elements.pres) o.pres = v('pres'); if (f.elements.ownPay) o.ownPay = v('ownPay'); if (f.elements.payoff) o.payoff = v('payoff') || 0; if (f.elements.assessed) o.assessed = v('assessed') || 0;
-    if (setup.endorsements.length) o.ends = $$('input[name=end]', f).filter((x) => x.checked).map((x) => x.value); return o; };
+    if (setup.endorsements.length) o.ends = $$('input[name=end]', f).filter((x) => x.checked).map((x) => x.value);
+    o.docs = {}; for (const [name] of DOC_ROWS) o.docs[name] = [$(`[data-doc="${name}"][data-doc-part="count"]`, f).value, $(`[data-doc="${name}"][data-doc-part="pages"]`, f).value];
+    return o; };
   const open = guard(async () => { setup = await api.getCalculatorSetup(deal.id); panel.hidden = false; $('[data-calc-open]', card).hidden = true;
     if (!setup.covered) { panel.innerHTML = toText(html`<p class="notice warn" data-calc-not-ready>${setup.reason}</p>`); return; }
     panel.innerHTML = toText(calcOptionsForm(setup)); const f = $('[data-calc-form]', panel); const out = $('[data-calc-result]', panel);
-    f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const opts = read(f); const P = await api.previewCalculatedFees(deal.id, opts);
+    f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const opts = read(f); const errEl = $('[data-docs-error]', f);
+      const { recordingDocsProblem } = await import('../data/fee-engine.js?v=202611222200'); const problem = recordingDocsProblem(opts.docs);
+      $$('[data-doc]', f).forEach((el) => el.removeAttribute('aria-invalid'));
+      if (problem) { errEl.hidden = false; errEl.textContent = problem.message; const bad = $(`[data-doc="${problem.name}"][data-doc-part="${problem.part}"]`, f); if (bad) { bad.setAttribute('aria-invalid', 'true'); bad.focus(); } out.innerHTML = ''; return; }
+      errEl.hidden = true; errEl.textContent = ''; const P = await api.previewCalculatedFees(deal.id, opts);
       out.innerHTML = toText(calcPreview(P, refi)); const btn = $('[data-calc-apply]', out); const ex = $('[data-calc-examples]', out);
       const count = () => { const n = P.applicable + (ex && ex.checked ? P.examples.length : 0); btn.textContent = n ? `Apply ${n} change${n === 1 ? '' : 's'}` : 'Nothing to apply'; btn.disabled = !n; };
       if (ex) ex.addEventListener('change', count); count(); out.scrollIntoView({ block: 'nearest' });
