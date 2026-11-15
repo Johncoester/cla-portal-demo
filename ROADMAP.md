@@ -369,7 +369,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A Processor created in HR has the same menu and the same file sections as any other Processor, including Accounting when that module is Live. On a file, Start conversation offers only the people on that file (parties, agents, lender, transaction coordinator, and CLA staff assigned to the file). A processor can also type a name and email. That person gets the message the same way Share Files already reaches someone with no portal login: an invite email, and the message waits until they sign in.
 
-**Status: Built (not Live yet).** The pull request is open. No new database file. Mark Live after it is merged. Part 1 of the original note (Accounting missing) was the Admin > Modules switch, turned Live on TEST on Nov 12. This change checks that an HR-created Processor is not still treated as an HR-only Employee.
+**Status: Merged, waiting for a check on TEST.** Merged pull request: [PR 267](https://github.com/Johncoester/cla-portal-demo/pull/267). No new database file. Not Live until someone checks it on TEST. Part 1 of the original note (Accounting missing) was the Admin > Modules switch, turned Live on TEST on Nov 12. This change checks that an HR-created Processor is not still treated as an HR-only Employee.
 
 **What's built**
 
@@ -436,7 +436,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On every CRM import screen (Import Leads, Import Clients, and Import Notes on either), an admin can pick a CSV or an Excel file (.xlsx or .xls). Windows' file picker was hiding Excel files because the box only accepted CSV. The first sheet is read. Dates show as month/day/year. Empty cells stay empty. The rest of the import is the same as a CSV: map the columns, preview, then import, with the same size and row limits.
 
-**Status: In progress.** Tracker row CRM-IMPORT-XLSX. Requested by John Coester, Nov 14 2026, 1:42 PM ET, after a screen recording of the file picker on Import Notes (on Leads). Pull request: [PR 270](https://github.com/Johncoester/cla-portal-demo/pull/270). Not Live until this is merged and someone tries an Excel file on TEST. No database change.
+**Status: Merged, waiting for a check on TEST.** Tracker row CRM-IMPORT-XLSX. Requested by John Coester, Nov 14 2026, 1:42 PM ET, after a screen recording of the file picker on Import Notes (on Leads). Pull request: [PR 270](https://github.com/Johncoester/cla-portal-demo/pull/270). Not Live until someone tries an Excel file on TEST. No database change.
 
 **What's built**
 
