@@ -148,6 +148,19 @@ await page.evaluate(async () => {
   const { getAdapter } = await import(mods[0]);
   const api = await getAdapter();
   await api.signInDev('u-admin');
+  await api.savePayoff('deal-1', { position: 1, lender: { name: 'Example Home Loans (fake)' } });
+});
+await page.goto(`${base}#/deals/deal-1/accounting?calc=1`); await page.reload(); await settle('release from payoff');
+try {
+  await page.waitForSelector('[data-doc="Release"][data-doc-part="count"]', { timeout: 10000 });
+  const n = await page.locator('[data-doc="Release"][data-doc-part="count"]').inputValue();
+  if (n !== '1') problems.push('one payoff should start the release count at 1, got ' + (n || 'blank'));
+} catch (e) { problems.push('release count from payoff: ' + (e && e.message ? e.message : e)); }
+await page.evaluate(async () => {
+  const mods = performance.getEntriesByType('resource').map((e) => e.name).filter((n) => /\/js\/data\/adapter\.js\?v=\d+/.test(n));
+  const { getAdapter } = await import(mods[0]);
+  const api = await getAdapter();
+  await api.signInDev('u-admin');
   await api.updateDeal('deal-1', { county: 'Mongomery' });
 });
 await page.goto(`${base}#/deals/deal-1/accounting?calc=1`); await page.reload(); await settle('misspelled county calculator');

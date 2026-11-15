@@ -184,7 +184,7 @@ function docsToRecord(docs) {
   const row = docs || {};
   const val = (name, i) => { const pair = row[name]; return Array.isArray(pair) && pair[i] != null && pair[i] !== '' ? pair[i] : ''; };
   return html`<fieldset class="acct-calc-docs" data-calc-docs><legend class="small">Documents to record</legend>
-    <p class="muted small">How many of each document to record, and how many pages each one has. A deed of trust is included only when the file has a loan.</p>
+    <p class="muted small">How many of each document to record, and how many pages each one has. A deed of trust is included only when the file has a loan. On a purchase, the release count starts as the number of payoffs on the file. A count you already saved stays.</p>
     ${DOC_ROWS.map(([name, label]) => html`<div class="acct-doc-row" data-doc-row="${name}"><span>${label}</span>
       <label>How many<input inputmode="numeric" data-doc="${name}" data-doc-part="count" aria-label="${label}, how many" value="${val(name, 0)}"></label>
       <label>Pages<input inputmode="numeric" data-doc="${name}" data-doc-part="pages" aria-label="${label}, pages" value="${val(name, 1)}"></label></div>`)}
@@ -243,7 +243,7 @@ function mountCalc(root, api, deal, acc, refresh) {
     if (!setup.covered) { panel.innerHTML = toText(html`<p class="notice warn" data-calc-not-ready>${setup.reason}</p>`); return; }
     panel.innerHTML = toText(calcOptionsForm(setup)); const f = $('[data-calc-form]', panel); const out = $('[data-calc-result]', panel);
     f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const opts = read(f); const errEl = $('[data-docs-error]', f);
-      const { recordingDocsProblem } = await import('../data/fee-engine.js?v=202611222200'); const problem = recordingDocsProblem(opts.docs);
+      const { recordingDocsProblem } = await import('../data/fee-engine.js?v=202611222300'); const problem = recordingDocsProblem(opts.docs);
       $$('[data-doc]', f).forEach((el) => el.removeAttribute('aria-invalid'));
       if (problem) { errEl.hidden = false; errEl.textContent = problem.message; const bad = $(`[data-doc="${problem.name}"][data-doc-part="${problem.part}"]`, f); if (bad) { bad.setAttribute('aria-invalid', 'true'); bad.focus(); } out.innerHTML = ''; return; }
       errEl.hidden = true; errEl.textContent = ''; const P = await api.previewCalculatedFees(deal.id, opts);

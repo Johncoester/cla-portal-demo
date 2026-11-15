@@ -504,7 +504,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Not checked on TEST yet. Releases are not filled in from the payoffs (REC-CALC-3). The live fee sheet is not connected (REC-CALC-4).
+- Not checked on TEST yet. [PR 277](https://github.com/Johncoester/cla-portal-demo/pull/277) is merged. The release count now starts from the payoffs on a purchase (REC-CALC-3). The live fee sheet is not connected (REC-CALC-4).
 
 **Links**
 
@@ -515,3 +515,32 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Use the calculator's own starting counts for each kind of file. Do not set the release count from the payoffs in this change.
 - Save the counts in the calculator answers already stored on each calculated fee. No new database file.
+
+---
+
+## Recording calculator releases (REC-CALC-3)
+
+**How it should work.** On a purchase, Documents to record starts the release count at the number of payoffs on the file. The person can change that number. A count they already saved stays, even if the payoffs later change. A refinance is unchanged.
+
+**Status: In progress.** Tracker row 299 (REC-CALC-3). John Coester, Nov 14 2026, 6:52 PM ET, item 3 of the recording calculator fixes from Claude's review. Not Live until this is merged and someone checks it on TEST. No database file.
+
+**What's built**
+
+- A purchase with no payoffs still starts at no releases. One payoff starts at one release. Two payoffs start at two.
+- On a Montgomery purchase, one release is a Recording fees – Release line of $50, paid by the seller.
+- If the person saves a different release count, that saved number is what comes back next time.
+- A refinance still starts with the calculator's own release count. It is not set from the payoffs.
+
+**What's still missing**
+
+- Not checked on TEST yet. The live fee sheet is not connected (REC-CALC-4).
+
+**Links**
+
+- Spec: [docs/specs/recording-calculator-releases.md](docs/specs/recording-calculator-releases.md)
+- Source: John Coester, Nov 14 2026, 6:52 PM ET, item 3 of Claude's review of the recording calculator. Tracker row 299.
+
+**Decisions**
+
+- Only purchases use the payoff count. A refinance keeps the calculator's starting release count.
+- A saved release count wins over the number of payoffs. No new database file.
