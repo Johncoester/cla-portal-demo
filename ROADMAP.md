@@ -91,7 +91,7 @@ This file lists the portal's major features: how each one should work, how far a
 - CD page 5 lists the buyer's and seller's real estate brokers from the file's agents.
 - AF-5: every agent fee (commission, admin fee, other fees, per side) posts to the ledger by itself, so it lands in CD section H and the ALTA "Commission" section with no re-entry.
 - AF-6: **Generate CD** and **Generate ALTA** buttons on those tabs open the print window with the file's document name filled in, to save as a PDF.
-- The Accounting and payoffs database files that are already on TEST are now in the repo as well: accounting fees, module switches, calculator fee columns, Caroline's accounting changes, the Qualia charges shape, payoffs / HOA / ground rent, and the payoffs module switch. John Coester asked for this on Nov 15 2026, 9:56 AM ET. They were copied from TEST. Nothing is applied again, and nothing is marked Live because of the copy.
+- The Accounting and payoffs database files that are already on TEST are now in the repo as well, plus the feature-switch table they insert into (`private.features`, from TEST migration 22). The seven copied files are accounting fees, module switches, calculator fee columns, Caroline's accounting changes, the Qualia charges shape, payoffs / HOA / ground rent, and the payoffs module switch. John Coester asked for the copy on Nov 15 2026, 9:56 AM ET, and for the feature-switch table on Nov 15 2026, 1:05 PM ET. Nothing is applied again, and nothing is marked Live because of the copy. On a scratch database the accounting fees file still stops because `private.me_role()` is not in the repo yet.
 
 **What's still missing**
 
@@ -100,7 +100,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: none yet. The agent fees parts are in [docs/specs/agent-fees-flow.md](docs/specs/agent-fees-flow.md) (requirement 5).
-- Related pull requests: [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) (AF-5, agent fees post to the ledger), [PR 238](https://github.com/Johncoester/cla-portal-demo/pull/238) (AF-6, Generate CD / ALTA). The CD and Settlement Statement views were built before the repo's current pull request history. The seven TEST database files copied into the repo are in [PR 288](https://github.com/Johncoester/cla-portal-demo/pull/288).
+- Related pull requests: [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) (AF-5, agent fees post to the ledger), [PR 238](https://github.com/Johncoester/cla-portal-demo/pull/238) (AF-6, Generate CD / ALTA). The CD and Settlement Statement views were built before the repo's current pull request history. The TEST database files copied into the repo, including the feature-switch table, are in [PR 288](https://github.com/Johncoester/cla-portal-demo/pull/288).
 
 **Decisions**
 
