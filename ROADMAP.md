@@ -474,7 +474,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Not checked on TEST yet. The other recording-calculator items from that same message are separate.
+- Not checked on TEST yet. [PR 276](https://github.com/Johncoester/cla-portal-demo/pull/276) is merged. The other recording-calculator items from that same message are separate.
 - States other than Maryland, Virginia, the District of Columbia, and Florida still are not in CLA's rates. The calculator already said so, and it still does.
 
 **Links**
@@ -486,3 +486,32 @@ This file lists the portal's major features: how each one should work, how far a
 
 - When the county is not on the rate sheet, do not calculate at all. Do not fall back to state taxes only.
 - The county list is the rate sheet's own county list for that state. A saved value that is not on it stays on the screen, marked not matched, until a listed county is chosen. Saving the rest of the order does not wipe that saved value.
+
+---
+
+## Recording calculator documents (REC-CALC-2)
+
+**How it should work.** On the Accounting tab, Calculate fees from CLA rates asks how many documents to record and how many pages each one has. The four documents are the deed, the deed of trust, a release, and a power of attorney. A purchase with a loan starts at 1 deed of 3 pages, 1 deed of trust of 30 pages, and no release or power of attorney. Those counts are what the fee calculation uses. They are saved with the other calculator answers and come back the next time. A count or a page number that is not a whole number in the allowed range is pointed out in plain words, and nothing is calculated until it is fixed.
+
+**Status: In progress.** Tracker row 298 (REC-CALC-2). John Coester, Nov 14 2026, 6:52 PM ET, item 2 of the recording calculator fixes from Claude's review. Not Live until this is merged and someone checks it on TEST. No database file.
+
+**What's built**
+
+- Documents to record, with a count and a pages box for the deed, the deed of trust (DOT), a release, and a power of attorney (POA).
+- Starting counts match the calculator for that kind of file. A purchase with a loan: deed 1 and 3 pages, deed of trust 1 and 30 pages, release 0, power of attorney 0. A file with no loan starts with no deed of trust. A refinance still starts the way the calculator starts today, including one release. Tying the release count to the payoffs is a later item.
+- The counts are sent into the fee calculation and saved with the other calculator answers, so they are filled in again next time.
+- A count must be a whole number from 0 to 10. Pages must be a whole number from 1 to 500. Anything else shows a plain message under the list and does not calculate. What was typed stays on the screen.
+
+**What's still missing**
+
+- Not checked on TEST yet. Releases are not filled in from the payoffs (REC-CALC-3). The live fee sheet is not connected (REC-CALC-4).
+
+**Links**
+
+- Spec: [docs/specs/recording-calculator-documents.md](docs/specs/recording-calculator-documents.md)
+- Source: John Coester, Nov 14 2026, 6:52 PM ET, item 2 of Claude's review of the recording calculator. Tracker row 298.
+
+**Decisions**
+
+- Use the calculator's own starting counts for each kind of file. Do not set the release count from the payoffs in this change.
+- Save the counts in the calculator answers already stored on each calculated fee. No new database file.

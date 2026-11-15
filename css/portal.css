@@ -400,6 +400,10 @@ label.req { color: var(--ink-2); border-left: 3px solid var(--bad); padding-left
 /* Accounting: CLA rates (fee engine) - scoped, minimal */
 .acct-calc .acct-calc-panel { margin-top: var(--s3); } .acct-calc-form .form-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s3) var(--s4); align-items: end; } @media (max-width: 1100px) { .acct-calc-form .form-grid { grid-template-columns: 1fr 1fr; } }
 .acct-calc-ends { border: 1px solid var(--line); border-radius: var(--r); padding: 6px 10px; margin: var(--s3) 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.acct-calc-docs { border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px; margin: var(--s3) 0 0; }
+.acct-doc-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr) minmax(0, 0.8fr); gap: 8px; align-items: end; margin-top: 8px; }
+.acct-doc-row > span { font-weight: 600; font-size: var(--fs-sm); } .acct-doc-row label { font-size: var(--fs-sm); font-weight: 600; } .acct-doc-row input { margin-top: 4px; font-weight: 400; }
+@media (max-width: 640px) { .acct-doc-row { grid-template-columns: 1fr 1fr; } .acct-doc-row > span { grid-column: 1 / -1; } }
 .acct-calc-counts { margin: var(--s3) 0 var(--s2); } .acct-calc-diff td { padding: 7px 10px; vertical-align: top; } .tbl tr.acct-calc-quiet td { color: var(--ink-3); }
 .acct-calc-detail summary { cursor: pointer; color: var(--navy-700, var(--ink-3)); } .acct-calc-detail div { margin: 2px 0 0 12px; max-width: 760px; } .acct-calc-examples { display: block; margin-top: var(--s3); }
 .pill.acct-calc-pill { background: var(--navy-50); color: var(--navy-800); border-color: var(--navy-100); }
