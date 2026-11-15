@@ -109,6 +109,40 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Title production numbers flow (Qualia scenario, QFLOW-1)
+
+**How it should work.** A processor opens a file and enters the contract, the loan, the deposit, the agent fees, the payoffs, the fees and the tax proration once. Every figure then lands where Qualia puts it: the fee ledger, the Closing Disclosure summaries (K, L, M, N), cash to close, the ALTA statement and the balance check. One fixed purchase, entered by Claude on Qualia's own test file on Nov 15 2026, is the standard: price $100,000, loan $50,000, deposit $5,000, 1% listing commission, payoff $40,000, buyer fees $2,375, seller fees $700, county tax $3,650 a year with a July 1 settlement. Qualia's answers: cash to close $45,550.00, paid out to others $44,075.00, balanced. Outside connections (CPL, final policy, e-recording, bank accounts) are not part of this.
+
+**Status: In progress.** QFLOW-1. John Coester, Nov 15 2026 (voice, then "test portal is ready" at 12:51 PM ET), assigned to Claude. Pull request: [PR 289](https://github.com/Johncoester/cla-portal-demo/pull/289). No database file. Not Live until this is merged and the steps below are checked on TEST.
+
+**What's built**
+
+- The same purchase was entered on TEST as file MD-26-97379 (Nov 15 2026). Price, loan, deposit, the 1% commission from Place Order, the payoff and the fees all reached the fee ledger, the CD summaries, the payment summary and the balance check with the same figures as Qualia.
+- Fix: on TEST, Taxes & Prorations said "Set the settlement (closing) date on the order first" on a file that had one, so no proration could be added. The hosted Accounting read left the settlement date out. It now sends it, the same as the demo portal.
+- Fix: on TEST, the ALTA statement and the Closing Disclosure showed a dash for the buyer, the seller and the real estate brokers. Staff open Accounting from the light file header, which has no people. The two statements now read the people on the file, typed people included. The CD names each brokerage with its agent as the contact.
+- A test (`test/test-qualia-scenario.js`) enters the purchase the way a processor does and checks every figure against Qualia's. It runs with the other tests on every pull request.
+
+**What's still missing**
+
+- Excess deposit. When an agent holds the deposit and sends it to the seller, Qualia takes it off the seller on CD line N.01. The portal has no place to say so, so its seller proceeds are $5,000.00 higher than Qualia's on this file ($56,475.00, Qualia $51,475.00).
+- The Title tab's Schedule A, Requirements and Policy info start blank. Qualia fills the proposed insured, the commitment number, the policy amounts and the standard requirements from the file.
+- The printed CD numbers its summary lines in order (K.02, N.01, N.02). The Charges pages and the real form keep fixed numbers (K.03, N.02, N.04).
+- The payoff line reads "Payoff of First Mortgage Loan". Qualia adds the lender's name.
+- Taxes & Prorations starts on a 365-day year with the settlement day charged to the seller. This file matched Qualia's $1,825.00 on a 360-day year with the settlement day charged to the buyer. Which one CLA uses is John's or Caroline's call.
+- On the Charges pages the cursor leaves the table after each cell is saved, and every Accounting page is headed "Contract figures".
+
+**Links**
+
+- Notes on how Qualia moves each figure: project file `claude/qualia-walkthrough-notes.md`.
+- Related pull requests: [PR 237](https://github.com/Johncoester/cla-portal-demo/pull/237) (agent fees post to Accounting), QF-1 (cash to close from the order).
+
+**Decisions**
+
+- John, Nov 15 2026: checklists come later. First make the numbers flow through every module so a file can reach a finished CD, ALTA and balanced ledger. Claude builds this; Grok stays on the Connect feedback.
+- The Qualia figures above are the standard. A change that moves any of them has to say why.
+
+---
+
 ## Buyer and seller invites and sign-in
 
 **How it should work.** Staff invite a buyer or seller from a file. The person opens the invite email, sets a password once and lands in the portal. If they forget the password, Forgot password emails them a reset link that opens the TEST portal.
