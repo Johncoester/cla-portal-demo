@@ -1,8 +1,8 @@
-/* VENDORED from cla-calculator (github.com/Johncoester/cla-closing-cost-calculator) at commit 69568a9: index.html, first <script> block up to the UI section (pure calculation code).
- * READ-ONLY SOURCE: do not edit here. Copied by tools/vendor-cla-calculator.js on 2026-11-04; refresh by re-running it
- * with a newer calculator commit (see docs/CALCULATOR-FEES.md). Only the ES-module wrapper (this header, the import and the export line) is added.
- * sha256 of the copied text: aa835376786dcba5c03ade3e13ad6e07e96a41593d83fa617e5c42ef5390c93b */
-import { CLA_FEES_SNAPSHOT } from './fee-snapshot.js?v=202611070139';
+/* VENDORED from cla-calculator (github.com/Johncoester/cla-closing-cost-calculator) at commit 54d10a2 (calculator PR #1, Nov 15 2026): index.html, first <script> block up to the UI section (pure calculation code).
+ * READ-ONLY SOURCE: do not edit here. Copied 2026-11-04 (tools/vendor-cla-calculator.js, no longer in the repo); re-copied by hand by Claude on 2026-11-15
+ * (VA refinance with no payoff; Hampton Roads fee). Refresh with a newer calculator commit (see docs/CALCULATOR-FEES.md). Only the ES-module wrapper (this header, the import and the export line) is added.
+ * sha256 of the copied text: 525c4b624918d92c894314040ec7f0f67f754bbd66930d036fa87b235f981199 */
+import { CLA_FEES_SNAPSHOT } from './fee-snapshot.js?v=202611152200';
 // ---- verbatim from cla-calculator index.html ----
 // ---------- config ----------
 const SHEET_ID="1kVBo3hchS-B5-g8NHn5ZSAdAZxXxOjuaHTv6SuXamOM"; // "CLA Fee Tables (Live - Calculator)" (anyone-with-link viewer)
@@ -138,7 +138,11 @@ function calc(R,i){const L=[],W=[],refi=i.type==="refi";
   if(recRows.length)add(SEC.E,`Recording fees – ${d}${n>1?" ×"+n:""}${big?" (not a principal residence)":""}`,...split(payer,amt*n));
   for(const r of lienRows)add(SEC.E,`Lien certificate – ${lienPlace(i.county)}`,...split(r["Paid By"],(num(r["Flat Fee ($)"])||0)*n))}
  // transfer and recordation taxes
- const taxes=pick(R.Transfer_Taxes,i.state,i.county,i.type,r=>r["Tax Name"]+"|"+r.Transaction);let anyTax=false;const agg={};
+ let taxes=pick(R.Transfer_Taxes,i.state,i.county,i.type,r=>r["Tax Name"]+"|"+r.Transaction);let anyTax=false;const agg={};
+ // John, Nov 15 2026 (Lodestar test VA-24): a reduced refinance rate on the loan amount (Virginia $0.18, Va. Code 58.1-803(E)) only applies when an existing loan is refinanced.
+ // A "refinance" that pays nothing off is a new loan, so its loan-amount rows are replaced by the purchase deed-of-trust rows (Virginia: the full $0.25 + local).
+ if(refi&&!(+i.payoff>0)){const onLoan=r=>/^loan/i.test(String(r.Basis||"").trim());const refiLoan=taxes.filter(r=>onLoan(r)&&/^refi/i.test(String(r.Transaction||"").trim()));
+  if(refiLoan.length)taxes=taxes.filter(r=>!refiLoan.includes(r)).concat(pick(R.Transfer_Taxes,i.state,i.county,"purchase",r=>r["Tax Name"]+"|"+r.Transaction).filter(onLoan))}
  for(const t of taxes){const x=taxAmount(t,i);if(!x)continue;anyTax=true;const k=t["Tax Name"],adj=/^sale/i.test(String(t.Basis||"").trim());const a=agg[k]=agg[k]||{amt:0,payer:x.payer,fthb:false,fixed:false,fthbPayer:"",adj:true,onAssessed:false};a.amt+=x.amt;a.fthb=a.fthb||x.fthb;a.fixed=a.fixed||x.fixed;a.fthbPayer=a.fthbPayer||x.fthbPayer;a.adj=a.adj&&adj;a.onAssessed=a.onAssessed||(adj&&assessedOn(i))}
  const TX=[];
  for(const[k,v]of Object.entries(agg)){const adjustable=v.adj&&!refi&&!v.fixed,def=v.payer,want=adjustable&&i.taxPayers?String(i.taxPayers[k]||"").toLowerCase():"",ov=TAX_PAYERS.includes(want)?want:"";

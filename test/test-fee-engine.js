@@ -53,5 +53,13 @@ ok(live.live && /^Rates from the live sheet, loaded .+ ET$/.test(live.note), 'a 
 const fromSheet = proposeFees(purchase('MD', 'Montgomery', 600000, 480000), {}, live.tables, live.source);
 ok(fromSheet.totals.total === frozen.totals.total && fromSheet.totals.total > 0, 'the live sheet, when it is the saved copy, prices Montgomery the same way');
 
+// John, Nov 15 2026 (Lodestar test VA-24, VA-17): a Virginia refinance that pays nothing off is a new loan (full rate); Hampton Roads fee on Virginia Beach.
+const vaRefi = (payoff) => proposeFees({ state: 'VA', county: 'Arlington', loanAmount: 350000, transactionType: 'Refinance' }, { payoff })
+  .lines.filter((l) => l.key.startsWith('tax:')).reduce((a, l) => a + l.amount, 0);
+ok(Math.abs(vaRefi(0) - 1166.67) < 0.02, 'a Virginia refinance with no payoff is taxed at the full rate ($1,166.67): ' + vaRefi(0));
+ok(Math.abs(vaRefi(300000) - 840) < 0.02, 'a Virginia refinance with a payoff keeps the refinance rate ($840): ' + vaRefi(300000));
+const hr = proposeFees(purchase('VA', 'Virginia Beach City', 515000, 412000)).lines.find((l) => /Hampton Roads/.test(l.description));
+ok(hr && Math.abs(hr.amount - 309) < 0.01 && hr.paidBy === 'seller', 'Virginia Beach shows the Hampton Roads fee, $309, paid by the seller');
+
 console.log(fail ? fail + ' failed' : 'fee engine passed');
 process.exit(fail ? 1 : 0);
