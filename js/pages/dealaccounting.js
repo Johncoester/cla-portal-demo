@@ -190,10 +190,15 @@ function docsToRecord(docs) {
       <label>Pages<input inputmode="numeric" data-doc="${name}" data-doc-part="pages" aria-label="${label}, pages" value="${val(name, 1)}"></label></div>`)}
     <p class="notice warn small" data-docs-error hidden></p></fieldset>`;
 }
+function rateNoteHtml(S) {
+  if (!S.rateNote) return '';
+  return html`<p class="${S.source && S.source.live ? 'small' : 'notice warn small'}" data-rate-loaded>${S.rateNote}</p>`;
+}
 function calcOptionsForm(S) {
   const o = S.options || {}; const ends = o.ends; const sel = (n, list, v) => html`<select name="${n}">${list.map(([k, l]) => opt(k, l, v))}</select>`;
   const ownL = { Buyer: 'Buyer', Seller: 'Seller', MDB: 'Miami-Dade / Broward custom', CHA: 'Charlotte custom' };
   return html`<form class="acct-calc-form" data-calc-form novalidate>
+    ${rateNoteHtml(S)}
     <p class="small" data-calc-source>Rates: <strong>CLA quote calculator ${S.source.commit}</strong> (rate snapshot ${S.source.snapshot}, ${S.source.label || 'vendored'}), underwriter Fidelity National Title. Order: <strong>${S.county ? S.county + ', ' : ''}${S.state} ${S.type === 'refi' ? 'refinance' : S.type}</strong>${S.usesStateDefaults ? ' (no county rates: state defaults used)' : ''}.</p>
     <div class="form-grid">
       ${S.asks.occ ? html`<label class="check"><input type="checkbox" name="occ" value="1" ${o.occ !== false ? raw('checked') : ''}> Principal residence</label>` : ''}
@@ -240,10 +245,10 @@ function mountCalc(root, api, deal, acc, refresh) {
     o.docs = {}; for (const [name] of DOC_ROWS) o.docs[name] = [$(`[data-doc="${name}"][data-doc-part="count"]`, f).value, $(`[data-doc="${name}"][data-doc-part="pages"]`, f).value];
     return o; };
   const open = guard(async () => { setup = await api.getCalculatorSetup(deal.id); panel.hidden = false; $('[data-calc-open]', card).hidden = true;
-    if (!setup.covered) { panel.innerHTML = toText(html`<p class="notice warn" data-calc-not-ready>${setup.reason}</p>`); return; }
+    if (!setup.covered) { panel.innerHTML = toText(html`${rateNoteHtml(setup)}<p class="notice warn" data-calc-not-ready>${setup.reason}</p>`); return; }
     panel.innerHTML = toText(calcOptionsForm(setup)); const f = $('[data-calc-form]', panel); const out = $('[data-calc-result]', panel);
     f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const opts = read(f); const errEl = $('[data-docs-error]', f);
-      const { recordingDocsProblem } = await import('../data/fee-engine.js?v=202611222300'); const problem = recordingDocsProblem(opts.docs);
+      const { recordingDocsProblem } = await import('../data/fee-engine.js?v=202611222400'); const problem = recordingDocsProblem(opts.docs);
       $$('[data-doc]', f).forEach((el) => el.removeAttribute('aria-invalid'));
       if (problem) { errEl.hidden = false; errEl.textContent = problem.message; const bad = $(`[data-doc="${problem.name}"][data-doc-part="${problem.part}"]`, f); if (bad) { bad.setAttribute('aria-invalid', 'true'); bad.focus(); } out.innerHTML = ''; return; }
       errEl.hidden = true; errEl.textContent = ''; const P = await api.previewCalculatedFees(deal.id, opts);

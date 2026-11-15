@@ -4,16 +4,18 @@
  *   calc-core.js     index.html of cla-calculator @ CALC_SOURCE.commit, the pure part of its <script> (calc, premiums, taxAmount, pick, ...)
  *   fee-snapshot.js  the calculator's embedded snapshot of the "CLA Fee Tables (Live - Calculator)" sheet (CLA_Fees, Recording_Fees,
  *                    Transfer_Taxes, Premium_Tiers, Premium_Rules, Endorsements, Jurisdictions)
- * Every AMOUNT comes from the calculator's calc() (so the portal and a CLA quote always agree; test/test-fee-engine.js checks this against
- * fixtures produced by the calculator itself). This file only adds: the order -> calculator inputs mapping, the ALTA / CD section mapping,
- * payee, paid-by split, the rate-source / calculation text, and the preview diff (new / changed / unchanged / overridden / retire).
- * PURE: no storage, no network. Loaded lazily (dynamic import) by the accounting adapters, so with the `accounting` flag off it is never loaded.
+ * Every AMOUNT comes from the calculator's calc() (so the portal and a CLA quote always agree; test/test-fee-engine.js checks the portal's
+ * numbers against the calculator's own calc() on the saved Nov 2 copy, with no network). This file only adds: the order -> calculator inputs
+ * mapping, the ALTA / CD section mapping, payee, paid-by split, the rate-source / calculation text, and the preview diff.
+ * The calculation is pure. loadCalculatorRates() is the only network call, and only in the browser: it uses the calculator's own loadFees()
+ * on the live sheet and keeps the Nov 2 copy when that sheet can't be reached. Loaded lazily by the accounting adapters.
  *
  * RATE SOURCE SEAM (adapter interface, documented in docs/CALCULATOR-FEES.md):
  *   { id, label, version, loadTables(): Promise<raw tabs> }   raw tabs = { CLA_Fees: [[header...], [row...]], Recording_Fees: [...], ... }
- *   vendoredRateSource          the built-in snapshot above (the only one used today)
+ *   vendoredRateSource          the built-in Nov 2 snapshot (also the fallback, and what tests use)
+ *   live sheet                  the calculator's loadFees(), shown on the form with the time it loaded
  *   calculatorSupabaseRateSource NOT CONNECTED: a placeholder showing where a reader of the calculator's tables would plug in. It refuses. */
-import * as C from './vendor/cla-calculator/calc-core.js?v=202611070139';
+import * as C from './vendor/cla-calculator/calc-core.js?v=202611222400';
 import { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden } from './accounting.js?v=202611070139';
 export { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden };
 
@@ -42,6 +44,36 @@ export async function loadRateTables(source = vendoredRateSource) {
   return { tables: cache.get(source.id), source: { id: source.id, label: source.label, version: source.version } };
 }
 export function vendoredTables() { if (!cache.has(vendoredRateSource.id)) cache.set(vendoredRateSource.id, C.normalize(C.SNAP)); return cache.get(vendoredRateSource.id); }
+
+// REC-CALC-4 (John, Nov 14 2026): read the live "CLA Fee Tables (Live - Calculator)" sheet with the calculator's own loadFees().
+// The calculation itself stays pure. This is the only place that reaches the network, and a failed read keeps the Nov 2 copy.
+export const FALLBACK_RATE_NOTE = "Using the saved copy from Nov 2 because the live sheet couldn't be reached";
+export function formatRateLoaded(date) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hourCycle: 'h12' }).formatToParts(date);
+  const get = (t) => (parts.find((p) => p.type === t) || {}).value || '';
+  return `${get('month')} ${get('day')}, ${get('year')}, ${get('hour')}:${get('minute')} ${get('dayPeriod')} ET`;
+}
+const rateMeta = (loaded) => {
+  const at = loaded && loaded.at instanceof Date ? loaded.at : new Date();
+  const live = !!(loaded && loaded.source === 'sheet' && loaded.raw && loaded.raw.CLA_Fees);
+  const note = live ? `Rates from the live sheet, loaded ${formatRateLoaded(at)}` : FALLBACK_RATE_NOTE;
+  return { tables: C.normalize(loaded && loaded.raw && loaded.raw.CLA_Fees ? loaded.raw : C.SNAP), live, loadedAt: at, note,
+    source: { id: live ? 'live-sheet' : vendoredRateSource.id, label: live ? 'CLA Fee Tables (Live - Calculator)' : vendoredRateSource.label, version: live ? `live/${at.toISOString()}` : vendoredRateSource.version,
+      commit: CALC_SOURCE.commit, snapshot: CALC_SOURCE.snapshot, live, loadedAt: at.toISOString(), note } };
+};
+let rateCache = null;
+export function resetLiveRates() { rateCache = null; }
+export async function loadCalculatorRates(fetchFn, { fresh = false } = {}) {
+  if (!fresh && rateCache) return rateCache;
+  const run = (async () => {
+    // Node tests have no browser and must not touch the network. The portal page always tries the live sheet.
+    if (!fetchFn && typeof globalThis.window === 'undefined') return rateMeta({ raw: C.SNAP, source: 'snapshot', at: new Date() });
+    const fetcher = fetchFn || ((url, opts = {}) => { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 8000); return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(timer)); });
+    try { return rateMeta(await C.loadFees(fetcher)); } catch (e) { return rateMeta({ raw: C.SNAP, source: 'snapshot', at: new Date(), error: String(e && e.message || e) }); }
+  })();
+  if (!fresh) rateCache = run;
+  return run;
+}
 
 // ---------------- order -> calculator inputs ----------------
 const isRefi = (d) => !!d && (d.transactionType === 'Refinance' || d.transaction_type === 'Refinance');
@@ -316,9 +348,10 @@ export function orderOptions(deal) { const a = orderAnswers(deal); const o = {};
 export { C as calculatorCore };
 
 // ---------------- shapes the adapters hand to the page (plain JSON) ----------------
-export function calcSetup(deal, fees, R = vendoredTables()) {
+export function calcSetup(deal, fees, R = vendoredTables(), rate = null) {
   const state = String((deal && deal.state) || '').toUpperCase(); const type = calcTypeOf(deal || {}); const options = lastOptions(fees, deal);
-  const base = { fromOrder: orderAnswers(deal), source: { ...vendoredRateSource, loadTables: undefined, tablesSync: undefined, commit: CALC_SOURCE.commit, snapshot: CALC_SOURCE.snapshot }, state, type, options };
+  const source = rate && rate.source ? rate.source : { ...vendoredRateSource, loadTables: undefined, tablesSync: undefined, commit: CALC_SOURCE.commit, snapshot: CALC_SOURCE.snapshot };
+  const base = { fromOrder: orderAnswers(deal), source, rateNote: rate && rate.note ? rate.note : '', state, type, options };
   if (!CALC_STATES.includes(state)) return { ...base, covered: false, reason: `CLA rates cover MD, VA, DC and FL only (this order is in ${state || 'no state'}).` };
   const county = countyOf(R, deal); const known = countyIsKnown(R, deal);
   const enhanced = enhancedSupport(R, state); if (!enhanced.supported && base.options.pol === 'enhanced') base.options = { ...base.options, pol: 'standard' };   // no enhanced rate: the form starts on basic
