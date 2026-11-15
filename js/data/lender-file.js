@@ -2,9 +2,12 @@
  * Existing orders keep lender name, contact, phone, email and loss payee. New fields start blank.
  * A lender company can be saved with no person. A buyer or seller entity is the entity name, not a first and last name. */
 export const LENDER_CONTACT_ROLES = [['loan_officer', 'Loan Officer'], ['lender_tc', 'Lender TC']];
+export const MORTGAGE_BROKER_ROLE = 'mortgage_broker';
 const ROLE_CODES = new Set(LENDER_CONTACT_ROLES.map(([code]) => code));
+const LENDER_ROLE_CODES = new Set([...ROLE_CODES, MORTGAGE_BROKER_ROLE]);
 
 export function lenderRoleLabel(code) {
+  if (code === MORTGAGE_BROKER_ROLE) return 'Mortgage Broker';
   return (LENDER_CONTACT_ROLES.find(([c]) => c === code) || [null, ''])[1];
 }
 
@@ -19,8 +22,8 @@ export function looksLikeEntityName(name) {
 export function cleanLenderRole(role, contactType) {
   const v = String(role || '').trim();
   if (!v) return null;
-  if (!ROLE_CODES.has(v)) throw new Error('Lender contact type must be Loan Officer or Lender TC.');
-  if (contactType !== 'lender') throw new Error('Loan Officer and Lender TC are lender contacts only.');
+  if (!LENDER_ROLE_CODES.has(v)) throw new Error('Lender contact type must be Loan Officer or Lender TC, or Mortgage Broker.');
+  if (contactType !== 'lender') throw new Error('Loan Officer, Lender TC, and Mortgage Broker are lender contacts only.');
   return v;
 }
 
@@ -42,6 +45,25 @@ export function lenderCompanyContact({ company, firstName, lastName, email, phon
     ok: true,
     contact: { firstName: first, lastName: last, company: co, email: emailS, phone: phoneS, contactType: 'lender', lenderRole: roleRaw || null },
   };
+}
+
+/* FF-053: a person at the mortgage brokerage. The company is the brokerage already on the file. */
+export function mortgageBrokerContact({ company, firstName, lastName, email, phone } = {}) {
+  const co = String(company || '').trim();
+  const first = String(firstName || '').trim();
+  const last = String(lastName || '').trim();
+  if (!co) return { ok: false, error: 'Enter the mortgage brokerage first. Then add the broker.' };
+  if (!first && !last) return { ok: false, error: 'Enter the mortgage broker\'s name.' };
+  return {
+    ok: true,
+    contact: { firstName: first, lastName: last, company: co, email: String(email || '').trim(), phone: String(phone || '').trim(), contactType: 'lender', lenderRole: MORTGAGE_BROKER_ROLE },
+  };
+}
+
+export function brokersAtBrokerage(contacts, brokerage) {
+  const key = normLenderName(brokerage);
+  if (!key) return [];
+  return (contacts || []).filter((c) => c && c.lenderRole === MORTGAGE_BROKER_ROLE && normLenderName(c.company) === key && (`${c.firstName || ''} ${c.lastName || ''}`.trim()));
 }
 
 export function contactDisplayName(c) {

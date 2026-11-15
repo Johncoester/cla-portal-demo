@@ -7,8 +7,8 @@ import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v
 import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611191600';
 import { copyPlainText } from './deal.js?v=202611222600';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
-import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611161500';
-import { LENDER_CONTACT_ROLES, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611101200';
+import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611222700';
+import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611222700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
@@ -193,7 +193,7 @@ export async function render({ api, user, deal, refresh }) {
   function editContact(c, staff, same = []) {
     const opened = { firstName: c.firstName || '', lastName: c.lastName || '', email: c.email || '', phone: c.phone || '', company: c.company || '', contactType: c.contactType || '', lenderRole: c.lenderRole || '' };
     const m = modal('Edit contact', html`<form id="ecf" class="form-grid"><label>First name<input name="firstName" value="${opened.firstName}"></label><label>Last name<input name="lastName" value="${opened.lastName}"></label>
-      <label>Email<input name="email" type="email" autocomplete="off" value="${opened.email}"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${opened.phone}"></label><label>Company<input name="company" value="${opened.company}"></label>${staff ? html`<p class="muted small">CLA staff have no contact type.</p>` : ctypeSelect(opened.contactType || '')}${!staff && (c.contactType === 'lender' || c.lenderRole) ? html`<label>Lender contact type<select name="lenderRole" aria-label="Lender contact type"><option value="">Not set</option>${LENDER_CONTACT_ROLES.map(([v, l]) => html`<option value="${v}" ${v === (c.lenderRole || '') ? raw('selected') : ''}>${l}</option>`)}</select></label>` : ''}
+      <label>Email<input name="email" type="email" autocomplete="off" value="${opened.email}"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${opened.phone}"></label><label>Company<input name="company" value="${opened.company}"></label>${staff ? html`<p class="muted small">CLA staff have no contact type.</p>` : ctypeSelect(opened.contactType || '')}${!staff && (c.contactType === 'lender' || c.lenderRole) ? html`<label>Lender contact type<select name="lenderRole" aria-label="Lender contact type"><option value="">Not set</option>${[...LENDER_CONTACT_ROLES, [MORTGAGE_BROKER_ROLE, 'Mortgage Broker']].map(([v, l]) => html`<option value="${v}" ${v === (c.lenderRole || '') ? raw('selected') : ''}>${l}</option>`)}</select></label>` : ''}
       <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
     $('#ecf', m).addEventListener('submit', guard(async (e) => {
       e.preventDefault();
@@ -207,7 +207,7 @@ export async function render({ api, user, deal, refresh }) {
       const lenderEl = !staff && form.querySelector('[name="lenderRole"]');
       if (lenderEl) {
         const lenderRole = String(lenderEl.value || '');
-        if (submitted.contactType && submitted.contactType !== 'lender' && lenderRole) throw new Error('Loan Officer and Lender TC are lender contacts only.');
+        if (submitted.contactType && submitted.contactType !== 'lender' && lenderRole) throw new Error('Loan Officer, Lender TC, and Mortgage Broker are lender contacts only.');
         if (lenderRole !== (opened.lenderRole || '')) patch.lenderRole = lenderRole;
       }
       if (!Object.keys(patch).length) { closeModal(); toast('No changes to save'); return; }

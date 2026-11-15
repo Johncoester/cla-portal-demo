@@ -1,8 +1,8 @@
 /* Place Order and the file contact form save a contact with a direct insert.
  * They do not call the CRM contact RPC, and they do not invent a last name.
- * lender_role is sent only when a Loan Officer or Lender TC is chosen, so a company
+ * lender_role is sent only when a Loan Officer, Lender TC, or Mortgage Broker is chosen, so a company
  * with no person still inserts on a database that has not added that column yet. */
-import { cleanLenderRole } from './lender-file.js?v=202611101200';
+import { cleanLenderRole } from './lender-file.js?v=202611222700';
 const CONTACT_TYPES = new Set(['realtor', 'lender', 'buyer_seller']);
 
 export function contactInsertRow(input) {

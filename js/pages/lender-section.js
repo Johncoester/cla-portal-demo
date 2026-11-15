@@ -5,15 +5,15 @@ import { html, raw, $, guard, formData, toast, toText } from '../ui.js?v=2026111
 import { fmtPhone } from '../data/constants.js?v=202611101015';
 import {
   LENDER_CONTACT_ROLES, lenderRoleLabel, lenderExtras, filterClauses, normLenderName,
-  lenderCompanyContact, contactDisplayName,
-} from '../data/lender-file.js?v=202611101200';
+  lenderCompanyContact, contactDisplayName, mortgageBrokerContact, brokersAtBrokerage, MORTGAGE_BROKER_ROLE,
+} from '../data/lender-file.js?v=202611222700';
 import { CPL_CLAUSES, CPL_OTHER, clauseChoice } from '../data/cpl-clauses.js?v=202611120500';
 
-export function lenderFieldsHtml(d = {}) {
+export function lenderFieldsHtml(d = {}, { brokerage = true } = {}) {
   const extras = lenderExtras(d);
   const same = extras.cplSameAsLender;
   return html`<label class="span2">Lender address<input name="lenderAddress" maxlength="300" value="${extras.lenderAddress}" aria-label="Lender address" data-lender-address autocomplete="off"></label>
-    <label class="span2">Mortgage broker / brokerage<input name="mortgageBrokerName" maxlength="200" value="${extras.mortgageBrokerName}" aria-label="Mortgage broker" placeholder="Brokerage or mortgage broker name"></label>
+    ${brokerage ? html`<label class="span2">Mortgage brokerage<input name="mortgageBrokerName" maxlength="200" value="${extras.mortgageBrokerName}" aria-label="Mortgage brokerage" placeholder="Brokerage company name"></label>` : ''}
     <label class="span2 clause-field">CPL lender clause
       <select data-cpl-clause aria-label="CPL lender clause"><option value="">Choose a clause&hellip;</option>${CPL_CLAUSES.map((c) => html`<option value="${c}" ${clauseChoice(d.lossPayeeName) === c ? raw('selected') : ''}>${c}</option>`)}<option value="${CPL_OTHER}" ${clauseChoice(d.lossPayeeName) === CPL_OTHER ? raw('selected') : ''}>${CPL_OTHER}</option></select>
       <input name="lossPayeeName" maxlength="800" value="${d.lossPayeeName || ''}" aria-label="Loss payee clause" data-loss-payee autocomplete="off" placeholder="The clause fills this box. You can still edit it."></label>
@@ -32,7 +32,8 @@ export function lenderContactRowHtml(i) {
   </div>`;
 }
 
-const lenderPeople = (deal) => (deal.participants || []).filter((p) => p && p.role === 'Lender' && !p.removed && p.contact);
+const lenderPeople = (deal) => (deal.participants || []).filter((p) => p && p.role === 'Lender' && !p.removed && p.contact && p.contact.lenderRole !== MORTGAGE_BROKER_ROLE);
+const brokerPeople = (deal) => (deal.participants || []).filter((p) => p && p.role === 'Lender' && !p.removed && p.contact && p.contact.lenderRole === MORTGAGE_BROKER_ROLE);
 
 function peopleHtml(deal) {
   const people = lenderPeople(deal);
@@ -47,18 +48,53 @@ function peopleHtml(deal) {
   })}</ul>`;
 }
 
+function brokerListHtml(deal) {
+  const people = brokerPeople(deal);
+  if (!people.length) return html`<p class="muted small" data-broker-empty>No mortgage broker on this file yet.</p>`;
+  return html`<ul class="lender-people" data-broker-people>${people.map((p) => html`<li data-broker-person="${p.id}"><strong>${contactDisplayName(p.contact)}</strong><br><span class="muted small">${[fmtPhone(p.contact.phone), p.contact.email].filter(Boolean).join(' · ') || 'No phone or email'}</span>${p.contact.company ? html`<br><span class="muted small">${p.contact.company}</span>` : ''}</li>`)}</ul>`;
+}
+function loanSplitHtml(deal, { canEdit } = {}) {
+  const name = String(deal.mortgageBrokerName || '').trim();
+  const brokers = brokerListHtml(deal);
+  if (!canEdit) {
+    return html`<section data-brokerage aria-label="Mortgage Brokerage"><h3>Mortgage Brokerage</h3><p data-brokerage-name><strong>${name || 'Not entered'}</strong></p></section>
+      <section data-brokers aria-label="Mortgage Broker"><h3>Mortgage Broker</h3>${brokers}</section>`;
+  }
+  return html`<section data-brokerage aria-label="Mortgage Brokerage"><h3>Mortgage Brokerage</h3>
+      <p data-brokerage-name><strong>${name || 'Not entered'}</strong></p>
+      <p class="muted small">The brokerage company. Brokers below are people at this company.</p>
+      <p><button type="button" class="m-btn" data-edit-brokerage>Edit Mortgage Brokerage</button> <button type="button" class="ghost" data-switch-brokerage>Switch Mortgage Brokerage</button></p>
+      <form class="form-grid" data-brokerage-form hidden>
+        <label class="span2">Company name<input name="mortgageBrokerName" maxlength="200" value="${name}" aria-label="Mortgage brokerage company name" required></label>
+        <p class="span2 notice warn small" data-brokerage-error hidden></p>
+        <div class="span2"><button class="m-btn" type="submit">Save brokerage</button></div>
+      </form></section>
+    <section data-brokers aria-label="Mortgage Broker"><h3>Mortgage Broker</h3>
+      <p class="muted small">The individual broker. Search people already saved at this brokerage, or add a new contact. A brokerage can have more than one broker.</p>
+      ${brokers}
+      <label class="span2">Search brokers at this brokerage<input data-broker-search maxlength="120" aria-label="Search mortgage brokers" autocomplete="off" placeholder="Name or email"></label>
+      <ul class="lender-people" data-broker-results hidden></ul>
+      <form class="form-grid" data-add-broker>
+        <label>First name<input name="firstName" maxlength="80" aria-label="Mortgage broker first name"></label>
+        <label>Last name<input name="lastName" maxlength="80" aria-label="Mortgage broker last name"></label>
+        <label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone maxlength="40" aria-label="Mortgage broker phone"></label>
+        <label>Email<input name="email" type="email" maxlength="200" aria-label="Mortgage broker email"></label>
+        <p class="span2 notice warn small" data-broker-error hidden></p>
+        <div class="span2"><button class="m-btn" type="submit">Add Mortgage Broker</button></div>
+      </form></section>`;
+}
 export function lenderSectionHtml(deal, { canEdit } = {}) {
   const d = deal || {};
   if (!canEdit) {
     const extras = lenderExtras(d);
-    return html`<section class="lender-file" data-lender-file><h3>Lender</h3>
+    return html`<section class="lender-file" data-lender-file><h3>Loan</h3>
       <p data-lender-summary><strong>${d.lenderName || 'Not entered'}</strong>${d.lenderContact ? html` · ${d.lenderContact}` : ''}</p>
-      ${d.mortgageBrokerName ? html`<p class="small" data-broker>Mortgage broker: ${d.mortgageBrokerName}</p>` : ''}
       ${d.lossPayeeName ? html`<p class="small" data-loss-payee-read>Loss payee: ${d.lossPayeeName}</p>` : ''}
       ${extras.cplAddress ? html`<p class="small" data-cpl-read>CPL address: ${extras.cplAddress}${extras.cplSameAsLender ? ' (same as lender)' : ''}</p>` : ''}
-      ${peopleHtml(d)}</section>`;
+      ${peopleHtml(d)}
+      ${loanSplitHtml(d, { canEdit: false })}</section>`;
   }
-  return html`<section class="lender-file card" data-lender-file><h3>Lender</h3>
+  return html`<section class="lender-file card" data-lender-file><h3>Loan</h3>
     <p data-lender-summary><strong>${d.lenderName || 'Not entered'}</strong>${d.lenderContact ? html` · ${d.lenderContact}` : ''}</p>
     <p><button type="button" class="m-btn" data-edit-lender>Edit Lender</button> <button type="button" class="ghost" data-switch-lender>Switch Lender</button></p>
     <form class="form-grid" data-lender-form hidden>
@@ -66,7 +102,7 @@ export function lenderSectionHtml(deal, { canEdit } = {}) {
       <label>Contact<input name="lenderContact" maxlength="200" value="${d.lenderContact || ''}" aria-label="Lender contact"></label>
       <label>Phone<input name="lenderPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${d.lenderPhone || ''}" aria-label="Lender phone"></label>
       <label class="span2">Email<input name="lenderEmail" type="email" maxlength="200" value="${d.lenderEmail || ''}" aria-label="Lender email"></label>
-      ${lenderFieldsHtml(d)}
+      ${lenderFieldsHtml(d, { brokerage: false })}
       <div class="span2"><button class="m-btn" type="submit">Save lender</button></div>
     </form>
     <h4>Lender contacts</h4>
@@ -79,7 +115,8 @@ export function lenderSectionHtml(deal, { canEdit } = {}) {
       <label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone maxlength="40"></label>
       <label>Email<input name="email" type="email" maxlength="200"></label>
       <div class="span2"><button class="m-btn" type="submit">Add lender contact</button> <button type="button" class="ghost" data-add-lender-company>Add company with no contact person</button></div>
-    </form></section>`;
+    </form>
+    ${loanSplitHtml(d, { canEdit: true })}</section>`;
 }
 
 export function mountLossPayee(root, api) {
@@ -139,7 +176,7 @@ export function mountLenderSection(root, { api, deal, refresh } = {}) {
   if (switchBtn && form) switchBtn.addEventListener('click', guard(async () => {
     const current = { lenderName: deal.lenderName || '', lenderContact: deal.lenderContact || '', lenderPhone: deal.lenderPhone || '', lenderEmail: deal.lenderEmail || '', lossPayeeName: deal.lossPayeeName || '', at: new Date().toISOString() };
     form.hidden = false;
-    ['lenderName', 'lenderContact', 'lenderPhone', 'lenderEmail', 'lossPayeeName', 'lenderAddress', 'cplAddress', 'mortgageBrokerName'].forEach((n) => { const el = form.elements[n]; if (el) el.value = ''; });
+    ['lenderName', 'lenderContact', 'lenderPhone', 'lenderEmail', 'lossPayeeName', 'lenderAddress', 'cplAddress'].forEach((n) => { const el = form.elements[n]; if (el) el.value = ''; });
     form.dataset.switch = '1';
     form._history = [...(deal.lenderHistory || []), current];
     toast('Enter the new lender. The previous lender stays in the file history.');
@@ -159,7 +196,7 @@ export function mountLenderSection(root, { api, deal, refresh } = {}) {
       lenderAddress: extras.lenderAddress,
       cplAddress: extras.cplAddress,
       cplSameAsLender: extras.cplSameAsLender,
-      mortgageBrokerName: extras.mortgageBrokerName,
+      ...(form.querySelector('[name=mortgageBrokerName]') ? { mortgageBrokerName: extras.mortgageBrokerName } : {}),
       ...(form.dataset.switch === '1' ? { lenderHistory: form._history || deal.lenderHistory || [] } : {}),
     });
     toast('Lender saved');
@@ -190,6 +227,69 @@ export function mountLenderSection(root, { api, deal, refresh } = {}) {
     if (!already) await api.addParticipant(deal.id, c.id, 'Lender');
     if ((deal.lenderName || '') !== company) await api.updateDeal(deal.id, { lenderName: company });
     toast('Lender company saved with no contact person');
+    if (refresh) refresh();
+  }));
+  const brokerageForm = $('[data-brokerage-form]', host);
+  const showBrokerage = (mode) => {
+    if (!brokerageForm) return;
+    brokerageForm.hidden = false;
+    brokerageForm.dataset.mode = mode;
+    const input = brokerageForm.querySelector('[name=mortgageBrokerName]');
+    if (input) { input.value = mode === 'switch' ? '' : (deal.mortgageBrokerName || ''); input.focus(); }
+    const err = $('[data-brokerage-error]', brokerageForm);
+    if (err) { err.hidden = true; err.textContent = ''; }
+  };
+  const editBrokerage = $('[data-edit-brokerage]', host);
+  if (editBrokerage) editBrokerage.addEventListener('click', () => showBrokerage('edit'));
+  const switchBrokerage = $('[data-switch-brokerage]', host);
+  if (switchBrokerage) switchBrokerage.addEventListener('click', () => { showBrokerage('switch'); toast('Enter the new mortgage brokerage. Brokers already on this file stay until you remove them.'); });
+  if (brokerageForm) brokerageForm.addEventListener('submit', guard(async (e) => {
+    e.preventDefault();
+    const name = String((brokerageForm.querySelector('[name=mortgageBrokerName]') || {}).value || '').trim().replace(/\s+/g, ' ');
+    const err = $('[data-brokerage-error]', brokerageForm);
+    if (!name) { if (err) { err.hidden = false; err.textContent = 'Enter the mortgage brokerage company name.'; } return; }
+    if (err) { err.hidden = true; err.textContent = ''; }
+    await api.updateDeal(deal.id, { mortgageBrokerName: name });
+    toast(brokerageForm.dataset.mode === 'switch' ? 'Mortgage brokerage switched' : 'Mortgage brokerage saved');
+    if (refresh) refresh();
+  }));
+  const search = $('[data-broker-search]', host);
+  const results = $('[data-broker-results]', host);
+  const paintSearch = (list) => {
+    if (!results) return;
+    const q = String((search && search.value) || '').trim().toLowerCase();
+    const on = new Set(brokerPeople(deal).map((p) => p.contactId));
+    const hits = (list || []).filter((c) => !on.has(c.id) && (!q || `${c.firstName || ''} ${c.lastName || ''} ${c.email || ''}`.toLowerCase().includes(q)));
+    if (!hits.length) { results.hidden = true; results.innerHTML = ''; return; }
+    results.hidden = false;
+    results.innerHTML = toText(html`${hits.map((c) => html`<li><button type="button" class="ghost" data-pick-broker="${c.id}">${contactDisplayName(c)}</button> <span class="muted small">${[fmtPhone(c.phone), c.email].filter(Boolean).join(' · ')}</span></li>`)}`);
+    results._hits = hits;
+  };
+  if (search) search.addEventListener('input', guard(async () => {
+    const company = deal.mortgageBrokerName || '';
+    if (!String(company).trim()) { if (results) { results.hidden = true; results.innerHTML = ''; } return; }
+    const all = api.listContacts ? await api.listContacts() : [];
+    paintSearch(brokersAtBrokerage(all, company));
+  }));
+  if (results) results.addEventListener('click', guard(async (e) => {
+    const btn = e.target.closest('[data-pick-broker]');
+    if (!btn) return;
+    const already = brokerPeople(deal).some((p) => p.contactId === btn.dataset.pickBroker);
+    if (!already) await api.addParticipant(deal.id, btn.dataset.pickBroker, 'Lender');
+    toast('Mortgage broker added');
+    if (refresh) refresh();
+  }));
+  const addBroker = $('[data-add-broker]', host);
+  if (addBroker) addBroker.addEventListener('submit', guard(async (e) => {
+    e.preventDefault();
+    const f = formData(addBroker);
+    const built = mortgageBrokerContact({ company: deal.mortgageBrokerName, firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone });
+    const err = $('[data-broker-error]', addBroker);
+    if (!built.ok) { if (err) { err.hidden = false; err.textContent = built.error; } return; }
+    if (err) { err.hidden = true; err.textContent = ''; }
+    const c = await api.createContact(built.contact);
+    await api.addParticipant(deal.id, c.id, 'Lender');
+    toast(`${contactDisplayName(c)} added as a mortgage broker`);
     if (refresh) refresh();
   }));
 }
