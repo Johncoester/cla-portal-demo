@@ -457,3 +457,32 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - John, Nov 14: accept .xlsx and .xls on the CRM import screens built from the Janine import page, and keep mapping, preview, limits, chunks, the error CSV, and resume the same. Read the first sheet only. No database change.
+
+---
+
+## Recording calculator county (REC-CALC-1)
+
+**How it should work.** On the Accounting tab, Calculate fees from CLA rates uses the order's county. If that county is not on CLA's rate list, the calculator stops and says so, in plain words, and it does not add fee lines. On Place Order and Edit order details, County is a list of the counties CLA has rates for in that state, so it cannot be typed wrong. A county already saved that is not on the list stays visible and is marked not matched until someone picks one that is.
+
+**Status: In progress.** Tracker row REC-CALC-1. John Coester, Nov 14 2026, 6:07 PM ET, item 1 of the recording calculator fixes from Claude's review. Not Live until this is merged and someone checks it on TEST. No database file.
+
+**What's built**
+
+- A county the rate sheet does not know (for example Mongomery) no longer calculates state taxes by themselves. On a $600,000 Montgomery purchase that typo had left out $10,910 of county recordation and transfer tax. The screen says: "We couldn't find this county in CLA's rates. Pick the county from the list, then calculate again." No fee lines are produced.
+- A county that is on the list, including Montgomery, still calculates the same way as before, including those county taxes.
+- Place Order and Edit order details use a County list from CLA's rates, limited to the order's state. Leaving it blank still fills the county from the address or the ZIP. A saved county that is not on the list is shown as not matched so it can be read and replaced.
+
+**What's still missing**
+
+- Not checked on TEST yet. The other recording-calculator items from that same message are separate.
+- States other than Maryland, Virginia, the District of Columbia, and Florida still are not in CLA's rates. The calculator already said so, and it still does.
+
+**Links**
+
+- Spec: [docs/specs/recording-calculator-county.md](docs/specs/recording-calculator-county.md)
+- Source: John Coester, Nov 14 2026, 6:07 PM ET, item 1 of Claude's review of the recording calculator. Tracker row REC-CALC-1.
+
+**Decisions**
+
+- When the county is not on the rate sheet, do not calculate at all. Do not fall back to state taxes only.
+- The county list is the rate sheet's own county list for that state. A saved value that is not on it stays on the screen, marked not matched, until a listed county is chosen. Saving the rest of the order does not wipe that saved value.

@@ -51,6 +51,13 @@ export function countyOf(R, deal) {
   let c = String(deal.county || '').trim().replace(/\s+county$/i, ''); if (!c) return '';
   const hit = C.allCounties(R, st).find((x) => C.eq(x, c)); return hit || c;
 }
+// REC-CALC-1 (John, Nov 14 2026, Claude's review): a county that is not on the rate sheet must not be priced with state taxes only.
+export const COUNTY_UNKNOWN = "We couldn't find this county in CLA's rates. Pick the county from the list, then calculate again.";
+export function countyIsKnown(R, deal) {
+  const state = String((deal && deal.state) || '').toUpperCase();
+  if (state === 'DC') return true;
+  return C.allCounties(R, state).some((x) => C.eq(x, countyOf(R, deal || {})));
+}
 export const NO_OO = /^(FL|VA)$/;   // the calculator hides principal residence / first-time buyer in FL and VA (they change nothing there)
 // options: everything the calculator asks that the order does not store. Defaults = the calculator's own defaults.
 // owner (Caroline Kim, Nov 4 2026): true = an owner's policy is issued (simultaneous issue with the lender's policy on a financed purchase);
@@ -92,6 +99,7 @@ export function claFeeInputs(R, state, type) {
 export function calcInputs(deal, options = {}, R = vendoredTables()) {
   if (!deal) fail('Order not found.');
   const state = String(deal.state || '').toUpperCase(); if (!CALC_STATES.includes(state)) fail(`CLA rates cover MD, VA, DC and FL only (this order is in ${state || 'no state'}).`);
+  if (!countyIsKnown(R, deal)) fail(COUNTY_UNKNOWN);
   const o = cleanOptions(options); const type = calcTypeOf(deal); const enh = enhancedSupport(R, state);
   const enhancedPlaceholder = !enh.supported && o.pol === 'enhanced' && !!options && options.pol === 'enhanced' && o.owner && type !== 'refi';
   const price = Number(deal.purchasePrice ?? deal.purchase_price) || 0; const loan = Number(deal.loanAmount ?? deal.loan_amount) || 0;
@@ -271,9 +279,9 @@ export function calcSetup(deal, fees, R = vendoredTables()) {
   const state = String((deal && deal.state) || '').toUpperCase(); const type = calcTypeOf(deal || {}); const options = lastOptions(fees, deal);
   const base = { fromOrder: orderAnswers(deal), source: { ...vendoredRateSource, loadTables: undefined, tablesSync: undefined, commit: CALC_SOURCE.commit, snapshot: CALC_SOURCE.snapshot }, state, type, options };
   if (!CALC_STATES.includes(state)) return { ...base, covered: false, reason: `CLA rates cover MD, VA, DC and FL only (this order is in ${state || 'no state'}).` };
-  const county = countyOf(R, deal); const known = state === 'DC' || C.allCounties(R, state).some((x) => C.eq(x, county));
+  const county = countyOf(R, deal); const known = countyIsKnown(R, deal);
   const enhanced = enhancedSupport(R, state); if (!enhanced.supported && base.options.pol === 'enhanced') base.options = { ...base.options, pol: 'standard' };   // no enhanced rate: the form starts on basic
-  let reason = ''; try { calcInputs(deal, options, R); } catch (e) { reason = e.message; }
+  let reason = ''; if (!known) reason = COUNTY_UNKNOWN; else try { calcInputs(deal, options, R); } catch (e) { reason = e.message; }
   return { ...base, covered: !reason, reason, county, countyKnown: known, usesStateDefaults: !!county && C.usesDefaults(R, state, county),
     enhanced, ownerPolicy: { removable: type !== 'refi', included: base.options.owner !== false },
     endorsements: endorsementChoices(R, state, type), asks: { payoff: type === 'refi', assessed: state === 'VA' && type !== 'refi', occ: !NO_OO.test(state), fthb: !NO_OO.test(state) && type !== 'refi', ownPay: type !== 'refi', flTitle: state === 'FL' && type !== 'refi' },

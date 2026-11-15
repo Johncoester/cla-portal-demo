@@ -73,7 +73,7 @@ test('Place Order fills city, state, county and ZIP from the street line', async
   await expect(page.locator('[data-wiz-step="property"] input[name="city"]')).toHaveValue('Rockville');
   await expect(page.locator('[data-wiz-step="property"] select[name="state"]')).toHaveValue('MD');
   await expect(page.locator('[data-wiz-step="property"] input[name="zip"]')).toHaveValue('20850');
-  await expect(page.locator('[data-wiz-step="property"] input[name="county"]')).toHaveValue('Montgomery');
+  await expect(page.locator('[data-wiz-step="property"] select[name="county"]')).toHaveValue('Montgomery');
   await expect(page.locator('[data-add-parcel]')).toBeVisible();
   expect(freshIssues(issues)).toEqual([]);
 });

@@ -71,9 +71,18 @@ export function bindAddressFill(form, { prefix = '' } = {}) {
     fillProperty({ street: street.value, city: city && city.value, state: state && state.value, zip: zip && zip.value, county: county && county.value }).then((next) => {
       if (next.parsed && next.street && next.street !== street.value) street.value = next.street;
       if (city && !city.value.trim() && next.city) city.value = next.city;
-      if (state && !state.value && next.state) state.value = next.state;
+      let stateSet = false;
+      if (state && !state.value && next.state) { state.value = next.state; stateSet = true; }
       if (zip && !zip.value.trim() && next.zip) zip.value = next.zip;
-      if (county && !county.value.trim() && next.county) county.value = next.county;
+      // A county dropdown is rebuilt when the state changes. Tell it before the county is chosen.
+      if (stateSet) state.dispatchEvent(new Event('change', { bubbles: true }));
+      if (county && !String(county.value || '').trim() && next.county) {
+        if (county.tagName === 'SELECT') {
+          const want = next.county.trim().toLowerCase();
+          const hit = [...county.options].find((o) => o.value && o.value.toLowerCase() === want && o.dataset.countyUnmatched !== '1');
+          if (hit) county.value = hit.value;
+        } else county.value = next.county;
+      }
     }).catch(() => {});
   };
   const schedule = () => { clearTimeout(timer); timer = setTimeout(run, 400); };
