@@ -112,7 +112,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A processor opens a file and enters the contract, the loan, the deposit, the agent fees, the payoffs, the fees and the tax proration once. Every figure then lands where Qualia puts it: the fee ledger, the Closing Disclosure summaries (K, L, M, N), cash to close, the ALTA statement and the balance check. One fixed purchase, entered by Claude on Qualia's own test file on Nov 15 2026, is the standard: price $100,000, loan $50,000, deposit $5,000, 1% listing commission, payoff $40,000, buyer fees $2,375, seller fees $700, county tax $3,650 a year with a July 1 settlement. Qualia's answers: cash to close $45,550.00, paid out to others $44,075.00, balanced. Outside connections (CPL, final policy, e-recording, bank accounts) are not part of this.
 
-**Status: In progress.** QFLOW-1. John Coester, Nov 15 2026 (voice, then "test portal is ready" at 12:51 PM ET), assigned to Claude. Pull request: PRLINK. No database file. Not Live until this is merged and the steps below are checked on TEST.
+**Status: In progress.** QFLOW-1. John Coester, Nov 15 2026 (voice, then "test portal is ready" at 12:51 PM ET), assigned to Claude. Pull request: [PR 289](https://github.com/Johncoester/cla-portal-demo/pull/289). No database file. Not Live until this is merged and the steps below are checked on TEST.
 
 **What's built**
 
