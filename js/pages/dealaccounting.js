@@ -6,13 +6,14 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { modOn } from '../data/modules.js?v=202611101015';
 import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611222600';
 import { prorationsView } from './dealaccounting-prorations.js?v=202611161500';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
-import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611222600'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
+import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611222900'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
 import { render as postClosingRender } from './dealpostclosing.js?v=202611161500';
 import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611161500';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611222600';
 import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611221200';
 import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611222600';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 import { contractView } from './dealaccounting-contract.js?v=202611222800';
+import { partyNames, withStatementParties } from '../data/statement-parties.js?v=202611222900';
 
 const VIEWS = [['contract', 'Contract figures'], ['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
 // negative amounts (the escrow aggregate adjustment) show as -$x.xx
@@ -20,14 +21,16 @@ const m2 = (n) => (n == null || Number(n) === 0 ? '' : (Number(n) < 0 ? '-' : ''
 const m2z = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const READ_ONLY_NOTE = 'Read only for your role (Sales Person, Sales Team, Transaction Coordinator): you can read the ledger, prorations and statements; only a Processor, Admin or Super admin can add or change them.';
 const opt = (v, l, sel) => html`<option value="${v}" ${String(v) === String(sel ?? '') ? raw('selected') : ''}>${l}</option>`;
-const names = (deal, role) => deal.participants.filter((p) => p.role === role && p.contact).map((p) => (p.entity && p.entity.name) || `${p.contact.firstName} ${p.contact.lastName}`).join(', ');
+const names = (deal, role) => partyNames(deal.participants, role);   // typed people count; the people are loaded for the statements (statement-parties.js)
 
-export async function render({ api, deal, user }) {
+export async function render({ api, deal: fileDeal, user }) {
+  let deal = fileDeal;
   if (!(api.features || {}).accounting || !modOn('accounting')) throw new Error('That page does not exist.');   // config flag off, or not Live (beta) for this user
   if (!acctCanRead(user) || user.accountRole) throw new Error('Accounting is for CLA staff only.');
   const q = new URLSearchParams(location.hash.split('?')[1] || ''); const view = VIEWS.some(([k]) => k === q.get('v')) ? q.get('v') : q.get('calc') === '1' || q.get('retired') === '1' ? 'ledger' : 'contract';
   if (PAYOFF_VIEWS.includes(view) && !canReachPayoffs(user)) throw new Error('That section is not available for your account.');   // live28: same rule as the route guard
   const showRetired = q.get('retired') === '1'; const base = `#/deals/${deal.id}/accounting`;
+  if (view === 'alta' || view === 'cd') deal = await withStatementParties(api, deal);   // the statements name the buyer, seller, lender and agents
   const acc = await api.getAccounting(deal.id, { includeRetired: showRetired });
   const T = acc.totals; const B = acc.refi ? 'Borrower' : 'Buyer / borrower';
   const nav = qcNav(deal, view, q.get('s') || 'A', base, canReachPayoffs(user));   // live28: Payoffs / Taxes / Other Contacts links for Processors + admins only   // Qualia-style left nav: General · Closing › Charges A-N · Preview · CLA tools

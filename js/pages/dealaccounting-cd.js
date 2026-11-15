@@ -6,10 +6,12 @@
 import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611161500';
 import { TEST_MARK } from '../data/accounting.js?v=202611222600';
 import { CD_DETAIL_GROUPS } from '../data/cd-pages.js?v=202611070139';
+import { partyNames, brokerOf } from '../data/statement-parties.js?v=202611222900';
 const m2 = (n) => (n == null || Number(n) === 0 ? '' : (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const m2z = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const mv = (n) => (n == null ? html`<span class="muted">—</span>` : m2z(n));
-const names = (deal, role) => deal.participants.filter((p) => p.role === role && p.contact).map((p) => (p.entity && p.entity.name) || `${p.contact.firstName} ${p.contact.lastName}`).join(', ');
+const names = (deal, role) => partyNames(deal.participants, role);
+const broker = (deal, role) => brokerOf(deal.participants, role);
 const yn = (v) => (v === 'yes' ? html`<strong class="acct-yn yes">YES</strong>` : v === 'no' ? html`<strong class="acct-yn no">NO</strong>` : html`<span class="muted">—</span>`);
 const pageHead = (n, title) => html`<div class="acct-cd-pagehead"><span class="acct-mark" data-print-mark>${TEST_MARK}</span><h3 class="acct-h">${title}</h3><span class="muted small">Page ${n} of 5 &middot; Closing Disclosure (TEST)</span></div>`;
 
@@ -78,8 +80,8 @@ export async function cdPagesView(api, deal, acc, docHead, printBtn, mountPrint)
       <dt>Annual Percentage Rate (APR)</dt><dd>${p5.apr != null ? p5.apr + '%' : '—'}</dd><dt>Total Interest Percentage (TIP)</dt><dd>${p5.tip != null ? p5.tip + '%' : '—'}</dd></dl></div>
     <div><h4>Other Disclosures</h4><dl><dt>Liability after Foreclosure</dt><dd>${p5.liability === 'protected' ? 'State law may protect you from liability for the unpaid balance.' : p5.liability === 'not protected' ? 'State law does not protect you from liability for the unpaid balance.' : '—'}</dd><dt>Refinance</dt><dd>${p5.refinance || 'Refinancing this loan will depend on your future financial situation, the property value, and market conditions.'}</dd></dl></div></div>
     <table class="tbl acct-cd" data-cd-contacts><thead><tr><th>Contact Information</th><th>Lender</th><th>Mortgage Broker</th>${refi ? '' : html`<th>Real Estate Broker (B)</th><th>Real Estate Broker (S)</th>`}<th>Settlement Agent</th></tr></thead><tbody>
-      <tr><td>Name</td><td>${deal.lenderName || '—'}</td><td>${p5.broker || '—'}</td>${refi ? '' : html`<td>${names(deal, 'Buyer Agent') || '—'}</td><td>${names(deal, 'Listing Agent') || '—'}</td>`}<td>CLA Title &amp; Escrow (test portal)</td></tr>
-      <tr><td>NMLS ID</td><td>${p5.lenderNmls || '—'}</td><td>—</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr><tr><td>Contact</td><td>${p5.lenderContact || deal.lenderContact || '—'}</td><td>—</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr>
+      <tr><td>Name</td><td>${deal.lenderName || '—'}</td><td>${p5.broker || '—'}</td>${refi ? '' : html`<td>${broker(deal, 'Buyer Agent').name || '—'}</td><td>${broker(deal, 'Listing Agent').name || '—'}</td>`}<td>CLA Title &amp; Escrow (test portal)</td></tr>
+      <tr><td>NMLS ID</td><td>${p5.lenderNmls || '—'}</td><td>—</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr><tr><td>Contact</td><td>${p5.lenderContact || deal.lenderContact || '—'}</td><td>—</td>${refi ? '' : html`<td>${broker(deal, 'Buyer Agent').contact || '—'}</td><td>${broker(deal, 'Listing Agent').contact || '—'}</td>`}<td>—</td></tr>
       <tr><td>Contact NMLS ID</td><td>${p5.lenderContactNmls || '—'}</td><td>—</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr></tbody></table>
     <p class="small muted">Confirm Receipt: not used. This is a TEST page built by the portal, not a legal disclosure; the lender's Closing Disclosure is the real one.</p></section>`;
   const warn = X.calcWarnings && X.calcWarnings.length ? html`<div class="notice warn small acct-noprint" data-cd-calc-warnings>${X.calcWarnings.map((w) => html`<div>${w}</div>`)}</div>` : '';
