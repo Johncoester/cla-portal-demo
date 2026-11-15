@@ -42,7 +42,6 @@ create sequence if not exists public.underwriter_split_log_id_seq;
 create sequence if not exists public.file_number_seq;
 
 create table if not exists private.backfills (name text not null, done_at timestamp with time zone not null default now());
-create table if not exists private.party_ssn (task_id uuid not null, ciphertext bytea not null, last4 text not null, updated_at timestamp with time zone not null default now(), updated_by uuid, subject text not null default 'self'::text);
 create table if not exists private.view_as_audit (id bigint not null, actor_id uuid not null, target_id uuid, action text not null, at timestamp with time zone not null default now());
 create table if not exists private.view_as_sessions (actor_id uuid not null, target_id uuid not null, started_at timestamp with time zone not null default now(), expires_at timestamp with time zone not null, stopped_at timestamp with time zone);
 create table if not exists public.access_invites (id uuid not null default gen_random_uuid(), deal_id uuid not null, first_name text not null, last_name text not null, email text not null, permission text not null, side text, invited_by uuid not null, status text not null default 'recorded'::text, created_at timestamp with time zone not null default now(), invited_as text);
@@ -202,13 +201,6 @@ do $pk0$ begin
     alter table private.backfills add primary key (name);
   end if;
 end $pk0$;
-do $pk1$ begin
-  if to_regclass('private.party_ssn') is not null and not exists (
-    select 1 from pg_constraint where conrelid = 'private.party_ssn'::regclass and contype = 'p'
-  ) then
-    alter table private.party_ssn add primary key (task_id, subject);
-  end if;
-end $pk1$;
 do $pk2$ begin
   if to_regclass('private.view_as_audit') is not null and not exists (
     select 1 from pg_constraint where conrelid = 'private.view_as_audit'::regclass and contype = 'p'
@@ -6736,13 +6728,68 @@ begin
     );
   end if;
   if not exists (select 1 from pg_policies where schemaname='public' and tablename='documents' and policyname='documents_select') then
-    create policy documents_select on public.documents for select to authenticated using (true);
+    if to_regprocedure('private.viewer_holds_buyer_agent(uuid)') is null then
+      create function private.viewer_holds_buyer_agent(d uuid) returns boolean language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+        select d is not null and 'Buyer Agent' = any (private.deal_roles(d)) and not private.is_staffish() $fn$;
+    end if;
+    if to_regprocedure('private.viewer_is_buyer_agent(uuid)') is null then
+      create function private.viewer_is_buyer_agent(d uuid) returns boolean language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+        select private.viewer_holds_buyer_agent(d) and not ('Client-Buyer' = any (private.deal_roles(d))) $fn$;
+    end if;
+    if to_regprocedure('private.wire_allowed(uuid)') is null then
+      create function private.wire_allowed(d uuid) returns boolean language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+        select private.is_staffish() or (d is not null and private.effective_uid() is not null and 'Client-Buyer' = any (private.deal_roles(d))) $fn$;
+    end if;
+    if to_regprocedure('private.buyer_doc_ok(uuid, uuid)') is null then
+      create function private.buyer_doc_ok(pid uuid, doc uuid) returns boolean language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+        select exists (select 1 from public.documents d where d.id = doc and (
+          d.uploaded_by = pid or private.person_side(d.uploaded_by, d.deal_id) = 'staff'
+          or exists (select 1 from public.signature_requests r join public.signature_signers s on s.request_id = r.id where r.document_id = d.id and s.profile_id = pid))) $fn$;
+    end if;
+    if to_regprocedure('private.seller_doc_ok(uuid, uuid)') is null then
+      create function private.seller_doc_ok(pid uuid, doc uuid) returns boolean language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+        select exists (select 1 from public.documents d where d.id = doc and (
+          d.uploaded_by = pid or coalesce(private.person_side(d.uploaded_by, d.deal_id), '') in ('staff', 'seller')
+          or exists (select 1 from public.signature_requests r join public.signature_signers s on s.request_id = r.id where r.document_id = d.id and s.profile_id = pid))) $fn$;
+    end if;
+    if to_regprocedure('private.document_readable(uuid)') is null then
+create or replace function private.document_readable(doc uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path to pg_catalog, public, extensions
+as $old$
+  select exists (select 1 from public.documents d where d.id = doc and private.me_role() is not null
+    and (d.deal_id is null or private.can_access_deal(d.deal_id)) and private.folder_visible(d.folder_id)
+    and (not d.wire_instructions or d.uploaded_by = (select private.effective_uid()) or private.wire_allowed(d.deal_id))
+    and not (private.viewer_is_buyer_agent(d.deal_id) and private.buyer_agent_blocked(d.title_doc_kind, d.name, d.doc_type, d.wire_instructions))
+    and case when d.deal_id is not null and d.uploaded_by is distinct from (select private.effective_uid()) and private.is_pure_buyer(d.deal_id) then
+           (d.shared_with_client and d.visibility <> 'staff')
+           or (private.buyer_doc_ok((select private.effective_uid()), d.id) and private.doc_visible(d.visibility, d.uploaded_by, d.deal_id))
+         when d.deal_id is not null and d.uploaded_by is distinct from (select private.effective_uid()) and private.is_pure_seller(d.deal_id) then
+           (d.shared_with_seller and d.visibility <> 'staff')
+           or (private.seller_doc_ok((select private.effective_uid()), d.id) and private.doc_visible(d.visibility, d.uploaded_by, d.deal_id))
+         else private.doc_visible(d.visibility, d.uploaded_by, d.deal_id)
+           or (d.title_doc_kind = 'title_commitment' and private.viewer_holds_buyer_agent(d.deal_id) and not private.buyer_agent_blocked(d.title_doc_kind, d.name, d.doc_type, d.wire_instructions))
+         end) $old$;
+      revoke all on function private.document_readable(uuid) from public, anon;
+      grant execute on function private.document_readable(uuid) to authenticated;
+    end if;
+    create policy documents_select on public.documents for select to authenticated using (private.document_readable(id));
+
   end if;
   if not exists (select 1 from pg_policies where schemaname='public' and tablename='documents' and policyname='documents_update') then
     create policy documents_update on public.documents for update to authenticated using (true) with check (true);
   end if;
   if not exists (select 1 from pg_policies where schemaname='public' and tablename='documents' and policyname='demo_scope') then
-    create policy demo_scope on public.documents as restrictive for all to authenticated using (true) with check (true);
+    create policy demo_scope on public.documents as restrictive for all to authenticated using (
+      case when deal_id is null then not private.viewer_is_demo()
+      else (select d.is_demo from public.deals d where d.id = documents.deal_id) = private.viewer_is_demo() end
+    ) with check (
+      case when deal_id is null then not private.viewer_is_demo()
+      else (select d.is_demo from public.deals d where d.id = documents.deal_id) = private.viewer_is_demo() end
+    );
   end if;
 end
 $docs_pre$;
@@ -7101,8 +7148,11 @@ begin
       set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ select false $fn$;
   end if;
   if to_regprocedure('private.thread_member(uuid)') is null then
-    create function private.thread_member(id uuid) returns boolean language sql stable security definer
-      set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ select false $fn$;
+    create function private.thread_member(t uuid) returns boolean language sql stable security definer
+      set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+  select exists (select 1 from public.threads x where x.id = t and private.can_access_deal(x.deal_id)
+                 and (private.is_processor() or private.is_admin() or private.is_manager()
+                      or exists (select 1 from public.thread_participants tp where tp.thread_id = t and tp.profile_id = private.effective_uid()))) $fn$;
   end if;
   if to_regprocedure('private.thread_postable(uuid)') is null then
     create function private.thread_postable(id uuid) returns boolean language sql stable security definer
@@ -7179,3 +7229,518 @@ end $function$;
   end if;
 end
 $settle_pre$;
+
+-- crm_imports primary key the hosted-import file expects. Added only when missing.
+do $crmimp_pk$
+begin
+  if to_regclass('public.crm_imports') is not null and not exists (
+    select 1 from pg_constraint where conrelid = 'public.crm_imports'::regclass and contype = 'p'
+  ) then
+    alter table public.crm_imports add primary key (id);
+  end if;
+end
+$crmimp_pk$;
+
+-- Name labels the message-recipient file calls. Created only when missing.
+do $label_pre$
+begin
+  if to_regprocedure('private.person_label(uuid)') is null then
+    create function private.person_label(pid uuid) returns text language sql stable
+      set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+      select coalesce((select trim(first_name || ' ' || last_name) || ' (' || role || ')' from public.profiles where id = pid), 'Unknown')
+    $fn$;
+  end if;
+  if to_regprocedure('private.person_label(uuid, uuid, text)') is null then
+    create function private.person_label(pid uuid, d uuid, cap text) returns text language sql stable security definer
+      set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+      with r as (select private.file_roles_of(pid, d) rs), a as (select case when cap is not null and cap = any (rs) then cap else rs[1] end as cap, rs from r)
+      select coalesce((select trim(p.first_name || ' ' || p.last_name) || ' (' ||
+          case when cardinality(a.rs) > 1 then 'as ' || a.cap || '; also ' || array_to_string(array_remove(a.rs, a.cap), ', ') || ' on this file' else coalesce(a.cap, 'unknown role') end || ')'
+        from public.profiles p, a where p.id = pid), 'Unknown')
+    $fn$;
+  end if;
+  if to_regprocedure('private.person_label(uuid, uuid)') is null then
+    create function private.person_label(pid uuid, d uuid) returns text language sql stable
+      set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+      select private.person_label(pid, d, null)
+    $fn$;
+  end if;
+end
+$label_pre$;
+
+-- Who may be messaged. Created only when missing.
+do $canmsg_pre$
+begin
+  if to_regprocedure('private.can_message(uuid, uuid)') is null then
+    create function private.can_message(pid uuid, d uuid) returns boolean language sql stable security definer
+      set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+      select private.is_staffish() or private.person_side(pid, d) = 'staff' or (private.my_side(d) in ('buyer', 'seller') and private.person_side(pid, d) = private.my_side(d))
+    $fn$;
+  end if;
+end
+$canmsg_pre$;
+
+-- Coordinator list before the TC contact backfill. Created only when missing.
+do $tc_choices_pre$
+begin
+  if to_regprocedure('private.rpc_coordinator_choices()') is null then
+    create or replace function private.rpc_coordinator_choices()
+    returns table(profile_id uuid, contact_id uuid, first_name text, last_name text, email text, phone text, company text)
+    language plpgsql stable security definer set search_path = pg_catalog, public, extensions as $$
+begin
+  if not private.is_processor() then raise exception 'Only a Processor or Admin can do this.' using errcode = 'P0001'; end if;
+  return query select p.id, c.id, p.first_name, p.last_name, p.email, p.phone, c.company from public.profiles p join public.contacts c on c.profile_id = p.id
+    where p.role = 'Transaction Coordinator' and p.status = 'active' order by p.first_name, p.last_name; end $$;
+  end if;
+end
+$tc_choices_pre$;
+
+-- The role-seed file looks up these logins and refuses to create them. Added only when missing.
+create table if not exists auth.users (
+  id uuid primary key default gen_random_uuid(),
+  email text
+);
+insert into auth.users (email)
+select v.email
+from (values
+  ('clatestportal+e2e-super-admin@gmail.com'),
+  ('clatestportal+e2e-processor@gmail.com'),
+  ('clatestportal+e2e-sales-person@gmail.com'),
+  ('clatestportal+e2e-sales-team@gmail.com'),
+  ('clatestportal+e2e-coordinator@gmail.com'),
+  ('clatestportal+e2e-buyer-agent@gmail.com'),
+  ('clatestportal+e2e-listing-agent@gmail.com'),
+  ('clatestportal+e2e-buyer@gmail.com'),
+  ('clatestportal+e2e-seller@gmail.com')
+) as v(email)
+where not exists (select 1 from auth.users u where lower(u.email) = lower(v.email));
+
+-- Task copy trigger and template save captured before due anchors. Created only when missing.
+do $due_pre$
+begin
+  if to_regprocedure('private.rpc_upsert_task_template(text, text, text, text[], integer, text, text[], boolean)') is null then
+create or replace function private.rpc_upsert_task_template(p_code text, p_title text, p_description text, p_roles text[], p_due_days integer, p_lane text, p_audiences text[], p_client_only boolean default false)
+returns jsonb language plpgsql security definer set search_path to 'pg_catalog', 'public', 'extensions'
+as $function$
+declare cur public.task_templates; ver int; aud text[]; lane text := p_lane; who text;
+begin
+  if (select private.effective_uid()) is null or not private.is_admin() then raise exception 'Only an Admin can manage task templates.' using errcode = '42501'; end if;
+  if p_code !~ '^[a-z_]{2,40}$' then raise exception 'Task code must be 2 to 40 lowercase letters or underscores.' using errcode = '22023'; end if;
+  if length(btrim(coalesce(p_title, ''))) < 2 then raise exception 'A task needs a title.' using errcode = '22023'; end if;
+  if lane not in ('portal', 'production') then raise exception 'Classify the task as Title Portal or Title Production.' using errcode = '22023'; end if;
+  aud := (select coalesce(array_agg(distinct x), '{}') from unnest(coalesce(p_audiences, '{}')) x);
+  if exists (select 1 from unnest(aud) a where a not in ('buyer','seller','listing_agent','buyer_agent','sales_team','transaction_coordinator','internal')) then raise exception 'Unknown task audience.' using errcode = '22023'; end if;
+  if lane = 'production' and cardinality(aud) = 0 then aud := array['internal']; end if;
+  if cardinality(aud) = 0 then raise exception 'Pick who this task is for, or Internal only.' using errcode = '22023'; end if;
+  if p_due_days is null or p_due_days < 1 or p_due_days > 90 then raise exception 'Due days must be from 1 to 90.' using errcode = '22023'; end if;
+  select * into cur from public.task_templates where code = p_code order by version desc limit 1;
+  ver := coalesce(cur.version, 0) + 1;
+  update public.task_templates set active = false where code = p_code;
+  insert into public.task_templates (code, version, title, description, roles, due_days, fields, active, published_by, lane, audiences, client_only)
+  values (p_code, ver, btrim(p_title), coalesce(p_description, ''), coalesce(p_roles, '{}'), p_due_days, coalesce(cur.fields, '[]'::jsonb), true, private.effective_uid(), lane, aud, coalesce(p_client_only, false));
+  insert into public.task_template_switches (code) values (p_code) on conflict (code) do nothing;
+  select btrim(coalesce(first_name, '') || ' ' || coalesce(last_name, '')) into who from public.profiles where id = private.effective_uid();
+  insert into public.task_template_admin_log (code, action, detail, changed_by, changed_by_name) values (p_code, 'saved', lane || ' ' || array_to_string(aud, ','), private.effective_uid(), coalesce(who, ''));
+  return jsonb_build_object('code', p_code, 'version', ver, 'lane', lane, 'audiences', aud, 'title', btrim(p_title));
+end $function$;
+  end if;
+  if to_regprocedure('private.trg_participant_copies()') is null then
+create or replace function private.trg_participant_copies() returns trigger
+language plpgsql security definer set search_path to 'pg_catalog', 'public', 'extensions'
+as $function$
+declare owner uuid; n int;
+begin
+  select profile_id into owner from public.contacts where id = new.contact_id;
+  insert into public.tasks (deal_id, title, description, assigned_role, status, due_date, created_by, kind, participant_id, owner_profile_id, template_id, template_code, template_version, lane, audiences)
+  select new.deal_id, t.title, t.description, new.role, 'todo', current_date + t.due_days, private.effective_uid(), 'form', new.id, owner, t.id, t.code, t.version, t.lane, t.audiences
+  from public.task_templates t where t.active and t.retired_at is null and new.role = any (t.roles) and private.task_enabled(t.code)
+    and (t.audiences is null or (not (t.audiences = array['internal']::text[]) and (
+      (new.role = 'Client-Buyer' and 'buyer' = any (t.audiences)) or (new.role = 'Client-Seller' and 'seller' = any (t.audiences))
+      or (new.role = 'Buyer Agent' and 'buyer_agent' = any (t.audiences)) or (new.role = 'Listing Agent' and 'listing_agent' = any (t.audiences))
+      or (new.role in ('Sales Person', 'Sales Team') and 'sales_team' = any (t.audiences))
+      or (new.role = 'Transaction Coordinator' and 'transaction_coordinator' = any (t.audiences)))))
+    and not exists (select 1 from public.tasks x where x.participant_id = new.id and x.template_code = t.code and x.status <> 'cancelled');
+  get diagnostics n = row_count;
+  if n > 0 and owner is not null then perform private.notify(array[owner], 'task', new.deal_id, n || ' new task(s) on your order', '#/deals/' || new.deal_id || '/tasks'); end if;
+  return new; end $function$;
+  end if;
+end
+$due_pre$;
+
+-- Task template due-day rule and the copy trigger, as they stood before anchors. Added only when missing.
+do $duedays_pre$
+begin
+  if to_regclass('public.task_templates') is not null
+     and not exists (select 1 from pg_constraint where conname = 'task_templates_due_days_check') then
+    alter table public.task_templates add constraint task_templates_due_days_check
+      check (due_days >= 1 and due_days <= 90);
+  end if;
+  if to_regclass('public.deal_participants') is not null
+     and not exists (select 1 from pg_trigger where tgname = 'participants_copies' and not tgisinternal) then
+    create trigger participants_copies after insert on public.deal_participants
+      for each row execute function private.trg_participant_copies();
+  end if;
+end
+$duedays_pre$;
+
+-- Insert-only rights on tasks, and the audience check before clients could read it. Added only when missing.
+grant insert on public.tasks to authenticated;
+do $aud_pre$
+begin
+  if to_regprocedure('private.task_outside_audience(uuid)') is null then
+    create function private.task_outside_audience(p_task uuid) returns boolean
+    language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $function$
+  select exists (select 1 from public.tasks t where t.id = p_task and t.audiences is not null and (
+    ('Client-Buyer' = any (private.deal_roles(t.deal_id)) and 'buyer' = any (t.audiences) and t.owner_profile_id = (select private.effective_uid()) and not (t.audiences = array['internal']::text[]))
+    or ('Client-Seller' = any (private.deal_roles(t.deal_id)) and 'seller' = any (t.audiences) and t.owner_profile_id = (select private.effective_uid()) and not (t.audiences = array['internal']::text[]))
+    or ('Buyer Agent' = any (private.deal_roles(t.deal_id)) and 'buyer_agent' = any (t.audiences))
+    or ('Listing Agent' = any (private.deal_roles(t.deal_id)) and 'listing_agent' = any (t.audiences)))) $function$;
+  end if;
+end
+$aud_pre$;
+
+-- Staff-read helpers and activity policies as they stood before the one-pass rewrite. Created only when missing.
+do $staffread_pre$
+begin
+  if to_regprocedure('private.file_title(uuid)') is null then
+    create function private.file_title(p_deal uuid) returns text language sql stable security definer
+      set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ select ''::text $fn$;
+  end if;
+  if to_regprocedure('public.deal_file_titles(uuid)') is null then
+    create function public.deal_file_titles(p_deal uuid default null)
+    returns table (deal_id uuid, file_title text)
+    language sql stable set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+  select d.id, private.file_title(d.id) from public.deals d where p_deal is null or d.id = p_deal $fn$;
+    revoke all on function public.deal_file_titles(uuid) from public, anon;
+    grant execute on function public.deal_file_titles(uuid) to authenticated;
+  end if;
+  if to_regprocedure('public.deal_list_extras()') is null then
+    create function public.deal_list_extras()
+    returns table (deal_id uuid, party_names text[], overdue_tasks integer)
+    language sql stable set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+  select d.id,
+         coalesce((select array_agg(distinct trim(c.first_name || ' ' || c.last_name)) from public.deal_contacts(d.id) c), '{}'),
+         (select count(*)::int from public.tasks t where t.deal_id = d.id and t.status in ('todo', 'in_progress', 'blocked') and t.due_date < private.office_today())
+  from public.deals d $fn$;
+    revoke all on function public.deal_list_extras() from public, anon;
+    grant execute on function public.deal_list_extras() to authenticated;
+  end if;
+  if to_regprocedure('private.rpc_my_file_roles_full()') is null then
+    create function private.rpc_my_file_roles_full()
+    returns table (deal_id uuid, role text, roles text[], label text, self_rep boolean)
+    language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+  select d.id, private.deal_role(d.id), private.deal_roles(d.id), private.role_text(private.deal_roles(d.id)),
+         coalesce(cardinality(private.deal_roles(d.id)) = 2 and private.self_rep_pair((private.deal_roles(d.id))[1], (private.deal_roles(d.id))[2]), false)
+  from public.deals d where private.can_access_deal(d.id) $fn$;
+    revoke all on function private.rpc_my_file_roles_full() from public, anon;
+    grant execute on function private.rpc_my_file_roles_full() to authenticated;
+  end if;
+  if to_regprocedure('public.my_file_roles_full()') is null then
+    create function public.my_file_roles_full()
+    returns table (deal_id uuid, role text, roles text[], label text, self_rep boolean)
+    language plpgsql stable set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ BEGIN RETURN QUERY SELECT * FROM private.rpc_my_file_roles_full(); END; $fn$;
+    revoke all on function public.my_file_roles_full() from public, anon;
+    grant execute on function public.my_file_roles_full() to authenticated;
+  end if;
+  if to_regclass('public.activity_log') is not null
+     and not exists (select 1 from pg_policy where polrelid = 'public.activity_log'::regclass and polname = 'activity_select') then
+    execute $pol$create policy activity_select on public.activity_log for select to authenticated using (((private.me_role() IS NOT NULL) AND private.is_staffish() AND (private.is_admin() OR ((((deal_id IS NULL) AND private.is_processor()) OR ((deal_id IS NOT NULL) AND private.can_access_deal(deal_id))) AND (private.is_processor() OR (entity IS NULL) OR (entity_id IS NULL) OR ((entity = 'document'::text) AND private.document_readable(entity_id)) OR ((entity = 'thread'::text) AND private.thread_member(entity_id)) OR (entity <> ALL (ARRAY['document'::text, 'thread'::text])))))))$pol$;
+  end if;
+  if to_regclass('public.activity_log') is not null
+     and not exists (select 1 from pg_policy where polrelid = 'public.activity_log'::regclass and polname = 'demo_scope') then
+    execute $pol$create policy demo_scope on public.activity_log as restrictive for all to authenticated using (
+CASE
+    WHEN (deal_id IS NULL) THEN (NOT private.viewer_is_demo())
+    ELSE (( SELECT d.is_demo
+       FROM deals d
+      WHERE (d.id = activity_log.deal_id)) = private.viewer_is_demo())
+END) with check (
+CASE
+    WHEN (deal_id IS NULL) THEN (NOT private.viewer_is_demo())
+    ELSE (( SELECT d.is_demo
+       FROM deals d
+      WHERE (d.id = activity_log.deal_id)) = private.viewer_is_demo())
+END)$pol$;
+  end if;
+end
+$staffread_pre$;
+
+-- Task guard and invite lookups captured before the sign-in change. Created only when missing.
+do $invite_pre$
+begin
+  if to_regprocedure('private.task_guard()') is null then
+create or replace function private.task_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path to pg_catalog, public, extensions
+as $fn$
+declare tp public.task_templates;
+begin
+  if new.participant_id is distinct from old.participant_id and new.participant_id is not null then raise exception 'A participant task stays with that participant'; end if;
+  if old.owner_profile_id is not null and new.assigned_role <> old.assigned_role then raise exception 'A participant task stays with that participant'; end if;
+  if new.kind = 'form' and new.status = 'done' and old.status <> 'done' and coalesce(current_setting('cla.form_rpc', true), '') <> 'on' then
+    select * into tp from public.task_templates where id = new.template_id;
+    begin perform private.validate_form(private.fields_for_role(tp.fields, new.assigned_role), new.form_data, true, new.deal_id);
+    exception when others then raise exception 'The form is not complete yet: %', sqlerrm; end;
+    new.completed_at := now(); new.completed_by := private.effective_uid();
+  end if;
+  return new; end $fn$;
+  end if;
+  if to_regprocedure('private.rpc_save_task_form(uuid, jsonb, boolean)') is null then
+create or replace function private.rpc_save_task_form(p_task uuid, p_data jsonb, p_complete boolean default false)
+returns text
+language plpgsql
+security definer
+set search_path to pg_catalog, public, extensions
+as $fn$
+declare t public.tasks; tp public.task_templates; clean jsonb; for_client boolean; prev uuid; note text := ''; self_rep boolean;
+begin
+  select * into t from public.tasks where id = p_task;
+  if not found or not private.can_access_deal(t.deal_id) or not private.task_visible(t.owner_profile_id, t.assigned_role, t.deal_id) then raise exception 'Task not found'; end if;
+  for_client := t.owner_profile_id is distinct from private.effective_uid() and private.agent_can_fill(p_task);
+  if t.kind <> 'form' or t.status = 'cancelled' or not (t.owner_profile_id = private.effective_uid() or private.is_manager() or for_client) then raise exception 'You cannot fill in this task.'; end if;
+  select * into tp from public.task_templates where id = t.template_id;
+  clean := private.validate_form(private.fields_for_role(tp.fields, t.assigned_role), coalesce(p_data, '{}'), p_complete, t.deal_id);
+  prev := coalesce(t.saved_by, t.completed_by);
+  self_rep := cardinality(private.deal_roles(t.deal_id)) > 1;
+  if for_client then note := ' by ' || private.person_label(private.effective_uid(), t.deal_id) || ' on behalf of ' || private.person_name(t.owner_profile_id);
+  elsif t.owner_profile_id = private.effective_uid() and prev is not null and prev <> private.effective_uid() and private.file_role_of(prev, t.deal_id) in ('Buyer Agent', 'Listing Agent') then
+    note := ' by ' || case when self_rep then private.person_label(private.effective_uid(), t.deal_id, t.assigned_role) else private.person_name(private.effective_uid()) end
+         || ' (changed answers entered by ' || private.person_label(prev, t.deal_id) || ')';
+  elsif t.owner_profile_id is not null and t.owner_profile_id <> private.effective_uid() then note := ' by ' || private.person_label(private.effective_uid(), t.deal_id);
+  elsif self_rep then note := ' by ' || private.person_label(private.effective_uid(), t.deal_id, case when t.owner_profile_id = private.effective_uid() then t.assigned_role end); end if;
+  perform set_config('cla.form_rpc', 'on', true);
+  update public.tasks set form_data = clean, saved_at = now(), saved_by = private.effective_uid(),
+    status = case when p_complete then 'done' when t.status = 'blocked' then 'blocked' else 'in_progress' end,
+    completed_at = case when p_complete then now() end, completed_by = case when p_complete then private.effective_uid() end where id = p_task;
+  perform set_config('cla.form_rpc', 'off', true);
+  perform private.log_activity(t.deal_id, case when p_complete then 'task.completed' else 'task.saved' end, 'task', t.id,
+    t.title || case when p_complete then ': completed' else ': progress saved' end || note);
+  if p_complete then perform private.notify(array[(select processor_id from public.deals where id = t.deal_id)], 'task', t.deal_id, 'Completed: ' || t.title, '#/deals/' || t.deal_id || '/tasks/' || t.id); end if;
+  if for_client then perform private.notify(array[t.owner_profile_id], 'task', t.deal_id,
+    private.person_name(private.effective_uid()) || case when p_complete then ' completed ' else ' started ' end || t.title || ' for you - please check the answers', '#/deals/' || t.deal_id || '/tasks/' || t.id); end if;
+  return case when p_complete then 'done' else 'in_progress' end; end $fn$;
+  end if;
+  if to_regprocedure('private.rpc_portal_invite_lookup(text)') is null then
+create or replace function private.rpc_portal_invite_lookup(p_token text)
+returns table(status text, first_name text, last_name text, email text, expires_at timestamptz, invite_kind text)
+language sql
+stable
+security definer
+set search_path to pg_catalog, public, extensions
+as $fn$
+  select coalesce((select public.agent_invite_status(i) from public.agent_invites i where i.token_hash = encode(digest(coalesce(p_token, ''), 'sha256'), 'hex')), 'invalid'),
+    i.first_name, i.last_name, i.email, i.expires_at, i.invite_kind
+  from (select 1) one left join public.agent_invites i on i.token_hash = encode(digest(coalesce(p_token, ''), 'sha256'), 'hex') and public.agent_invite_status(i) = 'pending' $fn$;
+  end if;
+  if to_regprocedure('private.rpc_hr_invite_lookup(text)') is null then
+create or replace function private.rpc_hr_invite_lookup(p_token text)
+returns table(status text, first_name text, last_name text, email text, expires_at timestamptz)
+language sql
+stable
+security definer
+set search_path to pg_catalog, public, extensions
+as $fn$
+  select case when v.id is null or e.archived_at is not null then 'invalid' when v.accepted_at is not null then 'accepted' when v.revoked_at is not null then 'revoked'
+      when v.expires_at < now() then 'expired' else 'pending' end,
+    case when v.expires_at >= now() then e.first_name end, case when v.expires_at >= now() then e.last_name end, case when v.expires_at >= now() then v.email end, v.expires_at
+  from (select 1) one left join public.hr_invites v on v.token_hash = encode(digest(coalesce(p_token, ''), 'sha256'), 'hex') left join public.hr_employees e on e.id = v.employee_id $fn$;
+  end if;
+end
+$invite_pre$;
+
+-- Wire-list helper and the old select-star wrapper. Created only when missing.
+do $wire_pre$
+begin
+  if to_regprocedure('private.person_wire_allowed(uuid, uuid)') is null then
+    create function private.person_wire_allowed(pid uuid, d uuid) returns boolean
+    language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $function$
+  select exists (select 1 from public.profiles p where p.id = pid and p.status = 'active'
+    and (p.role <> 'Outside user' or (d is not null and 'Client-Buyer' = any (private.file_roles_of(pid, d))))) $function$;
+  end if;
+  if to_regprocedure('private.rpc_wire_recipients(uuid)') is null then
+    create function private.rpc_wire_recipients(p_deal uuid)
+    returns table(id uuid, first_name text, last_name text, role text, side text)
+    language plpgsql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $function$
+begin
+  return query select r.* from public.message_recipients(p_deal) r where private.person_wire_allowed(r.id, p_deal);
+end $function$;
+  end if;
+end
+$wire_pre$;
+
+-- Thread policies the rest-read file expects to already name thread_member. Created only when missing.
+do $threadpol_pre$
+begin
+  if to_regclass('public.threads') is not null
+     and not exists (select 1 from pg_policy where polrelid = 'public.threads'::regclass and polname = 'threads_select') then
+    create policy threads_select on public.threads for select to authenticated using (private.thread_member(id));
+  end if;
+  if to_regclass('public.threads') is not null
+     and not exists (select 1 from pg_policy where polrelid = 'public.threads'::regclass and polname = 'demo_scope') then
+    create policy demo_scope on public.threads as restrictive for all to authenticated using (
+      case when deal_id is null then not private.viewer_is_demo()
+      else (select d.is_demo from public.deals d where d.id = threads.deal_id) = private.viewer_is_demo() end
+    ) with check (
+      case when deal_id is null then not private.viewer_is_demo()
+      else (select d.is_demo from public.deals d where d.id = threads.deal_id) = private.viewer_is_demo() end
+    );
+  end if;
+  if to_regclass('public.thread_participants') is not null
+     and not exists (select 1 from pg_policy where polrelid = 'public.thread_participants'::regclass and polname = 'tp_select') then
+    create policy tp_select on public.thread_participants for select to authenticated using (private.thread_member(thread_id));
+  end if;
+end
+$threadpol_pre$;
+
+-- Agent party list the rest-read file checks. Created only when missing.
+do $parties_pre$
+begin
+  if to_regprocedure('private.rpc_agent_parties()') is null then
+    create function private.rpc_agent_parties()
+    returns table (deal_id uuid, contact_id uuid, name text, label text)
+    language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $fn$
+  select a.deal_id, a.contact_id, trim(c.first_name || ' ' || c.last_name),
+         case when a.role = 'Client-Buyer' then 'Buyer + Buyer''s Agent' else 'Seller + Listing Agent' end
+  from public.deal_participants a join public.deal_participants b on b.deal_id = a.deal_id and b.contact_id = a.contact_id and private.self_rep_pair(a.role, b.role)
+  join public.contacts c on c.id = a.contact_id
+  where a.role in ('Client-Buyer', 'Client-Seller') and private.is_staffish() and private.can_access_deal(a.deal_id) $fn$;
+  end if;
+  if to_regprocedure('public.agent_parties()') is null then
+    create function public.agent_parties()
+    returns table (deal_id uuid, contact_id uuid, name text, label text)
+    language plpgsql stable set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ BEGIN RETURN QUERY SELECT * FROM private.rpc_agent_parties(); END; $fn$;
+  end if;
+end
+$parties_pre$;
+
+-- Notification read policy the rest-read file checks. Created only when missing.
+do $note_pre$
+begin
+  if to_regclass('public.notifications') is not null
+     and not exists (select 1 from pg_policy where polrelid = 'public.notifications'::regclass and polname = 'notifications_select') then
+    create policy notifications_select on public.notifications for select to authenticated using ((profile_id = private.effective_uid()));
+  end if;
+  if to_regclass('public.notifications') is not null
+     and not exists (select 1 from pg_policy where polrelid = 'public.notifications'::regclass and polname = 'demo_scope') then
+    create policy demo_scope on public.notifications as restrictive for all to authenticated using (
+      case when deal_id is null then not private.viewer_is_demo()
+      else (select d.is_demo from public.deals d where d.id = notifications.deal_id) = private.viewer_is_demo() end
+    ) with check (
+      case when deal_id is null then not private.viewer_is_demo()
+      else (select d.is_demo from public.deals d where d.id = notifications.deal_id) = private.viewer_is_demo() end
+    );
+  end if;
+end
+$note_pre$;
+
+-- Task board and my task list captured before owner names. Created only when missing.
+do $board_pre$
+begin
+  if to_regprocedure('public.task_board(text)') is null then
+create or replace function public.task_board(p_file_status text default 'All')
+returns table (
+  id uuid, deal_id uuid, title text, description text, assigned_role text, status text, due_date date,
+  completed_at timestamptz, completed_by uuid, kind text, participant_id uuid, owner_profile_id uuid,
+  template_code text, template_version integer, created_at timestamptz,
+  file_number text, street text, city text, state text, zip text, closing_date date, deal_status text,
+  owner_name text, overdue boolean
+)
+language sql stable security invoker set search_path to pg_catalog, public, extensions as $board$
+      -- task_board_one_contact_scan
+      with board as (
+        select t.id, t.deal_id, t.title, t.description, t.assigned_role, t.status, t.due_date, t.completed_at, t.completed_by,
+               t.kind, t.participant_id, t.owner_profile_id, t.template_code, t.template_version, t.created_at,
+               d.file_number, d.street, d.city, d.state, d.zip, d.closing_date, d.status as deal_status
+        from public.tasks t
+        join public.deals d on d.id = t.deal_id
+        where coalesce(p_file_status, 'All') = 'All' or d.status = p_file_status
+      ),
+      names as (
+        select picked.deal_id, picked.participant_id, picked.owner_name
+        from (
+          select files.deal_id, c.participant_id, trim(c.first_name || ' ' || c.last_name) as owner_name,
+                 row_number() over (partition by files.deal_id, c.participant_id order by c.participant_id) as n
+          from (select distinct board.deal_id from board) files
+          cross join lateral public.deal_contacts(files.deal_id) c
+          where c.participant_id is not null
+        ) picked
+        where picked.n = 1
+      )
+      select board.id, board.deal_id, board.title, board.description, board.assigned_role, board.status, board.due_date,
+             board.completed_at, board.completed_by, board.kind, board.participant_id, board.owner_profile_id,
+             board.template_code, board.template_version, board.created_at,
+             board.file_number, board.street, board.city, board.state, board.zip, board.closing_date, board.deal_status,
+             names.owner_name,
+             (board.status in ('todo', 'in_progress', 'blocked') and board.due_date is not null and board.due_date < private.office_today())
+      from board
+      left join names on names.deal_id = board.deal_id and names.participant_id = board.participant_id
+      order by board.file_number, board.due_date nulls last, board.title
+$board$;
+    revoke all on function public.task_board(text) from public, anon;
+    grant execute on function public.task_board(text) to authenticated;
+  end if;
+  if to_regprocedure('public.my_task_list(text)') is null then
+create or replace function public.my_task_list(p_file_status text default 'Open')
+returns table (
+  id uuid, deal_id uuid, title text, description text, assigned_role text, status text, due_date date,
+  completed_at timestamptz, completed_by uuid, kind text, participant_id uuid, owner_profile_id uuid,
+  template_code text, template_version integer, created_at timestamptz,
+  file_number text, street text, city text, state text, zip text, closing_date date, deal_status text,
+  owner_name text, overdue boolean, my_roles text[]
+)
+language sql stable security invoker set search_path to pg_catalog, public, extensions as $mine$
+  select b.*, case when private.is_staffish() then array[private.me_role()] else private.deal_roles(b.deal_id) end
+  from public.task_board(coalesce(p_file_status, 'Open')) b
+  where b.owner_profile_id = private.effective_uid()
+     or (b.participant_id is null and (b.assigned_role = any (private.deal_roles(b.deal_id)) or (private.is_staffish() and b.assigned_role = private.me_role())))
+  order by b.due_date nulls last, b.file_number, b.title $mine$;
+    revoke all on function public.my_task_list(text) from public, anon;
+    grant execute on function public.my_task_list(text) to authenticated;
+  end if;
+end
+$board_pre$;
+
+-- Post-closing, funding, and title editors the outbox file expects. Created only when missing.
+do $editors_pre$
+begin
+  if to_regprocedure('private.post_closing_editor(uuid, text)') is null then
+    create function private.post_closing_editor(d uuid, child text default 'post-closing') returns boolean
+    language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ select false $fn$;
+  end if;
+  if to_regprocedure('private.fwp_staff(text, uuid)') is null then
+    create function private.fwp_staff(p_module text, p_deal uuid) returns boolean
+    language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ select false $fn$;
+  end if;
+  if to_regprocedure('private.title_editor(uuid)') is null then
+    create function private.title_editor(d uuid) returns boolean
+    language sql stable security definer set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ select false $fn$;
+  end if;
+end
+$editors_pre$;
+
+-- The buyer personal-info file expects the active version 4 template. Inserted only when that code is absent.
+insert into public.task_templates (code, version, title, roles, fields, active)
+select 'personal_info', 4, 'Personal info', array['Client-Buyer','Client-Seller']::text[],
+  '[{"k":"entity_rep_name","label":"Entity representative","type":"text"},{"k":"current_address","label":"Current address","type":"text"},{"k":"attending_closing","label":"Attending closing","type":"text"}]'::jsonb, true
+where not exists (select 1 from public.task_templates where code = 'personal_info');
+insert into public.task_templates (code, version, title, roles, fields, active)
+select v.code, 1, v.title, array['Client-Buyer','Client-Seller']::text[], v.fields::jsonb, true
+from (values
+  ('id_upload', 'Upload identification', '[{"k":"id_document","label":"Identification","type":"doc"}]'),
+  ('hoa_info', 'Confirm HOA Information', '[]'),
+  ('mortgage_info', 'Outstanding Mortgage Information', '[]')
+) as v(code, title, fields)
+where not exists (select 1 from public.task_templates t where t.code = v.code);
+
+-- Tasks primary key later files reference. Added only when missing.
+do $tasks_pk$
+begin
+  if to_regclass('public.tasks') is not null and not exists (
+    select 1 from pg_constraint where conrelid = 'public.tasks'::regclass and contype = 'p'
+  ) then
+    alter table public.tasks add primary key (id);
+  end if;
+end
+$tasks_pk$;
