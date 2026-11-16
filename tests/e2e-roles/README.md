@@ -73,7 +73,7 @@ Nothing here is a password. GitHub Actions reads the same names from repository 
 | `SUPABASE_URL` | `https://aqcervntopidtcazcmlv.supabase.co` for the seed script only. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Seed script only. Repo secret for the workflow_dispatch seed. Do not put it on a developer machine if you use that job, and never in the browser. |
 
-On TEST the seeded emails are `clatestportal+e2e-<role>@gmail.com`, for example `clatestportal+e2e-buyer@gmail.com`. An invitee with no login is `clatestportal+e2e-invitee@gmail.com`. The suite keeps no allowed-inbox list of its own (John, Nov 13): the email spec sends to whatever addresses are on the test file, plus `E2E_MAIL_TO`. The portal no longer limits which addresses Live Test emails either (John, Nov 13).
+On TEST the seeded emails are `clatestportal+e2e-<role>@gmail.com`, for example `clatestportal+e2e-buyer@gmail.com`. An invitee with no login is `clatestportal+e2e-invitee@gmail.com`. The email spec sends only to `E2E_MAIL_TO`. Addresses on the test file are not recipients. If `E2E_MAIL_TO` is unset, that test skips and does not send. The portal itself still emails the address on the file when a person sends (John, Nov 13).
 
 The Processor login on TEST must already have Gmail connected. That is the staff mailbox the file email is sent from. The suite's own inbox is separate. See "Connect the test inbox" below.
 
@@ -127,8 +127,8 @@ The nightly run does not need `E2E_GMAIL_CLIENT_ID`, `E2E_GMAIL_CLIENT_SECRET`, 
 
 These portals send three kinds of mail. The suite covers those and nothing else.
 
-- **Invites** from a file (agent, buyer, seller). The Sales Team check only copies the link. A route blocks `gmail-send` so that check cannot email anyone. On TEST, the email spec sends one invite to the address on the file's invite row and polls the inbox.
-- **File email** from the file Email tab, to every address on the test file plus `E2E_MAIL_TO` (the log prints the list, with `E2E_MAIL_TO` by name): a template, no leftover `{{ }}`, subject shaped `[CLA #file - property address]`, and one attachment larger than 5 MB (the FF-006 size). Arrival is polled for up to 3 minutes. Latency is the time until the inbox returns the message.
+- **Invites** from a file (agent, buyer, seller). The Sales Team check only copies the link. A route blocks `gmail-send` so that check cannot email anyone. On TEST, the email spec sends the invite only when the address already on that row is exactly `E2E_MAIL_TO`. Any other address is left unsent.
+- **File email** from the file Email tab, to `E2E_MAIL_TO` only (the log does not print addresses from the file): a template, no leftover `{{ }}`, subject shaped `[CLA #file - property address]`, and one attachment larger than 5 MB (the FF-006 size). Arrival is polled for up to 3 minutes. Latency is the time until the inbox returns the message.
 - **Replies.** The test inbox replies on that Gmail thread with one PDF. Check for replies must show the inbound message, and the attachment must land on Documents once.
 
 Mock mode checks the composer, the subject hint, merge output, and that mock mode cannot send (there is no test-address list any more, John, Nov 13). It does not send. Live delivery is skipped unless `E2E_TARGET=test`.
