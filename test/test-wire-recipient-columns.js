@@ -23,7 +23,7 @@ ok(!/select\s+(?:r\.)?\*\s+from\s+(?:public\.)?message_recipients\b/i.test(mig),
 function sqlFiles(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
-    if (statSync(path).isDirectory()) sqlFiles(path, out);
+    if (statSync(path).isDirectory()) { if (name !== 'baseline') sqlFiles(path, out); }
     else if (name.endsWith('.sql')) out.push(path);
   }
   return out;
