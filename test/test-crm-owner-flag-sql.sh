@@ -10,9 +10,9 @@ trap cleanup EXIT
 "${PSQL[@]}" -d postgres -c "create database \"$DB\";"
 "${PSQL[@]}" -d "$DB" -c "create extension if not exists pgcrypto;"
 "${PSQL[@]}" -d "$DB" -f "$ROOT/test/sql/crm-owner-flag-harness.sql" >/tmp/crm-owner-harness.out
-"${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261123050000_crm_owner_flag.sql" >/tmp/crm-owner-migrate.out
+"${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261124130000_crm_owner_flag.sql" >/tmp/crm-owner-migrate.out
 "${PSQL[@]}" -d "$DB" -f "$ROOT/test/sql/crm-owner-flag-checks.sql" >/tmp/crm-owner-checks.out
-"${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/rollbacks/20261123050000_crm_owner_flag.sql" >/tmp/crm-owner-rollback.out
+"${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/rollbacks/20261124130000_crm_owner_flag.sql" >/tmp/crm-owner-rollback.out
 gone="$("${PSQL[@]}" -d "$DB" -tAc "select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'can_own_crm'")"
 if [ "$gone" != "0" ]; then
   echo "FAIL rollback left can_own_crm in place" >&2
