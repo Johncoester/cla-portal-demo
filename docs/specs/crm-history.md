@@ -12,4 +12,4 @@ A fresh database runs the whole Nov 2 CRM statement. The feature-flag file still
 
 ## What's still missing
 
-The clean load stops because `crm_leads` does not yet have columns that the November 12 mass-update check expects. No migration adds those columns. They were only on the fat table in the scratch precondition.
+John, Nov 16 2026, 10:46 AM ET (t1768u), added three more exact history statements: crm_zoho (20261105222920), crm_settings (20261105222924), and crm_janine_nov3 (20261105223011). crm_zoho adds crm_city, crm_county, crm_state, modified_at, and role_in_company on leads. crm_settings adds custom. The clean load now stops earlier, at the November 9 attachment-policy check: the attachments table has 2 policies and that check expects 6. The column comparison does not run. The other four policies are created by TEST history rows that are not in this pull request: crm_email_templates (20261105222930) creates the template policies, and crm_nov3b (20261105222939) creates the email policies.

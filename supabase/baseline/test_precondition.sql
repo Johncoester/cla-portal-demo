@@ -62,8 +62,6 @@ create table if not exists public.closing_party_locations (id uuid not null defa
 create table if not exists public.closing_proposals (id uuid not null default gen_random_uuid(), deal_id uuid not null, side text not null, proposed_by uuid not null, role_label text not null, proposed_at timestamp without time zone not null, location text not null, note text not null default ''::text, status text not null default 'proposed'::text, created_at timestamp with time zone not null default now(), office_id text);
 create table if not exists public.contacts (id uuid not null default gen_random_uuid(), profile_id uuid, first_name text not null, last_name text not null default ''::text, email text not null default ''::text, phone text not null default ''::text, company text not null default ''::text, created_by uuid, created_at timestamp with time zone not null default now(), contact_type text, crm_owner_id uuid, account_id uuid, crm_stage text, last_contacted_on date, tags text[] not null default '{}'::text[], crm_notes text not null default ''::text, crm_lead_id uuid, crm_archived_at timestamp with time zone, role_in_company text not null default ''::text, title text not null default ''::text, mobile text not null default ''::text, assistant text not null default ''::text, asst_phone text not null default ''::text, agent_split numeric(5,2), license_no text not null default ''::text, sales_volume_last_year numeric(16,2), deals_closed_last_year integer, zillow_url text not null default ''::text, crm_street text not null default ''::text, crm_city text not null default ''::text, crm_state text not null default ''::text, crm_zip text not null default ''::text, crm_county text not null default ''::text, links jsonb not null default '{}'::jsonb, modified_by uuid, modified_at timestamp with time zone, lead_source text not null default ''::text, relationship_status text, custom jsonb not null default '{}'::jsonb, zillow_moved boolean not null default false, is_demo boolean not null default false);
 
-create table if not exists public.crm_attachments (id uuid not null default gen_random_uuid(), entity text not null, entity_id uuid not null, name text not null, mime_type text not null default 'application/octet-stream'::text, size bigint not null default 0, storage_path text not null default ''::text, uploaded_by uuid, created_at timestamp with time zone not null default now());
-create table if not exists public.crm_custom_fields (id uuid not null default gen_random_uuid(), entity text not null, label text not null, type text not null, required boolean not null default false, section text not null default 'additional'::text, "position" integer not null default 0, show_in_list boolean not null default true, archived_at timestamp with time zone, created_by uuid, created_at timestamp with time zone not null default now(), modified_by uuid, modified_at timestamp with time zone, tooltip text not null default ''::text, show_tooltip boolean not null default false, max_chars integer, unique_values boolean not null default false, encrypted boolean not null default false, perm_view text[], perm_edit text[], config jsonb not null default '{}'::jsonb, default_value jsonb);
 create table if not exists public.crm_dash_components (id uuid not null default gen_random_uuid(), dashboard_id uuid not null, name text not null, type text not null, module text not null, chart_type text, measure jsonb not null default '{"fn": "count"}'::jsonb, "grouping" jsonb not null default '{}'::jsonb, criteria jsonb not null default '[]'::jsonb, target numeric, width smallint not null default 1, height smallint not null default 1, "position" integer not null default 0, created_by uuid, created_at timestamp with time zone not null default now(), modified_by uuid, modified_at timestamp with time zone not null default now(), retired_at timestamp with time zone);
 create table if not exists public.crm_dashboards (id uuid not null default gen_random_uuid(), name text not null, description text not null default ''::text, builtin boolean not null default false, owner_id uuid, visibility text not null default 'me'::text, share jsonb not null default '{}'::jsonb, locked boolean not null default false, filters jsonb not null default '{}'::jsonb, "position" integer not null default 0, created_by uuid, created_at timestamp with time zone not null default now(), modified_by uuid, modified_at timestamp with time zone not null default now(), retired_at timestamp with time zone, retired_by uuid);
 create table if not exists public.crm_dup_rules (key text not null, enabled boolean not null default true, modified_by uuid, modified_at timestamp with time zone not null default now());
@@ -73,13 +71,9 @@ create table if not exists public.crm_email_folders (id uuid not null default ge
 create table if not exists public.crm_email_template_files (template_id uuid not null, attachment_id uuid not null, attached_by uuid, attached_at timestamp with time zone not null default now(), detached_at timestamp with time zone, detached_by uuid);
 create table if not exists public.crm_email_templates (id uuid not null default gen_random_uuid(), name text not null, module text not null, folder_id uuid, personal_owner uuid, subject text not null, kind text not null default 'html'::text, body text not null default ''::text, blocks jsonb not null default '[]'::jsonb, page_bg text not null default ''::text, status text not null default 'active'::text, retired_at timestamp with time zone, retired_by uuid, copied_from uuid, created_by uuid, created_at timestamp with time zone not null default now(), modified_by uuid, modified_at timestamp with time zone not null default now());
 create table if not exists public.crm_emails (id uuid not null default gen_random_uuid(), entity text not null, entity_id uuid not null, from_email text not null, to_emails text[] not null, cc_emails text[] not null default '{}'::text[], bcc_emails text[] not null default '{}'::text[], subject text not null, body_html text not null default ''::text, status text not null, scheduled_at timestamp with time zone, template_id uuid, created_by uuid not null, created_at timestamp with time zone not null default now());
-create table if not exists public.crm_field_settings (scope text not null, key text not null, hidden boolean not null default false, required boolean not null default false, modified_by uuid, modified_at timestamp with time zone not null default now());
 create table if not exists public.crm_import_defaults (import_id uuid not null, field_key text not null, value_text text not null, owner_id uuid);
-create table if not exists public.crm_imports (id uuid not null default gen_random_uuid(), module text not null, kind text not null, file_name text not null default ''::text, total integer not null default 0, created integer not null default 0, duplicates integer not null default 0, errors integer not null default 0, created_by uuid not null default auth.uid(), created_at timestamp with time zone not null default now());
 create table if not exists public.crm_layout_sections (entity text not null, key text not null, label text not null, builtin boolean not null default false, "position" integer not null default 0, hidden boolean not null default false, modified_by uuid, modified_at timestamp with time zone not null default now());
 create table if not exists public.crm_list_exports (id uuid not null default gen_random_uuid(), module text not null, exported_by uuid not null, exported_at timestamp with time zone not null default now(), row_count integer not null default 0);
-create table if not exists public.crm_meeting_invites (id uuid not null default gen_random_uuid(), meeting_id uuid not null, status text not null default 'preview'::text, to_emails text[] not null default '{}'::text[], created_by uuid not null default auth.uid(), created_at timestamp with time zone not null default now());
-create table if not exists public.crm_picklist_options (list_key text not null, value text not null, label text not null, "position" integer not null default 0, retired boolean not null default false, modified_by uuid, modified_at timestamp with time zone not null default now());
 create table if not exists public.crm_recent_items (user_id uuid not null, module text not null, record_id uuid not null, viewed_at timestamp with time zone not null default now());
 create table if not exists public.crm_recent_searches (user_id uuid not null, q text not null, searched_at timestamp with time zone not null default now());
 create table if not exists public.crm_report_exports (id uuid not null default gen_random_uuid(), report_id uuid not null, exported_by uuid not null, exported_at timestamp with time zone not null default now(), row_count integer not null default 0);
@@ -314,14 +308,14 @@ do $pk22$ begin
 end $pk22$;
 do $pk26$ begin
   if to_regclass('public.crm_attachments') is not null and not exists (
-    select 1 from pg_constraint where conrelid = 'public.crm_attachments'::regclass and contype = 'p'
+    select 1 from pg_constraint where conrelid = to_regclass('public.crm_attachments') and contype = 'p'
   ) then
     alter table public.crm_attachments add primary key (id);
   end if;
 end $pk26$;
 do $pk27$ begin
   if to_regclass('public.crm_custom_fields') is not null and not exists (
-    select 1 from pg_constraint where conrelid = 'public.crm_custom_fields'::regclass and contype = 'p'
+    select 1 from pg_constraint where conrelid = to_regclass('public.crm_custom_fields') and contype = 'p'
   ) then
     alter table public.crm_custom_fields add primary key (id);
   end if;
@@ -391,7 +385,7 @@ do $pk36$ begin
 end $pk36$;
 do $pk37$ begin
   if to_regclass('public.crm_field_settings') is not null and not exists (
-    select 1 from pg_constraint where conrelid = 'public.crm_field_settings'::regclass and contype = 'p'
+    select 1 from pg_constraint where conrelid = to_regclass('public.crm_field_settings') and contype = 'p'
   ) then
     alter table public.crm_field_settings add primary key (scope, key);
   end if;
@@ -412,14 +406,14 @@ do $pk40$ begin
 end $pk40$;
 do $pk41$ begin
   if to_regclass('public.crm_meeting_invites') is not null and not exists (
-    select 1 from pg_constraint where conrelid = 'public.crm_meeting_invites'::regclass and contype = 'p'
+    select 1 from pg_constraint where conrelid = to_regclass('public.crm_meeting_invites') and contype = 'p'
   ) then
     alter table public.crm_meeting_invites add primary key (id);
   end if;
 end $pk41$;
 do $pk43$ begin
   if to_regclass('public.crm_picklist_options') is not null and not exists (
-    select 1 from pg_constraint where conrelid = 'public.crm_picklist_options'::regclass and contype = 'p'
+    select 1 from pg_constraint where conrelid = to_regclass('public.crm_picklist_options') and contype = 'p'
   ) then
     alter table public.crm_picklist_options add primary key (list_key, value);
   end if;
@@ -6766,32 +6760,34 @@ begin
     create function private.crm_template_editable(entity_id uuid) returns boolean language sql stable security definer
       set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ select false $fn$;
   end if;
+  if to_regclass('public.crm_attachments') is not null then
   alter table public.crm_attachments enable row level security;
-  if not exists (select 1 from pg_policy where polrelid = 'public.crm_attachments'::regclass and polname = 'crm_att_select_email') then
+  if not exists (select 1 from pg_policy where polrelid = to_regclass('public.crm_attachments') and polname = 'crm_att_select_email') then
     create policy crm_att_select_email on public.crm_attachments for select to authenticated using (
       (entity = 'email'::text) AND (EXISTS ( SELECT 1
          FROM crm_emails e
         WHERE ((e.id = e.entity_id) AND private.crm_email_record_visible(e.entity, e.entity_id))))
     );
   end if;
-  if not exists (select 1 from pg_policy where polrelid = 'public.crm_attachments'::regclass and polname = 'crm_att_insert_email') then
+  if not exists (select 1 from pg_policy where polrelid = to_regclass('public.crm_attachments') and polname = 'crm_att_insert_email') then
     create policy crm_att_insert_email on public.crm_attachments for insert to authenticated with check (
       (entity = 'email'::text) AND private.crm_editor() AND (EXISTS ( SELECT 1
          FROM crm_emails e
         WHERE ((e.id = e.entity_id) AND (e.created_by = private.effective_uid()))))
     );
   end if;
-  if not exists (select 1 from pg_policy where polrelid = 'public.crm_attachments'::regclass and polname = 'crm_att_select') then
+  if not exists (select 1 from pg_policy where polrelid = to_regclass('public.crm_attachments') and polname = 'crm_att_select') then
     create policy crm_att_select on public.crm_attachments for select to authenticated using (private.crm_entity_visible(entity, entity_id));
   end if;
-  if not exists (select 1 from pg_policy where polrelid = 'public.crm_attachments'::regclass and polname = 'crm_att_insert') then
+  if not exists (select 1 from pg_policy where polrelid = to_regclass('public.crm_attachments') and polname = 'crm_att_insert') then
     create policy crm_att_insert on public.crm_attachments for insert to authenticated with check (private.crm_editor() AND private.crm_entity_visible(entity, entity_id));
   end if;
-  if not exists (select 1 from pg_policy where polrelid = 'public.crm_attachments'::regclass and polname = 'crm_att_select_tpl') then
+  if not exists (select 1 from pg_policy where polrelid = to_regclass('public.crm_attachments') and polname = 'crm_att_select_tpl') then
     create policy crm_att_select_tpl on public.crm_attachments for select to authenticated using ((entity = 'template'::text) AND private.crm_template_visible(entity_id));
   end if;
-  if not exists (select 1 from pg_policy where polrelid = 'public.crm_attachments'::regclass and polname = 'crm_att_insert_tpl') then
+  if not exists (select 1 from pg_policy where polrelid = to_regclass('public.crm_attachments') and polname = 'crm_att_insert_tpl') then
     create policy crm_att_insert_tpl on public.crm_attachments for insert to authenticated with check ((entity = 'template'::text) AND private.crm_template_editable(entity_id));
+  end if;
   end if;
 end
 $crm_att$;
@@ -7130,7 +7126,7 @@ $settle_pre$;
 do $crmimp_pk$
 begin
   if to_regclass('public.crm_imports') is not null and not exists (
-    select 1 from pg_constraint where conrelid = 'public.crm_imports'::regclass and contype = 'p'
+    select 1 from pg_constraint where conrelid = to_regclass('public.crm_imports') and contype = 'p'
   ) then
     alter table public.crm_imports add primary key (id);
   end if;

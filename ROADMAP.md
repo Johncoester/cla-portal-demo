@@ -769,20 +769,23 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A brand-new database should build the CRM the way TEST did on November 2: the accounts, leads, pipeline, and activities, plus the feature flag. The scratch setup should not create those tables first, or the history file would leave them in the old shape.
 
-**Status: In progress.** John Coester, Nov 15 2026, 5:23 PM ET (t1737u), after pull request 291 merged. The history statement matches TEST. The clean load still stops on a later column check. Nothing is applied to TEST. Not Live.
+**Status: In progress.** John Coester, Nov 15 2026, 5:23 PM ET (t1737u), and Nov 16 2026, 10:46 AM ET (t1768u). Four history statements match TEST. The clean load gets past them and then stops on an attachment-policy count. Nothing is applied to TEST. Not Live.
 
 **What's built**
 
-- The exact TEST history statement is in the migration folder, labeled already applied on TEST.
-- The four CRM tables that statement creates are no longer created by the scratch precondition.
+- Four exact TEST history statements are in the migration folder, each labeled already applied on TEST: crm, crm_zoho, crm_settings, and crm_janine_nov3.
+- The tables those statements create are no longer created by the scratch precondition.
+- The six lead columns the November 12 check wants are added by those statements: crm_zoho adds crm_city, crm_county, crm_state, modified_at, and role_in_company; crm_settings adds custom.
 
 **What's still missing**
 
-- The clean load stops because leads are missing columns the November 12 check expects, and no migration adds those columns.
+- The clean load stops at the November 9 attachment-policy check: the file has 2 policies and that check expects 6. The column comparison does not run.
+- The other four policies are in later TEST history rows that are not in this pull request: crm_email_templates (20261105222930) creates the template policies, and crm_nov3b (20261105222939) creates the email policies.
 
 **Links**
 
 - Spec: [docs/specs/crm-history.md](docs/specs/crm-history.md)
+- Pull request: [PR 293](https://github.com/Johncoester/cla-portal-demo/pull/293)
 
 **Decisions**
 
