@@ -61,34 +61,7 @@ create table if not exists public.closing_location_reminders (id uuid not null d
 create table if not exists public.closing_party_locations (id uuid not null default gen_random_uuid(), deal_id uuid not null, participant_id uuid not null, party_role text not null, in_state_at_closing boolean, closing_location_state character(2), closing_location_country character(2), signing_method text not null default 'undecided'::text, answered_at timestamp with time zone, answered_by uuid, created_at timestamp with time zone not null default now(), updated_at timestamp with time zone not null default now(), updated_by uuid);
 create table if not exists public.closing_proposals (id uuid not null default gen_random_uuid(), deal_id uuid not null, side text not null, proposed_by uuid not null, role_label text not null, proposed_at timestamp without time zone not null, location text not null, note text not null default ''::text, status text not null default 'proposed'::text, created_at timestamp with time zone not null default now(), office_id text);
 create table if not exists public.contacts (id uuid not null default gen_random_uuid(), profile_id uuid, first_name text not null, last_name text not null default ''::text, email text not null default ''::text, phone text not null default ''::text, company text not null default ''::text, created_by uuid, created_at timestamp with time zone not null default now(), contact_type text, crm_owner_id uuid, account_id uuid, crm_stage text, last_contacted_on date, tags text[] not null default '{}'::text[], crm_notes text not null default ''::text, crm_lead_id uuid, crm_archived_at timestamp with time zone, role_in_company text not null default ''::text, title text not null default ''::text, mobile text not null default ''::text, assistant text not null default ''::text, asst_phone text not null default ''::text, agent_split numeric(5,2), license_no text not null default ''::text, sales_volume_last_year numeric(16,2), deals_closed_last_year integer, zillow_url text not null default ''::text, crm_street text not null default ''::text, crm_city text not null default ''::text, crm_state text not null default ''::text, crm_zip text not null default ''::text, crm_county text not null default ''::text, links jsonb not null default '{}'::jsonb, modified_by uuid, modified_at timestamp with time zone, lead_source text not null default ''::text, relationship_status text, custom jsonb not null default '{}'::jsonb, zillow_moved boolean not null default false, is_demo boolean not null default false);
-create table if not exists public.crm_accounts (id uuid not null default gen_random_uuid(), name text not null, kind text not null default 'other'::text, phone text not null default ''::text, website text not null default ''::text, city text not null default ''::text, state text not null default ''::text, owner_id uuid, notes text not null default ''::text, archived_at timestamp with time zone, created_by uuid, created_at timestamp with time zone not null default now(), modified_by uuid, modified_at timestamp with time zone, custom jsonb not null default '{}'::jsonb);
--- TEST history version 20261105222910, name crm. That row is not in the repo
--- (the repo file with this stamp only creates private.features). The company
--- lookup file requires this index and does not create it. Created only when
--- contacts.account_id exists, and only when the index is missing.
-do $contacts_account_idx$
-begin
-  if exists (
-    select 1 from information_schema.columns
-    where table_schema = 'public' and table_name = 'contacts' and column_name = 'account_id'
-  ) then
-    create index if not exists contacts_account_idx on public.contacts using btree (account_id);
-  end if;
-  if exists (
-    select 1 from information_schema.columns
-    where table_schema = 'public' and table_name = 'crm_accounts' and column_name = 'name'
-  ) and exists (
-    select 1 from information_schema.columns
-    where table_schema = 'public' and table_name = 'crm_accounts' and column_name = 'archived_at'
-  ) then
-    create unique index if not exists crm_accounts_name_uq
-      on public.crm_accounts (lower(btrim(name)))
-      where archived_at is null;
-  end if;
-end
-$contacts_account_idx$;
 
-create table if not exists public.crm_activities (id uuid not null default gen_random_uuid(), entity text not null, entity_id uuid not null, kind text not null, subject text not null, body text not null default ''::text, status text not null default 'done'::text, due_date date, occurred_on date, owner_id uuid, system boolean not null default false, created_by uuid, created_at timestamp with time zone not null default now(), done_at timestamp with time zone, priority text not null default 'High'::text, reminder boolean not null default false, reminder_at timestamp without time zone, repeat_every text not null default ''::text, repeat_until date, repeat_of uuid, closed_at timestamp with time zone, cancelled boolean not null default false, modified_by uuid, modified_at timestamp with time zone, all_day boolean not null default false, starts_at timestamp without time zone, ends_at timestamp without time zone, location text not null default ''::text, meeting_type text not null default ''::text, host_id uuid, participants text[] not null default '{}'::text[], call_type text, call_start timestamp with time zone, call_duration integer, call_mode text, call_status text, call_duration_sec integer, from_number text not null default ''::text, to_number text not null default ''::text, related_entity text, related_id uuid, call_reminder integer, call_reminder_at timestamp with time zone, call_outcome text not null default ''::text, reason_not_interested text not null default ''::text, call_notes text not null default ''::text, voice_recording_url text, voice_recording_name text, completed_at timestamp with time zone, repeat_anchor_day smallint);
 create table if not exists public.crm_attachments (id uuid not null default gen_random_uuid(), entity text not null, entity_id uuid not null, name text not null, mime_type text not null default 'application/octet-stream'::text, size bigint not null default 0, storage_path text not null default ''::text, uploaded_by uuid, created_at timestamp with time zone not null default now());
 create table if not exists public.crm_custom_fields (id uuid not null default gen_random_uuid(), entity text not null, label text not null, type text not null, required boolean not null default false, section text not null default 'additional'::text, "position" integer not null default 0, show_in_list boolean not null default true, archived_at timestamp with time zone, created_by uuid, created_at timestamp with time zone not null default now(), modified_by uuid, modified_at timestamp with time zone, tooltip text not null default ''::text, show_tooltip boolean not null default false, max_chars integer, unique_values boolean not null default false, encrypted boolean not null default false, perm_view text[], perm_edit text[], config jsonb not null default '{}'::jsonb, default_value jsonb);
 create table if not exists public.crm_dash_components (id uuid not null default gen_random_uuid(), dashboard_id uuid not null, name text not null, type text not null, module text not null, chart_type text, measure jsonb not null default '{"fn": "count"}'::jsonb, "grouping" jsonb not null default '{}'::jsonb, criteria jsonb not null default '[]'::jsonb, target numeric, width smallint not null default 1, height smallint not null default 1, "position" integer not null default 0, created_by uuid, created_at timestamp with time zone not null default now(), modified_by uuid, modified_at timestamp with time zone not null default now(), retired_at timestamp with time zone);
@@ -104,10 +77,8 @@ create table if not exists public.crm_field_settings (scope text not null, key t
 create table if not exists public.crm_import_defaults (import_id uuid not null, field_key text not null, value_text text not null, owner_id uuid);
 create table if not exists public.crm_imports (id uuid not null default gen_random_uuid(), module text not null, kind text not null, file_name text not null default ''::text, total integer not null default 0, created integer not null default 0, duplicates integer not null default 0, errors integer not null default 0, created_by uuid not null default auth.uid(), created_at timestamp with time zone not null default now());
 create table if not exists public.crm_layout_sections (entity text not null, key text not null, label text not null, builtin boolean not null default false, "position" integer not null default 0, hidden boolean not null default false, modified_by uuid, modified_at timestamp with time zone not null default now());
-create table if not exists public.crm_leads (id uuid not null default gen_random_uuid(), first_name text not null default ''::text, last_name text not null default ''::text, company text not null default ''::text, email text not null default ''::text, phone text not null default ''::text, contact_type text, source text not null default ''::text, status text not null default 'Prospecting'::text, owner_id uuid, notes text not null default ''::text, converted_at timestamp with time zone, converted_contact_id uuid, converted_account_id uuid, archived_at timestamp with time zone, created_by uuid, created_at timestamp with time zone not null default now(), role_in_company text not null default ''::text, title text not null default ''::text, mobile text not null default ''::text, assistant text not null default ''::text, asst_phone text not null default ''::text, agent_split numeric(5,2), license_no text not null default ''::text, sales_volume_last_year numeric(16,2), deals_closed_last_year integer, zillow_url text not null default ''::text, crm_street text not null default ''::text, crm_city text not null default ''::text, crm_state text not null default ''::text, crm_zip text not null default ''::text, crm_county text not null default ''::text, links jsonb not null default '{}'::jsonb, modified_by uuid, modified_at timestamp with time zone, custom jsonb not null default '{}'::jsonb, account_id uuid, zillow_moved boolean not null default false);
 create table if not exists public.crm_list_exports (id uuid not null default gen_random_uuid(), module text not null, exported_by uuid not null, exported_at timestamp with time zone not null default now(), row_count integer not null default 0);
 create table if not exists public.crm_meeting_invites (id uuid not null default gen_random_uuid(), meeting_id uuid not null, status text not null default 'preview'::text, to_emails text[] not null default '{}'::text[], created_by uuid not null default auth.uid(), created_at timestamp with time zone not null default now());
-create table if not exists public.crm_opportunities (id uuid not null default gen_random_uuid(), name text not null, stage text not null default 'New'::text, contact_id uuid, account_id uuid, owner_id uuid, est_volume numeric(14,2), expected_close date, notes text not null default ''::text, archived_at timestamp with time zone, created_by uuid, created_at timestamp with time zone not null default now(), modified_by uuid, modified_at timestamp with time zone, custom jsonb not null default '{}'::jsonb);
 create table if not exists public.crm_picklist_options (list_key text not null, value text not null, label text not null, "position" integer not null default 0, retired boolean not null default false, modified_by uuid, modified_at timestamp with time zone not null default now());
 create table if not exists public.crm_recent_items (user_id uuid not null, module text not null, record_id uuid not null, viewed_at timestamp with time zone not null default now());
 create table if not exists public.crm_recent_searches (user_id uuid not null, q text not null, searched_at timestamp with time zone not null default now());
@@ -341,20 +312,6 @@ do $pk22$ begin
     alter table public.contacts add primary key (id);
   end if;
 end $pk22$;
-do $pk24$ begin
-  if to_regclass('public.crm_accounts') is not null and not exists (
-    select 1 from pg_constraint where conrelid = 'public.crm_accounts'::regclass and contype = 'p'
-  ) then
-    alter table public.crm_accounts add primary key (id);
-  end if;
-end $pk24$;
-do $pk25$ begin
-  if to_regclass('public.crm_activities') is not null and not exists (
-    select 1 from pg_constraint where conrelid = 'public.crm_activities'::regclass and contype = 'p'
-  ) then
-    alter table public.crm_activities add primary key (id);
-  end if;
-end $pk25$;
 do $pk26$ begin
   if to_regclass('public.crm_attachments') is not null and not exists (
     select 1 from pg_constraint where conrelid = 'public.crm_attachments'::regclass and contype = 'p'
@@ -446,13 +403,6 @@ do $pk38$ begin
     alter table public.crm_import_defaults add primary key (import_id, field_key);
   end if;
 end $pk38$;
-do $pk39$ begin
-  if to_regclass('public.crm_leads') is not null and not exists (
-    select 1 from pg_constraint where conrelid = 'public.crm_leads'::regclass and contype = 'p'
-  ) then
-    alter table public.crm_leads add primary key (id);
-  end if;
-end $pk39$;
 do $pk40$ begin
   if to_regclass('public.crm_list_exports') is not null and not exists (
     select 1 from pg_constraint where conrelid = 'public.crm_list_exports'::regclass and contype = 'p'
@@ -467,13 +417,6 @@ do $pk41$ begin
     alter table public.crm_meeting_invites add primary key (id);
   end if;
 end $pk41$;
-do $pk42$ begin
-  if to_regclass('public.crm_opportunities') is not null and not exists (
-    select 1 from pg_constraint where conrelid = 'public.crm_opportunities'::regclass and contype = 'p'
-  ) then
-    alter table public.crm_opportunities add primary key (id);
-  end if;
-end $pk42$;
 do $pk43$ begin
   if to_regclass('public.crm_picklist_options') is not null and not exists (
     select 1 from pg_constraint where conrelid = 'public.crm_picklist_options'::regclass and contype = 'p'
@@ -4987,7 +4930,10 @@ end
 $guard274$;
 do $guard275$
 begin
-  if not exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='crm_call_reminders' and p.pronargs=0) then
+  -- crm_activities is created by 20261105222910_crm.sql, which runs after this file.
+  -- The return type cannot be named until that table exists.
+  if to_regclass('public.crm_activities') is not null
+     and not exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='crm_call_reminders' and p.pronargs=0) then
     execute $pf275$CREATE OR REPLACE FUNCTION public.crm_call_reminders()
  RETURNS SETOF crm_activities
  LANGUAGE sql
@@ -6808,7 +6754,8 @@ begin
       set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ select false $fn$;
   end if;
   if to_regprocedure('private.crm_entity_visible(text, uuid)') is null then
-    create function private.crm_entity_visible(entity text, entity_id uuid) returns boolean language sql stable security definer
+    -- Argument names match TEST history 20261105222910 so that file can replace this stand-in.
+    create function private.crm_entity_visible(p_entity text, p_id uuid) returns boolean language sql stable security definer
       set search_path to 'pg_catalog', 'public', 'extensions' as $fn$ select false $fn$;
   end if;
   if to_regprocedure('private.crm_template_visible(uuid)') is null then
@@ -7075,7 +7022,7 @@ begin
     grant execute on function private.crm_person_dup() to authenticated;
   end if;
   if to_regclass('public.crm_leads') is not null and not exists (
-       select 1 from pg_trigger where tgname = 'crm_leads_person_dup' and tgrelid = 'public.crm_leads'::regclass) then
+       select 1 from pg_trigger where tgname = 'crm_leads_person_dup' and tgrelid = to_regclass('public.crm_leads')) then
     create trigger crm_leads_person_dup before insert or update of email, phone on public.crm_leads
       for each row execute function private.crm_person_dup();
   end if;
@@ -7086,8 +7033,6 @@ begin
   end if;
 end
 $dup_pre$;
-create unique index if not exists crm_leads_open_email_uq on public.crm_leads (lower(email))
-  where email <> '' and converted_at is null and archived_at is null;
 create unique index if not exists contacts_email_uq on public.contacts (lower(email))
   where email <> '';
 

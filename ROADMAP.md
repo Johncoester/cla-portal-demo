@@ -764,3 +764,26 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Option 1: the panels are the Agent fees box, not a second commission section. The amounts stay in deal_agent_fees.
 - The selling agent is the buyer's agent side already on the file. The panel title is Selling Agent Commission.
+
+## CRM history on a fresh database
+
+**How it should work.** A brand-new database should build the CRM the way TEST did on November 2: the accounts, leads, pipeline, and activities, plus the feature flag. The scratch setup should not create those tables first, or the history file would leave them in the old shape.
+
+**Status: In progress.** John Coester, Nov 15 2026, 5:23 PM ET (t1737u), after pull request 291 merged. The history statement matches TEST. The clean load still stops on a later column check. Nothing is applied to TEST. Not Live.
+
+**What's built**
+
+- The exact TEST history statement is in the migration folder, labeled already applied on TEST.
+- The four CRM tables that statement creates are no longer created by the scratch precondition.
+
+**What's still missing**
+
+- The clean load stops because leads are missing columns the November 12 check expects, and no migration adds those columns.
+
+**Links**
+
+- Spec: [docs/specs/crm-history.md](docs/specs/crm-history.md)
+
+**Decisions**
+
+- The new file is named so it runs just before the existing feature-flag file, which is only the flag from this same history row.
