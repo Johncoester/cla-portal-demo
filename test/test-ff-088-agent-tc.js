@@ -71,8 +71,8 @@ await rejects(() => api.addParticipant(refi.id, buyerTc.id, 'Buyer Agent TC'), '
 const page = readFileSync(new URL('../js/pages/ordernew.js', import.meta.url), 'utf8');
 const contacts = readFileSync(new URL('../js/pages/dealcontacts.js', import.meta.url), 'utf8');
 const parties = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
-const mig = readFileSync(new URL('../supabase/migrations/20261124130000_agent_side_tc.sql', import.meta.url), 'utf8');
-const rb = readFileSync(new URL('../supabase/rollbacks/20261124130000_agent_side_tc.sql', import.meta.url), 'utf8');
+const mig = readFileSync(new URL('../supabase/migrations/20261124160000_agent_side_tc.sql', import.meta.url), 'utf8');
+const rb = readFileSync(new URL('../supabase/rollbacks/20261124160000_agent_side_tc.sql', import.meta.url), 'utf8');
 ok(page.includes('data-agent-tc') && page.includes('data-add-tc') && page.includes('agentTcLabel(BUYER_AGENT_TC)') && page.includes('agentTcLabel(LISTING_AGENT_TC)') && !page.includes('needs a Transaction Coordinator login'), 'Place Order types an outside coordinator and no longer asks for a staff login');
 ok(page.includes('uniqueProblems(problems)') && page.includes('partyProblemLine'), 'Place Order shows each failed person once');
 ok(contacts.includes('data-agent-tc-note') && contacts.includes('AGENT_TC_ROLES') && contacts.includes('Any active staff login can be the Transaction Coordinator'), 'Contacts can add an agent coordinator and still keeps the staff rule');

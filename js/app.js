@@ -35,7 +35,7 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 const pages = {
   login: () => import('./pages/entry.js?v=202611221200'),
   dashboard: () => import('./pages/dashboard.js?v=202611241300'),
-  orders: () => import('./pages/orders.js?v=202611161500'),
+  orders: () => import('./pages/orders.js?v=202611241000'),
   'orders/new': () => import('./pages/ordernew.js?v=202611241300'),
   deal: () => import('./pages/deal.js?v=202611241300'),
   users: () => import('./pages/users.js?v=202611161500'),
@@ -48,7 +48,7 @@ const pages = {
   activity: () => import('./pages/activity.js?v=202611161500'),
   outbox: () => import('./pages/outbox.js?v=202611161500'),
   tasks: () => import('./pages/tasks.js?v=202611241300'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611221200'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down. MF-053: party status columns.
+  'task-grid': () => import('./pages/taskgrid.js?v=202611241000'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down. MF-053: party status columns.
   schedule: () => import('./pages/schedule.js?v=202611170800'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611221700'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => import('./pages/modules.js?v=202611161500'),
