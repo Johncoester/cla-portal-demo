@@ -7,7 +7,7 @@ import {
   LENDER_CONTACT_ROLES, lenderRoleLabel, lenderExtras, filterClauses, normLenderName,
   lenderCompanyContact, contactDisplayName, mortgageBrokerContact, brokersAtBrokerage, MORTGAGE_BROKER_ROLE,
   brokerageContact, brokerageContactError, brokerageOnFile, brokerageDirectory, brokerMatch, brokerPersonFromFields, brokerageColumnMiss,
-} from '../data/lender-file.js?v=202611223100';
+} from '../data/lender-file.js?v=202611223200';
 import { CPL_CLAUSES, CPL_OTHER, clauseChoice } from '../data/cpl-clauses.js?v=202611120500';
 
 export function lenderFieldsHtml(d = {}, { brokerage = true } = {}) {

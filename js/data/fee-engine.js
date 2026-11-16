@@ -16,7 +16,8 @@
  *   live sheet                  the calculator's loadFees(), shown on the form with the time it loaded
  *   calculatorSupabaseRateSource NOT CONNECTED: a placeholder showing where a reader of the calculator's tables would plug in. It refuses. */
 import * as C from './vendor/cla-calculator/calc-core.js?v=202611222800';
-import { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden } from './accounting.js?v=202611223000';
+import { STATE_COUNTIES } from './state-counties.js?v=202611223200';
+import { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden } from './accounting.js?v=202611223200';
 export { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden };
 
 export const CALC_SOURCE = { repo: 'github.com/Johncoester/cla-closing-cost-calculator', commit: 'ee6825a', snapshot: '2026-11-16', files: 'index.html (calc code), fee-snapshot.js (rate tables)' };
@@ -78,17 +79,35 @@ export async function loadCalculatorRates(fetchFn, { fresh = false } = {}) {
 // ---------------- order -> calculator inputs ----------------
 const isRefi = (d) => !!d && (d.transactionType === 'Refinance' || d.transaction_type === 'Refinance');
 export const calcTypeOf = (deal) => (isRefi(deal) ? 'refi' : (Number(deal.loanAmount ?? deal.loan_amount) || 0) > 0 ? 'purchase' : 'cash');
+// COUNTY NAMES (John, Nov 15 2026: Virginia Beach and Hillsborough came back "county not found", so the file got no fees at all).
+// The rate sheet only names the counties that have a row of their own. Every other county in the state is priced on the statewide rows,
+// the same as the quote calculator, so the full Census list (state-counties.js) counts as known too. Spelling differences that mean the same
+// place also match: "Hillsborough County", "City of Fairfax", "Saint Johns", "Prince Georges", "Miami Dade", "De Soto".
+const countyKey = (name) => String(name || '').toLowerCase().replace(/^\s*city of\s+(.+)$/, '$1 city').replace(/\bsaint\b/g, 'st').replace(/[^a-z0-9]/g, '').replace(/county$/, '');
+const bareKey = (key) => key.replace(/city$/, '');
+const censusKeys = (st) => new Set((STATE_COUNTIES[st] || []).map(countyKey));
+// Is "X" the same place as "X City"? Yes, unless the state has both (Fairfax and Fairfax City, Richmond and Richmond City).
+const twoPlaces = (st, key) => { const b = bareKey(key); const K = censusKeys(st); return K.has(b) && K.has(b + 'city'); };
+const samePlace = (st, a, b) => a === b || (bareKey(a) === bareKey(b) && !twoPlaces(st, a));
+// every county the order can be in: the rate sheet's own spelling first, then the rest of the state
+export function knownCounties(R, state) {
+  const st = String(state || '').toUpperCase(); const out = []; const keys = [];
+  for (const name of [...C.allCounties(R, st), ...(STATE_COUNTIES[st] || [])]) { const k = countyKey(name); if (!k || keys.some((x) => samePlace(st, x, k))) continue; keys.push(k); out.push(name); }
+  return out.sort((a, b) => a.localeCompare(b));
+}
 export function countyOf(R, deal) {
   const st = String(deal.state || '').toUpperCase(); if (st === 'DC') return 'District of Columbia';
-  let c = String(deal.county || '').trim().replace(/\s+county$/i, ''); if (!c) return '';
-  const hit = C.allCounties(R, st).find((x) => C.eq(x, c)); return hit || c;
+  const c = String(deal.county || '').trim(); if (!c) return '';
+  const k = countyKey(c); const list = knownCounties(R, st);
+  const hit = list.find((x) => countyKey(x) === k) || list.find((x) => samePlace(st, countyKey(x), k));
+  return hit || c.replace(/\s+county$/i, '');
 }
-// REC-CALC-1 (John, Nov 14 2026, Claude's review): a county that is not on the rate sheet must not be priced with state taxes only.
+// REC-CALC-1 (John, Nov 14 2026, Claude's review): a county that is not a real county of the state must not be priced with state taxes only.
 export const COUNTY_UNKNOWN = "We couldn't find this county in CLA's rates. Pick the county from the list, then calculate again.";
 export function countyIsKnown(R, deal) {
   const state = String((deal && deal.state) || '').toUpperCase();
   if (state === 'DC') return true;
-  return C.allCounties(R, state).some((x) => C.eq(x, countyOf(R, deal || {})));
+  const c = countyOf(R, deal || {}); return !!c && knownCounties(R, state).includes(c);
 }
 export const NO_OO = /^(FL|VA)$/;   // the calculator hides principal residence / first-time buyer in FL and VA (they change nothing there)
 // options: everything the calculator asks that the order does not store. Defaults = the calculator's own defaults.
@@ -259,6 +278,9 @@ export function proposeFees(deal, options = {}, R = vendoredTables(), source = {
   const used = new Set(); const lines = []; const warnings = res.warnings.filter((w) => !(noOwner && /owner's premium rates/.test(w)));
   if (noOwner) warnings.push("Owner's policy removed (Caroline, Nov 4 option): no owner's premium; the lender's policy is at the full rate.");
   if (i.enhancedPlaceholder) warnings.push(`Enhanced owner's policy: ${ENHANCED_PLACEHOLDER}`);
+  // A tax that comes to $0.00 on this file (Montgomery recordation tax on a $100,000 owner-occupied purchase: the first $100,000 is exempt) adds no
+  // line, so the preview says so. Otherwise a missing line looks like a tax the calculator forgot (John, Nov 15 2026).
+  for (const t of res.taxes || []) if (!(t.amt > 0)) warnings.push(`${t.name}: $0.00 on this file (an exemption or the rate table brings it to zero), so no line is added. Check the answers above if you expected a charge.`);
   const docs = Object.entries(i.docs).filter(([d, [n]]) => n > 0 && !(d === 'Deed of Trust' && (i.type === 'cash' || !(i.loan > 0))));
   for (const l of res.lines) {
     const letter = String(l.sec).charAt(0); const b = r2(l.b), s = refi ? 0 : r2(l.s); let key, meta;

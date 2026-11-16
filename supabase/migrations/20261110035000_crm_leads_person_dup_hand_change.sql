@@ -1,0 +1,6 @@
+-- Hand change on TEST before the November 10 duplicate-index check. Already on TEST. Do not apply this file to TEST again.
+-- The trigger crm_leads_person_dup is created by TEST history crm_nov3b
+-- (supabase/migrations/20261105222939_crm_nov3b.sql). This file no longer creates it.
+-- The live function private.crm_person_dup is in 20261110040000_crm_person_dup_index.sql
+-- and is copied again in 20261110040001_crm_person_dup_hand_change.sql.
+-- Full definition checksum 618de60d1b35841405a26ed27364ae8e.

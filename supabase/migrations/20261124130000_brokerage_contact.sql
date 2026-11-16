@@ -2,7 +2,7 @@
 -- The mortgage brokerage on a file keeps a contact name, phone, email and address,
 -- next to the company name already stored in mortgage_broker_name.
 -- Existing rows start blank. Same row security as the other deal columns. No policy change.
--- Rollback: supabase/rollbacks/20261124010000_brokerage_contact.sql
+-- Rollback: supabase/rollbacks/20261124130000_brokerage_contact.sql
 begin;
 set local lock_timeout = '3s';
 do $$

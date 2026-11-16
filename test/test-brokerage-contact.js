@@ -55,8 +55,8 @@ const acctSrc = readFileSync(new URL('../js/pages/dealaccounting.js', import.met
 ok(cdSrc.includes('cdBrokerCells') && cdSrc.includes('data-cd-broker-name') && cdSrc.includes('data-cd-broker-address') && cdSrc.includes('data-cd-broker-contact') && cdSrc.includes('data-cd-broker-email') && cdSrc.includes('data-cd-broker-phone'), 'CD page 5 prints the brokerage in the Mortgage Broker column');
 ok(acctSrc.includes('data-stmt-broker') && acctSrc.includes('brokerageOnFile'), 'the settlement statement names the mortgage broker');
 
-const mig = readFileSync(new URL('../supabase/migrations/20261124010000_brokerage_contact.sql', import.meta.url), 'utf8');
-const rb = readFileSync(new URL('../supabase/rollbacks/20261124010000_brokerage_contact.sql', import.meta.url), 'utf8');
+const mig = readFileSync(new URL('../supabase/migrations/20261124130000_brokerage_contact.sql', import.meta.url), 'utf8');
+const rb = readFileSync(new URL('../supabase/rollbacks/20261124130000_brokerage_contact.sql', import.meta.url), 'utf8');
 ok(mig.includes('mortgage_broker_contact') && mig.includes('mortgage_broker_phone') && mig.includes('mortgage_broker_email') && mig.includes('mortgage_broker_address') && mig.includes('FF-090'), 'the database file adds the four contact columns');
 ok(rb.includes('drop column mortgage_broker_contact') && rb.includes('mortgage_broker_name was dropped') && !rb.includes('drop column mortgage_broker_name'), 'the rollback drops the contact columns and keeps the company name');
 

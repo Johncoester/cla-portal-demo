@@ -5,6 +5,7 @@
 // Processor / Admin / Super admin edit; Sales and TCs read only. TEST ONLY.
 import { html, raw, $, $$, guard, formData, toast, toText, fmtDate } from '../ui.js?v=202611161500';
 import { PRORATION_CYCLES, PRORATION_BASES, PRORATION_STATUS, PRORATION_ITEMS, computeProration, prorationRange } from '../data/prorations.js?v=202611070139';
+import { DEFAULT_DEBITED_TO } from '../data/prorate-defaults.js?v=202611223200';
 const m2z = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const opt = (v, l, sel) => html`<option value="${v}" ${String(v) === String(sel ?? '') ? raw('selected') : ''}>${l}</option>`;
 const lab = (list, k) => (list.find(([x]) => x === k) || [k, k])[1];
@@ -61,7 +62,10 @@ function mountProrations(root, api, deal, acc, refresh) {
   const rs = $('[data-proration-resave]', root); if (rs) rs.addEventListener('click', guard(async () => { const r = await api.refreshAccountingProrations(deal.id); toast(`${r.updated} proration${r.updated === 1 ? '' : 's'} re-saved (logged).`); go(); }));
   const f = $('#acct-proration-form', root); if (!f) return;
   const el = (n) => f.elements[n];
-  const read = () => { const v = formData(f); return { item: v.item, cycle: v.cycle, cycleAmount: v.cycleAmount, periodStart: v.periodStart, basis: v.basis, status: v.status }; };
+  const read = () => { const v = formData(f); const prev = el('editId').value ? (acc.entries.find((x) => x.id === el('editId').value) || {}).proration : null;
+    const out = { ...(prev || {}), item: v.item, cycle: v.cycle, cycleAmount: v.cycleAmount, periodStart: v.periodStart, basis: v.basis || '365', status: v.status };
+    if (!out.debitedTo) out.debitedTo = DEFAULT_DEBITED_TO;
+    delete out.calc; return out; };
   const preview = () => { const box = $('[data-proration-preview]', f); const p = read(); if (!p.cycleAmount || !p.periodStart) { box.textContent = 'Fill in the amount and the period to see the calculation.'; box.className = 'acct-pr-preview small'; return; }
     try { const c = computeProration(p, acc.closingDate); box.innerHTML = toText(html`<strong data-pr-amount>${m2z(c.amount)}</strong> ${c.from === 'buyer' ? 'buyer → seller' : 'seller → buyer'} &middot; ${c.text}`); box.className = 'acct-pr-preview small ok-text'; }
     catch (e) { box.textContent = e.message; box.className = 'acct-pr-preview small warn-text'; } };

@@ -75,7 +75,7 @@ export function getAdapter() {
 }
 async function loadAdapter() {
   const cfg = (typeof window !== 'undefined' && window.CLA_PORTAL_CONFIG) || { mode: 'mock' };
-  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611223100'); return m.createSupabaseAdapter(cfg); }
-  const m = await import('./mock-adapter.js?v=202611223100');
+  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611223200'); return m.createSupabaseAdapter(cfg); }
+  const m = await import('./mock-adapter.js?v=202611223200');
   return m.createMockAdapter();
 }

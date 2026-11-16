@@ -20,15 +20,15 @@ import { closerChoices, resolveCloser } from '../data/closer.js?v=202611101015';
 import { duplicateNotice } from '../data/order-duplicates.js?v=202611191800';
 import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
 import { orderDraftKey, readOrderDraft, writeOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim, tombstoneOrderDraft } from '../data/order-draft.js?v=202611140200';
-import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows, brokerageContact, brokerageContactError } from '../data/lender-file.js?v=202611223100';
+import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows, brokerageContact, brokerageContactError } from '../data/lender-file.js?v=202611223200';
 import { bindAddressFill } from '../data/address-fill.js?v=202611222100';
-import { countyFieldHtml, mountCountySelect, paintCountyOptions } from './county-field.js?v=202611223000';
+import { countyFieldHtml, mountCountySelect, paintCountyOptions } from './county-field.js?v=202611223200';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611222100';
 import { readEarnest } from '../data/earnest-commission.js?v=202611223000';
 import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611222800';
 import { SIDE_LABEL as AF_SIDE_LABEL } from '../data/agent-fees.js?v=202611222800';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611223100';
+import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611223200';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611162200';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
