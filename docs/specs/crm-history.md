@@ -12,4 +12,4 @@ A fresh database runs the whole Nov 2 CRM statement. The feature-flag file still
 
 ## What's still missing
 
-The lead duplicate stand-in drops its trigger before creating it, because crm_nov3b already creates `crm_leads_person_dup`. The live `private.crm_person_dup` body is in `20261110040000_crm_person_dup_index.sql`. Its full definition checksum is `618de60d1b35841405a26ed27364ae8e`, the same as TEST. The column comparison then fails: `crm_activities` is missing call and recording columns. TEST history `crm_calls` (20261105222949) contains those columns. That file is not in this pull request.
+The lead duplicate stand-in no longer creates `crm_leads_person_dup`, because crm_nov3b already does. The live `private.crm_person_dup` body is copied exactly from `20261110040000_crm_person_dup_index.sql` into `20261110040001_crm_person_dup_hand_change.sql`, which runs just after that file. Its full definition checksum is `618de60d1b35841405a26ed27364ae8e`, the same as TEST. The column comparison then fails: `crm_activities` is missing call and recording columns. TEST history `crm_calls` (20261105222949) contains those columns. That file is not in this pull request.

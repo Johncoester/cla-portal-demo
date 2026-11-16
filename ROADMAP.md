@@ -808,7 +808,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- The lead duplicate stand-in drops the trigger first, because crm_nov3b already creates it. The live function is in `20261110040000_crm_person_dup_index.sql` and matches TEST (checksum `618de60d1b35841405a26ed27364ae8e`).
+- The lead duplicate stand-in no longer creates `crm_leads_person_dup`. crm_nov3b creates that trigger. The live function is copied from `20261110040000_crm_person_dup_index.sql` into a hand change that runs just after it. Checksum `618de60d1b35841405a26ed27364ae8e`, the same as TEST.
 - The column comparison does not match. `crm_activities` is missing call and recording columns that TEST history `crm_calls` (20261105222949) contains. That file is not in this pull request.
 
 **Links**
