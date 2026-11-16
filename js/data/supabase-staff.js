@@ -41,7 +41,7 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
   };
   const directory = async () => {
     await needAdmin();
-    const profiles = camel(ok(await sb.from('profiles').select('id, email, first_name, last_name, phone, role, is_admin, status').order('last_name'))) || [];
+    const profiles = camel(ok(await sb.from('profiles').select('id, email, first_name, last_name, phone, role, is_admin, status, can_own_crm').order('last_name'))) || [];
     const contacts = camel(ok(await sb.from('contacts').select('id, profile_id, contact_type'))) || [];
     const parts = camel(ok(await sb.from('deal_participants').select('deal_id, contact_id, role'))) || [];
     const deals = camel(ok(await sb.from('deals').select('id, file_number'))) || [];
@@ -74,7 +74,7 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
     async adminGetUser(id) { const row = (await directory()).find((u) => u.id === id); if (!row) throw new Error('User not found.'); return row; },
     async adminCreateUser() { throw new Error(LOGIN_CLOSED); },
     async adminUpdateUser(id, patch = {}) {
-      await needAdmin();
+      const actor = await needAdmin();
       const row = {};
       if (patch.firstName != null) row.first_name = String(patch.firstName);
       if (patch.lastName != null) row.last_name = String(patch.lastName);
@@ -82,6 +82,10 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
       if (patch.role != null) row.role = patch.role;
       if (patch.status != null) row.status = patch.status;
       if (patch.isAdmin != null) row.is_admin = patch.isAdmin === true || patch.isAdmin === 'on' || patch.isAdmin === 'true';
+      if (patch.canOwnCrm != null) {
+        if (actor.role !== 'Admin' && actor.role !== 'Super admin') throw new Error('Only an Admin or Super admin can change who can own CRM records.');
+        row.can_own_crm = patch.canOwnCrm === true || patch.canOwnCrm === 'on' || patch.canOwnCrm === 'true';
+      }
       if (Object.keys(row).length) ok(await sb.from('profiles').update(row).eq('id', id).select('id').single());
       if (patch.contactType !== undefined) {
         const c = (camel(ok(await sb.from('contacts').select('id, profile_id').eq('profile_id', id))) || [])[0];

@@ -61,6 +61,8 @@ ok(companyDuplicateFromLookup([{ id: 'acc-harbor', name: 'Harbor Realty (fake)',
 
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
 await api.signInDev('u-admin');
+await api.adminUpdateUser('u-team', { canOwnCrm: true });
+await api.adminUpdateUser('u-sp', { canOwnCrm: true });
 const made = await api.createCrmAccount({ name: 'Lookup Only Realty', kind: 'brokerage', state: 'MD', ownerId: 'u-team', city: 'Rockville', phone: '301-555-0199' });
 await api.createCrmAccount({ name: 'Lookup Only Realty Group', kind: 'brokerage', state: 'VA', ownerId: 'u-team' });
 const prefix = await api.lookupCompanies('Lookup Only Realty', 20);

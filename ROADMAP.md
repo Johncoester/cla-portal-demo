@@ -729,6 +729,35 @@ This file lists the portal's major features: how each one should work, how far a
 - The tests use the saved copy of the rates, not the live sheet, because a test that needs the internet fails at random. A daily check that compares the live sheet with the saved copy and reports any difference is not built.
 - The 23-order comparison checked recording fees and taxes. Title premiums and CLA fees were not compared line by line.
 
+## Recording calculator Maryland loan above the price (REC-CALC-7)
+
+**How it should work.** In Maryland, when the buyer's loan is bigger than the purchase price, Calculate fees adds county recordation tax on the part of the loan above the price. In Prince George's it also adds the 1.4% county transfer tax on that part. The buyer pays it. Each shows as its own line, such as "County recordation tax on loan above price".
+
+**Status: In review (Nov 16 2026).** John Coester, Nov 16 2026, after Claude ran Francis's closed files through the calculator and Melissa Gamble answered. Calculator [PR 2](https://github.com/Johncoester/cla-closing-cost-calculator/pull/2) and this portal PR. No database file.
+
+**What's built**
+
+- The rule is in the calculator's own code (calculator PR 2), copied into `js/data/vendor/cla-calculator/`. The rate sheet does not change.
+- The tax uses the price's bracket rate (Whole brackets) or the bands the loan reaches above the price (Montgomery's Marginal brackets).
+- Nothing changes when the loan is at or below the price, on a cash deal or refinance, or outside Maryland. Virginia already taxes the whole deed of trust.
+- The fee's explanation shows loan − price and the rate used.
+- Checked against two closed files to the penny: MD-26-32159 ($63.25 + $158.02) and MD-26-32155 ($561 + $1,428).
+
+**What's still missing**
+
+- Nothing.
+
+**Links**
+
+- Spec: [docs/specs/recording-calculator-md-loan-above-price.md](docs/specs/recording-calculator-md-loan-above-price.md)
+- Confirmed tax rules (all recording calculator work): [docs/specs/recording-calculator-tax-rules.md](docs/specs/recording-calculator-tax-rules.md)
+- Source: John Coester, Nov 16 2026; Melissa Gamble's email reply, Nov 16 2026.
+
+**Decisions**
+
+- Melissa Gamble, Nov 16: collect recordation and transfer tax on the amount above the price. Assignment fees are not added to the price.
+- The Baltimore City exemption split (Melissa: the exemption applies to the buyer's side) is not changed here. Lodestar and two closed files (Montgomery, Washington County) split it 50/50, so John decides first.
+
 ## Unused money-input files (TEST-CLEANUP-MONEY)
 
 **How it should work.** The money helpers live in one place. A page file that only passes them through, and test loaders that only exist for that page file, are not kept.
@@ -935,3 +964,29 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - The new file is named so it runs just before the existing feature-flag file, which is only the flag from this same history row.
+
+---
+
+## Who can own a CRM record (CRM-OWNER-1)
+
+**How it should work.** On Admin, then User List, then Edit user, an Admin or Super admin can tick **Can own CRM records** for that person. It starts off for everyone, including admins. A ticked person, whatever their role, can be chosen as the owner of a lead, client, company, or deal, in Change owner, and in a spreadsheet import. Someone who is not ticked is not in those lists. A record that already names them still shows their name. Who can open the CRM does not change.
+
+**Status: In progress.** Tracker row CRM-OWNER-1, Requests tab row 315. John Coester asked on Nov 15 2026, 3:11 PM ET, and confirmed it on Nov 16 2026, 10:55 AM ET. Pull request: [PR 306](https://github.com/Johncoester/cla-portal-demo/pull/306). Database file `supabase/migrations/20261124140000_crm_owner_flag.sql`. Not applied on TEST. Not Live.
+
+**What's built**
+
+- The edit-user checkbox, saved only by an Admin or Super admin. The database refuses anyone else and writes the activity log (who, which user, old value, new value, when).
+- Owner lists for leads, clients, companies, deals, Change owner, and the import Owner column use that tick. Existing names stay on the record.
+
+**What's still missing**
+
+- Not on TEST until the database file is applied there and someone checks the checkbox and an owner list. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/crm-owner-flag.md](docs/specs/crm-owner-flag.md)
+
+**Decisions**
+
+- Nobody is turned on by the database file. An admin ticks people after it is applied.
+- The tick does not change role access or who can open the CRM.
