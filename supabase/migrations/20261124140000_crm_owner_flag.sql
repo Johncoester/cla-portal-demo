@@ -8,7 +8,7 @@
 -- Ticked active users of any role are the CRM owner list (lead, client, company, deal,
 -- mass update, and the spreadsheet import). Who can open the CRM does not change.
 -- Not applied to hosted TEST by this commit. Never run on production.
--- Rollback: supabase/rollbacks/20261124130000_crm_owner_flag.sql
+-- Rollback: supabase/rollbacks/20261124140000_crm_owner_flag.sql
 
 begin;
 set local lock_timeout = '3s';
