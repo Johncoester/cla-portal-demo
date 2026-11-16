@@ -259,31 +259,35 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## Task grid party status (MF-053)
 
-**How it should work.** On the Processor Task Grid, File No, Property and Closing Date stay as they are. Four columns follow: Buyer, Seller, Buyer's Agent and Listing Agent. A green check means every task for that party on the file is done. A red X means any of that party's tasks is overdue. The cell is empty when that party's tasks are still open and not overdue, and blank when that party is not on the file. The individual task columns stay to the right.
+**How it should work.** On the Processor Task Grid, the columns are File No, Property and Closing Date, then Buyer, Seller, Buyer's Agent and Listing Agent. The individual task columns that used to continue to the right are not shown. A green check means every task for that party on the file is done. A red X means any of that party's tasks is overdue (past its due date and not completed). The cell is empty when that party's tasks are still open and not overdue, and blank when that party is not on the file.
 
-**Status: In progress.** Tracker row MF-053. Pull request: [PR 266](https://github.com/Johncoester/cla-portal-demo/pull/266). No database change. Not Live until this is merged and checked on TEST.
+**Status: In progress.** Tracker row MF-053. Pull request: this change. No database change. Not Live until this is merged and checked on TEST.
 
 **What's built**
 
-- The Task Grid shows the four party columns after Closing Date. The marks use the same green check and red X as the task columns.
-- An overdue task wins over completed tasks for that party. Cancelled tasks are ignored.
-- The columns sort like the task columns: overdue first, then open, then complete. A blank party cell stays last.
-- Who is on the file comes from one read of the parties for the whole grid, together with the tasks the grid already loads. There is no extra read per file. A person on the file who has no tasks yet gets an empty cell, not a check. A party who is not on the file gets a blank cell.
+- The Task Grid shows only File No, Property, Closing Date, Buyer, Seller, Buyer's Agent and Listing Agent. The task columns to the right are gone.
+- The marks use the same green check and red X as before. An overdue task wins over completed tasks for that party. Cancelled tasks are ignored.
+- An open task that is not overdue shows nothing. A party who is not on the file leaves the cell blank. A person on the file who has no tasks yet gets an empty cell, not a check.
+- The columns sort the same way: overdue first, then open, then complete. A blank party cell stays last.
+- Who is on the file comes from one read of the parties for the whole grid, together with the tasks the grid already loads. There is no extra read per file.
+- Whether a party's tasks are done, overdue, or still open is decided in one helper, `partyTaskMark`. A task shared by more than one buyer or seller counts as done only when every copy is done. MF-057 can change that check in the same helper.
 
 **What's still missing**
 
-- Not Live until this is merged and an Admin checks it on TEST.
+- Matt has not restated the exact column list since Nov 12. Confirm with him that the order is Buyer, Seller, Buyer's Agent, Listing Agent.
+- The Modules page still describes the Task Grid as "tasks across the top."
+- Not Live until this is merged and an Admin checks it on TEST. MF-057, the file-task checkbox for two buyers or two sellers, is a separate change.
 
 **Links**
 
 - Spec: [docs/specs/task-grid-party-status.md](docs/specs/task-grid-party-status.md)
-- Source: Matt's Nov 11 Processor User-Task Grid notes; confirmed by email Nov 12, 8:47 AM ET. Tracker row MF-053.
-- Related pull requests: [PR 266](https://github.com/Johncoester/cla-portal-demo/pull/266). No database file.
+- Source: Matt's Nov 11 Processor User-Task Grid notes (Gmail 1a1cc5d934e36305); confirmed by email Nov 12, 8:47 AM ET; FF-086 item 1, confirmed Nov 16, 10:45 AM ET. Tracker row MF-053.
+- Related pull requests: [PR 266](https://github.com/Johncoester/cla-portal-demo/pull/266) added the four party columns and kept the task columns. This change drops the columns to the right. No database file.
 
 **Decisions**
 
-- Matt confirmed on Nov 12 at 8:47 AM ET: four columns only (Buyer, Seller, Buyer's Agent, Listing Agent); open-but-not-overdue shows nothing; a missing party leaves the cell blank. File number, property and closing date stay.
-- The existing task columns stay. The party columns are a summary in front of them.
+- Matt confirmed on Nov 12 at 8:47 AM ET: four columns (Buyer, Seller, Buyer's Agent, Listing Agent); open-but-not-overdue shows nothing; a missing party leaves the cell blank. File number, property and closing date stay.
+- On Nov 16 at 10:45 AM ET Matt said yes to dropping everything to the right of the fields he specified. He did not restate which fields, or their order. This build uses the Nov 12 list and asks him to confirm the order.
 
 ---
 
