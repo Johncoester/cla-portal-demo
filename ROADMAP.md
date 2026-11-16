@@ -768,7 +768,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** Mortgage Brokerage on the file shows the brokerage company and its contact: name, phone, email, and address. Staff pick a saved broker or type one. The values stay on the file. The Settlement Statement and Closing Disclosure page 5 show that broker.
 
-**Status: In progress.** Tracker row 326 (FF-090). Francis Santos, email Nov 16 2026, 3:10 PM ET (Gmail msg 1a1e5fbfe4183a9f). Medium. Not Live. The database file is not applied on TEST.
+**Status: In progress.** Tracker row 326 (FF-090). Francis Santos, email Nov 16 2026, 3:10 PM ET (Gmail msg 1a1e5fbfe4183a9f). Medium. Pull request: [PR 305](https://github.com/Johncoester/cla-portal-demo/pull/305). Not Live. The database file is not applied on TEST.
 
 **What's built**
 
