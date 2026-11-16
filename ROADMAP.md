@@ -812,3 +812,30 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Option 1: the panels are the Agent fees box, not a second commission section. The amounts stay in deal_agent_fees.
 - The selling agent is the buyer's agent side already on the file. The panel title is Selling Agent Commission.
+
+## CRM history on a fresh database
+
+**How it should work.** A brand-new database should build the CRM the way TEST did on November 2: the accounts, leads, pipeline, and activities, plus the feature flag. The scratch setup should not create those tables first, or the history file would leave them in the old shape.
+
+**Status: In progress.** John Coester, Nov 15 2026, 5:23 PM ET (t1737u), Nov 16 2026, 10:46 AM ET (t1768u), Nov 16 2026, about 12:24 PM ET, and Nov 16 2026, 3:38 PM ET. Seven history statements match TEST. The clean load and the column comparison both pass. Nothing is applied to TEST. Not Live.
+
+**What's built**
+
+- Seven exact TEST history statements are in the migration folder, each labeled already applied on TEST: crm, crm_zoho, crm_settings, crm_email_templates, crm_nov3b, crm_calls, and crm_janine_nov3.
+- The tables those statements create are no longer created by the scratch precondition. That includes `crm_list_exports`, which crm_calls creates.
+- The six lead columns the November 12 check wants are added by those statements: crm_zoho adds crm_city, crm_county, crm_state, modified_at, and role_in_company; crm_settings adds custom.
+- crm_calls adds the call and recording columns on activities. Its checksum is `5a567e14be2791c2849b779ffe13e4ff`, the same as TEST.
+- The lead duplicate stand-in no longer creates `crm_leads_person_dup`. crm_nov3b creates that trigger. The live function is copied from `20261110040000_crm_person_dup_index.sql` into a hand change that runs just after it. Checksum `618de60d1b35841405a26ed27364ae8e`, the same as TEST.
+
+**What's still missing**
+
+- Nothing in the column list. This is not merged and nothing is applied to TEST, so it is not Live.
+
+**Links**
+
+- Spec: [docs/specs/crm-history.md](docs/specs/crm-history.md)
+- Pull request: [PR 293](https://github.com/Johncoester/cla-portal-demo/pull/293)
+
+**Decisions**
+
+- The new file is named so it runs just before the existing feature-flag file, which is only the flag from this same history row.
