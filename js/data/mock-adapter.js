@@ -7,10 +7,11 @@ import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, 
   isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, STAFF_ACCOUNT_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
   phoneOk, fmtPhone, PHONE_MSG, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611101015';
 import { fileTitleOf, partyDisplayName } from './party-name.js?v=202611102000';
+import { staffTaskCounts } from './party-task-completion.js?v=202611241000';
 import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611221900';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
 import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyCommissionTaskV2 } from './templates.js?v=202611221900';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611223000';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611241000';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
 import { contactsTasksDocs } from './mock-part-docs.js?v=202611221900';
 import { tasksAndForms } from './mock-part-tasks.js?v=202611222800';
@@ -376,12 +377,13 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     const sc0 = x.scheduledClosing ? { ...clone(x.scheduledClosing), officeName: x.scheduledClosing.officeId ? ((officeById(d, x.scheduledClosing.officeId) || {}).name || '') : '', officeRetired: !!(x.scheduledClosing.officeId && officeById(d, x.scheduledClosing.officeId) && !officeById(d, x.scheduledClosing.officeId).active) } : x.scheduledClosing;
     // John, Nov 4: deal notes are staff/agent working notes; Client-Buyer / Client-Seller never get them (may name the other side's agent)
     const clientOnly = (u.roles || [u.role]).every((r) => isClient(r));
+    const taskCounts = staffTaskCounts(tasks, localDate());
     return { ...clone(x), notes: clientOnly ? '' : (x.notes || ''), scheduledClosing: sc0, sourceOfBusiness: src, sourceOfBusinessLabel: srcLabel, claRepresentation: staffView ? (x.claRepresentation || null) : null, claRepresentationLabel: staffView ? claRepresentationLabel(x.claRepresentation) : '', myRole: u.role, myRoles: u.roles || [u.role], myRoleLabel: fileRoleLabel(u.roles, u.role), selfRep: !!u.selfRep, agentParties: staffView ? parties : [], county: x.county || '', address: `${x.street}, ${x.city}, ${x.state} ${x.zip}`, displayName: propertyAddressOf(x), stageName: STAGES[x.stage],
-      openTasks: tasks.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status)).length,
+      openTasks: taskCounts.open,
       myOpenTasks: tasks.filter((t) => ['todo', 'in_progress'].includes(t.status) && (ownerOf(t) === u.id || (!t.participantId && holds(u, t.assignedRole)))).length,
       unread: mine.reduce((n, t) => n + unreadIn(u, t), 0),
       // Matt, Nov 2: order-list filters. Overdue = open tasks this person can see that are past due; partyNames = the names this person may see on the file (search)
-      overdueTasks: tasks.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status) && t.dueDate && t.dueDate < localDate()).length,
+      overdueTasks: taskCounts.overdue,
       // John, Nov 2: several buyers / sellers; fileTitle = 'Buyer last names / Seller last names' of the people this viewer may see
       fileTitle: fileTitleOf(participantsOf(x.id, u)),
       partyNames: [...new Set(participantsOf(x.id, u).flatMap((p) => [partyDisplayName(p), p.contact ? fullName(p.contact) : '']).filter(Boolean))],

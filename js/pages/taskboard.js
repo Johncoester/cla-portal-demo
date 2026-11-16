@@ -1,8 +1,9 @@
 // Cross-file task list with filters, sort and Buyer / Seller / Agent grouping (Matt, Nov 2). Used by the Tasks page and the Processor's Work Queue.
 // Filtering happens in the browser on what the adapter returned (listAllTasks already applies the person's access). Existing styles only.
 import { html, $, $$, toText, fmtDate, pill, options } from '../ui.js?v=202611161500';
-import { filterTasks, sortTasks, groupTasks, isOverdue, TASK_SORTS, TASK_GROUPS, roleShort } from '../data/task-board.js?v=202611140100';
-import { CLS, LABEL } from './dealtasks.js?v=202611223000';
+import { filterTasks, sortTasks, groupTasks, isOverdue, TASK_SORTS, TASK_GROUPS, roleShort } from '../data/task-board.js?v=202611241000';
+import { annotatePartyTaskProgress, partyTaskStillOpen } from '../data/party-task-completion.js?v=202611241000';
+import { CLS, LABEL } from './dealtasks.js?v=202611241000';
 
 const STATUS_OPTS = [['open', 'Incomplete (to do, started, blocked)'], ['done', 'Completed'], ['blocked', 'Blocked'], ['cancelled', 'Cancelled'], ['all', 'All statuses']];
 const FILE_OPTS = [['Open', 'Open files'], ['On Hold', 'On-hold files'], ['Closed', 'Closed files'], ['Cancelled', 'Cancelled files'], ['All', 'All files']];
@@ -26,17 +27,24 @@ export function boardForm(s, id = 'tboard') {
     <label><button type="button" class="ghost" data-clear>Clear filters</button></label></form>`;
 }
 const taskLink = (t) => (t.kind === 'form' || t.kind === 'sign' ? `#/deals/${t.dealId}/tasks/${t.id}` : `#/deals/${t.dealId}/tasks`);
-const row = (t, today) => { const od = isOverdue(t, today);
-  return html`<tr data-task="${t.id}" data-group="${t.group}" class="${t.status === 'done' || t.status === 'cancelled' ? 'is-done' : ''}">
-    <td><a href="${taskLink(t)}">${t.title}</a></td><td class="nowrap"><a href="#/deals/${t.dealId}" data-file>${t.deal.fileNumber}</a></td><td>${t.deal.address}</td>
+const progressNote = (t) => {
+  const partial = partyTaskStillOpen(t) ? t.partyProgress : null;
+  if (!partial) return '';
+  return html`<div class="muted small" data-party-progress="${t.id}">${partial.label}${partial.remainingLabel ? html` · ${partial.remainingLabel}` : ''}</div>`;
+};
+const row = (t, today) => { const od = isOverdue(t, today); const partial = partyTaskStillOpen(t);
+  const statusText = partial && t.status === 'done' ? t.partyProgress.label : (LABEL[t.status] || t.status);
+  const statusCls = partial && t.status === 'done' ? 'info' : CLS[t.status];
+  return html`<tr data-task="${t.id}" data-group="${t.group}" data-party-open="${partial ? '1' : '0'}" class="${!partial && (t.status === 'done' || t.status === 'cancelled') ? 'is-done' : ''}">
+    <td><a href="${taskLink(t)}">${t.title}</a>${progressNote(t)}</td><td class="nowrap"><a href="#/deals/${t.dealId}" data-file>${t.deal.fileNumber}</a></td><td>${t.deal.address}</td>
     <td>${t.personName || roleShort(t.assignedRole)}${t.personName ? html`<br><span class="muted small">${roleShort(t.assignedRole)}</span>` : ''}</td>
     <td class="nowrap ${od ? 'bad-text' : ''}">${fmtDate(t.dueDate)}${od ? html`<br>${pill('overdue', 'bad')}` : ''}</td><td class="nowrap">${fmtDate(t.deal.closingDate) || html`<span class="muted">TBD</span>`}</td>
-    <td>${pill(LABEL[t.status] || t.status, CLS[t.status])}${t.status === 'done' && t.completedAt ? html`<br><span class="muted small">${fmtDate(String(t.completedAt).slice(0, 10))}</span>` : ''}</td></tr>`; };
+    <td>${pill(statusText, statusCls)}${!partial && t.status === 'done' && t.completedAt ? html`<br><span class="muted small">${fmtDate(String(t.completedAt).slice(0, 10))}</span>` : ''}</td></tr>`; };
 const table = (list, today) => html`<table class="tbl striped"><thead><tr><th>Task</th><th>File No</th><th>Property Address</th><th>Who</th><th>Due</th><th>Closing</th><th>Status</th></tr></thead>
   <tbody>${list.map((t) => row(t, today))}</tbody></table>`;
 
 export function boardResults(tasks, s, today) {
-  const list = sortTasks(filterTasks(tasks, toFilter(s), today), s.sort, s.dir);
+  const list = sortTasks(filterTasks(annotatePartyTaskProgress(tasks), toFilter(s), today), s.sort, s.dir);
   const head = html`<p class="muted" data-board-count>${list.length} task(s)${list.filter((t) => isOverdue(t, today)).length ? ` · ${list.filter((t) => isOverdue(t, today)).length} overdue` : ''}</p>`;
   if (!list.length) return html`${head}<p class="muted center" data-board-empty>No tasks match these filters.</p>`;
   if (s.groupBy === 'none') return html`${head}${table(list, today)}`;
