@@ -261,7 +261,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On the Processor Task Grid, the columns are File No, Property and Closing Date, then Buyer, Seller, Buyer's Agent and Listing Agent. The individual task columns that used to continue to the right are not shown. A green check means every task for that party on the file is done. A red X means any of that party's tasks is overdue (past its due date and not completed). The cell is empty when that party's tasks are still open and not overdue, and blank when that party is not on the file.
 
-**Status: In progress.** Tracker row MF-053. Pull request: this change. No database change. Not Live until this is merged and checked on TEST.
+**Status: In progress.** Tracker row MF-053. Pull request: [PR 303](https://github.com/Johncoester/cla-portal-demo/pull/303). No database change. Not Live until this is merged and checked on TEST.
 
 **What's built**
 
@@ -282,7 +282,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Spec: [docs/specs/task-grid-party-status.md](docs/specs/task-grid-party-status.md)
 - Source: Matt's Nov 11 Processor User-Task Grid notes (Gmail 1a1cc5d934e36305); confirmed by email Nov 12, 8:47 AM ET; FF-086 item 1, confirmed Nov 16, 10:45 AM ET. Tracker row MF-053.
-- Related pull requests: [PR 266](https://github.com/Johncoester/cla-portal-demo/pull/266) added the four party columns and kept the task columns. This change drops the columns to the right. No database file.
+- Related pull requests: [PR 266](https://github.com/Johncoester/cla-portal-demo/pull/266) added the four party columns and kept the task columns. [PR 303](https://github.com/Johncoester/cla-portal-demo/pull/303) drops the columns to the right. No database file.
 
 **Decisions**
 
