@@ -233,65 +233,38 @@ end $$;
 
 revoke all on function private.save_side_schedule(uuid, jsonb, text) from public, anon, authenticated;
 
-create or replace function private.agent_task_defs()
-returns table(code text, title text, about text, due_days integer)
-language sql immutable set search_path = pg_catalog, public, extensions as $$
-  values ('agent_client_contacts', 'Confirm Client Contact Information', 'Tell us which of the clients on this order you represent and confirm how to reach them (and their spouse, if married). Add anyone we are missing.', 3),
-         ('agent_transaction_info', 'Confirm Your Transaction Information', 'Check the closing date and price we have, give your commission split, any fees or credits for the settlement statement, the earnest money, and the people on your team.', 3),
-         ('agent_home_warranty', 'Confirm Home Warranty Information', 'Let us know whether you or someone else will be purchasing a home warranty for this property.', 5),
-         ('agent_schedule_settlement', 'Schedule the Settlement for [property address]', 'Choose the settlement date, a CLA office or another location, and a time between 9:00 AM and 6:00 PM. You can ask the buyer or the seller to schedule instead. The seller can ask for remote online notarization. A link is queued in the outbox. Nothing is emailed from this build.', 3)
-$$;
-
-create or replace function private.agent_validate(p_code text, a jsonb) returns void
-language plpgsql immutable set search_path = pg_catalog, public, extensions as $$
-declare c jsonb; begin
-  if p_code = 'agent_client_contacts' then
-    for c in select * from jsonb_array_elements(coalesce(a->'clients', '[]')) loop
-      if coalesce(c->>'represent', '') not in ('Yes', 'No') then raise exception 'Do you represent each client? Choose Yes or No.' using errcode = 'P0001'; end if;
-      if c->>'represent' = 'Yes' then
-        if not private.agent_person_ok(c, true, true) then raise exception 'Client first name, last name, email and 10-digit phone are required.' using errcode = 'P0001'; end if;
-        if coalesce(c->>'maritalStatus', '') not in ('Single', 'Married', 'Divorced', 'Widowed') then raise exception 'Choose a marital status.' using errcode = 'P0001'; end if;
-        if c->>'maritalStatus' = 'Married' and not private.agent_person_ok(coalesce(c->'spouse', '{}'), false, false) then raise exception 'Spouse first and last name are required.' using errcode = 'P0001'; end if;
-      end if; end loop;
-    for c in select * from jsonb_array_elements(coalesce(a->'added', '[]')) loop
-      if not private.agent_person_ok(c, true, false) then raise exception 'An added client needs a first name, last name and email.' using errcode = 'P0001'; end if; end loop;
-  elsif p_code = 'agent_transaction_info' then
-    if coalesce(a->>'closingDate', '') !~ '^\d{4}-\d{2}-\d{2}$' then raise exception 'Estimated closing date is required.' using errcode = 'P0001'; end if;
-    perform (a->>'closingDate')::date;
-    if coalesce(a->>'purchasePrice', '') !~ '^\d+(\.\d+)?$' then raise exception 'Purchase price is required.' using errcode = 'P0001'; end if;
-    if coalesce(a->>'emdAmount', '') !~ '^\d+(\.\d+)?$' then raise exception 'Earnest deposit amount is required (0 if none).' using errcode = 'P0001'; end if;
-    if coalesce(a->>'holdingEmd', '') not in ('Yes', 'No') then raise exception 'Are you holding earnest money given to you by the buyer?' using errcode = 'P0001'; end if;
-    if jsonb_array_length(coalesce(a->'commissions', '[]')) = 0 then raise exception 'Add your commission (percent or amount).' using errcode = 'P0001'; end if;
-    for c in select * from jsonb_array_elements(coalesce(a->'fees', '[]')) loop
-      if coalesce(trim(c->>'name'), '') = '' or coalesce(c->>'type', '') not in ('Fee', 'Credit') or coalesce(c->>'paidBy', '') not in ('Buyer', 'Seller') or coalesce(c->>'amount', '') !~ '^\d+(\.\d+)?$' then
-        raise exception 'Each fee or credit needs a name, Fee / Credit, an amount and who pays it.' using errcode = 'P0001'; end if; end loop;
-    for c in select * from jsonb_array_elements(coalesce(a->'team', '[]')) loop
-      if not private.agent_person_ok(c, true, false) then raise exception 'Each team member needs a first name, last name and email.' using errcode = 'P0001'; end if; end loop;
-  elsif p_code = 'agent_home_warranty' then
-    if coalesce(a->>'willPurchase', '') not in ('Yes', 'No') then raise exception 'Will you or someone else be purchasing a home warranty? Choose Yes or No.' using errcode = 'P0001'; end if;
-    if a->>'willPurchase' = 'Yes' and coalesce(a->>'purchaser', '') not in ('Me', 'Someone else') then raise exception 'Who is purchasing it?' using errcode = 'P0001'; end if;
-  elsif p_code = 'agent_schedule_settlement' then
-    if coalesce(a->>'side', '') in ('buyer', 'seller') then perform private.schedule_check(a); end if;
-  else raise exception 'Unknown agent task' using errcode = 'P0001'; end if;
-end $$;
-
-create or replace function private.make_agent_tasks(p_part uuid) returns integer
+-- private.agent_task_defs, private.agent_validate and private.make_agent_tasks already exist on TEST.
+-- This file does not replace them. The scheduling task is added beside that list.
+create function private.schedule_ensure_task(p_part uuid) returns void
 language plpgsql security definer set search_path = pg_catalog, public, extensions as $$
-declare p public.deal_participants; owner uuid; n int; addr text;
+declare p public.deal_participants; owner uuid; addr text;
 begin
   select * into p from public.deal_participants where id = p_part;
-  if not found or p.role not in ('Buyer Agent', 'Listing Agent') then return 0; end if;
-  if not exists (select 1 from public.deals where id = p.deal_id and status = 'Open') then return 0; end if;
-  select profile_id into owner from public.contacts where id = p.contact_id; if owner is null then return 0; end if;
+  if not found or p.role not in ('Buyer Agent', 'Listing Agent') then return; end if;
+  if not exists (select 1 from public.deals where id = p.deal_id and status = 'Open') then return; end if;
+  select profile_id into owner from public.contacts where id = p.contact_id;
+  if owner is null then return; end if;
+  if exists (select 1 from public.tasks x where x.participant_id = p.id and x.template_code = 'agent_schedule_settlement' and x.status <> 'cancelled') then return; end if;
   select btrim(concat_ws(', ', nullif(btrim(street), ''), nullif(btrim(city), ''), nullif(btrim(concat_ws(' ', nullif(btrim(state), ''), nullif(btrim(zip), ''))), '')))
     into addr from public.deals where id = p.deal_id;
   insert into public.tasks (deal_id, title, description, assigned_role, status, due_date, created_by, kind, participant_id, owner_profile_id, template_code, template_version)
-  select p.deal_id,
-    case when a.code = 'agent_schedule_settlement' and addr <> '' then 'Schedule the Settlement for ' || addr else a.title end,
-    a.about, p.role, 'todo', current_date + a.due_days, private.effective_uid(), 'agent', p.id, owner, a.code, 1
-  from private.agent_task_defs() a
-  where private.task_enabled(a.code) and not exists (select 1 from public.tasks x where x.participant_id = p.id and x.template_code = a.code and x.status <> 'cancelled');
-  get diagnostics n = row_count; return n; end $$;
+  values (
+    p.deal_id,
+    case when coalesce(addr, '') <> '' then 'Schedule the Settlement for ' || addr else 'Schedule the Settlement for [property address]' end,
+    'Choose the settlement date, a CLA office or another location, and a time between 9:00 AM and 6:00 PM. You can ask the buyer or the seller to schedule instead. The seller can ask for remote online notarization. A link is queued in the outbox. Nothing is emailed from this build.',
+    p.role, 'todo', current_date + 3, private.effective_uid(), 'agent', p.id, owner, 'agent_schedule_settlement', 1);
+end $$;
+
+revoke all on function private.schedule_ensure_task(uuid) from public, anon, authenticated;
+
+create function private.participants_schedule_task() returns trigger
+language plpgsql security definer set search_path = pg_catalog, public, extensions as $$
+begin
+  perform private.schedule_ensure_task(new.id);
+  return new;
+end $$;
+
+revoke all on function private.participants_schedule_task() from public, anon, authenticated;
 
 -- A fresh database has no private.rpc_submit_agent_task. Create it only then.
 -- When the function is already on TEST, leave that body alone and apply the schedule from a trigger instead.
@@ -346,7 +319,16 @@ begin
   $fn$;
 end $create_submit$;
 
+do $schedule_participants$
+begin
+  if exists (select 1 from pg_trigger where tgname = 'participants_schedule_task' and tgrelid = 'public.deal_participants'::regclass) then
+    raise exception 'drift: participants_schedule_task already exists';
+  end if;
+  execute 'create trigger participants_schedule_task after insert on public.deal_participants for each row execute function private.participants_schedule_task()';
+end $schedule_participants$;
+
 -- Open files that already have an agent get the new task. Closed files are left alone.
+-- This does not call make_agent_tasks, so the copy already on TEST is left as it is.
 do $$
 declare r uuid;
 begin
@@ -355,8 +337,40 @@ begin
     join public.deals d on d.id = p.deal_id
     where d.status = 'Open' and p.role in ('Buyer Agent', 'Listing Agent')
   loop
-    perform private.make_agent_tasks(r);
+    perform private.schedule_ensure_task(r);
   end loop;
+end $$;
+
+-- The portal calls this for the scheduling task. The task function already on TEST stays in place,
+-- because that function rejects a task code it does not know.
+create function public.submit_schedule_settlement(p_task uuid, p_answers jsonb) returns integer
+language plpgsql security definer set search_path = pg_catalog, public, extensions as $$
+declare t public.tasks; n int; saved jsonb; side text;
+begin
+  select * into t from public.tasks where id = p_task and kind = 'agent' and template_code = 'agent_schedule_settlement';
+  if not found or not private.can_access_deal(t.deal_id) or not private.task_visible(t.owner_profile_id, t.assigned_role, t.deal_id) then
+    raise exception 'Task not found' using errcode = 'P0001'; end if;
+  if t.owner_profile_id is distinct from private.effective_uid() then
+    raise exception 'Only the agent this task is for can submit it.' using errcode = 'P0001'; end if;
+  if t.status = 'cancelled' then raise exception 'This task was cancelled.' using errcode = 'P0001'; end if;
+  side := case when t.assigned_role = 'Listing Agent' then 'seller' else 'buyer' end;
+  p_answers := coalesce(p_answers, '{}'::jsonb) || jsonb_build_object('side', side);
+  if exists (select 1 from pg_trigger where tgname = 'tasks_schedule_apply' and tgrelid = 'public.tasks'::regclass) then
+    perform set_config('cla.form_rpc', 'on', true);
+    update public.tasks set form_data = p_answers, saved_at = now(), saved_by = private.effective_uid(), status = 'done', completed_at = now(), completed_by = private.effective_uid()
+      where id = p_task returning form_data into saved;
+    perform set_config('cla.form_rpc', '', true);
+  else
+    saved := private.save_side_schedule(t.deal_id, p_answers, 'agent');
+    perform set_config('cla.form_rpc', 'on', true);
+    update public.tasks set form_data = saved, saved_at = now(), saved_by = private.effective_uid(), status = 'done', completed_at = now(), completed_by = private.effective_uid() where id = p_task;
+    perform set_config('cla.form_rpc', '', true);
+  end if;
+  select coalesce(max(r.n), 0) + 1 into n from public.agent_task_revisions r where r.task_id = p_task;
+  insert into public.agent_task_revisions (task_id, n, answers, by_profile) values (p_task, n, coalesce(saved, p_answers), private.effective_uid());
+  perform private.log_activity(t.deal_id, case when n = 1 then 'task.submitted' else 'task.revised' end, 'task', t.id, t.title || case when n = 1 then ': submitted' else ': revision ' || (n - 1) || ' submitted' end);
+  perform private.notify(array[(select processor_id from public.deals where id = t.deal_id)], 'task', t.deal_id, private.person_name(private.effective_uid()) || case when n = 1 then ' completed "' else ' revised "' end || t.title || '"', '#/deals/' || t.deal_id || '/tasks/' || t.id);
+  return n;
 end $$;
 
 create function public.get_party_schedule(p_token text) returns jsonb
@@ -447,11 +461,13 @@ revoke all on function public.submit_party_schedule(text, jsonb) from public;
 revoke all on function public.scheduling_copy_links(uuid) from public;
 revoke all on function public.save_settlement_agent(uuid, text, uuid, boolean) from public;
 revoke all on function public.save_scheduling_notes(uuid, text) from public;
+revoke all on function public.submit_schedule_settlement(uuid, jsonb) from public;
 grant execute on function public.get_party_schedule(text) to anon, authenticated;
 grant execute on function public.submit_party_schedule(text, jsonb) to anon, authenticated;
 grant execute on function public.scheduling_copy_links(uuid) to authenticated;
 grant execute on function public.save_settlement_agent(uuid, text, uuid, boolean) to authenticated;
 grant execute on function public.save_scheduling_notes(uuid, text) to authenticated;
+grant execute on function public.submit_schedule_settlement(uuid, jsonb) to authenticated;
 
 do $$
 begin
@@ -466,8 +482,10 @@ begin
   end;
   if position('closing_date' in (select prosrc from pg_proc where oid = 'private.save_side_schedule(uuid,jsonb,text)'::regprocedure)) > 0 then
     raise exception 'readback: scheduling must not change the file closing date'; end if;
-  if not exists (select 1 from private.agent_task_defs() where code = 'agent_schedule_settlement') then
+  if to_regprocedure('private.schedule_ensure_task(uuid)') is null then
     raise exception 'readback: the scheduling task was not added'; end if;
+  if exists (select 1 from private.agent_task_defs() where code = 'agent_schedule_settlement') then
+    raise exception 'readback: the existing task list was replaced'; end if;
 end $$;
 
 commit;

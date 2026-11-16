@@ -7,17 +7,18 @@ import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, 
   isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, STAFF_ACCOUNT_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
   phoneOk, fmtPhone, PHONE_MSG, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611101015';
 import { fileTitleOf, partyDisplayName } from './party-name.js?v=202611102000';
+import { staffTaskCounts } from './party-task-completion.js?v=202611241000';
 import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611221900';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
 import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyCommissionTaskV2 } from './templates.js?v=202611221900';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611223100';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611241000';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
 import { contactsTasksDocs } from './mock-part-docs.js?v=202611221900';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611222800';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611241600';
 import { messagesActivity } from './mock-part-msgs.js?v=202611141400';
 import { adminUsersTeams } from './mock-part-admin.js?v=202611070139';
 import { libraryFolders } from './mock-part-library.js?v=202611070139';
-import { closingSchedule } from './mock-part-schedule.js?v=202611241300';
+import { closingSchedule } from './mock-part-schedule.js?v=202611241600';
 import { notificationsPart } from './mock-part-notify.js?v=202611070139';
 import { mattP2 } from './mock-part-matt.js?v=202611170800';
 import { mattNov2 } from './mock-part-nov2.js?v=202611221200';
@@ -26,8 +27,8 @@ import { featureFlags } from './features.js?v=202611070139';
 import { crmZohoUpgrade } from './crm.js?v=202611130900';
 import { ensureEmailTemplates } from './crm-templates.js?v=202611130900';
 import { ensureNov3b as ensureCrmNov3b } from './crm-nov3b.js?v=202611070139';
-import { ensureAgentPortal } from './agent-portal.js?v=202611241300';
-import { agentPortal } from './mock-part-agent.js?v=202611241300';
+import { ensureAgentPortal } from './agent-portal.js?v=202611241600';
+import { agentPortal } from './mock-part-agent.js?v=202611241600';
 import { mattNov3b } from './mock-part-nov3b.js?v=202611221900';
 import { ensureSettings, optLabel } from './crm-config.js?v=202611130900';
 import { referralLabel } from './place-order.js?v=202611191800';
@@ -36,8 +37,8 @@ import { accountingPart, ensureAccounting } from './mock-part-accounting.js?v=20
 import { payoffsPart, ensurePayoffs } from './mock-part-payoffs.js?v=202611223100';
 import { modulesPart, ensureModules } from './mock-part-modules.js?v=202611101015';
 import { roleAccessPart } from './mock-part-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access (Super admin)
-import { taskShownTo } from './task-switches.js?v=202611221900';
-import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611221900';
+import { taskShownTo } from './task-switches.js?v=202611241600';
+import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611241600';
 import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.js?v=202611101015';
 import { underwriterPart } from './mock-part-underwriter.js?v=202611223100';
 import { agentInfoPart } from './mock-part-agentinfo.js?v=202611101015';
@@ -46,16 +47,16 @@ import { agentFeesPart, backfillCommissionTasks } from './mock-part-agent-fees.j
 import { automationPart } from './automation.js?v=202611101015';
 import { gmailMock } from './supabase-gmail.js?v=202611140900';
 import { hrPart, ensureHr } from './mock-part-hr.js?v=202611221300';
-import { titlePart, ensureTitle } from './mock-part-title.js?v=202611221900';
+import { titlePart, ensureTitle } from './mock-part-title.js?v=202611241600';
 import { tcPortal, ensureTc, tcMessageViews } from './mock-part-tc.js?v=202611191700';
 import { emailSendersPart, ensureEmailSenders } from './email-senders.js?v=202611101015';   // John, Nov 4: the Title review module (staff only; in place, no storage bump)
 import { officesPart, officeById } from './mock-part-offices.js?v=202611101015';
 import { taskBuilderPart, watchTaskFlowEvents } from './mock-part-task-builder.js?v=202611221100';   // John, Nov 13: Admin > Task Builder (TB-1 flows, TB-2 engine)
 import { closingLocationPart } from './mock-part-closing-location.js?v=202611170800';
-import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611221900';
+import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611241600';
 import { fwpCanRead, FWP_STAFF_ONLY } from './funding-wire-policy.js?v=202611070139';
 import { buyerAgentDocDecision, taskReadable, propertyAddressOf } from './nov5-rules.js?v=202611131900';
-import { nov5Part, ensureNov5 } from './mock-part-nov5.js?v=202611221900';
+import { nov5Part, ensureNov5 } from './mock-part-nov5.js?v=202611241600';
 import { staffFeedbackPart } from './mock-part-staff-feedback.js?v=202611080400';
 import { fwpPart, ensureFwp } from './mock-part-fwp.js?v=202611223100';
 import { seedFwp as FSEED } from './fwp-seed.js?v=202611070139';   // John, Nov 4: where each buyer / seller will be at closing (migration 58)   // Admin > Offices (John, Nov 4; migration 57)
@@ -376,12 +377,13 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     const sc0 = x.scheduledClosing ? { ...clone(x.scheduledClosing), officeName: x.scheduledClosing.officeId ? ((officeById(d, x.scheduledClosing.officeId) || {}).name || '') : '', officeRetired: !!(x.scheduledClosing.officeId && officeById(d, x.scheduledClosing.officeId) && !officeById(d, x.scheduledClosing.officeId).active) } : x.scheduledClosing;
     // John, Nov 4: deal notes are staff/agent working notes; Client-Buyer / Client-Seller never get them (may name the other side's agent)
     const clientOnly = (u.roles || [u.role]).every((r) => isClient(r));
+    const taskCounts = staffTaskCounts(tasks, localDate());
     return { ...clone(x), notes: clientOnly ? '' : (x.notes || ''), scheduledClosing: sc0, sourceOfBusiness: src, sourceOfBusinessLabel: srcLabel, claRepresentation: staffView ? (x.claRepresentation || null) : null, claRepresentationLabel: staffView ? claRepresentationLabel(x.claRepresentation) : '', myRole: u.role, myRoles: u.roles || [u.role], myRoleLabel: fileRoleLabel(u.roles, u.role), selfRep: !!u.selfRep, agentParties: staffView ? parties : [], county: x.county || '', address: `${x.street}, ${x.city}, ${x.state} ${x.zip}`, displayName: propertyAddressOf(x), stageName: STAGES[x.stage],
-      openTasks: tasks.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status)).length,
+      openTasks: taskCounts.open,
       myOpenTasks: tasks.filter((t) => ['todo', 'in_progress'].includes(t.status) && (ownerOf(t) === u.id || (!t.participantId && holds(u, t.assignedRole)))).length,
       unread: mine.reduce((n, t) => n + unreadIn(u, t), 0),
       // Matt, Nov 2: order-list filters. Overdue = open tasks this person can see that are past due; partyNames = the names this person may see on the file (search)
-      overdueTasks: tasks.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status) && t.dueDate && t.dueDate < localDate()).length,
+      overdueTasks: taskCounts.overdue,
       // John, Nov 2: several buyers / sellers; fileTitle = 'Buyer last names / Seller last names' of the people this viewer may see
       fileTitle: fileTitleOf(participantsOf(x.id, u)),
       partyNames: [...new Set(participantsOf(x.id, u).flatMap((p) => [partyDisplayName(p), p.contact ? fullName(p.contact) : '']).filter(Boolean))],

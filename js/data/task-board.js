@@ -4,6 +4,7 @@
  *   filterDeals / sortDeals              : the order list (Open Orders) filters + sort
  *   buildTaskGrid                        : Processor / Admin grid, file numbers across (columns), tasks down (rows) */
 import { isAgent } from './constants.js?v=202611101015';
+import { partyTaskGridCell, partyTaskStillOpen } from './party-task-completion.js?v=202611241000';
 
 export const OPEN_STATUSES = ['todo', 'in_progress', 'blocked'];
 export const isOpenTask = (t) => OPEN_STATUSES.includes(t.status);
@@ -26,7 +27,11 @@ export const taskSearchText = (t) => lc([t.title, t.ownerName, t.assignedRole, t
 export function filterTasks(tasks, f = {}, today) {
   const st = f.status || 'open'; const fs = f.fileStatus || 'Open'; const q = lc(f.q).trim();
   return tasks.filter((t) => {
-    if (st === 'open' ? !isOpenTask(t) : st === 'done' ? t.status !== 'done' : st !== 'all' && t.status !== st) return false;
+    // MF-057: a buyer or seller task with two or more people stays on the incomplete list until each of them finishes.
+    const sideOpen = partyTaskStillOpen(t);
+    const open = isOpenTask(t) || sideOpen;
+    const finished = t.status === 'done' && !sideOpen;
+    if (st === 'open' ? !open : st === 'done' ? !finished : st !== 'all' && t.status !== st) return false;
     if (fs !== 'All' && t.deal && t.deal.status !== fs) return false;
     if (f.group && groupOfRole(t.assignedRole) !== f.group) return false;
     if (f.role && t.assignedRole !== f.role) return false;
@@ -113,7 +118,8 @@ export function sortDeals(deals, key = 'openDate', dir) {
 
 /* PROCESSOR TASK GRID: columns = files, rows = the agent / buyer / seller tasks (one row per template + role, or per role + title for a one-off task).
  * Cell state per file: 'done' (every live copy complete; date = last completion), 'overdue' (an incomplete copy is past its due date),
- * 'pending' (not complete, not yet due or no due date), 'na' (that task is not on that file, or only cancelled copies). CLA staff tasks are left out. */
+ * 'pending' (not complete, not yet due or no due date), 'na' (that task is not on that file, or only cancelled copies). CLA staff tasks are left out.
+ * MF-057: two or more buyers, or two or more sellers, keep the cell open until each person has finished, and the cell says "N of M done". */
 export const GRID_ROLES = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent'];
 const rowKey = (t) => `${t.assignedRole}|${t.templateCode ? 'tpl:' + t.templateCode : 'task:' + lc(t.title).trim()}`;
 const dayOf = (iso) => { if (!iso) return ''; const s = String(iso); if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const d = new Date(s); if (isNaN(d)) return s.slice(0, 10);
@@ -128,12 +134,9 @@ export function buildTaskGrid(tasks, deals, today) {
   const out = [...rows.values()].sort((a, b) => order[a.group] - order[b.group] || GRID_ROLES.indexOf(a.role) - GRID_ROLES.indexOf(b.role) || lc(a.title).localeCompare(lc(b.title))).map((r) => ({
     key: r.key, title: r.title, role: r.role, roleLabel: r.roleLabel, group: r.group, label: `${r.roleLabel}: ${r.title}`,
     cells: Object.fromEntries(columns.map((c) => { const live = (r.byDeal[c.id] || []).filter((t) => t.status !== 'cancelled');
-      if (!live.length) return [c.id, { state: 'na', total: 0, done: 0 }];
-      const done = live.filter((t) => t.status === 'done'); const base = { total: live.length, done: done.length, taskIds: live.map((t) => t.id),
-        dueDate: live.filter(isOpenTask).map((t) => t.dueDate).filter(Boolean).sort()[0] || null };
-      if (done.length === live.length) return [c.id, { ...base, state: 'done', date: done.map((t) => dayOf(t.completedAt)).filter(Boolean).sort().pop() || null }];
-      if (live.some((t) => isOverdue(t, today))) return [c.id, { ...base, state: 'overdue' }];
-      return [c.id, { ...base, state: 'pending' }]; })) }));
+      const cell = partyTaskGridCell(live, today);
+      if (cell.state === 'done') cell.date = live.filter((t) => t.status === 'done').map((t) => dayOf(t.completedAt)).filter(Boolean).sort().pop() || null;
+      return [c.id, cell]; })) }));
   const count = (s) => out.reduce((n, r) => n + Object.values(r.cells).filter((c) => c.state === s).length, 0);
   return { columns, rows: out, today, totals: { done: count('done'), overdue: count('overdue'), pending: count('pending'), na: count('na') } };
 }

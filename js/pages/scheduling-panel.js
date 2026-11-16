@@ -1,7 +1,7 @@
 /* MF-056: the Scheduling Details card on the file. Processor confirms the settlement agent and keeps separate notes.
  * Side answers come from the agent task or the buyer / seller link. The file closing date is left alone. */
 import { html, raw, $, guard, toast, formData, modal, closeModal } from '../ui.js?v=202611161500';
-import { scheduleTimeLabel, schedulingFromDeal, placeSummary, settlementAgentChoices, askLabel } from '../data/scheduling-details.js?v=202611241300';
+import { scheduleTimeLabel, schedulingFromDeal, placeSummary, settlementAgentChoices, askLabel } from '../data/scheduling-details.js?v=202611241600';
 
 const line = (k, v) => html`<div class="settlement-row" data-sched-row="${k}"><span class="settlement-k">${k}</span><span>${v || html`<span class="muted">Not set</span>`}</span></div>`;
 

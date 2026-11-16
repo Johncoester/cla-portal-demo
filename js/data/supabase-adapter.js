@@ -1,12 +1,12 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole, GRID_ROLES } from './task-board.js?v=202611140100';
+import { buildTaskGrid, groupOfRole, GRID_ROLES } from './task-board.js?v=202611241000';
 import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611101015';
 import { cleanFileNumber, FILE_NUMBER_TAKEN } from './file-number.js?v=202611222500';
 import { officeDate } from './office-date.js?v=202611102100';
 import { clientActivityFrom } from './client-activity.js?v=202611102100';
-import { assertRecipients, messageText } from './portal-message.js?v=202611191700';
+import { assertRecipients, messageText } from './portal-message.js?v=202611241600';
 import { planDocumentBatch } from './document-batch.js?v=202611101015';
 import { featureFlags } from './features.js?v=202611070139';
 import { accountingSupabase } from './supabase-accounting.js?v=202611223100';
@@ -19,7 +19,7 @@ import { postClosingSupabase } from './supabase-postclosing.js?v=202611111900';
 import { wiresSupabase } from './supabase-wires.js?v=202611111800';
 import { modulesSupabase } from './supabase-modules.js?v=202611101015';
 import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611221900';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611241600';
 import { callItemsSupabase } from './supabase-callitems.js?v=202611223100';
 import { automationPart } from './automation.js?v=202611101015';
 import { runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
@@ -33,7 +33,7 @@ import { tcSupabase } from './supabase-tc.js?v=202611191700';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
 import { gmailSupabase } from './supabase-gmail.js?v=202611140900';
 import { nov5Supabase } from './supabase-nov5.js?v=202611162200';
-import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611191700';
+import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611241600';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611191600';
 import { staffSupabase } from './supabase-staff.js?v=202611191800';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
@@ -43,7 +43,8 @@ import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=2026
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
 import { propertyAddressOf } from './nov5-rules.js?v=202611131900';
 import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611221900';
-import { fetchDashboard, indexDashboardExtras, decorateDashboardDeals, shapeDashboardTask } from './dashboard-load.js?v=202611191800';
+import { fetchDashboard, indexDashboardExtras, decorateDashboardDeals, shapeDashboardTask, DASHBOARD_TASK_COLUMNS } from './dashboard-load.js?v=202611191800';
+import { partyTaskCopiesStillOpen, PARTY_TASK_ROLES } from './party-task-completion.js?v=202611241000';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow } from './contact-insert.js?v=202611222700';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
@@ -457,6 +458,17 @@ export async function createSupabaseAdapter(cfg) {
       let u = ident.current() || await me();
       if ((!u || !u.id) && lastHeld && lastHeld.id) u = lastHeld;
       const staff = !!(u && (u.isAdmin || runsOrdersCI(u)));
+      // The open-task page does not include a buyer or seller who already finished. Their copy is
+      // still part of the party task until everyone on that side has finished (MF-057).
+      if (staff && (opts.taskStatus || 'open') === 'open' && taskRows.length) {
+        const ids = [...new Set(taskRows.map((t) => t.dealId).filter(Boolean))].slice(0, 100);
+        if (ids.length) {
+          try {
+            const doneRead = await sb.from('tasks').select(DASHBOARD_TASK_COLUMNS).in('deal_id', ids).eq('status', 'done').in('assigned_role', PARTY_TASK_ROLES).limit(200);
+            if (doneRead && !doneRead.error && Array.isArray(doneRead.data)) taskRows = taskRows.concat(partyTaskCopiesStillOpen(taskRows, doneRead.data.map(shapeDashboardTask)));
+          } catch (e) { /* the file count still comes from dashboard_file_task_counts */ }
+        }
+      }
       if (!staff && taskRows.length) {
         const ids = [...new Set(taskRows.map((t) => t.dealId).filter(Boolean))];
         const onFile = new Map(await Promise.all(ids.map(async (id) => [id, await viewerOnFile(sb, id, u)])));
@@ -761,7 +773,12 @@ export async function createSupabaseAdapter(cfg) {
       return view;
     },
     async submitAgentTask(id, answers) {
-      await submitHostedAgentTask(sb, id, answers);
+      const current = await this.getAgentTask(id).catch(() => null);
+      if (current && (current.code === 'agent_schedule_settlement' || current.templateCode === 'agent_schedule_settlement')) {
+        ok(await sb.rpc('submit_schedule_settlement', { p_task: id, p_answers: answers || {} }));
+      } else {
+        await submitHostedAgentTask(sb, id, answers);
+      }
       const view = await this.getAgentTask(id);
       return { ...view, status: 'done', submitted: true, canSubmit: false, answers: view.answersHidden ? null : answers };
     },
