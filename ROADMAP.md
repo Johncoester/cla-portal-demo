@@ -901,3 +901,29 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - The new file is named so it runs just before the existing feature-flag file, which is only the flag from this same history row.
+
+---
+
+## Who can own a CRM record (CRM-OWNER-1)
+
+**How it should work.** On Admin, then User List, then Edit user, an Admin or Super admin can tick **Can own CRM records** for that person. It starts off for everyone, including admins. A ticked person, whatever their role, can be chosen as the owner of a lead, client, company, or deal, in Change owner, and in a spreadsheet import. Someone who is not ticked is not in those lists. A record that already names them still shows their name. Who can open the CRM does not change.
+
+**Status: In progress.** Tracker row CRM-OWNER-1, Requests tab row 315. John Coester asked on Nov 15 2026, 3:11 PM ET, and confirmed it on Nov 16 2026, 10:55 AM ET. Pull request: [PR 306](https://github.com/Johncoester/cla-portal-demo/pull/306). Database file `supabase/migrations/20261124140000_crm_owner_flag.sql`. Not applied on TEST. Not Live.
+
+**What's built**
+
+- The edit-user checkbox, saved only by an Admin or Super admin. The database refuses anyone else and writes the activity log (who, which user, old value, new value, when).
+- Owner lists for leads, clients, companies, deals, Change owner, and the import Owner column use that tick. Existing names stay on the record.
+
+**What's still missing**
+
+- Not on TEST until the database file is applied there and someone checks the checkbox and an owner list. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/crm-owner-flag.md](docs/specs/crm-owner-flag.md)
+
+**Decisions**
+
+- Nobody is turned on by the database file. An admin ticks people after it is applied.
+- The tick does not change role access or who can open the CRM.
