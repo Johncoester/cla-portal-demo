@@ -15,12 +15,12 @@
  *   vendoredRateSource          the built-in Nov 2 snapshot (also the fallback, and what tests use)
  *   live sheet                  the calculator's loadFees(), shown on the form with the time it loaded
  *   calculatorSupabaseRateSource NOT CONNECTED: a placeholder showing where a reader of the calculator's tables would plug in. It refuses. */
-import * as C from './vendor/cla-calculator/calc-core.js?v=202611222800';
+import * as C from './vendor/cla-calculator/calc-core.js?v=202611223000';
 import { STATE_COUNTIES } from './state-counties.js?v=202611223100';
 import { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden } from './accounting.js?v=202611223100';
 export { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden };
 
-export const CALC_SOURCE = { repo: 'github.com/Johncoester/cla-closing-cost-calculator', commit: 'ee6825a', snapshot: '2026-11-16', files: 'index.html (calc code), fee-snapshot.js (rate tables)' };
+export const CALC_SOURCE = { repo: 'github.com/Johncoester/cla-closing-cost-calculator', commit: '84c2fc4', snapshot: '2026-11-16', files: 'index.html (calc code), fee-snapshot.js (rate tables)' };
 export const CALC_STATES = ['MD', 'VA', 'DC', 'FL'];
 export const UNDERWRITER = 'Fidelity National Title';     // the only underwriter in the calculator's Premium_Tiers / Rules / Endorsements
 const fail = (m) => { throw new Error(m); };
@@ -231,6 +231,11 @@ function premiumExplain(R, i, P, which) {
   return { rateSource: `${SRC} · Premium_Tiers (${UNDERWRITER}, ${st}, Owner, ${rt}) + Premium_Rules + Jurisdictions`, calculation: `Owner's policy (${isEnh ? 'enhanced' : 'basic'}): ${base} = ${usd(isPct ? basicAmt : P.owner)}.${enh}${isPct ? ` ${usd(basicAmt)} × ${pct}% = ${usd(P.owner)}.` : ''}${enhPh}${tridTxt}${pay}` };
 }
 function taxExplain(R, i, t) {
+  if (/ on loan above price$/.test(t.name)) {   // Maryland, loan bigger than the price (calculator PR #2; Melissa Gamble, Nov 16 2026)
+    const base = t.name.replace(/ on loan above price$/, ''); const above = Math.max(0, (i.loan || 0) - (i.price || 0));
+    return { rateSource: `${SRC} · Transfer_Taxes (${i.state} ${i.county}, "${base}")`,
+      calculation: `${i.state} ${base} on the part of the loan above the price: loan ${usd0(i.loan)} − price ${usd0(i.price)} = ${usd0(above)}, taxed at the ${base.toLowerCase()} rate = ${usd(t.amt)}. The purchase deed of trust is exempt only up to the price (Tax-Property 12-108(i)); Melissa Gamble, Nov 16 2026. Paid by the buyer (it is the buyer's loan).` };
+  }
   const rows = C.pick(R.Transfer_Taxes, i.state, i.county, i.type, (r) => r['Tax Name'] + '|' + r.Transaction).filter((r) => r['Tax Name'] === t.name);
   const bits = []; let where = '';
   for (const r of rows) { const x = C.taxAmount(r, i); if (!x || (!(x.amt > 0) && rows.length > 1)) continue; where = C.isAll(r['County/City']) ? `${i.state} statewide` : `${i.state} ${i.county}`;
