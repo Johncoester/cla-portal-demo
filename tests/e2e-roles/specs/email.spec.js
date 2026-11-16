@@ -46,7 +46,8 @@ test('file email, invite, and reply arrive at the test inbox', async ({ page }) 
   const token = await gmailAccessToken();
   const trashed = [];
   try {
-    await signIn(page, 'processor');
+    // John, Nov 16: send from the portal mailbox testportal@clatitle.com (Processor 1's Gmail), not the E2E Processor.
+    await signIn(page, 'processorMailbox');
     await openMockFile(page);
     const id = dealId(page);
     const parties = await page.locator('[data-parties], [data-co-file]').first().innerText();
@@ -115,6 +116,7 @@ test('file email, invite, and reply arrive at the test inbox', async ({ page }) 
     const replyBytes = tinyPdf(replyName).buffer;
     const from = (await page.locator('[data-mail-from]').innerText()).match(/[\w.+-]+@[\w.-]+/);
     expect(from, 'sender mailbox missing').toBeTruthy();
+    expect(from[0].toLowerCase(), 'the file email must go out from testportal@clatitle.com').toBe('testportal@clatitle.com');
     const sent = await replyWithAttachment({
       token, threadId: mail.threadId, to: from[0], subject: mail.subject, filename: replyName, bytes: replyBytes,
     });
