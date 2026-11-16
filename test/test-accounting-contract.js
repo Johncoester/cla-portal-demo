@@ -54,7 +54,8 @@ const opened = await adapter.createDeal({ street: '1 Fixture Lane', city: 'Rockv
 const fresh = await adapter.getAccounting(opened.id);
 const freshCd = await adapter.getClosingDisclosure(opened.id);
 const freshLabels = ['K', 'L', 'M', 'N'].flatMap((k) => ((freshCd.summaries[k] || {}).rows || []).map((r) => r.label));
-ok(opened.purchasePrice === 500 && fresh.entries.filter((e) => !e.auto).length === 0 && freshLabels.includes('Sale Price of Property') && freshLabels.includes('Loan Amount'), 'opening an order does not store its price or loan, and the Closing Disclosure still shows them');
+const freshStored = fresh.entries.filter((e) => !e.auto);
+ok(opened.purchasePrice === 500 && freshStored.length === 1 && freshStored[0].presetKey === 'waterEscrow' && freshStored[0].amount === 400 && !freshStored.some((e) => /Sale Price of Property|^Loan Amount$/i.test(e.description)) && freshLabels.includes('Sale Price of Property') && freshLabels.includes('Loan Amount'), 'opening an order does not store its price or loan, and the Closing Disclosure still shows them. The only stored line is the $400 Maryland water escrow.');
 ok((await adapter.getContractTerms('deal-2')).saved === false && (await adapter.getContractTerms('deal-2')).fields.loanAmount === null, 'another order stays blank');
 const badBefore = await adapter.getContractTerms('deal-1');
 ok(await rejects(() => adapter.saveContractTerms('deal-1', { salePrice: 'nope' }), /blank or an amount/), 'a bad amount is refused');

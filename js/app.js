@@ -1,13 +1,13 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611223000';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611223100';
+import { getAdapter } from './data/adapter.js?v=202611223100';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611223200';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611130900';
 import { canManageRoleAccess } from './data/role-access.js?v=202611100100';
 import { canUseGmail } from './data/gmail-email.js?v=202611191000';
-import { acctCanRead } from './data/accounting.js?v=202611223000';
+import { acctCanRead } from './data/accounting.js?v=202611223100';
 import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611101015';
 import { phaseOf } from './data/agent-portal.js?v=202611191700';
 import { applyTheme, themeOn } from './theme.js?v=202611070139';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
@@ -34,10 +34,10 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611221200'),
-  dashboard: () => import('./pages/dashboard.js?v=202611223100'),
+  dashboard: () => import('./pages/dashboard.js?v=202611223200'),
   orders: () => import('./pages/orders.js?v=202611161500'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611223100'),
-  deal: () => import('./pages/deal.js?v=202611223100'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611223200'),
+  deal: () => import('./pages/deal.js?v=202611223200'),
   users: () => import('./pages/users.js?v=202611161500'),
   profile: () => import('./pages/profile.js?v=202611191600'),
   'contact-us': () => import('./pages/contact.js?v=202611161500'),
@@ -47,7 +47,7 @@ const pages = {
   library: () => import('./pages/library.js?v=202611161500'),
   activity: () => import('./pages/activity.js?v=202611161500'),
   outbox: () => import('./pages/outbox.js?v=202611161500'),
-  tasks: () => import('./pages/tasks.js?v=202611223100'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => import('./pages/tasks.js?v=202611223200'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611221200'),   // Matt, Nov 2: Processor / Admin grid, files across, tasks down. MF-053: party status columns.
   schedule: () => import('./pages/schedule.js?v=202611170800'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611221700'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
@@ -55,7 +55,7 @@ const pages = {
   'role-access': () => import('./pages/role-access.js?v=202611161500'),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => import('./pages/agent-invites.js?v=202611191600'),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
   'agent-invite': () => import('./pages/agent-signup.js?v=202611211100'),     // the agent's one-time setup link (no sign-in)
-  underwriters: () => import('./pages/underwriters.js?v=202611223000'),
+  underwriters: () => import('./pages/underwriters.js?v=202611223100'),
   hr: () => import('./pages/hr.js?v=202611191600'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
   'hr-invite': () => import('./pages/hr-invite.js?v=202611161500'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => import('./pages/offices.js?v=202611161500'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
