@@ -47,8 +47,14 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   await expect(page.locator('[data-wiz-step="loan"] input[name="af.listing.amount"]')).toHaveValue('12000.00');
   await page.locator('[data-wiz-step="loan"] input[name="af.buyer.admin"]').fill('395');
   await advance(page, 'agents');
-  await expect(page.locator('[data-wiz-step="agents"] select[name="p:Transaction Coordinator"]')).toBeVisible();
-  await expect(page.locator('[data-wiz-step="agents"] select[name="p:Transaction Coordinator:2"]')).toBeVisible();
+  // FF-088: these are the agents' coordinators, typed as outside contacts. The old staff-only dropdowns are gone.
+  const buyerTcName = `Zzqe2e${run.slice(-4)} BuyerTC`;
+  const buyerTc = page.locator('[data-agent-tc="Buyer Agent TC"]');
+  await expect(buyerTc.locator('[data-dir-field="person"]')).toBeVisible();
+  await buyerTc.locator('[data-dir-field="person"]').fill(buyerTcName);
+  await buyerTc.locator('[data-dir-field="email"]').fill(`zzqe2e${run.slice(-4)}-buyertc@example.test`);
+  await buyerTc.locator('[data-dir-field="phone"]').fill('301-555-0142');
+  await expect(page.locator('[data-agent-tc="Listing Agent TC"] [data-dir-field="person"]')).toBeVisible();
   await advance(page, 'team');
   await expect(page.locator('[data-wiz-step="team"] input[name="closerName"]')).toBeVisible();
   const sales = page.locator('[data-wiz-step="team"] input[name="salesIds"]');
@@ -69,6 +75,8 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   console.log(`E2E placed file ${number[0]}`);
   await expect(page.locator('[data-parties]')).toContainText(buyer);
   await expect(page.locator('[data-parties]')).toContainText(seller);
+  await expect(page.locator('[data-parties]')).toContainText(buyerTcName);
+  await expect(page.locator('[data-party="Buyer\'s transaction coordinator"]')).toContainText(buyerTcName);
   await expect(page.locator('[data-file-address]')).toContainText('100 E2E Test File');
   await expect(page.locator('[data-file-order]')).toContainText(number[0]);
   await expect(page.locator('[data-order-header]')).toContainText('Settlement date');

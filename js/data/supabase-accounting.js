@@ -9,8 +9,8 @@ import { blankContract, cleanContractTerms, fromContractRow, toContractRow, cont
 import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611223000';
 // CLA RATES (migration 36): calculated fees carry calc_source = 'cla-rates' + calc_key / calc_fields / rate_source / calculation / calc_inputs /
 // calc_version / calc_at; the trigger keeps `overridden` (a person changed what the calculation set). The engine loads lazily (flag off = never).
-const engine = () => import('./fee-engine.js?v=202611223100');
-const taxes = () => import('./taxes-fees.js?v=202611223200');
+const engine = () => import('./fee-engine.js?v=202611241000');
+const taxes = () => import('./taxes-fees.js?v=202611241500');
 const calcRow = (f) => (f.calc ? { calc_source: CALC_SOURCE_ID, calc_key: f.calc.key, calc_fields: f.calc.fields, rate_source: f.calc.rateSource, calculation: f.calc.calculation, calc_inputs: f.calc.inputs, calc_version: f.calc.version, calc_at: f.calc.at } : {});
 
 const toRow = (f) => ({ kind: f.kind, description: f.description, alta_section: f.altaSection, cd_section: f.cdSection, cd_line: f.cdLine, payee: f.payee, amount: f.amount, note: f.note, preset_key: f.presetKey,

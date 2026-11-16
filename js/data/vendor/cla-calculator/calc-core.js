@@ -1,7 +1,7 @@
-/* VENDORED from cla-calculator (github.com/Johncoester/cla-closing-cost-calculator) at commit ee6825a (calculator PR #1, Nov 16 2026): index.html, first <script> block up to the UI section (pure calculation code).
+/* VENDORED from cla-calculator (github.com/Johncoester/cla-closing-cost-calculator) at commit 84c2fc4 (calculator PR #2, Nov 16 2026): index.html, first <script> block up to the UI section (pure calculation code).
  * READ-ONLY SOURCE: do not edit here. Copied 2026-11-04 (tools/vendor-cla-calculator.js, no longer in the repo); re-copied by hand by Claude on 2026-11-15
- * (VA refinance with no payoff; Hampton Roads fee; Nov 16: MD original mortgagor note and Melissa's rate answers). Refresh with a newer calculator commit (see docs/CALCULATOR-FEES.md). Only the ES-module wrapper (this header, the import and the export line) is added.
- * sha256 of the copied text: 9983d21962046ea79cc3c460a482c0dc2caeb6d06fbd14917fd4ff7a36f6f9aa */
+ * (VA refinance with no payoff; Hampton Roads fee; Nov 16: MD original mortgagor note and Melissa's rate answers; Maryland tax on the loan above the price). Refresh with a newer calculator commit (see docs/CALCULATOR-FEES.md). Only the ES-module wrapper (this header, the import and the export line) is added.
+ * sha256 of the copied text: 343079d4758b7b2f691b3808594301fe6caac217036e85c9c0404277825e734e */
 import { CLA_FEES_SNAPSHOT } from './fee-snapshot.js?v=202611222800';
 // ---- verbatim from cla-calculator index.html ----
 // ---------- config ----------
@@ -76,6 +76,19 @@ function taxAmount(t,i){const base=basisOf(t.Basis,i);if(!(base>0))return null;c
  const changes=fthb&&((num(t["FTHB Rate"])!=null&&num(t["FTHB Rate"])!==(num(t.Rate)||0))||(num(t["FTHB Exempt ($)"])||0)>0);
  const fixed=fthb&&fthbFixed(t,i);
  return{amt,payer:fixed?"seller":payer,fthb:!!changes,fixed,fthbPayer:!fixed&&fp&&fp!==payer?fp:""}}
+// Maryland, loan bigger than the price (Melissa Gamble 11/16: "collect recordation or transfer taxes based on" the amount above the price;
+// closed files MD-26-32159, MD-26-32155). The purchase deed of trust is exempt only up to the price (Tax-Property 12-108(i)); the part of the loan
+// above it pays county recordation tax, and in Prince George's also the county transfer tax (it taxes deeds of trust). The buyer pays: it is the buyer's loan.
+// The rate is the price's bracket (Whole) or the bands the loan reaches above the price (Marginal).
+function loanAboveTax(t,i){if(i.state!=="MD"||i.type!=="purchase"||!(i.loan>i.price)||!(i.price>0))return null;
+ if(!/^sale/i.test(String(t.Basis||"").trim()))return null;const name=String(t["Tax Name"]);
+ if(!(/recordation/i.test(name)||(/^prince george/i.test(String(i.county||""))&&/county transfer/i.test(name))))return null;
+ const from=num(t["Bracket From ($)"])||0,to=num(t["Bracket To ($)"]);const hi=to==null?Infinity:to;
+ const maxP=num(t["FTHB Max Price ($)"]);const fthb=!!i.fthb&&i.occ!==false&&(maxP==null||i.price<=maxP);
+ const rate=fthb&&num(t["FTHB Rate"])!=null?num(t["FTHB Rate"]):num(t.Rate)||0;let taxable;
+ if(String(t["Bracket Method"]).toLowerCase().startsWith("marg"))taxable=Math.max(0,Math.min(hi,i.loan)-Math.max(from,i.price));
+ else{if(i.price<from-1e-9||i.price>hi+1e-9)return null;taxable=i.loan-i.price}
+ const amt=r2(units(taxable,t["Rate Unit"])*rate);return amt>0?{amt,name:name+" on loan above price"}:null}
 
 // ---------- title premiums ----------
 function uwRows(rows,uw,st){const m=rows.filter(r=>eq(r.State,st)&&eq(r.Underwriter,uw));return m.length||st!=="FL"?m:rows.filter(r=>eq(r.State,st))} // FL promulgated: any underwriter's rows
@@ -144,6 +157,7 @@ function calc(R,i){const L=[],W=[],refi=i.type==="refi";
  if(refi&&!(+i.payoff>0)){const onLoan=r=>/^loan/i.test(String(r.Basis||"").trim());const refiLoan=taxes.filter(r=>onLoan(r)&&/^refi/i.test(String(r.Transaction||"").trim()));
   if(refiLoan.length)taxes=taxes.filter(r=>!refiLoan.includes(r)).concat(pick(R.Transfer_Taxes,i.state,i.county,"purchase",r=>r["Tax Name"]+"|"+r.Transaction).filter(onLoan))}
  for(const t of taxes){const x=taxAmount(t,i);if(!x)continue;anyTax=true;const k=t["Tax Name"],adj=/^sale/i.test(String(t.Basis||"").trim());const a=agg[k]=agg[k]||{amt:0,payer:x.payer,fthb:false,fixed:false,fthbPayer:"",adj:true,onAssessed:false};a.amt+=x.amt;a.fthb=a.fthb||x.fthb;a.fixed=a.fixed||x.fixed;a.fthbPayer=a.fthbPayer||x.fthbPayer;a.adj=a.adj&&adj;a.onAssessed=a.onAssessed||(adj&&assessedOn(i))}
+ for(const t of taxes){const x=loanAboveTax(t,i);if(!x)continue;anyTax=true;const a=agg[x.name]=agg[x.name]||{amt:0,payer:"buyer",fthb:false,fixed:false,fthbPayer:"",adj:false,onAssessed:false,above:true};a.amt+=x.amt}
  const TX=[];
  for(const[k,v]of Object.entries(agg)){const adjustable=v.adj&&!refi&&!v.fixed,def=v.payer,want=adjustable&&i.taxPayers?String(i.taxPayers[k]||"").toLowerCase():"",ov=TAX_PAYERS.includes(want)?want:"";
   let eff=def,tag="";
@@ -278,4 +292,4 @@ async function loadFees(fetchFn){try{const raw=await fetchSheet(fetchFn);return{
 if(typeof module!=="undefined")module.exports={lenderOnly,perDoc,parseCSV,normalize,calc,premiums,taxAmount,DOC_DEFAULTS,allCounties,usesDefaults,zipLookup,loadFees,fetchSheet,claFees,SNAP,SHEET_ID,sheetCsvUrl,TABS,sellerNet,mdWithholding,MD_NRW_RATE,perDocCount,prorateTaxes,defaultPaidThrough,sellerFeeRows,sellerFeeInputs,commission,downAmt,loanFromDown,ownerPayDefault,isSettlementFee,repFeeOverride,applyRepFees,halves};
 
 // ---- end of verbatim code ----
-export { lenderOnly, perDoc, parseCSV, normalize, calc, premiums, taxAmount, DOC_DEFAULTS, allCounties, usesDefaults, claFees, SNAP, TABS, perDocCount, commission, ownerPayDefault, isSettlementFee, repFeeOverride, applyRepFees, halves, pick, uwRows, rule, bandPremium, basisOf, units, txOK, eq, num, isAll, inCounty, assessedOn, flTitleOpt, SEC, MD_BIG_INSTR, LIEN_CERT, NOT_TITLE, FL_SEARCH, FL_CAPPED, FL_SEARCH_CAP, FL_TITLE, r2, fmt, loadFees };
+export { lenderOnly, perDoc, parseCSV, normalize, calc, premiums, taxAmount, loanAboveTax, DOC_DEFAULTS, allCounties, usesDefaults, claFees, SNAP, TABS, perDocCount, commission, ownerPayDefault, isSettlementFee, repFeeOverride, applyRepFees, halves, pick, uwRows, rule, bandPremium, basisOf, units, txOK, eq, num, isAll, inCounty, assessedOn, flTitleOpt, SEC, MD_BIG_INSTR, LIEN_CERT, NOT_TITLE, FL_SEARCH, FL_CAPPED, FL_SEARCH_CAP, FL_TITLE, r2, fmt, loadFees };

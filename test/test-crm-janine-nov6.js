@@ -60,6 +60,7 @@ const mail = dedupeRecipients(open);
 for (const r of mail.recipients) await api.saveCrmEmail({ entity: 'lead', entityId: r.id, to: [r.email], subject: 'Hello', html: '<p>Hi</p>', mode: 'send' });
 const emails = await api.listCrmEmails('lead', mail.recipients[0].id);
 ok(drafted.length === mail.recipients.length && drafted.every((d) => d.to.length === 1) && emails[0] && emails[0].status !== 'sent', 'each draft has one recipient and nothing is sent');
+await api.adminUpdateUser('u-sp', { canOwnCrm: true });
 const owners = await api.listCrmOwners();
 await api.updateCrmLead(open[0].id, { ownerId: owners[0].id, notes: 'Bulk note' });
 const after = await api.getCrmLead(open[0].id);
