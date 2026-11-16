@@ -10,6 +10,7 @@
  * The calculation is pure. loadCalculatorRates() is the only network call, and only in the browser: it uses the calculator's own loadFees()
  * on the live sheet and keeps the Nov 2 copy when that sheet can't be reached. Loaded lazily by the accounting adapters.
  *
+ * CONFIRMED TAX RULES (Melissa Gamble / John): docs/specs/recording-calculator-tax-rules.md. Check it before changing any tax.
  * RATE SOURCE SEAM (adapter interface, documented in docs/CALCULATOR-FEES.md):
  *   { id, label, version, loadTables(): Promise<raw tabs> }   raw tabs = { CLA_Fees: [[header...], [row...]], Recording_Fees: [...], ... }
  *   vendoredRateSource          the built-in Nov 2 snapshot (also the fallback, and what tests use)

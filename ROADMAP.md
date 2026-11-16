@@ -716,6 +716,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/recording-calculator-md-loan-above-price.md](docs/specs/recording-calculator-md-loan-above-price.md)
+- Confirmed tax rules (all recording calculator work): [docs/specs/recording-calculator-tax-rules.md](docs/specs/recording-calculator-tax-rules.md)
 - Source: John Coester, Nov 16 2026; Melissa Gamble's email reply, Nov 16 2026.
 
 **Decisions**
