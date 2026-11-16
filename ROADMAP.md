@@ -650,7 +650,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** Any county or independent city in Maryland, Virginia, Florida or DC gets fees from Calculate fees from CLA rates. A county with rows of its own on the rate sheet uses them. Every other county uses the statewide rows, the same as the quote calculator. Spellings that mean the same place match ("Hillsborough County", "City of Fairfax", "Saint Johns", "Prince Georges"). A name that is not a county of that state is still refused.
 
-**Status: Built, not merged.** REC-CALC-6. Pull request: PRNUM. John Coester, Nov 15 2026 (voice: "make sure the fees are actually pulling to the portal", then "fix whatever's needed"), assigned to Claude. Built on top of REC-CALC-5 (PR 292, merged). No database file.
+**Status: Built, not merged.** REC-CALC-6. Pull request: [PR 296](https://github.com/Johncoester/cla-portal-demo/pull/296). John Coester, Nov 15 2026 (voice: "make sure the fees are actually pulling to the portal", then "fix whatever's needed"), assigned to Claude. Built on top of REC-CALC-5 (PR 292, merged). No database file.
 
 **What's built**
 
