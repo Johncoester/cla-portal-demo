@@ -827,7 +827,7 @@ export async function render({ api, user, go }) {
       const shown = uniqueProblems(problems);
       try { sessionStorage.setItem(PLACED_KEY, JSON.stringify({ dealId: deal.id, fileNumber: deal.fileNumber, address: `${deal.street}, ${deal.city}, ${deal.state} ${deal.zip || ''}`.trim(), transactionType: deal.transactionType,
         added, tasks, docs: saved, skipped, problems: shown, at: Date.now() })); } catch (err) { /* private mode: no confirmation panel, the toasts above still say it */ }
-      if (shown.length) {
+      if (problems.length) {
         const box = $('[data-wiz-step="review"] [data-wiz-errors]', root);
         if (box) { box.hidden = false; box.innerHTML = toText(html`<strong>Order ${deal.fileNumber} was created, but ${shown.every((m) => / fees were not saved /.test(m)) ? 'some agent fees were not saved' : 'these were not added'}.</strong><ul>${shown.map((m) => html`<li>${m}</li>`)}</ul><p>You are still on Place Order. <a href="#/deals/${deal.id}">Open ${deal.fileNumber}</a> and add ${shown.every((m) => / fees were not saved /.test(m)) ? 'them in the Agent fees box' : 'people on Contacts or Parties'}.</p>`); }
         if (btn) { btn.disabled = true; btn.textContent = 'Place order'; }
