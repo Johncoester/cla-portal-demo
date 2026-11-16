@@ -16,8 +16,7 @@ begin
   if exists (select 1 from private.agent_task_defs() where code = 'agent_schedule_settlement') then
     raise exception 'drift: the scheduling agent task is already defined'; end if;
   if to_regprocedure('private.agent_validate(text, jsonb)') is null
-     or to_regprocedure('private.make_agent_tasks(uuid)') is null
-     or to_regprocedure('private.rpc_submit_agent_task(uuid, jsonb)') is null then
+     or to_regprocedure('private.make_agent_tasks(uuid)') is null then
     raise exception 'drift: an agent task function is missing'; end if;
   if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'deals' and column_name = 'sched_buyer_date') then
     raise exception 'drift: scheduling columns already exist'; end if;
