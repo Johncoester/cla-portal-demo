@@ -5,7 +5,7 @@
 import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611161500';
 import * as PO from '../data/payoffs.js?v=202611070139';
 import { QUALIA_TABS, PRORATION_CYCLES, computeProration } from '../data/prorations.js?v=202611070139';
-import { defaultProrationDraft, prorationBasis } from '../data/prorate-defaults.js?v=202611223000';
+import { defaultProrationDraft, prorationBasis } from '../data/prorate-defaults.js?v=202611223100';
 const opt = (v, l, sel) => html`<option value="${v}" ${String(v) === String(sel ?? '') ? raw('selected') : ''}>${l}</option>`;
 const money = (n) => (n == null || n === '' ? '' : PO.usd(n));   // Qualia shows $301,485.00 in the inputs
 const usd = PO.usd;
