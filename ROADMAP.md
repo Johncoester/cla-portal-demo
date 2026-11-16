@@ -800,7 +800,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On Place Order, under Earnest money & agent fees, the listing agent and the selling agent each have Commission Paid By: Buyer, Seller, or Split. Split asks for the buyer's share and the seller's share, and the two amounts must add up to the commission. That commission then shows on the buyer side, the seller side, or both, on the settlement statement and the Closing Disclosure.
 
-**Status: In review.** Tracker row 325 (FF-089). Francis Santos, email Nov 16 2026, 3:10 PM ET, Processor 2, TEST file MD-26-97386. Pull request: opened with this change. Not applied to TEST. Not Live.
+**Status: In review.** Tracker row 325 (FF-089). Francis Santos, email Nov 16 2026, 3:10 PM ET, Processor 2, TEST file MD-26-97386. Pull request: [PR 300](https://github.com/Johncoester/cla-portal-demo/pull/300). Not applied to TEST. Not Live.
 
 **What's built**
 
