@@ -1,6 +1,6 @@
 /* CRM list page size (JN-46). Fake data only. No network and no hosted database. */
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
@@ -100,7 +100,7 @@ ok(read('js/pages/crm.js').includes("key: 'leads'") && read('js/pages/crm.js').i
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const full = path.join(dir, name);
-    if (statSync(full).isDirectory()) { if (name !== 'vendor') walk(full, out); }
+    if (statSync(full).isDirectory()) { if (name !== 'vendor') walk(full, out); else if (existsSync(path.join(full, 'cla-calculator'))) walk(path.join(full, 'cla-calculator'), out); }   // CLA's own vendored calculator imports its rate snapshot with a stamp; third-party vendor code stays skipped
     else if (/\.(js|html)$/.test(name)) out.push(full);
   }
   return out;
