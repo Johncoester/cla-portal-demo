@@ -3,9 +3,11 @@
  * Modify / Submit Revision, task-tied messages, Request Update (staff answer it), Share Access (RECORDED only: no email, no login is created),
  * "Complete Requests Now" invite email (preview + outbox only), rich-text messages with file attachments (Share Files), and the outside user's own
  * Activity feed (only things they can already open). Nothing here deletes anything; documents stay permanent. */
-import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611191700';
+import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611241000';
 import { senderFor } from './email-senders.js?v=202611101015';
 import { CLA_PHONE, isRefi } from './constants.js?v=202611101015';
+import { SCHEDULE_CODE, sideOfRole, schedulePatch, partyRecipients, schedulingLinkEmail, schedulingToldEmail, INVITE_FROM, INVITE_FROM_NAME } from './scheduling-details.js?v=202611241000';
+import { officeRows, officeNameOf } from './mock-part-offices.js?v=202611101015';
 export function agentPortal(x) {
   const { api: root, load, save, nid, needUser, isManager, notViewOnly, dealOr404, onDeal, log, prof, nameOf, ownerOf, taskVisible, threadVisible, unreadIn, docVisible, participantsOf, isStaffView,
     notify, dealProfileIds, dealView, contactOf, clone, now, fail, str, emailOk, C } = x;
@@ -27,7 +29,27 @@ export function agentPortal(x) {
     if (t.templateCode === 'agent_client_contacts') return { clients: clientsFor(t).map((c) => ({ participantId: c.participantId, represent: '', firstName: c.firstName, lastName: c.lastName, email: c.email, phone: c.phone, maritalStatus: '' })), added: [] };
     if (t.templateCode === 'agent_transaction_info') return { closingDate: q.closingDate || '', purchasePrice: q.purchasePrice == null ? '' : q.purchasePrice, emdAmount: q.emdAmount == null ? '' : q.emdAmount, holdingEmd: '', licenseId: lic,
       team: [] };
+    if (t.templateCode === SCHEDULE_CODE) return { askParty: 'no', date: q.closingDate || '', time: '', placeKind: 'office', officeId: '', street: '', city: '', state: '', zip: '', notes: '' };
     return { willPurchase: '' }; };
+  const queueAgentSchedule = (d, t, clean, u) => {
+    const q = d.deals.find((z) => z.id === t.dealId);
+    const people = clean.askParty ? partyRecipients(d.participants.filter((p) => p.dealId === q.id), d.contacts, clean.side) : [];
+    const kept = q.closingDate;
+    Object.assign(q, schedulePatch(clean, { by: 'agent', officeName: clean.officeId ? officeNameOf(d, clean.officeId) : '' }));
+    q.closingDate = kept;
+    if (!clean.askParty) { delete clean.partyLink; return; }
+    const token = nid('sched').replace(/[^a-z0-9]/gi, '');
+    const path = `#/schedule-party/${token}`;
+    if (!Array.isArray(d.schedulingLinks)) d.schedulingLinks = [];
+    d.schedulingLinks.push({ id: nid('sl'), dealId: q.id, side: clean.side, token, path, createdBy: u.id, createdAt: now(), expiresAt: new Date(Date.now() + 14 * 864e5).toISOString(), usedAt: null });
+    const from = { channel: 'email', kind: 'invite', status: 'queued', sentAt: null, fromEmail: INVITE_FROM, fromName: INVITE_FROM_NAME, from: `${INVITE_FROM_NAME} <${INVITE_FROM}>`, senderType: 'portal', dealId: q.id, createdBy: u.id, createdAt: now(), taskId: t.id };
+    people.forEach((person) => { const mail = schedulingLinkEmail({ side: clean.side, firstName: person.name.split(' ')[0], deal: q, link: path });
+      d.outbox.push({ ...from, id: nid('ob'), toEmail: person.email, toName: person.name, toProfileId: person.profileId, subject: mail.subject, body: mail.body }); });
+    const told = schedulingToldEmail({ side: clean.side, agentName: `${u.firstName || ''} ${u.lastName || ''}`.trim(), deal: q });
+    d.outbox.push({ ...from, id: nid('ob'), toEmail: u.email || '', toName: `${u.firstName || ''} ${u.lastName || ''}`.trim(), toProfileId: u.id, subject: told.subject, body: told.body });
+    clean.partyLink = path;
+    notify([u.id, q.processorId], { kind: 'settlement', dealId: q.id, title: `Asked the ${clean.side} to schedule the settlement`, link: `#/deals/${q.id}/closing` }, u.id);
+  };
   const taskOut = (u, t) => { const o = x.taskOut(u, t); const def = agentTaskDef(t.templateCode) || {}; const vis = answersVisible(u, t);
     const revs = load().agentTaskRevisions.filter((r) => r.taskId === t.id);
     return { ...o, about: def.about, code: t.templateCode, canSubmit: ownerOf(t) === u.id && t.status !== 'cancelled' && !C.viewOnly(u), submitted: t.status === 'done',
@@ -170,7 +192,10 @@ export function agentPortal(x) {
     async submitAgentTask(id, answers) {
       const u0 = needUser(); const [t, u] = agentTask(u0, id); notViewOnly(u);
       if (ownerOf(t) !== u.id) fail('Only the agent this task is for can submit it.'); if (t.status === 'cancelled') fail('This task was cancelled.');
-      const clean = validateAgentAnswers(t.templateCode, answers, { clients: clientsFor(t) });
+      const d0 = load();
+      const offices = t.templateCode === SCHEDULE_CODE ? officeRows(d0).filter((o) => o.active !== false).map((o) => ({ id: o.id, name: o.name })) : [];
+      const clean = validateAgentAnswers(t.templateCode, answers, { clients: clientsFor(t), side: sideOfRole(t.assignedRole), offices });
+      if (t.templateCode === SCHEDULE_CODE) queueAgentSchedule(d0, t, clean, u);
       const d = load(); const n = d.agentTaskRevisions.filter((r) => r.taskId === t.id).length + 1; const revision = t.status === 'done';
       d.agentTaskRevisions.push({ id: nid('atr'), taskId: t.id, n, answers: clone(clean), by: u.id, at: now() });
       t.formData = clean; t.savedAt = now(); t.savedBy = u.id; t.status = 'done'; t.completedAt = now(); t.completedBy = u.id;

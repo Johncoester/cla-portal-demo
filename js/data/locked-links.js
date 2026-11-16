@@ -62,7 +62,7 @@ export function canOpenTaskSetup(u, demo) {
 // ROUTE GUARD (every user, locked or not): a page is reachable only if it belongs to that user's portal (the same rules as the menu in app.js navFor).
 export function routeAllowed(u, route, { locked = false, demo = null } = {}) {
   const p = route.page;
-  if (p === 'schedule') return true;                                   // public closing-time link
+  if (p === 'schedule' || p === 'schedule-party') return true;         // public closing-time link and the buyer / seller scheduling link
   if (p === 'agent-invite') return !locked;   // one-time agent setup page: never inside a locked test-link session
   if (p === 'hr-invite') return !locked;      // HR: the employee's one-time login setup page, never inside a locked test-link session
   if (p === 'login') return !locked;

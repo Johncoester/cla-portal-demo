@@ -1,6 +1,8 @@
 // Closing Date tab: the processor sends time options; each side answers through its own link; the processor confirms; a request can be reopened.
 // Links are shown here to copy. Nothing is emailed from this build.
 import { html, raw, $, $$, guard, formData, modal, closeModal, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611161500';
+import { schedulingPanelHtml, wireSchedulingPanel } from './scheduling-panel.js?v=202611241000';
+import { settlementAgentChoices } from '../data/scheduling-details.js?v=202611241000';
 import { runsOrders, viewOnly, isProcessor, isClient, sideOf, isViewOnly, CLOSING_LOCATIONS } from '../data/constants.js?v=202611101015';
 import { placeText, OFFICE_LOCATION } from '../data/cla-offices.js?v=202611101015';
 import { SIGNING_METHODS, COUNTRIES, stateName, sideWord, canManageClosingLocations, canScheduleClosing } from '../data/closing-location.js?v=202611101015';
@@ -91,11 +93,17 @@ export async function render({ api, user, deal, refresh }) {
       <div class="span2 form-grid" data-side-manual ${s.placeKind === 'mobile_notary' || s.placeKind === 'manual' ? '' : raw('hidden')}><label>Street<input name="street" value="${s.street || ''}" maxlength="120"></label><label>City<input name="city" value="${s.city || ''}" maxlength="80"></label><label>State<input name="state" value="${s.state || ''}" maxlength="2"></label><label>ZIP<input name="zip" value="${s.zip || ''}" maxlength="10"></label></div>
       <div class="span2"><button class="m-btn" type="submit">Save ${s.label}</button></div></form>`; };
   const sideCard = staffView ? html`<div class="card" data-side-signing><h3>Signing by side</h3><p class="muted small">The buyer side and the seller side are set separately. Pending or Signed is what the processor sees for each side.</p>${sideBlock('buyer')}${sideBlock('seller')}</div>` : '';
-  const body = html`<div class="box-title"><h2><span class="h-ico"></span>Closing Date</h2>${proc && !anyOpen ? html`<button class="m-btn right" id="newreq">+ New closing date request</button>` : ''}</div>
+  const staffList = proc && api.listActiveStaff ? await api.listActiveStaff().catch(() => []) : [];
+  const choices = settlementAgentChoices(staffList);
+  const links = proc && api.schedulingCopyLinks ? await api.schedulingCopyLinks(deal.id).catch(() => []) : [];
+  const panel = schedulingPanelHtml({ deal, staff: !!proc, choices, links });
+  const body = html`<div class="box-title"><h2><span class="h-ico"></span>Scheduling Details</h2>${proc && !anyOpen ? html`<button class="m-btn right" id="newreq">+ New closing date request</button>` : ''}</div>
+    ${panel}
     <p class="muted">Current settlement date: <strong>${fmtDate(deal.closingDate) || 'not set'}</strong></p>
     ${flagBox}${sideCard}${scheduled}${whereCard}${propTable}
     ${list.length ? list.map(block) : html`<p class="muted">No closing date request yet.${proc ? ' Send one with a few time options; each side answers through its own link.' : ''}</p>`}`;
-  return { title: 'Closing Date', crumbs: [['Closing Date']], body, mount(root) {
+  return { title: 'Scheduling Details', crumbs: [['Scheduling Details']], body, mount(root) {
+    wireSchedulingPanel(root, { api, deal, refresh, choices });
     const nb = $('#newreq', root); if (nb) nb.addEventListener('click', guard(() => slotsModal('New closing date request', async (f) => { await api.createSettlementRequest(deal.id, f); toast('Request created. Copy the links to send them.'); }, true)));
     $$('[data-confirm]', root).forEach((b) => b.addEventListener('click', guard(async () => { if (!confirm('Confirm this closing time? It becomes the settlement date.')) return; await api.confirmSettlement(b.dataset.confirm, Number(b.dataset.slot)); toast('Closing time confirmed'); refresh(); })));
     const pb = $('#propose', root); if (pb) pb.addEventListener('click', guard(() => whenModal('Propose a closing time', async (f) => { await api.proposeClosing(deal.id, f); toast('Proposal sent to CLA Title'); })));

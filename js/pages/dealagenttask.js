@@ -2,8 +2,9 @@
 // Edit -> Submit -> "Task Complete". A completed task opens as View Submission (read-only) with Modify, which turns the button into Submit Revision.
 // "About This Task" sidebar with Send Message (a conversation with the processor tied to this task). Leaving with unsaved edits asks first.
 import { html, raw, toText, $, $$, guard, toast, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611161500';
-import { MARITAL } from '../data/agent-portal.js?v=202611191700';
+import { MARITAL } from '../data/agent-portal.js?v=202611241000';
 import { CLS, LABEL } from './dealtasks.js?v=202611223000';
+import { SCHEDULE_CODE, SCHEDULE_TIMES, scheduleTimeLabel, defaultSchedule, sideOfRole, askLabel, OTHER_LABEL, RON_LABEL, PLACE_OFFICE, PLACE_OTHER, PLACE_RON, placeSummary } from '../data/scheduling-details.js?v=202611241000';
 
 const yn = (name, val, label) => html`<fieldset class="span2 yn" data-k="${name}"><legend>${label}</legend>${['Yes', 'No'].map((o) => html`<label class="check"><input type="radio" name="${name}" value="${o}" ${val === o ? raw('checked') : ''}> ${o}</label>`)}<span class="ferr"></span></fieldset>`;
 const inp = (name, label, val, type = 'text', extra = '') => html`<label class="fld" data-k="${name}">${label}<input name="${name}" type="${type}" value="${val == null ? '' : val}" ${raw(extra)}><span class="ferr"></span></label>`;
@@ -25,6 +26,19 @@ function editForm(t, a, dealId = '') {
     <h4 class="span2">${t.assignedRole === 'Listing Agent' ? 'Listing' : 'Selling'} team members</h4>
     ${(a.team || []).map((p, i) => html`<div class="span2 form-grid card" data-team="${i}">${personFields(`team.${i}`, p, { married: false })}${inp(`team.${i}.company`, 'Company', p.company)}${inp(`team.${i}.licenseId`, 'Agency License ID', p.licenseId)}<button type="button" class="ghost" data-del-row="team.${i}">Remove</button></div>`)}
     <div class="span2"><button type="button" class="ghost" data-add-row="team">+ Add team member</button></div>`;
+  if (t.code === SCHEDULE_CODE) {
+    const seller = t.scheduleSide === 'seller';
+    const place = a.placeKind || PLACE_OFFICE;
+    const asked = a.askParty === true || a.askParty === 'yes';
+    return html`<label class="span2" data-k="askParty">${askLabel(t.scheduleSide)}<select name="askParty" data-ask-party><option value="no" ${asked ? '' : raw('selected')}>I will schedule this side</option><option value="yes" ${asked ? raw('selected') : ''}>${askLabel(t.scheduleSide)}</option></select><span class="ferr"></span></label>
+      <p class="span2 muted" data-ask-note ${asked ? '' : raw('hidden')}>A scheduling link is queued for the ${seller ? 'seller' : 'buyer'}. Nothing is emailed. You can leave the date and time blank.</p>
+      <label data-k="date">Settlement date<input type="date" name="date" value="${a.date || ''}"><span class="ferr"></span></label>
+      <label data-k="time">Time<select name="time"><option value="">Choose a time…</option>${SCHEDULE_TIMES.map((tm) => html`<option value="${tm}" ${tm === a.time ? raw('selected') : ''}>${scheduleTimeLabel(tm)}</option>`)}</select><span class="ferr"></span></label>
+      <label class="span2" data-k="placeKind">Where<select name="placeKind" data-sched-place><option value="${PLACE_OFFICE}" ${place === PLACE_OFFICE ? raw('selected') : ''}>CLA office</option><option value="${PLACE_OTHER}" ${place === PLACE_OTHER ? raw('selected') : ''}>${OTHER_LABEL}</option>${seller ? html`<option value="${PLACE_RON}" ${place === PLACE_RON ? raw('selected') : ''}>${RON_LABEL}</option>` : ''}</select><span class="ferr"></span></label>
+      <label class="span2" data-k="officeId" data-sched-office ${place === PLACE_OFFICE ? '' : raw('hidden')}>CLA office<select name="officeId">${(t.offices || []).map((o) => html`<option value="${o.id}" ${o.id === a.officeId ? raw('selected') : ''}>${o.name}${o.address ? html` — ${o.address}` : ''}</option>`)}</select><span class="muted small" data-office-hint>${t.officeHint || ''}</span><span class="ferr"></span></label>
+      <div class="span2 form-grid" data-sched-other ${place === PLACE_OTHER ? '' : raw('hidden')}><label data-k="street">Street<input name="street" maxlength="120" value="${a.street || ''}"><span class="ferr"></span></label><label>City<input name="city" maxlength="80" value="${a.city || ''}"></label><label>State<input name="state" maxlength="2" value="${a.state || ''}" placeholder="MD"></label><label>ZIP<input name="zip" maxlength="10" value="${a.zip || ''}"></label></div>
+      <label class="span2" data-k="notes">Notes<textarea name="notes" rows="3" maxlength="1000" placeholder="For example, the buyer is traveling">${a.notes || ''}</textarea><span class="ferr"></span></label>`;
+  }
   return html`${yn('willPurchase', a.willPurchase, 'Will you or someone else be purchasing a home warranty?')}
     <div class="span2 form-grid" data-hw-yes ${a.willPurchase === 'Yes' ? '' : raw('hidden')}>${sel('purchaser', 'Who is purchasing it?', ['Me', 'Someone else'], a.purchaser)}${inp('company', 'Warranty company (if known)', a.company)}</div>`;
 }
@@ -38,6 +52,7 @@ function viewSubmission(t, a) {
     ${(a.fees || []).map((f) => row(`${f.type}: ${f.name}`, `${fmtMoney(f.amount)} paid by ${f.paidBy}`))}
     ${row('Earnest deposit amount', fmtMoney(a.emdAmount))}${row('Holding earnest money given by the buyer?', a.holdingEmd)}${row('Agency License ID', a.licenseId)}
     ${(a.team || []).map((p) => row('Team member', `${p.firstName} ${p.lastName}, ${p.email}${p.phone ? ', ' + p.phone : ''}${p.company ? ', ' + p.company : ''}${p.licenseId ? ', license ' + p.licenseId : ''}`))}</dl>`;
+  if (t.code === SCHEDULE_CODE) return html`<dl class="answers" data-schedule-view>${row(askLabel(t.scheduleSide || a.side), a.askParty ? 'Yes' : 'No')}${row('Settlement date', a.date ? fmtDate(a.date) : '')}${row('Time', scheduleTimeLabel(a.time))}${row('Where', placeSummary(a))}${row('Notes', a.notes)}${a.partyLink ? row('Scheduling link (queued, not emailed)', a.partyLink) : ''}</dl>`;
   return html`<dl class="answers">${row('Will you or someone else be purchasing a home warranty?', a.willPurchase)}${a.willPurchase === 'Yes' ? html`${row('Who', a.purchaser)}${row('Company', a.company)}` : ''}</dl>`;
 }
 // read the form back into the answers shape (paths like clients.0.spouse.email)
@@ -50,7 +65,20 @@ function readForm(form, base) {
 const blank = { added: { firstName: '', lastName: '', email: '', phone: '', maritalStatus: '' }, team: { firstName: '', lastName: '', email: '', phone: '', company: '', licenseId: '' } };
 
 export async function render({ api, deal, params, go }) {
-  let t = await api.getAgentTask(params.sub); let editing = t.canSubmit && !t.submitted; let answers = t.answers; let dirty = false; const justDone = /[?&]done=1/.test(location.hash);
+  let t = await api.getAgentTask(params.sub); let editing = t.canSubmit && !t.submitted; let answers = t.answers || {}; let dirty = false; const justDone = /[?&]done=1/.test(location.hash);
+  if (t.code === SCHEDULE_CODE) {
+    t.scheduleSide = sideOfRole(t.assignedRole);
+    const book = await api.getClosingOfficeDefault(deal.id).catch(() => ({ offices: [], officeId: '', text: '' }));
+    t.offices = book.offices || [];
+    t.officeHint = book.officeId ? `Closest to the property: ${book.text || 'the nearest CLA office'}. You can change it.` : (book.text || '');
+    if (!t.submitted) {
+      const base = defaultSchedule(deal, t.scheduleSide, book.officeId || '');
+      answers = { ...base, ...answers };
+      if (!answers.officeId) answers.officeId = book.officeId || '';
+      if (!answers.placeKind) answers.placeKind = PLACE_OFFICE;
+      if (!answers.date) answers.date = deal.closingDate || '';
+    }
+  }
   window.claDirty = () => dirty;
   const head = () => html`<p class="muted small">For <strong>${t.ownerName}</strong> (${t.assignedRole}) &middot; due ${fmtDate(t.dueDate) || 'n/a'} &middot; ${pill(t.submitted ? 'complete' : LABEL[t.status], t.submitted ? 'ok' : CLS[t.status])}${t.revisionCount ? html` &middot; submitted ${t.revisionCount === 1 ? 'once' : `${t.revisionCount} times (${t.revisionCount - 1} revision${t.revisionCount > 2 ? 's' : ''})`}` : ''}${t.completedAt ? html` &middot; last ${fmtDateTime(t.completedAt)}` : ''}</p>`;
   const main = () => t.answersHidden ? html`<p class="muted" data-answers-hidden>Only ${t.ownerName}, the processor, the coordinator and Admin can see these answers.</p>`
@@ -69,7 +97,11 @@ export async function render({ api, deal, params, go }) {
     if (!form) return;
     const sync = () => { $$('[data-represent]', form).forEach((el) => { const r = form.querySelector(`[name="clients.${el.dataset.represent}.represent"]:checked`); el.hidden = !(r && r.value === 'Yes'); });
       $$('[data-spouse]', form).forEach((el) => { const s = form.elements[`${el.dataset.spouse}.maritalStatus`]; el.hidden = !(s && s.value === 'Married'); });
-      const hw = $('[data-hw-yes]', form); if (hw) { const r = form.querySelector('[name=willPurchase]:checked'); hw.hidden = !(r && r.value === 'Yes'); } };
+      const hw = $('[data-hw-yes]', form); if (hw) { const r = form.querySelector('[name=willPurchase]:checked'); hw.hidden = !(r && r.value === 'Yes'); }
+      const place = form.elements.placeKind; const office = $('[data-sched-office]', form); const other = $('[data-sched-other]', form); const note = $('[data-ask-note]', form);
+      if (place && office) office.hidden = place.value !== PLACE_OFFICE;
+      if (place && other) other.hidden = place.value !== PLACE_OTHER;
+      if (note && form.elements.askParty) note.hidden = form.elements.askParty.value !== 'yes'; };
     form.addEventListener('input', () => { dirty = true; }); form.addEventListener('change', () => { dirty = true; sync(); }); sync();
     $$('[data-add-row]', form).forEach((b) => b.addEventListener('click', () => { answers = readForm(form, answers); const k = b.dataset.addRow; answers[k] = [...(answers[k] || []), { ...blank[k] }]; dirty = true; draw(root); }));
     $$('[data-del-row]', form).forEach((b) => b.addEventListener('click', () => { answers = readForm(form, answers); const [k, i] = b.dataset.delRow.split('.'); answers[k].splice(Number(i), 1); dirty = true; draw(root); }));

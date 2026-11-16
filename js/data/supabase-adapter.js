@@ -765,6 +765,12 @@ export async function createSupabaseAdapter(cfg) {
       const view = await this.getAgentTask(id);
       return { ...view, status: 'done', submitted: true, canSubmit: false, answers: view.answersHidden ? null : answers };
     },
+    // MF-056: buyer / seller scheduling link and the processor's settlement agent. The database queues the outbox row. Nothing is sent.
+    async getPartySchedule(token) { return camel(ok(await sb.rpc('get_party_schedule', { p_token: token }))) || {}; },
+    async submitPartySchedule(token, answers) { return camel(ok(await sb.rpc('submit_party_schedule', { p_token: token, p_answers: answers }))) || {}; },
+    async schedulingCopyLinks(dealId) { return camel(ok(await sb.rpc('scheduling_copy_links', { p_deal: dealId })) || []); },
+    async saveSettlementAgent(dealId, input = {}) { return ok(await sb.rpc('save_settlement_agent', { p_deal: dealId, p_name: input.name || '', p_profile: input.profileId || null, p_confirmed: !!input.confirmed })); },
+    async saveSchedulingNotes(dealId, notes) { return ok(await sb.rpc('save_scheduling_notes', { p_deal: dealId, p_notes: notes || '' })); },
     // Matt, Nov 3 (migration 26): entity documents requested from buyers / sellers acting as an entity (person, processor, coordinator, Admin)
     async listEntityDocRequests(dealId) { return camel(ok(await sb.rpc('entity_doc_requests', { p_deal: dealId }))); },
     async saveTaskForm(id, data, { complete = false } = {}) { return ok(await sb.rpc('save_task_form', { p_task: id, p_data: data, p_complete: complete })); },
