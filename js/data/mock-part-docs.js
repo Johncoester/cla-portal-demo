@@ -2,6 +2,7 @@
 import { cleanEntity } from './mock-part-nov3b.js?v=202611221900';
 import { cleanLenderRole } from './lender-file.js?v=202611222700';
 import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611101015';
+import { STAFF_TC_MESSAGE, STAFF_TC_ROLE, agentTcAlreadyMessage, agentTcRefiMessage, isAgentTcRole } from './agent-tc.js?v=202611241300';
 import { acceptDocType } from './document-type.js?v=202611100945';
 import { assertContactSaved, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
 import { processorStaffError, clearProcessorParties } from './processor-party.js?v=202611221800';
@@ -83,13 +84,13 @@ export function contactsTasksDocs(x) {
     // Matt, Nov 3 (b): opts.entity = a buyer / seller who is an entity (name, type, Entity Representative); see cleanEntity
     async addParticipant(dealId, contactId, role, opts = {}) {
       const u = needProcessor(); const d = load(); const deal = d.deals.find((z) => z.id === dealId) || fail('Order not found.');
-      if (!C.PARTICIPANT_ROLES.includes(role)) fail('Unknown role.');
-      if (isRefi(deal) && REFI_BLOCKED_ROLES.includes(role)) fail(refiRoleMsg(role));   // John, Nov 3: refinance = borrower(s), salespeople, Processor, Lender (migration 32)
+      if (!C.PARTICIPANT_ROLES.includes(role) && !isAgentTcRole(role)) fail('Unknown role.');
+      if (isRefi(deal) && (REFI_BLOCKED_ROLES.includes(role) || isAgentTcRole(role))) fail(isAgentTcRole(role) ? agentTcRefiMessage() : refiRoleMsg(role));   // John, Nov 3: refinance = borrower(s), salespeople, Processor, Lender (migration 32). FF-088: the agents' coordinators are purchase-only too.
       const rawId = String(contactId || '');
       if (rawId.startsWith('staff:')) contactId = ensureStaffContact(rawId.slice(6)).id;
       const c = d.contacts.find((z) => z.id === contactId) || fail('Contact not found.');
       const onFile = d.participants.filter((p) => p.dealId === dealId && p.role === role).map((p) => ({ role: p.role, contactId: p.contactId, contact: d.contacts.find((z) => z.id === p.contactId) || {} }));
-      if (sameParty(onFile, c, role)) fail(duplicatePartyMessage(c, role));
+      if (sameParty(onFile, c, role)) fail(isAgentTcRole(role) ? agentTcAlreadyMessage(c, role) : duplicatePartyMessage(c, role));
       // per-file roles: an outside user's login takes its permissions from this row, so keep it unambiguous
       const login = c.profileId && prof(c.profileId);
       if (login && login.status !== 'removed' && C.isOutside(login.role)) {
@@ -104,9 +105,10 @@ export function contactsTasksDocs(x) {
         if (has.length && !(has.length === 1 && C.pairAllowed(has[0].role, role)))
           fail(`This person is already the ${has.map((h) => h.role).join(' and ')} on this order. Only an agent buying or selling for themselves can hold two roles (Client-Buyer + Buyer Agent, or Client-Seller + Listing Agent); remove that role first.`);
       }
-      // John, ANYROLE-1: any active staff login can be the file's Transaction Coordinator.
-      if (role === 'Transaction Coordinator' && !(login && login.status === 'active' && C.STAFF_ACCOUNT_ROLES.includes(login.role)))
-        fail('Only an active staff login can be the Transaction Coordinator on an order.');
+      // John, ANYROLE-1: any active staff login can be the file's CLA Transaction Coordinator.
+      // FF-088: Buyer Agent TC and Listing Agent TC are the agents' coordinators and are not checked here.
+      if (role === STAFF_TC_ROLE && !(login && login.status === 'active' && C.STAFF_ACCOUNT_ROLES.includes(login.role)))
+        fail(STAFF_TC_MESSAGE);
       // PROC-1: a staff login added as Processor is the file's processor. A contact with no login
       // can still be listed (Share Files and closing already allow that) and is not the file processor.
       if (role === 'Processor' && login) { const msg = processorStaffError(login, u); if (msg) fail(msg); }

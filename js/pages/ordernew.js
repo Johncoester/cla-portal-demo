@@ -1,6 +1,7 @@
 // Place Order (Processor, Admin, Super admin; John Nov 2): creates a deal and links the chosen people (their intake tasks are copied from the current task templates).
 // John, Nov 2 (later): Open Date (backdating allowed, never future), every US state (no default), EMD amount + due date, documents attached at placement,
-// type-to-search pickers for Buyer / Seller / Buyer Agent / Listing Agent, one "Add new user" place, and Transaction Coordinator = TC accounts only.
+// type-to-search pickers for Buyer / Seller / Buyer Agent / Listing Agent, one "Add new user" place.
+// FF-088: each side's transaction coordinator is an outside contact, not the CLA staff Transaction Coordinator.
 // REDESIGN (John, Nov 3): the same form is now a STEP-BY-STEP flow modeled on the existing portal's order opening (docs/ORDER-OPEN-REFERENCE.md):
 //   1 Transaction -> 2 Property -> 3 Buyers & Sellers -> 4 Lender & Loan -> 5 Agents -> 6 Team & Notes -> 7 Review & Submit
 // with a progress bar (click any step to jump to it), per-step validation on Next, a review summary and a confirmation panel on the new order's page.
@@ -28,6 +29,7 @@ import { readEarnest } from '../data/earnest-commission.js?v=202611223000';
 import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611222800';
 import { SIDE_LABEL as AF_SIDE_LABEL } from '../data/agent-fees.js?v=202611222800';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
+import { AGENT_TC_ROLES, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, isAgentTcRole, partyProblemLine, roleForPartyField, uniqueProblems } from '../data/agent-tc.js?v=202611241300';
 import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611222700';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611162200';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
@@ -70,6 +72,11 @@ const agentCard = (role, label) => html`<div class="agent-card party-dir" data-a
   <label>Role<select data-agent-role aria-label="${label} role"><option value="Buyer Agent" ${role === 'Buyer Agent' ? raw('selected') : ''}>Buyer agent</option><option value="Listing Agent" ${role === 'Listing Agent' ? raw('selected') : ''}>Listing agent</option></select></label>
   <input type="hidden" name="p:${role}" value="">
   <p class="muted small">Choose a company or agent, or type the person and company. No portal login is created, and no invite is sent.</p></div>`;
+const agentTcCard = (role, label) => html`<div class="agent-card party-dir" data-agent-tc="${role}" data-dir="p:${role}">${dirSelect(`${label} — existing contact`)}
+  ${dirFields(label)}
+  <input type="hidden" name="p:${role}" value="">
+  <button type="button" class="ghost" data-add-tc="${role}">+ Add ${label.toLowerCase()}</button>
+  <p class="muted small">Optional. An outside contact, with or without a portal login. No invite is sent. This is not the CLA Title Transaction Coordinator.</p></div>`;
 const partyBlock = (role, label) => html`<fieldset class="span2 multi-party" data-multi="${role}"><legend>${label}s</legend>
   <div class="multi-rows" data-rows>${Array.from({ length: MIN_ROWS }, (_, i) => partyRow(role, label, i + 1))}</div><button type="button" class="ghost" data-add-row="${role}">+ Add another ${MULTI[role]}</button></fieldset>`;
 
@@ -83,7 +90,7 @@ export const REFI_HIDE = ['purchasePrice', 'emdAmount', 'emdDueDate'];
 const SEARCH = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer agent'], ['Listing Agent', 'Listing agent'], ['Lender', 'Lender']];   // Lender slot: John, Nov 2 (contact type)
 // people are added to the order in this role order (the order the one-page form used), whichever step they were picked on
 // Sales Team is not collected on Place Order (MF-020). A Sales Team person already on a file stays there.
-const ADD_ORDER = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'Lender', 'Transaction Coordinator'];
+const ADD_ORDER = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', BUYER_AGENT_TC, LISTING_AGENT_TC, 'Lender', 'Transaction Coordinator'];
 // Form fields can lose the hidden id. The picker state is the person who was actually selected.
 export function partyEntries(formParts, picks) {
   const merged = new Map((formParts || []).filter((part) => part && part.name && String(part.contactId || '').trim()).map((part) => [part.name, { name: part.name, contactId: String(part.contactId).trim(), role: part.role }]));
@@ -111,16 +118,14 @@ export async function render({ api, user, go }) {
   if (!runsOrders(user)) throw new Error('Only a Processor or Admin can place orders.');
   const contacts = await api.listContacts();
   const optional = async (fn) => { try { return (await fn()) || []; } catch (e) { return []; } };
-  const staff = await optional(() => api.listSalesStaff()); const procs = await optional(() => api.listProcessors()); const preprocs = await optional(() => api.listPreprocessors()); const tcs = await optional(() => api.listCoordinators());
+  const staff = await optional(() => api.listSalesStaff()); const procs = await optional(() => api.listProcessors()); const preprocs = await optional(() => api.listPreprocessors());
   const closers = closerChoices(await optional(() => api.listActiveStaff()));
   // the file's Processor: Unassigned is the default. Any active staff login (including Super admin) can be picked.
   const today = officeDate();
   // "Add new user" roles. Salesperson creates a staff login, which is Admin-only (John's earlier decision), so only Admins / Super admins see it.
-  const NEW_ROLES = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer Agent'], ['Listing Agent', 'Listing Agent'], ['Lender', 'Lender'], ['Transaction Coordinator', 'Transaction coordinator'], ...(user.isAdmin ? [['Sales Person', 'Salesperson']] : [])];
+  const NEW_ROLES = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer Agent'], ['Listing Agent', 'Listing Agent'], ['Lender', 'Lender'], [BUYER_AGENT_TC, agentTcLabel(BUYER_AGENT_TC)], [LISTING_AGENT_TC, agentTcLabel(LISTING_AGENT_TC)], ...(user.isAdmin ? [['Sales Person', 'Salesperson']] : [])];
   const visOpts = visibilityChoices(user.role, user.isAdmin);
   const salesBox = (s, checked = false) => html`<label class="check"><input type="checkbox" name="salesIds" value="${s.id}" ${checked ? raw('checked') : ''}> ${s.firstName} ${s.lastName} <span class="muted small">(${s.role})</span></label>`;
-  const tcBlank = tcs.length ? '(none)' : '(none available for this login)';
-  const tcSelect = (name, label) => html`<label>${label}<select name="${name}"><option value="">${tcBlank}</option>${options(tcs, '', (c) => `${c.firstName} ${c.lastName}${c.company ? ' \u2014 ' + c.company : ''}`, (c) => c.contactId)}</select></label>`;
   const N = STEPS.length;
   const panel = (key, inner, intro) => { const i = STEPS.findIndex((s) => s[0] === key); const [, title] = STEPS[i];
     return html`<section class="wiz-panel" data-wiz-step="${key}" aria-labelledby="wiz-h-${key}" ${i ? raw('hidden') : ''}>
@@ -191,10 +196,8 @@ export async function render({ api, user, go }) {
         <p class="muted small">Choose a company or loan officer, or type the company and the person. No portal login is created, and no invite is sent. Company name, phone and email fill in when you choose someone (change them for this order if needed). The loss payee clause lists clauses already used for that company, and you can edit the text.</p></div>`,
         'Money is typed with commas (485,000). Every amount is optional and can be filled in later.')}
       ${panel('agents', html`<div class="form-grid agents-grid">${agentCard('Buyer Agent', 'Buyer agent')}${agentCard('Listing Agent', 'Listing agent')}
-        ${tcSelect('p:Transaction Coordinator', "Buyer's transaction coordinator")}<button type="button" class="ghost" data-add-tc="p:Transaction Coordinator">+ Add buyer's transaction coordinator</button>
-        ${tcSelect('p:Transaction Coordinator:2', 'Listing transaction coordinator')}<button type="button" class="ghost" data-add-tc="p:Transaction Coordinator:2">+ Add listing transaction coordinator</button>
-        ${tcs.length ? '' : html`<p class="span2 muted small" data-no-tc>No transaction coordinator is available for this login.</p>`}</div>
-        <p class="muted small">Both transaction coordinators are optional and are saved as transaction coordinators on the order. A new person needs a Transaction Coordinator login before they can be the coordinator on the file. Agents never see wire instructions.</p>`,
+        ${agentTcCard(BUYER_AGENT_TC, "Buyer's transaction coordinator")}${agentTcCard(LISTING_AGENT_TC, 'Listing transaction coordinator')}</div>
+        <p class="muted small">Each side's transaction coordinator is optional. Type the person, or choose someone already saved. They are saved as that agent's coordinator. A portal login is not required, and this does not set the CLA Title Transaction Coordinator. Agents never see wire instructions.</p>`,
         'The realtors on each side, who referred the file, and each side\'s transaction coordinator.')}
       ${panel('team', html`<div class="form-grid">
         <label>Processor<select name="processorId" data-processor-select><option value="">Unassigned</option></select> <button type="button" class="ghost" data-refresh-processors>Refresh list</button><span class="field-hint">Leave Unassigned to save the file now. A Processor added after you opened this page appears when you refresh the list. Nothing else on the form is cleared.</span></label><label>Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select>${preprocs.length ? '' : html`<span class="field-hint" data-no-preproc>No preprocessor is available for this login.</span>`}</label>
@@ -343,7 +346,7 @@ export async function render({ api, user, go }) {
         get typed() { return [personInput(), companyInput(), phoneInput(), emailInput()].some((input) => input && String(input.value || '').trim()); },
         read() {
           return {
-            label: role === 'Buyer Agent' ? 'Buyer agent' : role === 'Listing Agent' ? 'Listing agent' : 'Lender',
+            label: role === 'Buyer Agent' ? 'Buyer agent' : role === 'Listing Agent' ? 'Listing agent' : role === 'Lender' ? 'Lender' : agentTcLabel(role),
             contactId: selected || hid.value || '',
             person: personInput() ? personInput().value : '',
             company: companyInput() ? companyInput().value : '',
@@ -373,7 +376,7 @@ export async function render({ api, user, go }) {
         },
       };
     };
-    const pickers = { 'Buyer Agent': mountDir('Buyer Agent'), 'Listing Agent': mountDir('Listing Agent'), Lender: mountDir('Lender') };
+    const pickers = { 'Buyer Agent': mountDir('Buyer Agent'), 'Listing Agent': mountDir('Listing Agent'), Lender: mountDir('Lender'), [BUYER_AGENT_TC]: mountDir(BUYER_AGENT_TC), [LISTING_AGENT_TC]: mountDir(LISTING_AGENT_TC) };
     const moveAgent = (from, to) => {
       const card = $(`[data-agent-card="${from}"]`, root);
       const snap = pickers[from].snapshot();
@@ -422,7 +425,8 @@ export async function render({ api, user, go }) {
     Object.keys(MULTI).forEach((role) => { rows[role] = []; $$(`[data-multi="${role}"] [data-party-row]`, root).forEach((el) => hookRow(role, el));
       $(`[data-add-row="${role}"]`, root).addEventListener('click', () => { const r = addRow(role); $('.picker-q', r.el).focus(); }); });
     // which pickers count for this transaction type (a refinance ignores the hidden seller / realtor boxes completely)
-    const counts = (role) => !(refi() && REFI_BLOCKED_ROLES.includes(role));
+    const blockedOnRefi = (role) => REFI_BLOCKED_ROLES.includes(role) || isAgentTcRole(role);
+    const counts = (role) => !(refi() && blockedOnRefi(role));
     // ---------- the steps ----------
     const active = () => STEPS.map((s) => s[0]).filter((k) => !(k === 'agents' && refi()));   // a refinance has no Agents step
     let cur = 'transaction'; const visited = new Set(['transaction']); const bad = new Set();
@@ -445,8 +449,8 @@ export async function render({ api, user, go }) {
       const legend = $('legend', add); const openBtn = $('#an-open', root);
       if (cur === 'loan') { legend.textContent = 'Add lender'; openBtn.textContent = '+ Add lender'; }
       else { legend.textContent = 'Add new user'; openBtn.textContent = '+ Add new user'; }
-      const rolePick = $('#an-role', root); const allowed = cur === 'loan' ? ['Lender'] : cur === 'agents' ? ['Buyer Agent', 'Listing Agent', 'Transaction Coordinator', 'Sales Person'] : ['Client-Buyer', 'Client-Seller', 'Sales Person'];
-      if (rolePick) [...rolePick.options].forEach((o) => { if (!o.value) return; const hide = !allowed.includes(o.value) || (refi() && REFI_BLOCKED_ROLES.includes(o.value)); o.hidden = hide; o.disabled = hide; if (o.value === 'Client-Buyer') o.textContent = refi() ? 'Borrower' : 'Buyer'; });
+      const rolePick = $('#an-role', root); const allowed = cur === 'loan' ? ['Lender'] : cur === 'agents' ? ['Buyer Agent', 'Listing Agent', ...AGENT_TC_ROLES, 'Sales Person'] : ['Client-Buyer', 'Client-Seller', 'Sales Person'];
+      if (rolePick) [...rolePick.options].forEach((o) => { if (!o.value) return; const hide = !allowed.includes(o.value) || (refi() && blockedOnRefi(o.value)); o.hidden = hide; o.disabled = hide; if (o.value === 'Client-Buyer') o.textContent = refi() ? 'Borrower' : 'Buyer'; });
       if (rolePick && rolePick.value && rolePick.selectedOptions[0] && rolePick.selectedOptions[0].disabled) rolePick.value = cur === 'loan' ? 'Lender' : '';
       $('[data-wiz-back]', root).hidden = i <= 0; const nx = $('[data-wiz-next]', root); nx.hidden = cur === 'review';
       if (cur !== 'review') nx.innerHTML = `Next: ${toText(stepTitle(list[i + 1]))} &rarr;`;
@@ -499,7 +503,7 @@ export async function render({ api, user, go }) {
         if (!ALLOWED_UPLOAD_EXT.includes((file.name.split('.').pop() || '').toLowerCase())) errs.push({ el: input, msg: `${file.name}: that file type is not allowed.` }); } };
       if (k === 'transaction') fileErr(txIn);
       if (k === 'team') fileErr(fileIn);
-      if (k === 'agents') ['Buyer Agent', 'Listing Agent'].filter(counts).forEach((role) => { const entry = manualPartyEntry(pickers[role].read()); if (!entry.ok) errs.push({ el: $(`[data-dir="p:${role}"] [data-dir-field="email"]`, p), msg: entry.error }); });
+      if (k === 'agents') ['Buyer Agent', 'Listing Agent', ...AGENT_TC_ROLES].filter(counts).forEach((role) => { const entry = manualPartyEntry(pickers[role].read()); if (!entry.ok) errs.push({ el: $(`[data-dir="p:${role}"] [data-dir-field="email"]`, p) || $(`[data-dir="p:${role}"] [data-dir-field="phone"]`, p), msg: entry.error }); });
       return errs; };
     const clearMarks = (p) => { $$('[data-ferr]', p).forEach((x) => x.remove()); $$('.has-err', p).forEach((x) => x.classList.remove('has-err')); $$('[aria-invalid]', p).forEach((x) => x.removeAttribute('aria-invalid')); };
     const mark = (k, errs) => { const p = $(`[data-wiz-step="${k}"]`, root); clearMarks(p); const box = $('[data-wiz-errors]', p);
@@ -559,7 +563,7 @@ export async function render({ api, user, go }) {
                     ['Lender', (pickers.Lender.value || f.lenderName || ($('[data-lender-person]', root) && $('[data-lender-person]', root).value)) ? html`${f.lenderName ? html`<strong>${f.lenderName}</strong>` : ''}${pickers.Lender.value ? html`${f.lenderName ? ' · ' : ''}${nameOf(pickers.Lender.value)}` : (($('[data-lender-person]', root) && $('[data-lender-person]', root).value.trim()) ? html`${f.lenderName ? ' · ' : ''}${$('[data-lender-person]', root).value.trim()} <span class="muted small">(typed on this file)</span>` : '')}${f.lenderPhone || f.lenderEmail || f.lossPayeeName || f.mortgageBrokerName || f.cplAddress ? html`<br><span class="muted small">${[f.lenderPhone, f.lenderEmail, f.mortgageBrokerName && ('Brokerage: ' + f.mortgageBrokerName), f.lossPayeeName && ('Loss payee: ' + f.lossPayeeName), f.cplAddress && ('CPL: ' + f.cplAddress)].filter(Boolean).join(' · ')}</span>` : ''}` : dash],
           ['Lender contacts', readLenderContactRows(form).length ? readLenderContactRows(form).map((row) => html`<div>${[row.firstName, row.lastName].filter(Boolean).join(' ')} <span class="muted small">${row.lenderRole === 'lender_tc' ? 'Lender TC' : row.lenderRole === 'loan_officer' ? 'Loan Officer' : ''}</span></div>`) : dash]])}
         ${section('parties', 'Source of business', [['Source of business', val((() => { const picked = $$('[name=referralSource]', root).find((el) => el.checked && el.value); return picked ? (picked.getAttribute('aria-label') || '').replace(/^Source of business:\s*/, '') : ''; })())]])}
-        ${r ? '' : section('agents', 'Agents', [['Buyer agent', agentReview('Buyer Agent')], ['Listing agent', agentReview('Listing Agent')], ["Buyer's transaction coordinator", val(selText($('[name="p:Transaction Coordinator"]', root)))], ['Listing transaction coordinator', val(selText($('[name="p:Transaction Coordinator:2"]', root)))]])}
+        ${r ? '' : section('agents', 'Agents', [['Buyer agent', agentReview('Buyer Agent')], ['Listing agent', agentReview('Listing Agent')], ["Buyer's transaction coordinator", agentReview(BUYER_AGENT_TC)], ['Listing transaction coordinator', agentReview(LISTING_AGENT_TC)]])}
         ${section('team', 'Team & Notes', [['Processor', val(selText($('[name=processorId]', root)).replace(/^Choose the Processor.*$/, ''))], ['Preprocessor', val(selText($('[name=preprocessorUserId]', root)))], ['Closer', val(f.closerName)], ['Sales Rep', sales.length ? sales.join(', ') : dash],
           ['Notes', f.notes ? html`<span class="review-notes">${f.notes.length > 240 ? f.notes.slice(0, 240) + '\u2026' : f.notes}</span>` : dash],
           ['Documents', files.length ? html`${files.map((x, i) => html`<div>${x.name} <span class="muted small">${fmtSize(x.size)}${($(`[data-doctype="${i}"]`, root) || {}).value ? ' \u00b7 ' + $(`[data-doctype="${i}"]`, root).value : ''}</span></div>`)}<span class="muted small">${selText($('#nof-vis', root))}${$('#nof-wire', root).checked ? ' \u00b7 wire instructions (never shown to agents)' : ''}</span>` : dash]])}
@@ -576,13 +580,14 @@ export async function render({ api, user, go }) {
       $('[data-refi-note]', root).hidden = !on;
       $('[data-multi="Client-Seller"]', root).hidden = on;
       ['Buyer Agent', 'Listing Agent'].forEach((r) => { const card = $(`[data-agent-card="${r}"]`, root); if (card) card.hidden = on; });
+      AGENT_TC_ROLES.forEach((r) => { const card = $(`[data-agent-tc="${r}"]`, root); if (card) card.hidden = on; });
       const bf = $('[data-multi="Client-Buyer"]', root); bf.dataset.refi = String(on);
       $('legend', bf).textContent = on ? 'Borrowers' : 'Buyers'; $('[data-add-row="Client-Buyer"]', bf).textContent = on ? '+ Add another borrower' : '+ Add another buyer';
       const docLabel = $('[data-tx-doc-label]', root); if (docLabel) docLabel.textContent = on ? 'Upload title request' : 'Upload sales contract';
       renumber('Client-Buyer'); syncMd(); syncReferral();
       // Add new user: no seller / realtor roles on a refinance; Buyer reads Borrower
-      [...anRole.options].forEach((o) => { if (REFI_BLOCKED_ROLES.includes(o.value)) { o.hidden = on; o.disabled = on; } if (o.value === 'Client-Buyer') o.textContent = on ? 'Borrower' : 'Buyer'; });
-      if (on && REFI_BLOCKED_ROLES.includes(anRole.value)) { anRole.value = ''; anRole.dispatchEvent(new Event('change')); }
+      [...anRole.options].forEach((o) => { if (blockedOnRefi(o.value)) { o.hidden = on; o.disabled = on; } if (o.value === 'Client-Buyer') o.textContent = on ? 'Borrower' : 'Buyer'; });
+      if (on && blockedOnRefi(anRole.value)) { anRole.value = ''; anRole.dispatchEvent(new Event('change')); }
       ['agents'].forEach((k) => { if (on) { bad.delete(k); } });
       paint(); };
     // "Add new user" / "Select existing person" with role Buyer or Seller APPENDS: fills the first empty row, else adds a row
@@ -614,14 +619,14 @@ export async function render({ api, user, go }) {
       $('#an-first-t', root).textContent = lender ? 'Contact first name (optional)' : entity ? 'Representative first name (optional)' : 'First name *';
       $('#an-first', root).required = false;
       $('#an-last-l', root).firstChild.textContent = lender ? 'Contact last name (optional)' : entity ? 'Representative last name (optional)' : 'Last name';
-      $('#an-company-l', root).hidden = !(r === 'Buyer Agent' || r === 'Listing Agent' || r === 'Lender'); $('#an-company-t', root).textContent = lender ? 'Lender company name *' : 'Brokerage / company';
-      $('#an-ctype-l', root).hidden = !r || r === 'Sales Person'; $('#an-ctype', root).value = contactTypeForRole(r); $('#an-lrole-l', root).hidden = !lender; $('#an-email-req', root).hidden = r !== 'Sales Person';
+      $('#an-company-l', root).hidden = !(r === 'Buyer Agent' || r === 'Listing Agent' || r === 'Lender' || isAgentTcRole(r)); $('#an-company-t', root).textContent = lender ? 'Lender company name *' : 'Brokerage / company';
+      $('#an-ctype-l', root).hidden = !r || r === 'Sales Person'; $('#an-ctype', root).value = isAgentTcRole(r) ? 'realtor' : contactTypeForRole(r); $('#an-lrole-l', root).hidden = !lender; $('#an-email-req', root).hidden = r !== 'Sales Person';
       $('#an-note', root).textContent = r === 'Sales Person' ? 'A Sales Person login is created in HR. Add the employee there and copy the invite link. Nothing is emailed.'
         : lender ? 'Adds the lender company as a contact. No portal login is created. A contact person is optional, and this does not change another lender\'s saved record.'
         : entity ? 'The entity name is the buyer or seller. First and last are only a representative and can be left blank. The entity name is not split into a first and last name. No portal login is created.'
         : r ? `Adds a contact (no portal login, no email or invite is sent) and ${MULTI[r] ? `adds them to the ${MULTI[r]}s of this order (after any already chosen)` : `puts them in the ${NEW_ROLES.find((x) => x[0] === r)[1]} slot of this order`}.` : ''; };
     $('#an-open', root).addEventListener('click', () => { anForm.hidden = false; if (cur === 'loan' && !anRole.value) { anRole.value = 'Lender'; anRole.dispatchEvent(new Event('change')); } else anRole.focus(); });
-    $$('[data-add-tc]', root).forEach((b) => b.addEventListener('click', () => { $('#addnew', root).dataset.tcTarget = b.dataset.addTc; anForm.hidden = false; anRole.value = 'Transaction Coordinator'; anRole.dispatchEvent(new Event('change')); $('#an-first', root).focus(); }));
+    $$('[data-add-tc]', root).forEach((b) => b.addEventListener('click', () => { const card = $(`[data-agent-tc="${b.dataset.addTc}"]`, root); const box = card && $('[data-dir-field="person"]', card); if (box) box.focus(); }));
     $('#an-cancel', root).addEventListener('click', () => { reset(); anForm.hidden = true; });
     anRole.addEventListener('change', () => { anFields.hidden = !anRole.value; dup.hidden = true; paintNew(); });
     $('#an-kind', root).addEventListener('change', paintNew);
@@ -629,14 +634,14 @@ export async function render({ api, user, go }) {
     const place = (role, c) => {
       if (role === 'Sales Person') { const list = $('[data-sales-list]', root); const box = $(`input[name=salesIds][value="${c.profileId || c.id}"]`, list);
         if (box) box.checked = true; else { const nd = $('[data-no-sales]', list); if (nd) nd.remove(); list.insertAdjacentHTML('beforeend', toText(salesBox({ id: c.profileId || c.id, firstName: c.firstName, lastName: c.lastName, role: 'Sales Person' }, true))); } }
-      else if (role === 'Transaction Coordinator') { const name = $('#addnew', root).dataset.tcTarget || 'p:Transaction Coordinator'; const sel = $(`select[name="${CSS.escape(name)}"]`, root); if (sel && ![...sel.options].some((o) => o.value === c.id)) sel.add(new Option(personLabel(c), c.id)); if (sel) sel.value = c.id; }
-      else if (MULTI[role]) placeParty(role, c); else pickers[role].set(c);
+      else if (MULTI[role]) placeParty(role, c);
+      else if (pickers[role]) pickers[role].set(c);
       toast(`${personLabel(c)} added as ${NEW_ROLES.find((x) => x[0] === role)[1]}`); reset(); anForm.hidden = true; };
     $('#an-create', root).addEventListener('click', guard(async () => {
       const role = anRole.value; if (!role) throw new Error('Choose the role first.');
       const kind = ($('#an-kind', root) || {}).value || 'person';
       const entity = (role === 'Client-Buyer' || role === 'Client-Seller') && kind === 'entity';
-      const first = v('an-first'); const email = v('an-email').toLowerCase(); const company = role === 'Lender' || role === 'Buyer Agent' || role === 'Listing Agent' ? v('an-company') : '';
+      const first = v('an-first'); const email = v('an-email').toLowerCase(); const company = role === 'Lender' || role === 'Buyer Agent' || role === 'Listing Agent' || isAgentTcRole(role) ? v('an-company') : '';
       const built = newPartyContact({ role, kind, entityName: v('an-entity'), entityType: ($('#an-etype', root) || {}).value || '', firstName: first, lastName: v('an-last'), email, phone: v('an-phone'), company, contactType: ($('#an-ctype', root) || {}).value || '', lenderRole: ($('#an-lrole', root) || {}).value || '' });
       if (!built.ok) throw new Error(built.error);
       if (role === 'Sales Person' && !email) throw new Error('Email is required for a salesperson (it is their login).');
@@ -667,7 +672,7 @@ export async function render({ api, user, go }) {
     const syncPickers = () => { $$('[data-picker]', root).forEach((el) => { const hid = $('input[type=hidden]', el); const person = people.find((p) => p.id === (hid && hid.value));
       if (!person) return; const q = $('.picker-q', el); const chosen = $('[data-chosen]', el);
       if (q) q.value = personLabel(person); if (chosen) chosen.textContent = `Selected: ${personLabel(person)}`; el.setAttribute('data-selected', ''); });
-      for (const role of ['Buyer Agent', 'Listing Agent', 'Lender']) { const slot = pickers[role]; const hid = slot && $('input[type=hidden]', slot.el); if (hid && hid.value) slot.applySnapshot({ id: hid.value, person: '', company: '', email: '', phone: '' }); } };
+      for (const role of ['Buyer Agent', 'Listing Agent', 'Lender', ...AGENT_TC_ROLES]) { const slot = pickers[role]; const hid = slot && $('input[type=hidden]', slot.el); if (hid && hid.value) slot.applySnapshot({ id: hid.value, person: '', company: '', email: '', phone: '' }); } };
     const persistDraft = () => {
       if (sealed || !draftStore || !draftKey || placing) return false;
       const body = collectOrderFields(form);
@@ -731,7 +736,7 @@ export async function render({ api, user, go }) {
         const id = await saveTypedContact(buyerSellerEntry(readBuyer(r, role)), labelOf(role));
         if (id) { const c = people.find((p) => p.id === id); if (c) r.pk.set(c); }
       }
-      for (const role of ['Buyer Agent', 'Listing Agent', 'Lender']) {
+      for (const role of ['Buyer Agent', 'Listing Agent', 'Lender', ...AGENT_TC_ROLES]) {
         if (!counts(role)) continue;
         const slot = pickers[role]; if (!slot || slot.value) continue;
         const id = await saveTypedContact(manualPartyEntry(slot.read()), slot.read().label);
@@ -789,10 +794,10 @@ export async function render({ api, user, go }) {
       // Buyer 1, Buyer 2, ..., Seller 1, Seller 2, ..., agents, lender, TC, sales team (p:<role> or p:<role>:<n>); the same order as the one-page form.
       // Empty extra buyer / seller rows (the form starts with two of each) are ignored: a blank value is not a person.
       // People come from the picker state. FormData alone misses a party when the hidden id was cleared.
-      const formParts = [...new FormData(e.target).entries()].filter(([k, x]) => k.startsWith('p:') && String(x || '').trim()).map(([k, x]) => ({ name: k, contactId: String(x).trim(), role: k.slice(2).replace(/:\d+$/, '') }));
+      const formParts = [...new FormData(e.target).entries()].filter(([k, x]) => k.startsWith('p:') && String(x || '').trim()).map(([k, x]) => ({ name: k, contactId: String(x).trim(), role: roleForPartyField(k) }));
       const entries = partyEntries(formParts, picks);
       for (const { name, contactId, role } of entries) { if (!counts(role)) continue;   // refinance: hidden seller / realtor / TC boxes are not saved
-        try { const res = await api.addParticipant(deal.id, contactId, role, entities[name] ? { entity: entities[name] } : undefined); tasks += (res && res.tasksCreated) || 0; added[role] = (added[role] || 0) + 1; } catch (err) { problems.push(`${role}: ${err.message}`); } }
+        try { const res = await api.addParticipant(deal.id, contactId, role, entities[name] ? { entity: entities[name] } : undefined); tasks += (res && res.tasksCreated) || 0; added[role] = (added[role] || 0) + 1; } catch (err) { problems.push(partyProblemLine(name, err.message)); } }
       const lenderCompany = (input.lenderName || '').trim();
       const extraContacts = readLenderContactRows(e.target);
       let namedLender = !!(lenderPk && lenderPk.value) || !!added.Lender;
@@ -819,11 +824,12 @@ export async function render({ api, user, go }) {
       const uploadOne = async (file, visibility, docType, wire) => { try { let slot = uploadIds.get(file); if (!slot) uploadIds.set(file, slot = {}); const id = sameUploadId(slot, file); await api.addDocument(deal.id, { id, name: file.name, description: '', mimeType: file.type, size: file.size, dataUrl: await readFile(file), visibility, folderId: null, docType, wireInstructions: wire }); saved++; } catch (err) { problems.push(`${file.name}: ${err.message}`); } };
       for (const file of txFiles) await uploadOne(file, $('#tx-vis', root).value, refi() ? 'Lender documents' : 'Contract / addendum', false);
       for (let i = 0; i < files.length; i++) { const sel = $(`[data-doctype="${i}"]`, root); await uploadOne(files[i], $('#nof-vis', root).value, sel ? sel.value : '', $('#nof-wire', root).checked); }
+      const shown = uniqueProblems(problems);
       try { sessionStorage.setItem(PLACED_KEY, JSON.stringify({ dealId: deal.id, fileNumber: deal.fileNumber, address: `${deal.street}, ${deal.city}, ${deal.state} ${deal.zip || ''}`.trim(), transactionType: deal.transactionType,
-        added, tasks, docs: saved, skipped, problems, at: Date.now() })); } catch (err) { /* private mode: no confirmation panel, the toasts above still say it */ }
+        added, tasks, docs: saved, skipped, problems: shown, at: Date.now() })); } catch (err) { /* private mode: no confirmation panel, the toasts above still say it */ }
       if (problems.length) {
         const box = $('[data-wiz-step="review"] [data-wiz-errors]', root);
-        if (box) { box.hidden = false; box.innerHTML = toText(html`<strong>Order ${deal.fileNumber} was created, but ${problems.every((m) => / fees were not saved /.test(m)) ? 'some agent fees were not saved' : 'these were not added'}.</strong><ul>${problems.map((m) => html`<li>${m}</li>`)}</ul><p>You are still on Place Order. <a href="#/deals/${deal.id}">Open ${deal.fileNumber}</a> and add ${problems.every((m) => / fees were not saved /.test(m)) ? 'them in the Agent fees box' : 'people on Contacts'}.</p>`); }
+        if (box) { box.hidden = false; box.innerHTML = toText(html`<strong>Order ${deal.fileNumber} was created, but ${shown.every((m) => / fees were not saved /.test(m)) ? 'some agent fees were not saved' : 'these were not added'}.</strong><ul>${shown.map((m) => html`<li>${m}</li>`)}</ul><p>You are still on Place Order. <a href="#/deals/${deal.id}">Open ${deal.fileNumber}</a> and add ${shown.every((m) => / fees were not saved /.test(m)) ? 'them in the Agent fees box' : 'people on Contacts or Parties'}.</p>`); }
         if (btn) { btn.disabled = true; btn.textContent = 'Place order'; }
         return;
       }

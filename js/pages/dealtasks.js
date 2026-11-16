@@ -4,7 +4,9 @@
 // section for editing on this page, and a green / navy / red cue for done / open / overdue. Buyer, seller and agent lists stay the same shape.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, pill, toast, toText } from '../ui.js?v=202611161500';
 import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611101015';
-import { boxTasks, boxOfRole, tasksForViewer } from '../data/task-board.js?v=202611140100';
+import { boxTasks, boxOfRole, tasksForViewer } from '../data/task-board.js?v=202611241000';
+import { annotatePartyTaskProgress, partyTaskStillOpen } from '../data/party-task-completion.js?v=202611241000';
+import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611131900';
 import { taskOpenHref } from '../data/task-actions.js?v=202611221900';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
@@ -19,7 +21,7 @@ export async function render(ctx) {
   const { api, user, deal, refresh } = ctx;
   if (intakeDeal !== deal.id) { intakeDeal = deal.id; intakeOpen.clear(); }
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611223100')).render(ctx);
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611241300')).render(ctx);
   const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611191700');
   const allTasks = tasksWithLenderOnFile(await api.listTasks(deal.id), deal);
   const taskQuery = new URLSearchParams(location.hash.split('?')[1] || '');
@@ -34,10 +36,26 @@ export async function render(ctx) {
   const dense = manage && !pure;
   const productionView = !pure && new URLSearchParams(location.hash.split('?')[1] || '').get('lane') === 'production';
   const laneTasks = pure ? allTasks : allTasks.filter((t) => (productionView ? taskLaneOf(t) === 'production' : isPortalTask(t)));
-  const tasks = pure ? laneTasks.filter((t) => t.mine) : laneTasks; const ownBox = pure ? (isPureSeller(user) ? 'seller' : 'buyer') : null;
+  const ownTasks = pure ? laneTasks.filter((t) => t.mine) : laneTasks; const ownBox = pure ? (isPureSeller(user) ? 'seller' : 'buyer') : null;
+  const namedForParty = (list) => {
+    const byId = new Map(((deal && deal.participants) || []).filter((p) => p && p.id).map((p) => [p.id, partyDisplayName(p)]));
+    if (!byId.size) return list;
+    return list.map((t) => {
+      if (!t || (t.ownerName && String(t.ownerName).trim())) return t;
+      const name = byId.get(t.participantId) || '';
+      return name && name !== 'Unnamed contact' ? { ...t, ownerName: name } : t;
+    });
+  };
+  // Staff see one side's progress. A buyer or seller still sees only their own copy, done or not.
+  const tasks = (manage && !pure) ? annotatePartyTaskProgress(namedForParty(ownTasks)) : ownTasks;
   const today = localDate(); const refi = isRefi(deal);
   const open = (t) => ['todo', 'in_progress', 'blocked'].includes(t.status);
-  const toneOf = (t) => t.status === 'done' ? 'is-done' : t.status === 'cancelled' ? 'is-cancelled' : open(t) && t.dueDate && t.dueDate < today ? 'is-overdue' : 'is-open';
+  const toneOf = (t) => {
+    if (!partyTaskStillOpen(t) && t.status === 'done') return 'is-done';
+    if (t.status === 'cancelled') return 'is-cancelled';
+    if (open(t) && t.dueDate && t.dueDate < today) return 'is-overdue';
+    return 'is-open';
+  };
   const intakeSide = (t) => { const s = boxOfRole(t.assignedRole); return t.kind === 'form' && (s === 'buyer' || s === 'seller') ? s : ''; };
   const answerList = (t) => { if (dense || !manage || t.status !== 'done' || !t.formData) return ''; const rows = Object.entries(t.formData).filter(([, v]) => v != null && v !== '' && v !== false);
     return rows.length ? html`<dl class="task-answers" data-task-answers="${t.id}">${rows.map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>` : ''; };
@@ -57,7 +75,7 @@ export async function render(ctx) {
       <td class="center">${t.canTick ? html`<input type="checkbox" data-tick="${t.id}" ${t.status === 'done' ? html`checked` : ''} aria-label="Done">` : ''}</td>
       <td><div class="task-line"><strong>${taskOpenHref(t) ? html`<a href="${taskOpenHref(t)}">${t.title}</a>` : t.title}</strong>${t.notYours ? html` <span class="muted small" data-not-yours>Not yours to open</span>` : ''}${t.taskGroup ? html` <span class="pill" data-task-group>${t.taskGroup}</span>` : ''}${dense ? html` ${kindBit(t, true)}` : ''}</div>${t.description ? (dense ? html`<div class="task-desc muted">${t.description}</div>` : html`<br><span class="muted">${t.description}</span>`) : ''}${t.switchedOff ? html` <span class="pill warn" data-switched-off title="Switched off on Task Templates > Task switches: kept, hidden from everyone except Admin / Super admin">Switched off (admins only)</span>` : ''}${dense ? '' : kindBit(t, false)}${answerList(t)}${dense && intakeSide(t) ? html`<div class="intake-slot" data-intake-slot="${t.id}" hidden></div>` : ''}</td>
       <td>${t.ownerName || t.assignedRole}${t.ownerName ? html`<br><span class="muted small">${t.assignedRole}</span>` : ''}${t.mine ? html` ${pill(user.selfRep ? `you, as ${t.assignedRole}` : 'you', 'info')}` : ''}</td>
-      <td class="task-due ${open(t) && t.dueDate && t.dueDate < today ? 'bad-text' : ''}">${fmtDate(t.dueDate)}</td><td>${pill(LABEL[t.status], CLS[t.status])}${t.completedByLabel ? html`<br><span class="muted small done-by">${t.completedByLabel}</span>` : ''}</td>
+      <td class="task-due ${open(t) && t.dueDate && t.dueDate < today ? 'bad-text' : ''}">${fmtDate(t.dueDate)}</td><td>${pill(partyTaskStillOpen(t) && t.status === 'done' ? t.partyProgress.label : LABEL[t.status], partyTaskStillOpen(t) && t.status === 'done' ? 'info' : CLS[t.status])}${partyTaskStillOpen(t) ? html`<br><span class="muted small" data-party-progress="${t.id}">${t.partyProgress.label}${t.partyProgress.remainingLabel ? html` · ${t.partyProgress.remainingLabel}` : ''}</span>` : ''}${!partyTaskStillOpen(t) && t.completedByLabel ? html`<br><span class="muted small done-by">${t.completedByLabel}</span>` : ''}</td>
       <td class="nowrap">${actions(t)}</td></tr>`;
   const mineFirst = [...tasks].sort((a, b) => ((b.mine || b.forClient) && open(b)) - ((a.mine || a.forClient) && open(a)));
   const shown = mineOnly ? tasksForViewer(user, mineFirst) : mineFirst;
@@ -83,7 +101,7 @@ export async function render(ctx) {
     const slotOf = (id) => $(`[data-intake-slot="${(globalThis.CSS && CSS.escape ? CSS.escape(String(id)) : String(id).replace(/(["\\])/g, '\\$1'))}"]`, root);
     const showIntake = async (ids) => {
       if (!ids.length) return;
-      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611223100');
+      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611241300');
       const { loadSpouseRows, applySpouse } = await import('./spouse.js?v=202611171200');
       const wantsSpouse = ids.some((id) => { const t = tasks.find((z) => z.id === id); return t && t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller'); });
       const spouseRows = wantsSpouse ? await loadSpouseRows(api, deal.id) : [];

@@ -14,6 +14,7 @@ import { parcelInput } from './parcels.js?v=202611222100';
 import { earnestDealPatch, earnestTouched, OLD_COMMISSION_KEYS, OLD_COMMISSION_REFUSED, withoutOldCommission } from './earnest-commission.js?v=202611223000';
 import { cleanFee, feeChanges } from './accounting.js?v=202611223100';
 import { waterEscrowFeeInput } from './prorate-defaults.js?v=202611223100';
+import { partyTaskCopiesStillOpen, PARTY_TASK_ROLES, staffTaskCounts } from './party-task-completion.js?v=202611241000';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 // John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only
@@ -117,14 +118,28 @@ export function dealsAndAuth(x) {
         }
       }
       const page = taskRows.slice(taskOffset, taskOffset + taskLimit);
+      let listed = page;
+      if ((taskStatus || 'open') === 'open' && page.length) {
+        const donePool = [];
+        for (const q of visible.filter(fileOk)) {
+          const su = x.scopeTo(u, q.id);
+          for (const t of d.tasks.filter((t) => t.dealId === q.id && t.status === 'done' && PARTY_TASK_ROLES.includes(t.assignedRole) && x.taskVisible(su, t))) {
+            const o = x.taskOut(su, t);
+            donePool.push({ ...o, dealId: q.id, deal: { id: q.id, fileNumber: q.fileNumber, street: q.street, city: q.city, state: q.state, zip: q.zip, address: `${q.street}, ${q.city}, ${q.state} ${q.zip}`, closingDate: q.closingDate || null, status: q.status }, overdue: false });
+          }
+        }
+        listed = page.concat(partyTaskCopiesStillOpen(page, donePool));
+      }
       const shown = [...openRows, ...otherRows];
       const fullTasks = d.tasks;
       shown.forEach((row) => {
-        const mine = fullTasks.filter((t) => t.dealId === row.id && ['todo', 'in_progress', 'blocked'].includes(t.status) && x.taskVisible(x.scopeTo(u, row.id), t));
-        row.openTasks = mine.length;
-        row.overdueTasks = mine.filter((t) => t.dueDate && t.dueDate < today).length;
+        const su = x.scopeTo(u, row.id);
+        const mine = fullTasks.filter((t) => t.dealId === row.id && t.status !== 'cancelled' && x.taskVisible(su, t));
+        const counted = staffTaskCounts(mine, today);
+        row.openTasks = counted.open;
+        row.overdueTasks = counted.overdue;
       });
-      return { openRows, openTotal: openAll.length, otherRows, otherTotal: otherAll.length, closedTotal: visible.filter((q) => q.status === 'Closed').length, tasks: page, taskTotal: taskRows.length, limit: openLimit };
+      return { openRows, openTotal: openAll.length, otherRows, otherTotal: otherAll.length, closedTotal: visible.filter((q) => q.status === 'Closed').length, tasks: listed, taskTotal: taskRows.length, limit: openLimit };
     },
     async getDeal(id) { const u0 = needUser(); const q = dealOr404(u0, id); const u = x.scopeTo(u0, id); return { ...dealView(u, q), participants: x.participantsOf(id, u) }; },
     async createDeal(input) {
