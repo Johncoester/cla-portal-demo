@@ -793,3 +793,33 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Option 1: the panels are the Agent fees box, not a second commission section. The amounts stay in deal_agent_fees.
 - The selling agent is the buyer's agent side already on the file. The panel title is Selling Agent Commission.
+
+---
+
+## Commission Paid By (FF-089)
+
+**How it should work.** On Place Order, under Earnest money & agent fees, the listing agent and the selling agent each have Commission Paid By: Buyer, Seller, or Split. Split asks for the buyer's share and the seller's share, and the two amounts must add up to the commission. That commission then shows on the buyer side, the seller side, or both, on the settlement statement and the Closing Disclosure.
+
+**Status: In review.** Tracker row 325 (FF-089). Francis Santos, email Nov 16 2026, 3:10 PM ET, Processor 2, TEST file MD-26-97386. Pull request: opened with this change. Not applied to TEST. Not Live.
+
+**What's built**
+
+- Earnest money & agent fees shows Commission Paid By on the listing agent and on the buyer's agent (the selling agent). Buyer, Seller, and Split. Split shows the two shares.
+- The choice is saved in the Agent fees records that already exist (`payer`, `split_buyer`, `split_seller`). Accounting, the settlement statement, and CD section H already use those amounts.
+- A blank share, a share that is not a number, or two shares that do not add up to the commission stays on the form and says what to fix.
+- The Agent fees edit window on the file uses the same label, Commission Paid By.
+
+**What's still missing**
+
+- Not on TEST yet. Not Live.
+- A split, or a commission with its own base, is still not rewritten when the sales price changes.
+
+**Links**
+
+- Spec: [docs/specs/commission-paid-by.md](docs/specs/commission-paid-by.md)
+- Source: Francis Santos, Nov 16 2026, 3:10 PM ET, msg 1a1e5fbfe4183a9f. Tracker row 325 (FF-089).
+
+**Decisions**
+
+- Paid by was left off the Place Order screen. It was not hidden. PR 285 put Buyer, Seller, and Split on the Agent fees box (a different screen, after the file exists). PR 287 did not change that screen.
+- No new columns. The same payer and split amounts are reused. No database file.
