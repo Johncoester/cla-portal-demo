@@ -11,7 +11,7 @@
  *   deps.newId() -> uuid, deps.now() -> ms */
 import { TEST_PROJECT_REF, PORTAL_ORIGIN, REDIRECT_URI, GMAIL_ROLES, MAX_RECIPIENTS, MAX_DOCS, MAX_ATTACH_BYTES, MAX_MESSAGE_BYTES, MAX_SAVE_BYTES, MAX_BODY_CHARS,
   parseAddressList, subjectWithTag, formatPropertyAddress, sanitizeHtml, htmlToText, hasWireDetails, isWireName, extOk, safeName, matchUploadKeys, buildMime, b64url, b64urlToBytes, utf8, estimateMimeBytes,
-  parseGmailMessage, randomToken, sha256Hex, pkceChallenge, authUrl, decodeJwtPayload, missingScopes, oneLine, json, hasSettingsScope, pickSendAsSignature, withSignature, isEmail, INVITE_TOKEN_RE, unnotifiedTasks, AUTH_INVITE_SUBJECT, PORTAL_INVITE_SENDER, inviteAuthRedirect, inviteAuthData, inviteSubjectFor } from './gmail-core.mjs';
+  parseGmailMessage, randomToken, sha256Hex, pkceChallenge, authUrl, decodeJwtPayload, missingScopes, oneLine, json, hasSettingsScope, pickSendAsSignature, withSignature, isEmail, INVITE_TOKEN_RE, unnotifiedTasks, AUTH_INVITE_SUBJECT, PORTAL_INVITE_SENDER, inviteAuthRedirect, inviteAuthData, inviteSubjectFor, gmailAccountAllowed, E2E_PROCESSOR_LOGIN, E2E_PROCESSOR_GMAIL } from './gmail-core.mjs';
 
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -109,7 +109,9 @@ export async function handleOauthStart(req, deps) {
     if (!deps.clientId || !deps.clientSecret) return json(503, { error: 'Gmail is not set up on this project yet.' }, deps.headers);
     const state = randomToken(32); const verifier = randomToken(48);
     await deps.svc('gmail_svc_begin_oauth', { p_profile: g.user.id, p_state_hash: await sha256Hex(state), p_verifier: verifier });
-    return json(200, { url: authUrl({ clientId: deps.clientId, state, challenge: await pkceChallenge(verifier), loginHint: g.ctx.email }) }, deps.headers);
+    const portalEmail = String(g.ctx.email || '').trim().toLowerCase();
+    const e2eProcessor = portalEmail === E2E_PROCESSOR_LOGIN;
+    return json(200, { url: authUrl({ clientId: deps.clientId, state, challenge: await pkceChallenge(verifier), loginHint: e2eProcessor ? E2E_PROCESSOR_GMAIL : g.ctx.email, hostedDomain: e2eProcessor ? '' : undefined }) }, deps.headers);
   }
   if (action === 'refresh_signature') {
     if (!g.ctx.mailbox) return json(409, { error: 'Connect Gmail first.' }, deps.headers);
@@ -154,7 +156,10 @@ export async function handleOauthCallback(req, deps) {
   const tok = t.body; const kill = async () => { await revoke(deps, tok.refresh_token || tok.access_token); };
   if (missingScopes(tok.scope).length) { why(deps, `scopes (granted: ${String(tok.scope || '')})`); await kill(); return back('missing_scope'); }
   const idp = decodeJwtPayload(tok.id_token) || {}; const email = String(idp.email || '').toLowerCase();
-  if (!idp.email_verified || idp.hd !== 'clatitle.com' || !/^[^@\s]+@clatitle\.com$/.test(email)) { why(deps, `domain check (hd=${idp.hd || 'none'}, verified=${!!idp.email_verified})`); await kill(); return back('wrong_domain'); }
+  let portalEmail = '';
+  try { portalEmail = String(rowOf(await deps.svc('gmail_svc_login_email', { p_profile: taken.profile_id })) || '').trim().toLowerCase(); }
+  catch (e) { portalEmail = ''; }
+  if (!idp.email_verified || !gmailAccountAllowed(portalEmail, email)) { why(deps, `domain check (hd=${idp.hd || 'none'}, verified=${!!idp.email_verified})`); await kill(); return back('wrong_domain'); }
   const prof = await gmail(deps, tok.access_token, '/profile');
   if (!prof.ok || String(prof.body && prof.body.emailAddress || '').toLowerCase() !== email) { why(deps, prof.ok ? 'Gmail profile address differs from the Google sign-in' : 'Gmail profile', prof.ok ? null : prof); await kill(); return back('failed'); }
   if (!tok.refresh_token) { why(deps, 'no refresh token from Google'); await kill(); return back('failed'); }

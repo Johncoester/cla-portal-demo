@@ -6,6 +6,17 @@ export const PORTAL_ORIGIN = 'https://testportal.clatitle.com';
 export const PORTAL_ORIGINS = ['https://testportal.clatitle.com', 'https://johncoester.github.io'];
 export const REDIRECT_URI = 'https://aqcervntopidtcazcmlv.supabase.co/functions/v1/gmail-oauth-callback';
 export const WORKSPACE_DOMAIN = 'clatitle.com';
+// John, Nov 13 (t1602u, E2E-PROC-GMAIL): this one TEST login may connect this one Gmail inbox.
+// Every other login stays @clatitle.com only. The same two addresses are checked again in
+// supabase/migrations/20261123120000_e2e_processor_gmail.sql.
+export const E2E_PROCESSOR_LOGIN = 'clatestportal+e2e-processor@gmail.com';
+export const E2E_PROCESSOR_GMAIL = 'clatestportal@gmail.com';
+export function gmailAccountAllowed(portalEmail, googleEmail) {
+  const portal = String(portalEmail || '').trim().toLowerCase();
+  const google = String(googleEmail || '').trim().toLowerCase();
+  if (/^[^@\s]+@clatitle\.com$/.test(google)) return true;
+  return portal === E2E_PROCESSOR_LOGIN && google === E2E_PROCESSOR_GMAIL;
+}
 export const SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
 export const READ_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 // Signature import (John, Nov 9 2:06 PM): users.settings.sendAs.list accepts gmail.readonly, which Connect already asks for, so no extra
@@ -208,10 +219,12 @@ export function parseGmailMessage(msg) {
 export function randomToken(bytes = 32) { const b = new Uint8Array(bytes); crypto.getRandomValues(b); return b64url(b); }
 export async function sha256Hex(s) { const d = new Uint8Array(await crypto.subtle.digest('SHA-256', utf8(s))); return [...d].map((x) => x.toString(16).padStart(2, '0')).join(''); }
 export async function pkceChallenge(verifier) { return b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', utf8(verifier)))); }
-export function authUrl({ clientId, state, challenge, loginHint }) {
+export function authUrl({ clientId, state, challenge, loginHint, hostedDomain = WORKSPACE_DOMAIN }) {
   const q = new URLSearchParams({ client_id: clientId, redirect_uri: REDIRECT_URI, response_type: 'code', scope: SCOPES.join(' '), access_type: 'offline', prompt: 'consent',
-    state, code_challenge: challenge, code_challenge_method: 'S256', hd: WORKSPACE_DOMAIN });
-  if (loginHint && /@clatitle\.com$/i.test(loginHint)) q.set('login_hint', loginHint);
+    state, code_challenge: challenge, code_challenge_method: 'S256' });
+  if (hostedDomain) q.set('hd', hostedDomain);
+  const hint = String(loginHint || '').trim();
+  if (hint && (/@clatitle\.com$/i.test(hint) || hint.toLowerCase() === E2E_PROCESSOR_GMAIL)) q.set('login_hint', hint);
   return `https://accounts.google.com/o/oauth2/v2/auth?${q.toString()}`;
 }
 export function decodeJwtPayload(jwt) { try { return JSON.parse(b64urlToText(String(jwt || '').split('.')[1] || '')); } catch (e) { return null; } }
