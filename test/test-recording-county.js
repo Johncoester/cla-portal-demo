@@ -47,7 +47,7 @@ ok(md.unmatched === 'Mongomery' && md.names.includes('Montgomery') && !md.names.
 const matched = countyChoice('MD', 'Montgomery County');
 ok(matched.selected === 'Montgomery' && matched.unmatched === '', 'Montgomery County matches the list name Montgomery');
 const va = countyChoice('VA', '');
-ok(va.names.includes('Fairfax') && !va.names.includes('Montgomery'), 'Virginia is its own list');
+ok(va.names.includes('Fairfax') && va.names.includes('Montgomery') && !va.names.includes('Howard') && !va.names.includes("Prince George's"), 'Virginia is its own list (it has its own Montgomery County; Howard and Prince George\'s are Maryland only)');
 ok(countyChoice('', '').names.length === 0, 'no state means no county list yet');
 
 const html = toText(countyFieldHtml('MD', 'Mongomery', '(pick from the list)'));

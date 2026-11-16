@@ -54,6 +54,7 @@ export const round2 = (n) => d(c(n));
 const fail = (m) => { throw new Error(m); };
 const s = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
 import { computeProration, cleanProration, prorationRange, PRORATION_ITEMS } from './prorations.js?v=202611070139';
+import { waterEscrowFeeInput, WATER_ESCROW_KEY } from './prorate-defaults.js?v=202611223100';
 import { excessDepositOf } from './earnest-commission.js?v=202611223000';
 const flag0 = (x) => !!x && x !== 'false' && x !== '0';
 // QUALIA layout (John, Nov 4 2026): per-line payments + section settings (meta), the CD text of a line, E.01 recording fees as one line
@@ -394,6 +395,7 @@ export function presetAmount(p, deal) {
   return round2(Math.round(base / 1000 * p.example * 100) / 100);
 }
 export function presetFee(key, deal) {
+  if (key === WATER_ESCROW_KEY) { const fee = waterEscrowFeeInput(deal); if (!fee) fail('This state has no default water escrow. Virginia has none. Maryland and DC are $400. Florida is $250.'); return fee; }
   const p = FEE_PRESETS.find((x) => x.key === key) || fail('Unknown fee preset.');
   const refi = isRefiDeal(deal); const amount = presetAmount(p, deal);
   let paidBy = p.paidBy; let split = null;
