@@ -7,6 +7,8 @@ import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=2026
 import { TEST_MARK } from '../data/accounting.js?v=202611223000';
 import { CD_DETAIL_GROUPS } from '../data/cd-pages.js?v=202611070139';
 import { partyNames, brokerOf } from '../data/statement-parties.js?v=202611222900';
+import { cdBrokerCells } from '../data/lender-file.js?v=202611223100';
+import { fmtPhone } from '../data/constants.js?v=202611101015';
 const m2 = (n) => (n == null || Number(n) === 0 ? '' : (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const m2z = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const mv = (n) => (n == null ? html`<span class="muted">—</span>` : m2z(n));
@@ -74,15 +76,21 @@ export async function cdPagesView(api, deal, acc, docHead, printBtn, mountPrint)
       <dt>Initial Escrow Payment</dt><dd data-cd-initial-escrow>${m2z(p4.initialEscrow)}</dd><dt>Monthly Escrow Payment</dt><dd data-cd-monthly-escrow>${mv(p4.monthlyEscrow)}</dd></dl>`
       : html`<p class="small">Your loan will not have an escrow account.</p><dl><dt>Estimated Property Costs over Year 1</dt><dd>${mv(p4.nonEscrowed)}</dd><dt>Escrow Waiver Fee</dt><dd>${mv(p4.waiverFee)}</dd></dl>`}</div></div>
     ${E ? html`<details class="acct-calc-detail" data-cd-escrow-schedule open><summary class="small">Escrow account calculation (aggregate analysis, first year)</summary>${escrowTable(E)}</details>` : ''}</section>`;
-  // page 5
+  // page 5. Mortgage Broker column is the brokerage saved on the file (FF-090). Address, email and phone are the rows that contact belongs on.
+  const mb = cdBrokerCells(deal, p5.broker);
+  const cell = (v) => v || '—';
+  const lenderPhone = deal.lenderPhone ? fmtPhone(deal.lenderPhone) : '';
   const page5 = html`<section class="acct-cd-page" data-cd-page="5">${pageHead(5, 'Loan Calculations, Other Disclosures & Contact Information')}
     <div class="acct-cd-info"><div data-cd-loan-calcs><h4>Loan Calculations</h4><dl><dt>Total of Payments</dt><dd>${mv(p5.totalOfPayments)}</dd><dt>Finance Charge</dt><dd>${mv(p5.financeCharge)}</dd><dt>Amount Financed</dt><dd>${mv(p5.amountFinanced)}</dd>
       <dt>Annual Percentage Rate (APR)</dt><dd>${p5.apr != null ? p5.apr + '%' : '—'}</dd><dt>Total Interest Percentage (TIP)</dt><dd>${p5.tip != null ? p5.tip + '%' : '—'}</dd></dl></div>
     <div><h4>Other Disclosures</h4><dl><dt>Liability after Foreclosure</dt><dd>${p5.liability === 'protected' ? 'State law may protect you from liability for the unpaid balance.' : p5.liability === 'not protected' ? 'State law does not protect you from liability for the unpaid balance.' : '—'}</dd><dt>Refinance</dt><dd>${p5.refinance || 'Refinancing this loan will depend on your future financial situation, the property value, and market conditions.'}</dd></dl></div></div>
     <table class="tbl acct-cd" data-cd-contacts><thead><tr><th>Contact Information</th><th>Lender</th><th>Mortgage Broker</th>${refi ? '' : html`<th>Real Estate Broker (B)</th><th>Real Estate Broker (S)</th>`}<th>Settlement Agent</th></tr></thead><tbody>
-      <tr><td>Name</td><td>${deal.lenderName || '—'}</td><td>${p5.broker || '—'}</td>${refi ? '' : html`<td>${broker(deal, 'Buyer Agent').name || '—'}</td><td>${broker(deal, 'Listing Agent').name || '—'}</td>`}<td>CLA Title &amp; Escrow (test portal)</td></tr>
-      <tr><td>NMLS ID</td><td>${p5.lenderNmls || '—'}</td><td>—</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr><tr><td>Contact</td><td>${p5.lenderContact || deal.lenderContact || '—'}</td><td>—</td>${refi ? '' : html`<td>${broker(deal, 'Buyer Agent').contact || '—'}</td><td>${broker(deal, 'Listing Agent').contact || '—'}</td>`}<td>—</td></tr>
-      <tr><td>Contact NMLS ID</td><td>${p5.lenderContactNmls || '—'}</td><td>—</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr></tbody></table>
+      <tr><td>Name</td><td>${deal.lenderName || '—'}</td><td data-cd-broker-name>${cell(mb.name)}</td>${refi ? '' : html`<td>${broker(deal, 'Buyer Agent').name || '—'}</td><td>${broker(deal, 'Listing Agent').name || '—'}</td>`}<td>CLA Title &amp; Escrow (test portal)</td></tr>
+      <tr><td>Address</td><td>${deal.lenderAddress || '—'}</td><td data-cd-broker-address>${cell(mb.address)}</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr>
+      <tr><td>NMLS ID</td><td>${p5.lenderNmls || '—'}</td><td>—</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr><tr><td>Contact</td><td>${p5.lenderContact || deal.lenderContact || '—'}</td><td data-cd-broker-contact>${cell(mb.contact)}</td>${refi ? '' : html`<td>${broker(deal, 'Buyer Agent').contact || '—'}</td><td>${broker(deal, 'Listing Agent').contact || '—'}</td>`}<td>—</td></tr>
+      <tr><td>Contact NMLS ID</td><td>${p5.lenderContactNmls || '—'}</td><td>—</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr>
+      <tr><td>Email</td><td>${deal.lenderEmail || '—'}</td><td data-cd-broker-email>${cell(mb.email)}</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr>
+      <tr><td>Phone</td><td>${lenderPhone || '—'}</td><td data-cd-broker-phone>${cell(mb.phone)}</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr></tbody></table>
     <p class="small muted">Confirm Receipt: not used. This is a TEST page built by the portal, not a legal disclosure; the lender's Closing Disclosure is the real one.</p></section>`;
   const warn = X.calcWarnings && X.calcWarnings.length ? html`<div class="notice warn small acct-noprint" data-cd-calc-warnings>${X.calcWarnings.map((w) => html`<div>${w}</div>`)}</div>` : '';
   const body = html`<div class="acct-toolbar acct-noprint"><span class="muted small">Closing Disclosure pages 1-5. Fees, lender credits, prorations and the summaries come from the fee ledger; loan terms, projected payments, the Loan Estimate column and the loan disclosures are entered on <a href="#/deals/${deal.id}/accounting?v=cddetails" data-goto-cddetails>CD details &amp; escrow</a>.</span><span class="spacer"></span>${printBtn('cd', deal)}</div>${warn}

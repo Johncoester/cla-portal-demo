@@ -1,6 +1,6 @@
 /* mock adapter: contacts, participants, documents (deal files). NOTE: there is no delete for documents, for anyone (Admin included). */
 import { cleanEntity } from './mock-part-nov3b.js?v=202611221900';
-import { cleanLenderRole } from './lender-file.js?v=202611222700';
+import { cleanLenderRole } from './lender-file.js?v=202611223100';
 import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611101015';
 import { acceptDocType } from './document-type.js?v=202611100945';
 import { assertContactSaved, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';

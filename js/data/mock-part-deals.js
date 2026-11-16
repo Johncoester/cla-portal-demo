@@ -9,7 +9,7 @@ import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=2026
 import { claRepresentationCode } from './cla-representation.js?v=202611090950';
 import { buildFileNumber, retagFileNumber, sentOutside, cleanFileNumber, FILE_NUMBER_TAKEN } from './file-number.js?v=202611222500';
 import { officeDate } from './office-date.js?v=202611102100';
-import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions } from './lender-file.js?v=202611222700';
+import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions, brokerageContact, brokerageContactError, brokerageWrite } from './lender-file.js?v=202611223100';
 import { parcelInput } from './parcels.js?v=202611222100';
 import { earnestDealPatch, earnestTouched, OLD_COMMISSION_KEYS, OLD_COMMISSION_REFUSED, withoutOldCommission } from './earnest-commission.js?v=202611223000';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
@@ -150,6 +150,7 @@ export function dealsAndAuth(x) {
         // Matt, Nov 3 (b): lender phone + email (and the picked lender's name / company) and the source of business are set at placement
         lenderName: str(input.lenderName, 200), lenderContact: str(input.lenderContact, 200), lenderEmail: str(input.lenderEmail, 200).toLowerCase(), lenderPhone: x.phone(input.lenderPhone, 'Lender phone'), lossPayeeName: str(input.lossPayeeName, 400),
         ...lenderExtras(input),
+        ...(() => { const b = brokerageContact(input); const any = !!(b.mortgageBrokerContact || String(input.mortgageBrokerPhone || '').trim() || b.mortgageBrokerEmail || b.mortgageBrokerAddress); if (any) { const err = brokerageContactError(input); if (err) fail(err); } return { mortgageBrokerContact: any ? b.mortgageBrokerContact : '', mortgageBrokerPhone: any ? b.mortgageBrokerPhone : '', mortgageBrokerEmail: any ? b.mortgageBrokerEmail : '', mortgageBrokerAddress: any ? b.mortgageBrokerAddress : '' }; })(),
         sourceOfBusiness: (() => { const src = checkSource(d, input.sourceOfBusiness, '', fail); const msg = referralWriteError({ source: src, contacts: d.contacts, profiles: d.profiles, actor: u, participants: d.participants, dealId: '' }); if (msg) fail(msg); return src; })(), ...occFields(input, transactionType, fail), notes: str(input.notes, 2000), claRepresentation, processorId: procId, processorUnassigned: !procId, preprocessorUserId: preprocId ? preprocId.id : null, createdBy: u.id, createdAt: now() };
       const placedCloser = closerOn(u, input.closerName, {});
       deal.closerName = placedCloser.closerName; deal.closerProfileId = placedCloser.closerProfileId; deal.closingTime = closingTimeOf(input.closingTime);
@@ -172,12 +173,14 @@ export function dealsAndAuth(x) {
       ['street', 'city', 'state', 'zip', 'lenderName', 'lenderContact', 'lenderEmail', 'lenderPhone', 'lossPayeeName', 'notes'].forEach((k) => { if (patch[k] != null) q[k] = str(patch[k], k === 'notes' ? 2000 : k === 'lossPayeeName' ? 800 : 200); });
       ['buyerSignStatus', 'sellerSignStatus', 'buyerSignedOn', 'sellerSignedOn', 'buyerPlaceKind', 'sellerPlaceKind', 'buyerOfficeId', 'sellerOfficeId', 'buyerSigningDate', 'sellerSigningDate', 'buyerSigningTime', 'sellerSigningTime', 'buyerManualStreet', 'buyerManualCity', 'buyerManualState', 'buyerManualZip', 'sellerManualStreet', 'sellerManualCity', 'sellerManualState', 'sellerManualZip', 'closingManualStreet', 'closingManualCity', 'closingManualState', 'closingManualZip'].forEach((k) => { if (patch[k] !== undefined) q[k] = patch[k] || ''; });
       if (patch.lenderHistory !== undefined) q.lenderHistory = Array.isArray(patch.lenderHistory) ? patch.lenderHistory.slice(0, 20) : [];
+      const brokerWrote = brokerageWrite(q, patch); if (brokerWrote && brokerWrote.error) fail(brokerWrote.error);
       if (lenderColumnsTouched(patch)) Object.assign(q, lenderExtras({
         lenderAddress: patch.lenderAddress !== undefined ? patch.lenderAddress : q.lenderAddress,
         cplAddress: patch.cplAddress !== undefined ? patch.cplAddress : q.cplAddress,
         cplSameAsLender: patch.cplSameAsLender !== undefined ? patch.cplSameAsLender : q.cplSameAsLender,
         mortgageBrokerName: patch.mortgageBrokerName !== undefined ? patch.mortgageBrokerName : q.mortgageBrokerName,
       }));
+      if (brokerWrote && brokerWrote.values) Object.assign(q, brokerWrote.values);
       if (patch.county != null) q.county = str(patch.county, C.COUNTY_MAX);
       if (q.lenderEmail && !emailOk(q.lenderEmail)) fail('Lender email is not valid.');
       if (patch.lenderPhone != null) q.lenderPhone = x.phone(patch.lenderPhone, 'Lender phone');

@@ -6,7 +6,8 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { modOn } from '../data/modules.js?v=202611101015';
 import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611223000';
 import { prorationsView } from './dealaccounting-prorations.js?v=202611161500';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
-import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611223000'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
+import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611223100'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
+import { brokerageOnFile } from '../data/lender-file.js?v=202611223100';
 import { render as postClosingRender } from './dealpostclosing.js?v=202611161500';
 import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611161500';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611223000';
@@ -278,6 +279,7 @@ const docHead = (deal, title, sub) => html`<header class="acct-doc-head"><div cl
   <dl class="acct-doc-meta"><div><dt>File #</dt><dd>${deal.fileNumber}</dd></div><div><dt>Property</dt><dd>${deal.street}, ${deal.city}, ${deal.state} ${deal.zip}</dd></div>
     <div><dt>Settlement date</dt><dd>${fmtDate(deal.closingDate) || 'Not set'}</dd></div><div><dt>${deal.transactionType === 'Refinance' ? 'Borrower' : 'Buyer / borrower'}</dt><dd>${names(deal, 'Client-Buyer') || '—'}</dd></div>
     ${deal.transactionType === 'Refinance' ? '' : html`<div><dt>Seller</dt><dd>${names(deal, 'Client-Seller') || '—'}</dd></div>`}<div><dt>Lender</dt><dd>${deal.lenderName || names(deal, 'Lender') || '—'}</dd></div>
+    ${(() => { const b = brokerageOnFile(deal); const extra = [b.contact, b.phone, b.email, b.address].filter(Boolean); return (b.company || extra.length) ? html`<div data-stmt-broker><dt>Mortgage broker</dt><dd>${b.company || '—'}${extra.length ? html`<div class="small">${extra.join(' · ')}</div>` : ''}</dd></div>` : ''; })()}
     <div><dt>Settlement agent</dt><dd>CLA Title &amp; Escrow (test portal)</dd></div></dl></header>`;
 
 async function altaView(api, deal, acc, q, base) {

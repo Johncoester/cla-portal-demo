@@ -20,7 +20,7 @@ import { closerChoices, resolveCloser } from '../data/closer.js?v=202611101015';
 import { duplicateNotice } from '../data/order-duplicates.js?v=202611191800';
 import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
 import { orderDraftKey, readOrderDraft, writeOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim, tombstoneOrderDraft } from '../data/order-draft.js?v=202611140200';
-import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows } from '../data/lender-file.js?v=202611222700';
+import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows, brokerageContact, brokerageContactError } from '../data/lender-file.js?v=202611223100';
 import { bindAddressFill } from '../data/address-fill.js?v=202611222100';
 import { countyFieldHtml, mountCountySelect, paintCountyOptions } from './county-field.js?v=202611223000';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611222100';
@@ -28,7 +28,7 @@ import { readEarnest } from '../data/earnest-commission.js?v=202611223000';
 import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611222800';
 import { SIDE_LABEL as AF_SIDE_LABEL } from '../data/agent-fees.js?v=202611222800';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611222700';
+import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611223100';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611162200';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
@@ -492,6 +492,8 @@ export async function render({ api, user, go }) {
         if (!refi()) { try { readEarnest(f); } catch (err) { errs.push({ el: $('[name=emdHeldBy]', p), msg: err.message }); } }
         if (!refi()) { try { readPlaceOrderFees(form, refused(f.purchasePrice) ? null : moneyAmount(f.purchasePrice)); } catch (err) { errs.push({ el: $('[name="af.listing.percent"]', p), msg: err.message }); } }
         if (counts('Lender')) { const entry = manualPartyEntry(pickers.Lender.read()); if (!entry.ok) errs.push({ el: $('[data-lender-person]', p) || $('[name=lenderEmail]', p), msg: entry.error }); }
+        const brokerErr = brokerageContactError({ mortgageBrokerName: f.mortgageBrokerName, mortgageBrokerContact: f.mortgageBrokerContact, mortgageBrokerPhone: f.mortgageBrokerPhone, mortgageBrokerEmail: f.mortgageBrokerEmail, mortgageBrokerAddress: f.mortgageBrokerAddress });
+        if (brokerErr) errs.push({ el: $('[name=mortgageBrokerPhone]', p) || $('[name=mortgageBrokerEmail]', p) || $('[name=mortgageBrokerName]', p), msg: brokerErr });
         for (const [key, l] of [['purchasePrice', 'Purchase price'], ['loanAmount', 'Loan amount']]) { if (key === 'purchasePrice' && refi()) continue;
           if (refused(f[key])) errs.push({ el: $(`[name=${key}]`, p), msg: `${l} must be a number of 0 or more.` }); }
       }
@@ -556,7 +558,7 @@ export async function render({ api, user, go }) {
         ${section('parties', r ? 'Borrowers' : 'Buyers & Sellers', [[r ? 'Borrowers' : 'Buyers', partyList('Client-Buyer')], ...(r ? [] : [['Sellers', partyList('Client-Seller')]])])}
         ${section('loan', 'Lender & Loan', [...(r ? [] : [['Purchase price', val(fmtMoney(moneyAmount(f.purchasePrice)))]]), ['Loan amount', val(fmtMoney(moneyAmount(f.loanAmount)))],
           ...(r ? [] : [['EMD amount', val(fmtMoney(moneyAmount(f.emdAmount)))], ['EMD due date', val(fmtDate(f.emdDueDate))], ['EMD held by', val(f.emdHeldBy)], ['Agent fees', (() => { try { const fees = readPlaceOrderFees(form, moneyAmount(f.purchasePrice)); const parts = Object.entries(fees).filter(([, v]) => v).map(([k, v]) => `${AF_SIDE_LABEL[k]}: ${[v.commission ? `${Number(v.commission.percent.toFixed(4))}% / ${fmtMoney(v.commission.amount)}` : '', v.admin ? `admin fee ${fmtMoney(v.admin.amount)}` : ''].filter(Boolean).join(', ')}`); return parts.length ? html`<span data-review-agent-fees>${parts.join(' · ')}</span>` : dash; } catch (err) { return err.message; } })()]]), ['Closing date', val(fmtDate(f.closingDate))], ['Disbursement date', f.disbursementDate ? val(fmtDate(f.disbursementDate)) : html`<span class="muted" data-review-disbursement-auto>Automatic</span>`],
-                    ['Lender', (pickers.Lender.value || f.lenderName || ($('[data-lender-person]', root) && $('[data-lender-person]', root).value)) ? html`${f.lenderName ? html`<strong>${f.lenderName}</strong>` : ''}${pickers.Lender.value ? html`${f.lenderName ? ' · ' : ''}${nameOf(pickers.Lender.value)}` : (($('[data-lender-person]', root) && $('[data-lender-person]', root).value.trim()) ? html`${f.lenderName ? ' · ' : ''}${$('[data-lender-person]', root).value.trim()} <span class="muted small">(typed on this file)</span>` : '')}${f.lenderPhone || f.lenderEmail || f.lossPayeeName || f.mortgageBrokerName || f.cplAddress ? html`<br><span class="muted small">${[f.lenderPhone, f.lenderEmail, f.mortgageBrokerName && ('Brokerage: ' + f.mortgageBrokerName), f.lossPayeeName && ('Loss payee: ' + f.lossPayeeName), f.cplAddress && ('CPL: ' + f.cplAddress)].filter(Boolean).join(' · ')}</span>` : ''}` : dash],
+                    ['Lender', (pickers.Lender.value || f.lenderName || ($('[data-lender-person]', root) && $('[data-lender-person]', root).value)) ? html`${f.lenderName ? html`<strong>${f.lenderName}</strong>` : ''}${pickers.Lender.value ? html`${f.lenderName ? ' · ' : ''}${nameOf(pickers.Lender.value)}` : (($('[data-lender-person]', root) && $('[data-lender-person]', root).value.trim()) ? html`${f.lenderName ? ' · ' : ''}${$('[data-lender-person]', root).value.trim()} <span class="muted small">(typed on this file)</span>` : '')}${f.lenderPhone || f.lenderEmail || f.lossPayeeName || f.mortgageBrokerName || f.cplAddress ? html`<br><span class="muted small">${[f.lenderPhone, f.lenderEmail, f.mortgageBrokerName && ('Brokerage: ' + f.mortgageBrokerName), f.mortgageBrokerContact && ('Broker contact: ' + f.mortgageBrokerContact), f.mortgageBrokerPhone, f.mortgageBrokerEmail, f.mortgageBrokerAddress, f.lossPayeeName && ('Loss payee: ' + f.lossPayeeName), f.cplAddress && ('CPL: ' + f.cplAddress)].filter(Boolean).join(' · ')}</span>` : ''}` : dash],
           ['Lender contacts', readLenderContactRows(form).length ? readLenderContactRows(form).map((row) => html`<div>${[row.firstName, row.lastName].filter(Boolean).join(' ')} <span class="muted small">${row.lenderRole === 'lender_tc' ? 'Lender TC' : row.lenderRole === 'loan_officer' ? 'Loan Officer' : ''}</span></div>`) : dash]])}
         ${section('parties', 'Source of business', [['Source of business', val((() => { const picked = $$('[name=referralSource]', root).find((el) => el.checked && el.value); return picked ? (picked.getAttribute('aria-label') || '').replace(/^Source of business:\s*/, '') : ''; })())]])}
         ${r ? '' : section('agents', 'Agents', [['Buyer agent', agentReview('Buyer Agent')], ['Listing agent', agentReview('Listing Agent')], ["Buyer's transaction coordinator", val(selText($('[name="p:Transaction Coordinator"]', root)))], ['Listing transaction coordinator', val(selText($('[name="p:Transaction Coordinator:2"]', root)))]])}
@@ -764,6 +766,8 @@ export async function render({ api, user, go }) {
       f.sourceOfBusiness = ''; delete f.sourceContactId;
       if (!showMdQuestions(f.state, refi())) { f.primaryResidence = ''; f.firstTimeBuyer = ''; }
       const extras = lenderExtras({ lenderAddress: f.lenderAddress, cplAddress: f.cplAddress, cplSameAsLender: !!($('[data-cpl-same]', root) && $('[data-cpl-same]', root).checked), mortgageBrokerName: f.mortgageBrokerName });
+      const broker = brokerageContact(f);
+      const brokerAny = !!(broker.mortgageBrokerContact || String(f.mortgageBrokerPhone || '').trim() || broker.mortgageBrokerEmail || broker.mortgageBrokerAddress);
       const earnest = refi() ? { financial: {} } : readEarnest(f);
       const agentFees = refi() ? {} : readPlaceOrderFees(form, moneyAmount(f.purchasePrice));   // checked again here, before the order exists
       const placedCloser = resolveCloser(f.closerName, closers, {});
@@ -774,7 +778,8 @@ export async function render({ api, user, go }) {
         lenderPhone: (f.lenderPhone || '').trim(),
         lenderEmail: (f.lenderEmail || '').trim(),
         lossPayeeName: (f.lossPayeeName || '').trim(),
-        lenderAddress: extras.lenderAddress, cplAddress: extras.cplAddress, cplSameAsLender: extras.cplSameAsLender, mortgageBrokerName: extras.mortgageBrokerName });
+        lenderAddress: extras.lenderAddress, cplAddress: extras.cplAddress, cplSameAsLender: extras.cplSameAsLender, mortgageBrokerName: extras.mortgageBrokerName,
+        ...(brokerAny ? { mortgageBrokerContact: broker.mortgageBrokerContact, mortgageBrokerPhone: broker.mortgageBrokerPhone, mortgageBrokerEmail: broker.mortgageBrokerEmail, mortgageBrokerAddress: broker.mortgageBrokerAddress } : {}) });
       Object.keys(input).filter((k) => k.startsWith('af.')).forEach((k) => { delete input[k]; });
       if (!extras.lenderAddress) delete input.lenderAddress;
       if (!extras.cplAddress) delete input.cplAddress;

@@ -6,14 +6,19 @@ import { fmtPhone } from '../data/constants.js?v=202611101015';
 import {
   LENDER_CONTACT_ROLES, lenderRoleLabel, lenderExtras, filterClauses, normLenderName,
   lenderCompanyContact, contactDisplayName, mortgageBrokerContact, brokersAtBrokerage, MORTGAGE_BROKER_ROLE,
-} from '../data/lender-file.js?v=202611222700';
+  brokerageContact, brokerageContactError, brokerageOnFile, brokerageDirectory, brokerMatch, brokerPersonFromFields, brokerageColumnMiss,
+} from '../data/lender-file.js?v=202611223100';
 import { CPL_CLAUSES, CPL_OTHER, clauseChoice } from '../data/cpl-clauses.js?v=202611120500';
 
 export function lenderFieldsHtml(d = {}, { brokerage = true } = {}) {
   const extras = lenderExtras(d);
   const same = extras.cplSameAsLender;
   return html`<label class="span2">Lender address<input name="lenderAddress" maxlength="300" value="${extras.lenderAddress}" aria-label="Lender address" data-lender-address autocomplete="off"></label>
-    ${brokerage ? html`<label class="span2">Mortgage brokerage<input name="mortgageBrokerName" maxlength="200" value="${extras.mortgageBrokerName}" aria-label="Mortgage brokerage" placeholder="Brokerage company name"></label>` : ''}
+    ${brokerage ? html`<label class="span2">Mortgage brokerage<input name="mortgageBrokerName" maxlength="200" value="${extras.mortgageBrokerName}" aria-label="Mortgage brokerage" placeholder="Brokerage company name"></label>
+    <label class="span2">Brokerage contact<input name="mortgageBrokerContact" maxlength="200" value="${d.mortgageBrokerContact || ''}" aria-label="Mortgage brokerage contact name" placeholder="Contact name"></label>
+    <label>Brokerage phone<input name="mortgageBrokerPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone maxlength="40" value="${d.mortgageBrokerPhone || ''}" aria-label="Mortgage brokerage phone"></label>
+    <label>Brokerage email<input name="mortgageBrokerEmail" type="email" maxlength="200" value="${d.mortgageBrokerEmail || ''}" aria-label="Mortgage brokerage email"></label>
+    <label class="span2">Brokerage address<input name="mortgageBrokerAddress" maxlength="300" value="${d.mortgageBrokerAddress || ''}" aria-label="Mortgage brokerage address" placeholder="Street, city, state, ZIP"></label>` : ''}
     <label class="span2 clause-field">CPL lender clause
       <select data-cpl-clause aria-label="CPL lender clause"><option value="">Choose a clause&hellip;</option>${CPL_CLAUSES.map((c) => html`<option value="${c}" ${clauseChoice(d.lossPayeeName) === c ? raw('selected') : ''}>${c}</option>`)}<option value="${CPL_OTHER}" ${clauseChoice(d.lossPayeeName) === CPL_OTHER ? raw('selected') : ''}>${CPL_OTHER}</option></select>
       <input name="lossPayeeName" maxlength="800" value="${d.lossPayeeName || ''}" aria-label="Loss payee clause" data-loss-payee autocomplete="off" placeholder="The clause fills this box. You can still edit it."></label>
@@ -53,19 +58,49 @@ function brokerListHtml(deal) {
   if (!people.length) return html`<p class="muted small" data-broker-empty>No mortgage broker on this file yet.</p>`;
   return html`<ul class="lender-people" data-broker-people>${people.map((p) => html`<li data-broker-person="${p.id}"><strong>${contactDisplayName(p.contact)}</strong><br><span class="muted small">${[fmtPhone(p.contact.phone), p.contact.email].filter(Boolean).join(' · ') || 'No phone or email'}</span>${p.contact.company ? html`<br><span class="muted small">${p.contact.company}</span>` : ''}</li>`)}</ul>`;
 }
+/* linkedom's select has no value setter. A real browser uses the live value. Both paths stay in step. */
+function chooseBroker(sel, value) {
+  if (!sel) return;
+  const next = value == null ? '' : String(value);
+  sel.querySelectorAll('option').forEach((o) => {
+    const on = (o.getAttribute('value') || '') === next;
+    if (on) o.setAttribute('selected', ''); else o.removeAttribute('selected');
+    if ('selected' in o) o.selected = on;
+  });
+  const desc = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(sel), 'value');
+  if (desc && typeof desc.set === 'function') sel.value = next;
+}
+function chosenBroker(sel) {
+  if (!sel) return '';
+  if (typeof sel.value === 'string') return sel.value;
+  const marked = sel.querySelector('option[selected]');
+  return marked ? (marked.getAttribute('value') || '') : '';
+}
+function brokerageSummaryHtml(deal) {
+  const b = brokerageOnFile(deal);
+  const line = [b.contact, b.phone, b.email].filter(Boolean).join(' · ');
+  return html`<p data-brokerage-name><strong>${b.company || 'Not entered'}</strong></p>
+    ${line ? html`<p class="small" data-brokerage-contact>${line}</p>` : ''}
+    ${b.address ? html`<p class="small" data-brokerage-address>${b.address}</p>` : ''}`;
+}
 function loanSplitHtml(deal, { canEdit } = {}) {
-  const name = String(deal.mortgageBrokerName || '').trim();
+  const b = brokerageOnFile(deal);
   const brokers = brokerListHtml(deal);
   if (!canEdit) {
-    return html`<section data-brokerage aria-label="Mortgage Brokerage"><h3>Mortgage Brokerage</h3><p data-brokerage-name><strong>${name || 'Not entered'}</strong></p></section>
+    return html`<section data-brokerage aria-label="Mortgage Brokerage"><h3>Mortgage Brokerage</h3>${brokerageSummaryHtml(deal)}</section>
       <section data-brokers aria-label="Mortgage Broker"><h3>Mortgage Broker</h3>${brokers}</section>`;
   }
   return html`<section data-brokerage aria-label="Mortgage Brokerage"><h3>Mortgage Brokerage</h3>
-      <p data-brokerage-name><strong>${name || 'Not entered'}</strong></p>
-      <p class="muted small">The brokerage company. Brokers below are people at this company.</p>
+      ${brokerageSummaryHtml(deal)}
+      <p class="muted small">The brokerage company and its contact on this file. Choose a saved broker, or type the contact. The address is kept on this file.</p>
       <p><button type="button" class="m-btn" data-edit-brokerage>Edit Mortgage Brokerage</button> <button type="button" class="ghost" data-switch-brokerage>Switch Mortgage Brokerage</button></p>
       <form class="form-grid" data-brokerage-form hidden>
-        <label class="span2">Company name<input name="mortgageBrokerName" maxlength="200" value="${name}" aria-label="Mortgage brokerage company name" required></label>
+        <label class="span2">Saved broker or company<select data-brokerage-pick aria-label="Saved mortgage broker or company"><option value="">Not listed — type them below</option></select></label>
+        <label class="span2">Company name<input name="mortgageBrokerName" maxlength="200" value="${b.company}" aria-label="Mortgage brokerage company name" required></label>
+        <label class="span2">Contact name<input name="mortgageBrokerContact" maxlength="200" value="${b.contact}" aria-label="Mortgage brokerage contact name"></label>
+        <label>Phone<input name="mortgageBrokerPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone maxlength="40" value="${b.phone}" aria-label="Mortgage brokerage phone"></label>
+        <label>Email<input name="mortgageBrokerEmail" type="email" maxlength="200" value="${b.email}" aria-label="Mortgage brokerage email"></label>
+        <label class="span2">Address<input name="mortgageBrokerAddress" maxlength="300" value="${b.address}" aria-label="Mortgage brokerage address" placeholder="Street, city, state, ZIP"></label>
         <p class="span2 notice warn small" data-brokerage-error hidden></p>
         <div class="span2"><button class="m-btn" type="submit">Save brokerage</button></div>
       </form></section>
@@ -230,26 +265,84 @@ export function mountLenderSection(root, { api, deal, refresh } = {}) {
     if (refresh) refresh();
   }));
   const brokerageForm = $('[data-brokerage-form]', host);
+  const setBrokerField = (name, value) => { const el = brokerageForm && brokerageForm.querySelector(`[name=${name}]`); if (el) el.value = value; };
+  const loadBrokerPick = async () => {
+    const sel = brokerageForm && brokerageForm.querySelector('[data-brokerage-pick]');
+    if (!sel) return;
+    const all = api.listContacts ? await api.listContacts() : [];
+    const model = brokerageDirectory(all);
+    const current = chosenBroker(sel);
+    const group = (label, options) => (options.length ? html`<optgroup label="${label}">${options.map((o) => html`<option value="${o.value}">${o.label}</option>`)}</optgroup>` : '');
+    sel.innerHTML = toText(html`<option value="">Not listed — type them below</option>${group('Companies', model.companies)}${group('Mortgage brokers', model.people)}`);
+    if ([...sel.options].some((o) => o.value === current)) chooseBroker(sel, current);
+  };
   const showBrokerage = (mode) => {
     if (!brokerageForm) return;
     brokerageForm.hidden = false;
     brokerageForm.dataset.mode = mode;
-    const input = brokerageForm.querySelector('[name=mortgageBrokerName]');
-    if (input) { input.value = mode === 'switch' ? '' : (deal.mortgageBrokerName || ''); input.focus(); }
+    const blank = mode === 'switch';
+    const cur = blank ? { company: '', contact: '', phone: '', email: '', address: '' } : brokerageOnFile(deal);
+    setBrokerField('mortgageBrokerName', cur.company);
+    setBrokerField('mortgageBrokerContact', cur.contact);
+    setBrokerField('mortgageBrokerPhone', cur.phone);
+    setBrokerField('mortgageBrokerEmail', cur.email);
+    setBrokerField('mortgageBrokerAddress', cur.address);
+    const sel = brokerageForm.querySelector('[data-brokerage-pick]');
+    chooseBroker(sel, '');
     const err = $('[data-brokerage-error]', brokerageForm);
     if (err) { err.hidden = true; err.textContent = ''; }
+    const input = brokerageForm.querySelector('[name=mortgageBrokerName]');
+    if (input) input.focus();
+    loadBrokerPick().catch(() => {});
   };
   const editBrokerage = $('[data-edit-brokerage]', host);
   if (editBrokerage) editBrokerage.addEventListener('click', () => showBrokerage('edit'));
   const switchBrokerage = $('[data-switch-brokerage]', host);
   if (switchBrokerage) switchBrokerage.addEventListener('click', () => { showBrokerage('switch'); toast('Enter the new mortgage brokerage. Brokers already on this file stay until you remove them.'); });
+  const brokerPick = brokerageForm && brokerageForm.querySelector('[data-brokerage-pick]');
+  if (brokerPick) brokerPick.addEventListener('change', guard(async () => {
+    const v = chosenBroker(brokerPick);
+    if (!v) return;
+    if (v.startsWith('company:')) { setBrokerField('mortgageBrokerName', v.slice('company:'.length)); return; }
+    const all = api.listContacts ? await api.listContacts() : [];
+    const c = (all || []).find((x) => x.id === v);
+    if (!c) return;
+    if (c.company) setBrokerField('mortgageBrokerName', c.company);
+    setBrokerField('mortgageBrokerContact', `${c.firstName || ''} ${c.lastName || ''}`.trim());
+    setBrokerField('mortgageBrokerPhone', c.phone ? fmtPhone(c.phone) : '');
+    setBrokerField('mortgageBrokerEmail', c.email || '');
+  }));
+  const contactBox = brokerageForm && brokerageForm.querySelector('[name=mortgageBrokerContact]');
+  if (contactBox && brokerPick) contactBox.addEventListener('input', () => { const v = chosenBroker(brokerPick); if (v && !v.startsWith('company:')) chooseBroker(brokerPick, ''); });
   if (brokerageForm) brokerageForm.addEventListener('submit', guard(async (e) => {
     e.preventDefault();
-    const name = String((brokerageForm.querySelector('[name=mortgageBrokerName]') || {}).value || '').trim().replace(/\s+/g, ' ');
+    const f = formData(brokerageForm);
     const err = $('[data-brokerage-error]', brokerageForm);
-    if (!name) { if (err) { err.hidden = false; err.textContent = 'Enter the mortgage brokerage company name.'; } return; }
+    const problem = brokerageContactError(f, { requireCompany: true });
+    if (problem) { if (err) { err.hidden = false; err.textContent = problem; } return; }
     if (err) { err.hidden = true; err.textContent = ''; }
-    await api.updateDeal(deal.id, { mortgageBrokerName: name });
+    const clean = brokerageContact(f);
+    try { await api.updateDeal(deal.id, clean); }
+    catch (saveErr) { throw brokerageColumnMiss(saveErr); }
+    const pick = chosenBroker(brokerPick);
+    try {
+      let linked = '';
+      if (pick && !pick.startsWith('company:')) linked = pick;
+      else if (clean.mortgageBrokerContact) {
+        const all = api.listContacts ? await api.listContacts() : [];
+        const found = brokerMatch(all, clean.mortgageBrokerName, clean.mortgageBrokerContact);
+        if (found) linked = found.id;
+        else {
+          const built = brokerPersonFromFields(clean.mortgageBrokerName, clean.mortgageBrokerContact, clean.mortgageBrokerEmail, clean.mortgageBrokerPhone);
+          if (built.ok) { const c = await api.createContact(built.contact); linked = c.id; }
+        }
+      }
+      if (linked && !brokerPeople(deal).some((p) => p.contactId === linked)) await api.addParticipant(deal.id, linked, 'Lender');
+    } catch (linkErr) {
+      toast('The brokerage was saved. The contact person was not added. Open Mortgage Brokerage and save again.');
+      if (refresh) refresh();
+      return;
+    }
     toast(brokerageForm.dataset.mode === 'switch' ? 'Mortgage brokerage switched' : 'Mortgage brokerage saved');
     if (refresh) refresh();
   }));
