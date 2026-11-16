@@ -63,7 +63,7 @@ create table if not exists public.closing_proposals (id uuid not null default ge
 create table if not exists public.contacts (id uuid not null default gen_random_uuid(), profile_id uuid, first_name text not null, last_name text not null default ''::text, email text not null default ''::text, phone text not null default ''::text, company text not null default ''::text, created_by uuid, created_at timestamp with time zone not null default now(), contact_type text, crm_owner_id uuid, account_id uuid, crm_stage text, last_contacted_on date, tags text[] not null default '{}'::text[], crm_notes text not null default ''::text, crm_lead_id uuid, crm_archived_at timestamp with time zone, role_in_company text not null default ''::text, title text not null default ''::text, mobile text not null default ''::text, assistant text not null default ''::text, asst_phone text not null default ''::text, agent_split numeric(5,2), license_no text not null default ''::text, sales_volume_last_year numeric(16,2), deals_closed_last_year integer, zillow_url text not null default ''::text, crm_street text not null default ''::text, crm_city text not null default ''::text, crm_state text not null default ''::text, crm_zip text not null default ''::text, crm_county text not null default ''::text, links jsonb not null default '{}'::jsonb, modified_by uuid, modified_at timestamp with time zone, lead_source text not null default ''::text, relationship_status text, custom jsonb not null default '{}'::jsonb, zillow_moved boolean not null default false, is_demo boolean not null default false);
 
 create table if not exists public.crm_import_defaults (import_id uuid not null, field_key text not null, value_text text not null, owner_id uuid);
-create table if not exists public.crm_list_exports (id uuid not null default gen_random_uuid(), module text not null, exported_by uuid not null, exported_at timestamp with time zone not null default now(), row_count integer not null default 0);
+-- crm_list_exports is created by 20261105222949_crm_calls.sql, which runs after this file.
 create table if not exists public.crm_saved_filter_values (filter_id uuid not null, field_name text not null, value_text text not null);
 create table if not exists public.crm_saved_filters (id uuid not null default gen_random_uuid(), user_id uuid not null default auth.uid(), module text not null, view_id uuid, name text not null, created_at timestamp with time zone not null default now(), modified_at timestamp with time zone not null default now(), retired_at timestamp with time zone);
 create table if not exists public.crm_search_columns (user_id uuid not null, module text not null, "position" integer not null, column_key text not null);
@@ -381,13 +381,7 @@ do $pk38$ begin
     alter table public.crm_import_defaults add primary key (import_id, field_key);
   end if;
 end $pk38$;
-do $pk40$ begin
-  if to_regclass('public.crm_list_exports') is not null and not exists (
-    select 1 from pg_constraint where conrelid = 'public.crm_list_exports'::regclass and contype = 'p'
-  ) then
-    alter table public.crm_list_exports add primary key (id);
-  end if;
-end $pk40$;
+-- crm_list_exports and its primary key are created by 20261105222949_crm_calls.sql.
 do $pk41$ begin
   if to_regclass('public.crm_meeting_invites') is not null and not exists (
     select 1 from pg_constraint where conrelid = to_regclass('public.crm_meeting_invites') and contype = 'p'
