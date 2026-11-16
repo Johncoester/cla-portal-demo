@@ -28,7 +28,7 @@ The document answers are saved on the calculated fee, in the same place as the o
 
 ## What is not in this change
 
-- Counties the rate sheet does not name still stop with "We couldn't find this county in CLA's rates." REC-CALC-6 (PR 296, open) is what makes every Maryland, Virginia, Florida, and DC county known. This change is built on main and does not use that branch. After PR 296 merges, those counties calculate here with the same documents.
+- REC-CALC-6 (PR 296, merged) is included. A county in Maryland, Virginia, Florida, or the District of Columbia that has no row of its own is still calculated, on the statewide rates. A name that is not a county of that state is still refused.
 - The Qualia question "Is the security instrument recorded concurrently with the deed?" is not on CLA's rate sheet, so it is not shown.
 - The per-document e-recording fee still comes from Calculate fees from CLA rates on the Fee ledger.
 - Running Calculate fees from CLA rates on the Fee ledger can replace these recording and tax lines from that screen's own document counts. A line changed by hand is still kept.

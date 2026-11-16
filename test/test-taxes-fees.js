@@ -76,6 +76,10 @@ const fl = proposeTaxesFees(flDeal, { documents: defaultDocuments(flDeal, exempt
 ok(near(amount(fl, 'tax:Doc stamps on deed'), 2400) && line(fl, 'tax:Doc stamps on deed').paidBy === 'seller', 'Miami-Dade doc stamps on the deed are $2,400, paid by the seller');
 ok(near(amount(fl, 'tax:Doc stamps on note'), 1120) && line(fl, 'tax:Doc stamps on note').paidBy === 'buyer', 'Miami-Dade doc stamps on the note are $1,120, paid by the borrower');
 ok(near(amount(fl, 'tax:Intangible tax on mortgage'), 640), 'Miami-Dade intangible tax is $640');
+const hills = purchase('FL', 'Hillsborough', 400000, 320000);
+ok(taxesFeesSetup(hills, [], R, null).covered, 'Hillsborough is a known Florida county (REC-CALC-6 statewide rates)');
+const hillsP = proposeTaxesFees(hills, { documents: defaultDocuments(hills, exemptionAsks(R, hills)) }, R);
+ok(near(amount(hillsP, 'tax:Doc stamps on deed'), 2800) && near(amount(hillsP, 'tax:Doc stamps on note'), 1120) && near(amount(hillsP, 'tax:Intangible tax on mortgage'), 640), 'Hillsborough uses the Florida statewide doc stamps and intangible tax');
 const cashFl = purchase('FL', 'Miami-Dade', 400000, 0);
 const cashP = proposeTaxesFees(cashFl, { documents: defaultDocuments(cashFl, exemptionAsks(R, cashFl)) }, R);
 ok(!cashP.lines.some((l) => l.key === 'tax:Doc stamps on note' || l.key === 'rec:Deed of Trust') && near(amount(cashP, 'tax:Doc stamps on deed'), 2400), 'a cash purchase charges the deed stamps and not the mortgage taxes');

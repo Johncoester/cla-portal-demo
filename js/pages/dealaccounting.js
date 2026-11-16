@@ -4,12 +4,12 @@
 import { html, raw, $, $$, guard, formData, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611161500';
 import { themeOn } from '../theme.js?v=202611070139';
 import { modOn } from '../data/modules.js?v=202611101015';
-import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611223000';
+import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611223100';
 import { prorationsView } from './dealaccounting-prorations.js?v=202611161500';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
-import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611223000'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
+import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611223100'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
 import { render as postClosingRender } from './dealpostclosing.js?v=202611161500';
 import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611161500';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
-import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611223000';
+import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611223100';
 import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611221200';
 import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611223200';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 import { contractView } from './dealaccounting-contract.js?v=202611223000';
@@ -251,7 +251,7 @@ function mountCalc(root, api, deal, acc, refresh) {
     if (!setup.covered) { panel.innerHTML = toText(html`${rateNoteHtml(setup)}<p class="notice warn" data-calc-not-ready>${setup.reason}</p>`); return; }
     panel.innerHTML = toText(calcOptionsForm(setup)); const f = $('[data-calc-form]', panel); const out = $('[data-calc-result]', panel);
     f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const opts = read(f); const errEl = $('[data-docs-error]', f);
-      const { recordingDocsProblem } = await import('../data/fee-engine.js?v=202611223000'); const problem = recordingDocsProblem(opts.docs);
+      const { recordingDocsProblem } = await import('../data/fee-engine.js?v=202611223100'); const problem = recordingDocsProblem(opts.docs);
       $$('[data-doc]', f).forEach((el) => el.removeAttribute('aria-invalid'));
       if (problem) { errEl.hidden = false; errEl.textContent = problem.message; const bad = $(`[data-doc="${problem.name}"][data-doc-part="${problem.part}"]`, f); if (bad) { bad.setAttribute('aria-invalid', 'true'); bad.focus(); } out.innerHTML = ''; return; }
       errEl.hidden = true; errEl.textContent = ''; const P = await api.previewCalculatedFees(deal.id, opts);
