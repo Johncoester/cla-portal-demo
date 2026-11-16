@@ -769,18 +769,17 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A brand-new database should build the CRM the way TEST did on November 2: the accounts, leads, pipeline, and activities, plus the feature flag. The scratch setup should not create those tables first, or the history file would leave them in the old shape.
 
-**Status: In progress.** John Coester, Nov 15 2026, 5:23 PM ET (t1737u), and Nov 16 2026, 10:46 AM ET (t1768u). Four history statements match TEST. The clean load gets past them and then stops on an attachment-policy count. Nothing is applied to TEST. Not Live.
+**Status: In progress.** John Coester, Nov 15 2026, 5:23 PM ET (t1737u), Nov 16 2026, 10:46 AM ET (t1768u), and Nov 16 2026, about 12:24 PM ET. Six history statements match TEST. The clean load gets past the new files and then stops because an attachment policy does not match the text the November 9 check expects. Nothing is applied to TEST. Not Live.
 
 **What's built**
 
-- Four exact TEST history statements are in the migration folder, each labeled already applied on TEST: crm, crm_zoho, crm_settings, and crm_janine_nov3.
+- Six exact TEST history statements are in the migration folder, each labeled already applied on TEST: crm, crm_zoho, crm_settings, crm_email_templates, crm_nov3b, and crm_janine_nov3.
 - The tables those statements create are no longer created by the scratch precondition.
 - The six lead columns the November 12 check wants are added by those statements: crm_zoho adds crm_city, crm_county, crm_state, modified_at, and role_in_company; crm_settings adds custom.
 
 **What's still missing**
 
-- The clean load stops at the November 9 attachment-policy check: the file has 2 policies and that check expects 6. The column comparison does not run.
-- The other four policies are in later TEST history rows that are not in this pull request: crm_email_templates (20261105222930) creates the template policies, and crm_nov3b (20261105222939) creates the email policies.
+- The clean load stops in the November 9 attachment-policy check. The attachments table now has 6 policies. The insert-email policy from crm_nov3b does not match the captured text that check expects (`e.created_by = private.effective_uid()` and `e.id = e.entity_id`). No TEST history row contains that captured text. The column comparison does not run.
 
 **Links**
 
