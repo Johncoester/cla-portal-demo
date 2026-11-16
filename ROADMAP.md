@@ -291,7 +291,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** Buyer and seller tasks are one copy per person. When a file has two or more buyers, or two or more sellers, that task counts as finished only after every person on that side has finished their own copy. Until then it stays open for staff, on the task list, on the Task Grid and in the dashboard file counts. The task shows how far along it is, such as "1 of 2 done", and names who still needs to finish. Each buyer or seller still sees and completes only their own copy. A file with one buyer or one seller works the same as it does today.
 
-**Status: In progress.** Tracker row MF-057. Not Live. The database file is not applied on TEST.
+**Status: In progress.** Tracker row MF-057. Pull request: [PR 299](https://github.com/Johncoester/cla-portal-demo/pull/299). Not Live. The database file is not applied on TEST.
 
 **What's built**
 
@@ -308,6 +308,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Spec: [docs/specs/party-task-completion.md](docs/specs/party-task-completion.md)
 - Source: Matt Landsberg's Gemini notes "Portal Feedback Nov 16", FF-086 item 2. Matt confirmed "Yes" on Nov 16 2026, 10:45 AM ET. Tracker row MF-057.
+- Related pull requests: [PR 299](https://github.com/Johncoester/cla-portal-demo/pull/299). Database file `supabase/migrations/20261124100000_party_task_completion.sql` (not applied on TEST).
 
 **Decisions**
 
