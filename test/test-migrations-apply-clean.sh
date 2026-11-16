@@ -10,6 +10,44 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DB="cla_migrate_clean_$$"
 PRE="$ROOT/supabase/baseline/test_precondition.sql"
 LIST="$ROOT/supabase/baseline/test_columns.txt"
+
+# A table the precondition creates must not also be created by a migration.
+# Create table if not exists in the migration would then do nothing, and the
+# fat copy in the precondition would hide the columns the migration adds.
+overlap="$(python3 - "$PRE" "$ROOT/supabase/migrations" <<'PY'
+import re, sys, pathlib
+pre_path, mig_dir = sys.argv[1:]
+pat = re.compile(
+    r"\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?(?:only\s+)?"
+    r"((?:\"?[A-Za-z_][\w$]*\"?\.)?\"?[A-Za-z_][\w$]*\"?)",
+    re.I,
+)
+def tables(text):
+    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
+    text = re.sub(r"--.*?$", " ", text, flags=re.M)
+    found = set()
+    for match in pat.finditer(text):
+        name = match.group(1).replace('"', "").lower()
+        if "." not in name:
+            name = "public." + name
+        found.add(name)
+    return found
+pre = tables(pathlib.Path(pre_path).read_text())
+hit = []
+for path in sorted(pathlib.Path(mig_dir).glob("*.sql")):
+    if "rollback" in path.name:
+        continue
+    for name in sorted(tables(path.read_text()) & pre):
+        hit.append(name + "  " + path.name)
+print("\n".join(hit))
+PY
+)"
+if [ -n "$overlap" ]; then
+  echo "FAIL a precondition table is also created by a migration:" >&2
+  echo "$overlap" >&2
+  exit 1
+fi
+echo "no precondition table is also created by a migration"
 PSQL=(sudo -u postgres psql -v ON_ERROR_STOP=1 -X -q)
 cleanup() { sudo -u postgres psql -d postgres -c "drop database if exists \"$DB\";" >/dev/null 2>&1 || true; }
 trap cleanup EXIT

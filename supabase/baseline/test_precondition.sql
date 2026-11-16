@@ -37,7 +37,6 @@ $auth$;
 create extension if not exists pgcrypto with schema extensions;
 
 create sequence if not exists public.hr_change_history_id_seq;
-create sequence if not exists public.task_template_admin_log_id_seq;
 create sequence if not exists public.task_template_switch_log_id_seq;
 create sequence if not exists public.underwriter_split_log_id_seq;
 create sequence if not exists public.file_number_seq;
@@ -55,8 +54,6 @@ create table if not exists public.agent_profiles (profile_id uuid not null, cell
 create table if not exists public.agent_task_revisions (id uuid not null default gen_random_uuid(), task_id uuid not null, n integer not null, answers jsonb not null, by_profile uuid not null, created_at timestamp with time zone not null default now());
 create table if not exists public.agreement_acks (id uuid not null default gen_random_uuid(), deal_id uuid not null, agreement_code text not null, version integer not null, profile_id uuid not null, role_label text not null, acknowledged_at timestamp with time zone not null default now());
 create table if not exists public.agreements (code text not null, version integer not null default 1, title text not null, body text not null);
-create table if not exists public.alert_group_members (id text not null, group_id text not null, profile_id uuid, display_name text not null, assignment_role text not null, email text not null default ''::text, active boolean not null default true, retired_at timestamp with time zone);
-create table if not exists public.alert_groups (id text not null, label text not null, purpose text not null, active boolean not null default true, retired_at timestamp with time zone, updated_at timestamp with time zone not null default now(), updated_by uuid);
 create table if not exists public.cla_office_counties (office_id text not null, state text not null, county text not null);
 create table if not exists public.cla_offices (id text not null, name text not null, address text not null default ''::text, state text not null, state_default boolean not null default false, active boolean not null default true, "position" integer not null default 0, created_at timestamp with time zone not null default now(), modified_at timestamp with time zone not null default now(), modified_by uuid);
 create table if not exists public.client_sales_reps (client_id uuid not null, sales_id uuid not null, created_by uuid, created_at timestamp with time zone not null default now());
@@ -64,7 +61,6 @@ create table if not exists public.closing_location_reminders (id uuid not null d
 create table if not exists public.closing_party_locations (id uuid not null default gen_random_uuid(), deal_id uuid not null, participant_id uuid not null, party_role text not null, in_state_at_closing boolean, closing_location_state character(2), closing_location_country character(2), signing_method text not null default 'undecided'::text, answered_at timestamp with time zone, answered_by uuid, created_at timestamp with time zone not null default now(), updated_at timestamp with time zone not null default now(), updated_by uuid);
 create table if not exists public.closing_proposals (id uuid not null default gen_random_uuid(), deal_id uuid not null, side text not null, proposed_by uuid not null, role_label text not null, proposed_at timestamp without time zone not null, location text not null, note text not null default ''::text, status text not null default 'proposed'::text, created_at timestamp with time zone not null default now(), office_id text);
 create table if not exists public.contacts (id uuid not null default gen_random_uuid(), profile_id uuid, first_name text not null, last_name text not null default ''::text, email text not null default ''::text, phone text not null default ''::text, company text not null default ''::text, created_by uuid, created_at timestamp with time zone not null default now(), contact_type text, crm_owner_id uuid, account_id uuid, crm_stage text, last_contacted_on date, tags text[] not null default '{}'::text[], crm_notes text not null default ''::text, crm_lead_id uuid, crm_archived_at timestamp with time zone, role_in_company text not null default ''::text, title text not null default ''::text, mobile text not null default ''::text, assistant text not null default ''::text, asst_phone text not null default ''::text, agent_split numeric(5,2), license_no text not null default ''::text, sales_volume_last_year numeric(16,2), deals_closed_last_year integer, zillow_url text not null default ''::text, crm_street text not null default ''::text, crm_city text not null default ''::text, crm_state text not null default ''::text, crm_zip text not null default ''::text, crm_county text not null default ''::text, links jsonb not null default '{}'::jsonb, modified_by uuid, modified_at timestamp with time zone, lead_source text not null default ''::text, relationship_status text, custom jsonb not null default '{}'::jsonb, zillow_moved boolean not null default false, is_demo boolean not null default false);
-create table if not exists public.cpl_prices (id uuid not null default gen_random_uuid(), state text not null, underwriter text not null, amount numeric(10,2), retired_at timestamp with time zone, updated_at timestamp with time zone not null default now(), updated_by uuid);
 create table if not exists public.crm_accounts (id uuid not null default gen_random_uuid(), name text not null, kind text not null default 'other'::text, phone text not null default ''::text, website text not null default ''::text, city text not null default ''::text, state text not null default ''::text, owner_id uuid, notes text not null default ''::text, archived_at timestamp with time zone, created_by uuid, created_at timestamp with time zone not null default now(), modified_by uuid, modified_at timestamp with time zone, custom jsonb not null default '{}'::jsonb);
 -- TEST history version 20261105222910, name crm. That row is not in the repo
 -- (the repo file with this stamp only creates private.features). The company
@@ -135,9 +131,7 @@ create table if not exists public.deal_sales_people (deal_id uuid not null, sale
 create table if not exists public.deals (id uuid not null default gen_random_uuid(), file_number text not null default ('MD-26-'::text || nextval('file_number_seq'::regclass)), street text not null, city text not null, state text not null, zip text not null default ''::text, transaction_type text not null default 'Purchase'::text, stage smallint not null default 0, status text not null default 'Open'::text, open_date date not null default ((now() AT TIME ZONE 'America/New_York'::text))::date, closing_date date, purchase_price numeric(14,2), loan_amount numeric(14,2), lender_name text not null default ''::text, lender_contact text not null default ''::text, lender_email text not null default ''::text, lender_phone text not null default ''::text, notes text not null default ''::text, processor_id uuid, sales_person_id uuid, created_by uuid, created_at timestamp with time zone not null default now(), scheduled_at timestamp without time zone, scheduled_location text, scheduled_note text not null default ''::text, scheduled_by uuid, scheduled_confirmed_at timestamp with time zone, emd_amount numeric(14,2), emd_due_date date, county text not null default ''::text, primary_residence text not null default ''::text, first_time_buyer text not null default ''::text, scheduled_office_id text, scheduled_by_role text, title_review_status text not null default 'not_started'::text, loan_id_number text not null default ''::text, loss_payee_name text not null default ''::text, uses_mers boolean, funding_type text, first_payment_date date, interest_type text, loan_type text not null default ''::text, contract_date date, listing_commission_pct numeric(8,4), listing_commission_amount numeric(14,2), buyer_commission_pct numeric(8,4), buyer_commission_amount numeric(14,2), seller_concessions numeric(14,2), emd_holder text, emd_received boolean not null default false, emd_received_date date, emd_received_amount numeric(14,2), alta_received boolean not null default false, alta_received_date date, alta_document_id uuid, preprocessor_user_id uuid, is_demo boolean not null default false);
 create table if not exists public.documents (id uuid not null default gen_random_uuid(), deal_id uuid, name text not null, description text not null default ''::text, mime_type text not null default 'application/octet-stream'::text, size_bytes bigint not null default 0, storage_path text, visibility text not null default 'all'::text, uploaded_by uuid not null, created_at timestamp with time zone not null default now(), folder_id uuid, doc_type text not null default ''::text, wire_instructions boolean not null default false, shared_with_client boolean not null default false, shared_with_client_by uuid, shared_with_client_at timestamp with time zone, title_doc_kind text, title_generated boolean not null default false, shared_with_seller boolean not null default false, shared_with_seller_by uuid, shared_with_seller_at timestamp with time zone, final_policy boolean not null default false, policy_side text);
 create table if not exists public.email_sender_settings (sender_type text not null, email text not null, display_name text not null, updated_at timestamp with time zone, updated_by uuid);
-create table if not exists public.entity_review_attorneys (id text not null, profile_id uuid, display_name text not null, assignment_role text not null, active boolean not null default true, retired_at timestamp with time zone);
 create table if not exists public.escrow_accounts (id uuid not null default gen_random_uuid(), state text not null, account_name text not null, account_last4 text not null, active boolean not null default true, created_at timestamp with time zone not null default now(), created_by uuid, updated_at timestamp with time zone not null default now(), updated_by uuid, deleted_at timestamp with time zone, deleted_by uuid);
-create table if not exists public.file_coverage_log (id uuid not null default gen_random_uuid(), deal_id uuid not null, actor_id uuid not null, kind text not null, at timestamp with time zone not null default now());
 create table if not exists public.folders (id uuid not null default gen_random_uuid(), scope text not null, deal_id uuid, name text not null, staff_only boolean not null default false, created_by uuid, created_at timestamp with time zone not null default now());
 create table if not exists public.funding_checks (id uuid not null default gen_random_uuid(), deal_id uuid not null, check_key text not null, passed boolean not null default false, note text not null default ''::text, checked_at timestamp with time zone, checked_by uuid, created_at timestamp with time zone not null default now(), created_by uuid, updated_at timestamp with time zone not null default now(), updated_by uuid, deleted_at timestamp with time zone, deleted_by uuid);
 create table if not exists public.funding_disbursements (id uuid not null default gen_random_uuid(), deal_id uuid not null, kind text not null, payee text not null default ''::text, address text not null default ''::text, memo text not null default ''::text, amount numeric(14,2) not null default 0, breakdown text not null default ''::text, invoice_payee text not null default ''::text, invoice_address text not null default ''::text, invoice_verified boolean not null default false, printed boolean not null default false, fedex_tracking text not null default ''::text, method text not null default 'check'::text, status text not null default 'undisbursed'::text, voided_at timestamp with time zone, voided_by uuid, void_reason text not null default ''::text, disbursed_at timestamp with time zone, disbursed_by uuid, created_at timestamp with time zone not null default now(), created_by uuid, updated_at timestamp with time zone not null default now(), updated_by uuid, deleted_at timestamp with time zone, deleted_by uuid);
@@ -182,7 +176,6 @@ create table if not exists public.settlement_responses (id uuid not null default
 create table if not exists public.settlements (id uuid not null default gen_random_uuid(), deal_id uuid not null, status text not null default 'open'::text, round integer not null default 1, slots timestamp without time zone[] not null, location text not null default ''::text, note text not null default ''::text, buyer_token_hash bytea not null, seller_token_hash bytea not null, confirmed_slot integer, history jsonb not null default '[]'::jsonb, created_by uuid, created_at timestamp with time zone not null default now(), confirmed_at timestamp with time zone, token_expires_at timestamp with time zone not null default (now() + '14 days'::interval), office_id text);
 create table if not exists public.signature_requests (id uuid not null default gen_random_uuid(), deal_id uuid not null, document_id uuid not null, provider text not null default 'demo'::text, envelope_id text not null default ''::text, message text not null default ''::text, status text not null default 'requested'::text, requested_by uuid not null, requested_at timestamp with time zone not null default now(), completed_at timestamp with time zone);
 create table if not exists public.signature_signers (request_id uuid not null, profile_id uuid not null, role_label text not null, task_id uuid, status text not null default 'requested'::text, signed_at timestamp with time zone, typed_name text, certificate text);
-create table if not exists public.task_template_admin_log (id bigint not null default nextval('task_template_admin_log_id_seq'::regclass), code text not null, action text not null, detail text not null default ''::text, changed_by uuid, changed_by_name text not null default ''::text, changed_at timestamp with time zone not null default now());
 create table if not exists public.task_template_switch_log (id bigint not null default nextval('task_template_switch_log_id_seq'::regclass), code text not null, old_enabled boolean not null, new_enabled boolean not null, changed_by uuid, changed_by_name text not null default ''::text, changed_at timestamp with time zone not null default now(), reason text not null default ''::text);
 create table if not exists public.task_template_switches (code text not null, enabled boolean not null default true, updated_at timestamp with time zone, updated_by uuid, reason text not null default ''::text);
 create table if not exists public.task_templates (id uuid not null default gen_random_uuid(), code text not null, version integer not null, title text not null, description text not null default ''::text, roles text[] not null, due_days integer not null default 7, fields jsonb not null default '[]'::jsonb, active boolean not null default true, published_by uuid, published_at timestamp with time zone not null default now(), agent_roles text[] not null default '{}'::text[], client_only boolean not null default false, lane text, audiences text[], retired_at timestamp with time zone, retired_by uuid, retire_reason text not null default ''::text);
@@ -196,7 +189,6 @@ create table if not exists public.title_curative_liens (id uuid not null default
 create table if not exists public.title_entity_reviews (id uuid not null default gen_random_uuid(), deal_id uuid not null, side text not null, entity_name text not null default ''::text, entity_type text not null default ''::text, articles_received boolean, operating_agreement_received boolean, resolutions_received boolean, good_standing_received boolean, good_standing_year text not null default ''::text, ein_received boolean, good_standing_verified boolean, good_standing_state_site text not null default ''::text, signer_authorized boolean, member_structure text, management_structure text not null default ''::text, required_signatures_captured boolean, critical_issue boolean not null default false, issue_notes text not null default ''::text, assigned_attorney_id uuid, attorney_approved boolean not null default false, attorney_approval_notes text not null default ''::text, folder_document_id uuid, created_at timestamp with time zone not null default now(), created_by uuid, updated_at timestamp with time zone not null default now(), updated_by uuid, deleted_at timestamp with time zone, deleted_by uuid);
 create table if not exists public.title_lien_certificates (id uuid not null default gen_random_uuid(), deal_id uuid not null, received_at timestamp with time zone, review_due_at timestamp with time zone, address_match boolean, parcel_match boolean, all_amounts_paid boolean, outstanding_amount numeric(12,2), zero_violations boolean, violation_count text not null default ''::text, signed_dated boolean, outcome text not null default 'pending'::text, notes text not null default ''::text, document_id uuid, created_at timestamp with time zone not null default now(), created_by uuid, updated_at timestamp with time zone not null default now(), updated_by uuid, deleted_at timestamp with time zone, deleted_by uuid);
 create table if not exists public.title_processor_notes (id uuid not null default gen_random_uuid(), deal_id uuid not null, body text not null, created_at timestamp with time zone not null default now(), created_by uuid, updated_at timestamp with time zone not null default now(), updated_by uuid, deleted_at timestamp with time zone, deleted_by uuid);
-create table if not exists public.title_search_tracking (id uuid not null default gen_random_uuid(), deal_id uuid not null, ordered_date date, due_date date, received_date date, abstractor text not null default ''::text, assigned_typist_id uuid, notes text not null default ''::text, created_at timestamp with time zone not null default now(), created_by uuid, updated_at timestamp with time zone not null default now(), updated_by uuid, deleted_at timestamp with time zone, deleted_by uuid);
 create table if not exists public.underwriter_split_log (id bigint not null default nextval('underwriter_split_log_id_seq'::regclass), state text not null, added boolean not null default false, old_pct numeric(5,2), new_pct numeric(5,2), old_underwriter text, new_underwriter text not null, changed_by uuid, changed_by_name text not null default ''::text, changed_at timestamp with time zone not null default now());
 create table if not exists public.underwriter_splits (state text not null, underwriter_pct numeric(5,2), underwriter text not null default 'Fidelity National Title'::text, updated_at timestamp with time zone, updated_by uuid, updated_by_name text not null default ''::text);
 create table if not exists public.update_requests (id uuid not null default gen_random_uuid(), deal_id uuid not null, topic text not null, note text not null default ''::text, requested_by uuid not null, requested_role text not null, status text not null default 'open'::text, response text not null default ''::text, responded_by uuid, responded_at timestamp with time zone, created_at timestamp with time zone not null default now());
@@ -300,20 +292,6 @@ do $pk13$ begin
     alter table public.agreements add primary key (code);
   end if;
 end $pk13$;
-do $pk14$ begin
-  if to_regclass('public.alert_group_members') is not null and not exists (
-    select 1 from pg_constraint where conrelid = 'public.alert_group_members'::regclass and contype = 'p'
-  ) then
-    alter table public.alert_group_members add primary key (id);
-  end if;
-end $pk14$;
-do $pk15$ begin
-  if to_regclass('public.alert_groups') is not null and not exists (
-    select 1 from pg_constraint where conrelid = 'public.alert_groups'::regclass and contype = 'p'
-  ) then
-    alter table public.alert_groups add primary key (id);
-  end if;
-end $pk15$;
 do $pk16$ begin
   if to_regclass('public.cla_office_counties') is not null and not exists (
     select 1 from pg_constraint where conrelid = 'public.cla_office_counties'::regclass and contype = 'p'
@@ -363,13 +341,6 @@ do $pk22$ begin
     alter table public.contacts add primary key (id);
   end if;
 end $pk22$;
-do $pk23$ begin
-  if to_regclass('public.cpl_prices') is not null and not exists (
-    select 1 from pg_constraint where conrelid = 'public.cpl_prices'::regclass and contype = 'p'
-  ) then
-    alter table public.cpl_prices add primary key (id);
-  end if;
-end $pk23$;
 do $pk24$ begin
   if to_regclass('public.crm_accounts') is not null and not exists (
     select 1 from pg_constraint where conrelid = 'public.crm_accounts'::regclass and contype = 'p'
@@ -650,13 +621,6 @@ do $pk63$ begin
     alter table public.email_sender_settings add primary key (sender_type);
   end if;
 end $pk63$;
-do $pk64$ begin
-  if to_regclass('public.entity_review_attorneys') is not null and not exists (
-    select 1 from pg_constraint where conrelid = 'public.entity_review_attorneys'::regclass and contype = 'p'
-  ) then
-    alter table public.entity_review_attorneys add primary key (id);
-  end if;
-end $pk64$;
 do $pk65$ begin
   if to_regclass('public.escrow_accounts') is not null and not exists (
     select 1 from pg_constraint where conrelid = 'public.escrow_accounts'::regclass and contype = 'p'
@@ -664,13 +628,6 @@ do $pk65$ begin
     alter table public.escrow_accounts add primary key (id);
   end if;
 end $pk65$;
-do $pk66$ begin
-  if to_regclass('public.file_coverage_log') is not null and not exists (
-    select 1 from pg_constraint where conrelid = 'public.file_coverage_log'::regclass and contype = 'p'
-  ) then
-    alter table public.file_coverage_log add primary key (id);
-  end if;
-end $pk66$;
 do $pk67$ begin
   if to_regclass('public.folders') is not null and not exists (
     select 1 from pg_constraint where conrelid = 'public.folders'::regclass and contype = 'p'
