@@ -7,6 +7,8 @@
 1. **Virginia refinance with nothing paid off.** The reduced refinance recordation rate ($0.18 state per $100, Va. Code 58.1-803(E)) only applies when an existing loan is refinanced. When the payoff is $0, the loan is a new loan and is taxed at the full deed-of-trust rate: $0.25 state plus the local one-third. Example: Arlington, $350,000 loan, no payoff = $1,166.67 (was $840). A refinance with a payoff is unchanged.
 2. **Hampton Roads fee.** Virginia purchases in the Hampton Roads transportation district (Chesapeake, Franklin, Hampton, Newport News, Norfolk, Poquoson, Portsmouth, Suffolk, Virginia Beach, Williamsburg, Isle of Wight, James City, Southampton, York) add the regional transportation improvement fee: $0.06 per $100, paid by the seller (Va. Code 58.1-802.5). Example: Virginia Beach, $515,000 = $309.
 
+3. **Maryland refinance note (Nov 16).** A Maryland refinance with a payoff shows: "Maryland refinance: recordation tax is figured on the new money only. That assumes the borrower signs the original mortgagor affidavit (Tax-Property 12-108(g)). If not, recordation tax is due on the whole loan." No new question: Melissa said borrowers are "not always" the original borrower, and the processor confirms it with the affidavit.
+
 ## Where it lives
 
 - The rate is a row on the live "CLA Fee Tables (Live - Calculator)" sheet (Transfer_Taxes row 103, added Nov 15). The portal reads the live sheet (REC-CALC-4), so it applies right away.

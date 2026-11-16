@@ -1,7 +1,7 @@
-/* VENDORED from cla-calculator (github.com/Johncoester/cla-closing-cost-calculator) at commit 54d10a2 (calculator PR #1, Nov 15 2026): index.html, first <script> block up to the UI section (pure calculation code).
+/* VENDORED from cla-calculator (github.com/Johncoester/cla-closing-cost-calculator) at commit ee6825a (calculator PR #1, Nov 16 2026): index.html, first <script> block up to the UI section (pure calculation code).
  * READ-ONLY SOURCE: do not edit here. Copied 2026-11-04 (tools/vendor-cla-calculator.js, no longer in the repo); re-copied by hand by Claude on 2026-11-15
- * (VA refinance with no payoff; Hampton Roads fee). Refresh with a newer calculator commit (see docs/CALCULATOR-FEES.md). Only the ES-module wrapper (this header, the import and the export line) is added.
- * sha256 of the copied text: 525c4b624918d92c894314040ec7f0f67f754bbd66930d036fa87b235f981199 */
+ * (VA refinance with no payoff; Hampton Roads fee; Nov 16: MD original mortgagor note and Melissa's rate answers). Refresh with a newer calculator commit (see docs/CALCULATOR-FEES.md). Only the ES-module wrapper (this header, the import and the export line) is added.
+ * sha256 of the copied text: 9983d21962046ea79cc3c460a482c0dc2caeb6d06fbd14917fd4ff7a36f6f9aa */
 import { CLA_FEES_SNAPSHOT } from './fee-snapshot.js?v=202611222800';
 // ---- verbatim from cla-calculator index.html ----
 // ---------- config ----------
@@ -156,6 +156,8 @@ function calc(R,i){const L=[],W=[],refi=i.type==="refi";
   TX.push({name:k,label,amt:r2(v.amt),def,payer:eff,adjustable,fixed:v.fixed,fthb:v.fthb,fthbPayer:v.fthbPayer,onAssessed:v.onAssessed})}
  if(i.fthb&&i.occ===false&&!refi)W.push("First-time homebuyer programs need an owner-occupied principal residence: the first-time buyer treatment is not applied.");
  if(!anyTax&&!refi&&i.price>0)W.push(`No transfer/recordation taxes found for ${i.county||"(county)"}, ${i.state}.`);
+ // John, Nov 16 2026 (Melissa: refinance borrowers are "not always" the original borrower): the new-money-only tax needs the original mortgagor (Tax-Property 12-108(g)).
+ if(refi&&i.state==="MD"&&+i.payoff>0)W.push("Maryland refinance: recordation tax is figured on the new money only. That assumes the borrower signs the original mortgagor affidavit (Tax-Property 12-108(g)). If not, recordation tax is due on the whole loan.");
  // buyer's agent costs (Janette Fiallo 11/02): optional, buyer column, H. Other; blank / 0 = no line. Not on a refinance.
  if(!refi){const bpc=commission(+i.price||0,i.buyerPaidComm);if(bpc>0)add(SEC.H,"Commission paid by buyer"+(i.buyerPaidComm.mode==="flat"?"":` (${+i.buyerPaidComm.val||0}% of price)`),bpc,0);
   if(+i.brokerAdminFee>0)add(SEC.H,"Broker admin fee (buyer's broker)",+i.brokerAdminFee,0)}

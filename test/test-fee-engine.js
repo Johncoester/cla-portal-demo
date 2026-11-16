@@ -61,5 +61,9 @@ ok(Math.abs(vaRefi(300000) - 840) < 0.02, 'a Virginia refinance with a payoff ke
 const hr = proposeFees(purchase('VA', 'Virginia Beach City', 515000, 412000)).lines.find((l) => /Hampton Roads/.test(l.description));
 ok(hr && Math.abs(hr.amount - 309) < 0.01 && hr.paidBy === 'seller', 'Virginia Beach shows the Hampton Roads fee, $309, paid by the seller');
 
+// John, Nov 16 2026: a Maryland refinance with a payoff warns that the new-money-only tax needs the original mortgagor affidavit.
+const mdRefi = proposeFees({ state: 'MD', county: 'Montgomery', loanAmount: 500000, transactionType: 'Refinance' }, { payoff: 350000 });
+ok(mdRefi.warnings.some((w) => /original mortgagor affidavit/.test(w)), 'a Maryland refinance with a payoff shows the original mortgagor note');
+
 console.log(fail ? fail + ' failed' : 'fee engine passed');
 process.exit(fail ? 1 : 0);
