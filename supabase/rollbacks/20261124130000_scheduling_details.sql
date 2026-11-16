@@ -18,6 +18,8 @@ update public.tasks set status = 'cancelled'
  where template_code = 'agent_schedule_settlement' and status <> 'cancelled'
    and (form_data is null or form_data = '{}'::jsonb);
 
+drop trigger if exists tasks_schedule_apply on public.tasks;
+drop function if exists private.tasks_schedule_apply();
 drop trigger if exists deals_schedule_guard on public.deals;
 drop function if exists private.deals_schedule_guard();
 
@@ -121,8 +123,17 @@ begin
   where private.task_enabled(a.code) and not exists (select 1 from public.tasks x where x.participant_id = p.id and x.template_code = a.code and x.status <> 'cancelled');
   get diagnostics n = row_count; return n; end $$;
 
+-- Replace the submit function only when this migration created it (its body calls save_side_schedule).
+-- A function that was already on TEST is left as it was.
+do $restore_submit$
+begin
+  if to_regprocedure('private.rpc_submit_agent_task(uuid, jsonb)') is null
+     or position('save_side_schedule' in (select p.prosrc from pg_proc p where p.oid = 'private.rpc_submit_agent_task(uuid, jsonb)'::regprocedure)) = 0 then
+    return;
+  end if;
+  execute $fn$
 create or replace function private.rpc_submit_agent_task(p_task uuid, p_answers jsonb) returns integer
-language plpgsql security definer set search_path = pg_catalog, public, extensions as $$
+language plpgsql security definer set search_path = pg_catalog, public, extensions as $body$
 declare t public.tasks; n int;
 begin
   select * into t from public.tasks where id = p_task and kind = 'agent';
@@ -137,7 +148,9 @@ begin
   perform set_config('cla.form_rpc', '', true);
   perform private.log_activity(t.deal_id, case when n = 1 then 'task.submitted' else 'task.revised' end, 'task', t.id, t.title || case when n = 1 then ': submitted' else ': revision ' || (n - 1) || ' submitted' end);
   perform private.notify(array[(select processor_id from public.deals where id = t.deal_id)], 'task', t.deal_id, private.person_name(private.effective_uid()) || case when n = 1 then ' completed "' else ' revised "' end || t.title || '"', '#/deals/' || t.deal_id || '/tasks/' || t.id);
-  return n; end $$;
+  return n; end $body$
+  $fn$;
+end $restore_submit$;
 
 delete from public.outbox where kind = 'scheduling';
 alter table public.outbox drop constraint if exists outbox_recipient_check;

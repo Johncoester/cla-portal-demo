@@ -2,7 +2,7 @@
 -- Scheduling details for the buyer side and the seller side, plus the processor's settlement agent.
 -- A link for the buyer or seller is queued in the outbox from testportal@clatitle.com. Nothing is sent.
 -- This does not replace MF-011. deals.closer_name stays. The buyer's date is not written to deals.closing_date.
--- Rollback: supabase/rollbacks/20261124100000_scheduling_details.sql
+-- Rollback: supabase/rollbacks/20261124130000_scheduling_details.sql
 begin;
 set local lock_timeout = '3s';
 set local search_path = pg_catalog, public, extensions;
@@ -271,7 +271,7 @@ declare c jsonb; begin
     if coalesce(a->>'willPurchase', '') not in ('Yes', 'No') then raise exception 'Will you or someone else be purchasing a home warranty? Choose Yes or No.' using errcode = 'P0001'; end if;
     if a->>'willPurchase' = 'Yes' and coalesce(a->>'purchaser', '') not in ('Me', 'Someone else') then raise exception 'Who is purchasing it?' using errcode = 'P0001'; end if;
   elsif p_code = 'agent_schedule_settlement' then
-    perform private.schedule_check(a);
+    if coalesce(a->>'side', '') in ('buyer', 'seller') then perform private.schedule_check(a); end if;
   else raise exception 'Unknown agent task' using errcode = 'P0001'; end if;
 end $$;
 
@@ -293,30 +293,58 @@ begin
   where private.task_enabled(a.code) and not exists (select 1 from public.tasks x where x.participant_id = p.id and x.template_code = a.code and x.status <> 'cancelled');
   get diagnostics n = row_count; return n; end $$;
 
-create or replace function private.rpc_submit_agent_task(p_task uuid, p_answers jsonb) returns integer
+-- A fresh database has no private.rpc_submit_agent_task. Create it only then.
+-- When the function is already on TEST, leave that body alone and apply the schedule from a trigger instead.
+create function private.tasks_schedule_apply() returns trigger
 language plpgsql security definer set search_path = pg_catalog, public, extensions as $$
-declare t public.tasks; n int; saved jsonb;
+declare side text; answers jsonb;
 begin
-  select * into t from public.tasks where id = p_task and kind = 'agent';
-  if not found or not private.can_access_deal(t.deal_id) or not private.task_visible(t.owner_profile_id, t.assigned_role, t.deal_id) then raise exception 'Task not found' using errcode = 'P0001'; end if;
-  if t.owner_profile_id is distinct from private.effective_uid() then raise exception 'Only the agent this task is for can submit it.' using errcode = 'P0001'; end if;
-  if t.status = 'cancelled' then raise exception 'This task was cancelled.' using errcode = 'P0001'; end if;
-  if t.template_code = 'agent_schedule_settlement' then
-    p_answers := coalesce(p_answers, '{}'::jsonb) || jsonb_build_object('side', case when t.assigned_role = 'Listing Agent' then 'seller' else 'buyer' end);
+  if new.kind is distinct from 'agent' or new.template_code is distinct from 'agent_schedule_settlement' then return new; end if;
+  if new.form_data is null or new.form_data = '{}'::jsonb then return new; end if;
+  if tg_op = 'UPDATE' and new.form_data is not distinct from old.form_data then return new; end if;
+  side := case when new.assigned_role = 'Listing Agent' then 'seller' else 'buyer' end;
+  answers := coalesce(new.form_data, '{}'::jsonb) || jsonb_build_object('side', side);
+  new.form_data := private.save_side_schedule(new.deal_id, answers, 'agent');
+  return new;
+end $$;
+
+do $create_submit$
+begin
+  if to_regprocedure('private.rpc_submit_agent_task(uuid, jsonb)') is not null then
+    if exists (select 1 from pg_trigger where tgname = 'tasks_schedule_apply' and tgrelid = 'public.tasks'::regclass) then
+      raise exception 'drift: tasks_schedule_apply already exists';
+    end if;
+    execute 'create trigger tasks_schedule_apply before insert or update of form_data on public.tasks for each row execute function private.tasks_schedule_apply()';
+    return;
   end if;
-  perform private.agent_validate(t.template_code, p_answers);
-  if t.template_code = 'agent_schedule_settlement' then
-    saved := private.save_side_schedule(t.deal_id, p_answers, 'agent');
-    p_answers := saved;
-  end if;
-  select coalesce(max(r.n), 0) + 1 into n from public.agent_task_revisions r where r.task_id = p_task;
-  insert into public.agent_task_revisions (task_id, n, answers, by_profile) values (p_task, n, p_answers, private.effective_uid());
-  perform set_config('cla.form_rpc', 'on', true);
-  update public.tasks set form_data = p_answers, saved_at = now(), saved_by = private.effective_uid(), status = 'done', completed_at = now(), completed_by = private.effective_uid() where id = p_task;
-  perform set_config('cla.form_rpc', '', true);
-  perform private.log_activity(t.deal_id, case when n = 1 then 'task.submitted' else 'task.revised' end, 'task', t.id, t.title || case when n = 1 then ': submitted' else ': revision ' || (n - 1) || ' submitted' end);
-  perform private.notify(array[(select processor_id from public.deals where id = t.deal_id)], 'task', t.deal_id, private.person_name(private.effective_uid()) || case when n = 1 then ' completed "' else ' revised "' end || t.title || '"', '#/deals/' || t.deal_id || '/tasks/' || t.id);
-  return n; end $$;
+  execute $fn$
+    create function private.rpc_submit_agent_task(p_task uuid, p_answers jsonb) returns integer
+    language plpgsql security definer set search_path = pg_catalog, public, extensions as $body$
+    declare t public.tasks; n int; saved jsonb;
+    begin
+      select * into t from public.tasks where id = p_task and kind = 'agent';
+      if not found or not private.can_access_deal(t.deal_id) or not private.task_visible(t.owner_profile_id, t.assigned_role, t.deal_id) then raise exception 'Task not found' using errcode = 'P0001'; end if;
+      if t.owner_profile_id is distinct from private.effective_uid() then raise exception 'Only the agent this task is for can submit it.' using errcode = 'P0001'; end if;
+      if t.status = 'cancelled' then raise exception 'This task was cancelled.' using errcode = 'P0001'; end if;
+      if t.template_code = 'agent_schedule_settlement' then
+        p_answers := coalesce(p_answers, '{}'::jsonb) || jsonb_build_object('side', case when t.assigned_role = 'Listing Agent' then 'seller' else 'buyer' end);
+      end if;
+      perform private.agent_validate(t.template_code, p_answers);
+      if t.template_code = 'agent_schedule_settlement' then
+        saved := private.save_side_schedule(t.deal_id, p_answers, 'agent');
+        p_answers := saved;
+      end if;
+      select coalesce(max(r.n), 0) + 1 into n from public.agent_task_revisions r where r.task_id = p_task;
+      insert into public.agent_task_revisions (task_id, n, answers, by_profile) values (p_task, n, p_answers, private.effective_uid());
+      perform set_config('cla.form_rpc', 'on', true);
+      update public.tasks set form_data = p_answers, saved_at = now(), saved_by = private.effective_uid(), status = 'done', completed_at = now(), completed_by = private.effective_uid() where id = p_task;
+      perform set_config('cla.form_rpc', '', true);
+      perform private.log_activity(t.deal_id, case when n = 1 then 'task.submitted' else 'task.revised' end, 'task', t.id, t.title || case when n = 1 then ': submitted' else ': revision ' || (n - 1) || ' submitted' end);
+      perform private.notify(array[(select processor_id from public.deals where id = t.deal_id)], 'task', t.deal_id, private.person_name(private.effective_uid()) || case when n = 1 then ' completed "' else ' revised "' end || t.title || '"', '#/deals/' || t.deal_id || '/tasks/' || t.id);
+      return n;
+    end $body$
+  $fn$;
+end $create_submit$;
 
 -- Open files that already have an agent get the new task. Closed files are left alone.
 do $$

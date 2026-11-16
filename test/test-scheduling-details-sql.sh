@@ -52,7 +52,7 @@ insert into public.deal_participants (id, deal_id, contact_id, role) values
   ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Buyer Agent'),
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'Client-Buyer');
 SQL
-psql_super -f "$ROOT/supabase/migrations/20261124100000_scheduling_details.sql"
+psql_super -f "$ROOT/supabase/migrations/20261124130000_scheduling_details.sql"
 psql_super <<'SQL'
 \set ON_ERROR_STOP on
 select set_config('cla.uid', '11111111-1111-1111-1111-111111111111', false);
@@ -105,6 +105,6 @@ begin
   end;
 end $$;
 SQL
-psql_super -f "$ROOT/supabase/rollbacks/20261124100000_scheduling_details.sql"
+psql_super -f "$ROOT/supabase/rollbacks/20261124130000_scheduling_details.sql"
 psql_super -c "select 1 from information_schema.columns where table_name = 'deals' and column_name = 'sched_buyer_date';" | grep -q '(0 rows)'
 echo 'scheduling details sql passed'

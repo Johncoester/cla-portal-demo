@@ -5,7 +5,7 @@
  * The processor sees both answers on the file. */
 import { OFFICE_LOCATION, officeAddress } from './offices.js?v=202611101015';
 import { closingOfficeChoices, officeById, officeNameOf, officeRows } from './mock-part-offices.js?v=202611101015';
-import { cleanScheduleAnswers, schedulePatch, schedulingToldEmail, settlementAgentChoices, resolveSettlementAgent, INVITE_FROM, INVITE_FROM_NAME, schedulingFromDeal } from './scheduling-details.js?v=202611241000';
+import { cleanScheduleAnswers, schedulePatch, schedulingToldEmail, settlementAgentChoices, resolveSettlementAgent, INVITE_FROM, INVITE_FROM_NAME, schedulingFromDeal } from './scheduling-details.js?v=202611241300';
 export function closingSchedule(x) {
   const { load, save, nid, me, needUser, needProcessor, dealOr404, onDeal, fileRole, log, nameOf, notify, dealProfileIds, prof, contactOf, clone, now, fail, str, C } = x;
   const SIDES = ['buyer', 'seller'];

@@ -12,6 +12,8 @@ import { officeDate } from './office-date.js?v=202611102100';
 import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions } from './lender-file.js?v=202611222700';
 import { parcelInput } from './parcels.js?v=202611222100';
 import { earnestDealPatch, earnestTouched, OLD_COMMISSION_KEYS, OLD_COMMISSION_REFUSED, withoutOldCommission } from './earnest-commission.js?v=202611223000';
+import { cleanFee, feeChanges } from './accounting.js?v=202611223100';
+import { waterEscrowFeeInput } from './prorate-defaults.js?v=202611223100';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 // John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only
@@ -163,6 +165,14 @@ export function dealsAndAuth(x) {
         assignedRole: 'Processor', status: 'todo', dueDate: null, formData: {}, savedAt: null, completedAt: null, completedBy: null, createdBy: u.id, createdAt: now() });
       log(deal.id, u.id, 'deal.created', 'deal', deal.id, `Order ${deal.fileNumber} opened${procId ? ` (Processor: ${nameOf(procId)})` : ' (Processor unassigned)'}`);
       setSales(u, deal.id, salesIds);
+      const water = waterEscrowFeeInput(deal);
+      if (water && !(d.accountingFees || []).some((f) => f.dealId === deal.id && (f.presetKey === 'waterEscrow' || /^water escrow$/i.test(String(f.description || '').trim())))) {
+        if (!Array.isArray(d.accountingFees)) d.accountingFees = []; if (!Array.isArray(d.accountingLog)) d.accountingLog = [];
+        const clean = cleanFee(water, deal);
+        const f = { id: nid('fee'), dealId: deal.id, ...clean, retired: false, retiredAt: null, retiredBy: null, createdAt: now(), createdBy: u.id, updatedAt: now(), updatedBy: u.id };
+        d.accountingFees.push(f);
+        d.accountingLog.push({ id: nid('alog'), dealId: deal.id, feeId: f.id, description: f.description, action: 'added', at: now(), byId: u.id, byName: nameOf(u.id), changes: feeChanges(null, f), via: 'Default water escrow' });
+      }
       save(); return clone(dealView(u, deal));
     },
     async updateDeal(id, patch) {
