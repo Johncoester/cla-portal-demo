@@ -1,5 +1,5 @@
-/* Test-account address helpers. Nov 13 (John): the walkthrough no longer keeps an allowed-inbox list; the email test sends
- * to the addresses on the test file. The file name stays so seed-accounts.mjs and the specs keep their imports. */
+/* Test-account address helpers. Nov 16 (John, Claude's PR 293 audit): a walkthrough send goes only to E2E_MAIL_TO.
+ * Addresses on the test file are never recipients. The file name stays so seed-accounts.mjs and the specs keep their imports. */
 
 export function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
@@ -24,6 +24,22 @@ export function plusAlias(base, tag) {
 
 export function mailTo() {
   return normalizeEmail(process.env.E2E_MAIL_TO || '');
+}
+
+/* Who a walkthrough send may email. partyAddresses are addresses found on the file; they are never returned.
+ * mailTo is E2E_MAIL_TO. A blank or non-email value fails closed: ok is false and to is empty. */
+export function e2eMailRecipients(partyAddresses, mailTo) {
+  const blocked = [];
+  const seen = new Set();
+  for (const raw of partyAddresses || []) {
+    const a = normalizeEmail(raw);
+    if (!splitMailbox(a) || seen.has(a)) continue;
+    seen.add(a);
+    blocked.push(a);
+  }
+  const inbox = normalizeEmail(mailTo);
+  if (!splitMailbox(inbox)) return { ok: false, to: [], blocked };
+  return { ok: true, to: [inbox], blocked: blocked.filter((a) => a !== inbox) };
 }
 
 export const ROLE_TAGS = {

@@ -590,7 +590,7 @@ function automationSection(d, refi) {
     <div class="card automation-card" data-automation><div class="automation-row"><div><strong>Email sellers and agents</strong>
       <p class="small muted">Prepares one email per seller, listing agent and buyer's agent on this order, from a CRM email template when one fits (name or subject mentions sellers / agents), otherwise a built-in message.
       Wire instructions are never included: they go to the buyer only, and real estate agents never receive them.</p>
-      <p class="small" data-gmail-on><span class="pill info">Gmail</span> Sends from your own @clatitle.com Gmail once it is connected (Profile Setting &gt; Gmail). CLA Portal Live Test sends to test addresses only.</p></div>
+      <p class="small" data-gmail-on><span class="pill info">Gmail</span> Sends from your own @clatitle.com Gmail once it is connected (Profile Setting &gt; Gmail). The email goes to the address on the file.</p></div>
       <button type="button" class="m-btn" data-email-sellers-agents ${refi ? raw('disabled title="A refinance has no sellers or agents"') : ''}>Email sellers and agents</button></div></div>`;
 }
 async function automationModal(api, d) {
@@ -598,7 +598,7 @@ async function automationModal(api, d) {
   const on = !!(g && g.connected && g.status === 'connected');
   // one sign-off only: when the portal signature goes on the email, the built-in body leaves the name to it
   const P = await api.previewSellerAgentEmails(d.id, { portalSignature: on && hasSignature(g.signatureHtml) }); const sendable = P.messages.filter((m) => m.email);
-  // John, Nov 9 (Gmail phase 1): Send goes out one email per person from the user's own Gmail through gmail-send (the server refuses non-test addresses on Live Test)
+  // John, Nov 9 (Gmail phase 1); Nov 13: Send goes out one email per person from the user's own Gmail through gmail-send, to the address on the file.
   const m = modal('Email sellers and agents', html`${on ? html`<div class="notice info" data-gmail-on-modal>Sends one email per person from <strong>${g.mailbox}</strong>.</div>`
       : html`<div class="notice warn" data-gmail-off-modal><strong>Preview only.</strong> Connect your Gmail on <a href="#/profile">Profile Setting</a> to send. Nothing has been sent.</div>`}
     <p class="small muted" data-wire-rule>${P.wireRule}</p>

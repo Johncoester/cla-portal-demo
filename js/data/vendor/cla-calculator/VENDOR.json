@@ -1,18 +1,18 @@
 {
   "repo": "github.com/Johncoester/cla-closing-cost-calculator",
-  "commit": "54d10a2",
-  "copiedOn": "2026-11-15",
+  "commit": "ee6825a",
+  "copiedOn": "2026-11-16",
   "files": {
     "calc-core.js": {
       "from": "index.html (first <script>, up to \"// ---------- UI ----------\")",
-      "sha256": "525c4b624918d92c894314040ec7f0f67f754bbd66930d036fa87b235f981199",
-      "lines": 270
+      "sha256": "9983d21962046ea79cc3c460a482c0dc2caeb6d06fbd14917fd4ff7a36f6f9aa",
+      "lines": 272
     },
     "fee-snapshot.js": {
       "from": "fee-snapshot.js",
-      "sha256": "f21a0055ab7b915292789b5f272ee43780797d7f12084df1c6b35e730757f991",
-      "bytes": 129133
+      "sha256": "8304ce37b0e3a3eb248990b6d9dda6ad0538ce2f544dbe5071d1910b024ee4c8",
+      "bytes": 129734
     }
   },
-  "note": "Re-copied by hand by Claude (calculator PR #1: Virginia refinance with no payoff; Hampton Roads fee). tools/vendor-cla-calculator.js is no longer in the repo."
+  "note": "Re-copied by hand by Claude (calculator PR #1: Virginia refinance with no payoff; Hampton Roads fee; Nov 16: MD original mortgagor note, Melissa's rate answers). tools/vendor-cla-calculator.js is no longer in the repo."
 }

@@ -25,7 +25,7 @@ const base = `http://127.0.0.1:${server.address().port}/`;
 const browser = await chromium.launch({ headless: true, ...(process.env.SMOKE_CHANNEL ? { channel: process.env.SMOKE_CHANNEL } : {}) });
 const page = await browser.newPage();
 // The calculator form reads the live Google sheet in a real browser. This check makes that read fail before it leaves the
-// page, so the walk-through stays on the saved Nov 15 rates and does not depend on the network. The form should say so.
+// page, so the walk-through stays on the saved Nov 16 rates and does not depend on the network. The form should say so.
 await page.addInitScript(() => {
   const orig = window.fetch.bind(window);
   window.fetch = (url, opts) => (String(url).includes('docs.google.com') ? Promise.reject(new Error('offline')) : orig(url, opts));
@@ -134,7 +134,7 @@ await page.goto(`${base}#/deals/deal-1/accounting?calc=1`); await page.reload();
 try {
   await page.waitForSelector('[data-calc-form]', { timeout: 10000 });
   const rateNote = await page.locator('[data-rate-loaded]').innerText();
-  if (rateNote !== "Using the saved copy from Nov 15 because the live sheet couldn't be reached") problems.push('rate note: ' + rateNote);
+  if (rateNote !== "Using the saved copy from Nov 16 because the live sheet couldn't be reached") problems.push('rate note: ' + rateNote);
   const docs = await page.locator('[data-doc]').evaluateAll((els) => Object.fromEntries(els.map((el) => [`${el.dataset.doc}|${el.dataset.docPart}`, el.value])));
   if (docs['Deed|count'] !== '1' || docs['Deed|pages'] !== '3') problems.push('Deed should start at 1 document and 3 pages');
   if (docs['Deed of Trust|count'] !== '1' || docs['Deed of Trust|pages'] !== '30') problems.push('Deed of trust should start at 1 document and 30 pages');

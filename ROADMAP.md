@@ -588,7 +588,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## Recording calculator live sheet (REC-CALC-4)
 
-**How it should work.** Calculate fees reads CLA's live rate sheet. The form says when those rates were loaded. If the sheet cannot be reached, the form says so and the fees stay on the saved copy (November 15 since REC-CALC-5).
+**How it should work.** Calculate fees reads CLA's live rate sheet. The form says when those rates were loaded. If the sheet cannot be reached, the form says so and the fees stay on the saved copy (November 16 since REC-CALC-5).
 
 **Status: Live on TEST (Nov 15 2026).** Tracker row 300 (REC-CALC-4). John Coester, Nov 14 2026, 6:52 PM ET, item 4 of the recording calculator fixes from Claude's review. [PR 279](https://github.com/Johncoester/cla-portal-demo/pull/279) is merged at 8bc66f6c. Nothing else was left on this item. No database file.
 
@@ -596,7 +596,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 - The form loads the live "CLA Fee Tables (Live - Calculator)" sheet with the calculator's own loader. No password is used. The sheet is already shared to anyone with the link.
 - When that works, the form says "Rates from the live sheet, loaded [date and time]" in Eastern time, and the preview uses those rates.
-- When it does not work, the form says "Using the saved copy from Nov 15 because the live sheet couldn't be reached" and the fees come from that saved copy.
+- When it does not work, the form says "Using the saved copy from Nov 16 because the live sheet couldn't be reached" and the fees come from that saved copy.
 - The portal's numbers are checked against the calculator for Montgomery, Prince George's, Baltimore City, DC under and over $400,000, Fairfax, and a Maryland refinance. Those checks use the saved copy.
 
 **What's still missing**
@@ -627,7 +627,8 @@ This file lists the portal's major features: how each one should work, how far a
 
 - The Hampton Roads row is on the live rate sheet (Transfer_Taxes row 103), so live quotes already include it.
 - The portal's copy of the calculator code and its saved copy of the rates are refreshed to calculator commit 54d10a2. The saved-copy note now says Nov 15.
-- New checks in test/test-fee-engine.js: Virginia refinance with and without a payoff, and the Hampton Roads fee on Virginia Beach.
+- New checks in test/test-fee-engine.js: Virginia refinance with and without a payoff, the Hampton Roads fee on Virginia Beach, and the Maryland original mortgagor note.
+- Nov 16 (John, after Melissa's answers): a Maryland refinance with a payoff shows a note that the new-money-only recordation tax assumes the borrower signs the original mortgagor affidavit (Tax-Property 12-108(g)). The saved rate copy now also has Melissa's Nov 16 rates (Caroline recordation $5.00/$500; Caroline first-time buyer $75,000 in total; Baltimore City $22,000 transfer tax exemption at $249,900 or less), which are on the live sheet too. Calculator commit ee6825a.
 
 **What's still missing**
 

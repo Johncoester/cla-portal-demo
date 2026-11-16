@@ -20,7 +20,7 @@ import { STATE_COUNTIES } from './state-counties.js?v=202611223100';
 import { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden } from './accounting.js?v=202611223000';
 export { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden };
 
-export const CALC_SOURCE = { repo: 'github.com/Johncoester/cla-closing-cost-calculator', commit: '54d10a2', snapshot: '2026-11-15', files: 'index.html (calc code), fee-snapshot.js (rate tables)' };
+export const CALC_SOURCE = { repo: 'github.com/Johncoester/cla-closing-cost-calculator', commit: 'ee6825a', snapshot: '2026-11-16', files: 'index.html (calc code), fee-snapshot.js (rate tables)' };
 export const CALC_STATES = ['MD', 'VA', 'DC', 'FL'];
 export const UNDERWRITER = 'Fidelity National Title';     // the only underwriter in the calculator's Premium_Tiers / Rules / Endorsements
 const fail = (m) => { throw new Error(m); };
@@ -48,7 +48,7 @@ export function vendoredTables() { if (!cache.has(vendoredRateSource.id)) cache.
 
 // REC-CALC-4 (John, Nov 14 2026): read the live "CLA Fee Tables (Live - Calculator)" sheet with the calculator's own loadFees().
 // The calculation itself stays pure. This is the only place that reaches the network, and a failed read keeps the Nov 2 copy.
-export const FALLBACK_RATE_NOTE = "Using the saved copy from Nov 15 because the live sheet couldn't be reached";
+export const FALLBACK_RATE_NOTE = "Using the saved copy from Nov 16 because the live sheet couldn't be reached";
 export function formatRateLoaded(date) {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hourCycle: 'h12' }).formatToParts(date);
   const get = (t) => (parts.find((p) => p.type === t) || {}).value || '';
