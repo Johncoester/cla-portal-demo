@@ -9,7 +9,7 @@ import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCusto
 import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611130900';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611130900';
 import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
-import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611131900';
+import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611241300';
 import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611160500';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
@@ -17,6 +17,16 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
   const rpc = async (n, args) => { on(); return ok(await sb.rpc(n, args || {})); };
   const nameOf = (people, id) => (people.find((o) => o.id === id) || {}).name || '';
   let ownersCache = null; const owners = async () => (ownersCache ||= (ok(await sb.rpc('crm_owners')) || []).map((o) => ({ id: o.id, name: o.name, role: o.role })));
+  // The picker is only people who can own a record. A record kept from before the tick still shows that person's name.
+  const named = async (people, ids) => {
+    const have = new Set((people || []).map((p) => p.id));
+    const missing = [...new Set((ids || []).filter((id) => id && !have.has(id)))];
+    if (!missing.length) return people || [];
+    try {
+      const extra = (ok(await sb.rpc('crm_owner_labels', { p_ids: missing })) || []).map((o) => ({ id: o.id, name: o.name, role: o.role || '' }));
+      return (people || []).concat(extra);
+    } catch { return people || []; }
+  };
   let staffCache = null; const staff = async () => (staffCache ||= (ok(await sb.rpc('crm_assignees')) || []).map((o) => ({ id: o.id, name: o.name, role: o.role })));
   const blank = (v) => (v === '' || v === undefined ? null : v);
   const num = (v) => (v == null || String(v).trim() === '' ? null : String(v).replace(/[$,\s%]/g, ''));
@@ -125,11 +135,12 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async listCrmOwners() { on(); return owners(); },
     async listCrmAssignees() { on(); return staff(); },
     async listCrmUsers() { on(); return staff(); },   // participants: the CLA staff the caller can pick (other users can be added by an Admin later)
-    async listCrmLeads() { on(); const os = await owners(); return withActivity((ok(await sb.from('crm_leads').select('*')) || []).map((l) => leadRow(l, os)), 'lead'); },
-    async getCrmLead(id) { on(); const os = await owners(); const l = ok(await sb.from('crm_leads').select('*').eq('id', id).maybeSingle()); if (!l) throw new Error('Lead not found.');
+    async listCrmLeads() { on(); const rows = ok(await sb.from('crm_leads').select('*')) || []; const os = await named(await owners(), rows.map((l) => l.owner_id)); return withActivity(rows.map((l) => leadRow(l, os)), 'lead'); },
+    async getCrmLead(id) { on(); const l = ok(await sb.from('crm_leads').select('*').eq('id', id).maybeSingle()); if (!l) throw new Error('Lead not found.');
+      const os = await named(await owners(), [l.owner_id]);
       return { ...leadRow(l, os), activities: await acts([['lead', id]]), invitedMeetings: await invited('lead', id), attachments: await files([['lead', id]]) }; },
-    async createCrmLead(v) { on(); const os = await owners(); return leadRow(await one(sb.from('crm_leads').insert(await withCustom('lead', leadIn(v), v))), os); },
-    async updateCrmLead(id, v) { on(); const os = await owners(); return leadRow(await one(sb.from('crm_leads').update(await withCustom('lead', leadIn(v), v)).eq('id', id)), os); },
+    async createCrmLead(v) { on(); const row = await one(sb.from('crm_leads').insert(await withCustom('lead', leadIn(v), v))); return leadRow(row, await named(await owners(), [row.owner_id])); },
+    async updateCrmLead(id, v) { on(); const row = await one(sb.from('crm_leads').update(await withCustom('lead', leadIn(v), v)).eq('id', id)); return leadRow(row, await named(await owners(), [row.owner_id])); },
     async convertCrmLead(id, opts = {}) { return camel(await rpc('crm_convert_lead', { p_lead: id, p: opts })); },
     async listCrmContacts() { return withActivity((await rpc('crm_contact_list')).map(contactRow), 'contact'); },
     async getCrmContact(id) { const c = contactRow(await rpc('crm_contact_detail', { p_id: id })); const pairs = [['contact', id]]; if (c.fromLeadId) pairs.push(['lead', c.fromLeadId]);
@@ -166,8 +177,9 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
         opportunities: camel(ok(await sb.from('crm_opportunities').select('*').eq('account_id', id)) || []) }; },
     async createCrmAccount(v) { on(); return camel(await one(sb.from('crm_accounts').insert(await withCustom('account', accIn(v), v)))); },
     async updateCrmAccount(id, v) { on(); return camel(await one(sb.from('crm_accounts').update(await withCustom('account', accIn(v), v)).eq('id', id))); },
-    async listCrmOpportunities() { on(); const os = await owners(); return withActivity(camel(ok(await sb.from('crm_opportunities').select('*, contact:contacts(first_name, last_name), account:crm_accounts(name)')) || [])
-      .map((o) => ({ ...o, ownerName: nameOf(os, o.ownerId), contactName: o.contact ? `${o.contact.firstName} ${o.contact.lastName}`.trim() : '', accountName: o.account ? o.account.name : '', archived: !!o.archivedAt })), 'opportunity'); },
+    async listCrmOpportunities() { on(); const raw = ok(await sb.from('crm_opportunities').select('*, contact:contacts(first_name, last_name), account:crm_accounts(name)')) || [];
+      const os = await named(await owners(), raw.map((o) => o.owner_id));
+      return withActivity(camel(raw).map((o) => ({ ...o, ownerName: nameOf(os, o.ownerId), contactName: o.contact ? `${o.contact.firstName} ${o.contact.lastName}`.trim() : '', accountName: o.account ? o.account.name : '', archived: !!o.archivedAt })), 'opportunity'); },
     async createCrmOpportunity(v) { on(); return camel(await one(sb.from('crm_opportunities').insert(await withCustom('opportunity', oppIn(v), v)))); },
     async updateCrmOpportunity(id, v) { on(); return camel(await one(sb.from('crm_opportunities').update(await withCustom('opportunity', oppIn(v), v)).eq('id', id))); },
     async moveCrmOpportunity(id, stage) { on(); return camel(await one(sb.from('crm_opportunities').update({ stage }).eq('id', id))); },
