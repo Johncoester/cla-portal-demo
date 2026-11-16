@@ -20,7 +20,11 @@ create table public.deals (id uuid primary key, file_number text, street text, c
 create table public.contacts (id uuid primary key, profile_id uuid, email text, first_name text, last_name text);
 create table public.deal_participants (id uuid primary key, deal_id uuid, contact_id uuid, role text);
 create table public.tasks (id uuid primary key default gen_random_uuid(), deal_id uuid, title text, description text default '', assigned_role text, status text default 'todo', due_date date, created_by uuid, kind text, participant_id uuid, owner_profile_id uuid, template_code text, template_version int, form_data jsonb default '{}'::jsonb, saved_at timestamptz, saved_by uuid, completed_at timestamptz, completed_by uuid);
-create table public.outbox (id uuid primary key default gen_random_uuid(), channel text, status text, sent_at timestamptz, to_profile_id uuid, to_email text, to_name text default '', subject text, body text, deal_id uuid, created_by uuid, kind text default '', from_email text, from_name text, sender_type text, title_package boolean not null default false);
+create table public.outbox (id uuid primary key default gen_random_uuid(), channel text, status text, sent_at timestamptz, to_profile_id uuid, to_email text, to_name text default '', subject text, body text, deal_id uuid, created_by uuid, kind text default '', from_email text, from_name text, sender_type text, title_package boolean not null default false, post_closing_type text);
+alter table public.outbox add constraint outbox_recipient_check check (
+  ((to_profile_id IS NOT NULL) OR (title_package AND (char_length(to_email) > 3) AND (char_length(to_name) > 0)) OR ((post_closing_type IS NOT NULL) AND (char_length(to_email) > 3))));
+insert into public.outbox (channel, status, to_email, to_name, subject, body, kind, post_closing_type)
+values ('email', 'queued', 'closer@example.test', '', 'Post closing', 'Copies for the buyer', '', 'buyer_copies');
 create table public.notifications (id uuid primary key default gen_random_uuid(), profile_id uuid, kind text, deal_id uuid, title text, link text);
 create function private.effective_uid() returns uuid language sql stable as $$ select nullif(current_setting('cla.uid', true), '')::uuid $$;
 create function private.person_name(pid uuid) returns text language sql stable as $$ select coalesce((select trim(first_name || ' ' || last_name) from public.profiles where id = pid), 'Unknown') $$;
@@ -93,6 +97,16 @@ begin
   perform private.save_side_schedule('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '{"side":"buyer","askParty":true}'::jsonb, 'agent');
   if (select count(*) from public.outbox where from_email = 'testportal@clatitle.com' and status = 'queued' and sent_at is null and to_email = 'ben.buyer@example.test' and body like '%#/schedule-party/%') <> 1 then
     raise exception 'the buyer link was not queued from testportal@clatitle.com'; end if;
+  if (select count(*) from public.outbox where post_closing_type = 'buyer_copies' and to_email = 'closer@example.test') <> 1 then
+    raise exception 'the existing post-closing outbox row no longer passes'; end if;
+  insert into public.outbox (channel, status, to_email, subject, body, post_closing_type)
+  values ('email', 'queued', 'seller@example.test', 'Post closing', 'Copies for the seller', 'seller_copies');
+  begin
+    insert into public.outbox (channel, status, to_email, subject, body) values ('email', 'queued', 'x@example.test', 'No recipient', 'body');
+    raise exception 'an outbox row with no recipient was saved';
+  exception when others then
+    if sqlerrm not like '%outbox_recipient_check%' then raise; end if;
+  end;
   perform public.save_settlement_agent('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Pat Notary', null, true);
   if (select settlement_agent_name from public.deals where id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') <> 'Pat Notary'
      or (select settlement_agent_confirmed from public.deals where id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') is not true then

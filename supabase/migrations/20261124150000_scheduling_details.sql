@@ -450,11 +450,12 @@ begin
   perform set_config('cla.schedule_rpc', 'off', true);
 end $$;
 
+-- TEST's current outbox rule, plus the scheduling link. The post-closing branch stays so those
+-- queued messages, and the rows already on TEST, still pass.
 alter table public.outbox drop constraint if exists outbox_recipient_check;
 alter table public.outbox add constraint outbox_recipient_check check (
-  to_profile_id is not null
-  or (title_package and char_length(to_email) > 3 and char_length(to_name) > 0)
-  or (kind = 'scheduling' and char_length(to_email) > 3 and char_length(to_name) > 0));
+  ((to_profile_id IS NOT NULL) OR (title_package AND (char_length(to_email) > 3) AND (char_length(to_name) > 0)) OR ((post_closing_type IS NOT NULL) AND (char_length(to_email) > 3)))
+  OR (kind = 'scheduling' AND (char_length(to_email) > 3) AND (char_length(to_name) > 0)));
 
 revoke all on function public.get_party_schedule(text) from public;
 revoke all on function public.submit_party_schedule(text, jsonb) from public;

@@ -48,6 +48,10 @@ const back = readFileSync(new URL('../supabase/rollbacks/20261124150000_scheduli
 ok(app.includes("link('closing', 'Scheduling Details', 'task')") && app.includes('data-nav-schedule') && app.includes('function closingNavMeta'), 'the file button is Scheduling Details and still shows the closing date');
 ok(app.includes("'schedule-party'") && app.includes('testportal') === false, 'the party link is a public page');
 ok(mig.includes('testportal@clatitle.com') && mig.includes('sched_buyer_date') && !mig.includes('drop column closer_name') && !mig.includes('closing_date ='), 'the database file queues from the test portal mailbox and does not remove the closer or write the file closing date');
+const postClosingOutbox = '(post_closing_type IS NOT NULL) AND (char_length(to_email) > 3)';
+ok(mig.includes(postClosingOutbox) && mig.includes("kind = 'scheduling'"), 'the outbox check keeps the post-closing rule and adds scheduling');
+const backCheck = back.slice(back.indexOf('outbox_recipient_check check'));
+ok(back.includes(postClosingOutbox) && !backCheck.includes("kind = 'scheduling'"), 'the rollback puts the post-closing outbox rule back');
 ok(back.includes('drop column if exists sched_buyer_date') && back.includes('agent_home_warranty') && !back.includes('drop column closer_name') && !back.includes('drop column if exists closer_name'), 'the rollback removes the scheduling columns and keeps the closer');
 ok(INVITE_FROM === 'testportal@clatitle.com', 'scheduling mail is from the test portal mailbox');
 
