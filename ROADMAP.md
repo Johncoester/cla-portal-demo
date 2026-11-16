@@ -291,6 +291,36 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Party task completion (MF-057)
+
+**How it should work.** Buyer and seller tasks are one copy per person. When a file has two or more buyers, or two or more sellers, that task counts as finished only after every person on that side has finished their own copy. Until then it stays open for staff, on the task list, on the Task Grid and in the dashboard file counts. The task shows how far along it is, such as "1 of 2 done", and names who still needs to finish. Each buyer or seller still sees and completes only their own copy. A file with one buyer or one seller works the same as it does today.
+
+**Status: In progress.** Tracker row MF-057. Pull request: [PR 299](https://github.com/Johncoester/cla-portal-demo/pull/299). Not Live. The database file is not applied on TEST.
+
+**What's built**
+
+- Staff task lists, the file's task list, the Task Grid and the dashboard file counts wait until every buyer, or every seller, has finished that task.
+- A task with two or more people on the side shows "1 of 2 done" (or N of M) and who still needs to finish.
+- One person on the side is unchanged. Agents and staff tasks are unchanged. Each person still completes their own copy.
+
+**What's still missing**
+
+- Matt has not yet confirmed the "1 of 2 done" wording or that the names of who still need to finish are shown only to staff.
+- Not Live until this is merged and the database file is applied on TEST.
+
+**Links**
+
+- Spec: [docs/specs/party-task-completion.md](docs/specs/party-task-completion.md)
+- Source: Matt Landsberg's Gemini notes "Portal Feedback Nov 16", FF-086 item 2. Matt confirmed "Yes" on Nov 16 2026, 10:45 AM ET. Tracker row MF-057.
+- Related pull requests: [PR 299](https://github.com/Johncoester/cla-portal-demo/pull/299). Database file `supabase/migrations/20261124100000_party_task_completion.sql` (not applied on TEST).
+
+**Decisions**
+
+- The progress line is the default answer to the open question: show "N of M done" and the names of who still need to finish. Staff see it. A buyer or seller still sees only their own copy as done or not done. Matt should confirm this.
+- The rule lives in one helper (`js/data/party-task-completion.js`) so the Task Grid party columns (MF-053) can use the same definition of "complete".
+
+---
+
 ## Any staff role on a file (ANYROLE-1)
 
 **How it should work.** At the admin level, each login still has one account role. On a file, any active staff login (Super admin, Admin, Processor, Preprocessor, Sales Person, Sales Team or Transaction Coordinator) can be picked as the Processor, a salesperson, the Transaction Coordinator, or a party such as the buyer, seller, buyer agent, listing agent or lender. A staff login added as the buyer or seller can open that file in the portal. Demo and real logins stay in their own world. The CRM Owner field is unchanged.
@@ -669,6 +699,35 @@ This file lists the portal's major features: how each one should work, how far a
 - The tests use the saved copy of the rates, not the live sheet, because a test that needs the internet fails at random. A daily check that compares the live sheet with the saved copy and reports any difference is not built.
 - The 23-order comparison checked recording fees and taxes. Title premiums and CLA fees were not compared line by line.
 
+## Recording calculator Maryland loan above the price (REC-CALC-7)
+
+**How it should work.** In Maryland, when the buyer's loan is bigger than the purchase price, Calculate fees adds county recordation tax on the part of the loan above the price. In Prince George's it also adds the 1.4% county transfer tax on that part. The buyer pays it. Each shows as its own line, such as "County recordation tax on loan above price".
+
+**Status: In review (Nov 16 2026).** John Coester, Nov 16 2026, after Claude ran Francis's closed files through the calculator and Melissa Gamble answered. Calculator [PR 2](https://github.com/Johncoester/cla-closing-cost-calculator/pull/2) and this portal PR. No database file.
+
+**What's built**
+
+- The rule is in the calculator's own code (calculator PR 2), copied into `js/data/vendor/cla-calculator/`. The rate sheet does not change.
+- The tax uses the price's bracket rate (Whole brackets) or the bands the loan reaches above the price (Montgomery's Marginal brackets).
+- Nothing changes when the loan is at or below the price, on a cash deal or refinance, or outside Maryland. Virginia already taxes the whole deed of trust.
+- The fee's explanation shows loan − price and the rate used.
+- Checked against two closed files to the penny: MD-26-32159 ($63.25 + $158.02) and MD-26-32155 ($561 + $1,428).
+
+**What's still missing**
+
+- Nothing.
+
+**Links**
+
+- Spec: [docs/specs/recording-calculator-md-loan-above-price.md](docs/specs/recording-calculator-md-loan-above-price.md)
+- Confirmed tax rules (all recording calculator work): [docs/specs/recording-calculator-tax-rules.md](docs/specs/recording-calculator-tax-rules.md)
+- Source: John Coester, Nov 16 2026; Melissa Gamble's email reply, Nov 16 2026.
+
+**Decisions**
+
+- Melissa Gamble, Nov 16: collect recordation and transfer tax on the amount above the price. Assignment fees are not added to the price.
+- The Baltimore City exemption split (Melissa: the exemption applies to the buyer's side) is not changed here. Lodestar and two closed files (Montgomery, Washington County) split it 50/50, so John decides first.
+
 ## Unused money-input files (TEST-CLEANUP-MONEY)
 
 **How it should work.** The money helpers live in one place. A page file that only passes them through, and test loaders that only exist for that page file, are not kept.
@@ -817,6 +876,38 @@ This file lists the portal's major features: how each one should work, how far a
 - Option 1: the panels are the Agent fees box, not a second commission section. The amounts stay in deal_agent_fees.
 - The selling agent is the buyer's agent side already on the file. The panel title is Selling Agent Commission.
 
+---
+
+## Agent-side transaction coordinator (FF-088)
+
+**How it should work.** When a processor places an order, the buyer's transaction coordinator and the listing transaction coordinator are the agents' coordinators. Each one is an outside contact, with or without a portal login. They are saved on the file and can be added or changed later from Parties or Order Contacts. The CLA Title Transaction Coordinator is still an active staff login.
+
+**Status: In progress.** Tracker item FF-088. Francis Santos, Nov 16 2026, 3:10 PM ET (message 1a1e5fbfe4183a9f), on order MD-26-97386. Pull request: [PR 301](https://github.com/Johncoester/cla-portal-demo/pull/301). Not Live. The database file is not applied on TEST.
+
+**What's built**
+
+- Place Order, Agents, takes a person, company, phone, and email for each side's coordinator. A bad email or a partial phone is pointed out, and what was typed stays. The order no longer reports the same staff-login sentence twice.
+- Parties shows both coordinators, with Add or Change. Order Contacts can add either role and can edit the person's name, email, phone, and company.
+- An outside contact, or an outside login, saves as that agent's coordinator. The same person is still refused as the CLA Title Transaction Coordinator. A staff login can still be that CLA coordinator.
+
+**What's still missing**
+
+- Not checked on TEST. Not Live until `supabase/migrations/20261124160000_agent_side_tc.sql` is applied on TEST.
+- Invite to portal is not offered on these two roles. A person who already has an outside login can still be picked.
+
+**Links**
+
+- Spec: [docs/specs/agent-side-tc.md](docs/specs/agent-side-tc.md)
+- Pull request: [PR 301](https://github.com/Johncoester/cla-portal-demo/pull/301)
+- Source: Francis Santos, Nov 16 2026, 3:10 PM ET. Tracker item FF-088.
+
+**Decisions**
+
+- The agents' coordinators are their own roles (Buyer Agent TC and Listing Agent TC). They are not the CLA Title Transaction Coordinator.
+- The staff rule stays: only an active staff login can be the Transaction Coordinator on an order.
+
+---
+
 ## CRM history on a fresh database
 
 **How it should work.** A brand-new database should build the CRM the way TEST did on November 2: the accounts, leads, pipeline, and activities, plus the feature flag. The scratch setup should not create those tables first, or the history file would leave them in the old shape.
@@ -843,3 +934,29 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - The new file is named so it runs just before the existing feature-flag file, which is only the flag from this same history row.
+
+---
+
+## Who can own a CRM record (CRM-OWNER-1)
+
+**How it should work.** On Admin, then User List, then Edit user, an Admin or Super admin can tick **Can own CRM records** for that person. It starts off for everyone, including admins. A ticked person, whatever their role, can be chosen as the owner of a lead, client, company, or deal, in Change owner, and in a spreadsheet import. Someone who is not ticked is not in those lists. A record that already names them still shows their name. Who can open the CRM does not change.
+
+**Status: In progress.** Tracker row CRM-OWNER-1, Requests tab row 315. John Coester asked on Nov 15 2026, 3:11 PM ET, and confirmed it on Nov 16 2026, 10:55 AM ET. Pull request: [PR 306](https://github.com/Johncoester/cla-portal-demo/pull/306). Database file `supabase/migrations/20261124140000_crm_owner_flag.sql`. Not applied on TEST. Not Live.
+
+**What's built**
+
+- The edit-user checkbox, saved only by an Admin or Super admin. The database refuses anyone else and writes the activity log (who, which user, old value, new value, when).
+- Owner lists for leads, clients, companies, deals, Change owner, and the import Owner column use that tick. Existing names stay on the record.
+
+**What's still missing**
+
+- Not on TEST until the database file is applied there and someone checks the checkbox and an owner list. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/crm-owner-flag.md](docs/specs/crm-owner-flag.md)
+
+**Decisions**
+
+- Nobody is turned on by the database file. An admin ticks people after it is applied.
+- The tick does not change role access or who can open the CRM.

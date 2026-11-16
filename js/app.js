@@ -1,7 +1,7 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611223100';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611223100';
+import { getAdapter } from './data/adapter.js?v=202611241400';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611241300';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611130900';
@@ -34,11 +34,11 @@ document.addEventListener('focusout', (e) => { const el = e.target; if (el insta
 
 const pages = {
   login: () => import('./pages/entry.js?v=202611221200'),
-  dashboard: () => import('./pages/dashboard.js?v=202611223100'),
-  orders: () => import('./pages/orders.js?v=202611161500'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611223100'),
-  deal: () => import('./pages/deal.js?v=202611223100'),
-  users: () => import('./pages/users.js?v=202611161500'),
+  dashboard: () => import('./pages/dashboard.js?v=202611241300'),
+  orders: () => import('./pages/orders.js?v=202611241000'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611241300'),
+  deal: () => import('./pages/deal.js?v=202611241300'),
+  users: () => import('./pages/users.js?v=202611241300'),
   profile: () => import('./pages/profile.js?v=202611191600'),
   'contact-us': () => import('./pages/contact.js?v=202611161500'),
   teams: () => import('./pages/teams.js?v=202611161500'),
@@ -47,8 +47,8 @@ const pages = {
   library: () => import('./pages/library.js?v=202611161500'),
   activity: () => import('./pages/activity.js?v=202611161500'),
   outbox: () => import('./pages/outbox.js?v=202611161500'),
-  tasks: () => import('./pages/tasks.js?v=202611223100'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611223200'),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
+  tasks: () => import('./pages/tasks.js?v=202611241300'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => import('./pages/taskgrid.js?v=202611241500'),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
   schedule: () => import('./pages/schedule.js?v=202611170800'),   // public closing-time link (no sign-in needed)
   crm: () => import('./pages/crm.js?v=202611221700'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => import('./pages/modules.js?v=202611161500'),

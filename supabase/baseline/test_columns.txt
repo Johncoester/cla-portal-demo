@@ -1628,6 +1628,7 @@ public.post_closing_scanbacks.settlement_agent_stamped
 public.post_closing_scanbacks.signed_notarized
 public.post_closing_scanbacks.updated_at
 public.post_closing_scanbacks.updated_by
+public.profiles.can_own_crm
 public.profiles.created_at
 public.profiles.email
 public.profiles.first_name

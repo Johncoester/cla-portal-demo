@@ -12,7 +12,8 @@ import { cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
 import { rowMatches, applyFieldPatch, emailPlan, EMAIL_DRAFT_BATCH, EMAIL_RECIPIENT_CAP } from './crm-match.js?v=202611160400';
 import { appendCrmNote, noteStamp } from './crm-bulk.js?v=202611160300';
 import { ensureSettings } from './crm-config.js?v=202611130900';
-import { companyKey, CRM_OWNER_ROLES } from './crm.js?v=202611130900';
+import { companyKey } from './crm.js?v=202611130900';
+import { canOwnCrmRecords } from './crm-owner.js?v=202611241300';
 import { US_STATE_NAMES } from './constants.js?v=202611101015';
 
 const seenData = new WeakSet();
@@ -37,8 +38,9 @@ export function crmJaninePart(x, ctx) {
   const stateCode = (v) => { const s = str(v, 40); if (!s) return ''; if (s.length === 2) return s.toUpperCase(); const hit = US_STATE_NAMES.find(([, n]) => n.toLowerCase() === s.toLowerCase()); return hit ? hit[0] : s; };
   const isDup = (m) => /already (used|exists|a client)|duplicate/i.test(String(m || ''));
   const ownerByText = (t) => { const s = str(t, 200).toLowerCase(); if (!s) return '';
-    const p = db().profiles.find((z) => z.status === 'active' && CRM_OWNER_ROLES.includes(z.role) && (String(z.email || '').toLowerCase() === s || `${z.firstName} ${z.lastName}`.trim().toLowerCase() === s));
-    if (!p) fail(`Owner "${t}" is not an active Sales Person or Sales Team user.`); return p.id; };
+    const hits = db().profiles.filter((z) => canOwnCrmRecords(z) && (z.id.toLowerCase() === s || String(z.email || '').toLowerCase() === s || `${z.firstName} ${z.lastName}`.trim().toLowerCase() === s));
+    if (hits.length > 1) fail(`Owner "${t}" matches more than one user who can own CRM records. Use the email.`);
+    if (!hits.length) fail(`Owner "${t}" is not an active user who can own CRM records.`); return hits[0].id; };
 
   function readInput(input, fields) {
     const text = input.csv != null ? String(input.csv) : null;
@@ -60,7 +62,7 @@ export function crmJaninePart(x, ctx) {
     Object.keys(raw).forEach((k) => { if (!IMPORT_DEFAULT_KEYS.includes(k)) fail(`"${k}" cannot have a default value.`); });
     const cfg = ensureSettings(db().crmSettings || null);
     return IMPORT_DEFAULT_FIELDS.map(([k]) => [k, str(raw[k], 200)]).filter(([, v]) => v).map(([k, v]) => {
-      if (k === 'ownerId') { const p = prof(v); if (!p || p.status !== 'active' || !CRM_OWNER_ROLES.includes(p.role)) fail('The default Owner must be an active Sales Person or Sales Team user.'); }
+      if (k === 'ownerId') { if (!canOwnCrmRecords(prof(v))) fail('The default Owner must be an active user who can own CRM records.'); }
       if (k === 'state') { const c = stateCode(v); if (!/^[A-Z]{2}$/.test(c)) fail('Pick a state for the default State.'); return { field: k, value: c }; }
       if (k === 'relationshipStatus') { const resolved = importedStatusDecision(cfg, module, v);
         if (resolved.error) fail(resolved.error);

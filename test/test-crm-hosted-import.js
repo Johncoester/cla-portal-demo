@@ -120,7 +120,7 @@ ok(msg.includes(String(IMPORT_MAX_ROWS)) && msg.includes('Split the file') && ca
 
 msg = '';
 try { await api.previewCrmImport({ module: 'leads', csv: SAMPLE, defaults: { ownerId: '00000000-0000-4000-8000-000000000099' }, fileName: 'leads.csv' }); } catch (e) { msg = e.message; }
-ok(msg === 'The default Owner must be an active Sales Person or Sales Team user.', 'a default owner must be an active salesperson');
+ok(msg === 'The default Owner must be an active user who can own CRM records.', 'a default owner must be someone who can own CRM records');
 
 msg = '';
 try { await api.previewCrmImport({ module: 'contacts', csv: 'Last Name,Relationship Status\nSample,Not A Real Status\n', defaults: { relationshipStatus: 'Not A Real Status' }, fileName: 'clients.csv' }); } catch (e) { msg = e.message; }

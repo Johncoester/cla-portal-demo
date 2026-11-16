@@ -23,11 +23,24 @@ export const PARTY_COLUMNS = [
  *   null      no live task (the caller shows a blank cell, or an empty cell when the party is on the file)
  * MF-057 changes taskCopiesDone, which is the line that waits for every buyer or every seller. */
 export function partyTaskMark(cells) {
-  const live = (cells || []).filter((c) => c && c.state && c.state !== 'na');
+  const live = liveCells(cells);
   if (!live.length) return null;
   if (live.some((c) => c.state === 'overdue')) return 'overdue';
   if (live.every(taskCopiesDone)) return 'done';
   return 'open';
+}
+
+/* MF-057 puts "1 of 2 done" and who is left on the task cell. The party column is where that shows, now that the task columns are not on the grid. */
+export function partyProgress(cells) {
+  const labeled = liveCells(cells).filter((c) => c.label || c.remainingLabel);
+  return {
+    label: labeled.map((c) => c.label).filter(Boolean).join('; '),
+    remainingLabel: labeled.map((c) => c.remainingLabel).filter(Boolean).join('; '),
+  };
+}
+
+function liveCells(cells) {
+  return (cells || []).filter((c) => c && c.state && c.state !== 'na');
 }
 
 /* One grid cell is one task. Several buyers or sellers share it as copies (total / done).
@@ -51,9 +64,11 @@ export function partyStatusForFile(rows, fileId, partyRoles) {
   }
   const out = {};
   for (const [key, , role] of PARTY_COLUMNS) {
-    const mark = partyTaskMark(byRole.get(role));
-    if (!mark) out[key] = (knowParties && onFile.has(role)) ? { state: 'open' } : { state: 'blank' };
-    else out[key] = { state: mark };
+    const cells = byRole.get(role);
+    const mark = partyTaskMark(cells);
+    const progress = partyProgress(cells);
+    if (!mark) out[key] = { state: (knowParties && onFile.has(role)) ? 'open' : 'blank', ...progress };
+    else out[key] = { state: mark, ...progress };
   }
   return out;
 }

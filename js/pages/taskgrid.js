@@ -4,18 +4,23 @@
 // The individual task columns that used to sit to the right are not shown.
 // Green check = every live task for that party is done. Red X = any of them is overdue.
 // Nothing = open and not overdue. Blank = that party is not on the file.
+// MF-057: a buyer or seller task with two or more people stays open until each of them finishes. That result is already in the party mark.
 import { html, fmtDate, raw, $, $$ } from '../ui.js?v=202611161500';
 import { sortGridFiles } from '../data/task-grid-sort.js?v=202611221200';
-import { PARTY_COLUMNS, partyStatusForFile } from '../data/task-grid-parties.js?v=202611223200';
+import { PARTY_COLUMNS, partyStatusForFile } from '../data/task-grid-parties.js?v=202611241500';
 import { isRefi } from '../data/constants.js?v=202611101015';
 
 const FILES = [['Open', 'Open files'], ['On Hold', 'On-hold files'], ['Closed', 'Closed files'], ['All', 'All files']];
+const partyProgress = (p) => (p && (p.label || p.remainingLabel))
+  ? html`${p.label ? html`<br><span class="muted small" data-party-progress>${p.label}</span>` : ''}${p.remainingLabel ? html`<br><span class="muted small" data-party-remaining>${p.remainingLabel}</span>` : ''}`
+  : '';
 const partyCell = (p, key, label) => {
   const state = (p && p.state) || 'blank';
-  if (state === 'done') return html`<td class="center" data-party="${key}" data-state="done" title="All ${label} tasks are complete"><span class="ok-text" aria-label="Completed">&#10004;</span></td>`;
-  if (state === 'overdue') return html`<td class="center" data-party="${key}" data-state="overdue" title="A ${label} task is overdue"><span class="bad-text" aria-label="Overdue">&#10008;</span></td>`;
-  if (state === 'open') return html`<td class="center" data-party="${key}" data-state="open" title="${label} tasks are not all done, and none are overdue"></td>`;
-  return html`<td class="center" data-party="${key}" data-state="blank" title="No ${label} on this file"></td>`;
+  const note = partyProgress(p);
+  if (state === 'done') return html`<td class="center" data-party="${key}" data-state="done" title="All ${label} tasks are complete"><span class="ok-text" aria-label="Completed">&#10004;</span>${note}</td>`;
+  if (state === 'overdue') return html`<td class="center" data-party="${key}" data-state="overdue" title="A ${label} task is overdue"><span class="bad-text" aria-label="Overdue">&#10008;</span>${note}</td>`;
+  if (state === 'open') return html`<td class="center" data-party="${key}" data-state="open" title="${label} tasks are not all done, and none are overdue">${note}</td>`;
+  return html`<td class="center" data-party="${key}" data-state="blank" title="No ${label} on this file">${note}</td>`;
 };
 const arrows = html`<span class="sort-arrows" aria-hidden="true"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span>`;
 const sortTh = (key, label, extra = '') => html`<th data-sort="${key}" class="${extra}"><button type="button" class="th-sort" title="Sort by ${label}">${label} ${arrows}</button></th>`;
@@ -34,7 +39,7 @@ export async function render({ api }) {
       <div class="muted">Files down the side. Buyer, Seller, Buyer's Agent and Listing Agent show whether that party's tasks are done. Click a column header to sort (click again to reverse). ${g.columns.length} file(s) &middot; ${tally('done')} done &middot; ${tally('overdue')} overdue &middot; ${tally('open')} still open.</div></div>
       <div><a class="ghost" href="#/tasks">Task list</a></div></div>
     <ul class="nav-tabs">${FILES.map(([k, label]) => html`<li><a class="${k === fs ? 'active' : ''}" href="#/task-grid?s=${encodeURIComponent(k)}" ${k === fs ? raw('aria-current="page"') : ''}>${label}</a></li>`)}</ul>
-    <p class="muted small" data-legend>A green check means every task for that party is done. A red X means a task is overdue. An open task that is not overdue shows nothing. If that party is not on the file, the cell is left blank. <span class="ok-text">&#10004;</span> done &nbsp; <span class="bad-text">&#10008;</span> overdue. Sorting a party column puts overdue first, then not yet due, then completed. A blank cell stays last.</p>
+    <p class="muted small" data-legend>A green check means every task for that party is done. A red X means a task is overdue. An open task that is not overdue shows nothing. If that party is not on the file, the cell is left blank. A buyer or seller task with two or more people stays open until each of them finishes. <span class="ok-text">&#10004;</span> done &nbsp; <span class="bad-text">&#10008;</span> overdue. Sorting a party column puts overdue first, then not yet due, then completed. A blank cell stays last.</p>
     ${g.columns.length ? html`<div class="grid-scroll"><table class="tbl" data-taskgrid data-orientation="files-down" data-party-columns="${PARTY_COLUMNS.length}"><thead>${head}</thead><tbody>${sortGridFiles(g.columns, g.rows, 'fileNumber', 'asc').map(fileRow)}</tbody></table></div>` : html`<p class="muted" data-grid-empty>No files.</p>`}`,
   mount(root) {
     const tb = $('[data-taskgrid] tbody', root); if (!tb) return; let sort = 'fileNumber'; let dir = 'asc';
