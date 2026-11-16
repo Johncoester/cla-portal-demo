@@ -769,7 +769,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A brand-new database should build the CRM the way TEST did on November 2: the accounts, leads, pipeline, and activities, plus the feature flag. The scratch setup should not create those tables first, or the history file would leave them in the old shape.
 
-**Status: In progress.** John Coester, Nov 15 2026, 5:23 PM ET (t1737u), Nov 16 2026, 10:46 AM ET (t1768u), and Nov 16 2026, about 12:24 PM ET. Six history statements match TEST. The clean load gets past the new files and then stops because an attachment policy does not match the text the November 9 check expects. Nothing is applied to TEST. Not Live.
+**Status: In progress.** John Coester, Nov 15 2026, 5:23 PM ET (t1737u), Nov 16 2026, 10:46 AM ET (t1768u), and Nov 16 2026, about 12:24 PM ET. Six history statements match TEST. A hand change puts the earlier insert-email policy back before the November 9 check. The clean load gets past that check and then stops because a later hand change tries to create a trigger the November 3 history already created. Nothing is applied to TEST. Not Live.
 
 **What's built**
 
@@ -779,7 +779,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- The clean load stops in the November 9 attachment-policy check. The attachments table now has 6 policies. The insert-email policy from crm_nov3b does not match the captured text that check expects (`e.created_by = private.effective_uid()` and `e.id = e.entity_id`). No TEST history row contains that captured text. The column comparison does not run.
+- The November 9 attachment check now gets the earlier insert-email policy from a hand change copied from the rollback. The clean load then stops in `20261110035000_crm_leads_person_dup_hand_change.sql` because `crm_leads_person_dup` already exists. crm_nov3b creates that trigger. The column comparison does not run.
 
 **Links**
 
