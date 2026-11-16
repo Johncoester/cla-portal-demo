@@ -43,8 +43,8 @@ ok(listed.includes('<select') && listed.includes('Casey Close') && listed.includ
 ok(!toText(schedulingPanelHtml({ deal: {}, staff: false, choices: [], links: [] })).includes('data-processor-notes'), 'a buyer or agent does not get the processor notes button');
 
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-const mig = readFileSync(new URL('../supabase/migrations/20261124130000_scheduling_details.sql', import.meta.url), 'utf8');
-const back = readFileSync(new URL('../supabase/rollbacks/20261124130000_scheduling_details.sql', import.meta.url), 'utf8');
+const mig = readFileSync(new URL('../supabase/migrations/20261124150000_scheduling_details.sql', import.meta.url), 'utf8');
+const back = readFileSync(new URL('../supabase/rollbacks/20261124150000_scheduling_details.sql', import.meta.url), 'utf8');
 ok(app.includes("link('closing', 'Scheduling Details', 'task')") && app.includes('data-nav-schedule') && app.includes('function closingNavMeta'), 'the file button is Scheduling Details and still shows the closing date');
 ok(app.includes("'schedule-party'") && app.includes('testportal') === false, 'the party link is a public page');
 ok(mig.includes('testportal@clatitle.com') && mig.includes('sched_buyer_date') && !mig.includes('drop column closer_name') && !mig.includes('closing_date ='), 'the database file queues from the test portal mailbox and does not remove the closer or write the file closing date');

@@ -2,7 +2,7 @@
 -- Scheduling details for the buyer side and the seller side, plus the processor's settlement agent.
 -- A link for the buyer or seller is queued in the outbox from testportal@clatitle.com. Nothing is sent.
 -- This does not replace MF-011. deals.closer_name stays. The buyer's date is not written to deals.closing_date.
--- Rollback: supabase/rollbacks/20261124130000_scheduling_details.sql
+-- Rollback: supabase/rollbacks/20261124150000_scheduling_details.sql
 begin;
 set local lock_timeout = '3s';
 set local search_path = pg_catalog, public, extensions;

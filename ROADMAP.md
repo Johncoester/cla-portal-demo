@@ -269,7 +269,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Buyer's agent and listing agent tasks, with the ask-instead link, office list, other address, time, and notes. Seller side adds remote online notarization.
 - A buyer or seller link (`#/schedule-party/...`) that does not need a sign-in. The link is queued in the outbox from testportal@clatitle.com. Nothing is emailed.
 - Processor card: settlement agent name, Settlement Agent Confirmed, and Processor notes.
-- Database file `supabase/migrations/20261124130000_scheduling_details.sql` and rollback. Not applied anywhere.
+- Database file `supabase/migrations/20261124150000_scheduling_details.sql` and rollback. Not applied anywhere.
 
 **What's still missing**
 
