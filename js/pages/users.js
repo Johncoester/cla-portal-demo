@@ -50,6 +50,8 @@ export async function render({ api, user, params, refresh, go }) {
         ${u.role === OUTSIDE ? html`<label data-birthdate-field>Agent birthdate (optional)<input type="date" name="birthdate" value="${bday || ''}" max="${new Date().toISOString().slice(0, 10)}" data-birthdate ${gone ? raw('disabled') : ''}><span class="field-hint">${BIRTHDATE_NOTE}</span></label>` : ''}
         <label>Status<select name="status" ${dis}>${options(['active', 'disabled'], u.status === 'removed' ? 'disabled' : u.status, (s) => (s === 'active' ? 'Active' : 'Disabled (suspended)'))}</select></label>
         <label class="check"><input type="checkbox" name="isAdmin" ${u.isAdmin ? raw('checked') : ''} ${gone || locked || self || isAdminRole(u.role) ? raw('disabled') : ''}> Admin access${isAdminRole(u.role) ? ` (role ${u.role} always has it)` : ''}</label>
+        <label class="check"><input type="checkbox" name="canOwnCrm" ${u.canOwnCrm ? raw('checked') : ''} ${gone || !isAdminRole(user.role) ? raw('disabled title="Only an Admin or Super admin can change this"') : ''}> Can own CRM records</label>
+        <p class="muted small span2">Off until an Admin or Super admin turns it on. It does not change who can open the CRM. A person already named on a record stays named there.</p>
         ${lockNote ? html`<p class="muted span2" data-lock-note>${lockNote}</p>` : ''}
         <div class="span2"><strong>Roles on files:</strong> ${u.role === OUTSIDE ? fileRoles(u) : html`<span class="muted">Staff role: ${roleLabel(u)}</span>`}</div>
         ${u.role === OUTSIDE ? html`<fieldset class="span2" data-sales-picker><legend>Salespeople linked to this client</legend>${salesPicker(sales.concat((u.salesReps || []).filter((s) => !sales.some((z) => z.id === s.id)).map((s) => ({ id: s.id, firstName: s.name, lastName: '', role: s.role }))), chosen)}
@@ -61,6 +63,7 @@ export async function render({ api, user, params, refresh, go }) {
       f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const fd = formData(e.target); const patch = { firstName: fd.firstName, lastName: fd.lastName, phone: fd.phone }; if ('contactType' in fd) patch.contactType = fd.contactType;
         if (!dis) { patch.role = fd.role; patch.status = fd.status; }
         const adm = $('[name=isAdmin]', f); if (!adm.disabled) patch.isAdmin = adm.checked;
+        const own = $('[name=canOwnCrm]', f); if (own && !own.disabled) patch.canOwnCrm = own.checked;
         if ($('[data-sales-picker]', f)) patch.salesIds = new FormData(e.target).getAll('salesIds');
         const bdIn = $('[data-birthdate]', f); if (bdIn && (bdIn.value || '') !== (bday || '')) { cleanBirthdate(bdIn.value); }
         await api.adminUpdateUser(u.id, patch); if (bdIn && (bdIn.value || '') !== (bday || '')) await api.setAgentBirthdate(u.id, bdIn.value); toast('User saved'); go('/users'); }));

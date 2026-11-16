@@ -86,7 +86,7 @@ async function cleanDefaults(self, raw0, kind, module) {
   return picked.map(([k, v]) => {
     if (k === 'ownerId') {
       const p = owners.find((o) => o.id === v);
-      if (!p || (p.role && !['Sales Person', 'Sales Team'].includes(p.role))) throw new Error('The default Owner must be an active Sales Person or Sales Team user.');
+      if (!p) throw new Error('The default Owner must be an active user who can own CRM records.');
       return { field: k, value: v };
     }
     if (k === 'state') {
