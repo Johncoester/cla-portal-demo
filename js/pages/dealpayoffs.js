@@ -5,6 +5,7 @@
 import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611161500';
 import * as PO from '../data/payoffs.js?v=202611070139';
 import { QUALIA_TABS, PRORATION_CYCLES, computeProration } from '../data/prorations.js?v=202611070139';
+import { defaultProrationDraft, prorationBasis } from '../data/prorate-defaults.js?v=202611223000';
 const opt = (v, l, sel) => html`<option value="${v}" ${String(v) === String(sel ?? '') ? raw('selected') : ''}>${l}</option>`;
 const money = (n) => (n == null || n === '' ? '' : PO.usd(n));   // Qualia shows $301,485.00 in the inputs
 const usd = PO.usd;
@@ -187,12 +188,12 @@ export async function taxesView(api, deal, acc, q, base) {
   const plusPop = can ? html`<form class="qc-card po-pop" data-tx-plus-pop hidden><span class="qc-label">PRORATION TYPE</span><div class="seg qc-seg small" data-tx-ptype>${[['basic', 'Basic'], ['tax', 'Tax'], ['rent', 'Rent']].map(([k, l], i) => html`<button type="button" class="seg-btn ${i === 0 ? 'on' : ''}" data-tx-ptype-btn="${k}">${l}</button>`)}</div>
       ${fld('TAX / PRORATION NAME', html`<input class="qc-input" name="pname" maxlength="80" placeholder="e.g. Front Foot Benefit">`)}<button class="m-btn small" type="submit" data-tx-create>Create Tax / Proration</button></form>` : '';
   const body = acc.refi ? html`<p class="notice info" data-proration-refi>A refinance has no seller side, so there is nothing to prorate between a buyer and a seller.</p>` : taxForm(fee, tab, label, type, sd, can);
-  return { body: html`<div class="qc-wrap" data-qc-page="taxes" data-tx-page="${tab}"><div class="qc-main">${head}${tabBar}${plusPop}${body}</div>${helpCards('Proration Date', 'The proration date is the closing (settlement) date from the order. Prorated Amount = number of days times the per diem (4 decimals). The period end date is the first day of the next period. With "Proration date debited to Seller" (Qualia\'s setting in the video) the seller has the proration day.')}</div>`,
+  return { body: html`<div class="qc-wrap" data-qc-page="taxes" data-tx-page="${tab}"><div class="qc-main">${head}${tabBar}${plusPop}${body}</div>${helpCards('Proration Date', 'The proration date is the closing (settlement) date from the order. Prorated Amount = number of days times the per diem (4 decimals). The period end date is the first day of the next period. A new proration charges the settlement day to the buyer. Switch "Proration date debited to" if this file should charge the seller instead.')}</div>`,
     mount: (root, c = {}) => mountTaxes(root, api, deal, acc, fee, tab, label, type, base, c.refresh || (() => location.reload())) };
 }
 
 function taxForm(fee, tab, label, type, sd, can) {
-  const p = fee ? fee.proration : { cycle: type === 'basic' && tab === 'hoa' ? 'monthly' : 'annual', debitedTo: 'seller', prorateUsing: type === 'tax' ? 'installment' : 'perDiem', daysPerYear: '365', status: 'paid' };
+  const p = fee ? fee.proration : defaultProrationDraft(tab, type);
   const dis = can ? '' : 'disabled'; const inst = (p.prorateUsing || (type === 'tax' ? 'installment' : 'perDiem')) === 'installment';
   const L = inst ? { len: 'PAYMENT SCHEDULE', amt: 'INSTALLMENT AMOUNT', start: 'INSTALLMENT START DATE', end: 'INSTALLMENT END DATE' } : { len: 'PERIOD LENGTH', amt: 'TOTAL AMOUNT', start: 'PERIOD START DATE', end: 'PERIOD END DATE' };
   const ti = p.taxInfo || {};
@@ -229,8 +230,8 @@ function mountTaxes(root, api, deal, acc, fee, tab, label, type, base, refresh) 
   const on = (sel, attr) => { const b = $(sel + '.on', f); return b ? b.dataset[attr] : null; };
   const seg = (sel) => $$(sel, f).forEach((b) => b.addEventListener('click', () => { $$(sel, f).forEach((x) => x.classList.toggle('on', x === b)); calc(); }));
   const read = () => { const g = (n) => (f.elements[n] ? f.elements[n].value : '');
-    const dpy = on('[data-tx-dpy-btn]', 'txDpyBtn') || '365'; const using = on('[data-tx-using-btn]', 'txUsingBtn') || 'perDiem';
-    const p = { item: TAB_ITEM[tab] || (type === 'rent' ? 'groundRent' : type === 'tax' ? 'countyTaxes' : 'other'), cycle: g('cycle'), cycleAmount: g('cycleAmount'), periodStart: g('periodStart'), basis: dpy === '360' ? '360' : 'installment', status: on('[data-tx-party-btn]', 'txPartyBtn') || 'paid',
+    const dpy = on('[data-tx-dpy-btn]', 'txDpyBtn') || '365'; const using = on('[data-tx-using-btn]', 'txUsingBtn') || (type === 'tax' ? 'installment' : 'perDiem');
+    const p = { item: TAB_ITEM[tab] || (type === 'rent' ? 'groundRent' : type === 'tax' ? 'countyTaxes' : 'other'), cycle: g('cycle'), cycleAmount: g('cycleAmount'), periodStart: g('periodStart'), basis: prorationBasis(using, dpy), status: on('[data-tx-party-btn]', 'txPartyBtn') || 'paid',
       debitedTo: on('[data-tx-deb-btn]', 'txDebBtn') || 'buyer', perDiemDp: 4, tab, prorateUsing: using, daysPerYear: dpy };
     const nm = g('name') || label; p.name = nm;
     if (type === 'tax') p.taxInfo = Object.fromEntries([['annualAmount', g('annualAmount')], ['parcelId', g('parcelId')], ['paidThru', g('paidThru')], ['nextDue', g('nextDue')], ['schedule', g('schedule')]].filter(([, x]) => x));
