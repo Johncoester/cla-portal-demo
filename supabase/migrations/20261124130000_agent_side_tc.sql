@@ -2,7 +2,7 @@
 -- The buyer's transaction coordinator and the listing transaction coordinator are outside
 -- contacts (the agents' coordinators). They are not the CLA staff Transaction Coordinator.
 -- The staff rule still applies only when the role is Transaction Coordinator.
--- Not applied by this commit. Rollback: supabase/rollbacks/20261123180000_agent_side_tc.sql
+-- Not applied by this commit. Rollback: supabase/rollbacks/20261124130000_agent_side_tc.sql
 begin;
 set local lock_timeout = '3s';
 

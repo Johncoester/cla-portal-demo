@@ -646,6 +646,25 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Recording calculator finds every county (REC-CALC-6)
+
+**How it should work.** Any county or independent city in Maryland, Virginia, Florida or DC gets fees from Calculate fees from CLA rates. A county with rows of its own on the rate sheet uses them. Every other county uses the statewide rows, the same as the quote calculator. Spellings that mean the same place match ("Hillsborough County", "City of Fairfax", "Saint Johns", "Prince Georges"). A name that is not a county of that state is still refused.
+
+**Status: Built, not merged.** REC-CALC-6. Pull request: [PR 296](https://github.com/Johncoester/cla-portal-demo/pull/296). John Coester, Nov 15 2026 (voice: "make sure the fees are actually pulling to the portal", then "fix whatever's needed"), assigned to Claude. Built on top of REC-CALC-5 (PR 292, merged). No database file.
+
+**What's built**
+
+- Claude ran 23 orders through the fee engine against the fee sheet. The amounts matched everywhere it ran. Two orders got no fees at all: Virginia Beach City and Hillsborough County came back "We couldn't find this county". The rate sheet only names counties that have a row of their own (27 in Virginia, 2 in Florida), and the portal treated every other county as unknown.
+- The county list on Place Order and Edit order is now the whole state: 24 in Maryland, 133 in Virginia, 67 in Florida. The names come from the Census table the portal already ships for the ZIP lookup.
+- Same-place spellings match. "Fairfax" stays the county and "Fairfax City" the city, because Virginia has both.
+- When a tax comes to $0.00 on a file (Montgomery recordation tax on a $100,000 principal residence), the preview now says so instead of silently leaving the line out.
+- A test (`test/test-county-match.js`) calculates all 224 counties and cities and checks the two orders that failed.
+
+**What's still missing**
+
+- The tests use the saved copy of the rates, not the live sheet, because a test that needs the internet fails at random. A daily check that compares the live sheet with the saved copy and reports any difference is not built.
+- The 23-order comparison checked recording fees and taxes. Title premiums and CLA fees were not compared line by line.
+
 ## Unused money-input files (TEST-CLEANUP-MONEY)
 
 **How it should work.** The money helpers live in one place. A page file that only passes them through, and test loaders that only exist for that page file, are not kept.
@@ -810,7 +829,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Not checked on TEST. Not Live until `supabase/migrations/20261123180000_agent_side_tc.sql` is applied on TEST.
+- Not checked on TEST. Not Live until `supabase/migrations/20261124130000_agent_side_tc.sql` is applied on TEST.
 - Invite to portal is not offered on these two roles. A person who already has an outside login can still be picked.
 
 **Links**
@@ -823,3 +842,32 @@ This file lists the portal's major features: how each one should work, how far a
 
 - The agents' coordinators are their own roles (Buyer Agent TC and Listing Agent TC). They are not the CLA Title Transaction Coordinator.
 - The staff rule stays: only an active staff login can be the Transaction Coordinator on an order.
+
+---
+
+## CRM history on a fresh database
+
+**How it should work.** A brand-new database should build the CRM the way TEST did on November 2: the accounts, leads, pipeline, and activities, plus the feature flag. The scratch setup should not create those tables first, or the history file would leave them in the old shape.
+
+**Status: In progress.** John Coester, Nov 15 2026, 5:23 PM ET (t1737u), Nov 16 2026, 10:46 AM ET (t1768u), Nov 16 2026, about 12:24 PM ET, and Nov 16 2026, 3:38 PM ET. Seven history statements match TEST. The clean load and the column comparison both pass. Nothing is applied to TEST. Not Live.
+
+**What's built**
+
+- Seven exact TEST history statements are in the migration folder, each labeled already applied on TEST: crm, crm_zoho, crm_settings, crm_email_templates, crm_nov3b, crm_calls, and crm_janine_nov3.
+- The tables those statements create are no longer created by the scratch precondition. That includes `crm_list_exports`, which crm_calls creates.
+- The six lead columns the November 12 check wants are added by those statements: crm_zoho adds crm_city, crm_county, crm_state, modified_at, and role_in_company; crm_settings adds custom.
+- crm_calls adds the call and recording columns on activities. Its checksum is `5a567e14be2791c2849b779ffe13e4ff`, the same as TEST.
+- The lead duplicate stand-in no longer creates `crm_leads_person_dup`. crm_nov3b creates that trigger. The live function is copied from `20261110040000_crm_person_dup_index.sql` into a hand change that runs just after it. Checksum `618de60d1b35841405a26ed27364ae8e`, the same as TEST.
+
+**What's still missing**
+
+- Nothing in the column list. This is not merged and nothing is applied to TEST, so it is not Live.
+
+**Links**
+
+- Spec: [docs/specs/crm-history.md](docs/specs/crm-history.md)
+- Pull request: [PR 293](https://github.com/Johncoester/cla-portal-demo/pull/293)
+
+**Decisions**
+
+- The new file is named so it runs just before the existing feature-flag file, which is only the flag from this same history row.

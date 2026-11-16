@@ -5,12 +5,12 @@ import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=2
 import { directoryModel, directoryChoice } from '../data/file-party.js?v=202611221600';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611140100';
 import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611191600';
-import { copyPlainText } from './deal.js?v=202611231800';
+import { copyPlainText } from './deal.js?v=202611241300';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611222700';
 import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611222700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { AGENT_TC_ROLES, agentTcLabel, isAgentTcRole } from '../data/agent-tc.js?v=202611231800';
+import { AGENT_TC_ROLES, agentTcLabel, isAgentTcRole } from '../data/agent-tc.js?v=202611241300';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
 export function contactCopyMessage(copied, kind) {
