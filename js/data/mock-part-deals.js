@@ -32,7 +32,7 @@ export function dealsAndAuth(x) {
   const OPEN = ['todo', 'in_progress', 'blocked'];
   // John, Nov 2: several salespeople per file; each must be an ACTIVE Sales Person or Sales Team user. The file's Processor must be an active Processor.
   const checkSales = (id, actor) => { const p = x.prof(id) || fail('Salesperson not found.');
-    if (!SALES_PICK_ROLES.includes(p.role) || p.status !== 'active') fail('Only an active staff login can be a salesperson on an order.');
+    if (p.status !== 'active' || !(SALES_PICK_ROLES.includes(p.role) || p.canOwnCrm === true)) fail('Only an active staff login can be a salesperson on an order.');
     if (!!p.isDemo !== !!(actor && actor.isDemo)) fail('A real order cannot use a demo login, and a demo order cannot use a real login.'); return p; };
   const checkPreprocessor = (id) => { if (id == null || id === '') return null; const p = x.prof(id) || fail('Preprocessor not found.'); if (p.role !== 'Preprocessor' || p.status !== 'active') fail('The Preprocessor on an order must be an active Preprocessor.'); return p; };
   const checkProcessor = (id, actor) => { if (id == null || id === '') return null; const p = x.prof(id) || fail('Processor not found.');
