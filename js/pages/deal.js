@@ -21,13 +21,14 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611191700';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611222800';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611241000';
+import { prefetchDealTab } from './deal-tab.js?v=202611241300';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611222700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { viewTasksHref } from '../data/task-board.js?v=202611241000';
 import { earnestView } from '../data/earnest-commission.js?v=202611223000';
+import { AGENT_TC_ROLES, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, isAgentTcRole } from '../data/agent-tc.js?v=202611241300';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611222100';
 import { bindAddressFill } from '../data/address-fill.js?v=202611222100';
 import { countyFieldHtml, mountCountySelect } from './county-field.js?v=202611223100';
@@ -131,7 +132,7 @@ function placedPanel(d) {
   if (!p || p.dealId !== d.id) return { html: '', mount() {} };
   sessionStorage.removeItem(PLACED_KEY);
   const refi = isRefi(p.transactionType); const a = p.added || {};
-  const LBL = { 'Client-Buyer': refi ? ['borrower', 'borrowers'] : ['buyer', 'buyers'], 'Client-Seller': ['seller', 'sellers'], 'Buyer Agent': ['buyer agent', 'buyer agents'], 'Listing Agent': ['listing agent', 'listing agents'], Lender: ['lender', 'lenders'], 'Transaction Coordinator': ['transaction coordinator', 'transaction coordinators'], 'Sales Team': ['sales team member', 'sales team members'] };
+  const LBL = { 'Client-Buyer': refi ? ['borrower', 'borrowers'] : ['buyer', 'buyers'], 'Client-Seller': ['seller', 'sellers'], 'Buyer Agent': ['buyer agent', 'buyer agents'], 'Listing Agent': ['listing agent', 'listing agents'], Lender: ['lender', 'lenders'], 'Transaction Coordinator': ['transaction coordinator', 'transaction coordinators'], [BUYER_AGENT_TC]: ["buyer's transaction coordinator", "buyer's transaction coordinators"], [LISTING_AGENT_TC]: ['listing transaction coordinator', 'listing transaction coordinators'], 'Sales Team': ['sales team member', 'sales team members'] };
   const who = Object.keys(LBL).filter((r) => a[r]).map((r) => `${a[r]} ${LBL[r][a[r] === 1 ? 0 : 1]}`);
   const body = html`<section class="placed-confirm" data-placed-confirm role="status" aria-live="polite">
     <div class="placed-icon" aria-hidden="true">&#10003;</div>
@@ -243,7 +244,7 @@ function overview({ api, user, refresh, demoLocked, settlement = null }, d, crum
     ${staffView ? '' : settlementSectionHtml({ deal: d, user, demoLocked, contacts: (settlement && settlement.contactChoices) || [], closerStaff: (settlement && settlement.closerStaff) || [], locations: (settlement && settlement.locations) || [] })}
     <div class="box-title"><h2><span class="h-ico"></span>Parties</h2><a class="ghost right" href="#/deals/${d.id}/contacts">All contacts</a></div>
     ${partiesList(d, ov, staffView, { splits, edit, source: staffView ? (d.sourceOfBusiness || '') : '', sourceLabel: staffView ? (d.sourceOfBusinessLabel || '') : '' })}
-    ${staffView ? html`<div class="op-party-tools" data-party-tools>${edit ? html`<button type="button" class="ghost" data-add-party="Client-Buyer">+ Add ${B.toLowerCase()}</button>${!refi ? html` <button type="button" class="ghost" data-add-party="Client-Seller">+ Add seller</button> <button type="button" class="ghost" data-add-party="Buyer Agent">+ Add buyer's agent</button> <button type="button" class="ghost" data-add-party="Listing Agent">+ Add listing agent</button>` : ''} <button type="button" class="ghost" data-add-party="Lender">+ Add lender</button>` : ''}
+    ${staffView ? html`<div class="op-party-tools" data-party-tools>${edit ? html`<button type="button" class="ghost" data-add-party="Client-Buyer">+ Add ${B.toLowerCase()}</button>${!refi ? html` <button type="button" class="ghost" data-add-party="Client-Seller">+ Add seller</button> <button type="button" class="ghost" data-add-party="Buyer Agent">+ Add buyer's agent</button> <button type="button" class="ghost" data-add-party="Listing Agent">+ Add listing agent</button> <button type="button" class="ghost" data-add-party="${BUYER_AGENT_TC}">${all(BUYER_AGENT_TC).length ? 'Change' : '+ Add'} buyer's transaction coordinator</button> <button type="button" class="ghost" data-add-party="${LISTING_AGENT_TC}">${all(LISTING_AGENT_TC).length ? 'Change' : '+ Add'} listing transaction coordinator</button>` : ''} <button type="button" class="ghost" data-add-party="Lender">+ Add lender</button>` : ''}
       <span class="op-sales">Salespeople: ${(d.salesPeople || []).length ? (d.salesPeople || []).map((s, i) => html`${i ? ', ' : ''}<span class="nowrap" data-sales-person="${s.id}">${s.name}${edit ? html` <button class="ghost" data-rm-sales="${s.id}" title="Remove from this order" aria-label="Remove ${s.name}">&times;</button>` : ''}</span>`) : 'Not specified'}
       ${edit && salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)).length ? html` <select id="addsales" aria-label="Add a salesperson"><option value="">+ Add salesperson&hellip;</option>${options(salesStaff.filter((s) => !(d.salesPersonIds || []).includes(s.id)), '', (s) => `${s.firstName} ${s.lastName} (${s.role})`, (s) => s.id)}</select>` : ''}</span></div>` : ''}
     <div class="box-title"><h2><span class="h-ico"></span>Notes</h2></div>
@@ -331,20 +332,22 @@ async function editModal(api, d, refresh, meId) {
 
 // FF-049 / MF-046: type a buyer, seller, agent or lender onto this file. Picking an existing contact is optional.
 // A typed person is saved as a contact with no portal login. Invite stays on Contacts.
-const PARTY_LABEL = { 'Client-Buyer': 'buyer', 'Client-Seller': 'seller', 'Buyer Agent': "buyer's agent", 'Listing Agent': 'listing agent', Lender: 'lender' };
+const PARTY_LABEL = { 'Client-Buyer': 'buyer', 'Client-Seller': 'seller', 'Buyer Agent': "buyer's agent", 'Listing Agent': 'listing agent', Lender: 'lender', [BUYER_AGENT_TC]: "buyer's transaction coordinator", [LISTING_AGENT_TC]: 'listing transaction coordinator' };
 function directoryOptionsHtml(model) {
   const group = (label, options) => (options.length ? html`<optgroup label="${label}">${options.map((o) => html`<option value="${o.value}">${o.label}</option>`)}</optgroup>` : '');
   return html`<option value="">Not listed — type them below</option>${group(model.companyLabel, model.companies)}${group(model.peopleLabel, model.people)}`;
 }
 async function addPartyModal(api, d, role, refresh) {
   const label = role === 'Client-Buyer' && isRefi(d) ? 'borrower' : (PARTY_LABEL[role] || 'person');
-  const directory = role === 'Buyer Agent' || role === 'Listing Agent' || role === 'Lender';
+  const agentTc = isAgentTcRole(role);
+  const existingTc = agentTc ? d.participants.filter((p) => p.role === role && !p.removed) : [];
+  const directory = role === 'Buyer Agent' || role === 'Listing Agent' || role === 'Lender' || agentTc;
   const all = await api.listContacts();
   const on = new Set(d.participants.filter((p) => p.role === role && !p.removed).map((p) => p.contactId));
   const choices = all.filter((c) => !on.has(c.id));
   const model = directory ? directoryModel(choices, role === 'Lender' ? 'lender' : 'agent') : null;
-  const m = modal(`Add a ${label}`, html`<form id="apty" class="form-grid">
-    <p class="span2 muted small">Type the name, email and phone onto this file. You do not have to pick an existing contact, and no portal login is created. Invite them later from Contacts.</p>
+  const m = modal(`${existingTc.length ? 'Change the' : 'Add a'} ${label}`, html`<form id="apty" class="form-grid">
+    <p class="span2 muted small">${agentTc ? "This is the agent's transaction coordinator, an outside contact. A portal login is not required, and this is not the CLA Title Transaction Coordinator." : 'Type the name, email and phone onto this file. You do not have to pick an existing contact, and no portal login is created. Invite them later from Contacts.'}${existingTc.length ? ' Saving replaces the coordinator already on this side. That contact stays in the directory.' : ''}</p>
     ${directory ? html`<label class="span2">Existing company or ${role === 'Lender' ? 'loan officer' : 'agent'}<select data-dir-select aria-label="Existing company or person">${directoryOptionsHtml(model)}</select></label>` : html`<div class="span2">${pickerHtml('contactId', 'Existing contact (optional)')}</div>`}
     <label>First name<input name="firstName" maxlength="80" autocomplete="off" aria-label="First name"></label>
     <label>Last name<input name="lastName" maxlength="80" autocomplete="off" aria-label="Last name"></label>
@@ -370,6 +373,7 @@ async function addPartyModal(api, d, role, refresh) {
       : buyerSellerEntry({ label, contactId: picked, typedName, firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone, company: f.company });
     if (!entry.ok) throw new Error(entry.error);
     if (entry.action === 'skip') throw new Error(`Enter a name for this ${label}, or pick an existing contact.`);
+    if (agentTc && existingTc.some((p) => p.contactId === (entry.contactId || ''))) throw new Error(`That person is already the ${label} on this file.`);
     let id = entry.action === 'existing' ? entry.contactId : '';
     if (!id) {
       try { id = (await api.createContact(entry.contact)).id; }
@@ -380,8 +384,9 @@ async function addPartyModal(api, d, role, refresh) {
       }
     }
     await api.addParticipant(d.id, id, role);
+    for (const old of existingTc) { if (old.contactId !== id) await api.removeParticipant(d.id, old.id); }
     closeModal();
-    toast(`${label[0].toUpperCase() + label.slice(1)} added. No portal invite was sent.`);
+    toast(`${label[0].toUpperCase() + label.slice(1)} ${existingTc.length ? 'saved' : 'added'}. No portal invite was sent.`);
     refresh();
   }));
 }
@@ -443,7 +448,8 @@ export const STAFF_EXTRA_ROLES = ['Abstractor', 'Underwriter'];
 export function partyRows(d, ov, staffView, splits = []) {
   const rows = ov ? ov.parties.map((p) => ({ ...p })) : [];
   if (staffView) d.participants.filter((p) => !p.removed && p.contact && !OVERVIEW_ROLES.includes(p.role) && !(p.role === 'Lender' && rows.some((r) => r.label === 'Lender')))
-    .forEach((p) => { const roleBit = lenderRoleLabel(p.contact.lenderRole); const name = partyDisplayName(p); const company = [p.contact.company && p.contact.company !== name ? p.contact.company : '', roleBit].filter(Boolean).join(' · '); rows.push({ label: p.role, name, company, email: p.contact.email || '', phone: p.contact.phone || '', contactId: p.contact.contactHidden ? '' : (p.contactId || ''), contactHidden: !!p.contact.contactHidden, entity: p.entity || null, profileId: p.contact.profileId || null, canMessage: false }); });
+    .forEach((p) => { const roleBit = lenderRoleLabel(p.contact.lenderRole); const name = partyDisplayName(p); const company = [p.contact.company && p.contact.company !== name ? p.contact.company : '', roleBit].filter(Boolean).join(' · '); const agentTc = isAgentTcRole(p.role); rows.push({ label: agentTc ? agentTcLabel(p.role) : p.role, addRole: p.role, agentTc, name, company, email: p.contact.email || '', phone: p.contact.phone || '', contactId: p.contact.contactHidden ? '' : (p.contactId || ''), contactHidden: !!p.contact.contactHidden, entity: p.entity || null, profileId: p.contact.profileId || null, canMessage: false }); });
+  if (staffView && !isRefi(d)) for (const role of AGENT_TC_ROLES) if (!rows.some((r) => r.addRole === role)) rows.push({ label: agentTcLabel(role), addRole: role, agentTc: true, name: 'Not specified', company: "The agent's coordinator", email: '', phone: '', placeholder: true });
   if (staffView) for (const role of STAFF_EXTRA_ROLES) if (!rows.some((r) => r.label === role)) {
     const sp = role === 'Underwriter' ? (splits || []).find((x) => x.state === String(d.state || '').toUpperCase() && x.underwriter) : null;
     rows.push(sp ? { label: role, name: sp.underwriter, company: `${sp.state} underwriter (Underwriter Splits)`, email: '', phone: '', placeholder: true, fromSplits: true }
@@ -475,7 +481,8 @@ function partiesList(d, ov, staffView, { splits = [], edit = false, source = '',
         ${em ? html`<a class="op-act" href="mailto:${em}" data-email aria-label="Email ${p.name} (opens your mail app)">&#9993; Email</a>` : html`<span class="op-act is-off" aria-disabled="true">&#9993; Email</span>`}
         ${p.canMessage ? html`<button type="button" class="op-act" data-message-to="${p.profileId}">Message</button>` : ''}
         ${pickProcessor ? html`<button type="button" class="op-act" data-pick-processor>${processorPickLabel(p.name)}</button>` : ''}
-        ${p.placeholder && edit ? html`<a class="op-act" href="#/deals/${d.id}/contacts" data-add-role="${p.label}" aria-label="Add ${p.label.toLowerCase()} on Contacts">+ Add</a>` : ''}</span>${ref}</div>`; };
+        ${p.placeholder && edit && !p.agentTc ? html`<a class="op-act" href="#/deals/${d.id}/contacts" data-add-role="${p.label}" aria-label="Add ${p.label.toLowerCase()} on Contacts">+ Add</a>` : ''}
+        ${p.agentTc && edit ? html`<button type="button" class="op-act" data-add-party="${p.addRole}">${p.placeholder ? '+ Add' : 'Change'}</button>` : ''}</span>${ref}</div>`; };
   const legacy = referral && referral.legacy ? html`<p class="op-ref-legacy" data-referral-unmatched>Source of business: ${referral.unmatched}. This value is not tied to one person on the file.</p>` : '';
   const clear = referral && edit ? html`<label class="referral-source op-ref-clear"><input type="radio" name="fileReferral" value="" data-referral-clear aria-label="Source of business: Not set" ${referral.clearChecked ? raw('checked') : ''}> Not set</label>` : '';
   const hint = referral ? html`<p class="muted small" data-referral-hint>Source of business is one person: a buyer, seller, buyer agent, listing agent, or lender. It is not the CLA salesperson and it does not change a contact's Lead Source.</p>` : '';

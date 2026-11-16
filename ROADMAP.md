@@ -843,6 +843,38 @@ This file lists the portal's major features: how each one should work, how far a
 - Option 1: the panels are the Agent fees box, not a second commission section. The amounts stay in deal_agent_fees.
 - The selling agent is the buyer's agent side already on the file. The panel title is Selling Agent Commission.
 
+---
+
+## Agent-side transaction coordinator (FF-088)
+
+**How it should work.** When a processor places an order, the buyer's transaction coordinator and the listing transaction coordinator are the agents' coordinators. Each one is an outside contact, with or without a portal login. They are saved on the file and can be added or changed later from Parties or Order Contacts. The CLA Title Transaction Coordinator is still an active staff login.
+
+**Status: In progress.** Tracker item FF-088. Francis Santos, Nov 16 2026, 3:10 PM ET (message 1a1e5fbfe4183a9f), on order MD-26-97386. Pull request: [PR 301](https://github.com/Johncoester/cla-portal-demo/pull/301). Not Live. The database file is not applied on TEST.
+
+**What's built**
+
+- Place Order, Agents, takes a person, company, phone, and email for each side's coordinator. A bad email or a partial phone is pointed out, and what was typed stays. The order no longer reports the same staff-login sentence twice.
+- Parties shows both coordinators, with Add or Change. Order Contacts can add either role and can edit the person's name, email, phone, and company.
+- An outside contact, or an outside login, saves as that agent's coordinator. The same person is still refused as the CLA Title Transaction Coordinator. A staff login can still be that CLA coordinator.
+
+**What's still missing**
+
+- Not checked on TEST. Not Live until `supabase/migrations/20261124160000_agent_side_tc.sql` is applied on TEST.
+- Invite to portal is not offered on these two roles. A person who already has an outside login can still be picked.
+
+**Links**
+
+- Spec: [docs/specs/agent-side-tc.md](docs/specs/agent-side-tc.md)
+- Pull request: [PR 301](https://github.com/Johncoester/cla-portal-demo/pull/301)
+- Source: Francis Santos, Nov 16 2026, 3:10 PM ET. Tracker item FF-088.
+
+**Decisions**
+
+- The agents' coordinators are their own roles (Buyer Agent TC and Listing Agent TC). They are not the CLA Title Transaction Coordinator.
+- The staff rule stays: only an active staff login can be the Transaction Coordinator on an order.
+
+---
+
 ## CRM history on a fresh database
 
 **How it should work.** A brand-new database should build the CRM the way TEST did on November 2: the accounts, leads, pipeline, and activities, plus the feature flag. The scratch setup should not create those tables first, or the history file would leave them in the old shape.
