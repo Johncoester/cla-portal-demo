@@ -65,5 +65,14 @@ ok(hr && Math.abs(hr.amount - 309) < 0.01 && hr.paidBy === 'seller', 'Virginia B
 const mdRefi = proposeFees({ state: 'MD', county: 'Montgomery', loanAmount: 500000, transactionType: 'Refinance' }, { payoff: 350000 });
 ok(mdRefi.warnings.some((w) => /original mortgagor affidavit/.test(w)), 'a Maryland refinance with a payoff shows the original mortgagor note');
 
+// John, Nov 16 2026 (Melissa Gamble; closed files MD-26-32159, MD-26-32155): Maryland tax on the part of the loan above the price, paid by the buyer.
+const above = (county, price, loan, o = {}) => proposeFees({ state: 'MD', county, transactionType: 'Purchase', purchasePrice: price, loanAmount: loan, primaryResidence: 'yes' }, o).lines.filter((l) => /on loan above price/.test(l.description));
+const pgA = above("Prince George's", 525000, 536287);
+ok(pgA.length === 2 && Math.abs(pgA.reduce((a, l) => a + l.split.buyer, 0) - 221.27) < 0.01 && pgA.every((l) => l.paidBy === 'buyer' && /loan .* − price/.test(l.calculation)),
+  "MD-26-32159: Prince George's loan $11,287 above the price: recordation $63.25 + transfer $158.02, buyer pays, explained");
+ok(above("Prince George's", 270000, 372000, { occ: false }).reduce((a, l) => a + l.amount, 0) === 1989, 'MD-26-32155: $102,000 above the price: $561 + $1,428');
+ok(above('Montgomery', 600000, 480000).length === 0, 'no extra tax when the loan is below the price');
+agree('PG loan above price', purchase('MD', "Prince George's", 525000, 536287));
+
 console.log(fail ? fail + ' failed' : 'fee engine passed');
 process.exit(fail ? 1 : 0);
