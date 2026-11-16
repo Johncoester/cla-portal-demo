@@ -645,6 +645,25 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Recording calculator finds every county (REC-CALC-6)
+
+**How it should work.** Any county or independent city in Maryland, Virginia, Florida or DC gets fees from Calculate fees from CLA rates. A county with rows of its own on the rate sheet uses them. Every other county uses the statewide rows, the same as the quote calculator. Spellings that mean the same place match ("Hillsborough County", "City of Fairfax", "Saint Johns", "Prince Georges"). A name that is not a county of that state is still refused.
+
+**Status: Built, not merged.** REC-CALC-6. John Coester, Nov 15 2026 (voice: "make sure the fees are actually pulling to the portal", then "fix whatever's needed"), assigned to Claude. Built on top of REC-CALC-5 (PR 292); its pull request opens when PR 292 merges. No database file.
+
+**What's built**
+
+- Claude ran 23 orders through the fee engine against the fee sheet. The amounts matched everywhere it ran. Two orders got no fees at all: Virginia Beach City and Hillsborough County came back "We couldn't find this county". The rate sheet only names counties that have a row of their own (27 in Virginia, 2 in Florida), and the portal treated every other county as unknown.
+- The county list on Place Order and Edit order is now the whole state: 24 in Maryland, 133 in Virginia, 67 in Florida. The names come from the Census table the portal already ships for the ZIP lookup.
+- Same-place spellings match. "Fairfax" stays the county and "Fairfax City" the city, because Virginia has both.
+- When a tax comes to $0.00 on a file (Montgomery recordation tax on a $100,000 principal residence), the preview now says so instead of silently leaving the line out.
+- A test (`test/test-county-match.js`) calculates all 224 counties and cities and checks the two orders that failed.
+
+**What's still missing**
+
+- The tests use the saved copy of the rates, not the live sheet, because a test that needs the internet fails at random. A daily check that compares the live sheet with the saved copy and reports any difference is not built.
+- The 23-order comparison checked recording fees and taxes. Title premiums and CLA fees were not compared line by line.
+
 ## Unused money-input files (TEST-CLEANUP-MONEY)
 
 **How it should work.** The money helpers live in one place. A page file that only passes them through, and test loaders that only exist for that page file, are not kept.
