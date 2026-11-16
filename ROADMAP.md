@@ -800,7 +800,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When a processor places an order, the buyer's transaction coordinator and the listing transaction coordinator are the agents' coordinators. Each one is an outside contact, with or without a portal login. They are saved on the file and can be added or changed later from Parties or Order Contacts. The CLA Title Transaction Coordinator is still an active staff login.
 
-**Status: In progress.** Tracker item FF-088. Francis Santos, Nov 16 2026, 3:10 PM ET (message 1a1e5fbfe4183a9f), on order MD-26-97386. Not Live. The database file is not applied on TEST.
+**Status: In progress.** Tracker item FF-088. Francis Santos, Nov 16 2026, 3:10 PM ET (message 1a1e5fbfe4183a9f), on order MD-26-97386. Pull request: [PR 301](https://github.com/Johncoester/cla-portal-demo/pull/301). Not Live. The database file is not applied on TEST.
 
 **What's built**
 
@@ -816,6 +816,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/agent-side-tc.md](docs/specs/agent-side-tc.md)
+- Pull request: [PR 301](https://github.com/Johncoester/cla-portal-demo/pull/301)
 - Source: Francis Santos, Nov 16 2026, 3:10 PM ET. Tracker item FF-088.
 
 **Decisions**
