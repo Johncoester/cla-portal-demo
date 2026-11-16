@@ -4,7 +4,7 @@
 
 **Tracker:** Requests tab, row 315, CRM-OWNER-1.
 
-**Status:** In progress. Not applied on TEST. Not Live.
+**Status:** In progress. Pull request [306](https://github.com/Johncoester/cla-portal-demo/pull/306). Not applied on TEST. Not Live.
 
 ## What the user sees
 
