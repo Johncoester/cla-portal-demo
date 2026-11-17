@@ -19,6 +19,11 @@ const form = { elements: [
 const body = collectOrderFields(form);
 ok(body.fields.street === '9 Draft Lane' && !('contract' in body.fields) && !JSON.stringify(body).includes('SECRET-BYTES'), 'a draft keeps the street and never the file contents');
 ok(body.checks.salesIds.join() === 'u-sp', 'checked people are kept');
+const multi = collectOrderFields({ elements: [
+  { name: 'salesIds', type: 'hidden', value: 'u-sp' },
+  { name: 'salesIds', type: 'hidden', value: 'u-team' },
+] });
+ok(multi.checks.salesIds.join() === 'u-sp,u-team' && multi.fields.salesIds === undefined, 'each salesperson on the search box is kept, not only the last one');
 writeOrderDraft(store, key, { ...body, savedAt: new Date().toISOString(), step: 'team', fileNames: rememberedFiles([form.elements[3]]) });
 const back = readOrderDraft(store, key);
 ok(back.fields.street === '9 Draft Lane' && back.fileNames[0] === 'contract.pdf', 'the draft can be read back, with only the file name');

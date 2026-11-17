@@ -110,7 +110,7 @@ const warm = adapter.slice(adapter.indexOf('function warmFile'));
 const overview = warm.slice(warm.indexOf("tab === 'overview'"), warm.indexOf("fileRead('shell:'"));
 check(!overview.includes('listActivity') && warm.includes("tab === 'activity' && a.listActivity"), 'activity_log is requested when the activity tab opens');
 const appSrc = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-check(appSrc.includes("adapter.js?v=202611242290") && appSrc.includes("deal.js?v=202611242210") && appSrc.includes("dashboard.js?v=202611242210") && appSrc.includes("ordernew.js?v=202611223100") && appSrc.includes("prefetchDealTab") && !appSrc.includes('modsEarly'), 'the shell loads the current adapter and does not reuse an early module map');const taskPage = readFileSync(new URL('../js/pages/dealtasks.js', import.meta.url), 'utf8');
+check(appSrc.includes("adapter.js?v=202611242290") && appSrc.includes("deal.js?v=202611242210") && appSrc.includes("dashboard.js?v=202611242210") && appSrc.includes("ordernew.js?v=202611242820") && appSrc.includes("prefetchDealTab") && !appSrc.includes('modsEarly'), 'the shell loads the current adapter and does not reuse an early module map');const taskPage = readFileSync(new URL('../js/pages/dealtasks.js', import.meta.url), 'utf8');
 const dealTab = readFileSync(new URL('../js/pages/deal-tab.js', import.meta.url), 'utf8');
 const dealPage = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
 check(taskPage.includes('constants.js?v=202611101015') && dealTab.includes('dealtasks.js?v=202611242210') && dealPage.includes('prefetchDealTab') && appSrc.includes('tabFlight.catch'), 'the tasks tab loads the current task module');

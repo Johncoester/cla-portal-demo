@@ -289,6 +289,10 @@ a.active-link, .active-link { font-weight: 700; text-decoration: underline; } tr
 .picker-list { position: absolute; z-index: 25; left: 0; right: 0; margin: 4px 0 0; padding: 4px; list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); max-height: 300px; overflow: auto; box-shadow: var(--sh-3); }
 .picker-list li { padding: 7px 10px; cursor: pointer; border-radius: var(--r-sm); font-size: 13px; } .picker-list li:hover { background: var(--surface-2); } .picker-list li.active { background: var(--navy-100); }
 .picker-chosen { margin-top: 4px; } .picker-chosen:empty { display: none; }
+/* FF-092: the salesperson search fills the row, and a long name wraps on a phone. */
+[data-sales-multi] { flex: 1 1 100%; min-width: 0; }
+[data-sales-picker] > .field-hint { flex: 1 1 100%; }
+[data-sales-chips] .pill { white-space: normal; max-width: 100%; }
 /* several buyers / sellers, entities, lender */
 .multi-party { background: var(--surface-2); } .multi-party .multi-row { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 8px; } .multi-party .multi-row .picker { flex: 1; }
 .multi-party .multi-row { align-items: flex-start; } .multi-party .multi-row > .ghost { margin-top: 25px; height: 39px; }
