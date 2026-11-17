@@ -948,17 +948,18 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When a processor places an order, the buyer's transaction coordinator and the listing transaction coordinator are the agents' coordinators. Each one is an outside contact, with or without a portal login. They are saved on the file and can be added or changed later from Parties or Order Contacts. The CLA Title Transaction Coordinator is still an active staff login.
 
-**Status: In progress.** Tracker item FF-088. Francis Santos, Nov 16 2026, 3:10 PM ET (message 1a1e5fbfe4183a9f), on order MD-26-97386. Pull request: [PR 301](https://github.com/Johncoester/cla-portal-demo/pull/301). Not Live. The database file is not applied on TEST.
+**Status: In progress.** Tracker item FF-088. Francis Santos, Nov 16 2026, 3:10 PM ET (message 1a1e5fbfe4183a9f), on order MD-26-97386. Pull request: [PR 301](https://github.com/Johncoester/cla-portal-demo/pull/301). The Nov 16 database file is on TEST. Place Order still does not open the new file when an agent's coordinator is typed. Tracker item E2E-ORDER-1 (row 329). Pull request: [PR 308](https://github.com/Johncoester/cla-portal-demo/pull/308). Not Live until `supabase/migrations/20261124170000_agent_tc_role_check.sql` is applied on TEST.
 
 **What's built**
 
 - Place Order, Agents, takes a person, company, phone, and email for each side's coordinator. A bad email or a partial phone is pointed out, and what was typed stays. The order no longer reports the same staff-login sentence twice.
 - Parties shows both coordinators, with Add or Change. Order Contacts can add either role and can edit the person's name, email, phone, and company.
 - An outside contact, or an outside login, saves as that agent's coordinator. The same person is still refused as the CLA Title Transaction Coordinator. A staff login can still be that CLA coordinator.
+- The new database file adds Buyer Agent TC and Listing Agent TC to the file's people-role list and keeps every role that list already allowed. No page file changed. No cache stamp.
 
 **What's still missing**
 
-- Not checked on TEST. Not Live until `supabase/migrations/20261124160000_agent_side_tc.sql` is applied on TEST.
+- Not Live until `supabase/migrations/20261124170000_agent_tc_role_check.sql` is applied on TEST. Until then, typing a coordinator creates the order, leaves the coordinator off, and stays on Place Order.
 - Invite to portal is not offered on these two roles. A person who already has an outside login can still be picked.
 
 **Links**
@@ -971,6 +972,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 - The agents' coordinators are their own roles (Buyer Agent TC and Listing Agent TC). They are not the CLA Title Transaction Coordinator.
 - The staff rule stays: only an active staff login can be the Transaction Coordinator on an order.
+- The Nov 16 file did not add the two roles to the people-role list. That list has to allow them, or Place Order creates the file and does not open it.
 
 ---
 
@@ -1088,6 +1090,33 @@ This file lists the portal's major features: how each one should work, how far a
 - Nobody is turned on by the database file. An admin ticks people after it is applied.
 - The tick does not change role access or who can open the CRM.
 
+## CRM custom view user criteria
+
+**How it should work.** On Leads, Clients, Companies, and Deals, New Custom View, Specify Criteria, a field whose value is a person lists every CRM user, the same people as Share this with, Selected users. That includes super admins, admins, and sales reps. Choosing one saves that person's id, and the view shows records whose created-by, modified-by, owner, or last-activity person is that id.
+
+**Status: Merged.** Feedback 30 item 1, confirmed by Janine. Pull request 309 is on main. Not Live until someone checks it on TEST. No database file.
+
+**What's built**
+
+- The criteria value list uses the share-with user list, loaded once. The signed-in person is included, because the filter can be "records I created."
+- Created By, Modified By, Last Activity By, and the owner field are offered on Leads, Clients, and Companies. Deals offer Created By, Deal Owner, and Last Activity By.
+- The saved value stays the user id. The view matches that id to the record.
+
+**What's still missing**
+
+- A check on TEST. Do not mark Live before that.
+- Deals have no Modified By. A deal does not store who last changed the file.
+- Clients Created By and Modified By on the hosted list are filled with one extra read of those two ids. If that read is blocked, those two client filters match only when the client list already includes the id. Leads, companies, deal owner, and deal Created By do not need that extra read.
+
+**Links**
+
+- Spec: [docs/specs/crm-view-user-criteria.md](docs/specs/crm-view-user-criteria.md)
+
+**Decisions**
+
+- Reuse the share-with user list. Do not switch the owner pickers on the record forms.
+- Keep the stored criterion as the user id.
+
 ## Custom view name column can move
 
 **How it should work.** On New Custom View and Edit view, Choose Columns, the record name (Lead Name, Client Name, Company Name, Deal Name) stays selected. The arrows move it like any other selected column, so Client Owner or another column can be first. The list for that view uses the saved order. The name still opens the record. A saved view that never stored a position for the name still shows the name first.
@@ -1098,6 +1127,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 - The name column can move up and down on Leads, Clients, Companies, and Deals, and it cannot be removed.
 - The saved order is the order of the list. A missing name position stays first.
+- The criteria user list from pull request 309 stays. Both work on the same custom view.
 
 **What's still missing**
 
