@@ -5,7 +5,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { crmJanineSupabase, reviewImportPerson, plainImportDbMessage } from '../js/data/supabase-crm-janine.js';
-import { IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, importTooBigMessage, leadRequiredMessages, sampleCsv, importErrorCsv, loadImportResume } from '../js/data/crm-janine.js';
+import { IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, importTooBigMessage, leadRequiredMessages, sampleCsv, PERSON_IMPORT_FIELDS, loadImportResume } from '../js/data/crm-janine.js';
+import { importErrorCsv, importSkipCsvReady } from '../js/data/crm-import-skip-csv.js';
 import { importRowHref } from '../js/pages/crm-janine.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -137,6 +138,7 @@ ok(preview.committed === false && preview.importId == null && preview.counts.ok 
 ok(preview.message === 'Nothing was saved. Each row shows whether it is ready, a duplicate, or what to fix.', 'a preview that still arrives as P0004 keeps a plain sentence with the rows');
 ok(preview.rows[0].values.state === 'Maryland' && preview.rows[0].values.description === 'TEST-SEED-CRM-IMPORT', 'the preview table still shows the file text');
 ok(preview.rows[0].status === 'ok' && preview.rows[1].status === 'duplicate' && /already used/.test(preview.rows[1].message), 'a duplicate row is reported and not treated as created');
+ok(preview.errorCsv.includes('robin.template@example.test') && preview.errorCsv.includes('Duplicate of existing lead: Robin Template / robin.template@example.test') && !preview.errorCsv.includes('casey.sample@example.test'), 'the error CSV lists the skipped duplicate and names the existing lead');
 ok(preview.rows[0].link.includes('/crm/leads/'), 'the preview payload still names the lead it would create');
 const keptLink = '#/crm/leads/11111111-1111-4111-8111-111111111111';
 ok(importRowHref({ status: 'ok', link: keptLink, name: 'Casey Sample' }, false) === '', 'a preview does not link to a lead that was not saved');
@@ -242,6 +244,55 @@ const filledLead = await api.previewCrmImport({ module: 'leads', csv: 'Last Name
 ok(calls.length === 1 && filledLead.rows[0].status === 'ok' && filledLead.counts.errors === 0, 'a default Role, Relationship Status, and State lets the lead through');
 ok(missingLead.errorCsv.includes('Row') && missingLead.errorCsv.includes('Sample') && missingLead.errorCsv.includes('Role in Company is required.') && missingLead.errorCsv.includes('State is required.'), 'the error CSV has the row number, the original fields, and the message');
 ok(importErrorCsv([{ status: 'error', line: 4, values: { lastName: 'Sample' }, message: 'State is required.' }], [['lastName', 'Last Name']]).includes('Last Name') && importErrorCsv([{ status: 'ok', line: 2, values: { lastName: 'Ok' }, message: '' }]).split('\n').filter(Boolean).length === 1, 'the error CSV keeps error rows only');
+ok(page.includes('importSkipCsvReady(r.counts)') && page.includes('importSkipCsvReady(r && r.counts)') && page.includes('The error CSV lists both and says why') && !page.includes('r.counts.errors'), 'the download is offered for duplicates as well as errors');
+ok(page.includes('crm-import-skip-csv.js?v=202611242290') && read('js/data/supabase-crm-janine.js').includes('crm-import-skip-csv.js?v=202611242290') && read('js/data/supabase-crm.js').includes('supabase-crm-janine.js?v=202611242290'), 'the duplicate CSV is loaded at stamp 202611242290');
+ok(read('js/app.js').includes('pages/crm-janine.js?v=202611242290') && read('js/pages/crm.js').includes('crm-janine.js?v=202611242290') && read('js/pages/crm-forms.js').includes('crm-janine.js?v=202611242290') && read('js/pages/crm-home.js').includes('crm-janine.js?v=202611242290') && !read('js/app.js').includes('crm-janine.js?v=202611221700') && !read('js/pages/crm.js').includes("from './crm-janine.js?v=202611221700'") && !read('js/pages/crm-forms.js').includes('crm-janine.js?v=202611221700') && !read('js/pages/crm-home.js').includes('crm-janine.js?v=202611221700'), 'the import page is loaded at stamp 202611242290 from the shell and the CRM pages');
+ok(read('js/data/supabase-adapter.js').includes('supabase-crm.js?v=202611242290') && read('js/data/adapter.js').includes('supabase-adapter.js?v=202611242290') && read('js/app.js').includes('adapter.js?v=202611242290') && read('index.html').includes('js/app.js?v=202611242290'), 'the hosted import chain is stamped 202611242290 up to the page');
+ok(importSkipCsvReady({ errors: 0, duplicates: 2 }) && importSkipCsvReady({ errors: 1, duplicates: 0 }) && !importSkipCsvReady({ errors: 0, duplicates: 0 }), 'a file of only duplicates still has an error CSV');
+
+const dupFields = [['firstName', 'First Name'], ['lastName', 'Last Name'], ['email', 'Email'], ['phone', 'Phone']];
+const dupCsv = importErrorCsv([
+  { status: 'error', line: 2, values: { firstName: 'Casey', lastName: 'Sample', email: 'casey.sample@example.test' }, message: 'State is required.' },
+  { status: 'ok', line: 3, values: { firstName: 'Robin', lastName: 'Template', email: 'robin.template@example.test', phone: '301-555-0101' }, message: '' },
+  { status: 'duplicate', line: 8, values: { firstName: 'Robin', lastName: 'Copy', email: 'ROBIN.template@example.test', phone: '202-555-0199' }, message: 'This email is already used by Lead Robin Template (owner Ada Admin). Duplicates are not allowed.' },
+  { status: 'duplicate', line: 5, values: { firstName: 'Jordan', lastName: 'Other', email: 'jordan.other@example.test', phone: '(301) 555-0101' }, message: 'This phone number is already used by Lead Robin Template (owner Ada Admin). Duplicates are not allowed.' },
+  { status: 'ok', line: 4, values: { firstName: 'Pat', lastName: 'Kept', email: 'pat.kept@example.test', phone: '703-555-0108' }, message: '' },
+  { status: 'duplicate', line: 6, values: { firstName: 'Casey', lastName: 'Sample', email: 'casey.sample@example.test' }, message: 'This email is already used by Lead Casey Sample (owner Ada Admin). Duplicates are not allowed.' },
+  { status: 'duplicate', line: 7, values: { firstName: 'Alex', lastName: 'Client', email: 'alex.client@example.test', phone: '410-555-0177' }, message: 'This email is already used by Client Alex Client (owner none). Duplicates are not allowed.' },
+  { status: 'duplicate', line: 9, values: { email: 'b@example.test', phone: '555' }, message: 'Duplicate: this email or phone is already on a lead or client.' },
+], dupFields, 'contacts');
+ok(dupCsv.includes('State is required.') && dupCsv.split('"Duplicate within file, row 3"').length === 3, 'a repeat of an earlier email or phone is named as row 3, and the comma stays inside one cell');
+const earliest = importErrorCsv([
+  { status: 'duplicate', line: 6, values: { email: 'b.person@example.test', phone: '301-555-0199' }, message: 'This email is already used by Lead B Person (owner Ada Admin). Duplicates are not allowed.' },
+  { status: 'ok', line: 4, values: { email: 'b.person@example.test', phone: '202-555-0199' }, message: '' },
+  { status: 'ok', line: 2, values: { email: 'a.person@example.test', phone: '301-555-0199' }, message: '' },
+], dupFields);
+ok(earliest.includes('"Duplicate within file, row 2"') && !earliest.includes('row 4'), 'a row that matches two earlier rows names the earliest row');
+ok(dupCsv.includes('Duplicate within file, row 3') && dupCsv.includes('ROBIN.template@example.test') && dupCsv.includes('Duplicate of existing lead: Casey Sample / casey.sample@example.test'), 'an error row is not a file duplicate, so the later matching row names the existing lead');
+ok(dupCsv.includes('Duplicate of existing client: Alex Client / alex.client@example.test'), 'a client already on file is named as a client');
+ok(dupCsv.includes('Duplicate of existing client: b@example.test') && !dupCsv.includes('pat.kept@example.test') && !dupCsv.includes(',3,Robin,Template,'), 'a short phone is not a file duplicate, and a ready row is left out of the CSV');
+const noteCsvOut = importErrorCsv([
+  { status: 'ok', line: 2, values: { email: 'casey.sample@example.test', noteTitle: 'Intro', note: 'TEST-SEED-CRM-IMPORT note' }, message: '' },
+  { status: 'duplicate', line: 3, values: { email: 'Casey.Sample@example.test', noteTitle: 'Intro', note: 'TEST-SEED-CRM-IMPORT note' }, message: 'Duplicate: this note is already on Casey Sample.' },
+  { status: 'duplicate', line: 4, values: { email: 'robin.template@example.test', noteTitle: 'Other', note: 'A different note' }, message: 'Duplicate: this note is already on Robin Template.' },
+], [['email', 'Email'], ['noteTitle', 'Note Title'], ['note', 'Note']]);
+ok(noteCsvOut.includes('"Duplicate within file, row 2"') && noteCsvOut.includes('Duplicate of existing lead: Robin Template / robin.template@example.test'), 'a repeated note names the earlier row, and a note already on file names that lead');
+
+const wideFields = PERSON_IMPORT_FIELDS.map(([k, l]) => [k, l]);
+const tenKRows = Array.from({ length: 10000 }, (_, i) => {
+  const line = i + 2;
+  const email = `person${i}@example.test`;
+  if (i % 5 === 0) return { status: 'error', line, values: { lastName: 'Err' + i, email, description: 'TEST-SEED-CRM-IMPORT' }, message: 'State is required.' };
+  if (i % 5 === 1) return { status: 'ok', line, values: { lastName: 'Ok' + i, email, description: 'TEST-SEED-CRM-IMPORT' }, message: '' };
+  if (i % 5 === 2) return { status: 'duplicate', line, values: { lastName: 'Copy' + i, email: `person${i - 1}@example.test`, description: 'TEST-SEED-CRM-IMPORT' }, message: 'This email is already used by Lead Ok (owner Ada Admin). Duplicates are not allowed.' };
+  if (i % 5 === 3) return { status: 'duplicate', line, values: { lastName: 'Exist' + i, email, description: 'TEST-SEED-CRM-IMPORT' }, message: 'This email is already used by Lead Casey Sample (owner Ada Admin). Duplicates are not allowed.' };
+  return { status: 'ok', line, values: { lastName: 'Keep' + i, email, description: 'TEST-SEED-CRM-IMPORT' }, message: '' };
+});
+const tDup = performance.now();
+const tenKDupCsv = importErrorCsv(tenKRows, wideFields);
+const dupMs = performance.now() - tDup;
+const tenKLines = tenKDupCsv.split('\n').filter((line) => line.trim()).length;
+ok(tenKLines === 6001 && tenKDupCsv.includes('Reason') && tenKDupCsv.includes('"Duplicate within file, row 3"') && tenKDupCsv.includes('Duplicate of existing lead: Casey Sample / person3@example.test') && !tenKDupCsv.includes('person4@example.test') && dupMs < 500, '10000 rows put every skipped row in the error CSV in one pass (' + Math.round(dupMs) + ' ms)');
 
 const progress = [];
 const tenKFile = ['Last Name,Email,Role in Company,Relationship Status,State,Description', ...Array.from({ length: 10000 }, (_, i) => `Person${i},person${i}@example.test,Realtor,Hot Prospect,MD,TEST-SEED-CRM-IMPORT`)].join('\n');
@@ -354,7 +405,7 @@ ok(next.includes('Nothing was saved. Each row shows whether it is ready, a dupli
 ok(!next.split('\n').some((line) => /^\s*create (or replace )?function private\./i.test(line)) && !/create policy|alter policy|on public\.deals|on public\.tasks|on public\.profiles/i.test(next), 'no private helper and no deals, tasks, or profiles policy');
 ok(next.includes('where lower(l.email) = v_em') && nextRb.includes('where lower(l.email) = v_em') && (next.match(/where lower\(l\.email\) = v_em/g) || []).length === (nextRb.match(/where lower\(l\.email\) = v_em/g) || []).length, 'the lead email lookup is unchanged');
 ok(next.includes('security definer') && next.includes('v_n > 500') && next.includes("errcode = '42501'") && next.includes('can own CRM records') && next.includes('grant execute on function public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer) to authenticated'), 'security, the 500-row cap, the admin check, owner wording, and the grant stay');
-ok(read('js/data/supabase-crm.js').includes('supabase-crm-janine.js?v=202611242280') && read('js/data/supabase-adapter.js').includes('supabase-crm.js?v=202611242280') && read('js/data/adapter.js').includes('supabase-adapter.js?v=202611242280') && read('js/app.js').includes("adapter.js?v=202611242280") && read('index.html').includes('js/app.js?v=202611242280'), 'the hosted CRM chain and the shell that loads it use 202611242280');
+ok(read('js/data/supabase-crm.js').includes('supabase-crm-janine.js?v=202611242290') && read('js/data/supabase-adapter.js').includes('supabase-crm.js?v=202611242290') && read('js/data/adapter.js').includes('supabase-adapter.js?v=202611242290') && read('js/app.js').includes("adapter.js?v=202611242290") && read('index.html').includes('js/app.js?v=202611242290'), 'the hosted CRM chain and the shell that loads it use 202611242290');
 
 console.log(fail ? fail + ' failed' : 'crm hosted import passed');
 if (fail) process.exit(1);
