@@ -1189,7 +1189,40 @@ This file lists the portal's major features: how each one should work, how far a
 - Save the document answers on the calculated fee. No new database file.
 - A saved worksheet wins the next time the screen opens, so a deed of trust marked not a principal residence stays that way. The file's answers are the starting point when nothing has been saved.
 - Use the county list from REC-CALC-6 (PR 296, merged). A county in Maryland, Virginia, Florida, or the District of Columbia that is not named on a rate row of its own is still calculated, on the statewide rates.
+- Baltimore City who-pays, and the order of exemptions then the split, are FF-091b.
 - A blank county was treated as a missing address. That is FF-095.
+
+---
+
+## Baltimore City taxes and who pays (FF-091b)
+
+**How it should work.** On Taxes & Fees, the tax is figured first, exemptions come off that total, and then the amount is split. The start is the county's default on the rate sheet. Staff can change Buyer pays, Seller pays, or 50/50 split for the executed contract, except a line the law fixes. That line stays locked and says why. Baltimore City uses the questions the rate sheet can answer: price, loan, pages, taxable, primary residence (the owner-occupied exemption), and the first-time homebuyer exemption.
+
+**Status: In progress.** FF-091b. Francis Santos, Nov 17 2026, 1:55 PM ET (message 1a1eaddb3dcfc5d6) and Nov 17 2026, 3:55 PM ET (message 1a1eb4b8017fcabf). Not Live. No database file. Not applied on TEST.
+
+**What's built**
+
+- Baltimore City amounts follow the vendored rate sheet: transfer tax 1.5% up to $1,000,000 (2.1% above), with the $22,000 owner-occupant exemption only at $249,900 or less; recordation tax $5.00 per $500 up to $1,000,000 ($5.75 above), with the sheet's $22,000 owner-occupant exemption on that row. The exemption comes off before the split.
+- The county default is a 50/50 split. A first-time buyer who will live in the home pays no state transfer tax, and Maryland law keeps that line with the seller.
+- Staff can change the other taxes for the contract. The choice is saved on the calculated fee.
+- A blank primary residence does not take the exemption.
+
+**What's still missing**
+
+- Recording the mortgage at the same time as the deed, and any statutory exemption the rate sheet does not list. Those are not asked. Editable rate sheets are FF-091c.
+- Not checked on TEST. Not Live.
+
+**Links**
+
+- Spec: [docs/specs/taxes-fees-baltimore.md](docs/specs/taxes-fees-baltimore.md)
+- Source: Francis Santos, Nov 17 2026, 3:55 PM ET, message 1a1eb4b8017fcabf. Tracker FF-091b.
+
+**Decisions**
+
+- Figure the tax, take the exemption off the total, then allocate. Do not take the exemption from one side of a split.
+- The jurisdiction default is the rate sheet's Paid By. The contract choice is the control on Taxes & Fees.
+- Lock only a line the law fixes, and show the reason. Maryland state transfer tax for a first-time buyer who will live in the home stays with the seller (Tax-Property 13-203).
+- No new database file. No editable rate sheet in this change.
 
 ---
 

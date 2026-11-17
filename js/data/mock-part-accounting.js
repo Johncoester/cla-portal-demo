@@ -13,7 +13,7 @@ const PRORATION_VIA = 'Settlement date change (prorations re-saved)';
 // CLA RATES (John, Nov 3): the fee engine (+ the vendored calculator code and rate tables) is loaded only when a CLA-rate method is called,
 // so with the flag off it is never loaded at all.
 const engine = () => import('./fee-engine.js?v=202611241600');
-const taxes = () => import('./taxes-fees.js?v=202611242500');
+const taxes = () => import('./taxes-fees.js?v=202611242860');
 const VIA = 'CLA rates';
 
 // accountingCd (Caroline, Nov 4): one record of manual Closing Disclosure entries per order; added lazily, so the storage key stays v26

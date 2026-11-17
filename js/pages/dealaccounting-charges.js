@@ -67,17 +67,42 @@ export function helpRail(sec) {
 
 // ---------------- Taxes & Fees documents (FF-091) ----------------
 const taxChoice = (flag, on, label) => html`<div><span class="small">${label}</span><div class="seg" data-tax-flag="${flag}" role="group" aria-label="${label}"><button type="button" class="seg-btn ${on ? 'on' : ''}" data-tax-choice="yes">Yes</button><button type="button" class="seg-btn ${on ? '' : 'on'}" data-tax-choice="no">No</button></div></div>`;
+const TAX_PAYER_CHOICES = [['buyer', 'Buyer pays'], ['seller', 'Seller pays'], ['split', '50/50 split']];
+const deedFlags = (box) => {
+  const card = $('[data-tax-doc="Deed"]', box);
+  if (!card) return { occ: false, fthb: false };
+  const on = (name) => { const g = $(`[data-tax-flag="${name}"]`, card); if (!g) return false; const b = $('.on', g); return !!(b && b.dataset.taxChoice !== 'no'); };
+  return { occ: on('occ'), fthb: on('fthb') };
+};
+const payerNow = (tax, flags, explicit) => {
+  const qualified = !!(flags && flags.occ && flags.fthb);
+  if (tax.locksWhenFirstTime && qualified) return { payer: 'seller', locked: true };
+  if (explicit && explicit[tax.name]) return { payer: explicit[tax.name], locked: false };
+  return { payer: tax.plain || '', locked: false };
+};
+function payerRows(taxes, flags, explicit) {
+  if (!taxes || !taxes.length) return '';
+  return html`<div data-tax-payers><p class="small">The tax is figured first, and any exemption comes off that total. It is then split using this county's default. Change who pays when the executed contract says otherwise. A line the law fixes stays locked.</p>
+    <div class="form-grid">${taxes.map((tax) => {
+      const now = payerNow(tax, flags, explicit);
+      if (now.locked) return html`<div data-tax-payer-row="${tax.name}"><span class="small">${tax.name}</span><p class="field-hint" data-tax-payer-lock>${tax.lockReason || 'The law fixes who pays this tax. The contract cannot change it.'}</p></div>`;
+      const touched = explicit && explicit[tax.name] ? 'yes' : 'no';
+      return html`<div data-tax-payer-row="${tax.name}"><span class="small">${tax.name}</span><div class="seg qc-seg" data-tax-payer="${tax.name}" data-tax-payer-touched="${touched}" role="group" aria-label="Who pays ${tax.name}">${TAX_PAYER_CHOICES.map(([k, label]) => html`<button type="button" class="seg-btn ${now.payer === k ? 'on' : ''}" data-tax-payer-choice="${k}">${label}</button>`)}</div></div>`;
+    })}</div></div>`;
+}
 function taxDocCard(d, asks) {
   const occ = !!(asks && asks.occ) && (d.type === 'Deed' || d.type === 'Deed of Trust');
   const fthb = !!(asks && asks.fthb) && d.type === 'Deed';
   const money = d.consideration === '' || d.consideration == null ? '' : Number(d.consideration).toFixed(2);
+  const pageLabel = d.type === 'Deed' ? 'Number of deed pages' : d.type === 'Deed of Trust' ? 'Number of mortgage pages' : 'Number of pages';
+  const moneyLabel = d.type === 'Deed' ? 'Consideration / purchase price' : d.type === 'Deed of Trust' ? 'Loan amount' : 'Consideration amount';
   return html`<div class="card" data-tax-doc="${d.type}"><div class="acct-card-head"><h3>${d.type}</h3><button type="button" class="ghost small" data-tax-remove>Remove</button></div>
     <div class="form-grid">
-      <label>Number of pages<input data-tax-pages inputmode="numeric" value="${d.pages ?? ''}" aria-label="${d.type}, number of pages" autocomplete="off"></label>
-      <label>Consideration amount<input data-tax-consideration data-money inputmode="decimal" value="${money}" placeholder="0.00" aria-label="${d.type}, consideration" autocomplete="off"></label>
+      <label>${pageLabel}<input data-tax-pages inputmode="numeric" value="${d.pages ?? ''}" aria-label="${d.type}, number of pages" autocomplete="off"></label>
+      <label>${moneyLabel}<input data-tax-consideration data-money inputmode="decimal" value="${money}" placeholder="0.00" aria-label="${d.type}, consideration" autocomplete="off"></label>
       ${taxChoice('taxable', d.taxable !== false, 'Taxable?')}
-      ${occ ? taxChoice('occ', d.occ !== false, 'Primary residence / owner-occupied?') : ''}
-      ${fthb ? taxChoice('fthb', d.fthb === true, 'First-time buyer?') : ''}
+      ${occ ? taxChoice('occ', d.occ !== false, 'Primary residence / owner-occupied exemption?') : ''}
+      ${fthb ? taxChoice('fthb', d.fthb === true, 'First-time homebuyer exemption?') : ''}
     </div>
     ${occ && asks.occNote ? html`<p class="field-hint small">${asks.occNote}</p>` : ''}${fthb && asks.fthbNote ? html`<p class="field-hint small">${asks.fthbNote}</p>` : ''}</div>`;
 }
@@ -86,12 +111,14 @@ function taxFeesPanel(setup) {
   if (!setup.covered) return html`<div class="card" data-tax-fees><h3>Taxes &amp; fees</h3><p class="notice warn" data-tax-not-ready>${setup.reason}</p></div>`;
   const left = setup.types.filter((t) => !setup.documents.some((d) => d.type === t));
   return html`<div class="card acct-calc" data-tax-fees><div class="acct-card-head"><h3>Taxes &amp; fees</h3><span class="muted small">${setup.county ? setup.county + ', ' : ''}${setup.state}</span></div>
-    <p class="small muted">Add each document to record. Calculate fees prices the recording fees, recordation tax, and transfer tax for this county. A document with no rate shows Rate Not Set so it is not missed. Type that fee. It is marked entered by hand, and a new calculation keeps it unless you choose to replace it. Nothing is saved until you apply the lines.</p>
+    <p class="small muted">Add each document to record. Calculate fees prices the recording fees, recordation tax, and transfer tax for this county. Exemptions come off the total, then the tax is split. A document with no rate shows Rate Not Set so it is not missed. Type that fee. It is marked entered by hand, and a new calculation keeps it unless you choose to replace it. Nothing is saved until you apply the lines.</p>
+    ${setup.county === 'Baltimore City' ? html`<p class="field-hint small" data-tax-baltimore>Baltimore City asks for the purchase price, the loan amount, deed and mortgage pages, taxable, primary residence (that answer is the owner-occupied exemption), and the first-time homebuyer exemption. The rate sheet has no rule for recording the mortgage at the same time as the deed, and no other statutory exemption, so those are not asked.</p>` : ''}
     ${setup.countyNote ? html`<p class="small" data-tax-county>${setup.countyNote}</p>` : ''}
     ${setup.rateNote ? html`<p class="small" data-tax-rate>${setup.rateNote}</p>` : ''}
     <div class="acct-toolbar"><label class="small">Add document <select data-tax-add-type aria-label="Add document">${left.length ? left.map((t) => html`<option value="${t}">${t}</option>`) : html`<option value="">All documents are added</option>`}</select></label>
       <button type="button" class="m-btn" data-tax-add ${dis(!left.length)}>Add document</button></div>
     <div class="card-grid" data-tax-cards>${setup.documents.map((d) => taxDocCard(d, setup.asks))}</div>
+    <div data-tax-payer-slot>${payerRows(setup.taxes, { occ: setup.documents.some((d) => d.type === 'Deed' && d.occ !== false && d.occ !== 'no'), fthb: setup.documents.some((d) => d.type === 'Deed' && (d.fthb === true || d.fthb === 'yes')) }, setup.payers || {})}</div>
     ${setup.showPayoff ? html`<label class="small">Payoff of the existing loan<input data-tax-payoff data-money inputmode="decimal" value="${setup.payoff ? Number(setup.payoff).toFixed(2) : ''}" placeholder="0.00" aria-label="Payoff of the existing loan" autocomplete="off"><span class="field-hint">Recordation tax on a refinance is figured on the new money: the loan minus this payoff.</span></label>` : ''}
     ${setup.showAssessed ? html`<label class="small">Assessed value <span class="muted">(if higher than the price)</span><input data-tax-assessed data-money inputmode="decimal" value="${setup.assessed ? Number(setup.assessed).toFixed(2) : ''}" placeholder="0.00" aria-label="Assessed value" autocomplete="off"></label>` : ''}
     <p class="notice warn small" data-tax-error hidden></p>
@@ -129,10 +156,20 @@ function mountTaxFees(root, ctx, refresh) {
   const box = $('[data-tax-fees]', root); if (!box || !ctx.taxSetup || !ctx.taxSetup.covered) return;
   const { api, deal, acc } = ctx; const setup = ctx.taxSetup;
   const flag = (card, name) => { const g = $(`[data-tax-flag="${name}"]`, card); if (!g) return name === 'fthb' ? false : true; const on = $('.on', g); return !on || on.dataset.taxChoice !== 'no'; };
+  const touchedPayers = () => {
+    const out = {};
+    $$('[data-tax-payer]', box).forEach((g) => {
+      if (g.dataset.taxPayerTouched !== 'yes') return;
+      const on = $('.on', g);
+      if (on) out[g.dataset.taxPayer] = on.dataset.taxPayerChoice;
+    });
+    return out;
+  };
   const read = () => ({
     documents: $$('[data-tax-doc]', box).map((card) => ({ type: card.dataset.taxDoc, pages: $('[data-tax-pages]', card).value, consideration: $('[data-tax-consideration]', card).value, taxable: flag(card, 'taxable'), occ: flag(card, 'occ'), fthb: flag(card, 'fthb') })),
     payoff: $('[data-tax-payoff]', box) ? $('[data-tax-payoff]', box).value : 0,
     assessed: $('[data-tax-assessed]', box) ? $('[data-tax-assessed]', box).value : 0,
+    payers: touchedPayers(),
     manual: Object.fromEntries($$('[data-tax-manual]', box).map((inp) => [inp.dataset.taxManual, inp.value])),
     replace: $$('[data-tax-replace]', box).filter((el) => el.checked).map((el) => el.dataset.taxReplace)
   });
@@ -146,9 +183,22 @@ function mountTaxFees(root, ctx, refresh) {
     const el = $('[data-tax-error]', box); el.hidden = !message; el.textContent = message || '';
     $$('[aria-invalid]', box).forEach((n) => n.removeAttribute('aria-invalid'));
     if (!message) return;
+    if (field === 'payers' && type) { const row = $(`[data-tax-payer-row="${type}"]`, box); if (row) { row.setAttribute('aria-invalid', 'true'); row.focus(); } return; }
     const scope = type ? $(`[data-tax-doc="${CSS.escape(type)}"]`, box) : box;
     const input = field === 'manual' ? $(`[data-tax-manual="${CSS.escape(type)}"]`, box) : field === 'pages' ? $('[data-tax-pages]', scope) : field === 'consideration' ? $('[data-tax-consideration]', scope) : field === 'payoff' ? $('[data-tax-payoff]', box) : field === 'assessed' ? $('[data-tax-assessed]', box) : null;
     if (input) { input.setAttribute('aria-invalid', 'true'); input.focus(); }
+  };
+  const paintPayers = () => {
+    const slot = $('[data-tax-payer-slot]', box); if (!slot) return;
+    const kept = touchedPayers();
+    slot.innerHTML = toText(payerRows(setup.taxes, deedFlags(box), kept));
+    wirePayers();
+  };
+  const wirePayers = () => {
+    $$('[data-tax-payer]', box).forEach((g) => $$('[data-tax-payer-choice]', g).forEach((b) => b.addEventListener('click', () => {
+      $$('[data-tax-payer-choice]', g).forEach((x) => x.classList.toggle('on', x === b));
+      g.dataset.taxPayerTouched = 'yes';
+    })));
   };
   const recount = (out) => {
     $$('[data-tax-total]', out).forEach((td) => {
@@ -201,24 +251,27 @@ function mountTaxFees(root, ctx, refresh) {
   const paint = (worksheet) => {
     $('[data-tax-cards]', box).innerHTML = toText(html`${worksheet.documents.map((d) => taxDocCard(d, setup.asks))}`);
     wire();
+    paintPayers();
     const left = setup.types.filter((t) => !worksheet.documents.some((d) => d.type === t));
     $('[data-tax-add-type]', box).innerHTML = toText(left.length ? html`${left.map((t) => html`<option value="${t}">${t}</option>`)}` : html`<option value="">All documents are added</option>`);
     $('[data-tax-add]', box).disabled = !left.length;
   };
   const wire = () => {
-    $$('[data-tax-flag]', box).forEach((g) => $$('[data-tax-choice]', g).forEach((b) => b.addEventListener('click', () => { $$('[data-tax-choice]', g).forEach((x) => x.classList.toggle('on', x === b)); })));
+    $$('[data-tax-flag]', box).forEach((g) => $$('[data-tax-choice]', g).forEach((b) => b.addEventListener('click', () => { $$('[data-tax-choice]', g).forEach((x) => x.classList.toggle('on', x === b)); if (g.dataset.taxFlag === 'occ' || g.dataset.taxFlag === 'fthb') paintPayers(); })));
     $$('[data-tax-remove]', box).forEach((b) => b.addEventListener('click', () => { const type = b.closest('[data-tax-doc]').dataset.taxDoc; const now = read(); now.documents = now.documents.filter((d) => d.type !== type); paint(now); }));
   };
   wire();
+  wirePayers();
   $('[data-tax-add]', box).addEventListener('click', () => {
     const type = $('[data-tax-add-type]', box).value;
     if (!type) { showError('Pick a document from the list.', 'add'); return; }
     const now = read();
     if (now.documents.some((d) => d.type === type)) { showError('That document is already added. Remove it before adding it again.', 'add'); return; }
-    const fileOcc = setup.fromOrder && setup.fromOrder.occ === 'no' ? false : true;
-    const fileFthb = !!(setup.fromOrder && setup.fromOrder.fthb === 'yes');
+    const residence = setup.fromOrder ? setup.fromOrder.occ : '';
+    const occ = type === 'Deed of Trust' ? residence !== 'no' : residence === 'yes';
+    const fthb = type === 'Deed' && !!(setup.fromOrder && setup.fromOrder.fthb === 'yes' && residence === 'yes');
     const consideration = type === 'Deed' ? (deal.purchasePrice || '') : type === 'Deed of Trust' ? (deal.loanAmount || '') : '';
-    now.documents.push({ type, pages: type === 'Deed of Trust' ? 30 : 3, consideration, taxable: type === 'Deed' || type === 'Deed of Trust', occ: fileOcc, fthb: type === 'Deed' && fileFthb });
+    now.documents.push({ type, pages: type === 'Deed of Trust' ? 30 : 3, consideration, taxable: type === 'Deed' || type === 'Deed of Trust', occ, fthb });
     showError(''); paint(now);
   });
   $('[data-tax-calc]', box).addEventListener('click', guard(async () => {

@@ -1,8 +1,8 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611242500';
+import { getAdapter } from './data/adapter.js?v=202611242860';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611242730';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611242860';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611130900';
@@ -43,10 +43,10 @@ export function useRouteLoader(next) {
 const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
   login: () => loadRoute(() => import('./pages/entry.js?v=202611241900')),
-  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611242784')),
+  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611242860')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611241000')),
-  'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611242820')),
-  deal: () => loadRoute(() => import('./pages/deal.js?v=202611242740')),
+  'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611242860')),
+  deal: () => loadRoute(() => import('./pages/deal.js?v=202611242860')),
   users: () => loadRoute(() => import('./pages/users.js?v=202611161500')),
   profile: () => loadRoute(() => import('./pages/profile.js?v=202611191600')),
   'contact-us': () => loadRoute(() => import('./pages/contact.js?v=202611161500')),
@@ -56,7 +56,7 @@ const pages = {
   library: () => loadRoute(() => import('./pages/library.js?v=202611161500')),
   activity: () => loadRoute(() => import('./pages/activity.js?v=202611161500')),
   outbox: () => loadRoute(() => import('./pages/outbox.js?v=202611161500')),
-  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611242783')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611242860')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => loadRoute(() => import('./pages/taskgrid.js?v=202611241500')),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
   schedule: () => loadRoute(() => import('./pages/schedule.js?v=202611242210')),   // public closing-time link (no sign-in needed)
   'schedule-party': () => loadRoute(() => import('./pages/schedule-party.js?v=202611241900')),   // MF-056 buyer / seller scheduling link (no sign-in)

@@ -2,7 +2,7 @@
 import { html, raw, toText, esc, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611161500';
 import { textToHtml, hasSignature } from '../data/gmail-email.js?v=202611191000';
 import { disbursementFor } from '../data/disbursement.js?v=202611190600';
-import { occSelects, yesNo } from './occ-fields.js?v=202611161500';
+import { occSelects, yesNo } from './occ-fields.js?v=202611242860';
 import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount, OUTSIDE_FILE_ROLES } from '../data/constants.js?v=202611101015';
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { modOn } from '../data/modules.js?v=202611101015';
@@ -21,7 +21,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611242210';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611222800';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611242730';
+import { prefetchDealTab } from './deal-tab.js?v=202611242860';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611241600';
