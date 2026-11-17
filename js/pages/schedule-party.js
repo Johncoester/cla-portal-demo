@@ -1,7 +1,7 @@
 /* Public scheduling link for a buyer or seller (#/schedule-party/<token>). No sign-in.
  * The link is queued in the outbox. This page does not send email. */
 import { html, raw, $, guard, toast, formData } from '../ui.js?v=202611161500';
-import { SCHEDULE_TIMES, scheduleTimeLabel, OTHER_LABEL, RON_LABEL, PLACE_OFFICE, PLACE_OTHER, PLACE_RON } from '../data/scheduling-details.js?v=202611241600';
+import { SCHEDULE_TIMES, scheduleTimeLabel, OTHER_LABEL, RON_LABEL, PLACE_OFFICE, PLACE_OTHER, PLACE_RON } from '../data/scheduling-details.js?v=202611241900';
 
 const shell = (inner) => html`<div class="login-page"><div class="login-card sched-card"><img src="assets/img/login-logo-new.png" alt="C.L.A. Title &amp; Escrow" class="sched-logo">${inner}</div></div>`;
 
