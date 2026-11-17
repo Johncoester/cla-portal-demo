@@ -1309,7 +1309,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing**
 
 - Not on TEST until the database file is applied there and someone previews a file. Do not mark Live before that.
-- The import page, the shell, and the hosted CRM module load at `202611242060`, so a browser fetches the new screen. Files this change does not edit stay at main's `202611242010`.
+- The import page, the shell, and the hosted CRM module load at `202611242240`, which is above main's `202611242210`, so a browser fetches the new screen. Files this change does not edit stay at main's stamp.
 
 **Links**
 
