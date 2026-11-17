@@ -18,7 +18,7 @@ On a file's Accounting tab, Taxes & Fees (Closing, Charges, section E) should wo
 
 Calculate fees calls the portal's existing CLA calculator (the vendored calc-core.js, through fee-engine.js). It does not keep a second copy of the rate tables.
 
-Deed, deed of trust, release of mortgage, and power of attorney are the four documents on the rate sheet. The other six can be added. The screen says CLA's rate sheet has no recording fee for that document, and it does not invent an amount. The processor types that fee on a line below if they have it.
+Deed, deed of trust, release of mortgage, and power of attorney are the four documents on the rate sheet. The other six can be added. FF-091a (Francis Santos, Nov 17 2026) does not leave those blank: the line says Rate Not Set and the processor types the fee. See [taxes-fees-rate-not-set.md](taxes-fees-rate-not-set.md).
 
 Transfer and recordation tax follow the deed's consideration when the deed is taxable, and the deed of trust's consideration when that document is taxable. Marking a document not taxable drops the tax on that basis and still records it. In Maryland and the District of Columbia the deed asks primary residence and, on a purchase, first-time buyer, because those change the tax. The deed of trust asks primary residence because a Maryland deed of trust that is not a principal residence records at the higher fee. Virginia and Florida do not ask those questions, because they do not change the calculator's result. A refinance asks for the payoff of the existing loan. A Virginia purchase asks for assessed value when it is higher than the price.
 

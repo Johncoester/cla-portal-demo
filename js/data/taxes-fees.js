@@ -4,7 +4,7 @@
  * A county the rate sheet does not name still cannot be calculated. REC-CALC-6 (PR 296) widens that list; this file does not. */
 import {
   proposeFees, diffProposal, previewView, defaultRecordingDocs, RECORDING_DOCS, calcTypeOf, countyOf, countyIsKnown,
-  COUNTY_UNKNOWN, CALC_STATES, NO_OO, calculatorCore as C, isCalculated
+  COUNTY_UNKNOWN, CALC_STATES, NO_OO, calculatorCore as C, isCalculated, isOverridden
 } from './fee-engine.js?v=202611241600';
 
 export const TAX_DOC_TYPES = ['Affidavit', 'Assignment of Mortgage or Lease', 'Deed', 'Deed of Trust', 'Lis Pendens', 'Power of Attorney', 'Release of Mortgage', 'UCC', 'Lease', 'Easement'];
@@ -18,7 +18,10 @@ const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const moneyText = (raw) => String(raw == null ? '' : raw).replace(/[$,\s]/g, '');
 const whole = (raw) => { const s = String(raw == null ? '' : raw).trim(); if (!/^\d+$/.test(s)) return null; const n = Number(s); return Number.isSafeInteger(n) ? n : null; };
 
-export const isGovernmentKey = (key) => key === 'lien' || String(key || '').startsWith('rec:') || String(key || '').startsWith('tax:');
+export const RATE_NOT_SET = 'Rate Not Set';
+export const ENTERED_BY_HAND = 'Entered by hand';
+export const unsetKey = (type) => 'unset:' + type;
+export const isGovernmentKey = (key) => key === 'lien' || String(key || '').startsWith('rec:') || String(key || '').startsWith('tax:') || String(key || '').startsWith('unset:');
 
 const fileExempt = (deal) => ({
   occ: !deal || deal.primaryResidence !== 'no',
@@ -129,6 +132,22 @@ export function worksheetProblem(raw, deal) {
   return null;
 }
 
+// FF-091a: a blank fee is not a dollar amount. Blank is allowed: the line stays "Rate Not Set" until someone types it.
+export function manualAmountProblem(raw, type) {
+  const text = moneyText(raw);
+  if (raw == null || String(raw).trim() === '' || text === '') return null;
+  const name = PLAIN[type] || 'recording';
+  if (!/^\d+(\.\d{1,2})?$/.test(text) || Number(text) > 1e8) return { message: `Enter the ${name} fee as a dollar amount, like 45.00. Leave it blank if you do not have it yet.`, type, field: 'manual' };
+  return null;
+}
+
+function handNumber(raw, type) {
+  const problem = manualAmountProblem(raw, type);
+  if (problem) { const err = new Error(problem.message); err.field = problem.field; err.docType = type; throw err; }
+  const text = moneyText(raw);
+  return raw == null || String(raw).trim() === '' || text === '' ? null : r2(text);
+}
+
 function cleanDoc(d) {
   const type = d.type;
   const taxable = d.taxable === true || d.taxable === 'yes' || d.taxable === 'true';
@@ -158,19 +177,44 @@ function docsFor(deal, documents) {
   const loan = loanOf(deal);
   const docs = zeroDocs(type);
   const warnings = [];
+  const unrated = [];
   for (const d of documents) {
     const name = CALC_DOC[d.type];
-    if (!name) {
-      warnings.push(`There is no recording fee on CLA's rate sheet for ${named(d.type)}. No amount was added. Type it on a line below if you have the fee.`);
-      continue;
-    }
+    if (!name) { unrated.push(d); continue; }
     if (name === 'Deed of Trust' && type !== 'refi' && !(loan > 0)) {
       warnings.push('A deed of trust is recorded when the file has a loan. This file has no loan amount, so no deed of trust fee was calculated. Enter the loan on the file, or remove the deed of trust.');
       continue;
     }
     docs[name] = [1, d.pages];
   }
-  return { docs, warnings };
+  return { docs, warnings, unrated };
+}
+
+const ZERO_SPLIT = { buyer: 0, seller: 0, lender: 0, other: 0 };
+function recordingPayee(deal) {
+  const state = String((deal && deal.state) || '').toUpperCase();
+  const county = (deal && deal.county) || '';
+  if (state === 'DC') return 'DC Recorder of Deeds';
+  const place = /\bcity$/i.test(county) ? county : (county ? `${county} County` : state);
+  return `Clerk of the Circuit Court, ${place}`;
+}
+function unsetLine(doc, payee) {
+  return {
+    key: unsetKey(doc.type), docType: doc.type, rateNotSet: true,
+    description: `Recording fee: ${doc.type}`, altaSection: 'government', cdSection: 'E', cdLine: '',
+    payee: String(payee || '').slice(0, 120), amount: 0, paidBy: 'buyer', split: { ...ZERO_SPLIT },
+    titlePrefix: false, timing: 'at', poc: false, replacesPresets: [],
+    rateSource: `CLA rates have no recording fee for ${named(doc.type)}`, calculation: RATE_NOT_SET
+  };
+}
+function sameSide(fee, amount) {
+  const sp = (fee && fee.split) || ZERO_SPLIT;
+  const keys = ['buyer', 'seller', 'lender', 'other'].filter((k) => Number(sp[k]) > 0);
+  const split = { ...ZERO_SPLIT };
+  if (!keys.length || !(amount > 0)) { split.buyer = amount; return { split, timing: 'at', paidBy: 'buyer', amount }; }
+  let used = 0; const cur = r2(keys.reduce((t, k) => t + Number(sp[k]), 0));
+  keys.forEach((k, i) => { split[k] = i === keys.length - 1 ? r2(amount - used) : r2(Number(sp[k]) * amount / cur); used = r2(used + split[k]); });
+  return { split, timing: (fee && fee.timing) || 'at', paidBy: keys.length === 1 ? keys[0] : 'split', amount };
 }
 
 const saleBasis = (line) => /sale price|assessed value/.test(line.calculation || '');
@@ -204,7 +248,7 @@ export function proposeTaxesFees(deal, worksheet, R, source) {
   const raw = worksheet && Array.isArray(worksheet.documents) ? worksheet : { documents: defaultDocuments(deal, asks), payoff: 0, assessed: 0 };
   const clean = cleanWorksheet(raw, deal, asks);
   const type = calcTypeOf(deal);
-  const { docs, warnings } = docsFor(deal, clean.documents);
+  const { docs, warnings, unrated } = docsFor(deal, clean.documents);
   const base = readyDeal(deal, clean.documents);
   const deed = clean.documents.find((d) => d.type === 'Deed');
   const dot = clean.documents.find((d) => d.type === 'Deed of Trust');
@@ -221,13 +265,22 @@ export function proposeTaxesFees(deal, worksheet, R, source) {
   const loanOn = type === 'refi' ? !!(dot && dot.taxable && dot.consideration > 0) : !!(dot && dot.taxable && dot.consideration > 0 && (loanOf(base) > 0 || loanOf(deal) > 0));
   const recLines = recP.lines.filter((l) => l.key === 'lien' || l.key.startsWith('rec:'));
   const taxLines = taxP.lines.filter((l) => l.key.startsWith('tax:') && !dropTax(l, sale, type === 'refi' ? !!(dot && dot.taxable && dot.consideration > 0) : loanOn));
-  const lines = [...recLines, ...taxLines];
+  const noRate = unrated.slice();
+  for (const d of clean.documents) {
+    const name = CALC_DOC[d.type];
+    if (!name || noRate.some((x) => x.type === d.type)) continue;
+    if (recP.warnings.some((w) => w.startsWith(`No recording fee found for ${name} in `))) noRate.push(d);
+  }
+  const payee = (recLines.find((l) => l.payee) || {}).payee || recordingPayee(base);
+  const unsetLines = noRate.map((d) => unsetLine(d, payee));
+  const lines = [...recLines, ...unsetLines, ...taxLines];
   let n = 0;
   for (const x of lines) x.cdLine = String(++n).padStart(2, '0');
   if (deed && deed.taxable && !(deed.consideration > 0)) warnings.push('The deed is marked taxable and the consideration is $0.00, so no transfer or recordation tax was calculated on the deed.');
   if (dot && dot.taxable && !(dot.consideration > 0)) warnings.push('The deed of trust is marked taxable and the consideration is $0.00, so no tax was calculated on the loan.');
   if (!sale && !(type === 'refi' && dot && dot.taxable && dot.consideration > 0) && !loanOn && clean.documents.length) warnings.push('No taxable deed or deed of trust with a consideration, so no transfer or recordation tax was calculated.');
-  const merged = [...recP.warnings, ...taxP.warnings, ...warnings].filter(keepWarn);
+  const ratedGap = (w) => noRate.some((d) => { const name = CALC_DOC[d.type]; return name && w.startsWith(`No recording fee found for ${name} in `); });
+  const merged = [...recP.warnings, ...taxP.warnings, ...warnings].filter((w) => keepWarn(w) && !ratedGap(w));
   const uniq = [...new Set(merged)];
   const stored = { documents: clean.documents, payoff: clean.payoff, assessed: clean.assessed };
   const inputs = { ...taxP.inputs, docs, taxDocs: stored, occ: taxOcc, fthb: !!taxP.inputs.fthb };
@@ -266,7 +319,25 @@ export function previewTaxesFees(deal, worksheet, fees, R, source) {
   const D = diffTaxesFees(P, fees);
   const view = previewView(P, D, { payoff: P.inputs.payoff, assessed: P.inputs.assessed, occ: P.inputs.occ, fthb: P.inputs.fthb, docs: P.inputs.docs });
   const status = Object.fromEntries(D.rows.map((r) => [r.key, r.status]));
-  view.breakdown = P.lines.map((l) => ({ key: l.key, description: l.description, amount: l.amount, paidBy: l.paidBy, calculation: l.calculation, status: status[l.key] || 'new', ...feeColumns(l) }));
+  const replace = new Set(worksheet && Array.isArray(worksheet.replace) ? worksheet.replace : []);
+  const manual = worksheet && worksheet.manual && typeof worksheet.manual === 'object' ? worksheet.manual : {};
+  view.breakdown = P.lines.map((l) => {
+    const row = { key: l.key, description: l.description, amount: l.amount, paidBy: l.paidBy, calculation: l.calculation, status: status[l.key] || 'new', rateNotSet: false, enteredByHand: false, locked: false, savedByHand: false, docType: l.docType || '', ...feeColumns(l) };
+    if (!l.rateNotSet) return row;
+    const cur = (fees || []).find((f) => f && !f.retired && isCalculated(f) && f.calc && f.calc.key === l.key);
+    const saved = cur && Number(cur.amount) > 0 ? r2(cur.amount) : 0;
+    const savedByHand = !!(cur && saved > 0 && isOverridden(cur));
+    const locked = savedByHand && !replace.has(l.docType);
+    let amount = locked ? saved : 0;
+    let shown = locked ? cur : null;
+    const raw = Object.prototype.hasOwnProperty.call(manual, l.docType) ? manual[l.docType] : undefined;
+    if (!locked && raw != null && String(raw).trim() !== '') {
+      amount = handNumber(raw, l.docType) || 0;
+      shown = amount > 0 && cur ? sameSide(cur, amount) : null;
+    } else if (!locked && savedByHand) { amount = saved; shown = cur; }
+    const cols = shown ? feeColumns({ split: shown.split, timing: shown.timing, paidBy: shown.paidBy, amount: shown.amount || amount }) : feeColumns({ ...l, amount, paidBy: 'buyer', split: { ...ZERO_SPLIT, buyer: amount }, timing: 'at' });
+    return { ...row, borrowerAt: cols.borrowerAt, borrowerBefore: cols.borrowerBefore, sellerAt: cols.sellerAt, sellerBefore: cols.sellerBefore, others: cols.others, amount, rateNotSet: true, docType: l.docType, enteredByHand: amount > 0, locked, savedByHand, calculation: RATE_NOT_SET };
+  });
   view.warnings = P.warnings;
   view.retire = D.rows.filter((r) => r.status === 'retire').map((r) => ({ key: r.key, description: r.current.description, amount: r.current.amount }));
   return view;
