@@ -7,7 +7,7 @@ import { tabs, head } from './crm-kit.js?v=202611161500';
 import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611242060';
 import { inviteBtn, invitePreview } from './crm-janine.js?v=202611242060';
 import { optionsOf, optLabel } from '../data/crm-config.js?v=202611130900';
-import { lbl } from './crm-custom.js?v=202611161500';
+import { lbl } from './crm-custom.js?v=202611242010';
 const subj = (cfg, s) => optLabel(cfg, 'taskSubject', s, { mark: false });   // Task Subject is free text; a subject that is a list option shows its current name
 const orderOf = (cfg) => ({ priority: optionsOf(cfg, 'taskPriority').map((o) => o.value), status: optionsOf(cfg, 'taskStatus').map((o) => o.value) });
 
