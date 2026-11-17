@@ -1624,7 +1624,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On a CRM report and on a CRM chart, date grouping offers By Day, By Calendar Week, By Month, By Quarter, and By Year. By Fiscal Week, By Fiscal Quarter, and By Fiscal Year are not in the list. A report or chart already saved with one of those opens as the matching calendar grouping: fiscal week as week, fiscal quarter as quarter, and fiscal year as year. It does not show an error.
 
-**Status: In progress.** Janine Santos said "We can remove fiscal for now." No database file. Not Live until someone checks a report and a chart on TEST.
+**Status: In progress.** Janine Santos said "We can remove fiscal for now." Pull request: [PR 333](https://github.com/Johncoester/cla-portal-demo/pull/333). No database file. Not Live until someone checks a report and a chart on TEST.
 
 **What's built**
 
@@ -1640,6 +1640,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/crm-report-grouping.md](docs/specs/crm-report-grouping.md)
+- Pull request: [PR 333](https://github.com/Johncoester/cla-portal-demo/pull/333)
 
 **Decisions**
 
