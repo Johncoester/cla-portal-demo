@@ -1404,3 +1404,32 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Return the preview as data instead of raising P0004. A P0004 on one row during a preview is kept on that row. A commit still re-raises it, so one assert still rolls that chunk back.
 - Do not add a per-row helper, and do not change the lead email lookup.
+
+---
+
+## Accounting Basic Info (FF-094)
+
+**How it should work.** In Accounting, the section that was called Contract Figures is named Basic Info. It shows Sales price, Loan amount, Closing date, Disbursement date, and Source of business. How it was obtained, Source for this figure, Seller credit, the second Earnest money block, Warranty, HOA, Condo, Deferred, and Historical tax are not on that screen. The stored values stay, so other screens that already use them keep working.
+
+**Status: In progress.** Tracker FF-094. Francis Santos, email Nov 17 2026, 1:37 PM ET (Gmail message 1a1eacd7648484d9), item 3. Medium. Not Live. No database file. Not applied on TEST.
+
+**What's built**
+
+- The Accounting menu and the page heading say Basic Info. The five fields are the order's own figures, the same ones Place Order and Edit order details save. Saving does not open the old contract-term sheet, so a blank box cannot wipe a value that used to be on that sheet.
+- Earnest money stays as its own card. The duplicate block at the bottom of the old sheet is gone. Commissions stay as the read-only Agent fees summary. Seller credit stays under Charges, L/N. A refinance has no sales price here.
+- Sales, the sales team, and a transaction coordinator can read the form and cannot change it.
+- The menu link that also said Basic Info and opened the file overview is now labeled Order overview.
+
+**What's still missing**
+
+- Other Charges can take a home-warranty charge and the HOA, condo, and deferred-water lines that are paid at closing. It does not hold the old sheet's warranty cap and payer, HOA or condo name, monthly dues, certificate balance and date, or a general deferred amount, schedule, and payee. Those values stay stored and are no longer shown. Not Live until someone checks Basic Info on TEST.
+
+**Links**
+
+- Spec: [docs/specs/accounting-basic-info.md](docs/specs/accounting-basic-info.md)
+
+**Decisions**
+
+- Remove the extra boxes from the screen only. Do not drop columns.
+- Basic Info writes the order. It does not save the hidden contract-term sheet.
+- TC Contract info is a different screen and stays as it is. The role walkthrough does not look for the words "Contract figures".

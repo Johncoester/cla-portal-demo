@@ -223,7 +223,7 @@ export function agentFeesPointer(where = 'modal', dealId = '') {
   return html`<p class="muted small span2" data-agent-fees-pointer>Commissions, admin fees and other agent fees are entered in the ${box} box on the file overview${where === 'modal' ? ' (close this window to get to it)' : ''}. That is the only place they are kept, so they always match Accounting, the CD and the ALTA statement.</p>`;
 }
 
-/* Read-only summary of both sides, for Accounting > Contract figures. data = api.getAgentFees(). */
+/* Read-only summary of both sides, for Accounting > Basic Info. data = api.getAgentFees(). */
 export function agentFeesSummaryHtml(data, dealId) {
   const sides = AGENT_FEE_SIDES.map(([k]) => k).filter((k) => data && data.sides && data.sides[k]);
   return html`<section class="card acct-form" data-agent-fees-summary><h3>Commissions and agent fees</h3>

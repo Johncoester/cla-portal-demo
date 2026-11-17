@@ -4,19 +4,19 @@
 import { html, raw, $, $$, guard, formData, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611161500';
 import { themeOn } from '../theme.js?v=202611070139';
 import { modOn } from '../data/modules.js?v=202611101015';
-import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611241600';
+import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611243018';
 import { prorationsView } from './dealaccounting-prorations.js?v=202611241500';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
-import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611241600'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
+import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611243019'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
 import { brokerageOnFile } from '../data/lender-file.js?v=202611241600';
 import { render as postClosingRender } from './dealpostclosing.js?v=202611161500';
-import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611241500';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
-import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611241500';
+import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611243003';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611243004';
 import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611241900';
-import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611223100';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
-import { contractView } from './dealaccounting-contract.js?v=202611223000';
+import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611243002';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { contractView } from './dealaccounting-contract.js?v=202611243000';
 import { partyNames, withStatementParties } from '../data/statement-parties.js?v=202611222900';
 
-const VIEWS = [['contract', 'Contract figures'], ['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
+const VIEWS = [['contract', 'Basic Info'], ['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
 // negative amounts (the escrow aggregate adjustment) show as -$x.xx
 const m2 = (n) => (n == null || Number(n) === 0 ? '' : (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const m2z = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -36,8 +36,12 @@ export async function render({ api, deal: fileDeal, user }) {
   const T = acc.totals; const B = acc.refi ? 'Borrower' : 'Buyer / borrower';
   const nav = qcNav(deal, view, q.get('s') || 'A', base, canReachPayoffs(user));   // live28: Payoffs / Taxes / Other Contacts links for Processors + admins only   // Qualia-style left nav: General · Closing › Charges A-N · Preview · CLA tools
   const noLines = !acc.entries.length;
-  const head = html`<div class="acct-head acct-noprint"><div><p class="eyebrow">Accounting</p><h2 class="page-title">Contract figures</h2>
-      <p class="muted small">TEST contract figures are estimates. They are not funds received, not a payoff, and not a Closing Disclosure. The fee ledger is a separate worksheet and does not copy the order price, deposit, or loan.</p></div>
+  const sectionTitle = (VIEWS.find(([k]) => k === view) || ['', 'Accounting'])[1];
+  const sectionNote = view === 'contract'
+    ? 'Sales price, loan amount, closing date, disbursement date, and source of business. These are the order’s figures.'
+    : 'TEST only. The statements use the fee ledger and the order.';
+  const head = html`<div class="acct-head acct-noprint"><div><p class="eyebrow">Accounting</p><h2 class="page-title" data-acct-title="${view}">${sectionTitle}</h2>
+      <p class="muted small">${sectionNote}</p></div>
     <div class="acct-head-side"><span class="pill warn" data-test-mark>${TEST_MARK}</span>${acc.canEdit ? '' : html`<span class="pill" data-acct-readonly>Read only</span>`}</div></div>`;
   // summary tiles: the classic stat cards, or (card theme, the default look) Loan-Summary style cards: grey card, white inset head with one big baby-blue value.
   // Same data-* hooks either way (data-acct-totals, data-due-buyer, data-due-seller, data-balance, data-balance-diff).
@@ -252,7 +256,7 @@ function mountCalc(root, api, deal, acc, refresh) {
     if (!setup.covered) { panel.innerHTML = toText(html`${rateNoteHtml(setup)}<p class="notice warn" data-calc-not-ready>${setup.reason}</p>`); return; }
     panel.innerHTML = toText(calcOptionsForm(setup)); const f = $('[data-calc-form]', panel); const out = $('[data-calc-result]', panel);
     f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const opts = read(f); const errEl = $('[data-docs-error]', f);
-      const { recordingDocsProblem } = await import('../data/fee-engine.js?v=202611241600'); const problem = recordingDocsProblem(opts.docs);
+      const { recordingDocsProblem } = await import('../data/fee-engine.js?v=202611243009'); const problem = recordingDocsProblem(opts.docs);
       $$('[data-doc]', f).forEach((el) => el.removeAttribute('aria-invalid'));
       if (problem) { errEl.hidden = false; errEl.textContent = problem.message; const bad = $(`[data-doc="${problem.name}"][data-doc-part="${problem.part}"]`, f); if (bad) { bad.setAttribute('aria-invalid', 'true'); bad.focus(); } out.innerHTML = ''; return; }
       errEl.hidden = true; errEl.textContent = ''; const P = await api.previewCalculatedFees(deal.id, opts);

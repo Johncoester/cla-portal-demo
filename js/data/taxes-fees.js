@@ -5,7 +5,7 @@
 import {
   proposeFees, diffProposal, previewView, defaultRecordingDocs, RECORDING_DOCS, calcTypeOf, countyOf, countyIsKnown,
   COUNTY_UNKNOWN, CALC_STATES, NO_OO, calculatorCore as C, isCalculated
-} from './fee-engine.js?v=202611241600';
+} from './fee-engine.js?v=202611243009';
 
 export const TAX_DOC_TYPES = ['Affidavit', 'Assignment of Mortgage or Lease', 'Deed', 'Deed of Trust', 'Lis Pendens', 'Power of Attorney', 'Release of Mortgage', 'UCC', 'Lease', 'Easement'];
 const CALC_DOC = { Deed: 'Deed', 'Deed of Trust': 'Deed of Trust', 'Release of Mortgage': 'Release', 'Power of Attorney': 'Power of Attorney' };

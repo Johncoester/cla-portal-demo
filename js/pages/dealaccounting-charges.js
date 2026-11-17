@@ -5,9 +5,9 @@
 // Every line is still ONE fee on the same ledger (accounting.js), so the ALTA, the CD pages, prorations and CLA rates keep working.
 // TEST ONLY. Wire instructions (bank routing / account numbers) are NEVER stored: the Wire block is a reminder only.
 import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611161500';
-import { splitFor } from '../data/underwriter.js?v=202611241600';
-import { cdDescription } from '../data/accounting.js?v=202611241500';
-import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611241500';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
+import { splitFor } from '../data/underwriter.js?v=202611243018';
+import { cdDescription } from '../data/accounting.js?v=202611243004';
+import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611243003';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
 import * as Q from '../data/qualia-charges.js?v=202611223000';
 import { modOn } from '../data/modules.js?v=202611101015';   // live40: Payoffs / HOA switch
 
@@ -24,8 +24,8 @@ export function qcNav(deal, view, sec, base, showPayoffs = true) {
   const a = (href, label, on, attrs = '', chip = '') => html`<a class="qc-nav-link ${on ? 'on' : ''}" href="${href}"${raw(attrs)}>${chip ? html`<span class="qc-chip">${chip}</span>` : ''}<span>${label}</span></a>`;
   return html`<nav class="qc-nav acct-noprint" data-acct-tabs data-qc-nav aria-label="Accounting sections">
     <div class="qc-nav-group">General</div>
-    ${a(`${base}?v=contract`, 'Contract figures', view === 'contract', ' data-acct-tab="contract"')}
-    ${a(`#/deals/${deal.id}/overview`, 'Basic Info', false, ' data-qc-nav-basic')}${a(`#/deals/${deal.id}/contacts`, 'Contacts', false, ' data-qc-nav-contacts')}
+    ${a(`${base}?v=contract`, 'Basic Info', view === 'contract', ' data-acct-tab="contract"')}
+    ${a(`#/deals/${deal.id}/overview`, 'Order overview', false, ' data-qc-nav-basic')}${a(`#/deals/${deal.id}/contacts`, 'Contacts', false, ' data-qc-nav-contacts')}
     ${showPayoffs ? html`${a(`${base}?v=othercontacts`, 'Other Contacts', view === 'othercontacts', ' data-acct-tab="othercontacts"')}
     ${a(`${base}?v=taxes`, 'Taxes & Prorations', view === 'taxes', ' data-acct-tab="taxes"')}${modOn('payoffs') ? a(`${base}?v=payoffs`, 'Payoffs', view === 'payoffs', ' data-acct-tab="payoffs"') : ''}` : ''}
     <div class="qc-nav-group">Closing</div><div class="qc-nav-sub">Charges</div>
