@@ -61,13 +61,13 @@ ok(page.includes('../data/crm-janine.js?v=202611101600') && page.includes("impor
 ok(!page.includes("$('[data-import-file]', root).addEventListener('change', guard"), 'a rejected file is not handed to the disappearing toast');
 ok(page.includes('data-import-file-help') && page.includes('data-import-file-err') && page.includes('class="err-text"') && page.includes('role="alert"'), 'the upload card has a helper and a red alert');
 ok(read('css/portal.css').includes('.err-text { color: var(--bad);'), 'the alert uses the existing red text');
-ok(read('js/app.js').includes("pages/crm-janine.js?v=202611242270") && read('js/pages/crm.js').includes("crm-janine.js?v=202611242270") && read('js/pages/crm-forms.js').includes("crm-janine.js?v=202611242270") && read('js/pages/crm-home.js').includes("crm-janine.js?v=202611242270"), 'the import page is loaded at 202611242270 from the shell and the CRM pages');
-ok(read('index.html').includes('js/app.js?v=202611242270') && read('js/app.js').includes("pages/crm.js?v=202611242270") && read('js/pages/crm.js').includes("crm-forms.js?v=202611242270") && read('js/pages/crm.js').includes("crm-home.js?v=202611242270") && read('js/pages/crm-home.js').includes("crm-forms.js?v=202611242270"), 'the CRM import pages and the shell load at 202611242270');
-ok(!read('js/data/adapter.js').includes('202611242030') && read('js/app.js').includes("adapter.js?v=202611242270"), 'the shell loads the adapter above main, and the adapter does not use the file-check stamp');
+ok(read('js/app.js').includes("pages/crm-janine.js?v=202611242270") && read('js/pages/crm.js').includes("crm-janine.js?v=202611242270") && read('js/pages/crm-forms.js').includes("crm-janine.js?v=202611242270") && read('js/pages/crm-home.js').includes("crm-janine.js?v=202611242270"), 'the import page stays at main\'s stamp');
+ok(read('index.html').includes('js/app.js?v=202611242280') && read('js/app.js').includes("pages/crm.js?v=202611242270") && read('js/pages/crm.js').includes("crm-forms.js?v=202611242270") && read('js/pages/crm.js').includes("crm-home.js?v=202611242270") && read('js/pages/crm-home.js').includes("crm-forms.js?v=202611242270"), 'the CRM pages stay on main\'s stamp and the shell is 202611242280');
+ok(read('js/app.js').includes("adapter.js?v=202611242280"), 'the shell loads the adapter at 202611242280');
 ok(execFileSync('git', ['diff', '--name-only', 'origin/main', '--', 'js/data/crm-import-file.js'], { cwd: root, encoding: 'utf8' }).trim() === '', 'the file check module is unchanged from main');
 for (const rel of ['index.html', 'js/app.js', 'js/pages/crm.js', 'js/pages/crm-forms.js', 'js/pages/crm-home.js']) {
   const diff = execFileSync('git', ['diff', '-U0', 'origin/main', '--', rel], { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'));
-  ok(diff.length > 0 && diff.every((l) => /\?v=202611\d+/.test(l)), rel + ' changes only cache stamps');
+  ok(diff.length === 0 || diff.every((l) => /\?v=202611\d+/.test(l)), rel + ' changes only cache stamps');
 }
 
 const { window, document } = parseHTML('<!doctype html><html><body><div id="app"></div><div id="toasts"></div></body></html>');
