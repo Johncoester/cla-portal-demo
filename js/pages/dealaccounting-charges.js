@@ -247,6 +247,7 @@ function mountTaxFees(root, ctx, refresh) {
       wrote++;
     }
     return wrote;
+  };
   const paint = (worksheet) => {
     $('[data-tax-cards]', box).innerHTML = toText(html`${worksheet.documents.map((d) => taxDocCard(d, setup.asks))}`);
     wire();
