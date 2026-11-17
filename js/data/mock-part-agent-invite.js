@@ -8,7 +8,9 @@ import { canInviteAgents, PORTAL_INVITE_ROLES, inviteKindForRole, inviteStatus, 
 import { isClient, isAgent, isOutside, sideOf } from './constants.js?v=202611101015';
 const rnd = () => { const a = new Uint8Array(16); (globalThis.crypto || { getRandomValues: (x) => x.map(() => Math.floor(Math.random() * 256)) }).getRandomValues(a); return [...a].map((b) => b.toString(16).padStart(2, '0')).join(''); };
 const plusDays = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString();
-// demo data (fake, lazily added once): Bianca + Larry accepted (placeholder initials avatars), Lena (deal-4 listing agent, no login yet) pending, one expired
+const fromNow = (n) => new Date(Date.now() + n * 864e5).toISOString();
+// demo data (fake, lazily added once): Bianca + Larry accepted (placeholder initials avatars).
+// Lena stays pending (7 days from now) and Evan stays expired (1 day ago). A fixed calendar date was going stale.
 export function ensureAgentInvites(d) {
   if (Array.isArray(d.agentInvites)) return d;
   d.agentInvites = []; d.agentProfiles = d.agentProfiles || {}; d.agentBirthMD = d.agentBirthMD || {};
@@ -19,8 +21,8 @@ export function ensureAgentInvites(d) {
   acc('ai-1', 'u-bagent', 'c-bagent', 'deal-1', { brokerage: 'Harbor Realty (fake)', licenseNumber: 'FAKE-MD-0505', officePhone: '410-555-0150', city: 'Annapolis', state: 'MD', photo: initialsAvatar('Bianca', 'Buyer-Agent', '#89cff0'), photoShape: 'circle' });
   acc('ai-2', 'u-lagent', 'c-lagent', 'deal-1', { brokerage: 'Oak Street Realty (fake)', licenseNumber: 'FAKE-MD-0606', city: 'Rockville', state: 'MD', photo: initialsAvatar('Larry', 'Listing-Agent', '#bfe6f8'), photoShape: 'square' });
   const lena = d.contacts.find((c) => c.id === 'c-lena');
-  if (lena) d.agentInvites.push({ ...base, id: 'ai-3', token: 'demo-lena-pending-0001', contactId: 'c-lena', dealId: 'deal-4', firstName: lena.firstName, lastName: lena.lastName, email: lena.email, status: 'pending', createdAt: '2026-11-03T15:00:00Z', expiresAt: '2027-06-01T15:00:00Z', acceptedAt: null, acceptedProfileId: null });
-  d.agentInvites.push({ ...base, id: 'ai-4', token: 'demo-expired-0001', contactId: null, firstName: 'Evan', lastName: 'Example', email: 'evan.example@example.test', status: 'pending', createdAt: '2026-10-01T15:00:00Z', expiresAt: '2026-10-15T15:00:00Z', acceptedAt: null, acceptedProfileId: null });
+  if (lena) d.agentInvites.push({ ...base, id: 'ai-3', token: 'demo-lena-pending-0001', contactId: 'c-lena', dealId: 'deal-4', firstName: lena.firstName, lastName: lena.lastName, email: lena.email, status: 'pending', createdAt: '2026-11-03T15:00:00Z', expiresAt: fromNow(7), acceptedAt: null, acceptedProfileId: null });
+  d.agentInvites.push({ ...base, id: 'ai-4', token: 'demo-expired-0001', contactId: null, firstName: 'Evan', lastName: 'Example', email: 'evan.example@example.test', status: 'pending', createdAt: '2026-10-01T15:00:00Z', expiresAt: fromNow(-1), acceptedAt: null, acceptedProfileId: null });
   return d;
 }
 export function agentInvitePart(x) {
