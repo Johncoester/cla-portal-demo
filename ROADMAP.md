@@ -13,6 +13,30 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Go-live checklist (portal features only)
+
+**How it should work.** Before the team lets people use the new portal, they walk a written checklist on TEST. The list covers portal features only: sign-in, roles, orders, documents, messages, and tasks. It is not a sign-off of full title production. The portal runs on Supabase and does not depend on Zoho. The team keeps testing title production before a full launch.
+
+**Status: In review.** Tracker item GOLIVE-1. John Coester, Nov 17 2026, on a call. Docs only. No database file. Not Live. Pull request: opened with this change.
+
+**What's built**
+
+- [docs/GO_LIVE_CHECKLIST.md](docs/GO_LIVE_CHECKLIST.md): 46 numbered checks. Each one is a short line plus one line on how to check it, written from what the portal already does. John's six checks come first (Buyer Agent, Listing Agent, Transaction Coordinator, Processor, order entry, automated emails). A sign-off table and a "Not in this launch" section are at the end.
+
+**What's still missing**
+
+- The team has not walked the list on TEST yet. Nothing in the portal's behavior changes with this file.
+
+**Links**
+
+- Checklist: [docs/GO_LIVE_CHECKLIST.md](docs/GO_LIVE_CHECKLIST.md)
+
+**Decisions**
+
+- John, Nov 17 2026: this launch is portal features only, not full title production. Do not merge without John's OK. Check it with fake data on testportal.clatitle.com.
+
+---
+
 ## Agent fees flow
 
 **How it should work.** When CLA staff open a file, they enter each agent's fees for their side (listing agent and buyer's agent): the commission as a percent or a dollar amount, which always stay in sync with each other using the sales price; an admin fee (paid by the buyer for the buyer's agent and by the seller for the listing agent unless changed); and up to 5 other fees, each with a description, an amount and who it's paid to. Each agent sees and can change their own side in the portal. Before saving, they see a "You're changing X from $A to $B" check, and the fee is then marked "Agent confirmed". A TC can confirm for the agent. Once confirmed, the agent's figure wins. Staff can still change it, but they must give a reason, and the agent is told straight away (old value, new value, reason, who). When an agent changes a fee, the processor, pre-processor and TC on the file are told, in the portal and by email. The fees go straight onto the right lines in Accounting, and from there onto the Closing Disclosure (CD) and the ALTA settlement statement, which can also be generated as PDFs. Buyers and sellers never see commissions or agent fees. Every change is kept in a history: who, when, old value, new value, reason, and whether staff, the agent or the TC made it.
