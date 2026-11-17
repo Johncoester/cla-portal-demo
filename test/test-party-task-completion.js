@@ -129,7 +129,7 @@ const { render: renderGrid } = await import('../js/pages/taskgrid.js');
 const view = await renderGrid({ api: { async getTaskGrid() { return grid; } } });
 const html = String(view.body);
 const row = html.slice(html.indexOf('data-file="d1"'), html.indexOf('</tr>', html.indexOf('data-file="d1"')));
-ok(row.includes('1 of 2 done') && row.includes('Still needed: Jordan Buyer') && row.includes('data-state="pending"'), 'the Task Grid shows 1 of 2 done and who is left');
+ok(row.includes('1 of 2 done') && row.includes('Still needed: Jordan Buyer') && row.includes('data-party="buyer"') && row.includes('data-state="open"'), 'the Task Grid party column shows 1 of 2 done and who is left');
 const soloRow = html.slice(html.indexOf('data-file="d2"'), html.indexOf('</tr>', html.indexOf('data-file="d2"')));
 ok(soloRow.includes('data-state="done"') && !soloRow.includes('1 of 1') && !soloRow.includes('of 2'), 'a one-buyer file on the grid does not show a progress line');
 
