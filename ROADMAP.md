@@ -1328,7 +1328,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On Import Leads, Import Clients, and Import Notes, Preview shows one plain sentence and a reason on every row. If the preview call fails, the screen still shows those rows. It does not replace them with one generic failure. Nothing is saved by a preview.
 
-**Status: In progress.** Tracker row CRM-201. John Coester confirmed this on Nov 17 2026 as CRM import fix 5 of 5. Pull request 139 (closed, not merged, Nov 12 2026) was the earlier attempt to stop the preview error from becoming a server error. Not Live until the portal lead applies `supabase/migrations/20261125110000_crm_import_preview_row_errors.sql` on TEST and someone checks a preview there.
+**Status: In progress.** Tracker row CRM-201. John Coester confirmed this on Nov 17 2026 as CRM import fix 5 of 5. Pull request 139 (closed, not merged, Nov 12 2026) was the earlier attempt to stop the preview error from becoming a server error. The lead reported on Nov 17 2026 that `supabase/migrations/20261125110000_crm_import_preview_row_errors.sql` is applied on TEST. Not Live until someone checks a preview there.
 
 **What's built**
 
@@ -1338,7 +1338,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Not on TEST until the database file is applied there and someone previews a file. Do not mark Live before that.
+- The lead reported the database file is on TEST. Live still waits for a person to preview a file there. Do not mark Live before that.
 - The import page, the shell, and the hosted CRM module load at `202611242270`, which is above main's `202611242220`, so a browser fetches the new screen. Files this change does not edit stay at main's stamp.
 
 **Links**
@@ -1349,4 +1349,33 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - Return the preview as data instead of raising P0004. A P0004 on one row during a preview is kept on that row. A commit still re-raises it, so one assert still rolls that chunk back.
-- Do not add a per-row helper, and do not change the lead email lookup.
+- Do not add a per-row helper. The chosen lead for a note stays the same. How that lookup runs is the speed follow-up below.
+
+---
+
+## CRM import note match speed
+
+**How it should work.** On Import Notes, Preview still attaches each note to the same lead or client as before. An open person wins over an archived one. If several are open, or none are, the earliest created date wins. The preview should come back quickly when the lead list is large, instead of looking through every lead once per note row.
+
+**Status: In progress.** No separate tracker row. The portal lead approved this as its own pull request on Nov 17 2026, after CRM-201 (PR 314). Not Live until the lead applies `supabase/migrations/20261125120000_crm_import_fast_lead_match.sql` on TEST. This pull request does not apply it.
+
+**What's built**
+
+- A note file matches every email in one pass. The tie-break is unchanged: open first, then the earliest created date. On a local scratch database with 110,000 leads, a 500-row note preview went from about 15 seconds to under half a second.
+- An index on the lower-case email, then that same tie-break, for leads and for clients. The migration creates it if it is missing. On TEST it should be built outside a transaction first so writes are not blocked.
+- The person duplicate check is unchanged. It already uses the open-email index and the phone index.
+
+**What's still missing**
+
+- Not on TEST until the lead applies the database file. Do not mark Live before that.
+- A people preview still inserts one person at a time. This change does not make that path set-based.
+
+**Links**
+
+- Spec: [docs/specs/crm-import-fast-lead-match.md](docs/specs/crm-import-fast-lead-match.md)
+- Builds on: [docs/specs/crm-import-preview-rows.md](docs/specs/crm-import-preview-rows.md)
+
+**Decisions**
+
+- Keep the chosen person exactly the same. Do not add a per-row helper. Do not change policies on deals, tasks, or profiles.
+- Do not build the index with CONCURRENTLY inside the migration file. That statement cannot run inside a transaction. The file tells the lead to build it concurrently first, then run the file.
