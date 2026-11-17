@@ -644,11 +644,11 @@ This file lists the portal's major features: how each one should work, how far a
 
 - The error CSV keeps the row number, the original columns, and the message, and adds a Reason column.
 - Duplicate rows are included. A repeat of an earlier email, phone, or note in the same file names that row. Any other duplicate names the lead or client already on file.
-- Preview and the summary both offer the download when at least one row was skipped. The file is built in the browser in one pass, including a 10,000-row file. That helper is loaded at cache stamp 202611242230.
+- Preview and the summary both offer the download when at least one row was skipped. The file is built in the browser in one pass, including a 10,000-row file. That helper is loaded at cache stamp 202611242260.
 
 **What's still missing**
 
-- Not checked on TEST yet. The import page is now loaded at cache stamp 202611242230, including from the portal shell, so a saved copy of the old page is not used.
+- Not checked on TEST yet. The import page is now loaded at cache stamp 202611242260, including from the portal shell, so a saved copy of the old page is not used.
 - The earlier-imports list still opens a table of rows. It does not download this CSV.
 
 **Links**
@@ -1290,6 +1290,36 @@ This file lists the portal's major features: how each one should work, how far a
 
 - The order status column is shared with the rest of the portal, so its stored words stay Open, Closed, On Hold, and Cancelled. The CRM only changes the label.
 - The numeric order stage (`deals.stage`) is not a CRM pick list and is not changed.
+
+---
+
+## CRM import file errors (CRM import fix 2 of 5)
+
+**How it should work.** On Import Leads, Import Clients, and Import Notes for either one, the upload card always says the accepted files (.csv, .xlsx, .xls) and the limits (2 MB, 10,000 rows), and that the file window leaves other types out. A file that is not accepted shows the reason in red on that card, and the reason stays until another file is chosen. The reasons are the wrong type, a file over 2 MB, more than 10,000 rows, an empty or unreadable file, and a missing required column.
+
+**Status: In progress.** CRM import fix 2 of 5. John Coester confirmed Nov 17 2026. Pull request: [PR 315](https://github.com/Johncoester/cla-portal-demo/pull/315). No database file. Not Live until this is merged and someone tries a bad file on TEST.
+
+**What's built**
+
+- The upload card lists .csv, .xlsx, and .xls, 2 MB, and 10,000 rows, and says the file window leaves other types out.
+- A refused file stays in red on the card: wrong type, too big, too many rows, empty or unreadable, or a missing Last Name (people) or Note and Email or name (notes).
+- That message is not a toast. Choosing another file replaces it. Closing the file window without a file leaves it. A refused file does not replace a file already accepted, and it does not clear a default already picked.
+
+**What's still missing**
+
+- Not on TEST until this is merged and someone checks Import Leads with a PDF and with a good CSV. Do not mark Live before that.
+- Role in Company, Relationship Status, and State are still filled from Default values, so those columns are not required in the file.
+
+**Links**
+
+- Spec: [docs/specs/crm-import-file-errors.md](docs/specs/crm-import-file-errors.md)
+- [PR 315](https://github.com/Johncoester/cla-portal-demo/pull/315)
+
+**Decisions**
+
+- The limits are the ones already in the import: 2 MB (`2_000_000` bytes) and 10,000 rows.
+- The import page is loaded at cache stamp 202611242030, including from the portal shell, so a browser picks up the card.
+- Last Name is required on the file for leads and clients. A note file needs a Note column and an Email or a name. Role, Relationship Status, and State can still come from Default values.
 
 ---
 
