@@ -568,7 +568,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** After a preview or an import, Download error CSV lists every row that was not imported. A row that failed a check is still there, with the same message as before. A row skipped as a duplicate is there too, with a plain reason: either it repeats an earlier row in the file ("Duplicate within file, row 3") or it matches a lead or client already in the CRM ("Duplicate of existing lead: Robin Template / robin.template@example.test"). The button shows when there are errors or duplicates. A file whose every row is ready does not offer the download.
 
-**Status: In progress.** CRM import fix 4 of 5. John Coester confirmed this item. No database change. Not Live until this pull request is merged and someone tries a duplicate file on TEST.
+**Status: In progress.** CRM import fix 4 of 5. John Coester confirmed this item. Pull request: [PR 316](https://github.com/Johncoester/cla-portal-demo/pull/316). No database change. Not Live until this is merged and someone tries a duplicate file on TEST.
 
 **What's built**
 
@@ -584,6 +584,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/crm-import-error-csv.md](docs/specs/crm-import-error-csv.md)
+- [PR 316](https://github.com/Johncoester/cla-portal-demo/pull/316). No database file.
 
 **Decisions**
 
