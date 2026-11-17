@@ -313,7 +313,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Spec: [docs/specs/citizenship-free-text.md](docs/specs/citizenship-free-text.md)
 - Source: Janine's email reply, Nov 17 2026, relayed via Francis Feedback. Tracker item JN-CITIZEN-1.
-- Related pull request: this change.
+- Related pull request: [PR 334](https://github.com/Johncoester/cla-portal-demo/pull/334).
 
 **Decisions**
 
