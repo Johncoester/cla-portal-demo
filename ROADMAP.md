@@ -1141,3 +1141,31 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Janine asked to move the name, not to drop it. It stays required and it can sit in any selected position.
 - An older view with no stored name position keeps the name first. A view that already stored a position keeps that position.
+
+---
+
+## CRM import file errors (CRM import fix 2 of 5)
+
+**How it should work.** On Import Leads, Import Clients, and Import Notes for either one, the upload card always says the accepted files (.csv, .xlsx, .xls) and the limits (2 MB, 10,000 rows), and that the file window leaves other types out. A file that is not accepted shows the reason in red on that card, and the reason stays until another file is chosen. The reasons are the wrong type, a file over 2 MB, more than 10,000 rows, an empty or unreadable file, and a missing required column.
+
+**Status: In progress.** CRM import fix 2 of 5. John Coester confirmed Nov 17 2026. No database file. Not Live until this is merged and someone tries a bad file on TEST.
+
+**What's built**
+
+- The upload card lists .csv, .xlsx, and .xls, 2 MB, and 10,000 rows, and says the file window leaves other types out.
+- A refused file stays in red on the card: wrong type, too big, too many rows, empty or unreadable, or a missing Last Name (people) or Note and Email or name (notes).
+- That message is not a toast. Choosing another file replaces it. Closing the file window without a file leaves it. A refused file does not replace a file already accepted, and it does not clear a default already picked.
+
+**What's still missing**
+
+- Not on TEST until this is merged and someone checks Import Leads with a PDF and with a good CSV. Do not mark Live before that.
+- Role in Company, Relationship Status, and State are still filled from Default values, so those columns are not required in the file.
+
+**Links**
+
+- Spec: [docs/specs/crm-import-file-errors.md](docs/specs/crm-import-file-errors.md)
+
+**Decisions**
+
+- The limits are the ones already in the import: 2 MB (`2_000_000` bytes) and 10,000 rows.
+- Last Name is required on the file for leads and clients. A note file needs a Note column and an Email or a name. Role, Relationship Status, and State can still come from Default values.
