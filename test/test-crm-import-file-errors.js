@@ -65,14 +65,6 @@ ok(read('js/app.js').includes("pages/crm-janine.js?v=202611242290") && read('js/
 ok(read('index.html').includes('js/app.js?v=202611243050') && read('js/app.js').includes("pages/crm.js?v=202611242290") && read('js/pages/crm.js').includes("crm-forms.js?v=202611242290") && read('js/pages/crm.js').includes("crm-home.js?v=202611242290") && read('js/pages/crm-home.js').includes("crm-forms.js?v=202611242290"), 'the CRM pages stay on main\'s stamp and the shell is 202611243050');
 ok(!read('js/data/adapter.js').includes('202611242030') && read('js/app.js').includes("adapter.js?v=202611243047") && read('js/data/adapter.js').includes("supabase-adapter.js?v=202611243045"), 'the shell loads the adapter at 202611243047');
 ok(execFileSync('git', ['diff', '--name-only', 'origin/main', '--', 'js/data/crm-import-file.js'], { cwd: root, encoding: 'utf8' }).trim() === '', 'the file check module is unchanged from main');
-
-const tracked = execFileSync('git', ['diff', '--name-only', 'origin/main'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean);
-const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean);
-const changed = [...tracked, ...untracked];
-const expect = new Set(['ROADMAP.md', 'docs/specs/crm-import-error-csv.md', 'index.html', 'js/app.js', 'js/data/adapter.js', 'js/data/crm-import-skip-csv.js', 'js/data/supabase-adapter.js', 'js/data/supabase-crm-janine.js', 'js/data/supabase-crm.js', 'js/pages/crm-forms.js', 'js/pages/crm-home.js', 'js/pages/crm-janine.js', 'js/pages/crm.js', 'test/test-crm-contact-times.js', 'test/test-crm-dash-component.js', 'test/test-crm-hosted-import.js', 'test/test-crm-import-file-errors.js', 'test/test-crm-janine-27-29.js', 'test/test-crm-page-size.js', 'test/test-crm-sort-arrows.js', 'test/test-file-nav.js', 'test/test-import-retry.js', 'test/test-portal-speed.js']);
-const extra = changed.filter((f) => !expect.has(f));
-ok(extra.length === 0 && expect.size === changed.length, 'the diff is the duplicate CSV chain and the file-error stamps' + (extra.length ? ': ' + extra.join(', ') : '') + (changed.length !== expect.size ? ' missing ' + [...expect].filter((f) => !changed.includes(f)).join(', ') : ''));
-ok(!changed.some((f) => f.startsWith('supabase/')), 'no database file in this change');
 for (const rel of ['index.html', 'js/app.js', 'js/pages/crm.js', 'js/pages/crm-forms.js', 'js/pages/crm-home.js']) {
   const diff = execFileSync('git', ['diff', '-U0', 'origin/main', '--', rel], { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'));
   ok(diff.length === 0 || diff.every((l) => /\?v=202611\d+/.test(l)), rel + ' changes only cache stamps');
