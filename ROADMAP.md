@@ -1434,3 +1434,33 @@ This file lists the portal's major features: how each one should work, how far a
 - Remove the extra boxes from the screen only. Do not drop columns.
 - Basic Info writes the order. It does not save the hidden contract-term sheet.
 - TC Contract info is a different screen and stays as it is. The role walkthrough does not look for the words "Contract figures".
+
+---
+
+## Salespeople on Place Order (FF-092)
+
+**How it should work.** On Place Order, Team & Notes, "Salespeople on this order" is a search box. Type a name or a role, pick one or more people, and each chosen person shows as a chip with Remove. The order saves the same salesperson ids as the old checkbox list. Who can be picked does not change.
+
+**Status: In review.** Tracker item FF-092 (Medium). Francis Santos, Nov 17 2026, 1:37 PM ET (Gmail message 1a1eacd7648484d9). Pull request: [PR 322](https://github.com/Johncoester/cla-portal-demo/pull/322). No database file. Not Live until someone checks it on TEST.
+
+**What's built**
+
+- The checkbox list is a search box. Arrow keys, Enter, and a click pick a person. Chosen people are chips. Remove takes one person off.
+- A name that is not on the list says to try another name. If this login has no salespeople, the box says none are available.
+- Add new user still adds an existing active salesperson, and a new salesperson login is still created in HR. Only an Admin sees that role.
+- A draft in this browser keeps every chosen person.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- The Users page still links a client to salespeople with checkboxes. That screen was not part of this request.
+
+**Links**
+
+- Spec: [docs/specs/place-order-salespeople.md](docs/specs/place-order-salespeople.md)
+- Pull request: [PR 322](https://github.com/Johncoester/cla-portal-demo/pull/322)
+
+**Decisions**
+
+- No database change. The saved field is still salesIds.
+- The search list is the same people the checkbox list showed.
