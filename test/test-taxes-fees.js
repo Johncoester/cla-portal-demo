@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { closingDisclosure, altaStatement, cleanFee, calcFields, CALC_SOURCE_ID } from '../js/data/accounting.js';
 import { vendoredTables } from '../js/data/fee-engine.js';
 import {
-  TAX_DOC_TYPES, defaultDocuments, exemptionAsks, taxesFeesSetup, worksheetProblem, proposeTaxesFees, diffTaxesFees, previewTaxesFees, savedWorksheet
+  TAX_DOC_TYPES, CONTRACT_TAX_PAYER_FIELD, OWNER_OCCUPANT_EXEMPTION_SIDE, defaultDocuments, exemptionAsks, taxesFeesSetup, worksheetProblem, proposeTaxesFees, diffTaxesFees, previewTaxesFees, savedWorksheet, taxAllocation
 } from '../js/data/taxes-fees.js';
 
 let fail = 0;
@@ -51,7 +51,8 @@ const cityP = proposeTaxesFees(city, { documents: cityDocs }, R);
 ok(near(amount(cityP, 'rec:Deed'), 60) && line(cityP, 'rec:Deed').paidBy === 'buyer', 'Baltimore City deed records for $60, paid by the borrower');
 ok(near(amount(cityP, 'rec:Deed of Trust'), 115) && /not a principal residence/.test(line(cityP, 'rec:Deed of Trust').description), 'a deed of trust that is not a principal residence records for $115');
 ok(near(amount(cityP, 'tax:State transfer tax'), 812.5) && line(cityP, 'tax:State transfer tax').paidBy === 'seller', 'Maryland first-time buyer state transfer tax is $812.50, paid by the seller');
-ok(near(amount(cityP, 'tax:County transfer tax'), 4875) && line(cityP, 'tax:County transfer tax').paidBy === 'split', 'Baltimore City transfer tax is $4,875, split');
+ok(near(amount(cityP, 'tax:County transfer tax'), 4875) && line(cityP, 'tax:County transfer tax').paidBy === 'seller', 'Baltimore City transfer tax at $325,000 is $4,875 with no $22,000 exemption, and the rate sheet starts it with the seller for a first-time buyer');
+ok(near(amount(cityP, 'tax:County recordation tax'), 3030) && line(cityP, 'tax:County recordation tax').paidBy === 'seller', 'Baltimore City recordation at $325,000 still takes off the $22,000 owner-occupant exemption: $3,030, seller');
 ok(near(amount(cityP, 'lien'), 55), 'Baltimore City lien certificate is $55');
 ok(cityP.lines.every((l) => l.key === 'lien' || l.key.startsWith('rec:') || l.key.startsWith('tax:')), 'only recording fees, the lien certificate, and transfer / recordation taxes are returned');
 ok(!cityP.lines.some((l) => /title policy|settlement fee|endorsement/i.test(l.description)), 'title premiums and CLA fees are not part of this calculation');
@@ -140,6 +141,58 @@ const page = readFileSync('js/pages/dealaccounting-charges.js', 'utf8');
 const mock = readFileSync('js/data/mock-part-accounting.js', 'utf8');
 const remote = readFileSync('js/data/supabase-accounting.js', 'utf8');
 ok(page.includes('Add document') && page.includes('Calculate fees') && page.includes('getTaxesFeesSetup') && page.includes('applyTaxesFees'), 'Taxes & Fees on the charges page adds documents and calculates fees');
+ok(page.includes('Buyer pays') && page.includes('Seller pays') && page.includes('50/50 split') && page.includes('data-tax-payer'), 'each tax offers Buyer pays, Seller pays, and 50/50 split');
+
+// FF-091b worked examples. Rates are the vendored CLA sheet, not new numbers.
+// Baltimore City transfer: 1.5% up to $1,000,000, and the first $22,000 is exempt for an owner-occupant only when the price is $249,900 or less.
+// Baltimore City recordation: $5.00 per $500 up to $1,000,000, and the sheet's $22,000 owner-occupant exemption is on that row with no $249,900 cap.
+// Above $1,000,000: transfer 2.1%, recordation $5.75 per $500. State transfer is 0.5%, or 0.25% paid by the seller for a first-time buyer who will live there.
+const home = purchase('MD', 'Baltimore City', 200000, 160000, { primaryResidence: 'yes', firstTimeBuyer: 'no' });
+const homeDocs = defaultDocuments(home, exemptionAsks(R, home));
+const homeP = proposeTaxesFees(home, { documents: homeDocs }, R);
+const splitOf = (P, key) => line(P, key).split;
+ok(near(amount(homeP, 'tax:State transfer tax'), 1000) && line(homeP, 'tax:State transfer tax').paidBy === 'split' && near(splitOf(homeP, 'tax:State transfer tax').buyer, 500) && near(splitOf(homeP, 'tax:State transfer tax').seller, 500), 'a $200,000 Baltimore City purchase that is not a first-time buyer pays $1,000 state transfer tax, $500 / $500');
+ok(near(amount(homeP, 'tax:County transfer tax'), 2670) && near(splitOf(homeP, 'tax:County transfer tax').buyer, 1335) && near(splitOf(homeP, 'tax:County transfer tax').seller, 1335), 'owner-occupant transfer tax on $200,000 is 1.5% of $178,000 = $2,670, split $1,335 / $1,335');
+ok(near(amount(homeP, 'tax:County recordation tax'), 1780) && near(splitOf(homeP, 'tax:County recordation tax').buyer, 890) && near(splitOf(homeP, 'tax:County recordation tax').seller, 890), 'owner-occupant recordation on $200,000 is $5 per $500 of $178,000 = $1,780, split $890 / $890');
+ok(/taken off the amount before the 50\/50 split/.test(line(homeP, 'tax:County transfer tax').calculation), 'the split takes the owner-occupant exemption off the amount first');
+
+const edge = purchase('MD', 'Baltimore City', 249900, 200000, { primaryResidence: 'yes', firstTimeBuyer: 'no' });
+const edgeP = proposeTaxesFees(edge, { documents: defaultDocuments(edge, exemptionAsks(R, edge)) }, R);
+ok(near(amount(edgeP, 'tax:County transfer tax'), 3418.5) && near(amount(edgeP, 'tax:County recordation tax'), 2280) && near(amount(edgeP, 'tax:State transfer tax'), 1249.5), 'at $249,900 the $22,000 exemption still applies: transfer $3,418.50, recordation $2,280, state transfer $1,249.50');
+const over = purchase('MD', 'Baltimore City', 249900.01, 200000, { primaryResidence: 'yes', firstTimeBuyer: 'no' });
+const overP = proposeTaxesFees(over, { documents: defaultDocuments(over, exemptionAsks(R, over)) }, R);
+ok(near(amount(overP, 'tax:County transfer tax'), 3748.5) && near(amount(overP, 'tax:County recordation tax'), 2280), 'at $249,900.01 the transfer tax loses the $22,000 exemption ($3,748.50) and recordation keeps it ($2,280)');
+
+const big = purchase('MD', 'Baltimore City', 1200000, 900000, { primaryResidence: 'yes', firstTimeBuyer: 'no' });
+const bigP = proposeTaxesFees(big, { documents: defaultDocuments(big, exemptionAsks(R, big)) }, R);
+ok(near(amount(bigP, 'tax:County transfer tax'), 25200) && near(splitOf(bigP, 'tax:County transfer tax').buyer, 12600), 'above $1,000,000 Baltimore City transfer tax is 2.1% = $25,200, split $12,600 / $12,600');
+ok(near(amount(bigP, 'tax:County recordation tax'), 13547) && near(splitOf(bigP, 'tax:County recordation tax').buyer, 6773.5) && near(splitOf(bigP, 'tax:County recordation tax').seller, 6773.5), 'above $1,000,000 recordation is $5.75 per $500 after the $22,000 exemption = $13,547, split $6,773.50 / $6,773.50');
+
+const ft = purchase('MD', 'Baltimore City', 200000, 160000, { primaryResidence: 'yes', firstTimeBuyer: 'yes' });
+const ftDocs = defaultDocuments(ft, exemptionAsks(R, ft));
+const ftP = proposeTaxesFees(ft, { documents: ftDocs }, R);
+ok(ftDocs[0].occ === true && ftDocs[0].fthb === true, 'the file\'s Yes answers fill the deed');
+ok(near(amount(ftP, 'tax:State transfer tax'), 500) && line(ftP, 'tax:State transfer tax').paidBy === 'seller' && line(ftP, 'tax:State transfer tax').split.buyer === 0, 'a first-time buyer on a $200,000 primary residence pays no state transfer tax; the seller pays $500');
+ok(near(amount(ftP, 'tax:County transfer tax'), 2670) && line(ftP, 'tax:County transfer tax').paidBy === 'seller' && line(ftP, 'tax:County transfer tax').split.buyer === 0, 'the rate sheet starts Baltimore City transfer tax with the seller for that first-time buyer: $2,670');
+ok(near(amount(ftP, 'tax:County recordation tax'), 1780) && line(ftP, 'tax:County recordation tax').paidBy === 'seller', 'the rate sheet starts Baltimore City recordation tax with the seller for that first-time buyer: $1,780');
+
+const chosen = proposeTaxesFees(ft, { documents: ftDocs, payers: { 'County transfer tax': 'buyer', 'County recordation tax': 'split', 'State transfer tax': 'buyer' } }, R);
+ok(line(chosen, 'tax:County transfer tax').paidBy === 'buyer' && near(amount(chosen, 'tax:County transfer tax'), 2670) && line(chosen, 'tax:County transfer tax').split.seller === 0, 'staff can set the county transfer tax to Buyer pays on this file');
+ok(line(chosen, 'tax:County recordation tax').paidBy === 'split' && near(splitOf(chosen, 'tax:County recordation tax').buyer, 890) && near(splitOf(chosen, 'tax:County recordation tax').seller, 890), 'staff can set the recordation tax back to a 50/50 split: $890 / $890');
+ok(line(chosen, 'tax:State transfer tax').paidBy === 'seller' && near(amount(chosen, 'tax:State transfer tax'), 500), 'the state transfer tax stays with the seller for a first-time buyer');
+
+const notHome = { state: 'MD', county: 'Baltimore City', transactionType: 'Purchase', purchasePrice: 200000, loanAmount: 160000, primaryResidence: '', firstTimeBuyer: 'yes' };
+const notDocs = defaultDocuments(notHome, exemptionAsks(R, notHome));
+ok(notDocs[0].occ === false && notDocs[0].fthb === false && notDocs[1].occ === true, 'a blank primary residence does not claim the exemption, and it does not raise the deed of trust fee');
+const notP = proposeTaxesFees(notHome, { documents: notDocs }, R);
+ok(near(amount(notP, 'tax:State transfer tax'), 1000) && line(notP, 'tax:State transfer tax').paidBy === 'split', 'a first-time buyer answer without a primary residence does not reduce the state transfer tax');
+ok(near(amount(notP, 'tax:County transfer tax'), 3000) && line(notP, 'tax:County transfer tax').paidBy === 'split', 'without a primary residence the $22,000 exemption is not taken and the tax stays split: $3,000');
+ok(near(amount(notP, 'tax:County recordation tax'), 2000) && near(amount(notP, 'rec:Deed of Trust'), 60), 'recordation is $2,000 with no exemption, and the deed of trust still records for $60');
+
+const half = worksheetProblem({ documents: homeDocs, payers: { 'County transfer tax': 'half' } }, home);
+ok(half && /Buyer pays, Seller pays, or 50\/50 split/.test(half.message), 'a payer that is not one of the three choices is explained: ' + (half && half.message));
+ok(CONTRACT_TAX_PAYER_FIELD === '' && OWNER_OCCUPANT_EXEMPTION_SIDE === 'exempted-total', 'the contract field and the exemption side stay the labeled open questions');
+ok(taxAllocation(R, home, homeDocs).some((t) => t.name === 'County transfer tax' && t.plain === 'split' && t.firstTime === 'seller'), 'the Baltimore City transfer row says Split, and Seller for a first-time buyer');
 ok(mock.includes('applyTaxesFees') && mock.includes('attachTaxDocs') && remote.includes('applyTaxesFees') && remote.includes('attachTaxDocs'), 'mock and Supabase both save the worksheet on the calculated fee');
 
 console.log(fail ? fail + ' failed' : 'taxes and fees passed');

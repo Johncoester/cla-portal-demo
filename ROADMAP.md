@@ -1160,6 +1160,39 @@ This file lists the portal's major features: how each one should work, how far a
 - Save the document answers on the calculated fee. No new database file.
 - A saved worksheet wins the next time the screen opens, so a deed of trust marked not a principal residence stays that way. The file's answers are the starting point when nothing has been saved.
 - Use the county list from REC-CALC-6 (PR 296, merged). A county in Maryland, Virginia, Florida, or the District of Columbia that is not named on a rate row of its own is still calculated, on the statewide rates.
+- Baltimore City who-pays, and the first-time buyer payer, are FF-091b.
+
+---
+
+## Baltimore City taxes and who pays (FF-091b)
+
+**How it should work.** On Taxes & Fees, Baltimore City transfer tax and recordation tax use the rate sheet already in the portal. Each tax offers Buyer pays, Seller pays, and 50/50 split. The start is the sheet's payer, and for a first-time buyer who will live in the home it is the sheet's first-time buyer payer. Staff can change it on that file. The Maryland first-time homebuyer exemption applies only when the file says the buyer is a first-time buyer and the home is their primary residence.
+
+**Status: In progress.** FF-091b. Francis Santos, Nov 17 2026, 1:55 PM ET (message 1a1eaddb3dcfc5d6). Not Live. No database file. Not applied on TEST.
+
+**What's built**
+
+- Baltimore City amounts follow the vendored rate sheet: transfer tax 1.5% up to $1,000,000 (2.1% above), with the $22,000 owner-occupant exemption only at $249,900 or less; recordation tax $5.00 per $500 up to $1,000,000 ($5.75 above), with the sheet's $22,000 owner-occupant exemption on that row.
+- State transfer tax stays 0.5%, or 0.25% paid by the seller when the buyer is a first-time buyer who will live in the home.
+- Each other tax offers Buyer pays, Seller pays, and 50/50 split. The choice is saved on the calculated fee.
+- A blank primary residence does not take the exemption.
+
+**What's still missing**
+
+- The contract field that should supply the starting payer. It is a labeled blank until John names it.
+- Which side of a split gets the owner-occupant exemption. The exempted total is split. Melissa's buyer-side reading is not built.
+- Not checked on TEST. Not Live.
+
+**Links**
+
+- Spec: [docs/specs/taxes-fees-baltimore.md](docs/specs/taxes-fees-baltimore.md)
+- Source: Francis Santos, Nov 17 2026, 1:55 PM ET, message 1a1eaddb3dcfc5d6. Tracker FF-091b.
+
+**Decisions**
+
+- Reuse the vendored calculator for the amounts. Do not copy the rate tables.
+- Apply the sheet's FTHB Paid By as the start. The calculator had been leaving that cell as a note.
+- No new database file. The choice is stored with the Taxes & Fees worksheet.
 
 ---
 
