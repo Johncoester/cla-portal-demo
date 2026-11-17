@@ -4,23 +4,23 @@
 import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611161500';
 import { CONTACT_TYPES, contactTypeLabel, US_STATES, US_STATE_NAMES } from '../data/constants.js?v=202611101015';
 import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611130900';
-import { display, moduleFields } from '../data/crm-analytics.js?v=202611130900';
+import { display, moduleFields } from '../data/crm-analytics.js?v=202611242010';
 import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin, setCrmMe } from './crm-kit.js?v=202611161500';
-import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-janine.js?v=202611221700';
+import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-janine.js?v=202611242010';
 import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611130900';
-import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611161500';
+import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611242010';
 import { settingsPage } from './crm-settings.js?v=202611161500';
-import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611221700';
-import { pipelinePage, reportsPage } from './crm-more.js?v=202611161500';
-import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611221700';
+import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611242010';
+import { pipelinePage, reportsPage } from './crm-more.js?v=202611242010';
+import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611242010';
 import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611161500';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611161500';
-import { searchPage } from './crm-search.js?v=202611161500';
-import { dashboardsPage } from './crm-dashboards.js?v=202611161500';
-import { reportsHome } from './crm-reports.js?v=202611161500';
-import { dealsPage } from './crm-deals.js?v=202611242000';
-import { callPage, callModal } from './crm-calls.js?v=202611161500';
-import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611242000';
+import { searchPage } from './crm-search.js?v=202611242010';
+import { dashboardsPage } from './crm-dashboards.js?v=202611242010';
+import { reportsHome } from './crm-reports.js?v=202611242010';
+import { dealsPage } from './crm-deals.js?v=202611242010';
+import { callPage, callModal } from './crm-calls.js?v=202611242010';
+import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611242010';
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
 const archivedOpts = [['only', 'Archived only'], ['all', 'Active + archived']];
@@ -103,7 +103,9 @@ async function newPage(c) {
 // old lead values stay visible in the filter even when they are not in the Leads list (Janine, Nov 3: never erased)
 const leadStatusOpts = (cfg, rows) => { const o = fopts(cfg, 'leadRelationshipStatus'); const have = new Set(o.map(([v]) => v));
   const old = [...new Set(rows.map((r) => r.relationshipStatus).filter((v) => v && !have.has(v)))].sort().map((v) => [v, lbl(cfg, 'leadRelationshipStatus', v) || v]); return [...o, ...old, ['none', 'Not set']]; };
-const importBtns = (me, module) => (me.isAdmin ? html` <a class="ghost right" href="#/crm/import/${module}/notes" data-import-notes-btn="${module}">Import Notes</a> <a class="ghost right" href="#/crm/import/${module}" data-import-btn="${module}">Import ${module === 'leads' ? 'Leads' : 'Clients'}</a>` : '');   // float right: shown as Import, Import Notes, + Create
+// Leads and Clients: Import Leads / Import Clients is the main button and comes first. Import Notes is the quieter button after it.
+// (The old order put Import Notes first, so people opened notes by mistake.)
+const importBtns = (me, module) => (me.isAdmin ? html` <a class="m-btn" href="#/crm/import/${module}" data-import-btn="${module}">Import ${module === 'leads' ? 'Leads' : 'Clients'}</a> <a class="ghost" href="#/crm/import/${module}/notes" data-import-notes-btn="${module}">Import Notes</a>` : '');
 
 // ---------------- LEADS (Zoho list: Lead Name, Company, Email, Phone, Lead Source, Lead Owner) ----------------
 const blankPerson = (me) => ({ ownerId: me.isAdmin ? '' : me.id, relationshipStatus: '', links: {} });
