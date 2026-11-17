@@ -19,9 +19,9 @@ import { settlementSectionHtml, mountSettlement } from './settlement-section.js?
 import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611191700';
 import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611191700';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611222800';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611241800';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611241700';
+import { prefetchDealTab } from './deal-tab.js?v=202611241800';
 import { placeText } from '../data/cla-offices.js?v=202611101015';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611241600';
@@ -32,7 +32,7 @@ import { AGENT_TC_ROLES, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, isAgent
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611222100';
 import { bindAddressFill } from '../data/address-fill.js?v=202611222100';
 import { countyFieldHtml, mountCountySelect } from './county-field.js?v=202611241600';
-import { agentFeesPanel, agentFeesPointer } from './agent-fees-box.js?v=202611222800';
+import { agentFeesPanel, agentFeesPointer } from './agent-fees-box.js?v=202611241800';
 function staffSections(ctx, dealId) {
   const { api } = ctx;
   const user = ctx.user;

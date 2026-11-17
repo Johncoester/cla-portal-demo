@@ -67,7 +67,7 @@ export function formHtml(side, s, { price, needReason, asAgent = false }) {
       <label>Commission %<input name="commissionPercent" inputmode="decimal" autocomplete="off" value="${c.percent == null ? '' : Number(c.percent).toLocaleString('en-US', { maximumFractionDigits: 4, useGrouping: false })}"></label>
       <label>Additional amount<input name="additionalAmount" inputmode="decimal" data-money autocomplete="off" aria-label="Additional amount" value="${c.additional ? Number(c.additional).toFixed(2) : ''}"></label>
       <label>Commission amount<input name="commissionAmount" inputmode="decimal" data-money autocomplete="off" aria-label="Commission amount" value="${c.amount == null ? '' : Number(c.amount).toFixed(2)}"></label>
-      <label>Paid by${payerSel('commissionPayer', c.payer, COMMISSION_PAYERS)}</label>
+      <label>Commission Paid By${payerSel('commissionPayer', c.payer, COMMISSION_PAYERS)}</label>
       <label data-af-split="buyer" ${splitOn ? '' : raw('hidden')}>Buyer amount<input name="splitBuyer" inputmode="decimal" data-money autocomplete="off" aria-label="Buyer amount" value="${c.splitBuyer == null ? '' : Number(c.splitBuyer).toFixed(2)}"></label>
       <label data-af-split="seller" ${splitOn ? '' : raw('hidden')}>Seller amount<input name="splitSeller" inputmode="decimal" data-money autocomplete="off" aria-label="Seller amount" value="${c.splitSeller == null ? '' : Number(c.splitSeller).toFixed(2)}"></label>
     </fieldset>
@@ -231,16 +231,20 @@ export function agentFeesSummaryHtml(data, dealId) {
     ${agentFeesPointer('link', dealId)}</section>`;
 }
 
-/* Place Order (before the file exists): each side's commission (% or $, kept in step with the purchase price typed on the form) and
- * admin fee. Saved as Agent fees once the order is created; other fees are added later in the Agent fees box. */
+/* Place Order (before the file exists): each side's commission (% or $, kept in step with the purchase price typed on the form),
+ * Commission Paid By (Buyer, Seller, or Split), and an admin fee. Saved as Agent fees once the order is created; other fees are added later in the Agent fees box.
+ * FF-089: the selling agent is the buyer's agent side, the same side as Selling Agent Commission on the file. */
 export function placeOrderFeesHtml() {
   const side = (k, label) => html`<fieldset class="span2 form-grid af-po-side" data-po-agent-fees="${k}"><legend>${label}</legend>
     <input type="hidden" name="af.${k}.basis" value="percent">
     <label>Commission %<input name="af.${k}.percent" inputmode="decimal" autocomplete="off" aria-label="${label} commission percent"></label>
     <label>Commission $<input name="af.${k}.amount" inputmode="decimal" data-money autocomplete="off" aria-label="${label} commission dollars"></label>
+    <label>Commission Paid By<select name="af.${k}.payer" data-commission-paid-by="${k}" aria-label="${label} commission paid by">${COMMISSION_PAYERS.map(([v, l]) => html`<option value="${v}" ${v === defaultPayer(k) ? raw('selected') : ''}>${l}</option>`)}</select></label>
+    <label data-af-split="buyer" hidden>Buyer amount<input name="af.${k}.splitBuyer" inputmode="decimal" data-money autocomplete="off" aria-label="${label} buyer share"></label>
+    <label data-af-split="seller" hidden>Seller amount<input name="af.${k}.splitSeller" inputmode="decimal" data-money autocomplete="off" aria-label="${label} seller share"></label>
     <label>Admin fee $<input name="af.${k}.admin" inputmode="decimal" data-money autocomplete="off" aria-label="${label} admin fee"></label></fieldset>`;
   return html`${side('listing', 'Listing agent')}${side('buyer', "Buyer's agent")}
-    <p class="muted small span2">Type the commission as a % or a $ amount; the other one fills in from the purchase price. The admin fee is paid by the buyer on the buyer's agent side and by the seller on the listing side; change that, or add other fees, in the Agent fees box on the file. Agents see only their own side. Buyers and sellers never see these.</p>`;
+    <p class="muted small span2">Type the commission as a % or a $ amount; the other one fills in from the purchase price. Commission Paid By is Buyer, Seller, or Split. For Split, enter what the buyer pays and what the seller pays. Those two amounts must add up to the commission. The same choice is on the Agent fees box after the file is open. The admin fee is paid by the buyer on the buyer's agent side and by the seller on the listing side; change that, or add other fees, in the Agent fees box. Agents see only their own side. Buyers and sellers never see these.</p>`;
 }
 
 const poField = (form, n) => form.querySelector(`[name="${n}"]`);
@@ -257,6 +261,9 @@ export function mountPlaceOrderFees(form, priceOf) {
     pctIn.addEventListener('input', () => fill('percent'));
     amtIn.addEventListener('input', () => fill('amount'));
     form.addEventListener('input', (e) => { if (e.target && e.target.name === 'purchasePrice' && String(basis.value === 'percent' ? pctIn.value : amtIn.value).trim()) fill(basis.value); });
+    const payer = poField(form, `af.${k}.payer`);
+    const showSplit = () => { const on = !!(payer && payer.value === 'split'); form.querySelectorAll(`[data-po-agent-fees="${k}"] [data-af-split]`).forEach((el) => { el.hidden = !on; }); };
+    if (payer) { payer.addEventListener('change', showSplit); showSplit(); }
   }
 }
 
@@ -265,10 +272,14 @@ export function readPlaceOrderFees(form, price) {
   const out = {};
   for (const [k, label] of AGENT_FEE_SIDES) {
     const p = String(poVal(form, `af.${k}.percent`)).trim(); const a = String(poVal(form, `af.${k}.amount`)).trim();
+    const payer = String(poVal(form, `af.${k}.payer`)).trim();
+    const splitBuyer = String(poVal(form, `af.${k}.splitBuyer`)).trim(); const splitSeller = String(poVal(form, `af.${k}.splitSeller`)).trim();
     // the box last typed in wins; if only one box has a figure (a restored draft), that one
     const basis = p && a ? (poVal(form, `af.${k}.basis`) === 'amount' ? 'amount' : 'percent') : a ? 'amount' : 'percent';
-    const input = { commissionBasis: basis, commissionPercent: poVal(form, `af.${k}.percent`), commissionAmount: poVal(form, `af.${k}.amount`), adminAmount: poVal(form, `af.${k}.admin`) };
-    if (!String(input.commissionPercent).trim() && !String(input.commissionAmount).trim() && !String(input.adminAmount).trim()) { out[k] = null; continue; }
+    const input = { commissionBasis: basis, commissionPercent: poVal(form, `af.${k}.percent`), commissionAmount: poVal(form, `af.${k}.amount`), commissionPayer: payer, splitBuyer, splitSeller, adminAmount: poVal(form, `af.${k}.admin`) };
+    const noCommission = !String(input.commissionPercent).trim() && !String(input.commissionAmount).trim();
+    if (noCommission && (payer === 'split' || splitBuyer || splitSeller || (payer && payer !== defaultPayer(k)))) throw new Error(`${label}: Enter the commission % or the commission $ before choosing who pays it.`);
+    if (noCommission && !String(input.adminAmount).trim()) { out[k] = null; continue; }
     try { const fees = readAgentFees(input, { side: k, price }); out[k] = fees.commission || fees.admin ? fees : null; } catch (e) { throw new Error(`${label}: ${e.message}`); }
   }
   return out;
