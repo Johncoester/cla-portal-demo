@@ -57,10 +57,22 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   await expect(page.locator('[data-agent-tc="Listing Agent TC"] [data-dir-field="person"]')).toBeVisible();
   await advance(page, 'team');
   await expect(page.locator('[data-wiz-step="team"] input[name="closerName"]')).toBeVisible();
-  const sales = page.locator('[data-wiz-step="team"] input[name="salesIds"]');
+  // FF-092: salespeople are a search box with chips. The checkbox list is gone. The saved field is still salesIds.
+  const salesBox = page.locator('[data-sales-multi] .picker-q');
   await expect(page.locator('[data-sales-picker] legend')).toHaveText('Salespeople on this order');
-  await expect(sales.first()).toHaveAttribute('type', 'checkbox');
-  if (await sales.count()) await sales.first().check();
+  await expect(salesBox).toHaveAttribute('role', 'combobox');
+  await expect(page.locator('[data-wiz-step="team"] input[type="checkbox"][name="salesIds"]')).toHaveCount(0);
+  await salesBox.fill('zzzz-not-a-person');
+  await expect(page.locator('[data-sales-multi] [data-none]')).toContainText('No match');
+  await salesBox.fill('Sam');
+  await expect(page.locator('#sales-people-list [role="option"]').first()).toContainText('Sam');
+  await salesBox.press('Enter');
+  await expect(page.locator('[data-sales-chip]')).toContainText('Sam');
+  await page.locator('[data-sales-remove]').click();
+  await expect(page.locator('[data-sales-chip]')).toHaveCount(0);
+  await salesBox.fill('Sam');
+  await salesBox.press('Enter');
+  await expect(page.locator('[data-sales-values] input[name="salesIds"]')).toHaveCount(1);
   await page.locator('[data-wiz-step="team"] textarea[name="notes"]').fill(`E2E-RUN-${run}`);
   await advance(page, 'review');
   await page.locator('[data-place-order]').click();
