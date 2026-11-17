@@ -3,6 +3,7 @@
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
 import { buildTaskGrid, groupOfRole, GRID_ROLES } from './task-board.js?v=202611241000';
 import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611101015';
+import { textToHtml } from './gmail-email.js?v=202611191000';
 import { agentTcAlreadyMessage, isAgentTcRole } from './agent-tc.js?v=202611241300';
 import { cleanFileNumber, FILE_NUMBER_TAKEN } from './file-number.js?v=202611222500';
 import { officeDate } from './office-date.js?v=202611102100';
@@ -29,7 +30,7 @@ import { hrSupabase } from './supabase-hr.js?v=202611100130';
 import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611242010';
 import { officesSupabase } from './supabase-offices.js?v=202611101015';
 import { taskBuilderSupabase } from './supabase-task-builder.js?v=202611221100';   // John, Nov 13: Admin > Task Builder (TB-1)
-import { closingLocationSupabase } from './supabase-closing-location.js?v=202611170800';
+import { closingLocationSupabase } from './supabase-closing-location.js?v=202611242210';
 import { tcSupabase } from './supabase-tc.js?v=202611191700';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
 import { gmailSupabase } from './supabase-gmail.js?v=202611140900';
@@ -804,7 +805,10 @@ export async function createSupabaseAdapter(cfg) {
     async getPartySchedule(token) { return camel(ok(await sb.rpc('get_party_schedule', { p_token: token }))) || {}; },
     async submitPartySchedule(token, answers) { return camel(ok(await sb.rpc('submit_party_schedule', { p_token: token, p_answers: answers }))) || {}; },
     async schedulingCopyLinks(dealId) { return camel(ok(await sb.rpc('scheduling_copy_links', { p_deal: dealId })) || []); },
-    async saveSettlementAgent(dealId, input = {}) { return ok(await sb.rpc('save_settlement_agent', { p_deal: dealId, p_name: input.name || '', p_profile: input.profileId || null, p_confirmed: !!input.confirmed })); },
+    async saveSettlementAgent(dealId, input = {}) {
+      const side = input.side === 'seller' ? 'seller' : 'buyer';
+      return ok(await sb.rpc('save_side_settlement_agent', { p_deal: dealId, p_side: side, p_name: input.name || '', p_profile: input.profileId || null, p_phone: input.phone || '', p_email: input.email || '', p_confirmed: !!input.confirmed }));
+    },
     async saveSchedulingNotes(dealId, notes) { return ok(await sb.rpc('save_scheduling_notes', { p_deal: dealId, p_notes: notes || '' })); },
     // Matt, Nov 3 (migration 26): entity documents requested from buyers / sellers acting as an entity (person, processor, coordinator, Admin)
     async listEntityDocRequests(dealId) { return camel(ok(await sb.rpc('entity_doc_requests', { p_deal: dealId }))); },
@@ -1038,6 +1042,26 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, tcSupabase({ sb, ok, camel, api: a }));   // John, Nov 5 (migration 71): TC contract / EMD / ALTA / all-parties thread
   Object.assign(a, emailSendersSupabase({ sb, ok, me }));
   Object.assign(a, gmailSupabase({ sb, ok, camel }));   // John, Nov 9: Gmail phase 1 (own @clatitle.com mailbox, TEST only)
+  // MF-058: the reminder list comes from the file's parties. Gmail sends it. The outbox row stays queued because TEST does not store a sent time.
+  a.previewSchedulingReminder = async (dealId, side) => camel(ok(await sb.rpc('preview_scheduling_reminder', { p_deal: dealId, p_side: side === 'seller' ? 'seller' : 'buyer' }))) || { side, recipients: [], missing: [] };
+  a.sendSchedulingReminder = async (dealId, side) => {
+    const who = side === 'seller' ? 'seller' : 'buyer';
+    const g = a.getGmailStatus ? await a.getGmailStatus().catch(() => ({ connected: false, status: '' })) : { connected: false, status: '' };
+    if (!g.connected || g.status !== 'connected') throw new Error('Connect Gmail on Profile Setting before sending this reminder. Nothing was emailed.');
+    const pack = camel(ok(await sb.rpc('queue_scheduling_reminder', { p_deal: dealId, p_side: who }))) || {};
+    const messages = pack.recipients || [];
+    if (!messages.length) throw new Error(who === 'seller' ? 'Add an email for a seller or the listing agent on Contacts before sending this reminder.' : 'Add an email for a buyer or the buyer\'s agent on Contacts before sending this reminder.');
+    let sent = 0; const failed = [];
+    for (const m of messages) {
+      try {
+        await a.sendDealEmail({ dealId, to: [m.email], subject: m.subject || '', html: textToHtml(m.body || ''), templateKey: 'scheduling_reminder' });
+        sent += 1;
+      } catch (err) { failed.push({ name: m.name || m.email, error: (err && err.message) || 'The reminder was not emailed.' }); }
+    }
+    if (!sent) throw new Error(`The reminder was not emailed. ${failed[0].error}`);
+    if (failed.length) return { emailed: false, sent, failed, message: `Emailed ${sent} of ${messages.length}. ${failed[0].name} was not emailed. ${failed[0].error}` };
+    return { emailed: true, sent, failed, recipients: messages.map((m) => ({ name: m.name, email: m.email, role: m.role })) };
+  };
   Object.assign(a, nov5Supabase({ sb, ok, camel, me }));
   Object.assign(a, orderOverviewSupabase({ sb, ok, camel, me: async () => ident.current() || me(), api: a }));
   a.readOverview = (dealId) => fileRead('overview:' + dealId, () => a.getOrderOverview(dealId));

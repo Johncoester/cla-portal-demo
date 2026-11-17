@@ -37,7 +37,7 @@ ok(lines[0] === 'Buyer: 2026-12-20, 10:00 AM, CLA office: Rockville', 'the butto
 ok(scheduleNavLines({ schedBuyerAsk: true, schedBuyerPlace: 'office' })[0] === 'Buyer: asked to schedule', 'asking the buyer shows on the button until they answer');
 
 const free = toText(schedulingPanelHtml({ deal: { settlementAgentName: '' }, staff: true, choices: [], links: [] }));
-ok(free.includes('data-scheduling-details') && free.includes('Settlement Agent Confirmed') && free.includes('data-processor-notes') && free.includes('data-settlement-agent') && free.includes('placeholder="Type the settlement agent name"'), 'the processor card has the agent name, the confirmed checkbox and a separate notes button');
+ok(free.includes('data-scheduling-details') && free.includes('Settlement agent/notary') && free.includes('Confirmed') && free.includes('data-processor-notes') && free.includes('data-settlement-agent') && free.includes('placeholder="Type the settlement agent/notary name"') && !free.includes('Save settlement agent'), 'the processor card names the settlement agent/notary, confirms it, and no longer has a Save button');
 const listed = toText(schedulingPanelHtml({ deal: {}, staff: true, choices: closers, links: [{ side: 'buyer', path: '#/schedule-party/abc' }] }));
 ok(listed.includes('<select') && listed.includes('Casey Close') && listed.includes('#/schedule-party/abc'), 'when a closer role exists, the processor picks from that list and can copy the queued link');
 ok(!toText(schedulingPanelHtml({ deal: {}, staff: false, choices: [], links: [] })).includes('data-processor-notes'), 'a buyer or agent does not get the processor notes button');
