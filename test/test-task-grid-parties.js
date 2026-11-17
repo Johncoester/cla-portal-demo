@@ -1,10 +1,13 @@
 /* MF-053: party status columns on the Processor Task Grid. Fake tasks only.
+ * The grid shows File No, Property, Closing Date, then Buyer, Seller, Buyer's Agent, Listing Agent.
+ * The individual task columns to the right are not shown.
  * Green check = every live task for that party is done.
  * Red X = any live task is overdue (this wins even when other tasks are done).
  * Empty (open) = a task is still open and not overdue.
- * Empty (blank) = that party has no live task on the file. Cancelled tasks do not count. */
+ * Empty (blank) = that party has no live task on the file. Cancelled tasks do not count.
+ * partyTaskMark is the helper MF-057 will change when a shared buyer or seller task must wait for every person. */
 import { buildTaskGrid } from '../js/data/task-board.js';
-import { partyStatusForFile, PARTY_COLUMNS } from '../js/data/task-grid-parties.js';
+import { partyStatusForFile, partyTaskMark, PARTY_COLUMNS } from '../js/data/task-grid-parties.js';
 import { sortGridFiles } from '../js/data/task-grid-sort.js';
 
 let fail = 0;
@@ -30,6 +33,24 @@ const grid = buildTaskGrid(tasks, deals, TODAY);
 const status = (id) => partyStatusForFile(grid.rows, id);
 
 ok(PARTY_COLUMNS.map(([key]) => key).join() === 'buyer,seller,buyer-agent,listing-agent', 'the four parties are Buyer, Seller, Buyer\'s Agent, Listing Agent');
+ok(partyTaskMark([{ state: 'done', total: 1, done: 1 }, { state: 'done', total: 1, done: 1 }]) === 'done', 'the party mark is a check when every task is done');
+ok(partyTaskMark([{ state: 'done', total: 1, done: 1 }, { state: 'overdue', total: 1, done: 0 }]) === 'overdue', 'the party mark is a red X when any task is overdue');
+ok(partyTaskMark([{ state: 'pending', total: 1, done: 0 }]) === 'open', 'the party mark shows nothing when a task is open and not overdue');
+ok(partyTaskMark([{ state: 'na' }]) === null && partyTaskMark([]) === null, 'the party mark has nothing to say when that party has no live task');
+ok(partyTaskMark([{ state: 'done', total: 2, done: 1 }]) === 'open', 'a task shared by two people is not done until both finish');
+ok(partyTaskMark([{ state: 'done', total: 2, done: 2 }]) === 'done', 'a shared task is done when every copy is done');
+ok(partyTaskMark([{ state: 'done', total: 2, done: 2 }, { state: 'overdue', total: 2, done: 1 }]) === 'overdue', 'an overdue shared task still wins when another shared task is done');
+const shared = buildTaskGrid([
+  task('mb1', 'm1', 'Client-Buyer', 'done', '2026-11-01', 'Upload ID'),
+  task('mb2', 'm1', 'Client-Buyer', 'todo', '2026-12-01', 'Upload ID'),
+  task('mb3', 'm2', 'Client-Buyer', 'done', '2026-11-01', 'Upload ID'),
+  task('mb4', 'm2', 'Client-Buyer', 'done', '2026-11-01', 'Upload ID'),
+  task('ms1', 'm1', 'Client-Seller', 'todo', '2026-11-01', 'Payoff'),
+  task('ms2', 'm1', 'Client-Seller', 'done', '2026-11-01', 'Payoff'),
+], [deal('m1', 'MD-9', '2026-12-01'), deal('m2', 'MD-8', '2026-12-01')], TODAY);
+ok(partyStatusForFile(shared.rows, 'm1').buyer.state === 'open', 'two buyers on one task stay open while one of them has not finished');
+ok(partyStatusForFile(shared.rows, 'm2').buyer.state === 'done', 'two buyers on one task are a check only when both are done');
+ok(partyStatusForFile(shared.rows, 'm1').seller.state === 'overdue', 'two sellers on one task are a red X when one copy is overdue');
 
 const d1 = status('d1');
 ok(d1.buyer.state === 'done', 'a green check when every buyer task is complete');
@@ -66,10 +87,13 @@ const buyerAt = row.indexOf('data-party="buyer"');
 const sellerAt = row.indexOf('data-party="seller"');
 const agentAt = row.indexOf('data-party="buyer-agent"');
 const listingAt = row.indexOf('data-party="listing-agent"');
-const taskAt = row.indexOf('data-task=');
+const header = html.slice(html.indexOf('<thead>'), html.indexOf('</thead>'));
+const sorts = [...header.matchAll(/data-sort="([^"]+)"/g)].map((m) => m[1]);
 ok(html.includes('data-sort="fileNumber"') && html.includes('File No') && html.includes('data-sort="address"') && html.includes('>Property') && html.includes('data-sort="closingDate"') && html.includes('Closing Date'), 'file number, property and closing date columns stay');
-ok(html.includes('data-party-columns="4"') && html.includes('Buyer&#39;s Agent') && html.includes('Listing Agent') && html.includes('data-grid-group="parties"'), 'the four party columns are on the grid');
-ok(closingAt > 0 && closingAt < buyerAt && buyerAt < sellerAt && sellerAt < agentAt && agentAt < listingAt && listingAt < taskAt, 'party columns sit after closing date and before the task columns');
+ok(sorts.join() === 'fileNumber,address,closingDate,party:buyer,party:seller,party:buyer-agent,party:listing-agent', 'the grid shows only those three fields plus Buyer, Seller, Buyer\'s Agent, Listing Agent');
+ok(html.includes('data-party-columns="4"') && html.includes('Buyer&#39;s Agent') && html.includes('Listing Agent') && !html.includes('data-task=') && !html.includes('data-col-task') && !html.includes('data-grid-group='), 'the four party columns are on the grid and the task columns to the right are gone');
+const afterListing = row.slice(row.indexOf('</td>', listingAt) + 5);
+ok(closingAt > 0 && closingAt < buyerAt && buyerAt < sellerAt && sellerAt < agentAt && agentAt < listingAt && !afterListing.includes('data-party=') && !afterListing.includes('data-task='), 'party columns sit after closing date and nothing follows Listing Agent');
 ok(row.includes('>MD-1<') && row.includes('MD-1 Street') && row.includes('12/01/2026'), 'the file number, property and closing date values are unchanged');
 ok(cellOf(row, 'buyer').includes('data-state="done"') && cellOf(row, 'buyer').includes('ok-text') && cellOf(row, 'buyer').includes('&#10004;'), 'the buyer cell is a green check');
 ok(cellOf(row, 'seller').includes('data-state="overdue"') && cellOf(row, 'seller').includes('bad-text') && cellOf(row, 'seller').includes('&#10008;'), 'the seller cell is a red X');

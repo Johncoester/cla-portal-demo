@@ -257,11 +257,11 @@ ok(page.includes('return { name: f.name.value, type, config }') && page.includes
 const want = new Map([
   ['js/data/supabase-crm-surface.js', '202611160500'],
   ['js/data/supabase-crm.js', '202611241300'],
-  ['js/data/supabase-adapter.js', '202611241500'],
-  ['js/data/adapter.js', '202611241500'],
+  ['js/data/supabase-adapter.js', '202611241700'],
+  ['js/data/adapter.js', '202611241700'],
   ['js/pages/crm-dashboards.js', '202611161500'],
   ['js/pages/crm.js', '202611221700'],
-  ['js/app.js', '202611241500'],
+  ['js/app.js', '202611241700'],
 ]);
 function walkDir(dir, out = []) {
   for (const name of readdirSync(dir)) {
