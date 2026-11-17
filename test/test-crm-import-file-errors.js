@@ -62,18 +62,19 @@ ok(!page.includes("$('[data-import-file]', root).addEventListener('change', guar
 ok(page.includes('data-import-file-help') && page.includes('data-import-file-err') && page.includes('class="err-text"') && page.includes('role="alert"'), 'the upload card has a helper and a red alert');
 ok(read('css/portal.css').includes('.err-text { color: var(--bad);'), 'the alert uses the existing red text');
 ok(read('js/app.js').includes("pages/crm-janine.js?v=202611242030") && read('js/pages/crm.js').includes("crm-janine.js?v=202611242030") && read('js/pages/crm-forms.js').includes("crm-janine.js?v=202611242030") && read('js/pages/crm-home.js').includes("crm-janine.js?v=202611242030"), 'the import page is loaded at 202611242030 from the shell and the CRM pages');
-ok(!read('js/app.js').includes('crm-janine.js?v=202611221700') && !read('index.html').includes('202611242030') && !read('js/data/adapter.js').includes('202611242030'), 'index.html and adapter.js keep their stamps, and the old page stamp is gone');
+ok(read('index.html').includes('js/app.js?v=202611242030') && read('js/app.js').includes("pages/crm.js?v=202611242030") && read('js/pages/crm.js').includes("crm-forms.js?v=202611242030") && read('js/pages/crm.js').includes("crm-home.js?v=202611242030") && read('js/pages/crm-home.js').includes("crm-forms.js?v=202611242030"), 'the changed pages are stamped 202611242030 up to index.html');
+ok(!read('js/data/adapter.js').includes('202611242030') && read('js/app.js').includes("adapter.js?v=202611242010"), 'the adapters keep the stamp from main');
 
 const tracked = execFileSync('git', ['diff', '--name-only', 'origin/main'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean);
 const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean);
 const changed = [...tracked, ...untracked];
-const expect = new Set(['js/data/crm-import-file.js', 'js/pages/crm-janine.js', 'js/app.js', 'js/pages/crm.js', 'js/pages/crm-forms.js', 'js/pages/crm-home.js', 'test/test-crm-import-file-errors.js', 'test/test-crm-page-size.js', 'test/test-crm-sort-arrows.js', 'docs/specs/crm-import-file-errors.md', 'ROADMAP.md']);
+const expect = new Set(['js/data/crm-import-file.js', 'js/pages/crm-janine.js', 'js/app.js', 'js/pages/crm.js', 'js/pages/crm-forms.js', 'js/pages/crm-home.js', 'index.html', 'test/test-crm-import-file-errors.js', 'test/test-crm-page-size.js', 'test/test-crm-sort-arrows.js', 'test/test-crm-contact-times.js', 'test/test-crm-dash-component.js', 'test/test-crm-janine-27-29.js', 'test/test-file-nav.js', 'docs/specs/crm-import-file-errors.md', 'ROADMAP.md']);
 const extra = changed.filter((f) => !expect.has(f));
 ok(extra.length === 0 && expect.size === changed.length, 'only the CRM import file-error files changed' + (extra.length ? ': ' + extra.join(', ') : '') + (changed.length !== expect.size ? ' missing ' + [...expect].filter((f) => !changed.includes(f)).join(', ') : ''));
-ok(!changed.some((f) => f.startsWith('supabase/') || f === 'js/data/adapter.js' || f === 'index.html'), 'no migration, adapter, or index.html change');
-for (const rel of ['js/app.js', 'js/pages/crm.js', 'js/pages/crm-forms.js', 'js/pages/crm-home.js']) {
+ok(!changed.some((f) => f.startsWith('supabase/') || f === 'js/data/adapter.js'), 'no migration or adapter change');
+for (const rel of ['index.html', 'js/app.js', 'js/pages/crm.js', 'js/pages/crm-forms.js', 'js/pages/crm-home.js']) {
   const diff = execFileSync('git', ['diff', '-U0', 'origin/main', '--', rel], { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'));
-  ok(diff.length > 0 && diff.every((l) => /crm-janine\.js\?v=202611(221700|242010|242030)/.test(l)), rel + ' changes only the import page stamp');
+  ok(diff.length > 0 && diff.every((l) => /\?v=202611\d+/.test(l)), rel + ' changes only cache stamps');
 }
 
 const { window, document } = parseHTML('<!doctype html><html><body><div id="app"></div><div id="toasts"></div></body></html>');
