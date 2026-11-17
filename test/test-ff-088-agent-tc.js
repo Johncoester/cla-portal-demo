@@ -81,5 +81,14 @@ ok(mig.includes("new.role in ('Buyer Agent TC', 'Listing Agent TC')") && mig.inc
 ok(mig.includes("'Buyer Agent TC', 'Listing Agent TC'") && rb.includes("select r in ('Client-Seller', 'Buyer Agent', 'Listing Agent', 'Transaction Coordinator')") && !rb.includes('Buyer Agent TC'), 'rollback puts the refinance list back without the agent roles');
 ok(rb.includes(STAFF_TC_MESSAGE), 'rollback keeps the staff Transaction Coordinator sentence');
 
+const roleMig = readFileSync(new URL('../supabase/migrations/20261124170000_agent_tc_role_check.sql', import.meta.url), 'utf8');
+const roleRb = readFileSync(new URL('../supabase/rollbacks/20261124170000_agent_tc_role_check.sql', import.meta.url), 'utf8');
+const roleList = (sql) => (sql.match(/check \(role in \(([\s\S]*?)\)\)/) || ['', ''])[1];
+const added = roleList(roleMig);
+const restored = roleList(roleRb);
+ok(added.includes("'Buyer Agent TC'") && added.includes("'Listing Agent TC'") && added.includes("'Transaction Coordinator'") && added.includes("'Abstractor'") && added.includes("'Underwriter'"), 'the people-role list allows both agent coordinators and keeps the roles it already had');
+ok(!restored.includes('Buyer Agent TC') && !restored.includes('Listing Agent TC') && restored.includes("'Buyer Agent'") && restored.includes("'Transaction Coordinator'"), 'undo puts the old people-role list back');
+ok(roleRb.includes('Remove those people from the files before undoing this change.'), 'undo refuses while a file still has an agent coordinator');
+
 console.log(fail ? `ff-088: ${fail} failed` : 'ff-088 passed');
 if (fail) process.exit(1);

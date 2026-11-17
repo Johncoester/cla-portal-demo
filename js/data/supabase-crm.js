@@ -9,9 +9,9 @@ import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCusto
 import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611130900';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611130900';
 import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
-import { dealStageOf } from './crm-analytics.js?v=202611241900';
+import { dealStageOf } from './crm-analytics.js?v=202611242010';
 import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611241300';
-import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611160500';
+import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611242010';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };
@@ -88,11 +88,12 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     const best = new Map();
     if (ids.length) {
       try {
-        const acts = ok(await sb.from('crm_activities').select('entity_id,occurred_on,created_at').eq('entity', entity).in('entity_id', ids)) || [];
-        acts.forEach((a) => { const stamp = a.occurred_on || a.created_at || ''; const prev = best.get(a.entity_id) || ''; if (String(stamp) > String(prev)) best.set(a.entity_id, stamp); });
+        // One read for every row. The latest stamp's created_by is Last Activity By. No per-row lookup.
+        const acts = ok(await sb.from('crm_activities').select('entity_id,occurred_on,created_at,created_by').eq('entity', entity).in('entity_id', ids)) || [];
+        acts.forEach((a) => { const stamp = a.occurred_on || a.created_at || ''; const prev = best.get(a.entity_id); if (!prev || String(stamp) > String(prev.stamp)) best.set(a.entity_id, { stamp, by: a.created_by || null }); });
       } catch { /* a missing activities read leaves the filter blank, not broken */ }
     }
-    return (rows || []).map((r) => ({ ...r, lastActivityAt: best.get(r.id) || r.lastActivityAt || null }));
+    return (rows || []).map((r) => { const hit = best.get(r.id); return { ...r, lastActivityAt: (hit && hit.stamp) || r.lastActivityAt || null, lastActivityBy: (hit && hit.by) || r.lastActivityBy || null }; });
   };
   // ---------- CRM Settings (migration 25) ----------
   const settingsRaw = async () => ensureSettings(await rpc('crm_settings'));

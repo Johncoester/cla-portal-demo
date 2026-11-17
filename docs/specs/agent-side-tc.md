@@ -14,6 +14,8 @@ The CLA Title Transaction Coordinator, in Edit order details and as the Contacts
 
 The buyer's coordinator is stored as Buyer Agent TC. The listing coordinator is stored as Listing Agent TC. A typed person is a contact with no portal login and no invite. Picking someone who already has an outside login uses that contact. Neither role sets the file's CLA Transaction Coordinator.
 
+The file's people list allows those two roles and every role it already allowed, including the CLA Transaction Coordinator, the lender, and the abstractor. Place Order opens the new file after the coordinator is saved.
+
 ## What this does not change
 
 Who can be the CLA Title Transaction Coordinator. An outside person in that role is still refused. A refinance still has no sellers, agents, or coordinators. Invite to portal is not offered on these two roles.

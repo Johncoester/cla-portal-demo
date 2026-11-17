@@ -8,7 +8,7 @@
  * Nothing here deletes: dashboards, components and reports are RETIRED (hidden, restorable). Mirrored by migration 30. */
 import { MODULE_CODES, moduleName, SEARCH_MODULES, REPORT_MODULES, DASH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, parseQuery, searchMatch, moduleFields, reportFields,
   RELATED, joinRows, runReport, reportCsv, cleanCriteria, applyCriteria, criteriaText, chartData, measureOf, measureLabel, groupOf, display, dealStageOf, CALL_TYPES,
-  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, BUCKETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611241900';
+  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, BUCKETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611242010';
 import { ensureNov3b } from './crm-nov3b.js?v=202611070139';
 import { DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611070139';
 import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611130900';
@@ -55,8 +55,8 @@ export function crmNov3bPart(x, h) {
       loanAmount: q.loanAmount == null ? null : q.loanAmount, stage: dealStageOf(q.status), status: q.status, closingDate: q.closingDate || null, openDate: q.openDate || null,
       clientName: [...new Set(clients.map(fullName))].join(', '), _clientLink: firstClient && contactSeen(u, firstClient) ? `#/crm/contacts/${firstClient.id}` : '',
       contactName: [...new Set(agents.map(fullName))].join(', '), ownerId: sales[0] ? sales[0].salesId : null, ownerName: sales[0] ? nameOf(sales[0].salesId) : '', salesReps: sales.map((s) => nameOf(s.salesId)).join(', '),
-      county: q.county || '', city: q.city, transactionType: q.transactionType || '', lenderName: q.lenderName || '', createdAt: q.createdAt || null, modifiedAt: q.updatedAt || null,
-      lastActivityAt: [...(d.crmActivities || []).filter((a) => a.entity === 'deal' && a.entityId === q.id && a.createdAt).map((a) => a.createdAt), ...(d.crmEmails || []).filter((m) => m.entity === 'deal' && m.entityId === q.id && m.createdAt).map((m) => m.createdAt)].reduce((a, b) => (a > b ? a : b), null),
+      county: q.county || '', city: q.city, transactionType: q.transactionType || '', lenderName: q.lenderName || '', createdBy: q.createdBy || null, createdByName: q.createdBy ? nameOf(q.createdBy) : '', createdAt: q.createdAt || null, modifiedAt: q.updatedAt || null,
+      ...(() => { const latest = [...(d.crmActivities || []).filter((a) => a.entity === 'deal' && a.entityId === q.id && a.createdAt).map((a) => ({ at: a.createdAt, by: a.createdBy })), ...(d.crmEmails || []).filter((m) => m.entity === 'deal' && m.entityId === q.id && m.createdAt).map((m) => ({ at: m.createdAt, by: m.createdBy }))].reduce((a, b) => (a && a.at > b.at ? a : b), null); return { lastActivityAt: latest ? latest.at : null, lastActivityBy: latest ? latest.by || null : null, lastActivityByName: latest && latest.by ? nameOf(latest.by) : '' }; })(),
       _link: `#/crm/deals/${q.id}`, _portalLink: `#/deals/${q.id}`,
       // John, Nov 3: SOURCE = the order's Source of business (the CRM Settings Lead Source list, staff only; Matt Nov 3 b) = who / what sent us the deal
       source: q.sourceOfBusiness || '', sourceText: q.sourceOfBusiness ? (referralLabel(q.sourceOfBusiness, (id) => { const c = cOf(id); return c ? fullName(c) : ''; }) || L(cfg, 'leadSource', q.sourceOfBusiness)) : '', salesIds: sales.map((z) => z.salesId),
@@ -80,13 +80,22 @@ export function crmNov3bPart(x, h) {
     return { ...base, callType: a.callType || '', callStart: start, callDuration: a.callDuration == null ? null : a.callDuration, callStatus: a.callStatus || 'Completed', ownerId: a.ownerId || a.createdBy, ownerName: a.ownerName || a.createdByName, _link: `#/crm/calls/${a.id}`,
       callTypeText: a.callType || '', callStartText: display({ type: a.callStart ? 'datetime' : 'date', key: 'a' }, { a: start }), callDurationText: a.callDurationText || (a.callDuration == null ? '' : `${a.callDuration} min`) };
   }
+  // One pass over activities and emails. The person on the latest stamp is Last Activity By. Not one lookup per row.
+  function latestActors(entity) {
+    const best = new Map(); const d = db();
+    const take = (id, at, by) => { if (!id || !at) return; const prev = best.get(id); if (!prev || String(at) > String(prev.at)) best.set(id, { at, by: by || null }); };
+    (d.crmActivities || []).forEach((a) => { if (a.entity === entity) take(a.entityId, a.createdAt, a.createdBy); });
+    (d.crmEmails || []).forEach((m) => { if (m.entity === entity) take(m.entityId, m.createdAt, m.createdBy); });
+    return best;
+  }
+  const acted = (map, id) => { const hit = map.get(id); const by = hit ? hit.by : null; return { lastActivityBy: by, lastActivityByName: by ? nameOf(by) : '' }; };
   function rowsOf(u, module, cfg = cfgFor(u)) {
     const d = db();
     switch (module) {
-      case 'contacts': return d.contacts.filter((c) => contactSeen(u, c)).map((c) => { const r = flat(cfg, 'contact', contactOut(u, c));
-        return { ...r, createdBy: c.createdBy || null, createdByName: c.createdBy ? nameOf(c.createdBy) : '', createdAt: c.createdAt || null, modifiedAt: c.modifiedAt || null, tags: (c.tags || []).join(', '), _link: `#/crm/contacts/${c.id}`, _companyLink: c.accountId ? `#/crm/accounts/${c.accountId}` : '' }; });
-      case 'leads': return d.crmLeads.filter((l) => leadSeen(u, l)).map((l) => { const r = flat(cfg, 'lead', leadOut(u, l)); return { ...r, createdByName: l.createdBy ? nameOf(l.createdBy) : '', leadSourceText: L(cfg, 'leadSource', r.leadSource), _link: `#/crm/leads/${l.id}` }; });
-      case 'accounts': return d.crmAccounts.filter((a) => accountSeen(u, a)).map((a) => ({ ...flat(cfg, 'account', accountOut(u, a)), createdByName: a.createdBy ? nameOf(a.createdBy) : '', _link: `#/crm/accounts/${a.id}` }));
+      case 'contacts': { const act = latestActors('contact'); return d.contacts.filter((c) => contactSeen(u, c)).map((c) => { const r = flat(cfg, 'contact', contactOut(u, c));
+        return { ...r, ...acted(act, c.id), createdBy: c.createdBy || null, createdByName: c.createdBy ? nameOf(c.createdBy) : '', modifiedBy: c.modifiedBy || null, modifiedByName: c.modifiedBy ? nameOf(c.modifiedBy) : '', createdAt: c.createdAt || null, modifiedAt: c.modifiedAt || null, tags: (c.tags || []).join(', '), _link: `#/crm/contacts/${c.id}`, _companyLink: c.accountId ? `#/crm/accounts/${c.accountId}` : '' }; }); }
+      case 'leads': { const act = latestActors('lead'); return d.crmLeads.filter((l) => leadSeen(u, l)).map((l) => { const r = flat(cfg, 'lead', leadOut(u, l)); return { ...r, ...acted(act, l.id), createdByName: l.createdBy ? nameOf(l.createdBy) : '', modifiedByName: l.modifiedBy ? nameOf(l.modifiedBy) : (r.modifiedByName || ''), leadSourceText: L(cfg, 'leadSource', r.leadSource), _link: `#/crm/leads/${l.id}` }; }); }
+      case 'accounts': { const act = latestActors('account'); return d.crmAccounts.filter((a) => accountSeen(u, a)).map((a) => ({ ...flat(cfg, 'account', accountOut(u, a)), ...acted(act, a.id), createdByName: a.createdBy ? nameOf(a.createdBy) : '', modifiedByName: a.modifiedBy ? nameOf(a.modifiedBy) : '', _link: `#/crm/accounts/${a.id}` })); }
       case 'opportunities': return d.crmOpportunities.filter((o) => oppSeen(u, o)).map((o) => ({ ...flat(cfg, 'opportunity', oppOut(u, o)), _link: '#/crm/pipeline', _contactLink: o.contactId ? `#/crm/contacts/${o.contactId}` : '', _accountLink: o.accountId ? `#/crm/accounts/${o.accountId}` : '' }));
       case 'deals': return crmDealsFor(u).map((q) => dealRow(u, q, cfg));
       case 'tasks': case 'meetings': case 'calls': { const kind = { tasks: 'task', meetings: 'meeting', calls: 'call' }[module];

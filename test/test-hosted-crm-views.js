@@ -13,7 +13,7 @@ const proc = { id: '22222222-2222-4222-8222-222222222222', name: 'Pat Processor'
 const sales = { id: '33333333-3333-4333-8333-333333333333', name: 'Sam Sales', role: 'Sales Person', isAdmin: false };
 
 function memorySb() {
-  const tables = { crm_views: [], crm_view_criteria: [], crm_view_columns: [], crm_view_shares: [], crm_view_pins: [], crm_saved_filters: [], crm_saved_filter_values: [], deal_disbursements: [] };
+  const tables = { crm_views: [], crm_view_criteria: [], crm_view_columns: [], crm_view_shares: [], crm_view_pins: [], crm_saved_filters: [], crm_saved_filter_values: [], deal_disbursements: [], contacts: [], deals: [] };
   const calls = [];
   let n = 1;
   const uuid = () => `00000000-0000-4000-8000-${String(n++).padStart(12, '0')}`;
@@ -123,7 +123,7 @@ const targets = await api.listCrmShareTargets();
 ok(targets.users.some((u) => u.id === sales.id) && targets.users.some((u) => u.id === admin.id), 'the share list is the hosted assignee list, including the signed-in person');
 
 const view = await api.createCrmView({ module: 'leads', name: 'Janine pin check', criteria: [{ field: 'leadSource', op: 'is', value: 'Call in/Walk in' }, { field: 'name', op: 'contains', value: 'Ada' }], columns: ['email', 'name'] });
-ok(view.pinned === true && view.canEdit === true && view.mine === true && view.columns[0] === 'name' && view.columns.includes('email'), 'a new hosted view is saved, owned, editable, and pinned');
+ok(view.pinned === true && view.canEdit === true && view.mine === true && view.columns[0] === 'email' && view.columns[1] === 'name', 'a new hosted view is saved, owned, editable, and pinned, and keeps the column order it was given');
 ok(sb.tables.crm_view_criteria.length === 2 && sb.tables.crm_view_criteria.every((r) => typeof r.value_text === 'string' && r.view_id === view.id), 'both criteria are inserted together as text rows on that view');
 ok(sb.calls.filter((c) => c.table === 'crm_view_columns' && c.op === 'insert').every((c) => c.n === view.columns.length), 'columns are one insert, not one insert per column');
 ok(sb.calls.filter((c) => c.table === 'crm_view_criteria' && c.op === 'insert').length === 1, 'criteria are one insert');
@@ -188,6 +188,39 @@ current = proc;
 ok(await rejects(() => api.createCrmView({ module: 'leads', name: 'Processor shared', visibility: 'all', criteria: [] }), /read-only/), 'a processor cannot share a view with everyone');
 const mine = await api.createCrmView({ module: 'leads', name: 'Processor private', criteria: [] });
 ok(mine.pinned === true && mine.canEdit === false, 'a processor can keep a private view and cannot edit it');
+current = admin;
+sb.tables.contacts.push({ id: 'c-admin', created_by: admin.id, modified_by: admin.id }, { id: 'c-sales', created_by: sales.id, modified_by: sales.id });
+api.listCrmContacts = async () => [
+  { id: 'c-admin', name: 'Made by Janine', ownerId: sales.id },
+  { id: 'c-sales', name: 'Made by Sam', ownerId: sales.id },
+];
+const byJanine = await api.createCrmView({ module: 'contacts', name: 'Created by Janine', criteria: [{ field: 'createdBy', op: 'is', value: admin.id }], columns: ['name'], pin: false });
+ok(sb.tables.crm_view_criteria.some((r) => r.view_id === byJanine.id && r.field_key === 'createdBy' && r.value_text === admin.id), 'a user criterion is still stored as the user id');
+sb.calls.length = 0;
+const ranContacts = await api.runCrmView(byJanine.id);
+ok(ranContacts.total === 1 && ranContacts.rows[0].id === 'c-admin', 'a clients view matches created_by to the chosen user, including a super admin');
+ok(sb.calls.filter((c) => c.table === 'contacts' && c.op === 'select').length === 1, 'client created-by and modified-by ids are read once, not once per row');
+const byModified = await api.createCrmView({ module: 'contacts', name: 'Modified by Sam', criteria: [{ field: 'modifiedBy', op: 'is', value: sales.id }], columns: ['name'], pin: false });
+const ranModified = await api.runCrmView(byModified.id);
+ok(ranModified.total === 1 && ranModified.rows[0].id === 'c-sales', 'a clients view matches modified_by to the chosen user');
+
+sb.tables.deals.push({ id: 'd1', created_by: admin.id }, { id: 'd2', created_by: sales.id });
+api.listCrmDeals = async () => [
+  { id: 'd1', name: 'Janine file', ownerId: sales.id, ownerName: 'Sam Sales' },
+  { id: 'd2', name: 'Sam file', ownerId: admin.id, ownerName: 'Janine Admin' },
+];
+const byOwner = await api.createCrmView({ module: 'deals', name: 'Owned by Sam', criteria: [{ field: 'ownerId', op: 'is', value: sales.id }], columns: ['name'], pin: false });
+sb.calls.length = 0;
+const ranOwner = await api.runCrmView(byOwner.id);
+ok(ranOwner.total === 1 && ranOwner.rows[0].id === 'd1', 'a deals view matches the deal owner id');
+ok(!sb.calls.some((c) => c.table === 'deals'), 'an owner filter uses the owner id already on the row');
+const byCreator = await api.createCrmView({ module: 'deals', name: 'Created by Janine deal', criteria: [{ field: 'createdBy', op: 'is', value: admin.id }], columns: ['name'], pin: false });
+sb.calls.length = 0;
+const ranCreator = await api.runCrmView(byCreator.id);
+ok(ranCreator.total === 1 && ranCreator.rows[0].id === 'd1', 'a deals view matches created_by to the chosen user id');
+ok(sb.calls.filter((c) => c.table === 'deals' && c.op === 'select').length === 1, 'deal created-by ids are read once');
+
+current = proc;
 const procBar = toText(await viewsBar(api, 'leads'));
 const procDoc = parseHTML(`<div>${procBar}</div>`).document;
 const procMenu = procDoc.querySelector(`[data-pin-menu="${mine.id}"]`);

@@ -5,8 +5,8 @@
  *  * SEARCH RESULT COLUMNS: each person picks the columns of each module's table on the search results page.
  *  * DISBURSEMENT DETAILS on a deal (Admin / Super admin edit; logged).
  * Nothing is deleted: views and saved filters are RETIRED (hidden). Mirrored by migration 56. */
-import { moduleFields, cleanCriteria, applyCriteria, display, SEARCH_COLUMNS, SEARCH_MODULES } from './crm-analytics.js?v=202611241900';
-import { VIEW_MODULES, VIEW_DEFAULT_COLUMNS, PINS_MAX, nameOk, cleanColumns, cleanFilterValues, SEARCH_COL_MAX } from './crm-views.js?v=202611070139';
+import { moduleFields, cleanCriteria, applyCriteria, display, SEARCH_COLUMNS, SEARCH_MODULES } from './crm-analytics.js?v=202611242010';
+import { VIEW_MODULES, VIEW_DEFAULT_COLUMNS, PINS_MAX, nameOk, cleanColumns, placeNameColumn, cleanFilterValues, SEARCH_COL_MAX, viewModuleFields, withViewUserIds } from './crm-views.js?v=202611242010';
 import { cleanDisbursement, DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611070139';
 import { crmReadOnly } from './crm.js?v=202611130900';
 
@@ -20,7 +20,7 @@ export function feedbackNov4Part(x, h) {
   const viewOr404 = (u, id) => { const v = db().crmViews.find((z) => z.id === str(id, 60)); if (!v || !visible(u, v)) fail('That view does not exist.'); return v; };
   const pinsOf = (u, module) => db().crmViewPins.filter((p) => p.userId === u.id && db().crmViews.some((v) => v.id === p.viewId && v.module === module && visible(u, v))).sort((a, b) => a.position - b.position);
   function cleanView(u, input, module, cfg, old = null) {
-    const fields = moduleFields(module, cfg);
+    const fields = viewModuleFields(module, cfg);
     const vis = str(input.visibility ?? (old ? old.visibility : 'me'), 10); if (!['me', 'all', 'custom'].includes(vis)) fail('Pick who sees this view.');
     if (vis !== 'me' && crmReadOnly(u)) fail('The Processor has read-only access to the CRM: views you make are for you only.');
     const users = vis === 'custom' ? [...new Set((input.shareUsers ?? (old ? old.shareUsers : []) ?? []).map((z) => str(z, 60)))] : [];
@@ -37,7 +37,7 @@ export function feedbackNov4Part(x, h) {
     return { name, visibility: vis, shareUsers: users, logic, criteria, columns, sortField, sortDir };
   }
   const viewOut = (u, v) => ({ id: v.id, module: v.module, name: v.name, ownerId: v.ownerId, ownerName: nameOf(v.ownerId), visibility: v.visibility, shareUsers: [...(v.shareUsers || [])], logic: v.logic,
-    criteria: clone(v.criteria), columns: [...v.columns], sortField: v.sortField, sortDir: v.sortDir, mine: v.ownerId === u.id, canEdit: editable(u, v), retired: !!v.retiredAt,
+    criteria: clone(v.criteria), columns: placeNameColumn(v.module, v.columns), sortField: v.sortField, sortDir: v.sortDir, mine: v.ownerId === u.id, canEdit: editable(u, v), retired: !!v.retiredAt,
     pinned: db().crmViewPins.some((p) => p.userId === u.id && p.viewId === v.id), createdAt: v.createdAt, modifiedAt: v.modifiedAt });
   const cellOf = (f, r, cfg) => ({ text: display(f, r, cfg), link: f.link && !f.encrypted ? r[f.link] || '' : '' });
 
@@ -62,9 +62,9 @@ export function feedbackNov4Part(x, h) {
       if (!on && has) { d.crmViewPins.splice(d.crmViewPins.indexOf(has), 1); pinsOf(u, v.module).forEach((p, i) => { p.position = i; }); }   // a pin is a screen preference, not a record
       save(); return { pinned: !!on }; },
     // a view's rows: only records the viewer may see, the view's criteria, its columns (display text + link)
-    async runCrmView(id) { const u = crmUser(); const v = viewOr404(u, id); const cfg = cfgFor(u); const fields = moduleFields(v.module, cfg);
-      const rows = applyCriteria(rowsOf(u, v.module, cfg), v.criteria, fields, { logic: v.logic, today: localDate() });
-      const cols = v.columns.map((k) => fields.find((f) => f.key === k)).filter(Boolean); const sf = fields.find((f) => f.key === v.sortField) || cols[0];
+    async runCrmView(id) { const u = crmUser(); const v = viewOr404(u, id); const cfg = cfgFor(u); const fields = viewModuleFields(v.module, cfg);
+      const rows = applyCriteria(rowsOf(u, v.module, cfg).map(withViewUserIds), v.criteria, fields, { logic: v.logic, today: localDate() });
+      const cols = placeNameColumn(v.module, v.columns).map((k) => fields.find((f) => f.key === k)).filter(Boolean); const sf = fields.find((f) => f.key === v.sortField) || cols[0];
       const sortVal = (r) => { const x = r[sf.key]; return x == null ? '' : typeof x === 'number' ? x : String(display(sf, r, cfg)).toLowerCase(); };
       const sorted = rows.slice().sort((a, b) => { const A = sortVal(a), B = sortVal(b); const c = typeof A === 'number' && typeof B === 'number' ? A - B : String(A).localeCompare(String(B)); return v.sortDir === 'desc' ? -c : c; });
       return { view: viewOut(u, v), fields: fields.map((f) => ({ key: f.key, label: f.label, type: f.type, list: f.list || null, options: f.options || null })), columns: cols.map((f) => ({ key: f.key, label: f.label, type: f.type })),
