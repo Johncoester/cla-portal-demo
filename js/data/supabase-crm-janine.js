@@ -6,10 +6,10 @@
  * Preview rolls back inside each call (P0004). A commit reuses one batch id.
  * Nothing is emailed. */
 import { buildIcs, INVITE_NOTE, parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, importTooBigMessage, leadRequiredMessages, importPartialReport, importErrorCsv, saveImportResume, loadZipTable, countiesFor, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611101600';
-import { US_STATE_NAMES, US_STATES } from './constants.js?v=202611101015';
+import { US_STATE_NAMES, US_STATES, fmtPhone, phoneOk } from './constants.js?v=202611101015';
 import { ensureSettings, findOption } from './crm-config.js?v=202611130900';
 import { importedStatusDecision } from './crm-import-status.js?v=202611131900';
-import { LINK_KEYS } from './crm.js?v=202611130900';
+import { LINK_KEYS, LINK_FIELDS, cleanUrl } from './crm.js?v=202611130900';
 
 const DEFAULT_LABEL = Object.fromEntries(IMPORT_DEFAULT_FIELDS.map(([k, l]) => [k, l]));
 const clip = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
@@ -72,6 +72,54 @@ function personValues(rec) {
     description: clip(rec.description, 4000),
     links: linksOf(rec),
   };
+}
+
+// The import screen checks these before the database sees the row.
+// A phone that is not 10 digits is kept off the save (11 digits starting with 1 counts as 10).
+// A web address with no http:// or https:// gets https:// in front. One that is still not a web address
+// is a row error in plain words, instead of the database check constraint.
+const LINK_LABEL = Object.fromEntries(LINK_FIELDS);
+const IMPORT_URL_OK = /^https?:\/\/[^\s/:@]+\.[^\s/:@]+(:[0-9]+)?(\/\S*)?$/i;
+export function importPhoneReason(label) {
+  return `${label} must be a 10-digit phone number, like 301-555-0101. A leading 1 is fine. Correct it in the file, or leave it blank.`;
+}
+function importLinkReason(label, raw) {
+  const shown = String(raw == null ? '' : raw).trim().slice(0, 60);
+  return `${label} "${shown}" is not a web address. Type it like example.com or https://example.com.`;
+}
+export function plainImportDbMessage(message) {
+  const s = String(message || '');
+  if (/check constraint|crm_links_ok|crm_url_ok|_zoho_check/i.test(s)) {
+    return 'This web address could not be saved. Type it like example.com or https://example.com, then preview again.';
+  }
+  return s;
+}
+export function reviewImportPerson(values, prepNotes = []) {
+  const next = { ...values, links: { ...(values && values.links || {}) } };
+  const problems = [];
+  const notes = (prepNotes || []).slice();
+  [['phone', 'Phone'], ['mobile', 'Mobile']].forEach(([key, label]) => {
+    const raw = String(next[key] == null ? '' : next[key]).trim();
+    if (!raw) { next[key] = ''; return; }
+    if (!phoneOk(raw)) { problems.push(importPhoneReason(label)); return; }
+    next[key] = fmtPhone(raw);
+  });
+  const links = {};
+  const linkErrors = [];
+  const linkNotes = [];
+  LINK_KEYS.forEach((key) => {
+    const raw = String(next.links[key] == null ? '' : next.links[key]).trim();
+    if (!raw) return;
+    const label = LINK_LABEL[key] || 'Web address';
+    let href = '';
+    try { href = cleanUrl(raw); } catch (e) { linkErrors.push(importLinkReason(label, raw)); return; }
+    if (!href || href.length > 500 || !IMPORT_URL_OK.test(href)) { linkErrors.push(importLinkReason(label, raw)); return; }
+    links[key] = href;
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(raw)) linkNotes.push(`${label} saved as ${href}`);
+  });
+  if (linkErrors.length) problems.push(...linkErrors);
+  else { next.links = links; notes.push(...linkNotes); }
+  return { values: next, prepNotes: notes, problems };
 }
 
 async function cleanDefaults(self, raw0, kind, module) {
@@ -236,11 +284,18 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
       const local = [];
       const remote = [];
       slice.forEach((row) => {
+        let fieldProblems = [];
+        if (kind === 'records') {
+          const reviewed = reviewImportPerson(row.values, row.prepNotes);
+          row.values = reviewed.values;
+          row.prepNotes = reviewed.prepNotes;
+          fieldProblems = reviewed.problems;
+        }
         const missing = module === 'leads' && kind === 'records' ? leadRequiredMessages(row.values, defaults) : [];
         const statusRaw = kind === 'records' ? row.values.relationshipStatus : '';
         const statusDecision = statusCfg && String(statusRaw || '').trim() ? importedStatusDecision(statusCfg, module, statusRaw) : null;
         if (statusDecision && !statusDecision.error && statusDecision.value) row.values.relationshipStatus = statusDecision.value;
-        const problems = [...missing, ...(statusDecision && statusDecision.error ? [statusDecision.error] : [])];
+        const problems = [...missing, ...(statusDecision && statusDecision.error ? [statusDecision.error] : []), ...fieldProblems];
         if (!problems.length) { remote.push(row); return; }
         local.push({
           line: row.line, status: 'error', message: problems.join(' '), id: null, name: '', link: '', notes: [],
@@ -270,9 +325,9 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
         }
         if (res.error && res.error.code === 'P0004') {
           body = previewBody(res.error);
-          if (!body) throw new Error(res.error.message || 'Import preview failed.');
+          if (!body) throw new Error(plainImportDbMessage(res.error.message || 'Import preview failed.'));
         } else if (res.error || !res.data) {
-          const message = (res.error && res.error.message) || 'Import failed.';
+          const message = plainImportDbMessage((res.error && res.error.message) || 'Import failed.');
           if (!commit) throw new Error(message);
           const partial = { saved, failed: range, message, code: (res.error && res.error.code) || '', importId, rowsSaved: saved.reduce((n, part) => n + part.count, 0), startChunk: range.chunk };
           const err = new Error(importPartialReport(partial));
@@ -294,7 +349,7 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
       const remoteRows = (body.rows || []).map((r) => ({
         line: r.line,
         status: r.status,
-        message: r.message || '',
+        message: plainImportDbMessage(r.message || ''),
         id: r.id || null,
         name: r.name || '',
         link: r.link || '',
