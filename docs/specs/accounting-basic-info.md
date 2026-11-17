@@ -16,10 +16,10 @@ A refinance has no sales price on this form, matching Edit order details. Sales,
 
 The old menu link that also said Basic Info and opened the file overview is now labeled Order overview, so the menu does not list Basic Info twice.
 
+Other Charges has a card for the figures that used to sit on Contract Figures: warranty cap and payer, HOA and condo name, monthly dues, certificate balance and date, and the deferred amount, schedule, and payee. Saving writes those existing columns. It does not add a table, and it does not change the sales price, the loan, earnest money, seller credit, or the historical tax figures. The charge lines on the same page are still the amounts paid at closing.
+
 ## What is not in this change
 
-Other Charges (section H) can take a home-warranty charge and the HOA, condo, and deferred-water lines that are paid at closing. It does not hold the old contract-sheet fields: warranty cap and payer, HOA or condo name, monthly dues, certificate balance and date, or a general deferred amount, schedule, and payee. Those values stay in the database and are no longer on this screen.
-
-Seller credit stays under Charges, L/N. Taxes stay under Taxes & Prorations. No database file. Not Live until someone checks it on TEST.
+The transfer fee that used to sit with the HOA fields stays stored and is not on this card. Seller credit stays under Charges, L/N. Taxes stay under Taxes & Prorations. No database file. Not Live until someone checks it on TEST.
 
 TC Contract info is a different screen. It still says Contract info and still has sale price, contract date, seller concessions, settlement date, and earnest money. The role walkthrough does not look for the words "Contract figures".

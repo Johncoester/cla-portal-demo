@@ -4,7 +4,8 @@
 // click a line -> "Settings · Line NN" + "Payments · <line>", six payment methods, help rail); colours stay ours (baby-blue cards), no Qualia branding.
 // Every line is still ONE fee on the same ledger (accounting.js), so the ALTA, the CD pages, prorations and CLA rates keep working.
 // TEST ONLY. Wire instructions (bank routing / account numbers) are NEVER stored: the Wire block is a reminder only.
-import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611161500';
+import { html, raw, $, $$, guard, formData, toast, toText, fmtDate } from '../ui.js?v=202611161500';
+import { CONTRACT_FIELDS, OTHER_CHARGE_DETAIL_KEYS } from '../data/contract-terms.js?v=202611243040';
 import { splitFor } from '../data/underwriter.js?v=202611243018';
 import { cdDescription } from '../data/accounting.js?v=202611243004';
 import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611243003';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
@@ -46,7 +47,7 @@ const HELP = {
   E: ['Taxes & Fees', 'Add each document, then Calculate fees. Recording fees share line E.01 ("Recording fees: Deed: $60.00 Mortgage: $115.00"). Recordation and transfer taxes are their own lines. You can type over a calculated amount.'],
   F: ['Prepaids', 'Items paid in advance: homeowner\'s insurance (# of months), mortgage insurance, prepaid interest (per diem × days, From Date defaults to the disbursement date) and property taxes.'],
   G: ['Escrow', 'Initial escrow payment: $ per month × # of months. G.08 Aggregate adjustment is typed as a positive amount and shows negative on the CD. Compare with the lender\'s escrow analysis. Usually Net Funded.'],
-  H: ['Other Charges', 'Home warranty, agent admin fees and commissions, inspections, the owner\'s title policy (optional), holdbacks such as a water escrow.'],
+  H: ['Other Charges', 'Home warranty, HOA and condo figures, deferred charges, agent admin fees and commissions, inspections, the owner\'s title policy (optional), holdbacks such as a water escrow. The figures from the contract are the card on this page. Amounts paid at closing are the charge lines.'],
   J: ['Lender Credits', 'Credits from the lender toward the borrower\'s closing costs (CD section J).'],
   KM: ['Debits / Credits K/M', 'K: due from the borrower at closing. M: due to the seller at closing. Linked lines (⇄) are the same money on both sides.'],
   LN: ['Credits / Debits L/N', 'L: paid already by or on behalf of the borrower (deposit, loan amount, seller credit, unpaid-by-seller items). N: due from the seller (closing costs J, payoffs, seller credit). Linked lines (⇄) are the same money on both sides.'] };
@@ -173,7 +174,13 @@ export async function chargesView(api, deal, acc, q, base) {
     try { taxSetup = await api.getTaxesFeesSetup(deal.id); }
     catch (e) { taxSetup = { covered: false, reason: e.message || 'Taxes and fees could not be opened. Reload the page and try again.' }; }
   }
-  const details = (cdRec && cdRec.details) || {}; const ctx = { api, deal, acc, cd, details, base, sec, uwSplitPct, canEdit: acc.canEdit, extraPayees, taxSetup };
+  const details = (cdRec && cdRec.details) || {};
+  let chargeDetails = null;
+  if (sec === 'H' && api.getContractTerms) {
+    try { chargeDetails = await api.getContractTerms(deal.id); }
+    catch (e) { chargeDetails = { blocked: 'Warranty, HOA, condo, and deferred figures could not be opened. Reload the page and try again. Nothing was saved.', canEdit: false, fields: {} }; }
+  }
+  const ctx = { api, deal, acc, cd, details, base, sec, uwSplitPct, canEdit: acc.canEdit, extraPayees, taxSetup, chargeDetails };
   const head = html`<div class="qc-page-head"><span class="qc-chip big">${chip}</span><h3 data-qc-title>${title}</h3><span class="spacer"></span>
     ${kind === 'fee' && acc.canEdit ? html`<div class="qc-head-btns"><button type="button" class="ghost small" disabled data-qc-extract title="Qualia reads the lender's CD with AI. Not in the test portal.">Extract From CD</button>
       <button type="button" class="ghost small" data-qc-sort>Sort Lines</button><button type="button" class="ghost small qc-sq" data-qc-minus title="Clear the selected line" aria-label="Clear the selected line">&ndash;</button><button type="button" class="ghost small qc-sq" data-qc-plus title="Add a line" aria-label="Add a line">+</button></div>` : ''}</div>`;
@@ -215,9 +222,46 @@ function feeSection(ctx) {
   const titleBtns = canEdit && (sec === 'C' || sec === 'H') ? html`<div class="qc-under-btns acct-noprint"><a class="ghost small btn-like" href="${base}?v=ledger&calc=1" data-qc-edit-premium>Edit Premium Line</a>
     <button type="button" class="ghost small" data-qc-adjust>Adjust Allocations</button>${sec === 'C' ? html`<button type="button" class="ghost small" data-qc-send-b>Send Title Charges to B</button>` : ''}</div>` : '';
   const payees = html`<datalist id="qc-payees">${Q.standardPayees(deal, ctx.extraPayees).map((p) => html`<option value="${p.name}">${p.role}</option>`)}</datalist>`;
-  const body = html`${sec === 'E' ? taxFeesPanel(ctx.taxSetup) : ''}${banner}${table}${titleBtns}${payees}${sec === 'H' && modOn('payoffs') ? hoaGrPanel(ctx) : ''}<div class="qc-panels" data-qc-panels><div data-qc-settings></div><div data-qc-payments></div></div>
+  const body = html`${sec === 'H' ? otherChargeDetailsHtml(ctx.chargeDetails, canEdit) : ''}${sec === 'E' ? taxFeesPanel(ctx.taxSetup) : ''}${banner}${table}${titleBtns}${payees}${sec === 'H' && modOn('payoffs') ? hoaGrPanel(ctx) : ''}<div class="qc-panels" data-qc-panels><div data-qc-settings></div><div data-qc-payments></div></div>
     <p class="muted small qc-foot">Click a line to see its Settings and Payments. Type in a cell and press Enter (or leave the cell) to save: every change is logged. Lines are never deleted: Clear retires a line (kept in the edit history).</p>`;
-  return { body, mount: (root, refresh) => { mountFees(root, refresh, { ...ctx, rows, byLine, loan }); mountTaxFees(root, ctx, refresh); } };
+  return { body, mount: (root, refresh) => { mountFees(root, refresh, { ...ctx, rows, byLine, loan }); mountTaxFees(root, ctx, refresh); if (sec === 'H') mountOtherChargeDetails(root, ctx, refresh); } };
+}
+
+const detailValue = (f, terms) => {
+  const v = (terms.fields || {})[f.key];
+  if (f.kind === 'money') return v == null || v === '' ? '' : Number(v).toFixed(2);
+  return v || '';
+};
+export function otherChargeDetailsHtml(terms, canEdit) {
+  if (!terms) return '';
+  if (terms.blocked) return html`<div class="qc-card acct-form" data-other-charge-details><p class="notice warn" data-details-blocked>${terms.blocked}</p></div>`;
+  const fields = OTHER_CHARGE_DETAIL_KEYS.map((key) => CONTRACT_FIELDS.find((f) => f.key === key)).filter(Boolean);
+  const dis = canEdit ? '' : raw('disabled');
+  const control = (f) => f.kind === 'date'
+    ? html`<input type="date" name="${f.key}" value="${detailValue(f, terms)}" aria-label="${f.label}" ${dis}>`
+    : html`<input name="${f.key}" ${f.kind === 'money' ? raw('data-money inputmode="decimal"') : raw('')} maxlength="${f.max || 200}" value="${detailValue(f, terms)}" placeholder="${f.kind === 'money' ? 'Unknown' : ''}" aria-label="${f.label}" autocomplete="off" ${dis}>`;
+  return html`<form id="other-charge-details" class="qc-card acct-form" data-other-charge-details data-details-edit="${canEdit ? 'yes' : 'no'}" novalidate>
+    <div class="qc-card-head"><h4>Warranty, HOA, condo, and deferred</h4></div>
+    <p class="small muted">These figures stay on the order. They are not a charge line and not a payoff. An empty amount is unknown, not zero. Amounts paid at closing are the charge lines on this page.</p>
+    <div class="form-grid">${fields.map((f) => html`<label data-detail-field="${f.key}">${f.label}${control(f)}${f.hint ? html`<span class="field-hint">${f.hint}</span>` : ''}</label>`)}</div>
+    <p class="err-text small" data-form-err></p>
+    <p class="acct-form-actions">${canEdit ? html`<button class="m-btn" type="submit" data-save-details>Save these figures</button>` : html`<span class="muted small">Read only.</span>`}</p>
+  </form>`;
+}
+function mountOtherChargeDetails(root, ctx, refresh) {
+  const form = $('#other-charge-details', root);
+  if (!form || !ctx.canEdit) return;
+  form.addEventListener('submit', guard(async (e) => {
+    e.preventDefault();
+    const err = $('[data-form-err]', form);
+    err.textContent = '';
+    try {
+      const saved = await ctx.api.saveOtherChargeDetails(ctx.deal.id, formData(form));
+      if (!saved || saved.saved !== true) throw new Error('Warranty, HOA, condo, and deferred figures were not saved.');
+      toast('Saved. These stay on the order. They are not a charge line or a payoff.');
+      if (refresh) refresh();
+    } catch (x) { err.textContent = x.message; toast(x.message, 'err'); }
+  }));
 }
 
 const CELL_SIDE = { borrowerAt: 'buyer', borrowerBefore: 'buyer', sellerAt: 'seller', sellerBefore: 'seller' };

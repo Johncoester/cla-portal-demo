@@ -5,7 +5,7 @@
 // Caroline, Nov 4 (migration 39): prorations, CD details (accounting_cd_details + accounting_cd_log), prepaids / escrow lines, TCs read-only.
 import { cleanCdDetails, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA, cdFieldLabel } from './cd-pages.js?v=202611070139';
 import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, cleanFee, allEntries, ledgerTotals, altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration, feeChanges } from './accounting.js?v=202611243004';
-import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractMismatch, assertContractPersisted, exactlyOneRow, ESTIMATE_POSTURE } from './contract-terms.js?v=202611191700';
+import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractMismatch, assertContractPersisted, exactlyOneRow, ESTIMATE_POSTURE, mergeOtherChargeDetails, otherChargeDetailsChanged } from './contract-terms.js?v=202611243040';
 import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611223000';
 // CLA RATES (migration 36): calculated fees carry calc_source = 'cla-rates' + calc_key / calc_fields / rate_source / calculation / calc_inputs /
 // calc_version / calc_at; the trigger keeps `overridden` (a person changed what the calculation set). The engine loads lazily (flag off = never).
@@ -168,6 +168,26 @@ export function accountingSupabase({ sb, ok, flags }) {
       back.fields = overlayEarnestFields(after, back.fields);
       assertContractPersisted({ ...clean, fields: { ...clean.fields, ...earnestFromDeal(after) } }, back);
       return { dealId, saved: true, canEdit: true, posture: ESTIMATE_POSTURE, blocked: '', fields: back.fields, flags: back.flags, updatedAt: back.updatedAt };
+    },
+    async saveOtherChargeDetails(dealId, input) {
+      on(); await editor(dealId);
+      let existing;
+      try { existing = ok(await sb.from('accounting_contract_terms').select('*').eq('deal_id', dealId).maybeSingle()); }
+      catch (e) {
+        if (/schema cache|could not find the table|does not exist/i.test(e.message || '')) throw new Error('Warranty, HOA, condo, and deferred figures are not on this database yet. Nothing was saved.');
+        throw e;
+      }
+      const prev = existing ? fromContractRow(existing) : { fields: blankContract(dealId).fields, flags: {} };
+      const clean = mergeOtherChargeDetails(prev, input);
+      if (existing && !otherChargeDetailsChanged(prev, clean)) return { dealId, saved: true, canEdit: true, fields: clean.fields, flags: clean.flags };
+      const payload = toContractRow(clean);
+      const wrote = existing
+        ? ok(await sb.from('accounting_contract_terms').update(payload).eq('deal_id', dealId).select('*'))
+        : ok(await sb.from('accounting_contract_terms').insert({ deal_id: dealId, ...payload }).select('*').single());
+      const row = exactlyOneRow(wrote);
+      const back = fromContractRow(row);
+      if (otherChargeDetailsChanged(clean, back)) throw new Error('Warranty, HOA, condo, and deferred figures were not saved.');
+      return { dealId, saved: true, canEdit: true, fields: back.fields, flags: back.flags, updatedAt: back.updatedAt };
     },
   };
 }

@@ -1422,7 +1422,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Other Charges can take a home-warranty charge and the HOA, condo, and deferred-water lines that are paid at closing. It does not hold the old sheet's warranty cap and payer, HOA or condo name, monthly dues, certificate balance and date, or a general deferred amount, schedule, and payee. Those values stay stored and are no longer shown. Not Live until someone checks Basic Info on TEST.
+- Other Charges has a card for the warranty cap and payer, the HOA and condo name, monthly dues, certificate balance and date, and the deferred amount, schedule, and payee. Those boxes read and write the columns already on the order. Not Live until someone checks Basic Info and Other Charges on TEST. The old transfer-fee figure stays stored and is not on this card.
 
 **Links**
 
