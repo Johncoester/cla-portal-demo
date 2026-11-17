@@ -7,7 +7,7 @@ import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLab
 import { canUseCrm } from './data/crm.js?v=202611130900';
 import { canManageRoleAccess } from './data/role-access.js?v=202611100100';
 import { canUseGmail } from './data/gmail-email.js?v=202611191000';
-import { acctCanRead } from './data/accounting.js?v=202611223100';
+import { acctCanRead } from './data/accounting.js?v=202611241500';
 import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611101015';
 import { phaseOf } from './data/agent-portal.js?v=202611191700';
 import { applyTheme, themeOn } from './theme.js?v=202611070139';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
@@ -36,7 +36,7 @@ const pages = {
   login: () => import('./pages/entry.js?v=202611221200'),
   dashboard: () => import('./pages/dashboard.js?v=202611241700'),
   orders: () => import('./pages/orders.js?v=202611241000'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611241300'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611241600'),
   deal: () => import('./pages/deal.js?v=202611241700'),
   users: () => import('./pages/users.js?v=202611241300'),
   profile: () => import('./pages/profile.js?v=202611191600'),
@@ -55,7 +55,7 @@ const pages = {
   'role-access': () => import('./pages/role-access.js?v=202611161500'),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => import('./pages/agent-invites.js?v=202611191600'),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
   'agent-invite': () => import('./pages/agent-signup.js?v=202611211100'),     // the agent's one-time setup link (no sign-in)
-  underwriters: () => import('./pages/underwriters.js?v=202611223100'),
+  underwriters: () => import('./pages/underwriters.js?v=202611241600'),
   hr: () => import('./pages/hr.js?v=202611191600'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
   'hr-invite': () => import('./pages/hr-invite.js?v=202611161500'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => import('./pages/offices.js?v=202611161500'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
