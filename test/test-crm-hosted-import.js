@@ -406,6 +406,5 @@ ok(!next.split('\n').some((line) => /^\s*create (or replace )?function private\.
 ok(next.includes('where lower(l.email) = v_em') && nextRb.includes('where lower(l.email) = v_em') && (next.match(/where lower\(l\.email\) = v_em/g) || []).length === (nextRb.match(/where lower\(l\.email\) = v_em/g) || []).length, 'the lead email lookup is unchanged');
 ok(next.includes('security definer') && next.includes('v_n > 500') && next.includes("errcode = '42501'") && next.includes('can own CRM records') && next.includes('grant execute on function public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer) to authenticated'), 'security, the 500-row cap, the admin check, owner wording, and the grant stay');
 ok(read('js/data/supabase-crm.js').includes('supabase-crm-janine.js?v=202611242290') && read('js/data/supabase-adapter.js').includes('supabase-crm.js?v=202611242290') && read('js/data/adapter.js').includes('supabase-adapter.js?v=202611243045') && read('js/app.js').includes("adapter.js?v=202611243047") && read('index.html').includes('js/app.js?v=202611243050'), 'the CRM modules stay on main\'s stamp; the adapter and the shell moved because Accounting Basic Info is loaded through them');
-
 console.log(fail ? fail + ' failed' : 'crm hosted import passed');
 if (fail) process.exit(1);
