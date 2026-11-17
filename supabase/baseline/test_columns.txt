@@ -962,7 +962,11 @@ public.deals.loan_id_number
 public.deals.loan_type
 public.deals.longitude
 public.deals.loss_payee_name
+public.deals.mortgage_broker_address
+public.deals.mortgage_broker_contact
+public.deals.mortgage_broker_email
 public.deals.mortgage_broker_name
+public.deals.mortgage_broker_phone
 public.deals.notes
 public.deals.open_date
 public.deals.parcel_id
