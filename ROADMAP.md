@@ -148,7 +148,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A processor enters property taxes, ground rent, HOA dues, or another proration once, on Taxes & Prorations. When the calculation is finished, that amount is on the fee ledger, the settlement statement, and the Closing Disclosure. An item the seller already paid is a charge to the buyer and a credit to the seller, under Adjustments for Items Paid by Seller in Advance (K and M). An unpaid item is a credit to the buyer and a charge to the seller (L and N). City/town taxes, county taxes, and assessments use those named lines. Ground rent, HOA, and anything else use the next line in the same section. The line shows the dates the adjustment covers. Tax prorations use a 365-day year, and the buyer pays for the settlement day, unless someone changes that on the file. HOA and ground rent follow the same rule.
 
-**Status: In progress.** FF-098. Francis Santos, Nov 17 2026, 2:49 PM ET (Gmail msg 1a1eb0eb7ee40f0c, subject "Proration Amount"), as Processor 2 on TEST. Not Live. No database file.
+**Status: In progress.** FF-098. Francis Santos, Nov 17 2026, 2:49 PM ET (Gmail msg 1a1eb0eb7ee40f0c, subject "Proration Amount"), as Processor 2 on TEST. Pull request: [PR 330](https://github.com/Johncoester/cla-portal-demo/pull/330). Not Live. No database file.
 
 **What's built**
 
