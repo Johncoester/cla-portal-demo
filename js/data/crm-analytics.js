@@ -17,9 +17,24 @@ export const REPORT_MODULES = ['contacts', 'leads', 'accounts', 'deals', 'tasks'
 export const DASH_MODULES = MODULE_CODES;   // video 9: every module
 // the custom-field entity behind a module (CRM Settings)
 export const CF_ENTITY_OF = { contacts: 'contact', leads: 'lead', accounts: 'account', opportunities: 'opportunity' };
-// Deals = the portal's orders. Zoho's deal stages seen in video 10 were Active, Closed, Won, Lost, Cancelled, On Hold; an order is Open (= Active), Closed, On Hold or Cancelled.
-export const DEAL_STAGES = [['Active', 'Active'], ['Closed', 'Closed'], ['On Hold', 'On Hold'], ['Cancelled', 'Cancelled']];
-export const dealStageOf = (status) => (status === 'Open' ? 'Active' : status || '');
+// Deals = the portal's orders. The CRM Stage words are Opened, Closed, On Hold, and Canceled.
+// The order itself still stores Open, Closed, On Hold, and Cancelled. Open used to read as Active.
+export const DEAL_STAGES = [['Opened', 'Opened'], ['Closed', 'Closed'], ['On Hold', 'On Hold'], ['Canceled', 'Canceled']];
+export function dealStageOf(status) {
+  const s = status == null ? '' : String(status);
+  if (s === 'Open' || s === 'Active' || s === 'Opened') return 'Opened';
+  if (s === 'Cancelled' || s === 'Canceled') return 'Canceled';
+  if (s === 'Closed' || s === 'On Hold') return s;
+  return s;
+}
+// The order status saved when someone picks a CRM stage. Opened is still stored as Open.
+export function statusForDealStage(stage) {
+  const s = dealStageOf(stage);
+  if (s === 'Opened') return 'Open';
+  if (s === 'Canceled') return 'Cancelled';
+  if (s === 'Closed' || s === 'On Hold') return s;
+  return '';
+}
 export const CALL_TYPES = [['Outbound', 'Outbound'], ['Inbound', 'Inbound'], ['Missed', 'Missed']];
 
 // field: { key, label, type, list (picklist key in CRM Settings) | options ([[v, l]]), labelKey (user / lookup display), link (row key holding a link) }
@@ -40,7 +55,7 @@ const BASE = {
     F('ownerId', 'Company Owner', 'user', { labelKey: 'ownerName' }), F('contacts', 'Clients', 'number'), F('orders', 'Total Orders', 'number'), F('volume', 'Order Volume', 'currency'), F('archived', 'Archived', 'boolean'),
     F('createdBy', 'Created By', 'user', { labelKey: 'createdByName' }), F('createdAt', 'Created Time', 'datetime'), F('modifiedAt', 'Modified Time', 'datetime'), F('lastActivityAt', 'Last Activity Time', 'datetime')],
   deals: [F('name', 'Deal Name', 'text', { link: '_link' }), F('fileNumber', 'File Number', 'text', { link: '_link' }), F('propertyAddress', 'Property Address', 'text', { link: '_link' }), F('amount', 'Amount', 'currency'),
-    F('loanAmount', 'Loan Amount', 'currency'), F('stage', 'Stage', 'picklist', { options: DEAL_STAGES }), F('closingDate', 'Closing Date', 'date'), F('openDate', 'Open Date', 'date'),
+    F('loanAmount', 'Loan Amount', 'currency'), F('stage', 'Stage', 'picklist', { options: DEAL_STAGES, dealStage: true }), F('closingDate', 'Closing Date', 'date'), F('openDate', 'Open Date', 'date'),
     F('clientName', "Client's Name", 'text', { link: '_clientLink' }), F('contactName', 'Contact Name'), F('ownerId', 'Deal Owner', 'user', { labelKey: 'ownerName' }), F('salesReps', 'Sales Reps'),
     F('county', 'County'), F('city', 'City'), F('transactionType', 'Transaction Type'), F('lenderName', 'Lender'), F('createdAt', 'Created Time', 'datetime'), F('modifiedAt', 'Modified Time', 'datetime'), F('lastActivityAt', 'Last Activity Time', 'datetime'),
     // Janine, Nov 4 (video "Disbursement Details - Deals"): the Disbursement Details section of a deal (crm-disbursement.js; table deal_disbursements)
@@ -89,7 +104,7 @@ export function display(field, row, cfg) {
   if (row[field.key + '_text'] != null && field.custom) return row[field.key + '_text'];
   if (v == null || v === '') return '';
   switch (field.type) {
-    case 'picklist': if (field.list) return optLabel(cfg, field.list, v); return ((field.options || []).find(([k]) => k === String(v)) || [null, String(v)])[1];
+    case 'picklist': { const shown = field.dealStage ? dealStageOf(v) : v; if (field.list) return optLabel(cfg, field.list, shown); return ((field.options || []).find(([k]) => k === String(shown)) || [null, String(shown)])[1]; }
     case 'currency': return money(v);
     case 'percent': return `${v}%`;
     case 'boolean': return v === true || v === 'yes' ? 'Yes' : 'No';
@@ -157,8 +172,9 @@ export function matchOne(field, c, row, today) {
     }
   }
   if (['picklist', 'user', 'boolean'].includes(field.type)) {
-    const want = (Array.isArray(c.value) ? c.value : String(c.value == null ? '' : c.value).split('|')).map(String).filter((x) => x !== '');
-    const have = field.type === 'boolean' ? (v === true || v === 'yes' ? 'yes' : 'no') : String(v == null ? '' : v);
+    const norm = (x) => (field.dealStage ? dealStageOf(x) : String(x));
+    const want = (Array.isArray(c.value) ? c.value : String(c.value == null ? '' : c.value).split('|')).map(norm).filter((x) => x !== '');
+    const have = field.type === 'boolean' ? (v === true || v === 'yes' ? 'yes' : 'no') : norm(v);
     const hit = want.includes(have); return op === 'isnt' ? !hit : op === 'is' ? hit : false;
   }
   // text / email / phone (phone compares digits when the value is all digits / punctuation)
@@ -189,7 +205,7 @@ export function criteriaText(criteria, fields, cfg, logic = 'and', users = []) {
 export function valueLabel(f, v, cfg, users = []) {
   if (f.type === 'boolean') return v === 'yes' || v === true ? 'Yes' : 'No';
   if (f.type === 'user') { const u = users.find((z) => z.id === v); return u ? u.name : v; }
-  if (f.type === 'picklist') return f.list ? optLabel(cfg, f.list, v) : ((f.options || []).find(([k]) => k === v) || [null, v])[1];
+  if (f.type === 'picklist') { const shown = f.dealStage ? dealStageOf(v) : v; return f.list ? optLabel(cfg, f.list, shown) : ((f.options || []).find(([k]) => k === shown) || [null, shown])[1]; }
   return v;
 }
 
@@ -214,7 +230,9 @@ export function bucketOf(day, bucket = 'day') {
 }
 // group key + label of a row for a grouping { field, bucket }
 export function groupOf(field, row, cfg, bucket) {
-  if (!field) return ['', '(all)']; const v = row[field.key];
+  if (!field) return ['', '(all)'];
+  if (field.dealStage) { const shown = dealStageOf(row[field.key]); if (blank(shown)) return ['', '(blank)']; const label = (field.options || []).find(([k]) => k === shown); return [shown, label ? label[1] : shown]; }
+  const v = row[field.key];
   if (isDateType(field.type)) return bucketOf(dayOf(v), bucket || 'day');
   if (field.type === 'boolean') return v === true || v === 'yes' ? ['yes', 'Yes'] : ['no', 'No'];
   if (blank(v)) return ['', field.type === 'user' ? '(none)' : '(blank)'];
