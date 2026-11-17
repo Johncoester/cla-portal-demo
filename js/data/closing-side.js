@@ -48,7 +48,8 @@ export function cleanSideSigning(input = {}) {
   if (!side) throw new Error('Pick the buyer side or the seller side.');
   const status = input.status === 'signed' ? 'signed' : 'pending';
   const signedOn = status === 'signed' ? trim(input.signedOn, 10) : '';
-  if (status === 'signed' && !/^\d{4}-\d{2}-\d{2}$/.test(signedOn)) throw new Error('Enter the date this side signed.');
+  if (status === 'signed' && signedOn && !/^\d{4}-\d{2}-\d{2}$/.test(signedOn)) throw new Error('Enter the date this side signed.');
+  if (status === 'signed' && !signedOn && !input.allowBlankSignedOn) throw new Error('Enter the date this side signed.');
   const placeKind = PLACE_KINDS.some(([k]) => k === input.placeKind) ? input.placeKind : '';
   const atDate = trim(input.date, 10);
   const atTime = trim(input.time, 5);
