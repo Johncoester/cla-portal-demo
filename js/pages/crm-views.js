@@ -2,7 +2,7 @@
  * "New Custom View" = criteria + columns + sharing, and "Save filter" chips with counts). Routes: #/crm/views/<id> (a view), #/crm/views/new/<module>,
  * #/crm/views/<id>/edit. The adapter decides which rows a person may see; a view only narrows them. Function first, minimal styling. */
 import { html, raw, toText, $, $$, guard, toast, modal, closeModal } from '../ui.js?v=202611161500';
-import { VIEW_MODULE_LABEL, VIEW_VISIBILITY, VIEW_DEFAULT_COLUMNS, VIEW_NAME_KEY, criteriaUserList, viewModuleFields } from '../data/crm-views.js?v=202611171400';
+import { VIEW_MODULE_LABEL, VIEW_VISIBILITY, VIEW_DEFAULT_COLUMNS, VIEW_NAME_KEY, placeNameColumn, criteriaUserList, viewModuleFields } from '../data/crm-views.js?v=202611242000';
 import { criteriaEditor } from './crm-criteria.js?v=202611161500';
 import { tabs, head } from './crm-kit.js?v=202611161500';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611161500';
@@ -59,18 +59,18 @@ export async function viewPage(c) {
     <div class="table-tools"><span class="muted" data-count></span></div>
     <div class="table-wrap"><table class="tbl" data-view-table="${v.id}"><thead><tr>${r.columns.map((col) => html`<th data-sort="${col.key}"><button type="button" class="th-sort">${col.label} ${arrows}</button></th>`)}</tr></thead><tbody></tbody></table></div>`;
   function mount(root) {
-    wireViewsBar(root, api); const f = $('[data-view-filter]', root); const tb = $(`[data-view-table="${v.id}"] tbody`, root); let sort = null; let dir = 'asc';
-    const words = (q) => String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
-    const match = (row, q) => { const hay = Object.values(row.cells).map((z) => z.text).join(' ').toLowerCase(); return words(q).every((w) => hay.includes(w)); };
-    const apply = () => { let list = r.rows.filter((row) => match(row, f.q.value));
+    wireViewsBar(root, api); const f = $('[data-view-filter]', root); const q = $('[name=q]', f); const tb = $(`[data-view-table="${v.id}"] tbody`, root); let sort = null; let dir = 'asc';
+    const words = (q0) => String(q0 || '').toLowerCase().split(/\s+/).filter(Boolean);
+    const match = (row, q0) => { const hay = Object.values(row.cells).map((z) => z.text).join(' ').toLowerCase(); return words(q0).every((w) => hay.includes(w)); };
+    const apply = () => { let list = r.rows.filter((row) => match(row, q.value));
       if (sort) { const num = ['number', 'currency', 'percent'].includes((r.columns.find((z) => z.key === sort) || {}).type); const val = (row) => { const t = row.cells[sort].text; return num ? Number(String(t).replace(/[^\d.-]/g, '')) || 0 : String(t).toLowerCase(); };
         list = list.slice().sort((a, b) => { const A = val(a), B = val(b); const c0 = num ? A - B : String(A).localeCompare(String(B)); return dir === 'desc' ? -c0 : c0; }); }
       tb.innerHTML = toText(list.length ? list.map((row) => html`<tr data-row="${row.id}">${r.columns.map((col) => { const cell = row.cells[col.key]; return html`<td data-col="${col.key}">${cell.link ? html`<a href="${cell.link}">${cell.text}</a>` : cell.text}</td>`; })}</tr>`) : html`<tr><td colspan="${r.columns.length}" class="muted">Nothing matches.</td></tr>`);
       $('[data-count]', root).textContent = `${list.length} of ${r.total} shown`;
       $$('th[data-sort]', root).forEach((th) => { const on = th.dataset.sort === sort; $('.up', th).classList.toggle('on', on && dir === 'asc'); $('.dn', th).classList.toggle('on', on && dir === 'desc'); }); };
-    f.q.addEventListener('input', apply);
+    q.addEventListener('input', apply);
     $$('th[data-sort] button', root).forEach((b) => b.addEventListener('click', () => { const k = b.closest('th').dataset.sort; dir = k === sort ? (dir === 'asc' ? 'desc' : 'asc') : 'asc'; sort = k; apply(); }));
-    wireSavedFilters(root, api, 'view:' + v.id, { getValues: () => ({ q: f.q.value }), setValues: (o) => { f.q.value = o.q || ''; apply(); }, count: (o) => r.rows.filter((row) => match(row, o.q)).length });
+    wireSavedFilters(root, api, 'view:' + v.id, { getValues: () => ({ q: q.value }), setValues: (o) => { q.value = o.q || ''; apply(); }, count: (o) => r.rows.filter((row) => match(row, o.q)).length });
     $('[data-view-clone]', root).addEventListener('click', guard(async () => { const n = prompt('Name of the copy', `Copy of ${v.name}`); if (!n) return; const cl = await api.cloneCrmView(v.id, { name: n }); toast('View cloned'); location.hash = `#/crm/views/${cl.id}`; }));
     $('[data-view-pin]', root).addEventListener('click', guard(async () => { await api.pinCrmView(v.id, !v.pinned); toast(v.pinned ? 'Unpinned' : 'Pinned'); c.refresh(); }));
     const rt = $('[data-view-retire]', root); if (rt) rt.addEventListener('click', guard(async () => { if (!confirm(`Remove the view "${v.name}"? It is hidden for everyone it was shared with (kept in the history, not deleted).`)) return; await api.retireCrmView(v.id); toast('View removed'); location.hash = `#/crm/${m}`; }));
@@ -84,6 +84,7 @@ async function editorPage(c, v0, module) {
   const { api, me, cfg } = c; if (!VIEW_MODULE_LABEL[module]) throw new Error('Pick Clients, Leads, Companies or Deals.');
   const fields = viewModuleFields(module, cfg); const targets = await api.listCrmShareTargets(); const users = criteriaUserList(targets.users).map((u) => ({ id: u.id, name: u.role ? `${u.name} (${u.role})` : u.name })); const nk = VIEW_NAME_KEY[module];
   const s = v0 ? JSON.parse(JSON.stringify(v0)) : { name: '', criteria: [], logic: 'and', columns: [...VIEW_DEFAULT_COLUMNS[module]], sortField: nk, sortDir: 'asc', visibility: 'me', shareUsers: [], pinned: true };
+  s.columns = placeNameColumn(module, s.columns);
   const lab = (k) => (fields.find((f) => f.key === k) || { label: k }).label;
   const ce = criteriaEditor('view', fields, s.criteria, { logic: s.logic || 'and', cfg, users });
   const body = html`${head(v0 ? `Edit view: ${v0.name}` : `New Custom View: ${VIEW_MODULE_LABEL[module]}`, me)}${tabs(module)}
@@ -92,7 +93,7 @@ async function editorPage(c, v0, module) {
       <fieldset class="span2" data-view-criteria><legend>Specify Criteria</legend>${ce.body}</fieldset>
       <fieldset class="span2" data-view-columns><legend>Choose Columns</legend><div style="display:flex;gap:16px;flex-wrap:wrap">
         <div><strong>Available</strong><p><input type="search" data-vcol-q placeholder="Search fields"></p><select data-vcol-avail multiple size="10" style="min-width:220px"></select><p><button type="button" class="ghost small" data-vcol-add>Add &rarr;</button></p></div>
-        <div><strong>Selected</strong> <span class="muted small">(${lab(nk)} stays first; use the arrows)</span><ol data-vcol-list></ol></div></div></fieldset>
+        <div><strong>Selected</strong> <span class="muted small">(${lab(nk)} stays selected; use the arrows to move it)</span><ol data-vcol-list></ol></div></div></fieldset>
       <label>Sort by<select name="sortField" data-view-sort>${fields.map((f) => html`<option value="${f.key}" ${f.key === s.sortField ? raw('selected') : ''}>${f.label}</option>`)}</select></label>
       <label>Order<select name="sortDir"><option value="asc" ${s.sortDir !== 'desc' ? raw('selected') : ''}>Ascending</option><option value="desc" ${s.sortDir === 'desc' ? raw('selected') : ''}>Descending</option></select></label>
       <fieldset class="span2" data-view-share><legend>Share this with</legend>${VIEW_VISIBILITY.map(([k, l]) => html`<label><input type="radio" name="visibility" value="${k}" ${k === s.visibility ? raw('checked') : ''} ${k !== 'me' && !me.canEdit ? raw('disabled') : ''}> ${l}</label> `)}
@@ -101,16 +102,26 @@ async function editorPage(c, v0, module) {
       <div class="span2"><a class="ghost" href="${v0 ? `#/crm/views/${v0.id}` : `#/crm/${module}`}">Cancel</a> <button class="m-btn" type="button" data-view-save>Save</button></div></form>`;
   function mount(root) {
     const f = $('[data-view-form]', root); const crit = ce.mount(root); const av = $('[data-vcol-avail]', root); const ol = $('[data-vcol-list]', root);
-    const draw = () => { av.innerHTML = toText(fields.filter((z) => !s.columns.includes(z.key)).map((z) => html`<option value="${z.key}">${z.label}</option>`));
-      ol.innerHTML = toText(s.columns.map((k, i) => html`<li data-vcol="${k}">${lab(k)}${k === nk ? '' : html` <button type="button" class="linkish" data-vcol-up="${i}" ${i <= 1 ? raw('disabled') : ''}>&uarr;</button><button type="button" class="linkish" data-vcol-down="${i}" ${i === s.columns.length - 1 ? raw('disabled') : ''}>&darr;</button> <button type="button" class="linkish" data-vcol-x="${k}" aria-label="Remove ${lab(k)}">&times;</button>`}</li>`)); };
+    const draw = () => { s.columns = placeNameColumn(module, s.columns);
+      av.innerHTML = toText(fields.filter((z) => !s.columns.includes(z.key)).map((z) => html`<option value="${z.key}">${z.label}</option>`));
+      ol.innerHTML = toText(s.columns.map((k, i) => { const up = html`<button type="button" class="linkish" data-vcol-up="${i}" ${i === 0 ? raw('disabled') : ''}>&uarr;</button>`;
+        const down = html`<button type="button" class="linkish" data-vcol-down="${i}" ${i === s.columns.length - 1 ? raw('disabled') : ''}>&darr;</button>`;
+        const remove = k === nk ? '' : html` <button type="button" class="linkish" data-vcol-x="${k}" aria-label="Remove ${lab(k)}">&times;</button>`;
+        return html`<li data-vcol="${k}">${lab(k)} ${up}${down}${remove}</li>`; })); };
     $('[data-vcol-q]', root).addEventListener('input', (e) => { const q = e.target.value.toLowerCase(); $$('option', av).forEach((o) => { o.hidden = q && !o.textContent.toLowerCase().includes(q); }); });
     $('[data-vcol-add]', root).addEventListener('click', () => { const add = [...av.selectedOptions].map((o) => o.value); if (!add.length) return; s.columns = [...s.columns, ...add]; draw(); });
-    ol.addEventListener('click', (e) => { const t = e.target.dataset; if (t.vcolX) { s.columns = s.columns.filter((k) => k !== t.vcolX); draw(); return; }
-      const i = t.vcolUp != null ? +t.vcolUp : t.vcolDown != null ? +t.vcolDown : null; if (i == null) return; const j = t.vcolUp != null ? i - 1 : i + 1; if (j < 1 || j >= s.columns.length) return; [s.columns[i], s.columns[j]] = [s.columns[j], s.columns[i]]; draw(); });
-    $$('[name=visibility]', f).forEach((r) => r.addEventListener('change', () => { $('[data-view-users]', f).hidden = f.visibility.value !== 'custom'; }));
+    ol.addEventListener('click', (e) => { const t = e.target.dataset; if (t.vcolX) { if (t.vcolX === nk) return; s.columns = s.columns.filter((k) => k !== t.vcolX); draw(); return; }
+      const i = t.vcolUp != null ? +t.vcolUp : t.vcolDown != null ? +t.vcolDown : null; if (i == null || Number.isNaN(i)) return; const j = t.vcolUp != null ? i - 1 : i + 1; if (j < 0 || j >= s.columns.length) return; [s.columns[i], s.columns[j]] = [s.columns[j], s.columns[i]]; draw(); });
+    $$('[name=visibility]', f).forEach((r) => r.addEventListener('change', () => { const on = f.querySelector('[name=visibility]:checked'); $('[data-view-users]', f).hidden = !on || on.value !== 'custom'; }));
     $('[data-view-save]', root).addEventListener('click', guard(async () => { const cr = crit.get();
-      const input = { module, name: f.name.value, criteria: cr.criteria, logic: cr.logic, columns: s.columns, sortField: f.sortField.value, sortDir: f.sortDir.value, visibility: f.visibility.value, shareUsers: [...f.shareUsers.selectedOptions].map((o) => o.value) };
-      const out = v0 ? await api.updateCrmView(v0.id, input) : await api.createCrmView({ ...input, pin: f.pin ? f.pin.checked : true });
+      const field = (name) => $(`[name="${name}"]`, f);
+      const share = field('shareUsers');
+      const chosen = share ? [...share.selectedOptions || []].map((o) => o.value) : [];
+      const picked = field('visibility');
+      const vis = (f.querySelector && f.querySelector('[name=visibility]:checked') || picked || { value: 'me' }).value;
+      const input = { module, name: field('name').value, criteria: cr.criteria, logic: cr.logic, columns: s.columns, sortField: field('sortField').value, sortDir: field('sortDir').value, visibility: vis, shareUsers: chosen };
+      const pin = field('pin');
+      const out = v0 ? await api.updateCrmView(v0.id, input) : await api.createCrmView({ ...input, pin: pin ? pin.checked : true });
       toast(v0 ? 'View saved' : 'View created'); location.hash = `#/crm/views/${out.id}`; }));
     draw();
   }

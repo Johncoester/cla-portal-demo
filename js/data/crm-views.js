@@ -9,19 +9,30 @@ export const VIEW_VISIBILITY = [['me', 'Only me'], ['all', 'Everyone with the CR
 export const VIEW_MAX_COLUMNS = 25;
 export const VIEW_MAX_CRITERIA = 20;
 export const PINS_MAX = 12;
-// the name column of each module always stays first (it opens the record)
+// the name column stays selected (it opens the record) but it can sit anywhere in the list
 export const VIEW_NAME_KEY = { contacts: 'name', leads: 'name', accounts: 'name', deals: 'name' };
 // a new view starts with the module list's usual columns
 export const VIEW_DEFAULT_COLUMNS = { contacts: ['name', 'companyName', 'email', 'phone', 'relationshipStatus', 'ownerId'], leads: ['name', 'company', 'email', 'phone', 'leadSource', 'relationshipStatus', 'ownerId'],
   accounts: ['name', 'kind', 'phone', 'city', 'state', 'ownerId'], deals: ['name', 'amount', 'stage', 'closingDate', 'clientName', 'ownerId'] };
 export const nameOk = (s, max = 60) => { const v = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); if (!v) throw new Error('Give it a name.'); if (v.length > max) throw new Error(`At most ${max} characters.`);
   if (/[\u0000-\u001f]/.test(v)) throw new Error('No control characters.'); return v; };
-// columns: known keys only, no repeats, name first
+// A saved order that already includes the name column is kept. A list with no name column
+// (an older view that never stored a position for it) puts the name first. The name stays selected.
+export function placeNameColumn(module, keys) {
+  const nk = VIEW_NAME_KEY[module];
+  const list = [];
+  (Array.isArray(keys) ? keys : []).forEach((k) => { const s = String(k); if (s && !list.includes(s)) list.push(s); });
+  if (!nk || list.includes(nk)) return list;
+  return [nk, ...list];
+}
+// columns: known keys only, no repeats, name required, order kept
 export function cleanColumns(module, keys, fields) {
-  const known = new Set(fields.map((f) => f.key)); const nk = VIEW_NAME_KEY[module];
+  const known = new Set(fields.map((f) => f.key));
   const list = [...new Set((Array.isArray(keys) ? keys : []).map((k) => String(k)))];
   list.forEach((k) => { if (!known.has(k)) throw new Error(`"${k}" is not a column of ${VIEW_MODULE_LABEL[module] || module}.`); });
-  const out = [nk, ...list.filter((k) => k !== nk)]; if (out.length > VIEW_MAX_COLUMNS) throw new Error(`At most ${VIEW_MAX_COLUMNS} columns.`); return out;
+  const out = placeNameColumn(module, list);
+  if (out.length > VIEW_MAX_COLUMNS) throw new Error(`At most ${VIEW_MAX_COLUMNS} columns.`);
+  return out;
 }
 // SAVED FILTERS = the values of a list's filter bar (search box + each drop-down), saved under a name for one person
 export const FILTER_MAX_VALUES = 30;
