@@ -51,7 +51,7 @@ const HELP = {
   A: ['Origination Charges', 'Fees the lender charges to make the loan. A.01 "% of Loan Amount (Points)": the Loan Amount % is precalculated from the A.01 amount ÷ the loan amount (whole numbers show no decimals, otherwise 3).'],
   B: ['Did Not Shop For', 'Services the borrower could not shop for (picked by the lender), e.g. the flood certification. Listed alphabetically (TRID).'],
   C: ['Did Shop For', 'Services the borrower shopped for. Title lines start with "Title -" and are alphabetical. Edit Premium Line opens the CLA-rates premium options; Send Title Charges to B moves the title lines to B when the borrower used the lender\'s list.'],
-  E: ['Taxes & Fees', 'Add each document, then Calculate fees. Recording fees share line E.01 ("Recording fees: Deed: $60.00 Mortgage: $115.00"). Recordation and transfer taxes are their own lines. You can type over a calculated amount.'],
+  E: ['Taxes & Fees', 'Add each document, then Calculate fees. Recording fees share line E.01 ("Recording fees: Deed: $60.00 Mortgage: $115.00"). Recordation and transfer taxes are their own lines. A document with no rate shows Rate Not Set: type the fee, and it is marked entered by hand. A new calculation keeps that amount unless you choose to replace it.'],
   F: ['Prepaids', 'Items paid in advance: homeowner\'s insurance (# of months), mortgage insurance, prepaid interest (per diem × days, From Date defaults to the disbursement date) and property taxes.'],
   G: ['Escrow', 'Initial escrow payment: $ per month × # of months. G.08 Aggregate adjustment is typed as a positive amount and shows negative on the CD. Compare with the lender\'s escrow analysis. Usually Net Funded.'],
   H: ['Other Charges', 'Home warranty, agent admin fees and commissions, inspections, the owner\'s title policy (optional), holdbacks such as a water escrow.'],
@@ -86,7 +86,7 @@ function taxFeesPanel(setup) {
   if (!setup.covered) return html`<div class="card" data-tax-fees><h3>Taxes &amp; fees</h3><p class="notice warn" data-tax-not-ready>${setup.reason}</p></div>`;
   const left = setup.types.filter((t) => !setup.documents.some((d) => d.type === t));
   return html`<div class="card acct-calc" data-tax-fees><div class="acct-card-head"><h3>Taxes &amp; fees</h3><span class="muted small">${setup.county ? setup.county + ', ' : ''}${setup.state}</span></div>
-    <p class="small muted">Add each document to record. Calculate fees prices the recording fees, recordation tax, and transfer tax for this county. Nothing is saved until you apply the lines. A line you changed by hand is kept.</p>
+    <p class="small muted">Add each document to record. Calculate fees prices the recording fees, recordation tax, and transfer tax for this county. A document with no rate shows Rate Not Set so it is not missed. Type that fee. It is marked entered by hand, and a new calculation keeps it unless you choose to replace it. Nothing is saved until you apply the lines.</p>
     ${setup.countyNote ? html`<p class="small" data-tax-county>${setup.countyNote}</p>` : ''}
     ${setup.rateNote ? html`<p class="small" data-tax-rate>${setup.rateNote}</p>` : ''}
     <div class="acct-toolbar"><label class="small">Add document <select data-tax-add-type aria-label="Add document">${left.length ? left.map((t) => html`<option value="${t}">${t}</option>`) : html`<option value="">All documents are added</option>`}</select></label>
@@ -98,11 +98,21 @@ function taxFeesPanel(setup) {
     <div class="acct-form-actions"><button type="button" class="m-btn" data-tax-calc>Calculate fees</button><span class="muted small">You see the breakdown first. Nothing is saved until you apply it.</span></div>
     <div data-tax-result></div></div>`;
 }
+function taxHandCol(r) {
+  return ['borrowerAt', 'borrowerBefore', 'sellerAt', 'sellerBefore', 'others'].find((k) => Number(r[k]) > 0) || 'borrowerAt';
+}
 function taxBreakdown(view, refi) {
   const cols = refi ? [['borrowerAt', 'At Closing'], ['borrowerBefore', 'Before Closing'], ['others', 'By Others']] : [['borrowerAt', 'At Closing'], ['borrowerBefore', 'Before Closing'], ['sellerAt', 'At Closing'], ['sellerBefore', 'Before Closing'], ['others', 'By Others']];
   const cell = (n) => (n ? usd(n) : '');
   const tot = (k) => view.breakdown.reduce((t, r) => t + Math.round((Number(r[k]) || 0) * 100), 0) / 100;
   const n = view.counts || {};
+  const moneyCell = (r, k) => {
+    if (r.rateNotSet && k === taxHandCol(r)) {
+      const shown = Number(r.amount) > 0 ? Number(r.amount).toFixed(2) : '';
+      return html`<td class="num"><input class="qc-cell num" data-tax-manual="${r.docType}" data-tax-col="${k}" value="${shown}" placeholder="Rate Not Set" inputmode="decimal" aria-label="${r.description}, fee" autocomplete="off" ${r.locked ? raw('disabled') : ''}></td>`;
+    }
+    return html`<td class="num" data-tax-amt="${k}">${cell(r[k])}</td>`;
+  };
   return html`<div data-tax-breakdown>
     <p class="small" data-tax-counts>${n.new || 0} new, ${n.changed || 0} changed, ${n.unchanged || 0} unchanged${n.overridden ? `, ${n.overridden} kept because they were changed by hand` : ''}.</p>
     ${view.warnings && view.warnings.length ? html`<div class="notice warn small" data-tax-warnings>${view.warnings.map((w) => html`<div>${w}</div>`)}</div>` : ''}
@@ -110,8 +120,8 @@ function taxBreakdown(view, refi) {
     ${view.breakdown.length ? html`<div class="qc-table-wrap"><table class="qc-table" data-tax-table><thead>
       <tr><th rowspan="2">Description</th><th rowspan="2">Payee</th><th colspan="2" class="center">Paid by Borrower</th>${refi ? '' : html`<th colspan="2" class="center">Paid by Seller</th>`}<th rowspan="2" class="num">By Others</th></tr>
       <tr><th class="num">At Closing</th><th class="num">Before Closing</th>${refi ? '' : html`<th class="num">At Closing</th><th class="num">Before Closing</th>`}</tr></thead>
-      <tbody>${view.breakdown.map((r) => html`<tr data-tax-line="${r.key}"><td><strong>${r.description}</strong>${r.status === 'overridden' ? html` <span class="pill warn">Kept</span>` : ''}<div class="small muted">${r.calculation || ''}</div></td><td class="small">${r.payee ? 'to ' + r.payee : ''}</td>${cols.map(([k]) => html`<td class="num">${cell(r[k])}</td>`)}</tr>`)}</tbody>
-      <tfoot><tr class="qc-totals"><td><strong>TOTALS</strong></td><td></td>${cols.map(([k]) => html`<td class="num"><strong>${usd(tot(k))}</strong></td>`)}</tr></tfoot></table></div>` : html`<p class="small">No recording fees or transfer taxes came back for these documents.</p>`}
+      <tbody>${view.breakdown.map((r) => html`<tr data-tax-line="${r.key}" ${r.rateNotSet ? raw('data-rate-not-set') : ''}><td><strong>${r.description}</strong>${r.rateNotSet && !r.enteredByHand ? html` <span class="pill warn" data-rate-not-set>Rate Not Set</span>` : ''}${r.enteredByHand ? html` <span class="pill warn" data-entered-by-hand>Entered by hand</span>` : ''}${r.status === 'overridden' && !r.rateNotSet ? html` <span class="pill warn">Kept</span>` : ''}${r.savedByHand ? html`<label class="check small"><input type="checkbox" data-tax-replace="${r.docType}" ${r.locked ? '' : raw('checked')}> Replace the amount entered by hand</label>` : ''}<div class="small muted">${r.rateNotSet ? (r.enteredByHand ? 'Rate Not Set. This amount was entered by hand.' : 'Rate Not Set. Type the fee so it is not missed.') : (r.calculation || '')}</div></td><td class="small">${r.payee ? 'to ' + r.payee : ''}</td>${cols.map(([k]) => moneyCell(r, k))}</tr>`)}</tbody>
+      <tfoot><tr class="qc-totals"><td><strong>TOTALS</strong></td><td></td>${cols.map(([k]) => html`<td class="num" data-tax-total="${k}"><strong>${usd(tot(k))}</strong></td>`)}</tr></tfoot></table></div>` : html`<p class="small">No recording fees or transfer taxes came back for these documents.</p>`}
     ${view.examples && view.examples.length ? html`<label class="check small"><input type="checkbox" data-tax-examples checked> Also retire ${view.examples.length} example fee${view.examples.length === 1 ? '' : 's'} these replace</label>` : ''}
     <div class="acct-form-actions"><button type="button" class="m-btn" data-tax-apply>Apply to charges</button><span class="muted small">The lines go on the charges, the settlement statement, and the Closing Disclosure. Title premiums are left as they are.</span></div></div>`;
 }
@@ -122,15 +132,71 @@ function mountTaxFees(root, ctx, refresh) {
   const read = () => ({
     documents: $$('[data-tax-doc]', box).map((card) => ({ type: card.dataset.taxDoc, pages: $('[data-tax-pages]', card).value, consideration: $('[data-tax-consideration]', card).value, taxable: flag(card, 'taxable'), occ: flag(card, 'occ'), fthb: flag(card, 'fthb') })),
     payoff: $('[data-tax-payoff]', box) ? $('[data-tax-payoff]', box).value : 0,
-    assessed: $('[data-tax-assessed]', box) ? $('[data-tax-assessed]', box).value : 0
+    assessed: $('[data-tax-assessed]', box) ? $('[data-tax-assessed]', box).value : 0,
+    manual: Object.fromEntries($$('[data-tax-manual]', box).map((inp) => [inp.dataset.taxManual, inp.value])),
+    replace: $$('[data-tax-replace]', box).filter((el) => el.checked).map((el) => el.dataset.taxReplace)
   });
+  const handProblem = (raw, type) => {
+    const text = String(raw == null ? '' : raw).replace(/[$,\s]/g, '');
+    if (text === '') return '';
+    if (!/^\d+(\.\d{1,2})?$/.test(text) || Number(text) > 1e8) return `Enter the fee for the ${type} as a dollar amount, like 45.00. Leave it blank if you do not have it yet.`;
+    return '';
+  };
   const showError = (message, field, type) => {
     const el = $('[data-tax-error]', box); el.hidden = !message; el.textContent = message || '';
     $$('[aria-invalid]', box).forEach((n) => n.removeAttribute('aria-invalid'));
     if (!message) return;
     const scope = type ? $(`[data-tax-doc="${CSS.escape(type)}"]`, box) : box;
-    const input = field === 'pages' ? $('[data-tax-pages]', scope) : field === 'consideration' ? $('[data-tax-consideration]', scope) : field === 'payoff' ? $('[data-tax-payoff]', box) : field === 'assessed' ? $('[data-tax-assessed]', box) : null;
+    const input = field === 'manual' ? $(`[data-tax-manual="${CSS.escape(type)}"]`, box) : field === 'pages' ? $('[data-tax-pages]', scope) : field === 'consideration' ? $('[data-tax-consideration]', scope) : field === 'payoff' ? $('[data-tax-payoff]', box) : field === 'assessed' ? $('[data-tax-assessed]', box) : null;
     if (input) { input.setAttribute('aria-invalid', 'true'); input.focus(); }
+  };
+  const recount = (out) => {
+    $$('[data-tax-total]', out).forEach((td) => {
+      const k = td.dataset.taxTotal; let cents = 0;
+      $$('[data-tax-line]', out).forEach((tr) => {
+        const inp = $('[data-tax-manual]', tr);
+        if (inp && inp.dataset.taxCol === k) cents += Math.round((num(inp.value) || 0) * 100);
+        else { const cell = $(`[data-tax-amt="${k}"]`, tr); if (cell) cents += Math.round((num(cell.textContent) || 0) * 100); }
+      });
+      const strong = $('strong', td); if (strong) strong.textContent = usd(cents / 100);
+    });
+  };
+  const wireHands = (out) => {
+    $$('[data-tax-manual]', out).forEach((inp) => inp.addEventListener('input', () => recount(out)));
+    $$('[data-tax-replace]', out).forEach((el) => el.addEventListener('change', () => {
+      const inp = $(`[data-tax-manual="${CSS.escape(el.dataset.taxReplace)}"]`, out);
+      if (inp) { inp.disabled = !el.checked; if (el.checked) inp.focus(); }
+      recount(out);
+    }));
+  };
+  const writeHands = async (out) => {
+    const jobs = [];
+    for (const inp of $$('[data-tax-manual]', out)) {
+      const type = inp.dataset.taxManual;
+      const replaceEl = $(`[data-tax-replace="${CSS.escape(type)}"]`, out);
+      const replace = !!(replaceEl && replaceEl.checked);
+      if (inp.disabled && !replace) continue;
+      const problem = handProblem(inp.value, type);
+      if (problem) { const err = new Error(problem); err.field = 'manual'; err.docType = type; throw err; }
+      const text = String(inp.value || '').replace(/[$,\s]/g, '');
+      jobs.push({ type, amount: text === '' ? 0 : Math.round(Number(text) * 100) / 100, replace });
+    }
+    if (!jobs.length) return 0;
+    const accNow = await api.getAccounting(deal.id);
+    let wrote = 0;
+    for (const job of jobs) {
+      const fee = (accNow.entries || []).find((e) => e.calc && e.calc.key === 'unset:' + job.type && !e.retired);
+      if (!fee) continue;
+      if (fee.overridden && Number(fee.amount) > 0 && !job.replace) continue;
+      if (Math.abs(Number(fee.amount) - job.amount) < 0.001) continue;
+      const how = Q.allocationOf(fee) || 'buyer';
+      const patch = how === 'split' && Number(fee.amount) > 0
+        ? { amount: job.amount.toFixed(2), ...Q.allocate(job.amount, 'split', { buyer: Math.round(Number((fee.split || {}).buyer) * job.amount / Number(fee.amount) * 100) / 100 }) }
+        : { amount: job.amount.toFixed(2), ...Q.allocate(job.amount, how) };
+      await api.updateAccountingFee(fee.id, patch);
+      wrote++;
+    }
+    return wrote;
   };
   const paint = (worksheet) => {
     $('[data-tax-cards]', box).innerHTML = toText(html`${worksheet.documents.map((d) => taxDocCard(d, setup.asks))}`);
@@ -156,18 +222,31 @@ function mountTaxFees(root, ctx, refresh) {
     showError(''); paint(now);
   });
   $('[data-tax-calc]', box).addEventListener('click', guard(async () => {
-    const worksheet = read(); showError('');
+    const worksheet = read();
+    for (const [type, raw] of Object.entries(worksheet.manual || {})) { const problem = handProblem(raw, type); if (problem) { showError(problem, 'manual', type); return; } }
+    showError('');
     try {
       const view = await api.previewTaxesFees(deal.id, worksheet);
       const out = $('[data-tax-result]', box); out.innerHTML = toText(taxBreakdown(view, acc.refi));
       const btn = $('[data-tax-apply]', out); const ex = $('[data-tax-examples]', out);
-      const count = () => { const n = view.applicable + (ex && ex.checked ? view.examples.length : 0); btn.textContent = n ? `Apply ${n} change${n === 1 ? '' : 's'}` : 'Nothing to apply'; btn.disabled = !n; };
-      if (ex) ex.addEventListener('change', count); count();
-      btn.addEventListener('click', guard(async () => { btn.disabled = true; try {
-        const r = await api.applyTaxesFees(deal.id, worksheet, { token: view.token, retireExamples: !!(ex && ex.checked) });
-        toast(`Taxes and fees applied: ${r.added} added, ${r.updated} updated, ${r.retired + r.examplesRetired} retired${r.kept ? `, ${r.kept} kept` : ''}.`); refresh();
-      } finally { btn.disabled = false; } }));
-    } catch (e) { showError(e.message, e.field, e.docType); $('[data-tax-result]', box).innerHTML = ''; }
+      const count = () => {
+        const n = view.applicable + (ex && ex.checked ? view.examples.length : 0);
+        const openHands = $$('[data-tax-manual]', out).filter((inp) => !inp.disabled).length;
+        btn.textContent = n ? `Apply ${n} change${n === 1 ? '' : 's'}` : (openHands ? 'Apply fees' : 'Nothing to apply');
+        btn.disabled = !n && !openHands;
+      };
+      if (ex) ex.addEventListener('change', count); wireHands(out);
+      $$('[data-tax-replace]', out).forEach((el) => el.addEventListener('change', count));
+      count(); recount(out);
+      btn.addEventListener('click', guard(async () => {
+        for (const inp of $$('[data-tax-manual]', out)) { if (inp.disabled) continue; const problem = handProblem(inp.value, inp.dataset.taxManual); if (problem) { showError(problem, 'manual', inp.dataset.taxManual); throw new Error(problem); } }
+        showError(''); btn.disabled = true; try {
+          const r = await api.applyTaxesFees(deal.id, worksheet, { token: view.token, retireExamples: !!(ex && ex.checked) });
+          const wrote = await writeHands(out);
+          toast(`Taxes and fees applied: ${r.added} added, ${r.updated} updated, ${r.retired + r.examplesRetired} retired${r.kept ? `, ${r.kept} kept` : ''}${wrote ? `, ${wrote} entered by hand` : ''}.`); refresh();
+        } finally { btn.disabled = false; }
+      }));
+    } catch (e) { showError(e.message, e.field, e.docType); if (e.field !== 'manual') $('[data-tax-result]', box).innerHTML = ''; }
   }));
 }
 
@@ -198,11 +277,15 @@ function feeSection(ctx) {
   const loan = Number(deal.loanAmount) || 0;
   const banner = sec === 'E' && !addressOnFile(deal) ? html`<div class="qc-banner" data-qc-address-banner><span>You'll need to add a complete property address before we'll be able to calculate recording fees and taxes.</span> <a class="m-btn small" href="#/deals/${deal.id}/overview" data-qc-add-property>Add property</a></div>` : '';
   const amtCols = refi ? ['borrowerAt', 'borrowerBefore', 'others'] : ['borrowerAt', 'borrowerBefore', 'sellerAt', 'sellerBefore', 'others'];
-  const locked = (r) => !canEdit || !!r.recording || (sec === 'E' && r.line === '01') || !!(r.fee && r.fee.proration);
+  const locked = (r) => !canEdit || !!r.recording || (sec === 'E' && r.line === '01' && !(r.fee && r.fee.calc && String(r.fee.calc.key).startsWith('unset:'))) || !!(r.fee && r.fee.proration);
   const tone = (r) => (r.fee && r.fee.overridden ? 'qc-over' : r.calculated ? 'qc-pre' : '');
   const m = (r) => (r.fee && r.fee.meta) || {};
+  const unsetFee = (r) => !!(r.fee && r.fee.calc && String(r.fee.calc.key).startsWith('unset:'));
+  const missingRate = (r) => unsetFee(r) && !(Number(r.fee.amount) > 0);
+  const enteredByHand = (r) => unsetFee(r) && Number(r.fee.amount) > 0;
   const amtCell = (r, f) => { const lk = locked(r) || (m(r).perDiem && f.startsWith('borrower')) || (G && m(r).perMonth != null && f.startsWith('borrower'));
-    return html`<td class="num qc-amt ${r[f] ? tone(r) : ''}">${lk ? html`<span data-qc-val="${f}">${cell$(r[f])}</span>` : html`<input class="qc-cell num" data-qc-cell="${f}" value="${cell$(r[f])}" inputmode="decimal" aria-label="Line ${r.line} ${f}" autocomplete="off">`}</td>`; };
+    const gap = missingRate(r) && f === 'borrowerAt';
+    return html`<td class="num qc-amt ${r[f] ? tone(r) : ''}">${lk ? html`<span data-qc-val="${f}">${gap ? 'Rate Not Set' : cell$(r[f])}</span>` : html`<input class="qc-cell num" data-qc-cell="${f}" value="${cell$(r[f])}" placeholder="${gap ? 'Rate Not Set' : ''}" inputmode="decimal" aria-label="Line ${r.line} ${f}" autocomplete="off">`}${gap ? html`<div class="small" data-rate-not-set>Rate Not Set</div>` : ''}</td>`; };
   const gCells = (r) => { if (!G) return ''; const x = m(r); const lk = !canEdit || r.line === '08';
     const tn = x.perMonth != null && r.fee && r.fee.overridden ? 'qc-over' : x.perMonth != null && String(r.fee.presetKey || '').startsWith('cdcalc:') ? 'qc-pre' : '';
     return html`<td class="num qc-g ${tn}">${lk ? html`<span>${x.perMonth != null ? usd(x.perMonth) : ''}</span>` : html`<input class="qc-cell num" data-qc-cell="perMonth" value="${x.perMonth != null ? usd(x.perMonth) : ''}" inputmode="decimal" aria-label="Line ${r.line} $ per month">`}</td>
@@ -211,7 +294,7 @@ function feeSection(ctx) {
     return html`<tr class="qc-row ${has ? 'has-fee' : 'is-blank'} ${r.template && !has ? 'is-template' : ''} ${r.reduces ? 'qc-reduces' : ''}" data-qc-row="${r.line}" ${r.id ? raw(`data-qc-fee="${r.id}"`) : ''}>
       <td class="qc-num" data-qc-line>${r.line}</td>
       <td class="qc-desc">${lk ? html`<span data-qc-val="description">${r.description || (sec === 'E' && r.line === '01' ? 'Recording fees (add them in Settings)' : '')}</span>` : html`<div class="qc-desc-in">${r.fee && r.fee.titlePrefix && !/^title\s*-/i.test(r.fee.description) ? html`<span class="qc-prefix">Title -</span>` : ''}<input class="qc-cell" data-qc-cell="description" value="${r.fee ? r.fee.description : ''}" placeholder="${r.template || ''}" maxlength="200" aria-label="Line ${r.line} description" autocomplete="off"></div>${r.fee && r.description !== cdDescription(r.fee) ? html`<div class="qc-cdtext small" data-qc-cdtext>${r.description}</div>` : ''}`}
-        ${r.fee && r.fee.calc ? html`<span class="pill acct-calc-pill qc-mini" data-calc-tag title="${r.fee.calc.rateSource}">CLA rates</span>` : ''}${r.fee && r.fee.overridden ? html`<span class="pill warn qc-mini" data-overridden>Overridden</span>` : ''}${r.fee && r.fee.timing === 'before' ? html`<span class="pill qc-mini">${r.fee.poc ? 'POC' : 'Before closing'}</span>` : ''}${r.parts ? html`<span class="pill qc-mini" data-qc-parts title="Two ledger fees shown on one CD line: the borrower part and the seller part">buyer + seller</span>` : ''}</td>
+        ${r.fee && r.fee.calc ? html`<span class="pill acct-calc-pill qc-mini" data-calc-tag title="${r.fee.calc.rateSource}">CLA rates</span>` : ''}${missingRate(r) ? html`<span class="pill warn qc-mini" data-rate-not-set>Rate Not Set</span>` : ''}${enteredByHand(r) ? html`<span class="pill warn qc-mini" data-entered-by-hand>Entered by hand</span>` : r.fee && r.fee.overridden ? html`<span class="pill warn qc-mini" data-overridden>Overridden</span>` : ''}${r.fee && r.fee.timing === 'before' ? html`<span class="pill qc-mini">${r.fee.poc ? 'POC' : 'Before closing'}</span>` : ''}${r.parts ? html`<span class="pill qc-mini" data-qc-parts title="Two ledger fees shown on one CD line: the borrower part and the seller part">buyer + seller</span>` : ''}</td>
       ${gCells(r)}
       <td class="qc-payee ${r.calculated && r.payee ? 'qc-pre-text' : ''}">${lk ? html`<span data-qc-val="payee">${r.payee ? 'to ' + r.payee : ''}</span>` : html`<input class="qc-cell" data-qc-cell="payee" value="${r.payee || ''}" list="qc-payees" maxlength="120" aria-label="Line ${r.line} payee" autocomplete="off">`}</td>
       ${amtCols.map((f) => amtCell(r, f))}</tr>`; };
@@ -326,7 +409,7 @@ function mountFees(root, refresh, ctx) {
     const common = fee && !r.recording ? html`${lockedDesc ? '' : html`<div class="qc-field"><span class="qc-label">Description</span><input class="qc-input" data-qc-set-desc value="${fee.description}" maxlength="200" ${dis(!canEdit)}></div>`}
       <div class="qc-field"><span class="qc-label">Payee</span><input class="qc-input" data-qc-set-payee value="${fee.payee || ''}" list="qc-payees" maxlength="120" ${dis(!canEdit)}></div>
       ${(sec === 'G' && r.line === '08') || isPerDiem(r) ? '' : html`${alloc(fee)}${timingField(fee)}`}
-      ${fee.calc ? html`<p class="small muted" data-qc-calc-note>${fee.overridden ? 'Overridden: changed by hand, so a CLA-rates re-run keeps it.' : `From CLA rates: ${fee.calc.calculation}`}</p>` : ''}`
+      ${fee.calc ? html`<p class="small muted" data-qc-calc-note>${String(fee.calc.key || '').startsWith('unset:') && Number(fee.amount) > 0 ? 'Entered by hand. CLA\'s rates have no fee for this document. A new calculation keeps this amount unless you choose to replace it.' : String(fee.calc.key || '').startsWith('unset:') ? 'Rate Not Set. Type the fee in the amount column so it is not missed.' : fee.overridden ? 'Overridden: changed by hand, so a CLA-rates re-run keeps it.' : `From CLA rates: ${fee.calc.calculation}`}</p>` : ''}`
       : !fee && !r.recording && !(sec === 'E' && r.line === '01') && !isPerDiem(r) ? html`<p class="small muted">Empty line: type a description in the table to start it${T ? ` (template: ${T})` : ''}.</p>` : '';
     const subBar = r.parts && U ? html`<div class="qc-inline qc-subbar"><span class="small muted">One CD line, two ledger fees:</span><div class="seg qc-seg small" data-qc-subs>${U.map((x) => html`<button type="button" class="seg-btn ${cur && x.id === cur.id ? 'on' : ''}" data-qc-sub="${x.id}">${x.label} ${usd(x.fee ? x.fee.amount : 0)}</button>`)}</div></div>` : '';
     return html`<div class="qc-card" data-qc-settings-card="${r.line}"><div class="qc-card-head"><h4>Settings <span class="qc-chip">Line ${r.line}</span></h4>${headBtns}</div>${subBar}${inner}${common}</div>`;

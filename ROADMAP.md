@@ -1169,7 +1169,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Add document lists Affidavit, Assignment of Mortgage or Lease, Deed, Deed of Trust, Lis Pendens, Power of Attorney, Release of Mortgage, UCC, Lease, and Easement.
 - Each document has pages, consideration, and taxable yes or no. Maryland and the District of Columbia ask primary residence, and a purchase asks first-time buyer, because those change the tax. Virginia and Florida do not ask, because they do not change the result. The file's primary residence and first-time buyer answers fill a new worksheet.
 - Calculate fees uses the existing CLA calculator, including the full county list from REC-CALC-6 (PR 296, merged). A county without its own rows uses the statewide rates. It does not keep a second rate table. Apply writes the recording fees, the lien certificate, and the transfer and recordation taxes. Title premiums stay as they are. A line changed by hand is kept.
-- A document the rate sheet does not price (an affidavit, a UCC, and the other four) is allowed. The screen says there is no fee for it and does not invent one.
+- A document the rate sheet does not price (an affidavit, a UCC, and the other four) is allowed. FF-091a shows Rate Not Set on that line instead of leaving the amount blank.
 - Samples checked against the calculator: Baltimore City, Fairfax, the District of Columbia, Miami-Dade, Hillsborough (statewide Florida rates), and a Maryland refinance.
 
 **What's still missing**
@@ -1224,6 +1224,38 @@ This file lists the portal's major features: how each one should work, how far a
 - A saved county wins over the ZIP and the city.
 - A ZIP in another state is explained. The calculator does not switch the file to that state.
 - No database file. Processors can already read the address columns. The rates stay in the vendored calculator.
+
+---
+
+## Rate Not Set on Taxes & Fees (FF-091a)
+
+**How it should work.** On Taxes & Fees, a document or recording line with no rate in CLA's rates is not left blank. The line says Rate Not Set and staff type the fee. That amount saves, comes back after a reload, counts in the totals, and is marked entered by hand. Calculating again keeps it unless staff choose to replace it.
+
+**Status: In review.** FF-091a. Francis Santos, Nov 17 2026, 1:55 PM ET, reply to the Taxes & Fees check (Gmail message 1a1eaddb3dcfc5d6), confirmed in the same day's recording-fees note (Gmail message 1a1eaed436b0de49, 2:12 PM ET). Pull request: [PR 324](https://github.com/Johncoester/cla-portal-demo/pull/324). Not Live. No database file. Not applied on TEST.
+
+**What's built**
+
+- An affidavit, assignment, lis pendens, UCC, lease, easement, or any other document the rate sheet does not price gets its own line: Recording fee, payee, and Rate Not Set. No amount is invented.
+- Staff type the fee on that line. Apply saves it. The charges row says Entered by hand. The amount is in the section total, the settlement statement, and the Closing Disclosure.
+- A blank fee is allowed and stays Rate Not Set, so the document is still visible. A value that is not a dollar amount stays on the form and says what to type.
+- Calculate fees again keeps a saved hand amount. Replace the amount entered by hand is the choice that lets a new figure take its place. Clearing it returns the line to Rate Not Set.
+
+**What's still missing**
+
+- Not checked on TEST. Not Live.
+- Baltimore City buyer, seller, or 50/50 transfer-tax choice is a different request from the same reply. It is not in this change.
+- The address and county message on Calculate (FF-095) is a different fix.
+
+**Links**
+
+- Spec: [docs/specs/taxes-fees-rate-not-set.md](docs/specs/taxes-fees-rate-not-set.md)
+- Source: Francis Santos, Nov 17 2026, 1:55 PM ET, message 1a1eaddb3dcfc5d6. The 2:12 PM ET note is message 1a1eaed436b0de49. Tracker FF-091a.
+- Pull request: [PR 324](https://github.com/Johncoester/cla-portal-demo/pull/324)
+
+**Decisions**
+
+- No new database file. The line is a calculated fee whose rate amount is empty. The typed fee is the amount on the charge, so a later calculation sees it as entered by hand and leaves it.
+- The typed fee is saved when Apply is clicked, including when the only change is that fee. Who pays stays as it was when the amount is replaced.
 
 ---
 
