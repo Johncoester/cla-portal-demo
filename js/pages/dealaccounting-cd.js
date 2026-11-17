@@ -7,7 +7,7 @@ import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=2026
 import { TEST_MARK } from '../data/accounting.js?v=202611241500';
 import { CD_DETAIL_GROUPS } from '../data/cd-pages.js?v=202611070139';
 import { partyNames, brokerOf } from '../data/statement-parties.js?v=202611222900';
-import { cdBrokerCells } from '../data/lender-file.js?v=202611241500';
+import { cdBrokerCells } from '../data/lender-file.js?v=202611241600';
 import { fmtPhone } from '../data/constants.js?v=202611101015';
 const m2 = (n) => (n == null || Number(n) === 0 ? '' : (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const m2z = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
