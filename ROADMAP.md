@@ -1118,3 +1118,33 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Reuse the share-with user list. Do not switch the owner pickers on the record forms.
 - Keep the stored criterion as the user id.
+
+---
+
+## CRM import buttons (CRM-IMPORT-1)
+
+**How it should work.** On CRM Leads, Import Leads is the first button and uses the main button style. Import Notes is the quieter button after it. On CRM Clients, Import Clients is first and Import Notes is second. Import Leads opens the lead import. Import Clients opens the client import. Import Notes opens notes for that list. People were opening Import Notes by mistake because that button was first.
+
+**Status: In progress.** Tracker row CRM-IMPORT-1. John Coester confirmed this on Nov 17, 2026 (CRM import fix 1 of 5). Not merged. Not on TEST. Not Live. No database file.
+
+**What's built**
+
+- On Leads, Import Leads comes first and uses the main button. Import Notes comes after it as the quieter button.
+- On Clients, Import Clients comes first the same way, then Import Notes.
+- The four addresses stay `#/crm/import/leads`, `#/crm/import/leads/notes`, `#/crm/import/contacts`, and `#/crm/import/contacts/notes`.
+
+**What's still missing**
+
+- Not on TEST until this pull request is merged and an admin checks Leads and Clients. Do not mark Live before that.
+- The other CRM import fixes (2 through 5) are separate.
+- Companies still have no import button.
+- The shell still loads the CRM page at its current cache stamp. That stamp lives in the app shell, which this change does not edit.
+
+**Links**
+
+- Spec: [docs/specs/crm-import-buttons.md](docs/specs/crm-import-buttons.md)
+
+**Decisions**
+
+- Import Leads and Import Clients are the main action. Import Notes stays available, after them.
+- Only an Admin or Super admin sees the buttons, same as before.

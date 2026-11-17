@@ -103,7 +103,9 @@ async function newPage(c) {
 // old lead values stay visible in the filter even when they are not in the Leads list (Janine, Nov 3: never erased)
 const leadStatusOpts = (cfg, rows) => { const o = fopts(cfg, 'leadRelationshipStatus'); const have = new Set(o.map(([v]) => v));
   const old = [...new Set(rows.map((r) => r.relationshipStatus).filter((v) => v && !have.has(v)))].sort().map((v) => [v, lbl(cfg, 'leadRelationshipStatus', v) || v]); return [...o, ...old, ['none', 'Not set']]; };
-const importBtns = (me, module) => (me.isAdmin ? html` <a class="ghost right" href="#/crm/import/${module}/notes" data-import-notes-btn="${module}">Import Notes</a> <a class="ghost right" href="#/crm/import/${module}" data-import-btn="${module}">Import ${module === 'leads' ? 'Leads' : 'Clients'}</a>` : '');   // float right: shown as Import, Import Notes, + Create
+// Leads and Clients: Import Leads / Import Clients is the main button and comes first. Import Notes is the quieter button after it.
+// (The old order put Import Notes first, so people opened notes by mistake.)
+const importBtns = (me, module) => (me.isAdmin ? html` <a class="m-btn" href="#/crm/import/${module}" data-import-btn="${module}">Import ${module === 'leads' ? 'Leads' : 'Clients'}</a> <a class="ghost" href="#/crm/import/${module}/notes" data-import-notes-btn="${module}">Import Notes</a>` : '');
 
 // ---------------- LEADS (Zoho list: Lead Name, Company, Email, Phone, Lead Source, Lead Owner) ----------------
 const blankPerson = (me) => ({ ownerId: me.isAdmin ? '' : me.id, relationshipStatus: '', links: {} });
