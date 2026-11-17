@@ -1365,7 +1365,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing**
 
 - The lead reported the database file is on TEST. Live still waits for a person to preview a file there. Do not mark Live before that.
-- The import page, the shell, and the hosted CRM module load at `202611242270`, which is above main's `202611242220`, so a browser fetches the new screen. Files this change does not edit stay at main's stamp.
+- The shell and the hosted CRM module load at `202611242280`. The import page stays at `202611242270`.
 
 **Links**
 
