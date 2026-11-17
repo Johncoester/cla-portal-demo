@@ -113,7 +113,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On a file, the Closing menu stays as it is. Accounting is its own section below that menu. It lists Ledger, Receipts, Disbursements, Account Balances, Balancing, and Loan Funding, in that order. The same six links sit in the accounting page's own section list, directly under Closing. Someone who cannot see Accounting today still does not see the section. Loan Funding opens the existing Funding page, and only for someone who could already open Funding.
 
-**Status: In progress.** Not on TEST yet. Pull request link is added when the pull request is open.
+**Status: In progress.** Not on TEST yet. Pull request: [PR 323](https://github.com/Johncoester/cla-portal-demo/pull/323).
 
 **What's built**
 
