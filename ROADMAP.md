@@ -261,7 +261,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** The file button that said Closing Date is **Scheduling Details**. The buyer's agent and the listing agent each have a task, "Schedule the Settlement for [property address]". They pick a settlement date (starting from the contract or addendum closing date), a CLA office (starting at the office nearest the property) or another address, a time from 9:00 AM to 6:00 PM, and notes. They can instead ask the buyer or the seller to schedule, which queues a link for that person and tells the agent. The seller can also choose remote online notarization on a computer. The choice shows on the Scheduling Details button. The processor sees the settlement agent name, a Settlement Agent Confirmed checkbox, and a separate notes button.
 
-**Status: In review.** Tracker row 316 (MF-056). FF-085 is the same request. Not applied to TEST. Not Live.
+**Status: In review.** Tracker row 316 (MF-056). FF-085 is the same request. The database file is on TEST. Not marked Live here. The processor screen follow-up is MF-058.
 
 **What's built**
 
@@ -269,7 +269,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Buyer's agent and listing agent tasks, with the ask-instead link, office list, other address, time, and notes. Seller side adds remote online notarization.
 - A buyer or seller link (`#/schedule-party/...`) that does not need a sign-in. The link is queued in the outbox from testportal@clatitle.com. Nothing is emailed.
 - Processor card: settlement agent name, Settlement Agent Confirmed, and Processor notes.
-- Database file `supabase/migrations/20261124150000_scheduling_details.sql` and rollback. Not applied anywhere.
+- Database file `supabase/migrations/20261124150000_scheduling_details.sql` and rollback. Applied on TEST.
 
 **What's still missing**
 
@@ -288,6 +288,42 @@ This file lists the portal's major features: how each one should work, how far a
 - The settlement agent list is active staff whose role contains "Settlement Agent" or "Closer". No role matches that today, so the box is free text.
 - This does not replace MF-011. The Closer field stays.
 - Saving a side does not change the file closing date. The lock John asked for is held.
+
+---
+
+## Scheduling agent/notary (MF-058)
+
+**How it should work.** On the processor Scheduling Details screen, each side has its own settlement agent/notary. The buyer side's details sit in a larger block under the buyer summary. The seller side's details sit inside the seller section. The label says settlement agent/notary. Phone and email are on each side, with Confirmed next to that person. Fields save on their own after the processor pauses, and the Save button for that person is gone. The signed-on date is not on this screen. Each side has a reminder that emails only the people on that side of the file, after the processor sees the list and chooses to send it.
+
+**Status: In review.** Tracker row MF-058. Not applied to TEST. Not Live.
+
+**What's built**
+
+- Buyer settlement agent/notary in the larger lower part of the buyer section. Seller settlement agent/notary inside the seller section.
+- Phone, email and Confirmed on each side. The words on the screen say settlement agent/notary. The database column names are unchanged.
+- Autosave after a short pause, with Saved or a plain error. Typing is kept when a save fails.
+- Signed-on date removed from this screen. A date already stored is left as it was.
+- Send reminder on each side. Buyer side emails the buyers and the buyer's agent. Seller side emails the sellers and the listing agent. The processor sees the names and addresses from the file and must press Email these people. The message is queued in the outbox and sent through the same Gmail path as other portal email.
+- Database file `supabase/migrations/20261124210000_scheduling_agent_notary.sql` and rollback. Not applied anywhere.
+
+**What's still missing**
+
+- Not checked on TEST until the new database file is applied. Do not mark Live before that.
+- John's buyer closing-date lock is still held. This change does not write the file closing date.
+- The Closing Disclosure and the client line that names CLA Title as the settlement agent are unchanged. Those name the company, not the person on this appointment.
+
+**Links**
+
+- Spec: [docs/specs/scheduling-agent-notary.md](docs/specs/scheduling-agent-notary.md). Source: Matt's Nov 17 Gemini notes, MF-058. Gmail 1a1e9eab7014ec5f. Matt confirmed Nov 17 2026, 10:30 AM ET.
+- Builds on MF-056, [PR 302](https://github.com/Johncoester/cla-portal-demo/pull/302).
+
+**Decisions**
+
+- Confirmed is one checkbox on each side, next to that side's settlement agent/notary.
+- Autosave replaces the Save button for those fields. Processor notes still use their own Save button.
+- The reminder is email only. Addresses come from the file's parties. Nothing is typed into the program as a recipient.
+- TEST's outbox cannot store a sent time, so the outbox row stays queued. The email itself goes out through Gmail send from the processor's connected mailbox.
+- The file closing date is not written.
 
 ---
 

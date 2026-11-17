@@ -1,12 +1,12 @@
 // Closing Date tab: the processor sends time options; each side answers through its own link; the processor confirms; a request can be reopened.
 // Links are shown here to copy. Nothing is emailed from this build.
 import { html, raw, $, $$, guard, formData, modal, closeModal, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611161500';
-import { schedulingPanelHtml, wireSchedulingPanel } from './scheduling-panel.js?v=202611241900';
+import { schedulingPanelHtml, wireSchedulingPanel } from './scheduling-panel.js?v=202611242100';
 import { settlementAgentChoices } from '../data/scheduling-details.js?v=202611241900';
 import { runsOrders, viewOnly, isProcessor, isClient, sideOf, isViewOnly, CLOSING_LOCATIONS } from '../data/constants.js?v=202611101015';
 import { placeText, OFFICE_LOCATION } from '../data/cla-offices.js?v=202611101015';
 import { SIGNING_METHODS, COUNTRIES, stateName, sideWord, canManageClosingLocations, canScheduleClosing } from '../data/closing-location.js?v=202611101015';
-import { officeOptionLabel, MANUAL_OFFICE, sideFromDeal, cleanSideSigning, sidePatch, scheduledPlace, cleanManualAddress, composeAddress, PLACE_KINDS, SIGN_STATUSES, TYPED_ADDRESS, MOBILE_NOTARY } from '../data/closing-side.js?v=202611170800';
+import { officeOptionLabel, MANUAL_OFFICE, sideFromDeal, cleanSideSigning, sidePatch, scheduledPlace, cleanManualAddress, composeAddress, PLACE_KINDS, SIGN_STATUSES, TYPED_ADDRESS, MOBILE_NOTARY } from '../data/closing-side.js?v=202611242100';
 import { US_STATE_NAMES } from '../data/constants.js?v=202611101015';
 // John, Nov 4: "Will you be in <state> at the time of closing?" (Yes / No -> another US state or a country outside the US). One block per party.
 export function locFields(r, pre = '') { const st = stateName(r.propertyState) || "the property's state"; const no = r.inStateAtClosing === false; const abroad = no && !!r.closingLocationCountry;
@@ -82,10 +82,9 @@ export async function render({ api, user, deal, refresh }) {
   };
   const offices = officeBook.offices || [];
   const sideBlock = (side) => { const s = sideFromDeal(deal, side); const place = s.placeKind === 'office' ? officeOptionLabel(offices.find((o) => o.id === s.officeId) || {}) : composeAddress(s);
-    if (!editLoc) return html`<p data-side-read="${side}"><strong>${s.label}:</strong> ${s.status === 'signed' ? `Signed ${fmtDate(s.signedOn)}` : 'Pending'}${s.date ? html` · ${fmtDate(s.date)} ${s.time || ''}` : ''}${place ? html` · ${place}` : ''}</p>`;
+    if (!editLoc) return html`<p data-side-read="${side}"><strong>${s.label}:</strong> ${s.status === 'signed' ? 'Signed' : 'Pending'}${s.date ? html` · ${fmtDate(s.date)} ${s.time || ''}` : ''}${place ? html` · ${place}` : ''}</p>`;
     return html`<form data-side-form="${side}" class="form-grid"><h4 class="span2">${s.label}</h4>
       <label>Status<select name="status" aria-label="${s.label} signing status">${SIGN_STATUSES.map(([c, l]) => html`<option value="${c}" ${s.status === c ? raw('selected') : ''}>${l}</option>`)}</select></label>
-      <label>Signed on<input type="date" name="signedOn" value="${s.signedOn || ''}" aria-label="${s.label} signed on"></label>
       <label>Date<input type="date" name="date" value="${s.date || ''}" aria-label="${s.label} signing date"></label>
       <label>Time<input type="time" name="time" value="${s.time || ''}" aria-label="${s.label} signing time"></label>
       <label class="span2">Location<select name="placeKind" data-place-kind aria-label="${s.label} location"><option value="">Choose&hellip;</option>${PLACE_KINDS.map(([c, l]) => html`<option value="${c}" ${s.placeKind === c ? raw('selected') : ''}>${l}</option>`)}</select></label>
@@ -113,7 +112,7 @@ export async function render({ api, user, deal, refresh }) {
     $$('[data-loc-form]', root).forEach((f) => f.addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.answerClosingLocation(deal.id, f.dataset.locForm, locValue(formData(f))); toast('Thanks, saved'); refresh(); })));
     $$('[data-signing]', root).forEach((sel) => sel.addEventListener('change', guard(async () => { await api.setSigningMethod(deal.id, sel.dataset.signing, sel.value); toast('Signing method saved'); refresh(); })));
     $$('[data-side-form]', root).forEach((form) => { const sync = () => { const kind = (form.placeKind && form.placeKind.value) || ''; const office = $('[data-side-office]', form); const manual = $('[data-side-manual]', form); if (office) office.hidden = kind !== 'office'; if (manual) manual.hidden = kind !== 'mobile_notary' && kind !== 'manual'; }; form.addEventListener('change', sync);
-      form.addEventListener('submit', guard(async (e) => { e.preventDefault(); const v = formData(form); const clean = cleanSideSigning({ ...v, side: form.dataset.sideForm }); await api.saveSideSigning(deal.id, clean); toast(`${clean.side === 'seller' ? 'Seller' : 'Buyer'} side saved`); refresh(); })); });
+      form.addEventListener('submit', guard(async (e) => { e.preventDefault(); const v = formData(form); const stored = sideFromDeal(deal, form.dataset.sideForm); const clean = cleanSideSigning({ ...v, side: form.dataset.sideForm, signedOn: stored.signedOn, allowBlankSignedOn: !stored.signedOn }); await api.saveSideSigning(deal.id, clean); toast(`${clean.side === 'seller' ? 'Seller' : 'Buyer'} side saved`); refresh(); })); });
     $$('[data-edit-loc]', root).forEach((b) => b.addEventListener('click', () => { const r = locs.find((z) => z.participantId === b.dataset.editLoc); const side = r.partyRole === 'Client-Seller' ? 'seller' : 'buyer'; const s = sideFromDeal(deal, side);
       const m = modal(`Where ${r.name} will be at closing`, html`<form id="lf" class="form-grid">${locFields(r)}
         <h4 class="span2">${s.label} date, time and location</h4>
@@ -123,7 +122,7 @@ export async function render({ api, user, deal, refresh }) {
         <label>Street<input name="street" value="${s.street || ''}" maxlength="120"></label><label>City<input name="city" value="${s.city || ''}" maxlength="80"></label><label>State<input name="state" value="${s.state || ''}" maxlength="2"></label><label>ZIP<input name="zip" value="${s.zip || ''}" maxlength="10"></label>
         <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
       wireLocFields(m); $('#lf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const v = formData(e.target); await api.setClosingLocation(deal.id, r.participantId, locValue(v));
-        if (v.placeKind || v.date || v.time) await api.saveSideSigning(deal.id, cleanSideSigning({ ...v, side, status: s.status, signedOn: s.signedOn }));
+        if (v.placeKind || v.date || v.time) await api.saveSideSigning(deal.id, cleanSideSigning({ ...v, side, status: s.status, signedOn: s.signedOn, allowBlankSignedOn: !s.signedOn }));
         closeModal(); toast('Answer saved'); refresh(); })); }));
     $$('[data-reopen]', root).forEach((b) => b.addEventListener('click', guard(() => slotsModal('Reopen closing date request', async (f) => { await api.reopenSettlement(b.dataset.reopen, f); toast('Reopened. Both sides can answer again.'); }, false))));
   } };
