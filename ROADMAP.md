@@ -1227,6 +1227,41 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Tax rate sheets by place (FF-091c)
+
+**How it should work.** Each state, county, and city has its own rate sheet and its own questions. On Taxes & Fees, once the place is known, those questions show up. The portal figures the tax, takes off the exemptions, then splits what is left between buyer and seller. The sheet supplies the starting split. Staff can change it to match the contract, unless the law fixes that line. An Admin can change a rate, an exemption, or a rule without a code change. A blank rate says Rate Not Set, and staff type the fee.
+
+**Status: In progress.** Tracker FF-091c. Francis Santos, Nov 17 2026, 3:55 PM ET (Gmail message 1a1eb4b8017fcabf). Not Live. Database file `supabase/migrations/20261125170000_tax_rate_sheets.sql`. Not applied on TEST.
+
+**What's built**
+
+- Tables for places, rate lines, exemptions, questions, and the default buyer / seller split, with a flag when the law fixes the split. Staff can read. Only an Admin or Super admin can write. Row security enforces it.
+- Admin, Tax rates: pick a place and edit the rate, the exemption, the question, and who pays. A blank amount is Rate Not Set.
+- Taxes & Fees reads the tables. If they are not on the database yet, the rates already in the portal are the fallback.
+- The rates copied in are the ones already in the fee sheet for Maryland (Baltimore City and the counties on that sheet), Virginia, the District of Columbia, and Florida. Nothing was invented.
+- Baltimore City, $200,000, owner-occupied: city transfer tax $2,670 and recordation $1,780 after the $22,000 exemption, then split. A first-time buyer pays no state transfer tax; the seller pays $500, and that line stays locked.
+
+**What's still missing**
+
+- Not applied on TEST. Not Live.
+- Calvert, Carroll, Frederick, Somerset, and Wicomico have no county transfer tax in the sheet, so there is no line.
+- No dollar rate for recording the mortgage at the same time as the deed, and no amount for "other statutory exemptions." Those questions show. They do not change the fee until an Admin sets a figure.
+- The contract's split is still chosen on Taxes & Fees. It is not read from a named field on the order (the same open question as FF-091b).
+
+**Links**
+
+- Spec: [docs/specs/taxes-fees-rate-sheets.md](docs/specs/taxes-fees-rate-sheets.md)
+- Source: Francis Santos, Nov 17 2026, 3:55 PM ET, message 1a1eb4b8017fcabf. Tracker FF-091c.
+
+**Decisions**
+
+- Figure the tax, apply the exemption, then split. The $22,000 comes off the whole amount before a 50/50 split.
+- Maryland state transfer tax for a first-time buyer who will live there stays with the seller. The "set by law" flag starts on for that line.
+- A county keeps the statewide rows for any tax it does not replace.
+- Do not apply the database file from this pull request.
+
+---
+
 ## Commission Paid By (FF-089)
 
 **How it should work.** On Place Order, under Earnest money & agent fees, the listing agent and the selling agent each have Commission Paid By: Buyer, Seller, or Split. Split asks for the buyer's share and the seller's share, and the two amounts must add up to the commission. That commission then shows on the buyer side, the seller side, or both, on the settlement statement and the Closing Disclosure.

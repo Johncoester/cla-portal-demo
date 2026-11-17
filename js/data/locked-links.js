@@ -79,7 +79,7 @@ export function routeAllowed(u, route, { locked = false, demo = null } = {}) {
   if (p === 'users' || p === 'teams') return !!u.isAdmin;
   if (p === 'offices') return canManageOffices(u);   // John, Nov 4: Admin > Offices (Admin / Super admin only; others get "Not available")
   if (p === 'admin/email-templates' || p === 'email-templates') return canManageFileTemplates(u);   // John, Nov 9: Admin > Email Templates
-  if (p === 'modules' || p === 'underwriters') return canManageModules(u);
+  if (p === 'modules' || p === 'underwriters' || p === 'tax-rates') return canManageModules(u);
   if (p === 'role-access') return canManageRoleAccess(u);   // John, Nov 9: Super admin only
   if (p === 'orders/new' || p === 'activity') return runsOrders(u) || !!u.isAdmin;
   if (p === 'task-grid' || p === 'templates' || p === 'admin/templates') return canOpenTaskSetup(u, demo);   // Task Templates (all three tabs) and the Task Grid
@@ -100,7 +100,7 @@ const FILE_TABS = ['overview', 'tasks', 'inbox', 'documents', 'closing', 'contac
 const ACCT_VIEWS = ['charges', 'cd', 'cddetails', 'prorations', 'payments', 'ledger', 'alta', 'history', 'payoffs', 'taxes', 'othercontacts'];   // + payoffs / taxes / othercontacts (live28: Qualia Payoffs, Taxes & Prorations, Other Contacts)
 export const SECTIONS = { home: '/dashboard', 'my-tasks': '/dashboard', orders: '/orders', 'place-order': '/orders/new', tasks: '/tasks', 'task-grid': '/task-grid', library: '/library',
   crm: '/crm', 'crm-deals': '/crm/deals', 'crm-leads': '/crm/leads', 'crm-calls': '/crm', 'crm-templates': '/crm/templates', 'crm-pipeline': '/crm/pipeline', 'crm-reports': '/crm/reports',
-  admin: '/users', users: '/users', 'create-user': '/users/new', teams: '/teams', 'admin-offices': '/offices', modules: '/modules', 'role-access': '/role-access', underwriters: '/underwriters', 'agent-invites': '/agent-invites',
+  admin: '/users', users: '/users', 'create-user': '/users/new', teams: '/teams', 'admin-offices': '/offices', modules: '/modules', 'role-access': '/role-access', underwriters: '/underwriters', 'tax-rates': '/tax-rates', 'agent-invites': '/agent-invites',
   templates: '/admin/templates', 'email-templates': '/admin/email-templates', 'task-builder': '/task-builder', outbox: '/outbox', activity: '/activity', profile: '/profile', hr: '/hr', 'my-profile': '/hr/me',
   // HR section links (John, Nov 4: "HR should have a link"). Only pick the first page: app.js still applies hrSectionAllowed + the 'hr' module switch
   // (Super admins only while HR is off; HR managers once Live; an employee only their own profile; HR Settings = Super admin only).

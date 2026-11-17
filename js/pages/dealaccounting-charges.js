@@ -67,6 +67,15 @@ export function helpRail(sec) {
 
 // ---------------- Taxes & Fees documents (FF-091) ----------------
 const taxChoice = (flag, on, label) => html`<div><span class="small">${label}</span><div class="seg" data-tax-flag="${flag}" role="group" aria-label="${label}"><button type="button" class="seg-btn ${on ? 'on' : ''}" data-tax-choice="yes">Yes</button><button type="button" class="seg-btn ${on ? '' : 'on'}" data-tax-choice="no">No</button></div></div>`;
+function taxQuestion(q, setup) {
+  const saved = (setup.answers && (setup.answers[q.key] != null ? setup.answers[q.key] : setup.answers[q.key === 'owner_occupied' ? 'ownerOccupied' : q.key])) ;
+  if (q.inputType === 'choice') {
+    const cur = setup.answers && (setup.answers.contractPayer || setup.answers.contract_payer) || '';
+    return html`<label class="small" data-tax-q="${q.key}">${q.label}<select data-tax-q-value aria-label="${q.label}">${(q.choices || []).map((c) => html`<option value="${c.value}" ${c.value === cur ? raw('selected') : ''}>${c.label}</option>`)}</select>${q.help ? html`<span class="field-hint">${q.help}</span>` : ''}</label>`;
+  }
+  const on = saved === true || saved === 'yes' || (saved == null && q.key === 'owner_occupied' && setup.fromOrder && setup.fromOrder.occ !== 'no');
+  return html`<div data-tax-q="${q.key}">${taxChoice('q', on !== false && (saved != null || q.key === 'owner_occupied'), q.label)}${q.help ? html`<p class="field-hint small">${q.help}</p>` : ''}</div>`;
+}
 function taxDocCard(d, asks) {
   const occ = !!(asks && asks.occ) && (d.type === 'Deed' || d.type === 'Deed of Trust');
   const fthb = !!(asks && asks.fthb) && d.type === 'Deed';
@@ -76,7 +85,7 @@ function taxDocCard(d, asks) {
       <label>Number of pages<input data-tax-pages inputmode="numeric" value="${d.pages ?? ''}" aria-label="${d.type}, number of pages" autocomplete="off"></label>
       <label>Consideration amount<input data-tax-consideration data-money inputmode="decimal" value="${money}" placeholder="0.00" aria-label="${d.type}, consideration" autocomplete="off"></label>
       ${taxChoice('taxable', d.taxable !== false, 'Taxable?')}
-      ${occ ? taxChoice('occ', d.occ !== false, 'Primary residence / owner-occupied?') : ''}
+      ${occ ? taxChoice('occ', d.occ !== false, asks && asks.separateOcc ? 'Primary residence?' : 'Primary residence / owner-occupied?') : ''}
       ${fthb ? taxChoice('fthb', d.fthb === true, 'First-time buyer?') : ''}
     </div>
     ${occ && asks.occNote ? html`<p class="field-hint small">${asks.occNote}</p>` : ''}${fthb && asks.fthbNote ? html`<p class="field-hint small">${asks.fthbNote}</p>` : ''}</div>`;
@@ -89,6 +98,7 @@ function taxFeesPanel(setup) {
     <p class="small muted">Add each document to record. Calculate fees prices the recording fees, recordation tax, and transfer tax for this county. Nothing is saved until you apply the lines. A line you changed by hand is kept.</p>
     ${setup.countyNote ? html`<p class="small" data-tax-county>${setup.countyNote}</p>` : ''}
     ${setup.rateNote ? html`<p class="small" data-tax-rate>${setup.rateNote}</p>` : ''}
+    ${setup.questions && setup.questions.length ? html`<div data-tax-questions>${setup.questions.map((q) => taxQuestion(q, setup))}</div>` : ''}
     <div class="acct-toolbar"><label class="small">Add document <select data-tax-add-type aria-label="Add document">${left.length ? left.map((t) => html`<option value="${t}">${t}</option>`) : html`<option value="">All documents are added</option>`}</select></label>
       <button type="button" class="m-btn" data-tax-add ${dis(!left.length)}>Add document</button></div>
     <div class="card-grid" data-tax-cards>${setup.documents.map((d) => taxDocCard(d, setup.asks))}</div>
@@ -110,7 +120,9 @@ function taxBreakdown(view, refi) {
     ${view.breakdown.length ? html`<div class="qc-table-wrap"><table class="qc-table" data-tax-table><thead>
       <tr><th rowspan="2">Description</th><th rowspan="2">Payee</th><th colspan="2" class="center">Paid by Borrower</th>${refi ? '' : html`<th colspan="2" class="center">Paid by Seller</th>`}<th rowspan="2" class="num">By Others</th></tr>
       <tr><th class="num">At Closing</th><th class="num">Before Closing</th>${refi ? '' : html`<th class="num">At Closing</th><th class="num">Before Closing</th>`}</tr></thead>
-      <tbody>${view.breakdown.map((r) => html`<tr data-tax-line="${r.key}"><td><strong>${r.description}</strong>${r.status === 'overridden' ? html` <span class="pill warn">Kept</span>` : ''}<div class="small muted">${r.calculation || ''}</div></td><td class="small">${r.payee ? 'to ' + r.payee : ''}</td>${cols.map(([k]) => html`<td class="num">${cell(r[k])}</td>`)}</tr>`)}</tbody>
+      <tbody>${view.breakdown.map((r) => html`<tr data-tax-line="${r.key}"><td><strong>${r.description}</strong>${r.status === 'overridden' ? html` <span class="pill warn">Kept</span>` : ''}${r.lawMandated ? html` <span class="pill" data-tax-locked>Set by law</span>` : ''}<div class="small muted">${r.calculation || ''}</div>
+        ${r.rateNotSet ? html`<label class="small">Amount <input data-tax-manual="${r.key}" inputmode="decimal" placeholder="Rate Not Set" aria-label="${r.description} amount" autocomplete="off"></label>` : ''}
+        ${String(r.key).startsWith('tax:') && !r.rateNotSet ? html`<label class="small">Who pays <select data-tax-payer="${r.key}" aria-label="Who pays ${r.description}" ${r.lawMandated ? raw('disabled') : ''}><option value="buyer" ${r.paidBy === 'buyer' ? raw('selected') : ''}>Buyer pays</option><option value="seller" ${r.paidBy === 'seller' ? raw('selected') : ''}>Seller pays</option><option value="split" ${r.paidBy === 'split' ? raw('selected') : ''}>50/50 split</option></select></label>${r.lawMandated ? html`<span class="field-hint">The law fixes this line. The contract cannot move it.</span>` : ''}` : ''}</td><td class="small">${r.payee ? 'to ' + r.payee : ''}</td>${cols.map(([k]) => html`<td class="num">${r.rateNotSet ? 'Rate Not Set' : cell(r[k])}</td>`)}</tr>`)}</tbody>
       <tfoot><tr class="qc-totals"><td><strong>TOTALS</strong></td><td></td>${cols.map(([k]) => html`<td class="num"><strong>${usd(tot(k))}</strong></td>`)}</tr></tfoot></table></div>` : html`<p class="small">No recording fees or transfer taxes came back for these documents.</p>`}
     ${view.examples && view.examples.length ? html`<label class="check small"><input type="checkbox" data-tax-examples checked> Also retire ${view.examples.length} example fee${view.examples.length === 1 ? '' : 's'} these replace</label>` : ''}
     <div class="acct-form-actions"><button type="button" class="m-btn" data-tax-apply>Apply to charges</button><span class="muted small">The lines go on the charges, the settlement statement, and the Closing Disclosure. Title premiums are left as they are.</span></div></div>`;
@@ -119,10 +131,31 @@ function mountTaxFees(root, ctx, refresh) {
   const box = $('[data-tax-fees]', root); if (!box || !ctx.taxSetup || !ctx.taxSetup.covered) return;
   const { api, deal, acc } = ctx; const setup = ctx.taxSetup;
   const flag = (card, name) => { const g = $(`[data-tax-flag="${name}"]`, card); if (!g) return name === 'fthb' ? false : true; const on = $('.on', g); return !on || on.dataset.taxChoice !== 'no'; };
+  const readAnswers = () => {
+    const answers = {};
+    $$('[data-tax-q]', box).forEach((el) => {
+      const key = el.dataset.taxQ;
+      const sel = $('select', el);
+      if (sel) { if (sel.value) answers[key] = sel.value; return; }
+      answers[key] = flag(el, 'q');
+    });
+    return answers;
+  };
+  const readPayers = () => {
+    const payers = {};
+    $$('[data-tax-payer]', box).forEach((sel) => { if (!sel.disabled && sel.value) payers[sel.dataset.taxPayer.slice(4)] = sel.value; });
+    return payers;
+  };
+  const readManual = () => {
+    const manual = {};
+    $$('[data-tax-manual]', box).forEach((inp) => { if (String(inp.value || '').trim() !== '') manual[inp.dataset.taxManual] = inp.value; });
+    return manual;
+  };
   const read = () => ({
     documents: $$('[data-tax-doc]', box).map((card) => ({ type: card.dataset.taxDoc, pages: $('[data-tax-pages]', card).value, consideration: $('[data-tax-consideration]', card).value, taxable: flag(card, 'taxable'), occ: flag(card, 'occ'), fthb: flag(card, 'fthb') })),
     payoff: $('[data-tax-payoff]', box) ? $('[data-tax-payoff]', box).value : 0,
-    assessed: $('[data-tax-assessed]', box) ? $('[data-tax-assessed]', box).value : 0
+    assessed: $('[data-tax-assessed]', box) ? $('[data-tax-assessed]', box).value : 0,
+    answers: readAnswers(), payers: readPayers(), manual: readManual()
   });
   const showError = (message, field, type) => {
     const el = $('[data-tax-error]', box); el.hidden = !message; el.textContent = message || '';
@@ -164,7 +197,10 @@ function mountTaxFees(root, ctx, refresh) {
       const count = () => { const n = view.applicable + (ex && ex.checked ? view.examples.length : 0); btn.textContent = n ? `Apply ${n} change${n === 1 ? '' : 's'}` : 'Nothing to apply'; btn.disabled = !n; };
       if (ex) ex.addEventListener('change', count); count();
       btn.addEventListener('click', guard(async () => { btn.disabled = true; try {
-        const r = await api.applyTaxesFees(deal.id, worksheet, { token: view.token, retireExamples: !!(ex && ex.checked) });
+        const now = read();
+        const fresh = await api.previewTaxesFees(deal.id, now);
+        if (fresh.pending && fresh.pending.length) { showError(`Enter an amount for ${fresh.pending[0].name || fresh.pending[0].description}. The rate is not set. Nothing was saved.`, 'manual'); btn.disabled = false; return; }
+        const r = await api.applyTaxesFees(deal.id, now, { token: fresh.token, retireExamples: !!(ex && ex.checked) });
         toast(`Taxes and fees applied: ${r.added} added, ${r.updated} updated, ${r.retired + r.examplesRetired} retired${r.kept ? `, ${r.kept} kept` : ''}.`); refresh();
       } finally { btn.disabled = false; } }));
     } catch (e) { showError(e.message, e.field, e.docType); $('[data-tax-result]', box).innerHTML = ''; }

@@ -11,7 +11,8 @@ import { clientActivityFrom } from './client-activity.js?v=202611102100';
 import { assertRecipients, messageText } from './portal-message.js?v=202611241900';
 import { planDocumentBatch } from './document-batch.js?v=202611101015';
 import { featureFlags } from './features.js?v=202611070139';
-import { accountingSupabase } from './supabase-accounting.js?v=202611242400';
+import { accountingSupabase } from './supabase-accounting.js?v=202611243580';
+import { taxRatesSupabase } from './supabase-tax-rates.js?v=202611243560';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611241600';
 import { agentFeesSupabase } from './supabase-agent-fees.js?v=202611222800';
 import { titleSupabase } from './supabase-title.js?v=202611112200';
@@ -944,6 +945,7 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, crmSupabase({ sb, ok, camel, me, flags: a.features }));
   // ACCOUNTING (John, Nov 3; migration 34): only when features.accounting === true (off by default everywhere) AND the database switch is on.
   Object.assign(a, accountingSupabase({ sb, ok, flags: a.features }));
+  Object.assign(a, taxRatesSupabase({ sb, me }));
   // PAYOFFS / HOA / FFB / GROUND RENT (John, Nov 4; migration 42): same switches as accounting, staff only
   Object.assign(a, payoffsSupabase({ sb, ok, flags: a.features, api: a }));
   // AGENT FEES (AF-2, John Nov 12): per side commission / admin fee / other fees; the database functions decide who sees and changes what

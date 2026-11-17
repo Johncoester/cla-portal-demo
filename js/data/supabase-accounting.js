@@ -10,7 +10,8 @@ import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedE
 // CLA RATES (migration 36): calculated fees carry calc_source = 'cla-rates' + calc_key / calc_fields / rate_source / calculation / calc_inputs /
 // calc_version / calc_at; the trigger keeps `overridden` (a person changed what the calculation set). The engine loads lazily (flag off = never).
 const engine = () => import('./fee-engine.js?v=202611241600');
-const taxes = () => import('./taxes-fees.js?v=202611242400');
+const taxes = () => import('./taxes-fees.js?v=202611243540');
+const remoteRates = () => import('./supabase-tax-rates.js?v=202611243560');
 const calcRow = (f) => (f.calc ? { calc_source: CALC_SOURCE_ID, calc_key: f.calc.key, calc_fields: f.calc.fields, rate_source: f.calc.rateSource, calculation: f.calc.calculation, calc_inputs: f.calc.inputs, calc_version: f.calc.version, calc_at: f.calc.at } : {});
 
 const toRow = (f) => ({ kind: f.kind, description: f.description, alta_section: f.altaSection, cd_section: f.cdSection, cd_line: f.cdLine, payee: f.payee, amount: f.amount, note: f.note, preset_key: f.presetKey,
@@ -37,6 +38,7 @@ export function accountingSupabase({ sb, ok, flags }) {
   };
   const access = async (id) => { const a = ok(await sb.rpc('accounting_access', { p_deal: id })); if (a === 'off') throw new Error(ACCOUNTING_OFF); if (a === 'none') throw new Error(ACCOUNTING_STAFF_ONLY); return a; };
   const fees = async (id) => (ok(await sb.from('accounting_fees').select('*').eq('deal_id', id).order('created_at')) || []).map(fromRow);
+  const taxBundle = async () => { try { return await (await remoteRates()).readTaxBundle(sb); } catch (e) { return null; } };
   const editor = async (id) => { const a = await access(id); if (a !== 'edit') throw new Error(ACCOUNTING_READ_ONLY); return a; };
   const insertCalc = async (E, d, all, line, P, overrides = {}, at = new Date().toISOString()) => {
     if (all.some((f) => !f.retired && isCalculated(f) && f.calc.key === line.key)) throw new Error(`"${line.description}" is already on the ledger from CLA rates. Use "Calculate fees from CLA rates" to update it.`);
@@ -77,11 +79,11 @@ export function accountingSupabase({ sb, ok, flags }) {
       if (retireExamples) for (const x of D.examples) { ok(await sb.from('accounting_fees').update({ retired_at: at }).eq('id', x.id).select('id').single()); r.examplesRetired++; }
       return r; },
     // FF-091: recording fees and transfer / recordation taxes from the Taxes & Fees documents. Title premiums are not touched.
-    async getTaxesFeesSetup(dealId) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const rates = await E.loadCalculatorRates(); return T.taxesFeesSetup(d, await fees(dealId), rates.tables, rates); },
-    async previewTaxesFees(dealId, worksheet) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const rates = await E.loadCalculatorRates(); return T.previewTaxesFees(d, worksheet, await fees(dealId), rates.tables, rates.source); },
+    async getTaxesFeesSetup(dealId) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const rates = await E.loadCalculatorRates(); const bundle = await taxBundle(); return T.taxesFeesSetup(d, await fees(dealId), rates.tables, rates, bundle); },
+    async previewTaxesFees(dealId, worksheet) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const rates = await E.loadCalculatorRates(); const bundle = await taxBundle(); return T.previewTaxesFees(d, worksheet, await fees(dealId), rates.tables, rates.source, bundle); },
     async applyTaxesFees(dealId, worksheet, { token = null, retireExamples = true } = {}) {
-      on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const all = await fees(dealId); const rates = await E.loadCalculatorRates();
-      const P = T.proposeTaxesFees(d, worksheet, rates.tables, rates.source); const D = T.diffTaxesFees(P, all); if (token && token !== D.token) throw new Error('The fee ledger or the order changed since the preview. Preview again before applying.');
+      on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const all = await fees(dealId); const rates = await E.loadCalculatorRates(); const bundle = await taxBundle();
+      const P = T.proposeTaxesFees(d, worksheet, rates.tables, rates.source, bundle); if (P.pending && P.pending.length) throw new Error(`Enter an amount for ${P.pending[0].name}. The rate is not set. Nothing was saved.`); const D = T.diffTaxesFees(P, all); if (token && token !== D.token) throw new Error('The fee ledger or the order changed since the preview. Preview again before applying.');
       const at = new Date().toISOString(); const r = { added: 0, updated: 0, retired: 0, examplesRetired: 0, kept: D.counts.overridden, unchanged: D.counts.unchanged, skipped: D.counts.retired };
       for (const row of D.rows) {
         if (row.status === 'new') {
