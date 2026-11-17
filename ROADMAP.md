@@ -568,7 +568,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On Import Leads and Import Clients, Preview flags a Phone or Mobile that is not a 10-digit number. Eleven digits starting with 1 are accepted. A blank is fine. A web address with no http:// or https:// gets https:// in front when it is a real site. An address that is still not a web address is an error on that row, in plain words. Those rows are not imported.
 
-**Status: In review.** John Coester confirmed this Nov 17 2026 as CRM import fix 3 of 5. Not Live. No database change. The preview already draws each row's message, so the check runs in the hosted import before the database call.
+**Status: In review.** John Coester confirmed this Nov 17 2026 as CRM import fix 3 of 5. Pull request: [PR 313](https://github.com/Johncoester/cla-portal-demo/pull/313). Not Live. No database change. The preview already draws each row's message, so the check runs in the hosted import before the database call.
 
 **What's built**
 
@@ -582,6 +582,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/crm-import-phone-web.md](docs/specs/crm-import-phone-web.md)
+- Related pull requests: [PR 313](https://github.com/Johncoester/cla-portal-demo/pull/313).
 
 **Decisions**
 

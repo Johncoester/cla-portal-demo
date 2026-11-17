@@ -2,7 +2,7 @@
 
 **Requested by:** John Coester, confirmed Nov 17 2026, as CRM import fix 3 of 5.
 
-**Status:** In review. Not Live. No database change. See [ROADMAP.md](../../ROADMAP.md).
+**Status:** In review. Pull request [313](https://github.com/Johncoester/cla-portal-demo/pull/313). Not Live. No database change. See [ROADMAP.md](../../ROADMAP.md).
 
 ## What the user sees
 
