@@ -1125,7 +1125,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On CRM Leads, Import Leads is the first button and uses the main button style. Import Notes is the quieter button after it. On CRM Clients, Import Clients is first and Import Notes is second. Import Leads opens the lead import. Import Clients opens the client import. Import Notes opens notes for that list. People were opening Import Notes by mistake because that button was first.
 
-**Status: In progress.** Tracker row CRM-IMPORT-1. John Coester confirmed this on Nov 17, 2026 (CRM import fix 1 of 5). Not merged. Not on TEST. Not Live. No database file.
+**Status: In progress.** Tracker row CRM-IMPORT-1. John Coester confirmed this on Nov 17, 2026 (CRM import fix 1 of 5). Pull request: [PR 312](https://github.com/Johncoester/cla-portal-demo/pull/312). Not merged. Not on TEST. Not Live. No database file.
 
 **What's built**
 
@@ -1143,6 +1143,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/crm-import-buttons.md](docs/specs/crm-import-buttons.md)
+- Pull request: [PR 312](https://github.com/Johncoester/cla-portal-demo/pull/312)
 
 **Decisions**
 

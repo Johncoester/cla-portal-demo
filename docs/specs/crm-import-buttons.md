@@ -2,7 +2,7 @@
 
 **Requested by:** John Coester, confirmed Nov 17, 2026. CRM import fix 1 of 5. People were opening Import Notes when they meant to import leads or clients.
 
-**Status:** In progress. Not Live. No database change. See [ROADMAP.md](../../ROADMAP.md).
+**Status:** In progress. Pull request [312](https://github.com/Johncoester/cla-portal-demo/pull/312). Not Live. No database change. See [ROADMAP.md](../../ROADMAP.md).
 
 ## What the user sees
 
