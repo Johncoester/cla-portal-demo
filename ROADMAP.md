@@ -1167,7 +1167,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On Taxes & Fees, a document or recording line with no rate in CLA's rates is not left blank. The line says Rate Not Set and staff type the fee. That amount saves, comes back after a reload, counts in the totals, and is marked entered by hand. Calculating again keeps it unless staff choose to replace it.
 
-**Status: In review.** FF-091a. Francis Santos, Nov 17 2026, 1:55 PM ET, reply to the Taxes & Fees check (Gmail message 1a1eaddb3dcfc5d6), confirmed in the same day's recording-fees note (Gmail message 1a1eaed436b0de49, 2:12 PM ET). Not Live. No database file. Not applied on TEST.
+**Status: In review.** FF-091a. Francis Santos, Nov 17 2026, 1:55 PM ET, reply to the Taxes & Fees check (Gmail message 1a1eaddb3dcfc5d6), confirmed in the same day's recording-fees note (Gmail message 1a1eaed436b0de49, 2:12 PM ET). Pull request: [PR 324](https://github.com/Johncoester/cla-portal-demo/pull/324). Not Live. No database file. Not applied on TEST.
 
 **What's built**
 
@@ -1186,6 +1186,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Spec: [docs/specs/taxes-fees-rate-not-set.md](docs/specs/taxes-fees-rate-not-set.md)
 - Source: Francis Santos, Nov 17 2026, 1:55 PM ET, message 1a1eaddb3dcfc5d6. The 2:12 PM ET note is message 1a1eaed436b0de49. Tracker FF-091a.
+- Pull request: [PR 324](https://github.com/Johncoester/cla-portal-demo/pull/324)
 
 **Decisions**
 
