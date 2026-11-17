@@ -521,6 +521,67 @@ select pg_temp.ok((select amount = 13000 and pct = 3 and additional_amount = 100
 select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"commission":{"basis":"percent","percent":"3","payer":"split","splitBuyer":"1","splitSeller":"1"}}')$q$)
   like 'Split needs a dollar amount%', 'MF-051: a split that does not add up is refused in plain words');
 SQL
+# FF-093: Admin fee Payable by, including a 50/50 split. Applied on top of the panel migration, then rolled back before the older rollbacks.
+psql_super -f "$ROOT/supabase/migrations/20261125130000_admin_fee_payable_by.sql"
+psql_super -o /dev/null <<'SQL'
+create or replace function pg_temp.err(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'no error'; exception when others then return sqlerrm; end $$;
+create or replace function pg_temp.ok(c boolean, msg text) returns void language plpgsql as $$
+begin if c is not true then raise exception 'FAIL %', msg; end if; raise notice 'PASS  %', msg; end $$;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', false);
+select count(*) from public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"admin":{"amount":"395","payer":"split"}}', 'Admin fee split');
+select pg_temp.ok((select amount = 395 and payer = 'split' and split_buyer = 197.50 and split_seller = 197.50
+  from public.deal_agent_fees where deal_id = '22222222-2222-2222-2222-222222222222' and side = 'buyer' and kind = 'admin'),
+  'FF-093: a $395 admin fee split is $197.50 and $197.50');
+select pg_temp.ok((select paid_by = 'split' and amount = 395 and split_buyer = 197.50 and split_seller = 197.50 and retired_at is null
+  from public.accounting_fees where deal_id = '22222222-2222-2222-2222-222222222222' and preset_key = 'agent_fee:buyer:admin:0'),
+  'FF-093: the fee ledger gives the buyer and the seller each half');
+select count(*) from public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"admin":{"amount":"10.01","payer":"split"}}', 'Odd cent');
+select pg_temp.ok((select split_buyer = 5.00 and split_seller = 5.01 and round(split_buyer + split_seller, 2) = amount
+  from public.deal_agent_fees where deal_id = '22222222-2222-2222-2222-222222222222' and side = 'buyer' and kind = 'admin'),
+  'FF-093: an odd cent goes to the seller');
+select pg_temp.ok((select split_buyer = 5.00 and split_seller = 5.01
+  from public.accounting_fees where deal_id = '22222222-2222-2222-2222-222222222222' and preset_key = 'agent_fee:buyer:admin:0' and retired_at is null),
+  'FF-093: the ledger keeps the odd cent on the seller');
+select count(*) from public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'listing',
+  '{"commission":{"basis":"percent","percent":"3","additional":"1000","payer":"split","splitBuyer":"6000","splitSeller":"7000"},"admin":{"amount":"250","payer":"buyer"}}',
+  'Buyer pays the listing admin fee');
+select pg_temp.ok((select amount = 250 and payer = 'buyer' and split_buyer is null and split_seller is null
+  from public.deal_agent_fees where deal_id = '22222222-2222-2222-2222-222222222222' and side = 'listing' and kind = 'admin'),
+  'FF-093: Buyer still stores no split amounts');
+select pg_temp.ok((select paid_by = 'buyer' and split_buyer = 250 and split_seller = 0
+  from public.accounting_fees where deal_id = '22222222-2222-2222-2222-222222222222' and preset_key = 'agent_fee:listing:admin:0'),
+  'FF-093: a buyer-paid admin fee stays on the buyer column');
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"admin":{"amount":"10","payer":"lender"}}')$q$)
+  = 'Payable by must be Buyer, Seller, or Split (Buyer and Seller).', 'FF-093: a bad Payable by is refused in plain words');
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"other":[{"description":"Referral","amount":"10","paidTo":"Example Co","payer":"split"}]}')$q$)
+  = 'Paid by must be Buyer or Seller.', 'FF-093: an other fee is still Buyer or Seller only');
+select pg_temp.ok((select amount = 13000 and payer = 'split' and split_buyer = 6000 and split_seller = 7000
+  from public.deal_agent_fees where deal_id = '22222222-2222-2222-2222-222222222222' and side = 'listing' and kind = 'commission'),
+  'FF-093: a commission split with its own amounts is left as it was');
+SQL
+psql_super -f "$ROOT/supabase/rollbacks/20261125130000_admin_fee_payable_by.sql"
+psql_super -c "do \$\$ begin
+  if pg_get_constraintdef((select oid from pg_constraint where conname = 'deal_agent_fees_split_check' and conrelid = 'public.deal_agent_fees'::regclass)) ilike '%kind = ''admin''%' then
+    raise exception 'FAIL FF-093 rollback still allows an admin split';
+  end if;
+  if not exists (select 1 from public.deal_agent_fees where deal_id = '22222222-2222-2222-2222-222222222222' and side = 'listing' and kind = 'commission' and payer = 'split' and split_buyer = 6000) then
+    raise exception 'FAIL FF-093 rollback dropped the commission split';
+  end if;
+  if not exists (select 1 from public.deal_agent_fees where deal_id = '22222222-2222-2222-2222-222222222222' and side = 'buyer' and kind = 'admin' and payer = 'buyer' and split_buyer is null) then
+    raise exception 'FAIL FF-093 rollback left an admin fee on Split';
+  end if;
+  raise notice 'PASS  FF-093 rollback removes admin Split and keeps a commission Split';
+end \$\$;"
+psql_super -o /dev/null <<'SQL'
+create or replace function pg_temp.err(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'no error'; exception when others then return sqlerrm; end $$;
+create or replace function pg_temp.ok(c boolean, msg text) returns void language plpgsql as $$
+begin if c is not true then raise exception 'FAIL %', msg; end if; raise notice 'PASS  %', msg; end $$;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', false);
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"admin":{"amount":"10","payer":"split"}}')$q$)
+  = 'Paid by must be Buyer or Seller.', 'FF-093 rollback: an admin fee split is refused again');
+SQL
 psql_super -f "$ROOT/supabase/rollbacks/20261123040000_earnest_commission_panels.sql"
 psql_super -c "do \$\$ begin
   if exists (select 1 from information_schema.columns where table_name = 'deal_agent_fees' and column_name = 'base_amount') then raise exception 'FAIL MF-051 rollback columns'; end if;

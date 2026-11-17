@@ -10,6 +10,8 @@ export const PANEL_TITLE = { listing: 'Listing Agent Commission', buyer: 'Sellin
 export const AGENT_ROLE_SIDE = { 'Listing Agent': 'listing', 'Buyer Agent': 'buyer' };
 export const PAYERS = [['buyer', 'Buyer'], ['seller', 'Seller']];
 export const COMMISSION_PAYERS = [...PAYERS, ['split', 'Split']];
+// FF-093: the file's Admin fee section. Split is half and half, not two typed amounts.
+export const ADMIN_PAYERS = [['buyer', 'Buyer'], ['seller', 'Seller'], ['split', 'Split (Buyer and Seller)']];
 export const PAYER_LABEL = Object.fromEntries(COMMISSION_PAYERS);
 export const MAX_OTHER_FEES = 5;
 // AF-8: the old Commission information task no longer takes an amount (same message as the database guard)
@@ -73,6 +75,18 @@ const payerOf = (v, side) => {
   if (p !== 'buyer' && p !== 'seller') throw new Error('Paid by must be Buyer or Seller.');
   return p;
 };
+/* 50/50 in whole cents. An odd cent goes to the seller, the same way a split recording tax is divided. */
+export function adminHalves(amount) {
+  const cents = Math.round(Number(amount) * 100);
+  const buyerCents = Math.floor(cents / 2);
+  return { splitBuyer: r2(buyerCents / 100), splitSeller: r2((cents - buyerCents) / 100) };
+}
+const adminPayerOf = (v, side, amount) => {
+  const p = blank(v) ? defaultPayer(side) : String(v).trim().toLowerCase();
+  if (p === 'split') return { payer: 'split', ...adminHalves(amount) };
+  if (p === 'buyer' || p === 'seller') return { payer: p };
+  throw new Error('Payable by must be Buyer, Seller, or Split (Buyer and Seller).');
+};
 const commissionPayer = (v, side, amount, splits = {}) => {
   const p = blank(v) ? defaultPayer(side) : String(v).trim().toLowerCase();
   if (p === 'split') {
@@ -99,7 +113,10 @@ export function readAgentFees(input = {}, { side, price } = {}) {
     const synced = syncCommission(price, basis, typed, { base: input.commissionBase, additional: input.additionalAmount });
     out.commission = { ...synced, ...commissionPayer(input.commissionPayer, side, synced.amount, { buyer: input.splitBuyer, seller: input.splitSeller }) };
   }
-  if (!blank(input.adminAmount)) out.admin = { amount: money(input.adminAmount, 'Admin fee'), payer: payerOf(input.adminPayer, side) };
+  if (!blank(input.adminAmount)) {
+    const amount = money(input.adminAmount, 'Admin fee');
+    out.admin = { amount, ...adminPayerOf(input.adminPayer, side, amount) };
+  }
   const others = Array.isArray(input.other) ? input.other : [];
   const filled = others.filter((o) => o && !(blank(o.description) && blank(o.amount) && blank(o.paidTo)));
   if (filled.length > MAX_OTHER_FEES) throw new Error('Up to 5 other fees per agent.');
@@ -151,7 +168,8 @@ export function feeText(kind, f) {
     return `${pctText(f.percent)} / ${money2(f.amount)}${extra}${who}`;
   }
   if (kind === 'other') return `${f.description} ${money2(f.amount)} to ${f.paidTo}${paidBy(f.payer)}`;
-  return `${money2(f.amount)}${paidBy(f.payer)}`;
+  const who = f.payer === 'split' ? ` (split: buyer ${money2(f.splitBuyer)}, seller ${money2(f.splitSeller)})` : paidBy(f.payer);
+  return `${money2(f.amount)}${who}`;
 }
 export function feeChanges(before, after) {
   const b = before || {}; const out = [];
