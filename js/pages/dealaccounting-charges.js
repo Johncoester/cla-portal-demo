@@ -21,7 +21,7 @@ const sectionHref = (base, k, line) => `${base}?v=charges&s=${k}${line ? '&l=' +
 const ALLOC = [['buyer', 'Buyer'], ['seller', 'Seller'], ['split', 'Split'], ['others', 'Paid By Others']];
 
 // ---------------- left nav (Qualia: General · Closing › Charges · Preview), plus CLA's own tools ----------------
-export function qcNav(deal, view, sec, base, showPayoffs = true) {
+export function qcNav(deal, view, sec, base, showPayoffs = true, opts = {}) {
   const a = (href, label, on, attrs = '', chip = '') => html`<a class="qc-nav-link ${on ? 'on' : ''}" href="${href}"${raw(attrs)}>${chip ? html`<span class="qc-chip">${chip}</span>` : ''}<span>${label}</span></a>`;
   return html`<nav class="qc-nav acct-noprint" data-acct-tabs data-qc-nav aria-label="Accounting sections">
     <div class="qc-nav-group">General</div>
@@ -31,10 +31,17 @@ export function qcNav(deal, view, sec, base, showPayoffs = true) {
     ${a(`${base}?v=taxes`, 'Taxes & Prorations', view === 'taxes', ' data-acct-tab="taxes"')}${modOn('payoffs') ? a(`${base}?v=payoffs`, 'Payoffs', view === 'payoffs', ' data-acct-tab="payoffs"') : ''}` : ''}
     <div class="qc-nav-group">Closing</div><div class="qc-nav-sub">Charges</div>
     ${Q.QC_SECTIONS.map(([k, chip, label]) => a(sectionHref(base, k), label, view === 'charges' && sec === k, ` data-qc-nav-sec="${k}"${k === 'A' ? ' data-acct-tab="charges"' : ''}`, chip))}
+    <div class="qc-nav-group" data-qc-acct-section>Accounting</div>
+    ${a(`${base}?v=ledger`, 'Ledger', view === 'ledger', ' data-acct-tab="ledger" data-nav-acct="ledger"')}
+    ${a(`${base}?v=receipts`, 'Receipts', view === 'receipts', ' data-nav-acct="receipts"')}
+    ${a(`${base}?v=disbursements`, 'Disbursements', view === 'disbursements', ' data-nav-acct="disbursements"')}
+    ${a(`${base}?v=balances`, 'Account Balances', view === 'balances', ' data-nav-acct="balances"')}
+    ${a(`${base}?v=balancing`, 'Balancing', view === 'balancing', ' data-nav-acct="balancing"')}
+    ${opts.showFunding ? a(`#/deals/${deal.id}/funding`, 'Loan Funding', false, ' data-nav-acct="funding"') : ''}
     <div class="qc-nav-group">Preview</div>
     ${a(`${base}?v=cd`, 'Closing Disclosure', view === 'cd', ' data-acct-tab="cd"')}${a(`${base}?v=alta`, 'Settlement Statement', view === 'alta', ' data-acct-tab="alta"')}
     <div class="qc-nav-group">CLA tools</div>
-    ${a(`${base}?v=prorations`, 'Prorations (CLA list)', view === 'prorations', ' data-acct-tab="prorations"')}${a(`${base}?v=cddetails`, 'CD details & escrow', view === 'cddetails', ' data-acct-tab="cddetails"')}${a(`${base}?v=ledger`, 'Fee ledger', view === 'ledger', ' data-acct-tab="ledger"')}
+    ${a(`${base}?v=prorations`, 'Prorations (CLA list)', view === 'prorations', ' data-acct-tab="prorations"')}${a(`${base}?v=cddetails`, 'CD details & escrow', view === 'cddetails', ' data-acct-tab="cddetails"')}
     ${a(`${base}?v=payments`, 'Payment summary', view === 'payments', ' data-acct-tab="payments"')}${a(`${base}?v=history`, 'Edit history', view === 'history', ' data-acct-tab="history"')}
   </nav>`;
 }
