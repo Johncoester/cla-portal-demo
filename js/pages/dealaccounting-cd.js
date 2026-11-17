@@ -4,7 +4,8 @@
 // Fees, lender credits, prorations and summaries come from the fee ledger; loan terms, projected payments, the Loan Estimate column, loan
 // disclosures and loan calculations are manual entries (CD details, every save logged). Processor / Admin / Super admin edit; Sales and TCs read.
 import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611161500';
-import { TEST_MARK } from '../data/accounting.js?v=202611241500';
+import { TEST_MARK } from '../data/accounting.js?v=202611243300';
+import { summaryScreens } from '../data/qualia-charges.js?v=202611243300';
 import { CD_DETAIL_GROUPS } from '../data/cd-pages.js?v=202611070139';
 import { partyNames, brokerOf } from '../data/statement-parties.js?v=202611222900';
 import { cdBrokerCells } from '../data/lender-file.js?v=202611241600';
@@ -56,11 +57,16 @@ export async function cdPagesView(api, deal, acc, docHead, printBtn, mountPrint)
   // page 3
   const cc = P.page3.cctc; const cctc = html`<table class="tbl acct-cd" data-cd-cctc><thead><tr><th>Calculating Cash to Close</th><th class="num">Loan Estimate</th><th class="num">Final</th><th>Did this change?</th></tr></thead><tbody>
     ${cc.map((r) => html`<tr data-cctc="${r.key}" class="${r.key === 'cashToClose' ? 'acct-total' : ''}"><td>${r.label}</td><td class="num">${r.le == null ? html`<span class="muted">—</span>` : m2z(r.le)}</td><td class="num"><strong data-cctc-final="${r.key}">${m2z(r.final)}</strong></td><td class="small">${r.changed == null ? html`<span class="muted">enter the LE amount</span>` : r.changed ? html`<strong>YES</strong>` : 'NO'}</td></tr>`)}</tbody></table>`;
-  const GROUP = { advance: 'Adjustments for Items Paid by Seller in Advance', unpaid: 'Adjustments for Items Unpaid by Seller' };
-  const summ = (k) => { const S = cd.summaries[k]; if (!S) return ''; let last = null; let i = 0;
-    return html`<div class="acct-summ" data-cd-summary="${k}"><h4>${k}. ${S.label}</h4><table class="tbl"><tbody>${S.rows.length ? S.rows.map((r) => { const g = r.group && r.group !== last ? html`<tr class="acct-sec"><th colspan="2">${GROUP[r.group]}</th></tr>` : ''; last = r.group || last; i++;
-      return html`${g}<tr data-summary-row="${r.id}" ${r.group ? raw(`data-summary-group="${r.group}"`) : ''}><td><span class="cd-line">${String(i).padStart(2, '0')}</span> ${r.label}</td>${n(r.amount)}</tr>`; }) : html`<tr><td class="muted small">None</td><td></td></tr>`}
-    <tr class="acct-subtotal"><td><strong>Total ${k}</strong></td><td class="num"><strong data-summary-total="${k}">${m2z(S.total)}</strong></td></tr></tbody></table></div>`; };
+  // FF-098: page 3 uses the same K/L/M/N lines as the Charges screens, so a proration lands on City/Town Taxes,
+  // County Taxes, Assessments, or the next line in that section, on the document as well as on those screens.
+  const screens = summaryScreens(deal, cd, acc.entries);
+  const SIDE = { K: 'Due from Borrower at Closing', L: 'Paid Already by or on Behalf of Borrower at Closing', M: 'Due to Seller at Closing', N: 'Due from Seller at Closing' };
+  const summ = (k) => { const rows = screens[k]; if (!rows || !rows.length) return '';
+    const body = rows.map((r) => { const show = !!(r.text || r.label || r.amount); const head = r.header ? html`<tr class="acct-sec" data-cd-sum-head="${k}"><th colspan="2">${r.header}</th></tr>` : '';
+      if (!show) return head; const text = r.entry ? (r.label || r.text || '') : (r.text || '');
+      return html`${head}<tr data-cd-sum-line="${k}${r.line}" ${r.entry ? raw(`data-summary-row="${r.entry.id}"`) : ''}><td><span class="cd-line">${r.line}</span> ${text}</td>${n(r.amount)}</tr>`; });
+    return html`<div class="acct-summ" data-cd-summary="${k}"><h4>${k}. ${SIDE[k]}</h4><table class="tbl"><tbody>${body}
+    <tr class="acct-subtotal"><td><strong>Total ${k}</strong></td><td class="num"><strong data-summary-total="${k}">${m2z(screens.totals[k])}</strong></td></tr></tbody></table></div>`; };
   const page3 = html`<section class="acct-cd-page" data-cd-page="3">${pageHead(3, 'Calculating Cash to Close & Summaries of Transactions')}${cctc}
     <div class="acct-summaries"><div><h4 class="acct-side">Borrower's Transaction</h4>${summ('K')}${summ('L')}<p class="acct-cash" data-cash-to-close>Cash to close ${cd.cashToClose >= 0 ? 'from' : 'to'} borrower: <strong>${m2z(Math.abs(cd.cashToClose))}</strong> <span class="muted small">(K - L)</span></p></div>
       ${refi ? '' : html`<div><h4 class="acct-side">Seller's Transaction</h4>${summ('M')}${summ('N')}<p class="acct-cash" data-cash-to-seller>Cash ${cd.cashToSeller >= 0 ? 'to' : 'from'} seller: <strong>${m2z(Math.abs(cd.cashToSeller))}</strong> <span class="muted small">(M - N)</span></p></div>`}</div></section>`;

@@ -144,6 +144,36 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Prorations on the Closing Disclosure (FF-098)
+
+**How it should work.** A processor enters property taxes, ground rent, HOA dues, or another proration once, on Taxes & Prorations. When the calculation is finished, that amount is on the fee ledger, the settlement statement, and the Closing Disclosure. An item the seller already paid is a charge to the buyer and a credit to the seller, under Adjustments for Items Paid by Seller in Advance (K and M). An unpaid item is a credit to the buyer and a charge to the seller (L and N). City/town taxes, county taxes, and assessments use those named lines. Ground rent, HOA, and anything else use the next line in the same section. The line shows the dates the adjustment covers. Tax prorations use a 365-day year, and the buyer pays for the settlement day, unless someone changes that on the file. HOA and ground rent follow the same rule.
+
+**Status: In progress.** FF-098. Francis Santos, Nov 17 2026, 2:49 PM ET (Gmail msg 1a1eb0eb7ee40f0c, subject "Proration Amount"), as Processor 2 on TEST. Not Live. No database file.
+
+**What's built**
+
+- A finished proration is saved to the ledger as soon as the amount can be calculated, and again when it is changed. It is logged.
+- Paid-in-advance items show on K and M. Unpaid items show on L and N. The Charges screens and Closing Disclosure page 3 use the same lines.
+- County or property tax uses the County Taxes line. City/town tax uses the City/Town Taxes line. Assessments use the Assessments line. Ground rent and HOA use the next open line in that section, with the date range on the line.
+- The worked example (July 1, 2026, a $3,650.00 bill, 365-day year, buyer pays the settlement day) is $1,840.00 when the seller already paid it and $1,810.00 when it is unpaid. Ground rent of $365.00 a year is $184.00. HOA of $100.00 a month on July 15 is $55.89. Charging the settlement day to the seller on that tax bill changes $1,840.00 to $1,830.00 and the file keeps that choice.
+- A property-tax escrow deposit (Closing Disclosure section G) stays in closing costs. It is not also posted as a proration.
+
+**What's still missing**
+
+- Not checked on TEST yet. Not Live.
+
+**Links**
+
+- Spec: [docs/specs/proration-cd.md](docs/specs/proration-cd.md)
+- Source: Francis Santos, Nov 17 2026, 2:49 PM ET, Gmail msg 1a1eb0eb7ee40f0c. Uses the PRORATE-1 defaults (tracker row 322).
+
+**Decisions**
+
+- The $3,568 property-tax line Francis saved on MD-26-97407 is the escrow deposit in section G. It belongs in closing costs (K.03), not on the proration lines. The proration is a separate entry.
+- No database change. The proration is already stored on the fee ledger.
+
+---
+
 ## Buyer and seller invites and sign-in
 
 **How it should work.** Staff invite a buyer or seller from a file. The person opens the invite email, sets a password once and lands in the portal. If they forget the password, Forgot password emails them a reset link that opens the TEST portal.

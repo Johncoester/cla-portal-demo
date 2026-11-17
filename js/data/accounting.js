@@ -58,7 +58,7 @@ import { waterEscrowFeeInput, WATER_ESCROW_KEY } from './prorate-defaults.js?v=2
 import { excessDepositOf } from './earnest-commission.js?v=202611223000';
 const flag0 = (x) => !!x && x !== 'false' && x !== '0';
 // QUALIA layout (John, Nov 4 2026): per-line payments + section settings (meta), the CD text of a line, E.01 recording fees as one line
-import { cleanMeta, cdText, recTypeOf, recordingText } from './qualia-charges.js?v=202611223000';
+import { cleanMeta, cdText, recTypeOf, recordingText } from './qualia-charges.js?v=202611243300';
 export const closingDateOf = (deal) => (deal && (deal.closingDate ?? deal.closing_date)) || null;
 const isRefiDeal = (deal) => !!deal && (deal.transactionType === 'Refinance' || deal.transaction_type === 'Refinance');
 const buyerWord = (deal) => (isRefiDeal(deal) ? 'Borrower' : 'Buyer');

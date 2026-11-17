@@ -1,14 +1,14 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611242400';
+import { getAdapter } from './data/adapter.js?v=202611243300';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611242400';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611243300';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611130900';
 import { canManageRoleAccess } from './data/role-access.js?v=202611100100';
 import { canUseGmail } from './data/gmail-email.js?v=202611191000';
-import { acctCanRead } from './data/accounting.js?v=202611241500';
+import { acctCanRead } from './data/accounting.js?v=202611243300';
 import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611101015';
 import { phaseOf } from './data/agent-portal.js?v=202611241900';
 import { scheduleNavLines } from './data/scheduling-details.js?v=202611241900';
@@ -43,10 +43,10 @@ export function useRouteLoader(next) {
 const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
   login: () => loadRoute(() => import('./pages/entry.js?v=202611241900')),
-  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611242400')),
+  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611243300')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611241000')),
-  'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611242820')),
-  deal: () => loadRoute(() => import('./pages/deal.js?v=202611242400')),
+  'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611243300')),
+  deal: () => loadRoute(() => import('./pages/deal.js?v=202611243300')),
   users: () => loadRoute(() => import('./pages/users.js?v=202611161500')),
   profile: () => loadRoute(() => import('./pages/profile.js?v=202611191600')),
   'contact-us': () => loadRoute(() => import('./pages/contact.js?v=202611161500')),
@@ -56,7 +56,7 @@ const pages = {
   library: () => loadRoute(() => import('./pages/library.js?v=202611161500')),
   activity: () => loadRoute(() => import('./pages/activity.js?v=202611161500')),
   outbox: () => loadRoute(() => import('./pages/outbox.js?v=202611161500')),
-  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611242400')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611243300')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => loadRoute(() => import('./pages/taskgrid.js?v=202611241500')),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
   schedule: () => loadRoute(() => import('./pages/schedule.js?v=202611242210')),   // public closing-time link (no sign-in needed)
   'schedule-party': () => loadRoute(() => import('./pages/schedule-party.js?v=202611241900')),   // MF-056 buyer / seller scheduling link (no sign-in)
@@ -65,7 +65,7 @@ const pages = {
   'role-access': () => loadRoute(() => import('./pages/role-access.js?v=202611161500')),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => loadRoute(() => import('./pages/agent-invites.js?v=202611191600')),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
   'agent-invite': () => loadRoute(() => import('./pages/agent-signup.js?v=202611211100')),     // the agent's one-time setup link (no sign-in)
-  underwriters: () => loadRoute(() => import('./pages/underwriters.js?v=202611241600')),
+  underwriters: () => loadRoute(() => import('./pages/underwriters.js?v=202611243300')),
   hr: () => loadRoute(() => import('./pages/hr.js?v=202611191600')),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
   'hr-invite': () => loadRoute(() => import('./pages/hr-invite.js?v=202611161500')),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => loadRoute(() => import('./pages/offices.js?v=202611161500')),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
