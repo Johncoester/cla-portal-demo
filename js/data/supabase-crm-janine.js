@@ -3,8 +3,10 @@
  * NOTHING is sent: an invite is a preview row + an .ics built in the browser.
  * CSV import parses in the browser (same limits and mapping as the demo) and
  * asks crm_import_batch to apply the database rules, 500 rows at a time.
- * Preview rolls back inside each call (P0004). A commit reuses one batch id.
- * Nothing is emailed. */
+ * A preview returns each row's reason and rolls the writes back inside the call.
+ * Until that database file is applied, a P0004 detail is still read, and a preview
+ * that comes back as a failure is shown on each row instead of as one generic error.
+ * A commit reuses one batch id. Nothing is emailed. */
 import { buildIcs, INVITE_NOTE, parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, importTooBigMessage, leadRequiredMessages, importPartialReport, importErrorCsv, saveImportResume, loadZipTable, countiesFor, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611101600';
 import { US_STATE_NAMES, US_STATES } from './constants.js?v=202611101015';
 import { ensureSettings, findOption } from './crm-config.js?v=202611130900';
@@ -107,14 +109,50 @@ async function cleanDefaults(self, raw0, kind, module) {
   });
 }
 
-// P0004 is assert_failure. Only that code is a preview. A timeout or any
-// other error is a failure, even when its text happens to contain JSON.
+const PREVIEW_OK_MESSAGE = 'Nothing was saved. Each row shows whether it is ready, a duplicate, or what to fix.';
+
+// P0004 is assert_failure. Only that code carries a finished preview in its
+// detail. A timeout or any other error is a failure, even when its text
+// happens to contain JSON.
 function previewBody(error) {
   if (!error || error.code !== 'P0004') return null;
   const details = error.details != null ? error.details : error.detail;
   if (details && typeof details === 'object') return details;
   if (typeof details !== 'string' || !details.trim().startsWith('{')) return null;
   try { return JSON.parse(details); } catch { return null; }
+}
+
+// The preview call failed before the row reasons came back (often a P0004
+// that PostgREST turned into HTTP 500, with the detail dropped). Put a plain
+// reason on every row that was sent, plus one sentence for the top of the screen.
+function previewFailure(remote, error) {
+  const code = String(error && error.code || '');
+  const status = Number(error && (error.status || error.statusCode) || 0);
+  const raw = String(error && error.message || '').trim();
+  const timeout = code === '57014' || /statement timeout|canceling statement/i.test(raw);
+  const technical = !raw || code === 'P0004' || timeout || status >= 500 || /internal server error|^PGRST|SQLSTATE|syntax error/i.test(raw);
+  const rowReason = timeout
+    ? 'This row was not checked because the preview took too long. Nothing was saved. Try the preview again.'
+    : technical
+      ? 'This row was not checked because the preview did not finish. Nothing was saved. Try the preview again.'
+      : raw.slice(0, 500);
+  const message = timeout
+    ? 'Nothing was saved. The preview took too long. Each row shows that it was not checked.'
+    : 'Nothing was saved. The preview did not finish. Each row shows what happened.';
+  return {
+    rows: remote.map((row) => ({
+      line: row.line,
+      status: 'error',
+      message: rowReason,
+      id: null,
+      name: '',
+      link: '',
+      notes: Array.isArray(row.prepNotes) ? row.prepNotes : [],
+    })),
+    counts: { total: remote.length, ok: 0, duplicates: 0, errors: remote.length },
+    importId: null,
+    message,
+  };
 }
 
 function addCounts(a, b) {
@@ -203,6 +241,7 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
     const fieldPairs = fields.map(([k, l]) => [k, l]);
     let rows = [];
     let counts = { total: 0, ok: 0, duplicates: 0, errors: 0 };
+    let notice = '';
     let importId = input.importId || null;
     const startChunk = Number(input.startChunk) || 1;
     const saved = [];
@@ -223,6 +262,7 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
       importId,
       committed: !!commit,
       errorCsv: importErrorCsv(rows, fieldPairs),
+      message: notice,
       ...extra,
     });
     for (const range of ranges) {
@@ -249,6 +289,7 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
       });
       if (progress) progress({ chunk: range.chunk, chunks: ranges.length, from: range.from, to: range.to, done: range.from - 1, total: payload.length });
       let body = { rows: [], counts: { total: 0, ok: 0, duplicates: 0, errors: 0 }, importId: null };
+      let stopPreview = false;
       if (remote.length) {
         const args = {
           p_commit: !!commit,
@@ -268,13 +309,17 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
           if (!retryableImportError(e)) throw e;
           try { res = await sb.rpc('crm_import_batch', args); } catch (again) { res = { data: null, error: again }; }
         }
-        if (res.error && res.error.code === 'P0004') {
-          body = previewBody(res.error);
-          if (!body) throw new Error(res.error.message || 'Import preview failed.');
-        } else if (res.error || !res.data) {
-          const message = (res.error && res.error.message) || 'Import failed.';
-          if (!commit) throw new Error(message);
-          const partial = { saved, failed: range, message, code: (res.error && res.error.code) || '', importId, rowsSaved: saved.reduce((n, part) => n + part.count, 0), startChunk: range.chunk };
+        const parsedPreview = res && res.error ? previewBody(res.error) : null;
+        if (res && !res.error && res.data) {
+          body = res.data;
+        } else if (parsedPreview) {
+          body = parsedPreview;
+        } else if (!commit) {
+          body = previewFailure(remote, res && res.error);
+          stopPreview = true;
+        } else {
+          const message = (res && res.error && res.error.message) || 'Import failed.';
+          const partial = { saved, failed: range, message, code: (res && res.error && res.error.code) || '', importId, rowsSaved: saved.reduce((n, part) => n + part.count, 0), startChunk: range.chunk };
           const err = new Error(importPartialReport(partial));
           err.partial = partial;
           if (commit && importId) {
@@ -284,12 +329,14 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
             });
           }
           throw err;
-        } else {
-          body = res.data;
         }
         if (commit && body.importId) importId = body.importId;
         saved.push(range);
         slice.forEach((row) => recorded.add(row.line));
+      }
+      if (!commit) {
+        if (!body.message) body.message = PREVIEW_OK_MESSAGE;
+        notice = body.message;
       }
       const remoteRows = (body.rows || []).map((r) => ({
         line: r.line,
@@ -307,6 +354,7 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
         total: local.length, ok: 0, duplicates: 0, errors: local.length,
       }));
       if (progress) progress({ chunk: range.chunk, chunks: ranges.length, from: range.from, to: range.to, done: range.to, total: payload.length });
+      if (stopPreview) return finish();
     }
     if (commit && importId) {
       try {
