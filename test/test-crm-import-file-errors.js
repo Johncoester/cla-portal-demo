@@ -63,7 +63,7 @@ ok(page.includes('data-import-file-help') && page.includes('data-import-file-err
 ok(read('css/portal.css').includes('.err-text { color: var(--bad);'), 'the alert uses the existing red text');
 ok(read('js/app.js').includes("pages/crm-janine.js?v=202611242030") && read('js/pages/crm.js').includes("crm-janine.js?v=202611242030") && read('js/pages/crm-forms.js').includes("crm-janine.js?v=202611242030") && read('js/pages/crm-home.js').includes("crm-janine.js?v=202611242030"), 'the import page is loaded at 202611242030 from the shell and the CRM pages');
 ok(read('index.html').includes('js/app.js?v=202611242030') && read('js/app.js').includes("pages/crm.js?v=202611242030") && read('js/pages/crm.js').includes("crm-forms.js?v=202611242030") && read('js/pages/crm.js').includes("crm-home.js?v=202611242030") && read('js/pages/crm-home.js').includes("crm-forms.js?v=202611242030"), 'the changed pages are stamped 202611242030 up to index.html');
-ok(!read('js/data/adapter.js').includes('202611242030') && read('js/app.js').includes("adapter.js?v=202611242010"), 'the adapters keep the stamp from main');
+ok(!read('js/data/adapter.js').includes('202611242030') && read('js/app.js').includes("adapter.js?v=202611242200"), 'the adapters keep the stamp from main');
 
 const tracked = execFileSync('git', ['diff', '--name-only', 'origin/main'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean);
 const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean);
