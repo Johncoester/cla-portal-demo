@@ -644,11 +644,11 @@ This file lists the portal's major features: how each one should work, how far a
 
 - The error CSV keeps the row number, the original columns, and the message, and adds a Reason column.
 - Duplicate rows are included. A repeat of an earlier email, phone, or note in the same file names that row. Any other duplicate names the lead or client already on file.
-- Preview and the summary both offer the download when at least one row was skipped. The file is built in the browser in one pass, including a 10,000-row file. That helper is loaded at cache stamp 202611242050.
+- Preview and the summary both offer the download when at least one row was skipped. The file is built in the browser in one pass, including a 10,000-row file. That helper is loaded at cache stamp 202611242230.
 
 **What's still missing**
 
-- Not checked on TEST yet. The import page is now loaded at cache stamp 202611242050, including from the portal shell, so a saved copy of the old page is not used.
+- Not checked on TEST yet. The import page is now loaded at cache stamp 202611242230, including from the portal shell, so a saved copy of the old page is not used.
 - The earlier-imports list still opens a table of rows. It does not download this CSV.
 
 **Links**
