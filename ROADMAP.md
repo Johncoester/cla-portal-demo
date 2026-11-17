@@ -109,6 +109,35 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Accounting sidebar (FF-061)
+
+**How it should work.** On a file, the Closing menu stays as it is. Accounting is its own section below that menu. It lists Ledger, Receipts, Disbursements, Account Balances, Balancing, and Loan Funding, in that order. The same six links sit in the accounting page's own section list, directly under Closing. Someone who cannot see Accounting today still does not see the section. Loan Funding opens the existing Funding page, and only for someone who could already open Funding.
+
+**Status: In progress.** Not on TEST yet. Pull request link is added when the pull request is open.
+
+**What's built**
+
+- The file sidebar keeps Scheduling Details and the buyer's Closing appointment. Accounting is a separate section under the file links, for the same people who could open Accounting before.
+- Ledger is the existing fee ledger. Receipts, Disbursements, Account Balances, and Balancing are pages on the same Accounting address, filled from that test ledger. They are not a bank balance, a deposit, a printed check, or a wire.
+- Loan Funding is the existing Funding page. It stays a separate Funding link for someone who can open Funding but cannot see Accounting.
+- The Closing charges list (sections A through N) is unchanged. Fee ledger is no longer under CLA tools. It is Ledger under Accounting.
+
+**What's missing**
+
+- Not checked on TEST yet. No database change.
+
+**Links**
+
+- Spec: [docs/specs/accounting-sidebar.md](docs/specs/accounting-sidebar.md).
+- Source: Francis Santos, Nov 12 2026, 1:53 PM ET (Gmail 1a1d11bd4bd135f8), confirmed Nov 17 2026, 1:55 PM ET (Gmail 1a1eaddb3dcfc5d6), tracker FF-061.
+
+**Decisions**
+
+- Routes stay `#/deals/:id/accounting` and `#/deals/:id/funding`. The new pages are `?v=receipts`, `?v=disbursements`, `?v=balances`, and `?v=balancing` on the accounting page that already exists.
+- The figures are the test ledger the file already has. Nothing is read from a bank, and nothing is written to TEST or production.
+
+---
+
 ## Title production numbers flow (Qualia scenario, QFLOW-1)
 
 **How it should work.** A processor opens a file and enters the contract, the loan, the deposit, the agent fees, the payoffs, the fees and the tax proration once. Every figure then lands where Qualia puts it: the fee ledger, the Closing Disclosure summaries (K, L, M, N), cash to close, the ALTA statement and the balance check. One fixed purchase, entered by Claude on Qualia's own test file on Nov 15 2026, is the standard: price $100,000, loan $50,000, deposit $5,000, 1% listing commission, payoff $40,000, buyer fees $2,375, seller fees $700, county tax $3,650 a year with a July 1 settlement. Qualia's answers: cash to close $45,550.00, paid out to others $44,075.00, balanced. Outside connections (CPL, final policy, e-recording, bank accounts) are not part of this.
