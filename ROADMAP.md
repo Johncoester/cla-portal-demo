@@ -178,7 +178,41 @@ This file lists the portal's major features: how each one should work, how far a
 - The reset link uses the current portal address; the Auth redirect list is John's setting, not changed by a pull request.
 - Janine confirmed FF-073c/d/e on Nov 13 at 10:43 AM ET (YES to John's 9:08 AM list). John decided at 1:30 PM ET Nov 13 that a new invite is sent automatically when a buyer, seller or agent email changes (not a Resend button).
 - John, Nov 14 2026 (t1667u): opening a used invite goes straight to Sign in. The Nov 13 "already used" message page is retired. The sign-in page still fills in the invited email. A person who is already signed in is sent to their home by the existing sign-in rule, without checking that the signed-in email matches the invite. Invalid, expired and revoked links still stay on the explanation page.
+- TEST-FIX-1 (John, Nov 17 2026): the demo pending invite and the demo expired invite are dated from today, 7 days ahead and 1 day ago. A fixed calendar date was going stale, and the test then treated a still-pending invite as expired. What the test checks did not change.
 - Sharing with someone who has no portal login invites them and holds the files until they sign in (John, Nov 13, by voice: option B). Only a buyer, seller, buyer agent or listing agent on the file can be invited this way. Wire instructions are never held. Someone who already has a pending invite is not emailed a second link.
+
+---
+
+## Demo invite dates stay ahead of today (TEST-FIX-1)
+
+**How it should work.** The sample pending invite stays pending, and the sample expired invite stays expired, on any day the tests run. A calendar date printed in the fixture must not decide that.
+
+**Status: In review.** Tracker item TEST-FIX-1. John Coester, Nov 17 2026. Pull request: [PR 318](https://github.com/Johncoester/cla-portal-demo/pull/318). Not Live. No database file. Nothing on testportal.clatitle.com changes, because TEST reads invites from the database, not from this sample list.
+
+**What's built**
+
+- Lena's sample invite (the pending one the sign-in test opens) expires 7 days from the moment the sample data is built.
+- Evan's sample invite (the expired one) expired 1 day before that moment. The page still says the link expired and still offers sign in.
+- Eli's sample HR invite stays pending the same way, and Ezra's sample HR invite stays expired the same way. Eli's old date was 17 November 2026 at 13:00 UTC, which had already passed.
+- Two email samples that carried an expiry inside the next 30 days (23 November 2026 and 20 November 2026) now use 7 days from today. Those samples are only text. The checks on the subject, the welcome line, and "not sent" are unchanged.
+
+**What's still missing**
+
+- Not merged. Not applied anywhere, and there is nothing to apply: no database file.
+- A browser that already saved the old demo list keeps that old list until its saved demo data is cleared. A fresh visit builds the new dates.
+
+**Links**
+
+- Spec: [docs/specs/test-fix-1.md](docs/specs/test-fix-1.md)
+- Pull request: [PR 318](https://github.com/Johncoester/cla-portal-demo/pull/318)
+- Source: John Coester, Nov 17 2026. Tracker item TEST-FIX-1. No video.
+
+**Decisions**
+
+- The date went stale. The behavior under test is unchanged: a pending invite still opens the setup form, and an expired invite still explains itself. Rule 5.
+- Accepted sample invites keep their old dates. Those rows are already accepted, so the expiry date does not change what the person sees.
+- Closing dates, task due dates, and the sample payoff good-through date (27 November 2026) stay as written. They are not an invite expiry, and the payoff's interest amount was figured for that fixed period.
+- No SQL was applied. No secrets. The shell cache stamp stays 202611242010. The two sample-data files moved to 202611242100 so a cached copy of the old list is not reused.
 
 ---
 
@@ -1117,6 +1151,8 @@ This file lists the portal's major features: how each one should work, how far a
 - Reuse the share-with user list. Do not switch the owner pickers on the record forms.
 - Keep the stored criterion as the user id.
 
+---
+
 ## Custom view name column can move
 
 **How it should work.** On New Custom View and Edit view, Choose Columns, the record name (Lead Name, Client Name, Company Name, Deal Name) stays selected. The arrows move it like any other selected column, so Client Owner or another column can be first. The list for that view uses the saved order. The name still opens the record. A saved view that never stored a position for the name still shows the name first.
@@ -1165,7 +1201,6 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Retry the same address. Chrome loads that file again, including a file nested inside the page. A different address would load a second copy and would not retry the nested file.
 - The message tells the person what happened and what to do next. Reload reloads the whole page.
-
 ## CRM deal stage choices (Feedback 30 item 3)
 
 **How it should work.** In CRM Deals, Stage offers Opened, Closed, On Hold, and Canceled. The same list is the value dropdown when a custom view filters Deals by Stage. An open order, which the CRM used to call Active, shows as Opened. Cancelled on the order shows as Canceled. The order page still stores Open, Closed, On Hold, and Cancelled. The numbered order step is unchanged.
@@ -1191,3 +1226,33 @@ This file lists the portal's major features: how each one should work, how far a
 
 - The order status column is shared with the rest of the portal, so its stored words stay Open, Closed, On Hold, and Cancelled. The CRM only changes the label.
 - The numeric order stage (`deals.stage`) is not a CRM pick list and is not changed.
+
+---
+
+## CRM import buttons (CRM-IMPORT-1)
+
+**How it should work.** On CRM Leads, Import Leads is the first button and uses the main button style. Import Notes is the quieter button after it. On CRM Clients, Import Clients is first and Import Notes is second. Import Leads opens the lead import. Import Clients opens the client import. Import Notes opens notes for that list. People were opening Import Notes by mistake because that button was first.
+
+**Status: In progress.** Tracker row CRM-IMPORT-1. John Coester confirmed this on Nov 17, 2026 (CRM import fix 1 of 5). Pull request: [PR 312](https://github.com/Johncoester/cla-portal-demo/pull/312). Not merged. Not on TEST. Not Live. No database file.
+
+**What's built**
+
+- On Leads, Import Leads comes first and uses the main button. Import Notes comes after it as the quieter button.
+- On Clients, Import Clients comes first the same way, then Import Notes.
+- The four addresses stay `#/crm/import/leads`, `#/crm/import/leads/notes`, `#/crm/import/contacts`, and `#/crm/import/contacts/notes`.
+
+**What's still missing**
+
+- Not on TEST until this pull request is merged and an admin checks Leads and Clients. Do not mark Live before that.
+- The other CRM import fixes (2 through 5) are separate.
+- Companies still have no import button.
+
+**Links**
+
+- Spec: [docs/specs/crm-import-buttons.md](docs/specs/crm-import-buttons.md)
+- Pull request: [PR 312](https://github.com/Johncoester/cla-portal-demo/pull/312)
+
+**Decisions**
+
+- Import Leads and Import Clients are the main action. Import Notes stays available, after them.
+- Only an Admin or Super admin sees the buttons, same as before.

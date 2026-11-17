@@ -16,6 +16,7 @@ import { HR_INVITE_DAYS, portalRoleForDesignation, SELF_FIELDS, HR_FIELDS, SENSI
   EMPLOYMENT_TYPES, EMPLOYMENT_STATUSES, PAY_TYPES, labelOf } from './hr.js?v=202611091730';
 const rnd = () => { const a = new Uint8Array(16); (globalThis.crypto || { getRandomValues: (x) => x.map(() => Math.floor(Math.random() * 256)) }).getRandomValues(a); return [...a].map((b) => b.toString(16).padStart(2, '0')).join(''); };
 const plusDays = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString();
+const fromNow = (n) => new Date(Date.now() + n * 864e5).toISOString();
 const SEED_AT = '2026-11-04T14:00:00Z';
 const MAPPED_AT_LOAD = ['Processor', 'Preprocessor', 'Sales Person', 'Transaction Coordinator'];
 // Same rule as the database backfill (20261112060500): a designation of Processor, Preprocessor,
@@ -85,8 +86,8 @@ export function ensureHr(d) {
   d.hrRoleAssignments = [{ id: 'hra-1', employeeId: 'hre-08', role: 'hr_manager', assignedAt: SEED_AT, assignedBy: 'u-admin', removedAt: null, removedBy: null }];
   d.hrInvites = [
     { id: 'hri-1', employeeId: 'hre-09', token: null, email: 'pia.processor-ph@example.test', createdAt: '2026-10-28T13:00:00Z', createdBy: 'u-admin', expiresAt: '2026-11-11T13:00:00Z', acceptedAt: '2026-10-29T02:00:00Z', acceptedProfileId: 'u-ph1', revokedAt: null, revokedBy: null },
-    { id: 'hri-2', employeeId: 'hre-10', token: 'demo-hr-eli-pending-0001', email: 'eli.examiner-ph@example.test', createdAt: '2026-11-03T13:00:00Z', createdBy: 'u-hr1', expiresAt: '2026-11-17T13:00:00Z', acceptedAt: null, acceptedProfileId: null, revokedAt: null, revokedBy: null },
-    { id: 'hri-3', employeeId: 'hre-12', token: 'demo-hr-ezra-expired-0001', email: 'ezra.examiner@example.test', createdAt: '2026-10-01T13:00:00Z', createdBy: 'u-admin', expiresAt: '2026-10-15T13:00:00Z', acceptedAt: null, acceptedProfileId: null, revokedAt: null, revokedBy: null },
+    { id: 'hri-2', employeeId: 'hre-10', token: 'demo-hr-eli-pending-0001', email: 'eli.examiner-ph@example.test', createdAt: '2026-11-03T13:00:00Z', createdBy: 'u-hr1', expiresAt: fromNow(7), acceptedAt: null, acceptedProfileId: null, revokedAt: null, revokedBy: null },
+    { id: 'hri-3', employeeId: 'hre-12', token: 'demo-hr-ezra-expired-0001', email: 'ezra.examiner@example.test', createdAt: '2026-10-01T13:00:00Z', createdBy: 'u-admin', expiresAt: fromNow(-1), acceptedAt: null, acceptedProfileId: null, revokedAt: null, revokedBy: null },
   ];
   d.hrChangeHistory = []; let seq = 0; const H = (x) => d.hrChangeHistory.push({ id: 'hrh-' + (++seq), seq, changedBy: 'u-admin', changedByName: 'King John Admin', changedAt: SEED_AT, oldValue: '', ...x });
   d.hrEmployees.forEach((e) => H({ tableName: 'hr_employees', rowId: e.id, employeeId: e.id, field: 'record', column: 'record', newValue: fullNameOf(e), action: 'create' }));
