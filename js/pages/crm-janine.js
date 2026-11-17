@@ -3,7 +3,8 @@
 //   county from the ZIP on the person form, the company duplicate warning, the meeting "Send invite" PREVIEW (.ics), the task Subject type-ahead.
 import { html, raw, $, $$, guard, toast, modal, closeModal, fmtDateTime, pill, toText } from '../ui.js?v=202611161500';
 import { modOn } from '../data/modules.js?v=202611101015';   // module switches (combined nov3g)
-import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, toCsvText, guessMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importTooBigMessage, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, importErrorCsv, saveImportResume, loadImportResume, IMPORT_RESUME_PREFIX } from '../data/crm-janine.js?v=202611101600';
+import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, toCsvText, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, importErrorCsv, saveImportResume, loadImportResume, IMPORT_RESUME_PREFIX } from '../data/crm-janine.js?v=202611101600';
+import { importFileHelpText, importFileKind, importFileRejectReason, importParsedFileError, importReadErrorMessage, importColumnGuess } from '../data/crm-import-file.js?v=202611242030';
 import { fopts } from './crm-custom.js?v=202611242010';
 import { importStatusChoices } from '../data/nov5-rules.js?v=202611131900';
 import { crmReadOnly, companyKey } from '../data/crm.js?v=202611130900';
@@ -149,7 +150,9 @@ export async function importPage({ api, me, params, owners = [], cfg = {} }, { t
         <span data-import-retired-note>Retired relationship statuses are not in the default list. A row that names a retired status is marked invalid in the preview and is not imported. Records that already have one are left as they are.</span></p>
       <p><button class="ghost" type="button" data-sample-csv="${tmplName}">Download sample template (fake data)</button>
         <a class="ghost" href="#/crm/import/${module}${kind === 'notes' ? '' : '/notes'}" data-import-other>${kind === 'notes' ? `Import ${M} instead` : 'Import Notes instead'}</a> <a class="ghost" href="#/crm/${module}">Back to ${M}</a></p>
-      <input type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-import-file> <span class="muted small" data-import-fname></span>
+      <p class="muted small" id="import-file-help" data-import-file-help>${importFileHelpText()}</p>
+      <input type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-import-file aria-describedby="import-file-help import-file-err"> <span class="muted small" data-import-fname></span>
+      <p class="err-text" id="import-file-err" data-import-file-err role="alert" hidden></p>
       <p class="notice" data-import-sheet hidden></p></div>
     <div class="card" data-import-map hidden><h3>2. Map the columns</h3><table class="tbl"><thead><tr><th>Column in the file</th><th>First value</th><th>Field in the CRM</th></tr></thead><tbody data-map-rows></tbody></table>
       ${kind === 'records' ? defaultsCard(module, owners, cfg) : ''}
@@ -176,19 +179,34 @@ export async function importPage({ api, me, params, owners = [], cfg = {} }, { t
     $$('[data-hist-rows]', root).forEach((b) => b.addEventListener('click', guard(async () => { const rows = await api.listCrmImportRows(b.dataset.histRows);
       modal('Import rows', html`<table class="tbl" data-import-rows><thead><tr><th>Line</th><th>Result</th><th>Record</th><th>Message</th></tr></thead><tbody>${rows.map((z) => html`<tr data-import-row-status="${z.status}"><td>${z.line}</td><td>${pill(z.status === 'ok' ? 'Created' : z.status === 'duplicate' ? 'Duplicate' : 'Error', z.status === 'ok' ? 'ok' : z.status === 'duplicate' ? 'warn' : 'bad')}</td>
         <td>${z.recordId ? html`<a href="#/crm/${module}/${z.recordId}">${z.recordName || z.recordId}</a>` : ''}</td><td class="small">${z.message}</td></tr>`)}</tbody></table>`, { wide: true }); })));
-    const excelFile = (file) => { const name = String(file && file.name || ''); if (/\.csv$/i.test(name)) return false; if (/\.(xlsx|xls)$/i.test(name)) return true;
-      const type = String(file && file.type || '').toLowerCase(); return type === 'application/vnd.ms-excel' || type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'; };
     const sheetNote = (msg) => { const el = $('[data-import-sheet]', root); if (!el) return; el.hidden = !msg; el.textContent = msg || ''; };
-    $('[data-import-file]', root).addEventListener('change', guard(async (e) => { const f = e.target.files[0]; if (!f) return; if (f.size > IMPORT_MAX_BYTES) throw new Error('The file is too large.');
-      let rows; let nextText; let notice = '';
-      if (excelFile(f)) { const { rowsFromExcel } = await import('../data/crm-excel.js?v=202611221700'); const parsed = await rowsFromExcel(await f.arrayBuffer()); rows = parsed.rows; nextText = toCsvText(rows); notice = parsed.notice || ''; }
-      else { nextText = await f.text(); rows = parseCsv(nextText); }
-      if (rows.length < 2) throw new Error('The file needs a header row and at least one row of data.');
-      if (rows.length - 1 > IMPORT_MAX_ROWS) throw new Error(importTooBigMessage(rows.length - 1));
-      text = nextText; fileName = f.name; $('[data-import-fname]', root).textContent = f.name; sheetNote(notice);
-      header = rows[0]; const guess = guessMapping(header, fields);
-      $('[data-map-rows]', root).innerHTML = toText(header.map((h, i) => html`<tr><td>${h}</td><td class="muted small">${(rows[1] || [])[i] || ''}</td><td><select data-map="${i}" aria-label="Field for ${h}"><option value="">(skip this column)</option>${fields.map(([k, l]) => html`<option value="${k}" ${guess[i] === k ? raw('selected') : ''}>${l}</option>`)}</select></td></tr>`));
-      $('[data-import-map]', root).hidden = false; $('[data-import-prev]', root).hidden = true; $('[data-import-summary]', root).hidden = true; }));
+    const showFileErr = (msg) => {
+      const el = $('[data-import-file-err]', root);
+      const input = $('[data-import-file]', root);
+      if (el) { el.textContent = msg || ''; el.hidden = !msg; }
+      if (input) input.setAttribute('aria-invalid', msg ? 'true' : 'false');
+    };
+    const resetPicker = (input) => { try { input.value = ''; } catch (err) { /* the same file can be chosen again after a reset */ } };
+    // A bad file is explained on this card and left here until another file is chosen. It is not a toast, and it does not replace a file already accepted.
+    $('[data-import-file]', root).addEventListener('change', async (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      showFileErr('');
+      const early = importFileRejectReason(f);
+      if (early) { showFileErr(early); resetPicker(e.target); return; }
+      try {
+        let rows; let nextText; let notice = '';
+        if (importFileKind(f) === 'excel') { const { rowsFromExcel } = await import('../data/crm-excel.js?v=202611221700'); const parsed = await rowsFromExcel(await f.arrayBuffer()); rows = parsed.rows; nextText = toCsvText(rows); notice = parsed.notice || ''; }
+        else { nextText = await f.text(); rows = parseCsv(nextText); }
+        const problem = importParsedFileError(rows, kind, module, f);
+        if (problem) { showFileErr(problem); resetPicker(e.target); return; }
+        showFileErr('');
+        text = nextText; fileName = f.name; $('[data-import-fname]', root).textContent = f.name; sheetNote(notice);
+        header = rows[0]; const guess = importColumnGuess(header, fields, kind);
+        $('[data-map-rows]', root).innerHTML = toText(header.map((h, i) => html`<tr><td>${h}</td><td class="muted small">${(rows[1] || [])[i] || ''}</td><td><select data-map="${i}" aria-label="Field for ${h}"><option value="">(skip this column)</option>${fields.map(([k, l]) => html`<option value="${k}" ${guess[i] === k ? raw('selected') : ''}>${l}</option>`)}</select></td></tr>`));
+        $('[data-import-map]', root).hidden = false; $('[data-import-prev]', root).hidden = true; $('[data-import-summary]', root).hidden = true;
+      } catch (err) { showFileErr(importReadErrorMessage(err)); resetPicker(e.target); }
+    });
     const table = (r) => { const cols = fields.filter(([k]) => r.mapping.includes(k));
       return html`<thead><tr><th>Line</th><th>Result</th>${cols.map(([, l]) => html`<th>${l}</th>`)}</tr></thead><tbody>${r.rows.map((x) => html`<tr data-prev-row="${x.line}" data-status="${x.status}" class="${x.status === 'ok' ? '' : 'bad-row'}"><td>${x.line}</td>
         <td>${x.status === 'ok' ? html`${pill(r.committed ? 'Created' : 'OK', 'ok')}${importRowHref(x, r.committed) ? html` <a href="${importRowHref(x, r.committed)}">${x.name}</a>` : ''}${(x.notes || []).length ? html`<br><span class="muted small">${x.notes.join('; ')}</span>` : ''}` : html`${pill(x.status === 'duplicate' ? 'Duplicate' : 'Error', x.status === 'duplicate' ? 'warn' : 'bad')} <span class="small">${x.message}</span>`}</td>
