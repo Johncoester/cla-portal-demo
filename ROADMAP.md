@@ -1089,3 +1089,32 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Nobody is turned on by the database file. An admin ticks people after it is applied.
 - The tick does not change role access or who can open the CRM.
+
+---
+
+## CRM custom view user criteria
+
+**How it should work.** On Leads, Clients, Companies, and Deals, New Custom View, Specify Criteria, a field whose value is a person lists every CRM user, the same people as Share this with, Selected users. That includes super admins, admins, and sales reps. Choosing one saves that person's id, and the view shows records whose created-by, modified-by, owner, or last-activity person is that id.
+
+**Status: In progress.** Feedback 30 item 1, confirmed by Janine. Not merged. Not on TEST. Not Live. No database file.
+
+**What's built**
+
+- The criteria value list uses the share-with user list, loaded once. The signed-in person is included, because the filter can be "records I created."
+- Created By, Modified By, Last Activity By, and the owner field are offered on Leads, Clients, and Companies. Deals offer Created By, Deal Owner, and Last Activity By.
+- The saved value stays the user id. The view matches that id to the record.
+
+**What's still missing**
+
+- Not on TEST until this pull request is merged and someone checks Leads, New Custom View, Created By. Do not mark Live before that.
+- Deals have no Modified By. A deal does not store who last changed the file.
+- Clients Created By and Modified By on the hosted list are filled with one extra read of those two ids. If that read is blocked, those two client filters match only when the client list already includes the id. Leads, companies, deal owner, and deal Created By do not need that extra read.
+
+**Links**
+
+- Spec: [docs/specs/crm-view-user-criteria.md](docs/specs/crm-view-user-criteria.md)
+
+**Decisions**
+
+- Reuse the share-with user list. Do not switch the owner pickers on the record forms.
+- Keep the stored criterion as the user id.
