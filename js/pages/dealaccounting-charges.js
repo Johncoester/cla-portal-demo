@@ -5,6 +5,7 @@
 // Every line is still ONE fee on the same ledger (accounting.js), so the ALTA, the CD pages, prorations and CLA rates keep working.
 // TEST ONLY. Wire instructions (bank routing / account numbers) are NEVER stored: the Wire block is a reminder only.
 import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611161500';
+import { addressOnFile } from '../data/fee-place.js?v=202611242400';
 import { splitFor } from '../data/underwriter.js?v=202611241600';
 import { cdDescription } from '../data/accounting.js?v=202611241500';
 import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611241500';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
@@ -86,6 +87,7 @@ function taxFeesPanel(setup) {
   const left = setup.types.filter((t) => !setup.documents.some((d) => d.type === t));
   return html`<div class="card acct-calc" data-tax-fees><div class="acct-card-head"><h3>Taxes &amp; fees</h3><span class="muted small">${setup.county ? setup.county + ', ' : ''}${setup.state}</span></div>
     <p class="small muted">Add each document to record. Calculate fees prices the recording fees, recordation tax, and transfer tax for this county. Nothing is saved until you apply the lines. A line you changed by hand is kept.</p>
+    ${setup.countyNote ? html`<p class="small" data-tax-county>${setup.countyNote}</p>` : ''}
     ${setup.rateNote ? html`<p class="small" data-tax-rate>${setup.rateNote}</p>` : ''}
     <div class="acct-toolbar"><label class="small">Add document <select data-tax-add-type aria-label="Add document">${left.length ? left.map((t) => html`<option value="${t}">${t}</option>`) : html`<option value="">All documents are added</option>`}</select></label>
       <button type="button" class="m-btn" data-tax-add ${dis(!left.length)}>Add document</button></div>
@@ -194,7 +196,7 @@ function feeSection(ctx) {
   const { deal, acc, cd, sec, base, canEdit } = ctx; const refi = acc.refi; const G = sec === 'G';
   const grid = Q.sectionGrid(deal, cd, acc.entries, sec); const rows = grid.rows; const byLine = Object.fromEntries(rows.map((r) => [r.line, r]));
   const loan = Number(deal.loanAmount) || 0;
-  const banner = sec === 'E' && !(deal.street && deal.city && deal.zip && deal.county) ? html`<div class="qc-banner" data-qc-address-banner><span>You'll need to add a complete property address before we'll be able to calculate recording fees and taxes.</span> <a class="m-btn small" href="#/deals/${deal.id}/overview" data-qc-add-property>Add property</a></div>` : '';
+  const banner = sec === 'E' && !addressOnFile(deal) ? html`<div class="qc-banner" data-qc-address-banner><span>You'll need to add a complete property address before we'll be able to calculate recording fees and taxes.</span> <a class="m-btn small" href="#/deals/${deal.id}/overview" data-qc-add-property>Add property</a></div>` : '';
   const amtCols = refi ? ['borrowerAt', 'borrowerBefore', 'others'] : ['borrowerAt', 'borrowerBefore', 'sellerAt', 'sellerBefore', 'others'];
   const locked = (r) => !canEdit || !!r.recording || (sec === 'E' && r.line === '01') || !!(r.fee && r.fee.proration);
   const tone = (r) => (r.fee && r.fee.overridden ? 'qc-over' : r.calculated ? 'qc-pre' : '');
