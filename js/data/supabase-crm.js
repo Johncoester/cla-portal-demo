@@ -9,8 +9,9 @@ import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCusto
 import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611130900';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611130900';
 import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
+import { dealStageOf } from './crm-analytics.js?v=202611242010';
 import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611242050';
-import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611160500';
+import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611242010';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };
@@ -213,7 +214,7 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async crmReport({ from = '', to = '' } = {}) { return rpc('crm_report', { p_from: from || null, p_to: to || null }); },
     // John, Nov 3 (migration 32): CRM Deals list with filters. public.crm_deals() applies the scope (a Sales Person gets only their own deals) on the server.
     async listCrmDeals(f = {}) { const rows = await rpc('crm_deals', { p_status: f.status || null, p_owner: f.ownerId || null, p_client: f.clientId || null, p_source: f.source || null });
-      return withActivity((rows || []).map((r) => withDealName({ ...r, _link: `#/crm/deals/${r.id}`, _portalLink: `#/deals/${r.id}`, _clientLink: '' })), 'deal'); },
+      return withActivity((rows || []).map((r) => withDealName({ ...r, stage: dealStageOf(r.stage || r.status), _link: `#/crm/deals/${r.id}`, _portalLink: `#/deals/${r.id}`, _clientLink: '' })), 'deal'); },
     async listCrmDealFilters() { return rpc('crm_deal_filters'); },
     // One crm_deals call (the same scope as the list). One deal_contacts call for this deal only. No per-row helper.
     async getCrmDeal(id) {
@@ -233,7 +234,7 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
         if (row.contactName) people.push({ role: 'Agent', name: row.contactName, email: '', link: '' });
       }
       const emails = await this.listCrmEmails('deal', want); const u = await me();
-      return withDealName({ ...row, _link: `#/crm/deals/${row.id}`, _portalLink: `#/deals/${row.id}`, people, emails: Array.isArray(emails) ? emails : [], notes: row.notes || '', canEdit: !crmReadOnly(u) });
+      return withDealName({ ...row, stage: dealStageOf(row.stage || row.status), _link: `#/crm/deals/${row.id}`, _portalLink: `#/deals/${row.id}`, people, emails: Array.isArray(emails) ? emails : [], notes: row.notes || '', canEdit: !crmReadOnly(u) });
     },
     async listCrmEmails(entity, id) {
       on(); const e = String(entity || ''); const rid = String(id || '');

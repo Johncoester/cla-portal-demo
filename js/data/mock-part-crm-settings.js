@@ -5,7 +5,7 @@ import { PICKLIST_KEYS, picklistDef, optionsOf, addOption, renameOption, retireO
   PERSON_FIELDS, ACCOUNT_FIELDS, PROTECTED_FIELDS, BUILTIN_SCOPES, isLocked, cleanCustomValue, isBlankValue } from './crm-config.js?v=202611130900';
 import { OPTION_TYPES, COMPUTED_TYPES, CHAR_TYPES, UNIQUE_TYPES, ENCRYPT_TYPES, LOOKUP_TARGETS, ROLLUP_RELATED, ROLLUP_FNS, TOOLTIP_MAX, cleanPerms, fieldCan, parseFormula, checkFormulaRefs,
   sectionsOf, NUMBER_CF, DEFAULT_TYPES } from './crm-fields.js?v=202611070139';
-import { moduleFields } from './crm-analytics.js?v=202611130900';
+import { moduleFields } from './crm-analytics.js?v=202611242010';
 
 export function crmSettingsPart(x, h) {
   const { save, now, fail, str, clone, nameOf, nid } = x;

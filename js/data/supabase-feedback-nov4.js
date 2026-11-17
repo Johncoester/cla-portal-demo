@@ -8,8 +8,8 @@
  *    Criteria values are one row per value_index (no JSON). Child rows are read and replaced in batches. */
 import { CLA_OFFICES, OFFICE_LOCATION } from './cla-offices.js?v=202611101015';
 import { DISBURSEMENT_FIELDS, cleanDisbursement } from './crm-disbursement.js?v=202611070139';
-import { VIEW_MODULES, VIEW_DEFAULT_COLUMNS, PINS_MAX, nameOk, cleanColumns, placeNameColumn, cleanFilterValues, SEARCH_COL_MAX, viewModuleFields, withViewUserIds, applyUserNames } from './crm-views.js?v=202611242000';
-import { cleanCriteria, applyCriteria, display, SHARE_ROLES, DEPARTMENTS } from './crm-analytics.js?v=202611130900';
+import { VIEW_MODULES, VIEW_DEFAULT_COLUMNS, PINS_MAX, nameOk, cleanColumns, placeNameColumn, cleanFilterValues, SEARCH_COL_MAX, viewModuleFields, withViewUserIds, applyUserNames } from './crm-views.js?v=202611242010';
+import { cleanCriteria, applyCriteria, display, SHARE_ROLES, DEPARTMENTS } from './crm-analytics.js?v=202611242010';
 import { canUseCrm, crmReadOnly } from './crm.js?v=202611130900';
 import { CRM_OFF, featureFlags } from './features.js?v=202611070139';
 import { localDate } from './constants.js?v=202611101015';
