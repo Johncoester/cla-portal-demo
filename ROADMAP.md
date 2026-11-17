@@ -1141,3 +1141,27 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Janine asked to move the name, not to drop it. It stays required and it can sit in any selected position.
 - An older view with no stored name position keeps the name first. A view that already stored a position keeps that position.
+
+## Page load retry (LOAD-RETRY-1)
+
+**How it should work.** Opening a page shows "Loading this page." while its files arrive. If GitHub Pages answers 503 for one file, the portal tries that load again. If it still fails, the loading line is replaced with "This page didn't load. Check your connection and try again." and a Reload button. The loading line does not stay on screen.
+
+**Status: In review.** John Coester, Nov 17 2026, from walkthrough runs 44105290718, 44111742709, and 44117024772 on main. Tracker item LOAD-RETRY-1. No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- A failed page load, and a failed load of the data connection, is tried again twice, a short pause apart.
+- If it still fails, the person sees the plain message and Reload. The technical error is not shown.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/load-retry.md](docs/specs/load-retry.md)
+
+**Decisions**
+
+- Retry the same address. Chrome loads that file again, including a file nested inside the page. A different address would load a second copy and would not retry the nested file.
+- The message tells the person what happened and what to do next. Reload reloads the whole page.
