@@ -10,18 +10,18 @@ import { clientActivityFrom } from './client-activity.js?v=202611102100';
 import { assertRecipients, messageText } from './portal-message.js?v=202611191700';
 import { planDocumentBatch } from './document-batch.js?v=202611101015';
 import { featureFlags } from './features.js?v=202611070139';
-import { accountingSupabase } from './supabase-accounting.js?v=202611223100';
-import { payoffsSupabase } from './supabase-payoffs.js?v=202611223100';
+import { accountingSupabase } from './supabase-accounting.js?v=202611241700';
+import { payoffsSupabase } from './supabase-payoffs.js?v=202611241600';
 import { agentFeesSupabase } from './supabase-agent-fees.js?v=202611222800';
 import { titleSupabase } from './supabase-title.js?v=202611112200';
 import { policySupabase } from './supabase-policy.js?v=202611112100';
-import { fundingSupabase } from './supabase-funding.js?v=202611223100';
+import { fundingSupabase } from './supabase-funding.js?v=202611241600';
 import { postClosingSupabase } from './supabase-postclosing.js?v=202611111900';
 import { wiresSupabase } from './supabase-wires.js?v=202611111800';
 import { modulesSupabase } from './supabase-modules.js?v=202611101015';
 import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access
 import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611221900';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611223100';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611241600';
 import { automationPart } from './automation.js?v=202611101015';
 import { runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
 import { crmSupabase } from './supabase-crm.js?v=202611241300';
@@ -47,9 +47,9 @@ import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTas
 import { fetchDashboard, indexDashboardExtras, decorateDashboardDeals, shapeDashboardTask, DASHBOARD_TASK_COLUMNS } from './dashboard-load.js?v=202611191800';
 import { partyTaskCopiesStillOpen, PARTY_TASK_ROLES } from './party-task-completion.js?v=202611241000';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
-import { contactInsertRow } from './contact-insert.js?v=202611222700';
+import { contactInsertRow } from './contact-insert.js?v=202611241600';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
-import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole } from './lender-file.js?v=202611222700';
+import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole, brokerageContact, brokerageContactError, brokerageWrite, brokerageColumnMiss } from './lender-file.js?v=202611241600';
 import { fileTitleOf } from './party-name.js?v=202611102000';
 import { parcelInput } from './parcels.js?v=202611222100';
 import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611223000';
@@ -528,9 +528,16 @@ export async function createSupabaseAdapter(cfg) {
       if (input.closingTime) row.closing_time = String(input.closingTime);
       if (input.claRepresentation !== undefined) row.cla_representation = claRepresentationCode(input.claRepresentation);   // Both / Buyer only / Seller only; absent = not recorded
       const wrote = lenderColumnWrite(input); if (wrote) { row.lender_address = wrote.lenderAddress; row.cpl_address = wrote.cplAddress; row.cpl_same_as_lender = wrote.cplSameAsLender; row.mortgage_broker_name = wrote.mortgageBrokerName; }
+      const broker = brokerageContact(input);
+      const brokerAny = !!(broker.mortgageBrokerContact || String(input.mortgageBrokerPhone || '').trim() || broker.mortgageBrokerEmail || broker.mortgageBrokerAddress);
+      if (brokerAny) {
+        const brokerErr = brokerageContactError(input);
+        if (brokerErr) throw new Error(brokerErr);
+        row.mortgage_broker_contact = broker.mortgageBrokerContact; row.mortgage_broker_phone = broker.mortgageBrokerPhone; row.mortgage_broker_email = broker.mortgageBrokerEmail; row.mortgage_broker_address = broker.mortgageBrokerAddress;
+      }
       if (input.parcelId !== undefined || input.parcelIds !== undefined) { const parcels = parcelInput(input); row.parcel_id = parcels.parcelId || ''; row.parcel_ids = parcels.parcelIds; }
       const earnest = earnestDealPatch(input, { refinance: refi }); if (Object.keys(earnest.financial).length) row.financial = earnest.financial;
-      const d = camel(ok(await sb.from('deals').insert(row).select().single()));
+      let d; try { d = camel(ok(await sb.from('deals').insert(row).select().single())); } catch (e) { throw brokerageColumnMiss(e); }
       if (String(input.sourceOfBusiness || '').trim()) ok(await sb.rpc('set_deal_source', { p_deal: d.id, p_source: input.sourceOfBusiness }));   // migration 31 (staff-only table)
       const ids = [].concat(input.salesIds || []).filter(Boolean); if (ids.length) ok(await sb.rpc('set_deal_sales_people', { p_deal: d.id, p_sales: ids }));
       return { ...d, address: `${d.street}, ${d.city}, ${d.state} ${d.zip}` }; },
@@ -553,9 +560,19 @@ export async function createSupabaseAdapter(cfg) {
         if (patch.cplAddress !== undefined || patch.cplSameAsLender !== undefined) row.cpl_address = x.cplAddress;
         if (patch.cplSameAsLender !== undefined) row.cpl_same_as_lender = x.cplSameAsLender;
         if (patch.mortgageBrokerName !== undefined) row.mortgage_broker_name = x.mortgageBrokerName; }
+      const brokerWrote = brokerageWrite({}, patch);
+      if (brokerWrote && brokerWrote.error) throw new Error(brokerWrote.error);
+      if (brokerWrote && brokerWrote.values) {
+        const v = brokerWrote.values;
+        if (v.mortgageBrokerName !== undefined) row.mortgage_broker_name = v.mortgageBrokerName;
+        if (v.mortgageBrokerContact !== undefined) row.mortgage_broker_contact = v.mortgageBrokerContact;
+        if (v.mortgageBrokerPhone !== undefined) row.mortgage_broker_phone = v.mortgageBrokerPhone;
+        if (v.mortgageBrokerEmail !== undefined) row.mortgage_broker_email = v.mortgageBrokerEmail;
+        if (v.mortgageBrokerAddress !== undefined) row.mortgage_broker_address = v.mortgageBrokerAddress;
+      }
       if (patch.state !== undefined && String(patch.state || '').toUpperCase() !== 'MD') { row.primary_residence = ''; row.first_time_buyer = ''; }
       if (patch.lenderHistory !== undefined) row.lender_history = Array.isArray(patch.lenderHistory) ? patch.lenderHistory.slice(0, 20) : [];
-      if (Object.keys(row).length) ok(await sb.from('deals').update(row).eq('id', id));
+      if (Object.keys(row).length) { try { ok(await sb.from('deals').update(row).eq('id', id)); } catch (e) { throw brokerageColumnMiss(e); } }
       if (patch.sourceOfBusiness !== undefined) ok(await sb.rpc('set_deal_source', { p_deal: id, p_source: patch.sourceOfBusiness || '' }));
       if (patch.salesIds !== undefined) ok(await sb.rpc('set_deal_sales_people', { p_deal: id, p_sales: [].concat(patch.salesIds || []) }));
       return a.getDeal(id); },
