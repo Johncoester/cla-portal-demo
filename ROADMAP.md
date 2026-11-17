@@ -1536,6 +1536,35 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Accounting Basic Info (FF-094)
+
+**How it should work.** In Accounting, the section that was called Contract Figures is named Basic Info. It shows Sales price, Loan amount, Closing date, Disbursement date, and Source of business. How it was obtained, Source for this figure, Seller credit, the second Earnest money block, Warranty, HOA, Condo, Deferred, and Historical tax are not on that screen. The stored values stay, so other screens that already use them keep working.
+
+**Status: In progress.** Tracker FF-094. Francis Santos, email Nov 17 2026, 1:37 PM ET (Gmail message 1a1eacd7648484d9), item 3. Medium. Pull request: [PR 321](https://github.com/Johncoester/cla-portal-demo/pull/321). Not Live. No database file. Not applied on TEST.
+
+**What's built**
+
+- The Accounting menu and the page heading say Basic Info. The five fields are the order's own figures, the same ones Place Order and Edit order details save. Saving does not open the old contract-term sheet, so a blank box cannot wipe a value that used to be on that sheet.
+- Earnest money stays as its own card. The duplicate block at the bottom of the old sheet is gone. Commissions stay as the read-only Agent fees summary. Seller credit stays under Charges, L/N. A refinance has no sales price here.
+- Sales, the sales team, and a transaction coordinator can read the form and cannot change it.
+- The menu link that also said Basic Info and opened the file overview is now labeled Order overview.
+
+**What's still missing**
+
+- Other Charges has a card for the warranty cap and payer, the HOA and condo name, monthly dues, certificate balance and date, and the deferred amount, schedule, and payee. Those boxes read and write the columns already on the order. Not Live until someone checks Basic Info and Other Charges on TEST. The old transfer-fee figure stays stored and is not on this card.
+
+**Links**
+
+- Spec: [docs/specs/accounting-basic-info.md](docs/specs/accounting-basic-info.md)
+- Pull request: [PR 321](https://github.com/Johncoester/cla-portal-demo/pull/321)
+
+**Decisions**
+
+- Remove the extra boxes from the screen only. Do not drop columns.
+- Basic Info writes the order. It does not save the hidden contract-term sheet.
+- TC Contract info is a different screen and stays as it is. The role walkthrough does not look for the words "Contract figures".
+
+---
 ## CRM import note match speed
 
 **How it should work.** On Import Notes, Preview still attaches each note to the same lead or client as before. An open person wins over an archived one. If several are open, or none are, the earliest created date wins. The preview should come back quickly when the lead list is large, instead of looking through every lead once per note row.
