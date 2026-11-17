@@ -9,7 +9,7 @@ import { schedulePageSizeSave } from '../data/crm-columns.js?v=202611160300';
 import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611161500';
 import { bulkBar, wireBulk } from './crm-bulk.js?v=202611161500';
 import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611130900';
-import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611242010';
+import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611243700';
 import { wireCompose } from './crm-templates.js?v=202611161500';
 
 const crumbs = (label) => [['CRM', '#/crm'], [label]];

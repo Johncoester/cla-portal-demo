@@ -1619,3 +1619,29 @@ This file lists the portal's major features: how each one should work, how far a
 
 - No database change. The saved field is still salesIds.
 - The search list is the same people the checkbox list showed.
+
+## CRM report grouping without fiscal buckets
+
+**How it should work.** On a CRM report and on a CRM chart, date grouping offers By Day, By Calendar Week, By Month, By Quarter, and By Year. By Fiscal Week, By Fiscal Quarter, and By Fiscal Year are not in the list. A report or chart already saved with one of those opens as the matching calendar grouping: fiscal week as week, fiscal quarter as quarter, and fiscal year as year. It does not show an error.
+
+**Status: In progress.** Janine Santos said "We can remove fiscal for now." No database file. Not Live until someone checks a report and a chart on TEST.
+
+**What's built**
+
+- The grouping list on reports and charts no longer includes the three fiscal choices.
+- Opening a saved report or chart that still has one of those codes uses the matching calendar grouping.
+- Saving a report or chart that still sends one of those codes stores the calendar grouping.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- Previous FY, Current FY, and Next FY stay on the date filters. This request was the grouping list.
+
+**Links**
+
+- Spec: [docs/specs/crm-report-grouping.md](docs/specs/crm-report-grouping.md)
+
+**Decisions**
+
+- No database change. Old saved values stay stored and are read as the calendar grouping.
+- The closing-cost calculator's Maryland property-tax note is not a CRM screen and is unchanged.

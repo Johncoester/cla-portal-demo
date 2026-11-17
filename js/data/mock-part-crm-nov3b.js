@@ -8,7 +8,7 @@
  * Nothing here deletes: dashboards, components and reports are RETIRED (hidden, restorable). Mirrored by migration 30. */
 import { MODULE_CODES, moduleName, SEARCH_MODULES, REPORT_MODULES, DASH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, parseQuery, searchMatch, moduleFields, reportFields,
   RELATED, joinRows, runReport, reportCsv, cleanCriteria, applyCriteria, criteriaText, chartData, measureOf, measureLabel, groupOf, display, dealStageOf, CALL_TYPES,
-  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, BUCKETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611242010';
+  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, calendarBucket, groupingWithCalendar, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611243700';
 import { ensureNov3b } from './crm-nov3b.js?v=202611070139';
 import { DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611070139';
 import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611130900';
@@ -166,7 +166,7 @@ export function crmNov3bPart(x, h) {
     const fn = str((c.measure || {}).fn, 10) || 'count'; if (!['count', 'sum', 'avg'].includes(fn)) fail('Measure must be Record Count, Sum or Average.');
     let measure = { fn: 'count' }; if (fn !== 'count') { const f = fk(str((c.measure || {}).field, 80)); if (!f || !NUMERIC.includes(f.type)) fail('Pick a number or currency field to sum or average.'); measure = { fn, field: f.key }; }
     const grp = (g, need) => { if (!g || !g.field) { if (need) fail('Pick a Grouping field.'); return null; } const f = fk(str(g.field, 80)); if (!f) fail('The grouping field is not in this module.');
-      const bucket = isDateType(f.type) ? (BUCKETS.some(([b]) => b === g.bucket) ? g.bucket : 'day') : undefined; return bucket ? { field: f.key, bucket } : { field: f.key }; };
+      const bucket = isDateType(f.type) ? calendarBucket(g.bucket) : undefined; return bucket ? { field: f.key, bucket } : { field: f.key }; };
     const config = { module, measure, criteria: cleanCriteria(c.criteria, fields) };
     if (type === 'chart' || type === 'funnel') config.grouping = grp(c.grouping, true);
     if (type === 'chart') { config.chartType = CHART_CODES.includes(c.chartType) ? c.chartType : 'column'; config.grouping2 = config.chartType === 'stacked' ? grp(c.grouping2, false) : null; }
@@ -184,7 +184,8 @@ export function crmNov3bPart(x, h) {
     if (comp.type === 'target') { const v = measureOf(rows, cf.measure, fields) || 0; return { ...base, value: v, target: cf.target, pct: Math.round((v / cf.target) * 1000) / 10, count: rows.length, ids: rows.map((r) => r.id) }; }
     return { ...base, ...chartData(rows, cf, fields, cfg) };
   }
-  const compOut = (u, c, dash, cfg) => { let data = null, error = ''; try { data = componentData(u, c, dash, cfg); } catch (e) { error = e.message; } return { ...clone(c), data, error }; };
+  const compOut = (u, c, dash, cfg) => { const view = clone(c); if (view.config) { view.config = { ...view.config, grouping: groupingWithCalendar(view.config.grouping) }; if (view.config.grouping2) view.config.grouping2 = groupingWithCalendar(view.config.grouping2); }
+    let data = null, error = ''; try { data = componentData(u, view, dash, cfg); } catch (e) { error = e.message; } return { ...view, data, error }; };
   const dashOut = (u, d) => ({ ...clone(d), ownerName: d.ownerId ? nameOf(d.ownerId) : 'CLA (built-in)', canEdit: dashboardEditable(u, d, crmReadOnly(u)), mine: d.ownerId === u.id, retired: !!d.retiredAt,
     components: db().crmDashComponents.filter((c) => c.dashboardId === d.id && !c.retiredAt).length });
 
@@ -211,7 +212,7 @@ export function crmNov3bPart(x, h) {
     if (has('filters')) r.filters = cleanCriteria(input.filters, fields);
     if (has('logic')) { const l = str(input.logic, 3).toLowerCase() || 'and'; if (!['and', 'or'].includes(l)) fail('Combine filters with AND or OR.'); r.logic = l; }
     if (has('sort')) { const s = input.sort && input.sort.field ? { field: String(input.sort.field), dir: input.sort.dir === 'desc' ? 'desc' : 'asc' } : null; if (s && !fk(s.field)) fail('The sort field is not in this report.'); r.sort = s; }
-    if (has('bucket')) r.bucket = BUCKETS.some(([b]) => b === input.bucket) ? input.bucket : 'day';
+    if (has('bucket')) r.bucket = calendarBucket(input.bucket);
     if (has('share')) { const s = input.share || {}; const mode = s.mode === 'custom' ? 'custom' : 'all'; const users = mode === 'custom' ? [...new Set((s.users || []).map((v) => str(v, 60)).filter(Boolean))] : []; const roles = mode === 'custom' ? [...new Set((s.roles || []).map(String))] : [];
       users.forEach((id) => { const p = prof(id); if (!p || p.status !== 'active' || C.isOutside(p.role)) fail('Share only with CLA users.'); }); roles.forEach((x2) => { if (!roleOk(x2)) fail('Pick roles from the list.'); });
       if (mode === 'custom' && !users.length && !roles.length) fail('Pick at least one user or role to share with (or share with everyone).'); r.share = { mode, users, roles }; }
@@ -224,7 +225,7 @@ export function crmNov3bPart(x, h) {
     const out = runReport(rows, def, fields, cfg, { today: today() });
     return { ...out, groupFields: (def.rowGroups || []).map((k) => (fields.find((f) => f.key === k) || {}).label || k), filterText: criteriaText(def.filters, fields, cfg, def.logic, userNames()) };
   }
-  const reportOut = (u, r) => ({ ...clone(r), moduleLabel: moduleName(r.module), folderName: folderName(r.folderId), personal: isPersonalFolder(r.folderId), createdByName: nameOf(r.createdBy), modifiedByName: r.modifiedBy ? nameOf(r.modifiedBy) : '',
+  const reportOut = (u, r) => ({ ...clone(r), ...(Object.prototype.hasOwnProperty.call(r, 'bucket') ? { bucket: calendarBucket(r.bucket) } : {}), moduleLabel: moduleName(r.module), folderName: folderName(r.folderId), personal: isPersonalFolder(r.folderId), createdByName: nameOf(r.createdBy), modifiedByName: r.modifiedBy ? nameOf(r.modifiedBy) : '',
     canEdit: reportEditable(u, r), canExport: !!u.isAdmin, retired: !!r.retiredAt });
   const asDef = (u, input, cfg) => (typeof input === 'string' ? reportOf(u, input) : cleanReport(u, { name: 'Unsaved report', ...input }, null, cfg));
 

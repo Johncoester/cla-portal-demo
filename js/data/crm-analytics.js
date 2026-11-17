@@ -115,7 +115,7 @@ export function display(field, row, cfg) {
 }
 
 // ---------- date presets (video 10) ----------
-// Fiscal year = calendar year (CLA's fiscal year was not given; FY_START_MONTH would move it).
+// Presets labeled FY use the calendar year. FY_START_MONTH is January, so those ranges match the calendar year.
 export const FY_START_MONTH = 1;
 export const DATE_PRESETS = [['today', 'Today'], ['yesterday', 'Yesterday'], ['prev_fy', 'Previous FY'], ['cur_fy', 'Current FY'], ['next_fy', 'Next FY'], ['prev_month', 'Previous Month'], ['cur_month', 'Current Month'],
   ['next_month', 'Next Month'], ['this_year', 'This Year'], ['prev_year', 'Previous Year'], ['next_year', 'Next Year']];
@@ -210,21 +210,30 @@ export function valueLabel(f, v, cfg, users = []) {
 }
 
 // ---------- grouping ----------
-// video 9 list: By Day, By Calendar Week, By Fiscal Week, By Month, By Fiscal Quarter, By Fiscal Year (+ calendar quarter / year). CLA's fiscal year
-// starts in January (FY_START_MONTH), so fiscal week / quarter / year group exactly like the calendar ones; the label says "FY".
-export const BUCKETS = [['day', 'By Day'], ['week', 'By Calendar Week'], ['fweek', 'By Fiscal Week'], ['month', 'By Month'], ['quarter', 'By Quarter'], ['fquarter', 'By Fiscal Quarter'], ['year', 'By Year'], ['fyear', 'By Fiscal Year']];
+// By Day, By Calendar Week, By Month, By Quarter, By Year. Older saved reports and charts may still say fweek, fquarter, or fyear.
+// Those load as week, quarter, and year. An unknown code loads as day, so opening one never fails.
+const OLD_BUCKET = { fweek: 'week', fquarter: 'quarter', fyear: 'year' };
+export const BUCKETS = [['day', 'By Day'], ['week', 'By Calendar Week'], ['month', 'By Month'], ['quarter', 'By Quarter'], ['year', 'By Year']];
+export function calendarBucket(bucket) {
+  const raw = bucket == null || bucket === '' ? '' : String(bucket);
+  if (!raw) return 'day';
+  const mapped = OLD_BUCKET[raw] || raw;
+  return BUCKETS.some(([code]) => code === mapped) ? mapped : 'day';
+}
+export function groupingWithCalendar(grouping) {
+  if (!grouping || typeof grouping !== 'object' || !Object.prototype.hasOwnProperty.call(grouping, 'bucket')) return grouping;
+  const bucket = calendarBucket(grouping.bucket);
+  return bucket === grouping.bucket ? grouping : { ...grouping, bucket };
+}
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // [key, label] of a date in a bucket (keys sort in time order)
 export function bucketOf(day, bucket = 'day') {
   if (!day) return ['', '(no date)']; const [y, m, d] = day.split('-').map(Number);
-  switch (bucket) {
+  switch (calendarBucket(bucket)) {
     case 'week': { const t = new Date(y, m - 1, d - new Date(y, m - 1, d).getDay()); const k = ymd(t); return [k, `Week of ${MONTHS[t.getMonth()]} ${t.getDate()}, ${t.getFullYear()}`]; }
     case 'month': return [`${y}-${p2(m)}`, `${MONTHS[m - 1]} ${y}`];
     case 'quarter': { const q = Math.floor((m - 1) / 3) + 1; return [`${y}-Q${q}`, `Q${q} ${y}`]; }
     case 'year': return [String(y), String(y)];
-    case 'fweek': { const [k, l] = bucketOf(day, 'week'); return [k, `FY${y} ${l}`]; }
-    case 'fquarter': { const q = Math.floor((m - 1) / 3) + 1; return [`${y}-Q${q}`, `FY${y} Q${q}`]; }
-    case 'fyear': return [String(y), `FY${y}`];
     default: return [day, `${MONTHS[m - 1]} ${d}, ${y}`];
   }
 }
@@ -259,7 +268,7 @@ export function chartData(rows, { grouping, grouping2, measure }, fields, cfg) {
     if (g2) out.parts = [...series.keys()].map((k2) => { const sub = e.rows.filter((r) => groupOf(g2, r, cfg, grouping2.bucket)[0] === k2); return { key: k2, label: series.get(k2), value: measureOf(sub, measure, fields), count: sub.length, ids: sub.map((r) => r.id) }; });
     return out; });
   return { groups, series: [...series.entries()].map(([key, label]) => ({ key, label })), total: measureOf(rows, measure, fields), count: rows.length, measureLabel: measureLabel(measure, fields),
-    groupLabel: g1 ? `${g1.label}${isDateType(g1.type) ? ` (${(BUCKETS.find(([b]) => b === (grouping.bucket || 'day')) || [, ''])[1]})` : ''}` : '' };
+    groupLabel: g1 ? `${g1.label}${isDateType(g1.type) ? ` (${(BUCKETS.find(([b]) => b === calendarBucket(grouping.bucket || 'day')) || [, ''])[1]})` : ''}` : '' };
 }
 function pickOrder(f, cfg, key) { if (key === '') return 9999; const list = f.list ? ((cfg && cfg.picklists && cfg.picklists[f.list]) || []).map((o) => o.value) : (f.options || []).map(([k]) => k); const i = list.indexOf(key); return i < 0 ? 999 : i; }
 
@@ -295,8 +304,9 @@ export function runReport(rows0, def, fields, cfg, { today } = {}) {
     currency: a.f.type === 'currency' && a.fn !== 'count' }));
   const cell = (r) => cols.map((f) => ({ key: f.key, text: display(f, r, cfg), link: f.link && !f.encrypted ? r[f.link] || '' : '' }));
   const groupFields = (def.rowGroups || []).map((k) => fields.find((f) => f.key === k)).filter(Boolean).slice(0, 3);
+  const bucket = calendarBucket(def.bucket || 'day');
   const nest = (list, level) => { if (level >= groupFields.length) return null; const g = groupFields[level]; const by = new Map();
-    list.forEach((r) => { const [k, l] = groupOf(g, r, cfg, def.bucket || 'day'); const e = by.get(k) || { key: k, label: l, rows: [] }; e.rows.push(r); by.set(k, e); });
+    list.forEach((r) => { const [k, l] = groupOf(g, r, cfg, bucket); const e = by.get(k) || { key: k, label: l, rows: [] }; e.rows.push(r); by.set(k, e); });
     return [...by.values()].sort((a, b) => (a.key === '' ? 1 : b.key === '' ? -1 : a.label.localeCompare(b.label, 'en', { numeric: true })))
       .map((e) => ({ field: g.label, key: e.key, label: e.label, count: e.rows.length, header: `${e.label} (${e.rows.length})`, aggregates: aggOf(e.rows), groups: nest(e.rows, level + 1), rows: level === groupFields.length - 1 ? e.rows.map((r) => ({ id: r._rowId || r.id, cells: cell(r) })) : null })); };
   return { columns: cols.map((f) => ({ key: f.key, label: f.label, type: f.type })), total: sorted.length, aggregates: aggOf(sorted), groups: nest(sorted, 0),

@@ -4,10 +4,10 @@
  * fields: By Day / Calendar Week / Month / Quarter / Year), Criteria (ANDed). Hover shows the value; click a bar or slice for the records behind it.
  * Nothing is deleted: dashboards and components are RETIRED (hidden, restorable). Function only (no styling work). */
 import { html, raw, $, $$, guard, toast, modal, closeModal, toText } from '../ui.js?v=202611161500';
-import { DASH_MODULES, moduleName, moduleFields, COMPONENT_TYPES, CHART_TYPES, VISIBILITY, BUCKETS, NUMERIC, isDateType, DATE_PRESETS } from '../data/crm-analytics.js?v=202611242010';
+import { DASH_MODULES, moduleName, moduleFields, COMPONENT_TYPES, CHART_TYPES, VISIBILITY, BUCKETS, calendarBucket, NUMERIC, isDateType, DATE_PRESETS } from '../data/crm-analytics.js?v=202611243700';
 import { tabs, head } from './crm-kit.js?v=202611161500';
 import { chartSvg, kpiHtml, targetHtml, funnelHtml } from './crm-charts.js?v=202611161500';
-import { criteriaEditor } from './crm-criteria.js?v=202611242010';
+import { criteriaEditor } from './crm-criteria.js?v=202611243700';
 
 const H = { s: 180, m: 260, l: 380 };
 const opts = (list, cur) => list.map(([k, l]) => html`<option value="${k}" ${String(k) === String(cur) ? raw('selected') : ''}>${l}</option>`);
@@ -182,7 +182,7 @@ function builder(c, dash, type, comp) {
   const drawFields = () => { const module = f.module.value; const fields = moduleFields(module, cfg); const nums = fields.filter((x) => NUMERIC.includes(x.type));
     const keep = module === cf.module; const g = keep && cf.grouping ? cf.grouping : { field: '' }; const g2 = keep && cf.grouping2 ? cf.grouping2 : { field: '' }; const ms = keep ? cf.measure : { fn: 'count' };
     const grp = (n, cur, blank) => html`<select name="${n}" data-b-${n}>${blank ? html`<option value="">${blank}</option>` : ''}${fields.map((x) => html`<option value="${x.key}" data-type="${x.type}" ${x.key === cur.field ? raw('selected') : ''}>${x.label}</option>`)}</select>
-      <select name="${n}Bucket" data-b-bucket="${n}">${opts(BUCKETS, cur.bucket || 'day')}</select>`;
+      <select name="${n}Bucket" data-b-bucket="${n}">${opts(BUCKETS, calendarBucket(cur.bucket || 'day'))}</select>`;
     $('[data-b-fields]', f).innerHTML = toText(html`<label>Measure<select name="fn">${opts([['count', 'Record Count'], ...(nums.length ? [['sum', 'Sum of'], ['avg', 'Average of']] : [])], ms.fn)}</select>
       <select name="measureField" data-b-mfield>${nums.map((x) => html`<option value="${x.key}" ${x.key === ms.field ? raw('selected') : ''}>${x.label}</option>`)}</select></label>
       ${['chart', 'funnel'].includes(type) ? html` <label>Grouping ${grp('grouping', g)}</label>` : ''}
