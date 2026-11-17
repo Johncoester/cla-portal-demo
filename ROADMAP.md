@@ -1411,7 +1411,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On Place Order, Team & Notes, "Salespeople on this order" is a search box. Type a name or a role, pick one or more people, and each chosen person shows as a chip with Remove. The order saves the same salesperson ids as the old checkbox list. Who can be picked does not change.
 
-**Status: In review.** Tracker item FF-092 (Medium). Francis Santos, Nov 17 2026, 1:37 PM ET (Gmail message 1a1eacd7648484d9). No database file. Not Live until someone checks it on TEST.
+**Status: In review.** Tracker item FF-092 (Medium). Francis Santos, Nov 17 2026, 1:37 PM ET (Gmail message 1a1eacd7648484d9). Pull request: [PR 322](https://github.com/Johncoester/cla-portal-demo/pull/322). No database file. Not Live until someone checks it on TEST.
 
 **What's built**
 
@@ -1428,6 +1428,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/place-order-salespeople.md](docs/specs/place-order-salespeople.md)
+- Pull request: [PR 322](https://github.com/Johncoester/cla-portal-demo/pull/322)
 
 **Decisions**
 
