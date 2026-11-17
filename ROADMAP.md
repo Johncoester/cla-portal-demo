@@ -1411,7 +1411,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On a file, the Admin fee section has Payable by: Buyer, Seller, or Split (Buyer and Seller). The choice is saved on that file and is still there after a reload. Split means the buyer and the seller each pay half. An odd cent goes to the seller. The fee ledger, the settlement statement, and the Closing Disclosure use those same two amounts.
 
-**Status: In review.** Tracker FF-093. Francis Santos, email Nov 17 2026, 1:37 PM ET (Gmail msg 1a1eacd7648484d9). Medium. Not Live. The database file is not applied on TEST.
+**Status: In review.** Tracker FF-093. Francis Santos, email Nov 17 2026, 1:37 PM ET (Gmail msg 1a1eacd7648484d9). Medium. Pull request: [PR 327](https://github.com/Johncoester/cla-portal-demo/pull/327). Not Live. The database file is not applied on TEST.
 
 **What's built**
 
@@ -1430,6 +1430,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/admin-fee-payable-by.md](docs/specs/admin-fee-payable-by.md)
+- Pull request: [PR 327](https://github.com/Johncoester/cla-portal-demo/pull/327)
 - Source: Francis Santos, Nov 17 2026, 1:37 PM ET, message 1a1eacd7648484d9. Tracker FF-093.
 
 **Decisions**
