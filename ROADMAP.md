@@ -187,7 +187,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** The sample pending invite stays pending, and the sample expired invite stays expired, on any day the tests run. A calendar date printed in the fixture must not decide that.
 
-**Status: In review.** Tracker item TEST-FIX-1. John Coester, Nov 17 2026. Not Live. No database file. Nothing on testportal.clatitle.com changes, because TEST reads invites from the database, not from this sample list.
+**Status: In review.** Tracker item TEST-FIX-1. John Coester, Nov 17 2026. Pull request: [PR 318](https://github.com/Johncoester/cla-portal-demo/pull/318). Not Live. No database file. Nothing on testportal.clatitle.com changes, because TEST reads invites from the database, not from this sample list.
 
 **What's built**
 
@@ -204,6 +204,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/test-fix-1.md](docs/specs/test-fix-1.md)
+- Pull request: [PR 318](https://github.com/Johncoester/cla-portal-demo/pull/318)
 - Source: John Coester, Nov 17 2026. Tracker item TEST-FIX-1. No video.
 
 **Decisions**

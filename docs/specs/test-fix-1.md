@@ -1,6 +1,6 @@
 # Demo invite dates stay ahead of today (TEST-FIX-1)
 
-Source: John Coester, Nov 17 2026. Tracker item TEST-FIX-1. No video.
+Source: John Coester, Nov 17 2026. Tracker item TEST-FIX-1. No video. Pull request: [PR 318](https://github.com/Johncoester/cla-portal-demo/pull/318).
 
 ## What was asked
 
