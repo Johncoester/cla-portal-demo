@@ -1,10 +1,12 @@
 /* FF-091 (Francis Santos, Nov 16 2026): Taxes & Fees documents. Amounts must match the vendored calculator.
  * Samples: Maryland (Baltimore City), Virginia (Fairfax), the District of Columbia, and Florida (Miami-Dade). No network. */
 import { readFileSync } from 'node:fs';
-import { closingDisclosure, altaStatement, cleanFee, calcFields, CALC_SOURCE_ID } from '../js/data/accounting.js';
+import { closingDisclosure, altaStatement, cleanFee, calcFields, CALC_SOURCE_ID, isOverridden } from '../js/data/accounting.js';
 import { vendoredTables } from '../js/data/fee-engine.js';
+import { createMockAdapter } from '../js/data/mock-adapter.js';
 import {
-  TAX_DOC_TYPES, OWNER_OCCUPANT_EXEMPTION_SIDE, STATE_TRANSFER_LOCK, defaultDocuments, exemptionAsks, taxesFeesSetup, worksheetProblem, proposeTaxesFees, diffTaxesFees, previewTaxesFees, savedWorksheet, taxAllocation, locateForFees
+  TAX_DOC_TYPES, OWNER_OCCUPANT_EXEMPTION_SIDE, STATE_TRANSFER_LOCK, defaultDocuments, exemptionAsks, taxesFeesSetup, worksheetProblem, proposeTaxesFees, diffTaxesFees, previewTaxesFees, savedWorksheet, taxAllocation, locateForFees,
+  RATE_NOT_SET, ENTERED_BY_HAND, manualAmountProblem, isGovernmentKey
 } from '../js/data/taxes-fees.js';
 import { addressOnFile } from '../js/data/fee-place.js';
 
@@ -99,8 +101,40 @@ ok(near(amount(vaRefiP, 'tax:State recordation tax (deed of trust)'), 875), 'a V
 const untaxed = proposeTaxesFees(city, { documents: cityDocs.map((d) => ({ ...d, taxable: false })) }, R);
 ok(!untaxed.lines.some((l) => l.key.startsWith('tax:')) && untaxed.lines.some((l) => l.key === 'rec:Deed'), 'marking the documents not taxable drops the taxes and still records the deed');
 
-const affidavit = proposeTaxesFees(city, { documents: [...cityDocs, { type: 'Affidavit', pages: 2, consideration: 0, taxable: false, occ: true, fthb: false }] }, R);
-ok(affidavit.warnings.some((w) => /no recording fee on CLA's rate sheet for an affidavit/i.test(w)) && !affidavit.lines.some((l) => /affidavit/i.test(l.description)), 'an affidavit is accepted and no fee is invented for it');
+const affDoc = { type: 'Affidavit', pages: 2, consideration: 0, taxable: false, occ: true, fthb: false };
+const affidavit = proposeTaxesFees(city, { documents: [...cityDocs, affDoc] }, R);
+const affLine = line(affidavit, 'unset:Affidavit');
+ok(!!affLine && affLine.rateNotSet && affLine.calculation === RATE_NOT_SET && affLine.amount === 0 && /Recording fee: Affidavit/.test(affLine.description) && affLine.cdLine && affLine.payee, 'an affidavit with no rate is a line that says Rate Not Set, with no invented amount');
+ok(!affidavit.warnings.some((w) => /no recording fee on CLA's rate sheet/i.test(w)), 'the blank-amount warning is replaced by the Rate Not Set line');
+ok(isGovernmentKey('unset:Affidavit') && affidavit.lines.some((l) => l.key === 'rec:Deed' && !l.rateNotSet), 'a priced deed stays a calculated recording fee');
+const badHand = manualAmountProblem('abc', 'Affidavit');
+ok(badHand && /dollar amount/.test(badHand.message) && /Leave it blank/.test(badHand.message) && badHand.field === 'manual', 'a fee that is not an amount says what to type: ' + (badHand && badHand.message));
+ok(manualAmountProblem('', 'Affidavit') == null && manualAmountProblem('45.00', 'Affidavit') == null, 'a blank fee and a dollar amount are both allowed');
+let refusedHand = '';
+try { previewTaxesFees(city, { documents: [...cityDocs, affDoc], manual: { Affidavit: 'abc' } }, [], R); } catch (e) { refusedHand = e.message; }
+ok(/dollar amount/.test(refusedHand), 'calculating with a fee that is not an amount is refused');
+const typedView = previewTaxesFees(city, { documents: [...cityDocs, affDoc], manual: { Affidavit: '45.00' } }, [], R);
+const typedRow = typedView.breakdown.find((r) => r.key === 'unset:Affidavit');
+const plainView = previewTaxesFees(city, { documents: [...cityDocs, affDoc] }, [], R);
+const buyerOf = (v) => v.breakdown.reduce((t, r) => t + r.borrowerAt + r.borrowerBefore, 0);
+ok(typedRow && typedRow.rateNotSet && typedRow.enteredByHand && !typedRow.locked && near(typedRow.borrowerAt, 45) && near(buyerOf(typedView) - buyerOf(plainView), 45), 'a typed fee shows on the affidavit line, is marked entered by hand, and counts in the totals');
+const blankRow = plainView.breakdown.find((r) => r.key === 'unset:Affidavit');
+ok(blankRow && blankRow.rateNotSet && !blankRow.enteredByHand && blankRow.amount === 0, 'with no typed fee the line stays Rate Not Set');
+const handFee = {
+  id: 'hand-1', retired: false, source: CALC_SOURCE_ID, description: affLine.description, altaSection: affLine.altaSection, cdSection: affLine.cdSection, cdLine: affLine.cdLine,
+  payee: affLine.payee, amount: 45, paidBy: 'buyer', split: { buyer: 45, seller: 0, lender: 0, other: 0 }, titlePrefix: false, timing: 'at', poc: false,
+  calc: { key: affLine.key, fields: calcFields({ ...affLine, amount: 0, split: { buyer: 0, seller: 0, lender: 0, other: 0 } }), calculation: RATE_NOT_SET, at: '2026-11-17T00:00:00Z', inputs: {} }
+};
+ok(isOverridden(handFee), 'a saved manual amount differs from the empty rate, so a re-run can see it was entered by hand');
+const kept = previewTaxesFees(city, { documents: [...cityDocs, affDoc] }, [handFee], R).breakdown.find((r) => r.key === 'unset:Affidavit');
+ok(kept && kept.locked && kept.savedByHand && kept.enteredByHand && near(kept.amount, 45) && kept.calculation === RATE_NOT_SET, 'recalculating shows the saved manual amount and does not replace it');
+ok(diffTaxesFees(affidavit, [handFee]).rows.find((r) => r.key === 'unset:Affidavit').status === 'overridden', 'applying a new calculation keeps the manual amount');
+const replaced = previewTaxesFees(city, { documents: [...cityDocs, affDoc], replace: ['Affidavit'], manual: { Affidavit: '12.00' } }, [handFee], R).breakdown.find((r) => r.key === 'unset:Affidavit');
+ok(replaced && !replaced.locked && near(replaced.borrowerAt, 12), 'choosing to replace the manual amount shows the new fee');
+const dropped = proposeTaxesFees(city, { documents: cityDocs }, R);
+ok(diffTaxesFees(dropped, [handFee]).rows.find((r) => r.key === 'unset:Affidavit').status === 'stale-overridden', 'removing the document still keeps a fee that was entered by hand');
+const zeroFee = { ...handFee, id: 'hand-0', amount: 0, split: { buyer: 0, seller: 0, lender: 0, other: 0 }, calc: { ...handFee.calc, fields: calcFields({ ...affLine, amount: 0, split: { buyer: 0, seller: 0, lender: 0, other: 0 } }) } };
+ok(!isOverridden(zeroFee) && diffTaxesFees(dropped, [zeroFee]).rows.find((r) => r.key === 'unset:Affidavit').status === 'retire', 'a Rate Not Set line with no amount comes off when the document is removed');
 
 const unknown = taxesFeesSetup({ state: 'MD', county: 'Mongomery', transactionType: 'Purchase', purchasePrice: 100, loanAmount: 80 }, [], R, null);
 ok(!unknown.covered && /couldn't find this county/.test(unknown.reason), 'a county that is not on the rate sheet is refused, same as the calculator');
@@ -195,6 +229,7 @@ const half = worksheetProblem({ documents: homeDocs, payers: { 'County transfer 
 ok(half && /Buyer pays, Seller pays, or 50\/50 split/.test(half.message), 'a payer that is not one of the three choices is explained: ' + (half && half.message));
 ok(OWNER_OCCUPANT_EXEMPTION_SIDE === 'exempted-total' && /Tax-Property 13-203/.test(STATE_TRANSFER_LOCK), 'exemptions come off the total, and the state transfer lock names the law');
 ok(taxAllocation(R, home, homeDocs).some((t) => t.name === 'County transfer tax' && t.plain === 'split' && !t.locksWhenFirstTime) && taxAllocation(R, ft, ftDocs).some((t) => t.name === 'State transfer tax' && t.locksWhenFirstTime), 'the county default is a split, and only the state transfer tax is locked for a first-time buyer');
+ok(page.includes('Rate Not Set') && page.includes(ENTERED_BY_HAND) && page.includes('Replace the amount entered by hand') && page.includes('data-tax-manual') && page.includes('data-tax-replace') && page.includes('data-rate-not-set') && page.includes('data-entered-by-hand'), 'the screen shows Rate Not Set, a place to type the fee, Entered by hand, and a choice to replace it');
 ok(page.includes('addressOnFile(deal)') && !page.includes('deal.street && deal.city && deal.zip && deal.county'), 'a filled street, city, and ZIP is not treated as a missing property address');
 
 // FF-095 (Francis Santos, Nov 17 2026, 2:12 PM ET). Processor 2 on TEST.
@@ -228,6 +263,34 @@ let mismatchCalc = '';
 try { proposeTaxesFees(file97407, { documents: defaultDocuments(file97407, exemptionAsks(R, file97407)) }, R); } catch (e) { mismatchCalc = e.message; }
 ok(mismatchCalc === mismatch.reason, 'Calculate does not invent Maryland fees when the ZIP is in another state');
 ok(mock.includes('applyTaxesFees') && mock.includes('attachTaxDocs') && remote.includes('applyTaxesFees') && remote.includes('attachTaxDocs'), 'mock and Supabase both save the worksheet on the calculated fee');
+
+const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+const store = mem();
+const api = createMockAdapter({ storage: store, sessionStorage: mem(), features: { accounting: true } });
+await api.signInDev('u-admin');
+const docs = [...defaultDocuments(purchase('MD', 'Montgomery', 485000, 388000), exemptionAsks(R, purchase('MD', 'Montgomery', 485000, 388000))), affDoc];
+const first = await api.previewTaxesFees('deal-1', { documents: docs });
+await api.applyTaxesFees('deal-1', { documents: docs }, { token: first.token, retireExamples: false });
+const opened = await api.getAccounting('deal-1');
+const gap = opened.entries.find((e) => e.calc && e.calc.key === 'unset:Affidavit');
+ok(gap && gap.amount === 0 && gap.calc.calculation === RATE_NOT_SET && !gap.overridden, 'applying with no typed fee saves the line as Rate Not Set');
+const beforeDebits = opened.totals.buyerDebits;
+await api.updateAccountingFee(gap.id, { amount: '45.00', paidBy: 'buyer', split: null });
+const api2 = createMockAdapter({ storage: store, sessionStorage: mem(), features: { accounting: true } });
+await api2.signInDev('u-admin');
+const reloaded = await api2.getAccounting('deal-1');
+const savedHand = reloaded.entries.find((e) => e.calc && e.calc.key === 'unset:Affidavit');
+ok(savedHand && near(savedHand.amount, 45) && savedHand.overridden && near(savedHand.split.buyer, 45) && near(reloaded.totals.buyerDebits - beforeDebits, 45), 'a manual amount saves, survives a reload, and counts in the buyer total');
+const rerun = await api2.previewTaxesFees('deal-1', { documents: docs });
+await api2.applyTaxesFees('deal-1', { documents: docs }, { token: rerun.token, retireExamples: false });
+const keptFee = (await api2.getAccounting('deal-1')).entries.find((e) => e.calc && e.calc.key === 'unset:Affidavit');
+ok(keptFee && near(keptFee.amount, 45), 'calculating again does not wipe the manual amount');
+await api2.updateAccountingFee(keptFee.id, { amount: '60.00', paidBy: 'buyer', split: null });
+const replacedFee = (await api2.getAccounting('deal-1')).entries.find((e) => e.calc && e.calc.key === 'unset:Affidavit');
+ok(replacedFee && near(replacedFee.amount, 60) && replacedFee.overridden, 'choosing a new amount replaces the one entered by hand');
+await api2.updateAccountingFee(replacedFee.id, { amount: '0.00', paidBy: 'buyer', split: null });
+const cleared = (await api2.getAccounting('deal-1')).entries.find((e) => e.calc && e.calc.key === 'unset:Affidavit');
+ok(cleared && cleared.amount === 0 && !cleared.overridden && cleared.calc.calculation === RATE_NOT_SET, 'clearing the manual amount returns the line to Rate Not Set');
 
 console.log(fail ? fail + ' failed' : 'taxes and fees passed');
 process.exit(fail ? 1 : 0);

@@ -12,11 +12,21 @@ import { render as postClosingRender } from './dealpostclosing.js?v=202611161500
 import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611241500';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611241500';
 import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611241900';
-import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611242860';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { fwpCanRead } from '../data/funding-wire-policy.js?v=202611070139';
+import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611242880';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { booksHtml } from './dealaccounting-books.js?v=202611242700';
 import { contractView } from './dealaccounting-contract.js?v=202611223000';
 import { partyNames, withStatementParties } from '../data/statement-parties.js?v=202611222900';
 
-const VIEWS = [['contract', 'Contract figures'], ['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
+const VIEWS = [['contract', 'Contract figures'], ['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Ledger'], ['receipts', 'Receipts'], ['disbursements', 'Disbursements'], ['balances', 'Account Balances'], ['balancing', 'Balancing'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
+const BOOK_VIEWS = new Set(['ledger', 'receipts', 'disbursements', 'balances', 'balancing']);
+const BOOK_BLURB = {
+  ledger: 'The fee ledger for this file. These are test figures. They are not a bank record and not a Closing Disclosure.',
+  receipts: 'Money coming into this file, from the test ledger. Nothing here is a deposit at the bank.',
+  disbursements: 'Money going out of this file, from the test ledger. This page does not print a check or send a wire.',
+  balances: 'The book balance for this file, from the test ledger. This is not a balance at the bank.',
+  balancing: 'Whether the money in and the money out on this file match. These are test figures, not a bank reconciliation.',
+};
 // negative amounts (the escrow aggregate adjustment) show as -$x.xx
 const m2 = (n) => (n == null || Number(n) === 0 ? '' : (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const m2z = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -34,10 +44,12 @@ export async function render({ api, deal: fileDeal, user }) {
   if (view === 'alta' || view === 'cd') deal = await withStatementParties(api, deal);   // the statements name the buyer, seller, lender and agents
   const acc = await api.getAccounting(deal.id, { includeRetired: showRetired });
   const T = acc.totals; const B = acc.refi ? 'Borrower' : 'Buyer / borrower';
-  const nav = qcNav(deal, view, q.get('s') || 'A', base, canReachPayoffs(user));   // live28: Payoffs / Taxes / Other Contacts links for Processors + admins only   // Qualia-style left nav: General · Closing › Charges A-N · Preview · CLA tools
+  const showFunding = !!((api.features || {}).funding && fwpCanRead(user) && modOn('funding'));
+  const nav = qcNav(deal, view, q.get('s') || 'A', base, canReachPayoffs(user), { showFunding });   // live28: Payoffs / Taxes / Other Contacts links for Processors + admins only   // Qualia-style left nav: General · Closing › Charges A-N, then Accounting, Preview, CLA tools
   const noLines = !acc.entries.length;
-  const head = html`<div class="acct-head acct-noprint"><div><p class="eyebrow">Accounting</p><h2 class="page-title">Contract figures</h2>
-      <p class="muted small">TEST contract figures are estimates. They are not funds received, not a payoff, and not a Closing Disclosure. The fee ledger is a separate worksheet and does not copy the order price, deposit, or loan.</p></div>
+  const bookName = BOOK_VIEWS.has(view) ? (VIEWS.find(([k]) => k === view) || [])[1] : '';
+  const head = html`<div class="acct-head acct-noprint"><div><p class="eyebrow">Accounting</p><h2 class="page-title">${bookName || 'Contract figures'}</h2>
+      <p class="muted small">${bookName ? BOOK_BLURB[view] : 'TEST contract figures are estimates. They are not funds received, not a payoff, and not a Closing Disclosure. The fee ledger is a separate worksheet and does not copy the order price, deposit, or loan.'}</p></div>
     <div class="acct-head-side"><span class="pill warn" data-test-mark>${TEST_MARK}</span>${acc.canEdit ? '' : html`<span class="pill" data-acct-readonly>Read only</span>`}</div></div>`;
   // summary tiles: the classic stat cards, or (card theme, the default look) Loan-Summary style cards: grey card, white inset head with one big baby-blue value.
   // Same data-* hooks either way (data-acct-totals, data-due-buyer, data-due-seller, data-balance, data-balance-diff).
@@ -69,8 +81,10 @@ export async function render({ api, deal: fileDeal, user }) {
   else if (view === 'cddetails') v = await cdDetailsView(api, deal, acc);
   else if (view === 'prorations') v = await prorationsView(api, deal, acc, base);
   else if (view === 'history') v = await historyView(api, deal);
+  else if (view === 'receipts' || view === 'disbursements' || view === 'balances' || view === 'balancing') v = { body: booksHtml(view, acc, base) };
   else v = await ledgerView(api, deal, acc, showRetired, base);
-  return { title: 'Accounting', crumbs: [['Accounting']], body: html`<section class="acct qc-shell-wrap" data-accounting data-acct-view="${view}">${head}${view === 'postclosing' ? html`<nav class="tt-tabs"><a href="${base}" class="active">Accounting</a><a href="${base}?v=postclosing" class="active">Post-Closing Scanbacks &amp; E-Recording</a></nav>` : ''}<div class="qc-shell">${nav}<div class="qc-body">${view === 'postclosing' ? '' : view === 'ledger' || view === 'prorations' ? balance : ''}${v.body}</div></div></section>`, mount: v.mount || (() => {}) };
+  const pageName = bookName || 'Accounting';
+  return { title: pageName, crumbs: [[pageName]], body: html`<section class="acct qc-shell-wrap" data-accounting data-acct-view="${view}">${head}${view === 'postclosing' ? html`<nav class="tt-tabs"><a href="${base}" class="active">Accounting</a><a href="${base}?v=postclosing" class="active">Post-Closing Scanbacks &amp; E-Recording</a></nav>` : ''}<div class="qc-shell">${nav}<div class="qc-body">${view === 'postclosing' ? '' : view === 'ledger' || view === 'prorations' ? balance : ''}${v.body}</div></div></section>`, mount: v.mount || (() => {}) };
 }
 
 // ---------------- ledger + add / edit form ----------------
