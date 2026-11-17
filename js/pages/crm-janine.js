@@ -3,7 +3,8 @@
 //   county from the ZIP on the person form, the company duplicate warning, the meeting "Send invite" PREVIEW (.ics), the task Subject type-ahead.
 import { html, raw, $, $$, guard, toast, modal, closeModal, fmtDateTime, pill, toText } from '../ui.js?v=202611161500';
 import { modOn } from '../data/modules.js?v=202611101015';   // module switches (combined nov3g)
-import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, toCsvText, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, importErrorCsv, saveImportResume, loadImportResume, IMPORT_RESUME_PREFIX } from '../data/crm-janine.js?v=202611101600';
+import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, toCsvText, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, saveImportResume, loadImportResume, IMPORT_RESUME_PREFIX } from '../data/crm-janine.js?v=202611101600';
+import { importErrorCsv, importSkipCsvReady } from '../data/crm-import-skip-csv.js?v=202611242290';
 import { importFileHelpText, importFileKind, importFileRejectReason, importParsedFileError, importReadErrorMessage, importColumnGuess } from '../data/crm-import-file.js?v=202611242030';
 import { fopts } from './crm-custom.js?v=202611242010';
 import { importStatusChoices } from '../data/nov5-rules.js?v=202611131900';
@@ -164,7 +165,7 @@ export async function importPage({ api, me, params, owners = [], cfg = {} }, { t
       </div>
       <p class="err-text" data-import-err></p></div>
     <div class="card" data-import-prev hidden><h3>3. Preview <span class="muted small">(nothing saved yet)</span></h3><p class="notice" data-prev-message hidden></p><p data-prev-counts></p><div class="table-wrap"><table class="tbl" data-prev-table></table></div>
-      <p><button class="m-btn" type="button" data-import-run>Import the valid rows</button> <button class="ghost" type="button" data-import-errors="preview" hidden>Download error CSV</button> <span class="muted small">Rows with an error or a duplicate are skipped.</span></p></div>
+      <p><button class="m-btn" type="button" data-import-run>Import the valid rows</button> <button class="ghost" type="button" data-import-errors="preview" hidden>Download error CSV</button> <span class="muted small">Rows with an error or a duplicate are skipped. The error CSV lists both and says why.</span></p></div>
     <div class="card" data-import-summary hidden><h3>4. Summary</h3><div data-summary-body></div></div>
     <div class="card"><h3>Earlier imports</h3>${hist.length ? html`<table class="tbl" data-import-history><thead><tr><th>When</th><th>By</th><th>Into</th><th>File</th><th>Created</th><th>Duplicates</th><th>Errors</th><th>Default values</th><th>Rows</th></tr></thead><tbody>
       ${hist.map((h) => html`<tr data-import-hist="${h.id}"><td>${fmtDateTime(h.at)}</td><td>${h.byName}</td><td>${h.kind === 'notes' ? 'Notes on ' : ''}${h.module === 'leads' ? 'Leads' : 'Clients'}</td><td>${h.fileName || '—'}</td><td>${h.created}</td><td>${h.duplicates}</td><td>${h.errors}</td>
@@ -223,13 +224,14 @@ export async function importPage({ api, me, params, owners = [], cfg = {} }, { t
       if (textEl) textEl.textContent = `${done} / ${total} rows. Chunk ${p.chunk} of ${p.chunks}.`;
     };
     window.addEventListener('beforeunload', (e) => { if (!importing) return; e.preventDefault(); e.returnValue = ''; });
-    const showErrors = (which, r) => { const btn = $(`[data-import-errors="${which}"]`, root); if (!btn) return; btn.hidden = !(r && r.counts && r.counts.errors); };
+    const errorCsvText = (r) => (r && (r.errorCsv || importErrorCsv(r.rows, r.fields, r.module))) || '';
+    const showErrors = (which, r) => { const btn = $(`[data-import-errors="${which}"]`, root); if (!btn) return; btn.hidden = !importSkipCsvReady(r && r.counts); };
     const paintSummary = (r) => {
       lastResult = r;
       $('[data-summary-body]', root).innerHTML = toText(html`<p data-summary-counts><strong>${counts(r.counts, true)}</strong></p><table class="tbl" data-summary-table>${table(r)}</table>
-        <p><button class="ghost" type="button" data-import-errors="summary" ${r.counts.errors ? '' : 'hidden'}>Download error CSV</button> <a class="m-btn" href="#/crm/${module}">Open ${M}</a></p>`);
+        <p><button class="ghost" type="button" data-import-errors="summary" ${importSkipCsvReady(r.counts) ? '' : 'hidden'}>Download error CSV</button> <a class="m-btn" href="#/crm/${module}">Open ${M}</a></p>`);
       const btn = $('[data-import-errors="summary"]', root);
-      if (btn) btn.addEventListener('click', () => { downloadFile(`import-errors-${fileName || 'rows'}.csv`, r.errorCsv || importErrorCsv(r.rows, r.fields), 'text/csv;charset=utf-8'); });
+      if (btn) btn.addEventListener('click', () => { downloadFile(`import-errors-${fileName || 'rows'}.csv`, errorCsvText(r), 'text/csv;charset=utf-8'); });
     };
     const rememberStop = (e) => {
       if (!e.partial || !e.partial.importId) return;
@@ -252,7 +254,7 @@ export async function importPage({ api, me, params, owners = [], cfg = {} }, { t
         if (stored.message) $('[data-import-err]', root).textContent = stored.message;
       }
     } catch (e) { /* private mode has no resume */ }
-    $('[data-import-errors="preview"]', root).addEventListener('click', () => { if (!lastResult) return; downloadFile(`import-errors-${fileName || 'preview'}.csv`, lastResult.errorCsv || importErrorCsv(lastResult.rows, lastResult.fields), 'text/csv;charset=utf-8'); });
+    $('[data-import-errors="preview"]', root).addEventListener('click', () => { if (!lastResult) return; downloadFile(`import-errors-${fileName || 'preview'}.csv`, errorCsvText(lastResult), 'text/csv;charset=utf-8'); });
     $('[data-import-preview]', root).addEventListener('click', guard(async () => { const er = $('[data-import-err]', root); er.textContent = '';
       importing = true;
       try { const r = await api.previewCrmImport({ module, kind, csv: text, mapping: mapping(), fileName, defaults: defaults(), onProgress: showProgress });
