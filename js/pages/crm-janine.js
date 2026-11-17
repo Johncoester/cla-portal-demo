@@ -160,7 +160,7 @@ export async function importPage({ api, me, params, owners = [], cfg = {} }, { t
         <p class="muted small" data-import-progress-text></p>
       </div>
       <p class="err-text" data-import-err></p></div>
-    <div class="card" data-import-prev hidden><h3>3. Preview <span class="muted small">(nothing saved yet)</span></h3><p data-prev-counts></p><div class="table-wrap"><table class="tbl" data-prev-table></table></div>
+    <div class="card" data-import-prev hidden><h3>3. Preview <span class="muted small">(nothing saved yet)</span></h3><p class="notice" data-prev-message hidden></p><p data-prev-counts></p><div class="table-wrap"><table class="tbl" data-prev-table></table></div>
       <p><button class="m-btn" type="button" data-import-run>Import the valid rows</button> <button class="ghost" type="button" data-import-errors="preview" hidden>Download error CSV</button> <span class="muted small">Rows with an error or a duplicate are skipped.</span></p></div>
     <div class="card" data-import-summary hidden><h3>4. Summary</h3><div data-summary-body></div></div>
     <div class="card"><h3>Earlier imports</h3>${hist.length ? html`<table class="tbl" data-import-history><thead><tr><th>When</th><th>By</th><th>Into</th><th>File</th><th>Created</th><th>Duplicates</th><th>Errors</th><th>Default values</th><th>Rows</th></tr></thead><tbody>
@@ -239,6 +239,8 @@ export async function importPage({ api, me, params, owners = [], cfg = {} }, { t
       importing = true;
       try { const r = await api.previewCrmImport({ module, kind, csv: text, mapping: mapping(), fileName, defaults: defaults(), onProgress: showProgress });
         lastResult = r;
+        const note = $('[data-prev-message]', root);
+        if (note) { note.hidden = !r.message; note.textContent = r.message || ''; }
         $('[data-prev-counts]', root).textContent = counts(r.counts, false); $('[data-prev-table]', root).innerHTML = toText(table(r)); $('[data-import-prev]', root).hidden = false; $('[data-import-run]', root).disabled = !r.counts.ok;
         showErrors('preview', r);
       } catch (e) { er.textContent = e.message; throw e; } finally { importing = false; } }));

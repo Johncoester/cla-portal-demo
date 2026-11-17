@@ -1141,3 +1141,32 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Janine asked to move the name, not to drop it. It stays required and it can sit in any selected position.
 - An older view with no stored name position keeps the name first. A view that already stored a position keeps that position.
+
+---
+
+## CRM import preview row reasons (CRM-201)
+
+**How it should work.** On Import Leads, Import Clients, and Import Notes, Preview shows one plain sentence and a reason on every row. If the preview call fails, the screen still shows those rows. It does not replace them with one generic failure. Nothing is saved by a preview.
+
+**Status: In progress.** Tracker row CRM-201. John Coester confirmed this on Nov 17 2026 as CRM import fix 5 of 5. Pull request 139 (closed, not merged, Nov 12 2026) was the earlier attempt to stop the preview error from becoming a server error. Not Live until the portal lead applies `supabase/migrations/20261125110000_crm_import_preview_row_errors.sql` on TEST and someone checks a preview there.
+
+**What's built**
+
+- A finished preview returns each row (ready, duplicate, or the reason it needs a fix) and the sentence "Nothing was saved. Each row shows whether it is ready, a duplicate, or what to fix." The preview writes are rolled back inside the call.
+- If the preview call fails and the row details are missing, each row that was sent says why, in plain words, and the same kind of sentence is shown above the list. A timeout is retried once, then described in plain words. Rows already checked stay on the screen.
+- The import page shows that sentence above the row table.
+
+**What's still missing**
+
+- Not on TEST until the database file is applied there and someone previews a file. Do not mark Live before that.
+- The shell cache stamp was not moved. `js/app.js`, `js/data/adapter.js`, and `index.html` were left as they are. The import module stamp is `202611242060`. The import page stamp stays `202611221700`, so a browser that still has that page cached shows the rows it already knew how to draw, and the new sentence appears when that page file is loaded again.
+
+**Links**
+
+- Spec: [docs/specs/crm-import-preview-rows.md](docs/specs/crm-import-preview-rows.md)
+- Earlier attempt: [PR 139](https://github.com/Johncoester/cla-portal-demo/pull/139)
+
+**Decisions**
+
+- Return the preview as data instead of raising P0004. A P0004 on one row during a preview is kept on that row. A commit still re-raises it, so one assert still rolls that chunk back.
+- Do not add a per-row helper, and do not change the lead email lookup.

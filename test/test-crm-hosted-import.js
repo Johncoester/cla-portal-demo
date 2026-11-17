@@ -1,5 +1,6 @@
 /* Hosted CRM CSV import. FAKE DATA ONLY. Nothing is written to a hosted project.
  * The sample file is marked TEST-SEED-CRM-IMPORT and uses example.test addresses. */
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -133,6 +134,7 @@ ok(sent.args.p_rows[0].values.state === 'MD' && sent.args.p_rows[0].values.email
 ok(sent.args.p_rows[0].prepNotes.some((n) => n.includes('20852') && n.includes('County')), 'a blank county is filled from the ZIP');
 ok(sent.args.p_defaults.some((d) => d.field === 'ownerId' && d.value === OWNER) && sent.args.p_defaults.some((d) => d.field === 'state' && d.value === 'MD'), 'defaults are the salesperson and the state code');
 ok(preview.committed === false && preview.importId == null && preview.counts.ok === 1 && preview.counts.duplicates === 1, 'preview reports ready rows and duplicates and saves nothing');
+ok(preview.message === 'Nothing was saved. Each row shows whether it is ready, a duplicate, or what to fix.', 'a preview that still arrives as P0004 keeps a plain sentence with the rows');
 ok(preview.rows[0].values.state === 'Maryland' && preview.rows[0].values.description === 'TEST-SEED-CRM-IMPORT', 'the preview table still shows the file text');
 ok(preview.rows[0].status === 'ok' && preview.rows[1].status === 'duplicate' && /already used/.test(preview.rows[1].message), 'a duplicate row is reported and not treated as created');
 ok(preview.rows[0].link.includes('/crm/leads/'), 'the preview payload still names the lead it would create');
@@ -163,6 +165,7 @@ ok(importChunkRanges(501).map((c) => c.count).join(',') === '500,1', 'a remainde
 const leadTemplate = sampleCsv('leads');
 ok(leadTemplate.includes('Role in Company') && leadTemplate.includes('Relationship Status') && leadTemplate.includes('State'), 'the lead template includes Role in Company, Relationship Status, and State');
 ok(page.includes('data-import-progress') && page.includes('Chunk ${p.chunk} of ${p.chunks}') && page.includes('data-import-partial') && page.includes('data-import-bar') && page.includes("Don't close this tab") && page.includes('beforeunload') && page.includes('data-import-resume') && page.includes('Download error CSV'), 'the import screen shows progress, a stay-open warning, resume, and an error CSV');
+ok(page.includes('data-prev-message') && page.includes('note.textContent = r.message'), 'the preview screen shows the plain sentence above the rows');
 ok(leadRequiredMessages({ lastName: 'Sample' }).join(' ') === 'Role in Company is required. Relationship Status is required. State is required.', 'each missing lead field has its own message');
 ok(leadRequiredMessages({ lastName: 'Sample', state: 'MD' }, [{ field: 'roleInCompany', value: 'Realtor' }, { field: 'relationshipStatus', value: 'Hot Prospect' }]).length === 0, 'defaults fill the required lead fields');
 
@@ -189,9 +192,47 @@ sb.rpc = async (name, args) => {
   return { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout', details: JSON.stringify({ rows: [{ line: 2, status: 'ok' }], counts: { total: 1, ok: 1, duplicates: 0, errors: 0 } }) } };
 };
 msg = '';
-try { await api.previewCrmImport({ module: 'leads', csv: SAMPLE, fileName: 'leads.csv' }); } catch (e) { msg = e.message; }
+let timed = null;
+try { timed = await api.previewCrmImport({ module: 'leads', csv: SAMPLE, fileName: 'leads.csv' }); } catch (e) { msg = e.message; }
 sb.rpc = held;
-ok(calls.length === 2 && msg === 'canceling statement due to statement timeout', 'a timeout is retried once and is not treated as a preview');
+ok(calls.length === 2 && !msg && timed && timed.rows.length === 2 && timed.rows.every((r) => /took too long/.test(r.message)) && /took too long/.test(timed.message) && timed.counts.errors === 2, 'a timeout is retried once, then each row says the preview took too long');
+ok(timed.rows.every((r) => r.status === 'error' && !/canceling statement/.test(r.message)) && !/canceling statement/.test(timed.message), 'the timeout text from the database is not shown, and the JSON in the error is not treated as a finished preview');
+
+calls.length = 0;
+sb.rpc = async (name, args) => {
+  calls.push({ name, args });
+  return { data: null, error: { code: 'P0004', status: 500, message: 'Import preview only. Nothing was saved.' } };
+};
+msg = '';
+let bare = null;
+try { bare = await api.previewCrmImport({ module: 'leads', csv: SAMPLE, fileName: 'leads.csv' }); } catch (e) { msg = e.message; }
+sb.rpc = held;
+ok(calls.length === 1 && !msg && bare && bare.rows.length === 2 && bare.rows.every((r) => r.status === 'error' && /did not finish/.test(r.message)) && /did not finish/.test(bare.message) && !/P0004|HTTP 500|Import preview only/.test(bare.message + bare.rows.map((r) => r.message).join(' ')), 'a P0004 that comes back without row details is shown on each row in plain words');
+
+calls.length = 0;
+sb.rpc = async (name, args) => {
+  calls.push({ name, args });
+  if (args && args.p_commit === false) {
+    return { data: { rows: args.p_rows.map((r) => ({ line: r.line, status: 'error', message: 'Email is not valid.', id: null, name: '', link: '', notes: [] })), counts: { total: args.p_rows.length, ok: 0, duplicates: 0, errors: args.p_rows.length }, importId: null, message: 'Nothing was saved. Each row shows whether it is ready, a duplicate, or what to fix.' }, error: null };
+  }
+  return held(name, args);
+};
+const returned = await api.previewCrmImport({ module: 'leads', csv: SAMPLE, fileName: 'leads.csv' });
+sb.rpc = held;
+ok(returned.rows.length === 2 && returned.rows.every((r) => r.message === 'Email is not valid.') && returned.message.startsWith('Nothing was saved.'), 'a preview that returns jsonb shows each row reason and the plain sentence');
+
+calls.length = 0;
+sb.rpc = async (name, args) => {
+  if (args && args.p_chunk === 2) {
+    calls.push({ name, args });
+    return { data: null, error: { status: 500, message: 'Internal Server Error' } };
+  }
+  return held(name, args);
+};
+const stopped = await api.previewCrmImport({ module: 'leads', csv: leadFile(1000), fileName: 'leads-stop.csv' });
+sb.rpc = held;
+ok(calls.length === 3 && calls.filter((c) => c.args.p_chunk === 2).length === 2 && !calls.some((c) => c.args.p_chunk > 2), 'a failed preview chunk is retried once and later chunks are not sent');
+ok(stopped.rows.length === 1000 && stopped.rows.slice(0, 500).every((r) => r.status === 'ok') && stopped.rows.slice(500).every((r) => r.status === 'error' && /did not finish/.test(r.message)) && /did not finish/.test(stopped.message) && !/Internal Server Error/.test(stopped.message), 'rows already checked stay, and the failed rows say the preview did not finish');
 
 calls.length = 0;
 const missingLead = await api.previewCrmImport({ module: 'leads', csv: 'Last Name\nSample\n', fileName: 'leads.csv' });
@@ -240,6 +281,35 @@ calls.length = 0;
 const resumed = await api.runCrmImport({ module: 'leads', csv: leadFile(1000), fileName: 'leads-resume.csv', importId: stored.importId, startChunk: stored.startChunk, storage });
 ok(calls.length === 1 && calls[0].args.p_chunk === 2 && calls[0].args.p_import === stored.importId && calls.every((c) => c.args.p_chunk !== 1), 'resume continues at the unsaved chunk and does not resend the saved chunk');
 ok(resumed.committed === true && resumed.counts.total === 500, 'resume imports only the rows that were not saved yet');
+
+const md5 = (s) => createHash('md5').update(s).digest('hex');
+const grabBody = (text) => {
+  const s = text.indexOf('as $fn$');
+  const e = text.lastIndexOf('$fn$;');
+  return text.slice(s + 'as $fn$'.length, e);
+};
+const janine = read('supabase/migrations/20261112050000_crm_janine_deal_name_import.sql');
+const janineAt = janine.indexOf('create or replace function public.crm_import_batch(');
+let patched = janine.slice(janineAt, janine.indexOf('$fn$;', janineAt) + '$fn$;'.length);
+ok((patched.split("role in ('Sales Person', 'Sales Team')").length - 1) === 4, 'the deal-name import still has the four salesperson owner checks this file replaces');
+patched = patched.split("role in ('Sales Person', 'Sales Team')").join('can_own_crm');
+patched = patched.replaceAll('The default Owner must be an active Sales Person or Sales Team user.', 'The default Owner must be an active user who can own CRM records.');
+patched = patched.replaceAll('Owner "%" matches more than one salesperson. Use the email.', 'Owner "%" matches more than one user who can own CRM records. Use the email.');
+patched = patched.replaceAll('Owner "%" is not an active Sales Person or Sales Team user.', 'Owner "%" is not an active user who can own CRM records.');
+const next = read('supabase/migrations/20261125110000_crm_import_preview_row_errors.sql');
+const nextRb = read('supabase/rollbacks/20261125110000_crm_import_preview_row_errors.sql');
+const rbAt = nextRb.indexOf('create or replace function public.crm_import_batch(');
+const rbCreate = nextRb.slice(rbAt, nextRb.indexOf('$fn$;', rbAt) + '$fn$;'.length);
+ok(rbCreate === patched, 'rollback saves the owner-flagged crm_import_batch body from 20261112050000');
+ok(md5(grabBody(nextRb)) === '6bae1cfb092c37b9133f2053eba0544c' && next.includes("distinct from '6bae1cfb092c37b9133f2053eba0544c'"), 'the migration refuses to run unless that before-definition is installed');
+ok(md5(grabBody(next)) === 'e5c509d25c438940c4d497d35b7dc485' && nextRb.includes("distinct from 'e5c509d25c438940c4d497d35b7dc485'"), 'the rollback refuses to run unless the new body is installed');
+ok(next.includes("errcode = 'CRM01'") && next.includes("when sqlstate 'CRM01'") && next.includes('return v_result;'), 'preview catches a private sentinel and returns jsonb');
+ok(!next.includes("errcode = 'P0004', detail") && next.includes('if coalesce(p_commit, false) then\n          raise;'), 'a preview no longer raises P0004, and a commit still re-raises a row assert');
+ok(next.includes('Nothing was saved. Each row shows whether it is ready, a duplicate, or what to fix.'), 'the returned preview includes the plain sentence');
+ok(!next.split('\n').some((line) => /^\s*create (or replace )?function private\./i.test(line)) && !/create policy|alter policy|on public\.deals|on public\.tasks|on public\.profiles/i.test(next), 'no private helper and no deals, tasks, or profiles policy');
+ok(next.includes('where lower(l.email) = v_em') && nextRb.includes('where lower(l.email) = v_em') && (next.match(/where lower\(l\.email\) = v_em/g) || []).length === (nextRb.match(/where lower\(l\.email\) = v_em/g) || []).length, 'the lead email lookup is unchanged');
+ok(next.includes('security definer') && next.includes('v_n > 500') && next.includes("errcode = '42501'") && next.includes('can own CRM records') && next.includes('grant execute on function public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer) to authenticated'), 'security, the 500-row cap, the admin check, owner wording, and the grant stay');
+ok(read('js/data/supabase-crm.js').includes('supabase-crm-janine.js?v=202611242060') && !read('js/app.js').includes('202611242060') && !read('index.html').includes('202611242060'), 'the import module stamp is 202611242060 and the shell stamps are untouched');
 
 console.log(fail ? fail + ' failed' : 'crm hosted import passed');
 if (fail) process.exit(1);
