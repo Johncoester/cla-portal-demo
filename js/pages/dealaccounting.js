@@ -15,7 +15,7 @@ import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=2026112
 import { fwpCanRead } from '../data/funding-wire-policy.js?v=202611070139';
 import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611243043';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 import { booksHtml } from './dealaccounting-books.js?v=202611242700';
-import { contractView } from './dealaccounting-contract.js?v=202611243000';
+import { contractView } from './dealaccounting-contract.js?v=202611243071';
 import { partyNames, withStatementParties } from '../data/statement-parties.js?v=202611222900';
 
 const VIEWS = [['contract', 'Basic Info'], ['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Ledger'], ['receipts', 'Receipts'], ['disbursements', 'Disbursements'], ['balances', 'Account Balances'], ['balancing', 'Balancing'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
