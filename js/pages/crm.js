@@ -18,9 +18,9 @@ import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compo
 import { searchPage } from './crm-search.js?v=202611161500';
 import { dashboardsPage } from './crm-dashboards.js?v=202611161500';
 import { reportsHome } from './crm-reports.js?v=202611161500';
-import { dealsPage } from './crm-deals.js?v=202611171400';
+import { dealsPage } from './crm-deals.js?v=202611242000';
 import { callPage, callModal } from './crm-calls.js?v=202611161500';
-import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611171400';
+import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611242000';
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
 const archivedOpts = [['only', 'Archived only'], ['all', 'Active + archived']];

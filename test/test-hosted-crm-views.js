@@ -123,7 +123,7 @@ const targets = await api.listCrmShareTargets();
 ok(targets.users.some((u) => u.id === sales.id) && targets.users.some((u) => u.id === admin.id), 'the share list is the hosted assignee list, including the signed-in person');
 
 const view = await api.createCrmView({ module: 'leads', name: 'Janine pin check', criteria: [{ field: 'leadSource', op: 'is', value: 'Call in/Walk in' }, { field: 'name', op: 'contains', value: 'Ada' }], columns: ['email', 'name'] });
-ok(view.pinned === true && view.canEdit === true && view.mine === true && view.columns[0] === 'name' && view.columns.includes('email'), 'a new hosted view is saved, owned, editable, and pinned');
+ok(view.pinned === true && view.canEdit === true && view.mine === true && view.columns[0] === 'email' && view.columns[1] === 'name', 'a new hosted view is saved, owned, editable, and pinned, and keeps the column order it was given');
 ok(sb.tables.crm_view_criteria.length === 2 && sb.tables.crm_view_criteria.every((r) => typeof r.value_text === 'string' && r.view_id === view.id), 'both criteria are inserted together as text rows on that view');
 ok(sb.calls.filter((c) => c.table === 'crm_view_columns' && c.op === 'insert').every((c) => c.n === view.columns.length), 'columns are one insert, not one insert per column');
 ok(sb.calls.filter((c) => c.table === 'crm_view_criteria' && c.op === 'insert').length === 1, 'criteria are one insert');
