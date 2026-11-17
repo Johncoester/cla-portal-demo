@@ -1169,4 +1169,5 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - The limits are the ones already in the import: 2 MB (`2_000_000` bytes) and 10,000 rows.
+- The import page is loaded at cache stamp 202611242030, including from the portal shell, so a browser picks up the card.
 - Last Name is required on the file for leads and clients. A note file needs a Note column and an Email or a name. Role, Relationship Status, and State can still come from Default values.
