@@ -14,7 +14,7 @@ import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPe
 import { dealsAndAuth } from './mock-part-deals.js?v=202611241600';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
 import { contactsTasksDocs } from './mock-part-docs.js?v=202611221900';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611241900';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611242903';
 import { messagesActivity } from './mock-part-msgs.js?v=202611141400';
 import { adminUsersTeams } from './mock-part-admin.js?v=202611241300';
 import { libraryFolders } from './mock-part-library.js?v=202611070139';
@@ -43,7 +43,7 @@ import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.j
 import { underwriterPart } from './mock-part-underwriter.js?v=202611241600';
 import { agentInfoPart } from './mock-part-agentinfo.js?v=202611101015';
 import { agentInvitePart } from './mock-part-agent-invite.js?v=202611242100';
-import { agentFeesPart, backfillCommissionTasks } from './mock-part-agent-fees.js?v=202611241600';
+import { agentFeesPart, backfillCommissionTasks } from './mock-part-agent-fees.js?v=202611242902';
 import { automationPart } from './automation.js?v=202611101015';
 import { gmailMock } from './supabase-gmail.js?v=202611140900';
 import { hrPart, ensureHr } from './mock-part-hr.js?v=202611242100';

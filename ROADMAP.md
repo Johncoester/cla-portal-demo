@@ -1376,3 +1376,37 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Return the preview as data instead of raising P0004. A P0004 on one row during a preview is kept on that row. A commit still re-raises it, so one assert still rolls that chunk back.
 - Do not add a per-row helper, and do not change the lead email lookup.
+
+---
+
+## Admin fee Payable by (FF-093)
+
+**How it should work.** On a file, the Admin fee section has Payable by: Buyer, Seller, or Split (Buyer and Seller). The choice is saved on that file and is still there after a reload. Split means the buyer and the seller each pay half. An odd cent goes to the seller. The fee ledger, the settlement statement, and the Closing Disclosure use those same two amounts.
+
+**Status: In review.** Tracker FF-093. Francis Santos, email Nov 17 2026, 1:37 PM ET (Gmail msg 1a1eacd7648484d9). Medium. Not Live. The database file is not applied on TEST.
+
+**What's built**
+
+- Agent fees, Edit, Admin fee: Payable by with Buyer, Seller, and Split (Buyer and Seller).
+- The choice is stored on the file. The next time the file opens, the same choice is selected.
+- Split fills half and half. A $395 fee is $197.50 and $197.50. A $10.01 fee is $5.00 and $5.01, and the extra cent is the seller's.
+- The fee ledger, the settlement statement, and Closing Disclosure section H put those amounts in the buyer and seller columns.
+- A choice that is not one of the three is refused in plain words. The form stays open with what was typed.
+
+**What's still missing**
+
+- Not on TEST until `supabase/migrations/20261125120000_admin_fee_payable_by.sql` is applied there and someone checks a file. Do not mark Live before that.
+- Place Order still takes the admin fee amount only. Payable by is on the file.
+- Taxes & Fees does not include this admin fee. It is the recording and transfer calculation.
+
+**Links**
+
+- Spec: [docs/specs/admin-fee-payable-by.md](docs/specs/admin-fee-payable-by.md)
+- Source: Francis Santos, Nov 17 2026, 1:37 PM ET, message 1a1eacd7648484d9. Tracker FF-093.
+
+**Decisions**
+
+- Split for an admin fee is half and half. It does not ask for two typed amounts. A commission Split still does.
+- An odd cent goes to the seller, the same way the recording calculator splits a tax.
+- No new columns. The fee row already stores the buyer amount and the seller amount for a split.
+- The shell cache stamp is 202611242922. Files this change does not edit keep main's stamps. CRM pages stay at 202611242270.
