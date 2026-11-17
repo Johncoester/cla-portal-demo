@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { crmJanineSupabase } from '../js/data/supabase-crm-janine.js';
+import { crmJanineSupabase, reviewImportPerson, plainImportDbMessage } from '../js/data/supabase-crm-janine.js';
 import { IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, importTooBigMessage, leadRequiredMessages, sampleCsv, importErrorCsv, loadImportResume } from '../js/data/crm-janine.js';
 import { importRowHref } from '../js/pages/crm-janine.js';
 
@@ -265,6 +265,51 @@ const retried = await api.runCrmImport({ module: 'leads', csv: leadFile(2), file
 failChunk = 0; chunkFailsLeft = null; failStatus = 0;
 ok(calls.length === 2 && calls[0].args.p_chunk === 1 && calls[1].args.p_chunk === 1 && retried.committed === true, 'a 5xx is retried once and then the chunk is kept');
 
+const URL_OK = /^https?:\/\/[^\s/:@]+\.[^\s/:@]+(:[0-9]+)?(\/\S*)?$/i;
+const leadHead = 'Last Name,Phone,Mobile,Website,Role in Company,Relationship Status,State';
+const leadRow = (phone, mobile, site) => `${leadHead}\nSample,${phone},${mobile},${site},Realtor,Hot Prospect,MD\n`;
+calls.length = 0;
+const badPhone = await api.previewCrmImport({ module: 'leads', csv: leadRow('555-0101', '', ''), fileName: 'bad-phone.csv' });
+ok(calls.length === 0 && badPhone.rows[0].status === 'error' && badPhone.counts.errors === 1 && badPhone.counts.ok === 0, 'a short phone is a row error and is not sent');
+ok(badPhone.rows[0].message.includes('Phone must be a 10-digit phone number') && badPhone.rows[0].message.includes('leave it blank') && !/constraint|23514|P0001/i.test(badPhone.rows[0].message), 'the short phone reason is plain words');
+ok(badPhone.errorCsv.includes('555-0101') && badPhone.errorCsv.includes('10-digit'), 'the error CSV keeps the short phone and the reason');
+calls.length = 0;
+const badMobile = await api.previewCrmImport({ module: 'leads', csv: leadRow('', '12345', ''), fileName: 'bad-mobile.csv' });
+ok(calls.length === 0 && badMobile.rows[0].status === 'error' && badMobile.rows[0].message.startsWith('Mobile must be a 10-digit phone number'), 'a short mobile is its own row error');
+calls.length = 0;
+const elevenBad = await api.previewCrmImport({ module: 'leads', csv: leadRow('23015550101', '', ''), fileName: 'eleven.csv' });
+ok(calls.length === 0 && /Phone must be a 10-digit/.test(elevenBad.rows[0].message), '11 digits that do not start with 1 are refused');
+calls.length = 0;
+const leadingOne = await api.previewCrmImport({ module: 'leads', csv: leadRow('1-301-555-0101', '', 'harbor.example.test'), fileName: 'leading-one.csv' });
+ok(calls.length === 1 && leadingOne.rows[0].status === 'ok' && calls[0].args.p_rows[0].values.phone === '301-555-0101', '11 digits starting with 1 are saved as a 10-digit phone');
+ok(calls[0].args.p_rows[0].values.links.website === 'https://harbor.example.test/' && URL_OK.test(calls[0].args.p_rows[0].values.links.website), 'a bare web address is sent with https:// in front');
+ok(leadingOne.rows[0].notes.some((n) => n.includes('Website saved as https://harbor.example.test/')), 'the preview says https:// was added');
+ok(leadingOne.rows[0].values.phone === '1-301-555-0101' && leadingOne.rows[0].values['links.website'] === 'harbor.example.test', 'the preview still shows the phone and web address from the file');
+calls.length = 0;
+const already = await api.previewCrmImport({ module: 'leads', csv: leadRow('301-555-0101', '(703) 555-0199', 'https://harbor.example.test/casey'), fileName: 'already.csv' });
+ok(calls.length === 1 && calls[0].args.p_rows[0].values.phone === '301-555-0101' && calls[0].args.p_rows[0].values.mobile === '703-555-0199' && calls[0].args.p_rows[0].values.links.website === 'https://harbor.example.test/casey', 'a 10-digit phone and a full web address are kept');
+calls.length = 0;
+const badSite = await api.previewCrmImport({ module: 'leads', csv: leadRow('301-555-0101', '', 'not a site'), fileName: 'bad-site.csv' });
+ok(calls.length === 0 && badSite.rows[0].status === 'error' && badSite.rows[0].message.includes('Website') && badSite.rows[0].message.includes('example.com') && !/constraint|crm_leads_zoho_check|23514/i.test(badSite.rows[0].message), 'a web address that is not a site is a plain row error and is not sent');
+calls.length = 0;
+const both = await api.previewCrmImport({ module: 'leads', csv: leadRow('12', '99', 'javascript:alert(1)'), fileName: 'both.csv' });
+ok(calls.length === 0 && both.rows[0].message.includes('Phone must be a 10-digit') && both.rows[0].message.includes('Mobile must be a 10-digit') && both.rows[0].message.includes('Website'), 'phone, mobile, and website problems are all named on the row');
+const reviewed = reviewImportPerson({ phone: '', mobile: '3015550102', links: { website: 'harbor.example.test', linkedin: 'https://www.linkedin.com/in/casey-sample-fake' } }, ['County Montgomery from ZIP 20852']);
+ok(reviewed.problems.length === 0 && reviewed.values.phone === '' && reviewed.values.mobile === '301-555-0102' && reviewed.values.links.website === 'https://harbor.example.test/' && reviewed.values.links.linkedin === 'https://www.linkedin.com/in/casey-sample-fake' && reviewed.prepNotes[0].includes('County'), 'a blank phone stays blank and a full link is unchanged');
+ok(plainImportDbMessage('new row for relation "crm_leads" violates check constraint "crm_leads_zoho_check"').includes('example.com') && !/constraint|crm_leads/.test(plainImportDbMessage('new row for relation "crm_leads" violates check constraint "crm_leads_zoho_check"')), 'a database check error is rewritten in plain words');
+ok(plainImportDbMessage('Role in Company is required.') === 'Role in Company is required.', 'a normal import message is left as it is');
+calls.length = 0;
+const heldRpc = sb.rpc;
+sb.rpc = async (name, args) => {
+  calls.push({ name, args });
+  const rows = args.p_rows.map((r) => ({ line: r.line, status: 'error', message: 'new row for relation "crm_leads" violates check constraint "crm_leads_zoho_check"', id: null, name: '', link: '', notes: [] }));
+  const body = { rows, counts: { total: rows.length, ok: 0, duplicates: 0, errors: rows.length }, importId: null };
+  return { data: null, error: { code: 'P0004', message: 'Import preview only. Nothing was saved.', details: JSON.stringify(body) } };
+};
+const raw = await api.previewCrmImport({ module: 'leads', csv: leadRow('301-555-0101', '', 'https://harbor.example.test/casey'), fileName: 'raw.csv' });
+sb.rpc = heldRpc;
+ok(raw.rows[0].status === 'error' && raw.rows[0].message.includes('Type it like example.com') && !/constraint|crm_leads_zoho_check/.test(raw.rows[0].message), 'a raw database check on a preview row is shown in plain words');
+
 const mem = new Map();
 const storage = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) };
 calls.length = 0;
@@ -309,7 +354,7 @@ ok(next.includes('Nothing was saved. Each row shows whether it is ready, a dupli
 ok(!next.split('\n').some((line) => /^\s*create (or replace )?function private\./i.test(line)) && !/create policy|alter policy|on public\.deals|on public\.tasks|on public\.profiles/i.test(next), 'no private helper and no deals, tasks, or profiles policy');
 ok(next.includes('where lower(l.email) = v_em') && nextRb.includes('where lower(l.email) = v_em') && (next.match(/where lower\(l\.email\) = v_em/g) || []).length === (nextRb.match(/where lower\(l\.email\) = v_em/g) || []).length, 'the lead email lookup is unchanged');
 ok(next.includes('security definer') && next.includes('v_n > 500') && next.includes("errcode = '42501'") && next.includes('can own CRM records') && next.includes('grant execute on function public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer) to authenticated'), 'security, the 500-row cap, the admin check, owner wording, and the grant stay');
-ok(read('js/data/supabase-crm.js').includes('supabase-crm-janine.js?v=202611242270') && read('js/data/supabase-adapter.js').includes('supabase-crm.js?v=202611242270') && read('js/data/adapter.js').includes('supabase-adapter.js?v=202611242270') && read('js/app.js').includes("adapter.js?v=202611242270") && read('index.html').includes('js/app.js?v=202611242270'), 'the hosted CRM chain and the shell that loads it use 202611242270');
+ok(read('js/data/supabase-crm.js').includes('supabase-crm-janine.js?v=202611242280') && read('js/data/supabase-adapter.js').includes('supabase-crm.js?v=202611242280') && read('js/data/adapter.js').includes('supabase-adapter.js?v=202611242280') && read('js/app.js').includes("adapter.js?v=202611242280") && read('index.html').includes('js/app.js?v=202611242280'), 'the hosted CRM chain and the shell that loads it use 202611242280');
 
 console.log(fail ? fail + ' failed' : 'crm hosted import passed');
 if (fail) process.exit(1);
