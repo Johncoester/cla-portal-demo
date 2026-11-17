@@ -1,32 +1,29 @@
--- Rollback for FF-093 (20261125120000_admin_fee_payable_by.sql).
--- Admin fee Payable by is Buyer or Seller again. A commission Split is unchanged.
+-- FF-093 (Francis Santos, email Nov 17 2026, 1:37 PM ET, Gmail msg 1a1eacd7648484d9).
+-- The file's Admin fee section can be payable by Buyer, Seller, or Split (Buyer and Seller).
+-- Split is half and half in whole cents. An odd cent goes to the seller, the same way a split recording tax is divided.
+-- The fee ledger already posts a split from split_buyer and split_seller, so those columns carry the two halves.
+-- No new columns. Rollback: supabase/rollbacks/20261125130000_admin_fee_payable_by.sql
 begin;
 set local lock_timeout = '3s';
 
--- An admin fee already saved as Split cannot stay that way. Put it back on the side's default payer
--- (buyer on the buyer's agent side, seller on the listing side) and clear the two halves. The fee
--- ledger follows that row, so the buyer and seller columns move with it.
-update public.deal_agent_fees
-  set payer = case side when 'buyer' then 'buyer' else 'seller' end,
-      split_buyer = null,
-      split_seller = null
-  where kind = 'admin' and payer = 'split';
-
 alter table public.deal_agent_fees drop constraint if exists deal_agent_fees_payer_check;
 alter table public.deal_agent_fees add constraint deal_agent_fees_payer_check
-  check (payer is null or payer in ('buyer', 'seller') or (kind = 'commission' and payer = 'split'));
+  check (payer is null or payer in ('buyer', 'seller') or (kind in ('commission', 'admin') and payer = 'split'));
 
 alter table public.deal_agent_fees drop constraint if exists deal_agent_fees_split_check;
 alter table public.deal_agent_fees add constraint deal_agent_fees_split_check
   check (
     (payer = 'split' and kind = 'commission' and split_buyer > 0 and split_seller > 0 and round(split_buyer + split_seller, 2) = amount)
+    or (payer = 'split' and kind = 'admin' and split_buyer >= 0 and split_seller >= 0
+        and split_buyer = floor(round(amount, 2) * 100 / 2) / 100
+        and split_seller = round(amount - floor(round(amount, 2) * 100 / 2) / 100, 2))
     or (payer is distinct from 'split' and split_buyer is null and split_seller is null)
   );
 
 comment on column public.deal_agent_fees.split_buyer is
-  'When Paid by is Split, the dollar amount the buyer pays. Otherwise blank.';
+  'When Paid by is Split, the dollar amount the buyer pays. For an admin fee that is half the fee, and an odd cent goes to the seller. Otherwise blank.';
 comment on column public.deal_agent_fees.split_seller is
-  'When Paid by is Split, the dollar amount the seller pays. Otherwise blank.';
+  'When Paid by is Split, the dollar amount the seller pays. For an admin fee that is the other half, including an odd cent. Otherwise blank.';
 
 create or replace function private.agent_fee_text(v jsonb) returns text
 language sql immutable set search_path to pg_catalog as $$
@@ -34,7 +31,12 @@ language sql immutable set search_path to pg_catalog as $$
     when v ->> 'kind' = 'commission' then trim(to_char((v ->> 'percent')::numeric, 'FM999990.9999'), '.') || '% / ' || to_char((v ->> 'amount')::numeric, 'FM$999,999,990.00')
     when v ->> 'kind' = 'other' then coalesce(v ->> 'description', 'Other fee') || ' ' || to_char((v ->> 'amount')::numeric, 'FM$999,999,990.00') || ' to ' || coalesce(v ->> 'paidTo', '')
     else to_char((v ->> 'amount')::numeric, 'FM$999,999,990.00') end
-  || case when v ->> 'payer' is not null then ' (paid by ' || initcap(v ->> 'payer') || ')' else '' end $$;
+  || case
+    when coalesce(v ->> 'payer', '') = 'split' and coalesce(v ->> 'kind', '') = 'admin'
+      then ' (split: buyer ' || to_char(coalesce((v ->> 'splitBuyer')::numeric, 0), 'FM$999,999,990.00')
+        || ', seller ' || to_char(coalesce((v ->> 'splitSeller')::numeric, 0), 'FM$999,999,990.00') || ')'
+    when v ->> 'payer' is not null then ' (paid by ' || initcap(v ->> 'payer') || ')'
+    else '' end $$;
 
 create or replace function public.save_agent_fees(p_deal uuid, p_side text, p_fees jsonb, p_reason text default null)
 returns setof jsonb
@@ -80,8 +82,17 @@ begin
     v_item := p_fees -> 'admin';
     v_amount := private.agent_fee_num(v_item ->> 'amount', 'Admin fee');
     if v_amount is null or v_amount < 0 or v_amount > 1000000 then raise exception 'Admin fee must be a dollar amount of 0 or more.' using errcode = 'P0001'; end if;
+    v_amount := round(v_amount, 2);
     v_payer := coalesce(nullif(v_item ->> 'payer', ''), private.agent_fee_default_payer(p_side));
-    v_want := v_want || jsonb_build_array(jsonb_build_object('kind', 'admin', 'slot', 0, 'amount', round(v_amount, 2), 'payer', v_payer));
+    v_sb := null; v_ss := null;
+    -- FF-093: Split (Buyer and Seller) is half and half. An odd cent goes to the seller.
+    if v_payer = 'split' then
+      v_sb := floor(v_amount * 100 / 2) / 100;
+      v_ss := round(v_amount - v_sb, 2);
+    elsif v_payer not in ('buyer', 'seller') then
+      raise exception 'Payable by must be Buyer, Seller, or Split (Buyer and Seller).' using errcode = 'P0001';
+    end if;
+    v_want := v_want || jsonb_build_array(jsonb_strip_nulls(jsonb_build_object('kind', 'admin', 'slot', 0, 'amount', v_amount, 'payer', v_payer, 'splitBuyer', v_sb, 'splitSeller', v_ss)));
   end if;
   if p_fees ? 'other' and jsonb_typeof(p_fees -> 'other') = 'array' then
     if jsonb_array_length(p_fees -> 'other') > 5 then raise exception 'Up to 5 other fees per agent.' using errcode = 'P0001'; end if;
@@ -101,6 +112,8 @@ begin
   for v_item in select * from jsonb_array_elements(v_want) loop
     if (v_item ->> 'kind') = 'commission' then
       if (v_item ->> 'payer') not in ('buyer', 'seller', 'split') then raise exception 'Paid by must be Buyer, Seller, or Split.' using errcode = 'P0001'; end if;
+    elsif (v_item ->> 'kind') = 'admin' then
+      if (v_item ->> 'payer') not in ('buyer', 'seller', 'split') then raise exception 'Payable by must be Buyer, Seller, or Split (Buyer and Seller).' using errcode = 'P0001'; end if;
     elsif (v_item ->> 'payer') not in ('buyer', 'seller') then
       raise exception 'Paid by must be Buyer or Seller.' using errcode = 'P0001';
     end if;

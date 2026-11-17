@@ -522,7 +522,7 @@ select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-22
   like 'Split needs a dollar amount%', 'MF-051: a split that does not add up is refused in plain words');
 SQL
 # FF-093: Admin fee Payable by, including a 50/50 split. Applied on top of the panel migration, then rolled back before the older rollbacks.
-psql_super -f "$ROOT/supabase/migrations/20261125120000_admin_fee_payable_by.sql"
+psql_super -f "$ROOT/supabase/migrations/20261125130000_admin_fee_payable_by.sql"
 psql_super -o /dev/null <<'SQL'
 create or replace function pg_temp.err(p_sql text) returns text language plpgsql as $$
 begin execute p_sql; return 'no error'; exception when others then return sqlerrm; end $$;
@@ -560,7 +560,7 @@ select pg_temp.ok((select amount = 13000 and payer = 'split' and split_buyer = 6
   from public.deal_agent_fees where deal_id = '22222222-2222-2222-2222-222222222222' and side = 'listing' and kind = 'commission'),
   'FF-093: a commission split with its own amounts is left as it was');
 SQL
-psql_super -f "$ROOT/supabase/rollbacks/20261125120000_admin_fee_payable_by.sql"
+psql_super -f "$ROOT/supabase/rollbacks/20261125130000_admin_fee_payable_by.sql"
 psql_super -c "do \$\$ begin
   if pg_get_constraintdef((select oid from pg_constraint where conname = 'deal_agent_fees_split_check' and conrelid = 'public.deal_agent_fees'::regclass)) ilike '%kind = ''admin''%' then
     raise exception 'FAIL FF-093 rollback still allows an admin split';

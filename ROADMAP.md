@@ -1423,7 +1423,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Not on TEST until `supabase/migrations/20261125120000_admin_fee_payable_by.sql` is applied there and someone checks a file. Do not mark Live before that.
+- Not on TEST until `supabase/migrations/20261125130000_admin_fee_payable_by.sql` is applied there and someone checks a file. Do not mark Live before that.
 - Place Order still takes the admin fee amount only. Payable by is on the file.
 - Taxes & Fees does not include this admin fee. It is the recording and transfer calculation.
 
