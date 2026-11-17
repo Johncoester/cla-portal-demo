@@ -1163,7 +1163,6 @@ This file lists the portal's major features: how each one should work, how far a
 - Not on TEST until this pull request is merged and an admin checks Leads and Clients. Do not mark Live before that.
 - The other CRM import fixes (2 through 5) are separate.
 - Companies still have no import button.
-- The shell still loads the CRM page at its current cache stamp. That stamp lives in the app shell, which this change does not edit.
 
 **Links**
 
