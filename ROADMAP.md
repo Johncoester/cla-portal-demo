@@ -1159,7 +1159,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing**
 
 - Not on TEST until the database file is applied there and someone previews a file. Do not mark Live before that.
-- The shell cache stamp was not moved. `js/app.js`, `js/data/adapter.js`, and `index.html` were left as they are. The import module stamp is `202611242060`. The import page stamp stays `202611221700`, so a browser that still has that page cached shows the rows it already knew how to draw, and the new sentence appears when that page file is loaded again.
+- The import page stamp is `202611242060`, and `index.html` loads `js/app.js` at that same stamp so a browser fetches the new page. The adapter stamp stays at main's `202611242000`.
 
 **Links**
 

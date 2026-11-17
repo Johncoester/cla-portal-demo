@@ -52,7 +52,7 @@ const pages = {
   'task-grid': () => import('./pages/taskgrid.js?v=202611241500'),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
   schedule: () => import('./pages/schedule.js?v=202611241900'),   // public closing-time link (no sign-in needed)
   'schedule-party': () => import('./pages/schedule-party.js?v=202611241900'),   // MF-056 buyer / seller scheduling link (no sign-in)
-  crm: () => import('./pages/crm.js?v=202611242000'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  crm: () => import('./pages/crm.js?v=202611242060'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => import('./pages/modules.js?v=202611161500'),
   'role-access': () => import('./pages/role-access.js?v=202611161500'),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => import('./pages/agent-invites.js?v=202611191600'),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
@@ -606,7 +606,7 @@ function wireChrome(u) {
   if (DEMO_VIEW && DEMO_VIEW.active && DEMO_VIEW.expiresAt) { const ms = new Date(DEMO_VIEW.expiresAt).getTime() - Date.now(); demoTimer = setTimeout(() => render(), Math.min(Math.max(ms + 250, 1000), 30 * 60 * 1000)); }
   getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) {
     import('./pages/crm-search.js?v=202611161500').then((m) => m.wireHeaderSearch(api));
-    import('./pages/crm-janine.js?v=202611221700').then((m) => m.mountHeaderCreate(u));
+    import('./pages/crm-janine.js?v=202611242060').then((m) => m.mountHeaderCreate(u));
   } });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');
   if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; });
