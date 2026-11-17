@@ -56,7 +56,7 @@ ok(!stranger.mine && stranger.notYours, 'a Buyer Agent role on another file does
 const sales = shapeListedTask({ id: 't-comm', participantId: 'p-sales', assignedRole: 'Sales Person', ownerProfileId: 'u-sales', kind: 'form', status: 'todo', templateId: 'tpl' }, { id: 'u-sales', role: 'Sales Person', roles: ['Sales Person'] }, { myParticipantIds: ['p-sales'] });
 ok(sales.mine && sales.canFill === false, 'a view-only login is still not given the form');
 
-const draft = agentInviteDraft({ firstName: 'Ada', lastName: 'Agent', email: 'ada.agent@example.test', link: 'https://portal.test/#/agent-invite/abc', expiresAt: '2026-11-20' });
+const draft = agentInviteDraft({ firstName: 'Ada', lastName: 'Agent', email: 'ada.agent@example.test', link: 'https://portal.test/#/agent-invite/abc', expiresAt: new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10) });
 ok(draft.to === 'ada.agent@example.test' && draft.sent === false && draft.status === 'draft' && draft.delivery === INVITE_DELIVERY && draft.body.includes('ada.agent@example.test') === false && draft.body.includes('/agent-invite/abc'), 'the invite draft names the entered address and is not sent');
 
 const batch = planDocumentBatch([

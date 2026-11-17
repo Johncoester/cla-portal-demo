@@ -11,7 +11,7 @@ let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
 const TOKEN = 'a'.repeat(64); const ME = '11111111-1111-4111-8111-111111111111';
 const b64d = (s) => Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
-const fileInfo = { kind: 'agent', inviteKind: 'client', partyRole: 'seller', email: 'clatestportal+seller1@gmail.com', firstName: 'Cora', lastName: 'Seller', expiresAt: '2026-11-23T22:00:00Z',
+const fileInfo = { kind: 'agent', inviteKind: 'client', partyRole: 'seller', email: 'clatestportal+seller1@gmail.com', firstName: 'Cora', lastName: 'Seller', expiresAt: new Date(Date.now() + 7 * 864e5).toISOString(),
   dealId: 'd1', fileNumber: 'MD-26-97216', street: '13 Drumcastle Ct', city: 'Germantown', state: 'MD', zip: '20876' };
 function fake({ info = fileInfo, rpcError = null, ctx = {}, sendStatus = 200, projectRef = 'aqcervntopidtcazcmlv', auth = [{ id: 'auth-u1' }], stub = null } = {}) {
   const calls = { svc: [], fetch: [], rpc: [], auth: [], stub: [], del: [] };
