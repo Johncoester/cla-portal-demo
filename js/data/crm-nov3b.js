@@ -19,7 +19,7 @@ export function builtinDashboards() {
     comp('dc-c3', 'dash-clients', 'Companies by Type', 'chart', { module: 'accounts', measure: { fn: 'count' }, grouping: { field: 'kind' }, criteria: [notArchived], chartType: 'bar' }, 3, 1),
     comp('dc-c4', 'dash-clients', 'Clients by Owner', 'chart', { module: 'contacts', measure: { fn: 'count' }, grouping: { field: 'ownerId' }, criteria: [notArchived], chartType: 'column' }, 4, 3),
     comp('dc-d1', 'dash-deals', 'Deals by Stage', 'funnel', { module: 'deals', measure: { fn: 'count' }, grouping: { field: 'stage' }, criteria: [] }, 1, 1),
-    comp('dc-d2', 'dash-deals', 'Active Deal Amount', 'kpi', { module: 'deals', measure: { fn: 'sum', field: 'amount' }, criteria: [{ field: 'stage', op: 'is', value: 'Opened' }] }, 2, 1),
+    comp('dc-d2', 'dash-deals', 'Active Deal Amount', 'kpi', { module: 'deals', measure: { fn: 'sum', field: 'amount' }, criteria: [{ field: 'stage', op: 'is', value: 'Active' }] }, 2, 1),
     comp('dc-d3', 'dash-deals', 'Closed Deals This Year', 'target', { module: 'deals', measure: { fn: 'count' }, criteria: [{ field: 'stage', op: 'is', value: 'Closed' }, { field: 'closingDate', op: 'is', value: 'this_year' }], target: 50 }, 3, 1),
     comp('dc-d4', 'dash-deals', 'Deal Amount by Closing Month', 'chart', { module: 'deals', measure: { fn: 'sum', field: 'amount' }, grouping: { field: 'closingDate', bucket: 'month' }, grouping2: { field: 'stage' }, criteria: [], chartType: 'stacked' }, 4, 3),
     comp('dc-t1', 'dash-tasks', 'Open Tasks', 'chart', { module: 'tasks', measure: { fn: 'count' }, grouping: { field: 'dueDate', bucket: 'day' }, criteria: [{ field: 'status', op: 'isnt', value: 'Completed' }], chartType: 'column' }, 1, 2),

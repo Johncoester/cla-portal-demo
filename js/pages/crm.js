@@ -4,7 +4,7 @@
 import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611161500';
 import { CONTACT_TYPES, contactTypeLabel, US_STATES, US_STATE_NAMES } from '../data/constants.js?v=202611101015';
 import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611130900';
-import { display, moduleFields } from '../data/crm-analytics.js?v=202611251000';
+import { display, moduleFields } from '../data/crm-analytics.js?v=202611241900';
 import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, archiveBtn, wireArchive, setCrmAdmin, setCrmMe } from './crm-kit.js?v=202611161500';
 import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-janine.js?v=202611221700';
 import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611130900';
@@ -18,7 +18,7 @@ import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compo
 import { searchPage } from './crm-search.js?v=202611161500';
 import { dashboardsPage } from './crm-dashboards.js?v=202611161500';
 import { reportsHome } from './crm-reports.js?v=202611161500';
-import { dealsPage } from './crm-deals.js?v=202611251000';
+import { dealsPage } from './crm-deals.js?v=202611241900';
 import { callPage, callModal } from './crm-calls.js?v=202611161500';
 import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611161500';
 

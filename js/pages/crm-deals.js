@@ -3,7 +3,7 @@
 import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, toast } from '../ui.js?v=202611161500';
 import { crmSort } from '../data/crm.js?v=202611130900';
 import { DEAL_COLS, DEFAULT_HIDDEN, loadHidden } from '../data/crm-deal-cols.js?v=202611070139';
-import { display, moduleFields, DEAL_STAGES, dealStageOf, statusForDealStage } from '../data/crm-analytics.js?v=202611251000';
+import { display, moduleFields, DEAL_STAGES, dealStageOf, statusForDealStage } from '../data/crm-analytics.js?v=202611241900';
 import { runsOrders } from '../data/constants.js?v=202611101015';
 import { crmDealName, columnKey, loadColumns, normalizeColumns, beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611160300';
 import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611161500';
