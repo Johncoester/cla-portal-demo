@@ -1160,6 +1160,41 @@ This file lists the portal's major features: how each one should work, how far a
 - Save the document answers on the calculated fee. No new database file.
 - A saved worksheet wins the next time the screen opens, so a deed of trust marked not a principal residence stays that way. The file's answers are the starting point when nothing has been saved.
 - Use the county list from REC-CALC-6 (PR 296, merged). A county in Maryland, Virginia, Florida, or the District of Columbia that is not named on a rate row of its own is still calculated, on the statewide rates.
+- A blank county was treated as a missing address. That is FF-095.
+
+---
+
+## Taxes and fees address (FF-095)
+
+**How it should work.** On Taxes & Fees, a file that already has a street, city, and ZIP should not be told to add the property address. Calculate uses the county saved on the file. Baltimore City and Baltimore County stay different. When the county is blank, the ZIP fills it if that ZIP is in the file's state. When the ZIP belongs to another state, the screen says so and does not invent a fee.
+
+**Status: In review.** Tracker FF-095. Francis Santos, email Nov 17 2026, 2:12 PM ET (Gmail message 1a1eaed436b0de49), signed in as Processor 2 on TEST. High, bug. Not Live. No database file.
+
+**What's built**
+
+- The red address message shows only when the street, the city, or the ZIP is missing. A blank county is no longer called a missing address.
+- A saved county is used as a name. "Baltimore City" prices Baltimore City. "Baltimore County" prices Baltimore County. ZIP 21223, with the county left blank, is Baltimore City.
+- When the city is Baltimore City and there is no ZIP, that city is the county.
+- MD-26-97407 (street and ZIP filled, county blank, state Maryland, ZIP 33319) is told that ZIP 33319 is in Broward County, Florida, and to set the state to FL or pick the county. No Maryland fee is invented.
+- MD-26-97386 already stores Baltimore City. Calculate still returns the recording fees and the taxes. The totals are not left at $0.00.
+
+**What's still missing**
+
+- The county found from the ZIP is not written back onto the file.
+- The state is not changed to match a ZIP from another state.
+- Not checked on TEST. Not Live.
+
+**Links**
+
+- Spec: [docs/specs/taxes-fees-address.md](docs/specs/taxes-fees-address.md)
+- Source: Francis Santos, Nov 17 2026, 2:12 PM ET, message 1a1eaed436b0de49. Tracker FF-095. The Taxes & Fees screen is FF-091.
+
+**Decisions**
+
+- County stays a name. There is no county id to translate.
+- A saved county wins over the ZIP and the city.
+- A ZIP in another state is explained. The calculator does not switch the file to that state.
+- No database file. Processors can already read the address columns. The rates stay in the vendored calculator.
 
 ---
 
@@ -1433,3 +1468,31 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Keep the chosen person exactly the same. Do not add a per-row helper. Do not change policies on deals, tasks, or profiles.
 - Do not build the index with CONCURRENTLY inside the migration file. That statement cannot run inside a transaction. The file tells the lead to build it concurrently first, then run the file.
+
+## Salespeople on Place Order (FF-092)
+
+**How it should work.** On Place Order, Team & Notes, "Salespeople on this order" is a search box. Type a name or a role, pick one or more people, and each chosen person shows as a chip with Remove. The order saves the same salesperson ids as the old checkbox list. Who can be picked does not change.
+
+**Status: In review.** Tracker item FF-092 (Medium). Francis Santos, Nov 17 2026, 1:37 PM ET (Gmail message 1a1eacd7648484d9). Pull request: [PR 322](https://github.com/Johncoester/cla-portal-demo/pull/322). No database file. Not Live until someone checks it on TEST.
+
+**What's built**
+
+- The checkbox list is a search box. Arrow keys, Enter, and a click pick a person. Chosen people are chips. Remove takes one person off.
+- A name that is not on the list says to try another name. If this login has no salespeople, the box says none are available.
+- Add new user still adds an existing active salesperson, and a new salesperson login is still created in HR. Only an Admin sees that role.
+- A draft in this browser keeps every chosen person.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- The Users page still links a client to salespeople with checkboxes. That screen was not part of this request.
+
+**Links**
+
+- Spec: [docs/specs/place-order-salespeople.md](docs/specs/place-order-salespeople.md)
+- Pull request: [PR 322](https://github.com/Johncoester/cla-portal-demo/pull/322)
+
+**Decisions**
+
+- No database change. The saved field is still salesIds.
+- The search list is the same people the checkbox list showed.
