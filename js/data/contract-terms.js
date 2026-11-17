@@ -52,6 +52,8 @@ export const CONTRACT_GROUPS = [
 ];
 const FIELD = Object.fromEntries(CONTRACT_FIELDS.map((f) => [f.key, f]));
 const HISTORICAL = new Set(['hoaCertificateBalance', 'condoCertificateBalance', 'taxLevy', 'taxAssessment']);
+/* FF-094: these stay on the order and are edited under Accounting > Other Charges. */
+export const OTHER_CHARGE_DETAIL_KEYS = ['warrantyCap', 'warrantyPayer', 'hoaName', 'hoaMonthly', 'hoaCertificateBalance', 'hoaCertificateAsOf', 'condoName', 'condoMonthly', 'condoCertificateBalance', 'condoCertificateAsOf', 'deferredAmount', 'deferredSchedule', 'deferredPayee'];
 
 const blankValue = (f) => (f.kind === 'text' || f.kind === 'note' ? '' : f.key === 'emdReceipt' ? 'unknown' : null);
 export function blankContract(dealId, canEdit = false) {
@@ -138,6 +140,37 @@ export function cleanContractTerms(input) {
   return { fields, flags };
 }
 
+function valueOf(f, src) {
+  if (f.kind === 'money') return moneyOrNull(src[f.key], f.label);
+  if (f.kind === 'date') return dateOrNull(src[f.key], f.label);
+  return textOrEmpty(src[f.key], f.max || 200, f.label);
+}
+/* Merge the Other Charges form onto the stored sheet. Other columns and their markers stay as stored. */
+export function mergeOtherChargeDetails(stored, input) {
+  const src = input || {};
+  const base = stored && stored.fields ? stored : { fields: blankContract('').fields, flags: {} };
+  const fields = { ...base.fields, posture: ESTIMATE_POSTURE };
+  const flags = { ...(base.flags || {}) };
+  for (const key of OTHER_CHARGE_DETAIL_KEYS) {
+    const f = FIELD[key];
+    const value = valueOf(f, src);
+    fields[key] = value;
+    if (!f.basis) continue;
+    if (value == null || value === '') { delete flags[key]; continue; }
+    const kept = flags[key];
+    if (kept && f.basis.includes(kept.basis)) flags[key] = { basis: kept.basis, provisional: true, source: String(kept.source || '') };
+    else flags[key] = { basis: HISTORICAL.has(key) ? 'historical' : 'explicit', provisional: true, source: '' };
+  }
+  return { fields, flags };
+}
+export function otherChargeDetailsChanged(before, after) {
+  const prev = before || { fields: {}, flags: {} };
+  for (const key of OTHER_CHARGE_DETAIL_KEYS) {
+    if (JSON.stringify(prev.fields[key] ?? null) !== JSON.stringify(after.fields[key] ?? null)) return true;
+    if (canonicalJson((prev.flags || {})[key] || null) !== canonicalJson((after.flags || {})[key] || null)) return true;
+  }
+  return false;
+}
 export function illustrative(amount, percent) {
   if (amount == null || percent == null) return null;
   return roundTo(Number(amount) * Number(percent) / 100, 2);

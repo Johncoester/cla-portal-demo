@@ -10,24 +10,25 @@
 // two buyer rows and two seller rows to start ("+ Add another" adds the rest; an empty extra row is not saved), entity representative, commas in money fields, source of business (who referred the file),
 // wires never shown to agents.
 import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611161500';
-import { occSelects, yesNo } from './occ-fields.js?v=202611161500';
+import { occSelects, yesNo } from './occ-fields.js?v=202611242860';
 import { fmtPhone, TX_TYPES, runsOrders, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount } from '../data/constants.js?v=202611101015';
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611191800';
+import { salesMultiHtml, mountSalesMulti } from './sales-multi.js?v=202611242800';
 import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice, companyOnlyContact } from '../data/file-party.js?v=202611221600';
 import { ENTITY_TYPES } from '../data/templates.js?v=202611221900';
 import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611191800';
 import { closerChoices, resolveCloser } from '../data/closer.js?v=202611101015';
 import { duplicateNotice } from '../data/order-duplicates.js?v=202611191800';
 import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
-import { orderDraftKey, readOrderDraft, writeOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim, tombstoneOrderDraft } from '../data/order-draft.js?v=202611140200';
+import { orderDraftKey, readOrderDraft, writeOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim, tombstoneOrderDraft } from '../data/order-draft.js?v=202611242810';
 import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows, brokerageContact, brokerageContactError } from '../data/lender-file.js?v=202611241600';
 import { bindAddressFill } from '../data/address-fill.js?v=202611222100';
-import { countyFieldHtml, mountCountySelect, paintCountyOptions } from './county-field.js?v=202611241600';
+import { countyFieldHtml, mountCountySelect, paintCountyOptions } from './county-field.js?v=202611243032';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611222100';
 import { readEarnest } from '../data/earnest-commission.js?v=202611223000';
-import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611242904';
-import { SIDE_LABEL as AF_SIDE_LABEL, PAYER_LABEL } from '../data/agent-fees.js?v=202611242900';
+import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611243063';
+import { SIDE_LABEL as AF_SIDE_LABEL, PAYER_LABEL } from '../data/agent-fees.js?v=202611243061';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { AGENT_TC_ROLES, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, isAgentTcRole, partyProblemLine, roleForPartyField, uniqueProblems } from '../data/agent-tc.js?v=202611241300';
 import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611241600';
@@ -125,7 +126,6 @@ export async function render({ api, user, go }) {
   // "Add new user" roles. Salesperson creates a staff login, which is Admin-only (John's earlier decision), so only Admins / Super admins see it.
   const NEW_ROLES = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer Agent'], ['Listing Agent', 'Listing Agent'], ['Lender', 'Lender'], [BUYER_AGENT_TC, agentTcLabel(BUYER_AGENT_TC)], [LISTING_AGENT_TC, agentTcLabel(LISTING_AGENT_TC)], ...(user.isAdmin ? [['Sales Person', 'Salesperson']] : [])];
   const visOpts = visibilityChoices(user.role, user.isAdmin);
-  const salesBox = (s, checked = false) => html`<label class="check"><input type="checkbox" name="salesIds" value="${s.id}" ${checked ? raw('checked') : ''}> ${s.firstName} ${s.lastName} <span class="muted small">(${s.role})</span></label>`;
   const N = STEPS.length;
   const panel = (key, inner, intro) => { const i = STEPS.findIndex((s) => s[0] === key); const [, title] = STEPS[i];
     return html`<section class="wiz-panel" data-wiz-step="${key}" aria-labelledby="wiz-h-${key}" ${i ? raw('hidden') : ''}>
@@ -202,7 +202,7 @@ export async function render({ api, user, go }) {
       ${panel('team', html`<div class="form-grid">
         <label>Processor<select name="processorId" data-processor-select><option value="">Unassigned</option></select> <button type="button" class="ghost" data-refresh-processors>Refresh list</button><span class="field-hint">Leave Unassigned to save the file now. A Processor added after you opened this page appears when you refresh the list. Nothing else on the form is cleared.</span></label><label>Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select>${preprocs.length ? '' : html`<span class="field-hint" data-no-preproc>No preprocessor is available for this login.</span>`}</label>
         <label class="span2">Closer<input name="closerName" list="place-closer-staff" maxlength="120" autocomplete="off" aria-label="Closer" data-closer-input><datalist id="place-closer-staff">${closers.map((c) => html`<option value="${c.label}"></option>`)}</datalist><span class="field-hint">Pick an active CLA staff member, or type a name. Same field as Edit order details.</span></label>
-        <fieldset class="span2" data-sales-picker><legend>Salespeople on this order</legend><div data-sales-list class="check-grid">${staff.length ? staff.map((s) => salesBox(s)) : html`<p class="muted" data-no-sales>No salespeople are available for this login.</p>`}</div><span class="field-hint">Check every salesperson on this order. You can pick more than one.</span></fieldset>
+        <fieldset class="span2" data-sales-picker><legend>Salespeople on this order</legend>${salesMultiHtml(staff)}<span class="field-hint">Search and add every salesperson on this order. You can pick more than one. Remove a name to take that person off.</span></fieldset>
         <label class="span2">Notes<textarea name="notes" rows="3" maxlength="2000" placeholder="Anything the team should know about this order"></textarea></label>
         <fieldset class="span2" id="nof-docs"><legend>Documents (e.g. the sales contract)</legend>
           <label class="dropzone-label">Files <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB each; choose several at once)</span><input type="file" id="nof-files" multiple accept="${ALLOWED_UPLOAD_EXT.map((e) => '.' + e).join(',')}"></label>
@@ -244,6 +244,7 @@ export async function render({ api, user, go }) {
     </form>`;
   const view = { title: 'Place Order', crumbs: [['Orders', '#/orders'], ['Place Order']], body, unmount() {}, mount(root) {
     const form = $('#nof', root); const people = [...contacts]; mountParcelFields(root);
+    const salesUi = mountSalesMulti($('[data-sales-multi]', root), staff);
     const paintProcessors = (list, keep) => { const sel = $('[name=processorId]', form); const next = processorChoices(list, keep == null ? sel.value : keep, user.id);
       sel.replaceChildren(); for (const o of next.options) { const opt = document.createElement('option'); opt.value = o.value; opt.textContent = o.label; sel.appendChild(opt); } sel.value = next.value; return next; };
     paintProcessors(procs, '');
@@ -548,7 +549,7 @@ export async function render({ api, user, go }) {
       const issues = list.filter((k) => k !== 'review').map((k) => [k, check(k)]).filter(([, e]) => e.length);
       const section = (k, title, items) => html`<section class="review-sec" data-review-sec="${k}"><header><h4>${title}</h4><button type="button" class="linkish" data-wiz-goto="${k}">Edit</button></header><dl class="review-dl">${items.map(([dt, dd]) => html`<dt>${dt}</dt><dd>${dd}</dd>`)}</dl></section>`;
       const partyList = (role) => { const out = rows[role].map((x) => { const e = entityOf(x); if (x.pk.value) { const who = e && e.name ? e.name : (partyDisplayName({ role, contact: people.find((pp) => pp.id === x.pk.value) || {}, entity: null }) || nameOf(x.pk.value)); return html`<div>${who}${e && e.repName ? html` <span class="muted small">Representative: ${e.repName}</span>` : ''}</div>`; } const entry = buyerSellerEntry(readBuyer(x, role)); if (!entry.ok || entry.action !== 'create') return ''; const who = e && e.name ? e.name : (`${entry.contact.firstName} ${entry.contact.lastName}`.trim() || entry.contact.company); return html`<div>${who} <span class="muted small">(typed on this file, no portal login)</span></div>`; }).filter(Boolean); return out.length ? out : dash; };
-      const sales = $$('input[name=salesIds]:checked', root).map((b) => b.parentElement.textContent.replace(/\s+/g, ' ').trim());
+      const sales = salesUi.labels();
       const files = [...fileIn.files]; const txFiles = [...txIn.files]; const mdOn = showMdQuestions(f.state, r);
       const skipped = [];
       $('[data-review]', root).innerHTML = toText(html`
@@ -634,8 +635,7 @@ export async function render({ api, user, go }) {
     $('#an-kind', root).addEventListener('change', paintNew);
     $('#addnew', root).addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') e.preventDefault(); });   // Enter here must not submit the order
     const place = (role, c) => {
-      if (role === 'Sales Person') { const list = $('[data-sales-list]', root); const box = $(`input[name=salesIds][value="${c.profileId || c.id}"]`, list);
-        if (box) box.checked = true; else { const nd = $('[data-no-sales]', list); if (nd) nd.remove(); list.insertAdjacentHTML('beforeend', toText(salesBox({ id: c.profileId || c.id, firstName: c.firstName, lastName: c.lastName, role: 'Sales Person' }, true))); } }
+      if (role === 'Sales Person') salesUi.addAndSelect({ id: c.profileId || c.id, firstName: c.firstName, lastName: c.lastName, role: 'Sales Person' });
       else if (MULTI[role]) placeParty(role, c);
       else if (pickers[role]) pickers[role].set(c);
       toast(`${personLabel(c)} added as ${NEW_ROLES.find((x) => x[0] === role)[1]}`); reset(); anForm.hidden = true; };
@@ -693,6 +693,7 @@ export async function render({ api, user, go }) {
     if (prior) {
       Object.keys(prior.fields || {}).map((k) => /^lcFirst:(\d+)$/.exec(k)).filter(Boolean).map((m) => Number(m[1])).sort((a, b) => a - b).forEach((i) => addLc(i));
       const restored = applyOrderDraft(form, prior, procs);
+      if (Array.isArray(prior.checks && prior.checks.salesIds)) salesUi.restore(prior.checks.salesIds);
       const countySel = $('select[name="county"]', form);
       if (countySel) paintCountyOptions(countySel, (prior.fields || {}).state, (prior.fields || {}).county);
       if (repOn && draftKeepsUnrecordedRepresentation(prior.fields)) $$('[name=claRepresentation]', form).forEach((el) => { el.checked = false; });

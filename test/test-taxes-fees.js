@@ -1,11 +1,14 @@
 /* FF-091 (Francis Santos, Nov 16 2026): Taxes & Fees documents. Amounts must match the vendored calculator.
  * Samples: Maryland (Baltimore City), Virginia (Fairfax), the District of Columbia, and Florida (Miami-Dade). No network. */
 import { readFileSync } from 'node:fs';
-import { closingDisclosure, altaStatement, cleanFee, calcFields, CALC_SOURCE_ID } from '../js/data/accounting.js';
+import { closingDisclosure, altaStatement, cleanFee, calcFields, CALC_SOURCE_ID, isOverridden } from '../js/data/accounting.js';
 import { vendoredTables } from '../js/data/fee-engine.js';
+import { createMockAdapter } from '../js/data/mock-adapter.js';
 import {
-  TAX_DOC_TYPES, defaultDocuments, exemptionAsks, taxesFeesSetup, worksheetProblem, proposeTaxesFees, diffTaxesFees, previewTaxesFees, savedWorksheet
+  TAX_DOC_TYPES, OWNER_OCCUPANT_EXEMPTION_SIDE, STATE_TRANSFER_LOCK, defaultDocuments, exemptionAsks, taxesFeesSetup, worksheetProblem, proposeTaxesFees, diffTaxesFees, previewTaxesFees, savedWorksheet, taxAllocation, locateForFees,
+  RATE_NOT_SET, ENTERED_BY_HAND, manualAmountProblem, isGovernmentKey
 } from '../js/data/taxes-fees.js';
+import { addressOnFile } from '../js/data/fee-place.js';
 
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
@@ -51,7 +54,8 @@ const cityP = proposeTaxesFees(city, { documents: cityDocs }, R);
 ok(near(amount(cityP, 'rec:Deed'), 60) && line(cityP, 'rec:Deed').paidBy === 'buyer', 'Baltimore City deed records for $60, paid by the borrower');
 ok(near(amount(cityP, 'rec:Deed of Trust'), 115) && /not a principal residence/.test(line(cityP, 'rec:Deed of Trust').description), 'a deed of trust that is not a principal residence records for $115');
 ok(near(amount(cityP, 'tax:State transfer tax'), 812.5) && line(cityP, 'tax:State transfer tax').paidBy === 'seller', 'Maryland first-time buyer state transfer tax is $812.50, paid by the seller');
-ok(near(amount(cityP, 'tax:County transfer tax'), 4875) && line(cityP, 'tax:County transfer tax').paidBy === 'split', 'Baltimore City transfer tax is $4,875, split');
+ok(near(amount(cityP, 'tax:County transfer tax'), 4875) && line(cityP, 'tax:County transfer tax').paidBy === 'split', 'Baltimore City transfer tax at $325,000 is $4,875 with no $22,000 exemption, split by the county default');
+ok(near(amount(cityP, 'tax:County recordation tax'), 3030) && line(cityP, 'tax:County recordation tax').paidBy === 'split', 'Baltimore City recordation at $325,000 still takes off the $22,000 owner-occupant exemption: $3,030, then split');
 ok(near(amount(cityP, 'lien'), 55), 'Baltimore City lien certificate is $55');
 ok(cityP.lines.every((l) => l.key === 'lien' || l.key.startsWith('rec:') || l.key.startsWith('tax:')), 'only recording fees, the lien certificate, and transfer / recordation taxes are returned');
 ok(!cityP.lines.some((l) => /title policy|settlement fee|endorsement/i.test(l.description)), 'title premiums and CLA fees are not part of this calculation');
@@ -97,8 +101,40 @@ ok(near(amount(vaRefiP, 'tax:State recordation tax (deed of trust)'), 875), 'a V
 const untaxed = proposeTaxesFees(city, { documents: cityDocs.map((d) => ({ ...d, taxable: false })) }, R);
 ok(!untaxed.lines.some((l) => l.key.startsWith('tax:')) && untaxed.lines.some((l) => l.key === 'rec:Deed'), 'marking the documents not taxable drops the taxes and still records the deed');
 
-const affidavit = proposeTaxesFees(city, { documents: [...cityDocs, { type: 'Affidavit', pages: 2, consideration: 0, taxable: false, occ: true, fthb: false }] }, R);
-ok(affidavit.warnings.some((w) => /no recording fee on CLA's rate sheet for an affidavit/i.test(w)) && !affidavit.lines.some((l) => /affidavit/i.test(l.description)), 'an affidavit is accepted and no fee is invented for it');
+const affDoc = { type: 'Affidavit', pages: 2, consideration: 0, taxable: false, occ: true, fthb: false };
+const affidavit = proposeTaxesFees(city, { documents: [...cityDocs, affDoc] }, R);
+const affLine = line(affidavit, 'unset:Affidavit');
+ok(!!affLine && affLine.rateNotSet && affLine.calculation === RATE_NOT_SET && affLine.amount === 0 && /Recording fee: Affidavit/.test(affLine.description) && affLine.cdLine && affLine.payee, 'an affidavit with no rate is a line that says Rate Not Set, with no invented amount');
+ok(!affidavit.warnings.some((w) => /no recording fee on CLA's rate sheet/i.test(w)), 'the blank-amount warning is replaced by the Rate Not Set line');
+ok(isGovernmentKey('unset:Affidavit') && affidavit.lines.some((l) => l.key === 'rec:Deed' && !l.rateNotSet), 'a priced deed stays a calculated recording fee');
+const badHand = manualAmountProblem('abc', 'Affidavit');
+ok(badHand && /dollar amount/.test(badHand.message) && /Leave it blank/.test(badHand.message) && badHand.field === 'manual', 'a fee that is not an amount says what to type: ' + (badHand && badHand.message));
+ok(manualAmountProblem('', 'Affidavit') == null && manualAmountProblem('45.00', 'Affidavit') == null, 'a blank fee and a dollar amount are both allowed');
+let refusedHand = '';
+try { previewTaxesFees(city, { documents: [...cityDocs, affDoc], manual: { Affidavit: 'abc' } }, [], R); } catch (e) { refusedHand = e.message; }
+ok(/dollar amount/.test(refusedHand), 'calculating with a fee that is not an amount is refused');
+const typedView = previewTaxesFees(city, { documents: [...cityDocs, affDoc], manual: { Affidavit: '45.00' } }, [], R);
+const typedRow = typedView.breakdown.find((r) => r.key === 'unset:Affidavit');
+const plainView = previewTaxesFees(city, { documents: [...cityDocs, affDoc] }, [], R);
+const buyerOf = (v) => v.breakdown.reduce((t, r) => t + r.borrowerAt + r.borrowerBefore, 0);
+ok(typedRow && typedRow.rateNotSet && typedRow.enteredByHand && !typedRow.locked && near(typedRow.borrowerAt, 45) && near(buyerOf(typedView) - buyerOf(plainView), 45), 'a typed fee shows on the affidavit line, is marked entered by hand, and counts in the totals');
+const blankRow = plainView.breakdown.find((r) => r.key === 'unset:Affidavit');
+ok(blankRow && blankRow.rateNotSet && !blankRow.enteredByHand && blankRow.amount === 0, 'with no typed fee the line stays Rate Not Set');
+const handFee = {
+  id: 'hand-1', retired: false, source: CALC_SOURCE_ID, description: affLine.description, altaSection: affLine.altaSection, cdSection: affLine.cdSection, cdLine: affLine.cdLine,
+  payee: affLine.payee, amount: 45, paidBy: 'buyer', split: { buyer: 45, seller: 0, lender: 0, other: 0 }, titlePrefix: false, timing: 'at', poc: false,
+  calc: { key: affLine.key, fields: calcFields({ ...affLine, amount: 0, split: { buyer: 0, seller: 0, lender: 0, other: 0 } }), calculation: RATE_NOT_SET, at: '2026-11-17T00:00:00Z', inputs: {} }
+};
+ok(isOverridden(handFee), 'a saved manual amount differs from the empty rate, so a re-run can see it was entered by hand');
+const kept = previewTaxesFees(city, { documents: [...cityDocs, affDoc] }, [handFee], R).breakdown.find((r) => r.key === 'unset:Affidavit');
+ok(kept && kept.locked && kept.savedByHand && kept.enteredByHand && near(kept.amount, 45) && kept.calculation === RATE_NOT_SET, 'recalculating shows the saved manual amount and does not replace it');
+ok(diffTaxesFees(affidavit, [handFee]).rows.find((r) => r.key === 'unset:Affidavit').status === 'overridden', 'applying a new calculation keeps the manual amount');
+const replaced = previewTaxesFees(city, { documents: [...cityDocs, affDoc], replace: ['Affidavit'], manual: { Affidavit: '12.00' } }, [handFee], R).breakdown.find((r) => r.key === 'unset:Affidavit');
+ok(replaced && !replaced.locked && near(replaced.borrowerAt, 12), 'choosing to replace the manual amount shows the new fee');
+const dropped = proposeTaxesFees(city, { documents: cityDocs }, R);
+ok(diffTaxesFees(dropped, [handFee]).rows.find((r) => r.key === 'unset:Affidavit').status === 'stale-overridden', 'removing the document still keeps a fee that was entered by hand');
+const zeroFee = { ...handFee, id: 'hand-0', amount: 0, split: { buyer: 0, seller: 0, lender: 0, other: 0 }, calc: { ...handFee.calc, fields: calcFields({ ...affLine, amount: 0, split: { buyer: 0, seller: 0, lender: 0, other: 0 } }) } };
+ok(!isOverridden(zeroFee) && diffTaxesFees(dropped, [zeroFee]).rows.find((r) => r.key === 'unset:Affidavit').status === 'retire', 'a Rate Not Set line with no amount comes off when the document is removed');
 
 const unknown = taxesFeesSetup({ state: 'MD', county: 'Mongomery', transactionType: 'Purchase', purchasePrice: 100, loanAmount: 80 }, [], R, null);
 ok(!unknown.covered && /couldn't find this county/.test(unknown.reason), 'a county that is not on the rate sheet is refused, same as the calculator');
@@ -140,7 +176,121 @@ const page = readFileSync('js/pages/dealaccounting-charges.js', 'utf8');
 const mock = readFileSync('js/data/mock-part-accounting.js', 'utf8');
 const remote = readFileSync('js/data/supabase-accounting.js', 'utf8');
 ok(page.includes('Add document') && page.includes('Calculate fees') && page.includes('getTaxesFeesSetup') && page.includes('applyTaxesFees'), 'Taxes & Fees on the charges page adds documents and calculates fees');
+ok(page.includes('Buyer pays') && page.includes('Seller pays') && page.includes('50/50 split') && page.includes('data-tax-payer'), 'each tax offers Buyer pays, Seller pays, and 50/50 split');
+ok(page.includes('Consideration / purchase price') && page.includes('Loan amount') && page.includes('Number of deed pages') && page.includes('Number of mortgage pages') && page.includes('owner-occupied exemption') && page.includes('First-time homebuyer exemption') && page.includes('data-tax-baltimore'), 'Baltimore City shows the questions the rate sheet can answer');
+
+// FF-091b worked examples. Rates are the vendored CLA sheet, not new numbers.
+// Baltimore City transfer: 1.5% up to $1,000,000, and the first $22,000 is exempt for an owner-occupant only when the price is $249,900 or less.
+// Baltimore City recordation: $5.00 per $500 up to $1,000,000, and the sheet's $22,000 owner-occupant exemption is on that row with no $249,900 cap.
+// Above $1,000,000: transfer 2.1%, recordation $5.75 per $500. State transfer is 0.5%, or 0.25% paid by the seller for a first-time buyer who will live there.
+const home = purchase('MD', 'Baltimore City', 200000, 160000, { primaryResidence: 'yes', firstTimeBuyer: 'no' });
+const homeDocs = defaultDocuments(home, exemptionAsks(R, home));
+const homeP = proposeTaxesFees(home, { documents: homeDocs }, R);
+const splitOf = (P, key) => line(P, key).split;
+ok(near(amount(homeP, 'tax:State transfer tax'), 1000) && line(homeP, 'tax:State transfer tax').paidBy === 'split' && near(splitOf(homeP, 'tax:State transfer tax').buyer, 500) && near(splitOf(homeP, 'tax:State transfer tax').seller, 500), 'a $200,000 Baltimore City purchase that is not a first-time buyer pays $1,000 state transfer tax, $500 / $500');
+ok(near(amount(homeP, 'tax:County transfer tax'), 2670) && near(splitOf(homeP, 'tax:County transfer tax').buyer, 1335) && near(splitOf(homeP, 'tax:County transfer tax').seller, 1335), 'owner-occupant transfer tax on $200,000 is 1.5% of $178,000 = $2,670, split $1,335 / $1,335');
+ok(near(amount(homeP, 'tax:County recordation tax'), 1780) && near(splitOf(homeP, 'tax:County recordation tax').buyer, 890) && near(splitOf(homeP, 'tax:County recordation tax').seller, 890), 'owner-occupant recordation on $200,000 is $5 per $500 of $178,000 = $1,780, split $890 / $890');
+ok(/comes off the total before it is split/.test(line(homeP, 'tax:County transfer tax').calculation), 'the exemption comes off the total before the split');
+
+const edge = purchase('MD', 'Baltimore City', 249900, 200000, { primaryResidence: 'yes', firstTimeBuyer: 'no' });
+const edgeP = proposeTaxesFees(edge, { documents: defaultDocuments(edge, exemptionAsks(R, edge)) }, R);
+ok(near(amount(edgeP, 'tax:County transfer tax'), 3418.5) && near(amount(edgeP, 'tax:County recordation tax'), 2280) && near(amount(edgeP, 'tax:State transfer tax'), 1249.5), 'at $249,900 the $22,000 exemption still applies: transfer $3,418.50, recordation $2,280, state transfer $1,249.50');
+const over = purchase('MD', 'Baltimore City', 249900.01, 200000, { primaryResidence: 'yes', firstTimeBuyer: 'no' });
+const overP = proposeTaxesFees(over, { documents: defaultDocuments(over, exemptionAsks(R, over)) }, R);
+ok(near(amount(overP, 'tax:County transfer tax'), 3748.5) && near(amount(overP, 'tax:County recordation tax'), 2280), 'at $249,900.01 the transfer tax loses the $22,000 exemption ($3,748.50) and recordation keeps it ($2,280)');
+
+const big = purchase('MD', 'Baltimore City', 1200000, 900000, { primaryResidence: 'yes', firstTimeBuyer: 'no' });
+const bigP = proposeTaxesFees(big, { documents: defaultDocuments(big, exemptionAsks(R, big)) }, R);
+ok(near(amount(bigP, 'tax:County transfer tax'), 25200) && near(splitOf(bigP, 'tax:County transfer tax').buyer, 12600), 'above $1,000,000 Baltimore City transfer tax is 2.1% = $25,200, split $12,600 / $12,600');
+ok(near(amount(bigP, 'tax:County recordation tax'), 13547) && near(splitOf(bigP, 'tax:County recordation tax').buyer, 6773.5) && near(splitOf(bigP, 'tax:County recordation tax').seller, 6773.5), 'above $1,000,000 recordation is $5.75 per $500 after the $22,000 exemption = $13,547, split $6,773.50 / $6,773.50');
+
+const ft = purchase('MD', 'Baltimore City', 200000, 160000, { primaryResidence: 'yes', firstTimeBuyer: 'yes' });
+const ftDocs = defaultDocuments(ft, exemptionAsks(R, ft));
+const ftP = proposeTaxesFees(ft, { documents: ftDocs }, R);
+ok(ftDocs[0].occ === true && ftDocs[0].fthb === true, 'the file\'s Yes answers fill the deed');
+ok(near(amount(ftP, 'tax:State transfer tax'), 500) && line(ftP, 'tax:State transfer tax').paidBy === 'seller' && line(ftP, 'tax:State transfer tax').split.buyer === 0 && /Tax-Property 13-203/.test(line(ftP, 'tax:State transfer tax').calculation), 'a first-time buyer on a $200,000 primary residence pays no state transfer tax; the law keeps $500 with the seller');
+ok(near(amount(ftP, 'tax:County transfer tax'), 2670) && line(ftP, 'tax:County transfer tax').paidBy === 'split' && near(splitOf(ftP, 'tax:County transfer tax').buyer, 1335) && near(splitOf(ftP, 'tax:County transfer tax').seller, 1335), 'after the exemption, Baltimore City transfer tax uses the county default, $1,335 / $1,335');
+ok(near(amount(ftP, 'tax:County recordation tax'), 1780) && line(ftP, 'tax:County recordation tax').paidBy === 'split' && near(splitOf(ftP, 'tax:County recordation tax').buyer, 890), 'after the exemption, Baltimore City recordation uses the county default, $890 / $890');
+
+const chosen = proposeTaxesFees(ft, { documents: ftDocs, payers: { 'County transfer tax': 'buyer', 'County recordation tax': 'split', 'State transfer tax': 'buyer' } }, R);
+ok(line(chosen, 'tax:County transfer tax').paidBy === 'buyer' && near(amount(chosen, 'tax:County transfer tax'), 2670) && line(chosen, 'tax:County transfer tax').split.seller === 0, 'staff can set the county transfer tax to Buyer pays on this file');
+ok(line(chosen, 'tax:County recordation tax').paidBy === 'split' && near(splitOf(chosen, 'tax:County recordation tax').buyer, 890) && near(splitOf(chosen, 'tax:County recordation tax').seller, 890), 'staff can set the recordation tax back to a 50/50 split: $890 / $890');
+ok(line(chosen, 'tax:State transfer tax').paidBy === 'seller' && near(amount(chosen, 'tax:State transfer tax'), 500) && /cannot change it/.test(line(chosen, 'tax:State transfer tax').calculation), 'the state transfer tax stays with the seller when the contract tries to move it');
+
+const notHome = { state: 'MD', county: 'Baltimore City', transactionType: 'Purchase', purchasePrice: 200000, loanAmount: 160000, primaryResidence: '', firstTimeBuyer: 'yes' };
+const notDocs = defaultDocuments(notHome, exemptionAsks(R, notHome));
+ok(notDocs[0].occ === false && notDocs[0].fthb === false && notDocs[1].occ === true, 'a blank primary residence does not claim the exemption, and it does not raise the deed of trust fee');
+const notP = proposeTaxesFees(notHome, { documents: notDocs }, R);
+ok(near(amount(notP, 'tax:State transfer tax'), 1000) && line(notP, 'tax:State transfer tax').paidBy === 'split', 'a first-time buyer answer without a primary residence does not reduce the state transfer tax');
+ok(near(amount(notP, 'tax:County transfer tax'), 3000) && line(notP, 'tax:County transfer tax').paidBy === 'split', 'without a primary residence the $22,000 exemption is not taken and the tax stays split: $3,000');
+ok(near(amount(notP, 'tax:County recordation tax'), 2000) && near(amount(notP, 'rec:Deed of Trust'), 60), 'recordation is $2,000 with no exemption, and the deed of trust still records for $60');
+
+const half = worksheetProblem({ documents: homeDocs, payers: { 'County transfer tax': 'half' } }, home);
+ok(half && /Buyer pays, Seller pays, or 50\/50 split/.test(half.message), 'a payer that is not one of the three choices is explained: ' + (half && half.message));
+ok(OWNER_OCCUPANT_EXEMPTION_SIDE === 'exempted-total' && /Tax-Property 13-203/.test(STATE_TRANSFER_LOCK), 'exemptions come off the total, and the state transfer lock names the law');
+ok(taxAllocation(R, home, homeDocs).some((t) => t.name === 'County transfer tax' && t.plain === 'split' && !t.locksWhenFirstTime) && taxAllocation(R, ft, ftDocs).some((t) => t.name === 'State transfer tax' && t.locksWhenFirstTime), 'the county default is a split, and only the state transfer tax is locked for a first-time buyer');
+ok(page.includes('Rate Not Set') && page.includes(ENTERED_BY_HAND) && page.includes('Replace the amount entered by hand') && page.includes('data-tax-manual') && page.includes('data-tax-replace') && page.includes('data-rate-not-set') && page.includes('data-entered-by-hand'), 'the screen shows Rate Not Set, a place to type the fee, Entered by hand, and a choice to replace it');
+ok(page.includes('addressOnFile(deal)') && !page.includes('deal.street && deal.city && deal.zip && deal.county'), 'a filled street, city, and ZIP is not treated as a missing property address');
+
+// FF-095 (Francis Santos, Nov 17 2026, 2:12 PM ET). Processor 2 on TEST.
+// MD-26-97386 stores county "Baltimore City" (a name, not an id) with the street, city, and ZIP filled.
+const file97386 = { street: '315 South Calhoun Street', city: 'Baltimore City', state: 'MD', zip: '21223', county: 'Baltimore City', transactionType: 'Purchase', purchasePrice: 98000, loanAmount: 88000, primaryResidence: 'yes', firstTimeBuyer: 'yes' };
+ok(addressOnFile(file97386), 'MD-26-97386 has the property address on the file');
+const setup97386 = taxesFeesSetup(file97386, [], R, null);
+ok(setup97386.covered && setup97386.county === 'Baltimore City' && !setup97386.countyNote, 'Baltimore City on the file is the county the rates use, and the screen does not ask for the address');
+const calc97386 = proposeTaxesFees(file97386, { documents: defaultDocuments(file97386, exemptionAsks(R, file97386)) }, R);
+ok(near(amount(calc97386, 'rec:Deed'), 60) && amount(calc97386, 'rec:Deed of Trust') > 0 && calc97386.lines.some((l) => l.key.startsWith('tax:') && l.amount > 0), 'Calculate on that Baltimore City file returns recording fees and a tax, not zeros');
+
+// The same address with the county left blank. The ZIP is Baltimore City, not Baltimore County.
+const blankCounty = { ...file97386, county: '' };
+const located = locateForFees(blankCounty, R);
+ok(located.countyFrom === 'zip' && located.deal.county === 'Baltimore City', 'a blank county uses ZIP 21223, which is Baltimore City, not Baltimore County');
+const fromZip = taxesFeesSetup(blankCounty, [], R, null);
+ok(fromZip.covered && fromZip.county === 'Baltimore City' && /ZIP 21223 is in Baltimore City/.test(fromZip.countyNote), 'Calculate still prices Baltimore City and says the county came from the ZIP');
+const cityOnly = { ...file97386, county: '', zip: '' };
+ok(locateForFees(cityOnly, R).countyFrom === 'city' && locateForFees(cityOnly, R).deal.county === 'Baltimore City', 'with no ZIP, the city Baltimore City is the county');
+const cityBaltimore = { ...file97386, city: 'Baltimore', county: '' };
+ok(locateForFees(cityBaltimore, R).deal.county === 'Baltimore City', 'city Baltimore plus ZIP 21223 is Baltimore City, not Baltimore County');
+const savedCounty = { ...file97386, county: 'Baltimore County', city: 'Baltimore City' };
+ok(taxesFeesSetup(savedCounty, [], R, null).county === 'Baltimore', 'a saved county wins: Baltimore County stays Baltimore, not Baltimore City');
+
+// MD-26-97407 (Processor 2, Nov 17 2026, 1:17 PM ET): street, city, and ZIP are filled, county is blank, and the ZIP is in Florida.
+const file97407 = { street: '6061 North Falls Circle Drive 407', city: 'Lauderhill', state: 'MD', zip: '33319', county: '', transactionType: 'Purchase', purchasePrice: 147000, loanAmount: 130000, primaryResidence: 'yes', firstTimeBuyer: 'no' };
+ok(addressOnFile(file97407), 'a Florida street saved on a Maryland file still counts as an address on the file');
+const mismatch = taxesFeesSetup(file97407, [], R, null);
+ok(!mismatch.covered && /property address is on the file/.test(mismatch.reason) && /Broward County, FL/.test(mismatch.reason) && /Set the state to FL/.test(mismatch.reason) && !/add a complete property address/i.test(mismatch.reason) && !/couldn't find this county/.test(mismatch.reason), 'the county message names the ZIP\'s county and does not ask for the address again: ' + mismatch.reason);
+let mismatchCalc = '';
+try { proposeTaxesFees(file97407, { documents: defaultDocuments(file97407, exemptionAsks(R, file97407)) }, R); } catch (e) { mismatchCalc = e.message; }
+ok(mismatchCalc === mismatch.reason, 'Calculate does not invent Maryland fees when the ZIP is in another state');
 ok(mock.includes('applyTaxesFees') && mock.includes('attachTaxDocs') && remote.includes('applyTaxesFees') && remote.includes('attachTaxDocs'), 'mock and Supabase both save the worksheet on the calculated fee');
+
+const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+const store = mem();
+const api = createMockAdapter({ storage: store, sessionStorage: mem(), features: { accounting: true } });
+await api.signInDev('u-admin');
+const docs = [...defaultDocuments(purchase('MD', 'Montgomery', 485000, 388000), exemptionAsks(R, purchase('MD', 'Montgomery', 485000, 388000))), affDoc];
+const first = await api.previewTaxesFees('deal-1', { documents: docs });
+await api.applyTaxesFees('deal-1', { documents: docs }, { token: first.token, retireExamples: false });
+const opened = await api.getAccounting('deal-1');
+const gap = opened.entries.find((e) => e.calc && e.calc.key === 'unset:Affidavit');
+ok(gap && gap.amount === 0 && gap.calc.calculation === RATE_NOT_SET && !gap.overridden, 'applying with no typed fee saves the line as Rate Not Set');
+const beforeDebits = opened.totals.buyerDebits;
+await api.updateAccountingFee(gap.id, { amount: '45.00', paidBy: 'buyer', split: null });
+const api2 = createMockAdapter({ storage: store, sessionStorage: mem(), features: { accounting: true } });
+await api2.signInDev('u-admin');
+const reloaded = await api2.getAccounting('deal-1');
+const savedHand = reloaded.entries.find((e) => e.calc && e.calc.key === 'unset:Affidavit');
+ok(savedHand && near(savedHand.amount, 45) && savedHand.overridden && near(savedHand.split.buyer, 45) && near(reloaded.totals.buyerDebits - beforeDebits, 45), 'a manual amount saves, survives a reload, and counts in the buyer total');
+const rerun = await api2.previewTaxesFees('deal-1', { documents: docs });
+await api2.applyTaxesFees('deal-1', { documents: docs }, { token: rerun.token, retireExamples: false });
+const keptFee = (await api2.getAccounting('deal-1')).entries.find((e) => e.calc && e.calc.key === 'unset:Affidavit');
+ok(keptFee && near(keptFee.amount, 45), 'calculating again does not wipe the manual amount');
+await api2.updateAccountingFee(keptFee.id, { amount: '60.00', paidBy: 'buyer', split: null });
+const replacedFee = (await api2.getAccounting('deal-1')).entries.find((e) => e.calc && e.calc.key === 'unset:Affidavit');
+ok(replacedFee && near(replacedFee.amount, 60) && replacedFee.overridden, 'choosing a new amount replaces the one entered by hand');
+await api2.updateAccountingFee(replacedFee.id, { amount: '0.00', paidBy: 'buyer', split: null });
+const cleared = (await api2.getAccounting('deal-1')).entries.find((e) => e.calc && e.calc.key === 'unset:Affidavit');
+ok(cleared && cleared.amount === 0 && !cleared.overridden && cleared.calc.calculation === RATE_NOT_SET, 'clearing the manual amount returns the line to Rate Not Set');
 
 console.log(fail ? fail + ' failed' : 'taxes and fees passed');
 process.exit(fail ? 1 : 0);

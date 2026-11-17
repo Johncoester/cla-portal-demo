@@ -5,7 +5,7 @@
  * Up to 5 other fees (description, amount, paid to). Staff changing a fee the agent confirmed must give a reason. Nothing is sent. */
 import { html, raw, $, $$, modal, closeModal, toast, fmtMoney, fmtDateTime, pill } from '../ui.js?v=202611161500';
 import { isRefi } from '../data/constants.js?v=202611101015';
-import { AGENT_FEE_SIDES, SIDE_LABEL, PANEL_TITLE, AGENT_ROLE_SIDE, PAYERS, COMMISSION_PAYERS, ADMIN_PAYERS, PAYER_LABEL, MAX_OTHER_FEES, defaultPayer, readAgentFees, syncCommission, sideStatus, agentFeeError, feeChanges, adminHalves, feeNumber } from '../data/agent-fees.js?v=202611242900';
+import { AGENT_FEE_SIDES, SIDE_LABEL, PANEL_TITLE, AGENT_ROLE_SIDE, PAYERS, COMMISSION_PAYERS, ADMIN_PAYERS, PAYER_LABEL, MAX_OTHER_FEES, defaultPayer, readAgentFees, syncCommission, sideStatus, agentFeeError, feeChanges, adminHalves, feeNumber } from '../data/agent-fees.js?v=202611243061';
 
 const pct = (n) => (n == null ? '' : `${Number(n).toLocaleString('en-US', { maximumFractionDigits: 4 })}%`);
 const payerText = (p, f) => (f && f.payer === 'split' ? ` (split: buyer ${fmtMoney(f.splitBuyer)}, seller ${fmtMoney(f.splitSeller)})` : (p ? ` (paid by ${PAYER_LABEL[p] || p})` : ''));
@@ -242,7 +242,7 @@ export function agentFeesPointer(where = 'modal', dealId = '') {
   return html`<p class="muted small span2" data-agent-fees-pointer>Commissions, admin fees and other agent fees are entered in the ${box} box on the file overview${where === 'modal' ? ' (close this window to get to it)' : ''}. That is the only place they are kept, so they always match Accounting, the CD and the ALTA statement.</p>`;
 }
 
-/* Read-only summary of both sides, for Accounting > Contract figures. data = api.getAgentFees(). */
+/* Read-only summary of both sides, for Accounting > Basic Info. data = api.getAgentFees(). */
 export function agentFeesSummaryHtml(data, dealId) {
   const sides = AGENT_FEE_SIDES.map(([k]) => k).filter((k) => data && data.sides && data.sides[k]);
   return html`<section class="card acct-form" data-agent-fees-summary><h3>Commissions and agent fees</h3>

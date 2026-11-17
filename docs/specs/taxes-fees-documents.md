@@ -18,7 +18,7 @@ On a file's Accounting tab, Taxes & Fees (Closing, Charges, section E) should wo
 
 Calculate fees calls the portal's existing CLA calculator (the vendored calc-core.js, through fee-engine.js). It does not keep a second copy of the rate tables.
 
-Deed, deed of trust, release of mortgage, and power of attorney are the four documents on the rate sheet. The other six can be added. The screen says CLA's rate sheet has no recording fee for that document, and it does not invent an amount. The processor types that fee on a line below if they have it.
+Deed, deed of trust, release of mortgage, and power of attorney are the four documents on the rate sheet. The other six can be added. FF-091a (Francis Santos, Nov 17 2026) does not leave those blank: the line says Rate Not Set and the processor types the fee. See [taxes-fees-rate-not-set.md](taxes-fees-rate-not-set.md).
 
 Transfer and recordation tax follow the deed's consideration when the deed is taxable, and the deed of trust's consideration when that document is taxable. Marking a document not taxable drops the tax on that basis and still records it. In Maryland and the District of Columbia the deed asks primary residence and, on a purchase, first-time buyer, because those change the tax. The deed of trust asks primary residence because a Maryland deed of trust that is not a principal residence records at the higher fee. Virginia and Florida do not ask those questions, because they do not change the calculator's result. A refinance asks for the payoff of the existing loan. A Virginia purchase asks for assessed value when it is higher than the price.
 
@@ -33,3 +33,4 @@ The document answers are saved on the calculated fee, in the same place as the o
 - The per-document e-recording fee still comes from Calculate fees from CLA rates on the Fee ledger.
 - Running Calculate fees from CLA rates on the Fee ledger can replace these recording and tax lines from that screen's own document counts. A line changed by hand is still kept.
 - Not applied on TEST. Not Live.
+- A file with a street, city, and ZIP but a blank county used to be told the address was missing. That is FF-095 ([docs/specs/taxes-fees-address.md](taxes-fees-address.md)).

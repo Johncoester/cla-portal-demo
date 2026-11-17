@@ -62,7 +62,9 @@ ok((await a.createDeal({ ...ORDER, street: '8 Old Source Rd', sourceOfBusiness: 
 
 const page = readFileSync(new URL('../js/pages/ordernew.js', import.meta.url), 'utf8');
 const adapter = readFileSync(new URL('../js/data/supabase-adapter.js', import.meta.url), 'utf8');
-for (const bit of ['Upload sales contract', 'Upload title request', 'Add lender', "Buyer's transaction coordinator", 'Listing transaction coordinator', '+ Add another ${MULTI[role]}', "'Client-Seller': 'seller'", 'Who can see these files', 'id="tx-files"', 'id="tx-vis"', 'id="sob-block"', 'data-sales-picker', 'name="salesIds"', 'MIN_ROWS = 2', 'data-add-tc']) ok(page.includes(bit), 'wizard has ' + bit);
+for (const bit of ['Upload sales contract', 'Upload title request', 'Add lender', "Buyer's transaction coordinator", 'Listing transaction coordinator', '+ Add another ${MULTI[role]}', "'Client-Seller': 'seller'", 'Who can see these files', 'id="tx-files"', 'id="tx-vis"', 'id="sob-block"', 'data-sales-picker', 'MIN_ROWS = 2', 'data-add-tc']) ok(page.includes(bit), 'wizard has ' + bit);
+const salesPicker = readFileSync(new URL('../js/pages/sales-multi.js', import.meta.url), 'utf8');
+ok(salesPicker.includes('name="salesIds"') && salesPicker.includes('role="combobox"') && page.includes("getAll('salesIds')"), 'salespeople still save as salesIds from the search box');
 ok(page.includes('Empty extra buyer / seller rows') && page.includes("String(x || '').trim()"), 'empty extra buyer and seller rows are ignored on save');
 ok(!page.includes('name="p:Sales Team"') && !page.includes('Sales team member') && !page.includes('salesParty'), 'Place Order has no separate Sales team member field');
 ok((page.match(/<legend>Salespeople on this order<\/legend>/g) || []).length === 1, 'Place Order keeps one salespeople field');
