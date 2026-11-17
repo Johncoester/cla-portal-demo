@@ -1087,3 +1087,29 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Nobody is turned on by the database file. An admin ticks people after it is applied.
 - The tick does not change role access or who can open the CRM.
+
+## CRM deal stage choices (Feedback 30 item 3)
+
+**How it should work.** In CRM Deals, Stage offers Opened, Closed, On Hold, and Canceled. The same list is the value dropdown when a custom view filters Deals by Stage. An open order, which the CRM used to call Active, shows as Opened. Cancelled on the order shows as Canceled. The order page still stores Open, Closed, On Hold, and Cancelled. The numbered order step is unchanged.
+
+**Status: In progress.** Janine, Feedback 30 item 3, confirmed before this change. Database file `supabase/migrations/20261125100000_crm_deal_stage_labels.sql`. Rollback `supabase/rollbacks/20261125100000_crm_deal_stage_labels.sql`. Not applied on TEST. Not Live.
+
+**What's built**
+
+- The four stage choices on the deal record and in the custom view Stage filter.
+- Active is read as Opened, including a filter that was saved as Active, before and after the database file.
+- Someone who runs orders can change the stage on the CRM deal. That writes the existing order status.
+
+**What's still missing**
+
+- Not on TEST until the portal lead applies the database file. Do not mark Live before that.
+- There is no separate Create Deal screen. Place Order still opens a new order, and the CRM shows it as Opened.
+
+**Links**
+
+- Spec: [docs/specs/crm-deal-stage.md](docs/specs/crm-deal-stage.md)
+
+**Decisions**
+
+- The order status column is shared with the rest of the portal, so its stored words stay Open, Closed, On Hold, and Cancelled. The CRM only changes the label.
+- The numeric order stage (`deals.stage`) is not a CRM pick list and is not changed.

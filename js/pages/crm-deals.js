@@ -3,7 +3,8 @@
 import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, toast } from '../ui.js?v=202611161500';
 import { crmSort } from '../data/crm.js?v=202611130900';
 import { DEAL_COLS, DEFAULT_HIDDEN, loadHidden } from '../data/crm-deal-cols.js?v=202611070139';
-import { display, moduleFields } from '../data/crm-analytics.js?v=202611130900';
+import { display, moduleFields, DEAL_STAGES, dealStageOf, statusForDealStage } from '../data/crm-analytics.js?v=202611251000';
+import { runsOrders } from '../data/constants.js?v=202611101015';
 import { crmDealName, columnKey, loadColumns, normalizeColumns, beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611160300';
 import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611161500';
 import { tabs, head, money, wireRowOpen, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611161500';
@@ -153,13 +154,26 @@ async function dealPage(c) {
   const people = Array.isArray(d.people) ? d.people : []; const emails = Array.isArray(d.emails) ? d.emails : []; const portal = d._portalLink || `#/deals/${d.id}`;
   const row = (l, v) => html`<tr><th>${l}</th><td>${v}</td></tr>`;
   const dealName = crmDealName(d);
+  const stageNow = dealStageOf(d.stage || d.status);
+  const stageChoices = DEAL_STAGES.some(([v]) => v === stageNow) ? DEAL_STAGES : [...DEAL_STAGES, [stageNow, stageNow]];
+  const canSetStage = runsOrders(me) && typeof api.setDealStatus === 'function';
+  const stageField = html`<select data-deal-stage aria-label="Stage" ${canSetStage ? '' : raw('disabled')}>${stageChoices.map(([v, l]) => html`<option value="${v}" ${v === stageNow ? raw('selected') : ''}>${l}</option>`)}</select>`;
   const body = html`${tabs('deals')}${head(dealName, me, html`<span data-record-actions>${sendEmailBtn('deal', d.id, me)} <a class="ghost" href="${portal}" data-open-order>Open the order</a></span>`)}
     <div class="card" data-deal-summary><table class="tbl">${row('Deal Name', dealName)}${row('File Number', d.fileNumber)}${row('Property Address', d.propertyAddress || dealName)}${row('Amount', money(d.amount))}${row('Loan Amount', money(d.loanAmount))}
-      ${row('Stage', d.stage)}${row('Closing Date', fmtDate(d.closingDate))}${row('Open Date', fmtDate(d.openDate))}${row('Deal Owner', d.ownerName)}${row('Sales Reps', d.salesReps)}${row('Transaction Type', d.transactionType)}</table></div>
+      ${row('Stage', stageField)}${row('Closing Date', fmtDate(d.closingDate))}${row('Open Date', fmtDate(d.openDate))}${row('Deal Owner', d.ownerName)}${row('Sales Reps', d.salesReps)}${row('Transaction Type', d.transactionType)}</table></div>
     <div class="card" data-deal-people><h3>People on the file</h3><table class="tbl"><thead><tr><th>Role</th><th>Name</th><th>Email</th></tr></thead><tbody>${people.map((p) => html`<tr><td>${p.role}</td><td>${p.link ? html`<a href="${p.link}">${p.name}</a>` : p.name}</td><td>${p.email}</td></tr>`)}</tbody></table></div>
     ${disbCard(disb)}
     ${emailsCard(emails)}`;
-  return { title: dealName, crumbs: [['CRM', '#/crm'], ['Deals', '#/crm/deals'], [d.fileNumber]], body, mount(root) { wireSendEmail(root, api, me, refresh); wireEmails(root, api, emails); wireDisb(root, api, d.id, disb, refresh); void $; } };
+  return { title: dealName, crumbs: [['CRM', '#/crm'], ['Deals', '#/crm/deals'], [d.fileNumber]], body, mount(root) {
+    wireSendEmail(root, api, me, refresh); wireEmails(root, api, emails); wireDisb(root, api, d.id, disb, refresh);
+    const stageSel = $('[data-deal-stage]', root);
+    if (stageSel && canSetStage) stageSel.addEventListener('change', guard(async () => {
+      const next = stageSel.value; const status = statusForDealStage(next);
+      if (!status) { stageSel.value = stageNow; throw new Error('Pick Opened, Closed, On Hold, or Canceled.'); }
+      try { await api.setDealStatus(d.id, status); } catch (e) { stageSel.value = stageNow; throw new Error('That stage was not saved. Pick Opened, Closed, On Hold, or Canceled, and try again.'); }
+      toast('Stage saved'); refresh();
+    }));
+  } };
 }
 
 // Janine, Nov 4 (video "Disbursement Details - Deals"): Zoho's Disbursement Details section. Typed amounts + a date; Admin / Super admin edit; every change logged.
