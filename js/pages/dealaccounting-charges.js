@@ -5,6 +5,7 @@
 // Every line is still ONE fee on the same ledger (accounting.js), so the ALTA, the CD pages, prorations and CLA rates keep working.
 // TEST ONLY. Wire instructions (bank routing / account numbers) are NEVER stored: the Wire block is a reminder only.
 import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611161500';
+import { addressOnFile } from '../data/fee-place.js?v=202611242400';
 import { splitFor } from '../data/underwriter.js?v=202611241600';
 import { cdDescription } from '../data/accounting.js?v=202611241500';
 import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611241500';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
@@ -20,7 +21,7 @@ const sectionHref = (base, k, line) => `${base}?v=charges&s=${k}${line ? '&l=' +
 const ALLOC = [['buyer', 'Buyer'], ['seller', 'Seller'], ['split', 'Split'], ['others', 'Paid By Others']];
 
 // ---------------- left nav (Qualia: General · Closing › Charges · Preview), plus CLA's own tools ----------------
-export function qcNav(deal, view, sec, base, showPayoffs = true) {
+export function qcNav(deal, view, sec, base, showPayoffs = true, opts = {}) {
   const a = (href, label, on, attrs = '', chip = '') => html`<a class="qc-nav-link ${on ? 'on' : ''}" href="${href}"${raw(attrs)}>${chip ? html`<span class="qc-chip">${chip}</span>` : ''}<span>${label}</span></a>`;
   return html`<nav class="qc-nav acct-noprint" data-acct-tabs data-qc-nav aria-label="Accounting sections">
     <div class="qc-nav-group">General</div>
@@ -30,10 +31,17 @@ export function qcNav(deal, view, sec, base, showPayoffs = true) {
     ${a(`${base}?v=taxes`, 'Taxes & Prorations', view === 'taxes', ' data-acct-tab="taxes"')}${modOn('payoffs') ? a(`${base}?v=payoffs`, 'Payoffs', view === 'payoffs', ' data-acct-tab="payoffs"') : ''}` : ''}
     <div class="qc-nav-group">Closing</div><div class="qc-nav-sub">Charges</div>
     ${Q.QC_SECTIONS.map(([k, chip, label]) => a(sectionHref(base, k), label, view === 'charges' && sec === k, ` data-qc-nav-sec="${k}"${k === 'A' ? ' data-acct-tab="charges"' : ''}`, chip))}
+    <div class="qc-nav-group" data-qc-acct-section>Accounting</div>
+    ${a(`${base}?v=ledger`, 'Ledger', view === 'ledger', ' data-acct-tab="ledger" data-nav-acct="ledger"')}
+    ${a(`${base}?v=receipts`, 'Receipts', view === 'receipts', ' data-nav-acct="receipts"')}
+    ${a(`${base}?v=disbursements`, 'Disbursements', view === 'disbursements', ' data-nav-acct="disbursements"')}
+    ${a(`${base}?v=balances`, 'Account Balances', view === 'balances', ' data-nav-acct="balances"')}
+    ${a(`${base}?v=balancing`, 'Balancing', view === 'balancing', ' data-nav-acct="balancing"')}
+    ${opts.showFunding ? a(`#/deals/${deal.id}/funding`, 'Loan Funding', false, ' data-nav-acct="funding"') : ''}
     <div class="qc-nav-group">Preview</div>
     ${a(`${base}?v=cd`, 'Closing Disclosure', view === 'cd', ' data-acct-tab="cd"')}${a(`${base}?v=alta`, 'Settlement Statement', view === 'alta', ' data-acct-tab="alta"')}
     <div class="qc-nav-group">CLA tools</div>
-    ${a(`${base}?v=prorations`, 'Prorations (CLA list)', view === 'prorations', ' data-acct-tab="prorations"')}${a(`${base}?v=cddetails`, 'CD details & escrow', view === 'cddetails', ' data-acct-tab="cddetails"')}${a(`${base}?v=ledger`, 'Fee ledger', view === 'ledger', ' data-acct-tab="ledger"')}
+    ${a(`${base}?v=prorations`, 'Prorations (CLA list)', view === 'prorations', ' data-acct-tab="prorations"')}${a(`${base}?v=cddetails`, 'CD details & escrow', view === 'cddetails', ' data-acct-tab="cddetails"')}
     ${a(`${base}?v=payments`, 'Payment summary', view === 'payments', ' data-acct-tab="payments"')}${a(`${base}?v=history`, 'Edit history', view === 'history', ' data-acct-tab="history"')}
   </nav>`;
 }
@@ -79,6 +87,7 @@ function taxFeesPanel(setup) {
   const left = setup.types.filter((t) => !setup.documents.some((d) => d.type === t));
   return html`<div class="card acct-calc" data-tax-fees><div class="acct-card-head"><h3>Taxes &amp; fees</h3><span class="muted small">${setup.county ? setup.county + ', ' : ''}${setup.state}</span></div>
     <p class="small muted">Add each document to record. Calculate fees prices the recording fees, recordation tax, and transfer tax for this county. A document with no rate shows Rate Not Set so it is not missed. Type that fee. It is marked entered by hand, and a new calculation keeps it unless you choose to replace it. Nothing is saved until you apply the lines.</p>
+    ${setup.countyNote ? html`<p class="small" data-tax-county>${setup.countyNote}</p>` : ''}
     ${setup.rateNote ? html`<p class="small" data-tax-rate>${setup.rateNote}</p>` : ''}
     <div class="acct-toolbar"><label class="small">Add document <select data-tax-add-type aria-label="Add document">${left.length ? left.map((t) => html`<option value="${t}">${t}</option>`) : html`<option value="">All documents are added</option>`}</select></label>
       <button type="button" class="m-btn" data-tax-add ${dis(!left.length)}>Add document</button></div>
@@ -266,7 +275,7 @@ function feeSection(ctx) {
   const { deal, acc, cd, sec, base, canEdit } = ctx; const refi = acc.refi; const G = sec === 'G';
   const grid = Q.sectionGrid(deal, cd, acc.entries, sec); const rows = grid.rows; const byLine = Object.fromEntries(rows.map((r) => [r.line, r]));
   const loan = Number(deal.loanAmount) || 0;
-  const banner = sec === 'E' && !(deal.street && deal.city && deal.zip && deal.county) ? html`<div class="qc-banner" data-qc-address-banner><span>You'll need to add a complete property address before we'll be able to calculate recording fees and taxes.</span> <a class="m-btn small" href="#/deals/${deal.id}/overview" data-qc-add-property>Add property</a></div>` : '';
+  const banner = sec === 'E' && !addressOnFile(deal) ? html`<div class="qc-banner" data-qc-address-banner><span>You'll need to add a complete property address before we'll be able to calculate recording fees and taxes.</span> <a class="m-btn small" href="#/deals/${deal.id}/overview" data-qc-add-property>Add property</a></div>` : '';
   const amtCols = refi ? ['borrowerAt', 'borrowerBefore', 'others'] : ['borrowerAt', 'borrowerBefore', 'sellerAt', 'sellerBefore', 'others'];
   const locked = (r) => !canEdit || !!r.recording || (sec === 'E' && r.line === '01' && !(r.fee && r.fee.calc && String(r.fee.calc.key).startsWith('unset:'))) || !!(r.fee && r.fee.proration);
   const tone = (r) => (r.fee && r.fee.overridden ? 'qc-over' : r.calculated ? 'qc-pre' : '');

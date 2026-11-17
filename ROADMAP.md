@@ -109,6 +109,35 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Accounting sidebar (FF-061)
+
+**How it should work.** On a file, the Closing menu stays as it is. Accounting is its own section below that menu. It lists Ledger, Receipts, Disbursements, Account Balances, Balancing, and Loan Funding, in that order. The same six links sit in the accounting page's own section list, directly under Closing. Someone who cannot see Accounting today still does not see the section. Loan Funding opens the existing Funding page, and only for someone who could already open Funding.
+
+**Status: In progress.** Not on TEST yet. Pull request: [PR 323](https://github.com/Johncoester/cla-portal-demo/pull/323).
+
+**What's built**
+
+- The file sidebar keeps Scheduling Details and the buyer's Closing appointment. Accounting is a separate section under the file links, for the same people who could open Accounting before.
+- Ledger is the existing fee ledger. Receipts, Disbursements, Account Balances, and Balancing are pages on the same Accounting address, filled from that test ledger. They are not a bank balance, a deposit, a printed check, or a wire.
+- Loan Funding is the existing Funding page. It stays a separate Funding link for someone who can open Funding but cannot see Accounting.
+- The Closing charges list (sections A through N) is unchanged. Fee ledger is no longer under CLA tools. It is Ledger under Accounting.
+
+**What's missing**
+
+- Not checked on TEST yet. No database change.
+
+**Links**
+
+- Spec: [docs/specs/accounting-sidebar.md](docs/specs/accounting-sidebar.md).
+- Source: Francis Santos, Nov 12 2026, 1:53 PM ET (Gmail 1a1d11bd4bd135f8), confirmed Nov 17 2026, 1:55 PM ET (Gmail 1a1eaddb3dcfc5d6), tracker FF-061.
+
+**Decisions**
+
+- Routes stay `#/deals/:id/accounting` and `#/deals/:id/funding`. The new pages are `?v=receipts`, `?v=disbursements`, `?v=balances`, and `?v=balancing` on the accounting page that already exists.
+- The figures are the test ledger the file already has. Nothing is read from a bank, and nothing is written to TEST or production.
+
+---
+
 ## Title production numbers flow (Qualia scenario, QFLOW-1)
 
 **How it should work.** A processor opens a file and enters the contract, the loan, the deposit, the agent fees, the payoffs, the fees and the tax proration once. Every figure then lands where Qualia puts it: the fee ledger, the Closing Disclosure summaries (K, L, M, N), cash to close, the ALTA statement and the balance check. One fixed purchase, entered by Claude on Qualia's own test file on Nov 15 2026, is the standard: price $100,000, loan $50,000, deposit $5,000, 1% listing commission, payoff $40,000, buyer fees $2,375, seller fees $700, county tax $3,650 a year with a July 1 settlement. Qualia's answers: cash to close $45,550.00, paid out to others $44,075.00, balanced. Outside connections (CPL, final policy, e-recording, bank accounts) are not part of this.
@@ -1160,6 +1189,41 @@ This file lists the portal's major features: how each one should work, how far a
 - Save the document answers on the calculated fee. No new database file.
 - A saved worksheet wins the next time the screen opens, so a deed of trust marked not a principal residence stays that way. The file's answers are the starting point when nothing has been saved.
 - Use the county list from REC-CALC-6 (PR 296, merged). A county in Maryland, Virginia, Florida, or the District of Columbia that is not named on a rate row of its own is still calculated, on the statewide rates.
+- A blank county was treated as a missing address. That is FF-095.
+
+---
+
+## Taxes and fees address (FF-095)
+
+**How it should work.** On Taxes & Fees, a file that already has a street, city, and ZIP should not be told to add the property address. Calculate uses the county saved on the file. Baltimore City and Baltimore County stay different. When the county is blank, the ZIP fills it if that ZIP is in the file's state. When the ZIP belongs to another state, the screen says so and does not invent a fee.
+
+**Status: In review.** Tracker FF-095. Francis Santos, email Nov 17 2026, 2:12 PM ET (Gmail message 1a1eaed436b0de49), signed in as Processor 2 on TEST. High, bug. Not Live. No database file.
+
+**What's built**
+
+- The red address message shows only when the street, the city, or the ZIP is missing. A blank county is no longer called a missing address.
+- A saved county is used as a name. "Baltimore City" prices Baltimore City. "Baltimore County" prices Baltimore County. ZIP 21223, with the county left blank, is Baltimore City.
+- When the city is Baltimore City and there is no ZIP, that city is the county.
+- MD-26-97407 (street and ZIP filled, county blank, state Maryland, ZIP 33319) is told that ZIP 33319 is in Broward County, Florida, and to set the state to FL or pick the county. No Maryland fee is invented.
+- MD-26-97386 already stores Baltimore City. Calculate still returns the recording fees and the taxes. The totals are not left at $0.00.
+
+**What's still missing**
+
+- The county found from the ZIP is not written back onto the file.
+- The state is not changed to match a ZIP from another state.
+- Not checked on TEST. Not Live.
+
+**Links**
+
+- Spec: [docs/specs/taxes-fees-address.md](docs/specs/taxes-fees-address.md)
+- Source: Francis Santos, Nov 17 2026, 2:12 PM ET, message 1a1eaed436b0de49. Tracker FF-095. The Taxes & Fees screen is FF-091.
+
+**Decisions**
+
+- County stays a name. There is no county id to translate.
+- A saved county wins over the ZIP and the city.
+- A ZIP in another state is explained. The calculator does not switch the file to that state.
+- No database file. Processors can already read the address columns. The rates stay in the vendored calculator.
 
 ---
 
@@ -1414,7 +1478,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On Import Leads, Import Clients, and Import Notes, Preview shows one plain sentence and a reason on every row. If the preview call fails, the screen still shows those rows. It does not replace them with one generic failure. Nothing is saved by a preview.
 
-**Status: In progress.** Tracker row CRM-201. John Coester confirmed this on Nov 17 2026 as CRM import fix 5 of 5. Pull request 139 (closed, not merged, Nov 12 2026) was the earlier attempt to stop the preview error from becoming a server error. Not Live until the portal lead applies `supabase/migrations/20261125110000_crm_import_preview_row_errors.sql` on TEST and someone checks a preview there.
+**Status: In progress.** Tracker row CRM-201. John Coester confirmed this on Nov 17 2026 as CRM import fix 5 of 5. Pull request 139 (closed, not merged, Nov 12 2026) was the earlier attempt to stop the preview error from becoming a server error. The lead reported on Nov 17 2026 that `supabase/migrations/20261125110000_crm_import_preview_row_errors.sql` is applied on TEST. Not Live until someone checks a preview there.
 
 **What's built**
 
@@ -1424,8 +1488,8 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Not on TEST until the database file is applied there and someone previews a file. Do not mark Live before that.
-- The import page, the shell, and the hosted CRM module load at `202611242290`, which is above main's `202611242270`, so a browser fetches the new screen. Files this change does not edit stay at main's stamp.
+- The lead reported the database file is on TEST. Live still waits for a person to preview a file there. Do not mark Live before that.
+- The import page, the shell, and the hosted CRM module load at `202611242290`.
 
 **Links**
 
@@ -1435,4 +1499,61 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - Return the preview as data instead of raising P0004. A P0004 on one row during a preview is kept on that row. A commit still re-raises it, so one assert still rolls that chunk back.
-- Do not add a per-row helper, and do not change the lead email lookup.
+- Do not add a per-row helper. The chosen lead for a note stays the same. How that lookup runs is the speed follow-up below.
+
+---
+
+## CRM import note match speed
+
+**How it should work.** On Import Notes, Preview still attaches each note to the same lead or client as before. An open person wins over an archived one. If several are open, or none are, the earliest created date wins. The preview should come back quickly when the lead list is large, instead of looking through every lead once per note row.
+
+**Status: In progress.** No separate tracker row. The portal lead approved this as its own pull request on Nov 17 2026, after CRM-201 (PR 314). Not Live until the lead applies `supabase/migrations/20261125120000_crm_import_fast_lead_match.sql` on TEST. This pull request does not apply it.
+
+**What's built**
+
+- A note file matches every email in one pass. The tie-break is unchanged: open first, then the earliest created date. On a local scratch database with 110,000 leads, a 500-row note preview went from about 15 seconds to under half a second.
+- An index on the lower-case email, then that same tie-break, for leads and for clients. The migration creates it if it is missing. On TEST it should be built outside a transaction first so writes are not blocked.
+- The person duplicate check is unchanged. It already uses the open-email index and the phone index.
+
+**What's still missing**
+
+- Not on TEST until the lead applies the database file. Do not mark Live before that.
+- A people preview still inserts one person at a time. This change does not make that path set-based.
+
+**Links**
+
+- Spec: [docs/specs/crm-import-fast-lead-match.md](docs/specs/crm-import-fast-lead-match.md)
+- Builds on: [docs/specs/crm-import-preview-rows.md](docs/specs/crm-import-preview-rows.md)
+
+**Decisions**
+
+- Keep the chosen person exactly the same. Do not add a per-row helper. Do not change policies on deals, tasks, or profiles.
+- Do not build the index with CONCURRENTLY inside the migration file. That statement cannot run inside a transaction. The file tells the lead to build it concurrently first, then run the file.
+
+## Salespeople on Place Order (FF-092)
+
+**How it should work.** On Place Order, Team & Notes, "Salespeople on this order" is a search box. Type a name or a role, pick one or more people, and each chosen person shows as a chip with Remove. The order saves the same salesperson ids as the old checkbox list. Who can be picked does not change.
+
+**Status: In review.** Tracker item FF-092 (Medium). Francis Santos, Nov 17 2026, 1:37 PM ET (Gmail message 1a1eacd7648484d9). Pull request: [PR 322](https://github.com/Johncoester/cla-portal-demo/pull/322). No database file. Not Live until someone checks it on TEST.
+
+**What's built**
+
+- The checkbox list is a search box. Arrow keys, Enter, and a click pick a person. Chosen people are chips. Remove takes one person off.
+- A name that is not on the list says to try another name. If this login has no salespeople, the box says none are available.
+- Add new user still adds an existing active salesperson, and a new salesperson login is still created in HR. Only an Admin sees that role.
+- A draft in this browser keeps every chosen person.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- The Users page still links a client to salespeople with checkboxes. That screen was not part of this request.
+
+**Links**
+
+- Spec: [docs/specs/place-order-salespeople.md](docs/specs/place-order-salespeople.md)
+- Pull request: [PR 322](https://github.com/Johncoester/cla-portal-demo/pull/322)
+
+**Decisions**
+
+- No database change. The saved field is still salesIds.
+- The search list is the same people the checkbox list showed.

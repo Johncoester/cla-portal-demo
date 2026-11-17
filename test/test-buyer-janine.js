@@ -58,7 +58,9 @@ ok(/from\('documents'\)\.insert\(row\)/.test(staffJs) && !/from\('documents'\)\.
 const overview = src('js/data/supabase-order-overview.js');
 ok(overview.includes("rpc('request_update'"), 'hosted Ask for an update calls request_update');
 const order = src('js/pages/ordernew.js');
-ok(order.includes('Salespeople on this order') && order.includes('type="checkbox" name="salesIds"'), 'Place Order salespeople are checkboxes with a matching label');
+ok(order.includes('Salespeople on this order') && order.includes('salesMultiHtml') && !order.includes('type="checkbox" name="salesIds"'), 'Place Order salespeople are a search box, not a checkbox list');
+const salesPicker = src('js/pages/sales-multi.js');
+ok(salesPicker.includes('role="combobox"') && salesPicker.includes('name="salesIds"') && salesPicker.includes('aria-label="Remove') && salesPicker.includes('No salespeople are available for this login.'), 'the search box saves salesIds, chips can be removed, and an empty list still says so');
 const sql = src('supabase/migrations/20261112060200_buyer_task_holder.sql');
 ok(sql.includes('owner_profile_id is null') && sql.includes('rpc_save_party_ssn'), 'a blank task owner can still save the form and the Social Security number');
 

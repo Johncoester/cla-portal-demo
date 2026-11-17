@@ -6,6 +6,7 @@ import {
   proposeFees, diffProposal, previewView, defaultRecordingDocs, RECORDING_DOCS, calcTypeOf, countyOf, countyIsKnown,
   COUNTY_UNKNOWN, CALC_STATES, NO_OO, calculatorCore as C, isCalculated, isOverridden
 } from './fee-engine.js?v=202611241600';
+import { addressOnFile, textField, zipCounties } from './fee-place.js?v=202611242400';
 
 export const TAX_DOC_TYPES = ['Affidavit', 'Assignment of Mortgage or Lease', 'Deed', 'Deed of Trust', 'Lis Pendens', 'Power of Attorney', 'Release of Mortgage', 'UCC', 'Lease', 'Easement'];
 const CALC_DOC = { Deed: 'Deed', 'Deed of Trust': 'Deed of Trust', 'Release of Mortgage': 'Release', 'Power of Attorney': 'Power of Attorney' };
@@ -86,7 +87,66 @@ export function savedWorksheet(fees) {
   return f ? f.calc.inputs.taxDocs : null;
 }
 
+/* "Baltimore City" stays the city. "Baltimore" and "Baltimore County" stay the county. A saved county wins.
+ * A blank county uses the ZIP when that ZIP is in the file's state, then the city when the city is itself a county. */
+export function locateForFees(deal, R) {
+  const street = textField(deal, 'street');
+  const city = textField(deal, 'city');
+  const state = textField(deal, 'state').toUpperCase();
+  const zip = textField(deal, 'zip');
+  const savedCounty = textField(deal, 'county');
+  let county = savedCounty;
+  let countyFrom = savedCounty ? 'file' : '';
+  const hits = zip ? zipCounties(zip) : [];
+  const same = state ? hits.find((h) => h.state === state) : null;
+  const otherHit = hits.find((h) => h.primary) || hits[0] || null;
+  if (!county && same && countyIsKnown(R, { state, county: same.county })) {
+    county = countyOf(R, { state, county: same.county });
+    countyFrom = 'zip';
+  }
+  // A ZIP in another state means the address does not agree with the file. Do not guess the county from the city.
+  const zipDisagrees = !!(otherHit && state && otherHit.state !== state && !same);
+  if (!county && !zipDisagrees && city && state && countyIsKnown(R, { state, county: city })) {
+    county = countyOf(R, { state, county: city });
+    countyFrom = 'city';
+  }
+  const other = !county && zipDisagrees ? otherHit : null;
+  return {
+    deal: { ...(deal || {}), street, city, state: state || textField(deal, 'state'), zip, county },
+    addressOnFile: addressOnFile({ street, city, zip }),
+    savedCounty, countyFrom,
+    other: other && other.state !== state ? other : null
+  };
+}
+
+export function placeLabel(county, state) {
+  const name = String(county || '').trim();
+  const shown = /city$/i.test(name) || /^district of columbia$/i.test(name) ? name : (name ? name + ' County' : '');
+  return [shown, String(state || '').trim()].filter(Boolean).join(', ');
+}
+
+export function countyGapReason(place) {
+  const state = (place.deal && place.deal.state) || 'this file';
+  const zip = place.deal && place.deal.zip;
+  if (place.other) return `The property address is on the file, but the county is blank. ZIP ${zip} is in ${placeLabel(place.other.county, place.other.state)}, and this file is in ${state}. Set the state to ${place.other.state} or pick the county, then calculate again.`;
+  return 'The property address is on the file, but the county is blank. Pick the county on the file, then calculate again.';
+}
+
+function countyNote(place) {
+  if (!place || place.countyFrom === 'file' || !place.deal || !place.deal.county) return '';
+  const where = placeLabel(place.deal.county, place.deal.state);
+  if (place.countyFrom === 'zip') return `The county was blank on the file. ZIP ${place.deal.zip} is in ${where}, so these fees use that county.`;
+  if (place.countyFrom === 'city') return `The county was blank on the file. The city is ${place.deal.city}, so these fees use ${where}.`;
+  return '';
+}
+
+function unknownReason(place) {
+  return place.addressOnFile && !place.savedCounty ? countyGapReason(place) : COUNTY_UNKNOWN;
+}
+
 export function taxesFeesSetup(deal, fees, R, rate) {
+  const place = locateForFees(deal, R);
+  deal = place.deal;
   const state = String((deal && deal.state) || '').toUpperCase();
   const type = calcTypeOf(deal || {});
   const asks = exemptionAsks(R, deal || {});
@@ -101,11 +161,12 @@ export function taxesFeesSetup(deal, fees, R, rate) {
     payoff, assessed, showPayoff: type === 'refi', showAssessed: state === 'VA' && type !== 'refi',
     fromOrder: { occ: deal && deal.primaryResidence ? deal.primaryResidence : '', fthb: deal && deal.firstTimeBuyer ? deal.firstTimeBuyer : '' },
     rateNote: rate && rate.note ? rate.note : '',
+    countyNote: '',
     source: rate && rate.source ? { label: rate.source.label || '', snapshot: rate.source.snapshot || '' } : null
   };
   if (!CALC_STATES.includes(state)) return { ...base, reason: `CLA rates cover MD, VA, DC and FL only (this order is in ${state || 'no state'}).` };
-  if (!countyIsKnown(R, deal || {})) return { ...base, reason: COUNTY_UNKNOWN };
-  return { ...base, covered: true, county: countyOf(R, deal || {}) };
+  if (!countyIsKnown(R, deal || {})) return { ...base, reason: unknownReason(place) };
+  return { ...base, covered: true, county: countyOf(R, deal || {}), countyNote: countyNote(place) };
 }
 
 export function worksheetProblem(raw, deal) {
@@ -244,6 +305,9 @@ function readyDeal(deal, documents) {
 
 export function proposeTaxesFees(deal, worksheet, R, source) {
   if (!deal) throw new Error('Order not found.');
+  const place = locateForFees(deal, R);
+  deal = place.deal;
+  if (!countyIsKnown(R, deal)) throw new Error(unknownReason(place));
   const asks = exemptionAsks(R, deal);
   const raw = worksheet && Array.isArray(worksheet.documents) ? worksheet : { documents: defaultDocuments(deal, asks), payoff: 0, assessed: 0 };
   const clean = cleanWorksheet(raw, deal, asks);
