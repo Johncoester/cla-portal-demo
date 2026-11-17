@@ -1325,7 +1325,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On CRM Leads, Import Leads is the first button and uses the main button style. Import Notes is the quieter button after it. On CRM Clients, Import Clients is first and Import Notes is second. Import Leads opens the lead import. Import Clients opens the client import. Import Notes opens notes for that list. People were opening Import Notes by mistake because that button was first.
 
-**Status: In progress.** Tracker row CRM-IMPORT-1. John Coester confirmed this on Nov 17, 2026 (CRM import fix 1 of 5). Pull request: [PR 312](https://github.com/Johncoester/cla-portal-demo/pull/312). Not merged. Not on TEST. Not Live. No database file.
+**Status: In progress.** Tracker row CRM-IMPORT-1. John Coester confirmed this on Nov 17, 2026 (CRM import fix 1 of 5). Pull request: [PR 312](https://github.com/Johncoester/cla-portal-demo/pull/312). Merged. Not Live until an admin checks Leads and Clients on TEST. No database file.
 
 **What's built**
 
@@ -1335,8 +1335,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Not on TEST until this pull request is merged and an admin checks Leads and Clients. Do not mark Live before that.
-- The other CRM import fixes (2 through 5) are separate.
+- A check on TEST. Do not mark Live before that.
 - Companies still have no import button.
 
 **Links**
@@ -1348,3 +1347,32 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Import Leads and Import Clients are the main action. Import Notes stays available, after them.
 - Only an Admin or Super admin sees the buttons, same as before.
+
+---
+
+## CRM import preview row reasons (CRM-201)
+
+**How it should work.** On Import Leads, Import Clients, and Import Notes, Preview shows one plain sentence and a reason on every row. If the preview call fails, the screen still shows those rows. It does not replace them with one generic failure. Nothing is saved by a preview.
+
+**Status: In progress.** Tracker row CRM-201. John Coester confirmed this on Nov 17 2026 as CRM import fix 5 of 5. Pull request 139 (closed, not merged, Nov 12 2026) was the earlier attempt to stop the preview error from becoming a server error. Not Live until the portal lead applies `supabase/migrations/20261125110000_crm_import_preview_row_errors.sql` on TEST and someone checks a preview there.
+
+**What's built**
+
+- A finished preview returns each row (ready, duplicate, or the reason it needs a fix) and the sentence "Nothing was saved. Each row shows whether it is ready, a duplicate, or what to fix." The preview writes are rolled back inside the call.
+- If the preview call fails and the row details are missing, each row that was sent says why, in plain words, and the same kind of sentence is shown above the list. A timeout is retried once, then described in plain words. Rows already checked stay on the screen.
+- The import page shows that sentence above the row table.
+
+**What's still missing**
+
+- Not on TEST until the database file is applied there and someone previews a file. Do not mark Live before that.
+- The import page, the shell, and the hosted CRM module load at `202611242270`, which is above main's `202611242220`, so a browser fetches the new screen. Files this change does not edit stay at main's stamp.
+
+**Links**
+
+- Spec: [docs/specs/crm-import-preview-rows.md](docs/specs/crm-import-preview-rows.md)
+- Earlier attempt: [PR 139](https://github.com/Johncoester/cla-portal-demo/pull/139)
+
+**Decisions**
+
+- Return the preview as data instead of raising P0004. A P0004 on one row during a preview is kept on that row. A commit still re-raises it, so one assert still rolls that chunk back.
+- Do not add a per-row helper, and do not change the lead email lookup.
