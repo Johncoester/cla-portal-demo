@@ -38,4 +38,4 @@ No database file is added or applied. The import rules for what counts as a dupl
 
 The earlier-imports table still lists rows on screen. It does not download this CSV.
 
-The helper that builds this CSV is loaded at cache stamp 202611242050. The import page's own stamp is unchanged, because the portal shell also loads that page and this fix does not edit the shell. After the change is on TEST, reload the import page if an old copy is still showing.
+The helper that builds this CSV, and the import page that downloads it, are loaded at cache stamp 202611242050. The shell and the CRM pages request that page at the new stamp, so a saved copy of the old page is not used.

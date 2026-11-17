@@ -578,7 +578,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Not checked on TEST yet. The import page's own cache stamp was left as it is, because the portal shell also loads that page and this fix does not edit the shell. After it is on TEST, reload the import page if the download still leaves duplicates out.
+- Not checked on TEST yet. The import page is now loaded at cache stamp 202611242050, including from the portal shell, so a saved copy of the old page is not used.
 - The earlier-imports list still opens a table of rows. It does not download this CSV.
 
 **Links**
