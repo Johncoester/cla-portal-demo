@@ -832,7 +832,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing**
 
 - Not checked on TEST yet. Not Live until the database file is applied on TEST.
-- The brokerage has no separate phone, email, or address. Switching the company does not remove brokers already on the file.
+- The brokerage contact name, phone, email, and address are FF-090, not this item. Switching the company does not remove brokers already on the file.
 
 **Links**
 
@@ -842,7 +842,39 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - A broker is a lender contact marked Mortgage Broker, not a new role on the file. That keeps file access the same.
-- The brokerage stays the company name already stored on the order.
+- The brokerage stays the company name already stored on the order. Contact name, phone, email, and address are FF-090.
+
+---
+
+## Mortgage brokerage contact (FF-090)
+
+**How it should work.** Mortgage Brokerage on the file shows the brokerage company and its contact: name, phone, email, and address. Staff pick a saved broker or type one. The values stay on the file. The Settlement Statement and Closing Disclosure page 5 show that broker.
+
+**Status: In progress.** Tracker row 326 (FF-090). Francis Santos, email Nov 16 2026, 3:10 PM ET (Gmail msg 1a1e5fbfe4183a9f). Medium. Pull request: [PR 305](https://github.com/Johncoester/cla-portal-demo/pull/305). Not Live. The database file is not applied on TEST.
+
+**What's built**
+
+- Mortgage Brokerage shows the company, contact name, phone, email, and address.
+- Edit opens those fields. A saved-broker list works like the lender list: pick a person or a company, or type them. Save keeps the values on the file and can add the person as a mortgage broker.
+- A blank company name, a phone that is not 10 digits, or an email that is not valid is pointed out, and what was typed stays.
+- Someone who cannot edit the file sees the contact and no buttons. A buyer or a salesperson cannot save a change.
+- Place Order asks for the same fields. They are optional.
+- The Settlement Statement header names the mortgage broker. Closing Disclosure page 5, Mortgage Broker column, shows the company, address, contact, email, and phone.
+
+**What's still missing**
+
+- Not checked on TEST. Not Live until `supabase/migrations/20261124130000_brokerage_contact.sql` is applied on TEST and someone checks it there.
+- NMLS and license numbers for the mortgage broker are not collected.
+
+**Links**
+
+- Spec: [docs/specs/brokerage-contact.md](docs/specs/brokerage-contact.md)
+- Source: Francis Santos, Nov 16 2026, 3:10 PM ET. Tracker row 326.
+
+**Decisions**
+
+- The contact is stored on the file, the same way the lender contact is. A saved person can be picked. The address stays on the file because contacts do not keep an address.
+- The company name already stored for FF-053 is the Name on the CD. A name typed only in CD details still shows when the file has no company.
 
 ---
 
