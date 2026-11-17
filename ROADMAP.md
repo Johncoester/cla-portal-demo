@@ -1411,7 +1411,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** In Accounting, the section that was called Contract Figures is named Basic Info. It shows Sales price, Loan amount, Closing date, Disbursement date, and Source of business. How it was obtained, Source for this figure, Seller credit, the second Earnest money block, Warranty, HOA, Condo, Deferred, and Historical tax are not on that screen. The stored values stay, so other screens that already use them keep working.
 
-**Status: In progress.** Tracker FF-094. Francis Santos, email Nov 17 2026, 1:37 PM ET (Gmail message 1a1eacd7648484d9), item 3. Medium. Not Live. No database file. Not applied on TEST.
+**Status: In progress.** Tracker FF-094. Francis Santos, email Nov 17 2026, 1:37 PM ET (Gmail message 1a1eacd7648484d9), item 3. Medium. Pull request: [PR 321](https://github.com/Johncoester/cla-portal-demo/pull/321). Not Live. No database file. Not applied on TEST.
 
 **What's built**
 
@@ -1427,6 +1427,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/accounting-basic-info.md](docs/specs/accounting-basic-info.md)
+- Pull request: [PR 321](https://github.com/Johncoester/cla-portal-demo/pull/321)
 
 **Decisions**
 
