@@ -43,8 +43,8 @@ ok(html.indexOf('Listing Agent Commission') >= 0 && html.indexOf('Selling Agent 
 ok(html.includes('data-agent-fee-side="listing"') && html.includes('data-agent-fee-side="buyer"'), 'the selling agent panel is the buyer-agent side');
 ok(html.includes('$28,500') && html.includes('paid by Seller') && html.includes('split: buyer $9,000, seller $10,000'), 'each panel shows its commission amount and who pays it');
 const form = toText(formHtml('listing', listing, { price: 950000 }));
-ok(form.includes('Commission base') && form.includes('Commission %') && form.includes('Additional amount') && form.includes('Commission amount') && form.includes('>Split<'),
-  'the edit form has the commission base, the percent, the additional amount, the commission amount, and Split');
+ok(form.includes('Commission base') && form.includes('Commission %') && form.includes('Additional amount') && form.includes('Commission amount') && form.includes('Commission Paid By') && form.includes('>Split<'),
+  'the edit form has the commission base, the percent, the additional amount, the commission amount, Commission Paid By, and Split');
 ok(form.includes('name="commissionPercent"') && form.includes('value="3"') && form.includes('value="28500.00"'), 'a saved 3% / $28,500 stays in the form');
 ok(PANEL_TITLE.listing === 'Listing Agent Commission' && PANEL_TITLE.buyer === 'Selling Agent Commission', 'the panel names are the ones Francis confirmed');
 ok(toText(sideHtml('buyer', selling, 'read')).includes('Selling Agent Commission') && !toText(sideHtml('buyer', selling, 'read')).includes('>Edit<'),

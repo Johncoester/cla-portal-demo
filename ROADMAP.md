@@ -866,7 +866,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing**
 
 - Not checked on TEST yet. Not Live until the database file is applied on TEST.
-- The brokerage has no separate phone, email, or address. Switching the company does not remove brokers already on the file.
+- The brokerage contact name, phone, email, and address are FF-090, not this item. Switching the company does not remove brokers already on the file.
 
 **Links**
 
@@ -876,7 +876,39 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - A broker is a lender contact marked Mortgage Broker, not a new role on the file. That keeps file access the same.
-- The brokerage stays the company name already stored on the order.
+- The brokerage stays the company name already stored on the order. Contact name, phone, email, and address are FF-090.
+
+---
+
+## Mortgage brokerage contact (FF-090)
+
+**How it should work.** Mortgage Brokerage on the file shows the brokerage company and its contact: name, phone, email, and address. Staff pick a saved broker or type one. The values stay on the file. The Settlement Statement and Closing Disclosure page 5 show that broker.
+
+**Status: In progress.** Tracker row 326 (FF-090). Francis Santos, email Nov 16 2026, 3:10 PM ET (Gmail msg 1a1e5fbfe4183a9f). Medium. Pull request: [PR 305](https://github.com/Johncoester/cla-portal-demo/pull/305). Not Live. The database file is not applied on TEST.
+
+**What's built**
+
+- Mortgage Brokerage shows the company, contact name, phone, email, and address.
+- Edit opens those fields. A saved-broker list works like the lender list: pick a person or a company, or type them. Save keeps the values on the file and can add the person as a mortgage broker.
+- A blank company name, a phone that is not 10 digits, or an email that is not valid is pointed out, and what was typed stays.
+- Someone who cannot edit the file sees the contact and no buttons. A buyer or a salesperson cannot save a change.
+- Place Order asks for the same fields. They are optional.
+- The Settlement Statement header names the mortgage broker. Closing Disclosure page 5, Mortgage Broker column, shows the company, address, contact, email, and phone.
+
+**What's still missing**
+
+- Not checked on TEST. Not Live until `supabase/migrations/20261124130000_brokerage_contact.sql` is applied on TEST and someone checks it there.
+- NMLS and license numbers for the mortgage broker are not collected.
+
+**Links**
+
+- Spec: [docs/specs/brokerage-contact.md](docs/specs/brokerage-contact.md)
+- Source: Francis Santos, Nov 16 2026, 3:10 PM ET. Tracker row 326.
+
+**Decisions**
+
+- The contact is stored on the file, the same way the lender contact is. A saved person can be picked. The address stays on the file because contacts do not keep an address.
+- The company name already stored for FF-053 is the Name on the CD. A name typed only in CD details still shows when the file has no company.
 
 ---
 
@@ -946,7 +978,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A brand-new database should build the CRM the way TEST did on November 2: the accounts, leads, pipeline, and activities, plus the feature flag. The scratch setup should not create those tables first, or the history file would leave them in the old shape.
 
-**Status: In progress.** John Coester, Nov 15 2026, 5:23 PM ET (t1737u), Nov 16 2026, 10:46 AM ET (t1768u), Nov 16 2026, about 12:24 PM ET, and Nov 16 2026, 3:38 PM ET. Seven history statements match TEST. The clean load and the column comparison both pass. Nothing is applied to TEST. Not Live.
+**Status: In progress.** John Coester, Nov 15 2026, 5:23 PM ET (t1737u), Nov 16 2026, 10:46 AM ET (t1768u), Nov 16 2026, about 12:24 PM ET, and Nov 16 2026, 3:38 PM ET. Seven history statements match TEST. The clean load and the column comparison both pass. Pull request: [PR 293](https://github.com/Johncoester/cla-portal-demo/pull/293), merged. Nothing is applied to TEST. Not Live.
 
 **What's built**
 
@@ -958,7 +990,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Nothing in the column list. This is not merged and nothing is applied to TEST, so it is not Live.
+- Nothing in the column list. PR 293 is merged. Nothing is applied to TEST, so it is not Live.
 
 **Links**
 
@@ -971,6 +1003,67 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Taxes and fees documents (FF-091)
+
+**How it should work.** On Taxes & Fees, the processor adds each document to record, fills in pages, consideration, taxable, and the exemptions that county uses, and calculates the recording fees, recordation tax, and transfer tax. Each line shows who it is paid to and who pays it. The lines land on the charges, the settlement statement, and the Closing Disclosure. A purchase starts with a deed and, when there is a loan, a deed of trust. A refinance starts with a deed of trust and, when there is a payoff, a release.
+
+**Status: In progress.** FF-091. Francis Santos, Nov 16 2026, 3:10 PM ET (message 1a1e5fbfe4183a9f). Not Live. No database file. Not applied on TEST.
+
+**What's built**
+
+- Add document lists Affidavit, Assignment of Mortgage or Lease, Deed, Deed of Trust, Lis Pendens, Power of Attorney, Release of Mortgage, UCC, Lease, and Easement.
+- Each document has pages, consideration, and taxable yes or no. Maryland and the District of Columbia ask primary residence, and a purchase asks first-time buyer, because those change the tax. Virginia and Florida do not ask, because they do not change the result. The file's primary residence and first-time buyer answers fill a new worksheet.
+- Calculate fees uses the existing CLA calculator, including the full county list from REC-CALC-6 (PR 296, merged). A county without its own rows uses the statewide rates. It does not keep a second rate table. Apply writes the recording fees, the lien certificate, and the transfer and recordation taxes. Title premiums stay as they are. A line changed by hand is kept.
+- A document the rate sheet does not price (an affidavit, a UCC, and the other four) is allowed. The screen says there is no fee for it and does not invent one.
+- Samples checked against the calculator: Baltimore City, Fairfax, the District of Columbia, Miami-Dade, Hillsborough (statewide Florida rates), and a Maryland refinance.
+
+**What's still missing**
+
+- The Qualia question about recording the security instrument at the same time as the deed is not on the rate sheet, so it is not shown.
+- The e-recording fee still comes from Calculate fees from CLA rates on the Fee ledger.
+- Not checked on TEST. Not Live.
+
+**Links**
+
+- Spec: [docs/specs/taxes-fees-documents.md](docs/specs/taxes-fees-documents.md)
+- Source: Francis Santos, Nov 16 2026, 3:10 PM ET, message 1a1e5fbfe4183a9f. Tracker FF-091.
+
+**Decisions**
+
+- Reuse the vendored calculator. Do not copy the rate tables.
+- Save the document answers on the calculated fee. No new database file.
+- A saved worksheet wins the next time the screen opens, so a deed of trust marked not a principal residence stays that way. The file's answers are the starting point when nothing has been saved.
+- Use the county list from REC-CALC-6 (PR 296, merged). A county in Maryland, Virginia, Florida, or the District of Columbia that is not named on a rate row of its own is still calculated, on the statewide rates.
+
+---
+
+## Commission Paid By (FF-089)
+
+**How it should work.** On Place Order, under Earnest money & agent fees, the listing agent and the selling agent each have Commission Paid By: Buyer, Seller, or Split. Split asks for the buyer's share and the seller's share, and the two amounts must add up to the commission. That commission then shows on the buyer side, the seller side, or both, on the settlement statement and the Closing Disclosure.
+
+**Status: In review.** Tracker row 325 (FF-089). Francis Santos, email Nov 16 2026, 3:10 PM ET, Processor 2, TEST file MD-26-97386. Pull request: [PR 300](https://github.com/Johncoester/cla-portal-demo/pull/300). Not applied to TEST. Not Live.
+
+**What's built**
+
+- Earnest money & agent fees shows Commission Paid By on the listing agent and on the buyer's agent (the selling agent). Buyer, Seller, and Split. Split shows the two shares.
+- The choice is saved in the Agent fees records that already exist (`payer`, `split_buyer`, `split_seller`). Accounting, the settlement statement, and CD section H already use those amounts.
+- A blank share, a share that is not a number, or two shares that do not add up to the commission stays on the form and says what to fix.
+- The Agent fees edit window on the file uses the same label, Commission Paid By.
+
+**What's still missing**
+
+- Not on TEST yet. Not Live.
+- A split, or a commission with its own base, is still not rewritten when the sales price changes.
+
+**Links**
+
+- Spec: [docs/specs/commission-paid-by.md](docs/specs/commission-paid-by.md)
+- Source: Francis Santos, Nov 16 2026, 3:10 PM ET, msg 1a1e5fbfe4183a9f. Tracker row 325 (FF-089).
+
+**Decisions**
+
+- Paid by was left off the Place Order screen. It was not hidden. PR 285 put Buyer, Seller, and Split on the Agent fees box (a different screen, after the file exists). PR 287 did not change that screen.
+- No new columns. The same payer and split amounts are reused. No database file.
 ## Who can own a CRM record (CRM-OWNER-1)
 
 **How it should work.** On Admin, then User List, then Edit user, an Admin or Super admin can tick **Can own CRM records** for that person. It starts off for everyone, including admins. A ticked person, whatever their role, can be chosen as the owner of a lead, client, company, or deal, in Change owner, and in a spreadsheet import. Someone who is not ticked is not in those lists. A record that already names them still shows their name. Who can open the CRM does not change.

@@ -5,9 +5,9 @@
 // Every line is still ONE fee on the same ledger (accounting.js), so the ALTA, the CD pages, prorations and CLA rates keep working.
 // TEST ONLY. Wire instructions (bank routing / account numbers) are NEVER stored: the Wire block is a reminder only.
 import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611161500';
-import { splitFor } from '../data/underwriter.js?v=202611223100';
-import { cdDescription } from '../data/accounting.js?v=202611223100';
-import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611161500';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
+import { splitFor } from '../data/underwriter.js?v=202611241600';
+import { cdDescription } from '../data/accounting.js?v=202611241500';
+import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611241500';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
 import * as Q from '../data/qualia-charges.js?v=202611223000';
 import { modOn } from '../data/modules.js?v=202611101015';   // live40: Payoffs / HOA switch
 
@@ -43,7 +43,7 @@ const HELP = {
   A: ['Origination Charges', 'Fees the lender charges to make the loan. A.01 "% of Loan Amount (Points)": the Loan Amount % is precalculated from the A.01 amount ÷ the loan amount (whole numbers show no decimals, otherwise 3).'],
   B: ['Did Not Shop For', 'Services the borrower could not shop for (picked by the lender), e.g. the flood certification. Listed alphabetically (TRID).'],
   C: ['Did Shop For', 'Services the borrower shopped for. Title lines start with "Title -" and are alphabetical. Edit Premium Line opens the CLA-rates premium options; Send Title Charges to B moves the title lines to B when the borrower used the lender\'s list.'],
-  E: ['Taxes & Fees', 'E.01 is ONE line for every recording fee ("Recording fees: Deed: $60.00 Mortgage: $60.00"); recordation and transfer taxes follow as their own lines. Don\'t confuse recording fees with recordation taxes.'],
+  E: ['Taxes & Fees', 'Add each document, then Calculate fees. Recording fees share line E.01 ("Recording fees: Deed: $60.00 Mortgage: $115.00"). Recordation and transfer taxes are their own lines. You can type over a calculated amount.'],
   F: ['Prepaids', 'Items paid in advance: homeowner\'s insurance (# of months), mortgage insurance, prepaid interest (per diem × days, From Date defaults to the disbursement date) and property taxes.'],
   G: ['Escrow', 'Initial escrow payment: $ per month × # of months. G.08 Aggregate adjustment is typed as a positive amount and shows negative on the CD. Compare with the lender\'s escrow analysis. Usually Net Funded.'],
   H: ['Other Charges', 'Home warranty, agent admin fees and commissions, inspections, the owner\'s title policy (optional), holdbacks such as a water escrow.'],
@@ -57,13 +57,123 @@ export function helpRail(sec) {
     <div class="qc-help-card qc-help-over" data-qc-help-over><h5><span class="qc-dot over"></span>User Override</h5><p>Orange values were typed over a calculated value. Clear the field (×) to go back to the calculated value. Every change is logged.</p></div></aside>`;
 }
 
+// ---------------- Taxes & Fees documents (FF-091) ----------------
+const taxChoice = (flag, on, label) => html`<div><span class="small">${label}</span><div class="seg" data-tax-flag="${flag}" role="group" aria-label="${label}"><button type="button" class="seg-btn ${on ? 'on' : ''}" data-tax-choice="yes">Yes</button><button type="button" class="seg-btn ${on ? '' : 'on'}" data-tax-choice="no">No</button></div></div>`;
+function taxDocCard(d, asks) {
+  const occ = !!(asks && asks.occ) && (d.type === 'Deed' || d.type === 'Deed of Trust');
+  const fthb = !!(asks && asks.fthb) && d.type === 'Deed';
+  const money = d.consideration === '' || d.consideration == null ? '' : Number(d.consideration).toFixed(2);
+  return html`<div class="card" data-tax-doc="${d.type}"><div class="acct-card-head"><h3>${d.type}</h3><button type="button" class="ghost small" data-tax-remove>Remove</button></div>
+    <div class="form-grid">
+      <label>Number of pages<input data-tax-pages inputmode="numeric" value="${d.pages ?? ''}" aria-label="${d.type}, number of pages" autocomplete="off"></label>
+      <label>Consideration amount<input data-tax-consideration data-money inputmode="decimal" value="${money}" placeholder="0.00" aria-label="${d.type}, consideration" autocomplete="off"></label>
+      ${taxChoice('taxable', d.taxable !== false, 'Taxable?')}
+      ${occ ? taxChoice('occ', d.occ !== false, 'Primary residence / owner-occupied?') : ''}
+      ${fthb ? taxChoice('fthb', d.fthb === true, 'First-time buyer?') : ''}
+    </div>
+    ${occ && asks.occNote ? html`<p class="field-hint small">${asks.occNote}</p>` : ''}${fthb && asks.fthbNote ? html`<p class="field-hint small">${asks.fthbNote}</p>` : ''}</div>`;
+}
+function taxFeesPanel(setup) {
+  if (!setup) return '';
+  if (!setup.covered) return html`<div class="card" data-tax-fees><h3>Taxes &amp; fees</h3><p class="notice warn" data-tax-not-ready>${setup.reason}</p></div>`;
+  const left = setup.types.filter((t) => !setup.documents.some((d) => d.type === t));
+  return html`<div class="card acct-calc" data-tax-fees><div class="acct-card-head"><h3>Taxes &amp; fees</h3><span class="muted small">${setup.county ? setup.county + ', ' : ''}${setup.state}</span></div>
+    <p class="small muted">Add each document to record. Calculate fees prices the recording fees, recordation tax, and transfer tax for this county. Nothing is saved until you apply the lines. A line you changed by hand is kept.</p>
+    ${setup.rateNote ? html`<p class="small" data-tax-rate>${setup.rateNote}</p>` : ''}
+    <div class="acct-toolbar"><label class="small">Add document <select data-tax-add-type aria-label="Add document">${left.length ? left.map((t) => html`<option value="${t}">${t}</option>`) : html`<option value="">All documents are added</option>`}</select></label>
+      <button type="button" class="m-btn" data-tax-add ${dis(!left.length)}>Add document</button></div>
+    <div class="card-grid" data-tax-cards>${setup.documents.map((d) => taxDocCard(d, setup.asks))}</div>
+    ${setup.showPayoff ? html`<label class="small">Payoff of the existing loan<input data-tax-payoff data-money inputmode="decimal" value="${setup.payoff ? Number(setup.payoff).toFixed(2) : ''}" placeholder="0.00" aria-label="Payoff of the existing loan" autocomplete="off"><span class="field-hint">Recordation tax on a refinance is figured on the new money: the loan minus this payoff.</span></label>` : ''}
+    ${setup.showAssessed ? html`<label class="small">Assessed value <span class="muted">(if higher than the price)</span><input data-tax-assessed data-money inputmode="decimal" value="${setup.assessed ? Number(setup.assessed).toFixed(2) : ''}" placeholder="0.00" aria-label="Assessed value" autocomplete="off"></label>` : ''}
+    <p class="notice warn small" data-tax-error hidden></p>
+    <div class="acct-form-actions"><button type="button" class="m-btn" data-tax-calc>Calculate fees</button><span class="muted small">You see the breakdown first. Nothing is saved until you apply it.</span></div>
+    <div data-tax-result></div></div>`;
+}
+function taxBreakdown(view, refi) {
+  const cols = refi ? [['borrowerAt', 'At Closing'], ['borrowerBefore', 'Before Closing'], ['others', 'By Others']] : [['borrowerAt', 'At Closing'], ['borrowerBefore', 'Before Closing'], ['sellerAt', 'At Closing'], ['sellerBefore', 'Before Closing'], ['others', 'By Others']];
+  const cell = (n) => (n ? usd(n) : '');
+  const tot = (k) => view.breakdown.reduce((t, r) => t + Math.round((Number(r[k]) || 0) * 100), 0) / 100;
+  const n = view.counts || {};
+  return html`<div data-tax-breakdown>
+    <p class="small" data-tax-counts>${n.new || 0} new, ${n.changed || 0} changed, ${n.unchanged || 0} unchanged${n.overridden ? `, ${n.overridden} kept because they were changed by hand` : ''}.</p>
+    ${view.warnings && view.warnings.length ? html`<div class="notice warn small" data-tax-warnings>${view.warnings.map((w) => html`<div>${w}</div>`)}</div>` : ''}
+    ${view.retire && view.retire.length ? html`<p class="small" data-tax-retire>These lines will come off the charges because those documents are no longer included: ${view.retire.map((r) => r.description).join(', ')}. A line you changed by hand stays.</p>` : ''}
+    ${view.breakdown.length ? html`<div class="qc-table-wrap"><table class="qc-table" data-tax-table><thead>
+      <tr><th rowspan="2">Description</th><th rowspan="2">Payee</th><th colspan="2" class="center">Paid by Borrower</th>${refi ? '' : html`<th colspan="2" class="center">Paid by Seller</th>`}<th rowspan="2" class="num">By Others</th></tr>
+      <tr><th class="num">At Closing</th><th class="num">Before Closing</th>${refi ? '' : html`<th class="num">At Closing</th><th class="num">Before Closing</th>`}</tr></thead>
+      <tbody>${view.breakdown.map((r) => html`<tr data-tax-line="${r.key}"><td><strong>${r.description}</strong>${r.status === 'overridden' ? html` <span class="pill warn">Kept</span>` : ''}<div class="small muted">${r.calculation || ''}</div></td><td class="small">${r.payee ? 'to ' + r.payee : ''}</td>${cols.map(([k]) => html`<td class="num">${cell(r[k])}</td>`)}</tr>`)}</tbody>
+      <tfoot><tr class="qc-totals"><td><strong>TOTALS</strong></td><td></td>${cols.map(([k]) => html`<td class="num"><strong>${usd(tot(k))}</strong></td>`)}</tr></tfoot></table></div>` : html`<p class="small">No recording fees or transfer taxes came back for these documents.</p>`}
+    ${view.examples && view.examples.length ? html`<label class="check small"><input type="checkbox" data-tax-examples checked> Also retire ${view.examples.length} example fee${view.examples.length === 1 ? '' : 's'} these replace</label>` : ''}
+    <div class="acct-form-actions"><button type="button" class="m-btn" data-tax-apply>Apply to charges</button><span class="muted small">The lines go on the charges, the settlement statement, and the Closing Disclosure. Title premiums are left as they are.</span></div></div>`;
+}
+function mountTaxFees(root, ctx, refresh) {
+  const box = $('[data-tax-fees]', root); if (!box || !ctx.taxSetup || !ctx.taxSetup.covered) return;
+  const { api, deal, acc } = ctx; const setup = ctx.taxSetup;
+  const flag = (card, name) => { const g = $(`[data-tax-flag="${name}"]`, card); if (!g) return name === 'fthb' ? false : true; const on = $('.on', g); return !on || on.dataset.taxChoice !== 'no'; };
+  const read = () => ({
+    documents: $$('[data-tax-doc]', box).map((card) => ({ type: card.dataset.taxDoc, pages: $('[data-tax-pages]', card).value, consideration: $('[data-tax-consideration]', card).value, taxable: flag(card, 'taxable'), occ: flag(card, 'occ'), fthb: flag(card, 'fthb') })),
+    payoff: $('[data-tax-payoff]', box) ? $('[data-tax-payoff]', box).value : 0,
+    assessed: $('[data-tax-assessed]', box) ? $('[data-tax-assessed]', box).value : 0
+  });
+  const showError = (message, field, type) => {
+    const el = $('[data-tax-error]', box); el.hidden = !message; el.textContent = message || '';
+    $$('[aria-invalid]', box).forEach((n) => n.removeAttribute('aria-invalid'));
+    if (!message) return;
+    const scope = type ? $(`[data-tax-doc="${CSS.escape(type)}"]`, box) : box;
+    const input = field === 'pages' ? $('[data-tax-pages]', scope) : field === 'consideration' ? $('[data-tax-consideration]', scope) : field === 'payoff' ? $('[data-tax-payoff]', box) : field === 'assessed' ? $('[data-tax-assessed]', box) : null;
+    if (input) { input.setAttribute('aria-invalid', 'true'); input.focus(); }
+  };
+  const paint = (worksheet) => {
+    $('[data-tax-cards]', box).innerHTML = toText(html`${worksheet.documents.map((d) => taxDocCard(d, setup.asks))}`);
+    wire();
+    const left = setup.types.filter((t) => !worksheet.documents.some((d) => d.type === t));
+    $('[data-tax-add-type]', box).innerHTML = toText(left.length ? html`${left.map((t) => html`<option value="${t}">${t}</option>`)}` : html`<option value="">All documents are added</option>`);
+    $('[data-tax-add]', box).disabled = !left.length;
+  };
+  const wire = () => {
+    $$('[data-tax-flag]', box).forEach((g) => $$('[data-tax-choice]', g).forEach((b) => b.addEventListener('click', () => { $$('[data-tax-choice]', g).forEach((x) => x.classList.toggle('on', x === b)); })));
+    $$('[data-tax-remove]', box).forEach((b) => b.addEventListener('click', () => { const type = b.closest('[data-tax-doc]').dataset.taxDoc; const now = read(); now.documents = now.documents.filter((d) => d.type !== type); paint(now); }));
+  };
+  wire();
+  $('[data-tax-add]', box).addEventListener('click', () => {
+    const type = $('[data-tax-add-type]', box).value;
+    if (!type) { showError('Pick a document from the list.', 'add'); return; }
+    const now = read();
+    if (now.documents.some((d) => d.type === type)) { showError('That document is already added. Remove it before adding it again.', 'add'); return; }
+    const fileOcc = setup.fromOrder && setup.fromOrder.occ === 'no' ? false : true;
+    const fileFthb = !!(setup.fromOrder && setup.fromOrder.fthb === 'yes');
+    const consideration = type === 'Deed' ? (deal.purchasePrice || '') : type === 'Deed of Trust' ? (deal.loanAmount || '') : '';
+    now.documents.push({ type, pages: type === 'Deed of Trust' ? 30 : 3, consideration, taxable: type === 'Deed' || type === 'Deed of Trust', occ: fileOcc, fthb: type === 'Deed' && fileFthb });
+    showError(''); paint(now);
+  });
+  $('[data-tax-calc]', box).addEventListener('click', guard(async () => {
+    const worksheet = read(); showError('');
+    try {
+      const view = await api.previewTaxesFees(deal.id, worksheet);
+      const out = $('[data-tax-result]', box); out.innerHTML = toText(taxBreakdown(view, acc.refi));
+      const btn = $('[data-tax-apply]', out); const ex = $('[data-tax-examples]', out);
+      const count = () => { const n = view.applicable + (ex && ex.checked ? view.examples.length : 0); btn.textContent = n ? `Apply ${n} change${n === 1 ? '' : 's'}` : 'Nothing to apply'; btn.disabled = !n; };
+      if (ex) ex.addEventListener('change', count); count();
+      btn.addEventListener('click', guard(async () => { btn.disabled = true; try {
+        const r = await api.applyTaxesFees(deal.id, worksheet, { token: view.token, retireExamples: !!(ex && ex.checked) });
+        toast(`Taxes and fees applied: ${r.added} added, ${r.updated} updated, ${r.retired + r.examplesRetired} retired${r.kept ? `, ${r.kept} kept` : ''}.`); refresh();
+      } finally { btn.disabled = false; } }));
+    } catch (e) { showError(e.message, e.field, e.docType); $('[data-tax-result]', box).innerHTML = ''; }
+  }));
+}
+
 // ---------------- the Charges page ----------------
 export async function chargesView(api, deal, acc, q, base) {
   const sec = Q.QC_KEYS.includes(q.get('s')) ? q.get('s') : 'A'; const [, chip, , title, kind] = Q.qcSection(sec);
   const [cd, cdRec, uwRows, extraPayees] = await Promise.all([api.getClosingDisclosure(deal.id), api.getAccountingCd ? api.getAccountingCd(deal.id).catch(() => null) : null,
     api.listUnderwriterSplits ? api.listUnderwriterSplits().then((r) => r.rows, () => null) : null, api.listPayoffPayees ? api.listPayoffPayees(deal.id).catch(() => []) : []]);
   const uw = uwRows ? splitFor(uwRows, deal.state) : null; const uwSplitPct = uw && uw.pct != null ? Number(uw.pct) : null;
-  const details = (cdRec && cdRec.details) || {}; const ctx = { api, deal, acc, cd, details, base, sec, uwSplitPct, canEdit: acc.canEdit, extraPayees };
+  let taxSetup = null;
+  if (sec === 'E' && acc.canEdit && api.getTaxesFeesSetup) {
+    try { taxSetup = await api.getTaxesFeesSetup(deal.id); }
+    catch (e) { taxSetup = { covered: false, reason: e.message || 'Taxes and fees could not be opened. Reload the page and try again.' }; }
+  }
+  const details = (cdRec && cdRec.details) || {}; const ctx = { api, deal, acc, cd, details, base, sec, uwSplitPct, canEdit: acc.canEdit, extraPayees, taxSetup };
   const head = html`<div class="qc-page-head"><span class="qc-chip big">${chip}</span><h3 data-qc-title>${title}</h3><span class="spacer"></span>
     ${kind === 'fee' && acc.canEdit ? html`<div class="qc-head-btns"><button type="button" class="ghost small" disabled data-qc-extract title="Qualia reads the lender's CD with AI. Not in the test portal.">Extract From CD</button>
       <button type="button" class="ghost small" data-qc-sort>Sort Lines</button><button type="button" class="ghost small qc-sq" data-qc-minus title="Clear the selected line" aria-label="Clear the selected line">&ndash;</button><button type="button" class="ghost small qc-sq" data-qc-plus title="Add a line" aria-label="Add a line">+</button></div>` : ''}</div>`;
@@ -105,9 +215,9 @@ function feeSection(ctx) {
   const titleBtns = canEdit && (sec === 'C' || sec === 'H') ? html`<div class="qc-under-btns acct-noprint"><a class="ghost small btn-like" href="${base}?v=ledger&calc=1" data-qc-edit-premium>Edit Premium Line</a>
     <button type="button" class="ghost small" data-qc-adjust>Adjust Allocations</button>${sec === 'C' ? html`<button type="button" class="ghost small" data-qc-send-b>Send Title Charges to B</button>` : ''}</div>` : '';
   const payees = html`<datalist id="qc-payees">${Q.standardPayees(deal, ctx.extraPayees).map((p) => html`<option value="${p.name}">${p.role}</option>`)}</datalist>`;
-  const body = html`${banner}${table}${titleBtns}${payees}${sec === 'H' && modOn('payoffs') ? hoaGrPanel(ctx) : ''}<div class="qc-panels" data-qc-panels><div data-qc-settings></div><div data-qc-payments></div></div>
+  const body = html`${sec === 'E' ? taxFeesPanel(ctx.taxSetup) : ''}${banner}${table}${titleBtns}${payees}${sec === 'H' && modOn('payoffs') ? hoaGrPanel(ctx) : ''}<div class="qc-panels" data-qc-panels><div data-qc-settings></div><div data-qc-payments></div></div>
     <p class="muted small qc-foot">Click a line to see its Settings and Payments. Type in a cell and press Enter (or leave the cell) to save: every change is logged. Lines are never deleted: Clear retires a line (kept in the edit history).</p>`;
-  return { body, mount: (root, refresh) => mountFees(root, refresh, { ...ctx, rows, byLine, loan }) };
+  return { body, mount: (root, refresh) => { mountFees(root, refresh, { ...ctx, rows, byLine, loan }); mountTaxFees(root, ctx, refresh); } };
 }
 
 const CELL_SIDE = { borrowerAt: 'buyer', borrowerBefore: 'buyer', sellerAt: 'seller', sellerBefore: 'seller' };

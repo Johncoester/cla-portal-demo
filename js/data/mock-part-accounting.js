@@ -4,7 +4,7 @@
  * Sales Person / Sales Team read the orders they can see; Transaction Coordinators, agents and clients get nothing.
  * Every add / edit / retire / restore is logged in d.accountingLog (who, when, field, old, new). Fees are RETIRED, never deleted. */
 import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, acctCanRead, acctCanEdit, cleanFee, feeChanges, allEntries, ledgerTotals,
-  altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration } from './accounting.js?v=202611223100';
+  altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration } from './accounting.js?v=202611241500';
 import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractChanges, contractMismatch, assertContractPersisted, CONTRACT_NOT_SAVED } from './contract-terms.js?v=202611191700';
 import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611223000';
 // Caroline Kim, Nov 4 2026: prorations from the settlement date, the rest of the CD (details, prepaids F, initial escrow G), TCs read-only.
@@ -12,7 +12,8 @@ import { cleanCdDetails, cdDetailChanges, prepaidEscrowLines, cdcalcFeeInput, di
 const PRORATION_VIA = 'Settlement date change (prorations re-saved)';
 // CLA RATES (John, Nov 3): the fee engine (+ the vendored calculator code and rate tables) is loaded only when a CLA-rate method is called,
 // so with the flag off it is never loaded at all.
-const engine = () => import('./fee-engine.js?v=202611241000');
+const engine = () => import('./fee-engine.js?v=202611241600');
+const taxes = () => import('./taxes-fees.js?v=202611241700');
 const VIA = 'CLA rates';
 
 // accountingCd (Caroline, Nov 4): one record of manual Closing Disclosure entries per order; added lazily, so the storage key stays v26
@@ -82,6 +83,23 @@ export function accountingPart(x, flags) {
         else if (row.status === 'retire') { retire(u, feeOf(row.current.id), VIA + ' (no longer calculated for this order)'); r.retired++; }
       }
       if (retireExamples) for (const x of D.examples) { const f = feeOf(x.id); if (!f.retired) { retire(u, f, VIA + ' (EXAMPLE fee replaced)'); r.examplesRetired++; } }
+      save(); return r; },
+    // FF-091: recording fees and transfer / recordation taxes from the Taxes & Fees documents. Title premiums are not touched.
+    async getTaxesFeesSetup(dealId) { const { deal } = editor(dealId); const E = await engine(); const T = await taxes(); const d = forCalc(deal); const rates = await E.loadCalculatorRates(); return clone(T.taxesFeesSetup(d, feesOf(dealId), rates.tables, rates)); },
+    async previewTaxesFees(dealId, worksheet) { const { deal } = editor(dealId); const E = await engine(); const T = await taxes(); const d = forCalc(deal); const rates = await E.loadCalculatorRates(); return clone(T.previewTaxesFees(d, worksheet, feesOf(dealId), rates.tables, rates.source)); },
+    async applyTaxesFees(dealId, worksheet, { token = null, retireExamples = true } = {}) {
+      const { u, deal } = editor(dealId); const E = await engine(); const T = await taxes(); const d = forCalc(deal); const rates = await E.loadCalculatorRates();
+      const P = T.proposeTaxesFees(d, worksheet, rates.tables, rates.source); const D = T.diffTaxesFees(P, feesOf(dealId));
+      if (token && token !== D.token) fail('The fee ledger or the order changed since the preview. Preview again before applying.');
+      const at = now(); const via = 'Taxes & fees'; const r = { added: 0, updated: 0, retired: 0, examplesRetired: 0, kept: D.counts.overridden, unchanged: D.counts.unchanged, skipped: D.counts.retired };
+      for (const row of D.rows) {
+        if (row.status === 'new') { const f = addCalculated(E, u, deal, row.proposed, P, {}, at); T.attachTaxDocs(f.calc, P); const last = db().accountingLog[db().accountingLog.length - 1]; if (last && last.feeId === f.id) last.via = via; r.added++; }
+        else if (row.status === 'changed') { const f = feeOf(row.current.id); const clean = cleanFee(E.feeInput(row.proposed), deal, f); const next = T.attachTaxDocs(E.calcBlock(row.proposed, P, at), P);
+          const changes = feeChanges(f, clean); if (f.calc.calculation !== next.calculation) changes.push({ field: 'calculation', old: f.calc.calculation, new: next.calculation });
+          Object.assign(f, clean, { calc: next, updatedAt: at, updatedBy: u.id }); logIt(u, f, 'edited', changes, via); r.updated++; }
+        else if (row.status === 'retire') { retire(u, feeOf(row.current.id), via + ' (no longer calculated for this order)'); r.retired++; }
+      }
+      if (retireExamples) for (const x of D.examples) { const f = feeOf(x.id); if (!f.retired) { retire(u, f, via + ' (example fee replaced)'); r.examplesRetired++; } }
       save(); return r; },
     async updateAccountingFee(id, patch) {
       on(); const f = feeOf(id); const { u, deal } = editor(f.dealId); if (f.retired) fail('This fee is retired. Restore it before editing.');
