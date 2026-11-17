@@ -178,7 +178,40 @@ This file lists the portal's major features: how each one should work, how far a
 - The reset link uses the current portal address; the Auth redirect list is John's setting, not changed by a pull request.
 - Janine confirmed FF-073c/d/e on Nov 13 at 10:43 AM ET (YES to John's 9:08 AM list). John decided at 1:30 PM ET Nov 13 that a new invite is sent automatically when a buyer, seller or agent email changes (not a Resend button).
 - John, Nov 14 2026 (t1667u): opening a used invite goes straight to Sign in. The Nov 13 "already used" message page is retired. The sign-in page still fills in the invited email. A person who is already signed in is sent to their home by the existing sign-in rule, without checking that the signed-in email matches the invite. Invalid, expired and revoked links still stay on the explanation page.
+- TEST-FIX-1 (John, Nov 17 2026): the demo pending invite and the demo expired invite are dated from today, 7 days ahead and 1 day ago. A fixed calendar date was going stale, and the test then treated a still-pending invite as expired. What the test checks did not change.
 - Sharing with someone who has no portal login invites them and holds the files until they sign in (John, Nov 13, by voice: option B). Only a buyer, seller, buyer agent or listing agent on the file can be invited this way. Wire instructions are never held. Someone who already has a pending invite is not emailed a second link.
+
+---
+
+## Demo invite dates stay ahead of today (TEST-FIX-1)
+
+**How it should work.** The sample pending invite stays pending, and the sample expired invite stays expired, on any day the tests run. A calendar date printed in the fixture must not decide that.
+
+**Status: In review.** Tracker item TEST-FIX-1. John Coester, Nov 17 2026. Not Live. No database file. Nothing on testportal.clatitle.com changes, because TEST reads invites from the database, not from this sample list.
+
+**What's built**
+
+- Lena's sample invite (the pending one the sign-in test opens) expires 7 days from the moment the sample data is built.
+- Evan's sample invite (the expired one) expired 1 day before that moment. The page still says the link expired and still offers sign in.
+- Eli's sample HR invite stays pending the same way, and Ezra's sample HR invite stays expired the same way. Eli's old date was 17 November 2026 at 13:00 UTC, which had already passed.
+- Two email samples that carried an expiry inside the next 30 days (23 November 2026 and 20 November 2026) now use 7 days from today. Those samples are only text. The checks on the subject, the welcome line, and "not sent" are unchanged.
+
+**What's still missing**
+
+- Not merged. Not applied anywhere, and there is nothing to apply: no database file.
+- A browser that already saved the old demo list keeps that old list until its saved demo data is cleared. A fresh visit builds the new dates.
+
+**Links**
+
+- Spec: [docs/specs/test-fix-1.md](docs/specs/test-fix-1.md)
+- Source: John Coester, Nov 17 2026. Tracker item TEST-FIX-1. No video.
+
+**Decisions**
+
+- The date went stale. The behavior under test is unchanged: a pending invite still opens the setup form, and an expired invite still explains itself. Rule 5.
+- Accepted sample invites keep their old dates. Those rows are already accepted, so the expiry date does not change what the person sees.
+- Closing dates, task due dates, and the sample payoff good-through date (27 November 2026) stay as written. They are not an invite expiry, and the payoff's interest amount was figured for that fixed period.
+- No SQL was applied. No secrets. The shell cache stamp stays 202611242010. The two sample-data files moved to 202611242100 so a cached copy of the old list is not reused.
 
 ---
 
