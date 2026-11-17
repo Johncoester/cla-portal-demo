@@ -1469,3 +1469,32 @@ This file lists the portal's major features: how each one should work, how far a
 
 - No database change. The saved field is still salesIds.
 - The search list is the same people the checkbox list showed.
+
+---
+
+## Aggregate adjustment (FF-096)
+
+**How it should work.** On Escrow, line 08 Aggregate adjustment, an amount typed as -$1,200, ($1,200), or $1,200 comes off the section total. It also comes off the borrower's totals, the Closing Disclosure, the settlement statement, and the fee ledger.
+
+**Status: In progress.** FF-096. Francis Santos, email Nov 17 2026, 2:20 PM ET (Gmail message 1a1eaf4ac2ad6496), Processor 2 on TEST. Not Live. No database file. Not applied on TEST.
+
+**What's built**
+
+- Escrow line 08 accepts a minus sign, parentheses, or a dollar amount. The line is stored as a positive borrower charge that lowers the total.
+- Homeowner's insurance $1,368.00 plus property taxes $3,568.00 minus an aggregate adjustment of $1,200.00 totals $3,736.00. The same $1,200.00 comes off the borrower's debits, cash to close, the Closing Disclosure, and the settlement statement.
+- A blank amount or $0.00 clears the adjustment. A value that is not an amount stays on the screen and says how to type it.
+- Saving the description first and the amount second still lowers the total. That second save used to add the $1,200.00.
+
+**What's still missing**
+
+- Not checked on TEST. Do not mark Live before someone saves -$1,200 on Escrow line 08 and sees the total go down. The line already saved on TEST stays as it is until it is saved again.
+- Other fee lines still do not take a minus sign.
+
+**Links**
+
+- Spec: [docs/specs/aggregate-adjustment.md](docs/specs/aggregate-adjustment.md)
+
+**Decisions**
+
+- No database file. The line was already allowed to lower the total. The save was not marking it that way.
+- A positive amount on line 08 lowers the total too. That is the line for the aggregate adjustment.
