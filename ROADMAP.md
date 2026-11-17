@@ -564,6 +564,33 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## CRM import error CSV includes duplicates (CRM import fix 4 of 5)
+
+**How it should work.** After a preview or an import, Download error CSV lists every row that was not imported. A row that failed a check is still there, with the same message as before. A row skipped as a duplicate is there too, with a plain reason: either it repeats an earlier row in the file ("Duplicate within file, row 3") or it matches a lead or client already in the CRM ("Duplicate of existing lead: Robin Template / robin.template@example.test"). The button shows when there are errors or duplicates. A file whose every row is ready does not offer the download.
+
+**Status: In progress.** CRM import fix 4 of 5. John Coester confirmed this item. No database change. Not Live until this pull request is merged and someone tries a duplicate file on TEST.
+
+**What's built**
+
+- The error CSV keeps the row number, the original columns, and the message, and adds a Reason column.
+- Duplicate rows are included. A repeat of an earlier email, phone, or note in the same file names that row. Any other duplicate names the lead or client already on file.
+- Preview and the summary both offer the download when at least one row was skipped. The file is built in the browser in one pass, including a 10,000-row file. That helper is loaded at cache stamp 202611242050.
+
+**What's still missing**
+
+- Not checked on TEST yet. The import page's own cache stamp was left as it is, because the portal shell also loads that page and this fix does not edit the shell. After it is on TEST, reload the import page if the download still leaves duplicates out.
+- The earlier-imports list still opens a table of rows. It does not download this CSV.
+
+**Links**
+
+- Spec: [docs/specs/crm-import-error-csv.md](docs/specs/crm-import-error-csv.md)
+
+**Decisions**
+
+- John Coester confirmed CRM import fix 4 of 5. Client-side only. No SQL. Duplicate rows belong in the same error CSV as the other skipped rows.
+
+---
+
 ## Recording calculator county (REC-CALC-1)
 
 **How it should work.** On the Accounting tab, Calculate fees from CLA rates uses the order's county. If that county is not on CLA's rate list, the calculator stops and says so, in plain words, and it does not add fee lines. On Place Order and Edit order details, County is a list of the counties CLA has rates for in that state, so it cannot be typed wrong. A county already saved that is not on the list stays visible and is marked not matched until someone picks one that is.
