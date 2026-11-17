@@ -1,6 +1,7 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
 import { getAdapter } from './data/adapter.js?v=202611242050';
+import { importWithRetry } from './data/import-retry.js?v=202611242200';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611241900';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611101015';
@@ -33,40 +34,46 @@ document.addEventListener('input', (e) => { const el = e.target; if (!(el instan
 document.addEventListener('input', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) formatMoneyInput(el); });
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
+let fetchRoute = (load) => load();
+export function useRouteLoader(next) {
+  const prev = fetchRoute;
+  fetchRoute = typeof next === 'function' ? next : prev;
+  return () => { fetchRoute = prev; };
+}
+const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
-  login: () => import('./pages/entry.js?v=202611241900'),
-  dashboard: () => import('./pages/dashboard.js?v=202611241900'),
-  orders: () => import('./pages/orders.js?v=202611241000'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611223100'),
-  deal: () => import('./pages/deal.js?v=202611241900'),
-  users: () => import('./pages/users.js?v=202611161500'),
-  profile: () => import('./pages/profile.js?v=202611191600'),
-  'contact-us': () => import('./pages/contact.js?v=202611161500'),
-  teams: () => import('./pages/teams.js?v=202611161500'),
-  templates: () => import('./pages/templates.js?v=202611241900'),
-  'admin/templates': () => import('./pages/templates.js?v=202611241900'),
-  library: () => import('./pages/library.js?v=202611161500'),
-  activity: () => import('./pages/activity.js?v=202611161500'),
-  outbox: () => import('./pages/outbox.js?v=202611161500'),
-  tasks: () => import('./pages/tasks.js?v=202611241900'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
-  'task-grid': () => import('./pages/taskgrid.js?v=202611241500'),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
-  schedule: () => import('./pages/schedule.js?v=202611241900'),   // public closing-time link (no sign-in needed)
-  'schedule-party': () => import('./pages/schedule-party.js?v=202611241900'),   // MF-056 buyer / seller scheduling link (no sign-in)
-  crm: () => import('./pages/crm.js?v=202611242050'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
-  modules: () => import('./pages/modules.js?v=202611161500'),
-  'role-access': () => import('./pages/role-access.js?v=202611161500'),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
-  'agent-invites': () => import('./pages/agent-invites.js?v=202611191600'),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
-  'agent-invite': () => import('./pages/agent-signup.js?v=202611211100'),     // the agent's one-time setup link (no sign-in)
-  underwriters: () => import('./pages/underwriters.js?v=202611241600'),
-  hr: () => import('./pages/hr.js?v=202611191600'),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
-  'hr-invite': () => import('./pages/hr-invite.js?v=202611161500'),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
-  offices: () => import('./pages/offices.js?v=202611161500'),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
-  'admin/email-templates': () => import('./pages/email-templates.js?v=202611191600'),   // John, Nov 9: Admin > Email Templates (file Email tab)
-  'task-builder': () => import('./pages/task-builder.js?v=202611221100'),   // John, Nov 13: Admin > Task Builder (Admin / Super admin; TB-1 list of flows)
-  demo: () => import('./pages/demo-view.js?v=202611161500'),   // permanent Demo mode: Super admin views a seeded demo user
-  'voice-demo': () => import('./pages/voice-demo.js?v=202611161500'),   // signed-in Live Test only; the header Voice test panel is the test, this route is not a file
-  'staff-feedback': () => import('./pages/staff-feedback.js?v=202611161500'),
-};
+  login: () => loadRoute(() => import('./pages/entry.js?v=202611241900')),
+  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611241900')),
+  orders: () => loadRoute(() => import('./pages/orders.js?v=202611241000')),
+  'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611223100')),
+  deal: () => loadRoute(() => import('./pages/deal.js?v=202611241900')),
+  users: () => loadRoute(() => import('./pages/users.js?v=202611161500')),
+  profile: () => loadRoute(() => import('./pages/profile.js?v=202611191600')),
+  'contact-us': () => loadRoute(() => import('./pages/contact.js?v=202611161500')),
+  teams: () => loadRoute(() => import('./pages/teams.js?v=202611161500')),
+  templates: () => loadRoute(() => import('./pages/templates.js?v=202611241900')),
+  'admin/templates': () => loadRoute(() => import('./pages/templates.js?v=202611241900')),
+  library: () => loadRoute(() => import('./pages/library.js?v=202611161500')),
+  activity: () => loadRoute(() => import('./pages/activity.js?v=202611161500')),
+  outbox: () => loadRoute(() => import('./pages/outbox.js?v=202611161500')),
+  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611241900')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  'task-grid': () => loadRoute(() => import('./pages/taskgrid.js?v=202611241500')),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
+  schedule: () => loadRoute(() => import('./pages/schedule.js?v=202611241900')),   // public closing-time link (no sign-in needed)
+  'schedule-party': () => loadRoute(() => import('./pages/schedule-party.js?v=202611241900')),   // MF-056 buyer / seller scheduling link (no sign-in)
+  crm: () => loadRoute(() => import('./pages/crm.js?v=202611242050')),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  modules: () => loadRoute(() => import('./pages/modules.js?v=202611161500')),
+  'role-access': () => loadRoute(() => import('./pages/role-access.js?v=202611161500')),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
+  'agent-invites': () => loadRoute(() => import('./pages/agent-invites.js?v=202611191600')),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
+  'agent-invite': () => loadRoute(() => import('./pages/agent-signup.js?v=202611211100')),     // the agent's one-time setup link (no sign-in)
+  underwriters: () => loadRoute(() => import('./pages/underwriters.js?v=202611241600')),
+  hr: () => loadRoute(() => import('./pages/hr.js?v=202611191600')),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
+  'hr-invite': () => loadRoute(() => import('./pages/hr-invite.js?v=202611161500')),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
+  offices: () => loadRoute(() => import('./pages/offices.js?v=202611161500')),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
+  'admin/email-templates': () => loadRoute(() => import('./pages/email-templates.js?v=202611191600')),   // John, Nov 9: Admin > Email Templates (file Email tab)
+  'task-builder': () => loadRoute(() => import('./pages/task-builder.js?v=202611221100')),   // John, Nov 13: Admin > Task Builder (Admin / Super admin; TB-1 list of flows)
+  demo: () => loadRoute(() => import('./pages/demo-view.js?v=202611161500')),   // permanent Demo mode: Super admin views a seeded demo user
+  'voice-demo': () => loadRoute(() => import('./pages/voice-demo.js?v=202611161500')),   // signed-in Live Test only; the header Voice test panel is the test, this route is not a file
+  'staff-feedback': () => loadRoute(() => import('./pages/staff-feedback.js?v=202611161500')),};
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };
 const PUBLIC = new Set(['login', 'schedule', 'schedule-party', 'agent-invite', 'hr-invite']);
@@ -326,6 +333,34 @@ function showRouteLoading(root) {
   host.appendChild(note);
   if (view) { view.setAttribute('aria-busy', 'true'); markOpenFileTab(root); }
 }
+function showRouteLoadError(root) {
+  if (!root) return;
+  root.removeAttribute('aria-busy');
+  root.removeAttribute('data-route-loading');
+  root.removeAttribute('data-content-ready');
+  const view = root.querySelector('#view');
+  const host = view || root;
+  if (view) view.removeAttribute('aria-busy');
+  host.textContent = '';
+  const note = document.createElement('div');
+  note.className = 'dev-banner';
+  note.setAttribute('data-route-load-error', '');
+  note.setAttribute('role', 'alert');
+  note.style.display = 'block';
+  note.style.whiteSpace = 'normal';
+  const msg = document.createElement('p');
+  msg.style.margin = '0 0 8px';
+  msg.textContent = "This page didn't load. Check your connection and try again.";
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'm-btn';
+  btn.setAttribute('data-route-reload', '');
+  btn.textContent = 'Reload';
+  btn.addEventListener('click', () => location.reload());
+  note.appendChild(msg);
+  note.appendChild(btn);
+  host.appendChild(note);
+}
 function markOpenFileTab(root) {
   const route = parse();
   if (!route || route.page !== 'deal' || !route.params || !route.params.id) return;
@@ -392,6 +427,7 @@ export async function render() {
   const my = ++rendering;
   if (pageUnmount) { const stop = pageUnmount; pageUnmount = null; try { stop(); } catch (e) { /* the previous page already left */ } }
   applyTheme(); const root = $('#app'); showRouteLoading(root); await nextPaint(); if (my !== rendering) return;
+  try {
   const api = await getAdapter(); const route = parse(); closeModal();
   PORTAL_MODE = api.mode || 'mock';
   const authAt = api.authGeneration ? api.authGeneration() : null;
@@ -568,6 +604,10 @@ export async function render() {
   if (view.mount) view.mount($('#view') || root, { api, user: u, refresh: render, go });
   if (my !== rendering) { if (view.unmount) view.unmount(); return; }
   pageUnmount = view.unmount || null;
+  } catch {
+    if (my !== rendering) return;
+    showRouteLoadError(root);
+  }
 }
 // Nov 3 (b), Zoho video 7: CRM global search in the header (CLA staff with the CRM only; the module loads only then)
 const HEADER_SEARCH = `<div class="crm-global-search" data-global-search-wrap style="position:relative;display:inline-block;margin-right:10px"><input type="search" data-global-search placeholder="Search CRM (name, email, phone)" aria-label="Search the CRM" autocomplete="off" maxlength="100"><div data-global-search-dd hidden style="position:absolute;right:0;top:100%;z-index:50;background:#fff;color:#222;min-width:420px;max-height:70vh;overflow:auto;border:1px solid #ccc;padding:6px;text-align:left"></div></div><span data-crm-create-slot></span>`;
