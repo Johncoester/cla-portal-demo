@@ -201,6 +201,13 @@ ul.plain { list-style: none; margin: 0; padding: 0; } ul.plain li { padding: 8px
 .keybar div { display: flex; flex-direction: column-reverse; } .keybar span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; } .keybar strong { font-weight: 600; font-size: var(--fs-md); color: var(--navy-950); }
 .icon-edit { position: absolute; right: 10px; top: 10px; background: var(--navy-50); color: var(--navy-700); border: 1px solid var(--navy-200); border-radius: var(--r); width: 30px; height: 30px; cursor: pointer; font-size: 14px; } .icon-edit:hover { background: var(--navy-100); }
 .sum-grid, .ap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s4); margin-bottom: var(--s4); }
+.sched-side { display: flex; flex-direction: column; gap: var(--s3); min-width: 0; }
+.sched-agent { border: 1px solid var(--line); border-radius: var(--r); padding: var(--s4); background: var(--surface-2); display: flex; flex-direction: column; gap: var(--s3); }
+.sched-agent-lower { flex: 1 1 auto; min-height: 28rem; }
+.sched-agent-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s2); }
+.sched-agent-head h4 { margin: 0; }
+.sched-save { min-height: 1.25em; margin: 0; }
+@media (max-width: 700px) { .sched-agent-lower { min-height: 0; } .sched-agent-head { align-items: flex-start; } }
 .sum-card { border: 1px solid var(--line); background: var(--surface); border-radius: var(--r-lg); padding: var(--s3) var(--s4) var(--s4); margin: 0; min-height: 110px; box-shadow: var(--sh-1); }
 .sum-card legend { color: var(--navy-800); font-family: var(--font-head); font-size: var(--fs-md); font-weight: 600; padding: 0 8px; margin-left: -8px; background: var(--surface); }
 .sum-card .person + .person { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }

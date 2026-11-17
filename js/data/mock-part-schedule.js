@@ -5,7 +5,8 @@
  * The processor sees both answers on the file. */
 import { OFFICE_LOCATION, officeAddress } from './offices.js?v=202611101015';
 import { closingOfficeChoices, officeById, officeNameOf, officeRows } from './mock-part-offices.js?v=202611101015';
-import { cleanScheduleAnswers, schedulePatch, schedulingToldEmail, settlementAgentChoices, resolveSettlementAgent, INVITE_FROM, INVITE_FROM_NAME, schedulingFromDeal } from './scheduling-details.js?v=202611241900';
+import { cleanScheduleAnswers, schedulePatch, schedulingToldEmail, settlementAgentChoices, INVITE_FROM, INVITE_FROM_NAME, schedulingFromDeal } from './scheduling-details.js?v=202611241900';
+import { cleanSideAgent, reminderEmptyMessage, reminderMessage, reminderRecipients, sideAgentFromDeal, sideAgentPatch } from './scheduling-agent.js?v=202611242210';
 export function closingSchedule(x) {
   const { load, save, nid, me, needUser, needProcessor, dealOr404, onDeal, fileRole, log, nameOf, notify, dealProfileIds, prof, contactOf, clone, now, fail, str, C } = x;
   const SIDES = ['buyer', 'seller'];
@@ -131,17 +132,38 @@ export function closingSchedule(x) {
     async saveSettlementAgent(dealId, input = {}) {
       const u = needProcessor(); const d = load(); const deal = d.deals.find((z) => z.id === dealId) || fail('Order not found.');
       const choices = settlementAgentChoices(d.profiles || []);
-      let resolved;
-      try { resolved = resolveSettlementAgent(input.name, choices, input.profileId || null); }
+      const side = input.side === 'seller' ? 'seller' : 'buyer';
+      let clean;
+      try { clean = cleanSideAgent({ ...input, side }, choices); }
       catch (err) { fail(err.message); }
-      if (input.confirmed && !resolved.settlementAgentName) fail('Enter the settlement agent before confirming.');
       const kept = deal.closingDate; const closer = deal.closerName;
-      deal.settlementAgentName = resolved.settlementAgentName;
-      deal.settlementAgentProfileId = resolved.settlementAgentProfileId;
-      deal.settlementAgentConfirmed = !!input.confirmed && !!resolved.settlementAgentName;
+      Object.assign(deal, sideAgentPatch(clean));
       deal.closingDate = kept; deal.closerName = closer;
-      log(dealId, u.id, 'schedule.agent', 'deal', dealId, resolved.settlementAgentName ? `Settlement agent: ${resolved.settlementAgentName}` : 'Settlement agent cleared');
-      save(); return clone({ settlementAgentName: deal.settlementAgentName, settlementAgentConfirmed: deal.settlementAgentConfirmed });
+      log(dealId, u.id, 'schedule.agent', 'deal', dealId, clean.name ? `Settlement agent/notary (${side}): ${clean.name}` : `Settlement agent/notary cleared (${side})`);
+      save(); return clone(sideAgentFromDeal(deal, side));
+    },
+    async previewSchedulingReminder(dealId, side) {
+      const u = needProcessor(); onDeal(u, dealId); const d = load();
+      const parts = d.participants.filter((p) => p.dealId === dealId).map((p) => {
+        const c = d.contacts.find((z) => z.id === p.contactId) || {};
+        const pr = c.profileId ? (d.profiles || []).find((z) => z.id === c.profileId) : null;
+        return { ...p, removed: !!(pr && pr.status === 'removed'), contact: c };
+      });
+      return clone(reminderRecipients(parts, side));
+    },
+    async sendSchedulingReminder(dealId, side) {
+      const u = needProcessor(); const preview = await this.previewSchedulingReminder(dealId, side);
+      if (!preview.recipients.length) fail(reminderEmptyMessage(preview.side));
+      const d = load(); const deal = d.deals.find((z) => z.id === dealId) || fail('Order not found.');
+      const kept = deal.closingDate;
+      preview.recipients.forEach((r) => {
+        const mail = reminderMessage({ side: preview.side, firstName: r.name.split(' ')[0], deal });
+        d.outbox.push({ id: nid('ob'), channel: 'email', kind: 'scheduling', status: 'queued', sentAt: null, fromEmail: INVITE_FROM, fromName: INVITE_FROM_NAME, senderType: 'portal', toEmail: r.email, toName: r.name, toProfileId: r.profileId, subject: mail.subject, body: mail.body, dealId, createdBy: u.id, createdAt: now(), templateKey: 'scheduling_reminder' });
+      });
+      deal.closingDate = kept;
+      log(dealId, u.id, 'schedule.reminder', 'deal', dealId, `Settlement reminder emailed to the ${preview.side} side (${preview.recipients.length})`);
+      save();
+      return clone({ emailed: true, sent: preview.recipients.length, failed: [], recipients: preview.recipients.map((r) => ({ name: r.name, email: r.email, role: r.role })) });
     },
     async saveSchedulingNotes(dealId, notes) {
       const u = needProcessor(); const text = String(notes == null ? '' : notes);
