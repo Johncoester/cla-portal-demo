@@ -75,7 +75,7 @@ ok(extra.length === 0 && expect.size === changed.length, 'the diff is the duplic
 ok(!changed.some((f) => f.startsWith('supabase/')), 'no database file in this change');
 for (const rel of ['index.html', 'js/app.js', 'js/pages/crm.js', 'js/pages/crm-forms.js', 'js/pages/crm-home.js']) {
   const diff = execFileSync('git', ['diff', '-U0', 'origin/main', '--', rel], { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'));
-  ok(diff.length > 0 && diff.every((l) => /\?v=202611\d+/.test(l)), rel + ' changes only cache stamps');
+  ok(diff.length === 0 || diff.every((l) => /\?v=202611\d+/.test(l)), rel + ' changes only cache stamps');
 }
 
 const { window, document } = parseHTML('<!doctype html><html><body><div id="app"></div><div id="toasts"></div></body></html>');

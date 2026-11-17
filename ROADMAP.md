@@ -634,6 +634,32 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## CRM import phone and website checks (CRM-IMPORT-PHONE-WEB)
+
+**How it should work.** On Import Leads and Import Clients, Preview flags a Phone or Mobile that is not a 10-digit number. Eleven digits starting with 1 are accepted. A blank is fine. A web address with no http:// or https:// gets https:// in front when it is a real site. An address that is still not a web address is an error on that row, in plain words. Those rows are not imported.
+
+**Status: In review.** John Coester confirmed this Nov 17 2026 as CRM import fix 3 of 5. Pull request: [PR 313](https://github.com/Johncoester/cla-portal-demo/pull/313). Not Live. No database change. The preview already draws each row's message, so the check runs in the hosted import before the database call.
+
+**What's built**
+
+- A short Phone or Mobile is an error on that row, with a plain reason, and is not sent. A leading 1 on an 11-digit number is stored as 10 digits, like 301-555-0101.
+- A bare web address is sent with https:// in front, and the preview names the address it will save. An address that is not a site is a plain error on that row. A database check message is rewritten in plain words if one still comes back.
+
+**What's still missing**
+
+- Not checked on TEST yet. Import Notes does not use these fields.
+
+**Links**
+
+- Spec: [docs/specs/crm-import-phone-web.md](docs/specs/crm-import-phone-web.md)
+- Related pull requests: [PR 313](https://github.com/Johncoester/cla-portal-demo/pull/313).
+
+**Decisions**
+
+- John, Nov 17: do this in the import preview, with no database change. A bad phone is skipped. A bare web address gets https:// when it is a real site.
+
+---
+
 ## CRM import error CSV includes duplicates (CRM import fix 4 of 5)
 
 **How it should work.** After a preview or an import, Download error CSV lists every row that was not imported. A row that failed a check is still there, with the same message as before. A row skipped as a duplicate is there too, with a plain reason: either it repeats an earlier row in the file ("Duplicate within file, row 3") or it matches a lead or client already in the CRM ("Duplicate of existing lead: Robin Template / robin.template@example.test"). The button shows when there are errors or duplicates. A file whose every row is ready does not offer the download.
