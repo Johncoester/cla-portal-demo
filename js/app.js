@@ -4,6 +4,7 @@ import { getAdapter } from './data/adapter.js?v=202611242400';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611242400';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
+import { fileDatesHtml, fileDateCanEdit, mountFileDates } from './pages/file-dates.js?v=202611243200';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611130900';
 import { canManageRoleAccess } from './data/role-access.js?v=202611100100';
@@ -227,7 +228,7 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
       <h1 class="welcome-title" data-site-name="CLA Portal Live Test">Welcome ${u.firstName} ${u.lastName} to CLA Portal Live Test</h1>
       ${view.crumbs ? html`<ol class="breadcrumb"><li><a href="#${homeFor(u)}"><img src="assets/img/bread-home.png" alt="">Home</a></li>${view.crumbs.map(([label, href], i) => html`<li class="${i === view.crumbs.length - 1 ? 'active' : ''}">${href ? html`<a href="${href}">${label}</a>` : label}</li>`)}</ol>` : ''}
       ${demoBanner()}
-      ${deal && !view.noOrderHeader ? orderHeader(deal) : ''}${sideSearchOn && route.page === 'dashboard' ? homeSearch() : ''}
+      ${deal && !view.noOrderHeader ? orderHeader(deal, u) : ''}${sideSearchOn && route.page === 'dashboard' ? homeSearch() : ''}
       ${betaBanner(route)}
       ${agentCard ? (deal ? html`<div class="with-agent" data-with-agent><div id="view">${view.body}</div>${agentCard}</div>` : html`<div class="with-agent agent-inline" data-with-agent data-agent-inline>${agentCard}<div id="view">${view.body}</div></div>`) : html`<div id="view">${view.body}</div>`}
     </div>
@@ -294,14 +295,15 @@ function closingNavMeta(deal, show) {
 }
 // REDESIGN (John, Nov 3): the persistent order header on every tab of a file: Order #, progress badge, address, then type / dates / status.
 // Same data-order-header / data-progress-badge / .order-no hooks as before (the badge text is exactly the phase name).
-function orderHeader(deal) {
+function orderHeader(deal, user) {
   const ph = phaseOf(deal).badge;
   const price = deal.transactionType === 'Refinance' || deal.purchasePrice == null || deal.purchasePrice === '' ? '' : fmtMoney(deal.purchasePrice);
+  const canEdit = fileDateCanEdit(user, { demoLocked: !!(DEMO_VIEW && DEMO_VIEW.active) });
   return html`<div class="order-header" data-order-header>
     <div class="oh-top"><span class="order-no" data-op-order-no data-file-order>Order # ${deal.fileNumber}</span><span class="pill ${ph === 'Closed' ? '' : 'ok'}" data-progress-badge>${ph}</span>${deal.status && deal.status !== 'Open' ? html`<span class="pill warn" data-oh-status>${deal.status}</span>` : ''}</div>
     <strong class="oh-address" data-op-address data-file-address>${deal.street}, ${deal.city}, ${deal.state} ${deal.zip}</strong>
     <div class="oh-meta"><span>${deal.transactionType || 'Purchase'}${price ? html` &middot; Purchase <strong data-oh-purchase>${price}</strong>` : ''}${deal.fileTitle ? html` &middot; <strong data-oh-parties>${deal.fileTitle}</strong>` : ''}</span>${deal.openDate ? html`<span>Opened <strong>${fmtDate(deal.openDate)}</strong></span>` : ''}${deal.county ? html`<span>${deal.county} County</span>` : ''}</div>
-    <div class="oh-side"><span class="oh-big-label">Settlement date</span><span class="oh-big">${fmtDate(deal.closingDate) || 'Not set'}</span></div></div>`;
+    ${fileDatesHtml(deal, { canEdit })}</div>`;
 }
 
 let rendering = 0; let VIEW_AS = null; let DEMO_VIEW = null; let PORTAL_MODE = 'mock'; let demoTimer = null; let VOICE_OK = false; let voiceCheckedFor = '';
@@ -598,7 +600,7 @@ export async function render() {
   if (PUBLIC.has(route.page)) { stopVoiceNow(); root.innerHTML = toText(view.body); syncFeedback(u); }
   else { let shell; try { shell = await layout(u, view, route, ws, { unread: unreadP }); } catch (e) { if (replaced()) return; if (personMoved()) return render(); if (/sign in/i.test(e.message || '')) { stopVoiceNow(); location.hash = '#/login'; return; } throw e; }   // session ended mid-render
     if (!keepCurrent()) return;
-    root.innerHTML = toText(shell); wireChrome(u); }
+    root.innerHTML = toText(shell); wireChrome(u); mountFileDates(root, { api, deal: shellDeal, refresh: render }); }
   settle();
   document.title = (view.title ? view.title + ' | ' : '') + 'CLA Portal Live Test';
   if (view.mount) view.mount($('#view') || root, { api, user: u, refresh: render, go });
