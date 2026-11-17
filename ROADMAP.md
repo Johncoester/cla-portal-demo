@@ -1148,7 +1148,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On Import Leads, Import Clients, and Import Notes for either one, the upload card always says the accepted files (.csv, .xlsx, .xls) and the limits (2 MB, 10,000 rows), and that the file window leaves other types out. A file that is not accepted shows the reason in red on that card, and the reason stays until another file is chosen. The reasons are the wrong type, a file over 2 MB, more than 10,000 rows, an empty or unreadable file, and a missing required column.
 
-**Status: In progress.** CRM import fix 2 of 5. John Coester confirmed Nov 17 2026. No database file. Not Live until this is merged and someone tries a bad file on TEST.
+**Status: In progress.** CRM import fix 2 of 5. John Coester confirmed Nov 17 2026. Pull request: [PR 315](https://github.com/Johncoester/cla-portal-demo/pull/315). No database file. Not Live until this is merged and someone tries a bad file on TEST.
 
 **What's built**
 
@@ -1164,6 +1164,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/crm-import-file-errors.md](docs/specs/crm-import-file-errors.md)
+- [PR 315](https://github.com/Johncoester/cla-portal-demo/pull/315)
 
 **Decisions**
 
