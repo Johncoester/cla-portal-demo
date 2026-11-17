@@ -5,7 +5,7 @@ import { html, raw, $, $$, guard, toast, modal, closeModal, fmtDateTime, pill, t
 import { modOn } from '../data/modules.js?v=202611101015';   // module switches (combined nov3g)
 import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, toCsvText, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, importErrorCsv, saveImportResume, loadImportResume, IMPORT_RESUME_PREFIX } from '../data/crm-janine.js?v=202611101600';
 import { importFileHelpText, importFileKind, importFileRejectReason, importParsedFileError, importReadErrorMessage, importColumnGuess } from '../data/crm-import-file.js?v=202611242030';
-import { fopts } from './crm-custom.js?v=202611161500';
+import { fopts } from './crm-custom.js?v=202611242010';
 import { importStatusChoices } from '../data/nov5-rules.js?v=202611131900';
 import { crmReadOnly, companyKey } from '../data/crm.js?v=202611130900';
 import { US_STATES } from '../data/constants.js?v=202611101015';

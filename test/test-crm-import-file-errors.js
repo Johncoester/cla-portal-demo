@@ -73,7 +73,7 @@ ok(extra.length === 0 && expect.size === changed.length, 'only the CRM import fi
 ok(!changed.some((f) => f.startsWith('supabase/') || f === 'js/data/adapter.js' || f === 'index.html'), 'no migration, adapter, or index.html change');
 for (const rel of ['js/app.js', 'js/pages/crm.js', 'js/pages/crm-forms.js', 'js/pages/crm-home.js']) {
   const diff = execFileSync('git', ['diff', '-U0', 'origin/main', '--', rel], { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'));
-  ok(diff.length > 0 && diff.every((l) => /crm-janine\.js\?v=202611(221700|242030)/.test(l)), rel + ' changes only the import page stamp');
+  ok(diff.length > 0 && diff.every((l) => /crm-janine\.js\?v=202611(221700|242010|242030)/.test(l)), rel + ' changes only the import page stamp');
 }
 
 const { window, document } = parseHTML('<!doctype html><html><body><div id="app"></div><div id="toasts"></div></body></html>');
