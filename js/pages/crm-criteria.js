@@ -1,12 +1,12 @@
 /* crm-criteria.js : the filter rows used by dashboard components (Criteria) and reports (Filters): field, operator, value (date presets for date fields,
  * the picklist values for picklists, users for user fields). Rows are ANDed (dashboards) or AND / OR (reports). Function only. */
 import { html, raw, $, $$, toText } from '../ui.js?v=202611161500';
-import { opsFor, DATE_PRESETS, isDateType, NUMERIC } from '../data/crm-analytics.js?v=202611130900';
+import { opsFor, DATE_PRESETS, isDateType, NUMERIC, dealStageOf } from '../data/crm-analytics.js?v=202611242010';
 
 const optList = (f, cfg, users) => (f.type === 'boolean' ? [['yes', 'Yes'], ['no', 'No']] : f.type === 'user' ? users.map((u) => [u.id, u.name])
   : f.list ? ((cfg.picklists || {})[f.list] || []).map((o) => [o.value, o.retired ? `${o.label} (retired)` : o.label]) : f.options || []);
 function valueHtml(f, c, cfg, users, which) {
-  const v = which === 2 ? c.value2 || '' : c.value || ''; const name = which === 2 ? 'value2' : 'value';
+  const rawV = which === 2 ? c.value2 || '' : c.value || ''; const v = f.dealStage ? dealStageOf(rawV) : rawV; const name = which === 2 ? 'value2' : 'value';
   if (['empty', 'not_empty'].includes(c.op)) return '';
   if (which === 2 && !['between', 'not_between'].includes(c.op)) return '';
   if (['picklist', 'user', 'boolean'].includes(f.type)) return html`<select data-crit-${name}>${optList(f, cfg, users).map(([k, l]) => html`<option value="${k}" ${String(k) === String(v) ? raw('selected') : ''}>${l}</option>`)}</select>`;

@@ -19,7 +19,7 @@ export function ensureAgentInvites(d) {
   acc('ai-1', 'u-bagent', 'c-bagent', 'deal-1', { brokerage: 'Harbor Realty (fake)', licenseNumber: 'FAKE-MD-0505', officePhone: '410-555-0150', city: 'Annapolis', state: 'MD', photo: initialsAvatar('Bianca', 'Buyer-Agent', '#89cff0'), photoShape: 'circle' });
   acc('ai-2', 'u-lagent', 'c-lagent', 'deal-1', { brokerage: 'Oak Street Realty (fake)', licenseNumber: 'FAKE-MD-0606', city: 'Rockville', state: 'MD', photo: initialsAvatar('Larry', 'Listing-Agent', '#bfe6f8'), photoShape: 'square' });
   const lena = d.contacts.find((c) => c.id === 'c-lena');
-  if (lena) d.agentInvites.push({ ...base, id: 'ai-3', token: 'demo-lena-pending-0001', contactId: 'c-lena', dealId: 'deal-4', firstName: lena.firstName, lastName: lena.lastName, email: lena.email, status: 'pending', createdAt: '2026-11-03T15:00:00Z', expiresAt: '2026-11-17T15:00:00Z', acceptedAt: null, acceptedProfileId: null });
+  if (lena) d.agentInvites.push({ ...base, id: 'ai-3', token: 'demo-lena-pending-0001', contactId: 'c-lena', dealId: 'deal-4', firstName: lena.firstName, lastName: lena.lastName, email: lena.email, status: 'pending', createdAt: '2026-11-03T15:00:00Z', expiresAt: '2027-06-01T15:00:00Z', acceptedAt: null, acceptedProfileId: null });
   d.agentInvites.push({ ...base, id: 'ai-4', token: 'demo-expired-0001', contactId: null, firstName: 'Evan', lastName: 'Example', email: 'evan.example@example.test', status: 'pending', createdAt: '2026-10-01T15:00:00Z', expiresAt: '2026-10-15T15:00:00Z', acceptedAt: null, acceptedProfileId: null });
   return d;
 }
