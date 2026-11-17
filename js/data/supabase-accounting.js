@@ -10,6 +10,7 @@ import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedE
 // CLA RATES (migration 36): calculated fees carry calc_source = 'cla-rates' + calc_key / calc_fields / rate_source / calculation / calc_inputs /
 // calc_version / calc_at; the trigger keeps `overridden` (a person changed what the calculation set). The engine loads lazily (flag off = never).
 const engine = () => import('./fee-engine.js?v=202611241600');
+const taxes = () => import('./taxes-fees.js?v=202611241700');
 const calcRow = (f) => (f.calc ? { calc_source: CALC_SOURCE_ID, calc_key: f.calc.key, calc_fields: f.calc.fields, rate_source: f.calc.rateSource, calculation: f.calc.calculation, calc_inputs: f.calc.inputs, calc_version: f.calc.version, calc_at: f.calc.at } : {});
 
 const toRow = (f) => ({ kind: f.kind, description: f.description, alta_section: f.altaSection, cd_section: f.cdSection, cd_line: f.cdLine, payee: f.payee, amount: f.amount, note: f.note, preset_key: f.presetKey,
@@ -71,6 +72,23 @@ export function accountingSupabase({ sb, ok, flags }) {
       for (const row of D.rows) {
         if (row.status === 'new') { await insertCalc(E, d, all, row.proposed, P, {}, at); r.added++; }
         else if (row.status === 'changed') { const clean = cleanFee(E.feeInput(row.proposed), d, row.current); ok(await sb.from('accounting_fees').update({ ...toRow(clean), ...calcRow({ calc: E.calcBlock(row.proposed, P, at) }) }).eq('id', row.current.id).select('id').single()); r.updated++; }
+        else if (row.status === 'retire') { ok(await sb.from('accounting_fees').update({ retired_at: at }).eq('id', row.current.id).select('id').single()); r.retired++; }
+      }
+      if (retireExamples) for (const x of D.examples) { ok(await sb.from('accounting_fees').update({ retired_at: at }).eq('id', x.id).select('id').single()); r.examplesRetired++; }
+      return r; },
+    // FF-091: recording fees and transfer / recordation taxes from the Taxes & Fees documents. Title premiums are not touched.
+    async getTaxesFeesSetup(dealId) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const rates = await E.loadCalculatorRates(); return T.taxesFeesSetup(d, await fees(dealId), rates.tables, rates); },
+    async previewTaxesFees(dealId, worksheet) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const rates = await E.loadCalculatorRates(); return T.previewTaxesFees(d, worksheet, await fees(dealId), rates.tables, rates.source); },
+    async applyTaxesFees(dealId, worksheet, { token = null, retireExamples = true } = {}) {
+      on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const all = await fees(dealId); const rates = await E.loadCalculatorRates();
+      const P = T.proposeTaxesFees(d, worksheet, rates.tables, rates.source); const D = T.diffTaxesFees(P, all); if (token && token !== D.token) throw new Error('The fee ledger or the order changed since the preview. Preview again before applying.');
+      const at = new Date().toISOString(); const r = { added: 0, updated: 0, retired: 0, examplesRetired: 0, kept: D.counts.overridden, unchanged: D.counts.unchanged, skipped: D.counts.retired };
+      for (const row of D.rows) {
+        if (row.status === 'new') {
+          if (all.some((f) => !f.retired && isCalculated(f) && f.calc.key === row.proposed.key)) throw new Error(`"${row.proposed.description}" is already on the ledger from CLA rates. Calculate fees again.`);
+          const clean = cleanFee({ ...E.feeInput(row.proposed), presetKey: 'cla:' + row.proposed.key }, d);
+          ok(await sb.from('accounting_fees').insert({ deal_id: d.id, ...toRow(clean), ...calcRow({ calc: T.attachTaxDocs(E.calcBlock(row.proposed, P, at), P) }) }).select('id').single()); r.added++;
+        } else if (row.status === 'changed') { const clean = cleanFee(E.feeInput(row.proposed), d, row.current); ok(await sb.from('accounting_fees').update({ ...toRow(clean), ...calcRow({ calc: T.attachTaxDocs(E.calcBlock(row.proposed, P, at), P) }) }).eq('id', row.current.id).select('id').single()); r.updated++; }
         else if (row.status === 'retire') { ok(await sb.from('accounting_fees').update({ retired_at: at }).eq('id', row.current.id).select('id').single()); r.retired++; }
       }
       if (retireExamples) for (const x of D.examples) { ok(await sb.from('accounting_fees').update({ retired_at: at }).eq('id', x.id).select('id').single()); r.examplesRetired++; }

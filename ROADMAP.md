@@ -969,6 +969,40 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Taxes and fees documents (FF-091)
+
+**How it should work.** On Taxes & Fees, the processor adds each document to record, fills in pages, consideration, taxable, and the exemptions that county uses, and calculates the recording fees, recordation tax, and transfer tax. Each line shows who it is paid to and who pays it. The lines land on the charges, the settlement statement, and the Closing Disclosure. A purchase starts with a deed and, when there is a loan, a deed of trust. A refinance starts with a deed of trust and, when there is a payoff, a release.
+
+**Status: In progress.** FF-091. Francis Santos, Nov 16 2026, 3:10 PM ET (message 1a1e5fbfe4183a9f). Not Live. No database file. Not applied on TEST.
+
+**What's built**
+
+- Add document lists Affidavit, Assignment of Mortgage or Lease, Deed, Deed of Trust, Lis Pendens, Power of Attorney, Release of Mortgage, UCC, Lease, and Easement.
+- Each document has pages, consideration, and taxable yes or no. Maryland and the District of Columbia ask primary residence, and a purchase asks first-time buyer, because those change the tax. Virginia and Florida do not ask, because they do not change the result. The file's primary residence and first-time buyer answers fill a new worksheet.
+- Calculate fees uses the existing CLA calculator, including the full county list from REC-CALC-6 (PR 296, merged). A county without its own rows uses the statewide rates. It does not keep a second rate table. Apply writes the recording fees, the lien certificate, and the transfer and recordation taxes. Title premiums stay as they are. A line changed by hand is kept.
+- A document the rate sheet does not price (an affidavit, a UCC, and the other four) is allowed. The screen says there is no fee for it and does not invent one.
+- Samples checked against the calculator: Baltimore City, Fairfax, the District of Columbia, Miami-Dade, Hillsborough (statewide Florida rates), and a Maryland refinance.
+
+**What's still missing**
+
+- The Qualia question about recording the security instrument at the same time as the deed is not on the rate sheet, so it is not shown.
+- The e-recording fee still comes from Calculate fees from CLA rates on the Fee ledger.
+- Not checked on TEST. Not Live.
+
+**Links**
+
+- Spec: [docs/specs/taxes-fees-documents.md](docs/specs/taxes-fees-documents.md)
+- Source: Francis Santos, Nov 16 2026, 3:10 PM ET, message 1a1e5fbfe4183a9f. Tracker FF-091.
+
+**Decisions**
+
+- Reuse the vendored calculator. Do not copy the rate tables.
+- Save the document answers on the calculated fee. No new database file.
+- A saved worksheet wins the next time the screen opens, so a deed of trust marked not a principal residence stays that way. The file's answers are the starting point when nothing has been saved.
+- Use the county list from REC-CALC-6 (PR 296, merged). A county in Maryland, Virginia, Florida, or the District of Columbia that is not named on a rate row of its own is still calculated, on the statewide rates.
+
+---
+
 ## Who can own a CRM record (CRM-OWNER-1)
 
 **How it should work.** On Admin, then User List, then Edit user, an Admin or Super admin can tick **Can own CRM records** for that person. It starts off for everyone, including admins. A ticked person, whatever their role, can be chosen as the owner of a lead, client, company, or deal, in Change owner, and in a spreadsheet import. Someone who is not ticked is not in those lists. A record that already names them still shows their name. Who can open the CRM does not change.
