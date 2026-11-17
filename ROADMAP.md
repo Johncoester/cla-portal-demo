@@ -1116,13 +1116,11 @@ This file lists the portal's major features: how each one should work, how far a
 - Nobody is turned on by the database file. An admin ticks people after it is applied.
 - The tick does not change role access or who can open the CRM.
 
----
-
 ## CRM custom view user criteria
 
 **How it should work.** On Leads, Clients, Companies, and Deals, New Custom View, Specify Criteria, a field whose value is a person lists every CRM user, the same people as Share this with, Selected users. That includes super admins, admins, and sales reps. Choosing one saves that person's id, and the view shows records whose created-by, modified-by, owner, or last-activity person is that id.
 
-**Status: In progress.** Feedback 30 item 1, confirmed by Janine. Not merged. Not on TEST. Not Live. No database file.
+**Status: Merged.** Feedback 30 item 1, confirmed by Janine. Pull request 309 is on main. Not Live until someone checks it on TEST. No database file.
 
 **What's built**
 
@@ -1132,7 +1130,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Not on TEST until this pull request is merged and someone checks Leads, New Custom View, Created By. Do not mark Live before that.
+- A check on TEST. Do not mark Live before that.
 - Deals have no Modified By. A deal does not store who last changed the file.
 - Clients Created By and Modified By on the hosted list are filled with one extra read of those two ids. If that read is blocked, those two client filters match only when the client list already includes the id. Leads, companies, deal owner, and deal Created By do not need that extra read.
 
@@ -1144,3 +1142,28 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Reuse the share-with user list. Do not switch the owner pickers on the record forms.
 - Keep the stored criterion as the user id.
+
+## Custom view name column can move
+
+**How it should work.** On New Custom View and Edit view, Choose Columns, the record name (Lead Name, Client Name, Company Name, Deal Name) stays selected. The arrows move it like any other selected column, so Client Owner or another column can be first. The list for that view uses the saved order. The name still opens the record. A saved view that never stored a position for the name still shows the name first.
+
+**Status: In progress.** Janine, Feedback 30 item 2, confirmed before this change. No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- The name column can move up and down on Leads, Clients, Companies, and Deals, and it cannot be removed.
+- The saved order is the order of the list. A missing name position stays first.
+- The criteria user list from pull request 309 stays. Both work on the same custom view.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/crm-view-name-column.md](docs/specs/crm-view-name-column.md)
+
+**Decisions**
+
+- Janine asked to move the name, not to drop it. It stays required and it can sit in any selected position.
+- An older view with no stored name position keeps the name first. A view that already stored a position keeps that position.
