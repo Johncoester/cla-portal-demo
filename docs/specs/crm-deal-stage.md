@@ -2,7 +2,7 @@
 
 **Requested by:** Janine, Feedback 30 item 3. Confirmed before this change.
 
-**Status:** In progress. Not on TEST until the portal lead applies `supabase/migrations/20261125100000_crm_deal_stage_labels.sql`. Not Live.
+**Status:** In progress. Pull request [311](https://github.com/Johncoester/cla-portal-demo/pull/311). Not on TEST until the portal lead applies `supabase/migrations/20261125100000_crm_deal_stage_labels.sql`. Not Live.
 
 ## What the user sees
 
