@@ -33,3 +33,4 @@ The document answers are saved on the calculated fee, in the same place as the o
 - The per-document e-recording fee still comes from Calculate fees from CLA rates on the Fee ledger.
 - Running Calculate fees from CLA rates on the Fee ledger can replace these recording and tax lines from that screen's own document counts. A line changed by hand is still kept.
 - Not applied on TEST. Not Live.
+- A file with a street, city, and ZIP but a blank county used to be told the address was missing. That is FF-095 ([docs/specs/taxes-fees-address.md](taxes-fees-address.md)).

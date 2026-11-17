@@ -4,8 +4,9 @@ import { readFileSync } from 'node:fs';
 import { closingDisclosure, altaStatement, cleanFee, calcFields, CALC_SOURCE_ID } from '../js/data/accounting.js';
 import { vendoredTables } from '../js/data/fee-engine.js';
 import {
-  TAX_DOC_TYPES, defaultDocuments, exemptionAsks, taxesFeesSetup, worksheetProblem, proposeTaxesFees, diffTaxesFees, previewTaxesFees, savedWorksheet
+  TAX_DOC_TYPES, defaultDocuments, exemptionAsks, taxesFeesSetup, worksheetProblem, proposeTaxesFees, diffTaxesFees, previewTaxesFees, savedWorksheet, locateForFees
 } from '../js/data/taxes-fees.js';
+import { addressOnFile } from '../js/data/fee-place.js';
 
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
@@ -140,6 +141,38 @@ const page = readFileSync('js/pages/dealaccounting-charges.js', 'utf8');
 const mock = readFileSync('js/data/mock-part-accounting.js', 'utf8');
 const remote = readFileSync('js/data/supabase-accounting.js', 'utf8');
 ok(page.includes('Add document') && page.includes('Calculate fees') && page.includes('getTaxesFeesSetup') && page.includes('applyTaxesFees'), 'Taxes & Fees on the charges page adds documents and calculates fees');
+ok(page.includes('addressOnFile(deal)') && !page.includes('deal.street && deal.city && deal.zip && deal.county'), 'a filled street, city, and ZIP is not treated as a missing property address');
+
+// FF-095 (Francis Santos, Nov 17 2026, 2:12 PM ET). Processor 2 on TEST.
+// MD-26-97386 stores county "Baltimore City" (a name, not an id) with the street, city, and ZIP filled.
+const file97386 = { street: '315 South Calhoun Street', city: 'Baltimore City', state: 'MD', zip: '21223', county: 'Baltimore City', transactionType: 'Purchase', purchasePrice: 98000, loanAmount: 88000, primaryResidence: 'yes', firstTimeBuyer: 'yes' };
+ok(addressOnFile(file97386), 'MD-26-97386 has the property address on the file');
+const setup97386 = taxesFeesSetup(file97386, [], R, null);
+ok(setup97386.covered && setup97386.county === 'Baltimore City' && !setup97386.countyNote, 'Baltimore City on the file is the county the rates use, and the screen does not ask for the address');
+const calc97386 = proposeTaxesFees(file97386, { documents: defaultDocuments(file97386, exemptionAsks(R, file97386)) }, R);
+ok(near(amount(calc97386, 'rec:Deed'), 60) && amount(calc97386, 'rec:Deed of Trust') > 0 && calc97386.lines.some((l) => l.key.startsWith('tax:') && l.amount > 0), 'Calculate on that Baltimore City file returns recording fees and a tax, not zeros');
+
+// The same address with the county left blank. The ZIP is Baltimore City, not Baltimore County.
+const blankCounty = { ...file97386, county: '' };
+const located = locateForFees(blankCounty, R);
+ok(located.countyFrom === 'zip' && located.deal.county === 'Baltimore City', 'a blank county uses ZIP 21223, which is Baltimore City, not Baltimore County');
+const fromZip = taxesFeesSetup(blankCounty, [], R, null);
+ok(fromZip.covered && fromZip.county === 'Baltimore City' && /ZIP 21223 is in Baltimore City/.test(fromZip.countyNote), 'Calculate still prices Baltimore City and says the county came from the ZIP');
+const cityOnly = { ...file97386, county: '', zip: '' };
+ok(locateForFees(cityOnly, R).countyFrom === 'city' && locateForFees(cityOnly, R).deal.county === 'Baltimore City', 'with no ZIP, the city Baltimore City is the county');
+const cityBaltimore = { ...file97386, city: 'Baltimore', county: '' };
+ok(locateForFees(cityBaltimore, R).deal.county === 'Baltimore City', 'city Baltimore plus ZIP 21223 is Baltimore City, not Baltimore County');
+const savedCounty = { ...file97386, county: 'Baltimore County', city: 'Baltimore City' };
+ok(taxesFeesSetup(savedCounty, [], R, null).county === 'Baltimore', 'a saved county wins: Baltimore County stays Baltimore, not Baltimore City');
+
+// MD-26-97407 (Processor 2, Nov 17 2026, 1:17 PM ET): street, city, and ZIP are filled, county is blank, and the ZIP is in Florida.
+const file97407 = { street: '6061 North Falls Circle Drive 407', city: 'Lauderhill', state: 'MD', zip: '33319', county: '', transactionType: 'Purchase', purchasePrice: 147000, loanAmount: 130000, primaryResidence: 'yes', firstTimeBuyer: 'no' };
+ok(addressOnFile(file97407), 'a Florida street saved on a Maryland file still counts as an address on the file');
+const mismatch = taxesFeesSetup(file97407, [], R, null);
+ok(!mismatch.covered && /property address is on the file/.test(mismatch.reason) && /Broward County, FL/.test(mismatch.reason) && /Set the state to FL/.test(mismatch.reason) && !/add a complete property address/i.test(mismatch.reason) && !/couldn't find this county/.test(mismatch.reason), 'the county message names the ZIP\'s county and does not ask for the address again: ' + mismatch.reason);
+let mismatchCalc = '';
+try { proposeTaxesFees(file97407, { documents: defaultDocuments(file97407, exemptionAsks(R, file97407)) }, R); } catch (e) { mismatchCalc = e.message; }
+ok(mismatchCalc === mismatch.reason, 'Calculate does not invent Maryland fees when the ZIP is in another state');
 ok(mock.includes('applyTaxesFees') && mock.includes('attachTaxDocs') && remote.includes('applyTaxesFees') && remote.includes('attachTaxDocs'), 'mock and Supabase both save the worksheet on the calculated fee');
 
 console.log(fail ? fail + ' failed' : 'taxes and fees passed');
