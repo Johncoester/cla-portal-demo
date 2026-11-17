@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611241900';
+import { getAdapter } from './data/adapter.js?v=202611251200';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611241900';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611101015';
@@ -52,7 +52,7 @@ const pages = {
   'task-grid': () => import('./pages/taskgrid.js?v=202611241500'),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
   schedule: () => import('./pages/schedule.js?v=202611241900'),   // public closing-time link (no sign-in needed)
   'schedule-party': () => import('./pages/schedule-party.js?v=202611241900'),   // MF-056 buyer / seller scheduling link (no sign-in)
-  crm: () => import('./pages/crm.js?v=202611221700'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  crm: () => import('./pages/crm.js?v=202611251200'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => import('./pages/modules.js?v=202611161500'),
   'role-access': () => import('./pages/role-access.js?v=202611161500'),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => import('./pages/agent-invites.js?v=202611191600'),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
