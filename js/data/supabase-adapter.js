@@ -7,7 +7,7 @@ import { agentTcAlreadyMessage, isAgentTcRole } from './agent-tc.js?v=2026112413
 import { cleanFileNumber, FILE_NUMBER_TAKEN } from './file-number.js?v=202611222500';
 import { officeDate } from './office-date.js?v=202611102100';
 import { clientActivityFrom } from './client-activity.js?v=202611102100';
-import { assertRecipients, messageText } from './portal-message.js?v=202611191700';
+import { assertRecipients, messageText } from './portal-message.js?v=202611241900';
 import { planDocumentBatch } from './document-batch.js?v=202611101015';
 import { featureFlags } from './features.js?v=202611070139';
 import { accountingSupabase } from './supabase-accounting.js?v=202611241700';
@@ -20,8 +20,8 @@ import { postClosingSupabase } from './supabase-postclosing.js?v=202611111900';
 import { wiresSupabase } from './supabase-wires.js?v=202611111800';
 import { modulesSupabase } from './supabase-modules.js?v=202611101015';
 import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611221900';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611241600';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611241900';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611223100';
 import { automationPart } from './automation.js?v=202611101015';
 import { runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
 import { crmSupabase } from './supabase-crm.js?v=202611241300';
@@ -34,7 +34,7 @@ import { tcSupabase } from './supabase-tc.js?v=202611191700';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
 import { gmailSupabase } from './supabase-gmail.js?v=202611140900';
 import { nov5Supabase } from './supabase-nov5.js?v=202611162200';
-import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611241000';
+import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611241900';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611191600';
 import { staffSupabase } from './supabase-staff.js?v=202611241300';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
@@ -791,10 +791,21 @@ export async function createSupabaseAdapter(cfg) {
       return view;
     },
     async submitAgentTask(id, answers) {
-      await submitHostedAgentTask(sb, id, answers);
+      const current = await this.getAgentTask(id).catch(() => null);
+      if (current && (current.code === 'agent_schedule_settlement' || current.templateCode === 'agent_schedule_settlement')) {
+        ok(await sb.rpc('submit_schedule_settlement', { p_task: id, p_answers: answers || {} }));
+      } else {
+        await submitHostedAgentTask(sb, id, answers);
+      }
       const view = await this.getAgentTask(id);
       return { ...view, status: 'done', submitted: true, canSubmit: false, answers: view.answersHidden ? null : answers };
     },
+    // MF-056: buyer / seller scheduling link and the processor's settlement agent. The database queues the outbox row. Nothing is sent.
+    async getPartySchedule(token) { return camel(ok(await sb.rpc('get_party_schedule', { p_token: token }))) || {}; },
+    async submitPartySchedule(token, answers) { return camel(ok(await sb.rpc('submit_party_schedule', { p_token: token, p_answers: answers }))) || {}; },
+    async schedulingCopyLinks(dealId) { return camel(ok(await sb.rpc('scheduling_copy_links', { p_deal: dealId })) || []); },
+    async saveSettlementAgent(dealId, input = {}) { return ok(await sb.rpc('save_settlement_agent', { p_deal: dealId, p_name: input.name || '', p_profile: input.profileId || null, p_confirmed: !!input.confirmed })); },
+    async saveSchedulingNotes(dealId, notes) { return ok(await sb.rpc('save_scheduling_notes', { p_deal: dealId, p_notes: notes || '' })); },
     // Matt, Nov 3 (migration 26): entity documents requested from buyers / sellers acting as an entity (person, processor, coordinator, Admin)
     async listEntityDocRequests(dealId) { return camel(ok(await sb.rpc('entity_doc_requests', { p_deal: dealId }))); },
     async saveTaskForm(id, data, { complete = false } = {}) { return ok(await sb.rpc('save_task_form', { p_task: id, p_data: data, p_complete: complete })); },

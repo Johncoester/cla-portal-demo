@@ -7,6 +7,7 @@
 //  * Request Update topics, Share Access permissions (invites are RECORDED only, nothing is sent), invite email preview ("Complete Requests Now").
 //  * Rich-text message HTML sanitizer (Bold, Italic, Underline, bullet / numbered lists, links; nothing else survives).
 import { STAGES, phoneOk, fmtPhone, isRealDate } from './constants.js?v=202611101015';
+import { SCHEDULE_CODE, cleanScheduleAnswers, scheduleTaskTitle } from './scheduling-details.js?v=202611241900';
 
 export const PHASES = ['Title Processing', 'Closing Prep', 'Scheduled Closing Date', 'Closed'];
 // stage indexes (constants.js STAGES): 0-2 Opened / EMD Receipt / Buyer Info Received -> Title Processing; 3-6 Schedule Closing .. Buyer Final Doc
@@ -33,6 +34,8 @@ export const AGENT_TASKS = [
     about: 'Check the closing date and price we have, the earnest money, and the people on your team. Your commission and fees are confirmed in the Agent fees box on the file overview.' },
   { code: 'agent_home_warranty', title: 'Confirm Home Warranty Information', dueDays: 5,
     about: 'Let us know whether you or someone else will be purchasing a home warranty for this property.' },
+  { code: SCHEDULE_CODE, title: 'Schedule the Settlement for [property address]', dueDays: 3,
+    about: 'Choose the settlement date, a CLA office or another location, and a time between 9:00 AM and 6:00 PM. You can ask the buyer or the seller to schedule instead. The seller can ask for remote online notarization. A link is queued in the outbox. Nothing is emailed from this build.' },
 ];
 export const agentTaskDef = (code) => AGENT_TASKS.find((t) => t.code === code);
 export const CLIENT_ROLE_OF = { 'Buyer Agent': 'Client-Buyer', 'Listing Agent': 'Client-Seller' };
@@ -44,7 +47,7 @@ const num = (v) => { if (v === '' || v == null) return null; const n = Number(St
 const rows = (v, max = 20) => (Array.isArray(v) ? v.slice(0, max) : []);
 
 // Validate + clean one agent task submission. Throws an Error with .fieldErrors [{k, msg}] (k = 'clients.0.email' style paths).
-export function validateAgentAnswers(code, input = {}, { clients = [] } = {}) {
+export function validateAgentAnswers(code, input = {}, { clients = [], side = '', offices = [] } = {}) {
   const errs = []; const e = (k, msg) => errs.push({ k, msg });
   const person = (p, k, { needEmail = true, needPhone = true } = {}) => {
     const o = { firstName: s(p.firstName, 80), lastName: s(p.lastName, 80), email: s(p.email, 200).toLowerCase(), phone: s(p.phone, 40) };
@@ -74,6 +77,8 @@ export function validateAgentAnswers(code, input = {}, { clients = [] } = {}) {
     out = { willPurchase: s(input.willPurchase, 3) }; if (!YES_NO.includes(out.willPurchase)) e('willPurchase', 'Choose Yes or No.');
     if (out.willPurchase === 'Yes') { out.purchaser = s(input.purchaser, 20); out.company = s(input.company, 120);
       if (!['Me', 'Someone else'].includes(out.purchaser)) e('purchaser', 'Who is purchasing it: you or someone else?'); }
+  } else if (code === SCHEDULE_CODE) {
+    out = cleanScheduleAnswers(input, { side, offices });
   } else throw new Error('Unknown agent task.');
   if (errs.length) { const err = new Error(`Please fix ${errs.length} field(s).`); err.fieldErrors = errs; throw err; }
   return out;
@@ -120,7 +125,7 @@ export function ensureAgentPortal(d) {
     const c = contactOf(p.contactId); if (!c || !c.profileId) return;
     AGENT_TASKS.forEach((def) => { if (d.tasks.some((t) => t.participantId === p.id && t.templateCode === def.code && t.status !== 'cancelled')) return;
       if ((d.taskSwitches || []).some((z) => z.code === def.code && z.enabled === false)) return;   // Task switch OFF (task-switches.js): not created; existing copies kept
-      d.tasks.push({ id: `t-ap-${p.id}-${def.code}`, dealId: q.id, participantId: p.id, templateId: null, templateCode: def.code, templateVersion: 1, kind: 'agent', title: def.title, description: def.about,
+      d.tasks.push({ id: `t-ap-${p.id}-${def.code}`, dealId: q.id, participantId: p.id, templateId: null, templateCode: def.code, templateVersion: 1, kind: 'agent', title: def.code === SCHEDULE_CODE ? scheduleTaskTitle(q) : def.title, description: def.about,
         assignedRole: p.role, status: 'todo', dueDate: addDays(def.dueDays), formData: {}, savedAt: null, savedBy: null, completedAt: null, completedBy: null, createdBy: q.processorId || 'u-proc', createdAt: at }); });
   }));
   return d;

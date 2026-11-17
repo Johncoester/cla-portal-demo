@@ -5,6 +5,7 @@
  * The processor sees both answers on the file. */
 import { OFFICE_LOCATION, officeAddress } from './offices.js?v=202611101015';
 import { closingOfficeChoices, officeById, officeNameOf, officeRows } from './mock-part-offices.js?v=202611101015';
+import { cleanScheduleAnswers, schedulePatch, schedulingToldEmail, settlementAgentChoices, resolveSettlementAgent, INVITE_FROM, INVITE_FROM_NAME, schedulingFromDeal } from './scheduling-details.js?v=202611241900';
 export function closingSchedule(x) {
   const { load, save, nid, me, needUser, needProcessor, dealOr404, onDeal, fileRole, log, nameOf, notify, dealProfileIds, prof, contactOf, clone, now, fail, str, C } = x;
   const SIDES = ['buyer', 'seller'];
@@ -13,6 +14,10 @@ export function closingSchedule(x) {
   const sideProfiles = (dealId, side) => { const d = load(); return d.participants.filter((p) => p.dealId === dealId && C.sideOf(p.role) === side)
     .map((p) => (d.contacts.find((c) => c.id === p.contactId) || {}).profileId).filter(Boolean); };
   const byToken = (t) => { const tok = str(t, 100); const s = tok && load().settlements.find((z) => SIDES.some((sd) => z.tokens[sd] === tok)); if (!s) fail('This scheduling link is not valid.'); return [s, SIDES.find((sd) => s.tokens[sd] === tok)]; };
+  const partyLink = (t) => { const tok = str(t, 80); const link = tok && (load().schedulingLinks || []).find((z) => z.token === tok);
+    if (!link) fail('This scheduling link is not valid. Ask your agent to send a new one.');
+    if (link.expiresAt && Date.parse(link.expiresAt) < Date.now()) fail('This scheduling link has expired. Ask your agent to send a new one.');
+    return link; };
   const cleanSlots = (slots) => { const list = (Array.isArray(slots) ? slots : []).map((v) => str(v, 16)).filter(Boolean);
     if (!list.length || list.length > 5) fail('Offer between 1 and 5 time options.');
     list.forEach((v) => { if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v) || isNaN(Date.parse(v))) fail('Each option needs a date and time.'); if (Date.parse(v) < Date.now()) fail('Time options must be in the future.'); });
@@ -90,6 +95,63 @@ export function closingSchedule(x) {
       log(s.dealId, u.id, 'settlement.reopened', 'settlement', s.id, `Closing date request reopened (round ${s.round})`);
       SIDES.forEach((sd) => notify(sideProfiles(s.dealId, sd), { kind: 'settlement', dealId: s.dealId, title: 'The closing time is being rescheduled - please answer again', link: `#/schedule/${s.tokens[sd]}` }, u.id));
       save(); return clone(s);
+    },
+    // MF-056: the buyer or seller opens the queued link. No sign-in. Nothing is emailed.
+    async getPartySchedule(tok) {
+      const link = partyLink(tok);
+      const d0 = load(); const deal = d0.deals.find((z) => z.id === link.dealId) || fail('This scheduling link is not valid.');
+      const near = closingOfficeChoices(d0, deal);
+      const offices = officeRows(d0).filter((o) => o.active !== false).map((o) => ({ id: o.id, name: o.name, address: officeAddress(o) }));
+      const view = schedulingFromDeal(deal)[link.side];
+      return clone({ side: link.side, fileNumber: deal.fileNumber, street: deal.street, city: deal.city, state: deal.state, zip: deal.zip, closingDate: deal.closingDate || '', defaultOfficeId: view.officeId || near.officeId || '', officeHint: near.text || '', offices, answers: view });
+    },
+    async submitPartySchedule(tok, answers) {
+      const link = partyLink(tok); const d = load(); const deal = d.deals.find((z) => z.id === link.dealId) || fail('This scheduling link is not valid.');
+      const offices = officeRows(d).filter((o) => o.active !== false).map((o) => ({ id: o.id, name: o.name }));
+      const clean = cleanScheduleAnswers({ ...answers, askParty: false }, { side: link.side, offices });
+      const kept = deal.closingDate;
+      Object.assign(deal, schedulePatch(clean, { by: 'party', officeName: clean.officeId ? officeNameOf(d, clean.officeId) : '' }));
+      deal.closingDate = kept;
+      link.usedAt = now();
+      const agent = link.createdBy ? prof(link.createdBy) : null;
+      if (agent && agent.email) {
+        const mail = schedulingToldEmail({ side: link.side, agentName: `${agent.firstName || ''} ${agent.lastName || ''}`.trim(), deal, answered: true });
+        d.outbox.push({ id: nid('ob'), channel: 'email', kind: 'invite', status: 'queued', sentAt: null, fromEmail: INVITE_FROM, fromName: INVITE_FROM_NAME, from: `${INVITE_FROM_NAME} <${INVITE_FROM}>`, senderType: 'portal', toEmail: agent.email, toName: `${agent.firstName || ''} ${agent.lastName || ''}`.trim(), toProfileId: agent.id, subject: mail.subject, body: mail.body, dealId: deal.id, createdBy: null, createdAt: now(), taskId: null });
+      }
+      notify([link.createdBy, deal.processorId].filter(Boolean), { kind: 'settlement', dealId: deal.id, title: `The ${link.side} scheduled the settlement`, link: `#/deals/${deal.id}/closing` }, null);
+      log(deal.id, link.createdBy || 'link', 'schedule.party', 'deal', deal.id, `${link.side} side scheduled the settlement`);
+      save(); return clone({ ok: true, side: link.side });
+    },
+    async schedulingCopyLinks(dealId) {
+      const u = needUser(); onDeal(u, dealId); const staff = C.runsOrders(u) || u.isAdmin;
+      const rows = (load().schedulingLinks || []).filter((l) => l.dealId === dealId && (staff || l.createdBy === u.id));
+      const latest = ['buyer', 'seller'].map((side) => rows.filter((l) => l.side === side).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]).filter(Boolean);
+      return clone(latest.map((l) => ({ side: l.side, path: l.path, createdAt: l.createdAt })));
+    },
+    async saveSettlementAgent(dealId, input = {}) {
+      const u = needProcessor(); const d = load(); const deal = d.deals.find((z) => z.id === dealId) || fail('Order not found.');
+      const choices = settlementAgentChoices(d.profiles || []);
+      let resolved;
+      try { resolved = resolveSettlementAgent(input.name, choices, input.profileId || null); }
+      catch (err) { fail(err.message); }
+      if (input.confirmed && !resolved.settlementAgentName) fail('Enter the settlement agent before confirming.');
+      const kept = deal.closingDate; const closer = deal.closerName;
+      deal.settlementAgentName = resolved.settlementAgentName;
+      deal.settlementAgentProfileId = resolved.settlementAgentProfileId;
+      deal.settlementAgentConfirmed = !!input.confirmed && !!resolved.settlementAgentName;
+      deal.closingDate = kept; deal.closerName = closer;
+      log(dealId, u.id, 'schedule.agent', 'deal', dealId, resolved.settlementAgentName ? `Settlement agent: ${resolved.settlementAgentName}` : 'Settlement agent cleared');
+      save(); return clone({ settlementAgentName: deal.settlementAgentName, settlementAgentConfirmed: deal.settlementAgentConfirmed });
+    },
+    async saveSchedulingNotes(dealId, notes) {
+      const u = needProcessor(); const text = String(notes == null ? '' : notes);
+      if (text.trim().length > 2000) fail('Processor notes can be up to 2,000 characters. Shorten the note and save again.');
+      const d = load(); const deal = d.deals.find((z) => z.id === dealId) || fail('Order not found.');
+      const kept = deal.closingDate;
+      deal.schedulingProcessorNotes = text.trim();
+      deal.closingDate = kept;
+      log(dealId, u.id, 'schedule.notes', 'deal', dealId, 'Processor scheduling notes saved');
+      save(); return clone({ notes: deal.schedulingProcessorNotes });
     },
   };
 }

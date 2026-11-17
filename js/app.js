@@ -1,7 +1,7 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611241700';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611241800';
+import { getAdapter } from './data/adapter.js?v=202611241900';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611241900';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611130900';
@@ -9,14 +9,15 @@ import { canManageRoleAccess } from './data/role-access.js?v=202611100100';
 import { canUseGmail } from './data/gmail-email.js?v=202611191000';
 import { acctCanRead } from './data/accounting.js?v=202611241500';
 import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611101015';
-import { phaseOf } from './data/agent-portal.js?v=202611191700';
+import { phaseOf } from './data/agent-portal.js?v=202611241900';
+import { scheduleNavLines } from './data/scheduling-details.js?v=202611241900';
 import { applyTheme, themeOn } from './theme.js?v=202611070139';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
-import { icon } from './pages/theme-cards.js?v=202611191700';
+import { icon } from './pages/theme-cards.js?v=202611241900';
 import { canInviteAgents } from './data/agent-profile.js?v=202611140100';
 import { yourAgentHtml, withContactPhone } from './pages/your-agent.js?v=202611161500';
 import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611101015';
-import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611221200';   // John, Nov 4: one locked login link per fake user
+import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611241900';   // John, Nov 4: one locked login link per fake user
 import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080400';
 import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611082000';
 import { botRegistry } from './data/bot-registry.js?v=202611080400';
@@ -33,23 +34,24 @@ document.addEventListener('input', (e) => { const el = e.target; if (el instance
 document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-money')) { formatMoneyInput(el); el.value = el.value.replace(/\.$/, ''); } });
 
 const pages = {
-  login: () => import('./pages/entry.js?v=202611221200'),
-  dashboard: () => import('./pages/dashboard.js?v=202611241800'),
+  login: () => import('./pages/entry.js?v=202611241900'),
+  dashboard: () => import('./pages/dashboard.js?v=202611241900'),
   orders: () => import('./pages/orders.js?v=202611241000'),
-  'orders/new': () => import('./pages/ordernew.js?v=202611241800'),
-  deal: () => import('./pages/deal.js?v=202611241800'),
-  users: () => import('./pages/users.js?v=202611241300'),
+  'orders/new': () => import('./pages/ordernew.js?v=202611223100'),
+  deal: () => import('./pages/deal.js?v=202611241900'),
+  users: () => import('./pages/users.js?v=202611161500'),
   profile: () => import('./pages/profile.js?v=202611191600'),
   'contact-us': () => import('./pages/contact.js?v=202611161500'),
   teams: () => import('./pages/teams.js?v=202611161500'),
-  templates: () => import('./pages/templates.js?v=202611221900'),
-  'admin/templates': () => import('./pages/templates.js?v=202611221900'),
+  templates: () => import('./pages/templates.js?v=202611241900'),
+  'admin/templates': () => import('./pages/templates.js?v=202611241900'),
   library: () => import('./pages/library.js?v=202611161500'),
   activity: () => import('./pages/activity.js?v=202611161500'),
   outbox: () => import('./pages/outbox.js?v=202611161500'),
-  tasks: () => import('./pages/tasks.js?v=202611241800'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => import('./pages/tasks.js?v=202611241900'),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => import('./pages/taskgrid.js?v=202611241500'),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
-  schedule: () => import('./pages/schedule.js?v=202611170800'),   // public closing-time link (no sign-in needed)
+  schedule: () => import('./pages/schedule.js?v=202611241900'),   // public closing-time link (no sign-in needed)
+  'schedule-party': () => import('./pages/schedule-party.js?v=202611241900'),   // MF-056 buyer / seller scheduling link (no sign-in)
   crm: () => import('./pages/crm.js?v=202611221700'),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => import('./pages/modules.js?v=202611161500'),
   'role-access': () => import('./pages/role-access.js?v=202611161500'),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
@@ -67,7 +69,7 @@ const pages = {
 };
 // pages behind a feature flag: when the flag is off the route is "Page not found" and the module is never loaded
 const FLAGGED = { crm: 'crm' };
-const PUBLIC = new Set(['login', 'schedule', 'agent-invite', 'hr-invite']);
+const PUBLIC = new Set(['login', 'schedule', 'schedule-party', 'agent-invite', 'hr-invite']);
 // MODULE SWITCHES (John, Nov 3): which switchable module a route belongs to (data/modules.js). Not Live = beta: only Admins / Super admins get it.
 export function routeModule(route) {
   const p = route.page;
@@ -92,6 +94,7 @@ function parse() {
   if (seg[0] === 'hr') return { page: 'hr', params: { section: seg[1] === 'employees' && seg[2] ? 'employee' : (seg[1] || 'home'), id: seg[1] === 'employees' ? (seg[2] || '') : '' } };
   if (seg[0] === 'hr-invite') return { page: 'hr-invite', params: { token: seg[1] || '' } };
   if (seg[0] === 'schedule') return { page: 'schedule', params: { token: seg[1] || '' } };
+  if (seg[0] === 'schedule-party') return { page: 'schedule-party', params: { token: seg[1] || '' } };
   if (seg[0] === 'staff-feedback') return { page: 'staff-feedback', params: { id: seg[1] || '' } };
   return { page: seg[0], params: {} };
 }
@@ -173,13 +176,13 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
   const core = navFor(u, null, 0, api.features || {}, ws, DEMO_VIEW).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}"${hrTip(n)}${n.beta ? raw(' data-beta-nav') : ''}>${lbl(n.id, n.label)}${n.beta ? betaTag(n.id) : ''}</a></li>`);
   const t = route.params.tab;
   const mineNav = typeof location !== 'undefined' && /(?:\?|&)mine=1(?:&|$)/.test(location.hash || '');
-  const staffNav = isStaff(u.role) && !u.accountRole;
-  const link = (tab, label, cls, beta) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab && !(tab === 'accounting' && route.params.v === 'payoffs') && !(tab === 'tasks' && mineNav) ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}"${tip(label, beta)}${beta ? raw(' data-beta-nav') : ''}>${lbl(tab, label)}${beta ? betaTag(tab) : ''}${tab === 'closing' ? closingNavMeta(deal, staffNav) : ''}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : cnt(tab)}</a></li>`;
+  const showClosingMeta = true;   // the file button shows the closing date and each side's scheduling choice
+  const link = (tab, label, cls, beta) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab && !(tab === 'accounting' && route.params.v === 'payoffs') && !(tab === 'tasks' && mineNav) ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}"${tip(label, beta)}${beta ? raw(' data-beta-nav') : ''}>${lbl(tab, label)}${beta ? betaTag(tab) : ''}${tab === 'closing' ? closingNavMeta(deal, showClosingMeta) : ''}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : cnt(tab)}</a></li>`;
   const myTasksLink = deal ? html`<li class="nav-item"><a class="nav-link task ${t === 'tasks' && mineNav ? 'active' : ''}" href="#/deals/${dealId}/tasks?mine=1" data-nav-my-tasks${tip('My Tasks')}>${lbl('tasks', 'My Tasks')}</a></li>` : '';
   // BUYER (Nov 4 call): plain tab names; no Contacts tab (the Overview lists the closing team) and no Agreements tab (they are to-dos now)
   const pureBuyer = deal && ['Client-Buyer', 'Client-Seller'].some((c) => (deal.myRoles || [deal.myRole]).includes(c)) && !(deal.myRoles || [deal.myRole]).some((r) => /Agent$/.test(r));   // seller mirror (Nov 4): a pure seller gets the same plain tabs
   const dealNav = deal && pureBuyer ? html`<li class="nav-sep">This file</li>${link('overview', 'Overview', 'orders')}${link('tasks', 'To-do list', 'task')}${myTasksLink}${link('inbox', 'Messages', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing appointment', 'task')}${link('activity', 'Activity', 'activity')}`
-    : deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${myTasksLink}${link('inbox', deal && isClient(deal.myRole) ? 'Messages' : 'Inbox', 'inbox')}${canUseGmail(u) && api.listDealEmails && api.mode === 'supabase' ? link('email', 'Email', 'inbox') : ''}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing Date', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${link('activity', 'Activity', 'activity')}${(api.features || {}).accounting && acctCanRead(u) && modOn('accounting') ? html`${link('accounting', 'Accounting', 'documents', modBeta('accounting'))}${modOn('post-closing') ? html`<li class="nav-item"><a class="nav-link ${t === 'accounting' && route.params.v === 'postclosing' ? 'active' : ''}" href="#/deals/${dealId}/accounting?v=postclosing" data-nav-postclosing>Post-Closing</a></li>` : ''}${modOn('e-recording') ? html`<li class="nav-item"><a class="nav-link" href="#/deals/${dealId}/accounting?v=postclosing" data-nav-recording>E-Recording</a></li>` : ''}${canReachPayoffs(u) && modOn('payoffs') ? html`<li class="nav-item"><a class="nav-link payoffs ${t === 'accounting' && route.params.v === 'payoffs' ? 'active' : ''}" href="#/deals/${dealId}/accounting?v=payoffs" data-nav-payoffs${tip('Payoffs / HOA', modBeta('payoffs'))}>${lbl('accounting', 'Payoffs / HOA')}</a></li>` : ''}` : ''}${(api.features || {}).funding && fwpCanRead(u) && modOn('funding') ? link('funding', 'Funding', 'documents', modBeta('funding')) : ''}${(api.features || {}).wires && fwpCanRead(u) && modOn('wires') ? link('wires', 'Wires', 'documents', modBeta('wires')) : ''}${(api.features || {}).policy && fwpCanRead(u) && modOn('policy') ? link('policy', 'Final Policy', 'documents', modBeta('policy')) : ''}${(api.features || {}).title && titleCanRead(u) && modOn('title') ? html`<li class="nav-item"><a class="nav-link title-nav ${t === 'title' ? 'active' : ''}" href="#/deals/${dealId}/title" data-nav-title${tip('Title', modBeta('title'))}${modBeta('title') ? raw(' data-beta-nav') : ''}>${lbl('title', 'Title')}${modBeta('title') ? betaTag('title') : ''}</a></li>` : ''}` : '';   // John, Nov 4: Title sits directly under Payoffs / HOA (staff only)   // (buyer branch above)
+    : deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${myTasksLink}${link('inbox', deal && isClient(deal.myRole) ? 'Messages' : 'Inbox', 'inbox')}${canUseGmail(u) && api.listDealEmails && api.mode === 'supabase' ? link('email', 'Email', 'inbox') : ''}${link('documents', 'Documents', 'documents')}${link('closing', 'Scheduling Details', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${link('activity', 'Activity', 'activity')}${(api.features || {}).accounting && acctCanRead(u) && modOn('accounting') ? html`${link('accounting', 'Accounting', 'documents', modBeta('accounting'))}${modOn('post-closing') ? html`<li class="nav-item"><a class="nav-link ${t === 'accounting' && route.params.v === 'postclosing' ? 'active' : ''}" href="#/deals/${dealId}/accounting?v=postclosing" data-nav-postclosing>Post-Closing</a></li>` : ''}${modOn('e-recording') ? html`<li class="nav-item"><a class="nav-link" href="#/deals/${dealId}/accounting?v=postclosing" data-nav-recording>E-Recording</a></li>` : ''}${canReachPayoffs(u) && modOn('payoffs') ? html`<li class="nav-item"><a class="nav-link payoffs ${t === 'accounting' && route.params.v === 'payoffs' ? 'active' : ''}" href="#/deals/${dealId}/accounting?v=payoffs" data-nav-payoffs${tip('Payoffs / HOA', modBeta('payoffs'))}>${lbl('accounting', 'Payoffs / HOA')}</a></li>` : ''}` : ''}${(api.features || {}).funding && fwpCanRead(u) && modOn('funding') ? link('funding', 'Funding', 'documents', modBeta('funding')) : ''}${(api.features || {}).wires && fwpCanRead(u) && modOn('wires') ? link('wires', 'Wires', 'documents', modBeta('wires')) : ''}${(api.features || {}).policy && fwpCanRead(u) && modOn('policy') ? link('policy', 'Final Policy', 'documents', modBeta('policy')) : ''}${(api.features || {}).title && titleCanRead(u) && modOn('title') ? html`<li class="nav-item"><a class="nav-link title-nav ${t === 'title' ? 'active' : ''}" href="#/deals/${dealId}/title" data-nav-title${tip('Title', modBeta('title'))}${modBeta('title') ? raw(' data-beta-nav') : ''}>${lbl('title', 'Title')}${modBeta('title') ? betaTag('title') : ''}</a></li>` : ''}` : '';   // John, Nov 4: Title sits directly under Payoffs / HOA (staff only)   // (buyer branch above)
   // Inside a file the portal menu starts closed for every role. The file name and file tabs stay. The button only shows or hides that menu.
   const fileNav = !!deal;
   const contact = isStaff(u.role) || hrOnly(u) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us"${tip('Contact Us')}>${lbl('contact-us', 'Contact Us')}</a></li>`;
@@ -265,7 +268,8 @@ function betaBanner(route) {
     Turn it Live on the <a href="#/modules">Modules</a> page.`}</span></div>`;
 }
 
-// MF-054 / FF-074: Closing Date info sits at the bottom of the left-nav Closing Date button (staff).
+// MF-054 / FF-074: closing date, time and days sit at the bottom of the left-nav button (staff).
+// MF-056: the button is Scheduling Details, and each side's chosen date, time and place sit under that.
 function closingNavMeta(deal, show) {
   if (!show || !deal) return '';
   const date = fmtDate(deal.closingDate) || 'Not set';
@@ -278,7 +282,8 @@ function closingNavMeta(deal, show) {
     const toGo = Math.round((Date.parse(deal.closingDate + 'T12:00:00') - Date.parse(localDate() + 'T12:00:00')) / 864e5);
     days = toGo < 0 ? '' : (toGo === 0 ? 'today' : `${toGo} day${toGo === 1 ? '' : 's'}`);
   }
-  return html`<span class="nav-closing-meta" data-nav-closing><span data-nav-closing-date>${date}</span>${time ? html` <span data-nav-closing-time>${time}</span>` : ''}${days ? html` <span class="muted" data-nav-closing-days>${days}</span>` : ''}</span>`;
+  const lines = scheduleNavLines(deal);
+  return html`<span class="nav-closing-meta" data-nav-closing><span data-nav-closing-date>${date}</span>${time ? html` <span data-nav-closing-time>${time}</span>` : ''}${days ? html` <span class="muted" data-nav-closing-days>${days}</span>` : ''}${lines.map((line) => html`<br><span data-nav-schedule>${line}</span>`)}</span>`;
 }
 // REDESIGN (John, Nov 3): the persistent order header on every tab of a file: Order #, progress badge, address, then type / dates / status.
 // Same data-order-header / data-progress-badge / .order-no hooks as before (the badge text is exactly the phase name).

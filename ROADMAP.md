@@ -240,7 +240,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Staff File Overview no longer shows the buyer/seller box, the EMD / Earnest & commissions box, or the gray Closing Date card.
 - Order Status stays, with the disbursement date (FF-071c), open tasks, unread email, and Edit order details.
 - Parties, Notes, Automation, Agent fees, and the sections under Notes stay. Source of business is shown with Parties.
-- The Closing Date button in the left column shows the closing date, time and days remaining at the bottom. Client and agent overviews are unchanged.
+- The left-column button shows the closing date, time and days remaining at the bottom. Client and agent overviews are unchanged. MF-056 renames that button to Scheduling Details; the date, time and days remaining stay.
 
 **What's still missing**
 
@@ -253,7 +253,41 @@ This file lists the portal's major features: how each one should work, how far a
 
 **Decisions**
 
-- Matt confirmed the numbered list on Nov 12 at 2:04 PM ET. MF-054 supersedes MF-052 and MF-047. John waived rule 9 at 1:25 PM ET Nov 13 (t1618u) so this could be built while the walkthrough's remaining email failure was set aside. Agent fees stays on the overview because it is a separate live feature (AF-2), not one of the redundant boxes Matt asked to remove.
+- Matt confirmed the numbered list on Nov 12 at 2:04 PM ET. MF-054 supersedes MF-052 and MF-047. John waived rule 9 at 1:25 PM ET Nov 13 (t1618u) so this could be built while the walkthrough's remaining email failure was set aside. Agent fees stays on the overview because it is a separate live feature (AF-2), not one of the redundant boxes Matt asked to remove. On Nov 16, MF-056 renamed the Closing Date button to Scheduling Details. The date, time and days remaining stay on that button.
+
+---
+
+## Scheduling Details (MF-056 / FF-085)
+
+**How it should work.** The file button that said Closing Date is **Scheduling Details**. The buyer's agent and the listing agent each have a task, "Schedule the Settlement for [property address]". They pick a settlement date (starting from the contract or addendum closing date), a CLA office (starting at the office nearest the property) or another address, a time from 9:00 AM to 6:00 PM, and notes. They can instead ask the buyer or the seller to schedule, which queues a link for that person and tells the agent. The seller can also choose remote online notarization on a computer. The choice shows on the Scheduling Details button. The processor sees the settlement agent name, a Settlement Agent Confirmed checkbox, and a separate notes button.
+
+**Status: In review.** Tracker row 316 (MF-056). FF-085 is the same request. Not applied to TEST. Not Live.
+
+**What's built**
+
+- The file button says Scheduling Details. Staff and agents still see the closing date, time and days remaining, plus each side's date, time and place.
+- Buyer's agent and listing agent tasks, with the ask-instead link, office list, other address, time, and notes. Seller side adds remote online notarization.
+- A buyer or seller link (`#/schedule-party/...`) that does not need a sign-in. The link is queued in the outbox from testportal@clatitle.com. Nothing is emailed.
+- Processor card: settlement agent name, Settlement Agent Confirmed, and Processor notes.
+- Database file `supabase/migrations/20261124150000_scheduling_details.sql` and rollback. Not applied anywhere.
+
+**What's still missing**
+
+- The older closing-date request (pick from a few time options) is still on the page under the new card.
+- John's later change that locks the buyer's date to the file closing date. Not built.
+- Not checked on TEST yet. Mark Live only after the database file is applied on TEST.
+
+**Links**
+
+- Spec: [docs/specs/scheduling-details.md](docs/specs/scheduling-details.md). Source: Matt Landsberg, email "Scheduling Feature", Nov 16 2026, 9:20 AM ET (Gmail 1a1e4bb28b3e5a7e). Tracker row 316 (MF-056). FF-085 is the duplicate on the same row.
+- Related: MF-010 (nearest office), MF-011 (closer on the file), MF-054 (date on the button).
+
+**Decisions**
+
+- If the contract has no closing date, the settlement date is left blank and is required, unless the agent asks the buyer or seller to schedule.
+- The settlement agent list is active staff whose role contains "Settlement Agent" or "Closer". No role matches that today, so the box is free text.
+- This does not replace MF-011. The Closer field stays.
+- Saving a side does not change the file closing date. The lock John asked for is held.
 
 ---
 
