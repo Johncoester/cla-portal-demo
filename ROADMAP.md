@@ -1476,7 +1476,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** At the top of a file, next to the settlement date, staff who can edit the file can change that date and the disbursement date. The settlement date saves on the file, stays after a reload, and is the date tasks, Scheduling Details, Accounting, and prorations already use. Agents, buyers, and sellers see the dates and cannot change them. A buyer's "+ Propose a closing time" still does not write the file date.
 
-**Status: In progress.** Tracker FF-097. Francis Santos, Nov 17 2026, 2:31 PM ET (Gmail message 1a1eafe6e1a32dde), signed in as Processor 2. No database file. Not Live until someone checks it on TEST.
+**Status: In progress.** Tracker FF-097. Francis Santos, Nov 17 2026, 2:31 PM ET (Gmail message 1a1eafe6e1a32dde), signed in as Processor 2. Pull request: [PR 328](https://github.com/Johncoester/cla-portal-demo/pull/328). No database file. Not Live until someone checks it on TEST.
 
 **What's built**
 
@@ -1492,6 +1492,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/file-overview-dates.md](docs/specs/file-overview-dates.md)
+- Pull request: [PR 328](https://github.com/Johncoester/cla-portal-demo/pull/328)
 
 **Decisions**
 
