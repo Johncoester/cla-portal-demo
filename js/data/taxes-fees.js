@@ -6,6 +6,7 @@ import {
   proposeFees, diffProposal, previewView, defaultRecordingDocs, RECORDING_DOCS, calcTypeOf, countyOf, countyIsKnown,
   COUNTY_UNKNOWN, CALC_STATES, NO_OO, calculatorCore as C, isCalculated
 } from './fee-engine.js?v=202611241600';
+import { addressOnFile, textField, zipCounties } from './fee-place.js?v=202611242400';
 
 export const TAX_DOC_TYPES = ['Affidavit', 'Assignment of Mortgage or Lease', 'Deed', 'Deed of Trust', 'Lis Pendens', 'Power of Attorney', 'Release of Mortgage', 'UCC', 'Lease', 'Easement'];
 const CALC_DOC = { Deed: 'Deed', 'Deed of Trust': 'Deed of Trust', 'Release of Mortgage': 'Release', 'Power of Attorney': 'Power of Attorney' };
@@ -20,15 +21,13 @@ const whole = (raw) => { const s = String(raw == null ? '' : raw).trim(); if (!/
 
 export const isGovernmentKey = (key) => key === 'lien' || String(key || '').startsWith('rec:') || String(key || '').startsWith('tax:');
 
-// FF-091b open questions for John. Leave these until he answers. Do not guess a value.
-// CONTRACT_TAX_PAYER_FIELD is the deal field that would hold the contract's Buyer pays / Seller pays / 50/50 split.
-// There is no such field. title_reviews.transfer_tax_split is free text and is blank on TEST. '' means do not read one.
-// OWNER_OCCUPANT_EXEMPTION_SIDE is which side the owner-occupant exemption reduces on a split.
-// The rate sheet has one Owner-Occ Exempt amount. The calculator takes it off the taxable amount, then splits what is left.
-// Melissa Gamble (Nov 16) said it applies to the buyer side unless the seller pays 100%. Lodestar and two closed files split the exempted total.
-// 'exempted-total' is the reading those columns support. It is not a buyer-side reduction.
-export const CONTRACT_TAX_PAYER_FIELD = '';
+// Francis Santos, Nov 17 2026, 3:55 PM ET (message 1a1eb4b8017fcabf).
+// Order: figure the tax from the rate sheet, take exemptions off that total, then allocate.
+// The jurisdiction default is the sheet's Paid By. Staff may change it for the executed contract.
+// A line the law fixes stays locked. Maryland state transfer tax for a first-time buyer who will live there is one.
+// The owner-occupant exemption comes off the total before that split. It is not taken from one side only.
 export const OWNER_OCCUPANT_EXEMPTION_SIDE = 'exempted-total';
+export const STATE_TRANSFER_LOCK = 'Maryland law keeps this with the seller. A first-time buyer who will live in the home pays none of the state transfer tax (Tax-Property 13-203). The contract cannot change it.';
 export const TAX_PAYER_CHOICES = [['buyer', 'Buyer pays'], ['seller', 'Seller pays'], ['split', '50/50 split']];
 const PAYER_LABEL = Object.fromEntries(TAX_PAYER_CHOICES);
 
@@ -71,11 +70,11 @@ export function exemptionAsks(R, deal) {
   const fthbRow = rows.find((r) => C.num(r['FTHB Rate']) != null || (C.num(r['FTHB Exempt ($)']) || 0) > 0);
   const occ = state === 'MD' || state === 'DC' || occAmounts.length > 0;
   const fthb = type !== 'refi' && !!fthbRow;
-  const occNote = occAmounts.length ? `Owner-occupied exemption on this county's rate sheet: the first $${Math.max(...occAmounts).toLocaleString('en-US')}.` : (state === 'MD' ? 'In Maryland, a deed of trust that is not a principal residence records at the higher fee.' : '');
+  const occNote = occAmounts.length ? `Owner-occupied exemption on this county's rate sheet: the first $${Math.max(...occAmounts).toLocaleString('en-US')} comes off the total before the tax is split.` : (state === 'MD' ? 'In Maryland, a deed of trust that is not a principal residence records at the higher fee.' : '');
   let fthbNote = '';
   if (fthbRow) {
     const max = C.num(fthbRow['FTHB Max Price ($)']);
-    fthbNote = max ? `First-time buyer treatment applies at a price of $${max.toLocaleString('en-US')} or less, and the buyer must live in the home.` : 'First-time buyer treatment needs the buyer to live in the home.';
+    fthbNote = (max ? `First-time buyer treatment applies at a price of $${max.toLocaleString('en-US')} or less, and the buyer must live in the home. ` : 'First-time buyer treatment needs the buyer to live in the home. ') + 'It changes the tax first. Who pays is the county default after that, unless the law fixes the line.';
   }
   return { occ, fthb, occNote, fthbNote };
 }
@@ -108,27 +107,20 @@ export function taxAllocation(R, deal, documents) {
     if (prev && prev.holds && !holds) continue;
     const plain = normPayer(row['Paid By']);
     const firstTime = normPayer(row['FTHB Paid By']);
-    if (prev && !prev.holds && holds) byName.set(name, { name, plain, firstTime, holds, locksWhenFirstTime: locksWhenFirstTime(state, name) });
-    else if (!prev) byName.set(name, { name, plain, firstTime, holds, locksWhenFirstTime: locksWhenFirstTime(state, name) });
+    const locked = locksWhenFirstTime(state, name);
+    const rowInfo = { name, plain, firstTime, holds, locksWhenFirstTime: locked, lockReason: locked ? STATE_TRANSFER_LOCK : '' };
+    if (prev && !prev.holds && holds) byName.set(name, rowInfo);
+    else if (!prev) byName.set(name, rowInfo);
     else if (holds && prev.holds && plain && plain !== prev.plain) prev.plain = '';
   }
   return [...byName.values()].map(({ holds, ...rest }) => rest);
 }
 
-const contractChoice = (deal) => {
-  const field = CONTRACT_TAX_PAYER_FIELD;
-  if (!field || !deal) return '';
-  return normPayer(deal[field]);
-};
-
-function payerFor(info, explicit, qualified, deal) {
-  if (info.locksWhenFirstTime && qualified) return { payer: 'seller', locked: true, from: 'first-time' };
+function payerFor(info, explicit, qualified) {
+  if (info.locksWhenFirstTime && qualified) return { payer: 'seller', locked: true, from: 'law' };
   const picked = explicit && normPayer(explicit[info.name]);
-  if (picked) return { payer: picked, locked: false, from: 'file' };
-  const fromContract = contractChoice(deal);
-  if (fromContract) return { payer: fromContract, locked: false, from: 'contract' };
-  if (qualified && info.firstTime) return { payer: info.firstTime, locked: false, from: 'first-time' };
-  if (info.plain) return { payer: info.plain, locked: false, from: 'sheet' };
+  if (picked) return { payer: picked, locked: false, from: 'contract' };
+  if (info.plain) return { payer: info.plain, locked: false, from: 'jurisdiction' };
   return { payer: '', locked: false, from: '' };
 }
 
@@ -152,16 +144,14 @@ function withPayer(line, how, from) {
   else { const h = halvesOf(amount); paidBy = 'split'; split = { buyer: h.buyer, seller: h.seller, lender: 0, other: 0 }; }
   const base = String(line.description || '').replace(/ \([^)]*\)$/, '');
   const tag = how === 'seller' ? 'paid by seller' : how === 'buyer' ? 'paid by buyer' : 'split 50/50';
-  const why = from === 'first-time' ? ', first-time buyer' : '';
-  const description = from === 'sheet' ? line.description : `${base} (${tag}${why})`;
+  const description = from === 'jurisdiction' ? line.description : `${base} (${tag})`;
   let calculation = line.calculation || '';
-  if (from !== 'sheet') {
+  if (from === 'contract') {
     const who = how === 'split' ? 'the buyer and the seller, 50/50' : `the ${how}`;
     calculation = calculation.replace(/Paid by [^.]*\(sheet "Paid By"[^)]*\)\./, `Paid by ${who}.`);
+    calculation += ` Who pays was set to ${PAYER_LABEL[how]} from the executed contract on this file.`;
   }
-  if (from === 'file') calculation += ` Who pays was set to ${PAYER_LABEL[how]} on this file.`;
-  else if (from === 'first-time') calculation += ' The rate sheet says the seller pays this tax for a first-time buyer who will live in the home, unless this file chooses otherwise.';
-  if (how === 'split' && OWNER_OCCUPANT_EXEMPTION_SIDE === 'exempted-total' && /exemption/.test(calculation)) calculation += ' The owner-occupant exemption is taken off the amount before the 50/50 split.';
+  if (OWNER_OCCUPANT_EXEMPTION_SIDE === 'exempted-total' && /exemption/.test(calculation) && !/comes off the total before/.test(calculation)) calculation += ' The exemption comes off the total before it is split between the buyer and the seller.';
   return { ...line, description, paidBy, split, calculation };
 }
 
@@ -187,7 +177,66 @@ export function savedWorksheet(fees) {
   return f ? f.calc.inputs.taxDocs : null;
 }
 
+/* "Baltimore City" stays the city. "Baltimore" and "Baltimore County" stay the county. A saved county wins.
+ * A blank county uses the ZIP when that ZIP is in the file's state, then the city when the city is itself a county. */
+export function locateForFees(deal, R) {
+  const street = textField(deal, 'street');
+  const city = textField(deal, 'city');
+  const state = textField(deal, 'state').toUpperCase();
+  const zip = textField(deal, 'zip');
+  const savedCounty = textField(deal, 'county');
+  let county = savedCounty;
+  let countyFrom = savedCounty ? 'file' : '';
+  const hits = zip ? zipCounties(zip) : [];
+  const same = state ? hits.find((h) => h.state === state) : null;
+  const otherHit = hits.find((h) => h.primary) || hits[0] || null;
+  if (!county && same && countyIsKnown(R, { state, county: same.county })) {
+    county = countyOf(R, { state, county: same.county });
+    countyFrom = 'zip';
+  }
+  // A ZIP in another state means the address does not agree with the file. Do not guess the county from the city.
+  const zipDisagrees = !!(otherHit && state && otherHit.state !== state && !same);
+  if (!county && !zipDisagrees && city && state && countyIsKnown(R, { state, county: city })) {
+    county = countyOf(R, { state, county: city });
+    countyFrom = 'city';
+  }
+  const other = !county && zipDisagrees ? otherHit : null;
+  return {
+    deal: { ...(deal || {}), street, city, state: state || textField(deal, 'state'), zip, county },
+    addressOnFile: addressOnFile({ street, city, zip }),
+    savedCounty, countyFrom,
+    other: other && other.state !== state ? other : null
+  };
+}
+
+export function placeLabel(county, state) {
+  const name = String(county || '').trim();
+  const shown = /city$/i.test(name) || /^district of columbia$/i.test(name) ? name : (name ? name + ' County' : '');
+  return [shown, String(state || '').trim()].filter(Boolean).join(', ');
+}
+
+export function countyGapReason(place) {
+  const state = (place.deal && place.deal.state) || 'this file';
+  const zip = place.deal && place.deal.zip;
+  if (place.other) return `The property address is on the file, but the county is blank. ZIP ${zip} is in ${placeLabel(place.other.county, place.other.state)}, and this file is in ${state}. Set the state to ${place.other.state} or pick the county, then calculate again.`;
+  return 'The property address is on the file, but the county is blank. Pick the county on the file, then calculate again.';
+}
+
+function countyNote(place) {
+  if (!place || place.countyFrom === 'file' || !place.deal || !place.deal.county) return '';
+  const where = placeLabel(place.deal.county, place.deal.state);
+  if (place.countyFrom === 'zip') return `The county was blank on the file. ZIP ${place.deal.zip} is in ${where}, so these fees use that county.`;
+  if (place.countyFrom === 'city') return `The county was blank on the file. The city is ${place.deal.city}, so these fees use ${where}.`;
+  return '';
+}
+
+function unknownReason(place) {
+  return place.addressOnFile && !place.savedCounty ? countyGapReason(place) : COUNTY_UNKNOWN;
+}
+
 export function taxesFeesSetup(deal, fees, R, rate) {
+  const place = locateForFees(deal, R);
+  deal = place.deal;
   const state = String((deal && deal.state) || '').toUpperCase();
   const type = calcTypeOf(deal || {});
   const asks = exemptionAsks(R, deal || {});
@@ -203,11 +252,12 @@ export function taxesFeesSetup(deal, fees, R, rate) {
     payoff, assessed, showPayoff: type === 'refi', showAssessed: state === 'VA' && type !== 'refi',
     fromOrder: { occ: deal && deal.primaryResidence ? deal.primaryResidence : '', fthb: deal && deal.firstTimeBuyer ? deal.firstTimeBuyer : '' },
     rateNote: rate && rate.note ? rate.note : '',
+    countyNote: '',
     source: rate && rate.source ? { label: rate.source.label || '', snapshot: rate.source.snapshot || '' } : null
   };
   if (!CALC_STATES.includes(state)) return { ...base, reason: `CLA rates cover MD, VA, DC and FL only (this order is in ${state || 'no state'}).` };
-  if (!countyIsKnown(R, deal || {})) return { ...base, reason: COUNTY_UNKNOWN };
-  return { ...base, covered: true, county: countyOf(R, deal || {}), taxes: taxAllocation(R, deal, documents) };
+  if (!countyIsKnown(R, deal || {})) return { ...base, reason: unknownReason(place) };
+  return { ...base, covered: true, county: countyOf(R, deal || {}), countyNote: countyNote(place), taxes: taxAllocation(R, deal, documents) };
 }
 
 export function worksheetProblem(raw, deal) {
@@ -307,6 +357,9 @@ function readyDeal(deal, documents) {
 
 export function proposeTaxesFees(deal, worksheet, R, source) {
   if (!deal) throw new Error('Order not found.');
+  const place = locateForFees(deal, R);
+  deal = place.deal;
+  if (!countyIsKnown(R, deal)) throw new Error(unknownReason(place));
   const asks = exemptionAsks(R, deal);
   const raw = worksheet && Array.isArray(worksheet.documents) ? worksheet : { documents: defaultDocuments(deal, asks), payoff: 0, assessed: 0 };
   const clean = cleanWorksheet(raw, deal, asks);
@@ -336,11 +389,11 @@ export function proposeTaxesFees(deal, worksheet, R, source) {
     const name = line.key.slice(4);
     const info = allocation.find((t) => t.name === name);
     if (!info) return line;
-    const choice = payerFor(info, explicit, qualified, deal);
+    const choice = payerFor(info, explicit, qualified);
     if (!choice.payer) { const err = new Error(`Choose Buyer pays, Seller pays, or 50/50 split for ${name}.`); err.field = 'payers'; err.docType = name; throw err; }
     if (choice.locked) {
       let calculation = line.calculation || '';
-      if (normPayer(explicit[name]) && normPayer(explicit[name]) !== 'seller') calculation += ' This tax stays with the seller for a first-time buyer who will live in the home.';
+      if (!calculation.includes('Tax-Property 13-203')) calculation += ' ' + STATE_TRANSFER_LOCK;
       return { ...line, calculation };
     }
     usedPayers[name] = choice.payer;

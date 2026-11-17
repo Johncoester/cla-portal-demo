@@ -1160,39 +1160,74 @@ This file lists the portal's major features: how each one should work, how far a
 - Save the document answers on the calculated fee. No new database file.
 - A saved worksheet wins the next time the screen opens, so a deed of trust marked not a principal residence stays that way. The file's answers are the starting point when nothing has been saved.
 - Use the county list from REC-CALC-6 (PR 296, merged). A county in Maryland, Virginia, Florida, or the District of Columbia that is not named on a rate row of its own is still calculated, on the statewide rates.
-- Baltimore City who-pays, and the first-time buyer payer, are FF-091b.
+- Baltimore City who-pays, and the order of exemptions then the split, are FF-091b.
+- A blank county was treated as a missing address. That is FF-095.
 
 ---
 
 ## Baltimore City taxes and who pays (FF-091b)
 
-**How it should work.** On Taxes & Fees, Baltimore City transfer tax and recordation tax use the rate sheet already in the portal. Each tax offers Buyer pays, Seller pays, and 50/50 split. The start is the sheet's payer, and for a first-time buyer who will live in the home it is the sheet's first-time buyer payer. Staff can change it on that file. The Maryland first-time homebuyer exemption applies only when the file says the buyer is a first-time buyer and the home is their primary residence.
+**How it should work.** On Taxes & Fees, the tax is figured first, exemptions come off that total, and then the amount is split. The start is the county's default on the rate sheet. Staff can change Buyer pays, Seller pays, or 50/50 split for the executed contract, except a line the law fixes. That line stays locked and says why. Baltimore City uses the questions the rate sheet can answer: price, loan, pages, taxable, primary residence (the owner-occupied exemption), and the first-time homebuyer exemption.
 
-**Status: In progress.** FF-091b. Francis Santos, Nov 17 2026, 1:55 PM ET (message 1a1eaddb3dcfc5d6). Not Live. No database file. Not applied on TEST.
+**Status: In progress.** FF-091b. Francis Santos, Nov 17 2026, 1:55 PM ET (message 1a1eaddb3dcfc5d6) and Nov 17 2026, 3:55 PM ET (message 1a1eb4b8017fcabf). Not Live. No database file. Not applied on TEST.
 
 **What's built**
 
-- Baltimore City amounts follow the vendored rate sheet: transfer tax 1.5% up to $1,000,000 (2.1% above), with the $22,000 owner-occupant exemption only at $249,900 or less; recordation tax $5.00 per $500 up to $1,000,000 ($5.75 above), with the sheet's $22,000 owner-occupant exemption on that row.
-- State transfer tax stays 0.5%, or 0.25% paid by the seller when the buyer is a first-time buyer who will live in the home.
-- Each other tax offers Buyer pays, Seller pays, and 50/50 split. The choice is saved on the calculated fee.
+- Baltimore City amounts follow the vendored rate sheet: transfer tax 1.5% up to $1,000,000 (2.1% above), with the $22,000 owner-occupant exemption only at $249,900 or less; recordation tax $5.00 per $500 up to $1,000,000 ($5.75 above), with the sheet's $22,000 owner-occupant exemption on that row. The exemption comes off before the split.
+- The county default is a 50/50 split. A first-time buyer who will live in the home pays no state transfer tax, and Maryland law keeps that line with the seller.
+- Staff can change the other taxes for the contract. The choice is saved on the calculated fee.
 - A blank primary residence does not take the exemption.
 
 **What's still missing**
 
-- The contract field that should supply the starting payer. It is a labeled blank until John names it.
-- Which side of a split gets the owner-occupant exemption. The exempted total is split. Melissa's buyer-side reading is not built.
+- Recording the mortgage at the same time as the deed, and any statutory exemption the rate sheet does not list. Those are not asked. Editable rate sheets are FF-091c.
 - Not checked on TEST. Not Live.
 
 **Links**
 
 - Spec: [docs/specs/taxes-fees-baltimore.md](docs/specs/taxes-fees-baltimore.md)
-- Source: Francis Santos, Nov 17 2026, 1:55 PM ET, message 1a1eaddb3dcfc5d6. Tracker FF-091b.
+- Source: Francis Santos, Nov 17 2026, 3:55 PM ET, message 1a1eb4b8017fcabf. Tracker FF-091b.
 
 **Decisions**
 
-- Reuse the vendored calculator for the amounts. Do not copy the rate tables.
-- Apply the sheet's FTHB Paid By as the start. The calculator had been leaving that cell as a note.
-- No new database file. The choice is stored with the Taxes & Fees worksheet.
+- Figure the tax, take the exemption off the total, then allocate. Do not take the exemption from one side of a split.
+- The jurisdiction default is the rate sheet's Paid By. The contract choice is the control on Taxes & Fees.
+- Lock only a line the law fixes, and show the reason. Maryland state transfer tax for a first-time buyer who will live in the home stays with the seller (Tax-Property 13-203).
+- No new database file. No editable rate sheet in this change.
+
+---
+
+## Taxes and fees address (FF-095)
+
+**How it should work.** On Taxes & Fees, a file that already has a street, city, and ZIP should not be told to add the property address. Calculate uses the county saved on the file. Baltimore City and Baltimore County stay different. When the county is blank, the ZIP fills it if that ZIP is in the file's state. When the ZIP belongs to another state, the screen says so and does not invent a fee.
+
+**Status: In review.** Tracker FF-095. Francis Santos, email Nov 17 2026, 2:12 PM ET (Gmail message 1a1eaed436b0de49), signed in as Processor 2 on TEST. High, bug. Not Live. No database file.
+
+**What's built**
+
+- The red address message shows only when the street, the city, or the ZIP is missing. A blank county is no longer called a missing address.
+- A saved county is used as a name. "Baltimore City" prices Baltimore City. "Baltimore County" prices Baltimore County. ZIP 21223, with the county left blank, is Baltimore City.
+- When the city is Baltimore City and there is no ZIP, that city is the county.
+- MD-26-97407 (street and ZIP filled, county blank, state Maryland, ZIP 33319) is told that ZIP 33319 is in Broward County, Florida, and to set the state to FL or pick the county. No Maryland fee is invented.
+- MD-26-97386 already stores Baltimore City. Calculate still returns the recording fees and the taxes. The totals are not left at $0.00.
+
+**What's still missing**
+
+- The county found from the ZIP is not written back onto the file.
+- The state is not changed to match a ZIP from another state.
+- Not checked on TEST. Not Live.
+
+**Links**
+
+- Spec: [docs/specs/taxes-fees-address.md](docs/specs/taxes-fees-address.md)
+- Source: Francis Santos, Nov 17 2026, 2:12 PM ET, message 1a1eaed436b0de49. Tracker FF-095. The Taxes & Fees screen is FF-091.
+
+**Decisions**
+
+- County stays a name. There is no county id to translate.
+- A saved county wins over the ZIP and the city.
+- A ZIP in another state is explained. The calculator does not switch the file to that state.
+- No database file. Processors can already read the address columns. The rates stay in the vendored calculator.
 
 ---
 
@@ -1415,7 +1450,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On Import Leads, Import Clients, and Import Notes, Preview shows one plain sentence and a reason on every row. If the preview call fails, the screen still shows those rows. It does not replace them with one generic failure. Nothing is saved by a preview.
 
-**Status: In progress.** Tracker row CRM-201. John Coester confirmed this on Nov 17 2026 as CRM import fix 5 of 5. Pull request 139 (closed, not merged, Nov 12 2026) was the earlier attempt to stop the preview error from becoming a server error. Not Live until the portal lead applies `supabase/migrations/20261125110000_crm_import_preview_row_errors.sql` on TEST and someone checks a preview there.
+**Status: In progress.** Tracker row CRM-201. John Coester confirmed this on Nov 17 2026 as CRM import fix 5 of 5. Pull request 139 (closed, not merged, Nov 12 2026) was the earlier attempt to stop the preview error from becoming a server error. The lead reported on Nov 17 2026 that `supabase/migrations/20261125110000_crm_import_preview_row_errors.sql` is applied on TEST. Not Live until someone checks a preview there.
 
 **What's built**
 
@@ -1425,8 +1460,8 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Not on TEST until the database file is applied there and someone previews a file. Do not mark Live before that.
-- The import page, the shell, and the hosted CRM module load at `202611242290`, which is above main's `202611242270`, so a browser fetches the new screen. Files this change does not edit stay at main's stamp.
+- The lead reported the database file is on TEST. Live still waits for a person to preview a file there. Do not mark Live before that.
+- The import page, the shell, and the hosted CRM module load at `202611242290`.
 
 **Links**
 
@@ -1436,4 +1471,61 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - Return the preview as data instead of raising P0004. A P0004 on one row during a preview is kept on that row. A commit still re-raises it, so one assert still rolls that chunk back.
-- Do not add a per-row helper, and do not change the lead email lookup.
+- Do not add a per-row helper. The chosen lead for a note stays the same. How that lookup runs is the speed follow-up below.
+
+---
+
+## CRM import note match speed
+
+**How it should work.** On Import Notes, Preview still attaches each note to the same lead or client as before. An open person wins over an archived one. If several are open, or none are, the earliest created date wins. The preview should come back quickly when the lead list is large, instead of looking through every lead once per note row.
+
+**Status: In progress.** No separate tracker row. The portal lead approved this as its own pull request on Nov 17 2026, after CRM-201 (PR 314). Not Live until the lead applies `supabase/migrations/20261125120000_crm_import_fast_lead_match.sql` on TEST. This pull request does not apply it.
+
+**What's built**
+
+- A note file matches every email in one pass. The tie-break is unchanged: open first, then the earliest created date. On a local scratch database with 110,000 leads, a 500-row note preview went from about 15 seconds to under half a second.
+- An index on the lower-case email, then that same tie-break, for leads and for clients. The migration creates it if it is missing. On TEST it should be built outside a transaction first so writes are not blocked.
+- The person duplicate check is unchanged. It already uses the open-email index and the phone index.
+
+**What's still missing**
+
+- Not on TEST until the lead applies the database file. Do not mark Live before that.
+- A people preview still inserts one person at a time. This change does not make that path set-based.
+
+**Links**
+
+- Spec: [docs/specs/crm-import-fast-lead-match.md](docs/specs/crm-import-fast-lead-match.md)
+- Builds on: [docs/specs/crm-import-preview-rows.md](docs/specs/crm-import-preview-rows.md)
+
+**Decisions**
+
+- Keep the chosen person exactly the same. Do not add a per-row helper. Do not change policies on deals, tasks, or profiles.
+- Do not build the index with CONCURRENTLY inside the migration file. That statement cannot run inside a transaction. The file tells the lead to build it concurrently first, then run the file.
+
+## Salespeople on Place Order (FF-092)
+
+**How it should work.** On Place Order, Team & Notes, "Salespeople on this order" is a search box. Type a name or a role, pick one or more people, and each chosen person shows as a chip with Remove. The order saves the same salesperson ids as the old checkbox list. Who can be picked does not change.
+
+**Status: In review.** Tracker item FF-092 (Medium). Francis Santos, Nov 17 2026, 1:37 PM ET (Gmail message 1a1eacd7648484d9). Pull request: [PR 322](https://github.com/Johncoester/cla-portal-demo/pull/322). No database file. Not Live until someone checks it on TEST.
+
+**What's built**
+
+- The checkbox list is a search box. Arrow keys, Enter, and a click pick a person. Chosen people are chips. Remove takes one person off.
+- A name that is not on the list says to try another name. If this login has no salespeople, the box says none are available.
+- Add new user still adds an existing active salesperson, and a new salesperson login is still created in HR. Only an Admin sees that role.
+- A draft in this browser keeps every chosen person.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- The Users page still links a client to salespeople with checkboxes. That screen was not part of this request.
+
+**Links**
+
+- Spec: [docs/specs/place-order-salespeople.md](docs/specs/place-order-salespeople.md)
+- Pull request: [PR 322](https://github.com/Johncoester/cla-portal-demo/pull/322)
+
+**Decisions**
+
+- No database change. The saved field is still salesIds.
+- The search list is the same people the checkbox list showed.

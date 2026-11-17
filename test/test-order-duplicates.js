@@ -58,7 +58,8 @@ const sql = readFileSync(new URL('../supabase/migrations/20261110103000_tc_place
 const rollback = readFileSync(new URL('../supabase/rollbacks/20261110103000_tc_place_order_contact.sql', import.meta.url), 'utf8');
 ok(page.includes('data-dup-orders') && page.includes('findDuplicateOrders') && page.includes('You can still place this order.') && page.includes('data-place-order'), 'review asks for duplicates and does not remove Place order');
 ok(!page.includes('dup-block') && page.includes('data-review-ready'), 'a duplicate is a warning, not a thing to fix');
-ok(page.includes('No salespeople are available for this login.') && page.includes('No preprocessor is available for this login.'), 'empty sales and preprocessor lists say none are available for this login');
+const salesPicker = readFileSync(new URL('../js/pages/sales-multi.js', import.meta.url), 'utf8');
+ok(salesPicker.includes('No salespeople are available for this login.') && page.includes('No preprocessor is available for this login.'), 'empty sales and preprocessor lists say none are available for this login');
 // FF-088: the agent's coordinator is typed on the order. Place Order no longer has a staff TC dropdown, so it no longer says that list is empty.
 ok(!page.includes('No transaction coordinator is available for this login.') && !page.includes('(none available for this login)') && page.includes('data-agent-tc='), 'the agent coordinator is typed, not a staff list');
 ok(!page.includes('name="p:Sales Team"') && !page.includes('salesParty') && (page.match(/<legend>Salespeople on this order<\/legend>/g) || []).length === 1, 'Place Order keeps one salespeople field and does not restore Sales team member');

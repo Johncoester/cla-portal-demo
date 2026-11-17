@@ -14,6 +14,8 @@ On Taxes & Fees, for a Baltimore City file:
 
 ## What it does
 
+Francis Santos, Nov 17 2026, 3:55 PM ET (message 1a1eb4b8017fcabf): figure the tax first, take exemptions off that total, then allocate. The county default is the rate sheet's Paid By. Staff can change it for the executed contract. A line the law fixes stays locked and says why.
+
 Amounts still come from the vendored CLA calculator. This screen does not keep a second rate table.
 
 Baltimore City, from the rate sheet already in the portal:
@@ -22,24 +24,21 @@ Baltimore City, from the rate sheet already in the portal:
 - Recordation tax is $5.00 per $500 up to $1,000,000, and $5.75 per $500 above that. The sheet's $22,000 owner-occupant exemption is on those recordation rows. It is not limited to $249,900 on the sheet, so the screen does not add that limit.
 - Maryland state transfer tax is 0.5%. For a first-time buyer who will live in the home it is 0.25%, and the seller pays it. That payer cannot be changed. The calculator already locks it (Tax-Property 13-203).
 
-Who pays starts from the rate sheet's Paid By. For a first-time buyer who will live in the home, it starts from the sheet's FTHB Paid By when that cell is Buyer, Seller, or Split. On Baltimore City transfer tax and recordation tax that cell is Seller. Staff can switch each of those taxes to Buyer pays, Seller pays, or 50/50 split. The choice is saved on the calculated fee with the rest of the worksheet. There is no new database file.
+Who pays starts from the rate sheet's Paid By. On Baltimore City transfer tax and recordation tax that is a 50/50 split, after the exemption has already come off the total. Staff can switch each of those taxes to Buyer pays, Seller pays, or 50/50 split for the executed contract. The choice is saved on the calculated fee. There is no new database file.
+
+Maryland state transfer tax for a first-time buyer who will live in the home is locked to the seller. The screen says Tax-Property 13-203 and does not offer the three choices on that line.
 
 The same who-pays choices show for other counties. Their amounts are unchanged. A refinance does not offer them, because the borrower pays the recordation tax.
 
-The owner-occupant exemption is taken off the taxable amount, then a 50/50 split divides what is left. That is what the rate sheet's columns support. Which side the exemption belongs to on a split is still an open question.
+The owner-occupant exemption is taken off the taxable amount, then the county default splits what is left. Francis's 3:55 PM rule settled that order.
 
 A blank primary residence does not claim the exemption. It also does not raise the deed of trust recording fee. That higher fee is only when the file says the home is not a principal residence.
 
 ## What is not in this change
 
 - No database file. Not applied on TEST. Not Live.
-- The contract's written split is not read from a field. See the open questions.
-- The address and county message on Calculate (FF-095) is unchanged.
+- The contract choice is the Buyer pays / Seller pays / 50/50 split on this screen. It is not a separate field on the order.
+- Recording the mortgage at the same time as the deed, and any exemption the rate sheet does not list. Those are not asked, because the sheet has no rule for them.
+- Editable rate sheets are FF-091c. This change does not build them.
+- The address and county message on Calculate (FF-095) stays as it is on main.
 - A document with no rate (FF-091a) is unchanged. The screen still does not invent a recording fee for it.
-- The state transfer tax for a first-time buyer stays with the seller. The three choices are not offered on that one tax.
-
-## Open questions for John
-
-1. Where does the contract's Buyer pays / Seller pays / 50/50 split live? `CONTRACT_TAX_PAYER_FIELD` in `js/data/taxes-fees.js` is blank. `title_reviews.transfer_tax_split` is free text and is empty on TEST. Until that field is named, the rate sheet is the start and staff change it on the file.
-2. Which side does the owner-occupant exemption reduce when the tax is split? `OWNER_OCCUPANT_EXEMPTION_SIDE` is `exempted-total`. Melissa Gamble (Nov 16) said the buyer side unless the seller pays 100%. The sheet has no column for that. Do not switch it until John answers.
-3. Should staff be able to move the Maryland state transfer tax off the seller for a first-time buyer? The calculator locks it. This change does not unlock it.

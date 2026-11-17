@@ -21,8 +21,7 @@ Who answers: Melissa Gamble (recording). Send recording questions to Recording@c
 
 ## Open questions (do not build until answered)
 
-- **Who gets the owner-occupant exemption on a split tax?** Melissa (Nov 16): "Applies to the buyer side unless the seller agrees to pay 100%." But Lodestar and two closed files (MD-26-31559 Montgomery, MD-26-31956 Washington County) split it 50/50. The calculator still splits the exempted total. FF-091b leaves that as `OWNER_OCCUPANT_EXEMPTION_SIDE = 'exempted-total'` and does not build the buyer-side reading. Waiting on John.
-- **Which contract field is the starting tax payer?** FF-091b. There is no Buyer pays / Seller pays / 50/50 field on the file. `CONTRACT_TAX_PAYER_FIELD` is blank. The rate sheet is the start until John names the field.
+- **Who gets the owner-occupant exemption on a split tax?** Francis Santos, Nov 17 2026, 3:55 PM ET: figure the tax, take the exemption off the total, then allocate. FF-091b does that (`OWNER_OCCUPANT_EXEMPTION_SIDE = 'exempted-total'`). Melissa's Nov 16 note that it applies to the buyer side is not how the screen splits.
 - **Florida:** an enhanced (Homeowner's) owner's policy at 110% of basic (FL-26-32387) and a $25 condo/PUD endorsement (ALTA 4.1 / 5.1). Waiting on John.
 
 ## Closed-file test (Nov 16 2026)

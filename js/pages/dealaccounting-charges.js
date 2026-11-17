@@ -5,6 +5,7 @@
 // Every line is still ONE fee on the same ledger (accounting.js), so the ALTA, the CD pages, prorations and CLA rates keep working.
 // TEST ONLY. Wire instructions (bank routing / account numbers) are NEVER stored: the Wire block is a reminder only.
 import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611161500';
+import { addressOnFile } from '../data/fee-place.js?v=202611242400';
 import { splitFor } from '../data/underwriter.js?v=202611241600';
 import { cdDescription } from '../data/accounting.js?v=202611241500';
 import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611241500';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
@@ -70,15 +71,14 @@ const payerNow = (tax, flags, explicit) => {
   const qualified = !!(flags && flags.occ && flags.fthb);
   if (tax.locksWhenFirstTime && qualified) return { payer: 'seller', locked: true };
   if (explicit && explicit[tax.name]) return { payer: explicit[tax.name], locked: false };
-  if (qualified && tax.firstTime) return { payer: tax.firstTime, locked: false };
   return { payer: tax.plain || '', locked: false };
 };
 function payerRows(taxes, flags, explicit) {
   if (!taxes || !taxes.length) return '';
-  return html`<div data-tax-payers><p class="small">Who pays each tax. It starts from CLA's rate sheet. A first-time buyer who will live in the home uses that sheet's first-time buyer payer. Change it when the contract says otherwise. The choice stays on this file.</p>
+  return html`<div data-tax-payers><p class="small">The tax is figured first, and any exemption comes off that total. It is then split using this county's default. Change who pays when the executed contract says otherwise. A line the law fixes stays locked.</p>
     <div class="form-grid">${taxes.map((tax) => {
       const now = payerNow(tax, flags, explicit);
-      if (now.locked) return html`<div data-tax-payer-row="${tax.name}"><span class="small">${tax.name}</span><p class="field-hint" data-tax-payer-lock>Seller pays. A first-time Maryland homebuyer who will live in the home pays none of the state transfer tax. The seller pays it.</p></div>`;
+      if (now.locked) return html`<div data-tax-payer-row="${tax.name}"><span class="small">${tax.name}</span><p class="field-hint" data-tax-payer-lock>${tax.lockReason || 'The law fixes who pays this tax. The contract cannot change it.'}</p></div>`;
       const touched = explicit && explicit[tax.name] ? 'yes' : 'no';
       return html`<div data-tax-payer-row="${tax.name}"><span class="small">${tax.name}</span><div class="seg qc-seg" data-tax-payer="${tax.name}" data-tax-payer-touched="${touched}" role="group" aria-label="Who pays ${tax.name}">${TAX_PAYER_CHOICES.map(([k, label]) => html`<button type="button" class="seg-btn ${now.payer === k ? 'on' : ''}" data-tax-payer-choice="${k}">${label}</button>`)}</div></div>`;
     })}</div></div>`;
@@ -87,13 +87,15 @@ function taxDocCard(d, asks) {
   const occ = !!(asks && asks.occ) && (d.type === 'Deed' || d.type === 'Deed of Trust');
   const fthb = !!(asks && asks.fthb) && d.type === 'Deed';
   const money = d.consideration === '' || d.consideration == null ? '' : Number(d.consideration).toFixed(2);
+  const pageLabel = d.type === 'Deed' ? 'Number of deed pages' : d.type === 'Deed of Trust' ? 'Number of mortgage pages' : 'Number of pages';
+  const moneyLabel = d.type === 'Deed' ? 'Consideration / purchase price' : d.type === 'Deed of Trust' ? 'Loan amount' : 'Consideration amount';
   return html`<div class="card" data-tax-doc="${d.type}"><div class="acct-card-head"><h3>${d.type}</h3><button type="button" class="ghost small" data-tax-remove>Remove</button></div>
     <div class="form-grid">
-      <label>Number of pages<input data-tax-pages inputmode="numeric" value="${d.pages ?? ''}" aria-label="${d.type}, number of pages" autocomplete="off"></label>
-      <label>Consideration amount<input data-tax-consideration data-money inputmode="decimal" value="${money}" placeholder="0.00" aria-label="${d.type}, consideration" autocomplete="off"></label>
+      <label>${pageLabel}<input data-tax-pages inputmode="numeric" value="${d.pages ?? ''}" aria-label="${d.type}, number of pages" autocomplete="off"></label>
+      <label>${moneyLabel}<input data-tax-consideration data-money inputmode="decimal" value="${money}" placeholder="0.00" aria-label="${d.type}, consideration" autocomplete="off"></label>
       ${taxChoice('taxable', d.taxable !== false, 'Taxable?')}
-      ${occ ? taxChoice('occ', d.occ !== false, 'Primary residence / owner-occupied?') : ''}
-      ${fthb ? taxChoice('fthb', d.fthb === true, 'First-time buyer?') : ''}
+      ${occ ? taxChoice('occ', d.occ !== false, 'Primary residence / owner-occupied exemption?') : ''}
+      ${fthb ? taxChoice('fthb', d.fthb === true, 'First-time homebuyer exemption?') : ''}
     </div>
     ${occ && asks.occNote ? html`<p class="field-hint small">${asks.occNote}</p>` : ''}${fthb && asks.fthbNote ? html`<p class="field-hint small">${asks.fthbNote}</p>` : ''}</div>`;
 }
@@ -102,7 +104,9 @@ function taxFeesPanel(setup) {
   if (!setup.covered) return html`<div class="card" data-tax-fees><h3>Taxes &amp; fees</h3><p class="notice warn" data-tax-not-ready>${setup.reason}</p></div>`;
   const left = setup.types.filter((t) => !setup.documents.some((d) => d.type === t));
   return html`<div class="card acct-calc" data-tax-fees><div class="acct-card-head"><h3>Taxes &amp; fees</h3><span class="muted small">${setup.county ? setup.county + ', ' : ''}${setup.state}</span></div>
-    <p class="small muted">Add each document to record. Calculate fees prices the recording fees, recordation tax, and transfer tax for this county. Nothing is saved until you apply the lines. A line you changed by hand is kept.</p>
+    <p class="small muted">Add each document to record. Calculate fees prices the recording fees, recordation tax, and transfer tax for this county. Exemptions come off the total, then the tax is split. Nothing is saved until you apply the lines. A line you changed by hand is kept.</p>
+    ${setup.county === 'Baltimore City' ? html`<p class="field-hint small" data-tax-baltimore>Baltimore City asks for the purchase price, the loan amount, deed and mortgage pages, taxable, primary residence (that answer is the owner-occupied exemption), and the first-time homebuyer exemption. The rate sheet has no rule for recording the mortgage at the same time as the deed, and no other statutory exemption, so those are not asked.</p>` : ''}
+    ${setup.countyNote ? html`<p class="small" data-tax-county>${setup.countyNote}</p>` : ''}
     ${setup.rateNote ? html`<p class="small" data-tax-rate>${setup.rateNote}</p>` : ''}
     <div class="acct-toolbar"><label class="small">Add document <select data-tax-add-type aria-label="Add document">${left.length ? left.map((t) => html`<option value="${t}">${t}</option>`) : html`<option value="">All documents are added</option>`}</select></label>
       <button type="button" class="m-btn" data-tax-add ${dis(!left.length)}>Add document</button></div>
@@ -238,7 +242,7 @@ function feeSection(ctx) {
   const { deal, acc, cd, sec, base, canEdit } = ctx; const refi = acc.refi; const G = sec === 'G';
   const grid = Q.sectionGrid(deal, cd, acc.entries, sec); const rows = grid.rows; const byLine = Object.fromEntries(rows.map((r) => [r.line, r]));
   const loan = Number(deal.loanAmount) || 0;
-  const banner = sec === 'E' && !(deal.street && deal.city && deal.zip && deal.county) ? html`<div class="qc-banner" data-qc-address-banner><span>You'll need to add a complete property address before we'll be able to calculate recording fees and taxes.</span> <a class="m-btn small" href="#/deals/${deal.id}/overview" data-qc-add-property>Add property</a></div>` : '';
+  const banner = sec === 'E' && !addressOnFile(deal) ? html`<div class="qc-banner" data-qc-address-banner><span>You'll need to add a complete property address before we'll be able to calculate recording fees and taxes.</span> <a class="m-btn small" href="#/deals/${deal.id}/overview" data-qc-add-property>Add property</a></div>` : '';
   const amtCols = refi ? ['borrowerAt', 'borrowerBefore', 'others'] : ['borrowerAt', 'borrowerBefore', 'sellerAt', 'sellerBefore', 'others'];
   const locked = (r) => !canEdit || !!r.recording || (sec === 'E' && r.line === '01') || !!(r.fee && r.fee.proration);
   const tone = (r) => (r.fee && r.fee.overridden ? 'qc-over' : r.calculated ? 'qc-pre' : '');

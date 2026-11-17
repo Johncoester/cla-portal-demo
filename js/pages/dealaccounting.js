@@ -12,7 +12,7 @@ import { render as postClosingRender } from './dealpostclosing.js?v=202611161500
 import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611241500';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611241500';
 import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611241900';
-import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611242600';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611242860';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 import { contractView } from './dealaccounting-contract.js?v=202611223000';
 import { partyNames, withStatementParties } from '../data/statement-parties.js?v=202611222900';
 

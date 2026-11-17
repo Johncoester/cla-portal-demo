@@ -59,6 +59,12 @@ export function collectOrderFields(form) {
       if (el.checked) checks[el.name].push(el.value || 'on');
       continue;
     }
+    // FF-092: each salesperson is one hidden salesIds field. A draft keeps every person, not only the last one.
+    if (el.type === 'hidden' && el.name === 'salesIds') {
+      if (!checks.salesIds) checks.salesIds = [];
+      if (el.value) checks.salesIds.push(el.value);
+      continue;
+    }
     if (el.type === 'radio') { if (el.checked) fields[el.name] = el.value; continue; }
     fields[el.name] = el.value;
   }
