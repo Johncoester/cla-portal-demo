@@ -49,16 +49,21 @@ test('the buyer sees the agent phone and not themselves on the closing team', as
   await reopenSeedBuyerTask(dealId(page), 'personal_info');
   await gotoHash(page, `#/deals/${dealId(page)}/tasks`);
   await page.getByRole('link', { name: 'Personal information' }).first().click();
-  const citizenship = page.locator('#tform select[name="citizenship"]');
+  const citizenship = page.locator('#tform input[name="citizenship"]');
   await citizenship.waitFor();
-  const choices = await citizenship.locator('option').allTextContents();
-  for (const label of ['U.S. Citizen', 'Permanent Resident', 'Non-Resident Alien', 'Other']) {
-    expect(choices).toContain(label);
-  }
-  await citizenship.selectOption('U.S. Citizen');
+  await expect(page.locator('#tform select[name="citizenship"]')).toHaveCount(0);
+  await citizenship.fill('U.S. Citizen');
   await page.locator('#tform button[data-mode="save"]').click();
   await expect(page.locator('.toast', { hasText: 'Progress saved' })).toBeVisible();
   await expect(citizenship).toHaveValue('U.S. Citizen');
+  await citizenship.fill('Born in Canada');
+  await page.locator('#tform button[data-mode="save"]').click();
+  await expect(page.locator('.toast', { hasText: 'Progress saved' })).toBeVisible();
+  await expect(citizenship).toHaveValue('Born in Canada');
+  await citizenship.fill('');
+  await page.locator('#tform button[data-mode="save"]').click();
+  await expect(page.locator('.toast', { hasText: 'Progress saved' })).toBeVisible();
+  await expect(citizenship).toHaveValue('');
   expect(freshIssues(issues)).toEqual([]);
 });
 
