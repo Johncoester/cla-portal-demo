@@ -1550,7 +1550,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On a Lead, a Client, or a Company, the person who wrote a note, or an admin, can open Edit, fix the words or add to them, and save. The note stays on that same record and shows Edited with the time. Nobody can delete a note. A processor still cannot change notes. A note the CRM wrote (such as Archived) cannot be edited.
 
-**Status: In progress.** Janine, CRM Feedback 27 item 1, confirmed Nov 16 2026. No database file. Not on TEST until this pull request is merged. Not Live.
+**Status: In progress.** Janine, CRM Feedback 27 item 1, confirmed Nov 16 2026. Pull request: [PR 338](https://github.com/Johncoester/cla-portal-demo/pull/338). No database file. Not on TEST until this pull request is merged. Not Live.
 
 **What's built**
 

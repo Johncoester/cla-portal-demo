@@ -2,7 +2,7 @@
 
 **Requested by:** Janine, the CRM user, confirmed Nov 16 2026. CRM Feedback 27, item 1.
 
-**Status:** In progress. No database file. Not on TEST until this pull request is merged. Not Live.
+**Status:** In progress. Pull request [338](https://github.com/Johncoester/cla-portal-demo/pull/338). No database file. Not on TEST until that pull request is merged. Not Live.
 
 ## What the user sees
 
