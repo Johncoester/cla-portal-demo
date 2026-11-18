@@ -51,11 +51,10 @@ const PERSONAL_V4 = [...PERSONAL_V1, F('settlement_type', 'In-person or online s
 // Not included, waiting on John: full SSN, confirmed spouse match.
 const BUYER_ONLY = ['Client-Buyer'];
 const buyerYn = (k, label, extra = {}) => F(k, label, 'select', false, { opts: yn, roles: BUYER_ONLY, ...extra });
-export const CITIZENSHIP_OPTS = ['U.S. Citizen', 'Permanent Resident', 'Non-Resident Alien', 'Other'];
-// "US Citizen" is already stored on a file. It stays a valid answer and is shown when that is the saved value.
-export const CITIZENSHIP_KEPT = ['US Citizen'];
+// JN-CITIZEN-1 (Janine, Nov 17 2026, via Francis Feedback): Citizenship is one line the person types.
+// An answer already saved, including "US Citizen", stays on the file and shows in that line.
 export const BUYER_PERSONAL_FIELDS = [
-  F('citizenship', 'Citizenship', 'select', false, { opts: CITIZENSHIP_OPTS, keep: CITIZENSHIP_KEPT, roles: BUYER_ONLY }),
+  F('citizenship', 'Citizenship', 'text', false, { roles: BUYER_ONLY }),
   F('gender', 'Gender', 'select', false, { opts: ['Female', 'Male', 'Nonbinary', 'Prefer not to say'], roles: BUYER_ONLY }),
   F('date_of_birth', 'Date of birth', 'date', false, { roles: BUYER_ONLY }),
   F('forwarding_address', 'Forwarding address', 'text', false, { roles: BUYER_ONLY }),
@@ -451,5 +450,22 @@ export function applyCommissionTaskV2(d, { at = new Date().toISOString(), by = n
       && (d.taskTemplates.find((z) => z.id === t.templateId) || { version: 0 }).version < nt.version)
     .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
   return { added, moved };
+}
+
+/* JN-CITIZEN-1: a copy of the question that was saved as a dropdown becomes a single line.
+ * The answer already stored on the task is not touched. Running it again changes nothing. */
+export function applyCitizenshipFreeText(d) {
+  let changed = 0;
+  for (const t of (d && d.taskTemplates) || []) {
+    for (const f of t.fields || []) {
+      if (f.k !== 'citizenship' || f.type === 'text') continue;
+      f.type = 'text';
+      delete f.opts;
+      delete f.keep;
+      changed++;
+    }
+  }
+  if (changed) d.citizenshipTextNow = true;
+  return { changed };
 }
 

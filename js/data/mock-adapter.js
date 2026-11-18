@@ -8,13 +8,13 @@ import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, 
   phoneOk, fmtPhone, PHONE_MSG, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611101015';
 import { fileTitleOf, partyDisplayName } from './party-name.js?v=202611102000';
 import { staffTaskCounts } from './party-task-completion.js?v=202611241000';
-import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611221900';
+import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611243611';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
-import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyCommissionTaskV2 } from './templates.js?v=202611221900';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611243300';
+import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyCommissionTaskV2, applyCitizenshipFreeText } from './templates.js?v=202611243616';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611243603';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611221900';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611243234';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611243604';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611243609';
 import { messagesActivity } from './mock-part-msgs.js?v=202611141400';
 import { adminUsersTeams } from './mock-part-admin.js?v=202611241300';
 import { libraryFolders } from './mock-part-library.js?v=202611070139';
@@ -29,7 +29,7 @@ import { ensureEmailTemplates } from './crm-templates.js?v=202611130900';
 import { ensureNov3b as ensureCrmNov3b } from './crm-nov3b.js?v=202611070139';
 import { ensureAgentPortal } from './agent-portal.js?v=202611241900';
 import { agentPortal } from './mock-part-agent.js?v=202611241900';
-import { mattNov3b } from './mock-part-nov3b.js?v=202611221900';
+import { mattNov3b } from './mock-part-nov3b.js?v=202611243605';
 import { ensureSettings, optLabel } from './crm-config.js?v=202611130900';
 import { referralLabel } from './place-order.js?v=202611191800';
 import { upgradeCalls } from './crm-calls.js?v=202611070139';
@@ -37,8 +37,8 @@ import { accountingPart, ensureAccounting } from './mock-part-accounting.js?v=20
 import { payoffsPart, ensurePayoffs } from './mock-part-payoffs.js?v=202611243300';
 import { modulesPart, ensureModules } from './mock-part-modules.js?v=202611101015';
 import { roleAccessPart } from './mock-part-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access (Super admin)
-import { taskShownTo } from './task-switches.js?v=202611241900';
-import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611241900';
+import { taskShownTo } from './task-switches.js?v=202611243615';
+import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611243608';
 import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.js?v=202611101015';
 import { underwriterPart } from './mock-part-underwriter.js?v=202611243300';
 import { agentInfoPart } from './mock-part-agentinfo.js?v=202611101015';
@@ -47,16 +47,16 @@ import { agentFeesPart, backfillCommissionTasks } from './mock-part-agent-fees.j
 import { automationPart } from './automation.js?v=202611101015';
 import { gmailMock } from './supabase-gmail.js?v=202611140900';
 import { hrPart, ensureHr } from './mock-part-hr.js?v=202611242100';
-import { titlePart, ensureTitle } from './mock-part-title.js?v=202611241900';
+import { titlePart, ensureTitle } from './mock-part-title.js?v=202611243610';
 import { tcPortal, ensureTc, tcMessageViews } from './mock-part-tc.js?v=202611191700';
 import { emailSendersPart, ensureEmailSenders } from './email-senders.js?v=202611101015';   // John, Nov 4: the Title review module (staff only; in place, no storage bump)
 import { officesPart, officeById } from './mock-part-offices.js?v=202611101015';
 import { taskBuilderPart, watchTaskFlowEvents } from './mock-part-task-builder.js?v=202611221100';   // John, Nov 13: Admin > Task Builder (TB-1 flows, TB-2 engine)
 import { closingLocationPart } from './mock-part-closing-location.js?v=202611242210';
-import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611241900';
+import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611243607';
 import { fwpCanRead, FWP_STAFF_ONLY } from './funding-wire-policy.js?v=202611070139';
 import { buyerAgentDocDecision, taskReadable, propertyAddressOf } from './nov5-rules.js?v=202611131900';
-import { nov5Part, ensureNov5 } from './mock-part-nov5.js?v=202611241900';
+import { nov5Part, ensureNov5 } from './mock-part-nov5.js?v=202611243606';
 import { staffFeedbackPart } from './mock-part-staff-feedback.js?v=202611080400';
 import { fwpPart, ensureFwp } from './mock-part-fwp.js?v=202611243300';
 import { seedFwp as FSEED } from './fwp-seed.js?v=202611070139';   // John, Nov 4: where each buyer / seller will be at closing (migration 58)   // Admin > Offices (John, Nov 4; migration 57)
@@ -139,7 +139,7 @@ export function ensurePreprocessorSeed(d) {
 export function upgradeToV30(d, from = 'v29') { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); if (from !== 'v29') upgradeToV29(d, from); ensurePreprocessorSeed(d); d.upgradedFrom = from; return d; }
 export function ensureMattNov3b(d) { applyNov3bTemplates(d); return d; }   // orders are not rewritten: a missing sourceOfBusiness reads as ''
 export function ensureBuyerPersonal(d) { applyBuyerPersonal(d); return d; }
-export function ensureSellerTasks(d) { applySellerTasks(d); applyProceedsMove(d); applyPersonalV8(d); backfillCommissionTasks(d); applyCommissionTaskV2(d); return d; }   // AF-8: commission task -> Agent fees, then v2
+export function ensureSellerTasks(d) { applySellerTasks(d); applyProceedsMove(d); applyPersonalV8(d); backfillCommissionTasks(d); applyCommissionTaskV2(d); applyCitizenshipFreeText(d); return d; }   // AF-8: commission task -> Agent fees, then v2. JN-CITIZEN-1: Citizenship is a typed line; saved answers stay.
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();
@@ -174,9 +174,9 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     let d = fresh ? ensureTitle(ensureTc(ensureHr(ensurePayoffs(ensureModules(ensureAccounting(upgradeCalls(ensureMattNov3b(ensureCrmNov3b(ensureWireFlags(ensureAgentPortal(data)))))))))), { seed: !!flags.title }) : ensureTitle(ensureTc(data), { seed: !!flags.title });
     d = ensurePreprocessorSeed(d); d = ensureEmailSenders(d); d = ensureRealtorName(d); d = ensureRecording(d, { seed: !!flags.accounting }); d = ensureFwp(d, { seed: !!flags.policy || !!flags.funding || !!flags.wires }); d = ensureBuyerPersonal(d); d = ensureSellerTasks(d); return ensureNov5(d);
   };
-  function load() { if (db) return db; const raw = store.getItem(KEY); if (raw) { db = JSON.parse(raw); const renamed = (db.profiles || []).some((p) => p.id === 'u-multi' && p.lastName === 'Multi-Role'); db = ensureAll(db); const seeded = db.titleSeedAddedNow || db.fwpSampleAddedNow; delete db.titleSeedAddedNow; delete db.fwpSampleAddedNow; if (seeded || renamed) save(); return db; }
+  function load() { if (db) return db; const raw = store.getItem(KEY); if (raw) { db = JSON.parse(raw); const renamed = (db.profiles || []).some((p) => p.id === 'u-multi' && p.lastName === 'Multi-Role'); db = ensureAll(db); const seeded = db.titleSeedAddedNow || db.fwpSampleAddedNow || db.citizenshipTextNow; delete db.titleSeedAddedNow; delete db.fwpSampleAddedNow; delete db.citizenshipTextNow; if (seeded || renamed) save(); return db; }
     const prev = loadPrevious();
-    if (prev) { const [pk, data] = prev; db = ensureAll(data); delete db.titleSeedAddedNow; delete db.fwpSampleAddedNow; const old = store.getItem(pk);
+    if (prev) { const [pk, data] = prev; db = ensureAll(data); delete db.titleSeedAddedNow; delete db.fwpSampleAddedNow; delete db.citizenshipTextNow; const old = store.getItem(pk);
       try { save(); } catch (e) { if (!isQuota(e)) throw e; store.removeItem(pk); try { save(); } catch (e2) { store.setItem(pk, old); throw e2; } }
       store.removeItem(pk); return db; }
     db = ensureAll(buildSeed(), { fresh: true }); if (typeof store.key === 'function') dropStale(); save(); return db; }
