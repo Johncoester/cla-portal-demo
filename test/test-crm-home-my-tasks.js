@@ -52,7 +52,7 @@ function hostedClient() {
       const data = table === 'crm_activities' ? rows.filter((r) => filters.every(([k, v]) => r[k] === v)) : [];
       return Promise.resolve({ data, error: null });
     };
-    const api = { select() { return api; }, eq(k, v) { filters.push([k, v]); return api; }, then(res, rej) { return run().then(res, rej); } };
+    const api = { select() { return api; }, eq(k, v) { filters.push([k, v]); return api; }, in() { return api; }, then(res, rej) { return run().then(res, rej); } };
     return api;
   };
   const sb = {

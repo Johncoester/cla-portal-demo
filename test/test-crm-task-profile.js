@@ -30,7 +30,7 @@ ok(taskLoad.includes('api.getCrmTask(params.id)') && !taskLoad.includes('listCrm
 ok(!taskLoad.includes('task-board') && !read('js/data/supabase-crm.js').includes('task-board'), 'the file task board is not part of this page');
 const hostedSrc = read('js/data/supabase-crm.js');
 const listFn = hostedSrc.slice(hostedSrc.indexOf('async listCrmTasks'), hostedSrc.indexOf('async getCrmTask'));
-ok(!listFn.includes('crm_leads') && !listFn.includes("from('contacts')") && !listFn.includes('withTaskPerson'), 'the Home task list does not look up each lead or client');
+ok(listFn.includes('taskPartyNames') && !listFn.includes('withTaskPerson') && !listFn.includes(".eq('id'"), 'the Home list uses one batched name read, not the detail page one-row read');
 const nameFn = hostedSrc.slice(hostedSrc.indexOf('const taskPersonName'), hostedSrc.indexOf('const withTaskPerson'));
 ok(nameFn.includes(".select('first_name,last_name')") && nameFn.includes('.eq(\'id\', id)') && nameFn.includes('maybeSingle'), 'the name read is one row by id, first and last name only');
 
@@ -98,16 +98,19 @@ function hostedClient(tables, failTables = new Set()) {
     const filters = [];
     let cols = '';
     let single = false;
+    let ids = null;
     const run = () => {
-      calls.push({ table, cols, filters: filters.map((pair) => pair.slice()), single });
+      calls.push({ table, cols, filters: filters.map((pair) => pair.slice()), single, ids: ids ? ids.slice() : null });
       if (failTables.has(table)) return Promise.resolve({ data: null, error: { message: 'row hidden' } });
       let data = (tables[table] || []).filter((r) => filters.every(([k, v]) => String(r[k]) === String(v)));
+      if (ids) data = data.filter((r) => ids.includes(r.id));
       if (single) data = data[0] || null;
       return Promise.resolve({ data, error: null });
     };
     const api = {
       select(c) { cols = c; return api; },
       eq(k, v) { filters.push([k, v]); return api; },
+      in(k, vals) { if (k === 'id') ids = vals.slice(); return api; },
       order() { return api; },
       maybeSingle() { single = true; return run(); },
       then(res, rej) { return run().then(res, rej); },
@@ -148,7 +151,11 @@ const beforeKept = hosted.calls.filter((c) => c.table === 'crm_leads').length;
 const kept = await hosted.api.getCrmTask('t-kept');
 ok(kept.parentName === 'Kept Name' && hosted.calls.filter((c) => c.table === 'crm_leads').length === beforeKept, 'a name already stored on the task is not read again');
 const listed = await hosted.api.listCrmTasks({ ownerId: 'user-a' });
-ok(listed.length === 4 && hosted.calls.filter((c) => c.table === 'crm_leads').length === beforeKept, 'the Home list still does not look up names');
+const leadAfter = hosted.calls.filter((c) => c.table === 'crm_leads');
+const clientAfter = hosted.calls.filter((c) => c.table === 'contacts');
+ok(listed.length === 4 && leadAfter.length === beforeKept + 1 && !leadAfter[leadAfter.length - 1].single && clientAfter.length === 2 && !clientAfter[clientAfter.length - 1].single, 'the Home list names every lead and client once each, not once per task');
+const intro = listed.find((t) => t.id === 't-lead');
+ok(intro.relatedTo === 'Marcus Vance & Co' && intro.contactName === 'Marcus Vance & Co' && intro.relatedLink === '#/crm/leads/lead-1' && intro.contactLink === '#/crm/leads/lead-1', 'Home Related To and Contact Name link that lead');
 
 session.setItem('crm-home:order', JSON.stringify(['t-lead']));
 const hostedView = show(await taskPage({ api: hosted.api, me: { id: 'user-a', canEdit: true }, assignees: [], params: { id: 't-lead' }, cfg, refresh() {}, go() {} }));
