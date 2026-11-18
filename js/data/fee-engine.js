@@ -18,7 +18,7 @@
  *   calculatorSupabaseRateSource NOT CONNECTED: a placeholder showing where a reader of the calculator's tables would plug in. It refuses. */
 import * as C from './vendor/cla-calculator/calc-core.js?v=202611223000';
 import { STATE_COUNTIES } from './state-counties.js?v=202611223100';
-import { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden } from './accounting.js?v=202611243004';
+import { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden } from './accounting.js?v=202611243300';
 export { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden };
 
 export const CALC_SOURCE = { repo: 'github.com/Johncoester/cla-closing-cost-calculator', commit: '84c2fc4', snapshot: '2026-11-16', files: 'index.html (calc code), fee-snapshot.js (rate tables)' };

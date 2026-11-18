@@ -10,7 +10,7 @@
  *    A.01 Loan Amount % override, F # of months, F.03 prepaid interest per-diem calculation, G $ per month x # of months, E.01 recording types;
  *  - the CD text of a line (e.g. "Prepaid Interest ($53.42 per day from 11/30/26 to 12/01/26)", "Homeowner's Insurance Premium (12 mo.)").
  * WIRE INSTRUCTIONS: bank routing / account numbers are NEVER stored (the meta has no such keys; cleanMeta and the database refuse unknown keys). */
-import { addMonths, isDate, mdy } from './prorations.js?v=202611070139';
+import { addMonths, isDate, mdy, prorationRange } from './prorations.js?v=202611070139';
 const fail = (m) => { throw new Error(m); };
 const c = (n) => Math.round((Number(n) || 0) * 100); const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const usd = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -261,7 +261,21 @@ export const LINKS = { L: { '03': '03', '05': '08', '08': '09', '09': '10', '10'
   K: { '02': '02', '05': '03', '06': '04', '07': '05', '08': '09', '09': '10', '10': '11', '11': '12', '12': '13', '13': '14', '14': '15', '15': '16' } };
 const groupOf = (side, line) => { let g = null; for (const [l, , h] of SUMMARY_LAYOUT[side]) { if (h) g = h; if (l === line) return g; } return null; };
 const linesIn = (side, group) => { let g = null; const out = []; for (const [l, , h] of SUMMARY_LAYOUT[side]) { if (h) g = h; if (g === group) out.push(l); } return out; };
-const itemSlot = (e) => (/city|town/i.test(e.description + ' ' + ((e.proration || {}).item || '')) ? 0 : /assess/i.test(e.description) ? 2 : /count|property tax/i.test(e.description + ' ' + ((e.proration || {}).item || '')) ? 1 : 3);
+// FF-098: city, county / property tax, and assessments have their own CD lines. Ground rent, HOA, and anything else
+// take the next open line in the same section (paid in advance = K/M, unpaid = L/N).
+const SLOT_BY_ITEM = { cityTaxes: 0, countyTaxes: 1, assessments: 2 };
+const SLOT_BY_TAB = { city: 0, county: 1, assessments: 2 };
+const itemSlot = (e) => {
+  const p = e.proration || {};
+  if (SLOT_BY_ITEM[p.item] != null) return SLOT_BY_ITEM[p.item];
+  if (SLOT_BY_TAB[p.tab] != null) return SLOT_BY_TAB[p.tab];
+  const blob = `${e.description || ''} ${p.item || ''} ${p.name || ''}`;
+  if (/city|town/i.test(blob)) return 0;
+  if (/assess/i.test(blob)) return 2;
+  if (/count|property tax/i.test(blob)) return 1;
+  return 3;
+};
+const prorationLabel = (e) => { const range = prorationRange(e.prorationLive || (e.proration && e.proration.calc)); return range ? `${e.description} ${range}` : e.description; };
 // where a credit / summary entry sits: { side, line } on its own side; its linked line (if any) on the other side
 export function summaryPlace(e) {
   if (e.autoKey === 'salesPrice') return [['K', '01'], ['M', '01']]; if (e.autoKey === 'deposit') return [['L', '01']]; if (e.autoKey === 'loanAmount') return [['L', '02']]; if (e.autoKey === 'excessDeposit') return [['N', '01']];
@@ -287,11 +301,13 @@ export function summaryScreens(deal, cd, entries) {
     if (!r) { const allowed = group ? linesIn(side, group) : rows.map((x) => x.line); r = rows.find((x) => allowed.includes(x.line) && !x.entry && !x.text) || rows.find((x) => allowed.includes(x.line) && !x.entry); }
     if (!r) { r = { side, line: String(rows.length + 1).padStart(2, '0'), text: null, header: null }; rows.push(r); }
     Object.assign(r, { entry, amount: r2(amount), label: label || r.text, linked: linked || null, auto: !!(entry && entry.auto) }); return r; };
-  for (const e of entries) { if (e.retired || (e.kind === 'charge' && FEE_SECS.includes(e.cdSection))) continue;
+  for (const rawEntry of entries) { const e = rawEntry && rawEntry.proration && !rawEntry.from && rawEntry.proration.status === 'paid' ? { ...rawEntry, from: 'buyer', to: 'seller' }
+      : rawEntry && rawEntry.proration && !rawEntry.from && rawEntry.proration.status === 'unpaid' ? { ...rawEntry, from: 'seller', to: 'buyer' } : rawEntry;
+    if (e.retired || (e.kind === 'charge' && FEE_SECS.includes(e.cdSection))) continue;
     if (e.kind === 'charge' && (e.timing === 'before' || e.poc)) continue;
     const places = summaryPlace(e); if (!places.length) continue;
     const amount = e.kind === 'charge' ? (Number((e.split || {}).seller) > 0 ? Number(e.split.seller) : Number((e.split || {}).buyer) || 0) : e.amount;
-    const label = e.autoKey === 'salesPrice' ? 'Sale Price of Property' : e.autoKey === 'deposit' ? 'Deposit' : e.autoKey === 'loanAmount' ? 'Loan Amount' : e.autoKey === 'excessDeposit' ? 'Excess Deposit' : e.description;
+    const label = e.autoKey === 'salesPrice' ? 'Sale Price of Property' : e.autoKey === 'deposit' ? 'Deposit' : e.autoKey === 'loanAmount' ? 'Loan Amount' : e.autoKey === 'excessDeposit' ? 'Excess Deposit' : e.proration ? prorationLabel(e) : e.description;
     const [a, b] = places; const ra = put(a[0], a[1], a[2] || groupOf(a[0], a[1]), e, amount, label);
     if (b) { const rb = put(b[0], b[1], b[2] || null, e, amount, label, ra.side + ra.line); ra.linked = rb.side + rb.line; } }
   // J (closing costs paid at closing) from the CD: K.03 (borrower) and N.02 (seller)
