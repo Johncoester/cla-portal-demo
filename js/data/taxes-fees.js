@@ -7,6 +7,7 @@ import {
   COUNTY_UNKNOWN, CALC_STATES, NO_OO, calculatorCore as C, isCalculated, isOverridden
 } from './fee-engine.js?v=202611243300';
 import { addressOnFile, textField, zipCounties } from './fee-place.js?v=202611242400';
+import { calculateRateSheet, questionsFor } from './tax-rate-calc.js?v=202611244001';
 
 export const TAX_DOC_TYPES = ['Affidavit', 'Assignment of Mortgage or Lease', 'Deed', 'Deed of Trust', 'Lis Pendens', 'Power of Attorney', 'Release of Mortgage', 'UCC', 'Lease', 'Easement'];
 const CALC_DOC = { Deed: 'Deed', 'Deed of Trust': 'Deed of Trust', 'Release of Mortgage': 'Release', 'Power of Attorney': 'Power of Attorney' };
@@ -237,7 +238,78 @@ function unknownReason(place) {
   return place.addressOnFile && !place.savedCounty ? countyGapReason(place) : COUNTY_UNKNOWN;
 }
 
-export function taxesFeesSetup(deal, fees, R, rate) {
+const ANSWER_KEYS = {
+  owner_occupied: 'ownerOccupied', primary_residence: 'primaryResidence', first_time_buyer: 'firstTimeBuyer',
+  other_exemption: 'otherExemption', mortgage_concurrent: 'mortgageConcurrent', contract_payer: 'contractPayer'
+};
+function yn(v) {
+  if (v === true || v === 'yes' || v === 'true') return true;
+  if (v === false || v === 'no' || v === 'false') return false;
+  return null;
+}
+function cleanAnswers(raw) {
+  const a = raw && raw.answers && typeof raw.answers === 'object' ? raw.answers : {};
+  const out = {};
+  for (const [from, to] of Object.entries(ANSWER_KEYS)) {
+    const v = a[to] != null ? a[to] : a[from];
+    if (to === 'contractPayer') {
+      if (v == null || v === '') continue;
+      const p = String(v).toLowerCase();
+      if (p !== 'buyer' && p !== 'seller' && p !== 'split') { const err = new Error('Choose Buyer pays, Seller pays, or 50/50 split for who pays under the contract.'); err.field = 'payer'; throw err; }
+      out.contractPayer = p;
+      continue;
+    }
+    const b = yn(v);
+    if (b != null) out[to] = b;
+  }
+  return out;
+}
+function cleanPayers(raw) {
+  const src = raw && raw.payers && typeof raw.payers === 'object' ? raw.payers : {};
+  const out = {};
+  for (const [name, want] of Object.entries(src)) {
+    if (!want) continue;
+    const p = String(want).toLowerCase();
+    if (p !== 'buyer' && p !== 'seller' && p !== 'split') { const err = new Error(`Choose Buyer pays, Seller pays, or 50/50 split for ${name}.`); err.field = 'payer'; throw err; }
+    out[name] = p;
+  }
+  return out;
+}
+function cleanManual(raw) {
+  const src = raw && raw.manual && typeof raw.manual === 'object' ? raw.manual : {};
+  const out = {};
+  for (const [key, val] of Object.entries(src)) {
+    if (val == null || val === '') continue;
+    const text = moneyText(val);
+    if (!/^\d+(\.\d{1,2})?$/.test(text)) { const err = new Error('Enter the fee as a dollar amount, like 250.00.'); err.field = 'manual'; throw err; }
+    out[key] = r2(text);
+  }
+  return out;
+}
+function sheetInput(deal, clean, recorded) {
+  const type = calcTypeOf(deal);
+  const deed = clean.documents.find((d) => d.type === 'Deed');
+  const dot = clean.documents.find((d) => d.type === 'Deed of Trust');
+  const answers = clean.answers || {};
+  const ownerOccupied = answers.ownerOccupied != null ? answers.ownerOccupied : (deed ? deed.occ : true);
+  const primaryResidence = answers.primaryResidence != null ? answers.primaryResidence : (deed ? deed.occ : dot ? dot.occ : true);
+  const documents = [];
+  for (const [name, row] of Object.entries(recorded)) {
+    if (!(row[0] > 0)) continue;
+    const src = clean.documents.find((d) => CALC_DOC[d.type] === name);
+    documents.push({ type: name, pages: row[1], occ: src ? src.occ !== false : true });
+  }
+  const price = type === 'refi' ? 0 : (deed && deed.taxable ? deed.consideration : priceOf(deal));
+  const loan = type === 'cash' ? 0 : (dot && dot.taxable ? dot.consideration : loanOf(deal));
+  return {
+    state: String(deal.state || '').toUpperCase(), county: deal.county || '', city: textField(deal, 'city'), type,
+    price, loan, payoff: clean.payoff, assessed: clean.assessed, documents,
+    answers: { ...answers, ownerOccupied, primaryResidence, firstTimeBuyer: answers.firstTimeBuyer != null ? answers.firstTimeBuyer : !!(deed && deed.fthb) },
+    payers: clean.payers || {}, manual: clean.manual || {}
+  };
+}
+
+export function taxesFeesSetup(deal, fees, R, rate, bundle = null) {
   const place = locateForFees(deal, R);
   deal = place.deal;
   const state = String((deal && deal.state) || '').toUpperCase();
@@ -258,9 +330,19 @@ export function taxesFeesSetup(deal, fees, R, rate) {
     countyNote: '',
     source: rate && rate.source ? { label: rate.source.label || '', snapshot: rate.source.snapshot || '' } : null
   };
-  if (!CALC_STATES.includes(state)) return { ...base, reason: `CLA rates cover MD, VA, DC and FL only (this order is in ${state || 'no state'}).` };
-  if (!countyIsKnown(R, deal || {})) return { ...base, reason: unknownReason(place) };
-  return { ...base, covered: true, county: countyOf(R, deal || {}), countyNote: countyNote(place), taxes: taxAllocation(R, deal, documents) };
+  if (!CALC_STATES.includes(state)) return { ...base, questions: [], answers: {}, manual: {}, reason: `CLA rates cover MD, VA, DC and FL only (this order is in ${state || 'no state'}).` };
+  if (!countyIsKnown(R, deal || {})) return { ...base, questions: [], answers: {}, manual: {}, reason: unknownReason(place) };
+  const county = countyOf(R, deal || {});
+  const qs = bundle ? questionsFor(bundle, { state, county, city: textField(deal, 'city') }, type) : [];
+  const fileQuestions = qs.filter((q) => q.scope === 'file' && !['assessed', 'primary_residence', 'first_time_buyer', 'contract_payer', 'owner_occupied'].includes(q.key));
+  return {
+    ...base, covered: true, county, countyNote: countyNote(place),
+    taxes: taxAllocation(R, deal, documents),
+    questions: fileQuestions,
+    answers: saved && saved.answers ? saved.answers : {},
+    manual: saved && saved.manual ? saved.manual : {},
+    rateNote: bundle ? `Rates for ${placeLabel(county, state)} come from the tax rate sheet. An Admin can change them on Tax rates.` : base.rateNote
+  };
 }
 
 export function worksheetProblem(raw, deal) {
@@ -320,7 +402,7 @@ function cleanWorksheet(raw, deal, asks) {
   const documents = raw.documents.map(cleanDoc);
   const payoff = raw.payoff == null || raw.payoff === '' ? 0 : r2(moneyText(raw.payoff));
   const assessed = raw.assessed == null || raw.assessed === '' ? 0 : r2(moneyText(raw.assessed));
-  return { documents, payoff, assessed, asks };
+  return { documents, payoff, assessed, asks, answers: cleanAnswers(raw), payers: cleanPayers(raw), manual: cleanManual(raw) };
 }
 
 function zeroDocs(type) {
@@ -399,7 +481,7 @@ function readyDeal(deal, documents) {
   return next;
 }
 
-export function proposeTaxesFees(deal, worksheet, R, source) {
+export function proposeTaxesFees(deal, worksheet, R, source, bundle = null) {
   if (!deal) throw new Error('Order not found.');
   const place = locateForFees(deal, R);
   deal = place.deal;
@@ -460,7 +542,29 @@ export function proposeTaxesFees(deal, worksheet, R, source) {
   const ratedGap = (w) => noRate.some((d) => { const name = CALC_DOC[d.type]; return name && w.startsWith(`No recording fee found for ${name} in `); });
   const merged = [...recP.warnings, ...taxP.warnings, ...warnings].filter((w) => keepWarn(w) && !ratedGap(w));
   const uniq = [...new Set(merged)];
-  const stored = { documents: clean.documents, payoff: clean.payoff, assessed: clean.assessed, payers: usedPayers };
+  const stored = { documents: clean.documents, payoff: clean.payoff, assessed: clean.assessed, answers: clean.answers, payers: usedPayers, manual: clean.manual };
+  if (bundle) {
+    const sheet = calculateRateSheet(bundle, sheetInput(base, clean, docs));
+    if (sheet) {
+      const pendingLines = (sheet.pending || []).map((p) => ({
+        key: 'unset:' + p.name, docType: p.name, rateNotSet: true,
+        description: p.name, altaSection: 'government', cdSection: 'E', cdLine: '',
+        payee: String(p.payee || '').slice(0, 120), amount: 0, paidBy: p.defaultPayer || 'buyer', split: { buyer: 0, seller: 0, lender: 0, other: 0 },
+        titlePrefix: false, timing: 'at', poc: false, replacesPresets: [], lawMandated: !!p.lawMandated,
+        rateSource: 'Tax rate sheet', calculation: RATE_NOT_SET
+      }));
+      const lines = [...sheet.lines, ...unsetLines, ...pendingLines];
+      let nSheet = 0;
+      for (const x of lines) x.cdLine = String(++nSheet).padStart(2, '0');
+      const mergedSheet = [...sheet.warnings, ...warnings].filter(keepWarn);
+      const inputs = { type, state: String(base.state || '').toUpperCase(), county: base.county || '', price: priceOf(base), loan: loanOf(base), payoff: clean.payoff, assessed: clean.assessed, docs, taxDocs: stored, occ: taxOcc, fthb: taxFthb };
+      return {
+        inputs, lines, warnings: [...new Set(mergedSheet)], pending: [], source: { ...(source || {}), id: 'tax-rate-sheet', label: 'Tax rate sheet' },
+        totals: { buyer: r2(lines.reduce((t, l) => t + ((l.split && l.split.buyer) || 0), 0)), seller: r2(lines.reduce((t, l) => t + ((l.split && l.split.seller) || 0), 0)) },
+        summary: `${type === 'refi' ? 'Refinance' : 'Purchase'} · ${base.county || ''}, ${String(base.state || '').toUpperCase()}`
+      };
+    }
+  }
   const inputs = { ...taxP.inputs, docs, taxDocs: stored, occ: taxOcc, fthb: !!taxP.inputs.fthb };
   return {
     inputs, lines, warnings: uniq, source: taxP.source,
@@ -492,15 +596,15 @@ export function feeColumns(line) {
   };
 }
 
-export function previewTaxesFees(deal, worksheet, fees, R, source) {
-  const P = proposeTaxesFees(deal, worksheet, R, source);
+export function previewTaxesFees(deal, worksheet, fees, R, source, bundle = null) {
+  const P = proposeTaxesFees(deal, worksheet, R, source, bundle);
   const D = diffTaxesFees(P, fees);
   const view = previewView(P, D, { payoff: P.inputs.payoff, assessed: P.inputs.assessed, occ: P.inputs.occ, fthb: P.inputs.fthb, docs: P.inputs.docs });
   const status = Object.fromEntries(D.rows.map((r) => [r.key, r.status]));
   const replace = new Set(worksheet && Array.isArray(worksheet.replace) ? worksheet.replace : []);
   const manual = worksheet && worksheet.manual && typeof worksheet.manual === 'object' ? worksheet.manual : {};
   view.breakdown = P.lines.map((l) => {
-    const row = { key: l.key, description: l.description, amount: l.amount, paidBy: l.paidBy, calculation: l.calculation, status: status[l.key] || 'new', rateNotSet: false, enteredByHand: false, locked: false, savedByHand: false, docType: l.docType || '', ...feeColumns(l) };
+    const row = { key: l.key, description: l.description, amount: l.amount, paidBy: l.paidBy, calculation: l.calculation, status: status[l.key] || 'new', rateNotSet: false, enteredByHand: false, locked: !!l.lawMandated, savedByHand: false, docType: l.docType || '', lawMandated: !!l.lawMandated, ...feeColumns(l) };
     if (!l.rateNotSet) return row;
     const cur = (fees || []).find((f) => f && !f.retired && isCalculated(f) && f.calc && f.calc.key === l.key);
     const saved = cur && Number(cur.amount) > 0 ? r2(cur.amount) : 0;
@@ -514,7 +618,7 @@ export function previewTaxesFees(deal, worksheet, fees, R, source) {
       shown = amount > 0 && cur ? sameSide(cur, amount) : null;
     } else if (!locked && savedByHand) { amount = saved; shown = cur; }
     const cols = shown ? feeColumns({ split: shown.split, timing: shown.timing, paidBy: shown.paidBy, amount: shown.amount || amount }) : feeColumns({ ...l, amount, paidBy: 'buyer', split: { ...ZERO_SPLIT, buyer: amount }, timing: 'at' });
-    return { ...row, borrowerAt: cols.borrowerAt, borrowerBefore: cols.borrowerBefore, sellerAt: cols.sellerAt, sellerBefore: cols.sellerBefore, others: cols.others, amount, rateNotSet: true, docType: l.docType, enteredByHand: amount > 0, locked, savedByHand, calculation: RATE_NOT_SET };
+    return { ...row, borrowerAt: cols.borrowerAt, borrowerBefore: cols.borrowerBefore, sellerAt: cols.sellerAt, sellerBefore: cols.sellerBefore, others: cols.others, amount, rateNotSet: true, docType: l.docType, enteredByHand: amount > 0, locked: locked || !!l.lawMandated, savedByHand, calculation: RATE_NOT_SET };
   });
   view.warnings = P.warnings;
   view.retire = D.rows.filter((r) => r.status === 'retire').map((r) => ({ key: r.key, description: r.current.description, amount: r.current.amount }));

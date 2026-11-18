@@ -33,7 +33,8 @@ import { mattNov3b } from './mock-part-nov3b.js?v=202611243804';
 import { ensureSettings, optLabel } from './crm-config.js?v=202611130900';
 import { referralLabel } from './place-order.js?v=202611243800';
 import { upgradeCalls } from './crm-calls.js?v=202611070139';
-import { accountingPart, ensureAccounting } from './mock-part-accounting.js?v=202611243300';
+import { accountingPart, ensureAccounting } from './mock-part-accounting.js?v=202611244011';
+import { taxRatesPart } from './mock-part-tax-rates.js?v=202611244004';
 import { payoffsPart, ensurePayoffs } from './mock-part-payoffs.js?v=202611243300';
 import { modulesPart, ensureModules } from './mock-part-modules.js?v=202611101015';
 import { roleAccessPart } from './mock-part-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access (Super admin)
@@ -409,6 +410,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     C: { ROLES, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, STAFF_ACCOUNT_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel , COUNTY_MAX } };
   Object.assign(api, devAuth(ctx), dealsAndAuth(ctx), contactsTasksDocs(ctx), tasksAndForms(ctx), messagesActivity(ctx), adminUsersTeams(ctx), libraryFolders(ctx), closingSchedule(ctx), notificationsPart(ctx), mattP2(ctx), mattNov2(ctx), crmPart(ctx, flags), agentPortal(ctx));
   Object.assign(api, accountingPart(ctx, flags));
+  Object.assign(api, taxRatesPart(ctx));
   Object.assign(api, gmailMock());   // Gmail phase 1 runs on CLA Portal Live Test only
   Object.assign(api, payoffsPart(ctx, flags, api));   // John, Nov 4: Qualia payoffs / HOA / FFB / ground rent (same `accounting` flag; staff only)   // John, Nov 3: the Accounting tab (behind the `accounting` flag; off = every method refuses)
   Object.assign(api, mattNov3b(ctx));   // Matt, Nov 3 (b): source-of-business options for Place Order
