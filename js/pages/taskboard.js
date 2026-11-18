@@ -3,7 +3,7 @@
 import { html, $, $$, toText, fmtDate, pill, options } from '../ui.js?v=202611161500';
 import { filterTasks, sortTasks, groupTasks, isOverdue, TASK_SORTS, TASK_GROUPS, roleShort } from '../data/task-board.js?v=202611241000';
 import { annotatePartyTaskProgress, partyTaskStillOpen } from '../data/party-task-completion.js?v=202611241000';
-import { CLS, LABEL } from './dealtasks.js?v=202611243624';
+import { CLS, LABEL } from './dealtasks.js?v=202611243819';
 
 const STATUS_OPTS = [['open', 'Incomplete (to do, started, blocked)'], ['done', 'Completed'], ['blocked', 'Blocked'], ['cancelled', 'Cancelled'], ['all', 'All statuses']];
 const FILE_OPTS = [['Open', 'Open files'], ['On Hold', 'On-hold files'], ['Closed', 'Closed files'], ['Cancelled', 'Cancelled files'], ['All', 'All files']];
