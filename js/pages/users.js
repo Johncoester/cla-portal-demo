@@ -3,7 +3,7 @@
 // Delete = the account is removed (cannot sign in, leaves teams and salesperson links), but their documents, messages and history stay.
 // Nov 2 (John): filter/search, staff role vs per-file roles for outside users, clients linked to salespeople (many-to-many),
 // Super admin (only a Super admin grants/removes it or deletes/suspends/changes a Super admin).
-import { html, raw, $, $$, guard, formData, pill, toast, fmtDate, options } from '../ui.js?v=202611161500';
+import { html, raw, $, $$, guard, formData, pill, toast, fmtDate, options, plainError } from '../ui.js?v=202611161500';
 import { cleanBirthdate, BIRTHDATE_NOTE } from '../data/agent-info.js?v=202611101015';
 import { ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, OUTSIDE, isAdminRole, isSuperAdmin, isSalesRole, roleLabel, CONTACT_TYPES, contactTypeLabel, outsideTypeLabel } from '../data/constants.js?v=202611101015';
 // contact type (John, Nov 2): outside users only (agents, clients, lenders); staff have none
@@ -20,6 +20,16 @@ const salesPicker = (sales, chosen) => (sales.length ? sales.map((s) => html`<la
   : html`<p class="muted">No active Sales Person or Sales Team users yet.</p>`);
 // a plain Admin cannot change anything about a Super admin except name and phone
 const lockedFor = (actor, u) => u.role === SUPER_ADMIN_ROLE && !isSuperAdmin(actor);
+// The row tick and the Edit user tick are the same save. A failed save never shows a database code.
+const ownerSaveError = (err) => {
+  const said = plainError(err);
+  if (!said.text || /\b(can_own_crm|PGRST|SQLSTATE|[0-9A-Z]{5})\b/.test(said.text)) return 'This was not saved. Refresh the page and try again.';
+  return said.text;
+};
+const crmOwnerBox = (actor, u) => {
+  const locked = u.status === 'removed' || !isAdminRole(actor.role);
+  return html`<label class="check crm-owner-tick"><input type="checkbox" data-crm-owner="${u.id}" ${u.canOwnCrm ? raw('checked') : ''} ${locked ? raw('disabled title="Only an Admin or Super admin can change this"') : raw('title="Can own CRM records"')} aria-label="Can own CRM records"></label>`;
+};
 
 export async function render({ api, user, params, refresh, go }) {
   if (!user.isAdmin) throw new Error('User management is for Admins only.');
@@ -77,6 +87,7 @@ export async function render({ api, user, params, refresh, go }) {
     <td>${gone ? acct(u.role) : html`<select data-role="${u.id}" aria-label="Role" ${self ? raw('disabled title="You cannot change your own role"') : locked ? raw('disabled title="Only a Super admin can change a Super admin"') : ''}>${roleOptions(user, u.role)}</select>`}${fileRoles(u)}</td>
     <td>${links}</td>
     <td class="center">${gone ? '' : html`<input type="checkbox" data-admin="${u.id}" ${u.isAdmin ? raw('checked') : ''} ${self || isAdminRole(u.role) ? html`disabled title="${self ? 'This is you' : `Role ${u.role} always has Admin access`}"` : ''} aria-label="Admin">`}</td>
+    <td class="center">${crmOwnerBox(user, u)}</td>
     <td>${(u.teams || []).join(', ')}</td><td>${gone ? html`<span class="muted small">removed ${fmtDate(u.removedAt)}</span>` : pill(u.status, u.status === 'active' ? 'ok' : 'warn')}</td>
     <td class="nowrap"><a class="ghost" href="#/users/edit/${u.id}" data-edit="${u.id}">${gone ? 'View' : 'Edit'}</a>${self || gone ? '' : locked ? html` <span class="muted small" data-locked="${u.id}">Super admin: only a Super admin can suspend or delete</span>` : html` <button class="ghost" data-status="${u.id}" data-to="${u.status === 'active' ? 'disabled' : 'active'}">${u.status === 'active' ? 'Disable' : 'Enable'}</button>
       <button class="ghost danger" data-del="${u.id}" data-name="${fullName(u)}">Delete user</button>`}</td></tr>`; });
@@ -87,8 +98,8 @@ export async function render({ api, user, params, refresh, go }) {
       <label>Role<select name="role"><option value="">Any role</option>${options(USER_ROLE_FILTERS, '', (o) => o[1], (o) => o[0])}</select></label>
       <label>Status<select name="status">${options(USER_STATUS_FILTERS, '', (o) => o[1], (o) => o[0])}</select></label>
       <label>Contact type<select name="contactType"><option value="">Any</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}<option value="none">Not set</option></select></label></form>
-    <table class="tbl striped"><thead><tr><th>Name</th><th>Email</th><th>Account type / roles on files</th><th>Salespeople / clients</th><th>Admin</th><th>Teams</th><th>Status</th><th></th></tr></thead><tbody>${rows}<tr data-nomatch hidden><td colspan="8" class="muted center">No users match your filters.</td></tr></tbody></table>
-    <p class="muted small">Admins only. Staff have one fixed role; outside users (agents, clients) have a role on each file, shown under their account type. Picking role Admin or Super admin gives Admin access; moving someone off it takes it away. There is always at least one Admin and at least one Super admin. Only a Super admin can grant or remove Super admin, or suspend, delete or change the role of a Super admin. Deleting a user stops their sign-in and takes them off teams and salesperson links; their documents, messages, task answers and audit history are kept and shown as "(removed)". Documents are never deleted.</p>`;
+    <div class="user-list-scroll"><table class="tbl striped"><thead><tr><th>Name</th><th>Email</th><th>Account type / roles on files</th><th>Salespeople / clients</th><th>Admin</th><th>CRM owner</th><th>Teams</th><th>Status</th><th></th></tr></thead><tbody>${rows}<tr data-nomatch hidden><td colspan="9" class="muted center">No users match your filters.</td></tr></tbody></table></div>
+    <p class="muted small">Admins only. Staff have one fixed role; outside users (agents, clients) have a role on each file, shown under their account type. Picking role Admin or Super admin gives Admin access; moving someone off it takes it away. There is always at least one Admin and at least one Super admin. Only a Super admin can grant or remove Super admin, or suspend, delete or change the role of a Super admin. CRM owner is the same tick as Can own CRM records on Edit user. Only an Admin or Super admin can change it. Deleting a user stops their sign-in and takes them off teams and salesperson links; their documents, messages, task answers and audit history are kept and shown as "(removed)". Documents are never deleted.</p>`;
   return { title: 'User List', crumbs: [['User List']], body, mount(root) {
     const form = $('#ufilters', root);
     const apply = () => { const f = new FormData(form); const vis = new Set(filterUsers(users, { q: f.get('q'), role: f.get('role'), status: f.get('status'), contactType: f.get('contactType') }).map((u) => u.id));
@@ -97,6 +108,20 @@ export async function render({ api, user, params, refresh, go }) {
     form.addEventListener('submit', (e) => e.preventDefault()); form.addEventListener('input', apply); form.addEventListener('change', apply);
     $$('[data-role]', root).forEach((s) => s.addEventListener('change', guard(async () => { try { await api.adminUpdateUser(s.dataset.role, { role: s.value }); toast(isAdminRole(s.value) ? `Role set to ${s.value} (Admin access granted)` : 'Role updated'); } finally { refresh(); } })));
     $$('[data-admin]', root).forEach((c) => c.addEventListener('change', guard(async () => { try { await api.adminUpdateUser(c.dataset.admin, { isAdmin: c.checked }); toast(c.checked ? 'Admin granted' : 'Admin removed'); } finally { refresh(); } })));
+    $$('[data-crm-owner]', root).forEach((c) => c.addEventListener('change', async () => {
+      const want = c.checked;
+      c.disabled = true;
+      let saved = false;
+      try {
+        await api.adminUpdateUser(c.dataset.crmOwner, { canOwnCrm: want });
+        saved = true;
+        toast(want ? 'Can own CRM records turned on' : 'Can own CRM records turned off');
+        refresh();
+      } catch (err) {
+        if (!saved) { c.checked = !want; c.disabled = false; }
+        toast(ownerSaveError(err), 'err');
+      }
+    }));
     $$('[data-status]', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.adminUpdateUser(b.dataset.status, { status: b.dataset.to }); toast('User ' + b.dataset.to); refresh(); })));
     $$('[data-unlink]', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.adminUnlinkSalesRep(b.dataset.unlink, b.dataset.salesId); toast('Salesperson link removed'); refresh(); })));
     $$('[data-del]', root).forEach((b) => b.addEventListener('click', guard(async () => {

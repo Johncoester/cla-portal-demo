@@ -1466,6 +1466,33 @@ This file lists the portal's major features: how each one should work, how far a
 - The earlier database file is not edited. This file only grants the column.
 - The shell cache stamp is 202611245200, above main's 202611245100, so a saved copy of the shell is not reused.
 
+## CRM owner on the User List (CRM-OWNER-2)
+
+**How it should work.** On Admin, then User List, each person has a **CRM owner** checkbox beside **Admin**. It is the same tick as **Can own CRM records** on Edit user. An Admin or Super admin can turn it on or off from the row, without opening Edit. The Edit checkbox stays, and the two stay in step. Anyone else sees the box locked. A change is written to the activity log the same way as Edit. If the save fails, the box goes back and the message says what to do, in plain words.
+
+**Status: In progress.** Tracker row 369, CRM-OWNER-2. John Coester asked in chat on Nov 18 2026, 11:49 AM ET, with a screenshot of Admin, then User List. No database file. The column and the update grant from CRM-OWNER-1 and CRM-OWNER-1b are reused. Not Live until an Admin ticks a row on TEST, reloads, and sees the same tick on Edit user.
+
+**What's built**
+
+- A CRM owner checkbox on every User List row, beside Admin. Ticking it saves through the same update as Edit user.
+- The Edit user checkbox is unchanged. The row and Edit read and write the same tick.
+- Only an Admin or Super admin can change it. A removed person keeps the tick, and the box is locked. The activity log records who, which user, the old value, and the new value.
+- A failed save puts the box back and shows a plain message. A database code is not shown.
+- On a phone the list scrolls sideways and the box is large enough to tap.
+
+**What's still missing**
+
+- A check on TEST. Do not mark Live before an Admin ticks a row, reloads, and opens Edit for that person.
+
+**Links**
+
+- Spec: [docs/specs/crm-owner-flag.md](docs/specs/crm-owner-flag.md)
+
+**Decisions**
+
+- No new database file. The existing column and the update grant are enough.
+- The shell cache stamp is 202611245700, so a saved copy of the User List is not reused.
+
 ## CRM custom view user criteria
 
 **How it should work.** On Leads, Clients, Companies, and Deals, New Custom View, Specify Criteria, a field whose value is a person lists every CRM user, the same people as Share this with, Selected users. That includes super admins, admins, and sales reps. Choosing one saves that person's id, and the view shows records whose created-by, modified-by, owner, or last-activity person is that id.
