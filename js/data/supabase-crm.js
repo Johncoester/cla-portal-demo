@@ -104,6 +104,21 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
   const noCf = (v) => { const o = {}; Object.entries(v).forEach(([k, x]) => { if (!k.startsWith('cf.')) o[k] = x; }); return o; };
   const opts = async (key) => ok(await sb.from('crm_picklist_options').select('*').eq('list_key', key).order('position')) || [];   // a list key or 'cf:<field id>'
   const optOut = (o) => ({ value: o.value, label: o.label, retired: !!o.retired });
+  // Lead or client name for one task. Primary key only. A failure leaves the name blank; the task still opens.
+  const taskPersonName = async (entity, id) => {
+    if ((entity !== 'lead' && entity !== 'contact') || !id) return '';
+    const table = entity === 'lead' ? 'crm_leads' : 'contacts';
+    try {
+      const row = ok(await sb.from(table).select('first_name,last_name').eq('id', id).maybeSingle());
+      return row ? `${row.first_name || ''} ${row.last_name || ''}`.trim() : '';
+    } catch { return ''; }
+  };
+  const withTaskPerson = async (task) => {
+    if (!task || task.parentName || task.contactName || (task.entity !== 'lead' && task.entity !== 'contact')) return task;
+    const name = await taskPersonName(task.entity, task.entityId);
+    if (!name) return task;
+    return { ...task, parentName: name, contactName: name, contactLink: task.parentLink || '' };
+  };
   const swap = async (table, rows, i, j, match) => { if (i < 0 || j < 0 || j >= rows.length) return;
     const a = rows[i].position; let b = rows[j].position; if (a === b) b += 1;
     ok(await match(sb.from(table).update({ position: b }), rows[i])); ok(await match(sb.from(table).update({ position: a }), rows[j])); };
@@ -221,7 +236,9 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async listCrmTasks(opts) { on(); const ppl = await staff(); const ownerId = opts && opts.ownerId ? String(opts.ownerId) : '';
       let q = sb.from('crm_activities').select('*').eq('kind', 'task'); if (ownerId) q = q.eq('owner_id', ownerId);
       return (ok(await q) || []).map((a) => actOut(a, ppl)); },
-    async getCrmTask(id) { on(); const a = ok(await sb.from('crm_activities').select('*').eq('id', id).eq('kind', 'task').maybeSingle()); if (!a) throw new Error('Task not found.'); return actOut(a, await staff()); },
+    // Task detail (Janine, Feedback 29 item 6). The activity row has the record id, not the person's name.
+    // One read by that id, and only when the name is not already on the task. The Home list does not do this.
+    async getCrmTask(id) { on(); const a = ok(await sb.from('crm_activities').select('*').eq('id', id).eq('kind', 'task').maybeSingle()); if (!a) throw new Error('Task not found.'); return withTaskPerson(actOut(a, await staff())); },
     async updateCrmTask(id, v) { on(); const before = ok(await sb.from('crm_activities').select('status').eq('id', id).maybeSingle());
       const r = actOut(await one(sb.from('crm_activities').update(taskIn(v, false)).eq('id', id)), await staff());
       let nextTaskId = null; if (before && before.status !== TASK_CLOSED && r.status === TASK_CLOSED) nextTaskId = ((ok(await sb.from('crm_activities').select('id').eq('repeat_of', id)) || [])[0] || {}).id || null;

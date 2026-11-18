@@ -4,7 +4,7 @@ import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime, fmtMoney,
 import { localDate } from '../data/constants.js?v=202611101015';
 import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY, dueTone, daysOverdue, taskOpen } from '../data/crm.js?v=202611130900';
 import { tabs, head } from './crm-kit.js?v=202611161500';
-import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611244600';
+import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611244900';
 import { inviteBtn, invitePreview } from './crm-janine.js?v=202611243900';
 import { optionsOf, optLabel } from '../data/crm-config.js?v=202611130900';
 import { lbl } from './crm-custom.js?v=202611243900';
@@ -75,23 +75,42 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
 }
 const localDay = (iso) => { const d = new Date(iso); if (isNaN(d)) return ''; const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
 
+// The lead or client this task belongs to (Janine, Feedback 29 item 6). The name is already on the task.
+// The link is built from the record id. The page does not load the lead list or the client list.
+const PROFILE_ID = /^[A-Za-z0-9_-]{1,80}$/;
+function taskProfile(t) {
+  if (!t || (t.entity !== 'lead' && t.entity !== 'contact')) return null;
+  const name = String(t.parentName || t.contactName || '').trim();
+  const id = String(t.entityId || '').trim();
+  const href = PROFILE_ID.test(id) ? (t.entity === 'lead' ? `#/crm/leads/${id}` : `#/crm/contacts/${id}`) : '';
+  return { entity: t.entity, label: entityLabel(t.entity), name, href: name && href ? href : '' };
+}
+
 // ---------------- TASK detail (Zoho: Edit, Close Task, prev / next) ----------------
 export async function taskPage({ api, me, assignees, params, refresh, go, cfg }) {
   const t = await api.getCrmTask(params.id);
+  const profile = taskProfile(t);
   let order = []; try { order = JSON.parse(SS('order') || '[]'); } catch (e) { order = []; }
   if (!order.includes(t.id)) order = sortTasks(await api.listCrmTasks({ ownerId: me.id }), 'dueDate', 'asc', orderOf(cfg)).map((x) => x.id);
   const i = order.indexOf(t.id); const prev = i > 0 ? order[i - 1] : null; const next = i >= 0 && i < order.length - 1 ? order[i + 1] : null;
   const rep = t.repeatEvery ? `${(REPEAT_EVERY.find(([k]) => k === t.repeatEvery) || [, t.repeatEvery])[1]}${t.repeatUntil ? ', until ' + fmtDate(t.repeatUntil) : ''}` : 'No';
+  const contactLabel = profile ? profile.label : 'Contact Name';
+  const contactValue = profile
+    ? (profile.href ? html`<a href="${profile.href}" data-task-profile-link="${profile.entity}">${profile.name}</a>`
+      : html`<span class="muted" data-task-profile-missing>This ${profile.label.toLowerCase()} could not be shown. Open <a href="${profile.entity === 'lead' ? '#/crm/leads' : '#/crm/contacts'}">${profile.entity === 'lead' ? 'Leads' : 'Clients'}</a> and find the person there.</span>`)
+    : (t.contactName ? html`<a href="${t.contactLink}">${t.contactName}</a>` : '—');
+  const contactHint = profile ? '' : html` <span class="muted small">(${entityLabel(t.entity)})</span>`;
   const body = html`${head(`Task: ${subj(cfg, t.subject)}`, me)}${tabs('home')}
     <div class="card" data-task-detail="${t.id}">
       <p>${me.canEdit && !t.system ? html`<button class="ghost" data-edit-task>Edit</button> ${t.open ? html`<button class="m-btn" data-close-task>Close Task</button> ` : ''}` : ''}
         ${prev ? html`<a class="ghost" href="#/crm/tasks/${prev}" data-prev>&lsaquo; Previous</a>` : html`<span class="muted" data-prev-none>&lsaquo; Previous</span>`}
-        ${next ? html`<a class="ghost" href="#/crm/tasks/${next}" data-next>Next &rsaquo;</a>` : html`<span class="muted" data-next-none>Next &rsaquo;</span>`} <a class="ghost" href="#/crm">Back to Home</a></p>
+        ${next ? html`<a class="ghost" href="#/crm/tasks/${next}" data-next>Next &rsaquo;</a>` : html`<span class="muted" data-next-none>Next &rsaquo;</span>`}
+        ${profile && profile.href ? html`<a class="ghost" href="${profile.href}" data-task-back="${profile.entity}">Back to ${profile.name}</a> ` : ''}<a class="ghost" href="#/crm">Back to Home</a></p>
       <dl class="kv" data-task-fields>
         <dt>Task Owner</dt><dd data-f="owner">${t.ownerName}</dd><dt>Due Date</dt><dd data-f="dueDate">${fmtDate(t.dueDate)}${t.overdue ? html` ${pill('Overdue', 'bad')}` : ''}</dd>
         <dt>Subject</dt><dd data-f="subject">${subj(cfg, t.subject)}</dd><dt>Priority</dt><dd data-f="priority">${lbl(cfg, 'taskPriority', t.priority)}</dd><dt>Status</dt><dd data-f="status">${lbl(cfg, 'taskStatus', t.status)}${t.cancelled ? ' (cancelled)' : ''}</dd>
         <dt>Related To</dt><dd data-f="relatedTo">${t.relatedLink ? html`<a href="${t.relatedLink}">${t.relatedTo}</a>` : t.relatedTo || '—'}</dd>
-        <dt>Contact Name</dt><dd data-f="contactName">${t.contactName ? html`<a href="${t.contactLink}">${t.contactName}</a>` : '—'} <span class="muted small">(${entityLabel(t.entity)})</span></dd>
+        <dt>${contactLabel}</dt><dd data-f="contactName" data-task-profile="${profile ? profile.entity : ''}">${contactValue}${contactHint}</dd>
         <dt>Created By</dt><dd>${t.createdByName}, ${fmtDateTime(t.createdAt)}</dd><dt>Modified By</dt><dd data-f="modifiedBy">${t.modifiedByName || t.createdByName}, ${fmtDateTime(t.modifiedAt || t.createdAt)}</dd>
         <dt>Closed Time</dt><dd data-f="closedTime">${t.closedAt ? fmtDateTime(t.closedAt) : '—'}</dd>
         <dt>Reminder</dt><dd data-f="reminder">${t.reminder ? html`${fmtWhen(t.reminderAt)}${t.reminderDue ? html` ${pill('Due', 'warn')}` : ''} <span class="muted small">(in the portal only; never emailed)</span>` : 'None'}</dd>
