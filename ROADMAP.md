@@ -173,6 +173,36 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Prorations on the Closing Disclosure (FF-098)
+
+**How it should work.** A processor enters property taxes, ground rent, HOA dues, or another proration once, on Taxes & Prorations. When the calculation is finished, that amount is on the fee ledger, the settlement statement, and the Closing Disclosure. An item the seller already paid is a charge to the buyer and a credit to the seller, under Adjustments for Items Paid by Seller in Advance (K and M). An unpaid item is a credit to the buyer and a charge to the seller (L and N). City/town taxes, county taxes, and assessments use those named lines. Ground rent, HOA, and anything else use the next line in the same section. The line shows the dates the adjustment covers. Tax prorations use a 365-day year, and the buyer pays for the settlement day, unless someone changes that on the file. HOA and ground rent follow the same rule.
+
+**Status: In progress.** FF-098. Francis Santos, Nov 17 2026, 2:49 PM ET (Gmail msg 1a1eb0eb7ee40f0c, subject "Proration Amount"), as Processor 2 on TEST. Pull request: [PR 330](https://github.com/Johncoester/cla-portal-demo/pull/330). Not Live. No database file.
+
+**What's built**
+
+- A finished proration is saved to the ledger as soon as the amount can be calculated, and again when it is changed. It is logged.
+- Paid-in-advance items show on K and M. Unpaid items show on L and N. The Charges screens and Closing Disclosure page 3 use the same lines.
+- County or property tax uses the County Taxes line. City/town tax uses the City/Town Taxes line. Assessments use the Assessments line. Ground rent and HOA use the next open line in that section, with the date range on the line.
+- The worked example (July 1, 2026, a $3,650.00 bill, 365-day year, buyer pays the settlement day) is $1,840.00 when the seller already paid it and $1,810.00 when it is unpaid. Ground rent of $365.00 a year is $184.00. HOA of $100.00 a month on July 15 is $55.89. Charging the settlement day to the seller on that tax bill changes $1,840.00 to $1,830.00 and the file keeps that choice.
+- A property-tax escrow deposit (Closing Disclosure section G) stays in closing costs. It is not also posted as a proration.
+
+**What's still missing**
+
+- Not checked on TEST yet. Not Live.
+
+**Links**
+
+- Spec: [docs/specs/proration-cd.md](docs/specs/proration-cd.md)
+- Source: Francis Santos, Nov 17 2026, 2:49 PM ET, Gmail msg 1a1eb0eb7ee40f0c. Uses the PRORATE-1 defaults (tracker row 322).
+
+**Decisions**
+
+- The $3,568 property-tax line Francis saved on MD-26-97407 is the escrow deposit in section G. It belongs in closing costs (K.03), not on the proration lines. The proration is a separate entry.
+- No database change. The proration is already stored on the fee ledger.
+
+---
+
 ## Buyer and seller invites and sign-in
 
 **How it should work.** Staff invite a buyer or seller from a file. The person opens the invite email, sets a password once and lands in the portal. If they forget the password, Forgot password emails them a reset link that opens the TEST portal.
@@ -279,7 +309,8 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- On hold: #1, #2, #4, #5, #10, #13, #15, #16, citizenship, spouse marital status, entity documents required, phone and email icons with no app.
+- On hold: #1, #2, #4, #5, #10, #13, #15, #16, spouse marital status, entity documents required, phone and email icons with no app.
+- Citizenship is no longer on hold. Janine asked on Nov 17 2026 to type it on one line. See Citizenship on one line (JN-CITIZEN-1).
 
 **Links**
 
@@ -289,6 +320,35 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - John approved fixing the bugs without waiting (Nov 12, 6:08 PM ET); Francis confirmed the rest on Nov 12, 6:14 PM ET.
+
+---
+
+## Citizenship on one line (JN-CITIZEN-1)
+
+**How it should work.** On Personal information, for a buyer and for a seller, Citizenship is one line the person types. The same line is used for a spouse. An answer already saved, including "US Citizen" and "U.S. Citizen", still shows and can be saved again. A person can also type something that was not in the old list, such as "Born in Canada". Leaving it blank is allowed.
+
+**Status: In progress.** The pull request is open. Not Live until `supabase/migrations/20261125180000_citizenship_free_text.sql` is applied on TEST. This pull request does not apply it.
+
+**What's built**
+
+- Buyer and seller Personal information, and the spouse section, ask for Citizenship on a single line. The old dropdown (U.S. Citizen, Permanent Resident, Non-Resident Alien, Other) is gone from the form definition.
+- A saved answer stays on the same task and in the same spouse column. The column was already plain text. TEST has no check and no enum on it, so the column is not replaced.
+- The database file changes the question on the existing Personal information templates from a dropdown back to a line, and drops a citizenship check only if one is present. The rollback puts the dropdown back and does not change the column.
+
+**What's still missing**
+
+- Not on TEST until the database file is applied. Until then, Personal information on TEST still shows the dropdown, because that question is stored with the template. The spouse line on TEST is already a text box.
+
+**Links**
+
+- Spec: [docs/specs/citizenship-free-text.md](docs/specs/citizenship-free-text.md)
+- Source: Janine's email reply, Nov 17 2026, relayed via Francis Feedback. Tracker item JN-CITIZEN-1.
+- Related pull request: [PR 334](https://github.com/Johncoester/cla-portal-demo/pull/334).
+
+**Decisions**
+
+- Keep `spouse_info.citizenship` and the answer stored on the task. Do not add a new column.
+- The earlier dropdown file (`20261112060400_citizenship_and_agent_phone`) stays as history. The agent-card phone change in that file is not undone.
 
 ---
 
@@ -1682,6 +1742,35 @@ This file lists the portal's major features: how each one should work, how far a
 - No database change. The saved field is still salesIds. The database still accepts any active staff login as a salesperson.
 - The list uses the role strings Sales Person and Sales Team.
 
+
+---
+
+## Aggregate adjustment (FF-096)
+
+**How it should work.** On Escrow, line 08 Aggregate adjustment, an amount typed as -$1,200, ($1,200), or $1,200 comes off the section total. It also comes off the borrower's totals, the Closing Disclosure, the settlement statement, and the fee ledger.
+
+**Status: In progress.** FF-096. Francis Santos, email Nov 17 2026, 2:20 PM ET (Gmail message 1a1eaf4ac2ad6496), Processor 2 on TEST. Not Live. No database file. Not applied on TEST.
+
+**What's built**
+
+- Escrow line 08 accepts a minus sign, parentheses, or a dollar amount. The line is stored as a positive borrower charge that lowers the total.
+- Homeowner's insurance $1,368.00 plus property taxes $3,568.00 minus an aggregate adjustment of $1,200.00 totals $3,736.00. The same $1,200.00 comes off the borrower's debits, cash to close, the Closing Disclosure, and the settlement statement.
+- A blank amount or $0.00 clears the adjustment. A value that is not an amount stays on the screen and says how to type it.
+- Saving the description first and the amount second still lowers the total. That second save used to add the $1,200.00.
+
+**What's still missing**
+
+- Not checked on TEST. Do not mark Live before someone saves -$1,200 on Escrow line 08 and sees the total go down. The line already saved on TEST stays as it is until it is saved again.
+- Other fee lines still do not take a minus sign.
+
+**Links**
+
+- Spec: [docs/specs/aggregate-adjustment.md](docs/specs/aggregate-adjustment.md)
+
+**Decisions**
+
+- No database file. The line was already allowed to lower the total. The save was not marking it that way.
+- A positive amount on line 08 lowers the total too. That is the line for the aggregate adjustment.
 
 ---
 

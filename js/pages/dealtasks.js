@@ -8,7 +8,7 @@ import { boxTasks, boxOfRole, tasksForViewer } from '../data/task-board.js?v=202
 import { annotatePartyTaskProgress, partyTaskStillOpen } from '../data/party-task-completion.js?v=202611241000';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611131900';
-import { taskOpenHref } from '../data/task-actions.js?v=202611221900';
+import { taskOpenHref } from '../data/task-actions.js?v=202611243614';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };

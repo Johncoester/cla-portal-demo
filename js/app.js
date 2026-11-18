@@ -9,7 +9,7 @@ import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLab
 import { canUseCrm } from './data/crm.js?v=202611130900';
 import { canManageRoleAccess } from './data/role-access.js?v=202611100100';
 import { canUseGmail } from './data/gmail-email.js?v=202611191000';
-import { acctCanRead } from './data/accounting.js?v=202611243004';
+import { acctCanRead } from './data/accounting.js?v=202611243300';
 import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611101015';
 import { phaseOf } from './data/agent-portal.js?v=202611241900';
 import { scheduleNavLines } from './data/scheduling-details.js?v=202611241900';
@@ -52,8 +52,8 @@ const pages = {
   profile: () => loadRoute(() => import('./pages/profile.js?v=202611191600')),
   'contact-us': () => loadRoute(() => import('./pages/contact.js?v=202611161500')),
   teams: () => loadRoute(() => import('./pages/teams.js?v=202611161500')),
-  templates: () => loadRoute(() => import('./pages/templates.js?v=202611241900')),
-  'admin/templates': () => loadRoute(() => import('./pages/templates.js?v=202611241900')),
+  templates: () => loadRoute(() => import('./pages/templates.js?v=202611243628')),
+  'admin/templates': () => loadRoute(() => import('./pages/templates.js?v=202611243628')),
   library: () => loadRoute(() => import('./pages/library.js?v=202611161500')),
   activity: () => loadRoute(() => import('./pages/activity.js?v=202611161500')),
   outbox: () => loadRoute(() => import('./pages/outbox.js?v=202611161500')),
@@ -66,7 +66,7 @@ const pages = {
   'role-access': () => loadRoute(() => import('./pages/role-access.js?v=202611161500')),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => loadRoute(() => import('./pages/agent-invites.js?v=202611191600')),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
   'agent-invite': () => loadRoute(() => import('./pages/agent-signup.js?v=202611211100')),     // the agent's one-time setup link (no sign-in)
-  underwriters: () => loadRoute(() => import('./pages/underwriters.js?v=202611243029')),
+  underwriters: () => loadRoute(() => import('./pages/underwriters.js?v=202611243300')),
   hr: () => loadRoute(() => import('./pages/hr.js?v=202611191600')),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
   'hr-invite': () => loadRoute(() => import('./pages/hr-invite.js?v=202611161500')),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => loadRoute(() => import('./pages/offices.js?v=202611161500')),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
