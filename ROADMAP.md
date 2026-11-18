@@ -1338,6 +1338,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/agent-own-tasks.md](docs/specs/agent-own-tasks.md)
+- PR: [#355](https://github.com/Johncoester/cla-portal-demo/pull/355)
 - Source: Francis Santos, Nov 18 2026 11 AM meeting notes (Gmail 1a1ef9d3d862da08), confirmed by John Nov 18 2:13 PM ET. Tracker row FF-101a.
 
 **Decisions**
