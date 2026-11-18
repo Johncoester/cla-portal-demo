@@ -6,7 +6,8 @@ import { canUseCrm, crmReadOnly } from './crm.js?v=202611130900';
 import {
   MODULE_CODES, COMPONENT_CODES, CHART_CODES, SEARCH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, moduleName, moduleFields, reportFields,
   parseQuery, searchMatch, chartData, measureOf, applyCriteria, runReport, reportCsv, dashboardVisible, dashboardEditable, reportVisible,
-} from './crm-analytics.js?v=202611242010';
+  calendarBucket, groupingWithCalendar, presetKey, withPresetKeys,
+} from './crm-analytics.js?v=202611243900';
 
 const RECENT = new Map();
 const row = (o) => o || {};
@@ -31,18 +32,18 @@ const chartTypeFor = (type, chartType) => (type === 'chart' ? (CHART_CODES.inclu
 const componentName = (name, fallback = '') => { const n = String(name == null ? '' : name).replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 100); if (n) return n; if (fallback) return fallback; throw new Error('Component Name is required.'); };
 const componentHeight = (h, missing = 1) => { if (h == null || h === '') return missing; if (h === 's' || h === 1 || h === '1') return 1; return 2; };
 const componentWidth = (w) => { const n = Number(w); return n === 2 || n === 3 ? n : 1; };
-const componentCriteria = (list) => (Array.isArray(list) ? list : []).filter((c) => c && typeof c === 'object').slice(0, 10);
+const componentCriteria = (list) => withPresetKeys((Array.isArray(list) ? list : []).filter((c) => c && typeof c === 'object').slice(0, 10));
 const componentTarget = (spec) => { if (spec.type !== 'target') return null; if (spec.target == null || spec.target === '') return null; const n = Number(spec.target); if (!isFinite(n) || n < 0) throw new Error('Enter the target (a number that is 0 or more).'); return n; };
 const packMeasure = (spec) => { const fn = ['count', 'sum', 'avg'].includes(spec.measure && spec.measure.fn) ? spec.measure.fn : 'count'; const m = { fn }; if (fn !== 'count' && spec.measure && spec.measure.field) m.field = spec.measure.field; return m; };
-const packGrouping = (spec) => { const g = { ...spec.grouping }; if (spec.grouping2 && spec.grouping2.field) g.grouping2 = spec.grouping2; return g; };
+const packGrouping = (spec) => { const g = groupingWithCalendar({ ...(spec.grouping || {}) }); if (spec.grouping2 && spec.grouping2.field) g.grouping2 = groupingWithCalendar({ ...spec.grouping2 }); return g; };
 const storedParts = (c) => {
   const measure = c.measure && typeof c.measure === 'object' ? { ...c.measure } : { fn: 'count' };
   delete measure.target;
   const target = c.target == null || c.target === '' || !isFinite(Number(c.target)) ? null : Number(c.target);
-  const grouping = c.grouping && typeof c.grouping === 'object' ? { ...c.grouping } : {};
-  const grouping2 = (grouping.grouping2 && grouping.grouping2.field ? grouping.grouping2 : null);
+  const grouping = groupingWithCalendar(c.grouping && typeof c.grouping === 'object' ? { ...c.grouping } : {});
+  const grouping2 = groupingWithCalendar(grouping.grouping2 && grouping.grouping2.field ? grouping.grouping2 : null);
   delete grouping.grouping2;
-  const criteria = Array.isArray(c.criteria) ? c.criteria : [];
+  const criteria = withPresetKeys(Array.isArray(c.criteria) ? c.criteria : []);
   const chartType = c.chart_type || c.chartType || null;
   const config = { module: c.module, measure, grouping, criteria, chartType };
   if (grouping2) config.grouping2 = grouping2;
@@ -75,12 +76,14 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
     const share = shareOf(d.share);
     const view = { ...camel(d), shareUsers: share.users, shareRoles: share.roles, shareDepts: share.departments, locked: !!d.locked, retired: !!d.retired_at, mine: d.owner_id === u.id, ownerName: '', builtin: !!d.builtin };
     view.canEdit = dashboardEditable(u, view, crmReadOnly(u));
+    if (view.filters && view.filters.period) view.filters = { ...view.filters, period: presetKey(view.filters.period) };
     return view;
   };
   const repOut = (u, r, folders) => {
     const share = r.share && r.share.mode ? r.share : { mode: r.share_mode || 'all', users: shareOf(r.share).users, roles: shareOf(r.share).roles };
     const folder = (folders || []).find((f) => f.id === r.folder_id);
-    return { ...camel(r), related: r.related || [], columns: r.columns || [], rowGroups: r.row_groups || r.rowGroups || [], aggregates: r.aggregates || [], filters: r.filters || [],
+    const loaded = camel(r);
+    return { ...loaded, ...(Object.prototype.hasOwnProperty.call(loaded, 'bucket') ? { bucket: calendarBucket(loaded.bucket) } : {}), related: r.related || [], columns: r.columns || [], rowGroups: r.row_groups || r.rowGroups || [], aggregates: r.aggregates || [], filters: withPresetKeys(r.filters || []),
       share, folderName: folder ? folder.name : (r.personal_owner ? 'My reports' : ''), personal: !!r.personal_owner, retired: !!r.retired_at, moduleLabel: moduleName(r.module),
       createdByName: '', canEdit: !crmReadOnly(u), canExport: !!u.isAdmin, lastAccessedAt: r.last_accessed_at || null };
   };
@@ -225,7 +228,7 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
       let rows = await rowsOf(module); rows = applyCriteria(rows, componentCriteria(spec.criteria), fields, { logic: 'and', today: localDate() });
       const measure = packMeasure(spec); const chartType = chartTypeFor(type, spec.chartType); const data = chartData(rows, { grouping: spec.grouping || {}, grouping2: spec.grouping2 || {}, measure }, fields, cfg);
       if (type === 'kpi' || type === 'target') { const value = measureOf(rows, measure, fields) || 0; data.value = value; data.count = rows.length; if (type === 'target') { data.target = target; data.pct = target ? Math.round((value / target) * 1000) / 10 : 0; } }
-      const config = { module, measure, grouping: spec.grouping, criteria: componentCriteria(spec.criteria), chartType }; if (spec.grouping2) config.grouping2 = spec.grouping2; if (target != null) config.target = target;
+      const config = { module, measure, grouping: groupingWithCalendar(spec.grouping), criteria: componentCriteria(spec.criteria), chartType }; if (spec.grouping2) config.grouping2 = groupingWithCalendar(spec.grouping2); if (target != null) config.target = target;
       return { name: componentName(spec.name, 'Preview'), type, module, config, data, ownerId: u.id };
     },
     async crmDrillDown() { await who(); return { title: 'Records', rows: [] }; },
@@ -256,7 +259,7 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
     async retireCrmReport(id, retired = true) { const u = await editor(); ok(await sb.from('crm_reports').update({ retired_at: retired ? new Date().toISOString() : null, retired_by: retired ? u.id : null }).eq('id', id)); return { ok: true }; },
     async runCrmReport(idOrDef) {
       const u = await who(); const cfg = await self.getCrmSettings();
-      const def = typeof idOrDef === 'string' ? await this.getCrmReport(idOrDef) : idOrDef;
+      const def = typeof idOrDef === 'string' ? await this.getCrmReport(idOrDef) : { ...idOrDef, ...(Object.prototype.hasOwnProperty.call(idOrDef, 'bucket') ? { bucket: calendarBucket(idOrDef.bucket) } : {}) };
       const fields = reportFields(def.module, def.related || [], cfg);
       const rows = await rowsOf(def.module);
       const out = runReport(rows, def, fields, cfg, { today: localDate() });

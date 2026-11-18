@@ -2,7 +2,7 @@
  * mock adapter, the Supabase adapter, the screens and the unit tests share it. FAKE DATA ONLY.
  *  * MODULES: the CRM modules as flat rows (Clients, Leads, Companies, Deals = the portal's orders, Tasks, Meetings, Calls, Opportunities). The adapter
  *    builds the rows from the records the viewer may see; this file only filters, groups, counts and sums them.
- *  * FILTERS (criteria): [{ field, op, value, value2 }] combined with AND or OR. Date presets (Previous / Current / Next FY, Month, Year...).
+ *  * FILTERS (criteria): [{ field, op, value, value2 }] combined with AND or OR. Date presets (Previous / Current / Next Year, Month...).
  *  * GROUPING with date buckets (By Day, By Calendar Week, By Month, By Quarter, By Year) and measures (Record Count, Sum / Avg of a number field).
  *  * REPORTS: columns, row groups ("Owner (count)"), aggregate columns (sum, avg, min, max, count), CSV.
  *  * SEARCH: words in name / email, phone by digits only. */
@@ -115,23 +115,36 @@ export function display(field, row, cfg) {
 }
 
 // ---------- date presets (video 10) ----------
-// Fiscal year = calendar year (CLA's fiscal year was not given; FY_START_MONTH would move it).
+// Year presets are the calendar year. Older saved filters used prev_fy, cur_fy, and next_fy. Those load as Previous Year, Current Year, and Next Year.
 export const FY_START_MONTH = 1;
-export const DATE_PRESETS = [['today', 'Today'], ['yesterday', 'Yesterday'], ['prev_fy', 'Previous FY'], ['cur_fy', 'Current FY'], ['next_fy', 'Next FY'], ['prev_month', 'Previous Month'], ['cur_month', 'Current Month'],
-  ['next_month', 'Next Month'], ['this_year', 'This Year'], ['prev_year', 'Previous Year'], ['next_year', 'Next Year']];
-export const presetLabel = (k) => (DATE_PRESETS.find(([c]) => c === k) || [null, k])[1];
+const OLD_FY_PRESET = { prev_fy: 'prev_year', cur_fy: 'cur_year', next_fy: 'next_year' };
+export function presetKey(key) {
+  const raw = key == null ? '' : String(key);
+  return OLD_FY_PRESET[raw] || raw;
+}
+export function withPresetKeys(criteria) {
+  return (Array.isArray(criteria) ? criteria : []).map((c) => {
+    if (!c || typeof c !== 'object') return c;
+    const out = { ...c };
+    if (typeof out.value === 'string') out.value = presetKey(out.value);
+    if (typeof out.value2 === 'string') out.value2 = presetKey(out.value2);
+    return out;
+  });
+}
+export const DATE_PRESETS = [['today', 'Today'], ['yesterday', 'Yesterday'], ['prev_year', 'Previous Year'], ['cur_year', 'Current Year'], ['next_year', 'Next Year'], ['prev_month', 'Previous Month'], ['cur_month', 'Current Month'],
+  ['next_month', 'Next Month'], ['this_year', 'This Year']];
+export const presetLabel = (k) => (DATE_PRESETS.find(([c]) => c === presetKey(k)) || [null, presetKey(k)])[1];
 // [from, to] inclusive 'YYYY-MM-DD' for a preset, relative to today ('YYYY-MM-DD')
 export function presetRange(key, today) {
+  const use = presetKey(key);
   const [y, m] = today.split('-').map(Number); const D = (yy, mm, dd) => ymd(new Date(yy, mm - 1, dd));
   const month = (off) => [D(y, m + off, 1), D(y, m + off + 1, 0)];
-  const fyStartYear = m >= FY_START_MONTH ? y : y - 1; const fy = (off) => [D(fyStartYear + off, FY_START_MONTH, 1), D(fyStartYear + off + 1, FY_START_MONTH, 0)];
   const year = (off) => [D(y + off, 1, 1), D(y + off, 12, 31)];
-  switch (key) {
+  switch (use) {
     case 'today': return [today, today];
     case 'yesterday': { const t = D(y, m, Number(today.slice(8)) - 1); return [t, t]; }
-    case 'prev_fy': return fy(-1); case 'cur_fy': return fy(0); case 'next_fy': return fy(1);
     case 'prev_month': return month(-1); case 'cur_month': return month(0); case 'next_month': return month(1);
-    case 'this_year': return year(0); case 'prev_year': return year(-1); case 'next_year': return year(1);
+    case 'cur_year': case 'this_year': return year(0); case 'prev_year': return year(-1); case 'next_year': return year(1);
     default: return null;
   }
 }
@@ -188,9 +201,10 @@ export function cleanCriteria(list, fields) {
   return (Array.isArray(list) ? list : []).filter((c) => c && c.field).slice(0, 20).map((c) => { const f = fields.find((z) => z.key === c.field);
     if (!f) throw new Error('A filter uses a field that is not in this module.');
     const ops = opsFor(f.type).map(([k]) => k); if (!ops.includes(c.op)) throw new Error(`Pick an operator for "${f.label}".`);
-    const value = NO_VALUE.includes(c.op) ? '' : Array.isArray(c.value) ? c.value.map((x) => String(x).slice(0, 200)) : String(c.value == null ? '' : c.value).slice(0, 200);
+    const stored = (v) => { const s = String(v == null ? '' : v).slice(0, 200); return isDateType(f.type) ? presetKey(s) : s; };
+    const value = NO_VALUE.includes(c.op) ? '' : Array.isArray(c.value) ? c.value.map((x) => stored(x)) : stored(c.value);
     if (!NO_VALUE.includes(c.op) && blank(value)) throw new Error(`Enter a value for "${f.label}".`);
-    const out = { field: f.key, op: c.op, value }; if (['between', 'not_between'].includes(c.op)) { out.value2 = String(c.value2 == null ? '' : c.value2).slice(0, 200); if (!out.value2) throw new Error(`Enter both values for "${f.label}".`); }
+    const out = { field: f.key, op: c.op, value }; if (['between', 'not_between'].includes(c.op)) { out.value2 = stored(c.value2); if (!out.value2) throw new Error(`Enter both values for "${f.label}".`); }
     return out; });
 }
 export function applyCriteria(rows, criteria, fields, { logic = 'and', today }) {
@@ -199,7 +213,7 @@ export function applyCriteria(rows, criteria, fields, { logic = 'and', today }) 
 }
 export function criteriaText(criteria, fields, cfg, logic = 'and', users = []) {
   return (criteria || []).map((c) => { const f = fields.find((z) => z.key === c.field) || { label: c.field, type: 'text' };
-    const val = (x) => (DATE_PRESETS.some(([k]) => k === x) ? presetLabel(x) : f.type === 'picklist' || f.type === 'user' || f.type === 'boolean' ? String(x).split('|').map((v) => valueLabel(f, v, cfg, users)).join(', ') : x);
+    const val = (x) => (DATE_PRESETS.some(([k]) => k === presetKey(x)) ? presetLabel(x) : f.type === 'picklist' || f.type === 'user' || f.type === 'boolean' ? String(x).split('|').map((v) => valueLabel(f, v, cfg, users)).join(', ') : x);
     return `${f.label} ${opLabel(f.type, c.op)}${NO_VALUE.includes(c.op) ? '' : ' ' + val(Array.isArray(c.value) ? c.value.join('|') : c.value)}${c.value2 ? ' and ' + val(c.value2) : ''}`; }).join(logic === 'or' ? ' OR ' : ' AND ');
 }
 export function valueLabel(f, v, cfg, users = []) {
@@ -210,21 +224,30 @@ export function valueLabel(f, v, cfg, users = []) {
 }
 
 // ---------- grouping ----------
-// video 9 list: By Day, By Calendar Week, By Fiscal Week, By Month, By Fiscal Quarter, By Fiscal Year (+ calendar quarter / year). CLA's fiscal year
-// starts in January (FY_START_MONTH), so fiscal week / quarter / year group exactly like the calendar ones; the label says "FY".
-export const BUCKETS = [['day', 'By Day'], ['week', 'By Calendar Week'], ['fweek', 'By Fiscal Week'], ['month', 'By Month'], ['quarter', 'By Quarter'], ['fquarter', 'By Fiscal Quarter'], ['year', 'By Year'], ['fyear', 'By Fiscal Year']];
+// By Day, By Calendar Week, By Month, By Quarter, By Year. Older saved reports and charts may still say fweek, fquarter, or fyear.
+// Those load as week, quarter, and year. An unknown code loads as day, so opening one never fails.
+const OLD_BUCKET = { fweek: 'week', fquarter: 'quarter', fyear: 'year' };
+export const BUCKETS = [['day', 'By Day'], ['week', 'By Calendar Week'], ['month', 'By Month'], ['quarter', 'By Quarter'], ['year', 'By Year']];
+export function calendarBucket(bucket) {
+  const raw = bucket == null || bucket === '' ? '' : String(bucket);
+  if (!raw) return 'day';
+  const mapped = OLD_BUCKET[raw] || raw;
+  return BUCKETS.some(([code]) => code === mapped) ? mapped : 'day';
+}
+export function groupingWithCalendar(grouping) {
+  if (!grouping || typeof grouping !== 'object' || !Object.prototype.hasOwnProperty.call(grouping, 'bucket')) return grouping;
+  const bucket = calendarBucket(grouping.bucket);
+  return bucket === grouping.bucket ? grouping : { ...grouping, bucket };
+}
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // [key, label] of a date in a bucket (keys sort in time order)
 export function bucketOf(day, bucket = 'day') {
   if (!day) return ['', '(no date)']; const [y, m, d] = day.split('-').map(Number);
-  switch (bucket) {
+  switch (calendarBucket(bucket)) {
     case 'week': { const t = new Date(y, m - 1, d - new Date(y, m - 1, d).getDay()); const k = ymd(t); return [k, `Week of ${MONTHS[t.getMonth()]} ${t.getDate()}, ${t.getFullYear()}`]; }
     case 'month': return [`${y}-${p2(m)}`, `${MONTHS[m - 1]} ${y}`];
     case 'quarter': { const q = Math.floor((m - 1) / 3) + 1; return [`${y}-Q${q}`, `Q${q} ${y}`]; }
     case 'year': return [String(y), String(y)];
-    case 'fweek': { const [k, l] = bucketOf(day, 'week'); return [k, `FY${y} ${l}`]; }
-    case 'fquarter': { const q = Math.floor((m - 1) / 3) + 1; return [`${y}-Q${q}`, `FY${y} Q${q}`]; }
-    case 'fyear': return [String(y), `FY${y}`];
     default: return [day, `${MONTHS[m - 1]} ${d}, ${y}`];
   }
 }
@@ -259,7 +282,7 @@ export function chartData(rows, { grouping, grouping2, measure }, fields, cfg) {
     if (g2) out.parts = [...series.keys()].map((k2) => { const sub = e.rows.filter((r) => groupOf(g2, r, cfg, grouping2.bucket)[0] === k2); return { key: k2, label: series.get(k2), value: measureOf(sub, measure, fields), count: sub.length, ids: sub.map((r) => r.id) }; });
     return out; });
   return { groups, series: [...series.entries()].map(([key, label]) => ({ key, label })), total: measureOf(rows, measure, fields), count: rows.length, measureLabel: measureLabel(measure, fields),
-    groupLabel: g1 ? `${g1.label}${isDateType(g1.type) ? ` (${(BUCKETS.find(([b]) => b === (grouping.bucket || 'day')) || [, ''])[1]})` : ''}` : '' };
+    groupLabel: g1 ? `${g1.label}${isDateType(g1.type) ? ` (${(BUCKETS.find(([b]) => b === calendarBucket(grouping.bucket || 'day')) || [, ''])[1]})` : ''}` : '' };
 }
 function pickOrder(f, cfg, key) { if (key === '') return 9999; const list = f.list ? ((cfg && cfg.picklists && cfg.picklists[f.list]) || []).map((o) => o.value) : (f.options || []).map(([k]) => k); const i = list.indexOf(key); return i < 0 ? 999 : i; }
 
@@ -295,8 +318,9 @@ export function runReport(rows0, def, fields, cfg, { today } = {}) {
     currency: a.f.type === 'currency' && a.fn !== 'count' }));
   const cell = (r) => cols.map((f) => ({ key: f.key, text: display(f, r, cfg), link: f.link && !f.encrypted ? r[f.link] || '' : '' }));
   const groupFields = (def.rowGroups || []).map((k) => fields.find((f) => f.key === k)).filter(Boolean).slice(0, 3);
+  const bucket = calendarBucket(def.bucket || 'day');
   const nest = (list, level) => { if (level >= groupFields.length) return null; const g = groupFields[level]; const by = new Map();
-    list.forEach((r) => { const [k, l] = groupOf(g, r, cfg, def.bucket || 'day'); const e = by.get(k) || { key: k, label: l, rows: [] }; e.rows.push(r); by.set(k, e); });
+    list.forEach((r) => { const [k, l] = groupOf(g, r, cfg, bucket); const e = by.get(k) || { key: k, label: l, rows: [] }; e.rows.push(r); by.set(k, e); });
     return [...by.values()].sort((a, b) => (a.key === '' ? 1 : b.key === '' ? -1 : a.label.localeCompare(b.label, 'en', { numeric: true })))
       .map((e) => ({ field: g.label, key: e.key, label: e.label, count: e.rows.length, header: `${e.label} (${e.rows.length})`, aggregates: aggOf(e.rows), groups: nest(e.rows, level + 1), rows: level === groupFields.length - 1 ? e.rows.map((r) => ({ id: r._rowId || r.id, cells: cell(r) })) : null })); };
   return { columns: cols.map((f) => ({ key: f.key, label: f.label, type: f.type })), total: sorted.length, aggregates: aggOf(sorted), groups: nest(sorted, 0),
