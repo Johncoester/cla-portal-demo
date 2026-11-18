@@ -1654,3 +1654,32 @@ This file lists the portal's major features: how each one should work, how far a
 
 - No database change. The saved field is still salesIds.
 - The search list is the same people the checkbox list showed.
+
+---
+
+## Settlement and disbursement dates on File Overview (FF-097)
+
+**How it should work.** At the top of a file, next to the settlement date, staff who can edit the file can change that date and the disbursement date. The settlement date saves on the file, stays after a reload, and is the date tasks, Scheduling Details, Accounting, and prorations already use. Agents, buyers, and sellers see the dates and cannot change them. A buyer's "+ Propose a closing time" still does not write the file date.
+
+**Status: In progress.** Tracker FF-097. Francis Santos, Nov 17 2026, 2:31 PM ET (Gmail message 1a1eafe6e1a32dde), signed in as Processor 2. Pull request: [PR 328](https://github.com/Johncoester/cla-portal-demo/pull/328). No database file. Not Live until someone checks it on TEST.
+
+**What's built**
+
+- The file header shows Settlement date and Disbursement date side by side. A processor, a pre-processor, or an admin gets a date field. Other roles, and demo view, see text.
+- Saving writes the existing closing date and disbursement date. A blank disbursement date stays automatic.
+- Tasks, Scheduling Details, Accounting, and prorations read that same closing date.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- John's later change, locking the file date when a buyer proposes a closing time, is not built here.
+
+**Links**
+
+- Spec: [docs/specs/file-overview-dates.md](docs/specs/file-overview-dates.md)
+- Pull request: [PR 328](https://github.com/Johncoester/cla-portal-demo/pull/328)
+
+**Decisions**
+
+- No database change. TEST already lets staff who can edit the file update `closing_date`. The scheduling guard does not block that column.
+- The disbursement date uses the existing column. Blank means the automatic date.
