@@ -346,9 +346,12 @@ export function crmNov3bPart(x, h) {
         const period = presetKey(str(f.period, 20)); if (period && !DATE_PRESETS.some(([k]) => k === period)) fail('Pick a period from the list.');
         d.filters = { ...(owner ? { ownerId: owner } : {}), ...(period ? { period } : {}) }; }
       d.modifiedAt = now(); save(); return dashOut(u, d); },
-    async cloneCrmDashboard(id, { name } = {}) { const u = crmEditor(); const src = dashOf(u, id); const d = { ...clone(src), id: nid('dash'), builtin: null, name: (str(name, 100) || `Copy of ${src.name}`).slice(0, 100), visibility: 'me', shareUsers: [], shareRoles: [], shareDepts: [], locked: false,
+    async cloneCrmDashboard(id, { name } = {}) { const u = crmEditor(); const src = dashOf(u, id);
+      const asked = name == null ? null : str(name, 100).replace(/[\u0000-\u001f\u007f]/g, '').trim(); if (name != null && !asked) fail('Dashboard Name is required.');
+      const suffix = ' (copy)'; const copyName = asked == null ? String(src.name || '').trim().slice(0, 100 - suffix.length) + suffix : asked;
+      const d = { ...clone(src), id: nid('dash'), builtin: null, name: copyName, visibility: 'me', shareUsers: [], shareRoles: [], shareDepts: [], locked: false,
         ownerId: u.id, retiredAt: null, createdBy: u.id, createdAt: now(), modifiedAt: now(), clonedFrom: src.id };
-      db().crmDashboards.push(d); db().crmDashComponents.filter((c) => c.dashboardId === src.id && !c.retiredAt).forEach((c) => db().crmDashComponents.push({ ...clone(c), id: nid('dc'), dashboardId: d.id, createdBy: u.id, createdAt: now(), modifiedAt: now() }));
+      db().crmDashboards.push(d); db().crmDashComponents.filter((c) => c.dashboardId === src.id && !c.retiredAt).slice().sort((a, b) => a.position - b.position).forEach((c) => db().crmDashComponents.push({ ...clone(c), id: nid('dc'), dashboardId: d.id, createdBy: u.id, createdAt: now(), modifiedAt: now() }));
       save(); return dashOut(u, d); },
     // Retire = hidden (Zoho "Delete"); Restore brings it back. Built-in dashboards cannot be retired.
     async retireCrmDashboard(id, retired = true) { const u = crmEditor(); const d = db().crmDashboards.find((z) => z.id === str(id, 60)); if (!d || !dashboardVisible(u, d)) fail('Dashboard not found.');

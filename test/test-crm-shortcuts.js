@@ -130,8 +130,8 @@ ok(dual.length === 0, 'dual-stamp scan ' + dual.length + (dual.length ? ': ' + d
 const chain = [
   ['js/pages/crm-shortcuts.js', '202611244500'],
   ['js/pages/crm-deals.js', '202611245800'],
-  ['js/pages/crm.js', '202611245800'],
-  ['js/app.js', '202611246000'],
+  ['js/pages/crm.js', '202611246900'],
+  ['js/app.js', '202611246900'],
 ];
 const issues = [];
 for (const [target, stamp] of chain) {
@@ -140,7 +140,7 @@ for (const [target, stamp] of chain) {
 }
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
 const appFrom = [...(hits.get('js/app.js') || [])];
-ok(read('index.html').includes('js/app.js?v=202611246000') && appFrom.length === 1 && appFrom[0] === '202611246000', 'index.html loads the shell at 202611246000');
+ok(read('index.html').includes('js/app.js?v=202611246900') && appFrom.length === 1 && appFrom[0] === '202611246900', 'index.html loads the shell at 202611246900');
 ok(!read('js/data/adapter.js').includes('202611244500') && !read('js/app.js').includes('adapter.js?v=202611244500'), 'the shortcut stamp does not move the shared adapter');
 
 console.log('cache-stamp issues', issues.length);

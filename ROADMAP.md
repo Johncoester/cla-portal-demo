@@ -2227,3 +2227,33 @@ This file lists the portal's major features: how each one should work, how far a
 - No database change. The task already stores the lead or client id. That id is not a foreign key, so the name cannot be embedded in the task read.
 - A list that is only leads, or only clients, uses one extra read. A list with both uses one read for each table. It never reads once per task.
 
+---
+
+## Clone a CRM dashboard copies its charts
+
+**How it should work.** Clone on a CRM dashboard makes a new dashboard named like "Lead dashboard (copy)". Every chart comes with it: the same settings, filters, order, and size. The original dashboard stays as it was. A hidden chart is not copied. The copy is Only me.
+
+**Status: In progress.** Janine confirmed this on Nov 18 2026, CRM Feedback 31 item 2. No database file. Not Live until someone checks Clone on TEST.
+
+**What's built**
+
+- Clone suggests "<name> (copy)" and saves that name, shortened so it still ends with " (copy)" when the original name is already at the 100-character limit.
+- Every visible chart is copied in one save: name, type, module, measure, grouping, filters, width, height, and order.
+- The dashboard's own owner and period filters are copied, so the charts match.
+- A retired chart stays on the original only.
+- A blank name is refused and nothing is saved.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/crm-dashboard-clone.md](docs/specs/crm-dashboard-clone.md)
+
+**Decisions**
+
+- No database change. Charts already store their settings on the dashboard. The copy writes those rows in one batch.
+- The copy is Only me. Sharing on the original is not copied.
+- A hidden chart is not copied. Restore it on the original first if it should be included.
+
