@@ -62,12 +62,12 @@ ok(!page.includes("$('[data-import-file]', root).addEventListener('change', guar
 ok(page.includes('data-import-file-help') && page.includes('data-import-file-err') && page.includes('class="err-text"') && page.includes('role="alert"'), 'the upload card has a helper and a red alert');
 ok(read('css/portal.css').includes('.err-text { color: var(--bad);'), 'the alert uses the existing red text');
 ok(read('js/app.js').includes("pages/crm-janine.js?v=202611243900") && read('js/pages/crm.js').includes("crm-janine.js?v=202611243900") && read('js/pages/crm-forms.js').includes("crm-janine.js?v=202611243900") && read('js/pages/crm-home.js').includes("crm-janine.js?v=202611243900"), 'the import page loads at 202611243900 because it imports a restamped CRM module');
-ok(read('index.html').includes('js/app.js?v=202611244200') && read('js/app.js').includes("pages/crm.js?v=202611244200") && read('js/pages/crm.js').includes("crm-forms.js?v=202611243900") && read('js/pages/crm.js').includes("crm-home.js?v=202611243900") && read('js/pages/crm-home.js').includes("crm-forms.js?v=202611243900"), 'the record shortcuts restamped the CRM page and the shell to 202611244200; the other CRM pages stay at 202611243900');
-ok(!read('js/data/adapter.js').includes('202611242030') && read('js/app.js').includes("adapter.js?v=202611244015") && read('js/data/adapter.js').includes("supabase-adapter.js?v=202611244014"), 'the shell loads the adapter that reads the tax rate sheet');
+ok(read('index.html').includes('js/app.js?v=202611244500') && read('js/app.js').includes("pages/crm.js?v=202611244500") && read('js/pages/crm.js').includes("crm-forms.js?v=202611243900") && read('js/pages/crm.js').includes("crm-home.js?v=202611244300") && read('js/pages/crm-home.js').includes("crm-forms.js?v=202611243900"), 'the shortcut panel loads the CRM page and the shell at 202611244500; Home stays at 202611244300');
+ok(!read('js/data/adapter.js').includes('202611242030') && read('js/app.js').includes("adapter.js?v=202611244300") && read('js/data/adapter.js').includes("supabase-adapter.js?v=202611244300"), 'the shell loads the adapter that reads the tax rate sheet');
 ok(execFileSync('git', ['diff', '--name-only', 'origin/main', '--', 'js/data/crm-import-file.js'], { cwd: root, encoding: 'utf8' }).trim() === '', 'the file check module is unchanged from main');
 // FF-097 changes the file header in js/app.js, so that file is not stamp-only.
 // The record shortcut panel changes the markup in js/pages/crm.js, so that file is not stamp-only either.
-// index.html, crm-forms.js, and crm-home.js still change only cache stamps, or not at all.
+// Home My Tasks is already on main, so crm-home.js should not change here.
 for (const rel of ['index.html', 'js/pages/crm-forms.js', 'js/pages/crm-home.js']) {
   const diff = execFileSync('git', ['diff', '-U0', 'origin/main', '--', rel], { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'));
   ok(diff.length === 0 || diff.every((l) => /\?v=202611\d+/.test(l)), rel + ' changes only cache stamps');
