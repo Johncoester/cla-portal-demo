@@ -1772,8 +1772,6 @@ This file lists the portal's major features: how each one should work, how far a
 - No database file. The line was already allowed to lower the total. The save was not marking it that way.
 - A positive amount on line 08 lowers the total too. That is the line for the aggregate adjustment.
 
----
-
 ## Settlement and disbursement dates on File Overview (FF-097)
 
 **How it should work.** At the top of a file, next to the settlement date, staff who can edit the file can change that date and the disbursement date. The settlement date saves on the file, stays after a reload, and is the date tasks, Scheduling Details, Accounting, and prorations already use. Agents, buyers, and sellers see the dates and cannot change them. A buyer's "+ Propose a closing time" still does not write the file date.
@@ -1800,3 +1798,31 @@ This file lists the portal's major features: how each one should work, how far a
 
 - No database change. TEST already lets staff who can edit the file update `closing_date`. The scheduling guard does not block that column.
 - The disbursement date uses the existing column. Blank means the automatic date.
+
+## CRM report grouping without fiscal buckets
+
+**How it should work.** On a CRM report and on a CRM chart, date grouping offers By Day, By Calendar Week, By Month, By Quarter, and By Year. By Fiscal Week, By Fiscal Quarter, and By Fiscal Year are not in the list. A report or chart already saved with one of those opens as the matching calendar grouping: fiscal week as week, fiscal quarter as quarter, and fiscal year as year. It does not show an error.
+
+**Status: In progress.** Janine Santos said "We can remove fiscal for now." Pull request: [PR 333](https://github.com/Johncoester/cla-portal-demo/pull/333). No database file. Not Live until someone checks a report and a chart on TEST.
+
+**What's built**
+
+- The grouping list on reports and charts no longer includes the three fiscal choices.
+- Opening a saved report or chart that still has one of those codes uses the matching calendar grouping.
+- Saving a report or chart that still sends one of those codes stores the calendar grouping.
+- Date filters say Previous Year, Current Year, and Next Year. A saved filter or view that still uses the old FY choice loads as that year choice.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- This Year stays on the date list. It covers the same calendar year as Current Year.
+
+**Links**
+
+- Spec: [docs/specs/crm-report-grouping.md](docs/specs/crm-report-grouping.md)
+- Pull request: [PR 333](https://github.com/Johncoester/cla-portal-demo/pull/333)
+
+**Decisions**
+
+- No database change. Old saved values stay stored and are read as the calendar grouping.
+- The closing-cost calculator's Maryland property-tax note is not a CRM screen and is unchanged.
