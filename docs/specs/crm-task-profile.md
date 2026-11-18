@@ -4,7 +4,7 @@
 
 **Tracker:** CRM Feedback 29 item 6.
 
-**Status:** In progress. Not merged. Not Live. No database file.
+**Status:** In progress. Pull request [339](https://github.com/Johncoester/cla-portal-demo/pull/339). Not merged. Not Live. No database file.
 
 ## What the user sees
 

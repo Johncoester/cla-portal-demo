@@ -1928,7 +1928,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On a CRM task, the page shows the lead or client that task belongs to. The name is a link back to that profile. The same page opens from Home and from Open Activities on a record.
 
-**Status: In progress.** Janine confirmed this on Nov 16 2026, CRM Feedback 29 item 6. No database file. Not Live until someone checks a task on TEST.
+**Status: In progress.** Janine confirmed this on Nov 16 2026, CRM Feedback 29 item 6. Pull request: [PR 339](https://github.com/Johncoester/cla-portal-demo/pull/339). No database file. Not Live until someone checks a task on TEST.
 
 **What's built**
 
@@ -1945,6 +1945,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/crm-task-profile.md](docs/specs/crm-task-profile.md)
+- Pull request: [PR 339](https://github.com/Johncoester/cla-portal-demo/pull/339)
 
 **Decisions**
 
