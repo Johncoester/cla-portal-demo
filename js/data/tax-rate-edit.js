@@ -1,6 +1,6 @@
 /* FF-091c: checks an Admin's edits to a tax rate sheet before they are saved.
  * A blank rate is kept blank. That is Rate Not Set, not zero. */
-import { canManageModules } from './modules.js?v=202611245600';
+import { canManageModules } from './modules.js?v=202611245800';
 
 export const RATE_ADMIN_ONLY = 'Only an Admin or Super admin can change tax rates.';
 export const canEditTaxRates = (user) => canManageModules(user);

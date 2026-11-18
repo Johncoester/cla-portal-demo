@@ -2,14 +2,14 @@
 //   "+" Create New menu (every CRM page), #/crm/new/<module>, CSV or Excel import (#/crm/import/<leads|contacts>[/notes], Admin / Super admin),
 //   county from the ZIP on the person form, the company duplicate warning, the meeting "Send invite" PREVIEW (.ics), the task Subject type-ahead.
 import { html, raw, $, $$, guard, toast, modal, closeModal, fmtDateTime, pill, toText } from '../ui.js?v=202611161500';
-import { modOn } from '../data/modules.js?v=202611245600';   // module switches (combined nov3g)
-import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, toCsvText, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, saveImportResume, loadImportResume, IMPORT_RESUME_PREFIX } from '../data/crm-janine.js?v=202611245600';
-import { importErrorCsv, importSkipCsvReady } from '../data/crm-import-skip-csv.js?v=202611245600';
-import { importFileHelpText, importFileKind, importFileRejectReason, importParsedFileError, importReadErrorMessage, importColumnGuess } from '../data/crm-import-file.js?v=202611245600';
+import { modOn } from '../data/modules.js?v=202611245800';   // module switches (combined nov3g)
+import { createModules, lookupCounty, ZIP_SOURCE, parseCsv, toCsvText, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, sampleCsv, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, saveImportResume, loadImportResume, IMPORT_RESUME_PREFIX } from '../data/crm-janine.js?v=202611245800';
+import { importErrorCsv, importSkipCsvReady } from '../data/crm-import-skip-csv.js?v=202611245800';
+import { importFileHelpText, importFileKind, importFileRejectReason, importParsedFileError, importReadErrorMessage, importColumnGuess } from '../data/crm-import-file.js?v=202611245800';
 import { fopts } from './crm-custom.js?v=202611243900';
-import { importStatusChoices } from '../data/nov5-rules.js?v=202611245600';
+import { importStatusChoices } from '../data/nov5-rules.js?v=202611245800';
 import { crmReadOnly, companyKey } from '../data/crm.js?v=202611130900';
-import { US_STATES } from '../data/constants.js?v=202611245600';
+import { US_STATES } from '../data/constants.js?v=202611245800';
 
 // ---------- "+" Create New (Home and every CRM page) ----------
 // combined nov3g: skip modules whose Live switch is off for this user (regular users; Admins testing a beta module still get it)

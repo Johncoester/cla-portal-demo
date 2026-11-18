@@ -8,7 +8,7 @@ On Place Order, step 5 (Agents), each side has person, company, phone, and email
 
 On an open file, Parties shows both coordinators. Add or Change is on that row and in the buttons under the list. Order Contacts → Add contact has the same two roles. Type the person, or pick someone saved. Edit on that row changes the name, email, phone, and company.
 
-The CLA Title Transaction Coordinator, in Edit order details and as the Contacts role "Transaction Coordinator", is still an active staff login.
+Add contact no longer offers the old role name Transaction Coordinator (TC-1). A file that already has that role still shows the person. Edit order details still has the file-level Transaction Coordinator field from before TC-1.
 
 ## What is saved
 

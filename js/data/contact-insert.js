@@ -2,8 +2,8 @@
  * They do not call the CRM contact RPC, and they do not invent a last name.
  * lender_role is sent only when a Loan Officer, Lender TC, or Mortgage Broker is chosen, so a company
  * with no person still inserts on a database that has not added that column yet. */
-import { cleanLenderRole } from './lender-file.js?v=202611245600';
-import { CONTACT_TYPE_CODES } from './constants.js?v=202611245600';
+import { cleanLenderRole } from './lender-file.js?v=202611245800';
+import { CONTACT_TYPE_CODES } from './constants.js?v=202611245800';
 const CONTACT_TYPES = new Set(CONTACT_TYPE_CODES);
 
 /* A database check that still has the old list says so in plain words. CLA staff never get a type. */

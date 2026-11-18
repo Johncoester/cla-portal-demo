@@ -2,7 +2,7 @@
  * Active options only in the chooser (importStatusChoices). A CSV cell that names a retired
  * option is an error on that row, in the preview and on commit. Records that already hold a
  * retired status are left as they are. FAKE DATA ONLY. */
-import { resolveImportedStatus } from './nov5-rules.js?v=202611245600';
+import { resolveImportedStatus } from './nov5-rules.js?v=202611245800';
 
 export function retiredStatusMessage(raw) {
   const s = String(raw == null ? '' : raw).trim();

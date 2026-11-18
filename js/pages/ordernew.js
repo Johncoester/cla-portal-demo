@@ -1,7 +1,7 @@
 // Place Order (Processor, Admin, Super admin; John Nov 2): creates a deal and links the chosen people (their intake tasks are copied from the current task templates).
 // John, Nov 2 (later): Open Date (backdating allowed, never future), every US state (no default), EMD amount + due date, documents attached at placement,
 // type-to-search pickers for Buyer / Seller / Buyer Agent / Listing Agent, one "Add new user" place.
-// FF-088: each side's transaction coordinator is an outside contact, not the CLA staff Transaction Coordinator.
+// FF-088 / TC-1: each side's transaction coordinator is an outside assistant who works for that side's agent.
 // REDESIGN (John, Nov 3): the same form is now a STEP-BY-STEP flow modeled on the existing portal's order opening (docs/ORDER-OPEN-REFERENCE.md):
 //   1 Transaction -> 2 Property -> 3 Buyers & Sellers -> 4 Lender & Loan -> 5 Agents -> 6 Team & Notes -> 7 Review & Submit
 // with a progress bar (click any step to jump to it), per-step validation on Next, a review summary and a confirmation panel on the new order's page.
@@ -11,28 +11,28 @@
 // wires never shown to agents.
 import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611161500';
 import { occSelects, yesNo } from './occ-fields.js?v=202611242860';
-import { fmtPhone, TX_TYPES, runsOrders, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611245600';
+import { fmtPhone, TX_TYPES, runsOrders, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611245800';
 import { officeDate } from '../data/office-date.js?v=202611102100';
-import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611245600';
+import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611245800';
 import { salesMultiHtml, mountSalesMulti } from './sales-multi.js?v=202611243801';
-import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice, directoryGroups, companyOnlyContact } from '../data/file-party.js?v=202611245600';
-import { ENTITY_TYPES } from '../data/templates.js?v=202611245600';
-import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611245600';
-import { closerChoices, resolveCloser } from '../data/closer.js?v=202611245600';
-import { duplicateNotice } from '../data/order-duplicates.js?v=202611245600';
+import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice, directoryGroups, companyOnlyContact } from '../data/file-party.js?v=202611245800';
+import { ENTITY_TYPES } from '../data/templates.js?v=202611245800';
+import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611245800';
+import { closerChoices, resolveCloser } from '../data/closer.js?v=202611245800';
+import { duplicateNotice } from '../data/order-duplicates.js?v=202611245800';
 import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
 import { orderDraftKey, readOrderDraft, writeOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim, tombstoneOrderDraft } from '../data/order-draft.js?v=202611242810';
-import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows, brokerageContact, brokerageContactError } from '../data/lender-file.js?v=202611245600';
-import { bindAddressFill } from '../data/address-fill.js?v=202611245600';
+import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows, brokerageContact, brokerageContactError } from '../data/lender-file.js?v=202611245800';
+import { bindAddressFill } from '../data/address-fill.js?v=202611245800';
 import { countyFieldHtml, mountCountySelect, paintCountyOptions } from './county-field.js?v=202611243300';
-import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611245600';
+import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611245800';
 import { readEarnest } from '../data/earnest-commission.js?v=202611223000';
-import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611245600';
+import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611245800';
 import { SIDE_LABEL as AF_SIDE_LABEL, PAYER_LABEL } from '../data/agent-fees.js?v=202611243061';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { AGENT_TC_ROLES, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, isAgentTcRole, partyProblemLine, roleForPartyField, uniqueProblems } from '../data/agent-tc.js?v=202611241300';
-import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611245600';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611245600';
+import { AGENT_TC_ROLES, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, isAgentTcRole, partyProblemLine, roleForPartyField, uniqueProblems, agentTcChoiceLabel, agentTcHelp } from '../data/agent-tc.js?v=202611245300';
+import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611245800';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611245800';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
 // Each person becomes their own deal_participants row, so each buyer / seller gets their own copy of the client intake tasks (existing per-person behaviour).
@@ -77,7 +77,7 @@ const agentTcCard = (role, label) => html`<div class="agent-card party-dir" data
   ${dirFields(label)}
   <input type="hidden" name="p:${role}" value="">
   <button type="button" class="ghost" data-add-tc="${role}">+ Add ${label.toLowerCase()}</button>
-  <p class="muted small">Optional. An outside assistant who works for real estate agents, with or without a portal login. No invite is sent. A new person is saved as Transaction coordinator, not as a Realtor. This is not a CLA Title staff role.</p></div>`;
+  <p class="muted small">${agentTcHelp(role)} A new person is saved as Transaction coordinator, not as a Realtor. No invite is sent.</p></div>`;
 const partyBlock = (role, label) => html`<fieldset class="span2 multi-party" data-multi="${role}"><legend>${label}s</legend>
   <div class="multi-rows" data-rows>${Array.from({ length: MIN_ROWS }, (_, i) => partyRow(role, label, i + 1))}</div><button type="button" class="ghost" data-add-row="${role}">+ Add another ${MULTI[role]}</button></fieldset>`;
 
@@ -124,7 +124,7 @@ export async function render({ api, user, go }) {
   // the file's Processor: Unassigned is the default. Any active staff login (including Super admin) can be picked.
   const today = officeDate();
   // "Add new user" roles. Salesperson creates a staff login, which is Admin-only (John's earlier decision), so only Admins / Super admins see it.
-  const NEW_ROLES = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer Agent'], ['Listing Agent', 'Listing Agent'], ['Lender', 'Lender'], [BUYER_AGENT_TC, agentTcLabel(BUYER_AGENT_TC)], [LISTING_AGENT_TC, agentTcLabel(LISTING_AGENT_TC)], ...(user.isAdmin ? [['Sales Person', 'Salesperson']] : [])];
+  const NEW_ROLES = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer Agent'], ['Listing Agent', 'Listing Agent'], ['Lender', 'Lender'], [BUYER_AGENT_TC, agentTcChoiceLabel(BUYER_AGENT_TC)], [LISTING_AGENT_TC, agentTcChoiceLabel(LISTING_AGENT_TC)], ...(user.isAdmin ? [['Sales Person', 'Salesperson']] : [])];
   const visOpts = visibilityChoices(user.role, user.isAdmin);
   const N = STEPS.length;
   const panel = (key, inner, intro) => { const i = STEPS.findIndex((s) => s[0] === key); const [, title] = STEPS[i];
@@ -197,7 +197,7 @@ export async function render({ api, user, go }) {
         'Money is typed with commas (485,000). Every amount is optional and can be filled in later.')}
       ${panel('agents', html`<div class="form-grid agents-grid">${agentCard('Buyer Agent', 'Buyer agent')}${agentCard('Listing Agent', 'Listing agent')}
         ${agentTcCard(BUYER_AGENT_TC, "Buyer's transaction coordinator")}${agentTcCard(LISTING_AGENT_TC, 'Listing transaction coordinator')}</div>
-        <p class="muted small">Each side's transaction coordinator is optional. Type the person, or choose someone already saved. They are saved as that agent's coordinator. A portal login is not required, and this does not set the CLA Title Transaction Coordinator. Agents never see wire instructions.</p>`,
+        <p class="muted small">Each side's transaction coordinator is optional. Buyer's transaction coordinator: works for the buyer's agent. Listing transaction coordinator: works for the listing agent. Type the person, or choose someone already saved. A portal login is not required. Agents never see wire instructions.</p>`,
         'The realtors on each side, who referred the file, and each side\'s transaction coordinator.')}
       ${panel('team', html`<div class="form-grid">
         <label>Processor<select name="processorId" data-processor-select><option value="">Unassigned</option></select> <button type="button" class="ghost" data-refresh-processors>Refresh list</button><span class="field-hint">Leave Unassigned to save the file now. A Processor added after you opened this page appears when you refresh the list. Nothing else on the form is cleared.</span></label><label>Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select>${preprocs.length ? '' : html`<span class="field-hint" data-no-preproc>No preprocessor is available for this login.</span>`}</label>
