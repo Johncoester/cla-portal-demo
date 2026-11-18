@@ -121,13 +121,26 @@ function actTable(list, me, { closeBtn = false, empty = 'None.', cfg = null } = 
       <td>${a.kind === 'task' ? a.ownerName : a.kind === 'meeting' ? a.hostName : a.kind === 'call' ? a.ownerName || a.createdByName : a.createdByName}</td>
       <td>${closeBtn && me.canEdit && a.kind === 'task' && a.open ? html`<button class="ghost" data-close-task="${a.id}">Close Task</button>` : ''}</td></tr>`) : html`<tr><td colspan="6" class="muted">${empty}</td></tr>`}</tbody></table>`;
 }
+// Janine, Nov 16 (Feedback 27 item 1): the author, or an admin, can fix or add to a note. Notes are never deleted.
+const noteText = (n) => { const body = n && n.body != null ? String(n.body) : ''; if (body.trim()) return body; return n && n.subject != null ? String(n.subject) : ''; };
+const noteWasEdited = (n) => !!(n && !n.system && n.modifiedAt && n.createdAt && String(n.modifiedAt) > String(n.createdAt));
+const canEditNote = (me, n) => !!(me && me.canEdit && n && !n.system && (me.isAdmin || (n.createdBy && n.createdBy === me.id)));
 // record = { activities, invitedMeetings, attachments }
 export function relatedHtml(rec, { entity, entityId, me, cfg = null }) {
   const rl = relatedLists(rec.activities || [], rec.invitedMeetings || [], localStamp());
+  const noteItem = (n) => { const edit = canEditNote(me, n);
+    return html`<li data-note="${n.id}">
+      <div data-note-view><strong>${n.subject}</strong>${n.body && n.body !== n.subject ? html`<br>${n.body}` : ''}
+        <br><span class="muted small">${n.system ? 'CRM' : n.createdByName} &middot; ${fmtDateTime(n.createdAt)}${noteWasEdited(n) ? html` &middot; <span data-note-edited>Edited ${fmtDateTime(n.modifiedAt)}</span>` : ''}${n.entity !== entity ? ` · on the ${entityLabel(n.entity).toLowerCase()}` : ''}</span>
+        ${edit ? html` <button type="button" class="ghost" data-note-edit="${n.id}">Edit</button>` : ''}</div>
+      ${edit ? html`<form data-note-form="${n.id}" class="form-grid" hidden>
+        <label class="span2">Note<textarea name="text" rows="3" maxlength="4000">${noteText(n)}</textarea></label>
+        <p class="err-text span2" data-note-err></p>
+        <div class="span2"><button class="m-btn" type="submit">Save</button> <button class="ghost" type="button" data-note-cancel>Cancel</button></div></form>` : ''}</li>`; };
   return html`
   <div class="card" data-notes><h3>Notes (${rl.notes.length})</h3>
     ${me.canEdit ? html`<form id="note-form" class="inline-form"><textarea name="text" rows="2" maxlength="4000" placeholder="Add a note"></textarea><button class="m-btn" type="submit">Add Note</button></form>` : ''}
-    ${rl.notes.length ? html`<ul class="notes-list">${rl.notes.map((n) => html`<li data-note="${n.id}"><strong>${n.subject}</strong>${n.body && n.body !== n.subject ? html`<br>${n.body}` : ''}<br><span class="muted small">${n.system ? 'CRM' : n.createdByName} &middot; ${fmtDateTime(n.createdAt)}${n.entity !== entity ? ` · on the ${entityLabel(n.entity).toLowerCase()}` : ''}</span></li>`)}</ul>` : html`<p class="muted">No notes yet.</p>`}
+    ${rl.notes.length ? html`<ul class="notes-list">${rl.notes.map(noteItem)}</ul>` : html`<p class="muted">No notes yet.</p>`}
     <p class="muted small">Notes are kept permanently (no delete).</p></div>
   <div class="card" data-attachments><h3>Attachments (${(rec.attachments || []).length})</h3>
     ${me.canEdit && entity !== 'opportunity' ? html`<form id="att-form" class="inline-form"><input type="file" name="file" data-att-file><button class="m-btn" type="submit">Attach</button></form>` : ''}
@@ -143,6 +156,21 @@ export function relatedHtml(rec, { entity, entityId, me, cfg = null }) {
 }
 export function wireRelated(root, api, refresh, ctx) {
   const nf = $('#note-form', root); if (nf) nf.addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.addCrmNote(ctx.entity, ctx.entityId, formData(nf).text || ''); toast('Note added'); refresh(); }));
+  const originalNote = new WeakMap();
+  $$('[data-note-form] textarea', root).forEach((area) => originalNote.set(area, area.value));
+  $$('[data-note-edit]', root).forEach((b) => b.addEventListener('click', () => {
+    const li = b.closest('[data-note]'); if (!li) return; const view = $('[data-note-view]', li); const form = $('[data-note-form]', li);
+    if (view) view.hidden = true; if (form) { form.hidden = false; const area = $('textarea', form); if (area) area.focus(); } }));
+  $$('[data-note-cancel]', root).forEach((b) => b.addEventListener('click', () => {
+    const li = b.closest('[data-note]'); if (!li) return; const view = $('[data-note-view]', li); const form = $('[data-note-form]', li);
+    if (form) { form.hidden = true; const area = $('textarea', form); if (area && originalNote.has(area)) area.value = originalNote.get(area); const err = $('[data-note-err]', form); if (err) err.textContent = ''; }
+    if (view) view.hidden = false; }));
+  $$('[data-note-form]', root).forEach((form) => form.addEventListener('submit', guard(async (e) => {
+    e.preventDefault(); const err = $('[data-note-err]', form); if (err) err.textContent = '';
+    const area = $('textarea', form); const text = area ? area.value : '';
+    if (typeof api.updateCrmNote !== 'function') throw new Error('Saving an edited note is not available yet. Reload the page and try again.');
+    try { await api.updateCrmNote(form.dataset.noteForm, text); toast('Note saved'); refresh(); }
+    catch (ex) { if (err) err.textContent = ex.message || 'That note was not saved. Try again.'; throw ex; } })));
   const af = $('#att-form', root); if (af) af.addEventListener('submit', guard(async (e) => { e.preventDefault(); const file = $('[data-att-file]', af).files[0]; if (!file) throw new Error('Choose a file first.');
     const dataUrl = await readFile(file); await api.addCrmAttachment(ctx.entity, ctx.entityId, { name: file.name, mimeType: file.type, size: file.size, dataUrl }); toast('File attached'); refresh(); }));
   $$('[data-open-att]', root).forEach((a) => a.addEventListener('click', guard(async (e) => { e.preventDefault(); const c = await api.getCrmAttachmentContent(a.dataset.openAtt);
