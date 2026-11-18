@@ -1869,7 +1869,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On a Lead, Client, Deal, or Company, a panel on the left lists Notes, Deals, Open Activities, Closed Activities, Emails, and Attachments. A click moves down the page to that section. A shortcut is shown only when that section is already on the record. On a wide screen the panel stays put while the record scrolls. On a narrow screen the shortcuts wrap across the top.
 
-**Status: In progress.** Janine, CRM Feedback 28 item 3, confirmed Nov 16 2026. No database file. Not Live until someone checks a record on TEST.
+**Status: In progress.** Janine, CRM Feedback 28 item 3, confirmed Nov 16 2026. Pull request: [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337). No database file. Not Live until someone checks a record on TEST.
 
 **What's built**
 
@@ -1886,6 +1886,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/crm-record-shortcuts.md](docs/specs/crm-record-shortcuts.md)
+- Pull request: [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337)
 
 **Decisions**
 
