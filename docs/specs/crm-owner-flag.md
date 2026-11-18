@@ -36,7 +36,7 @@ On Admin, then User List, then Edit user, ticking **Can own CRM records** and sa
 
 The column and the guard were already on TEST. The signed-in role could read the column and could not update it, so the database refused the save before the guard ran.
 
-The grant file is `supabase/migrations/20261125210000_crm_owner_flag_grant.sql`. It is not applied on TEST by the pull request. Not Live until someone applies it and a Super admin saves a tick, reloads, and sees it still ticked.
+The grant file is `supabase/migrations/20261125210000_crm_owner_flag_grant.sql`. Pull request [342](https://github.com/Johncoester/cla-portal-demo/pull/342). It is not applied on TEST by the pull request. Not Live until someone applies it and a Super admin saves a tick, reloads, and sees it still ticked.
 
 The shell cache stamp is 202611245200.
 

@@ -1446,7 +1446,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On Admin, then User List, then Edit user, an Admin or Super admin ticks **Can own CRM records** and chooses Save. The tick stays on after a reload. Anyone else sees the box locked and cannot change it. The database still refuses that person, and the activity log records a change that is allowed.
 
-**Status: In progress.** Tracker row CRM-OWNER-1b. Janine Santos reported it by email to John on Nov 18 2026, 9:36 AM ET, with a screenshot. She is an active Super admin. The toast was "This was not saved: your login is not allowed to change this." A read-only check on TEST showed `authenticated` can read `profiles.can_own_crm` and cannot update it. The guard trigger was already there. This pull request adds `supabase/migrations/20261125210000_crm_owner_flag_grant.sql`. Not applied on TEST. Not Live.
+**Status: In progress.** Tracker row CRM-OWNER-1b. Janine Santos reported it by email to John on Nov 18 2026, 9:36 AM ET, with a screenshot. She is an active Super admin. The toast was "This was not saved: your login is not allowed to change this." A read-only check on TEST showed `authenticated` can read `profiles.can_own_crm` and cannot update it. The guard trigger was already there. Pull request: [PR 342](https://github.com/Johncoester/cla-portal-demo/pull/342). Database file `supabase/migrations/20261125210000_crm_owner_flag_grant.sql`. Not applied on TEST. Not Live.
 
 **What's built**
 
