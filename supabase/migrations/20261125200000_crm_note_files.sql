@@ -24,6 +24,14 @@
 -- That is the bucket the CRM attachment code already expects. Record
 -- attachments are not uploaded by this file. If the storage tables are not
 -- installed, the column is still added and the bucket step is skipped.
+--
+-- Who can open the file is the same as who can read that note. The storage
+-- policies look up public.crm_activities by its primary key (the note id in
+-- the path). That lookup runs as the caller, so the note's own row security
+-- applies. They do not call a per-row private helper. (select private.crm_editor())
+-- and (select private.is_admin()) run once per statement. Insert also requires
+-- edit rights: the caller is a CRM editor, and they wrote the note or they are
+-- an admin, and the note was not written by the CRM.
 
 begin;
 set local lock_timeout = '3s';
@@ -53,6 +61,9 @@ begin
   end if;
   if to_regprocedure('private.crm_editor()') is null then
     raise exception 'drift: private.crm_editor() is missing';
+  end if;
+  if to_regprocedure('private.is_admin()') is null then
+    raise exception 'drift: private.is_admin() is missing';
   end if;
   foreach col in array need loop
     if not exists (
@@ -171,7 +182,39 @@ create trigger crm_note_file_guard
   before insert on public.crm_attachments
   for each row execute function private.crm_note_file_guard();
 
+comment on function private.crm_note_file_guard() is 'crm-note-file-bucket-existed';
+
+-- Read: the note id in the path is public.crm_activities.id (the primary key).
+-- The lookup runs as the caller, so that table's own row security decides
+-- whether this person can read the note. A cast runs only inside CASE, so a
+-- path that is not a note id does not abort the whole read.
+-- Insert: the same primary-key lookup, plus edit rights. (select private.crm_editor())
+-- and (select private.is_admin()) are each one check for the statement.
 do $storage$
+declare
+  bucket_created boolean := false;
+  note_ok text := $n$
+    n.id = (
+      select parsed.note_id from (
+        select case
+          when split_part(storage.objects.name, '/', 4) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          then split_part(storage.objects.name, '/', 4)::uuid
+        end as note_id
+      ) parsed
+      where parsed.note_id is not null
+    )
+    and n.kind = 'note'
+    and n.entity = split_part(storage.objects.name, '/', 2)
+    and n.entity_id is not distinct from (
+      select parsed.record_id from (
+        select case
+          when split_part(storage.objects.name, '/', 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          then split_part(storage.objects.name, '/', 3)::uuid
+        end as record_id
+      ) parsed
+    )$n$;
+  read_using text;
+  insert_check text;
 begin
   if to_regclass('storage.buckets') is null or to_regclass('storage.objects') is null then
     return;
@@ -198,50 +241,37 @@ begin
     else
       insert into storage.buckets (id, name, public) values ('crm', 'crm', false);
     end if;
+    bucket_created := true;
   end if;
+  read_using := format($pol$
+    bucket_id = 'crm'
+    and split_part(storage.objects.name, '/', 1) = 'notes'
+    and exists (
+      select 1 from public.crm_activities n
+      where %s
+    )$pol$, note_ok);
+  insert_check := format($pol$
+    bucket_id = 'crm'
+    and (select private.crm_editor())
+    and split_part(storage.objects.name, '/', 1) = 'notes'
+    and exists (
+      select 1 from public.crm_activities n
+      where %s
+        and not n.system
+        and (n.created_by = (select auth.uid()) or (select private.is_admin()))
+    )$pol$, note_ok);
   if exists (
     select 1 from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'storage' and p.proname = 'allow_any_operation'
   ) then
-    execute $pol$create policy crm_note_object_read on storage.objects for select to authenticated using (
-      bucket_id = 'crm'
-      and storage.objects.name like 'notes/%'
-      and exists (
-        select 1 from public.crm_attachments a
-        where a.storage_path = storage.objects.name and a.note_id is not null
-      )
-      and storage.allow_any_operation(array['object.get_authenticated', 'object.get_authenticated_info']))$pol$;
-    execute $pol$create policy crm_note_object_insert on storage.objects for insert to authenticated with check (
-      bucket_id = 'crm'
-      and (select private.crm_editor())
-      and storage.objects.name ~ '^notes/(lead|contact|account)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/]+$'
-      and exists (
-        select 1 from public.crm_activities n
-        where n.kind = 'note' and not n.system
-          and n.entity = split_part(storage.objects.name, '/', 2)
-          and n.entity_id = split_part(storage.objects.name, '/', 3)::uuid
-          and n.id = split_part(storage.objects.name, '/', 4)::uuid
-      ))$pol$;
-  else
-    execute $pol$create policy crm_note_object_read on storage.objects for select to authenticated using (
-      bucket_id = 'crm'
-      and storage.objects.name like 'notes/%'
-      and exists (
-        select 1 from public.crm_attachments a
-        where a.storage_path = storage.objects.name and a.note_id is not null
-      ))$pol$;
-    execute $pol$create policy crm_note_object_insert on storage.objects for insert to authenticated with check (
-      bucket_id = 'crm'
-      and (select private.crm_editor())
-      and storage.objects.name ~ '^notes/(lead|contact|account)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/]+$'
-      and exists (
-        select 1 from public.crm_activities n
-        where n.kind = 'note' and not n.system
-          and n.entity = split_part(storage.objects.name, '/', 2)
-          and n.entity_id = split_part(storage.objects.name, '/', 3)::uuid
-          and n.id = split_part(storage.objects.name, '/', 4)::uuid
-      ))$pol$;
+    read_using := read_using || $x$
+    and storage.allow_any_operation(array['object.get_authenticated', 'object.get_authenticated_info'])$x$;
+  end if;
+  execute 'create policy crm_note_object_read on storage.objects for select to authenticated using (' || read_using || ')';
+  execute 'create policy crm_note_object_insert on storage.objects for insert to authenticated with check (' || insert_check || ')';
+  if bucket_created then
+    comment on function private.crm_note_file_guard() is 'crm-note-file-bucket-created';
   end if;
 end
 $storage$;

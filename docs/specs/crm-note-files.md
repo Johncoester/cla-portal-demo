@@ -26,6 +26,8 @@ The note is the same activity row as before. The file is a row in the same CRM a
 
 The bytes go to the private `crm` storage bucket, in a `notes/` path for that lead, client, or company and that note. Record attachments are not uploaded by this change.
 
+A person can download the file only when they can read that note. Adding a file also requires the right to edit the note: they wrote it, or they are an admin. The storage check looks up the note by its id, under the same row security as the note itself.
+
 ## What this does not change
 
 Notes still cannot be deleted, and a file on a note cannot be removed. Edit does not move a note onto another record. CRM deal records do not use this notes list.

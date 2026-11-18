@@ -1604,6 +1604,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - The file uses the existing CRM attachment table. `note_id` marks a note file so the Attachments list, which only reads rows with no `note_id`, cannot show it. The bytes go to the private `crm` bucket under `notes/`.
+- Opening the file in storage is allowed only when that person can read the note. Adding a file also requires the right to edit that note (the author, or an admin). Those checks look up the note by its id. They do not add a per-row helper.
 - One read of the attachment table covers every note on the record. There is no extra read per note.
 - Only the author, or an Admin or Super admin, can add a file to a note that already exists. A processor stays read-only.
 

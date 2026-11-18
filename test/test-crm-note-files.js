@@ -250,7 +250,9 @@ const mig = read('supabase/migrations/20261125200000_crm_note_files.sql');
 const rb = read('supabase/rollbacks/20261125200000_crm_note_files.sql');
 ok(mig.includes('add column note_id uuid') && mig.includes('notes/') && mig.includes('Not applied by this commit'), 'the database file adds note_id and a notes path and is not applied here');
 ok(!mig.includes('private.crm_entity_visible') && !/alter policy/i.test(mig) && !/on public\.deals/i.test(mig) && !/on public\.tasks\b/i.test(mig) && !/on public\.profiles/i.test(mig), 'it does not add a per-row visibility helper or change deals, tasks, or profiles');
-ok(rb.includes('drop column if exists note_id') && rb.includes('drop function if exists private.crm_note_file_guard') && rb.includes('crm_note_object_read'), 'the rollback removes the column, the guard, and the storage policies');
+ok(mig.includes('from public.crm_activities n') && mig.includes('n.id =') && mig.includes('(select private.crm_editor())') && mig.includes('(select private.is_admin())') && mig.includes('n.created_by = (select auth.uid())'), 'storage access looks up the note by its primary key and edit rights are one-time checks');
+ok(!/from public\.crm_attachments a\s+where a\.storage_path/.test(mig), 'the storage read does not scan attachments by an unindexed path');
+ok(rb.includes('drop column if exists note_id') && rb.includes('drop function if exists private.crm_note_file_guard') && rb.includes('crm_note_object_read') && rb.includes('crm_note_object_insert') && rb.includes('crm_attachments_note_fk') && rb.includes('crm_attachments_note_path') && rb.includes('crm_attachments_note_id_idx') && rb.includes('delete from storage.buckets where id = \'crm\''), 'the rollback drops every object this migration adds');
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
