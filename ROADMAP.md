@@ -1924,3 +1924,32 @@ This file lists the portal's major features: how each one should work, how far a
 - No database change. The panel only points at sections the record page already shows.
 - A missing section is left out of the panel. It is not shown as a shortcut that goes nowhere.
 
+---
+
+## CRM Home task names (Feedback 29 item 5)
+
+**How it should work.** On CRM Home, Related To and Contact Name show the lead or client the task was created under. Intro Call shows Marcus Vance. Each name is a link that opens that lead or client profile. A task that is not under a lead or a client leaves both columns blank, and the rest of the list still shows.
+
+**Status: In progress.** Janine confirmed this on Nov 16 2026, CRM Feedback 29 item 5. No database file. Not Live until someone checks CRM Home on TEST.
+
+**What's built**
+
+- Home asks for the signed-in person's tasks, then asks once for the names of the leads on that list and once for the clients on that list.
+- Both columns show that name, and each name opens the lead or client profile.
+- A name the read does not return stays blank. The task list still opens.
+- Tasks under a company or an opportunity are unchanged.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- The pull request link is added when the request is open.
+
+**Links**
+
+- Spec: [docs/specs/crm-home-task-names.md](docs/specs/crm-home-task-names.md)
+
+**Decisions**
+
+- No database change. The task already stores the lead or client id. That id is not a foreign key, so the name cannot be embedded in the task read.
+- A list that is only leads, or only clients, uses one extra read. A list with both uses one read for each table. It never reads once per task.
+
