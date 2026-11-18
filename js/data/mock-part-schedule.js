@@ -3,9 +3,9 @@
  * Nothing is emailed from this build: links are shown to staff to copy, and in-app notifications are created.
  * Matt: the request's closing location defaults to the closest CLA Title office. Each side picks a location plus the dates and times that work.
  * The processor sees both answers on the file. */
-import { OFFICE_LOCATION, officeAddress } from './offices.js?v=202611245800';
-import { closingOfficeChoices, officeById, officeNameOf, officeRows } from './mock-part-offices.js?v=202611245800';
-import { cleanScheduleAnswers, schedulePatch, schedulingToldEmail, settlementAgentChoices, INVITE_FROM, INVITE_FROM_NAME, schedulingFromDeal } from './scheduling-details.js?v=202611245800';
+import { OFFICE_LOCATION, officeAddress } from './offices.js?v=202611246600';
+import { closingOfficeChoices, officeById, officeNameOf, settlementOffices } from './mock-part-offices.js?v=202611246600';
+import { cleanScheduleAnswers, schedulePatch, schedulingToldEmail, settlementAgentChoices, INVITE_FROM, INVITE_FROM_NAME, schedulingFromDeal } from './scheduling-details.js?v=202611246600';
 import { cleanSideAgent, reminderEmptyMessage, reminderMessage, reminderRecipients, sideAgentFromDeal, sideAgentPatch } from './scheduling-agent.js?v=202611245800';
 export function closingSchedule(x) {
   const { load, save, nid, me, needUser, needProcessor, dealOr404, onDeal, fileRole, log, nameOf, notify, dealProfileIds, prof, contactOf, clone, now, fail, str, C } = x;
@@ -30,7 +30,14 @@ export function closingSchedule(x) {
     if (!sent && (officeId == null || officeId === '')) return { location: fallbackLoc || '', officeId: fallbackOffice || null };
     let loc = sent ? str(location, 60) : ''; let off = officeId == null || officeId === '' ? '' : str(officeId, 40);
     if (!loc && off) loc = OFFICE_LOCATION;
-    if (loc === OFFICE_LOCATION) { if (!off) off = fallbackOffice || ''; const o = off && officeById(load(), off); if (!o || !o.active) fail('Pick an active CLA Title office.'); return { location: loc, officeId: o.id }; }
+    if (loc === OFFICE_LOCATION) {
+      if (!off) off = fallbackOffice || '';
+      const o = off && officeById(load(), off);
+      if (!o || !o.active) fail('Pick an active CLA Title office.');
+      // Existing request office may stay when the picker no longer offers it; a new pick must be used for settlements.
+      if (!o.usedForSettlements && o.id !== fallbackOffice) fail('Pick a CLA office used for settlements.');
+      return { location: loc, officeId: o.id };
+    }
     if (off) fail('Only a CLA Title office closing names an office.');
     if (loc && !C.CLOSING_LOCATIONS.includes(loc)) fail(`Pick where to sign: ${C.CLOSING_LOCATIONS.join(', ')}.`);
     return { location: loc, officeId: null };
@@ -58,8 +65,8 @@ export function closingSchedule(x) {
     // Public link page (no sign-in needed). Shows only what that side needs.
     async getSchedulingLink(tok) {
       const [s, side] = byToken(tok); const d0 = load(); const deal = d0.deals.find((z) => z.id === s.dealId); const r = responsesOf(s, s.round).find((z) => z.side === side);
-      const nearest = closingOfficeChoices(d0, deal);
-      const offices = officeRows(d0).filter((o) => o.active).map((o) => ({ id: o.id, name: o.name, address: officeAddress(o), state: o.state }));
+      const nearest = closingOfficeChoices(d0, deal, { keepOfficeIds: [s.officeId] });
+      const offices = nearest.offices.map((o) => ({ id: o.id, name: o.name, address: o.address || officeAddress(o), state: o.state }));
       return clone({ side, fileNumber: deal.fileNumber, street: deal.street, city: deal.city, state: deal.state, zip: deal.zip, slots: s.slots, location: s.location, officeId: s.officeId || null, officeName: officeNameOf(d0, s.officeId),
         defaultOfficeId: s.officeId || nearest.officeId, offices, note: s.note, status: s.status, round: s.round, confirmedSlot: s.confirmedSlot,
         response: r ? { picks: r.picks, note: r.note, responderName: r.responderName, at: r.at, location: r.location || '', officeId: r.officeId || null } : null });
@@ -101,14 +108,14 @@ export function closingSchedule(x) {
     async getPartySchedule(tok) {
       const link = partyLink(tok);
       const d0 = load(); const deal = d0.deals.find((z) => z.id === link.dealId) || fail('This scheduling link is not valid.');
-      const near = closingOfficeChoices(d0, deal);
-      const offices = officeRows(d0).filter((o) => o.active !== false).map((o) => ({ id: o.id, name: o.name, address: officeAddress(o) }));
       const view = schedulingFromDeal(deal)[link.side];
+      const near = closingOfficeChoices(d0, deal, { keepOfficeIds: [view.officeId] });
+      const offices = near.offices.map((o) => ({ id: o.id, name: o.name, address: o.address || officeAddress(o) }));
       return clone({ side: link.side, fileNumber: deal.fileNumber, street: deal.street, city: deal.city, state: deal.state, zip: deal.zip, closingDate: deal.closingDate || '', defaultOfficeId: view.officeId || near.officeId || '', officeHint: near.text || '', offices, answers: view });
     },
     async submitPartySchedule(tok, answers) {
       const link = partyLink(tok); const d = load(); const deal = d.deals.find((z) => z.id === link.dealId) || fail('This scheduling link is not valid.');
-      const offices = officeRows(d).filter((o) => o.active !== false).map((o) => ({ id: o.id, name: o.name }));
+      const offices = settlementOffices(d).map((o) => ({ id: o.id, name: o.name }));
       const clean = cleanScheduleAnswers({ ...answers, askParty: false }, { side: link.side, offices });
       const kept = deal.closingDate;
       Object.assign(deal, schedulePatch(clean, { by: 'party', officeName: clean.officeId ? officeNameOf(d, clean.officeId) : '' }));

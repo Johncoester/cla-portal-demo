@@ -6,8 +6,8 @@
 import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611245800';
 import { senderFor } from './email-senders.js?v=202611245800';
 import { CLA_PHONE, isRefi } from './constants.js?v=202611245800';
-import { SCHEDULE_CODE, sideOfRole, schedulePatch, partyRecipients, schedulingLinkEmail, schedulingToldEmail, INVITE_FROM, INVITE_FROM_NAME } from './scheduling-details.js?v=202611245800';
-import { officeRows, officeNameOf } from './mock-part-offices.js?v=202611245800';
+import { SCHEDULE_CODE, sideOfRole, schedulePatch, partyRecipients, schedulingLinkEmail, schedulingToldEmail, INVITE_FROM, INVITE_FROM_NAME } from './scheduling-details.js?v=202611246600';
+import { settlementOffices, officeNameOf } from './mock-part-offices.js?v=202611246600';
 export function agentPortal(x) {
   const { api: root, load, save, nid, needUser, isManager, notViewOnly, dealOr404, onDeal, log, prof, nameOf, ownerOf, taskVisible, threadVisible, unreadIn, docVisible, participantsOf, isStaffView,
     notify, dealProfileIds, dealView, contactOf, clone, now, fail, str, emailOk, C } = x;
@@ -196,7 +196,7 @@ export function agentPortal(x) {
       const behalf = behalfOf(u, t);
       if (ownerOf(t) !== u.id && !behalf) fail('Only the agent this task is for can submit it.'); if (t.status === 'cancelled') fail('This task was cancelled.');
       const d0 = load();
-      const offices = t.templateCode === SCHEDULE_CODE ? officeRows(d0).filter((o) => o.active !== false).map((o) => ({ id: o.id, name: o.name })) : [];
+      const offices = t.templateCode === SCHEDULE_CODE ? settlementOffices(d0).map((o) => ({ id: o.id, name: o.name })) : [];
       const clean = validateAgentAnswers(t.templateCode, answers, { clients: clientsFor(t), side: sideOfRole(t.assignedRole), offices });
       if (t.templateCode === SCHEDULE_CODE) queueAgentSchedule(d0, t, clean, u);
       const d = load(); const n = d.agentTaskRevisions.filter((r) => r.taskId === t.id).length + 1; const revision = t.status === 'done';

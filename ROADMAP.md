@@ -380,6 +380,36 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Settlement office locations (FF-101d)
+
+**How it should work.** When an agent or processor picks a CLA office for the settlement (Schedule the Settlement task, Scheduling Details, or the party scheduling link), the list is only the offices marked for settlements. That starts as Towson, Rockville and Bethesda. Rockville is the main office. Other offices stay in the offices table and on Admin > Offices, but are not offered for new settlement picks. A retired office never appears. A pending proposal that already uses another office still shows that office on the file.
+
+**Status: In progress.** Tracker FF-101d. Francis Santos, Portal review Nov 18 2026 11 AM; John confirmed Nov 18 2026, 2:13 PM ET. Pull request: (this PR). Database file `supabase/migrations/20261125300000_settlement_office_flag.sql` is not applied. Not Live.
+
+**What's built**
+
+- `public.offices.used_for_settlements` flag. Towson, Rockville and Bethesda are on; other offices stay off. Rows are not deleted.
+- Settlement pickers and nearest-office default read only active offices with that flag. Existing file/proposal office names still show.
+- Mock and hosted adapters follow the same rule. Cache stamp 202611246600.
+
+**What's still missing**
+
+- Admin UI to tick the flag (FF-102, separate PR, migration `20261125310000`).
+- Not applied on TEST. Not checked on TEST yet.
+
+**Links**
+
+- Spec: [docs/specs/settlement-office-locations.md](docs/specs/settlement-office-locations.md). Source: Francis's Nov 18 Gemini notes (Gmail 1a1ef9d3d862da08). Tracker FF-101d.
+- Related: MF-010 (nearest office), MF-056 (Scheduling Details), FF-102 (Admin Offices flag UI).
+
+**Decisions**
+
+- Drive the picker from the offices table flag, not hard-coded names in the page (John, Nov 18).
+- Notes' "Talson" / "Rockwell" mean Towson / Rockville.
+- Do not apply the database file in this pull request.
+
+---
+
 ## Scheduling Details (MF-056 / FF-085)
 
 **How it should work.** The file button that said Closing Date is **Scheduling Details**. The buyer's agent and the listing agent each have a task, "Schedule the Settlement for [property address]". They pick a settlement date (starting from the contract or addendum closing date), a CLA office (starting at the office nearest the property) or another address, a time from 9:00 AM to 6:00 PM, and notes. They can instead ask the buyer or the seller to schedule, which queues a link for that person and tells the agent. The seller can also choose remote online notarization on a computer. The choice shows on the Scheduling Details button. The processor sees the settlement agent name, a Settlement Agent Confirmed checkbox, and a separate notes button.

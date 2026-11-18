@@ -7,7 +7,7 @@
 //  * Request Update topics, Share Access permissions (invites are RECORDED only, nothing is sent), invite email preview ("Complete Requests Now").
 //  * Rich-text message HTML sanitizer (Bold, Italic, Underline, bullet / numbered lists, links; nothing else survives).
 import { STAGES, phoneOk, fmtPhone, isRealDate } from './constants.js?v=202611245800';
-import { SCHEDULE_CODE, cleanScheduleAnswers, scheduleTaskTitle } from './scheduling-details.js?v=202611245800';
+import { SCHEDULE_CODE, cleanScheduleAnswers, scheduleTaskTitle } from './scheduling-details.js?v=202611246600';
 
 export const PHASES = ['Title Processing', 'Closing Prep', 'Scheduled Closing Date', 'Closed'];
 // stage indexes (constants.js STAGES): 0-2 Opened / EMD Receipt / Buyer Info Received -> Title Processing; 3-6 Schedule Closing .. Buyer Final Doc
