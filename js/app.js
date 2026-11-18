@@ -2,7 +2,7 @@
 import { openNotification } from './data/bell-open.js?v=202611162100';
 import { getAdapter } from './data/adapter.js?v=202611246000';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611245900';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611246500';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { fileDatesHtml, fileDateCanEdit, mountFileDates } from './pages/file-dates.js?v=202611245800';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611245800';
@@ -11,7 +11,7 @@ import { canManageRoleAccess } from './data/role-access.js?v=202611100100';
 import { canUseGmail } from './data/gmail-email.js?v=202611191000';
 import { acctCanRead } from './data/accounting.js?v=202611243300';
 import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611245800';
-import { phaseOf } from './data/agent-portal.js?v=202611245800';
+import { phaseOf } from './data/agent-portal.js?v=202611246500';
 import { scheduleNavLines } from './data/scheduling-details.js?v=202611245800';
 import { applyTheme, themeOn } from './theme.js?v=202611070139';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
 import { icon } from './pages/theme-cards.js?v=202611245800';
@@ -47,13 +47,13 @@ const pages = {
   dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611245900')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611245800')),
   'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611245800')),
-  deal: () => loadRoute(() => import('./pages/deal.js?v=202611245900')),
+  deal: () => loadRoute(() => import('./pages/deal.js?v=202611246500')),
   users: () => loadRoute(() => import('./pages/users.js?v=202611245900')),
   profile: () => loadRoute(() => import('./pages/profile.js?v=202611245900')),
   'contact-us': () => loadRoute(() => import('./pages/contact.js?v=202611161500')),
   teams: () => loadRoute(() => import('./pages/teams.js?v=202611161500')),
-  templates: () => loadRoute(() => import('./pages/templates.js?v=202611245800')),
-  'admin/templates': () => loadRoute(() => import('./pages/templates.js?v=202611245800')),
+  templates: () => loadRoute(() => import('./pages/templates.js?v=202611246500')),
+  'admin/templates': () => loadRoute(() => import('./pages/templates.js?v=202611246500')),
   library: () => loadRoute(() => import('./pages/library.js?v=202611245800')),
   activity: () => loadRoute(() => import('./pages/activity.js?v=202611161500')),
   outbox: () => loadRoute(() => import('./pages/outbox.js?v=202611245800')),
@@ -71,7 +71,7 @@ const pages = {
   hr: () => loadRoute(() => import('./pages/hr.js?v=202611245800')),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
   'hr-invite': () => loadRoute(() => import('./pages/hr-invite.js?v=202611161500')),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => loadRoute(() => import('./pages/offices.js?v=202611245800')),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
-  'admin/email-templates': () => loadRoute(() => import('./pages/email-templates.js?v=202611245800')),   // John, Nov 9: Admin > Email Templates (file Email tab)
+  'admin/email-templates': () => loadRoute(() => import('./pages/email-templates.js?v=202611246500')),   // John, Nov 9: Admin > Email Templates (file Email tab)
   'task-builder': () => loadRoute(() => import('./pages/task-builder.js?v=202611243802')),   // John, Nov 13: Admin > Task Builder (Admin / Super admin; TB-1 list of flows)
   demo: () => loadRoute(() => import('./pages/demo-view.js?v=202611161500')),   // permanent Demo mode: Super admin views a seeded demo user
   'voice-demo': () => loadRoute(() => import('./pages/voice-demo.js?v=202611161500')),   // signed-in Live Test only; the header Voice test panel is the test, this route is not a file

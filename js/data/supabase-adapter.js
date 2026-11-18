@@ -54,7 +54,7 @@ import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty }
 import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole, brokerageContact, brokerageContactError, brokerageWrite, brokerageColumnMiss } from './lender-file.js?v=202611245800';
 import { fileTitleOf } from './party-name.js?v=202611102000';
 import { parcelInput } from './parcels.js?v=202611245800';
-import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611223000';
+import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611246500';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';

@@ -1,6 +1,6 @@
 /* File-tab modules. Loading one evaluates local helpers only. It does not check who is signed in and it does not read a file. */
 const TABS = Object.assign(Object.create(null), {
-  tasks: './dealtasks.js?v=202611245900',
+  tasks: './dealtasks.js?v=202611246500',
   inbox: './dealmsgs.js?v=202611245800',
   email: './dealemail.js?v=202611245800',   // John, Nov 9: Gmail phase 1 (staff only; the tab module refuses everyone else)
   documents: './dealdocs.js?v=202611245800',

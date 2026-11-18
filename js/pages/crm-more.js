@@ -10,7 +10,7 @@ import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv, pageSizeCo
 import { bulkBar, wireBulk } from './crm-bulk.js?v=202611161500';
 import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611130900';
 import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611243900';
-import { wireCompose } from './crm-templates.js?v=202611245800';
+import { wireCompose } from './crm-templates.js?v=202611246500';
 
 const crumbs = (label) => [['CRM', '#/crm'], [label]];
 const q = () => new URLSearchParams(location.hash.split('?')[1] || '');
