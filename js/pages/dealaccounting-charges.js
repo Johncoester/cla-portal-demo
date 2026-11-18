@@ -7,10 +7,10 @@
 import { html, raw, $, $$, guard, formData, toast, toText, fmtDate } from '../ui.js?v=202611161500';
 import { addressOnFile } from '../data/fee-place.js?v=202611242400';
 import { CONTRACT_FIELDS, OTHER_CHARGE_DETAIL_KEYS } from '../data/contract-terms.js?v=202611243040';
-import { splitFor } from '../data/underwriter.js?v=202611243018';
-import { cdDescription } from '../data/accounting.js?v=202611243004';
-import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611243003';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
-import * as Q from '../data/qualia-charges.js?v=202611223000';
+import { splitFor } from '../data/underwriter.js?v=202611243300';
+import { cdDescription } from '../data/accounting.js?v=202611243300';
+import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611243300';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
+import * as Q from '../data/qualia-charges.js?v=202611243300';
 import { modOn } from '../data/modules.js?v=202611101015';   // live40: Payoffs / HOA switch
 
 const usd = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
