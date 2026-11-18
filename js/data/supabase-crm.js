@@ -192,6 +192,29 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
       return actOut(await one(sb.from('crm_activities').insert({ entity: v.entity, entity_id: v.entityId, kind: v.kind, subject: v.subject, body: v.body || '', status: 'done', occurred_on: blank(v.occurredOn) })), await staff()); },
     async addCrmNote(entity, entityId, text) { on(); const t = String(text || '').trim(); if (!t) throw new Error('Write a note first.');
       return actOut(await one(sb.from('crm_activities').insert({ entity, entity_id: entityId, kind: 'note', subject: t.slice(0, 200), body: t.length > 200 ? t : '', status: 'done' })), await staff()); },
+    // Janine, Nov 16 (Feedback 27 item 1): fix or add to a note. The author, or an admin. No delete. The database already records modified_at on update.
+    async updateCrmNote(id, text) {
+      on(); const u = await me(); if (!canUseCrm(u)) throw new Error('The CRM is for CLA staff only.'); if (crmReadOnly(u)) throw new Error('The Processor has read-only access to the CRM.');
+      const raw = String(text == null ? '' : text); const t = raw.trim();
+      if (!t) throw new Error('Write the note first.');
+      if (t.length > 4000) throw new Error('A note can be up to 4,000 characters. Shorten it and save again.');
+      const row = ok(await sb.from('crm_activities').select('id, kind, system, created_by, subject, body, created_at, modified_at').eq('id', id).maybeSingle());
+      if (!row || row.kind !== 'note') throw new Error('Note not found.');
+      if (row.system) throw new Error('This note was added by the CRM and cannot be changed.');
+      if (!u.isAdmin && row.created_by !== u.id) throw new Error('Only the person who wrote this note, or an admin, can change it.');
+      const stored = (row.body && String(row.body).trim()) ? String(row.body) : String(row.subject || '');
+      if (t === stored.trim()) return actOut(row, await staff());
+      const subject = t.slice(0, 200); const body = t.length > 200 ? t : '';
+      let q = sb.from('crm_activities').update({ subject, body }).eq('id', id).eq('kind', 'note');
+      if (!u.isAdmin) q = q.eq('created_by', u.id);
+      let saved; try { saved = await one(q); } catch (e) {
+        const msg = e && e.message ? String(e.message) : '';
+        if (/row-level security|permission denied|42501/i.test(msg)) throw new Error('That note was not saved. You can change a note you wrote. An admin can change it too.');
+        if (/cannot be changed|cannot move|in the future/i.test(msg)) throw new Error(msg);
+        throw new Error('That note was not saved. Try again.');
+      }
+      return actOut(saved, await staff());
+    },
     async createCrmTask(v) { on(); return actOut(await one(sb.from('crm_activities').insert({ entity: v.entity, entity_id: v.entityId, kind: 'task', ...taskIn(v, true) })), await staff()); },
     // Home My Tasks (Janine, Feedback 29 item 4): pass ownerId to keep the read on crm_activities_owner_idx.
     // The same select as before, with owner_id in the query. No second read, and no row filter after the rows come back.
@@ -204,7 +227,11 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
       let nextTaskId = null; if (before && before.status !== TASK_CLOSED && r.status === TASK_CLOSED) nextTaskId = ((ok(await sb.from('crm_activities').select('id').eq('repeat_of', id)) || [])[0] || {}).id || null;
       return { ...r, nextTaskId }; },
     async closeCrmTask(id) { return camel(await rpc('crm_close_task', { p_id: id })); },
-    async updateCrmActivity(id, v) { return this.updateCrmTask(id, v); },
+    async updateCrmActivity(id, v) {
+      on(); const patch = v || {}; const row = ok(await sb.from('crm_activities').select('kind').eq('id', id).maybeSingle());
+      if (row && row.kind === 'note') { const text = patch.body != null ? patch.body : patch.text != null ? patch.text : patch.subject; if (text == null) throw new Error('Write the note first.'); return this.updateCrmNote(id, text); }
+      return this.updateCrmTask(id, v);
+    },
     async createCrmMeeting(v) { on(); const o = meetingIn(v, true); if (yes(v.addClient) && (v.entity === 'lead' || v.entity === 'contact')) o.participants = [...new Set([...(o.participants || []), `${v.entity}:${v.entityId}`])];
       return actOut(await one(sb.from('crm_activities').insert({ entity: v.entity, entity_id: v.entityId, kind: 'meeting', status: 'done', ...o })), await staff()); },
     async getCrmMeeting(id) { on(); const a = ok(await sb.from('crm_activities').select('*').eq('id', id).eq('kind', 'meeting').maybeSingle()); if (!a) throw new Error('Meeting not found.'); return actOut(a, await staff()); },

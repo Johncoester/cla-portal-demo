@@ -511,8 +511,9 @@ export function crmPart(x, flags) {
       if (input.kind === 'meeting') fail('Use "New Meeting" for meetings.');
       const u = crmEditor(); const entity = str(input.entity, 20); const parent = entityOf(u, entity, str(input.entityId, 60));
       const kind = oneOf(input.kind, ['call', 'email', 'note'], 'Activity type');
+      const created = now();
       const a = { id: nid('ca'), entity, entityId: parent.id, kind, subject: str(input.subject, 200) || (kind === 'note' ? 'Note' : fail('Subject is required.')), body: str(input.body, 4000),
-        status: 'done', dueDate: null, occurredOn: date(input.occurredOn, 'Date', { noFuture: true }) || localDate(), ownerId: u.id, system: false, createdBy: u.id, createdAt: now(), doneAt: now(), modifiedBy: u.id, modifiedAt: now() };
+        status: 'done', dueDate: null, occurredOn: date(input.occurredOn, 'Date', { noFuture: true }) || localDate(), ownerId: u.id, system: false, createdBy: u.id, createdAt: created, doneAt: now(), modifiedBy: u.id, modifiedAt: kind === 'note' ? created : now() };
       if (kind === 'note' && !a.body && a.subject === 'Note') fail('Write the note first.');
       if (kind === 'call') {   // Nov 3 (b), video 7: Call Type, Call Start Time, Call Duration (minutes)
         a.callType = input.callType ? oneOf(input.callType, ['Outbound', 'Inbound', 'Missed'], 'Call type') : '';
@@ -526,6 +527,22 @@ export function crmPart(x, flags) {
     },
     // Notes related list (Zoho). Notes are never deleted.
     async addCrmNote(entity, entityId, text) { return api.logCrmActivity({ entity, entityId, kind: 'note', subject: str(text, 4000).split('\n')[0].slice(0, 80) || 'Note', body: str(text, 4000) }); },
+    // Janine, Nov 16 (Feedback 27 item 1): fix or add to a note. The author, or an admin. No delete. The note stays on the same record.
+    async updateCrmNote(id, text) {
+      const u = crmEditor(); const a = db().crmActivities.find((z) => z.id === id && z.kind === 'note');
+      if (!a || !seen(u, a.entity, a.entityId)) fail('Note not found.');
+      if (a.system) fail('This note was added by the CRM and cannot be changed.');
+      if (!u.isAdmin && a.createdBy !== u.id) fail('Only the person who wrote this note, or an admin, can change it.');
+      const raw = String(text == null ? '' : text);
+      if (!raw.trim()) fail('Write the note first.');
+      if (raw.trim().length > 4000) fail('A note can be up to 4,000 characters. Shorten it and save again.');
+      const t = str(raw, 4000);
+      const stored = (a.body && String(a.body).trim()) ? String(a.body) : String(a.subject || '');
+      if (t === stored.trim()) return actOut(a);
+      a.subject = t.split('\n')[0].slice(0, 80) || 'Note'; a.body = t; touch(a, u);
+      if (!(String(a.modifiedAt) > String(a.createdAt || ''))) a.modifiedAt = new Date(Date.parse(a.createdAt || a.modifiedAt) + 1000).toISOString();
+      save(); return actOut(a);
+    },
 
     // ---------- TASKS (Zoho): Subject*, Due Date*, Status, Priority, Owner, Reminder, Repeat, Description ----------
     async createCrmTask(input) {
@@ -560,6 +577,7 @@ export function crmPart(x, flags) {
       if (a.kind === 'task') { const p = { ...patch }; if (p.status != null) { const map = { open: 'Not Started', done: TASK_CLOSED, cancelled: TASK_CLOSED }; p.status = map[p.status] || p.status; }
         const r = await api.updateCrmTask(id, p); if (patch.status === 'cancelled') { const t = db().crmActivities.find((z) => z.id === id); t.cancelled = true; save(); } return r; }
       if (a.kind === 'meeting') return api.updateCrmMeeting(id, patch);
+      if (a.kind === 'note') { const text = patch.body != null ? patch.body : patch.text != null ? patch.text : patch.subject; if (text == null) fail('Write the note first.'); return api.updateCrmNote(id, text); }
       if (patch.status != null || patch.dueDate !== undefined) fail('Only tasks have a status and a due date.');
       if (patch.subject != null) a.subject = str(patch.subject, 200) || fail('Subject is required.'); if (patch.body != null) a.body = str(patch.body, 4000);
       touch(a, u); save(); return actOut(a);
