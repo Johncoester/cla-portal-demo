@@ -1193,7 +1193,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A transaction coordinator is an outside assistant who works for one or more real estate agents. On a file they can do what their agent can do. That permission work is TC-3. The contact type itself is separate from the CLA Title staff role named Transaction Coordinator. CLA staff still have no contact type.
 
-**Status: In progress.** Tracker row 368. John Coester, live call Nov 18 2026, 11:27 AM ET, confirmed 11:35 AM ET, clarified 11:37 AM ET. The contact type can be picked, and a new buyer or listing coordinator is saved as that type. Existing contacts keep the type they already have. Not Live until `supabase/migrations/20261125230000_tc_contact_type.sql` is applied on TEST.
+**Status: In progress.** Tracker row 368. John Coester, live call Nov 18 2026, 11:27 AM ET, confirmed 11:35 AM ET, clarified 11:37 AM ET. The contact type can be picked, and a new buyer or listing coordinator is saved as that type. Existing contacts keep the type they already have. Pull request: [PR 344](https://github.com/Johncoester/cla-portal-demo/pull/344). Not Live until `supabase/migrations/20261125230000_tc_contact_type.sql` is applied on TEST.
 
 **What's built**
 
@@ -1210,6 +1210,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/tc-contact-type.md](docs/specs/tc-contact-type.md)
+- Pull request: [PR 344](https://github.com/Johncoester/cla-portal-demo/pull/344)
 - Source: John Coester, Nov 18 2026, 11:27 AM ET. Tracker row 368.
 
 **Decisions**
