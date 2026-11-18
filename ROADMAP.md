@@ -84,7 +84,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On Tasks, the listing agent's commission and fees sit under the Listing Agent task section, and the buyer's agent commission and fees sit under the Buyer's Agent task section. File Overview no longer shows the Agent fees box. Staff, agents and TCs who already saw Agent fees still see the same fields in the new place. Accounting still shows commissions read only. Buyers and sellers never see them. Broker fee, total and payout methods are a separate item (FF-101b).
 
-**Status: In progress.** Tracker row FF-101c. Francis Santos, Nov 18 2026 11 AM meeting notes; confirmed by John Coester Nov 18 2026 2:13 PM ET. Pull request open on this branch. Not Live until checked on TEST and migration `20261125260000_ff101c_agent_fees_tasks_location.sql` is applied on TEST (message wording only).
+**Status: In progress.** Tracker row FF-101c. Francis Santos, Nov 18 2026 11 AM meeting notes; confirmed by John Coester Nov 18 2026 2:13 PM ET. Pull request: [PR 351](https://github.com/Johncoester/cla-portal-demo/pull/351). Not Live until checked on TEST and migration `20261125260000_ff101c_agent_fees_tasks_location.sql` is applied on TEST (message wording only).
 
 **What's built**
 
