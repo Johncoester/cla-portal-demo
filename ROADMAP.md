@@ -1629,7 +1629,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## Salespeople on Place Order (FF-092)
 
-**How it should work.** On Place Order, Team & Notes, "Salespeople on this order" is a search box. Type a name or a role, pick one or more people, and each chosen person shows as a chip with Remove. The order saves the same salesperson ids as the old checkbox list. Who can be picked does not change.
+**How it should work.** On Place Order, Team & Notes, "Salespeople on this order" is a search box. Type a name or a role, pick one or more people, and each chosen person shows as a chip with Remove. The order saves the same salesperson ids as the old checkbox list. FF-092a later limited that list to Sales Person and Sales Team.
 
 **Status: In review.** Tracker item FF-092 (Medium). Francis Santos, Nov 17 2026, 1:37 PM ET (Gmail message 1a1eacd7648484d9). Pull request: [PR 322](https://github.com/Johncoester/cla-portal-demo/pull/322). No database file. Not Live until someone checks it on TEST.
 
@@ -1653,7 +1653,35 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - No database change. The saved field is still salesIds.
-- The search list is the same people the checkbox list showed.
+- FF-092 shipped the search list as every active staff login, the same people the checkbox list showed. FF-092a narrows that list. See the next section.
+
+## Salespeople list is Sales Person and Sales Team (FF-092a)
+
+**How it should work.** "Salespeople on this order" and Add a salesperson on a file list only users whose role is Sales Person or Sales Team. A salesperson already saved on a file still shows on that file. Task Builder still names a person already saved on a flow.
+
+**Status: In review.** Tracker item FF-092a, a follow-up to FF-092. Janine, written answer Nov 17 2026, 6:26 PM ET. No database file. Not Live until someone checks it on TEST.
+
+**What's built**
+
+- Place Order and both file pages offer only Sales Person and Sales Team in the salesperson list.
+- A person already saved on a file still shows by name, and can still be removed.
+- Task Builder keeps the name of a salesperson already saved on a flow when that person is no longer in the list.
+- Saving still accepts an active staff login, or a user who can own CRM records. The CRM owner lists are unchanged.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/place-order-sales-roles.md](docs/specs/place-order-sales-roles.md)
+- Follows: [docs/specs/place-order-salespeople.md](docs/specs/place-order-salespeople.md)
+
+**Decisions**
+
+- No database change. The saved field is still salesIds. The database still accepts any active staff login as a salesperson.
+- The list uses the role strings Sales Person and Sales Team.
+
 
 ---
 

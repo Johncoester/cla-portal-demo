@@ -10,7 +10,7 @@ Add new user still works the way it does today. Only an Admin sees Salesperson t
 
 ## What is saved
 
-The same `salesIds` values as the old checkbox list. One id per chosen person. No new database table and no new column. Who is allowed on the order does not change: an active staff login for this demo or real session, checked again when the order is saved.
+The same `salesIds` values as the old checkbox list. One id per chosen person. No new database table and no new column. Saving still accepts an active staff login for this demo or real session, checked again when the order is saved. FF-092a later limited who appears in the search list. See [place-order-sales-roles.md](place-order-sales-roles.md).
 
 A draft in this browser keeps every chosen person, not only the last one.
 

@@ -3,7 +3,7 @@
  * with role Processor. These helpers keep the mock copy of both in step.
  * The database file 20261122180000_processor_party_sync.sql does the same on TEST.
  * Any active staff login can be the Processor (ANYROLE-1). */
-import { PROCESSOR_PICK_ROLES } from './place-order.js?v=202611191800';
+import { PROCESSOR_PICK_ROLES } from './place-order.js?v=202611243800';
 
 export const PROCESSOR_NO_LOGIN = 'Pick an active staff login. A person with no portal login cannot be the Processor.';
 export const PROCESSOR_NOT_STAFF = 'The Processor on an order must be an active staff login.';

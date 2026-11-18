@@ -1,6 +1,6 @@
 // FF-092 (Francis Santos, Nov 17 2026, 1:37 PM ET): Place Order picks salespeople from a search box.
 // Each chosen person is still a salesIds value, the same ids the order already saves. The list itself
-// is whoever Place Order already loaded (active staff for this login). This control does not add roles.
+// is whoever Place Order already loaded (active Sales Person and Sales Team for this login). This control does not add roles.
 import { html, toText, $ } from '../ui.js?v=202611161500';
 
 const MAX = 25;

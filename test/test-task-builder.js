@@ -42,7 +42,7 @@ ok(SECTIONS['task-builder'] === '/task-builder' && routeWs(route) === 'admin', '
 // menu: its own item, not under Task Templates
 const app = read('js/app.js');
 ok(/add\('task-builder', 'Task Builder', '#\/task-builder', 'task'\)/.test(app) && app.includes("if (canOpenTaskSetup(u, demo)) add('task-builder'"), 'Task Builder is its own admin menu item for Admins and Super admins');
-ok(app.includes("'task-builder': () => loadRoute(() => import('./pages/task-builder.js?v=202611221100'))"), 'the page is registered at its stamp');
+ok(app.includes("'task-builder': () => loadRoute(() => import('./pages/task-builder.js?v=202611243802'))"), 'the page is registered at its stamp');
 
 // the mock portal
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
@@ -71,9 +71,12 @@ ok(mine.map((l) => l.action).join() === 'turned off,turned on,changed,created', 
 ok(/2 days after .* now EMD not received, 3 days/.test(mine[2].detail) && mine[3].byName === 'Adam Admin', 'the history says what changed and who did it');
 ok(/not found/.test(await aerr(api.setTaskFlowActive('flow-nope', true))), 'a missing flow gives a plain message');
 
+await api.createTaskFlow({ name: 'Saved salesperson', trigger: 'order_opened', conditions: { salesPeople: ['u-proc'] }, steps: [] });
+
 // the page
 const page = await render({ api, user: { id: 'u-admin', role: 'Super admin', isAdmin: true, status: 'active' }, refresh() {} });
 const body = toText(page.body);
+ok(/Sales: Paula Processor/.test(body) && !/Sales: a sales person no longer active/.test(body), 'a salesperson already saved on a flow keeps their name when they are not in the sales list (FF-092a)');
 ok(page.title === 'Task Builder' && body.includes('data-tb-new') && body.includes('EMD reminder') && body.includes('data-tb-on=') && body.includes('check open files about every 15 minutes') && body.includes('data-tb-run-now') && body.includes('data-tb-runs'), 'the page lists flows with an On / Off switch, Check files now and recent runs');
 ok(/does not exist/.test(await aerr(render({ api, user: user('Processor'), refresh() {} }))), 'the page refuses a Processor');
 ok(/created: <br><span class="muted small" data-tb-log-detail>Starts:/.test(body), 'History keeps a space between the action and its detail (Grok, Nov 14: "createdStarts")');
