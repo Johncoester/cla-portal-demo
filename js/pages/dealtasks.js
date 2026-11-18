@@ -101,7 +101,7 @@ export async function render(ctx) {
     const slotOf = (id) => $(`[data-intake-slot="${(globalThis.CSS && CSS.escape ? CSS.escape(String(id)) : String(id).replace(/(["\\])/g, '\\$1'))}"]`, root);
     const showIntake = async (ids) => {
       if (!ids.length) return;
-      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611245900');
+      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611246400');
       const { loadSpouseRows, applySpouse } = await import('./spouse.js?v=202611245800');
       const wantsSpouse = ids.some((id) => { const t = tasks.find((z) => z.id === id); return t && t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller'); });
       const spouseRows = wantsSpouse ? await loadSpouseRows(api, deal.id) : [];
