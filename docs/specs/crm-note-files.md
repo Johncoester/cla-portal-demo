@@ -2,7 +2,7 @@
 
 **Requested by:** Janine, the CRM user, confirmed Nov 16 2026. CRM Feedback 27, item 2. She also said a file on a note must not show in the record's Attachments section.
 
-**Status:** In progress. A database file is included and has not been applied. Not on TEST until the lead applies it. Not Live.
+**Status:** In progress. Pull request [341](https://github.com/Johncoester/cla-portal-demo/pull/341). A database file is included and has not been applied. Not on TEST until the lead applies it. Not Live.
 
 ## What the user sees
 

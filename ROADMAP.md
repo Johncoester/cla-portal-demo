@@ -1580,7 +1580,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On a Lead, a Client, or a Company, the note box has a paperclip. The person adding a note, or the person editing a note they wrote (or an admin), can choose a file. That file shows on that note, with a link to download it. It does not show in the record's Attachments list. A note still needs words. There is no text formatting and no delete.
 
-**Status: In progress.** Janine, the CRM user, confirmed Nov 16 2026. CRM Feedback 27 item 2. A database file is included and has not been applied. Not Live until the lead applies it on TEST and someone checks a note there.
+**Status: In progress.** Janine, the CRM user, confirmed Nov 16 2026. CRM Feedback 27 item 2. Pull request: [PR 341](https://github.com/Johncoester/cla-portal-demo/pull/341). A database file is included and has not been applied. Not Live until the lead applies it on TEST and someone checks a note there.
 
 **What's built**
 
