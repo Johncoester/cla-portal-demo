@@ -1659,7 +1659,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** "Salespeople on this order" and Add a salesperson on a file list only users whose role is Sales Person or Sales Team. A salesperson already saved on a file still shows on that file. Task Builder still names a person already saved on a flow.
 
-**Status: In review.** Tracker item FF-092a, a follow-up to FF-092. Janine, written answer Nov 17 2026, 6:26 PM ET. No database file. Not Live until someone checks it on TEST.
+**Status: In review.** Tracker item FF-092a, a follow-up to FF-092. Janine, written answer Nov 17 2026, 6:26 PM ET. Pull request: [PR 335](https://github.com/Johncoester/cla-portal-demo/pull/335). No database file. Not Live until someone checks it on TEST.
 
 **What's built**
 
