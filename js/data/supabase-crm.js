@@ -216,7 +216,11 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
       return actOut(saved, await staff());
     },
     async createCrmTask(v) { on(); return actOut(await one(sb.from('crm_activities').insert({ entity: v.entity, entity_id: v.entityId, kind: 'task', ...taskIn(v, true) })), await staff()); },
-    async listCrmTasks() { on(); const ppl = await staff(); return (ok(await sb.from('crm_activities').select('*').eq('kind', 'task')) || []).map((a) => actOut(a, ppl)); },
+    // Home My Tasks (Janine, Feedback 29 item 4): pass ownerId to keep the read on crm_activities_owner_idx.
+    // The same select as before, with owner_id in the query. No second read, and no row filter after the rows come back.
+    async listCrmTasks(opts) { on(); const ppl = await staff(); const ownerId = opts && opts.ownerId ? String(opts.ownerId) : '';
+      let q = sb.from('crm_activities').select('*').eq('kind', 'task'); if (ownerId) q = q.eq('owner_id', ownerId);
+      return (ok(await q) || []).map((a) => actOut(a, ppl)); },
     async getCrmTask(id) { on(); const a = ok(await sb.from('crm_activities').select('*').eq('id', id).eq('kind', 'task').maybeSingle()); if (!a) throw new Error('Task not found.'); return actOut(a, await staff()); },
     async updateCrmTask(id, v) { on(); const before = ok(await sb.from('crm_activities').select('status').eq('id', id).maybeSingle());
       const r = actOut(await one(sb.from('crm_activities').update(taskIn(v, false)).eq('id', id)), await staff());
