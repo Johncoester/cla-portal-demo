@@ -260,8 +260,8 @@ const want = new Map([
   ['js/data/supabase-adapter.js', '202611244300'],
   ['js/data/adapter.js', '202611244300'],
   ['js/pages/crm-dashboards.js', '202611243900'],
-  ['js/pages/crm.js', '202611244300'],
-  ['js/app.js', '202611244300'],
+  ['js/pages/crm.js', '202611244500'],
+  ['js/app.js', '202611244500'],
 ]);
 function walkDir(dir, out = []) {
   for (const name of readdirSync(dir)) {

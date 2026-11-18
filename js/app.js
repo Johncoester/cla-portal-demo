@@ -61,7 +61,7 @@ const pages = {
   'task-grid': () => loadRoute(() => import('./pages/taskgrid.js?v=202611241500')),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
   schedule: () => loadRoute(() => import('./pages/schedule.js?v=202611242210')),   // public closing-time link (no sign-in needed)
   'schedule-party': () => loadRoute(() => import('./pages/schedule-party.js?v=202611241900')),   // MF-056 buyer / seller scheduling link (no sign-in)
-  crm: () => loadRoute(() => import('./pages/crm.js?v=202611244300')),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  crm: () => loadRoute(() => import('./pages/crm.js?v=202611244500')),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => loadRoute(() => import('./pages/modules.js?v=202611161500')),
   'role-access': () => loadRoute(() => import('./pages/role-access.js?v=202611161500')),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => loadRoute(() => import('./pages/agent-invites.js?v=202611191600')),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail

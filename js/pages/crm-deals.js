@@ -10,6 +10,7 @@ import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=2026111
 import { tabs, head, money, wireRowOpen, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611161500';
 import { matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611161500';
+import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611244500';
 import { viewsBar, wireViewsBar } from './crm-views.js?v=202611243900';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611161500';
 import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070139';
@@ -159,12 +160,13 @@ async function dealPage(c) {
   const canSetStage = runsOrders(me) && typeof api.setDealStatus === 'function';
   const stageField = html`<select data-deal-stage aria-label="Stage" ${canSetStage ? '' : raw('disabled')}>${stageChoices.map(([v, l]) => html`<option value="${v}" ${v === stageNow ? raw('selected') : ''}>${l}</option>`)}</select>`;
   const body = html`${tabs('deals')}${head(dealName, me, html`<span data-record-actions>${sendEmailBtn('deal', d.id, me)} <a class="ghost" href="${portal}" data-open-order>Open the order</a></span>`)}
-    <div class="card" data-deal-summary><table class="tbl">${row('Deal Name', dealName)}${row('File Number', d.fileNumber)}${row('Property Address', d.propertyAddress || dealName)}${row('Amount', money(d.amount))}${row('Loan Amount', money(d.loanAmount))}
+    ${recordShell(html`<div class="card" data-deal-summary><table class="tbl">${row('Deal Name', dealName)}${row('File Number', d.fileNumber)}${row('Property Address', d.propertyAddress || dealName)}${row('Amount', money(d.amount))}${row('Loan Amount', money(d.loanAmount))}
       ${row('Stage', stageField)}${row('Closing Date', fmtDate(d.closingDate))}${row('Open Date', fmtDate(d.openDate))}${row('Deal Owner', d.ownerName)}${row('Sales Reps', d.salesReps)}${row('Transaction Type', d.transactionType)}</table></div>
     <div class="card" data-deal-people><h3>People on the file</h3><table class="tbl"><thead><tr><th>Role</th><th>Name</th><th>Email</th></tr></thead><tbody>${people.map((p) => html`<tr><td>${p.role}</td><td>${p.link ? html`<a href="${p.link}">${p.name}</a>` : p.name}</td><td>${p.email}</td></tr>`)}</tbody></table></div>
     ${disbCard(disb)}
-    ${emailsCard(emails)}`;
+    ${emailsCard(emails)}`)}`;
   return { title: dealName, crumbs: [['CRM', '#/crm'], ['Deals', '#/crm/deals'], [d.fileNumber]], body, mount(root) {
+    wireShortcuts(root);
     wireSendEmail(root, api, me, refresh); wireEmails(root, api, emails); wireDisb(root, api, d.id, disb, refresh);
     const stageSel = $('[data-deal-stage]', root);
     if (stageSel && canSetStage) stageSel.addEventListener('change', guard(async () => {
