@@ -18,7 +18,8 @@ const you = processorChoices([{ id: 'u-admin', firstName: 'John ', lastName: 'Co
 ok(you.options.some((o) => o.value === 'u-admin' && o.label.includes('(you)') && o.label.includes('John Coester') && !o.label.includes('John  Coester')), 'the Processor list labels the signed-in Super admin as (you) and does not keep a double space');
 
 const staffRoles = ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin'];
-ok(staffRoles.every((r) => PROCESSOR_PICK_ROLES.includes(r) && SALES_PICK_ROLES.includes(r)), 'Processor and sales pickers use every staff role');
+ok(staffRoles.every((r) => PROCESSOR_PICK_ROLES.includes(r)), 'the Processor picker uses every staff role');
+ok(SALES_PICK_ROLES.join() === 'Sales Person,Sales Team', 'the sales picker is Sales Person and Sales Team only (FF-092a, Janine Nov 17 2026)');
 
 const store = mem();
 const a = createMockAdapter({ storage: store, sessionStorage: mem() });
@@ -28,12 +29,13 @@ await as('u-admin');
 const procs = await a.listProcessors();
 ok(procs.some((p) => p.id === 'u-admin') && procs.some((p) => p.id === 'u-sp') && procs.some((p) => p.id === 'u-tc'), 'a Super admin sees themselves, a salesperson and a TC in the Processor list');
 const sales = await a.listSalesStaff();
-ok(sales.some((s) => s.id === 'u-admin') && sales.some((s) => s.id === 'u-proc'), 'a Super admin and a Processor appear in the salesperson list');
+ok(sales.some((s) => s.id === 'u-sp') && sales.some((s) => s.id === 'u-team') && !sales.some((s) => s.id === 'u-admin' || s.id === 'u-proc'), 'the salesperson list is Sales Person and Sales Team, not a Super admin or a Processor (FF-092a)');
 const tcs = await a.listCoordinators();
 ok(tcs.some((t) => (t.profileId || t.id) === 'u-admin') && tcs.some((t) => (t.profileId || t.id) === 'u-proc'), 'a Super admin and a Processor appear in the TC list');
 
 const file = await a.createDeal({ ...ORDER, processorId: 'u-admin', salesIds: ['u-proc'] });
-ok(file.processorId === 'u-admin' && (file.salesPersonIds || []).includes('u-proc'), 'a Super admin can be the Processor and a Processor can be a salesperson');
+ok(file.processorId === 'u-admin' && (file.salesPersonIds || []).includes('u-proc'), 'a Super admin can be the Processor, and a Processor already sent as a salesperson is still saved');
+ok((file.salesPeople || []).some((s) => s.id === 'u-proc' && s.name === 'Paula Processor' && s.role === 'Processor'), 'a salesperson already saved still shows on the file when that role is not in the picker (FF-092a)');
 const asTc = await a.updateDeal(file.id, { tcUserId: 'u-sp' });
 ok(asTc.tcUserId === 'u-sp', 'a Sales Person can be the file Transaction Coordinator');
 

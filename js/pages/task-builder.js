@@ -14,7 +14,19 @@ export async function render(ctx) {
   if (!canManageTaskBuilder(user) || !api.listTaskFlows) throw new Error('That page does not exist.');
   const { flows, log, runs = [] } = await api.listTaskFlows();
   let sales = []; try { sales = (await api.listSalesStaff()) || []; } catch (e) { sales = []; }
-  const salesName = (id) => { const p = sales.find((s) => s.id === id); return p ? (p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim()) : 'a sales person no longer active'; };
+  // The picker is Sales Person and Sales Team. A flow can already name someone who is no longer on that list
+  // (for example a Processor saved when every staff role was offered). Keep that person's name.
+  const known = new Map();
+  const remember = (p) => {
+    if (!p || !p.id || known.has(p.id)) return;
+    known.set(p.id, (p.name || `${p.firstName || ''} ${p.lastName || ''}`).replace(/\s+/g, ' ').trim());
+  };
+  sales.forEach(remember);
+  const savedIds = [...new Set(flows.flatMap((f) => ((f.conditions || {}).salesPeople) || []))];
+  if (savedIds.some((id) => !known.has(id)) && api.listActiveStaff) {
+    try { ((await api.listActiveStaff()) || []).forEach(remember); } catch (e) { /* the saved id still has a plain fallback */ }
+  }
+  const salesName = (id) => known.get(id) || 'a sales person no longer active';
   const whichFiles = (c) => { const parts = [];
     if ((c.transactionTypes || []).length) parts.push(c.transactionTypes.join(' or '));
     if ((c.states || []).length) parts.push(c.states.join(' or '));
@@ -126,7 +138,7 @@ export async function render(ctx) {
         <fieldset class="span2" data-tb-conds><legend>Which files <span class="muted small">(leave a group blank for "any")</span></legend>
           <p class="small"><strong>Transaction type:</strong> ${checks('transactionTypes', TX_KINDS, cond.transactionTypes || [])}</p>
           <p class="small"><strong>State:</strong> ${checks('states', STATES.map((s) => [s, s]), cond.states || [])}</p>
-          <p class="small"><strong>Sales person:</strong> ${sales.length ? checks('salesPeople', sales.map((s) => [s.id, s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim()]), cond.salesPeople || []) : html`<span class="muted">No sales people found.</span>`}</p>
+          <p class="small"><strong>Sales person:</strong> ${(() => { const chosenSales = cond.salesPeople || []; const salesChoices = sales.map((s) => [s.id, salesName(s.id)]); chosenSales.filter((id) => !sales.some((s) => s.id === id)).forEach((id) => salesChoices.push([id, salesName(id)])); return salesChoices.length ? checks('salesPeople', salesChoices, chosenSales) : html`<span class="muted">No sales people found.</span>`; })()}</p>
         </fieldset>
         <fieldset class="span2" data-tb-steps-box><legend>Steps <span class="muted small">(run in order)</span></legend>
           <div data-tb-step-list></div>

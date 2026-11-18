@@ -7,7 +7,7 @@ import {
   MODULE_CODES, COMPONENT_CODES, CHART_CODES, SEARCH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, moduleName, moduleFields, reportFields,
   parseQuery, searchMatch, chartData, measureOf, applyCriteria, runReport, reportCsv, dashboardVisible, dashboardEditable, reportVisible,
   calendarBucket, groupingWithCalendar, presetKey, withPresetKeys,
-} from './crm-analytics.js?v=202611243700';
+} from './crm-analytics.js?v=202611243900';
 
 const RECENT = new Map();
 const row = (o) => o || {};

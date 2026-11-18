@@ -9,9 +9,9 @@ import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCusto
 import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611130900';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611130900';
 import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
-import { dealStageOf } from './crm-analytics.js?v=202611243700';
+import { dealStageOf } from './crm-analytics.js?v=202611243900';
 import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611242290';
-import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611243700';
+import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611243900';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };
