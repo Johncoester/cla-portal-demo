@@ -3,7 +3,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BUCKETS, bucketOf, calendarBucket, chartData, moduleFields, runReport } from '../js/data/crm-analytics.js';
+import { BUCKETS, bucketOf, calendarBucket, chartData, moduleFields, runReport, DATE_PRESETS, presetKey, presetLabel, presetRange, criteriaText, applyCriteria } from '../js/data/crm-analytics.js';
 import { createMockAdapter, STORAGE_KEY } from '../js/data/mock-adapter.js';
 import { crmSurfaceSupabase } from '../js/data/supabase-crm-surface.js';
 
@@ -56,6 +56,18 @@ function crmFiles() {
 }
 const fiscalHits = crmFiles().filter((rel) => /fiscal/i.test(readFileSync(path.join(root, rel), 'utf8')));
 ok(fiscalHits.length === 0, 'CRM pages and data files do not say fiscal' + (fiscalHits.length ? ': ' + fiscalHits.join(', ') : ''));
+const fyLabels = crmFiles().filter((rel) => /Previous FY|Current FY|Next FY/.test(readFileSync(path.join(root, rel), 'utf8')));
+ok(fyLabels.length === 0, 'CRM pages and data files do not say Previous FY, Current FY, or Next FY' + (fyLabels.length ? ': ' + fyLabels.join(', ') : ''));
+const presetLabels = DATE_PRESETS.map(([k, l]) => `${k}=${l}`).join('|');
+ok(presetLabels.includes('prev_year=Previous Year') && presetLabels.includes('cur_year=Current Year') && presetLabels.includes('next_year=Next Year') && !presetLabels.includes('FY'), 'date presets say Previous Year, Current Year, and Next Year');
+ok(presetKey('prev_fy') === 'prev_year' && presetKey('cur_fy') === 'cur_year' && presetKey('next_fy') === 'next_year', 'an old FY preset loads as the renamed year preset');
+const presetToday = '2026-11-17';
+ok(presetRange('prev_fy', presetToday).join() === presetRange('prev_year', presetToday).join() && presetRange('cur_fy', presetToday).join() === presetRange('cur_year', presetToday).join() && presetRange('cur_year', presetToday).join() === presetRange('this_year', presetToday).join() && presetRange('next_fy', presetToday).join() === presetRange('next_year', presetToday).join(), 'the old FY presets still cover the same calendar year');
+ok(presetLabel('prev_fy') === 'Previous Year' && presetLabel('cur_fy') === 'Current Year' && presetLabel('next_fy') === 'Next Year', 'a saved FY choice is described with the year name');
+ok(criteriaText([{ field: 'closingDate', op: 'is', value: 'prev_fy' }], fields, {}, 'and').includes('Previous Year') && !/FY/.test(criteriaText([{ field: 'closingDate', op: 'is', value: 'cur_fy' }], fields, {}, 'and')), 'a report filter that still says FY is shown as the year preset');
+const dated = [{ id: 'in', closingDate: '2026-03-15' }, { id: 'out', closingDate: '2025-03-15' }];
+const matched = (value) => applyCriteria(dated, [{ field: 'closingDate', op: 'is', value }], fields, { today: presetToday }).map((r) => r.id).join();
+ok(matched('cur_fy') === matched('cur_year') && matched('prev_fy') === matched('prev_year') && matched('next_fy') === matched('next_year'), 'a saved FY filter still matches the same deals as the year preset');
 
 const storage = mem();
 const session = mem();
@@ -84,6 +96,19 @@ const card = (dash, id) => dash.list.find((c) => c.id === id);
 ok(card(leads, 'dc-l4').config.grouping.bucket === 'week' && !card(leads, 'dc-l4').error, 'a saved chart that used fiscal week loads as calendar week');
 ok(card(deals, 'dc-d4').config.grouping.bucket === 'quarter' && !card(deals, 'dc-d4').error, 'a saved chart that used fiscal quarter loads as calendar quarter');
 ok(card(tasks, 'dc-t1').config.grouping.bucket === 'year' && !card(tasks, 'dc-t1').error, 'a saved chart that used fiscal year loads as calendar year');
+const yearView = await again.createCrmView({ module: 'deals', name: 'FY view', visibility: 'me', criteria: [{ field: 'closingDate', op: 'is', value: 'cur_fy' }] });
+ok(yearView.criteria[0].value === 'cur_year', 'saving a view that still posts Current FY stores Current Year');
+const viewRaw = JSON.parse(storage.getItem(STORAGE_KEY));
+viewRaw.crmViews.find((v) => v.id === yearView.id).criteria[0].value = 'prev_fy';
+viewRaw.crmDashboards.find((d) => d.id === 'dash-leads').filters = { period: 'next_fy' };
+storage.setItem(STORAGE_KEY, JSON.stringify(viewRaw));
+const loadedViews = createMockAdapter({ storage, sessionStorage: session });
+await loadedViews.signInDev('u-admin');
+const foundView = (await loadedViews.listCrmViews('deals')).find((v) => v.id === yearView.id);
+const ranView = await loadedViews.runCrmView(yearView.id);
+ok(foundView.criteria[0].value === 'prev_year' && ranView.view.criteria[0].value === 'prev_year' && ranView.total >= 0, 'a saved view that still uses Previous FY loads as Previous Year');
+const leadDash = await loadedViews.getCrmDashboard('dash-leads');
+ok(leadDash.filters.period === 'next_year', 'a saved dashboard filter that still uses Next FY loads as Next Year');
 
 const JANINE = '00000000-0000-4000-8000-0000000000aa';
 const tables = {
@@ -147,7 +172,7 @@ for (const [code, want] of [['fweek', 'week'], ['fquarter', 'quarter'], ['fyear'
 }
 const dashApi = {
   listCrmDashboards: async () => [{ id: 'd1', name: 'Mine', retired: false }],
-  getCrmDashboard: async () => ({ id: 'd1', name: 'Mine', description: '', retired: false, canEdit: true, builtin: false, mine: true, ownerName: 'Ada', visibility: 'me', locked: false, filters: {}, retiredComponents: [], list: [{ id: 'c1', name: 'Closings', type: 'chart', width: 1, height: 'm', config: { module: 'deals', measure: { fn: 'count' }, grouping: { field: 'closingDate', bucket: 'fquarter' }, grouping2: { field: 'createdAt', bucket: 'fyear' }, criteria: [], chartType: 'stacked' }, data: { groups: [], measureLabel: 'Record Count', series: [] } }] }),
+  getCrmDashboard: async () => ({ id: 'd1', name: 'Mine', description: '', retired: false, canEdit: true, builtin: false, mine: true, ownerName: 'Ada', visibility: 'me', locked: false, filters: { period: 'prev_fy' }, retiredComponents: [], list: [{ id: 'c1', name: 'Closings', type: 'chart', width: 1, height: 'm', config: { module: 'deals', measure: { fn: 'count' }, grouping: { field: 'closingDate', bucket: 'fquarter' }, grouping2: { field: 'createdAt', bucket: 'fyear' }, criteria: [{ field: 'closingDate', op: 'is', value: 'next_fy' }], chartType: 'stacked' }, data: { groups: [], measureLabel: 'Record Count', series: [] } }] }),
 };
 const selectValue = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value');
 Object.defineProperty(window.HTMLSelectElement.prototype, 'value', {
@@ -173,6 +198,19 @@ menu.dispatchEvent(new window.Event('change'));
 const g1 = document.querySelector('[name=groupingBucket]');
 const g2 = document.querySelector('[name=grouping2Bucket]');
 ok(g1 && g1.value === 'quarter' && g2 && g2.value === 'year' && ![...g1.options, ...g2.options].some((o) => /fiscal/i.test(o.textContent)), 'editing a saved chart shows calendar quarter and calendar year for the old fiscal choices');
+ok(host.textContent.includes('created Previous Year'), 'the dashboard says Previous Year for a saved Previous FY filter');
+host.querySelector('[data-dash-action="filters"]').click();
+const period = document.querySelector('[name=period]');
+ok(period && period.value === 'prev_year' && ![...period.options].some((o) => /FY/.test(o.textContent)), 'the dashboard date filter shows Previous Year for a saved Previous FY choice');
+const { criteriaEditor } = await import('../js/pages/crm-criteria.js');
+const { toText } = await import('../js/ui.js');
+const editor = criteriaEditor('view', fields, [{ field: 'closingDate', op: 'is', value: 'cur_fy' }, { field: 'createdAt', op: 'is', value: 'prev_fy' }], { logic: 'and', cfg: {} });
+host.innerHTML = toText(editor.body);
+const mounted = editor.mount(host);
+const presets = [...host.querySelectorAll('[data-crit-value-preset]')];
+ok(presets.length === 2 && presets[0].value === 'cur_year' && presets[1].value === 'prev_year' && presets.every((s) => ![...s.options].some((o) => /FY/.test(o.textContent))), 'a saved view filter shows Current Year and Previous Year for the old FY choices');
+const saved = mounted.get();
+ok(saved.criteria[0].value === 'cur_year' && saved.criteria[1].value === 'prev_year', 'saving that view keeps the renamed year presets');
 
 console.log(fail ? fail + ' failed' : 'crm fiscal grouping passed');
 if (fail) process.exit(1);

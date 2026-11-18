@@ -8,7 +8,7 @@
  * Nothing here deletes: dashboards, components and reports are RETIRED (hidden, restorable). Mirrored by migration 30. */
 import { MODULE_CODES, moduleName, SEARCH_MODULES, REPORT_MODULES, DASH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, parseQuery, searchMatch, moduleFields, reportFields,
   RELATED, joinRows, runReport, reportCsv, cleanCriteria, applyCriteria, criteriaText, chartData, measureOf, measureLabel, groupOf, display, dealStageOf, CALL_TYPES,
-  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, calendarBucket, groupingWithCalendar, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611243700';
+  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, calendarBucket, groupingWithCalendar, presetKey, withPresetKeys, DATE_PRESETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611243700';
 import { ensureNov3b } from './crm-nov3b.js?v=202611070139';
 import { DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611070139';
 import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611130900';
@@ -184,9 +184,9 @@ export function crmNov3bPart(x, h) {
     if (comp.type === 'target') { const v = measureOf(rows, cf.measure, fields) || 0; return { ...base, value: v, target: cf.target, pct: Math.round((v / cf.target) * 1000) / 10, count: rows.length, ids: rows.map((r) => r.id) }; }
     return { ...base, ...chartData(rows, cf, fields, cfg) };
   }
-  const compOut = (u, c, dash, cfg) => { const view = clone(c); if (view.config) { view.config = { ...view.config, grouping: groupingWithCalendar(view.config.grouping) }; if (view.config.grouping2) view.config.grouping2 = groupingWithCalendar(view.config.grouping2); }
+  const compOut = (u, c, dash, cfg) => { const view = clone(c); if (view.config) { view.config = { ...view.config, grouping: groupingWithCalendar(view.config.grouping), ...(Array.isArray(view.config.criteria) ? { criteria: withPresetKeys(view.config.criteria) } : {}) }; if (view.config.grouping2) view.config.grouping2 = groupingWithCalendar(view.config.grouping2); }
     let data = null, error = ''; try { data = componentData(u, view, dash, cfg); } catch (e) { error = e.message; } return { ...view, data, error }; };
-  const dashOut = (u, d) => ({ ...clone(d), ownerName: d.ownerId ? nameOf(d.ownerId) : 'CLA (built-in)', canEdit: dashboardEditable(u, d, crmReadOnly(u)), mine: d.ownerId === u.id, retired: !!d.retiredAt,
+  const dashOut = (u, d) => ({ ...clone(d), ...(d.filters && d.filters.period ? { filters: { ...d.filters, period: presetKey(d.filters.period) } } : {}), ownerName: d.ownerId ? nameOf(d.ownerId) : 'CLA (built-in)', canEdit: dashboardEditable(u, d, crmReadOnly(u)), mine: d.ownerId === u.id, retired: !!d.retiredAt,
     components: db().crmDashComponents.filter((c) => c.dashboardId === d.id && !c.retiredAt).length });
 
   // ---------- reports ----------
@@ -225,7 +225,7 @@ export function crmNov3bPart(x, h) {
     const out = runReport(rows, def, fields, cfg, { today: today() });
     return { ...out, groupFields: (def.rowGroups || []).map((k) => (fields.find((f) => f.key === k) || {}).label || k), filterText: criteriaText(def.filters, fields, cfg, def.logic, userNames()) };
   }
-  const reportOut = (u, r) => ({ ...clone(r), ...(Object.prototype.hasOwnProperty.call(r, 'bucket') ? { bucket: calendarBucket(r.bucket) } : {}), moduleLabel: moduleName(r.module), folderName: folderName(r.folderId), personal: isPersonalFolder(r.folderId), createdByName: nameOf(r.createdBy), modifiedByName: r.modifiedBy ? nameOf(r.modifiedBy) : '',
+  const reportOut = (u, r) => ({ ...clone(r), ...(Object.prototype.hasOwnProperty.call(r, 'bucket') ? { bucket: calendarBucket(r.bucket) } : {}), filters: withPresetKeys(r.filters), moduleLabel: moduleName(r.module), folderName: folderName(r.folderId), personal: isPersonalFolder(r.folderId), createdByName: nameOf(r.createdBy), modifiedByName: r.modifiedBy ? nameOf(r.modifiedBy) : '',
     canEdit: reportEditable(u, r), canExport: !!u.isAdmin, retired: !!r.retiredAt });
   const asDef = (u, input, cfg) => (typeof input === 'string' ? reportOf(u, input) : cleanReport(u, { name: 'Unsaved report', ...input }, null, cfg));
 
@@ -343,7 +343,7 @@ export function crmNov3bPart(x, h) {
       if (patch.description !== undefined) d.description = str(patch.description, 500);
       if (['visibility', 'shareUsers', 'shareRoles', 'shareDepts', 'locked'].some((k) => patch[k] !== undefined)) { if (d.builtin) fail('A built-in dashboard is shared with everyone.'); if (d.ownerId !== u.id) fail('Only the owner changes who sees a dashboard.'); Object.assign(d, shareIn(patch, d)); }
       if (patch.filters !== undefined) { const f = patch.filters || {}; const owner = str(f.ownerId, 60); if (owner) { const p = prof(owner); if (!p || C.isOutside(p.role)) fail('Pick a CLA user.'); }
-        const period = str(f.period, 20); if (period && !['today', 'yesterday', 'prev_fy', 'cur_fy', 'next_fy', 'prev_month', 'cur_month', 'next_month', 'this_year', 'prev_year', 'next_year'].includes(period)) fail('Pick a period from the list.');
+        const period = presetKey(str(f.period, 20)); if (period && !DATE_PRESETS.some(([k]) => k === period)) fail('Pick a period from the list.');
         d.filters = { ...(owner ? { ownerId: owner } : {}), ...(period ? { period } : {}) }; }
       d.modifiedAt = now(); save(); return dashOut(u, d); },
     async cloneCrmDashboard(id, { name } = {}) { const u = crmEditor(); const src = dashOf(u, id); const d = { ...clone(src), id: nid('dash'), builtin: null, name: (str(name, 100) || `Copy of ${src.name}`).slice(0, 100), visibility: 'me', shareUsers: [], shareRoles: [], shareDepts: [], locked: false,

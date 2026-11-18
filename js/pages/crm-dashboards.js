@@ -4,7 +4,7 @@
  * fields: By Day / Calendar Week / Month / Quarter / Year), Criteria (ANDed). Hover shows the value; click a bar or slice for the records behind it.
  * Nothing is deleted: dashboards and components are RETIRED (hidden, restorable). Function only (no styling work). */
 import { html, raw, $, $$, guard, toast, modal, closeModal, toText } from '../ui.js?v=202611161500';
-import { DASH_MODULES, moduleName, moduleFields, COMPONENT_TYPES, CHART_TYPES, VISIBILITY, BUCKETS, calendarBucket, NUMERIC, isDateType, DATE_PRESETS } from '../data/crm-analytics.js?v=202611243700';
+import { DASH_MODULES, moduleName, moduleFields, COMPONENT_TYPES, CHART_TYPES, VISIBILITY, BUCKETS, calendarBucket, NUMERIC, isDateType, DATE_PRESETS, presetKey, presetLabel } from '../data/crm-analytics.js?v=202611243700';
 import { tabs, head } from './crm-kit.js?v=202611161500';
 import { chartSvg, kpiHtml, targetHtml, funnelHtml } from './crm-charts.js?v=202611161500';
 import { criteriaEditor } from './crm-criteria.js?v=202611243700';
@@ -51,7 +51,7 @@ export async function dashboardsPage(c) {
       ${list.some((d) => d.retired) ? html`<details data-retired-dashes><summary class="small">Retired (${list.filter((d) => d.retired).length})</summary><ul>${list.filter((d) => d.retired).map((d) => html`<li><a href="#/crm/dashboards/${d.id}">${d.name}</a></li>`)}</ul></details>` : ''}</div>
     <div style="flex:1" data-dash="${(dash || {}).id || ''}">${dash ? html`<div class="dash-title-row"><h3 data-dash-title>${dash.name}${dash.retired ? html` <span class="pill">Retired</span>` : ''} ${kebab}</h3><span data-dash-tools>${dash.canEdit && !dash.retired ? html`<button class="m-btn" data-add-comp>Add Component</button>` : ''}</span></div>
       <p class="muted small" data-dash-meta>${dash.description || ''} ${dash.builtin ? 'Built in; shared with everyone with the CRM.' : `Owner ${dash.ownerName} · ${(VISIBILITY.find(([k]) => k === dash.visibility) || [, ''])[1]}${dash.locked ? ' · locked for shared users' : ''}`}
-        ${dash.filters && (dash.filters.ownerId || dash.filters.period) ? html` · <strong data-dash-filters>Filtered: ${[dash.filters.ownerId ? `owner ${(owners.find((o) => o.id === dash.filters.ownerId) || { name: dash.filters.ownerId }).name}` : '', dash.filters.period ? `created ${(DATE_PRESETS.find(([k]) => k === dash.filters.period) || [, ''])[1]}` : ''].filter(Boolean).join(', ')}</strong>` : ''}</p>
+        ${dash.filters && (dash.filters.ownerId || dash.filters.period) ? html` · <strong data-dash-filters>Filtered: ${[dash.filters.ownerId ? `owner ${(owners.find((o) => o.id === dash.filters.ownerId) || { name: dash.filters.ownerId }).name}` : '', dash.filters.period ? `created ${presetLabel(dash.filters.period)}` : ''].filter(Boolean).join(', ')}</strong>` : ''}</p>
       <div class="dash-canvas" data-components data-dash-canvas>${dash.list.length ? dash.list.map((x) => compCard(x, dash.canEdit && !dash.retired, !!me.canConfigure)) : html`<p class="muted" data-no-components>No components yet.${dash.canEdit ? ' Use Add Component.' : ''}</p>`}</div>
       ${dash.retiredComponents.length ? html`<details data-retired-comps><summary class="small">Retired components (${dash.retiredComponents.length})</summary><ul>${dash.retiredComponents.map((x) => html`<li>${x.name} <button class="linkish" data-restore-comp="${x.id}">Restore</button></li>`)}</ul></details>` : ''}`
       : html`<p class="muted">No dashboards yet.</p>`}</div></div>`;
@@ -109,7 +109,7 @@ function filterDialog(c, dash) {
   const f0 = dash.filters || {};
   const m = modal('Dashboard filters', html`<form data-dash-filter-form class="form-grid"><p class="span2 muted small">Applies to every component: the owner (Client / Lead / Deal / Task Owner) and when the record was created.${dash.canEdit ? '' : ' You cannot change this dashboard; ask its owner.'}</p>
     <label>Owner<select name="ownerId"><option value="">Everyone</option>${c.owners.map((o) => html`<option value="${o.id}" ${o.id === f0.ownerId ? raw('selected') : ''}>${o.name}</option>`)}</select></label>
-    <label>Created<select name="period"><option value="">Any time</option>${opts(DATE_PRESETS.filter(([k]) => k !== 'yesterday'), f0.period)}</select></label>
+    <label>Created<select name="period"><option value="">Any time</option>${opts(DATE_PRESETS.filter(([k]) => k !== 'yesterday'), presetKey(f0.period))}</select></label>
     <div class="span2"><button class="ghost" type="button" data-close>Cancel</button> ${dash.canEdit ? html`<button class="m-btn">Apply</button>` : ''}</div></form>`);
   $('[data-dash-filter-form]', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); await c.api.updateCrmDashboard(dash.id, { filters: { ownerId: e.target.ownerId.value, period: e.target.period.value } }); closeModal(); toast('Filters applied'); c.refresh(); }));
 }

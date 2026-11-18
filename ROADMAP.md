@@ -1722,11 +1722,12 @@ This file lists the portal's major features: how each one should work, how far a
 - The grouping list on reports and charts no longer includes the three fiscal choices.
 - Opening a saved report or chart that still has one of those codes uses the matching calendar grouping.
 - Saving a report or chart that still sends one of those codes stores the calendar grouping.
+- Date filters say Previous Year, Current Year, and Next Year. A saved filter or view that still uses the old FY choice loads as that year choice.
 
 **What's still missing**
 
 - Not checked on TEST yet. Do not mark Live before that.
-- Previous FY, Current FY, and Next FY stay on the date filters. This request was the grouping list.
+- This Year stays on the date list. It covers the same calendar year as Current Year.
 
 **Links**
 

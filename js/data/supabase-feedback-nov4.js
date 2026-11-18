@@ -9,7 +9,7 @@
 import { CLA_OFFICES, OFFICE_LOCATION } from './cla-offices.js?v=202611101015';
 import { DISBURSEMENT_FIELDS, cleanDisbursement } from './crm-disbursement.js?v=202611070139';
 import { VIEW_MODULES, VIEW_DEFAULT_COLUMNS, PINS_MAX, nameOk, cleanColumns, placeNameColumn, cleanFilterValues, SEARCH_COL_MAX, viewModuleFields, withViewUserIds, applyUserNames } from './crm-views.js?v=202611243700';
-import { cleanCriteria, applyCriteria, display, SHARE_ROLES, DEPARTMENTS } from './crm-analytics.js?v=202611243700';
+import { cleanCriteria, applyCriteria, display, SHARE_ROLES, DEPARTMENTS, withPresetKeys } from './crm-analytics.js?v=202611243700';
 import { canUseCrm, crmReadOnly } from './crm.js?v=202611130900';
 import { CRM_OFF, featureFlags } from './features.js?v=202611070139';
 import { localDate } from './constants.js?v=202611101015';
@@ -129,7 +129,7 @@ export function feedbackNov4Supabase({ sb, ok, me }) {
     const shareUsers = parts.shares.get(v.id) || [];
     return {
       id: v.id, module: v.module, name: v.name, ownerId: v.owner_id, ownerName: nameMap.get(v.owner_id) || '', visibility: v.visibility, shareUsers: [...shareUsers],
-      logic: v.logic, criteria: criteriaFrom(parts.criteria.get(v.id) || []), columns: placeNameColumn(v.module, (parts.columns.get(v.id) || []).sort((a, b) => a.position - b.position).map((r) => r.column_key)),
+      logic: v.logic, criteria: withPresetKeys(criteriaFrom(parts.criteria.get(v.id) || [])), columns: placeNameColumn(v.module, (parts.columns.get(v.id) || []).sort((a, b) => a.position - b.position).map((r) => r.column_key)),
       sortField: v.sort_field, sortDir: v.sort_dir, mine: v.owner_id === u.id, canEdit: canEdit(u, v), retired: !!v.retired_at,
       pinned: pinIds.includes(v.id), pinPosition: pinIds.indexOf(v.id), createdAt: v.created_at, modifiedAt: v.modified_at,
     };

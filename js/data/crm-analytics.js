@@ -2,7 +2,7 @@
  * mock adapter, the Supabase adapter, the screens and the unit tests share it. FAKE DATA ONLY.
  *  * MODULES: the CRM modules as flat rows (Clients, Leads, Companies, Deals = the portal's orders, Tasks, Meetings, Calls, Opportunities). The adapter
  *    builds the rows from the records the viewer may see; this file only filters, groups, counts and sums them.
- *  * FILTERS (criteria): [{ field, op, value, value2 }] combined with AND or OR. Date presets (Previous / Current / Next FY, Month, Year...).
+ *  * FILTERS (criteria): [{ field, op, value, value2 }] combined with AND or OR. Date presets (Previous / Current / Next Year, Month...).
  *  * GROUPING with date buckets (By Day, By Calendar Week, By Month, By Quarter, By Year) and measures (Record Count, Sum / Avg of a number field).
  *  * REPORTS: columns, row groups ("Owner (count)"), aggregate columns (sum, avg, min, max, count), CSV.
  *  * SEARCH: words in name / email, phone by digits only. */
@@ -115,23 +115,36 @@ export function display(field, row, cfg) {
 }
 
 // ---------- date presets (video 10) ----------
-// Presets labeled FY use the calendar year. FY_START_MONTH is January, so those ranges match the calendar year.
+// Year presets are the calendar year. Older saved filters used prev_fy, cur_fy, and next_fy. Those load as Previous Year, Current Year, and Next Year.
 export const FY_START_MONTH = 1;
-export const DATE_PRESETS = [['today', 'Today'], ['yesterday', 'Yesterday'], ['prev_fy', 'Previous FY'], ['cur_fy', 'Current FY'], ['next_fy', 'Next FY'], ['prev_month', 'Previous Month'], ['cur_month', 'Current Month'],
-  ['next_month', 'Next Month'], ['this_year', 'This Year'], ['prev_year', 'Previous Year'], ['next_year', 'Next Year']];
-export const presetLabel = (k) => (DATE_PRESETS.find(([c]) => c === k) || [null, k])[1];
+const OLD_FY_PRESET = { prev_fy: 'prev_year', cur_fy: 'cur_year', next_fy: 'next_year' };
+export function presetKey(key) {
+  const raw = key == null ? '' : String(key);
+  return OLD_FY_PRESET[raw] || raw;
+}
+export function withPresetKeys(criteria) {
+  return (Array.isArray(criteria) ? criteria : []).map((c) => {
+    if (!c || typeof c !== 'object') return c;
+    const out = { ...c };
+    if (typeof out.value === 'string') out.value = presetKey(out.value);
+    if (typeof out.value2 === 'string') out.value2 = presetKey(out.value2);
+    return out;
+  });
+}
+export const DATE_PRESETS = [['today', 'Today'], ['yesterday', 'Yesterday'], ['prev_year', 'Previous Year'], ['cur_year', 'Current Year'], ['next_year', 'Next Year'], ['prev_month', 'Previous Month'], ['cur_month', 'Current Month'],
+  ['next_month', 'Next Month'], ['this_year', 'This Year']];
+export const presetLabel = (k) => (DATE_PRESETS.find(([c]) => c === presetKey(k)) || [null, presetKey(k)])[1];
 // [from, to] inclusive 'YYYY-MM-DD' for a preset, relative to today ('YYYY-MM-DD')
 export function presetRange(key, today) {
+  const use = presetKey(key);
   const [y, m] = today.split('-').map(Number); const D = (yy, mm, dd) => ymd(new Date(yy, mm - 1, dd));
   const month = (off) => [D(y, m + off, 1), D(y, m + off + 1, 0)];
-  const fyStartYear = m >= FY_START_MONTH ? y : y - 1; const fy = (off) => [D(fyStartYear + off, FY_START_MONTH, 1), D(fyStartYear + off + 1, FY_START_MONTH, 0)];
   const year = (off) => [D(y + off, 1, 1), D(y + off, 12, 31)];
-  switch (key) {
+  switch (use) {
     case 'today': return [today, today];
     case 'yesterday': { const t = D(y, m, Number(today.slice(8)) - 1); return [t, t]; }
-    case 'prev_fy': return fy(-1); case 'cur_fy': return fy(0); case 'next_fy': return fy(1);
     case 'prev_month': return month(-1); case 'cur_month': return month(0); case 'next_month': return month(1);
-    case 'this_year': return year(0); case 'prev_year': return year(-1); case 'next_year': return year(1);
+    case 'cur_year': case 'this_year': return year(0); case 'prev_year': return year(-1); case 'next_year': return year(1);
     default: return null;
   }
 }
@@ -188,9 +201,10 @@ export function cleanCriteria(list, fields) {
   return (Array.isArray(list) ? list : []).filter((c) => c && c.field).slice(0, 20).map((c) => { const f = fields.find((z) => z.key === c.field);
     if (!f) throw new Error('A filter uses a field that is not in this module.');
     const ops = opsFor(f.type).map(([k]) => k); if (!ops.includes(c.op)) throw new Error(`Pick an operator for "${f.label}".`);
-    const value = NO_VALUE.includes(c.op) ? '' : Array.isArray(c.value) ? c.value.map((x) => String(x).slice(0, 200)) : String(c.value == null ? '' : c.value).slice(0, 200);
+    const stored = (v) => { const s = String(v == null ? '' : v).slice(0, 200); return isDateType(f.type) ? presetKey(s) : s; };
+    const value = NO_VALUE.includes(c.op) ? '' : Array.isArray(c.value) ? c.value.map((x) => stored(x)) : stored(c.value);
     if (!NO_VALUE.includes(c.op) && blank(value)) throw new Error(`Enter a value for "${f.label}".`);
-    const out = { field: f.key, op: c.op, value }; if (['between', 'not_between'].includes(c.op)) { out.value2 = String(c.value2 == null ? '' : c.value2).slice(0, 200); if (!out.value2) throw new Error(`Enter both values for "${f.label}".`); }
+    const out = { field: f.key, op: c.op, value }; if (['between', 'not_between'].includes(c.op)) { out.value2 = stored(c.value2); if (!out.value2) throw new Error(`Enter both values for "${f.label}".`); }
     return out; });
 }
 export function applyCriteria(rows, criteria, fields, { logic = 'and', today }) {
@@ -199,7 +213,7 @@ export function applyCriteria(rows, criteria, fields, { logic = 'and', today }) 
 }
 export function criteriaText(criteria, fields, cfg, logic = 'and', users = []) {
   return (criteria || []).map((c) => { const f = fields.find((z) => z.key === c.field) || { label: c.field, type: 'text' };
-    const val = (x) => (DATE_PRESETS.some(([k]) => k === x) ? presetLabel(x) : f.type === 'picklist' || f.type === 'user' || f.type === 'boolean' ? String(x).split('|').map((v) => valueLabel(f, v, cfg, users)).join(', ') : x);
+    const val = (x) => (DATE_PRESETS.some(([k]) => k === presetKey(x)) ? presetLabel(x) : f.type === 'picklist' || f.type === 'user' || f.type === 'boolean' ? String(x).split('|').map((v) => valueLabel(f, v, cfg, users)).join(', ') : x);
     return `${f.label} ${opLabel(f.type, c.op)}${NO_VALUE.includes(c.op) ? '' : ' ' + val(Array.isArray(c.value) ? c.value.join('|') : c.value)}${c.value2 ? ' and ' + val(c.value2) : ''}`; }).join(logic === 'or' ? ' OR ' : ' AND ');
 }
 export function valueLabel(f, v, cfg, users = []) {
