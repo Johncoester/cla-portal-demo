@@ -12,7 +12,7 @@ import { officeDate } from './office-date.js?v=202611102100';
 import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions, brokerageContact, brokerageContactError, brokerageWrite } from './lender-file.js?v=202611241600';
 import { parcelInput } from './parcels.js?v=202611222100';
 import { earnestDealPatch, earnestTouched, OLD_COMMISSION_KEYS, OLD_COMMISSION_REFUSED, withoutOldCommission } from './earnest-commission.js?v=202611223000';
-import { cleanFee, feeChanges } from './accounting.js?v=202611243004';
+import { cleanFee, feeChanges } from './accounting.js?v=202611243300';
 import { waterEscrowFeeInput } from './prorate-defaults.js?v=202611223100';
 import { partyTaskCopiesStillOpen, PARTY_TASK_ROLES, staffTaskCounts } from './party-task-completion.js?v=202611241000';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
