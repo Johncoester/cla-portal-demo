@@ -309,7 +309,8 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- On hold: #1, #2, #4, #5, #10, #13, #15, #16, citizenship, spouse marital status, entity documents required, phone and email icons with no app.
+- On hold: #1, #2, #4, #5, #10, #13, #15, #16, spouse marital status, entity documents required, phone and email icons with no app.
+- Citizenship is no longer on hold. Janine asked on Nov 17 2026 to type it on one line. See Citizenship on one line (JN-CITIZEN-1).
 
 **Links**
 
@@ -319,6 +320,35 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - John approved fixing the bugs without waiting (Nov 12, 6:08 PM ET); Francis confirmed the rest on Nov 12, 6:14 PM ET.
+
+---
+
+## Citizenship on one line (JN-CITIZEN-1)
+
+**How it should work.** On Personal information, for a buyer and for a seller, Citizenship is one line the person types. The same line is used for a spouse. An answer already saved, including "US Citizen" and "U.S. Citizen", still shows and can be saved again. A person can also type something that was not in the old list, such as "Born in Canada". Leaving it blank is allowed.
+
+**Status: In progress.** The pull request is open. Not Live until `supabase/migrations/20261125180000_citizenship_free_text.sql` is applied on TEST. This pull request does not apply it.
+
+**What's built**
+
+- Buyer and seller Personal information, and the spouse section, ask for Citizenship on a single line. The old dropdown (U.S. Citizen, Permanent Resident, Non-Resident Alien, Other) is gone from the form definition.
+- A saved answer stays on the same task and in the same spouse column. The column was already plain text. TEST has no check and no enum on it, so the column is not replaced.
+- The database file changes the question on the existing Personal information templates from a dropdown back to a line, and drops a citizenship check only if one is present. The rollback puts the dropdown back and does not change the column.
+
+**What's still missing**
+
+- Not on TEST until the database file is applied. Until then, Personal information on TEST still shows the dropdown, because that question is stored with the template. The spouse line on TEST is already a text box.
+
+**Links**
+
+- Spec: [docs/specs/citizenship-free-text.md](docs/specs/citizenship-free-text.md)
+- Source: Janine's email reply, Nov 17 2026, relayed via Francis Feedback. Tracker item JN-CITIZEN-1.
+- Related pull request: [PR 334](https://github.com/Johncoester/cla-portal-demo/pull/334).
+
+**Decisions**
+
+- Keep `spouse_info.citizenship` and the answer stored on the task. Do not add a new column.
+- The earlier dropdown file (`20261112060400_citizenship_and_agent_phone`) stays as history. The agent-card phone change in that file is not undone.
 
 ---
 
