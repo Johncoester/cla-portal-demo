@@ -44,6 +44,23 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     leadSource: l.source, relationshipStatus: l.status, description: l.notes, accountId: l.account_id || null, accountName: l.account_id ? l.company : '', companyText: l.account_id ? '' : l.company });
   const contactRow = (c) => ({ ...c, stageLabel: crmStageLabel(c.stage) });
   const linkOf = (e, id) => (e === 'opportunity' ? '#/crm/pipeline' : `#/crm/${e === 'lead' ? 'leads' : e === 'contact' ? 'contacts' : 'accounts'}/${id}`);
+  // Home My Tasks (Janine, Feedback 29 item 5). Related To and Contact Name are the lead or client the task was created under.
+  // The activity row stores that id, not the name, and entity_id is not a foreign key, so the activities read cannot embed it.
+  // One primary-key read per table this list actually uses. A lead-only list is one extra read. A mixed list is one read for leads and one for clients. Never one read per task.
+  const PARTY_TABLE = { lead: 'crm_leads', contact: 'contacts' };
+  const taskPartyNames = async (raw) => {
+    const want = new Map();
+    (raw || []).forEach((a) => { const table = PARTY_TABLE[a.entity]; if (!table || !a.entity_id) return; if (!want.has(a.entity)) want.set(a.entity, new Set()); want.get(a.entity).add(a.entity_id); });
+    const names = new Map();
+    await Promise.all([...want.entries()].map(async ([entity, ids]) => {
+      try {
+        const found = ok(await sb.from(PARTY_TABLE[entity]).select('id, first_name, last_name').in('id', [...ids])) || [];
+        found.forEach((r) => { const name = `${r.first_name || ''} ${r.last_name || ''}`.trim(); if (r.id && name) names.set(entity + ':' + r.id, name); });
+      } catch { /* a missed name leaves the cell blank; the task list still opens */ }
+    }));
+    return names;
+  };
+  const taskWithParty = (t, names) => { const name = names.get(t.entity + ':' + t.entityId) || ''; if (!name) return t; const link = linkOf(t.entity, t.entityId); return { ...t, relatedTo: name, relatedLink: link, contactName: name, contactLink: link }; };
   const actOut = (a, ppl) => { const now = localStamp(); const r = camel(a);
     return { ...r, ownerName: nameOf(ppl, r.ownerId), createdByName: nameOf(ppl, r.createdBy), modifiedByName: nameOf(ppl, r.modifiedBy), hostName: nameOf(ppl, r.hostId),
       startsAt: r.startsAt ? String(r.startsAt).slice(0, r.allDay ? 10 : 16) : null, endsAt: r.endsAt ? String(r.endsAt).slice(0, r.allDay ? 10 : 16) : null,
@@ -134,6 +151,21 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
   const noCf = (v) => { const o = {}; Object.entries(v).forEach(([k, x]) => { if (!k.startsWith('cf.')) o[k] = x; }); return o; };
   const opts = async (key) => ok(await sb.from('crm_picklist_options').select('*').eq('list_key', key).order('position')) || [];   // a list key or 'cf:<field id>'
   const optOut = (o) => ({ value: o.value, label: o.label, retired: !!o.retired });
+  // Lead or client name for one task. Primary key only. A failure leaves the name blank; the task still opens.
+  const taskPersonName = async (entity, id) => {
+    if ((entity !== 'lead' && entity !== 'contact') || !id) return '';
+    const table = entity === 'lead' ? 'crm_leads' : 'contacts';
+    try {
+      const row = ok(await sb.from(table).select('first_name,last_name').eq('id', id).maybeSingle());
+      return row ? `${row.first_name || ''} ${row.last_name || ''}`.trim() : '';
+    } catch { return ''; }
+  };
+  const withTaskPerson = async (task) => {
+    if (!task || task.parentName || task.contactName || (task.entity !== 'lead' && task.entity !== 'contact')) return task;
+    const name = await taskPersonName(task.entity, task.entityId);
+    if (!name) return task;
+    return { ...task, parentName: name, contactName: name, contactLink: task.parentLink || '' };
+  };
   const swap = async (table, rows, i, j, match) => { if (i < 0 || j < 0 || j >= rows.length) return;
     const a = rows[i].position; let b = rows[j].position; if (a === b) b += 1;
     ok(await match(sb.from(table).update({ position: b }), rows[i])); ok(await match(sb.from(table).update({ position: a }), rows[j])); };
@@ -250,11 +282,13 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     },
     async createCrmTask(v) { on(); return actOut(await one(sb.from('crm_activities').insert({ entity: v.entity, entity_id: v.entityId, kind: 'task', ...taskIn(v, true) })), await staff()); },
     // Home My Tasks (Janine, Feedback 29 item 4): pass ownerId to keep the read on crm_activities_owner_idx.
-    // The same select as before, with owner_id in the query. No second read, and no row filter after the rows come back.
+    // The same select as before, with owner_id in the query. Names are a separate batched read, not a row filter.
     async listCrmTasks(opts) { on(); const ppl = await staff(); const ownerId = opts && opts.ownerId ? String(opts.ownerId) : '';
       let q = sb.from('crm_activities').select('*').eq('kind', 'task'); if (ownerId) q = q.eq('owner_id', ownerId);
-      return (ok(await q) || []).map((a) => actOut(a, ppl)); },
-    async getCrmTask(id) { on(); const a = ok(await sb.from('crm_activities').select('*').eq('id', id).eq('kind', 'task').maybeSingle()); if (!a) throw new Error('Task not found.'); return actOut(a, await staff()); },
+      const raw = ok(await q) || []; const names = await taskPartyNames(raw); return raw.map((a) => taskWithParty(actOut(a, ppl), names)); },
+    // Task detail (Janine, Feedback 29 item 6). The activity row has the record id, not the person's name.
+    // One read by that id, and only when the name is not already on the task. The Home list uses the batched read above.
+    async getCrmTask(id) { on(); const a = ok(await sb.from('crm_activities').select('*').eq('id', id).eq('kind', 'task').maybeSingle()); if (!a) throw new Error('Task not found.'); return withTaskPerson(actOut(a, await staff())); },
     async updateCrmTask(id, v) { on(); const before = ok(await sb.from('crm_activities').select('status').eq('id', id).maybeSingle());
       const r = actOut(await one(sb.from('crm_activities').update(taskIn(v, false)).eq('id', id)), await staff());
       let nextTaskId = null; if (before && before.status !== TASK_CLOSED && r.status === TASK_CLOSED) nextTaskId = ((ok(await sb.from('crm_activities').select('id').eq('repeat_of', id)) || [])[0] || {}).id || null;

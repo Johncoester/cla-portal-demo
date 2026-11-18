@@ -63,10 +63,11 @@ ok(page.includes('data-import-file-help') && page.includes('data-import-file-err
 ok(read('css/portal.css').includes('.err-text { color: var(--bad);'), 'the alert uses the existing red text');
 ok(read('js/app.js').includes("pages/crm-janine.js?v=202611243900") && read('js/pages/crm.js').includes("crm-janine.js?v=202611243900") && read('js/pages/crm-forms.js').includes("crm-janine.js?v=202611243900") && read('js/pages/crm-home.js').includes("crm-janine.js?v=202611243900"), 'the import page loads at 202611243900 because it imports a restamped CRM module');
 ok(read('index.html').includes('js/app.js?v=202611245100') && read('js/app.js').includes("pages/crm.js?v=202611245100") && read('js/pages/crm.js').includes("crm-forms.js?v=202611245100") && read('js/pages/crm.js').includes("crm-home.js?v=202611245100") && read('js/pages/crm-home.js').includes("crm-forms.js?v=202611245100"), 'the note edit pages and the shell are 202611245100');
-ok(!read('js/data/adapter.js').includes('202611242030') && read('js/app.js').includes("adapter.js?v=202611245100") && read('js/data/adapter.js').includes("supabase-adapter.js?v=202611245100"), 'the shell loads the adapter that reads the tax rate sheet');
+ok(!read('js/data/adapter.js').includes('202611242030') && read('js/app.js').includes("adapter.js?v=202611245100") && read('js/data/adapter.js').includes("supabase-adapter.js?v=202611245100") && read('js/data/adapter.js').includes("mock-adapter.js?v=202611245100"), 'the shell loads the adapter that reads the tax rate sheet');
 ok(execFileSync('git', ['diff', '--name-only', 'origin/main', '--', 'js/data/crm-import-file.js'], { cwd: root, encoding: 'utf8' }).trim() === '', 'the file check module is unchanged from main');
-// Note edit changes the notes list in crm-forms.js, so that file is not stamp-only. The shell pages around it still are.
-for (const rel of ['index.html', 'js/pages/crm.js', 'js/pages/crm-home.js']) {
+// Note edit changes the notes list in crm-forms.js. The task detail changes crm-home.js. Those files are not stamp-only.
+// index.html and crm.js change only the cache stamp on this branch.
+for (const rel of ['index.html', 'js/pages/crm.js']) {
   const diff = execFileSync('git', ['diff', '-U0', 'origin/main', '--', rel], { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'));
   ok(diff.length === 0 || diff.every((l) => /\?v=202611\d+/.test(l)), rel + ' changes only cache stamps');
 }

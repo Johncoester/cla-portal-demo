@@ -1988,3 +1988,63 @@ This file lists the portal's major features: how each one should work, how far a
 - No database change. The panel only points at sections the record page already shows.
 - A missing section is left out of the panel. It is not shown as a shortcut that goes nowhere.
 
+---
+
+## CRM task profile link (Feedback 29 item 6)
+
+**How it should work.** On a CRM task, the page shows the lead or client that task belongs to. The name is a link back to that profile. The same page opens from Home and from Open Activities on a record.
+
+**Status: In progress.** Janine confirmed this on Nov 16 2026, CRM Feedback 29 item 6. Pull request: [PR 339](https://github.com/Johncoester/cla-portal-demo/pull/339). No database file. Not Live until someone checks a task on TEST.
+
+**What's built**
+
+- A task on a lead shows that lead's name and links to the lead.
+- A task on a client shows that client's name and links to the client.
+- The name comes from the task when it is already there. Otherwise one read by that record's id fills it in.
+- If the name cannot be read, the task still opens and says where to look. A company task does not invent a person.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- The Home Related To and Contact Name columns are a separate item.
+
+**Links**
+
+- Spec: [docs/specs/crm-task-profile.md](docs/specs/crm-task-profile.md)
+- Pull request: [PR 339](https://github.com/Johncoester/cla-portal-demo/pull/339)
+
+**Decisions**
+
+- No database change. The task already stores the record it belongs to.
+- The link is built from that record id. A stored web address on the task is not used as the profile link.
+
+---
+
+## CRM Home task names (Feedback 29 item 5)
+
+**How it should work.** On CRM Home, Related To and Contact Name show the lead or client the task was created under. Intro Call shows Marcus Vance. Each name is a link that opens that lead or client profile. A task that is not under a lead or a client leaves both columns blank, and the rest of the list still shows.
+
+**Status: In progress.** Janine confirmed this on Nov 16 2026, CRM Feedback 29 item 5. Pull request: [PR 340](https://github.com/Johncoester/cla-portal-demo/pull/340). No database file. Not Live until someone checks CRM Home on TEST.
+
+**What's built**
+
+- Home asks for the signed-in person's tasks, then asks once for the names of the leads on that list and once for the clients on that list.
+- Both columns show that name, and each name opens the lead or client profile.
+- A name the read does not return stays blank. The task list still opens.
+- Tasks under a company or an opportunity are unchanged.
+- Opening one task still uses that task's own name read.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/crm-home-task-names.md](docs/specs/crm-home-task-names.md)
+- Pull request: [PR 340](https://github.com/Johncoester/cla-portal-demo/pull/340)
+
+**Decisions**
+
+- No database change. The task already stores the lead or client id. That id is not a foreign key, so the name cannot be embedded in the task read.
+- A list that is only leads, or only clients, uses one extra read. A list with both uses one read for each table. It never reads once per task.
+
