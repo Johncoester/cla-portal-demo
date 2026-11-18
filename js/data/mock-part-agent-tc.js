@@ -61,7 +61,7 @@ export function agentTcLinksPart(x) {
       const d = load();
       const link = { id: nid('atc'), agentContactId: agent.id, tcContactId: tc.id, createdBy: u.id, createdAt: now() };
       linksOf(d).push(link);
-      if (x.placeAgentTcs) x.placeAgentTcs(d, agent.id);
+      if (x.placeAgentTcs) x.placeAgentTcs(d, agent.id, null, u.id);
       save();
       return clone(rowOf(link));
     },
@@ -82,7 +82,7 @@ export function agentTcLinksPart(x) {
       d.contacts.push(tc);
       const link = { id: nid('atc'), agentContactId: agent.id, tcContactId: tc.id, createdBy: u.id, createdAt: now() };
       linksOf(d).push(link);
-      if (x.placeAgentTcs) x.placeAgentTcs(d, agent.id);
+      if (x.placeAgentTcs) x.placeAgentTcs(d, agent.id, null, u.id);
       save();
       return clone(rowOf(link));
     },

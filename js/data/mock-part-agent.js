@@ -24,7 +24,8 @@ export function agentPortal(x) {
   const clientsFor = (t) => { const d = load(); const role = CLIENT_ROLE_OF[t.assignedRole];
     return d.participants.filter((p) => p.dealId === t.dealId && p.role === role).map((p) => { const c = d.contacts.find((z) => z.id === p.contactId) || {};
       return { participantId: p.id, name: `${c.firstName || ''} ${c.lastName || ''}`.trim(), firstName: c.firstName || '', lastName: c.lastName || '', email: c.email || '', phone: c.phone || '' }; }); };
-  const answersVisible = (u, t) => u.isAdmin || isManager(u) || ownerOf(t) === u.id;   // the agent themself + processor / coordinator / Admin (not the other agent, not clients, not sales)
+  const behalfOf = (u, t) => x.tcForAgent && x.tcForAgent(u.id, ownerOf(t), t.dealId, t.assignedRole);
+  const answersVisible = (u, t) => u.isAdmin || isManager(u) || ownerOf(t) === u.id || !!behalfOf(u, t);   // the agent, their transaction coordinator, the processor, the coordinator and Admin
   const prefill = (t) => { const q = deal(t.dealId); const lic = (load().tasks.find((z) => z.participantId === t.participantId && z.templateCode === 'commissions') || { formData: {} }).formData.license_id || '';
     if (t.templateCode === 'agent_client_contacts') return { clients: clientsFor(t).map((c) => ({ participantId: c.participantId, represent: '', firstName: c.firstName, lastName: c.lastName, email: c.email, phone: c.phone, maritalStatus: '' })), added: [] };
     if (t.templateCode === 'agent_transaction_info') return { closingDate: q.closingDate || '', purchasePrice: q.purchasePrice == null ? '' : q.purchasePrice, emdAmount: q.emdAmount == null ? '' : q.emdAmount, holdingEmd: '', licenseId: lic,
@@ -52,7 +53,8 @@ export function agentPortal(x) {
   };
   const taskOut = (u, t) => { const o = x.taskOut(u, t); const def = agentTaskDef(t.templateCode) || {}; const vis = answersVisible(u, t);
     const revs = load().agentTaskRevisions.filter((r) => r.taskId === t.id);
-    return { ...o, about: def.about, code: t.templateCode, canSubmit: ownerOf(t) === u.id && t.status !== 'cancelled' && !C.viewOnly(u), submitted: t.status === 'done',
+    const behalf = behalfOf(u, t);
+    return { ...o, about: def.about, code: t.templateCode, canSubmit: (ownerOf(t) === u.id || !!behalf) && t.status !== 'cancelled' && !C.viewOnly(u), forAgent: !!behalf, submitted: t.status === 'done',
       answers: vis ? (t.status === 'done' || t.savedAt ? clone(t.formData) : prefill(t)) : null, answersHidden: !vis, clients: vis ? clientsFor(t) : [],
       revisions: vis ? revs.map((r) => ({ n: r.n, at: r.at, by: nameOf(r.by), kind: r.n === 1 ? 'submission' : 'revision' })) : [], revisionCount: revs.length }; };
   const progressOut = (q) => phaseOf(q);
@@ -191,7 +193,8 @@ export function agentPortal(x) {
     async getAgentTask(id) { const u0 = needUser(); const [t, u] = agentTask(u0, id); return clone(taskOut(u, t)); },
     async submitAgentTask(id, answers) {
       const u0 = needUser(); const [t, u] = agentTask(u0, id); notViewOnly(u);
-      if (ownerOf(t) !== u.id) fail('Only the agent this task is for can submit it.'); if (t.status === 'cancelled') fail('This task was cancelled.');
+      const behalf = behalfOf(u, t);
+      if (ownerOf(t) !== u.id && !behalf) fail('Only the agent this task is for can submit it.'); if (t.status === 'cancelled') fail('This task was cancelled.');
       const d0 = load();
       const offices = t.templateCode === SCHEDULE_CODE ? officeRows(d0).filter((o) => o.active !== false).map((o) => ({ id: o.id, name: o.name })) : [];
       const clean = validateAgentAnswers(t.templateCode, answers, { clients: clientsFor(t), side: sideOfRole(t.assignedRole), offices });
@@ -199,8 +202,9 @@ export function agentPortal(x) {
       const d = load(); const n = d.agentTaskRevisions.filter((r) => r.taskId === t.id).length + 1; const revision = t.status === 'done';
       d.agentTaskRevisions.push({ id: nid('atr'), taskId: t.id, n, answers: clone(clean), by: u.id, at: now() });
       t.formData = clean; t.savedAt = now(); t.savedBy = u.id; t.status = 'done'; t.completedAt = now(); t.completedBy = u.id;
-      log(t.dealId, u.id, revision ? 'task.revised' : 'task.submitted', 'task', t.id, `${t.title}: ${revision ? `revision ${n - 1} submitted` : 'submitted'}`);
-      notify([deal(t.dealId).processorId], { kind: 'task', dealId: t.dealId, title: `${nameOf(u.id)} ${revision ? 'revised' : 'completed'} "${t.title}"`, link: `#/deals/${t.dealId}/tasks/${t.id}` }, u.id);
+      const note = behalf ? ` by ${nameOf(u.id)} (${behalf.roleLabel}) on behalf of ${nameOf(behalf.agentProfileId)}` : '';
+      log(t.dealId, u.id, revision ? 'task.revised' : 'task.submitted', 'task', t.id, `${t.title}: ${revision ? `revision ${n - 1} submitted` : 'submitted'}${note}`);
+      notify([deal(t.dealId).processorId], { kind: 'task', dealId: t.dealId, title: `${nameOf(u.id)} ${revision ? 'revised' : 'completed'} "${t.title}"${behalf ? ` on behalf of ${nameOf(behalf.agentProfileId)}` : ''}`, link: `#/deals/${t.dealId}/tasks/${t.id}` }, u.id);
       save(); return clone(taskOut(u, t));
     },
     async listAgentTaskRevisions(id) { const u0 = needUser(); const [t, u] = agentTask(u0, id); if (!answersVisible(u, t)) fail('Only the agent, the processor, the coordinator and Admin can see these answers.');
