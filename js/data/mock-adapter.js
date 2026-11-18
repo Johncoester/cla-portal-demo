@@ -14,7 +14,7 @@ import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPe
 import { dealsAndAuth } from './mock-part-deals.js?v=202611243012';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
 import { contactsTasksDocs } from './mock-part-docs.js?v=202611221900';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611243066';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611243234';
 import { messagesActivity } from './mock-part-msgs.js?v=202611141400';
 import { adminUsersTeams } from './mock-part-admin.js?v=202611241300';
 import { libraryFolders } from './mock-part-library.js?v=202611070139';
