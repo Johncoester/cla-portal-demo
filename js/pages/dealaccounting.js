@@ -13,7 +13,7 @@ import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=20
 import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611243004';
 import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611241900';
 import { fwpCanRead } from '../data/funding-wire-policy.js?v=202611070139';
-import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611243043';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { qcNav, chargesView, paymentSummaryView, aggregateAdjustmentPatch } from './dealaccounting-charges.js?v=202611243226';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 import { booksHtml } from './dealaccounting-books.js?v=202611242700';
 import { contractView } from './dealaccounting-contract.js?v=202611243071';
 import { partyNames, withStatementParties } from '../data/statement-parties.js?v=202611222900';
@@ -176,7 +176,7 @@ function mountLedger(root, api, deal, acc, refresh) {
   $$('[data-prorate]', f).forEach((b) => b.addEventListener('click', () => { el('altaSection').value = 'prorations'; el('cdSection').value = ''; if (b.dataset.prorate === 'advance') { el('from').value = 'buyer'; el('to').value = 'seller'; } else { el('from').value = 'seller'; el('to').value = 'buyer'; } sync(); }));
   if (el('lenderCredit')) el('lenderCredit').addEventListener('change', () => { if (el('lenderCredit').checked) { el('from').value = 'lender'; el('to').value = 'buyer'; el('cdSection').value = ''; if (el('altaSection').value === 'prorations') el('altaSection').value = 'loanCharges'; } });
   const fill = (fee) => { el('kind').value = fee.kind || 'charge'; if (el('lenderCredit')) el('lenderCredit').checked = !!fee.lenderCredit; for (const n of ['description', 'altaSection', 'cdSection', 'cdLine', 'payee', 'note', 'presetKey']) el(n).value = fee[n] ?? '';
-    el('amount').value = fee.amount != null ? Number(fee.amount).toFixed(2) : ''; el('paidBy').value = fee.paidBy || 'buyer'; el('timing').value = fee.timing || 'at'; el('poc').checked = !!fee.poc; el('titlePrefix').checked = !!fee.titlePrefix;
+    el('amount').value = fee.amount != null ? (fee.reduces ? '-' : '') + Number(fee.amount).toFixed(2) : ''; el('paidBy').value = fee.paidBy || 'buyer'; el('timing').value = fee.timing || 'at'; el('poc').checked = !!fee.poc; el('titlePrefix').checked = !!fee.titlePrefix;
     PAYERS.forEach(([k]) => { if (el('split_' + k)) el('split_' + k).value = fee.split && Number(fee.split[k]) ? Number(fee.split[k]).toFixed(2) : ''; });
     if (fee.kind === 'credit') { el('from').value = fee.from || 'seller'; el('to').value = fee.to || 'buyer'; } sync(); };
   $('[data-preset]', f).addEventListener('change', guard(async (e) => { const key = e.target.value; if (!key) return; const p = (await api.listAccountingPresets(deal.id)).find((x) => x.key === key); fill({ ...p.fee }); el('editId').value = ''; toast(p.calculated ? `Filled from CLA rates. It is saved tagged ${CALC_TAG}; changing it before saving marks it overridden.` : 'Preset filled with an EXAMPLE amount. Check it before saving.'); }));
@@ -189,7 +189,10 @@ function mountLedger(root, api, deal, acc, refresh) {
     if (v.kind === 'credit') Object.assign(input, { from: v.from, to: v.to, lenderCredit: !!(el('lenderCredit') && el('lenderCredit').checked) });
     else Object.assign(input, { paidBy: v.paidBy, timing: el('poc').checked ? 'before' : v.timing, poc: el('poc').checked, titlePrefix: el('titlePrefix').checked,
       split: v.paidBy === 'split' ? Object.fromEntries(PAYERS.filter(([k]) => el('split_' + k)).map(([k]) => [k, v['split_' + k]])) : null });
-    try { if (v.editId) { await api.updateAccountingFee(v.editId, input); toast('Fee updated (logged).'); } else { await api.addAccountingFee(deal.id, input); toast('Fee added (logged).'); } go(); }
+    try {
+      const line08 = String(v.cdLine || '').trim();
+      if (v.kind !== 'credit' && String(v.cdSection || '').toUpperCase() === 'G' && (line08 === '08' || line08 === '8')) Object.assign(input, aggregateAdjustmentPatch(v.amount), { altaSection: 'impounds', cdSection: 'G', cdLine: '08' });
+      if (v.editId) { await api.updateAccountingFee(v.editId, input); toast('Fee updated (logged).'); } else { await api.addAccountingFee(deal.id, input); toast('Fee added (logged).'); } go(); }
     catch (x) { err.textContent = x.message; toast(x.message, 'err'); } });
   sync();
 }

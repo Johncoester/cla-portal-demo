@@ -15,6 +15,23 @@ import { modOn } from '../data/modules.js?v=202611101015';   // live40: Payoffs 
 
 const usd = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const cell$ = (n) => (n == null || Number(n) === 0 ? '' : usd(n));
+// G.08 aggregate adjustment (FF-096). Staff type a minus, parentheses, or a dollar amount. The stored fee stays a positive
+// borrower charge with reduces set, so the section total, the borrower totals, the CD, the settlement statement, and the
+// ledger all subtract it. A blank box clears the adjustment. A zero does not reduce the total.
+export function aggregateAdjustmentPatch(value) {
+  const raw = String(value == null ? '' : value).trim();
+  const base = { paidBy: 'buyer', split: null, timing: 'at', poc: false };
+  if (raw === '') return { ...base, amount: '0.00', reduces: false };
+  let t = raw;
+  const paren = t.match(/^\(\s*(.*?)\s*\)$/);
+  if (paren) t = paren[1].trim();
+  t = t.replace(/[$,\s]/g, '');
+  if (t.startsWith('-') || t.startsWith('+')) t = t.slice(1);
+  if (!/^\d+(\.\d{1,2})?$/.test(t)) throw new Error('Enter the aggregate adjustment as -$1,200.00, ($1,200.00), or $1,200.00.');
+  const n = Math.round(Number(t) * 100) / 100;
+  if (!(n >= 0) || n > 100000000) throw new Error('That aggregate adjustment is too large. Enter an amount like $1,200.00.');
+  return { ...base, amount: n.toFixed(2), reduces: n > 0 };
+}
 const num = (v) => Number(String(v == null ? '' : v).replace(/[$,\s]/g, '')) || 0;
 const opt = (v, l, sel) => html`<option value="${v}" ${String(v) === String(sel ?? '') ? raw('selected') : ''}>${l}</option>`;
 const dis = (on) => (on ? raw('disabled') : '');
@@ -54,7 +71,7 @@ const HELP = {
   C: ['Did Shop For', 'Services the borrower shopped for. Title lines start with "Title -" and are alphabetical. Edit Premium Line opens the CLA-rates premium options; Send Title Charges to B moves the title lines to B when the borrower used the lender\'s list.'],
   E: ['Taxes & Fees', 'Add each document, then Calculate fees. Recording fees share line E.01 ("Recording fees: Deed: $60.00 Mortgage: $115.00"). Recordation and transfer taxes are their own lines. A document with no rate shows Rate Not Set: type the fee, and it is marked entered by hand. A new calculation keeps that amount unless you choose to replace it.'],
   F: ['Prepaids', 'Items paid in advance: homeowner\'s insurance (# of months), mortgage insurance, prepaid interest (per diem × days, From Date defaults to the disbursement date) and property taxes.'],
-  G: ['Escrow', 'Initial escrow payment: $ per month × # of months. G.08 Aggregate adjustment is typed as a positive amount and shows negative on the CD. Compare with the lender\'s escrow analysis. Usually Net Funded.'],
+  G: ['Escrow', 'Initial escrow payment: $ per month × # of months. G.08 Aggregate adjustment comes off the borrower\'s total. Type -$1,200.00, ($1,200.00), or $1,200.00 in At Closing. Compare with the lender\'s escrow analysis. Usually Net Funded.'],
   H: ['Other Charges', 'Home warranty, HOA and condo figures, deferred charges, agent admin fees and commissions, inspections, the owner\'s title policy (optional), holdbacks such as a water escrow. The figures from the contract are the card on this page. Amounts paid at closing are the charge lines.'],
   J: ['Lender Credits', 'Credits from the lender toward the borrower\'s closing costs (CD section J).'],
   KM: ['Debits / Credits K/M', 'K: due from the borrower at closing. M: due to the seller at closing. Linked lines (⇄) are the same money on both sides.'],
@@ -434,6 +451,13 @@ function mountFees(root, refresh, ctx) {
       const patch = { meta, amount: amount.toFixed(2), paidBy: 'buyer', split: null, timing: 'at', poc: false };
       if (!r.fee) return saveFee(r, { ...newFeeInput(sec, r.line, needDesc()), ...patch }, `Line ${sec}.${r.line} added (logged).`);
       return saveFee(r, patch); }
+    if (sec === 'G' && r.line === '08') {
+      if (f !== 'borrowerAt') throw new Error('The aggregate adjustment goes in Paid by Borrower, At Closing. It comes off the borrower\'s total.');
+      const patch = aggregateAdjustmentPatch(v);
+      const msg = patch.reduces ? 'Aggregate adjustment saved. It comes off the borrower\'s total.' : 'Aggregate adjustment cleared.';
+      if (!r.fee) return saveFee(r, { ...newFeeInput(sec, r.line, needDesc()), ...patch, altaSection: 'impounds' }, msg);
+      return saveFee(r, patch, msg);
+    }
     if (!r.fee) { const d = needDesc(); const p = Q.cellPatch(null, f, v);   // amount typed on a blank / template line
       return saveFee(r, { ...newFeeInput(sec, r.line, d), ...p, ...(sec === 'G' && r.line === '08' ? { reduces: true, paidBy: 'buyer', split: null } : {}) }, `Line ${sec}.${r.line} added (logged).`); }
     return saveFee(r, Q.cellPatch(r.fee, f, v)); });
@@ -502,7 +526,7 @@ function mountFees(root, refresh, ctx) {
     } else if (isPerDiem(r)) inner = perDiemSettings(r);
     else if (sec === 'F' && (['01', '02', '04'].includes(r.line) || x.months != null)) inner = html`<div class="qc-field"><span class="qc-label">Description</span><input class="qc-input" value="${fee ? fee.description : T || ''}" disabled title="Locked (Qualia)"></div>
       <div class="qc-field"><span class="qc-label"># of Months</span><div class="qc-inline"><input class="qc-input num qc-mo" data-qc-months value="${x.months ?? ''}" inputmode="numeric" ${dis(!canEdit)}> months</div><p class="field-hint small">Shown on the CD as "${(fee ? fee.description : T) || 'Description'} (${x.months ?? 'n'} mo.)".</p></div>`;
-    else if (sec === 'G') inner = html`<p class="small muted">${r.line === '08' ? 'G.08 Aggregate adjustment: type it as a positive amount in At Closing; the CD shows it negative.' : 'Type $ per Month and # of Mo. in the table: the amount is $ per month × months.'}</p>`;
+    else if (sec === 'G') inner = html`<p class="small muted">${r.line === '08' ? 'G.08 Aggregate adjustment comes off the borrower\'s total. Type -$1,200.00, ($1,200.00), or $1,200.00 in Paid by Borrower, At Closing.' : 'Type $ per Month and # of Mo. in the table: the amount is $ per month × months.'}</p>`;
     const common = fee && !r.recording ? html`${lockedDesc ? '' : html`<div class="qc-field"><span class="qc-label">Description</span><input class="qc-input" data-qc-set-desc value="${fee.description}" maxlength="200" ${dis(!canEdit)}></div>`}
       <div class="qc-field"><span class="qc-label">Payee</span><input class="qc-input" data-qc-set-payee value="${fee.payee || ''}" list="qc-payees" maxlength="120" ${dis(!canEdit)}></div>
       ${(sec === 'G' && r.line === '08') || isPerDiem(r) ? '' : html`${alloc(fee)}${timingField(fee)}`}
