@@ -1,7 +1,7 @@
 import { raw, html, $, guard, options, esc } from '../ui.js?v=202611161500';
-import { roleLabel, fileRolesLabel, isOutside, accountTypeLabel } from '../data/constants.js?v=202611101015';
-import { devPickerOn, PLAIN_URL_NOTICE } from '../data/locked-links.js?v=202611244021';
-import { clearSessionWs } from '../workspace.js?v=202611244022';
+import { roleLabel, fileRolesLabel, isOutside, accountTypeLabel } from '../data/constants.js?v=202611245800';
+import { devPickerOn, PLAIN_URL_NOTICE } from '../data/locked-links.js?v=202611245800';
+import { clearSessionWs } from '../workspace.js?v=202611245800';
 
 export async function render({ api, go }) {
   // Supabase mode is a real login. No person picker, no ?as= identity, no sign-up.

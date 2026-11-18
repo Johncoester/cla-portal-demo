@@ -40,6 +40,24 @@ The grant file is `supabase/migrations/20261125210000_crm_owner_flag_grant.sql`.
 
 The shell cache stamp is 202611245200.
 
+## CRM owner on the User List (CRM-OWNER-2)
+
+**Requested by:** John Coester, chat, Nov 18 2026, 11:49 AM ET, with a screenshot of Admin, then User List.
+
+**Tracker:** Requests tab, row 369, CRM-OWNER-2. Pull request [348](https://github.com/Johncoester/cla-portal-demo/pull/348).
+
+On Admin, then User List, each row has a **CRM owner** checkbox in the column beside **Admin**. It is the same tick as **Can own CRM records** on Edit user. Ticking it on the row saves immediately. Opening Edit shows the same tick, and saving Edit updates the row.
+
+An Admin or a Super admin can change it. Anyone else sees the box and cannot change it. A removed user keeps the tick and the box is locked. The activity log is the same log as Edit user: who changed it, which user, the old value, the new value, and when.
+
+If the save does not go through, the box goes back to where it was and the message says what happened in plain words. A database code is not shown.
+
+On a phone the User List scrolls sideways, and the box is large enough to tap.
+
+No new database file. The column and the update grant from CRM-OWNER-1 and CRM-OWNER-1b are reused.
+
+The shell cache stamp is 202611245700.
+
 ## What this does not change
 
 Opening the CRM, role access, and the name already stored on a lead, client, company, or deal.

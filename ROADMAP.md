@@ -1184,10 +1184,69 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - The agents' coordinators are their own roles (Buyer Agent TC and Listing Agent TC). They are not the CLA Title Transaction Coordinator.
-- The staff rule stays: only an active staff login can be the Transaction Coordinator on an order.
+- The staff rule stays for a row already saved under the old role name: only an active staff login can be stored as that role. TC-1 takes that name off Add contact. See Transaction coordinator on Add contact (TC-1).
 - The Nov 16 file did not add the two roles to the people-role list. That list has to allow them, or Place Order creates the file and does not open it.
 
 ---
+
+## Transaction coordinator on Add contact (TC-1)
+
+**How it should work.** A transaction coordinator is an outside assistant to one or more real estate agents. On a file, that person's side follows the agent they work for. Add contact offers Buyer's transaction coordinator (works for the buyer's agent) and Listing transaction coordinator (works for the listing agent). It does not offer the old role name Transaction Coordinator, which listed only CLA staff. A file that already has someone under that old role still shows them.
+
+**Status: In progress.** Tracker row 365, item TC-1. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Wording confirmed 11:37 AM. Pull request: [PR 343](https://github.com/Johncoester/cla-portal-demo/pull/343). Not Live. No database file.
+
+**What's built**
+
+- Order Contacts → Add contact no longer lists Transaction Coordinator. The coordinator choices are Buyer's transaction coordinator: works for the buyer's agent, and Listing transaction coordinator: works for the listing agent.
+- The same wording is on Place Order and on Parties when adding or changing a coordinator.
+- A person already saved on a file as Transaction Coordinator still appears on Contacts and Parties. Nothing is deleted.
+
+**What's still missing**
+
+- Not on TEST until this pull request is merged. There is no database file to apply.
+- Edit order details still has the file-level Transaction Coordinator field. Linking a coordinator from an agent profile, adding them automatically, and a TC contact type are other items.
+- What a coordinator can do on a file, matching their agent, is TC-3.
+
+**Links**
+
+- Spec: [docs/specs/tc-1-add-contact.md](docs/specs/tc-1-add-contact.md)
+- Pull request: [PR 343](https://github.com/Johncoester/cla-portal-demo/pull/343)
+- Source: John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Tracker row 365, TC-1.
+
+**Decisions**
+
+- A transaction coordinator is an outside assistant to the buyer's agent or the listing agent. The choice says who they work for.
+- The old role stays on files that already have it. New people are not given that role from Add contact.
+
+## Transaction coordinator contact type (TC-4)
+
+**How it should work.** A transaction coordinator is an outside assistant who works for one or more real estate agents. On a file they can do what their agent can do. That permission work is TC-3. The contact type itself is separate from the CLA Title staff role named Transaction Coordinator. CLA staff still have no contact type.
+
+**Status: In progress.** Tracker row 368. John Coester, live call Nov 18 2026, 11:27 AM ET, confirmed 11:35 AM ET, clarified 11:37 AM ET. The contact type can be picked, and a new buyer or listing coordinator is saved as that type. Existing contacts keep the type they already have. Pull request: [PR 344](https://github.com/Johncoester/cla-portal-demo/pull/344). Not Live until `supabase/migrations/20261125230000_tc_contact_type.sql` is applied on TEST.
+
+**What's built**
+
+- Contact type lists offer "Transaction coordinator (outside, works for agents)", with the note that this is an outside assistant who works for real estate agents and is not a CLA Title staff role. The choice is on a contact, on Place Order, on the file's Contacts tab, and in the CRM.
+- A new person typed as the buyer's or listing transaction coordinator is saved as that type, not as a Realtor. Someone already saved keeps their current type.
+- The file's contact list, the user list, and the CRM lists can filter or group by the new type. The coordinator directory lists transaction coordinators separately from agents. Buyers and CLA staff are not in that list.
+- The database file adds the type to the contact and lead checks and does not change existing rows. It is not applied on TEST.
+
+**What's still missing**
+
+- Not Live until the database file is applied on TEST. Until then, saving the new type on TEST is refused in plain words.
+- Removing the CLA staff Transaction Coordinator role, linking a coordinator to an agent's profile, and adding a coordinator automatically are other items. What the coordinator can do on a file is TC-3.
+
+**Links**
+
+- Spec: [docs/specs/tc-contact-type.md](docs/specs/tc-contact-type.md)
+- Pull request: [PR 344](https://github.com/Johncoester/cla-portal-demo/pull/344)
+- Source: John Coester, Nov 18 2026, 11:27 AM ET. Tracker row 368.
+
+**Decisions**
+
+- The stored code is `agent_tc`. The words on screen say the person works for real estate agents and is not CLA Title staff.
+- Existing contacts are not rewritten. A Realtor who is already on a file stays a Realtor.
+- The CLA staff role named Transaction Coordinator is unchanged.
 
 ## Transaction coordinators linked to an agent (TC-2)
 
@@ -1201,7 +1260,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Order Contacts has Transaction coordinators on a buyer's agent or listing agent. A processor can change the list. Sales can see it and cannot change it. The agent can change it on their own row.
 - User List, Edit user, shows the same list for a realtor.
 - A new person needs a name. A bad email or a partial phone is pointed out, and what was typed stays. A CLA Title staff login is refused. The same person is not linked twice. Removing the link keeps the person and does not take anyone off a file.
-- The database file is `supabase/migrations/20261125240000_agent_tc_links.sql`. Who can see a link matches who can see the agent's contact. The shell cache stamp is 202611245400.
+- The database file is `supabase/migrations/20261125240000_agent_tc_links.sql`. Who can see a link matches who can see the agent's contact. The shell cache stamp is 202611245900.
 
 **What's still missing**
 
@@ -1236,7 +1295,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Removing the agent leaves the coordinator on the file, including a coordinator someone added by hand.
 - The coordinator's login is treated as their agent on that file: they see the file, finish the agent's tasks, schedule the settlement, and upload. The task says the coordinator completed it on behalf of the agent.
 - The same coordinator is the buyer side on a file where their agent represents the buyer, and the listing side where that agent represents the seller.
-- The database file is `supabase/migrations/20261125250000_agent_tc_on_file.sql`. The shell cache stamp is 202611245500.
+- The database file is `supabase/migrations/20261125250000_agent_tc_on_file.sql`. The shell cache stamp is 202611246000.
 
 **What's still missing**
 
@@ -1533,6 +1592,33 @@ This file lists the portal's major features: how each one should work, how far a
 
 - The earlier database file is not edited. This file only grants the column.
 - The shell cache stamp is 202611245200, above main's 202611245100, so a saved copy of the shell is not reused.
+
+## CRM owner on the User List (CRM-OWNER-2)
+
+**How it should work.** On Admin, then User List, each person has a **CRM owner** checkbox beside **Admin**. It is the same tick as **Can own CRM records** on Edit user. An Admin or Super admin can turn it on or off from the row, without opening Edit. The Edit checkbox stays, and the two stay in step. Anyone else sees the box locked. A change is written to the activity log the same way as Edit. If the save fails, the box goes back and the message says what to do, in plain words.
+
+**Status: In progress.** Tracker row 369, CRM-OWNER-2. John Coester asked in chat on Nov 18 2026, 11:49 AM ET, with a screenshot of Admin, then User List. Pull request: [PR 348](https://github.com/Johncoester/cla-portal-demo/pull/348). No database file. The column and the update grant from CRM-OWNER-1 and CRM-OWNER-1b are reused. Not Live until an Admin ticks a row on TEST, reloads, and sees the same tick on Edit user.
+
+**What's built**
+
+- A CRM owner checkbox on every User List row, beside Admin. Ticking it saves through the same update as Edit user.
+- The Edit user checkbox is unchanged. The row and Edit read and write the same tick.
+- Only an Admin or Super admin can change it. A removed person keeps the tick, and the box is locked. The activity log records who, which user, the old value, and the new value.
+- A failed save puts the box back and shows a plain message. A database code is not shown.
+- On a phone the list scrolls sideways and the box is large enough to tap.
+
+**What's still missing**
+
+- A check on TEST. Do not mark Live before an Admin ticks a row, reloads, and opens Edit for that person.
+
+**Links**
+
+- Spec: [docs/specs/crm-owner-flag.md](docs/specs/crm-owner-flag.md)
+
+**Decisions**
+
+- No new database file. The existing column and the update grant are enough.
+- The shell cache stamp is 202611245700, so a saved copy of the User List is not reused.
 
 ## CRM custom view user criteria
 
