@@ -669,6 +669,27 @@ export async function createSupabaseAdapter(cfg) {
     async listSalesRepContacts(dealId) { return (ok(await sb.rpc('agent_sales_rep_contacts', { p_deal: dealId })) || []).map((r) => ({ id: r.sales_id, name: r.name, phone: r.work_phone, email: r.work_email })); },
     async setDealSalesPeople(dealId, salesIds) { ok(await sb.rpc('set_deal_sales_people', { p_deal: dealId, p_sales: salesIds })); return (await a.getDeal(dealId)).salesPeople; },
     // contact type (migration 21): contact_directory() / deal_contacts() keep their shape; types come from contact_types(ids)
+    async listAgentTcs(agentContactId) {
+      if (!agentContactId) throw new Error('That person was not found. Pick someone from the list, or enter their name.');
+      return camel(ok(await sb.rpc('agent_tcs', { p_agent: agentContactId }))) || [];
+    },
+    async linkAgentTc(agentContactId, tcContactId) {
+      const id = ok(await sb.rpc('link_agent_tc', { p_agent: agentContactId, p_tc: tcContactId, p_first: '', p_last: '', p_email: '', p_phone: '', p_company: '' }));
+      const rows = await a.listAgentTcs(agentContactId);
+      return rows.find((r) => r.contactId === id) || { contactId: id, agentContactId };
+    },
+    async createAndLinkAgentTc(agentContactId, input = {}) {
+      const id = ok(await sb.rpc('link_agent_tc', {
+        p_agent: agentContactId, p_tc: null, p_first: input.firstName || '', p_last: input.lastName || '',
+        p_email: input.email || '', p_phone: input.phone || '', p_company: input.company || '',
+      }));
+      const rows = await a.listAgentTcs(agentContactId);
+      return rows.find((r) => r.contactId === id) || { contactId: id, agentContactId };
+    },
+    async unlinkAgentTc(agentContactId, tcContactId) {
+      ok(await sb.rpc('unlink_agent_tc', { p_agent: agentContactId, p_tc: tcContactId }));
+      return true;
+    },
     async listContacts(search = '') {
       const cs = camel(ok(await sb.rpc('contact_directory', { p_search: search }))) || [];
       const u = await me();

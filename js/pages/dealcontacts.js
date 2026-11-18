@@ -5,12 +5,14 @@ import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=2
 import { directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611245800';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611245800';
 import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611245800';
-import { copyPlainText } from './deal.js?v=202611245800';
+import { copyPlainText } from './deal.js?v=202611245900';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611245800';
 import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611245800';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { agentTcChoiceLabel, agentTcHelp, agentTcLabel, isAgentTcRole, rolesForNewContact } from '../data/agent-tc.js?v=202611245300';
+import { isRealEstateAgent } from '../data/agent-tc-links.js?v=202611245900';
+import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611245900';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
 export function contactCopyMessage(copied, kind) {
@@ -46,7 +48,7 @@ export async function render({ api, user, deal, refresh }) {
       : html`<td>${fmtPhone(p.contact.phone)} ${phoneBtn}</td><td>${p.contact.email} ${emailBtn}</td>`;
     const dup = separate(p) ? html` <span class="pill warn" data-duplicate-party title="Another ${p.role} row has the same name. Edit saves only this contact.">Separate contact</span>` : '';
     return html`<tr data-contact-row="${p.contactId}" data-participant="${p.id}" data-row-ctype="${p.contact.contactType || 'none'}"><td>${who}${p.removed ? html` ${pill('removed', 'bad')}` : ''}${party.has(p.contactId) ? html` <span class="pill warn agent-party" title="Client and their own agent on this file">Agent is a party</span>` : ''}${dup}${p.contact.profileId ? '' : html` <span class="muted small">(no portal login)</span>`}</td><td>${agentTcLabel(p.role)}</td><td data-ctype="${p.contact.contactType || ''}">${contactTypeLabel(p.contact.contactType) || html`<span class="muted">&mdash;</span>`}${roleBit ? html` · ${roleBit}` : ''}</td><td>${p.contact.company}</td>${contactCells}
-    <td class="nowrap">${canInviteToPortal(user, p.role) && !p.contact.profileId && !p.removed ? html`<button type="button" class="ghost" data-invite-portal="${p.contactId}" data-invite-role="${p.role}">Invite to portal</button> ` : ''}${edit ? html`<button type="button" class="ghost" data-edit="${p.id}">Edit</button> <button type="button" class="ghost" data-unlink="${p.id}" title="Removes this person from the order only">Remove from order</button>` : ''}</td></tr>`;
+    <td class="nowrap">${isRealEstateAgent(p.contact, [p.role]) ? html`<button type="button" class="ghost" data-tc-open="${p.contactId}">Transaction coordinators</button> ` : ''}${canInviteToPortal(user, p.role) && !p.contact.profileId && !p.removed ? html`<button type="button" class="ghost" data-invite-portal="${p.contactId}" data-invite-role="${p.role}">Invite to portal</button> ` : ''}${edit ? html`<button type="button" class="ghost" data-edit="${p.id}">Edit</button> <button type="button" class="ghost" data-unlink="${p.id}" title="Removes this person from the order only">Remove from order</button>` : ''}</td></tr>`;
   });
   const body = html`${staffView ? lenderSectionHtml(deal, { canEdit: edit }) : ''}<div class="box-title"><h2><span class="h-ico"></span>Order Contacts</h2>${edit ? html`<button class="m-btn right" id="addp">+ Add contact</button>` : ''}</div>
     <ul class="nav-tabs">${GROUPS.map(([k]) => html`<li><a class="${k === g ? 'active' : ''}" href="#/deals/${deal.id}/contacts?g=${k}">${k}</a></li>`)}</ul>
@@ -61,6 +63,7 @@ export async function render({ api, user, deal, refresh }) {
     })));
     $$('[data-unlink]', root).forEach((b) => b.addEventListener('click', guard(async () => { if (!confirm('Remove this person from the order? (Their contact record, documents and messages are kept.)')) return; await api.removeParticipant(deal.id, b.dataset.unlink); toast('Removed from order'); repaint(); })));
     $$('[data-edit]', root).forEach((b) => b.addEventListener('click', () => { const row = deal.participants.find((p) => p.id === b.dataset.edit); if (!row || !row.contact || !row.contact.id) { toast('This contact cannot be edited from this row.', 'err'); return; } const same = deal.participants.filter((p) => p.contactId === row.contactId); editContact(row.contact, same.some((p) => STAFF_ROLES.includes(p.role)), same); }));
+    $$('[data-tc-open]', root).forEach((b) => b.addEventListener('click', () => openCoordinators(b.dataset.tcOpen)));
     const ab = $('#addp', root); if (ab) ab.addEventListener('click', guard(addPerson));
     $$('[data-invite-portal]', root).forEach((b) => b.addEventListener('click', () => invitePortal(b.dataset.invitePortal, b.dataset.inviteRole)));
     const cf = $('#ctfilter [name=ctype]', root); cf.addEventListener('change', () => { $$('[data-contact-row]', root).forEach((tr) => { tr.hidden = !!cf.value && tr.dataset.rowCtype !== cf.value; }); });
@@ -183,6 +186,14 @@ export async function render({ api, user, deal, refresh }) {
       showResult(sendR, link, r);
       toast(inviteToast(sendR)); }));
     $$('[data-close]', m).forEach((b) => b.addEventListener('click', () => { if (made) repaint(); }));   // repaint the tab; Resend / Revoke stay on Agent Invites
+  }
+  function openCoordinators(contactId) {
+    const row = deal.participants.find((p) => p.contactId === contactId && p.contact);
+    if (!row) { toast('This contact cannot be opened from this row.', 'err'); return; }
+    const own = user.role === 'Outside user' && row.contact.profileId === user.id;
+    const canEdit = (edit || own) && !row.removed;
+    const m = modal(`Transaction coordinators for ${contactDisplayName(row.contact)}`, agentTcSectionHtml({ canEdit }), { wide: true });
+    mountAgentTcSection(m, { api, agentContactId: contactId, canEdit });
   }
   function editContact(c, staff, same = []) {
     const opened = { firstName: c.firstName || '', lastName: c.lastName || '', email: c.email || '', phone: c.phone || '', company: c.company || '', contactType: c.contactType || '', lenderRole: c.lenderRole || '' };
