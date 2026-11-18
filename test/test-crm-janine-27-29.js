@@ -77,8 +77,10 @@ for (const file of moneyFiles) {
 // TC-4 adds the transaction coordinator contact type in constants.js and restamps modules that import that list.
 // The money helpers in constants.js stay as they were. The other money files change only a cache stamp.
 const stampOnly = (file) => {
-  const diff = execFileSync('git', ['diff', '-U0', 'HEAD', '--', file], { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'));
-  return diff.length > 0 && diff.every((l) => /\?v=202611\d+/.test(l));
+  // Compared with main, not HEAD: once committed, a diff against HEAD is always empty (CI checks out a commit).
+  // Unchanged also passes, so the check still holds after this merges into main.
+  const diff = execFileSync('git', ['diff', '-U0', 'origin/main', '--', file], { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'));
+  return diff.every((l) => /\?v=202611\d+/.test(l));
 };
 ok(stampOnly('js/data/supabase-tc.js') && stampOnly('js/data/nov5-rules.js') && stampOnly('js/data/county-auto.js'), 'supabase-tc, nov5-rules, and county-auto change only a cache stamp');
 const moneySlice = (src) => src.slice(src.indexOf('export const moneyClean'));
