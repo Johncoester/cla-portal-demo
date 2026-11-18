@@ -1316,6 +1316,38 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Agents see only their own tasks (FF-101a)
+
+**How it should work.** On a file, the buyer's agent, the listing agent, and a transaction coordinator acting for them see only the tasks assigned to them. The general **Tasks** button and tab are removed for those people so they cannot open every task on the file. They keep **My Tasks**. Staff keep Tasks and My Tasks as they are today. A coordinator linked to the agent (TC-3) can still see and finish that agent's tasks.
+
+**Status: In progress.** Tracker row FF-101a. Francis Santos, Nov 18 2026 11 AM meeting notes, confirmed by John Nov 18 2:13 PM ET. Not applied on TEST. Not Live.
+
+**What's built**
+
+- The file menu and agent pill tabs drop the general Tasks entry for a buyer agent, listing agent, or coordinator acting as them. My Tasks stays.
+- Opening the old Tasks address as an agent still shows only My Tasks.
+- The agent overview "outstanding" button opens My Tasks.
+- The fake portal and the database file refuse agent reads of other parties' tasks. A coordinator still sees the agent's own tasks and can finish them on the agent's behalf.
+- The database file is `supabase/migrations/20261125280000_agent_own_tasks.sql` (with rollback). The shell cache stamp is 202611246300.
+
+**What's still missing**
+
+- Not applied on TEST. Not Live.
+- Completing a client's intake for them from the agent login is not part of this change; agents no longer see those client tasks.
+
+**Links**
+
+- Spec: [docs/specs/agent-own-tasks.md](docs/specs/agent-own-tasks.md)
+- Source: Francis Santos, Nov 18 2026 11 AM meeting notes (Gmail 1a1ef9d3d862da08), confirmed by John Nov 18 2:13 PM ET. Tracker row FF-101a.
+
+**Decisions**
+
+- Enforce in the UI first, and tighten the database so an agent cannot read other parties' tasks even outside the menu.
+- Staff views are unchanged.
+- A TC acting for an agent must still see and complete that agent's tasks (TC-3).
+
+---
+
 ## CRM history on a fresh database
 
 **How it should work.** A brand-new database should build the CRM the way TEST did on November 2: the accounts, leads, pipeline, and activities, plus the feature flag. The scratch setup should not create those tables first, or the history file would leave them in the old shape.
