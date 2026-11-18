@@ -122,24 +122,37 @@ function actTable(list, me, { closeBtn = false, empty = 'None.', cfg = null } = 
       <td>${closeBtn && me.canEdit && a.kind === 'task' && a.open ? html`<button class="ghost" data-close-task="${a.id}">Close Task</button>` : ''}</td></tr>`) : html`<tr><td colspan="6" class="muted">${empty}</td></tr>`}</tbody></table>`;
 }
 // Janine, Nov 16 (Feedback 27 item 1): the author, or an admin, can fix or add to a note. Notes are never deleted.
+// Janine, Nov 16 (Feedback 27 item 2): a paperclip puts a file on that note. It does not show under Attachments.
 const noteText = (n) => { const body = n && n.body != null ? String(n.body) : ''; if (body.trim()) return body; return n && n.subject != null ? String(n.subject) : ''; };
 const noteWasEdited = (n) => !!(n && !n.system && n.modifiedAt && n.createdAt && String(n.modifiedAt) > String(n.createdAt));
 const canEditNote = (me, n) => !!(me && me.canEdit && n && !n.system && (me.isAdmin || (n.createdBy && n.createdBy === me.id)));
-// record = { activities, invitedMeetings, attachments }
+const noteFilesReady = (rec) => !rec || rec.noteFilesReady !== false;
+const filesOnNote = (rec, id) => (rec && rec.noteFiles || []).filter((f) => f && f.noteId === id);
+const noteFileList = (files) => (files.length ? html`<ul class="plain" data-note-files>${files.map((f) => html`<li data-note-file-row="${f.id}">&#128206; <a href="#" data-note-file="${f.id}">${f.name}</a> <span class="muted small">${fmtSize(f.size)}</span></li>`)}</ul>` : '');
+const noteClip = () => html`<label class="ghost" data-note-clip title="Attach file">&#128206;<input type="file" data-note-file-input hidden aria-label="Attach file"></label><span class="muted small" data-note-picked></span>`;
+const pickedNoteFile = (form) => { const input = form && $('[data-note-file-input]', form); return (input && input.files && input.files[0]) || null; };
+const clearPicked = (form) => { const input = form && $('[data-note-file-input]', form); if (input) input.value = ''; const name = form && $('[data-note-picked]', form); if (name) name.textContent = ''; };
+const readNoteFile = async (file) => { try { const dataUrl = await readFile(file); return { name: file.name, mimeType: file.type || '', size: file.size || 0, dataUrl }; } catch { throw new Error('The selected file could not be read. Choose it again.'); } };
+const FILE_LATER = 'The note was saved, but the file was not attached. Open Edit on that note and choose the file again.';
+// record = { activities, invitedMeetings, attachments, noteFiles, noteFilesReady }
 export function relatedHtml(rec, { entity, entityId, me, cfg = null }) {
   const rl = relatedLists(rec.activities || [], rec.invitedMeetings || [], localStamp());
-  const noteItem = (n) => { const edit = canEditNote(me, n);
+  const ready = noteFilesReady(rec);
+  const noteItem = (n) => { const edit = canEditNote(me, n); const files = filesOnNote(rec, n.id);
     return html`<li data-note="${n.id}">
       <div data-note-view><strong>${n.subject}</strong>${n.body && n.body !== n.subject ? html`<br>${n.body}` : ''}
         <br><span class="muted small">${n.system ? 'CRM' : n.createdByName} &middot; ${fmtDateTime(n.createdAt)}${noteWasEdited(n) ? html` &middot; <span data-note-edited>Edited ${fmtDateTime(n.modifiedAt)}</span>` : ''}${n.entity !== entity ? ` · on the ${entityLabel(n.entity).toLowerCase()}` : ''}</span>
         ${edit ? html` <button type="button" class="ghost" data-note-edit="${n.id}">Edit</button>` : ''}</div>
+      ${noteFileList(files)}
       ${edit ? html`<form data-note-form="${n.id}" class="form-grid" hidden>
         <label class="span2">Note<textarea name="text" rows="3" maxlength="4000">${noteText(n)}</textarea></label>
+        ${ready ? html`<div class="span2">${noteClip()}</div>` : ''}
         <p class="err-text span2" data-note-err></p>
         <div class="span2"><button class="m-btn" type="submit">Save</button> <button class="ghost" type="button" data-note-cancel>Cancel</button></div></form>` : ''}</li>`; };
   return html`
-  <div class="card" data-notes><h3>Notes (${rl.notes.length})</h3>
-    ${me.canEdit ? html`<form id="note-form" class="inline-form"><textarea name="text" rows="2" maxlength="4000" placeholder="Add a note"></textarea><button class="m-btn" type="submit">Add Note</button></form>` : ''}
+  <div class="card" data-notes data-note-files-ready="${ready ? 'yes' : 'no'}"><h3>Notes (${rl.notes.length})</h3>
+    ${me.canEdit ? html`<form id="note-form" class="inline-form"><textarea name="text" rows="2" maxlength="4000" placeholder="Add a note"></textarea>${ready ? noteClip() : ''}<button class="m-btn" type="submit">Add Note</button><p class="err-text" data-note-err></p></form>` : ''}
+    ${ready ? '' : html`<p class="muted small" data-note-files-off>Attaching a file to a note is not available yet.</p>`}
     ${rl.notes.length ? html`<ul class="notes-list">${rl.notes.map(noteItem)}</ul>` : html`<p class="muted">No notes yet.</p>`}
     <p class="muted small">Notes are kept permanently (no delete).</p></div>
   <div class="card" data-attachments><h3>Attachments (${(rec.attachments || []).length})</h3>
@@ -155,7 +168,21 @@ export function relatedHtml(rec, { entity, entityId, me, cfg = null }) {
     <p class="muted small">Meetings are recorded in the portal only: no invitations are sent and nothing is added to any calendar.</p></div>`;
 }
 export function wireRelated(root, api, refresh, ctx) {
-  const nf = $('#note-form', root); if (nf) nf.addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.addCrmNote(ctx.entity, ctx.entityId, formData(nf).text || ''); toast('Note added'); refresh(); }));
+  $$('[data-note-file-input]', root).forEach((input) => input.addEventListener('change', () => {
+    const form = input.closest('form'); const name = form && $('[data-note-picked]', form); const file = input.files && input.files[0]; if (name) name.textContent = file ? file.name : ''; }));
+  const nf = $('#note-form', root); if (nf) nf.addEventListener('submit', guard(async (e) => {
+    e.preventDefault(); const err = $('[data-note-err]', nf); if (err) err.textContent = '';
+    const area = $('textarea', nf); const text = area ? area.value : ''; const file = pickedNoteFile(nf);
+    if (!String(text).trim()) { const msg = 'Write a note first.'; if (err) err.textContent = msg; throw new Error(msg); }
+    const payload = file ? await readNoteFile(file) : null;
+    let note; try { note = await api.addCrmNote(ctx.entity, ctx.entityId, text); }
+    catch (ex) { if (err) err.textContent = ex.message || 'That note was not saved. Try again.'; throw ex; }
+    if (payload) {
+      if (typeof api.addCrmNoteFile !== 'function') { toast(FILE_LATER, 'err'); refresh(); return; }
+      try { await api.addCrmNoteFile(note.id, payload); }
+      catch (ex) { toast(ex && ex.message ? `${FILE_LATER} ${ex.message}` : FILE_LATER, 'err'); refresh(); return; }
+    }
+    toast('Note added'); refresh(); }));
   const originalNote = new WeakMap();
   $$('[data-note-form] textarea', root).forEach((area) => originalNote.set(area, area.value));
   $$('[data-note-edit]', root).forEach((b) => b.addEventListener('click', () => {
@@ -163,14 +190,25 @@ export function wireRelated(root, api, refresh, ctx) {
     if (view) view.hidden = true; if (form) { form.hidden = false; const area = $('textarea', form); if (area) area.focus(); } }));
   $$('[data-note-cancel]', root).forEach((b) => b.addEventListener('click', () => {
     const li = b.closest('[data-note]'); if (!li) return; const view = $('[data-note-view]', li); const form = $('[data-note-form]', li);
-    if (form) { form.hidden = true; const area = $('textarea', form); if (area && originalNote.has(area)) area.value = originalNote.get(area); const err = $('[data-note-err]', form); if (err) err.textContent = ''; }
+    if (form) { form.hidden = true; const area = $('textarea', form); if (area && originalNote.has(area)) area.value = originalNote.get(area); clearPicked(form); const err = $('[data-note-err]', form); if (err) err.textContent = ''; }
     if (view) view.hidden = false; }));
   $$('[data-note-form]', root).forEach((form) => form.addEventListener('submit', guard(async (e) => {
     e.preventDefault(); const err = $('[data-note-err]', form); if (err) err.textContent = '';
-    const area = $('textarea', form); const text = area ? area.value : '';
+    const area = $('textarea', form); const text = area ? area.value : ''; const file = pickedNoteFile(form);
     if (typeof api.updateCrmNote !== 'function') throw new Error('Saving an edited note is not available yet. Reload the page and try again.');
-    try { await api.updateCrmNote(form.dataset.noteForm, text); toast('Note saved'); refresh(); }
-    catch (ex) { if (err) err.textContent = ex.message || 'That note was not saved. Try again.'; throw ex; } })));
+    const payload = file ? await readNoteFile(file) : null;
+    try { await api.updateCrmNote(form.dataset.noteForm, text); }
+    catch (ex) { if (err) err.textContent = ex.message || 'That note was not saved. Try again.'; throw ex; }
+    if (payload) {
+      if (typeof api.addCrmNoteFile !== 'function') { toast(FILE_LATER, 'err'); refresh(); return; }
+      try { await api.addCrmNoteFile(form.dataset.noteForm, payload); }
+      catch (ex) { toast(ex && ex.message ? `${FILE_LATER} ${ex.message}` : FILE_LATER, 'err'); refresh(); return; }
+    }
+    toast('Note saved'); refresh(); })));
+  $$('[data-note-file]', root).forEach((a) => a.addEventListener('click', guard(async (e) => { e.preventDefault();
+    if (typeof api.getCrmNoteFile !== 'function') throw new Error('That file cannot be opened yet. Reload the page and try again.');
+    const c = await api.getCrmNoteFile(a.dataset.noteFile);
+    const l = document.createElement('a'); l.href = c.dataUrl; l.download = c.name; document.body.appendChild(l); l.click(); l.remove(); })));
   const af = $('#att-form', root); if (af) af.addEventListener('submit', guard(async (e) => { e.preventDefault(); const file = $('[data-att-file]', af).files[0]; if (!file) throw new Error('Choose a file first.');
     const dataUrl = await readFile(file); await api.addCrmAttachment(ctx.entity, ctx.entityId, { name: file.name, mimeType: file.type, size: file.size, dataUrl }); toast('File attached'); refresh(); }));
   $$('[data-open-att]', root).forEach((a) => a.addEventListener('click', guard(async (e) => { e.preventDefault(); const c = await api.getCrmAttachmentContent(a.dataset.openAtt);

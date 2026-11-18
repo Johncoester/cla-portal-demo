@@ -1576,6 +1576,39 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## CRM note file (Feedback 27 item 2)
+
+**How it should work.** On a Lead, a Client, or a Company, the note box has a paperclip. The person adding a note, or the person editing a note they wrote (or an admin), can choose a file. That file shows on that note, with a link to download it. It does not show in the record's Attachments list. A note still needs words. There is no text formatting and no delete.
+
+**Status: In progress.** Janine, the CRM user, confirmed Nov 16 2026. CRM Feedback 27 item 2. A database file is included and has not been applied. Not Live until the lead applies it on TEST and someone checks a note there.
+
+**What's built**
+
+- A paperclip on Add Note and on Edit. The chosen file name shows before Save.
+- The file is listed on that note, with the size and a download link. Anyone who can see the note can open the file.
+- The same file is left out of Attachments.
+- Until the database file is applied, the paperclip is hidden and the notes list says attaching a file is not available yet. Adding and editing the words still works.
+- The same notes list is on Company records, so the paperclip is there too.
+
+**What's still missing**
+
+- The lead applies `supabase/migrations/20261125200000_crm_note_files.sql` on TEST. Do not mark Live before that, and not before someone checks it.
+- A file cannot be removed. Notes and these files are kept.
+- If the file is stored and the note row then fails to save, that copy stays in storage and is not shown. The person can choose the file again.
+- CRM deal records do not use this notes list.
+
+**Links**
+
+- Spec: [docs/specs/crm-note-files.md](docs/specs/crm-note-files.md)
+
+**Decisions**
+
+- The file uses the existing CRM attachment table. `note_id` marks a note file so the Attachments list, which only reads rows with no `note_id`, cannot show it. The bytes go to the private `crm` bucket under `notes/`.
+- One read of the attachment table covers every note on the record. There is no extra read per note.
+- Only the author, or an Admin or Super admin, can add a file to a note that already exists. A processor stays read-only.
+
+---
+
 ## CRM import file errors (CRM import fix 2 of 5)
 
 **How it should work.** On Import Leads, Import Clients, and Import Notes for either one, the upload card always says the accepted files (.csv, .xlsx, .xls) and the limits (2 MB, 10,000 rows), and that the file window leaves other types out. A file that is not accepted shows the reason in red on that card, and the reason stays until another file is chosen. The reasons are the wrong type, a file over 2 MB, more than 10,000 rows, an empty or unreadable file, and a missing required column.

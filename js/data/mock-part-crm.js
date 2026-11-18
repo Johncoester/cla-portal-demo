@@ -245,8 +245,12 @@ export function crmPart(x, flags) {
   const actsFor = (pairs, u = null) => db().crmActivities.filter((a) => pairs.some(([e, id]) => (a.entity === e && a.entityId === id)
     || (a.kind === 'call' && a.relatedEntity === e && a.relatedId === id && !pairs.some(([e2, id2]) => a.entity === e2 && a.entityId === id2) && (!u || seen(u, a.entity, a.entityId))))).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(actOut);
   const invitedTo = (u, pairs) => db().crmActivities.filter((a) => a.kind === 'meeting' && (a.participants || []).some((p) => pairs.some(([e, id]) => p === `${e}:${id}`)) && seen(u, a.entity, a.entityId)).map(actOut);
-  const attachmentsOf = (pairs) => db().crmAttachments.filter((f) => pairs.some(([e, id]) => f.entity === e && f.entityId === id)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+  // A file with noteId belongs to that note. It is not a record attachment.
+  const attachmentsOf = (pairs) => db().crmAttachments.filter((f) => !f.noteId && pairs.some(([e, id]) => f.entity === e && f.entityId === id)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
     .map((f) => ({ id: f.id, entity: f.entity, entityId: f.entityId, name: f.name, mimeType: f.mimeType, size: f.size, uploadedBy: f.uploadedBy, uploadedByName: nameOf(f.uploadedBy), createdAt: f.createdAt }));
+  const noteFilesOf = (pairs) => db().crmAttachments.filter((f) => f.noteId && pairs.some(([e, id]) => f.entity === e && f.entityId === id)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .map((f) => ({ id: f.id, noteId: f.noteId, name: f.name, mimeType: f.mimeType, size: f.size, uploadedByName: nameOf(f.uploadedBy), createdAt: f.createdAt }));
+  const recordFiles = (pairs) => ({ attachments: attachmentsOf(pairs), noteFiles: noteFilesOf(pairs), noteFilesReady: true });
   const touch = (r, u) => { r.modifiedBy = u.id; r.modifiedAt = now(); };
   // lead -> client: a lead custom field's value goes to the client field with the same name and type (if the client has none yet). Never removes anything.
   const carryCustom = (l, c) => { const lf = activeFields(cfg(), 'lead'); const cf = activeFields(cfg(), 'contact'); c.custom ||= {};
@@ -313,7 +317,7 @@ export function crmPart(x, flags) {
     // ---------- leads ----------
     async listCrmLeads() { const u = crmUser(); return db().crmLeads.filter((l) => leadSeen(u, l)).map((l) => leadOut(u, l)); },
     async getCrmLead(id) { const u = crmUser(); const l = get.lead(u, id); const pairs = [['lead', l.id]];
-      return { ...leadOut(u, l), activities: actsFor(pairs, u), invitedMeetings: invitedTo(u, pairs), attachments: attachmentsOf(pairs) }; },
+      return { ...leadOut(u, l), activities: actsFor(pairs, u), invitedMeetings: invitedTo(u, pairs), ...recordFiles(pairs) }; },
     async createCrmLead(input) {
       const u = crmEditor(); const d = db();
       const acc = str(input.accountId, 60) ? get.account(u, str(input.accountId, 60)) : null;   // Janine, Nov 3: Company = an existing company
@@ -387,7 +391,7 @@ export function crmPart(x, flags) {
       const u = crmUser(); const c = get.contact(u, id); const orders = withAccess(u, ordersOf([c.id]));
       const pairs = [['contact', c.id]]; if (c.crmLeadId) pairs.push(['lead', c.crmLeadId]);
       return { ...contactOut(u, c), account: c.accountId ? accountOut(u, accountRow(c.accountId)) : null, orders, totals: orderTotals(orders), activities: actsFor(pairs, u),
-        invitedMeetings: invitedTo(u, pairs), attachments: attachmentsOf(pairs), opportunities: db().crmOpportunities.filter((o) => o.contactId === c.id).map((o) => oppOut(u, o)) };
+        invitedMeetings: invitedTo(u, pairs), ...recordFiles(pairs), opportunities: db().crmOpportunities.filter((o) => o.contactId === c.id).map((o) => oppOut(u, o)) };
     },
     async createCrmContact(input) {
       const u = crmEditor(); const d = db(); const e = email(input.email);
@@ -453,7 +457,7 @@ export function crmPart(x, flags) {
       const u = crmUser(); const a = get.account(u, id); const d = db(); const cs = d.contacts.filter((c) => c.accountId === a.id && inCrm(c));
       const orders = withAccess(u, ordersOf(cs.map((c) => c.id)));
       return { ...accountOut(u, a), contactList: cs.filter((c) => contactSeen(u, c)).map((c) => contactOut(u, c)), orders, totals: orderTotals(orders), activities: actsFor([['account', a.id]], u),
-        invitedMeetings: [], attachments: attachmentsOf([['account', a.id]]), opportunities: d.crmOpportunities.filter((o) => o.accountId === a.id).map((o) => oppOut(u, o)) };
+        invitedMeetings: [], ...recordFiles([['account', a.id]]), opportunities: d.crmOpportunities.filter((o) => o.accountId === a.id).map((o) => oppOut(u, o)) };
     },
     async createCrmAccount(input) {
       const u = crmEditor(); const d = db(); const name = str(input.name, 160) || fail('Company name is required.');
@@ -543,6 +547,24 @@ export function crmPart(x, flags) {
       if (!(String(a.modifiedAt) > String(a.createdAt || ''))) a.modifiedAt = new Date(Date.parse(a.createdAt || a.modifiedAt) + 1000).toISOString();
       save(); return actOut(a);
     },
+    // Janine, Nov 16 (Feedback 27 item 2): a file on this note. It is not a record attachment. Notes are still never deleted.
+    async addCrmNoteFile(noteId, { name, mimeType, size, dataUrl } = {}) {
+      const u = crmEditor(); const a = db().crmActivities.find((z) => z.id === noteId && z.kind === 'note');
+      if (!a || !seen(u, a.entity, a.entityId)) fail('Note not found.');
+      if (a.system) fail('This note was added by the CRM and cannot be changed.');
+      if (!['lead', 'contact', 'account'].includes(a.entity)) fail('Attach a file to a note on a lead, client, or company.');
+      if (!u.isAdmin && a.createdBy !== u.id) fail('Only the person who wrote this note, or an admin, can change it.');
+      const full = str(name, 400).replace(/[\\/]/g, '_') || fail('A file name is required.'); const dot = full.lastIndexOf('.'); const ext = dot > 0 ? full.slice(dot + 1).toLowerCase() : '';
+      if (!C.ALLOWED_UPLOAD_EXT.includes(ext)) fail(`${ext ? '.' + ext + ' files are' : 'Files without an extension are'} not allowed. Allowed: ${C.ALLOWED_UPLOAD_EXT.join(', ')}.`);
+      if (!(Number(size) >= 0) || Number(size) > C.MAX_UPLOAD_BYTES) fail(`File is too large (limit ${Math.round(C.MAX_UPLOAD_BYTES / 1e5) / 10} MB). Choose a smaller file.`);
+      const id = nid('cfile'); const safe = full.length > 200 ? full.slice(0, 199 - ext.length) + '.' + ext : full;
+      const f = { id, entity: a.entity, entityId: a.entityId, noteId: a.id, name: safe, mimeType: str(mimeType, 100) || 'application/octet-stream', size: Number(size) || 0, dataUrl: dataUrl || null, uploadedBy: u.id, createdAt: now(), storagePath: `notes/${a.entity}/${a.entityId}/${a.id}/${id}/${safe}` };
+      await x.keepFile(f); db().crmAttachments.push(f); save(); return noteFilesOf([[a.entity, a.entityId]]).find((z) => z.id === f.id);
+    },
+    async getCrmNoteFile(id) {
+      const u = crmUser(); const f = db().crmAttachments.find((z) => z.id === id && z.noteId); if (!f || !seen(u, f.entity, f.entityId)) fail('That file is not on this note.');
+      const content = await x.fileContent(f); return { name: f.name, mimeType: f.mimeType, dataUrl: content || 'data:text/plain;charset=utf-8,' + encodeURIComponent('FAKE DEMO FILE\n' + f.name) };
+    },
 
     // ---------- TASKS (Zoho): Subject*, Due Date*, Status, Priority, Owner, Reminder, Repeat, Description ----------
     async createCrmTask(input) {
@@ -621,7 +643,7 @@ export function crmPart(x, flags) {
       await x.keepFile(f); db().crmAttachments.push(f); save(); return attachmentsOf([[entity, parent.id]]).find((z) => z.id === f.id);
     },
     async getCrmAttachmentContent(id) {
-      const u = crmUser(); const f = db().crmAttachments.find((z) => z.id === id); if (!f || !seen(u, f.entity, f.entityId)) fail('Attachment not found.');
+      const u = crmUser(); const f = db().crmAttachments.find((z) => z.id === id); if (!f || f.noteId || !seen(u, f.entity, f.entityId)) fail('Attachment not found.');
       const content = await x.fileContent(f); return { name: f.name, mimeType: f.mimeType, dataUrl: content || 'data:text/plain;charset=utf-8,' + encodeURIComponent('FAKE DEMO FILE\n' + f.name) };
     },
 

@@ -10,9 +10,9 @@ import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-jani
 import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611130900';
 import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611243900';
 import { settingsPage } from './crm-settings.js?v=202611161500';
-import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611244600';
+import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611245100';
 import { pipelinePage, reportsPage } from './crm-more.js?v=202611243900';
-import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611244600';
+import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611245100';
 import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611161500';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611161500';
 import { searchPage } from './crm-search.js?v=202611243900';
