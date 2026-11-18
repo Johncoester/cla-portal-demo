@@ -1,10 +1,10 @@
 /* mock adapter, part 1: auth, profile, dashboard, deals. See mock-adapter.js. */
 import { autoCounty } from './county-auto.js?v=202611131900';
-import { checkSource } from './mock-part-nov3b.js?v=202611221900';
+import { checkSource } from './mock-part-nov3b.js?v=202611243804';
 import { isRefi, REFI_BLOCKED_FIELDS, STAFF_ACCOUNT_ROLES } from './constants.js?v=202611101015';
 import { closerChoices, resolveCloser } from './closer.js?v=202611101015';
-import { PROCESSOR_PICK_ROLES, SALES_PICK_ROLES, tidyPersonName, referralWriteError } from './place-order.js?v=202611191800';
-import { assignProcessorParty, clearProcessorParties } from './processor-party.js?v=202611221800';
+import { PROCESSOR_PICK_ROLES, SALES_PICK_ROLES, tidyPersonName, referralWriteError } from './place-order.js?v=202611243800';
+import { assignProcessorParty, clearProcessorParties } from './processor-party.js?v=202611243805';
 import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611191800';
 import { claRepresentationCode } from './cla-representation.js?v=202611090950';
 import { buildFileNumber, retagFileNumber, sentOutside, cleanFileNumber, FILE_NUMBER_TAKEN } from './file-number.js?v=202611222500';
@@ -12,7 +12,7 @@ import { officeDate } from './office-date.js?v=202611102100';
 import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions, brokerageContact, brokerageContactError, brokerageWrite } from './lender-file.js?v=202611241600';
 import { parcelInput } from './parcels.js?v=202611222100';
 import { earnestDealPatch, earnestTouched, OLD_COMMISSION_KEYS, OLD_COMMISSION_REFUSED, withoutOldCommission } from './earnest-commission.js?v=202611223000';
-import { cleanFee, feeChanges } from './accounting.js?v=202611241500';
+import { cleanFee, feeChanges } from './accounting.js?v=202611243300';
 import { waterEscrowFeeInput } from './prorate-defaults.js?v=202611223100';
 import { partyTaskCopiesStillOpen, PARTY_TASK_ROLES, staffTaskCounts } from './party-task-completion.js?v=202611241000';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
@@ -30,9 +30,11 @@ export function occFields(input, transactionType, fail) {
 export function dealsAndAuth(x) {
   const { load, save, nid, me, needUser, needProcessor, contactOf, dealsFor, dealOr404, log, notify, nameOf, dealView, taskVisible, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
-  // John, Nov 2: several salespeople per file; each must be an ACTIVE Sales Person or Sales Team user. The file's Processor must be an active Processor.
+  // Several salespeople per file. The picker lists Sales Person and Sales Team (FF-092a). Saving still accepts
+  // any active staff login, or a user who can own CRM records, the same as the database guard. Someone already
+  // on the file is not checked again, so a saved name stays even when that role is no longer in the picker.
   const checkSales = (id, actor) => { const p = x.prof(id) || fail('Salesperson not found.');
-    if (p.status !== 'active' || !(SALES_PICK_ROLES.includes(p.role) || p.canOwnCrm === true)) fail('Only an active staff login can be a salesperson on an order.');
+    if (p.status !== 'active' || !(STAFF_ACCOUNT_ROLES.includes(p.role) || p.canOwnCrm === true)) fail('Only an active staff login can be a salesperson on an order.');
     if (!!p.isDemo !== !!(actor && actor.isDemo)) fail('A real order cannot use a demo login, and a demo order cannot use a real login.'); return p; };
   const checkPreprocessor = (id) => { if (id == null || id === '') return null; const p = x.prof(id) || fail('Preprocessor not found.'); if (p.role !== 'Preprocessor' || p.status !== 'active') fail('The Preprocessor on an order must be an active Preprocessor.'); return p; };
   const checkProcessor = (id, actor) => { if (id == null || id === '') return null; const p = x.prof(id) || fail('Processor not found.');

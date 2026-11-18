@@ -20,4 +20,4 @@ The Agent fees edit window uses the same words, Commission Paid By, for the same
 
 ## What is not in this change
 
-No new database columns. A split, or a commission with its own base, is still not rewritten when the sales price changes. The admin fee is still Buyer or Seller only. Not Live until this is on TEST. Nothing is applied to TEST by this change.
+No new database columns. A split, or a commission with its own base, is still not rewritten when the sales price changes. This change left the admin fee as Buyer or Seller only. FF-093 later adds Split (Buyer and Seller) for the admin fee. See [admin-fee-payable-by.md](admin-fee-payable-by.md). Not Live until this is on TEST. Nothing is applied to TEST by this change.

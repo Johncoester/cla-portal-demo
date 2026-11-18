@@ -1,7 +1,7 @@
 /* FF-091c. Admin / Super admin: the rate sheet for each state, county, and city.
  * A blank rate is Rate Not Set. Staff see that on Taxes & Fees and can type the fee. */
 import { html, raw, $, $$, guard, toast } from '../ui.js?v=202611161500';
-import { canEditTaxRates } from '../data/tax-rate-edit.js?v=202611243520';
+import { canEditTaxRates } from '../data/tax-rate-edit.js?v=202611244002';
 
 const money = (n) => (n == null || n === '' ? '' : String(n));
 const payerLabel = (p) => (p === 'seller' ? 'Seller pays' : p === 'split' ? '50/50 split' : 'Buyer pays');

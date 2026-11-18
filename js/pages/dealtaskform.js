@@ -1,11 +1,11 @@
 // One intake task (form). Save partial work, validate, mark complete. ID-type fields upload a file into the order's "IDs & personal" folder.
 import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611161500';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
-import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611221900';
+import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611243616';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 import { spouseSectionHtml, spousePayload, spousePhoneError, loadSpouseRows, applySpouse, bindSsnDash, showSsnMask } from './spouse.js?v=202611171200';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, phoneOk, PHONE_MSG } from '../data/constants.js?v=202611101015';
-import { CLS, LABEL } from './dealtasks.js?v=202611242770';
+import { CLS, LABEL } from './dealtasks.js?v=202611244030';
 import { bindAddressFill } from '../data/address-fill.js?v=202611222100';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
@@ -27,8 +27,7 @@ export function intakeFormHtml(t, { page = false, state = '', doneReadOnly = fal
     const help = f.help ? html` <button type="button" class="ghost" data-help="${f.k}" aria-expanded="false">${f.help.button}</button>
       <div class="note-box" data-help-panel="${f.k}" hidden><strong>${f.help.title}</strong><dl class="answers">${f.help.items.map(([o, txt]) => html`<dt>${o}</dt><dd>${txt}</dd>`)}</dl><p class="small" data-help-note><em>${f.help.note}</em></p></div>` : '';
     const choices = (field, current) => {
-      let opts = Array.isArray(field.opts) ? [...field.opts] : [];
-      if (field.k === 'citizenship') opts = opts.filter((o) => o !== 'US Citizen' || o === current);
+      const opts = Array.isArray(field.opts) ? [...field.opts] : [];
       if (current && !opts.includes(current)) opts.push(current);
       return opts;
     };
@@ -206,4 +205,4 @@ function signView({ api, deal, t, refresh, go }) {
 }
 
 // Francis, Nov 3: agent tasks (kind 'agent') have their own page
-async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611242781'); return m.render(c); }
+async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611244032'); return m.render(c); }

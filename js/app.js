@@ -1,14 +1,15 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611243586';
+import { getAdapter } from './data/adapter.js?v=202611244015';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611242730';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611244025';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
+import { fileDatesHtml, fileDateCanEdit, mountFileDates } from './pages/file-dates.js?v=202611243200';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611101015';
 import { canUseCrm } from './data/crm.js?v=202611130900';
 import { canManageRoleAccess } from './data/role-access.js?v=202611100100';
 import { canUseGmail } from './data/gmail-email.js?v=202611191000';
-import { acctCanRead } from './data/accounting.js?v=202611241500';
+import { acctCanRead } from './data/accounting.js?v=202611243300';
 import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611101015';
 import { phaseOf } from './data/agent-portal.js?v=202611241900';
 import { scheduleNavLines } from './data/scheduling-details.js?v=202611241900';
@@ -18,14 +19,14 @@ import { canInviteAgents } from './data/agent-profile.js?v=202611140100';
 import { yourAgentHtml, withContactPhone } from './pages/your-agent.js?v=202611161500';
 import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611101015';
-import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611243565';   // John, Nov 4: one locked login link per fake user
+import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611244021';   // John, Nov 4: one locked login link per fake user
 import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080400';
 import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611082000';
 import { botRegistry } from './data/bot-registry.js?v=202611080400';
 import { canRequestVoice, voiceRouteOk } from './data/voice-demo.js?v=202611102100';
 import { mountVoiceChrome, prepareVoiceShell, stopVoiceNow, voiceMenuHtml } from './pages/voice-panel.js?v=202611161500';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611161500';   // John, Nov 4 call: sidebar search + pinned order nav
-import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611243566';
+import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611244022';
 import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611091730';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
 document.addEventListener('input', (e) => { const el = e.target; if (!(el instanceof HTMLInputElement) || !(el.type === 'tel' || el.hasAttribute('data-phone'))) return;
@@ -42,21 +43,21 @@ export function useRouteLoader(next) {
 }
 const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
-  login: () => loadRoute(() => import('./pages/entry.js?v=202611243572')),
-  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611242784')),
+  login: () => loadRoute(() => import('./pages/entry.js?v=202611244023')),
+  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611244035')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611241000')),
-  'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611242820')),
-  deal: () => loadRoute(() => import('./pages/deal.js?v=202611242740')),
+  'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611243811')),
+  deal: () => loadRoute(() => import('./pages/deal.js?v=202611244027')),
   users: () => loadRoute(() => import('./pages/users.js?v=202611161500')),
   profile: () => loadRoute(() => import('./pages/profile.js?v=202611191600')),
   'contact-us': () => loadRoute(() => import('./pages/contact.js?v=202611161500')),
   teams: () => loadRoute(() => import('./pages/teams.js?v=202611161500')),
-  templates: () => loadRoute(() => import('./pages/templates.js?v=202611241900')),
-  'admin/templates': () => loadRoute(() => import('./pages/templates.js?v=202611241900')),
+  templates: () => loadRoute(() => import('./pages/templates.js?v=202611243628')),
+  'admin/templates': () => loadRoute(() => import('./pages/templates.js?v=202611243628')),
   library: () => loadRoute(() => import('./pages/library.js?v=202611161500')),
   activity: () => loadRoute(() => import('./pages/activity.js?v=202611161500')),
   outbox: () => loadRoute(() => import('./pages/outbox.js?v=202611161500')),
-  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611242783')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611244034')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => loadRoute(() => import('./pages/taskgrid.js?v=202611241500')),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
   schedule: () => loadRoute(() => import('./pages/schedule.js?v=202611242210')),   // public closing-time link (no sign-in needed)
   'schedule-party': () => loadRoute(() => import('./pages/schedule-party.js?v=202611241900')),   // MF-056 buyer / seller scheduling link (no sign-in)
@@ -65,13 +66,13 @@ const pages = {
   'role-access': () => loadRoute(() => import('./pages/role-access.js?v=202611161500')),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => loadRoute(() => import('./pages/agent-invites.js?v=202611191600')),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
   'agent-invite': () => loadRoute(() => import('./pages/agent-signup.js?v=202611211100')),     // the agent's one-time setup link (no sign-in)
-  underwriters: () => loadRoute(() => import('./pages/underwriters.js?v=202611241600')),
-  'tax-rates': () => loadRoute(() => import('./pages/tax-rates.js?v=202611243530')),
+  underwriters: () => loadRoute(() => import('./pages/underwriters.js?v=202611243300')),
+  'tax-rates': () => loadRoute(() => import('./pages/tax-rates.js?v=202611244003')),
   hr: () => loadRoute(() => import('./pages/hr.js?v=202611191600')),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
   'hr-invite': () => loadRoute(() => import('./pages/hr-invite.js?v=202611161500')),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => loadRoute(() => import('./pages/offices.js?v=202611161500')),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
   'admin/email-templates': () => loadRoute(() => import('./pages/email-templates.js?v=202611191600')),   // John, Nov 9: Admin > Email Templates (file Email tab)
-  'task-builder': () => loadRoute(() => import('./pages/task-builder.js?v=202611221100')),   // John, Nov 13: Admin > Task Builder (Admin / Super admin; TB-1 list of flows)
+  'task-builder': () => loadRoute(() => import('./pages/task-builder.js?v=202611243802')),   // John, Nov 13: Admin > Task Builder (Admin / Super admin; TB-1 list of flows)
   demo: () => loadRoute(() => import('./pages/demo-view.js?v=202611161500')),   // permanent Demo mode: Super admin views a seeded demo user
   'voice-demo': () => loadRoute(() => import('./pages/voice-demo.js?v=202611161500')),   // signed-in Live Test only; the header Voice test panel is the test, this route is not a file
   'staff-feedback': () => loadRoute(() => import('./pages/staff-feedback.js?v=202611161500')),};
@@ -234,7 +235,7 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
       <h1 class="welcome-title" data-site-name="CLA Portal Live Test">Welcome ${u.firstName} ${u.lastName} to CLA Portal Live Test</h1>
       ${view.crumbs ? html`<ol class="breadcrumb"><li><a href="#${homeFor(u)}"><img src="assets/img/bread-home.png" alt="">Home</a></li>${view.crumbs.map(([label, href], i) => html`<li class="${i === view.crumbs.length - 1 ? 'active' : ''}">${href ? html`<a href="${href}">${label}</a>` : label}</li>`)}</ol>` : ''}
       ${demoBanner()}
-      ${deal && !view.noOrderHeader ? orderHeader(deal) : ''}${sideSearchOn && route.page === 'dashboard' ? homeSearch() : ''}
+      ${deal && !view.noOrderHeader ? orderHeader(deal, u) : ''}${sideSearchOn && route.page === 'dashboard' ? homeSearch() : ''}
       ${betaBanner(route)}
       ${agentCard ? (deal ? html`<div class="with-agent" data-with-agent><div id="view">${view.body}</div>${agentCard}</div>` : html`<div class="with-agent agent-inline" data-with-agent data-agent-inline>${agentCard}<div id="view">${view.body}</div></div>`) : html`<div id="view">${view.body}</div>`}
     </div>
@@ -301,14 +302,15 @@ function closingNavMeta(deal, show) {
 }
 // REDESIGN (John, Nov 3): the persistent order header on every tab of a file: Order #, progress badge, address, then type / dates / status.
 // Same data-order-header / data-progress-badge / .order-no hooks as before (the badge text is exactly the phase name).
-function orderHeader(deal) {
+function orderHeader(deal, user) {
   const ph = phaseOf(deal).badge;
   const price = deal.transactionType === 'Refinance' || deal.purchasePrice == null || deal.purchasePrice === '' ? '' : fmtMoney(deal.purchasePrice);
+  const canEdit = fileDateCanEdit(user, { demoLocked: !!(DEMO_VIEW && DEMO_VIEW.active) });
   return html`<div class="order-header" data-order-header>
     <div class="oh-top"><span class="order-no" data-op-order-no data-file-order>Order # ${deal.fileNumber}</span><span class="pill ${ph === 'Closed' ? '' : 'ok'}" data-progress-badge>${ph}</span>${deal.status && deal.status !== 'Open' ? html`<span class="pill warn" data-oh-status>${deal.status}</span>` : ''}</div>
     <strong class="oh-address" data-op-address data-file-address>${deal.street}, ${deal.city}, ${deal.state} ${deal.zip}</strong>
     <div class="oh-meta"><span>${deal.transactionType || 'Purchase'}${price ? html` &middot; Purchase <strong data-oh-purchase>${price}</strong>` : ''}${deal.fileTitle ? html` &middot; <strong data-oh-parties>${deal.fileTitle}</strong>` : ''}</span>${deal.openDate ? html`<span>Opened <strong>${fmtDate(deal.openDate)}</strong></span>` : ''}${deal.county ? html`<span>${deal.county} County</span>` : ''}</div>
-    <div class="oh-side"><span class="oh-big-label">Settlement date</span><span class="oh-big">${fmtDate(deal.closingDate) || 'Not set'}</span></div></div>`;
+    ${fileDatesHtml(deal, { canEdit })}</div>`;
 }
 
 let rendering = 0; let VIEW_AS = null; let DEMO_VIEW = null; let PORTAL_MODE = 'mock'; let demoTimer = null; let VOICE_OK = false; let voiceCheckedFor = '';
@@ -605,7 +607,7 @@ export async function render() {
   if (PUBLIC.has(route.page)) { stopVoiceNow(); root.innerHTML = toText(view.body); syncFeedback(u); }
   else { let shell; try { shell = await layout(u, view, route, ws, { unread: unreadP }); } catch (e) { if (replaced()) return; if (personMoved()) return render(); if (/sign in/i.test(e.message || '')) { stopVoiceNow(); location.hash = '#/login'; return; } throw e; }   // session ended mid-render
     if (!keepCurrent()) return;
-    root.innerHTML = toText(shell); wireChrome(u); }
+    root.innerHTML = toText(shell); wireChrome(u); mountFileDates(root, { api, deal: shellDeal, refresh: render }); }
   settle();
   document.title = (view.title ? view.title + ' | ' : '') + 'CLA Portal Live Test';
   if (view.mount) view.mount($('#view') || root, { api, user: u, refresh: render, go });

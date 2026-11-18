@@ -4,14 +4,14 @@
  * (staff only, Sales read-only, no deletes, refinance has no seller side, every change logged in accounting_fee_log). Nothing is sent. */
 // Caroline, Nov 4 (migration 39): prorations, CD details (accounting_cd_details + accounting_cd_log), prepaids / escrow lines, TCs read-only.
 import { cleanCdDetails, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA, cdFieldLabel } from './cd-pages.js?v=202611070139';
-import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, cleanFee, allEntries, ledgerTotals, altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration, feeChanges } from './accounting.js?v=202611241500';
-import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractMismatch, assertContractPersisted, exactlyOneRow, ESTIMATE_POSTURE } from './contract-terms.js?v=202611191700';
+import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, cleanFee, allEntries, ledgerTotals, altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration, feeChanges } from './accounting.js?v=202611243300';
+import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractMismatch, assertContractPersisted, exactlyOneRow, ESTIMATE_POSTURE, mergeOtherChargeDetails, otherChargeDetailsChanged } from './contract-terms.js?v=202611243040';
 import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611223000';
 // CLA RATES (migration 36): calculated fees carry calc_source = 'cla-rates' + calc_key / calc_fields / rate_source / calculation / calc_inputs /
 // calc_version / calc_at; the trigger keeps `overridden` (a person changed what the calculation set). The engine loads lazily (flag off = never).
-const engine = () => import('./fee-engine.js?v=202611241600');
-const taxes = () => import('./taxes-fees.js?v=202611243540');
-const remoteRates = () => import('./supabase-tax-rates.js?v=202611243560');
+const engine = () => import('./fee-engine.js?v=202611243300');
+const taxes = () => import('./taxes-fees.js?v=202611244010');
+const remoteRates = () => import('./supabase-tax-rates.js?v=202611244005');
 const calcRow = (f) => (f.calc ? { calc_source: CALC_SOURCE_ID, calc_key: f.calc.key, calc_fields: f.calc.fields, rate_source: f.calc.rateSource, calculation: f.calc.calculation, calc_inputs: f.calc.inputs, calc_version: f.calc.version, calc_at: f.calc.at } : {});
 
 const toRow = (f) => ({ kind: f.kind, description: f.description, alta_section: f.altaSection, cd_section: f.cdSection, cd_line: f.cdLine, payee: f.payee, amount: f.amount, note: f.note, preset_key: f.presetKey,
@@ -83,7 +83,7 @@ export function accountingSupabase({ sb, ok, flags }) {
     async previewTaxesFees(dealId, worksheet) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const rates = await E.loadCalculatorRates(); const bundle = await taxBundle(); return T.previewTaxesFees(d, worksheet, await fees(dealId), rates.tables, rates.source, bundle); },
     async applyTaxesFees(dealId, worksheet, { token = null, retireExamples = true } = {}) {
       on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const all = await fees(dealId); const rates = await E.loadCalculatorRates(); const bundle = await taxBundle();
-      const P = T.proposeTaxesFees(d, worksheet, rates.tables, rates.source, bundle); if (P.pending && P.pending.length) throw new Error(`Enter an amount for ${P.pending[0].name}. The rate is not set. Nothing was saved.`); const D = T.diffTaxesFees(P, all); if (token && token !== D.token) throw new Error('The fee ledger or the order changed since the preview. Preview again before applying.');
+      const P = T.proposeTaxesFees(d, worksheet, rates.tables, rates.source, bundle); const D = T.diffTaxesFees(P, all); if (token && token !== D.token) throw new Error('The fee ledger or the order changed since the preview. Preview again before applying.');
       const at = new Date().toISOString(); const r = { added: 0, updated: 0, retired: 0, examplesRetired: 0, kept: D.counts.overridden, unchanged: D.counts.unchanged, skipped: D.counts.retired };
       for (const row of D.rows) {
         if (row.status === 'new') {
@@ -170,6 +170,26 @@ export function accountingSupabase({ sb, ok, flags }) {
       back.fields = overlayEarnestFields(after, back.fields);
       assertContractPersisted({ ...clean, fields: { ...clean.fields, ...earnestFromDeal(after) } }, back);
       return { dealId, saved: true, canEdit: true, posture: ESTIMATE_POSTURE, blocked: '', fields: back.fields, flags: back.flags, updatedAt: back.updatedAt };
+    },
+    async saveOtherChargeDetails(dealId, input) {
+      on(); await editor(dealId);
+      let existing;
+      try { existing = ok(await sb.from('accounting_contract_terms').select('*').eq('deal_id', dealId).maybeSingle()); }
+      catch (e) {
+        if (/schema cache|could not find the table|does not exist/i.test(e.message || '')) throw new Error('Warranty, HOA, condo, and deferred figures are not on this database yet. Nothing was saved.');
+        throw e;
+      }
+      const prev = existing ? fromContractRow(existing) : { fields: blankContract(dealId).fields, flags: {} };
+      const clean = mergeOtherChargeDetails(prev, input);
+      if (existing && !otherChargeDetailsChanged(prev, clean)) return { dealId, saved: true, canEdit: true, fields: clean.fields, flags: clean.flags };
+      const payload = toContractRow(clean);
+      const wrote = existing
+        ? ok(await sb.from('accounting_contract_terms').update(payload).eq('deal_id', dealId).select('*'))
+        : ok(await sb.from('accounting_contract_terms').insert({ deal_id: dealId, ...payload }).select('*').single());
+      const row = exactlyOneRow(wrote);
+      const back = fromContractRow(row);
+      if (otherChargeDetailsChanged(clean, back)) throw new Error('Warranty, HOA, condo, and deferred figures were not saved.');
+      return { dealId, saved: true, canEdit: true, fields: back.fields, flags: back.flags, updatedAt: back.updatedAt };
     },
   };
 }

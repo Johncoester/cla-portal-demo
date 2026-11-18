@@ -77,7 +77,7 @@ ok(/two letters/.test(stateMsg), 'a state code that is not two letters is explai
 const page = readFileSync('js/pages/tax-rates.js', 'utf8');
 const charges = readFileSync('js/pages/dealaccounting-charges.js', 'utf8');
 ok(page.includes('Rate Not Set') && page.includes('Set by law') && page.includes('data-tax-rates-page'), 'the admin page edits rates and the locked split');
-ok(charges.includes('Rate Not Set') && charges.includes('Who pays') && charges.includes('Set by law'), 'Taxes & Fees shows Rate Not Set and locks a line the law fixes');
+ok(charges.includes('Rate Not Set') && charges.includes('Who pays') && charges.includes('The law fixes'), 'Taxes & Fees shows Rate Not Set and locks a line the law fixes');
 ok(readFileSync('supabase/migrations/20261125170000_tax_rate_sheets.sql', 'utf8').includes('private.is_staffish()') && readFileSync('supabase/migrations/20261125170000_tax_rate_sheets.sql', 'utf8').includes('private.is_admin()'), 'the database file lets staff read and only an admin write');
 
 console.log(fail ? fail + ' failed' : 'tax rate sheets passed');

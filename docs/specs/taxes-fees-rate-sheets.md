@@ -1,12 +1,12 @@
 # Tax rate sheets by place (FF-091c)
 
-Source: Francis Santos, email Nov 17 2026, 3:55 PM ET (Gmail message 1a1eb4b8017fcabf), subject "Re: [Written by AI] Francis: portal items to check on TEST". Tracker FF-091c. The same thread's 1:55 PM reply is FF-091b (pull request 326), which is still open.
+Source: Francis Santos, email Nov 17 2026, 3:55 PM ET (Gmail message 1a1eb4b8017fcabf), subject "Re: [Written by AI] Francis: portal items to check on TEST". Tracker FF-091c. The same thread's 1:55 PM reply is FF-091b, which is Live.
 
 **Status:** In progress. Not Live. Database file `supabase/migrations/20261125170000_tax_rate_sheets.sql` (rollback beside it). Not applied on TEST. Do not mark Live until that file is applied on TEST and someone checks a file there.
 
 ## What she asked for
 
-1. Each state, county, and city has its own rate sheet and its own questions. Taxes & Fees shows that place's questions once the state and county (and city, when there is one) are chosen.
+1. Each state, county, and city has its own rate sheet and its own questions. Taxes & Fees keeps the Live questions for that place: primary residence, the owner-occupied exemption, the first-time buyer exemption, and who pays. The other questions (the mortgage recorded with the deed, and any other statutory exemption) stay on the Admin Tax rates page. The Live screen does not ask them.
 2. The order of the math is: figure the taxes and fees, take off the exemptions, then split what is left between buyer and seller. The rate sheet supplies the starting split. Staff can change it to match the signed contract, unless the law fixes that line. A locked line stays put.
 3. An Admin can change rates, exemptions, and rules without a code change.
 
@@ -16,7 +16,7 @@ Baltimore City is the example. The questions are consideration, loan amount, dee
 
 Five tables hold the sheet: places, rate lines, exemptions, questions, and the default split. The default split has a "set by law" flag. Staff can read the tables. Only an Admin or Super admin can change them. Row security enforces that.
 
-Taxes & Fees reads the tables when they are present. If the tables are not on the database yet, it keeps using the rates already compiled into the portal. A rate that is blank shows **Rate Not Set**. Staff type the fee. Nothing is saved until they do, so a charge is not skipped in silence.
+Taxes & Fees reads the tables when they are present. If the tables are not on the database yet, it keeps using the rates already compiled into the portal. A document with no rate shows **Rate Not Set**. Staff type the fee. A blank fee can still be applied, so the document stays on the list. A typed amount is marked entered by hand, and a new calculation keeps it unless staff choose to replace it. Who pays, the first-time-buyer exemption, and the aggregate adjustment as a reduction stay as they are on the Live screen.
 
 The numbers that were already in the fee sheet are copied in. No rate was guessed. Where the sheet has no figure, the amount is left blank.
 
@@ -36,8 +36,8 @@ Same file, first-time buyer who will live there:
 ## Rates left unset
 
 - Calvert, Carroll, Frederick, Somerset, and Wicomico have no county transfer tax row in the fee sheet. No line was added.
-- Baltimore City asks whether the mortgage is recorded with the deed. The sheet has no dollar rate for that, so the answer does not change the fee.
-- Baltimore City asks whether another statutory exemption applies. The sheet has no amount, so answering Yes does not reduce the tax until an Admin sets one.
+- Baltimore City's rate sheet records whether the mortgage is recorded with the deed. The sheet has no dollar rate for that, and Taxes & Fees does not ask it.
+- Baltimore City's rate sheet records whether another statutory exemption applies. The sheet has no amount, and Taxes & Fees does not ask it. An Admin can set an amount later.
 - Anne Arundel’s lien certificate is $0.00 in the sheet. That is a real zero, not Rate Not Set.
 
 ## Decisions

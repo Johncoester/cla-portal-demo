@@ -4,17 +4,17 @@
  * Sales Person / Sales Team read the orders they can see; Transaction Coordinators, agents and clients get nothing.
  * Every add / edit / retire / restore is logged in d.accountingLog (who, when, field, old, new). Fees are RETIRED, never deleted. */
 import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, acctCanRead, acctCanEdit, cleanFee, feeChanges, allEntries, ledgerTotals,
-  altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration } from './accounting.js?v=202611241500';
-import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractChanges, contractMismatch, assertContractPersisted, CONTRACT_NOT_SAVED } from './contract-terms.js?v=202611191700';
+  altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration } from './accounting.js?v=202611243300';
+import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractChanges, contractMismatch, assertContractPersisted, CONTRACT_NOT_SAVED, mergeOtherChargeDetails, otherChargeDetailsChanged } from './contract-terms.js?v=202611243040';
 import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611223000';
 // Caroline Kim, Nov 4 2026: prorations from the settlement date, the rest of the CD (details, prepaids F, initial escrow G), TCs read-only.
 import { cleanCdDetails, cdDetailChanges, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA } from './cd-pages.js?v=202611070139';
 const PRORATION_VIA = 'Settlement date change (prorations re-saved)';
 // CLA RATES (John, Nov 3): the fee engine (+ the vendored calculator code and rate tables) is loaded only when a CLA-rate method is called,
 // so with the flag off it is never loaded at all.
-const engine = () => import('./fee-engine.js?v=202611241600');
-const taxes = () => import('./taxes-fees.js?v=202611243540');
-const taxStore = () => import('./mock-part-tax-rates.js?v=202611243550');
+const engine = () => import('./fee-engine.js?v=202611243300');
+const taxes = () => import('./taxes-fees.js?v=202611244010');
+const taxStore = () => import('./mock-part-tax-rates.js?v=202611244004');
 const VIA = 'CLA rates';
 
 // accountingCd (Caroline, Nov 4): one record of manual Closing Disclosure entries per order; added lazily, so the storage key stays v26
@@ -90,7 +90,7 @@ export function accountingPart(x, flags) {
     async previewTaxesFees(dealId, worksheet) { const { deal } = editor(dealId); const E = await engine(); const T = await taxes(); const d = forCalc(deal); const rates = await E.loadCalculatorRates(); const bundle = (await taxStore()).bundleOf(load()); return clone(T.previewTaxesFees(d, worksheet, feesOf(dealId), rates.tables, rates.source, bundle)); },
     async applyTaxesFees(dealId, worksheet, { token = null, retireExamples = true } = {}) {
       const { u, deal } = editor(dealId); const E = await engine(); const T = await taxes(); const d = forCalc(deal); const rates = await E.loadCalculatorRates();
-      const P = T.proposeTaxesFees(d, worksheet, rates.tables, rates.source, (await taxStore()).bundleOf(load())); if (P.pending && P.pending.length) fail(`Enter an amount for ${P.pending[0].name}. The rate is not set. Nothing was saved.`); const D = T.diffTaxesFees(P, feesOf(dealId));
+      const P = T.proposeTaxesFees(d, worksheet, rates.tables, rates.source, (await taxStore()).bundleOf(load())); const D = T.diffTaxesFees(P, feesOf(dealId));
       if (token && token !== D.token) fail('The fee ledger or the order changed since the preview. Preview again before applying.');
       const at = now(); const via = 'Taxes & fees'; const r = { added: 0, updated: 0, retired: 0, examplesRetired: 0, kept: D.counts.overridden, unchanged: D.counts.unchanged, skipped: D.counts.retired };
       for (const row of D.rows) {
@@ -172,6 +172,23 @@ export function accountingPart(x, flags) {
       assertContractPersisted({ ...clean, fields: { ...clean.fields, ...earnestFromDeal(live) } }, again);
       if (live.purchasePrice !== price || live.loanAmount !== loan || live.emdReceived !== received) fail(CONTRACT_NOT_SAVED);
       return { dealId, saved: true, canEdit: true, posture: 'estimate', blocked: '', fields: again.fields, flags: again.flags, updatedAt: stored.updated_at };
+    },
+    async saveOtherChargeDetails(dealId, input) {
+      const { u, deal } = editor(dealId);
+      const price = deal.purchasePrice; const loan = deal.loanAmount; const emd = deal.emdAmount; const received = deal.emdReceived;
+      const list = db().accountingContractTerms; const prevRow = list.find((x) => x.deal_id === dealId);
+      const prev = prevRow ? fromContractRow(prevRow) : { fields: blankContract(dealId).fields, flags: {} };
+      const clean = mergeOtherChargeDetails(prev, input);
+      if (prevRow && !otherChargeDetailsChanged(prev, clean)) return { dealId, saved: true, canEdit: true, fields: clean.fields, flags: clean.flags };
+      const stored = { deal_id: dealId, ...toContractRow(clean), updated_at: now() };
+      if (prevRow) Object.assign(prevRow, stored); else list.push(stored);
+      const changes = contractChanges(prev, clean);
+      if (changes.length) db().accountingLog.push({ id: nid('alog'), dealId, feeId: 'contract', description: 'Warranty, HOA, condo, and deferred figures', action: prevRow ? 'edited' : 'added', at: now(), byId: u.id, byName: nameOf(u.id), changes, via: 'Other Charges' });
+      save();
+      const live = load().deals.find((q) => q.id === dealId);
+      if (live.purchasePrice !== price || live.loanAmount !== loan || live.emdAmount !== emd || live.emdReceived !== received) fail(CONTRACT_NOT_SAVED);
+      const again = fromContractRow(db().accountingContractTerms.find((x) => x.deal_id === dealId) || {});
+      return { dealId, saved: true, canEdit: true, fields: again.fields, flags: again.flags, updatedAt: stored.updated_at };
     },
   };
 }
