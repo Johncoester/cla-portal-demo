@@ -2,7 +2,7 @@
 
 **Requested by:** John Coester, confirmed Nov 17 2026, CRM import fix 5 of 5. Tracker row CRM-201. The earlier attempt was pull request 139 (closed, not merged, Nov 12 2026).
 
-**Status:** In progress. Not Live until the portal lead applies `supabase/migrations/20261125110000_crm_import_preview_row_errors.sql` on TEST and someone checks a preview there. See [ROADMAP.md](../../ROADMAP.md).
+**Status:** In progress. The lead reported on Nov 17 2026 that `supabase/migrations/20261125110000_crm_import_preview_row_errors.sql` is applied on TEST. Not Live until someone checks a preview there. See [ROADMAP.md](../../ROADMAP.md).
 
 ## What the user sees
 
@@ -20,6 +20,6 @@ Companies do not have an import screen.
 
 The database file is not applied by this change. The portal lead applies it on TEST. It is not applied to production.
 
-The lead email lookup is the same query as before. No new helper runs once per row. Policies on deals, tasks, and profiles are unchanged.
+The chosen lead or client for a note stays the same, including which row wins when several share an email. The speed of that lookup is a separate change: [crm-import-fast-lead-match.md](crm-import-fast-lead-match.md). No new helper runs once per row. Policies on deals, tasks, and profiles are unchanged.
 
 Until the database file is applied, a preview that still comes back with the old P0004 detail is read, and the same plain sentence is shown. A preview that comes back with no row details is mapped onto the rows as above.

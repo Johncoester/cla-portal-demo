@@ -109,6 +109,35 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Accounting sidebar (FF-061)
+
+**How it should work.** On a file, the Closing menu stays as it is. Accounting is its own section below that menu. It lists Ledger, Receipts, Disbursements, Account Balances, Balancing, and Loan Funding, in that order. The same six links sit in the accounting page's own section list, directly under Closing. Someone who cannot see Accounting today still does not see the section. Loan Funding opens the existing Funding page, and only for someone who could already open Funding.
+
+**Status: In progress.** Not on TEST yet. Pull request: [PR 323](https://github.com/Johncoester/cla-portal-demo/pull/323).
+
+**What's built**
+
+- The file sidebar keeps Scheduling Details and the buyer's Closing appointment. Accounting is a separate section under the file links, for the same people who could open Accounting before.
+- Ledger is the existing fee ledger. Receipts, Disbursements, Account Balances, and Balancing are pages on the same Accounting address, filled from that test ledger. They are not a bank balance, a deposit, a printed check, or a wire.
+- Loan Funding is the existing Funding page. It stays a separate Funding link for someone who can open Funding but cannot see Accounting.
+- The Closing charges list (sections A through N) is unchanged. Fee ledger is no longer under CLA tools. It is Ledger under Accounting.
+
+**What's missing**
+
+- Not checked on TEST yet. No database change.
+
+**Links**
+
+- Spec: [docs/specs/accounting-sidebar.md](docs/specs/accounting-sidebar.md).
+- Source: Francis Santos, Nov 12 2026, 1:53 PM ET (Gmail 1a1d11bd4bd135f8), confirmed Nov 17 2026, 1:55 PM ET (Gmail 1a1eaddb3dcfc5d6), tracker FF-061.
+
+**Decisions**
+
+- Routes stay `#/deals/:id/accounting` and `#/deals/:id/funding`. The new pages are `?v=receipts`, `?v=disbursements`, `?v=balances`, and `?v=balancing` on the accounting page that already exists.
+- The figures are the test ledger the file already has. Nothing is read from a bank, and nothing is written to TEST or production.
+
+---
+
 ## Title production numbers flow (Qualia scenario, QFLOW-1)
 
 **How it should work.** A processor opens a file and enters the contract, the loan, the deposit, the agent fees, the payoffs, the fees and the tax proration once. Every figure then lands where Qualia puts it: the fee ledger, the Closing Disclosure summaries (K, L, M, N), cash to close, the ALTA statement and the balance check. One fixed purchase, entered by Claude on Qualia's own test file on Nov 15 2026, is the standard: price $100,000, loan $50,000, deposit $5,000, 1% listing commission, payoff $40,000, buyer fees $2,375, seller fees $700, county tax $3,650 a year with a July 1 settlement. Qualia's answers: cash to close $45,550.00, paid out to others $44,075.00, balanced. Outside connections (CPL, final policy, e-recording, bank accounts) are not part of this.
@@ -1170,7 +1199,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Add document lists Affidavit, Assignment of Mortgage or Lease, Deed, Deed of Trust, Lis Pendens, Power of Attorney, Release of Mortgage, UCC, Lease, and Easement.
 - Each document has pages, consideration, and taxable yes or no. Maryland and the District of Columbia ask primary residence, and a purchase asks first-time buyer, because those change the tax. Virginia and Florida do not ask, because they do not change the result. The file's primary residence and first-time buyer answers fill a new worksheet.
 - Calculate fees uses the existing CLA calculator, including the full county list from REC-CALC-6 (PR 296, merged). A county without its own rows uses the statewide rates. It does not keep a second rate table. Apply writes the recording fees, the lien certificate, and the transfer and recordation taxes. Title premiums stay as they are. A line changed by hand is kept.
-- A document the rate sheet does not price (an affidavit, a UCC, and the other four) is allowed. The screen says there is no fee for it and does not invent one.
+- A document the rate sheet does not price (an affidavit, a UCC, and the other four) is allowed. FF-091a shows Rate Not Set on that line instead of leaving the amount blank.
 - Samples checked against the calculator: Baltimore City, Fairfax, the District of Columbia, Miami-Dade, Hillsborough (statewide Florida rates), and a Maryland refinance.
 
 **What's still missing**
@@ -1190,7 +1219,40 @@ This file lists the portal's major features: how each one should work, how far a
 - Save the document answers on the calculated fee. No new database file.
 - A saved worksheet wins the next time the screen opens, so a deed of trust marked not a principal residence stays that way. The file's answers are the starting point when nothing has been saved.
 - Use the county list from REC-CALC-6 (PR 296, merged). A county in Maryland, Virginia, Florida, or the District of Columbia that is not named on a rate row of its own is still calculated, on the statewide rates.
+- Baltimore City who-pays, and the order of exemptions then the split, are FF-091b.
 - A blank county was treated as a missing address. That is FF-095.
+
+---
+
+## Baltimore City taxes and who pays (FF-091b)
+
+**How it should work.** On Taxes & Fees, the tax is figured first, exemptions come off that total, and then the amount is split. The start is the county's default on the rate sheet. Staff can change Buyer pays, Seller pays, or 50/50 split for the executed contract, except a line the law fixes. That line stays locked and says why. Baltimore City uses the questions the rate sheet can answer: price, loan, pages, taxable, primary residence (the owner-occupied exemption), and the first-time homebuyer exemption.
+
+**Status: In progress.** FF-091b. Francis Santos, Nov 17 2026, 1:55 PM ET (message 1a1eaddb3dcfc5d6) and Nov 17 2026, 3:55 PM ET (message 1a1eb4b8017fcabf). Not Live. No database file. Not applied on TEST.
+
+**What's built**
+
+- Baltimore City amounts follow the vendored rate sheet: transfer tax 1.5% up to $1,000,000 (2.1% above), with the $22,000 owner-occupant exemption only at $249,900 or less; recordation tax $5.00 per $500 up to $1,000,000 ($5.75 above), with the sheet's $22,000 owner-occupant exemption on that row. The exemption comes off before the split.
+- The county default is a 50/50 split. A first-time buyer who will live in the home pays no state transfer tax, and Maryland law keeps that line with the seller.
+- Staff can change the other taxes for the contract. The choice is saved on the calculated fee.
+- A blank primary residence does not take the exemption.
+
+**What's still missing**
+
+- Recording the mortgage at the same time as the deed, and any statutory exemption the rate sheet does not list. Those are not asked. Editable rate sheets are FF-091c.
+- Not checked on TEST. Not Live.
+
+**Links**
+
+- Spec: [docs/specs/taxes-fees-baltimore.md](docs/specs/taxes-fees-baltimore.md)
+- Source: Francis Santos, Nov 17 2026, 3:55 PM ET, message 1a1eb4b8017fcabf. Tracker FF-091b.
+
+**Decisions**
+
+- Figure the tax, take the exemption off the total, then allocate. Do not take the exemption from one side of a split.
+- The jurisdiction default is the rate sheet's Paid By. The contract choice is the control on Taxes & Fees.
+- Lock only a line the law fixes, and show the reason. Maryland state transfer tax for a first-time buyer who will live in the home stays with the seller (Tax-Property 13-203).
+- No new database file. No editable rate sheet in this change.
 
 ---
 
@@ -1225,6 +1287,38 @@ This file lists the portal's major features: how each one should work, how far a
 - A saved county wins over the ZIP and the city.
 - A ZIP in another state is explained. The calculator does not switch the file to that state.
 - No database file. Processors can already read the address columns. The rates stay in the vendored calculator.
+
+---
+
+## Rate Not Set on Taxes & Fees (FF-091a)
+
+**How it should work.** On Taxes & Fees, a document or recording line with no rate in CLA's rates is not left blank. The line says Rate Not Set and staff type the fee. That amount saves, comes back after a reload, counts in the totals, and is marked entered by hand. Calculating again keeps it unless staff choose to replace it.
+
+**Status: In review.** FF-091a. Francis Santos, Nov 17 2026, 1:55 PM ET, reply to the Taxes & Fees check (Gmail message 1a1eaddb3dcfc5d6), confirmed in the same day's recording-fees note (Gmail message 1a1eaed436b0de49, 2:12 PM ET). Pull request: [PR 324](https://github.com/Johncoester/cla-portal-demo/pull/324). Not Live. No database file. Not applied on TEST.
+
+**What's built**
+
+- An affidavit, assignment, lis pendens, UCC, lease, easement, or any other document the rate sheet does not price gets its own line: Recording fee, payee, and Rate Not Set. No amount is invented.
+- Staff type the fee on that line. Apply saves it. The charges row says Entered by hand. The amount is in the section total, the settlement statement, and the Closing Disclosure.
+- A blank fee is allowed and stays Rate Not Set, so the document is still visible. A value that is not a dollar amount stays on the form and says what to type.
+- Calculate fees again keeps a saved hand amount. Replace the amount entered by hand is the choice that lets a new figure take its place. Clearing it returns the line to Rate Not Set.
+
+**What's still missing**
+
+- Not checked on TEST. Not Live.
+- Baltimore City buyer, seller, or 50/50 transfer-tax choice is a different request from the same reply. It is not in this change.
+- The address and county message on Calculate (FF-095) is a different fix.
+
+**Links**
+
+- Spec: [docs/specs/taxes-fees-rate-not-set.md](docs/specs/taxes-fees-rate-not-set.md)
+- Source: Francis Santos, Nov 17 2026, 1:55 PM ET, message 1a1eaddb3dcfc5d6. The 2:12 PM ET note is message 1a1eaed436b0de49. Tracker FF-091a.
+- Pull request: [PR 324](https://github.com/Johncoester/cla-portal-demo/pull/324)
+
+**Decisions**
+
+- No new database file. The line is a calculated fee whose rate amount is empty. The typed fee is the amount on the charge, so a later calculation sees it as entered by hand and leaves it.
+- The typed fee is saved when Apply is clicked, including when the only change is that fee. Who pays stays as it was when the amount is replaced.
 
 ---
 
@@ -1447,7 +1541,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On Import Leads, Import Clients, and Import Notes, Preview shows one plain sentence and a reason on every row. If the preview call fails, the screen still shows those rows. It does not replace them with one generic failure. Nothing is saved by a preview.
 
-**Status: In progress.** Tracker row CRM-201. John Coester confirmed this on Nov 17 2026 as CRM import fix 5 of 5. Pull request 139 (closed, not merged, Nov 12 2026) was the earlier attempt to stop the preview error from becoming a server error. Not Live until the portal lead applies `supabase/migrations/20261125110000_crm_import_preview_row_errors.sql` on TEST and someone checks a preview there.
+**Status: In progress.** Tracker row CRM-201. John Coester confirmed this on Nov 17 2026 as CRM import fix 5 of 5. Pull request 139 (closed, not merged, Nov 12 2026) was the earlier attempt to stop the preview error from becoming a server error. The lead reported on Nov 17 2026 that `supabase/migrations/20261125110000_crm_import_preview_row_errors.sql` is applied on TEST. Not Live until someone checks a preview there.
 
 **What's built**
 
@@ -1457,8 +1551,8 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Not on TEST until the database file is applied there and someone previews a file. Do not mark Live before that.
-- The import page, the shell, and the hosted CRM module load at `202611242290`, which is above main's `202611242270`, so a browser fetches the new screen. Files this change does not edit stay at main's stamp.
+- The lead reported the database file is on TEST. Live still waits for a person to preview a file there. Do not mark Live before that.
+- The import page, the shell, and the hosted CRM module load at `202611242290`.
 
 **Links**
 
@@ -1468,9 +1562,100 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - Return the preview as data instead of raising P0004. A P0004 on one row during a preview is kept on that row. A commit still re-raises it, so one assert still rolls that chunk back.
-- Do not add a per-row helper, and do not change the lead email lookup.
+- Do not add a per-row helper. The chosen lead for a note stays the same. How that lookup runs is the speed follow-up below.
 
 ---
+
+## Admin fee Payable by (FF-093)
+
+**How it should work.** On a file, the Admin fee section has Payable by: Buyer, Seller, or Split (Buyer and Seller). The choice is saved on that file and is still there after a reload. Split means the buyer and the seller each pay half. An odd cent goes to the seller. The fee ledger, the settlement statement, and the Closing Disclosure use those same two amounts.
+
+**Status: In review.** Tracker FF-093. Francis Santos, email Nov 17 2026, 1:37 PM ET (Gmail msg 1a1eacd7648484d9). Medium. Pull request: [PR 327](https://github.com/Johncoester/cla-portal-demo/pull/327). Not Live. The database file is not applied on TEST.
+
+**What's built**
+
+- Agent fees, Edit, Admin fee: Payable by with Buyer, Seller, and Split (Buyer and Seller).
+- The choice is stored on the file. The next time the file opens, the same choice is selected.
+- Split fills half and half. A $395 fee is $197.50 and $197.50. A $10.01 fee is $5.00 and $5.01, and the extra cent is the seller's.
+- The fee ledger, the settlement statement, and Closing Disclosure section H put those amounts in the buyer and seller columns.
+- A choice that is not one of the three is refused in plain words. The form stays open with what was typed.
+
+**What's still missing**
+
+- Not on TEST until `supabase/migrations/20261125130000_admin_fee_payable_by.sql` is applied there and someone checks a file. Do not mark Live before that.
+- Place Order still takes the admin fee amount only. Payable by is on the file.
+- Taxes & Fees does not include this admin fee. It is the recording and transfer calculation.
+
+**Links**
+
+- Spec: [docs/specs/admin-fee-payable-by.md](docs/specs/admin-fee-payable-by.md)
+- Pull request: [PR 327](https://github.com/Johncoester/cla-portal-demo/pull/327)
+- Source: Francis Santos, Nov 17 2026, 1:37 PM ET, message 1a1eacd7648484d9. Tracker FF-093.
+
+**Decisions**
+
+- Split for an admin fee is half and half. It does not ask for two typed amounts. A commission Split still does.
+- An odd cent goes to the seller, the same way the recording calculator splits a tax.
+- No new columns. The fee row already stores the buyer amount and the seller amount for a split.
+- The shell cache stamp is 202611243082. Files this change does not edit keep main's stamps. CRM pages stay at 202611242290.
+
+---
+
+## Accounting Basic Info (FF-094)
+
+**How it should work.** In Accounting, the section that was called Contract Figures is named Basic Info. It shows Sales price, Loan amount, Closing date, Disbursement date, and Source of business. How it was obtained, Source for this figure, Seller credit, the second Earnest money block, Warranty, HOA, Condo, Deferred, and Historical tax are not on that screen. The stored values stay, so other screens that already use them keep working.
+
+**Status: In progress.** Tracker FF-094. Francis Santos, email Nov 17 2026, 1:37 PM ET (Gmail message 1a1eacd7648484d9), item 3. Medium. Pull request: [PR 321](https://github.com/Johncoester/cla-portal-demo/pull/321). Not Live. No database file. Not applied on TEST.
+
+**What's built**
+
+- The Accounting menu and the page heading say Basic Info. The five fields are the order's own figures, the same ones Place Order and Edit order details save. Saving does not open the old contract-term sheet, so a blank box cannot wipe a value that used to be on that sheet.
+- Earnest money stays as its own card. The duplicate block at the bottom of the old sheet is gone. Commissions stay as the read-only Agent fees summary. Seller credit stays under Charges, L/N. A refinance has no sales price here.
+- Sales, the sales team, and a transaction coordinator can read the form and cannot change it.
+- The menu link that also said Basic Info and opened the file overview is now labeled Order overview.
+
+**What's still missing**
+
+- Other Charges has a card for the warranty cap and payer, the HOA and condo name, monthly dues, certificate balance and date, and the deferred amount, schedule, and payee. Those boxes read and write the columns already on the order. Not Live until someone checks Basic Info and Other Charges on TEST. The old transfer-fee figure stays stored and is not on this card.
+
+**Links**
+
+- Spec: [docs/specs/accounting-basic-info.md](docs/specs/accounting-basic-info.md)
+- Pull request: [PR 321](https://github.com/Johncoester/cla-portal-demo/pull/321)
+
+**Decisions**
+
+- Remove the extra boxes from the screen only. Do not drop columns.
+- Basic Info writes the order. It does not save the hidden contract-term sheet.
+- TC Contract info is a different screen and stays as it is. The role walkthrough does not look for the words "Contract figures".
+
+---
+## CRM import note match speed
+
+**How it should work.** On Import Notes, Preview still attaches each note to the same lead or client as before. An open person wins over an archived one. If several are open, or none are, the earliest created date wins. The preview should come back quickly when the lead list is large, instead of looking through every lead once per note row.
+
+**Status: In progress.** No separate tracker row. The portal lead approved this as its own pull request on Nov 17 2026, after CRM-201 (PR 314). Not Live until the lead applies `supabase/migrations/20261125120000_crm_import_fast_lead_match.sql` on TEST. This pull request does not apply it.
+
+**What's built**
+
+- A note file matches every email in one pass. The tie-break is unchanged: open first, then the earliest created date. On a local scratch database with 110,000 leads, a 500-row note preview went from about 15 seconds to under half a second.
+- An index on the lower-case email, then that same tie-break, for leads and for clients. The migration creates it if it is missing. On TEST it should be built outside a transaction first so writes are not blocked.
+- The person duplicate check is unchanged. It already uses the open-email index and the phone index.
+
+**What's still missing**
+
+- Not on TEST until the lead applies the database file. Do not mark Live before that.
+- A people preview still inserts one person at a time. This change does not make that path set-based.
+
+**Links**
+
+- Spec: [docs/specs/crm-import-fast-lead-match.md](docs/specs/crm-import-fast-lead-match.md)
+- Builds on: [docs/specs/crm-import-preview-rows.md](docs/specs/crm-import-preview-rows.md)
+
+**Decisions**
+
+- Keep the chosen person exactly the same. Do not add a per-row helper. Do not change policies on deals, tasks, or profiles.
+- Do not build the index with CONCURRENTLY inside the migration file. That statement cannot run inside a transaction. The file tells the lead to build it concurrently first, then run the file.
 
 ## Salespeople on Place Order (FF-092)
 
@@ -1499,3 +1684,61 @@ This file lists the portal's major features: how each one should work, how far a
 
 - No database change. The saved field is still salesIds.
 - The search list is the same people the checkbox list showed.
+
+---
+
+## Aggregate adjustment (FF-096)
+
+**How it should work.** On Escrow, line 08 Aggregate adjustment, an amount typed as -$1,200, ($1,200), or $1,200 comes off the section total. It also comes off the borrower's totals, the Closing Disclosure, the settlement statement, and the fee ledger.
+
+**Status: In progress.** FF-096. Francis Santos, email Nov 17 2026, 2:20 PM ET (Gmail message 1a1eaf4ac2ad6496), Processor 2 on TEST. Not Live. No database file. Not applied on TEST.
+
+**What's built**
+
+- Escrow line 08 accepts a minus sign, parentheses, or a dollar amount. The line is stored as a positive borrower charge that lowers the total.
+- Homeowner's insurance $1,368.00 plus property taxes $3,568.00 minus an aggregate adjustment of $1,200.00 totals $3,736.00. The same $1,200.00 comes off the borrower's debits, cash to close, the Closing Disclosure, and the settlement statement.
+- A blank amount or $0.00 clears the adjustment. A value that is not an amount stays on the screen and says how to type it.
+- Saving the description first and the amount second still lowers the total. That second save used to add the $1,200.00.
+
+**What's still missing**
+
+- Not checked on TEST. Do not mark Live before someone saves -$1,200 on Escrow line 08 and sees the total go down. The line already saved on TEST stays as it is until it is saved again.
+- Other fee lines still do not take a minus sign.
+
+**Links**
+
+- Spec: [docs/specs/aggregate-adjustment.md](docs/specs/aggregate-adjustment.md)
+
+**Decisions**
+
+- No database file. The line was already allowed to lower the total. The save was not marking it that way.
+- A positive amount on line 08 lowers the total too. That is the line for the aggregate adjustment.
+
+---
+
+## Settlement and disbursement dates on File Overview (FF-097)
+
+**How it should work.** At the top of a file, next to the settlement date, staff who can edit the file can change that date and the disbursement date. The settlement date saves on the file, stays after a reload, and is the date tasks, Scheduling Details, Accounting, and prorations already use. Agents, buyers, and sellers see the dates and cannot change them. A buyer's "+ Propose a closing time" still does not write the file date.
+
+**Status: In progress.** Tracker FF-097. Francis Santos, Nov 17 2026, 2:31 PM ET (Gmail message 1a1eafe6e1a32dde), signed in as Processor 2. Pull request: [PR 328](https://github.com/Johncoester/cla-portal-demo/pull/328). No database file. Not Live until someone checks it on TEST.
+
+**What's built**
+
+- The file header shows Settlement date and Disbursement date side by side. A processor, a pre-processor, or an admin gets a date field. Other roles, and demo view, see text.
+- Saving writes the existing closing date and disbursement date. A blank disbursement date stays automatic.
+- Tasks, Scheduling Details, Accounting, and prorations read that same closing date.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- John's later change, locking the file date when a buyer proposes a closing time, is not built here.
+
+**Links**
+
+- Spec: [docs/specs/file-overview-dates.md](docs/specs/file-overview-dates.md)
+- Pull request: [PR 328](https://github.com/Johncoester/cla-portal-demo/pull/328)
+
+**Decisions**
+
+- No database change. TEST already lets staff who can edit the file update `closing_date`. The scheduling guard does not block that column.
+- The disbursement date uses the existing column. Blank means the automatic date.

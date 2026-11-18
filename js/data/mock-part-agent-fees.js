@@ -65,7 +65,8 @@ export function agentFeesPart(x) {
     return { sides, fees: groupAgentFees(rows) };
   };
   const jsonOf = (f) => { if (!f) return null; const o = { kind: f.kind, slot: f.slot, amount: f.amount, payer: f.payer };
-    if (f.kind === 'commission') { o.basis = f.basis; o.percent = f.percent; if (f.base) o.base = f.base; if (f.additional) o.additional = f.additional; if (f.payer === 'split') { o.splitBuyer = f.splitBuyer; o.splitSeller = f.splitSeller; } }
+    if (f.kind === 'commission') { o.basis = f.basis; o.percent = f.percent; if (f.base) o.base = f.base; if (f.additional) o.additional = f.additional; }
+    if (f.payer === 'split') { o.splitBuyer = f.splitBuyer; o.splitSeller = f.splitSeller; }
     if (f.kind === 'other') { o.description = f.description; o.paidTo = f.paidTo; } return o; };
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   // AF-5: keep the side's fee-ledger lines in step (one per fee; a removed fee's line is retired; a line changed by hand is left alone)
