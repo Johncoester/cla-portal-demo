@@ -2143,7 +2143,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On a Lead, Client, Deal, or Company, a panel on the left starts with Clients, Leads, Deals, Task, Meeting, Call. Janine set that order on Nov 18 2026, 5:23 PM ET. If the record already has that section, a click moves down the page to it. If it does not, the shortcut opens that module's list. After those six, Notes, Open Activities, Closed Activities, Emails, and Attachments stay in that order, and only when that section is already on the record. On a wide screen the panel stays put while the record scrolls. On a narrow screen the shortcuts wrap across the top.
 
-**Status: In progress.** Janine, CRM Feedback 28 item 3, confirmed Nov 16 2026. The first panel was [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337), merged as 3212c332. The Nov 18 order is a later pull request. No database file. Not Live until someone checks a record on TEST.
+**Status: In progress.** Janine, CRM Feedback 28 item 3, confirmed Nov 16 2026. The first panel was [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337), merged as 3212c332. The Nov 18 order is [PR 360](https://github.com/Johncoester/cla-portal-demo/pull/360). No database file. Not Live until someone checks a record on TEST.
 
 **What's built**
 
@@ -2166,6 +2166,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Spec: [docs/specs/crm-record-shortcuts.md](docs/specs/crm-record-shortcuts.md)
 - First panel: [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337)
+- Order change: [PR 360](https://github.com/Johncoester/cla-portal-demo/pull/360)
 
 **Decisions**
 

@@ -2,7 +2,7 @@
 
 **Requested by:** Janine, CRM Feedback 28 item 3. Confirmed Nov 16 2026. Order updated by Janine on Nov 18 2026, 5:23 PM ET (reply on the Nov 18 portal update, item 5).
 
-**Status:** In progress. The first panel was pull request [337](https://github.com/Johncoester/cla-portal-demo/pull/337), merged as 3212c332. The order change is a later pull request. Not Live. No database file. See [ROADMAP.md](../../ROADMAP.md).
+**Status:** In progress. The first panel was pull request [337](https://github.com/Johncoester/cla-portal-demo/pull/337), merged as 3212c332. The order change is pull request [360](https://github.com/Johncoester/cla-portal-demo/pull/360). Not Live. No database file. See [ROADMAP.md](../../ROADMAP.md).
 
 ## What the user sees
 
