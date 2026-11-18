@@ -1421,16 +1421,17 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On Admin, then User List, then Edit user, an Admin or Super admin can tick **Can own CRM records** for that person. It starts off for everyone, including admins. A ticked person, whatever their role, can be chosen as the owner of a lead, client, company, or deal, in Change owner, and in a spreadsheet import. Someone who is not ticked is not in those lists. A record that already names them still shows their name. Who can open the CRM does not change.
 
-**Status: In progress.** Tracker row CRM-OWNER-1, Requests tab row 315. John Coester asked on Nov 15 2026, 3:11 PM ET, and confirmed it on Nov 16 2026, 10:55 AM ET. Pull request: [PR 306](https://github.com/Johncoester/cla-portal-demo/pull/306). Database file `supabase/migrations/20261124140000_crm_owner_flag.sql`. Not applied on TEST. Not Live.
+**Status: In progress.** Tracker row CRM-OWNER-1, Requests tab row 315. John Coester asked on Nov 15 2026, 3:11 PM ET, and confirmed it on Nov 16 2026, 10:55 AM ET. Pull request: [PR 306](https://github.com/Johncoester/cla-portal-demo/pull/306). Database file `supabase/migrations/20261124140000_crm_owner_flag.sql`. The column and the guard are on TEST. Saving the tick is not, until CRM-OWNER-1b is applied. Not Live.
 
 **What's built**
 
 - The edit-user checkbox, saved only by an Admin or Super admin. The database refuses anyone else and writes the activity log (who, which user, old value, new value, when).
 - Owner lists for leads, clients, companies, deals, Change owner, and the import Owner column use that tick. Existing names stay on the record.
+- The save itself needs a separate grant. See CRM-OWNER-1b below.
 
 **What's still missing**
 
-- Not on TEST until the database file is applied there and someone checks the checkbox and an owner list. Do not mark Live before that.
+- Apply the CRM-OWNER-1b grant on TEST, then have a Super admin tick a user, save, and reload. Do not mark Live before that. An owner list still needs a person to check it on TEST.
 
 **Links**
 
@@ -1440,6 +1441,30 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Nobody is turned on by the database file. An admin ticks people after it is applied.
 - The tick does not change role access or who can open the CRM.
+
+## Saving "Can own CRM records" (CRM-OWNER-1b)
+
+**How it should work.** On Admin, then User List, then Edit user, an Admin or Super admin ticks **Can own CRM records** and chooses Save. The tick stays on after a reload. Anyone else sees the box locked and cannot change it. The database still refuses that person, and the activity log records a change that is allowed.
+
+**Status: In progress.** Tracker row CRM-OWNER-1b. Janine Santos reported it by email to John on Nov 18 2026, 9:36 AM ET, with a screenshot. She is an active Super admin. The toast was "This was not saved: your login is not allowed to change this." A read-only check on TEST showed `authenticated` can read `profiles.can_own_crm` and cannot update it. The guard trigger was already there. Pull request: [PR 342](https://github.com/Johncoester/cla-portal-demo/pull/342). Database file `supabase/migrations/20261125210000_crm_owner_flag_grant.sql`. Not applied on TEST. Not Live.
+
+**What's built**
+
+- The database grant so a signed-in user may update that one column. The guard trigger is unchanged: only an active Admin or Super admin can change the tick, and the activity log still records who, which user, the old value, and the new value.
+- The checkbox on Edit user is unchanged. It stays enabled for an Admin or Super admin.
+
+**What's still missing**
+
+- Apply the grant on TEST. Then sign in as a Super admin, tick the box for a user, save, and reload. The box should stay ticked. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/crm-owner-flag.md](docs/specs/crm-owner-flag.md)
+
+**Decisions**
+
+- The earlier database file is not edited. This file only grants the column.
+- The shell cache stamp is 202611245200, above main's 202611245100, so a saved copy of the shell is not reused.
 
 ## CRM custom view user criteria
 
