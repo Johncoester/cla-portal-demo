@@ -2233,7 +2233,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** Calls in the CRM menu opens a list of calls already saved on a lead, client, or company. The subject opens that call. If there are no calls, the page says so. It is not the full Calls module.
 
-**Status: In progress.** Janine, CRM Feedback 32 item 3, confirmed Nov 18 2026. No database file. Not Live until someone checks Calls on TEST.
+**Status: In progress.** Janine, CRM Feedback 32 item 3, confirmed Nov 18 2026. Pull request: [PR 356](https://github.com/Johncoester/cla-portal-demo/pull/356). No database file. Not Live until someone checks Calls on TEST.
 
 **What's built**
 
@@ -2250,6 +2250,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/crm-calls-menu.md](docs/specs/crm-calls-menu.md)
+- Pull request: [PR 356](https://github.com/Johncoester/cla-portal-demo/pull/356)
 
 **Decisions**
 
