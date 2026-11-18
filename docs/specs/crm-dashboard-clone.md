@@ -4,7 +4,7 @@
 
 **Tracker:** Feedback 31 item 2. No separate tracker id is stored in this repo.
 
-**Status:** In progress. Not Live until this is merged and someone checks it on TEST. No database file.
+**Status:** In progress. Pull request: [PR 357](https://github.com/Johncoester/cla-portal-demo/pull/357). Not Live until this is merged and someone checks it on TEST. No database file.
 
 ## What the user sees
 

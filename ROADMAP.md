@@ -2233,7 +2233,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** Clone on a CRM dashboard makes a new dashboard named like "Lead dashboard (copy)". Every chart comes with it: the same settings, filters, order, and size. The original dashboard stays as it was. A hidden chart is not copied. The copy is Only me.
 
-**Status: In progress.** Janine confirmed this on Nov 18 2026, CRM Feedback 31 item 2. No database file. Not Live until someone checks Clone on TEST.
+**Status: In progress.** Janine confirmed this on Nov 18 2026, CRM Feedback 31 item 2. Pull request: [PR 357](https://github.com/Johncoester/cla-portal-demo/pull/357). No database file. Not Live until someone checks Clone on TEST.
 
 **What's built**
 
@@ -2250,6 +2250,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/crm-dashboard-clone.md](docs/specs/crm-dashboard-clone.md)
+- Pull request: [PR 357](https://github.com/Johncoester/cla-portal-demo/pull/357)
 
 **Decisions**
 
