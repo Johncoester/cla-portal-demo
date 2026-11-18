@@ -2233,7 +2233,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** Each chart on a CRM dashboard has Add to Home. The chart then shows on that person's CRM Home, with Refresh, Rename, and Remove. Dragging changes the order on Home. Rename and Remove do not change the chart on the dashboard. Remove only takes it off Home. There is no resize. Each person has their own Home charts.
 
-**Status: In progress.** Janine confirmed this on Nov 18 2026, CRM Feedback 31 item 1. A database file is included and has not been applied. Not Live until the lead applies it on TEST and someone checks Home there. Not merged.
+**Status: In progress.** Janine confirmed this on Nov 18 2026, CRM Feedback 31 item 1. Pull request: [PR 359](https://github.com/Johncoester/cla-portal-demo/pull/359). A database file is included and has not been applied. Not Live until the lead applies it on TEST and someone checks Home there. Not merged.
 
 **What's built**
 
@@ -2251,6 +2251,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/crm-home-charts.md](docs/specs/crm-home-charts.md)
+- Pull request: [PR 359](https://github.com/Johncoester/cla-portal-demo/pull/359)
 
 **Decisions**
 
