@@ -74,15 +74,14 @@ for (const file of moneyFiles) {
   try { execFileSync('git', ['diff', '--exit-code', 'HEAD', '--', file], { cwd: root, stdio: 'ignore' }); } catch (e) { dirty = true; }
   ok(!dirty, file + ' is unchanged');
 }
-// TC-4 adds the transaction coordinator contact type in constants.js and restamps modules that import that list.
-// The money helpers in constants.js stay as they were. The other money files change only a cache stamp.
-const stampOnly = (file) => {
-  const diff = execFileSync('git', ['diff', '-U0', 'HEAD', '--', file], { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'));
-  return diff.length > 0 && diff.every((l) => /\?v=202611\d+/.test(l));
-};
+// Compared with main, not HEAD: CI checks out the pull request already committed, so a diff against HEAD is empty.
+// TC-4 restamps modules that import the contact type list. Money helpers in constants.js stay as they were on main.
+const mainRef = execFileSync('git', ['rev-parse', '--verify', 'origin/main'], { cwd: root, encoding: 'utf8' }).trim();
+const diffLines = (file) => execFileSync('git', ['diff', '-U0', mainRef, 'HEAD', '--', file], { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'));
+const stampOnly = (file) => { const diff = diffLines(file); return diff.length > 0 && diff.every((l) => /\?v=202611\d+/.test(l)); };
 ok(stampOnly('js/data/supabase-tc.js') && stampOnly('js/data/nov5-rules.js') && stampOnly('js/data/county-auto.js'), 'supabase-tc, nov5-rules, and county-auto change only a cache stamp');
 const moneySlice = (src) => src.slice(src.indexOf('export const moneyClean'));
-ok(moneySlice(execFileSync('git', ['show', 'HEAD:js/data/constants.js'], { cwd: root, encoding: 'utf8' })) === moneySlice(read('js/data/constants.js')), 'money helpers in constants.js are unchanged');
+ok(moneySlice(execFileSync('git', ['show', mainRef + ':js/data/constants.js'], { cwd: root, encoding: 'utf8' })) === moneySlice(read('js/data/constants.js')), 'money helpers in constants.js are unchanged');
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
