@@ -1871,7 +1871,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On CRM Home, every task view (Open, Overdue, Closed, Today + Overdue, and the rest of that menu) shows only tasks assigned to the person who is signed in. An admin sees only their own tasks here too. Admins will later get separate Tasks, Meetings, and Calls modules. Those are not part of this change.
 
-**Status: In progress.** Janine confirmed this on Nov 16 2026, CRM Feedback 29 item 4. No database file. Not Live until someone checks CRM Home on TEST.
+**Status: In progress.** Janine confirmed this on Nov 16 2026, CRM Feedback 29 item 4. Pull request: [PR 336](https://github.com/Johncoester/cla-portal-demo/pull/336). No database file. Not Live until someone checks CRM Home on TEST.
 
 **What's built**
 
@@ -1888,6 +1888,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/crm-home-my-tasks.md](docs/specs/crm-home-my-tasks.md)
+- Pull request: [PR 336](https://github.com/Johncoester/cla-portal-demo/pull/336)
 
 **Decisions**
 
