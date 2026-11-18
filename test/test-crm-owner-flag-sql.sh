@@ -12,6 +12,22 @@ trap cleanup EXIT
 "${PSQL[@]}" -d "$DB" -f "$ROOT/test/sql/crm-owner-flag-harness.sql" >/tmp/crm-owner-harness.out
 "${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261124140000_crm_owner_flag.sql" >/tmp/crm-owner-migrate.out
 "${PSQL[@]}" -d "$DB" -f "$ROOT/test/sql/crm-owner-flag-checks.sql" >/tmp/crm-owner-checks.out
+"${PSQL[@]}" -d "$DB" -f "$ROOT/test/sql/crm-owner-flag-grant-setup.sql" >/tmp/crm-owner-grant-setup.out
+"${PSQL[@]}" -d "$DB" -f "$ROOT/test/sql/crm-owner-flag-grant-before.sql" >/tmp/crm-owner-grant-before.out
+"${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261125210000_crm_owner_flag_grant.sql" >/tmp/crm-owner-grant-migrate.out
+"${PSQL[@]}" -d "$DB" -f "$ROOT/test/sql/crm-owner-flag-grant-checks.sql" >/tmp/crm-owner-grant-checks.out
+"${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/rollbacks/20261125210000_crm_owner_flag_grant.sql" >/tmp/crm-owner-grant-rollback.out
+priv="$("${PSQL[@]}" -d "$DB" -tAc "select has_column_privilege('authenticated','public.profiles','can_own_crm','UPDATE')")"
+trig="$("${PSQL[@]}" -d "$DB" -tAc "select count(*) from pg_trigger where tgname = 'profiles_can_own_crm_guard' and tgrelid = 'public.profiles'::regclass and not tgisinternal")"
+col="$("${PSQL[@]}" -d "$DB" -tAc "select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'can_own_crm'")"
+if [ "$priv" != "f" ] && [ "$priv" != "false" ]; then
+  echo "FAIL rollback left update on can_own_crm (got $priv)" >&2
+  exit 1
+fi
+if [ "$trig" != "1" ] || [ "$col" != "1" ]; then
+  echo "FAIL rollback removed the tick column or its guard (trigger $trig column $col)" >&2
+  exit 1
+fi
 "${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/rollbacks/20261124140000_crm_owner_flag.sql" >/tmp/crm-owner-rollback.out
 gone="$("${PSQL[@]}" -d "$DB" -tAc "select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'can_own_crm'")"
 if [ "$gone" != "0" ]; then
