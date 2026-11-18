@@ -169,7 +169,7 @@ const ORDER_FIGURES = {
   // The buyer still gets credit for the whole deposit (L.01). The seller already has this money, so it comes off the seller's proceeds, and
   // it never reaches CLA's escrow account, so it comes off the funds CLA expects to receive.
   excessDeposit: { description: 'Excess Deposit', from: 'seller', to: 'deposit', purchaseOnly: true,
-    note: 'Deposit already paid to the seller. From the order. Change it under Accounting, Contract figures, Earnest money.' },
+    note: 'Deposit already paid to the seller. From the order. Change it under Accounting, Basic Info, Earnest money.' },
 };
 export function manualOrderFigure(fees, key) {
   const name = new RegExp('^' + ORDER_FIGURES[key].description.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i');
@@ -221,7 +221,7 @@ export function ledgerTotals(deal, fees) {
     }
   }
   if (!refi && !(orderRaw(deal, 'salesPrice') > 0)) issues.push('Enter the sale price on File Overview. This purchase is not balanced until the sale price is on the order.');
-  if (!refi && orderRaw(deal, 'excessDeposit') > (orderRaw(deal, 'deposit') || 0)) issues.push('The deposit already paid to the seller is more than the deposit on the order. Fix it under Contract figures, Earnest money.');
+  if (!refi && orderRaw(deal, 'excessDeposit') > (orderRaw(deal, 'deposit') || 0)) issues.push('The deposit already paid to the seller is more than the deposit on the order. Fix it under Basic Info, Earnest money.');
   if (orderRaw(deal, 'loanAmount') == null) issues.push('Enter the loan amount on File Overview. Use 0 if this file has no loan. This file is not balanced until the loan amount is on the order.');
   for (const [key, spec] of Object.entries(ORDER_FIGURES)) {
     if (refi && spec.purchaseOnly) continue;
