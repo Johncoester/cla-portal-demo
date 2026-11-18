@@ -143,6 +143,34 @@ export function wireCalls(root, api, refresh, ctx, { logEmail } = {}) {
     const call = await api.getCrmCall(cb.dataset.markComplete); completeModal(api, call, () => refresh()); })));
 }
 
+// ---------- calls list (#/crm/calls) ----------
+// Janine, CRM Feedback 32 item 3, confirmed Nov 18 2026. The CRM menu linked to #/crm/calls, and only a single call
+// (#/crm/calls/<id>) had a page. This list is the calls already stored (one existing read). It is not a new Calls module.
+const CALL_ID = /^[A-Za-z0-9_-]{1,80}$/;
+export async function callsList({ api, me }) {
+  if (!api || typeof api.listCrmModuleRows !== 'function') throw new Error('Calls could not be loaded. Open CRM Home and try again.');
+  const rows = await api.listCrmModuleRows('calls');
+  const list = (Array.isArray(rows) ? rows : []).filter((a) => a && CALL_ID.test(String(a.id || ''))).sort((a, b) => {
+    const sa = String(a.callStart || a.occurredOn || a.createdAt || '');
+    const sb = String(b.callStart || b.occurredOn || b.createdAt || '');
+    return sb.localeCompare(sa) || String(a.subject || a.name || '').localeCompare(String(b.subject || b.name || ''));
+  });
+  const dash = html`<span class="muted">&mdash;</span>`;
+  const text = (v) => (v == null || v === '' ? dash : v);
+  const body = html`${head('CRM: Calls', me)}${tabs('calls')}
+    <p class="muted small">Calls already saved on a lead, client, or company. Open a call to see its details.</p>
+    <div class="card" data-calls-list style="overflow-x:auto">
+      <table class="tbl"><thead><tr><th>Subject</th><th>Call Type</th><th>Call Start Time</th><th>Status</th><th>Call Owner</th></tr></thead>
+      <tbody>${list.length ? list.map((a) => html`<tr data-call-row="${a.id}">
+        <td><a href="#/crm/calls/${a.id}" data-call-link="${a.id}">${a.subject || a.name || 'Call'}</a></td>
+        <td>${text(a.callType)}</td>
+        <td>${a.callStart || a.occurredOn ? when(a.callStart || a.occurredOn) : dash}</td>
+        <td data-call-status="${a.callStatus || ''}">${text(a.callStatus)}</td>
+        <td>${text(a.ownerName || a.createdByName)}</td>
+      </tr>`) : html`<tr data-calls-empty><td colspan="5" class="muted">No calls yet.</td></tr>`}</tbody></table></div>`;
+  return { title: 'CRM Calls', crumbs: [['CRM', '#/crm'], ['Calls']], body };
+}
+
 // ---------- call detail page (#/crm/calls/<id>) ----------
 export async function callPage({ api, me, params, refresh, cfg }) {
   const a = await api.getCrmCall(params.id); const back = a.parentLink;

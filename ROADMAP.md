@@ -2227,3 +2227,32 @@ This file lists the portal's major features: how each one should work, how far a
 - No database change. The task already stores the lead or client id. That id is not a foreign key, so the name cannot be embedded in the task read.
 - A list that is only leads, or only clients, uses one extra read. A list with both uses one read for each table. It never reads once per task.
 
+---
+
+## CRM Calls menu link (Feedback 32 item 3)
+
+**How it should work.** Calls in the CRM menu opens a list of calls already saved on a lead, client, or company. The subject opens that call. If there are no calls, the page says so. It is not the full Calls module.
+
+**Status: In progress.** Janine, CRM Feedback 32 item 3, confirmed Nov 18 2026. No database file. Not Live until someone checks Calls on TEST.
+
+**What's built**
+
+- Calls in the CRM menu opens the list instead of saying the page does not exist.
+- The list is one read of the calls already stored. Newer calls are first. Each subject opens the call that was already there.
+- A missing call says it was not found and goes back to the list. A processor can see the list.
+- The other CRM menu links still open their pages.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- Scheduling, logging, and completing calls from this list are later, with the Calls, Meetings, and Tasks modules.
+
+**Links**
+
+- Spec: [docs/specs/crm-calls-menu.md](docs/specs/crm-calls-menu.md)
+
+**Decisions**
+
+- No database change. The list uses the calls already stored. It does not add a table or a query.
+- The full Calls module is not part of this change. The menu opens the short list so the link is not a dead end.
+
