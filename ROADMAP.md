@@ -1470,7 +1470,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On Admin, then User List, each person has a **CRM owner** checkbox beside **Admin**. It is the same tick as **Can own CRM records** on Edit user. An Admin or Super admin can turn it on or off from the row, without opening Edit. The Edit checkbox stays, and the two stay in step. Anyone else sees the box locked. A change is written to the activity log the same way as Edit. If the save fails, the box goes back and the message says what to do, in plain words.
 
-**Status: In progress.** Tracker row 369, CRM-OWNER-2. John Coester asked in chat on Nov 18 2026, 11:49 AM ET, with a screenshot of Admin, then User List. No database file. The column and the update grant from CRM-OWNER-1 and CRM-OWNER-1b are reused. Not Live until an Admin ticks a row on TEST, reloads, and sees the same tick on Edit user.
+**Status: In progress.** Tracker row 369, CRM-OWNER-2. John Coester asked in chat on Nov 18 2026, 11:49 AM ET, with a screenshot of Admin, then User List. Pull request: [PR 348](https://github.com/Johncoester/cla-portal-demo/pull/348). No database file. The column and the update grant from CRM-OWNER-1 and CRM-OWNER-1b are reused. Not Live until an Admin ticks a row on TEST, reloads, and sees the same tick on Edit user.
 
 **What's built**
 

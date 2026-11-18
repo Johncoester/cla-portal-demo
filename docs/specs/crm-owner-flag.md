@@ -44,7 +44,7 @@ The shell cache stamp is 202611245200.
 
 **Requested by:** John Coester, chat, Nov 18 2026, 11:49 AM ET, with a screenshot of Admin, then User List.
 
-**Tracker:** Requests tab, row 369, CRM-OWNER-2.
+**Tracker:** Requests tab, row 369, CRM-OWNER-2. Pull request [348](https://github.com/Johncoester/cla-portal-demo/pull/348).
 
 On Admin, then User List, each row has a **CRM owner** checkbox in the column beside **Admin**. It is the same tick as **Can own CRM records** on Edit user. Ticking it on the row saves immediately. Opening Edit shows the same tick, and saving Edit updates the row.
 
