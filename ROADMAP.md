@@ -2227,3 +2227,33 @@ This file lists the portal's major features: how each one should work, how far a
 - No database change. The task already stores the lead or client id. That id is not a foreign key, so the name cannot be embedded in the task read.
 - A list that is only leads, or only clients, uses one extra read. A list with both uses one read for each table. It never reads once per task.
 
+---
+
+## Add dashboard charts to CRM Home (Feedback 31 item 1)
+
+**How it should work.** Each chart on a CRM dashboard has Add to Home. The chart then shows on that person's CRM Home, with Refresh, Rename, and Remove. Dragging changes the order on Home. Rename and Remove do not change the chart on the dashboard. Remove only takes it off Home. There is no resize. Each person has their own Home charts.
+
+**Status: In progress.** Janine confirmed this on Nov 18 2026, CRM Feedback 31 item 1. A database file is included and has not been applied. Not Live until the lead applies it on TEST and someone checks Home there. Not merged.
+
+**What's built**
+
+- Add to Home on every chart of a dashboard the person can open.
+- Home shows those charts after the rest of the page, with Refresh, Rename, Remove, and drag to reorder.
+- The Home name and the Home order are stored for that person only. The dashboard chart is unchanged.
+- If the person has no Home charts, Home does not ask again during that browser tab, and it does not load chart numbers.
+- If the database file is not applied yet, Add to Home is hidden.
+
+**What's still missing**
+
+- The database file is not applied on TEST. Do not mark Live before that, and not before someone checks it there.
+- Resizing was asked not to be built.
+
+**Links**
+
+- Spec: [docs/specs/crm-home-charts.md](docs/specs/crm-home-charts.md)
+
+**Decisions**
+
+- List column preferences cannot hold this. Those rows are only the lead, client, company, and deal lists. A new table stores the chart id, the Home name, and the order.
+- The file is not applied by this change.
+

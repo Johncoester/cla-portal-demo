@@ -18,6 +18,7 @@ import { canOwnCrmRecords } from './crm-owner.js?v=202611241300';
 import { dealDisplayName } from './nov5-rules.js?v=202611245800';
 import { roleAllowed } from './role-access.js?v=202611100100';
 import { referralLabel, REFERRALS } from './place-order.js?v=202611245800';
+import { cleanHomeTitle } from './crm-home-charts.js?v=202611247000';
 
 export const SEND_NOTE = 'Not sent: Gmail is not connected yet. The email was saved on this record only.';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -228,6 +229,15 @@ export function crmNov3bPart(x, h) {
   const reportOut = (u, r) => ({ ...clone(r), ...(Object.prototype.hasOwnProperty.call(r, 'bucket') ? { bucket: calendarBucket(r.bucket) } : {}), filters: withPresetKeys(r.filters), moduleLabel: moduleName(r.module), folderName: folderName(r.folderId), personal: isPersonalFolder(r.folderId), createdByName: nameOf(r.createdBy), modifiedByName: r.modifiedBy ? nameOf(r.modifiedBy) : '',
     canEdit: reportEditable(u, r), canExport: !!u.isAdmin, retired: !!r.retiredAt });
   const asDef = (u, input, cfg) => (typeof input === 'string' ? reportOf(u, input) : cleanReport(u, { name: 'Unsaved report', ...input }, null, cfg));
+  const homeMissing = (id, title) => ({ id, name: title || 'Chart', sourceName: '', homeTitle: title || '', missing: true, type: 'chart', height: 'm', data: {}, config: { chartType: 'column' }, error: 'This chart is no longer on a dashboard you can open. Remove it from Home.' });
+  function homeChartView(u, pin, cfg) {
+    const title = String(pin.title || '').trim();
+    const c = db().crmDashComponents.find((z) => z.id === pin.componentId);
+    const d = c && db().crmDashboards.find((z) => z.id === c.dashboardId);
+    if (!c || c.retiredAt || !d || !dashboardVisible(u, d)) return homeMissing(pin.componentId, title);
+    const view = compOut(u, c, d, cfg);
+    return { ...view, id: c.id, name: title || c.name, sourceName: c.name, homeTitle: title, missing: false, dashboardName: d.name };
+  }
 
   const api = {
     // ---------- search ----------
@@ -408,6 +418,54 @@ export function crmNov3bPart(x, h) {
     // Export (CSV): Admin and Super admin only (Janine, video 10)
     async exportCrmReport(input) { const u = crmUser(); if (!u.isAdmin) fail('Only an Admin or Super admin can export reports.'); const cfg = cfgFor(u); const def = asDef(u, input, cfg); const out = execReport(u, def, cfg);
       return { name: `${String(def.name || 'report').replace(/[^\w .-]+/g, '_').slice(0, 80)}.csv`, csv: reportCsv(out, out.groupFields) }; },
+
+    // Home copies of dashboard charts. The chart on the dashboard is never renamed or removed from here.
+    // An empty pin list returns before any chart is calculated.
+    async listCrmHomeCharts({ countsOnly = false } = {}) {
+      const u = crmUser();
+      const pins = (db().crmHomeCharts || []).filter((p) => p.userId === u.id).sort((a, b) => a.position - b.position || String(a.componentId).localeCompare(String(b.componentId)));
+      if (!pins.length) return { available: true, charts: [] };
+      if (countsOnly) return { available: true, charts: pins.map((p) => ({ id: p.componentId })) };
+      const cfg = cfgFor(u);
+      return { available: true, charts: pins.map((p) => homeChartView(u, p, cfg)) };
+    },
+    async addCrmHomeChart(componentId) {
+      const u = crmUser(); const id = str(componentId, 60);
+      const c = db().crmDashComponents.find((z) => z.id === id);
+      const d = c && db().crmDashboards.find((z) => z.id === c.dashboardId);
+      if (!c || c.retiredAt || !d || !dashboardVisible(u, d)) fail('That chart is not on a dashboard you can open.');
+      const bag = (db().crmHomeCharts ||= []);
+      if (bag.some((p) => p.userId === u.id && p.componentId === c.id)) fail('That chart is already on your Home.');
+      const mine = bag.filter((p) => p.userId === u.id);
+      const position = mine.reduce((n, p) => Math.max(n, Number(p.position) || 0), -1) + 1;
+      bag.push({ userId: u.id, componentId: c.id, title: '', position });
+      save(); return { id: c.id, name: c.name, homeTitle: '', position };
+    },
+    async renameCrmHomeChart(componentId, title) {
+      const u = crmUser(); const name = cleanHomeTitle(title);
+      const row = (db().crmHomeCharts || []).find((p) => p.userId === u.id && p.componentId === str(componentId, 60));
+      if (!row) fail('That chart is not on your Home.');
+      row.title = name; save(); return { id: row.componentId, homeTitle: name };
+    },
+    async removeCrmHomeChart(componentId) {
+      const u = crmUser(); const id = str(componentId, 60);
+      const bag = db().crmHomeCharts || [];
+      const i = bag.findIndex((p) => p.userId === u.id && p.componentId === id);
+      if (i < 0) fail('That chart is not on your Home.');
+      bag.splice(i, 1); save(); return { ok: true, id };
+    },
+    async reorderCrmHomeCharts(ids = []) {
+      const u = crmUser(); const bag = (db().crmHomeCharts || []).filter((p) => p.userId === u.id);
+      const list = [...new Set((Array.isArray(ids) ? ids : []).map((id) => str(id, 60)).filter(Boolean))];
+      if (!list.length) return { ok: true };
+      list.forEach((id, i) => { const row = bag.find((p) => p.componentId === id); if (!row) fail('Those charts are not on your Home.'); row.position = i; });
+      save(); return { ok: true };
+    },
+    async refreshCrmHomeChart(componentId) {
+      const u = crmUser(); const row = (db().crmHomeCharts || []).find((p) => p.userId === u.id && p.componentId === str(componentId, 60));
+      if (!row) fail('That chart is not on your Home.');
+      return homeChartView(u, row, cfgFor(u));
+    },
   };
   return { api, rowsOf, relMap };
 }
