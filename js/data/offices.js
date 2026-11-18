@@ -5,7 +5,7 @@
  * A name keeps "(sample)" only when the address was not on that page. Latitude / longitude are the Census geocoder
  * address match when it returned one (coordSource "address"); otherwise the Census ZIP center (coordSource "zip").
  * An office is never deleted: it is retired (active = false). A retired office stays on closings that already use it but cannot be picked again.
- * FF-101d: usedForSettlements marks offices offered on Schedule the Settlement / Scheduling Details. Admin (FF-102) will edit that flag.
+ * FF-101d: usedForSettlements marks offices offered on Schedule the Settlement / Scheduling Details. Admin (FF-102) edits that flag on Admin > Offices.
  * Closest office for a property (Matt): straight-line miles from the property's latitude/longitude, or from its ZIP center when it has no point.
  * An office is placed the same way (its own latitude/longitude, else its ZIP center). Then, if a distance cannot be worked out: an active office
  * in the same state (the state's main office first), then the main office (lowest sort order), then any active office. Staff can still pick another. */
@@ -67,7 +67,8 @@ export function cleanOffice(input = {}) {
   const errs = []; const v = {
     name: t(input.name, 120), addressLine1: t(input.addressLine1, 120), addressLine2: t(input.addressLine2, 120), city: t(input.city, 80),
     state: t(input.state, 2).toUpperCase(), zip: t(input.zip, 10), phone: t(input.phone, 20), email: t(input.email, 200).toLowerCase(),
-    isMainOfficeForState: input.isMainOfficeForState === true || input.isMainOfficeForState === 'true' || input.isMainOfficeForState === 'on' };
+    isMainOfficeForState: input.isMainOfficeForState === true || input.isMainOfficeForState === 'true' || input.isMainOfficeForState === 'on',
+    usedForSettlements: input.usedForSettlements === true || input.usedForSettlements === 'true' || input.usedForSettlements === 'on' };
   const coord = (raw) => { if (raw == null || String(raw).trim() === '') return null; const n = Number(raw); return Number.isFinite(n) ? n : NaN; };
   v.latitude = coord(input.latitude); v.longitude = coord(input.longitude);
   if (Number.isNaN(v.latitude) || Number.isNaN(v.longitude)) errs.push('Latitude and longitude must be numbers (or leave both blank).');

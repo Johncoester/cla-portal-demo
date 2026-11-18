@@ -394,8 +394,8 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- Admin UI to tick the flag (FF-102, separate PR, migration `20261125310000`).
 - Not applied on TEST. Not checked on TEST yet.
+- Admin UI to tick the flag is FF-102 (separate PR).
 
 **Links**
 
@@ -406,6 +406,38 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Drive the picker from the offices table flag, not hard-coded names in the page (John, Nov 18).
 - Notes' "Talson" / "Rockwell" mean Towson / Rockville.
+- Do not apply the database file in this pull request.
+
+---
+
+
+## Admin Offices — Used for settlements (FF-102)
+
+**How it should work.** On Admin > Offices, an Admin or Super admin can tick **Used for settlements** on an office. That is the only way staff turn the flag on or off after FF-101d seeds Towson, Rockville and Bethesda. The settlement pickers (Schedule the Settlement, Scheduling Details, party link) keep using FF-101d's filtered list; this change does not duplicate that picker.
+
+**Status: In progress.** Tracker FF-102. John Coester via Francis Feedback, Nov 18 2026, 2:14 PM ET. Pull request: [PR 354](https://github.com/Johncoester/cla-portal-demo/pull/354). Rebased onto FF-101d (`cursor/ff-101d-settlement-offices-906a` / PR 353). Database file `supabase/migrations/20261125310000_office_used_for_settlements.sql` is not applied. Not Live.
+
+**What's built**
+
+- Admin > Offices checkbox and list chip for Used for settlements.
+- `save_office` takes `p_used_for_settlements` (Admin / Super admin only). Direct insert/update/delete on `public.offices` revoked for portal roles; select stays.
+- Reuses FF-101d picker code. No second column add or seed.
+- Cache stamp 202611246700.
+
+**What's still missing**
+
+- Apply `20261125310000` on TEST after `20261125300000` (FF-101d).
+- Not checked on TEST yet.
+
+**Links**
+
+- Spec: [docs/specs/admin-offices.md](docs/specs/admin-offices.md). Tracker FF-102.
+- Related: FF-101d (settlement office flag + picker), MF-010 (nearest office).
+
+**Decisions**
+
+- Extend the existing Admin > Offices page; do not add a second offices screen (John / AGENTS.md).
+- Column and seed stay in FF-101d; this PR only owns the Admin save path and write protection.
 - Do not apply the database file in this pull request.
 
 ---

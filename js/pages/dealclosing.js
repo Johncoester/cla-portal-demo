@@ -4,7 +4,7 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, toast, fmtDate, f
 import { schedulingPanelHtml, wireSchedulingPanel } from './scheduling-panel.js?v=202611245800';
 import { settlementAgentChoices } from '../data/scheduling-details.js?v=202611246600';
 import { runsOrders, viewOnly, isProcessor, isClient, sideOf, isViewOnly, CLOSING_LOCATIONS } from '../data/constants.js?v=202611245800';
-import { placeText, OFFICE_LOCATION } from '../data/cla-offices.js?v=202611246600';
+import { placeText, OFFICE_LOCATION } from '../data/cla-offices.js?v=202611246700';
 import { SIGNING_METHODS, COUNTRIES, stateName, sideWord, canManageClosingLocations, canScheduleClosing } from '../data/closing-location.js?v=202611245800';
 import { officeOptionLabel, MANUAL_OFFICE, sideFromDeal, cleanSideSigning, sidePatch, scheduledPlace, cleanManualAddress, composeAddress, PLACE_KINDS, SIGN_STATUSES, TYPED_ADDRESS, MOBILE_NOTARY } from '../data/closing-side.js?v=202611245800';
 import { US_STATE_NAMES } from '../data/constants.js?v=202611245800';
