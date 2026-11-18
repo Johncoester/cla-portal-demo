@@ -106,9 +106,12 @@ export function mountIntakeForm(root, { api, t, afterSave }) {
   if (addMortgage) addMortgage.addEventListener('click', () => { const rows = $('[data-mortgage-rows]', form); const i = $$('[data-mortgage-row]', rows).length;
     rows.insertAdjacentHTML('beforeend', `<div class="form-grid" data-mortgage-row="${i}"><label>Lender<input data-mlender></label><label>Phone<input data-mphone type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone maxlength="12"></label><label>Loan number<input data-mloan maxlength="30" autocomplete="off"></label><label>Type<input data-mtype></label></div>`); });
   // FF-101b: keep Total commission = commission (Agent fees) + broker fee as the agent types
+  // Use querySelector (not form.elements) so Expand all works in the linkedom test environment too.
   const syncTotal = () => {
-    const shown = form.elements.commission_shown; const broker = form.elements.broker_fee; const total = form.elements.total_commission;
+    const total = form.querySelector('[name="total_commission"]');
     if (!total) return;
+    const shown = form.querySelector('[name="commission_shown"]');
+    const broker = form.querySelector('[name="broker_fee"]');
     const base = shown ? shown.value : formatCommissionMoney(moneyAmountOrZero(t.commissionFromFees));
     if (shown && t.commissionFromFees != null) shown.value = formatCommissionMoney(moneyAmountOrZero(t.commissionFromFees));
     total.value = totalCommissionAmount(base, broker ? broker.value : '');
