@@ -1267,7 +1267,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Not applied on TEST. Not Live.
 - Linking a coordinator does not put them on a file. That is TC-3 (tracker row 367).
 - A contact type named Transaction coordinator is TC-4. This list does not add that type.
-- A coordinator who only has this link, and no other role on the file, still does not get the agent's side when they sign in. That is TC-3.
+- A coordinator's login acting as their agent is TC-3.
 
 **Links**
 
@@ -1279,6 +1279,40 @@ This file lists the portal's major features: how each one should work, how far a
 - The link is stored on the agent contact, so an agent with no portal login can still have coordinators.
 - The agent edits the list on their own profile, because that page is already theirs. Staff who run orders edit it from Order Contacts and from User List. Sales can see the list and cannot change it, the same as other order edits.
 - A coordinator is any outside contact. CLA Title staff, including the staff role Transaction Coordinator, cannot be linked here.
+
+---
+
+## Coordinator on the agent's file (TC-3)
+
+**How it should work.** When a real estate agent is added as the buyer's agent or the listing agent, each linked transaction coordinator is added on that same side. No one picks buyer or listing for the coordinator. The same coordinator can be on both sides when they assist both agents. Removing the agent does not remove the coordinator. In their own login, on a file where their agent is the buyer's agent or the listing agent, they can do what that agent can do, and a task they finish says they did it on behalf of the agent.
+
+**Status: In progress.** Tracker row 367. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM, and 11:37 AM. Built on TC-2 (tracker row 366). Not applied on TEST. Not Live.
+
+**What's built**
+
+- Adding the buyer's agent or the listing agent adds each linked coordinator on that side. A coordinator already on that side is not added again. A coordinator for both agents is on both sides.
+- Saving a new link adds the coordinator to open purchase files where that agent is already the buyer's agent or the listing agent.
+- Removing the agent leaves the coordinator on the file, including a coordinator someone added by hand.
+- The coordinator's login is treated as their agent on that file: they see the file, finish the agent's tasks, schedule the settlement, and upload. The task says the coordinator completed it on behalf of the agent.
+- The same coordinator is the buyer side on a file where their agent represents the buyer, and the listing side where that agent represents the seller.
+- The database file is `supabase/migrations/20261125250000_agent_tc_on_file.sql`. The shell cache stamp is 202611246000.
+
+**What's still missing**
+
+- Not applied on TEST. Not Live.
+- The one-pass document list on the hosted portal still reads the coordinator's own row. A coordinator there sees a file they uploaded and a file marked for everyone. The mock portal already shows them the agent's side.
+- A contact type named Transaction coordinator is TC-4.
+
+**Links**
+
+- Spec: [docs/specs/agent-tc-on-file.md](docs/specs/agent-tc-on-file.md)
+- Source: John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM, and 11:37 AM. Tracker row 367.
+
+**Decisions**
+
+- The coordinator stays when the agent is removed. Staff remove the coordinator from Order Contacts when that person should leave. That way a coordinator added by hand is never dropped because the agent left, and a coordinator added from the link is not dropped either.
+- Permission follows the link: the coordinator acts as the agent only while that agent is the buyer's agent or the listing agent on the file.
+- The file role list an outside user is added as stays Buyer Agent, Listing Agent, Client-Buyer, and Client-Seller. The coordinator is not added as a second agent. Their login is given the agent's role for that file so the existing checks (tasks, scheduling, upload) apply. Both coordinator sides stay allowed, which the two-role rule would block if those roles were added to that list.
 
 ---
 

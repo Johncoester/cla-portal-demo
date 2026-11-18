@@ -13,8 +13,8 @@ import { indexedDbFileStore } from './file-store.js?v=202611070139';
 import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyCommissionTaskV2, applyCitizenshipFreeText } from './templates.js?v=202611245800';
 import { dealsAndAuth } from './mock-part-deals.js?v=202611245800';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611245800';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611245800';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611246000';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611246000';
 import { messagesActivity } from './mock-part-msgs.js?v=202611141400';
 import { adminUsersTeams } from './mock-part-admin.js?v=202611245800';
 import { libraryFolders } from './mock-part-library.js?v=202611070139';
@@ -28,7 +28,7 @@ import { crmZohoUpgrade } from './crm.js?v=202611130900';
 import { ensureEmailTemplates } from './crm-templates.js?v=202611130900';
 import { ensureNov3b as ensureCrmNov3b } from './crm-nov3b.js?v=202611070139';
 import { ensureAgentPortal } from './agent-portal.js?v=202611245800';
-import { agentPortal } from './mock-part-agent.js?v=202611245800';
+import { agentPortal } from './mock-part-agent.js?v=202611246000';
 import { mattNov3b } from './mock-part-nov3b.js?v=202611245800';
 import { ensureSettings, optLabel } from './crm-config.js?v=202611130900';
 import { referralLabel } from './place-order.js?v=202611245800';
@@ -44,7 +44,7 @@ import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.j
 import { underwriterPart } from './mock-part-underwriter.js?v=202611243300';
 import { agentInfoPart } from './mock-part-agentinfo.js?v=202611245800';
 import { agentInvitePart } from './mock-part-agent-invite.js?v=202611245800';
-import { agentTcLinksPart } from './mock-part-agent-tc.js?v=202611245900';
+import { agentTcLinksPart } from './mock-part-agent-tc.js?v=202611246000';
 import { agentFeesPart, backfillCommissionTasks } from './mock-part-agent-fees.js?v=202611245800';
 import { automationPart } from './automation.js?v=202611245800';
 import { gmailMock } from './supabase-gmail.js?v=202611140900';
@@ -211,6 +211,9 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     if (u.role === 'Transaction Coordinator') return d.deals;
     const c = contactOf(u.id);
     const ids = new Set(c ? d.participants.filter((p) => p.contactId === c.id).map((p) => p.dealId) : []);
+    // TC-3: a linked coordinator can open every file where their agent is the buyer's agent or the listing agent.
+    if (c) (d.agentTcLinks || []).forEach((l) => { if (l.tcContactId !== c.id) return;
+      d.participants.forEach((p) => { if (p.contactId === l.agentContactId && (p.role === 'Buyer Agent' || p.role === 'Listing Agent')) ids.add(p.dealId); }); });
     // every salesperson linked to the file (John, Nov 2: several per file) sees it, as the single sales person did before
     if (C_SALES.includes(u.role)) (d.dealSalesPeople || []).forEach((s) => { if (s.salesId === u.id) ids.add(s.dealId); });
     return d.deals.filter((x) => ids.has(x.id));
@@ -222,10 +225,58 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   // SELF-REPRESENTATION (migration 11): one person may hold a client role AND their side's agent role on one order. Then `role` is the AGENT
   // role (the wider of the two: an agent already sees everything on its side) and `roles` lists both, so their own client copies,
   // client-assigned tasks and the union of both roles apply. Mirrored by private.deal_roles(deal) / private.file_roles_of in SQL.
+  // TC-3: the coordinator is treated as their agent on this file (Buyer Agent or Listing Agent).
+  function linkedAgentRoles(profileId, dealId) {
+    const c = contactOf(profileId); if (!c || !dealId) return [];
+    const d = load(); const roles = [];
+    (d.agentTcLinks || []).forEach((l) => {
+      if (l.tcContactId !== c.id) return;
+      d.participants.forEach((p) => {
+        if (p.dealId === dealId && p.contactId === l.agentContactId && (p.role === 'Buyer Agent' || p.role === 'Listing Agent') && !roles.includes(p.role)) roles.push(p.role);
+      });
+    });
+    return roles;
+  }
+  function tcForAgent(actorId, agentProfileId, dealId, role) {
+    if (!actorId || !agentProfileId || actorId === agentProfileId || !dealId) return null;
+    if (role !== 'Buyer Agent' && role !== 'Listing Agent') return null;
+    const tc = contactOf(actorId); const agent = contactOf(agentProfileId);
+    if (!tc || !agent) return null;
+    const d = load();
+    if (!(d.agentTcLinks || []).some((l) => l.tcContactId === tc.id && l.agentContactId === agent.id)) return null;
+    if (!d.participants.some((p) => p.dealId === dealId && p.contactId === agent.id && p.role === role)) return null;
+    return { agentProfileId, role, roleLabel: role === 'Listing Agent' ? 'Listing transaction coordinator' : "Buyer's transaction coordinator" };
+  }
+  // When an agent is added, or a link is saved, put each linked coordinator on that side.
+  // dealId set: that file only (any status except a refinance). dealId empty: open files only.
+  // Removing the agent does not remove the coordinator.
+  function placeAgentTcs(d, agentContactId, dealId, actorId) {
+    const links = (d.agentTcLinks || []).filter((l) => l.agentContactId === agentContactId && l.tcContactId !== agentContactId);
+    if (!links.length) return 0;
+    let n = 0;
+    d.participants.filter((p) => p.contactId === agentContactId && (p.role === 'Buyer Agent' || p.role === 'Listing Agent') && (!dealId || p.dealId === dealId)).forEach((p) => {
+      const deal = d.deals.find((z) => z.id === p.dealId);
+      if (!deal || deal.transactionType === 'Refinance') return;
+      if (!dealId && deal.status !== 'Open') return;
+      const role = p.role === 'Listing Agent' ? 'Listing Agent TC' : 'Buyer Agent TC';
+      links.forEach((l) => {
+        if (d.participants.some((x) => x.dealId === p.dealId && x.contactId === l.tcContactId && x.role === role)) return;
+        d.participants.push({ id: nid('dp'), dealId: p.dealId, contactId: l.tcContactId, role, createdAt: now() });
+        const tc = d.contacts.find((c) => c.id === l.tcContactId);
+        log(p.dealId, actorId || null, 'participant.added', 'contact', l.tcContactId, `${tc ? `${tc.firstName} ${tc.lastName}`.trim() : 'Coordinator'} added as ${role}`);
+        n += 1;
+      });
+    });
+    return n;
+  }
   function partyRolesOnFile(profileId, dealId) {
     const c = contactOf(profileId); if (!c || !dealId) return [];
     const mine = load().participants.filter((z) => z.dealId === dealId && z.contactId === c.id).map((z) => z.role);
-    return OUTSIDE_FILE_ROLES.filter((r) => mine.includes(r));
+    const held = new Set([...OUTSIDE_FILE_ROLES.filter((r) => mine.includes(r)), ...linkedAgentRoles(profileId, dealId)]);
+    return OUTSIDE_FILE_ROLES.filter((r) => held.has(r));
+  }
+  function sidesOfUser(u) {
+    return [...new Set(((u && (u.roles || [u.role])) || []).map(sideOf).filter(Boolean))];
   }
   function fileRoles(profileId, dealId) {
     const p = load().profiles.find((x) => x.id === profileId); if (!p) return [];
@@ -308,7 +359,8 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     if (f && f.staffOnly) return false;
     if (doc.visibility === 'all') return true;
     if (doc.visibility === 'staff') return false;
-    return doc.visibility === sideOf(u.role);
+    const sides = sidesOfUser(u);
+    return sides.includes(doc.visibility);
   };
   const threadVisible = (u, t) => runsOrders(u) || u.isAdmin || (u.role === 'Transaction Coordinator' && dealsFor(u).some((q) => q.id === t.dealId)) || t.participantIds.includes(u.id);
   const unreadIn = (u, t) => { const d = load(); const r = d.reads.find((x) => x.threadId === t.id && x.profileId === u.id); const last = r ? r.at : ''; return d.messages.filter((m) => m.threadId === t.id && m.authorId !== u.id && m.createdAt > last).length; };
@@ -320,7 +372,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     const sides = [...new Set(fileRoles(profileId, dealId).map(sideOf).filter(Boolean))]; return sides.length === 1 ? sides[0] : null; };
   // NO CROSS-SIDE MESSAGING (Matt, Oct 31): an outside user may message CLA staff and people on their OWN side of the order only.
   const canMessage = (u, targetId, dealId) => { if (isStaffView(u)) return true; const t = personSide(targetId, dealId); if (t === 'staff') return true;
-    const mine = sideOf(u.role); return !!mine && t === mine; };
+    const mine = sidesOfUser(u); return mine.length > 0 && mine.includes(t); };
   // A conversation never mixes the two sides: its outside users are all on one side (a side-less outside user only talks to staff).
   const mixedSides = (ids, dealId) => { const outside = ids.filter((id) => !String(id).startsWith('contact:')).map((id) => personSide(id, dealId)).filter((sd) => sd !== 'staff');
     return outside.includes(null) ? outside.length > 1 : new Set(outside).size > 1; };
@@ -328,9 +380,10 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   // Staff see everything. A client also does not see the other side's client at all (unchanged). Mirrored by public.deal_contacts() in SQL (migration 13).
   const hideContact = (c) => ({ ...c, email: '', phone: '', contactHidden: true });
   function participantsOf(dealId, viewer) {
-    const d = load(); const staff = isStaffView(viewer); const mySide = sideOf(viewer.role);
+    const d = load(); const staff = isStaffView(viewer);
     let rows = d.participants.filter((p) => p.dealId === dealId).map((p) => { const c = d.contacts.find((z) => z.id === p.contactId); const pr = c && c.profileId && prof(c.profileId);
-      const opposing = !staff && !!sideOf(p.role) && sideOf(p.role) !== mySide && !(c && c.profileId === viewer.id);
+      const mySides = sidesOfUser(viewer);
+      const opposing = !staff && !!sideOf(p.role) && !mySides.includes(sideOf(p.role)) && !(c && c.profileId === viewer.id);
       return { ...clone(p), ...(p.entity && opposing ? { entity: { ...p.entity, repPhone: '', repEmail: '' } } : {}), contact: c ? (opposing ? hideContact(clone(c)) : clone(c)) : c, removed: !!(pr && pr.status === 'removed') }; });
     if (pureBuyer(viewer)) rows = rows.filter((p) => p.role !== 'Listing Agent');   // the buyer never sees the listing agent (Nov 4 call)
     if (pureSeller(viewer)) rows = rows.filter((p) => p.role !== 'Buyer Agent');   // ... and the seller never sees the buyer's agent (seller mirror, Nov 4)
@@ -399,7 +452,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   }
 
   const api = { mode: 'mock', features: { ...flags } };
-  const ctx = { api, DEAL_FOLDERS, store, sess, SESSION_KEY, KEY, load, save, nid, me, needUser, needProcessor, needAdmin, isManager, notViewOnly, contactOf, salesOf, seesAll, teamAgentIds, dealsFor, dealOr404, fileRole, fileRoles, fileRoleText, holds, scopeTo, onDeal, fileRolesOf, fileLabelsOf, log, prof, nameOf, roleOf, fullName,
+  const ctx = { api, DEAL_FOLDERS, store, sess, SESSION_KEY, KEY, load, save, nid, me, needUser, needProcessor, needAdmin, isManager, notViewOnly, contactOf, salesOf, seesAll, teamAgentIds, dealsFor, dealOr404, fileRole, fileRoles, fileRoleText, holds, scopeTo, onDeal, fileRolesOf, fileLabelsOf, log, prof, nameOf, roleOf, fullName, placeAgentTcs, tcForAgent, linkedAgentRoles,
     folderOf, docVisible, wireAllowed, isWireDoc, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY, threadVisible, unreadIn, participantsOf, isStaffView, personSide, canMessage, mixedSides, ownerOf, taskVisible, agentCanFill, pureBuyer, pureSeller, pureClientSide, hiddenFromBuyer, hiddenFromClient, EMD_RECEIPT, formDataVisible, notify, dealProfileIds, dealView, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, localDayOf, phone,
     forget() { db = null; },   // drop the in-memory copy; the next call reloads the last SAVED state (CRM import preview, Janine Nov 3)
     reset() { store.removeItem(KEY); PREV_KEYS.forEach(([k]) => store.removeItem(k)); db = null; if (files) files.clearAll().catch(() => {}); load(); },

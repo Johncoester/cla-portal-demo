@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611245900';
+import { getAdapter } from './data/adapter.js?v=202611246000';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611245900';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';

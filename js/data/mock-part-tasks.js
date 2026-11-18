@@ -34,7 +34,11 @@ export function tasksAndForms(x) {
     const other = rs.length > 1 ? rs.filter((r) => r !== as) : []; return `${nameOf(id)} (${other.length ? `as ${as}; also ${other.join(', ')} on this file` : as})`; };
   const capOf = (byId, ownerId, t) => (byId && byId === ownerId ? t.assignedRole : undefined);   // acting on your own copy = as that copy's role
   // "Completed by Bianca Buyer-Agent (Buyer Agent) on behalf of Ben Buyer" - shown on the task, in the log and to staff.
-  const byLine = (byId, ownerId, dealId, t) => `${who(byId, dealId, t && capOf(byId, ownerId, t))}${ownerId && byId && byId !== ownerId ? ` on behalf of ${nameOf(ownerId)}` : ''}`;
+  const byLine = (byId, ownerId, dealId, t) => {
+    const behalf = ownerId && x.tcForAgent && x.tcForAgent(byId, ownerId, dealId, t && t.assignedRole);
+    if (behalf) return `${nameOf(byId)} (${behalf.roleLabel}) on behalf of ${nameOf(behalf.agentProfileId)}`;
+    return `${who(byId, dealId, t && capOf(byId, ownerId, t))}${ownerId && byId && byId !== ownerId ? ` on behalf of ${nameOf(ownerId)}` : ''}`;
+  };
   const out = (u, t) => { const o = clone(t); o.ownerId = ownerOf(t); o.ownerName = o.ownerId ? nameOf(o.ownerId) : ''; o.mine = o.ownerId === u.id || (!t.participantId && holds(u, t.assignedRole));
     o.canFill = canFill(u, t); o.forClient = !o.mine && agentCanFill(u, t);
     const clientTask = t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller';

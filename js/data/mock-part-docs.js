@@ -124,6 +124,7 @@ export function contactsTasksDocs(x) {
         if (login.id !== prev) log(dealId, u.id, 'deal.processor', 'deal', dealId, `Processor set to ${fullName(c)}`);
       }
       log(dealId, u.id, 'participant.added', 'contact', contactId, `${fullName(c)} added as ${role}`);
+      if ((role === 'Buyer Agent' || role === 'Listing Agent') && x.placeAgentTcs) x.placeAgentTcs(d, contactId, dealId, u.id);
       const n = x.makeCopies(dealId, p, u.id); save(); return { ok: true, tasksCreated: n };
     },
     async removeParticipant(dealId, participantId) {   // removes the link to this order only; the contact, their documents and messages stay; their open task copies are cancelled
