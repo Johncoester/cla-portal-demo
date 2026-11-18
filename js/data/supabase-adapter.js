@@ -1,59 +1,59 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole, GRID_ROLES } from './task-board.js?v=202611241000';
-import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611101015';
+import { buildTaskGrid, groupOfRole, GRID_ROLES } from './task-board.js?v=202611245600';
+import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611245600';
 import { textToHtml } from './gmail-email.js?v=202611191000';
 import { agentTcAlreadyMessage, isAgentTcRole } from './agent-tc.js?v=202611241300';
 import { cleanFileNumber, FILE_NUMBER_TAKEN } from './file-number.js?v=202611222500';
 import { officeDate } from './office-date.js?v=202611102100';
 import { clientActivityFrom } from './client-activity.js?v=202611102100';
-import { assertRecipients, messageText } from './portal-message.js?v=202611241900';
-import { planDocumentBatch } from './document-batch.js?v=202611101015';
+import { assertRecipients, messageText } from './portal-message.js?v=202611245600';
+import { planDocumentBatch } from './document-batch.js?v=202611245600';
 import { featureFlags } from './features.js?v=202611070139';
-import { accountingSupabase } from './supabase-accounting.js?v=202611244012';
-import { taxRatesSupabase } from './supabase-tax-rates.js?v=202611244005';
+import { accountingSupabase } from './supabase-accounting.js?v=202611245600';
+import { taxRatesSupabase } from './supabase-tax-rates.js?v=202611245600';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611243300';
 import { agentFeesSupabase } from './supabase-agent-fees.js?v=202611243068';
-import { titleSupabase } from './supabase-title.js?v=202611112200';
+import { titleSupabase } from './supabase-title.js?v=202611245600';
 import { policySupabase } from './supabase-policy.js?v=202611112100';
 import { fundingSupabase } from './supabase-funding.js?v=202611243300';
 import { postClosingSupabase } from './supabase-postclosing.js?v=202611111900';
 import { wiresSupabase } from './supabase-wires.js?v=202611111800';
-import { modulesSupabase } from './supabase-modules.js?v=202611101015';
+import { modulesSupabase } from './supabase-modules.js?v=202611245600';
 import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611243613';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611243300';
-import { automationPart } from './automation.js?v=202611101015';
-import { runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
-import { crmSupabase } from './supabase-crm.js?v=202611245200';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611245600';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611245600';
+import { automationPart } from './automation.js?v=202611245600';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611245600';
+import { crmSupabase } from './supabase-crm.js?v=202611245600';
 import { hrSupabase } from './supabase-hr.js?v=202611100130';
-import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611243900';
-import { officesSupabase } from './supabase-offices.js?v=202611101015';
+import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611245600';
+import { officesSupabase } from './supabase-offices.js?v=202611245600';
 import { taskBuilderSupabase } from './supabase-task-builder.js?v=202611221100';   // John, Nov 13: Admin > Task Builder (TB-1)
-import { closingLocationSupabase } from './supabase-closing-location.js?v=202611242210';
-import { tcSupabase } from './supabase-tc.js?v=202611191700';
-import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
+import { closingLocationSupabase } from './supabase-closing-location.js?v=202611245600';
+import { tcSupabase } from './supabase-tc.js?v=202611245600';
+import { emailSendersSupabase } from './supabase-email-senders.js?v=202611245600';
 import { gmailSupabase } from './supabase-gmail.js?v=202611140900';
-import { nov5Supabase } from './supabase-nov5.js?v=202611162200';
-import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611241900';
-import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611191600';
-import { staffSupabase } from './supabase-staff.js?v=202611243806';
+import { nov5Supabase } from './supabase-nov5.js?v=202611245600';
+import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611245600';
+import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611245600';
+import { staffSupabase } from './supabase-staff.js?v=202611245600';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
-import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611243800';
-import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
-import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611191800';
+import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611245600';
+import { CLOSER_STAFF_ROLES } from './closer.js?v=202611245600';
+import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611245600';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
-import { propertyAddressOf } from './nov5-rules.js?v=202611131900';
-import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611243614';
-import { fetchDashboard, indexDashboardExtras, decorateDashboardDeals, shapeDashboardTask, DASHBOARD_TASK_COLUMNS } from './dashboard-load.js?v=202611243807';
+import { propertyAddressOf } from './nov5-rules.js?v=202611245600';
+import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611245600';
+import { fetchDashboard, indexDashboardExtras, decorateDashboardDeals, shapeDashboardTask, DASHBOARD_TASK_COLUMNS } from './dashboard-load.js?v=202611245600';
 import { partyTaskCopiesStillOpen, PARTY_TASK_ROLES } from './party-task-completion.js?v=202611241000';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
-import { contactInsertRow } from './contact-insert.js?v=202611241600';
+import { contactInsertRow, contactTypeSaveError } from './contact-insert.js?v=202611245600';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
-import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole, brokerageContact, brokerageContactError, brokerageWrite, brokerageColumnMiss } from './lender-file.js?v=202611241600';
+import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole, brokerageContact, brokerageContactError, brokerageWrite, brokerageColumnMiss } from './lender-file.js?v=202611245600';
 import { fileTitleOf } from './party-name.js?v=202611102000';
-import { parcelInput } from './parcels.js?v=202611222100';
+import { parcelInput } from './parcels.js?v=202611245600';
 import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611223000';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
@@ -518,7 +518,7 @@ export async function createSupabaseAdapter(cfg) {
     async createDeal(input) {
       // Refinance (John, Nov 3): no purchase price / EMD; migration 32 (private.deal_refi_guard) refuses them, and sellers / realtors / a TC on the file
       const refi = input.transactionType === 'Refinance';
-      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611131900'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
+      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611245600'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
       const { data: { user } } = await sb.auth.getUser();
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
         open_date: input.openDate || officeDate(), closing_date: input.closingDate || null, ...(input.disbursementDate ? { disbursement_date: input.disbursementDate } : {}), purchase_price: refi ? null : moneyAmount(input.purchasePrice), loan_amount: moneyAmount(input.loanAmount),
@@ -593,7 +593,10 @@ export async function createSupabaseAdapter(cfg) {
       dropFileReads();
       return a.getDeal(id); },
     // contacts: unique email (contacts_email_uq); a new contact has no login and no invite is sent
-    async createContact(input) { return camel(ok(await sb.from('contacts').insert(contactInsertRow(input)).select().single())); },
+    async createContact(input) {
+      try { return camel(ok(await sb.from('contacts').insert(contactInsertRow(input)).select().single())); }
+      catch (e) { const mapped = contactTypeSaveError(e); if (mapped) throw mapped; throw e; }
+    },
     async updateContact(id, patch) {
       if (!id) throw new Error('This contact was not saved. Nothing was changed.');
       const row = {};
@@ -605,7 +608,7 @@ export async function createSupabaseAdapter(cfg) {
       if (!Object.keys(row).length) throw new Error('Nothing to save on this contact.');
       let saved;
       try { saved = camel(ok(await sb.from('contacts').update(row).eq('id', id).select().single())); }
-      catch (e) { throw contactSaveMiss(e); }
+      catch (e) { const mapped = contactTypeSaveError(e); if (mapped) throw mapped; throw contactSaveMiss(e); }
       if (!saved || !saved.id) throw new Error('This contact was not saved. Nothing was changed.');
       assertContactSaved(patch, saved);
       dropFileReads();

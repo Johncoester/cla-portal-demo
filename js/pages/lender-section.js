@@ -2,12 +2,12 @@
  * Loss-payee suggestions come from clauses already saved for that lender company. The box stays editable.
  * CPL address can follow the lender address. Lender contacts are Loan Officer or Lender TC, and a company can have none. */
 import { html, raw, $, guard, formData, toast, toText } from '../ui.js?v=202611161500';
-import { fmtPhone } from '../data/constants.js?v=202611101015';
+import { fmtPhone } from '../data/constants.js?v=202611245600';
 import {
   LENDER_CONTACT_ROLES, lenderRoleLabel, lenderExtras, filterClauses, normLenderName,
   lenderCompanyContact, contactDisplayName, mortgageBrokerContact, brokersAtBrokerage, MORTGAGE_BROKER_ROLE,
   brokerageContact, brokerageContactError, brokerageOnFile, brokerageDirectory, brokerMatch, brokerPersonFromFields, brokerageColumnMiss,
-} from '../data/lender-file.js?v=202611241600';
+} from '../data/lender-file.js?v=202611245600';
 import { CPL_CLAUSES, CPL_OTHER, clauseChoice } from '../data/cpl-clauses.js?v=202611120500';
 
 export function lenderFieldsHtml(d = {}, { brokerage = true } = {}) {

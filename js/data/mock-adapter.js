@@ -5,59 +5,59 @@
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
 import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, localDate, localDayOf, isRealDate,
   isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, STAFF_ACCOUNT_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
-  phoneOk, fmtPhone, PHONE_MSG, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611101015';
+  phoneOk, fmtPhone, PHONE_MSG, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, CONTACT_TYPE_ERROR, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611245600';
 import { fileTitleOf, partyDisplayName } from './party-name.js?v=202611102000';
 import { staffTaskCounts } from './party-task-completion.js?v=202611241000';
-import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611243611';
+import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611245600';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
-import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyCommissionTaskV2, applyCitizenshipFreeText } from './templates.js?v=202611243616';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611243803';
+import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyCommissionTaskV2, applyCitizenshipFreeText } from './templates.js?v=202611245600';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611245600';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611243809';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611243609';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611245600';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611245600';
 import { messagesActivity } from './mock-part-msgs.js?v=202611141400';
-import { adminUsersTeams } from './mock-part-admin.js?v=202611241300';
+import { adminUsersTeams } from './mock-part-admin.js?v=202611245600';
 import { libraryFolders } from './mock-part-library.js?v=202611070139';
-import { closingSchedule } from './mock-part-schedule.js?v=202611242210';
+import { closingSchedule } from './mock-part-schedule.js?v=202611245600';
 import { notificationsPart } from './mock-part-notify.js?v=202611070139';
-import { mattP2 } from './mock-part-matt.js?v=202611170800';
-import { mattNov2 } from './mock-part-nov2.js?v=202611221200';
-import { crmPart } from './mock-part-crm.js?v=202611245200';
+import { mattP2 } from './mock-part-matt.js?v=202611245600';
+import { mattNov2 } from './mock-part-nov2.js?v=202611245600';
+import { crmPart } from './mock-part-crm.js?v=202611245600';
 import { featureFlags } from './features.js?v=202611070139';
 import { crmZohoUpgrade } from './crm.js?v=202611130900';
 import { ensureEmailTemplates } from './crm-templates.js?v=202611130900';
 import { ensureNov3b as ensureCrmNov3b } from './crm-nov3b.js?v=202611070139';
-import { ensureAgentPortal } from './agent-portal.js?v=202611241900';
-import { agentPortal } from './mock-part-agent.js?v=202611241900';
-import { mattNov3b } from './mock-part-nov3b.js?v=202611243804';
+import { ensureAgentPortal } from './agent-portal.js?v=202611245600';
+import { agentPortal } from './mock-part-agent.js?v=202611245600';
+import { mattNov3b } from './mock-part-nov3b.js?v=202611245600';
 import { ensureSettings, optLabel } from './crm-config.js?v=202611130900';
-import { referralLabel } from './place-order.js?v=202611243800';
+import { referralLabel } from './place-order.js?v=202611245600';
 import { upgradeCalls } from './crm-calls.js?v=202611070139';
-import { accountingPart, ensureAccounting } from './mock-part-accounting.js?v=202611244011';
-import { taxRatesPart } from './mock-part-tax-rates.js?v=202611244004';
+import { accountingPart, ensureAccounting } from './mock-part-accounting.js?v=202611245600';
+import { taxRatesPart } from './mock-part-tax-rates.js?v=202611245600';
 import { payoffsPart, ensurePayoffs } from './mock-part-payoffs.js?v=202611243300';
-import { modulesPart, ensureModules } from './mock-part-modules.js?v=202611101015';
+import { modulesPart, ensureModules } from './mock-part-modules.js?v=202611245600';
 import { roleAccessPart } from './mock-part-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access (Super admin)
-import { taskShownTo } from './task-switches.js?v=202611243615';
-import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611243608';
-import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.js?v=202611101015';
+import { taskShownTo } from './task-switches.js?v=202611245600';
+import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611245600';
+import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.js?v=202611245600';
 import { underwriterPart } from './mock-part-underwriter.js?v=202611243300';
-import { agentInfoPart } from './mock-part-agentinfo.js?v=202611101015';
-import { agentInvitePart } from './mock-part-agent-invite.js?v=202611242100';
-import { agentFeesPart, backfillCommissionTasks } from './mock-part-agent-fees.js?v=202611243300';
-import { automationPart } from './automation.js?v=202611101015';
+import { agentInfoPart } from './mock-part-agentinfo.js?v=202611245600';
+import { agentInvitePart } from './mock-part-agent-invite.js?v=202611245600';
+import { agentFeesPart, backfillCommissionTasks } from './mock-part-agent-fees.js?v=202611245600';
+import { automationPart } from './automation.js?v=202611245600';
 import { gmailMock } from './supabase-gmail.js?v=202611140900';
-import { hrPart, ensureHr } from './mock-part-hr.js?v=202611242100';
-import { titlePart, ensureTitle } from './mock-part-title.js?v=202611243610';
+import { hrPart, ensureHr } from './mock-part-hr.js?v=202611245600';
+import { titlePart, ensureTitle } from './mock-part-title.js?v=202611245600';
 import { tcPortal, ensureTc, tcMessageViews } from './mock-part-tc.js?v=202611191700';
-import { emailSendersPart, ensureEmailSenders } from './email-senders.js?v=202611101015';   // John, Nov 4: the Title review module (staff only; in place, no storage bump)
-import { officesPart, officeById } from './mock-part-offices.js?v=202611101015';
+import { emailSendersPart, ensureEmailSenders } from './email-senders.js?v=202611245600';   // John, Nov 4: the Title review module (staff only; in place, no storage bump)
+import { officesPart, officeById } from './mock-part-offices.js?v=202611245600';
 import { taskBuilderPart, watchTaskFlowEvents } from './mock-part-task-builder.js?v=202611221100';   // John, Nov 13: Admin > Task Builder (TB-1 flows, TB-2 engine)
-import { closingLocationPart } from './mock-part-closing-location.js?v=202611242210';
-import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611243607';
+import { closingLocationPart } from './mock-part-closing-location.js?v=202611245600';
+import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611245600';
 import { fwpCanRead, FWP_STAFF_ONLY } from './funding-wire-policy.js?v=202611070139';
-import { buyerAgentDocDecision, taskReadable, propertyAddressOf } from './nov5-rules.js?v=202611131900';
-import { nov5Part, ensureNov5 } from './mock-part-nov5.js?v=202611243606';
+import { buyerAgentDocDecision, taskReadable, propertyAddressOf } from './nov5-rules.js?v=202611245600';
+import { nov5Part, ensureNov5 } from './mock-part-nov5.js?v=202611245600';
 import { staffFeedbackPart } from './mock-part-staff-feedback.js?v=202611080400';
 import { fwpPart, ensureFwp } from './mock-part-fwp.js?v=202611243300';
 import { seedFwp as FSEED } from './fwp-seed.js?v=202611070139';   // John, Nov 4: where each buyer / seller will be at closing (migration 58)   // Admin > Offices (John, Nov 4; migration 57)
@@ -407,7 +407,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     async keepFile(doc) { if (!files || !doc.dataUrl) return doc; try { await files.put(doc.id, doc.dataUrl); } catch (e) { throw new Error('This browser could not store the file (private browsing or storage full). Try a smaller file or another browser.'); }
       doc.dataUrl = null; doc.hasFile = true; return doc; },
     async fileContent(z) { if (z.dataUrl) return z.dataUrl; if (z.hasFile && files) return (await files.get(z.id)) || null; return null; },
-    C: { ROLES, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, STAFF_ACCOUNT_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel , COUNTY_MAX } };
+    C: { ROLES, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, STAFF_ACCOUNT_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, CONTACT_TYPE_ERROR, contactTypeLabel , COUNTY_MAX } };
   Object.assign(api, devAuth(ctx), dealsAndAuth(ctx), contactsTasksDocs(ctx), tasksAndForms(ctx), messagesActivity(ctx), adminUsersTeams(ctx), libraryFolders(ctx), closingSchedule(ctx), notificationsPart(ctx), mattP2(ctx), mattNov2(ctx), crmPart(ctx, flags), agentPortal(ctx));
   Object.assign(api, accountingPart(ctx, flags));
   Object.assign(api, taxRatesPart(ctx));

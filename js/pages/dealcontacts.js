@@ -1,14 +1,14 @@
 // Contacts tab: everyone on this file. Processor can add people (existing or new), edit them, and unlink them from the order.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill, toText } from '../ui.js?v=202611161500';
-import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole } from '../data/constants.js?v=202611101015';
-import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611191800';
-import { directoryModel, directoryChoice } from '../data/file-party.js?v=202611221600';
-import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611140100';
-import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611191600';
-import { copyPlainText } from './deal.js?v=202611244027';
+import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611245600';
+import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611245600';
+import { directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611245600';
+import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611245600';
+import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611245600';
+import { copyPlainText } from './deal.js?v=202611245600';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
-import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611241600';
-import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611241600';
+import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611245600';
+import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611245600';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { AGENT_TC_ROLES, agentTcLabel, isAgentTcRole } from '../data/agent-tc.js?v=202611241300';
 
@@ -26,7 +26,7 @@ export async function contactCopyOutcome(value, kind, deps) {
 
 // contact type (John, Nov 2): CLA staff have none, so the select is not offered for them
 const STAFF_ROLES = ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator'];
-const ctypeSelect = (sel = '', name = 'contactType') => html`<label>Contact type<select name="${name}" aria-label="Contact type"><option value="">(not set)</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}" ${v === sel ? raw('selected') : ''}>${l}</option>`)}</select></label>`;
+const ctypeSelect = (sel = '', name = 'contactType') => html`<label>Contact type<select name="${name}" aria-label="Contact type"><option value="">(not set)</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}" ${v === sel ? raw('selected') : ''}>${l}</option>`)}</select><span class="field-hint">${AGENT_TC_TYPE_NOTE}</span></label>`;
 const GROUPS = [['ALL', null], ['BUYER', ['Client-Buyer', 'Buyer Agent', 'Buyer Agent TC']], ['SELLER', ['Client-Seller', 'Listing Agent', 'Listing Agent TC']], ['REALTOR', ['Buyer Agent', 'Listing Agent', 'Buyer Agent TC', 'Listing Agent TC']], ['CLIENT', ['Client-Buyer', 'Client-Seller']], ['CLA TEAM', ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator']]];
 const contactRoleChoices = (deal) => {
   const roles = [];
@@ -86,7 +86,7 @@ export async function render({ api, user, deal, refresh }) {
     const m = modal('Add contact to this order', html`<form id="apf" class="form-grid"><label class="span2">Role on this order<select name="role">${options(contactRoleChoices(deal), 'Other', (r) => agentTcLabel(r))}</select></label>${isRefi(deal) ? html`<p class="muted small span2" data-refi-roles>Refinance: no seller, realtor or transaction coordinator roles. Add the borrower as Client-Buyer.</p>` : ''}
       <p class="muted small span2">One person can hold two roles on an order only when an agent is buying or selling for themselves: add them once as Client-Buyer and once as Buyer Agent (or Client-Seller and Listing Agent).</p>
       <p class="muted small span2" data-tc-note hidden>Any active staff login can be the Transaction Coordinator. An outside user cannot, and you cannot add a new person here.</p>
-      <p class="muted small span2" data-agent-tc-note hidden>This is the agent's transaction coordinator, an outside contact. A portal login is not required. It does not change the CLA Title Transaction Coordinator.</p>
+      <p class="muted small span2" data-agent-tc-note hidden>This is the agent's transaction coordinator, an outside assistant who works for real estate agents. A portal login is not required. A new person is saved as Transaction coordinator, not as a Realtor. It does not change the CLA Title Transaction Coordinator.</p>
       <p class="muted small span2">Type a name, email and phone in the fields below. You do not have to pick an existing contact, and no portal login or invite is created. Invite them later with Invite to portal. The search box and, for an agent or lender, the company list are optional.</p>
       <label class="span2" data-dir-wrap hidden>Existing company or person<select data-dir-select aria-label="Existing company or person"><option value="">Not listed — type them below</option></select></label>
       <div class="span2">${pickerHtml('contactId', 'Contact')}</div>
@@ -99,9 +99,9 @@ export async function render({ api, user, deal, refresh }) {
       const show = role === 'Buyer Agent' || role === 'Listing Agent' || role === 'Lender' || isAgentTcRole(role);
       dirWrap.hidden = !show;
       if (!show) { dirSel.value = ''; return; }
-      const model = directoryModel(isTc() ? [] : people, role === 'Lender' ? 'lender' : 'agent');
+      const model = directoryModel(isTc() ? [] : people, role === 'Lender' ? 'lender' : isAgentTcRole(role) ? 'tc' : 'agent');
       const group = (label, options) => (options.length ? html`<optgroup label="${label}">${options.map((o) => html`<option value="${o.value}">${o.label}</option>`)}</optgroup>` : '');
-      dirSel.innerHTML = toText(html`<option value="">Not listed — type them below</option>${group(model.companyLabel, model.companies)}${group(model.peopleLabel, model.people)}`);
+      dirSel.innerHTML = toText(html`<option value="">Not listed — type them below</option>${directoryGroups(model).map(([label, options]) => group(label, options))}`);
     };
     dirSel.addEventListener('change', () => {
       const choice = directoryChoice(dirSel.value);
@@ -137,7 +137,7 @@ export async function render({ api, user, deal, refresh }) {
       $('[data-fn]', m).firstChild.textContent = lender ? 'Contact first name (optional)' : person ? 'First name (leave blank for an entity)' : 'First name';
       $('[data-co]', m).firstChild.textContent = lender ? 'Lender company name' : person ? 'Entity or company name' : 'Company / brokerage';
       const lrole = $('[data-lrole]', m); if (lrole) lrole.hidden = !lender; };
-    roleSel.addEventListener('change', () => { const r = roleSel.value; if (!ctTouched) ctSel.value = isAgentTcRole(r) ? 'realtor' : contactTypeForRole(r); const tc = isTc(); $('[data-tc-note]', m).hidden = !tc; const agentNote = $('[data-agent-tc-note]', m); if (agentNote) agentNote.hidden = !isAgentTcRole(r); $('[data-newperson]', m).hidden = tc; if (tc && pk.value && !isTcPick(people.find((c) => c.id === pk.value) || { id: pk.value })) pk.set(null); paintRole(); paintDir(); });
+    roleSel.addEventListener('change', () => { const r = roleSel.value; if (!ctTouched) ctSel.value = contactTypeForRole(r); const tc = isTc(); $('[data-tc-note]', m).hidden = !tc; const agentNote = $('[data-agent-tc-note]', m); if (agentNote) agentNote.hidden = !isAgentTcRole(r); $('[data-newperson]', m).hidden = tc; if (tc && pk.value && !isTcPick(people.find((c) => c.id === pk.value) || { id: pk.value })) pk.set(null); paintRole(); paintDir(); });
     paintRole(); paintDir();
     $('#apf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); let id = f.contactId || (pk && pk.value) || '';
       const choice = directoryChoice(dirSel.value);

@@ -1,7 +1,7 @@
 /* MF-056 Scheduling Details (Matt Landsberg, Nov 16 2026). Pure helpers. No network.
  * The buyer's settlement date is not copied onto the file closing date. That lock is held for a later change.
  * A scheduling link is queued in the outbox from testportal@clatitle.com. Nothing is sent. */
-import { US_STATES } from './constants.js?v=202611101015';
+import { US_STATES } from './constants.js?v=202611245600';
 
 export const SCHEDULE_CODE = 'agent_schedule_settlement';
 export const INVITE_FROM = 'testportal@clatitle.com';

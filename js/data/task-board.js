@@ -3,7 +3,7 @@
  *   filterTasks / sortTasks / groupTasks : the cross-file task list (Tasks page, Work Queue "incomplete tasks by Buyer / Seller / Agent")
  *   filterDeals / sortDeals              : the order list (Open Orders) filters + sort
  *   buildTaskGrid                        : Processor / Admin grid, file numbers across (columns), tasks down (rows) */
-import { isAgent } from './constants.js?v=202611101015';
+import { isAgent } from './constants.js?v=202611245600';
 import { partyTaskGridCell, partyTaskStillOpen } from './party-task-completion.js?v=202611241000';
 
 export const OPEN_STATUSES = ['todo', 'in_progress', 'blocked'];

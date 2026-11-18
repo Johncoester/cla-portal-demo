@@ -2,8 +2,8 @@
 // contacts / CRM, see each invite's status (pending, accepted, expired, revoked) and Resend (new link) or Revoke (retired, never deleted).
 // Nov 9: Create and Resend email the invite from the inviter's own connected Gmail (gmail-send); the one-time link is also shown to copy.
 import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611161500';
-import { STATUS_LABEL } from '../data/agent-profile.js?v=202611140100';
-import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611191600';
+import { STATUS_LABEL } from '../data/agent-profile.js?v=202611245600';
+import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611245600';
 const PILL = { pending: 'warn', accepted: 'ok', expired: 'bad', revoked: '' };
 const abs = (link) => location.href.split('#')[0] + link;
 export async function render({ api, refresh }) {

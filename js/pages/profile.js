@@ -1,16 +1,16 @@
 // Profile Setting: edit my own name and phone. (Role and email are changed by a processor / by the auth provider.)
-import { outsideTypeLabel } from '../data/constants.js?v=202611101015';
+import { outsideTypeLabel } from '../data/constants.js?v=202611245600';
 import { html, $, guard, formData, toast } from '../ui.js?v=202611161500';
-import { cleanBirthdate, BIRTHDATE_NOTE } from '../data/agent-info.js?v=202611101015';
-import { agentFormHtml, mountAgentForm } from './agent-profile-form.js?v=202611161500';
-import { consumeAgentOnboard, photoFileChosen, photoFileAllowed, PHOTO_TYPE_MSG } from '../data/agent-profile.js?v=202611140100';
+import { cleanBirthdate, BIRTHDATE_NOTE } from '../data/agent-info.js?v=202611245600';
+import { agentFormHtml, mountAgentForm } from './agent-profile-form.js?v=202611245600';
+import { consumeAgentOnboard, photoFileChosen, photoFileAllowed, PHOTO_TYPE_MSG } from '../data/agent-profile.js?v=202611245600';
 export function firstProfileSave(hash) {
   const here = String(hash == null && typeof location !== 'undefined' ? location.hash : hash || '');
   const setup = /(?:\?|&)setup=1(?:&|$)/.test(here);
   const flagged = consumeAgentOnboard();
   return setup || flagged;
 }
-import { gmailCardHtml, mountGmailCard } from './gmail-card.js?v=202611191600';
+import { gmailCardHtml, mountGmailCard } from './gmail-card.js?v=202611245600';
 import { e2eGmailSetupHtml, mountE2eGmailSetup } from './e2e-gmail-setup.js?v=202611161500';
 
 export async function render({ api, refresh, go }) {
