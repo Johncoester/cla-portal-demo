@@ -1184,8 +1184,38 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - The agents' coordinators are their own roles (Buyer Agent TC and Listing Agent TC). They are not the CLA Title Transaction Coordinator.
-- The staff rule stays: only an active staff login can be the Transaction Coordinator on an order.
+- The staff rule stays for a row already saved under the old role name: only an active staff login can be stored as that role. TC-1 takes that name off Add contact. See Transaction coordinator on Add contact (TC-1).
 - The Nov 16 file did not add the two roles to the people-role list. That list has to allow them, or Place Order creates the file and does not open it.
+
+---
+
+## Transaction coordinator on Add contact (TC-1)
+
+**How it should work.** A transaction coordinator is an outside assistant to one or more real estate agents. On a file, that person's side follows the agent they work for. Add contact offers Buyer's transaction coordinator (works for the buyer's agent) and Listing transaction coordinator (works for the listing agent). It does not offer the old role name Transaction Coordinator, which listed only CLA staff. A file that already has someone under that old role still shows them.
+
+**Status: In progress.** Tracker row 365, item TC-1. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Wording confirmed 11:37 AM. Not Live. No database file.
+
+**What's built**
+
+- Order Contacts → Add contact no longer lists Transaction Coordinator. The coordinator choices are Buyer's transaction coordinator: works for the buyer's agent, and Listing transaction coordinator: works for the listing agent.
+- The same wording is on Place Order and on Parties when adding or changing a coordinator.
+- A person already saved on a file as Transaction Coordinator still appears on Contacts and Parties. Nothing is deleted.
+
+**What's still missing**
+
+- Not on TEST until this pull request is merged. There is no database file to apply.
+- Edit order details still has the file-level Transaction Coordinator field. Linking a coordinator from an agent profile, adding them automatically, and a TC contact type are other items.
+- What a coordinator can do on a file, matching their agent, is TC-3.
+
+**Links**
+
+- Spec: [docs/specs/tc-1-add-contact.md](docs/specs/tc-1-add-contact.md)
+- Source: John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Tracker row 365, TC-1.
+
+**Decisions**
+
+- A transaction coordinator is an outside assistant to the buyer's agent or the listing agent. The choice says who they work for.
+- The old role stays on files that already have it. New people are not given that role from Add contact.
 
 ---
 

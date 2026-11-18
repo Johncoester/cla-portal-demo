@@ -1,16 +1,16 @@
 // Contacts tab: everyone on this file. Processor can add people (existing or new), edit them, and unlink them from the order.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill, toText } from '../ui.js?v=202611161500';
 import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole } from '../data/constants.js?v=202611101015';
-import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611191800';
+import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611245300';
 import { directoryModel, directoryChoice } from '../data/file-party.js?v=202611221600';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611140100';
 import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611191600';
-import { copyPlainText } from './deal.js?v=202611244027';
+import { copyPlainText } from './deal.js?v=202611245300';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611241600';
 import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611241600';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { AGENT_TC_ROLES, agentTcLabel, isAgentTcRole } from '../data/agent-tc.js?v=202611241300';
+import { agentTcChoiceLabel, agentTcHelp, agentTcLabel, isAgentTcRole, rolesForNewContact } from '../data/agent-tc.js?v=202611245300';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
 export function contactCopyMessage(copied, kind) {
@@ -28,11 +28,7 @@ export async function contactCopyOutcome(value, kind, deps) {
 const STAFF_ROLES = ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator'];
 const ctypeSelect = (sel = '', name = 'contactType') => html`<label>Contact type<select name="${name}" aria-label="Contact type"><option value="">(not set)</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}" ${v === sel ? raw('selected') : ''}>${l}</option>`)}</select></label>`;
 const GROUPS = [['ALL', null], ['BUYER', ['Client-Buyer', 'Buyer Agent', 'Buyer Agent TC']], ['SELLER', ['Client-Seller', 'Listing Agent', 'Listing Agent TC']], ['REALTOR', ['Buyer Agent', 'Listing Agent', 'Buyer Agent TC', 'Listing Agent TC']], ['CLIENT', ['Client-Buyer', 'Client-Seller']], ['CLA TEAM', ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator']]];
-const contactRoleChoices = (deal) => {
-  const roles = [];
-  for (const r of PARTICIPANT_ROLES) { roles.push(r); if (r === 'Listing Agent') roles.push(...AGENT_TC_ROLES); }
-  return isRefi(deal) ? roles.filter((r) => !REFI_BLOCKED_ROLES.includes(r) && !isAgentTcRole(r)) : roles;
-};
+const contactRoleChoices = (deal) => rolesForNewContact(PARTICIPANT_ROLES, { refinance: isRefi(deal), blocked: REFI_BLOCKED_ROLES });
 
 export async function render({ api, user, deal, refresh }) {
   const repaint = () => { if (api.dropFileReads) api.dropFileReads(); refresh(); };
@@ -71,35 +67,28 @@ export async function render({ api, user, deal, refresh }) {
     if (staffView) mountLenderSection(root, { api, deal, refresh: repaint });
   } };
 
-  // John, Nov 2 / ANYROLE-1: type-to-search picker (name / email / phone / brokerage). Transaction Coordinator: any active staff login;
-  // no new person and no outside user. Staff with no contact yet appear as staff:<profileId>, so the list must match that id too.
+  // John, Nov 2: type-to-search picker (name / email / phone / brokerage).
+  // TC-1: the only coordinator choices are the buyer's and the listing agent's. Both are outside assistants.
   // Francis, Nov 9: same Place Order inline "Add … as a new person" when there is no match,
   // so adding a party on an already-opened file no longer dead-ends on "clear the search box".
   async function addPerson() {
-    const people = await api.listContacts(); const tcs = await api.listCoordinators();
-    const tcIds = new Set(); const tcProfileIds = new Set();
-    for (const t of tcs) {
-      if (t.contactId) tcIds.add(t.contactId);
-      if (t.profileId) { tcProfileIds.add(t.profileId); tcIds.add('staff:' + t.profileId); }
-    }
-    const isTcPick = (c) => !!(c && (tcIds.has(c.id) || (c.profileId && tcProfileIds.has(c.profileId))));
-    const m = modal('Add contact to this order', html`<form id="apf" class="form-grid"><label class="span2">Role on this order<select name="role">${options(contactRoleChoices(deal), 'Other', (r) => agentTcLabel(r))}</select></label>${isRefi(deal) ? html`<p class="muted small span2" data-refi-roles>Refinance: no seller, realtor or transaction coordinator roles. Add the borrower as Client-Buyer.</p>` : ''}
+    const people = await api.listContacts();
+    const m = modal('Add contact to this order', html`<form id="apf" class="form-grid"><label class="span2">Role on this order<select name="role">${options(contactRoleChoices(deal), 'Other', (r) => agentTcChoiceLabel(r))}</select></label>${isRefi(deal) ? html`<p class="muted small span2" data-refi-roles>Refinance: no seller, realtor or transaction coordinator roles. Add the borrower as Client-Buyer.</p>` : ''}
       <p class="muted small span2">One person can hold two roles on an order only when an agent is buying or selling for themselves: add them once as Client-Buyer and once as Buyer Agent (or Client-Seller and Listing Agent).</p>
-      <p class="muted small span2" data-tc-note hidden>Any active staff login can be the Transaction Coordinator. An outside user cannot, and you cannot add a new person here.</p>
-      <p class="muted small span2" data-agent-tc-note hidden>This is the agent's transaction coordinator, an outside contact. A portal login is not required. It does not change the CLA Title Transaction Coordinator.</p>
+      <p class="muted small span2" data-agent-tc-note hidden></p>
       <p class="muted small span2">Type a name, email and phone in the fields below. You do not have to pick an existing contact, and no portal login or invite is created. Invite them later with Invite to portal. The search box and, for an agent or lender, the company list are optional.</p>
       <label class="span2" data-dir-wrap hidden>Existing company or person<select data-dir-select aria-label="Existing company or person"><option value="">Not listed — type them below</option></select></label>
       <div class="span2">${pickerHtml('contactId', 'Contact')}</div>
       <div class="span2 form-grid" data-newperson><h4 class="span2">&mdash; or enter full details &mdash;</h4><label data-fn>First name<input name="firstName"></label><label>Last name<input name="lastName"></label><label>Email<input name="email" type="email"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone></label><label data-co>Company / brokerage<input name="company"></label>${ctypeSelect('')}<label data-lrole hidden>Lender contact type<select name="lenderRole" aria-label="Lender contact type"><option value="">No contact person</option>${LENDER_CONTACT_ROLES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select></label></div>
       <div class="span2"><button class="m-btn" type="submit">Add</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
-    const roleSel = $('[name=role]', m); const isTc = () => roleSel.value === 'Transaction Coordinator';
+    const roleSel = $('[name=role]', m);
     const dirWrap = $('[data-dir-wrap]', m); const dirSel = $('[data-dir-select]', m);
     const paintDir = () => {
       const role = roleSel.value;
       const show = role === 'Buyer Agent' || role === 'Listing Agent' || role === 'Lender' || isAgentTcRole(role);
       dirWrap.hidden = !show;
       if (!show) { dirSel.value = ''; return; }
-      const model = directoryModel(isTc() ? [] : people, role === 'Lender' ? 'lender' : 'agent');
+      const model = directoryModel(people, role === 'Lender' ? 'lender' : 'agent');
       const group = (label, options) => (options.length ? html`<optgroup label="${label}">${options.map((o) => html`<option value="${o.value}">${o.label}</option>`)}</optgroup>` : '');
       dirSel.innerHTML = toText(html`<option value="">Not listed — type them below</option>${group(model.companyLabel, model.companies)}${group(model.peopleLabel, model.people)}`);
     };
@@ -127,9 +116,8 @@ export async function render({ api, user, deal, refresh }) {
       if (!people.some((x) => x.id === c.id)) people.push(c);
       return c;
     };
-    const pk = mountPicker($('[data-picker=contactId]', m), () => (isTc() ? people.filter(isTcPick) : people), {
+    const pk = mountPicker($('[data-picker=contactId]', m), () => people, {
       createVerb: () => (roleSel.value === 'Lender' ? 'lender' : 'person'),
-      allowCreate: () => !isTc(),
       onCreate: quickCreate,
     });
     const ctSel = $('[data-newperson] [name=contactType]', m); let ctTouched = false; ctSel.addEventListener('change', () => { ctTouched = true; });
@@ -137,12 +125,11 @@ export async function render({ api, user, deal, refresh }) {
       $('[data-fn]', m).firstChild.textContent = lender ? 'Contact first name (optional)' : person ? 'First name (leave blank for an entity)' : 'First name';
       $('[data-co]', m).firstChild.textContent = lender ? 'Lender company name' : person ? 'Entity or company name' : 'Company / brokerage';
       const lrole = $('[data-lrole]', m); if (lrole) lrole.hidden = !lender; };
-    roleSel.addEventListener('change', () => { const r = roleSel.value; if (!ctTouched) ctSel.value = isAgentTcRole(r) ? 'realtor' : contactTypeForRole(r); const tc = isTc(); $('[data-tc-note]', m).hidden = !tc; const agentNote = $('[data-agent-tc-note]', m); if (agentNote) agentNote.hidden = !isAgentTcRole(r); $('[data-newperson]', m).hidden = tc; if (tc && pk.value && !isTcPick(people.find((c) => c.id === pk.value) || { id: pk.value })) pk.set(null); paintRole(); paintDir(); });
+    roleSel.addEventListener('change', () => { const r = roleSel.value; if (!ctTouched) ctSel.value = isAgentTcRole(r) ? 'realtor' : contactTypeForRole(r); const agentNote = $('[data-agent-tc-note]', m); const help = agentTcHelp(r); if (agentNote) { agentNote.hidden = !help; agentNote.textContent = help; } paintRole(); paintDir(); });
     paintRole(); paintDir();
     $('#apf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); let id = f.contactId || (pk && pk.value) || '';
       const choice = directoryChoice(dirSel.value);
       if (!id && choice.kind === 'person') id = choice.contactId;
-      if (!id && isTc()) throw new Error('Pick a Transaction Coordinator from the list.');
       if (!id && pk.typed && !String(f.firstName || '').trim() && !String(f.company || '').trim()) { const split = splitPersonName(pk.typed); f.firstName = split.firstName; f.lastName = f.lastName || split.lastName; }
       if (!id && f.role === 'Lender') { const built = lenderCompanyContact({ company: f.company, firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone, lenderRole: f.lenderRole }); if (!built.ok) throw new Error(built.error); id = (await api.createContact(built.contact)).id; }
       if (!id && (f.role === 'Client-Buyer' || f.role === 'Client-Seller') && !String(f.firstName || '').trim() && String(f.company || '').trim()) id = (await api.createContact({ firstName: '', lastName: f.lastName, email: f.email, phone: f.phone, company: f.company, contactType: f.contactType || 'buyer_seller' })).id;
