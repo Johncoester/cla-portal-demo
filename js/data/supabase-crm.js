@@ -4,7 +4,8 @@
  * With the browser flag off every method refuses before calling the database. Meetings never send invitations; nothing is emailed. */
 import { CRM_OFF } from './features.js?v=202611070139';
 import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED, companyKey } from './crm.js?v=202611130900';
-import { localDate, runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
+import { localDate, runsOrders as runsOrdersCI, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from './constants.js?v=202611101015';
+import { uploadBytes, uploadFileName } from './upload-bytes.js?v=202611141400';
 import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611130900';
 import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611130900';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611130900';
@@ -69,8 +70,37 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
       participants: (r.participants || []).map((p) => { const [type, id] = p.split(':'); return { key: p, type, id, name: type === 'user' ? nameOf(ppl, id) : '', label: type === 'user' ? 'User' : entityLabel(type), link: type === 'user' ? '' : linkOf(type, id) }; }) }; };
   const acts = async (pairs) => { const rows = []; for (const [e, id] of pairs) rows.push(...(ok(await sb.from('crm_activities').select('*').eq('entity', e).eq('entity_id', id)) || []));
     const ppl = await staff(); return rows.map((a) => actOut(a, ppl)).sort((x, y) => String(y.createdAt).localeCompare(String(x.createdAt))); };
-  const files = async (pairs) => { const rows = []; for (const [e, id] of pairs) rows.push(...(ok(await sb.from('crm_attachments').select('id, entity, entity_id, name, mime_type, size, uploaded_by, created_at').eq('entity', e).eq('entity_id', id)) || []));
-    const ppl = await staff(); return camel(rows).map((f) => ({ ...f, uploadedByName: nameOf(ppl, f.uploadedBy) })); };
+  // One read of crm_attachments per parent record (a client also reads the lead it came from).
+  // Rows with note_id stay on that note. They are not asked for again, one note at a time.
+  // Until note_id exists, the same read is tried once without it and the paperclip stays off.
+  const missingNoteColumn = (err) => { const msg = String(err && err.message || err || ''); return /note_id/i.test(msg) && /column|schema cache|does not exist|could not find/i.test(msg); };
+  const attachmentPack = async (pairs) => {
+    const rows = []; let ready = true;
+    const withNote = 'id, entity, entity_id, note_id, name, mime_type, size, uploaded_by, created_at';
+    const plain = 'id, entity, entity_id, name, mime_type, size, uploaded_by, created_at';
+    for (const [e, id] of pairs) {
+      let data;
+      try { data = ok(await sb.from('crm_attachments').select(ready ? withNote : plain).eq('entity', e).eq('entity_id', id)) || []; }
+      catch (err) {
+        if (!(ready && missingNoteColumn(err))) throw err;
+        ready = false;
+        data = ok(await sb.from('crm_attachments').select(plain).eq('entity', e).eq('entity_id', id)) || [];
+      }
+      rows.push(...(Array.isArray(data) ? data : []));
+    }
+    const ppl = await staff();
+    const shaped = camel(rows).map((f) => ({ ...f, uploadedByName: nameOf(ppl, f.uploadedBy) }));
+    const noteFiles = shaped.filter((f) => f.noteId).map((f) => ({ id: f.id, noteId: f.noteId, name: f.name, mimeType: f.mimeType, size: f.size, uploadedByName: f.uploadedByName, createdAt: f.createdAt }));
+    return { attachments: shaped.filter((f) => !f.noteId), noteFiles, noteFilesReady: ready };
+  };
+  const NOTE_FILE_OFF = 'Attaching a file to a note is not available yet.';
+  const noteFileByte = async (blob, mime) => {
+    if (typeof blob === 'string') return `data:${mime || 'application/octet-stream'};base64,${btoa(blob)}`;
+    if (!blob || typeof blob.arrayBuffer !== 'function') throw new Error('That file could not be opened. Try again.');
+    const buf = new Uint8Array(await blob.arrayBuffer()); let bin = '';
+    for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+    return `data:${mime || 'application/octet-stream'};base64,${btoa(bin)}`;
+  };
   const invited = async (e, id) => { const ppl = await staff(); return (await rpc('crm_invited_meetings', { p_entity: e, p_id: id })).map((a) => actOut(a, ppl)); };
   const leadIn = (v) => { const o = {}; [['firstName', 'first_name'], ['lastName', 'last_name'], ['company', 'company'], ['email', 'email'], ['phone', 'phone'], ...PERSON]
     .forEach(([k, c]) => { if (v[k] != null) o[c] = String(v[k]).trim(); }); if (v.email != null) o.email = String(v.email).trim().toLowerCase(); if (o.crm_state) o.crm_state = o.crm_state.toUpperCase();
@@ -172,7 +202,8 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async listCrmLeads() { on(); const rows = ok(await sb.from('crm_leads').select('*')) || []; const os = await named(await owners(), rows.map((l) => l.owner_id)); return withActivity(rows.map((l) => leadRow(l, os)), 'lead'); },
     async getCrmLead(id) { on(); const l = ok(await sb.from('crm_leads').select('*').eq('id', id).maybeSingle()); if (!l) throw new Error('Lead not found.');
       const os = await named(await owners(), [l.owner_id]);
-      return { ...leadRow(l, os), activities: await acts([['lead', id]]), invitedMeetings: await invited('lead', id), attachments: await files([['lead', id]]) }; },
+      const packed = await attachmentPack([['lead', id]]);
+      return { ...leadRow(l, os), activities: await acts([['lead', id]]), invitedMeetings: await invited('lead', id), attachments: packed.attachments, noteFiles: packed.noteFiles, noteFilesReady: packed.noteFilesReady }; },
     async createCrmLead(v) { on(); const row = await one(sb.from('crm_leads').insert(await withCustom('lead', leadIn(v), v))); return leadRow(row, await named(await owners(), [row.owner_id])); },
     async updateCrmLead(id, v) { on(); const row = await one(sb.from('crm_leads').update(await withCustom('lead', leadIn(v), v)).eq('id', id)); return leadRow(row, await named(await owners(), [row.owner_id])); },
     async convertCrmLead(id, opts = {}) { return camel(await rpc('crm_convert_lead', { p_lead: id, p: opts })); },
@@ -180,7 +211,8 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async getCrmContact(id) { const c = contactRow(await rpc('crm_contact_detail', { p_id: id })); const pairs = [['contact', id]]; if (c.fromLeadId) pairs.push(['lead', c.fromLeadId]);
       const account = c.accountId ? (await rpc('crm_account_list')).find((a) => a.id === c.accountId) || null : null;
       const opportunities = camel(ok(await sb.from('crm_opportunities').select('*').eq('contact_id', id)) || []);
-      return { ...c, account: account && camel(account), totals: orderTotals(c.orders), activities: await acts(pairs), opportunities, invitedMeetings: await invited('contact', id), attachments: await files(pairs) }; },
+      const packed = await attachmentPack(pairs);
+      return { ...c, account: account && camel(account), totals: orderTotals(c.orders), activities: await acts(pairs), opportunities, invitedMeetings: await invited('contact', id), attachments: packed.attachments, noteFiles: packed.noteFiles, noteFilesReady: packed.noteFilesReady }; },
     async createCrmContact(v) { const id = await rpc('crm_create_contact', { p: await withCustom('contact', contactIn(noCf(v)), v) }); return contactRow(await rpc('crm_contact_detail', { p_id: id })); },
     async updateCrmContact(id, v) { await rpc('crm_update_contact', { p_id: id, p: await withCustom('contact', contactIn(noCf(v)), v) }); return contactRow(await rpc('crm_contact_detail', { p_id: id })); },
     // FF-030: public.company_lookup. Active rows, prefix on the normalized name, cap 25. Owner privacy is off: every CRM caller sees every active name.
@@ -207,7 +239,8 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     },
     async listCrmAccounts() { return withActivity(camel(await rpc('crm_account_list')), 'account'); },
     async getCrmAccount(id) { const a = camel((await rpc('crm_account_list')).find((x) => x.id === id)); if (!a) throw new Error('Company not found.'); const d = await rpc('crm_account_detail', { p_id: id });
-      return { ...a, contactList: d.contactList.map(contactRow), orders: d.orders, totals: orderTotals(d.orders), activities: await acts([['account', id]]), invitedMeetings: [], attachments: await files([['account', id]]),
+      const packed = await attachmentPack([['account', id]]);
+      return { ...a, contactList: d.contactList.map(contactRow), orders: d.orders, totals: orderTotals(d.orders), activities: await acts([['account', id]]), invitedMeetings: [], attachments: packed.attachments, noteFiles: packed.noteFiles, noteFilesReady: packed.noteFilesReady,
         opportunities: camel(ok(await sb.from('crm_opportunities').select('*').eq('account_id', id)) || []) }; },
     async createCrmAccount(v) { on(); return camel(await one(sb.from('crm_accounts').insert(await withCustom('account', accIn(v), v)))); },
     async updateCrmAccount(id, v) { on(); return camel(await one(sb.from('crm_accounts').update(await withCustom('account', accIn(v), v)).eq('id', id))); },
@@ -273,7 +306,39 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async listCrmFollowUps({ ownerId = '', status = 'open' } = {}) {
       const rows = camel(await rpc('crm_follow_ups', { p_owner: ownerId && ownerId !== 'all' ? ownerId : null, p_status: status, p_all: ownerId === 'all' }));
       return rows.map((a) => ({ ...a, parentLink: linkOf(a.entity, a.entityId) })); },
-    // Attachments: the row is written here; the bytes need a private 'crm' storage bucket, which is not set up yet (the CRM is off in supabase mode).
+    // Janine, Nov 16 (Feedback 27 item 2): a file on one note. Bytes go to the crm bucket under notes/.
+    // The record Attachments list is a different read (note_id empty) and is still not uploaded here.
+    async addCrmNoteFile(noteId, file = {}) {
+      on(); const u = await me(); if (!canUseCrm(u)) throw new Error('The CRM is for CLA staff only.'); if (crmReadOnly(u)) throw new Error('The Processor has read-only access to the CRM.');
+      const note = ok(await sb.from('crm_activities').select('id, kind, system, entity, entity_id, created_by').eq('id', noteId).maybeSingle());
+      if (!note || note.kind !== 'note') throw new Error('Note not found.');
+      if (note.system) throw new Error('This note was added by the CRM and cannot be changed.');
+      if (!['lead', 'contact', 'account'].includes(note.entity)) throw new Error('Attach a file to a note on a lead, client, or company.');
+      if (!u.isAdmin && note.created_by !== u.id) throw new Error('Only the person who wrote this note, or an admin, can change it.');
+      const name = uploadFileName(file.name, file.mimeType); const dot = name.lastIndexOf('.'); const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
+      if (!ALLOWED_UPLOAD_EXT.includes(ext)) throw new Error(`${ext ? '.' + ext + ' files are' : 'Files without an extension are'} not allowed. Allowed: ${ALLOWED_UPLOAD_EXT.join(', ')}.`);
+      const size = Number(file.size) || 0; if (!(size >= 0) || size > MAX_UPLOAD_BYTES) throw new Error(`File is too large (limit ${Math.round(MAX_UPLOAD_BYTES / 1e5) / 10} MB). Choose a smaller file.`);
+      const id = (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID() : ''; if (!id) throw new Error('This browser cannot attach a file. Try another browser.');
+      if (!sb.storage || typeof sb.storage.from !== 'function') throw new Error(NOTE_FILE_OFF);
+      let blob; try { blob = await uploadBytes(file); } catch (e) { throw new Error(e && e.message ? e.message : 'The selected file could not be read. Choose it again.'); }
+      const path = `notes/${note.entity}/${note.entity_id}/${note.id}/${id}/${name}`;
+      const up = await sb.storage.from('crm').upload(path, blob, { contentType: file.mimeType || 'application/octet-stream', upsert: false });
+      if (up && up.error) { const msg = String(up.error.message || ''); if (/bucket not found|schema cache|note_id/i.test(msg)) throw new Error(NOTE_FILE_OFF); throw new Error('That file was not attached. Try again.'); }
+      const row = { id, entity: note.entity, entity_id: note.entity_id, note_id: note.id, name, mime_type: file.mimeType || 'application/octet-stream', size, storage_path: path, uploaded_by: u.id };
+      const ins = await sb.from('crm_attachments').insert(row);
+      if (ins && ins.error) { const msg = String(ins.error.message || ''); if (missingNoteColumn(ins.error) || /note_id|schema cache/i.test(msg)) throw new Error(NOTE_FILE_OFF); if (/Only the person who wrote|cannot be changed|has to be attached|not stored with the note|not allowed/i.test(msg)) throw new Error(msg); throw new Error('That file was not attached. Try again.'); }
+      return { id, noteId: note.id, name, mimeType: row.mime_type, size };
+    },
+    async getCrmNoteFile(id) {
+      on(); let row; try { row = ok(await sb.from('crm_attachments').select('id, name, mime_type, storage_path, note_id').eq('id', id).maybeSingle()); }
+      catch (err) { if (missingNoteColumn(err)) throw new Error(NOTE_FILE_OFF); throw new Error('That file could not be opened. Try again.'); }
+      if (!row || !row.note_id) throw new Error('That file is not on this note.');
+      if (!sb.storage || typeof sb.storage.from !== 'function') throw new Error(NOTE_FILE_OFF);
+      const dl = await sb.storage.from('crm').download(row.storage_path);
+      if (!dl || dl.error || !dl.data) throw new Error('That file could not be opened. Try again.');
+      return { name: row.name, mimeType: row.mime_type, dataUrl: await noteFileByte(dl.data, row.mime_type) };
+    },
+    // Record attachments still need the crm bucket wired for files that are not on a note.
     async addCrmAttachment() { on(); throw new Error('CRM attachments are not set up on this portal yet.'); },
     async getCrmAttachmentContent() { on(); throw new Error('CRM attachments are not set up on this portal yet.'); },
     async crmReport({ from = '', to = '' } = {}) { return rpc('crm_report', { p_from: from || null, p_to: to || null }); },
