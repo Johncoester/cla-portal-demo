@@ -1320,7 +1320,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A transaction coordinator is an outside person who works for one or more real estate agents. On a file, their side follows the agent they are linked to. Add contact, Place Order, and Parties offer one choice, labelled exactly Transaction coordinator. There is no Buyer's or Listing prefix and no "works for" sentence. If the person is linked to the buyer's agent, the listing agent, or both on this file, that side is saved. If they are linked to neither, the form asks "Which agent do they work for?" and lists the file's buyer's agent and listing agent. The stored roles stay the buyer-side and listing-side coordinator roles. Order Contacts and the Parties cards show Transaction coordinator. The agent's name may follow. They do not say "works for".
 
-**Status: In progress.** Tracker row 370, item TC-5. John Coester, voice call Nov 18 2026, about 1:51 PM ET. Not Live. No database file.
+**Status: In progress.** Tracker row 370, item TC-5. John Coester, voice call Nov 18 2026, about 1:51 PM ET. Pull request: [PR 350](https://github.com/Johncoester/cla-portal-demo/pull/350). Not Live. No database file.
 
 **What's built**
 
@@ -1337,6 +1337,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/tc-5-one-choice.md](docs/specs/tc-5-one-choice.md)
+- Pull request: [PR 350](https://github.com/Johncoester/cla-portal-demo/pull/350)
 - Source: John Coester, voice call Nov 18 2026, about 1:51 PM ET. Tracker row 370, TC-5.
 
 **Decisions**
