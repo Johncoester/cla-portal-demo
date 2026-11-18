@@ -1546,6 +1546,36 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## CRM note edit (Feedback 27 item 1)
+
+**How it should work.** On a Lead, a Client, or a Company, the person who wrote a note, or an admin, can open Edit, fix the words or add to them, and save. The note stays on that same record and shows Edited with the time. Nobody can delete a note. A processor still cannot change notes. A note the CRM wrote (such as Archived) cannot be edited.
+
+**Status: In progress.** Janine, CRM Feedback 27 item 1, confirmed Nov 16 2026. Pull request: [PR 338](https://github.com/Johncoester/cla-portal-demo/pull/338). No database file. Not on TEST until this pull request is merged. Not Live.
+
+**What's built**
+
+- Edit, Save, and Cancel on a note the person wrote, and for an admin on any note a person wrote.
+- A failed save keeps what was typed and says what to do. A blank note is refused. The original note stays.
+- Edited and the time after a real change. A new note is not marked edited.
+- The same notes list is already on Company records, so Edit is there too.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+- Edit does not move a note onto another lead, client, or company.
+- CRM deal records do not use this notes list.
+
+**Links**
+
+- Spec: [docs/specs/crm-note-edit.md](docs/specs/crm-note-edit.md)
+
+**Decisions**
+
+- No database file. The activity row already allows an update and already stores the edit time.
+- Only the author, or an Admin or Super admin, gets Edit. A processor stays read-only. There is no Delete.
+
+---
+
 ## CRM import file errors (CRM import fix 2 of 5)
 
 **How it should work.** On Import Leads, Import Clients, and Import Notes for either one, the upload card always says the accepted files (.csv, .xlsx, .xls) and the limits (2 MB, 10,000 rows), and that the file window leaves other types out. A file that is not accepted shows the reason in red on that card, and the reason stays until another file is chosen. The reasons are the wrong type, a file over 2 MB, more than 10,000 rows, an empty or unreadable file, and a missing required column.
@@ -1926,6 +1956,36 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## CRM task profile link (Feedback 29 item 6)
+
+**How it should work.** On a CRM task, the page shows the lead or client that task belongs to. The name is a link back to that profile. The same page opens from Home and from Open Activities on a record.
+
+**Status: In progress.** Janine confirmed this on Nov 16 2026, CRM Feedback 29 item 6. Pull request: [PR 339](https://github.com/Johncoester/cla-portal-demo/pull/339). No database file. Not Live until someone checks a task on TEST.
+
+**What's built**
+
+- A task on a lead shows that lead's name and links to the lead.
+- A task on a client shows that client's name and links to the client.
+- The name comes from the task when it is already there. Otherwise one read by that record's id fills it in.
+- If the name cannot be read, the task still opens and says where to look. A company task does not invent a person.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- The Home Related To and Contact Name columns are a separate item.
+
+**Links**
+
+- Spec: [docs/specs/crm-task-profile.md](docs/specs/crm-task-profile.md)
+- Pull request: [PR 339](https://github.com/Johncoester/cla-portal-demo/pull/339)
+
+**Decisions**
+
+- No database change. The task already stores the record it belongs to.
+- The link is built from that record id. A stored web address on the task is not used as the profile link.
+
+---
+
 ## CRM Home task names (Feedback 29 item 5)
 
 **How it should work.** On CRM Home, Related To and Contact Name show the lead or client the task was created under. Intro Call shows Marcus Vance. Each name is a link that opens that lead or client profile. A task that is not under a lead or a client leaves both columns blank, and the rest of the list still shows.
@@ -1938,6 +1998,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Both columns show that name, and each name opens the lead or client profile.
 - A name the read does not return stays blank. The task list still opens.
 - Tasks under a company or an opportunity are unchanged.
+- Opening one task still uses that task's own name read.
 
 **What's still missing**
 

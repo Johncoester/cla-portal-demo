@@ -121,6 +121,21 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
   const noCf = (v) => { const o = {}; Object.entries(v).forEach(([k, x]) => { if (!k.startsWith('cf.')) o[k] = x; }); return o; };
   const opts = async (key) => ok(await sb.from('crm_picklist_options').select('*').eq('list_key', key).order('position')) || [];   // a list key or 'cf:<field id>'
   const optOut = (o) => ({ value: o.value, label: o.label, retired: !!o.retired });
+  // Lead or client name for one task. Primary key only. A failure leaves the name blank; the task still opens.
+  const taskPersonName = async (entity, id) => {
+    if ((entity !== 'lead' && entity !== 'contact') || !id) return '';
+    const table = entity === 'lead' ? 'crm_leads' : 'contacts';
+    try {
+      const row = ok(await sb.from(table).select('first_name,last_name').eq('id', id).maybeSingle());
+      return row ? `${row.first_name || ''} ${row.last_name || ''}`.trim() : '';
+    } catch { return ''; }
+  };
+  const withTaskPerson = async (task) => {
+    if (!task || task.parentName || task.contactName || (task.entity !== 'lead' && task.entity !== 'contact')) return task;
+    const name = await taskPersonName(task.entity, task.entityId);
+    if (!name) return task;
+    return { ...task, parentName: name, contactName: name, contactLink: task.parentLink || '' };
+  };
   const swap = async (table, rows, i, j, match) => { if (i < 0 || j < 0 || j >= rows.length) return;
     const a = rows[i].position; let b = rows[j].position; if (a === b) b += 1;
     ok(await match(sb.from(table).update({ position: b }), rows[i])); ok(await match(sb.from(table).update({ position: a }), rows[j])); };
@@ -209,19 +224,48 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
       return actOut(await one(sb.from('crm_activities').insert({ entity: v.entity, entity_id: v.entityId, kind: v.kind, subject: v.subject, body: v.body || '', status: 'done', occurred_on: blank(v.occurredOn) })), await staff()); },
     async addCrmNote(entity, entityId, text) { on(); const t = String(text || '').trim(); if (!t) throw new Error('Write a note first.');
       return actOut(await one(sb.from('crm_activities').insert({ entity, entity_id: entityId, kind: 'note', subject: t.slice(0, 200), body: t.length > 200 ? t : '', status: 'done' })), await staff()); },
+    // Janine, Nov 16 (Feedback 27 item 1): fix or add to a note. The author, or an admin. No delete. The database already records modified_at on update.
+    async updateCrmNote(id, text) {
+      on(); const u = await me(); if (!canUseCrm(u)) throw new Error('The CRM is for CLA staff only.'); if (crmReadOnly(u)) throw new Error('The Processor has read-only access to the CRM.');
+      const raw = String(text == null ? '' : text); const t = raw.trim();
+      if (!t) throw new Error('Write the note first.');
+      if (t.length > 4000) throw new Error('A note can be up to 4,000 characters. Shorten it and save again.');
+      const row = ok(await sb.from('crm_activities').select('id, kind, system, created_by, subject, body, created_at, modified_at').eq('id', id).maybeSingle());
+      if (!row || row.kind !== 'note') throw new Error('Note not found.');
+      if (row.system) throw new Error('This note was added by the CRM and cannot be changed.');
+      if (!u.isAdmin && row.created_by !== u.id) throw new Error('Only the person who wrote this note, or an admin, can change it.');
+      const stored = (row.body && String(row.body).trim()) ? String(row.body) : String(row.subject || '');
+      if (t === stored.trim()) return actOut(row, await staff());
+      const subject = t.slice(0, 200); const body = t.length > 200 ? t : '';
+      let q = sb.from('crm_activities').update({ subject, body }).eq('id', id).eq('kind', 'note');
+      if (!u.isAdmin) q = q.eq('created_by', u.id);
+      let saved; try { saved = await one(q); } catch (e) {
+        const msg = e && e.message ? String(e.message) : '';
+        if (/row-level security|permission denied|42501/i.test(msg)) throw new Error('That note was not saved. You can change a note you wrote. An admin can change it too.');
+        if (/cannot be changed|cannot move|in the future/i.test(msg)) throw new Error(msg);
+        throw new Error('That note was not saved. Try again.');
+      }
+      return actOut(saved, await staff());
+    },
     async createCrmTask(v) { on(); return actOut(await one(sb.from('crm_activities').insert({ entity: v.entity, entity_id: v.entityId, kind: 'task', ...taskIn(v, true) })), await staff()); },
     // Home My Tasks (Janine, Feedback 29 item 4): pass ownerId to keep the read on crm_activities_owner_idx.
     // The same select as before, with owner_id in the query. Names are a separate batched read, not a row filter.
     async listCrmTasks(opts) { on(); const ppl = await staff(); const ownerId = opts && opts.ownerId ? String(opts.ownerId) : '';
       let q = sb.from('crm_activities').select('*').eq('kind', 'task'); if (ownerId) q = q.eq('owner_id', ownerId);
       const raw = ok(await q) || []; const names = await taskPartyNames(raw); return raw.map((a) => taskWithParty(actOut(a, ppl), names)); },
-    async getCrmTask(id) { on(); const a = ok(await sb.from('crm_activities').select('*').eq('id', id).eq('kind', 'task').maybeSingle()); if (!a) throw new Error('Task not found.'); return actOut(a, await staff()); },
+    // Task detail (Janine, Feedback 29 item 6). The activity row has the record id, not the person's name.
+    // One read by that id, and only when the name is not already on the task. The Home list uses the batched read above.
+    async getCrmTask(id) { on(); const a = ok(await sb.from('crm_activities').select('*').eq('id', id).eq('kind', 'task').maybeSingle()); if (!a) throw new Error('Task not found.'); return withTaskPerson(actOut(a, await staff())); },
     async updateCrmTask(id, v) { on(); const before = ok(await sb.from('crm_activities').select('status').eq('id', id).maybeSingle());
       const r = actOut(await one(sb.from('crm_activities').update(taskIn(v, false)).eq('id', id)), await staff());
       let nextTaskId = null; if (before && before.status !== TASK_CLOSED && r.status === TASK_CLOSED) nextTaskId = ((ok(await sb.from('crm_activities').select('id').eq('repeat_of', id)) || [])[0] || {}).id || null;
       return { ...r, nextTaskId }; },
     async closeCrmTask(id) { return camel(await rpc('crm_close_task', { p_id: id })); },
-    async updateCrmActivity(id, v) { return this.updateCrmTask(id, v); },
+    async updateCrmActivity(id, v) {
+      on(); const patch = v || {}; const row = ok(await sb.from('crm_activities').select('kind').eq('id', id).maybeSingle());
+      if (row && row.kind === 'note') { const text = patch.body != null ? patch.body : patch.text != null ? patch.text : patch.subject; if (text == null) throw new Error('Write the note first.'); return this.updateCrmNote(id, text); }
+      return this.updateCrmTask(id, v);
+    },
     async createCrmMeeting(v) { on(); const o = meetingIn(v, true); if (yes(v.addClient) && (v.entity === 'lead' || v.entity === 'contact')) o.participants = [...new Set([...(o.participants || []), `${v.entity}:${v.entityId}`])];
       return actOut(await one(sb.from('crm_activities').insert({ entity: v.entity, entity_id: v.entityId, kind: 'meeting', status: 'done', ...o })), await staff()); },
     async getCrmMeeting(id) { on(); const a = ok(await sb.from('crm_activities').select('*').eq('id', id).eq('kind', 'meeting').maybeSingle()); if (!a) throw new Error('Meeting not found.'); return actOut(a, await staff()); },
