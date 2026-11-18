@@ -1546,6 +1546,36 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## CRM note edit (Feedback 27 item 1)
+
+**How it should work.** On a Lead, a Client, or a Company, the person who wrote a note, or an admin, can open Edit, fix the words or add to them, and save. The note stays on that same record and shows Edited with the time. Nobody can delete a note. A processor still cannot change notes. A note the CRM wrote (such as Archived) cannot be edited.
+
+**Status: In progress.** Janine, CRM Feedback 27 item 1, confirmed Nov 16 2026. Pull request: [PR 338](https://github.com/Johncoester/cla-portal-demo/pull/338). No database file. Not on TEST until this pull request is merged. Not Live.
+
+**What's built**
+
+- Edit, Save, and Cancel on a note the person wrote, and for an admin on any note a person wrote.
+- A failed save keeps what was typed and says what to do. A blank note is refused. The original note stays.
+- Edited and the time after a real change. A new note is not marked edited.
+- The same notes list is already on Company records, so Edit is there too.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+- Edit does not move a note onto another lead, client, or company.
+- CRM deal records do not use this notes list.
+
+**Links**
+
+- Spec: [docs/specs/crm-note-edit.md](docs/specs/crm-note-edit.md)
+
+**Decisions**
+
+- No database file. The activity row already allows an update and already stores the edit time.
+- Only the author, or an Admin or Super admin, gets Edit. A processor stays read-only. There is no Delete.
+
+---
+
 ## CRM import file errors (CRM import fix 2 of 5)
 
 **How it should work.** On Import Leads, Import Clients, and Import Notes for either one, the upload card always says the accepted files (.csv, .xlsx, .xls) and the limits (2 MB, 10,000 rows), and that the file window leaves other types out. A file that is not accepted shows the reason in red on that card, and the reason stays until another file is chosen. The reasons are the wrong type, a file over 2 MB, more than 10,000 rows, an empty or unreadable file, and a missing required column.
