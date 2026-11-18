@@ -6,11 +6,12 @@ import { matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
 import { pageOf, loadPageSize, selectPage, selectionState } from '../data/crm-bulk.js?v=202611160300';
 import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611160400';
 import { schedulePageSizeSave } from '../data/crm-columns.js?v=202611160300';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611245800';
-import { bulkBar, wireBulk } from './crm-bulk.js?v=202611161500';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611247100';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611247100';
+import { canChangeCrmRecord, CRM_LOCK_NOTE } from '../data/crm-visibility.js?v=202611247100';
 import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611130900';
 import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611243900';
-import { wireCompose } from './crm-templates.js?v=202611245800';
+import { wireCompose } from './crm-templates.js?v=202611247100';
 
 const crumbs = (label) => [['CRM', '#/crm'], [label]];
 const q = () => new URLSearchParams(location.hash.split('?')[1] || '');
@@ -41,7 +42,7 @@ export async function pipelinePage({ api, me, owners, refresh, go, cfg, openCrea
   const dateQuery = {};
   ['createdAt', 'modifiedAt', extraField].forEach((field) => ['Op', 'N', 'Unit', 'Value', 'Value2'].forEach((suffix) => { const v = p.get(field + suffix); if (v) dateQuery[field + suffix] = v; }));
   const url = (o) => { const n = new URLSearchParams({ board, view, owner, ...dateQuery, ...o }); [...n.keys()].forEach((k) => { if (!n.get(k)) n.delete(k); }); return '#/crm/pipeline?' + n; };
-  const mover = (i) => (me.canEdit ? html`<label class="small">Move to <select data-move="${i.id}">${stages.filter(([v, , ret]) => (v && !ret) || v === (i.stage || '')).map(([v, l]) => html`<option value="${v}" ${v === (i.stage || '') ? raw('selected') : ''}>${l}</option>`)}</select></label>` : '');
+  const mover = (i) => (canChangeCrmRecord(me, i) ? html`<label class="small">Move to <select data-move="${i.id}">${stages.filter(([v, , ret]) => (v && !ret) || v === (i.stage || '')).map(([v, l]) => html`<option value="${v}" ${v === (i.stage || '') ? raw('selected') : ''}>${l}</option>`)}</select></label>` : html`<span class="muted small" data-lock-note>${CRM_LOCK_NOTE}</span>`);
   const cfs = board === 'opps' ? activeFields(cfg, 'opportunity') : [];
   const sub = (i) => (board === 'opps' ? html`${i.accountName || ''}${i.contactName ? html`${i.accountName ? ' · ' : ''}${i.contactName}` : ''}${i.estVolume ? html`<br>Est. ${fmtMoney(i.estVolume)}/yr` : ''}${i.expectedClose ? html` · by ${fmtDate(i.expectedClose)}` : ''}${cfs.filter((f) => (i.custom || {})[f.id] != null && (i.custom || {})[f.id] !== '').map((f) => html`<br><span data-cf-val="${f.id}">${f.label}: ${cfValue(f, i.custom[f.id])}</span>`)}`
     : html`${ctype(i.contactType)}${i.accountName ? html` · ${i.accountName}` : ''}<br>${i.orders} order(s), ${money(i.volume)}`);
@@ -51,7 +52,7 @@ export async function pipelinePage({ api, me, owners, refresh, go, cfg, openCrea
     return html`<section class="kanban-col" data-stage="${v}"><h4>${l} <span class="muted small">(${list.length} · ${total(list)})</span></h4>
       ${list.map((i) => html`<div class="kanban-card" data-card="${i.id}">${title(i)}<div class="small">${sub(i)}</div><div class="muted small">${i.ownerName || 'Unassigned'}</div>${mover(i)}${board === 'opps' ? html` <button type="button" class="ghost small" data-compose-btn="opportunity:${i.id}" title="Compose email from template">Email</button>` : ''}</div>`)}</section>`; })}</div>`;
   const pipeModule = board === 'opps' ? 'opportunities' : 'pipeline-partners';
-  const canPick = board === 'opps' && me.canEdit;
+  const canPick = board === 'opps';
   const listHtml = html`${canPick ? bulkBar('opportunity') : ''}${canPick ? html`<p class="notice" data-match-banner hidden></p>` : ''}
     <div class="table-tools"><span class="muted" data-count></span> <span data-bulk-pager></span> ${pageSizeControl(loadPageSize(typeof localStorage !== 'undefined' ? localStorage : null, me.id, pipeModule))}</div>
     <table class="tbl" data-pipeline-list><thead><tr>${canPick ? html`<th><input type="checkbox" data-bulk-page aria-label="Select all on this page"></th>` : ''}<th>${board === 'opps' ? 'Opportunity' : 'Partner'}</th><th>Details</th><th>Owner</th><th>Stage</th></tr></thead><tbody data-pipe-rows></tbody></table>`;
@@ -71,7 +72,7 @@ export async function pipelinePage({ api, me, owners, refresh, go, cfg, openCrea
       const paint = () => {
         const sorted = crmSort(items, 'name'); const pg = pageOf(sorted, page, pageSize); page = pg.page; pageRows = pg.rows;
         const tb = $('[data-pipe-rows]', root); const span = canPick ? 5 : 4;
-        if (tb) tb.innerHTML = toText(pg.rows.length ? pg.rows.map((i) => html`<tr data-card="${i.id}" data-row="${i.id}">${canPick ? html`<td><input type="checkbox" data-bulk-row value="${i.id}" aria-label="Select ${i.name || 'record'}" ${selected.has(i.id) ? raw('checked') : ''}></td>` : ''}<td>${title(i)}</td><td class="small">${sub(i)}</td><td>${i.ownerName || 'Unassigned'}</td><td>${me.canEdit ? mover(i) : (stages.find(([v]) => v === i.stage) || [, ''])[1]}</td></tr>`) : html`<tr><td colspan="${span}" class="muted">Nothing matches.</td></tr>`);
+        if (tb) tb.innerHTML = toText(pg.rows.length ? pg.rows.map((i) => html`<tr data-card="${i.id}" data-row="${i.id}">${canPick ? html`<td><input type="checkbox" data-bulk-row value="${i.id}" aria-label="Select ${i.name || 'record'}" ${selected.has(i.id) ? raw('checked') : ''}></td>` : ''}<td>${title(i)}</td><td class="small">${sub(i)}</td><td>${i.ownerName || 'Unassigned'}</td><td>${mover(i)}</td></tr>`) : html`<tr><td colspan="${span}" class="muted">Nothing matches.</td></tr>`);
         const count = $('[data-count]', root); if (count) count.textContent = pg.pages > 1 ? `${pg.rows.length} on this page, ${pg.total} shown` : `${pg.total} shown`;
         const nav = $('[data-bulk-pager]', root); if (nav) nav.innerHTML = toText(pageNav(pg));
         const box = $('[data-bulk-page]', root); if (box) { const st = selectionState(selected, pg.rows); box.checked = st.allOnPage; box.indeterminate = st.someOnPage; }

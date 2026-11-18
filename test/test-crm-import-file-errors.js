@@ -62,16 +62,13 @@ ok(!page.includes("$('[data-import-file]', root).addEventListener('change', guar
 ok(page.includes('data-import-file-help') && page.includes('data-import-file-err') && page.includes('class="err-text"') && page.includes('role="alert"'), 'the upload card has a helper and a red alert');
 ok(read('css/portal.css').includes('.err-text { color: var(--bad);'), 'the alert uses the existing red text');
 ok(read('js/app.js').includes("pages/crm-janine.js?v=202611245800") && read('js/pages/crm.js').includes("crm-janine.js?v=202611245800") && read('js/pages/crm-forms.js').includes("crm-janine.js?v=202611245800") && read('js/pages/crm-home.js').includes("crm-janine.js?v=202611245800"), 'the import page loads at 202611245800 with the contact type list');
-ok(read('index.html').includes('js/app.js?v=202611246000') && read('js/app.js').includes("pages/crm.js?v=202611245800") && read('js/pages/crm.js').includes("crm-forms.js?v=202611245800") && read('js/pages/crm.js').includes("crm-home.js?v=202611245800") && read('js/pages/crm-home.js').includes("crm-forms.js?v=202611245800"), 'the note edit pages are 202611245800 and the shell is 202611246000');
+ok(read('index.html').includes('js/app.js?v=202611247100') && read('js/app.js').includes("pages/crm.js?v=202611247100") && read('js/pages/crm.js').includes("crm-forms.js?v=202611247100") && read('js/pages/crm.js').includes("crm-home.js?v=202611247100") && read('js/pages/crm-home.js').includes("crm-forms.js?v=202611247100"), 'the CRM pages and the shell load at 202611247100');
 ok(!read('js/data/adapter.js').includes('202611242030') && read('js/app.js').includes("adapter.js?v=202611246000") && read('js/data/adapter.js').includes("supabase-adapter.js?v=202611245900") && read('js/data/adapter.js').includes("mock-adapter.js?v=202611246000"), 'the shell loads the adapter that reads the tax rate sheet');
 const fileCheckDiff = execFileSync('git', ['diff', '-U0', 'origin/main', '--', 'js/data/crm-import-file.js'], { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'));
-ok(fileCheckDiff.length > 0 && fileCheckDiff.every((l) => /\?v=202611\d+/.test(l)), 'the file check module changes only the cache stamp that loads the contact type list');
-// Note edit changes the notes list in crm-forms.js. The task detail changes crm-home.js. Those files are not stamp-only.
-// index.html and crm.js change only the cache stamp on this branch.
-for (const rel of ['index.html', 'js/pages/crm.js']) {
-  const diff = execFileSync('git', ['diff', '-U0', 'origin/main', '--', rel], { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'));
-  ok(diff.length === 0 || diff.every((l) => /\?v=202611\d+/.test(l)), rel + ' changes only cache stamps');
-}
+ok(fileCheckDiff.length === 0 || fileCheckDiff.every((l) => /\?v=202611\d+/.test(l)), 'the file check module is unchanged, or only its cache stamp moved');
+// The shell file changes only the cache stamp. The CRM record page changes who can edit.
+const indexDiff = execFileSync('git', ['diff', '-U0', 'origin/main', '--', 'index.html'], { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'));
+ok(indexDiff.length === 0 || indexDiff.every((l) => /\?v=202611\d+/.test(l)), 'index.html changes only cache stamps');
 
 const { window, document } = parseHTML('<!doctype html><html><body><div id="app"></div><div id="toasts"></div></body></html>');
 globalThis.window = window;

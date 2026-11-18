@@ -5,11 +5,12 @@ import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, fmtMone
 import { CONTACT_TYPES, contactTypeLabel, US_STATE_NAMES, localDate, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611245800';
 import { ROLES_IN_COMPANY, LEAD_SOURCES, RELATIONSHIP_STATUSES, LINK_FIELDS, safeHref, TASK_SUBJECTS, TASK_STATUSES, TASK_PRIORITIES, REPEAT_EVERY, MEETING_TYPES, relatedLists,
   activityKindLabel, ACTIVITY_KINDS, entityLabel, localStamp } from '../data/crm.js?v=202611130900';
-import { sel, pairs, ownerSel } from './crm-kit.js?v=202611245800';
+import { sel, pairs, ownerSel } from './crm-kit.js?v=202611247100';
+import { canChangeCrmRecord, CRM_LOCK_NOTE } from '../data/crm-visibility.js?v=202611247100';
 import { CONVERTED_STATUS } from '../data/crm.js?v=202611130900';
 import { fieldsInSection, builtinRequired, activeOptions, defaultOption } from '../data/crm-config.js?v=202611130900';
 import { optSel, lbl, lblOrDash, hiddenField, cfInputs, cfRows, cfExtraSections } from './crm-custom.js?v=202611243900';
-import { activityBoard, wireCalls } from './crm-calls.js?v=202611245800';
+import { activityBoard, wireCalls } from './crm-calls.js?v=202611247100';
 import { wireZipCounty, wireSubjectTypeahead, inviteBtn, invitePreview } from './crm-janine.js?v=202611245800';
 
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
@@ -119,13 +120,14 @@ function actTable(list, me, { closeBtn = false, empty = 'None.', cfg = null } = 
       <td>${actWhen(a)}</td>
       <td>${a.kind === 'task' ? html`${lbl(cfg, 'taskStatus', a.status)}${a.overdue ? html` ${pill('Overdue', 'bad')}` : ''}${a.reminderDue ? html` ${pill('Reminder', 'warn')}` : ''} <span class="muted small">${lbl(cfg, 'taskPriority', a.priority)}</span>` : a.kind === 'meeting' ? html`${lbl(cfg, 'meetingType', a.meetingType) || 'Meeting'}${a.open ? '' : html` <span class="muted small">(held)</span>`}` : a.kind === 'call' ? html`${a.callStatus || 'Completed'}${a.callType ? html` <span class="muted small">${a.callType}</span>` : ''}${a.callDurationText ? html` <span class="muted small">${a.callDurationText}</span>` : ''}${a.reminderDue ? html` ${pill('Reminder', 'warn')}` : ''}` : 'Logged'}</td>
       <td>${a.kind === 'task' ? a.ownerName : a.kind === 'meeting' ? a.hostName : a.kind === 'call' ? a.ownerName || a.createdByName : a.createdByName}</td>
-      <td>${closeBtn && me.canEdit && a.kind === 'task' && a.open ? html`<button class="ghost" data-close-task="${a.id}">Close Task</button>` : ''}</td></tr>`) : html`<tr><td colspan="6" class="muted">${empty}</td></tr>`}</tbody></table>`;
+      <td>${closeBtn && a.kind === 'task' && a.open ? (canChangeCrmRecord(me, a) ? html`<button class="ghost" data-close-task="${a.id}">Close Task</button>` : html`<button class="ghost" type="button" disabled data-locked-edit style="opacity:.45">Close Task</button>`) : ''}</td></tr>`) : html`<tr><td colspan="6" class="muted">${empty}</td></tr>`}</tbody></table>`;
 }
 // Janine, Nov 16 (Feedback 27 item 1): the author, or an admin, can fix or add to a note. Notes are never deleted.
 // Janine, Nov 16 (Feedback 27 item 2): a paperclip puts a file on that note. It does not show under Attachments.
 const noteText = (n) => { const body = n && n.body != null ? String(n.body) : ''; if (body.trim()) return body; return n && n.subject != null ? String(n.subject) : ''; };
 const noteWasEdited = (n) => !!(n && !n.system && n.modifiedAt && n.createdAt && String(n.modifiedAt) > String(n.createdAt));
-const canEditNote = (me, n) => !!(me && me.canEdit && n && !n.system && (me.isAdmin || (n.createdBy && n.createdBy === me.id)));
+const noteOwner = (n) => (n && (n.ownerId || n.createdBy)) || '';
+const canEditNote = (me, n) => !!(me && n && !n.system && canChangeCrmRecord(me, { ownerId: noteOwner(n) }));
 const noteFilesReady = (rec) => !rec || rec.noteFilesReady !== false;
 const filesOnNote = (rec, id) => (rec && rec.noteFiles || []).filter((f) => f && f.noteId === id);
 const noteFileList = (files) => (files.length ? html`<ul class="plain" data-note-files>${files.map((f) => html`<li data-note-file-row="${f.id}">&#128206; <a href="#" data-note-file="${f.id}">${f.name}</a> <span class="muted small">${fmtSize(f.size)}</span></li>`)}</ul>` : '');
@@ -142,7 +144,7 @@ export function relatedHtml(rec, { entity, entityId, me, cfg = null }) {
     return html`<li data-note="${n.id}">
       <div data-note-view><strong>${n.subject}</strong>${n.body && n.body !== n.subject ? html`<br>${n.body}` : ''}
         <br><span class="muted small">${n.system ? 'CRM' : n.createdByName} &middot; ${fmtDateTime(n.createdAt)}${noteWasEdited(n) ? html` &middot; <span data-note-edited>Edited ${fmtDateTime(n.modifiedAt)}</span>` : ''}${n.entity !== entity ? ` · on the ${entityLabel(n.entity).toLowerCase()}` : ''}</span>
-        ${edit ? html` <button type="button" class="ghost" data-note-edit="${n.id}">Edit</button>` : ''}</div>
+        ${edit ? html` <button type="button" class="ghost" data-note-edit="${n.id}">Edit</button>` : (!n.system ? html` <button type="button" class="ghost" disabled data-locked-edit style="opacity:.45">Edit</button> <span class="muted" data-lock-note>${CRM_LOCK_NOTE}</span>` : '')}</div>
       ${noteFileList(files)}
       ${edit ? html`<form data-note-form="${n.id}" class="form-grid" hidden>
         <label class="span2">Note<textarea name="text" rows="3" maxlength="4000">${noteText(n)}</textarea></label>
