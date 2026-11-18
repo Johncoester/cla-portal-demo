@@ -32,7 +32,7 @@ import { AGENT_TC_ROLES, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, isAgent
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611222100';
 import { bindAddressFill } from '../data/address-fill.js?v=202611222100';
 import { countyFieldHtml, mountCountySelect } from './county-field.js?v=202611243300';
-import { agentFeesPanel, agentFeesPointer } from './agent-fees-box.js?v=202611241800';
+import { agentFeesPanel, agentFeesPointer } from './agent-fees-box.js?v=202611243063';
 function staffSections(ctx, dealId) {
   const { api } = ctx;
   const user = ctx.user;
