@@ -4,19 +4,21 @@
  * With the browser flag off every method refuses before calling the database. Meetings never send invitations; nothing is emailed. */
 import { CRM_OFF } from './features.js?v=202611070139';
 import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED, companyKey } from './crm.js?v=202611130900';
-import { localDate, runsOrders as runsOrdersCI, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from './constants.js?v=202611101015';
+import { localDate, runsOrders as runsOrdersCI, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from './constants.js?v=202611245800';
 import { uploadBytes, uploadFileName } from './upload-bytes.js?v=202611141400';
 import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611130900';
-import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611130900';
+import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611245800';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611130900';
 import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
 import { dealStageOf } from './crm-analytics.js?v=202611243900';
-import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611242290';
-import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611243900';
+import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611245800';
+import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611245800';
+import { contactTypeSaveError } from './contact-insert.js?v=202611245800';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };
-  const rpc = async (n, args) => { on(); return ok(await sb.rpc(n, args || {})); };
+  const raiseType = (e) => { const mapped = contactTypeSaveError(e); if (mapped) throw mapped; throw e; };
+  const rpc = async (n, args) => { on(); try { return ok(await sb.rpc(n, args || {})); } catch (e) { raiseType(e); } };
   const nameOf = (people, id) => (people.find((o) => o.id === id) || {}).name || '';
   let ownersCache = null; const owners = async () => (ownersCache ||= (ok(await sb.rpc('crm_owners')) || []).map((o) => ({ id: o.id, name: o.name, role: o.role })));
   // The picker is only people who can own a record. A record kept from before the tick still shows that person's name.
@@ -128,7 +130,7 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     if (v.meetingType != null) o.meeting_type = v.meetingType; if (v.hostId !== undefined) o.host_id = blank(v.hostId); const d = v.description !== undefined ? v.description : v.body; if (d != null) o.body = d;
     if (v.participants !== undefined) o.participants = (Array.isArray(v.participants) ? v.participants : String(v.participants || '').split(',')).map((x) => String(x).trim()).filter(Boolean);
     return o; };
-  const one = async (q) => ok(await q.select('*').single());
+  const one = async (q) => { try { return ok(await q.select('*').single()); } catch (e) { raiseType(e); } };
   // TEST CRM tables have no last-activity column. List filters still offer Last Activity Time, filled from crm_activities.
   const withActivity = async (rows, entity) => {
     const ids = (rows || []).map((r) => r && r.id).filter(Boolean);

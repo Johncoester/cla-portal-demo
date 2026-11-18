@@ -3,7 +3,7 @@
  * A typed person is saved as a contact with no portal login and no invite.
  * Picking an existing contact still uses that contact and does not rewrite it.
  * Who can see a file is unchanged: a contact with no login cannot open the file. */
-import { phoneOk, PHONE_MSG } from './constants.js?v=202611101015';
+import { phoneOk, PHONE_MSG, AGENT_TC_TYPE } from './constants.js?v=202611245800';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -62,10 +62,7 @@ function optionLabel(c) {
   return name || String(c.company || '').trim() || 'Unnamed contact';
 }
 
-/* Dropdown of existing companies plus agents (realtors) or loan officers (lender contacts). */
-export function directoryModel(contacts, kind) {
-  const want = kind === 'lender' ? 'lender' : 'realtor';
-  const list = (contacts || []).filter((c) => c && c.id && !String(c.id).startsWith('staff:') && c.contactType === want);
+function bucket(list) {
   const companySeen = new Set();
   const companies = [];
   for (const c of list) {
@@ -78,12 +75,54 @@ export function directoryModel(contacts, kind) {
   companies.sort((a, b) => a.label.localeCompare(b.label));
   const people = list.filter((c) => personName(c)).map((c) => ({ value: c.id, label: optionLabel(c) }));
   people.sort((a, b) => a.label.localeCompare(b.label));
+  return { companies, people };
+}
+
+function visibleContacts(contacts) {
+  return (contacts || []).filter((c) => c && c.id && !String(c.id).startsWith('staff:'));
+}
+
+/* Dropdown of existing companies plus agents (realtors), loan officers (lender contacts),
+ * or transaction coordinators (outside assistants who work for agents) with agents still listed. */
+export function directoryModel(contacts, kind) {
+  const base = visibleContacts(contacts);
+  if (kind === 'tc') {
+    const coordinators = bucket(base.filter((c) => c.contactType === AGENT_TC_TYPE));
+    const agents = bucket(base.filter((c) => c.contactType === 'realtor'));
+    const companySeen = new Set();
+    const companies = [];
+    for (const row of [...coordinators.companies, ...agents.companies]) {
+      const key = row.label.toLowerCase();
+      if (companySeen.has(key)) continue;
+      companySeen.add(key);
+      companies.push(row);
+    }
+    companies.sort((a, b) => a.label.localeCompare(b.label));
+    return {
+      companyLabel: 'Companies',
+      peopleLabel: 'Transaction coordinators',
+      companies,
+      people: coordinators.people,
+      extraLabel: 'Agents',
+      extraPeople: agents.people,
+    };
+  }
+  const want = kind === 'lender' ? 'lender' : 'realtor';
+  const one = bucket(base.filter((c) => c.contactType === want));
   return {
     companyLabel: 'Companies',
     peopleLabel: kind === 'lender' ? 'Loan officers' : 'Agents',
-    companies,
-    people,
+    companies: one.companies,
+    people: one.people,
   };
+}
+
+export function directoryGroups(model) {
+  const groups = [];
+  if (model && model.companies && model.companies.length) groups.push([model.companyLabel || 'Companies', model.companies]);
+  if (model && model.people && model.people.length) groups.push([model.peopleLabel || 'People', model.people]);
+  if (model && model.extraPeople && model.extraPeople.length) groups.push([model.extraLabel || 'Agents', model.extraPeople]);
+  return groups;
 }
 
 export function directoryChoice(value) {
@@ -106,7 +145,7 @@ export function manualPartyEntry({ label, contactId, person, company, email, pho
   const co = String(company || '').trim() || fromList;
   const em = String(email || '').trim();
   const ph = String(phone || '').trim();
-  const type = contactType === 'lender' ? 'lender' : 'realtor';
+  const type = contactType === 'lender' || contactType === AGENT_TC_TYPE || contactType === 'realtor' ? contactType : 'realtor';
   if (!name.firstName && !name.lastName && !co && !em && !ph) return { ok: true, action: 'skip', invite: false };
   if (!name.firstName && !name.lastName && !co) return { ok: false, error: `${who}: enter the person or the company, or choose one from the list.` };
   const named = !!(name.firstName || name.lastName);

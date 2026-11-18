@@ -3,7 +3,7 @@
 import {
   TC_NOT_AGENT, TC_NOT_ALLOWED, TC_SELF, TC_NOT_FOUND, TC_EMAIL_TAKEN,
   alreadyLinkedMessage, isRealEstateAgent, staffLoginProblem, newCoordinatorProblem, personName, formatCoordinatorPhone,
-} from './agent-tc-links.js?v=202611245400';
+} from './agent-tc-links.js?v=202611245900';
 
 export function agentTcLinksPart(x) {
   const { load, save, nid, needUser, fail, prof, contactOf, now, clone, str, emailOk, C } = x;

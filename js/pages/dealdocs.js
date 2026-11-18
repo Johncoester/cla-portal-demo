@@ -1,11 +1,11 @@
 // Documents tab with folders. Upload, open/download, file into folders, edit description/visibility. There is NO delete: documents are kept permanently.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDateTime, fmtSize, pill, toast } from '../ui.js?v=202611161500';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611162200';
-import { composeModal } from './compose.js?v=202611191600';
-import { runsOrders, viewOnly, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isClient, isRefi, visibilityChoices, visibilityLabel, clientShareVisibility, CLIENT_SHARE_NOTE, BUYER_SHARE_NOTE, DOC_TYPES, docTypeChoices } from '../data/constants.js?v=202611101015';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611245800';
+import { composeModal } from './compose.js?v=202611245800';
+import { runsOrders, viewOnly, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isClient, isRefi, visibilityChoices, visibilityLabel, clientShareVisibility, CLIENT_SHARE_NOTE, BUYER_SHARE_NOTE, DOC_TYPES, docTypeChoices } from '../data/constants.js?v=202611245800';
 import { MISC_DOC_TYPE, orderedDocTypes, docTypeLabel, resolveDocType, docTypeEditorState } from '../data/document-type.js?v=202611100945';
 import { AUDIENCE_CONTROL, AUDIENCE_NOTE, audienceParties, audienceChoices, checkedForVisibility, visibilityFromChecked, audienceSync } from '../data/document-audience.js?v=202611100945';
-import { uploadDocumentBatch } from '../data/document-batch.js?v=202611101015';
+import { uploadDocumentBatch } from '../data/document-batch.js?v=202611245800';
 import { addToQueue, removeFromQueue, uploadFailureText } from '../data/document-queue.js?v=202611090935';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
 import { DOC_SORT_DIR, docMatches, sortDocs } from '../data/doc-list.js?v=202611161800';

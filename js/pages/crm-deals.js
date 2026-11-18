@@ -4,14 +4,14 @@ import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, 
 import { crmSort } from '../data/crm.js?v=202611130900';
 import { DEAL_COLS, DEFAULT_HIDDEN, loadHidden } from '../data/crm-deal-cols.js?v=202611070139';
 import { display, moduleFields, DEAL_STAGES, dealStageOf, statusForDealStage } from '../data/crm-analytics.js?v=202611243900';
-import { runsOrders } from '../data/constants.js?v=202611101015';
+import { runsOrders } from '../data/constants.js?v=202611245800';
 import { crmDealName, columnKey, loadColumns, normalizeColumns, beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611160300';
 import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611161500';
-import { tabs, head, money, wireRowOpen, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611161500';
+import { tabs, head, money, wireRowOpen, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611245800';
 import { matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611161500';
 import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611244500';
-import { viewsBar, wireViewsBar } from './crm-views.js?v=202611243900';
+import { viewsBar, wireViewsBar } from './crm-views.js?v=202611245800';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611161500';
 import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070139';
 import { pageOf, selectionState, selectPage, loadPageSize } from '../data/crm-bulk.js?v=202611160300';

@@ -3,36 +3,36 @@ import { html, raw, toText, esc, $, $$, guard, formData, modal, closeModal, opti
 import { textToHtml, hasSignature } from '../data/gmail-email.js?v=202611191000';
 import { disbursementFor } from '../data/disbursement.js?v=202611190600';
 import { occSelects, yesNo } from './occ-fields.js?v=202611242860';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount, OUTSIDE_FILE_ROLES } from '../data/constants.js?v=202611101015';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount, OUTSIDE_FILE_ROLES, contactTypeForRole } from '../data/constants.js?v=202611245800';
 import { officeDate } from '../data/office-date.js?v=202611102100';
-import { modOn } from '../data/modules.js?v=202611101015';
-import { slotText } from './dealclosing.js?v=202611242210';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611191800';
-import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice } from '../data/file-party.js?v=202611221600';
+import { modOn } from '../data/modules.js?v=202611245800';
+import { slotText } from './dealclosing.js?v=202611245800';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611245800';
+import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611245800';
 import { cleanFileNumber } from '../data/file-number.js?v=202611222500';
-import { composeModal } from './compose.js?v=202611191600';
-import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611243800';
+import { composeModal } from './compose.js?v=202611245800';
+import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611245800';
 import { processorPickLabel, processorPickError } from '../data/processor-pick.js?v=202611222000';
-import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611101015';
-import { canManageClosingLocations } from '../data/closing-location.js?v=202611101015';
-import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611161500';
-import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611241900';
+import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611245800';
+import { canManageClosingLocations } from '../data/closing-location.js?v=202611245800';
+import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611245800';
+import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611245800';
 import { themeOn } from '../theme.js?v=202611070139';
-import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611242210';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611243081';
+import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611245800';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611245800';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611245400';
-import { placeText } from '../data/cla-offices.js?v=202611101015';
+import { prefetchDealTab } from './deal-tab.js?v=202611245900';
+import { placeText } from '../data/cla-offices.js?v=202611245800';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
-import { lenderRoleLabel } from '../data/lender-file.js?v=202611241600';
+import { lenderRoleLabel } from '../data/lender-file.js?v=202611245800';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { viewTasksHref } from '../data/task-board.js?v=202611241000';
+import { viewTasksHref } from '../data/task-board.js?v=202611245800';
 import { earnestView } from '../data/earnest-commission.js?v=202611223000';
-import { AGENT_TC_ROLES, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, isAgentTcRole } from '../data/agent-tc.js?v=202611241300';
-import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611222100';
-import { bindAddressFill } from '../data/address-fill.js?v=202611222100';
+import { AGENT_TC_ROLES, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, isAgentTcRole, agentTcHelp } from '../data/agent-tc.js?v=202611245300';
+import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611245800';
+import { bindAddressFill } from '../data/address-fill.js?v=202611245800';
 import { countyFieldHtml, mountCountySelect } from './county-field.js?v=202611243300';
-import { agentFeesPanel, agentFeesPointer } from './agent-fees-box.js?v=202611243063';
+import { agentFeesPanel, agentFeesPointer } from './agent-fees-box.js?v=202611245800';
 function staffSections(ctx, dealId) {
   const { api } = ctx;
   const user = ctx.user;
@@ -335,7 +335,7 @@ async function editModal(api, d, refresh, meId) {
 const PARTY_LABEL = { 'Client-Buyer': 'buyer', 'Client-Seller': 'seller', 'Buyer Agent': "buyer's agent", 'Listing Agent': 'listing agent', Lender: 'lender', [BUYER_AGENT_TC]: "buyer's transaction coordinator", [LISTING_AGENT_TC]: 'listing transaction coordinator' };
 function directoryOptionsHtml(model) {
   const group = (label, options) => (options.length ? html`<optgroup label="${label}">${options.map((o) => html`<option value="${o.value}">${o.label}</option>`)}</optgroup>` : '');
-  return html`<option value="">Not listed — type them below</option>${group(model.companyLabel, model.companies)}${group(model.peopleLabel, model.people)}`;
+  return html`<option value="">Not listed — type them below</option>${directoryGroups(model).map(([label, options]) => group(label, options))}`;
 }
 async function addPartyModal(api, d, role, refresh) {
   const label = role === 'Client-Buyer' && isRefi(d) ? 'borrower' : (PARTY_LABEL[role] || 'person');
@@ -345,10 +345,10 @@ async function addPartyModal(api, d, role, refresh) {
   const all = await api.listContacts();
   const on = new Set(d.participants.filter((p) => p.role === role && !p.removed).map((p) => p.contactId));
   const choices = all.filter((c) => !on.has(c.id));
-  const model = directory ? directoryModel(choices, role === 'Lender' ? 'lender' : 'agent') : null;
+  const model = directory ? directoryModel(choices, role === 'Lender' ? 'lender' : agentTc ? 'tc' : 'agent') : null;
   const m = modal(`${existingTc.length ? 'Change the' : 'Add a'} ${label}`, html`<form id="apty" class="form-grid">
-    <p class="span2 muted small">${agentTc ? "This is the agent's transaction coordinator, an outside contact. A portal login is not required, and this is not the CLA Title Transaction Coordinator." : 'Type the name, email and phone onto this file. You do not have to pick an existing contact, and no portal login is created. Invite them later from Contacts.'}${existingTc.length ? ' Saving replaces the coordinator already on this side. That contact stays in the directory.' : ''}</p>
-    ${directory ? html`<label class="span2">Existing company or ${role === 'Lender' ? 'loan officer' : 'agent'}<select data-dir-select aria-label="Existing company or person">${directoryOptionsHtml(model)}</select></label>` : html`<div class="span2">${pickerHtml('contactId', 'Existing contact (optional)')}</div>`}
+    <p class="span2 muted small">${agentTc ? agentTcHelp(role) + ' A new person is saved as Transaction coordinator, not as a Realtor.' : 'Type the name, email and phone onto this file. You do not have to pick an existing contact, and no portal login is created. Invite them later from Contacts.'}${existingTc.length ? ' Saving replaces the coordinator already on this side. That contact stays in the directory.' : ''}</p>
+    ${directory ? html`<label class="span2">Existing company or ${role === 'Lender' ? 'loan officer' : agentTc ? 'transaction coordinator' : 'agent'}<select data-dir-select aria-label="Existing company or person">${directoryOptionsHtml(model)}</select></label>` : html`<div class="span2">${pickerHtml('contactId', 'Existing contact (optional)')}</div>`}
     <label>First name<input name="firstName" maxlength="80" autocomplete="off" aria-label="First name"></label>
     <label>Last name<input name="lastName" maxlength="80" autocomplete="off" aria-label="Last name"></label>
     <label>Email<input name="email" type="email" maxlength="200" autocomplete="off" aria-label="Email"></label>
@@ -369,7 +369,7 @@ async function addPartyModal(api, d, role, refresh) {
     const picked = (pk && pk.value) || (dir && directoryChoice(dir.value).kind === 'person' ? directoryChoice(dir.value).contactId : '');
     const typedName = pk && !picked ? pk.typed : '';
     const entry = directory
-      ? manualPartyEntry({ label, contactId: picked, person: `${f.firstName || ''} ${f.lastName || ''}`.trim(), company: f.company, email: f.email, phone: f.phone, contactType: role === 'Lender' ? 'lender' : 'realtor', lenderRole: f.lenderRole })
+      ? manualPartyEntry({ label, contactId: picked, person: `${f.firstName || ''} ${f.lastName || ''}`.trim(), company: f.company, email: f.email, phone: f.phone, contactType: contactTypeForRole(role) || 'realtor', lenderRole: f.lenderRole })
       : buyerSellerEntry({ label, contactId: picked, typedName, firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone, company: f.company });
     if (!entry.ok) throw new Error(entry.error);
     if (entry.action === 'skip') throw new Error(`Enter a name for this ${label}, or pick an existing contact.`);
@@ -449,7 +449,7 @@ export function partyRows(d, ov, staffView, splits = []) {
   const rows = ov ? ov.parties.map((p) => ({ ...p })) : [];
   if (staffView) d.participants.filter((p) => !p.removed && p.contact && !OVERVIEW_ROLES.includes(p.role) && !(p.role === 'Lender' && rows.some((r) => r.label === 'Lender')))
     .forEach((p) => { const roleBit = lenderRoleLabel(p.contact.lenderRole); const name = partyDisplayName(p); const company = [p.contact.company && p.contact.company !== name ? p.contact.company : '', roleBit].filter(Boolean).join(' · '); const agentTc = isAgentTcRole(p.role); rows.push({ label: agentTc ? agentTcLabel(p.role) : p.role, addRole: p.role, agentTc, name, company, email: p.contact.email || '', phone: p.contact.phone || '', contactId: p.contact.contactHidden ? '' : (p.contactId || ''), contactHidden: !!p.contact.contactHidden, entity: p.entity || null, profileId: p.contact.profileId || null, canMessage: false }); });
-  if (staffView && !isRefi(d)) for (const role of AGENT_TC_ROLES) if (!rows.some((r) => r.addRole === role)) rows.push({ label: agentTcLabel(role), addRole: role, agentTc: true, name: 'Not specified', company: "The agent's coordinator", email: '', phone: '', placeholder: true });
+  if (staffView && !isRefi(d)) for (const role of AGENT_TC_ROLES) if (!rows.some((r) => r.addRole === role)) rows.push({ label: agentTcLabel(role), addRole: role, agentTc: true, name: 'Not specified', company: role === BUYER_AGENT_TC ? "Works for the buyer's agent" : 'Works for the listing agent', email: '', phone: '', placeholder: true });
   if (staffView) for (const role of STAFF_EXTRA_ROLES) if (!rows.some((r) => r.label === role)) {
     const sp = role === 'Underwriter' ? (splits || []).find((x) => x.state === String(d.state || '').toUpperCase() && x.underwriter) : null;
     rows.push(sp ? { label: role, name: sp.underwriter, company: `${sp.state} underwriter (Underwriter Splits)`, email: '', phone: '', placeholder: true, fromSplits: true }

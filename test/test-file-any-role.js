@@ -57,8 +57,8 @@ await rejects(() => a.addDealSalesPerson(file.id, 'u-buyer'), 'NEG an outside us
 await rejects(() => a.addParticipant(file.id, 'c-buyer', 'Processor'), 'NEG an outside user cannot be added as CLA staff', /outside user cannot be added as CLA staff/);
 
 const contactsSrc = readFileSync(new URL('../js/pages/dealcontacts.js', import.meta.url), 'utf8');
-ok(contactsSrc.includes("tcIds.add('staff:' + t.profileId)") && contactsSrc.includes('isTcPick') && contactsSrc.includes('tcProfileIds.has(c.profileId)'), 'the Contacts tab TC list matches a staff login even when they have no contact row yet');
-ok(contactsSrc.includes('Any active staff login can be the Transaction Coordinator') && !contactsSrc.includes('Only users with the Transaction Coordinator account role'), 'the Contacts tab TC note says any active staff login can be chosen');
+ok(!contactsSrc.includes("tcIds.add('staff:' + t.profileId)") && !contactsSrc.includes('isTcPick') && contactsSrc.includes('rolesForNewContact'), 'the Contacts tab no longer offers a staff-only Transaction Coordinator list');
+ok(!contactsSrc.includes('Any active staff login can be the Transaction Coordinator') && contactsSrc.includes('agentTcHelp'), 'the Contacts tab describes the outside coordinator');
 
 const staffJohn = { id: 'staff:u-john', profileId: 'u-john', firstName: 'John', lastName: 'Coester', email: 'jcoester@clatitle.com', accountRole: 'Super admin' };
 const realtorJohn = { id: 'c-realtor', firstName: 'John', lastName: 'Coester', email: 'johncoester@gmail.com', phone: '240-277-2894', company: 'Compass', contactType: 'realtor' };
@@ -68,11 +68,7 @@ ok(personLabel(staffJohn) === 'John Coester' && personLabel(realtorJohn) === 'Jo
 const both = matchPeople([staffJohn, realtorJohn], 'john co');
 ok(both.some((c) => c.id === 'staff:u-john') && both.some((c) => c.id === 'c-realtor'), 'typing john co lists the Super admin login and the realtor contact');
 ok(matchPeople([staffJohn, realtorJohn], 'jco').some((c) => c.id === 'staff:u-john' && c.email === 'jcoester@clatitle.com'), 'typing jco finds the staff login by email');
-const tcRows = [{ profileId: 'u-john', contactId: '' }, { profileId: 'u-tc', contactId: 'c-tc' }];
-const tcIds = new Set(); const tcProfileIds = new Set();
-for (const x of tcRows) { if (x.contactId) tcIds.add(x.contactId); if (x.profileId) { tcProfileIds.add(x.profileId); tcIds.add('staff:' + x.profileId); } }
-const isTcPick = (c) => !!(c && (tcIds.has(c.id) || (c.profileId && tcProfileIds.has(c.profileId))));
-ok(isTcPick(staffJohn) && isTcPick({ id: 'c-tc', profileId: 'u-tc' }) && !isTcPick(realtorJohn), 'a staff login with no contact row is still offered when Role on this order is Transaction Coordinator');
+ok(!contactsSrc.includes('<option value="Transaction Coordinator"') && contactsSrc.includes('rolesForNewContact'), 'Role on this order does not offer the old Transaction Coordinator choice');
 
 const mig = readFileSync(new URL('../supabase/migrations/20261119150000_file_any_staff_roles.sql', import.meta.url), 'utf8');
 const rb = readFileSync(new URL('../supabase/rollbacks/20261119150000_file_any_staff_roles.sql', import.meta.url), 'utf8');

@@ -1,5 +1,5 @@
 // Reminder outbox: reminders are QUEUED here only. This build never sends email or SMS.
-import { runsOrders } from '../data/constants.js?v=202611101015';
+import { runsOrders } from '../data/constants.js?v=202611245800';
 import { html, $, guard, toast, fmtDateTime, pill } from '../ui.js?v=202611161500';
 export async function render({ api, user, refresh }) {
   const list = await api.listOutbox(); const canQueue = runsOrders(user) || user.role === 'Transaction Coordinator';
