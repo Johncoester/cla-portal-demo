@@ -1521,7 +1521,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On the agent's Commission information task, the agent enters a broker fee and sees a read-only Total commission (their Agent fees commission for that side plus the broker fee). They also pick how to be paid: At settlement, FedEx overnight (with a mailing address), or Wire (with bank details). The account number shows last 4 only to people who are not the agent or the processor. Field names are ready for a future agent-profile default; that default is not built yet.
 
-**Status: In progress.** Tracker FF-101b. Francis Santos, Nov 18 2026 11 AM meeting notes; confirmed by John Coester Nov 18 2026, 2:13 PM ET. Pull request: (this PR). Database file `supabase/migrations/20261125290000_commission_broker_payout.sql` — not applied on TEST. Not Live.
+**Status: In progress.** Tracker FF-101b. Francis Santos, Nov 18 2026 11 AM meeting notes; confirmed by John Coester Nov 18 2026, 2:13 PM ET. Pull request: [PR 352](https://github.com/Johncoester/cla-portal-demo/pull/352). Database file `supabase/migrations/20261125290000_commission_broker_payout.sql` — not applied on TEST. Not Live.
 
 **What's built**
 
