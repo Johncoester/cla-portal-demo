@@ -384,7 +384,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When an agent or processor picks a CLA office for the settlement (Schedule the Settlement task, Scheduling Details, or the party scheduling link), the list is only the offices marked for settlements. That starts as Towson, Rockville and Bethesda. Rockville is the main office. Other offices stay in the offices table and on Admin > Offices, but are not offered for new settlement picks. A retired office never appears. A pending proposal that already uses another office still shows that office on the file.
 
-**Status: In progress.** Tracker FF-101d. Francis Santos, Portal review Nov 18 2026 11 AM; John confirmed Nov 18 2026, 2:13 PM ET. Pull request: (this PR). Database file `supabase/migrations/20261125300000_settlement_office_flag.sql` is not applied. Not Live.
+**Status: In progress.** Tracker FF-101d. Francis Santos, Portal review Nov 18 2026 11 AM; John confirmed Nov 18 2026, 2:13 PM ET. Pull request: [PR 353](https://github.com/Johncoester/cla-portal-demo/pull/353). Database file `supabase/migrations/20261125300000_settlement_office_flag.sql` is not applied. Not Live.
 
 **What's built**
 
