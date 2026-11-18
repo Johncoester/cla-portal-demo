@@ -14,7 +14,7 @@ import { sourceChoices } from '../data/place-order.js?v=202611191800';
 import { themeOn } from '../theme.js?v=202611070139';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 
-const TABS = { tasks: './dealtasks.js?v=202611243624', inbox: './dealmsgs.js?v=202611241900', documents: './dealdocs.js?v=202611191600', contacts: './dealcontacts.js?v=202611243621', activity: './dealactivity.js?v=202611161500', closing: './dealclosing.js?v=202611242210', agreements: './dealagreements.js?v=202611161500', accounting: './dealaccounting.js?v=202611243072' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611243624', inbox: './dealmsgs.js?v=202611241900', documents: './dealdocs.js?v=202611191600', contacts: './dealcontacts.js?v=202611243621', activity: './dealactivity.js?v=202611161500', closing: './dealclosing.js?v=202611242210', agreements: './dealagreements.js?v=202611161500', accounting: './dealaccounting.js?v=202611243227' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
