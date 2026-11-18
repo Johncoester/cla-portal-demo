@@ -32,8 +32,8 @@ ok(split.commission.payer === 'split' && split.commission.splitBuyer === 15000 &
 ok(/add up to the commission amount/.test(throws(() => readAgentFees({
   commissionBasis: 'percent', commissionPercent: '3', commissionPayer: 'split', splitBuyer: '1', splitSeller: '1',
 }, { side: 'listing', price: 950000 }))), 'a split that does not add up to the commission amount is refused');
-ok(throws(() => readAgentFees({ adminAmount: '10', adminPayer: 'split' }, { side: 'listing', price: 1 })) === 'Paid by must be Buyer or Seller.',
-  'an admin fee is still paid by the buyer or the seller');
+ok(throws(() => readAgentFees({ adminAmount: '10', adminPayer: 'lender' }, { side: 'listing', price: 1 })) === 'Payable by must be Buyer, Seller, or Split (Buyer and Seller).',
+  'an admin fee Payable by that is not Buyer, Seller, or Split is refused');
 
 const listing = { commission: { percent: 3, amount: 28500, payer: 'seller' }, admin: null, other: [] };
 const selling = { commission: { percent: 2, amount: 19000, base: 100000, additional: 1000, payer: 'split', splitBuyer: 9000, splitSeller: 10000 }, admin: null, other: [] };

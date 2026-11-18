@@ -5,7 +5,7 @@
  * Up to 5 other fees (description, amount, paid to). Staff changing a fee the agent confirmed must give a reason. Nothing is sent. */
 import { html, raw, $, $$, modal, closeModal, toast, fmtMoney, fmtDateTime, pill } from '../ui.js?v=202611161500';
 import { isRefi } from '../data/constants.js?v=202611101015';
-import { AGENT_FEE_SIDES, SIDE_LABEL, PANEL_TITLE, AGENT_ROLE_SIDE, PAYERS, COMMISSION_PAYERS, PAYER_LABEL, MAX_OTHER_FEES, defaultPayer, readAgentFees, syncCommission, sideStatus, agentFeeError, feeChanges } from '../data/agent-fees.js?v=202611222800';
+import { AGENT_FEE_SIDES, SIDE_LABEL, PANEL_TITLE, AGENT_ROLE_SIDE, PAYERS, COMMISSION_PAYERS, ADMIN_PAYERS, PAYER_LABEL, MAX_OTHER_FEES, defaultPayer, readAgentFees, syncCommission, sideStatus, agentFeeError, feeChanges, adminHalves, feeNumber } from '../data/agent-fees.js?v=202611243061';
 
 const pct = (n) => (n == null ? '' : `${Number(n).toLocaleString('en-US', { maximumFractionDigits: 4 })}%`);
 const payerText = (p, f) => (f && f.payer === 'split' ? ` (split: buyer ${fmtMoney(f.splitBuyer)}, seller ${fmtMoney(f.splitSeller)})` : (p ? ` (paid by ${PAYER_LABEL[p] || p})` : ''));
@@ -30,7 +30,7 @@ export function sideHtml(side, s, access) {
       <dt>Commission %</dt><dd data-af-percent>${c ? html`<b>${pct(c.percent)}</b>` : html`<span class="muted">Not entered</span>`}</dd>
       <dt>Additional amount</dt><dd data-af-additional>${c && c.additional ? fmtMoney(c.additional) : html`<span class="muted">None</span>`}</dd>
       <dt>Commission amount</dt><dd data-af-commission>${c ? html`<b>${fmtMoney(c.amount)}</b>${payerText(c.payer, c)}` : html`<span class="muted">Not entered</span>`}</dd>
-      <dt>Admin fee</dt><dd data-af-admin>${a ? html`<b>${fmtMoney(a.amount)}</b>${payerText(a.payer)}` : html`<span class="muted">None</span>`}</dd>
+      <dt>Admin fee</dt><dd data-af-admin>${a ? html`<b>${fmtMoney(a.amount)}</b>${payerText(a.payer, a)}` : html`<span class="muted">None</span>`}</dd>
       <dt>Other fees</dt><dd data-af-other>${others.length ? others.map((o) => html`<div data-af-other-row="${o.slot}">${o.description} <b>${fmtMoney(o.amount)}</b> to ${o.paidTo}${payerText(o.payer)}</div>`) : html`<span class="muted">None</span>`}</dd>
     </dl>
     ${st.by || st.at ? html`<p class="muted small" data-af-confirmed>Confirmed by ${st.by || (s.confirmed.role === 'tc' ? 'the TC' : 'the agent')}${st.at ? ` on ${new Date(st.at).toLocaleDateString('en-US')}` : ''}</p>` : ''}
@@ -71,9 +71,10 @@ export function formHtml(side, s, { price, needReason, asAgent = false }) {
       <label data-af-split="buyer" ${splitOn ? '' : raw('hidden')}>Buyer amount<input name="splitBuyer" inputmode="decimal" data-money autocomplete="off" aria-label="Buyer amount" value="${c.splitBuyer == null ? '' : Number(c.splitBuyer).toFixed(2)}"></label>
       <label data-af-split="seller" ${splitOn ? '' : raw('hidden')}>Seller amount<input name="splitSeller" inputmode="decimal" data-money autocomplete="off" aria-label="Seller amount" value="${c.splitSeller == null ? '' : Number(c.splitSeller).toFixed(2)}"></label>
     </fieldset>
-    <fieldset class="form-grid"><legend>Admin fee</legend>
+    <fieldset class="form-grid" data-af-admin-section><legend>Admin fee</legend>
       <label>Admin fee $<input name="adminAmount" inputmode="decimal" data-money autocomplete="off" value="${a.amount == null ? '' : Number(a.amount).toFixed(2)}"></label>
-      <label>Paid by${payerSel('adminPayer', a.payer)}</label>
+      <label>Payable by${payerSel('adminPayer', a.payer, ADMIN_PAYERS)}</label>
+      <p class="muted small span2" data-af-admin-split ${a.payer === 'split' ? '' : raw('hidden')}>Split means the buyer and the seller each pay half. An odd cent goes to the seller. <span data-af-admin-halves></span></p>
     </fieldset>
     <fieldset><legend>Other fees (up to ${MAX_OTHER_FEES})</legend><div data-af-others>${others.map((o, i) => otherRow(o, i, side))}</div>
       <p><button type="button" class="ghost" data-af-add ${others.length >= MAX_OTHER_FEES ? raw('hidden') : ''}>+ Add other fee</button></p></fieldset>
@@ -96,7 +97,22 @@ export function readForm(form) {
 function mountForm(form, side, price) {
   const field = (n) => form.querySelector(`[name="${n}"]`);
   const basis = field('commissionBasis'); const pctIn = field('commissionPercent'); const amtIn = field('commissionAmount');
-  const baseIn = field('commissionBase'); const addIn = field('additionalAmount'); const payer = field('commissionPayer');
+  const baseIn = field('commissionBase'); const addIn = field('additionalAmount');   const payer = field('commissionPayer');
+  const adminAmt = field('adminAmount'); const adminPayer = field('adminPayer');
+  const adminNote = form.querySelector('[data-af-admin-split]'); const adminHalf = form.querySelector('[data-af-admin-halves]');
+  const showAdminSplit = () => {
+    const on = !!(adminPayer && adminPayer.value === 'split');
+    if (adminNote) adminNote.hidden = !on;
+    if (!on || !adminHalf) return;
+    const rawAmt = String(adminAmt.value || '').trim();
+    if (!rawAmt) { adminHalf.textContent = 'Enter the admin fee to see each half.'; return; }
+    try {
+      const n = feeNumber(rawAmt, 'Admin fee');
+      if (n == null || n < 0) throw new Error('bad');
+      const h = adminHalves(n);
+      adminHalf.textContent = `Buyer pays ${fmtMoney(h.splitBuyer)}. Seller pays ${fmtMoney(h.splitSeller)}.`;
+    } catch (e) { adminHalf.textContent = 'Enter the admin fee as a dollar amount.'; }
+  };
   const fill = (from) => {
     basis.value = from; const typed = from === 'percent' ? pctIn.value : amtIn.value; const other = from === 'percent' ? amtIn : pctIn;
     if (!String(typed).trim()) { other.value = ''; return; }
@@ -111,6 +127,9 @@ function mountForm(form, side, price) {
   addIn.addEventListener('input', () => fill(basis.value === 'amount' ? 'amount' : 'percent'));
   const showSplit = () => { const on = payer.value === 'split'; form.querySelectorAll('[data-af-split]').forEach((el) => { el.hidden = !on; }); };
   payer.addEventListener('change', showSplit); showSplit();
+  if (adminAmt) adminAmt.addEventListener('input', showAdminSplit);
+  if (adminPayer) adminPayer.addEventListener('change', showAdminSplit);
+  showAdminSplit();
   const list = $('[data-af-others]', form); const add = $('[data-af-add]', form);
   const count = () => $$('[data-af-other-edit]', form).length;
   add.addEventListener('click', () => {
@@ -138,9 +157,9 @@ const KIND = { commission: 'Commission', admin: 'Admin fee', other: 'Other fee' 
 const SOURCE = { staff: 'CLA staff', agent: 'Agent', tc: 'TC', system: 'Automatic' };
 export function valueText(v) {
   if (!v) return 'None';
-  if (v.kind === 'commission') return `${pct(v.percent)} / ${fmtMoney(v.amount)}${payerText(v.payer)}`;
-  if (v.kind === 'other') return `${v.description} ${fmtMoney(v.amount)} to ${v.paidTo}${payerText(v.payer)}`;
-  return `${fmtMoney(v.amount)}${payerText(v.payer)}`;
+  if (v.kind === 'commission') return `${pct(v.percent)} / ${fmtMoney(v.amount)}${payerText(v.payer, v)}`;
+  if (v.kind === 'other') return `${v.description} ${fmtMoney(v.amount)} to ${v.paidTo}${payerText(v.payer, v)}`;
+  return `${fmtMoney(v.amount)}${payerText(v.payer, v)}`;
 }
 export function historyHtml(rows) {
   if (!rows.length) return html`<p class="muted small" data-af-history-empty>No changes yet.</p>`;
@@ -244,7 +263,7 @@ export function placeOrderFeesHtml() {
     <label data-af-split="seller" hidden>Seller amount<input name="af.${k}.splitSeller" inputmode="decimal" data-money autocomplete="off" aria-label="${label} seller share"></label>
     <label>Admin fee $<input name="af.${k}.admin" inputmode="decimal" data-money autocomplete="off" aria-label="${label} admin fee"></label></fieldset>`;
   return html`${side('listing', 'Listing agent')}${side('buyer', "Buyer's agent")}
-    <p class="muted small span2">Type the commission as a % or a $ amount; the other one fills in from the purchase price. Commission Paid By is Buyer, Seller, or Split. For Split, enter what the buyer pays and what the seller pays. Those two amounts must add up to the commission. The same choice is on the Agent fees box after the file is open. The admin fee is paid by the buyer on the buyer's agent side and by the seller on the listing side; change that, or add other fees, in the Agent fees box. Agents see only their own side. Buyers and sellers never see these.</p>`;
+    <p class="muted small span2">Type the commission as a % or a $ amount; the other one fills in from the purchase price. Commission Paid By is Buyer, Seller, or Split. For Split, enter what the buyer pays and what the seller pays. Those two amounts must add up to the commission. The same choice is on the Agent fees box after the file is open. The admin fee starts as paid by the buyer on the buyer's agent side and by the seller on the listing side. On the file, Payable by can be Buyer, Seller, or Split (Buyer and Seller). Change that, or add other fees, in the Agent fees box. Agents see only their own side. Buyers and sellers never see these.</p>`;
 }
 
 const poField = (form, n) => form.querySelector(`[name="${n}"]`);

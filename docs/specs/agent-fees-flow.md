@@ -41,7 +41,7 @@ Answers from John, Nov 12 2026, 2:33 PM ET (chat t1544u):
 1. **Commission is % or $, always in sync.** The agent can enter the commission as a percent or a dollar amount. Changing the % recalculates the $ from the sales price, and changing the $ recalculates the %. They can never differ.
 2. **Fields for each agent side (listing agent and buyer's agent):**
    - Commission: % and $, kept in sync.
-   - Admin fee, next to or below the commission. By default the buyer pays the buyer's agent admin fee and the seller pays the listing agent admin fee. Who pays can be changed per file.
+   - Admin fee, next to or below the commission. By default the buyer pays the buyer's agent admin fee and the seller pays the listing agent admin fee. Who pays can be changed per file. Payable by is Buyer, Seller, or Split (Buyer and Seller). Split is half and half. See [admin-fee-payable-by.md](admin-fee-payable-by.md).
    - Other fees: a section with a + button, up to 5 fees, each with a typed description, an amount and who it's paid to (for example, the brokerage).
    - All of these post automatically to the correct Accounting lines.
 3. **A staff change to an agent-confirmed fee only notifies the agent.** There's no re-approval and no review step.
