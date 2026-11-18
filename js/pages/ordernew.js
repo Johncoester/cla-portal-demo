@@ -11,28 +11,28 @@
 // wires never shown to agents.
 import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611161500';
 import { occSelects, yesNo } from './occ-fields.js?v=202611242860';
-import { fmtPhone, TX_TYPES, runsOrders, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount } from '../data/constants.js?v=202611101015';
+import { fmtPhone, TX_TYPES, runsOrders, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611245800';
 import { officeDate } from '../data/office-date.js?v=202611102100';
-import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611245300';
+import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611245800';
 import { salesMultiHtml, mountSalesMulti } from './sales-multi.js?v=202611243801';
-import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice, companyOnlyContact } from '../data/file-party.js?v=202611221600';
-import { ENTITY_TYPES } from '../data/templates.js?v=202611243616';
-import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611243800';
-import { closerChoices, resolveCloser } from '../data/closer.js?v=202611101015';
-import { duplicateNotice } from '../data/order-duplicates.js?v=202611191800';
+import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice, directoryGroups, companyOnlyContact } from '../data/file-party.js?v=202611245800';
+import { ENTITY_TYPES } from '../data/templates.js?v=202611245800';
+import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611245800';
+import { closerChoices, resolveCloser } from '../data/closer.js?v=202611245800';
+import { duplicateNotice } from '../data/order-duplicates.js?v=202611245800';
 import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
 import { orderDraftKey, readOrderDraft, writeOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim, tombstoneOrderDraft } from '../data/order-draft.js?v=202611242810';
-import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows, brokerageContact, brokerageContactError } from '../data/lender-file.js?v=202611241600';
-import { bindAddressFill } from '../data/address-fill.js?v=202611222100';
+import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows, brokerageContact, brokerageContactError } from '../data/lender-file.js?v=202611245800';
+import { bindAddressFill } from '../data/address-fill.js?v=202611245800';
 import { countyFieldHtml, mountCountySelect, paintCountyOptions } from './county-field.js?v=202611243300';
-import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611222100';
+import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611245800';
 import { readEarnest } from '../data/earnest-commission.js?v=202611223000';
-import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611243063';
+import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611245800';
 import { SIDE_LABEL as AF_SIDE_LABEL, PAYER_LABEL } from '../data/agent-fees.js?v=202611243061';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { AGENT_TC_ROLES, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcChoiceLabel, agentTcHelp, agentTcLabel, isAgentTcRole, partyProblemLine, roleForPartyField, uniqueProblems } from '../data/agent-tc.js?v=202611245300';
-import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611241600';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611162200';
+import { AGENT_TC_ROLES, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, isAgentTcRole, partyProblemLine, roleForPartyField, uniqueProblems, agentTcChoiceLabel, agentTcHelp } from '../data/agent-tc.js?v=202611245300';
+import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611245800';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611245800';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
 // Each person becomes their own deal_participants row, so each buyer / seller gets their own copy of the client intake tasks (existing per-person behaviour).
@@ -77,7 +77,7 @@ const agentTcCard = (role, label) => html`<div class="agent-card party-dir" data
   ${dirFields(label)}
   <input type="hidden" name="p:${role}" value="">
   <button type="button" class="ghost" data-add-tc="${role}">+ Add ${label.toLowerCase()}</button>
-  <p class="muted small">${agentTcHelp(role)} No invite is sent.</p></div>`;
+  <p class="muted small">${agentTcHelp(role)} A new person is saved as Transaction coordinator, not as a Realtor. No invite is sent.</p></div>`;
 const partyBlock = (role, label) => html`<fieldset class="span2 multi-party" data-multi="${role}"><legend>${label}s</legend>
   <div class="multi-rows" data-rows>${Array.from({ length: MIN_ROWS }, (_, i) => partyRow(role, label, i + 1))}</div><button type="button" class="ghost" data-add-row="${role}">+ Add another ${MULTI[role]}</button></fieldset>`;
 
@@ -228,7 +228,7 @@ export async function render({ api, user, go }) {
             <label id="an-first-l"><span id="an-first-t">First name *</span><input id="an-first" maxlength="80" aria-label="First name"></label><label id="an-last-l">Last name<input id="an-last" maxlength="80" aria-label="Last name"></label>
             <label>Email<span id="an-email-req" hidden> *</span><input id="an-email" type="email" maxlength="200"></label><label>Phone<input id="an-phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone></label>
             <label class="span2" id="an-company-l" hidden><span id="an-company-t">Brokerage / company</span><input id="an-company" maxlength="120" aria-label="Company"></label>
-            <label class="span2" id="an-ctype-l" hidden>Contact type <span class="muted small">(for reporting; set from the role, you can change it)</span><select id="an-ctype" aria-label="Contact type"><option value="">(not set)</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select></label>
+            <label class="span2" id="an-ctype-l" hidden>Contact type <span class="muted small">(for reporting; set from the role, you can change it)</span><select id="an-ctype" aria-label="Contact type"><option value="">(not set)</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select><span class="field-hint">${AGENT_TC_TYPE_NOTE}</span></label>
             <label class="span2" id="an-lrole-l" hidden>Lender contact type<select id="an-lrole" aria-label="Lender contact type"><option value="">No contact person</option><option value="loan_officer">Loan Officer</option><option value="lender_tc">Lender TC</option></select></label>
             <p class="span2 muted small" id="an-note"></p>
             <div class="span2" id="an-dup" hidden></div>
@@ -305,10 +305,10 @@ export async function render({ api, user, go }) {
       const phoneInput = () => (lender ? $('[name=lenderPhone]', root) : field('phone'));
       const emailInput = () => (lender ? $('[name=lenderEmail]', root) : field('email'));
       const paint = () => {
-        const model = directoryModel(people, lender ? 'lender' : 'agent');
+        const model = directoryModel(people, lender ? 'lender' : isAgentTcRole(role) ? 'tc' : 'agent');
         const current = sel.value;
         const group = (label, options) => (options.length ? html`<optgroup label="${label}">${options.map((o) => html`<option value="${o.value}">${o.label}</option>`)}</optgroup>` : '');
-        sel.innerHTML = toText(html`<option value="">Not listed — type them below</option>${group(model.companyLabel, model.companies)}${group(model.peopleLabel, model.people)}`);
+        sel.innerHTML = toText(html`<option value="">Not listed — type them below</option>${directoryGroups(model).map(([label, options]) => group(label, options))}`);
         if ([...sel.options].some((o) => o.value === current)) sel.value = current;
       };
       const fillPerson = (c) => {
@@ -353,7 +353,7 @@ export async function render({ api, user, go }) {
             company: companyInput() ? companyInput().value : '',
             email: emailInput() ? emailInput().value : '',
             phone: phoneInput() ? phoneInput().value : '',
-            contactType: lender ? 'lender' : 'realtor',
+            contactType: contactTypeForRole(role) || 'realtor',
             lenderRole: lender && $('[data-lender-role]', root) ? $('[data-lender-role]', root).value : '',
           };
         },
@@ -623,7 +623,7 @@ export async function render({ api, user, go }) {
       $('#an-first', root).required = false;
       $('#an-last-l', root).firstChild.textContent = lender ? 'Contact last name (optional)' : entity ? 'Representative last name (optional)' : 'Last name';
       $('#an-company-l', root).hidden = !(r === 'Buyer Agent' || r === 'Listing Agent' || r === 'Lender' || isAgentTcRole(r)); $('#an-company-t', root).textContent = lender ? 'Lender company name *' : 'Brokerage / company';
-      $('#an-ctype-l', root).hidden = !r || r === 'Sales Person'; $('#an-ctype', root).value = isAgentTcRole(r) ? 'realtor' : contactTypeForRole(r); $('#an-lrole-l', root).hidden = !lender; $('#an-email-req', root).hidden = r !== 'Sales Person';
+      $('#an-ctype-l', root).hidden = !r || r === 'Sales Person'; $('#an-ctype', root).value = contactTypeForRole(r); $('#an-lrole-l', root).hidden = !lender; $('#an-email-req', root).hidden = r !== 'Sales Person';
       $('#an-note', root).textContent = r === 'Sales Person' ? 'A Sales Person login is created in HR. Add the employee there and copy the invite link. Nothing is emailed.'
         : lender ? 'Adds the lender company as a contact. No portal login is created. A contact person is optional, and this does not change another lender\'s saved record.'
         : entity ? 'The entity name is the buyer or seller. First and last are only a representative and can be left blank. The entity name is not split into a first and last name. No portal login is created.'

@@ -7,16 +7,16 @@
  * Access (mirrored by private.crm_* in migration 22): see crm.js. */
 import { roleAllowed } from './role-access.js?v=202611100100';
 import { CRM_OFF } from './features.js?v=202611070139';
-import { dealDisplayName } from './nov5-rules.js?v=202611131900';
+import { dealDisplayName } from './nov5-rules.js?v=202611245800';
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, OPP_STAGES, ACCOUNT_KIND_CODES, CRM_ENTITIES, accountKindForType, entityLabel,
   TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, LINK_KEYS, LINK_FIELDS, cleanUrl, nextDue, addDaysTo, taskOpen, meetingOpen, localStamp,
   canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals, REPEAT_CODES, LEAD_STATUS_DEFAULT, companyKey } from './crm.js?v=202611130900';
 import { canOwnCrmRecords } from './crm-owner.js?v=202611241300';
-import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611241300';
+import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611245800';
 import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611130900';
 import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611243900';
 import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611070139';
-import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611243900';
+import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611245800';
 import { feedbackNov4Part } from './mock-part-feedback-nov4.js?v=202611243900';
 import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611130900';
 import { crmCallsPart } from './mock-part-crm-calls.js?v=202611130900';
@@ -77,7 +77,7 @@ export function crmPart(x, flags) {
     if (s !== current && !assignable(prof(s))) fail(`The ${label} must be an active Sales Person, Sales Team or Admin user.`);
     if (u.role === 'Sales Person' && !u.isAdmin && s !== current && s !== u.id) fail(`A Sales Person can only make themselves the ${label}.`);
     return s; };
-  const ctype = (v) => { const s = str(v, 20); if (!s) return null; if (!C.CONTACT_TYPE_CODES.includes(s)) fail('Pick a contact type from the list (Realtor, Lender or Buyer/Seller).'); return s; };
+  const ctype = (v) => { const s = str(v, 20); if (!s) return null; if (!C.CONTACT_TYPE_CODES.includes(s)) fail(C.CONTACT_TYPE_ERROR); return s; };
   const oneOf = (v, list, label, dflt) => { const s = str(v, 40); if (!s) { if (dflt !== undefined) return dflt; fail(`${label} is required.`); } if (!list.includes(s)) fail(`Pick a ${label.toLowerCase()} from the list.`); return s; };
   const date = (v, label, { noFuture = false } = {}) => { const s = x.dateOrNull(v, label); if (s && noFuture && s > localDate()) fail(`${label} cannot be in the future.`); return s; };
   const email = (v) => { const e = str(v, 200).toLowerCase(); if (e && !emailOk(e)) fail('Email is not valid.'); return e; };

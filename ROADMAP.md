@@ -1218,6 +1218,36 @@ This file lists the portal's major features: how each one should work, how far a
 - A transaction coordinator is an outside assistant to the buyer's agent or the listing agent. The choice says who they work for.
 - The old role stays on files that already have it. New people are not given that role from Add contact.
 
+## Transaction coordinator contact type (TC-4)
+
+**How it should work.** A transaction coordinator is an outside assistant who works for one or more real estate agents. On a file they can do what their agent can do. That permission work is TC-3. The contact type itself is separate from the CLA Title staff role named Transaction Coordinator. CLA staff still have no contact type.
+
+**Status: In progress.** Tracker row 368. John Coester, live call Nov 18 2026, 11:27 AM ET, confirmed 11:35 AM ET, clarified 11:37 AM ET. The contact type can be picked, and a new buyer or listing coordinator is saved as that type. Existing contacts keep the type they already have. Pull request: [PR 344](https://github.com/Johncoester/cla-portal-demo/pull/344). Not Live until `supabase/migrations/20261125230000_tc_contact_type.sql` is applied on TEST.
+
+**What's built**
+
+- Contact type lists offer "Transaction coordinator (outside, works for agents)", with the note that this is an outside assistant who works for real estate agents and is not a CLA Title staff role. The choice is on a contact, on Place Order, on the file's Contacts tab, and in the CRM.
+- A new person typed as the buyer's or listing transaction coordinator is saved as that type, not as a Realtor. Someone already saved keeps their current type.
+- The file's contact list, the user list, and the CRM lists can filter or group by the new type. The coordinator directory lists transaction coordinators separately from agents. Buyers and CLA staff are not in that list.
+- The database file adds the type to the contact and lead checks and does not change existing rows. It is not applied on TEST.
+
+**What's still missing**
+
+- Not Live until the database file is applied on TEST. Until then, saving the new type on TEST is refused in plain words.
+- Removing the CLA staff Transaction Coordinator role, linking a coordinator to an agent's profile, and adding a coordinator automatically are other items. What the coordinator can do on a file is TC-3.
+
+**Links**
+
+- Spec: [docs/specs/tc-contact-type.md](docs/specs/tc-contact-type.md)
+- Pull request: [PR 344](https://github.com/Johncoester/cla-portal-demo/pull/344)
+- Source: John Coester, Nov 18 2026, 11:27 AM ET. Tracker row 368.
+
+**Decisions**
+
+- The stored code is `agent_tc`. The words on screen say the person works for real estate agents and is not CLA Title staff.
+- Existing contacts are not rewritten. A Realtor who is already on a file stays a Realtor.
+- The CLA staff role named Transaction Coordinator is unchanged.
+
 ---
 
 ## CRM history on a fresh database

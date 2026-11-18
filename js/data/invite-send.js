@@ -3,7 +3,7 @@
  * FROM testportal@clatitle.com (TEST Auth's approved invite email), never from the inviter's Gmail. If it was not sent (Live Test address rule, an existing login, a mail error) the copy link stays on screen
  * with the reason. Nothing here sends by itself; api.sendInviteEmail does, and it never throws. */
 import { html } from '../ui.js?v=202611161500';
-import { PORTAL_INVITE_ROLES } from './agent-profile.js?v=202611140100';
+import { PORTAL_INVITE_ROLES } from './agent-profile.js?v=202611245800';
 export const tokenOfLink = (link) => { const m = /#\/(?:agent-invite|hr-invite)\/([0-9a-f]{64})$/.exec(String(link || '')); return m ? m[1] : ''; };
 /* The hosted role check answers gmail-send with this and never reaches Google. The dialog has to show this reason. */
 export const E2E_INVITE_HOLD = { sent: false, error: 'E2E checked the copy link only.' };

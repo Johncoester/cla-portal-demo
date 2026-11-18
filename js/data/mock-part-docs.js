@@ -1,11 +1,11 @@
 /* mock adapter: contacts, participants, documents (deal files). NOTE: there is no delete for documents, for anyone (Admin included). */
-import { cleanEntity } from './mock-part-nov3b.js?v=202611243804';
-import { cleanLenderRole } from './lender-file.js?v=202611241600';
-import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611101015';
+import { cleanEntity } from './mock-part-nov3b.js?v=202611245800';
+import { cleanLenderRole } from './lender-file.js?v=202611245800';
+import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611245800';
 import { STAFF_TC_MESSAGE, STAFF_TC_ROLE, agentTcAlreadyMessage, agentTcRefiMessage, isAgentTcRole } from './agent-tc.js?v=202611245300';
 import { acceptDocType } from './document-type.js?v=202611100945';
 import { assertContactSaved, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
-import { processorStaffError, clearProcessorParties } from './processor-party.js?v=202611243805';
+import { processorStaffError, clearProcessorParties } from './processor-party.js?v=202611245800';
 export function contactsTasksDocs(x) {
   const { load, save, nid, needUser, needProcessor, isManager, notViewOnly, seesAll, dealsFor, dealOr404, onDeal, fileRole, log, prof, nameOf, roleOf, fullName, folderOf, docVisible, participantsOf, notify, dealProfileIds, clone, now, fail, str, emailOk, C } = x;
   // u = the deal-scoped viewer (optional). A pure buyer never gets the name, role or id of another party who uploaded a file CLA staff shared with
@@ -25,7 +25,7 @@ export function contactsTasksDocs(x) {
       sellerShareable: sellerShareable(z, u, f),
       buyerShareable: !!u && !!z.dealId && x.isStaffView(u) && !staffLogin(z.uploadedBy) && !x.fileRoles(z.uploadedBy, z.dealId).includes('Client-Buyer') && z.visibility !== 'staff' && !(f && f.staffOnly) }; };
   // CONTACT TYPE (John, Nov 2): '' / null = not set; otherwise one of the fixed codes. A contact with a CLA staff login has none.
-  const ctype = (v, login) => { const s = str(v, 20); if (!s) return null; if (!C.CONTACT_TYPE_CODES.includes(s)) fail('Pick a contact type from the list (Realtor, Lender or Buyer/Seller).');
+  const ctype = (v, login) => { const s = str(v, 20); if (!s) return null; if (!C.CONTACT_TYPE_CODES.includes(s)) fail(C.CONTACT_TYPE_ERROR);
     if (login && login.status !== 'removed' && !C.isOutside(login.role)) fail('CLA staff have no contact type.'); return s; };
   const ensureStaffContact = (profileId) => {
     const d = load();
