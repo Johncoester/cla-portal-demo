@@ -118,17 +118,42 @@ const deal = await open('deals', 'd1');
 ok(keys(deal.host).join('|') === SIX + '|emails:Emails', 'a deal lists the six modules, then Emails');
 ok(!deal.host.querySelector('[data-crm-jump="notes"]') && !deal.host.querySelector('[data-crm-jump="attachments"]') && !deal.host.querySelector('[data-crm-jump="open"]'), 'Notes, Attachments, and Open Activities stay off a deal');
 ok(item(deal.host, 'clients').getAttribute('href') === '#/crm/contacts' && item(deal.host, 'leads').getAttribute('href') === '#/crm/leads' && item(deal.host, 'deals').getAttribute('href') === '#/crm/deals', 'a deal has no clients, leads, or deals section, so those open their lists');
-ok(item(deal.host, 'task').getAttribute('href') === '#/crm' && item(deal.host, 'meeting').getAttribute('href') === '#/crm/meetings' && item(deal.host, 'call').getAttribute('href') === '#/crm/calls', 'a deal has no task, meeting, or call section, so those open the module lists');
+ok(item(deal.host, 'task').tagName === 'A' && item(deal.host, 'task').getAttribute('href') === '#/crm', 'a deal has no task section, so Task opens CRM Home');
+function comingSoon(el) {
+  return el && el.tagName === 'SPAN' && el.classList.contains('crm-shortcut-soon') && el.getAttribute('title') === 'Coming soon' && el.getAttribute('aria-disabled') === 'true' && !el.getAttribute('href') && !el.querySelector('a, button');
+}
+ok(comingSoon(item(deal.host, 'meeting')) && comingSoon(item(deal.host, 'call')), 'Meeting and Call stay in place on a deal as grey Coming soon text');
+ok(deal.host.querySelector('#crm-shortcut-css').textContent.includes('.crm-shortcut-soon') && deal.host.querySelector('#crm-shortcut-css').textContent.includes('var(--ink-4)'), 'Coming soon uses the portal grey');
+scrolls.length = 0;
+deal.host.querySelector('[data-crm-jump="meeting"]').click();
+deal.host.querySelector('[data-crm-jump="call"]').click();
+ok(scrolls.length === 0 && !item(deal.host, 'meeting').hasAttribute('aria-current') && !item(deal.host, 'call').hasAttribute('aria-current'), 'Coming soon does not scroll and is not a current shortcut');
 scrolls.length = 0;
 deal.host.querySelector('[data-crm-jump="emails"]').click();
 ok(scrolls.length === 1 && scrolls[0].opts.behavior === 'smooth' && deal.host.querySelector('[data-emails-list]').id === 'crm-section-emails', 'Emails smooth-scrolls to the emails section');
 
 const partial = document.createElement('div');
 partial.innerHTML = '<div data-crm-record class="crm-record has-shortcuts"><nav data-crm-shortcuts></nav><div data-crm-record-main><div data-notes></div></div></div>';
-ok(wireShortcuts(partial).join(',') === 'clients,leads,deals,task,meeting,call,notes' && !partial.querySelector('[data-crm-jump="emails"]'), 'a section that is not on the page is left out; the six modules stay, as links');
+ok(wireShortcuts(partial).join(',') === 'clients,leads,deals,task,meeting,call,notes' && !partial.querySelector('[data-crm-jump="emails"]'), 'a section that is not on the page is left out; the six modules stay');
+ok(comingSoon(partial.querySelector('[data-crm-jump="meeting"]')) && comingSoon(partial.querySelector('[data-crm-jump="call"]')), 'Meeting and Call with no section and no list page are Coming soon');
 const empty = document.createElement('div');
 empty.innerHTML = '<div data-crm-record class="crm-record has-shortcuts"><nav data-crm-shortcuts></nav><div data-crm-record-main><p>No related lists.</p></div></div>';
-ok(wireShortcuts(empty).join(',') === 'clients,leads,deals,task,meeting,call' && empty.querySelector('[data-crm-shortcuts]').hidden === false && empty.querySelector('[data-crm-record]').classList.contains('has-shortcuts'), 'with no record sections, the six module links stay in order');
+ok(wireShortcuts(empty).join(',') === 'clients,leads,deals,task,meeting,call' && empty.querySelector('[data-crm-shortcuts]').hidden === false && empty.querySelector('[data-crm-record]').classList.contains('has-shortcuts'), 'with no record sections, the six modules stay in order');
+
+const pages = [lead.host, client.host, company.host, deal.host, partial, empty];
+const hrefs = [...new Set(pages.flatMap((host) => [...host.querySelectorAll('[data-crm-shortcuts] a[data-crm-jump]')].map((a) => a.getAttribute('href'))))];
+ok(hrefs.length > 0 && hrefs.every((href) => href && href.startsWith('#/')), 'every clickable panel shortcut is a portal address');
+const missing = [];
+for (const href of hrefs) {
+  const seg = href.replace(/^#\/?/, '').split('?')[0].split('/').filter(Boolean);
+  const section = seg[0] === 'crm' ? (seg[1] || 'home') : '';
+  const id = seg[0] === 'crm' ? (seg[2] || '') : '';
+  const view = await render({ api, me, params: { section, id }, refresh() {}, go() {} });
+  const text = toText(view.body);
+  if (text.includes('That CRM page does not exist.')) missing.push(href);
+}
+ok(missing.length === 0, 'every clickable panel link opens a page that exists' + (missing.length ? ': ' + missing.join(', ') : ''));
+ok(!pages.some((host) => [...host.querySelectorAll('[data-crm-shortcuts] a')].some((a) => /\/crm\/(meetings|calls)\/?$/.test(a.getAttribute('href') || ''))), 'Meeting and Call lists are not links while those pages are missing');
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {

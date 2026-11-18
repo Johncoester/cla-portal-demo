@@ -1,6 +1,7 @@
 // Left-side shortcuts on a CRM record (Janine, CRM Feedback 28 item 3).
 // Janine, Nov 18 2026, 5:23 PM ET: Clients, Leads, Deals, Task, Meeting, Call come first, in that order.
 // A module with a section already on the record scrolls to it. Otherwise it opens that module's list.
+// A list that has no page yet stays in the order as grey text, "Coming soon", and does not open a missing page.
 // The older shortcuts stay after those six, in the same order, and only when that section is on the page.
 // No extra reads: the panel only looks at sections the record page already drew.
 import { html, raw, toText } from '../ui.js?v=202611161500';
@@ -30,6 +31,8 @@ const CSS = `
 .crm-shortcuts { position: sticky; top: calc(var(--topbar-h) + 8px); z-index: 4; display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--sh-1); }
 .crm-shortcut { display: block; width: 100%; text-align: left; text-decoration: none; background: transparent; border: 0; border-radius: var(--r); padding: 8px 10px; color: var(--ink-2); font-weight: 600; font-size: var(--fs-sm); cursor: pointer; }
 .crm-shortcut:hover { background: var(--surface-2); color: var(--ink); }
+.crm-shortcut.crm-shortcut-soon { color: var(--ink-4); cursor: default; }
+.crm-shortcut.crm-shortcut-soon:hover { background: transparent; color: var(--ink-4); }
 .crm-shortcut[aria-current="true"] { background: var(--navy-100); color: var(--navy-800); }
 .crm-record-main [data-account-contacts],
 .crm-record-main [data-crm-orders],
@@ -59,8 +62,20 @@ function specs() {
   return [...MODULE_SHORTCUTS, ...SHORTCUTS];
 }
 
+// Pages the CRM router already opens. Tasks, Meetings, and Calls open only when the address has a record id.
+// A list shortcut whose address is not in this set is shown, not linked.
+function listReady(href) {
+  const seg = String(href || '').replace(/^#\/?/, '').split('?')[0].split('/').filter(Boolean);
+  if (seg[0] !== 'crm') return false;
+  const section = seg[1] || 'home';
+  const id = seg[2] || '';
+  if ((section === 'tasks' || section === 'meetings' || section === 'calls') && !id) return false;
+  return ['home', 'followups', 'settings', 'new', 'import', 'leads', 'contacts', 'accounts', 'tasks', 'meetings', 'calls', 'pipeline', 'reports', 'dashboards', 'deals', 'search', 'views', 'templates', 'signature'].includes(section);
+}
+
 function jump(nav, main, btn) {
-  if (!btn || String(btn.tagName).toUpperCase() === 'A') return;
+  const tag = btn ? String(btn.tagName).toUpperCase() : '';
+  if (!btn || tag === 'A' || tag === 'SPAN') return;
   const spec = specs().find(([key]) => key === btn.getAttribute('data-crm-jump'));
   if (!spec || !spec[2]) return;
   const el = main.querySelector(spec[2]);
@@ -87,6 +102,7 @@ function panelItems(main) {
 }
 
 function shortcutHtml([key, label, , href]) {
+  if (href && !listReady(href)) return html`<span class="crm-shortcut crm-shortcut-soon" data-crm-jump="${key}" title="Coming soon" aria-disabled="true">${label}</span>`;
   if (href) return html`<a class="crm-shortcut" data-crm-jump="${key}" href="${href}">${label}</a>`;
   return html`<button type="button" class="crm-shortcut" data-crm-jump="${key}">${label}</button>`;
 }

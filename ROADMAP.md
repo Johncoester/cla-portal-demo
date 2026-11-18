@@ -2150,7 +2150,7 @@ This file lists the portal's major features: how each one should work, how far a
 - The panel on Lead, Client, Company, and Deal records.
 - The first six are always Clients, Leads, Deals, Task, Meeting, Call.
 - Clients scrolls to the company's client list. Deals scrolls to the orders already on a client or company. Task, Meeting, and Call scroll to Open Tasks, Open Meetings, and Open Calls when those columns are on the record.
-- A lead has no clients, leads, or deals section, so those three open the Clients, Leads, and Deals lists. A deal has none of the six sections. Task opens CRM Home (My Open Tasks). Clients, Leads, and Deals open their lists.
+- A lead has no clients, leads, or deals section, so those three open the Clients, Leads, and Deals lists. A deal has none of the six sections. Task opens CRM Home (My Open Tasks). Clients, Leads, and Deals open their lists. Meeting and Call on a deal are grey text, "Coming soon", because those list pages are not on main.
 - Notes, Open Activities, Closed Activities, Emails, and Attachments follow, in that order, only when the section is on the page. A deal still shows Emails and leaves the other four off.
 - The lists of leads, clients, companies, and deals do not get the panel.
 - The panel does not load anything extra.
@@ -2159,8 +2159,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Not checked on TEST yet. Do not mark Live before that.
 - The orders card still says Orders in the portal. The shortcut that jumps there says Deals.
-- There is no Meetings list. On a Deal, Meeting opens an address the portal does not have yet.
-- The Calls list is a separate open change. Until it is on TEST, Call on a Deal opens an address that says the page does not exist.
+- There is no Meetings list, and the Calls list is not on main. On a Deal those two stay in the order as grey "Coming soon" text. A later pull request can link them once each list page exists.
 
 **Links**
 
