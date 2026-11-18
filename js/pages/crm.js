@@ -10,15 +10,16 @@ import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-jani
 import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611130900';
 import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611243900';
 import { settingsPage } from './crm-settings.js?v=202611161500';
-import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611244400';
+import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611244600';
 import { pipelinePage, reportsPage } from './crm-more.js?v=202611243900';
-import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611244400';
+import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611244600';
 import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611161500';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611161500';
 import { searchPage } from './crm-search.js?v=202611243900';
 import { dashboardsPage } from './crm-dashboards.js?v=202611243900';
 import { reportsHome } from './crm-reports.js?v=202611243900';
-import { dealsPage } from './crm-deals.js?v=202611243900';
+import { dealsPage } from './crm-deals.js?v=202611244500';
+import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611244500';
 import { callPage, callModal } from './crm-calls.js?v=202611243900';
 import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611243900';
 
@@ -145,13 +146,14 @@ async function leadsList({ api, me, owners, go, cfg, refresh, openCreate = false
 async function leadPage({ api, me, owners, assignees, params, refresh, go, cfg }) {
   const l = await api.getCrmLead(params.id); const accounts = me.canEdit && !l.converted ? await api.listCrmAccounts() : []; const emails = await recordEmails(api, 'lead', l.id); noteRecent(api, 'lead', l.id); const nav = await recNav(api.listCrmLeads(), l.id, 'leads');
   const body = html`${head(`Lead: ${l.name}`, me)}${tabs('leads')}
-    <div class="card" data-lead="${l.id}"><p>${l.converted ? html`${pill('Converted', 'ok')} to client <a href="#/crm/contacts/${l.convertedContactId}" data-converted-contact>${l.convertedContactName}</a> on ${fmtDate(l.convertedAt)}` : ''}${l.archived ? html` ${pill('Archived')}` : ''}</p>
+    ${recordShell(html`<div class="card" data-lead="${l.id}"><p>${l.converted ? html`${pill('Converted', 'ok')} to client <a href="#/crm/contacts/${l.convertedContactId}" data-converted-contact>${l.convertedContactName}</a> on ${fmtDate(l.convertedAt)}` : ''}${l.archived ? html` ${pill('Archived')}` : ''}</p>
       <p data-record-actions>${sendEmailBtn('lead', l.id, me)} ${me.canEdit && !l.converted ? html`<button class="ghost" data-edit-lead>Edit</button> ${l.archived ? '' : html`<button class="m-btn" data-convert>Convert to client</button>`} ` : ''}${moreMenu(archiveBtn(me, 'lead', l.id, l.archived), ' ', composeBtn('lead', l.id))} ${nav}
         <a class="ghost" href="#/crm/leads">Back to leads</a></p>
       <span hidden data-lead-owner>${l.ownerName || 'Unassigned'}</span><span hidden data-lead-ctype>${contactTypeLabel(l.contactType) || 'Not set'}</span><span hidden data-lead-status>${l.relationshipStatus}</span></div>
     ${personView('lead', l, html`<dt>Created</dt><dd>${fmtDateTime(l.createdAt)}</dd>${l.modifiedByName ? html`<dt>Modified By</dt><dd>${l.modifiedByName}, ${fmtDateTime(l.modifiedAt)}</dd>` : ''}`, cfg)}
-    ${relatedHtml(l, { entity: 'lead', entityId: l.id, me, cfg })}${emailsCard(emails)}`;
+    ${relatedHtml(l, { entity: 'lead', entityId: l.id, me, cfg })}${emailsCard(emails)}`)}`;
   return { title: 'Lead ' + l.name, crumbs: crumbs('Leads', ['#/crm/leads', l.name]), body, mount(root) {
+    wireShortcuts(root);
     wireSendEmail(root, api, me, refresh); wireEmails(root, api, emails); wireCfFiles(root, api, refresh); wireArchive(root, api, refresh); wireCompose(root, api, me, refresh); wireRelated(root, api, refresh, { entity: 'lead', entityId: l.id, parentName: l.name, me, assignees, cfg, rec: l });
     const e = $('[data-edit-lead]', root); if (e) e.addEventListener('click', () => personModal('lead', l, { owners, accounts, me, edit: true, cfg }, (v) => api.updateCrmLead(l.id, v), () => refresh()));
     const cv = $('[data-convert]', root); if (cv) cv.addEventListener('click', () => {
@@ -198,14 +200,15 @@ async function contactPage({ api, me, owners, assignees, params, refresh, cfg })
     <dt>Last contacted</dt><dd>${fmtDate(c.lastContactedOn) || muted('—')}</dd>${hiddenField(cfg, 'person', 'tags') ? '' : html`<dt>Tags</dt><dd data-f="tags">${c.tags.join(', ') || muted('—')}</dd>`}
     ${c.fromLeadId ? html`<dt>From lead</dt><dd><a href="#/crm/leads/${c.fromLeadId}">open the lead</a></dd>` : ''}`;
   const body = html`${head(`Client: ${c.name}`, me)}${tabs('contacts')}
-    <div class="card" data-contact="${c.id}"><h3>${c.name} ${c.archived ? pill('Archived') : ''}</h3>
+    ${recordShell(html`<div class="card" data-contact="${c.id}"><h3>${c.name} ${c.archived ? pill('Archived') : ''}</h3>
       <p data-record-actions>${sendEmailBtn('contact', c.id, me)} ${me.canEdit ? html`<button class="ghost" data-edit-contact>Edit</button> ` : ''}${moreMenu(archiveBtn(me, 'contact', c.id, c.archived), ' ', composeBtn('contact', c.id))} ${nav} <a class="ghost" href="#/crm/contacts">Back to clients</a></p>
       <span hidden data-contact-account>${c.accountId ? c.accountName : ''}</span></div>
     ${personView('contact', c, extra, cfg)}
     ${relatedHtml(c, { entity: 'contact', entityId: c.id, me, cfg })}
     ${ordersCard(c.orders, c.totals)}${emailsCard(emails)}
-    <div class="card" data-contact-opps><h3>Pipeline</h3>${c.opportunities.length ? html`<ul>${c.opportunities.map((o) => html`<li>${o.name}: <strong>${lbl(cfg, 'oppStage', o.stage)}</strong> (${o.ownerName || 'unassigned'})</li>`)}</ul>` : html`<p class="muted">No opportunities.</p>`}<a href="#/crm/pipeline">Open the pipeline</a></div>`;
+    <div class="card" data-contact-opps><h3>Pipeline</h3>${c.opportunities.length ? html`<ul>${c.opportunities.map((o) => html`<li>${o.name}: <strong>${lbl(cfg, 'oppStage', o.stage)}</strong> (${o.ownerName || 'unassigned'})</li>`)}</ul>` : html`<p class="muted">No opportunities.</p>`}<a href="#/crm/pipeline">Open the pipeline</a></div>`)}`;
   return { title: 'Client ' + c.name, crumbs: crumbs('Clients', ['#/crm/contacts', c.name]), body, mount(root) {
+    wireShortcuts(root);
     wireSendEmail(root, api, me, refresh); wireEmails(root, api, emails); wireCfFiles(root, api, refresh); wireArchive(root, api, refresh); wireCompose(root, api, me, refresh); wireRelated(root, api, refresh, { entity: 'contact', entityId: c.id, parentName: c.name, me, assignees, cfg, rec: c });
     const e = $('[data-edit-contact]', root); if (e) e.addEventListener('click', () => personModal('contact', c, { owners, accounts, me, edit: true, cfg }, (v) => api.updateCrmContact(c.id, v), () => refresh())); } };
 }
@@ -244,7 +247,7 @@ function accountForm(api, me, owners, a, done, cfg = null) {
 async function accountPage({ api, me, owners, assignees, params, refresh, cfg }) {
   const a = await api.getCrmAccount(params.id); const H = (k) => hiddenField(cfg, 'account', k); const emails = await recordEmails(api, 'account', a.id); noteRecent(api, 'account', a.id);
   const body = html`${head(`Company: ${a.name}`, me)}${tabs('accounts')}
-    <div class="card" data-account="${a.id}"><h3>${a.name} ${a.archived ? pill('Archived') : ''}</h3>
+    ${recordShell(html`<div class="card" data-account="${a.id}"><h3>${a.name} ${a.archived ? pill('Archived') : ''}</h3>
       <dl class="kv"><dt>Type</dt><dd data-f="kind">${lbl(cfg, 'accountKind', a.kind)}</dd>${H('phone') ? '' : html`<dt>Phone</dt><dd>${a.phone || '—'}</dd>`}${H('website') ? '' : html`<dt>Website</dt><dd>${a.website || '—'}</dd>`}${H('city') && H('state') ? '' : html`<dt>City</dt><dd>${[H('city') ? '' : a.city, H('state') ? '' : a.state].filter(Boolean).join(', ') || '—'}</dd>`}
         <dt>Company Owner</dt><dd data-account-owner>${a.ownerName || 'Unassigned'}</dd>${H('notes') ? '' : html`<dt>Description</dt><dd>${a.notes || '—'}</dd>`}${cfRows(cfg, 'account', 'info', a)}</dl>
       ${fieldsInSection(cfg, 'account', 'additional').length ? html`<h3 data-additional>Additional Information</h3><dl class="kv" data-custom-fields>${cfRows(cfg, 'account', 'additional', a)}</dl>` : ''}${cfExtraSections(cfg, 'account', 'view', a)}
@@ -255,8 +258,9 @@ async function accountPage({ api, me, owners, assignees, params, refresh, cfg })
       </tbody></table></div>
     ${ordersCard(a.orders, a.totals, true)}
     <div class="card"><h3>Pipeline</h3>${a.opportunities.length ? html`<ul>${a.opportunities.map((o) => html`<li>${o.name}: <strong>${lbl(cfg, 'oppStage', o.stage)}</strong></li>`)}</ul>` : html`<p class="muted">No opportunities.</p>`}</div>
-    ${relatedHtml(a, { entity: 'account', entityId: a.id, me, cfg })}${emailsCard(emails)}`;
+    ${relatedHtml(a, { entity: 'account', entityId: a.id, me, cfg })}${emailsCard(emails)}`)}`;
   return { title: 'Company ' + a.name, crumbs: crumbs('Companies', ['#/crm/accounts', a.name]), body, mount(root) {
+    wireShortcuts(root);
     const e = $('[data-edit-account]', root); if (e) e.addEventListener('click', () => accountForm(api, me, owners, a, () => refresh(), cfg));
     wireSendEmail(root, api, me, refresh); wireEmails(root, api, emails); wireCfFiles(root, api, refresh); wireArchive(root, api, refresh); wireCompose(root, api, me, refresh); wireRelated(root, api, refresh, { entity: 'account', entityId: a.id, parentName: a.name, me, assignees, cfg, rec: a }); } };
 }

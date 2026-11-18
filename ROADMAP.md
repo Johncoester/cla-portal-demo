@@ -1925,3 +1925,32 @@ This file lists the portal's major features: how each one should work, how far a
 - No database change. The existing owner index is enough.
 - The filter is the same for every CRM user, including an admin and a processor.
 - Reports and dashboards still load the tasks that person is allowed to see. Only the Home task list is limited to the assignee.
+
+## CRM record shortcuts (Feedback 28 item 3)
+
+**How it should work.** On a Lead, Client, Deal, or Company, a panel on the left lists Notes, Deals, Open Activities, Closed Activities, Emails, and Attachments. A click moves down the page to that section. A shortcut is shown only when that section is already on the record. On a wide screen the panel stays put while the record scrolls. On a narrow screen the shortcuts wrap across the top.
+
+**Status: In progress.** Janine, CRM Feedback 28 item 3, confirmed Nov 16 2026. Pull request: [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337). No database file. Not Live until someone checks a record on TEST.
+
+**What's built**
+
+- The panel on Lead, Client, Company, and Deal records.
+- A lead leaves out Deals. A deal shows Emails only. A client and a company show all six. Deals jumps to the orders already on that client or company.
+- The lists of leads, clients, companies, and deals do not get the panel.
+- The panel does not load anything extra.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- The orders card still says Orders in the portal. The shortcut that jumps there says Deals.
+
+**Links**
+
+- Spec: [docs/specs/crm-record-shortcuts.md](docs/specs/crm-record-shortcuts.md)
+- Pull request: [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337)
+
+**Decisions**
+
+- No database change. The panel only points at sections the record page already shows.
+- A missing section is left out of the panel. It is not shown as a shortcut that goes nowhere.
+
