@@ -115,7 +115,7 @@ for (const [target, hits] of stamps) {
 const janinePins = (stamps.get('js/data/crm-janine.js') || []).filter((h) => allowOld.has(h.from));
 if (janinePins.length !== allowOld.size || janinePins.some((h) => h.stamp !== '202611245800')) issues.push('crm-janine pin moved');
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
-ok(html.includes('js/app.js?v=202611246000') && html.includes('css/portal.css?v=202611245700'), 'index.html uses the current shell stamp');
+ok(html.includes('js/app.js?v=202611247200') && html.includes('css/portal.css?v=202611245700'), 'index.html uses the current shell stamp');
 const tList = performance.now();
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
 await api.signInDev('u-admin');

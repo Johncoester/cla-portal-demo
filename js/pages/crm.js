@@ -18,8 +18,8 @@ import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compo
 import { searchPage } from './crm-search.js?v=202611245800';
 import { dashboardsPage } from './crm-dashboards.js?v=202611245800';
 import { reportsHome } from './crm-reports.js?v=202611245800';
-import { dealsPage } from './crm-deals.js?v=202611245800';
-import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611244500';
+import { dealsPage } from './crm-deals.js?v=202611247200';
+import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611247200';
 import { callPage, callModal } from './crm-calls.js?v=202611245800';
 import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611245800';
 

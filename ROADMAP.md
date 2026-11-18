@@ -2141,14 +2141,17 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## CRM record shortcuts (Feedback 28 item 3)
 
-**How it should work.** On a Lead, Client, Deal, or Company, a panel on the left lists Notes, Deals, Open Activities, Closed Activities, Emails, and Attachments. A click moves down the page to that section. A shortcut is shown only when that section is already on the record. On a wide screen the panel stays put while the record scrolls. On a narrow screen the shortcuts wrap across the top.
+**How it should work.** On a Lead, Client, Deal, or Company, a panel on the left starts with Clients, Leads, Deals, Task, Meeting, Call. Janine set that order on Nov 18 2026, 5:23 PM ET. If the record already has that section, a click moves down the page to it. If it does not, the shortcut opens that module's list. After those six, Notes, Open Activities, Closed Activities, Emails, and Attachments stay in that order, and only when that section is already on the record. On a wide screen the panel stays put while the record scrolls. On a narrow screen the shortcuts wrap across the top.
 
-**Status: In progress.** Janine, CRM Feedback 28 item 3, confirmed Nov 16 2026. Pull request: [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337). No database file. Not Live until someone checks a record on TEST.
+**Status: In progress.** Janine, CRM Feedback 28 item 3, confirmed Nov 16 2026. The first panel was [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337), merged as 3212c332. The Nov 18 order is a later pull request. No database file. Not Live until someone checks a record on TEST.
 
 **What's built**
 
 - The panel on Lead, Client, Company, and Deal records.
-- A lead leaves out Deals. A deal shows Emails only. A client and a company show all six. Deals jumps to the orders already on that client or company.
+- The first six are always Clients, Leads, Deals, Task, Meeting, Call.
+- Clients scrolls to the company's client list. Deals scrolls to the orders already on a client or company. Task, Meeting, and Call scroll to Open Tasks, Open Meetings, and Open Calls when those columns are on the record.
+- A lead has no clients, leads, or deals section, so those three open the Clients, Leads, and Deals lists. A deal has none of the six sections. Task opens CRM Home (My Open Tasks). Clients, Leads, and Deals open their lists.
+- Notes, Open Activities, Closed Activities, Emails, and Attachments follow, in that order, only when the section is on the page. A deal still shows Emails and leaves the other four off.
 - The lists of leads, clients, companies, and deals do not get the panel.
 - The panel does not load anything extra.
 
@@ -2156,16 +2159,18 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Not checked on TEST yet. Do not mark Live before that.
 - The orders card still says Orders in the portal. The shortcut that jumps there says Deals.
+- There is no Meetings list. On a Deal, Meeting opens an address the portal does not have yet.
+- The Calls list is a separate open change. Until it is on TEST, Call on a Deal opens an address that says the page does not exist.
 
 **Links**
 
 - Spec: [docs/specs/crm-record-shortcuts.md](docs/specs/crm-record-shortcuts.md)
-- Pull request: [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337)
+- First panel: [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337)
 
 **Decisions**
 
-- No database change. The panel only points at sections the record page already shows.
-- A missing section is left out of the panel. It is not shown as a shortcut that goes nowhere.
+- No database change. The panel does not add rows. It points at a section already on the record, or at the module's existing list.
+- The older shortcuts stay after the six, in the same order they had before Deals moved up.
 
 ---
 
