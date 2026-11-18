@@ -257,8 +257,8 @@ ok(page.includes('return { name: f.name.value, type, config }') && page.includes
 const want = new Map([
   ['js/data/supabase-crm-surface.js', '202611243900'],
   ['js/data/supabase-crm.js', '202611245200'],
-  ['js/data/supabase-adapter.js', '202611245200'],
-  ['js/data/adapter.js', '202611245200'],
+  ['js/data/supabase-adapter.js', '202611245300'],
+  ['js/data/adapter.js', '202611245300'],
   ['js/pages/crm-dashboards.js', '202611243900'],
   ['js/pages/crm.js', '202611245200'],
   ['js/app.js', '202611245700'],

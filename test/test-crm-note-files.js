@@ -282,10 +282,10 @@ const chain = [
   ['js/pages/crm-home.js', '202611245200'],
   ['js/pages/crm.js', '202611245200'],
   ['js/data/mock-part-crm.js', '202611245200'],
-  ['js/data/mock-adapter.js', '202611245200'],
+  ['js/data/mock-adapter.js', '202611245300'],
   ['js/data/supabase-crm.js', '202611245200'],
-  ['js/data/supabase-adapter.js', '202611245200'],
-  ['js/data/adapter.js', '202611245200'],
+  ['js/data/supabase-adapter.js', '202611245300'],
+  ['js/data/adapter.js', '202611245300'],
   ['js/app.js', '202611245700'],
 ];
 const issues = [];
