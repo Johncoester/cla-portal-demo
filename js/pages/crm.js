@@ -12,7 +12,7 @@ import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, c
 import { settingsPage } from './crm-settings.js?v=202611161500';
 import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611243900';
 import { pipelinePage, reportsPage } from './crm-more.js?v=202611243900';
-import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611243900';
+import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611244300';
 import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611161500';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611161500';
 import { searchPage } from './crm-search.js?v=202611243900';

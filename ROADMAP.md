@@ -1864,3 +1864,33 @@ This file lists the portal's major features: how each one should work, how far a
 
 - No database change. Old saved values stay stored and are read as the calendar grouping.
 - The closing-cost calculator's Maryland property-tax note is not a CRM screen and is unchanged.
+
+---
+
+## CRM Home My Tasks (Feedback 29 item 4)
+
+**How it should work.** On CRM Home, every task view (Open, Overdue, Closed, Today + Overdue, and the rest of that menu) shows only tasks assigned to the person who is signed in. An admin sees only their own tasks here too. Admins will later get separate Tasks, Meetings, and Calls modules. Those are not part of this change.
+
+**Status: In progress.** Janine confirmed this on Nov 16 2026, CRM Feedback 29 item 4. No database file. Not Live until someone checks CRM Home on TEST.
+
+**What's built**
+
+- CRM Home asks for tasks assigned to the signed-in person. The owner filter is on that read, on the owner column that is already indexed.
+- Every choice in the Home task menu uses that list, so each one is only that person's tasks.
+- Previous and Next on a task opened from Home stay on that person's tasks when the browser has not kept the list order.
+- Dashboards that list every visible task are unchanged.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- Separate Tasks, Meetings, and Calls modules for admins are not built.
+
+**Links**
+
+- Spec: [docs/specs/crm-home-my-tasks.md](docs/specs/crm-home-my-tasks.md)
+
+**Decisions**
+
+- No database change. The existing owner index is enough.
+- The filter is the same for every CRM user, including an admin and a processor.
+- Reports and dashboards still load the tasks that person is allowed to see. Only the Home task list is limited to the assignee.
