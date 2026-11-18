@@ -1930,7 +1930,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On CRM Home, Related To and Contact Name show the lead or client the task was created under. Intro Call shows Marcus Vance. Each name is a link that opens that lead or client profile. A task that is not under a lead or a client leaves both columns blank, and the rest of the list still shows.
 
-**Status: In progress.** Janine confirmed this on Nov 16 2026, CRM Feedback 29 item 5. No database file. Not Live until someone checks CRM Home on TEST.
+**Status: In progress.** Janine confirmed this on Nov 16 2026, CRM Feedback 29 item 5. Pull request: [PR 340](https://github.com/Johncoester/cla-portal-demo/pull/340). No database file. Not Live until someone checks CRM Home on TEST.
 
 **What's built**
 
@@ -1942,11 +1942,11 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing**
 
 - Not checked on TEST yet. Do not mark Live before that.
-- The pull request link is added when the request is open.
 
 **Links**
 
 - Spec: [docs/specs/crm-home-task-names.md](docs/specs/crm-home-task-names.md)
+- Pull request: [PR 340](https://github.com/Johncoester/cla-portal-demo/pull/340)
 
 **Decisions**
 
