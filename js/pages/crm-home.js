@@ -18,7 +18,9 @@ const LEADS_PER_PAGE = 5;
 
 // ---------------- HOME ----------------
 export async function homePage({ api, me, params, cfg, refresh, assignees }) {
-  const [tasks, leads, opps, callRem] = await Promise.all([api.listCrmTasks(), api.listCrmLeads(), api.listCrmOpportunities(), api.listCrmCallReminders ? api.listCrmCallReminders().catch(() => []) : []]);   // video 11: call reminders (recorded only)
+  if (!me || !me.id) throw new Error('Sign in to see your tasks.');
+  // Every Home view is this person's tasks. The owner filter is on the query (indexed owner_id), including for an admin.
+  const [tasks, leads, opps, callRem] = await Promise.all([api.listCrmTasks({ ownerId: me.id }), api.listCrmLeads(), api.listCrmOpportunities(), api.listCrmCallReminders ? api.listCrmCallReminders().catch(() => []) : []]);   // video 11: call reminders (recorded only)
   const today = localDate(); const todayLeads = leads.filter((l) => !l.archived && localDay(l.createdAt) === today).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   const so = optionsOf(cfg, 'oppStage'); const stages = amountByStage(opps, so.map((o) => o.value), so.filter((o) => o.retired).map((o) => o.value)); const max = Math.max(1, ...stages.map((s) => s.amount));
   const reminders = tasks.filter((t) => t.reminderDue && (t.ownerId === me.id));
@@ -77,7 +79,7 @@ const localDay = (iso) => { const d = new Date(iso); if (isNaN(d)) return ''; co
 export async function taskPage({ api, me, assignees, params, refresh, go, cfg }) {
   const t = await api.getCrmTask(params.id);
   let order = []; try { order = JSON.parse(SS('order') || '[]'); } catch (e) { order = []; }
-  if (!order.includes(t.id)) order = sortTasks(await api.listCrmTasks(), 'dueDate', 'asc', orderOf(cfg)).map((x) => x.id);
+  if (!order.includes(t.id)) order = sortTasks(await api.listCrmTasks({ ownerId: me.id }), 'dueDate', 'asc', orderOf(cfg)).map((x) => x.id);
   const i = order.indexOf(t.id); const prev = i > 0 ? order[i - 1] : null; const next = i >= 0 && i < order.length - 1 ? order[i + 1] : null;
   const rep = t.repeatEvery ? `${(REPEAT_EVERY.find(([k]) => k === t.repeatEvery) || [, t.repeatEvery])[1]}${t.repeatUntil ? ', until ' + fmtDate(t.repeatUntil) : ''}` : 'No';
   const body = html`${head(`Task: ${subj(cfg, t.subject)}`, me)}${tabs('home')}

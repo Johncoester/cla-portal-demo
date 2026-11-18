@@ -536,7 +536,9 @@ export function crmPart(x, flags) {
       taskExtras(t, input, true); if (t.status === TASK_CLOSED) { t.closedAt = now(); t.doneAt = t.closedAt; }
       db().crmActivities.push(t); save(); return actOut(t);
     },
-    async listCrmTasks() { const u = crmUser(); return db().crmActivities.filter((a) => a.kind === 'task' && seen(u, a.entity, a.entityId)).map(actOut); },
+    // ownerId is the same predicate the hosted query sends as .eq('owner_id'). Home always passes the signed-in user, including an admin.
+    async listCrmTasks(opts) { const u = crmUser(); const ownerId = opts && opts.ownerId ? String(opts.ownerId) : '';
+      return db().crmActivities.filter((a) => a.kind === 'task' && (!ownerId || a.ownerId === ownerId) && seen(u, a.entity, a.entityId)).map(actOut); },
     async getCrmTask(id) { const u = crmUser(); return actOut(taskOf(u, id)); },
     async updateCrmTask(id, patch) {
       const u = crmEditor(); const t = taskOf(u, id); if (t.system) fail('This entry was written by the CRM and cannot be changed.');
