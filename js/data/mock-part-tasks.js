@@ -39,7 +39,9 @@ export function tasksAndForms(x) {
     if (behalf) return `${nameOf(byId)} (${behalf.roleLabel}) on behalf of ${nameOf(behalf.agentProfileId)}`;
     return `${who(byId, dealId, t && capOf(byId, ownerId, t))}${ownerId && byId && byId !== ownerId ? ` on behalf of ${nameOf(ownerId)}` : ''}`;
   };
-  const out = (u, t) => { const o = clone(t); o.ownerId = ownerOf(t); o.ownerName = o.ownerId ? nameOf(o.ownerId) : ''; o.mine = o.ownerId === u.id || (!t.participantId && holds(u, t.assignedRole));
+  const out = (u, t) => { const o = clone(t); o.ownerId = ownerOf(t); o.ownerName = o.ownerId ? nameOf(o.ownerId) : '';
+    const behalf = o.ownerId && x.tcForAgent && x.tcForAgent(u.id, o.ownerId, t.dealId, t.assignedRole);
+    o.mine = o.ownerId === u.id || (!t.participantId && holds(u, t.assignedRole)) || !!behalf;
     o.canFill = canFill(u, t); o.forClient = !o.mine && agentCanFill(u, t);
     const clientTask = t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller';
     o.canComplete = !clientTask || isManager(u) || o.mine;

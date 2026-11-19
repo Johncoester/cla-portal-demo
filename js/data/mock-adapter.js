@@ -401,8 +401,14 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     // CLIENT TASK PRIVACY (Matt, Nov 5, live40: "it should not show tasks belonging to other parties to buyer and seller users"): a pure Client-Buyer / Client-Seller
     // only ever gets tasks assigned to THEM: their own participant copy, or an unowned task for the client role they hold. Never another party's, never a fallback list.
     if (pureClientSide(u)) return t.participantId ? ownerOf(t) === u.id : isClient(t.assignedRole) && holds(u, t.assignedRole);
-    if (t.participantId) return ownerOf(t) === u.id || (isAgent(u.role) && sideOf(t.assignedRole) === sideOf(u.role));
-    return holds(u, t.assignedRole) || (isAgent(u.role) && sideOf(t.assignedRole) === sideOf(u.role));
+    // FF-101a: a buyer / listing agent (and a TC acting for them) sees only their own tasks — not every task on their side.
+    if (t.participantId) {
+      const owner = ownerOf(t);
+      if (owner === u.id) return true;
+      if (isAgent(t.assignedRole) && tcForAgent(u.id, owner, t.dealId, t.assignedRole)) return true;
+      return false;
+    }
+    return holds(u, t.assignedRole);
   };
   // DELEGATION: an agent may fill a CLIENT's intake copy for them when the template allows that agent role, the template is not a
   // personal (client-only) item, the client is on the agent's own side, and the agent is on that order in that role. Mirrored by private.agent_can_fill (SQL).
