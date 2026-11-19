@@ -20,4 +20,6 @@ The link itself (TC-2). The CLA Title staff role Transaction Coordinator. A cont
 
 The one-pass document list still reads the coordinator's own row on the file. On the hosted portal, a coordinator sees a file they uploaded and a file marked for everyone. Seeing every buyer-side file the agent sees, through that one-pass read, is not in this change. The mock portal already treats them as the agent for documents.
 
+The database file was never applied. The first copy failed on TEST because Postgres will not take the first item of a function result unless the call is in parentheses: `(private.outside_roles(pid, d))[1]`. That line is corrected in the same file. The rollback did not use that form.
+
 Source: John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM, and 11:37 AM. Tracker row 367.

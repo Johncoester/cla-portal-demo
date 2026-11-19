@@ -4,13 +4,14 @@
  * fields: By Day / Calendar Week / Month / Quarter / Year), Criteria (ANDed). Hover shows the value; click a bar or slice for the records behind it.
  * Nothing is deleted: dashboards and components are RETIRED (hidden, restorable). Function only (no styling work). */
 import { html, raw, $, $$, guard, toast, modal, closeModal, toText } from '../ui.js?v=202611161500';
-import { DASH_MODULES, moduleName, moduleFields, COMPONENT_TYPES, CHART_TYPES, VISIBILITY, BUCKETS, calendarBucket, NUMERIC, isDateType, DATE_PRESETS, presetKey, presetLabel } from '../data/crm-analytics.js?v=202611243900';
-import { tabs, head } from './crm-kit.js?v=202611245800';
+import { DASH_MODULES, moduleName, moduleFields, COMPONENT_TYPES, CHART_TYPES, VISIBILITY, BUCKETS, calendarBucket, NUMERIC, isDateType, DATE_PRESETS, presetKey, presetLabel } from '../data/crm-analytics.js?v=202611247700';
+import { tabs, head } from './crm-kit.js?v=202611247700';
 import { chartSvg, kpiHtml, targetHtml, funnelHtml } from './crm-charts.js?v=202611161500';
-import { criteriaEditor } from './crm-criteria.js?v=202611243900';
+import { criteriaEditor } from './crm-criteria.js?v=202611247700';
 import { readProbe, writeProbe, homeChartsDown, homeChartMessage, pageSession } from '../data/crm-home-charts.js?v=202611247000';
 
 const H = { s: 180, m: 260, l: 380 };
+const dashboardCopyName = (name) => { const suffix = ' (copy)'; const base = String(name || '').replace(/[\u0000-\u001f\u007f]/g, '').trim(); return base.slice(0, 100 - suffix.length) + suffix; };
 const opts = (list, cur) => list.map(([k, l]) => html`<option value="${k}" ${String(k) === String(cur) ? raw('selected') : ''}>${l}</option>`);
 
 function componentBody(c) {
@@ -74,7 +75,7 @@ export async function dashboardsPage(c) {
     const ac = $('[data-add-comp]', root); if (ac) ac.addEventListener('click', () => pickType(c, dash));
     $$('[data-dash-action]', root).forEach((b) => b.addEventListener('click', guard(async () => { const v = b.dataset.dashAction; const kb = $('[data-dash-kebab]', root); if (kb) kb.open = false;
       if (v === 'filters') return filterDialog(c, dash);
-      if (v === 'clone') { const n = prompt('Name of the copy', `Copy of ${dash.name}`); if (n == null) return; const r = await api.cloneCrmDashboard(dash.id, { name: n }); toast('Dashboard cloned'); location.hash = `#/crm/dashboards/${r.id}`; return; }
+      if (v === 'clone') { const n = prompt('Name of the copy', dashboardCopyName(dash.name)); if (n == null) return; const r = await api.cloneCrmDashboard(dash.id, { name: n }); toast('Dashboard cloned'); location.hash = `#/crm/dashboards/${r.id}`; return; }
       if (v === 'details') return dashDialog(c, dash);
       if (v === 'notes') return notesDialog(c, dash);
       if (v === 'retire') { if (!confirm('Delete this dashboard? It is hidden, never deleted; you can restore it.')) return; await api.retireCrmDashboard(dash.id, true); toast('Dashboard deleted'); location.hash = '#/crm/dashboards'; refresh(); return; }

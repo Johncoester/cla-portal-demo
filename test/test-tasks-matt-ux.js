@@ -1,5 +1,6 @@
 /* Processor file Tasks: denser list, Expand all edits buyer and seller intake, green/navy/red status.
-   Buyer, seller, and agent lists keep their own tasks and do not get the processor editor. No hosted project. */
+   Buyer, seller, and agent lists keep their own tasks and do not get the processor editor.
+   FF-101a: agents see only their own tasks (My Tasks), not every side or Intake by person. No hosted project. */
 import { readFileSync } from 'node:fs';
 import { toText } from '../js/ui.js';
 import { render } from '../js/pages/dealtasks.js';
@@ -43,10 +44,11 @@ const sellerTasks = tasks.map((t) => ({ ...t, mine: t.participantId === 'p-selle
 const sellerHtml = toText((await render({ api: { ...api, listTasks: async () => sellerTasks }, user: { id: 'u-seller', role: 'Client-Seller', roles: ['Client-Seller'], accountRole: 'Outside user' }, deal, refresh() {} })).body);
 ok(sellerHtml.includes('Outstanding mortgage') && !sellerHtml.includes('Personal information') && !sellerHtml.includes('data-sidebox="buyer-agent"') && !sellerHtml.includes('data-expand-all'), 'a seller sees only their own tasks');
 
-const agentHtml = toText((await render({ api, user: { id: 'u-bagent', role: 'Buyer Agent', roles: ['Buyer Agent'], accountRole: 'Outside user' }, deal, refresh() {} })).body);
-ok(agentHtml.includes('Commission information') && agentHtml.includes('Personal information') && agentHtml.includes('Outstanding mortgage') && agentHtml.includes('data-intake-by-person'), 'an agent still sees the file tasks and Intake by person');
+const agentTasks = tasks.map((t) => ({ ...t, mine: t.assignedRole === 'Buyer Agent' })).filter((t) => t.assignedRole === 'Buyer Agent');
+const agentHtml = toText((await render({ api: { ...api, listTasks: async () => agentTasks }, user: { id: 'u-bagent', role: 'Buyer Agent', roles: ['Buyer Agent'], accountRole: 'Outside user' }, deal: { ...deal, myRole: 'Buyer Agent', myRoles: ['Buyer Agent'] }, refresh() {} })).body);
+ok(agentHtml.includes('Commission information') && agentHtml.includes('data-file-tasks="mine"') && agentHtml.includes('My Tasks') && !agentHtml.includes('Personal information') && !agentHtml.includes('Outstanding mortgage') && !agentHtml.includes('data-intake-by-person'), 'an agent sees only their own tasks (FF-101a)');
 ok(!agentHtml.includes('data-expand-all') && !agentHtml.includes('data-intake-slot') && !agentHtml.includes('data-file-tasks="dense"') && agentHtml.includes('data-agent-task="t-agent"'), 'an agent does not get the processor expand editor');
-ok(agentHtml.includes('data-task-tone="is-done"') && agentHtml.includes('data-sidebox="listing-agent"'), 'an agent still gets every side box and the done cue');
+ok(agentHtml.includes('data-sidebox="buyer-agent"') && !agentHtml.includes('data-sidebox="listing-agent"') && !agentHtml.includes('data-sidebox="buyer"') && !agentHtml.includes('data-sidebox="seller"'), 'an agent My Tasks is only their agent box (FF-101a)');
 
 const salesHtml = await htmlOf({ id: 'u-sp', role: 'Sales Person', roles: ['Sales Person'] });
 ok(!salesHtml.includes('data-expand-all') && !salesHtml.includes('data-file-tasks="dense"') && salesHtml.includes('All Tasks') && salesHtml.includes('Send contract'), 'a sales rep keeps the task list without the processor editor');

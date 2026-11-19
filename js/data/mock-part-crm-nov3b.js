@@ -8,16 +8,16 @@
  * Nothing here deletes: dashboards, components and reports are RETIRED (hidden, restorable). Mirrored by migration 30. */
 import { MODULE_CODES, moduleName, SEARCH_MODULES, REPORT_MODULES, DASH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, parseQuery, searchMatch, moduleFields, reportFields,
   RELATED, joinRows, runReport, reportCsv, cleanCriteria, applyCriteria, criteriaText, chartData, measureOf, measureLabel, groupOf, display, dealStageOf, CALL_TYPES,
-  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, calendarBucket, groupingWithCalendar, presetKey, withPresetKeys, DATE_PRESETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611243900';
+  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, calendarBucket, groupingWithCalendar, presetKey, withPresetKeys, DATE_PRESETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611247700';
 import { ensureNov3b } from './crm-nov3b.js?v=202611070139';
 import { DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611070139';
-import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611130900';
-import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611130900';
-import { crmReadOnly } from './crm.js?v=202611130900';
+import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611247700';
+import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611247700';
+import { crmReadOnly } from './crm.js?v=202611247700';
 import { canOwnCrmRecords } from './crm-owner.js?v=202611241300';
-import { dealDisplayName } from './nov5-rules.js?v=202611245800';
+import { dealDisplayName } from './nov5-rules.js?v=202611247700';
 import { roleAllowed } from './role-access.js?v=202611100100';
-import { referralLabel, REFERRALS } from './place-order.js?v=202611245800';
+import { referralLabel, REFERRALS } from './place-order.js?v=202611247700';
 import { cleanHomeTitle } from './crm-home-charts.js?v=202611247000';
 
 export const SEND_NOTE = 'Not sent: Gmail is not connected yet. The email was saved on this record only.';
@@ -356,9 +356,12 @@ export function crmNov3bPart(x, h) {
         const period = presetKey(str(f.period, 20)); if (period && !DATE_PRESETS.some(([k]) => k === period)) fail('Pick a period from the list.');
         d.filters = { ...(owner ? { ownerId: owner } : {}), ...(period ? { period } : {}) }; }
       d.modifiedAt = now(); save(); return dashOut(u, d); },
-    async cloneCrmDashboard(id, { name } = {}) { const u = crmEditor(); const src = dashOf(u, id); const d = { ...clone(src), id: nid('dash'), builtin: null, name: (str(name, 100) || `Copy of ${src.name}`).slice(0, 100), visibility: 'me', shareUsers: [], shareRoles: [], shareDepts: [], locked: false,
+    async cloneCrmDashboard(id, { name } = {}) { const u = crmEditor(); const src = dashOf(u, id);
+      const asked = name == null ? null : str(name, 100).replace(/[\u0000-\u001f\u007f]/g, '').trim(); if (name != null && !asked) fail('Dashboard Name is required.');
+      const suffix = ' (copy)'; const copyName = asked == null ? String(src.name || '').trim().slice(0, 100 - suffix.length) + suffix : asked;
+      const d = { ...clone(src), id: nid('dash'), builtin: null, name: copyName, visibility: 'me', shareUsers: [], shareRoles: [], shareDepts: [], locked: false,
         ownerId: u.id, retiredAt: null, createdBy: u.id, createdAt: now(), modifiedAt: now(), clonedFrom: src.id };
-      db().crmDashboards.push(d); db().crmDashComponents.filter((c) => c.dashboardId === src.id && !c.retiredAt).forEach((c) => db().crmDashComponents.push({ ...clone(c), id: nid('dc'), dashboardId: d.id, createdBy: u.id, createdAt: now(), modifiedAt: now() }));
+      db().crmDashboards.push(d); db().crmDashComponents.filter((c) => c.dashboardId === src.id && !c.retiredAt).slice().sort((a, b) => a.position - b.position).forEach((c) => db().crmDashComponents.push({ ...clone(c), id: nid('dc'), dashboardId: d.id, createdBy: u.id, createdAt: now(), modifiedAt: now() }));
       save(); return dashOut(u, d); },
     // Retire = hidden (Zoho "Delete"); Restore brings it back. Built-in dashboards cannot be retired.
     async retireCrmDashboard(id, retired = true) { const u = crmEditor(); const d = db().crmDashboards.find((z) => z.id === str(id, 60)); if (!d || !dashboardVisible(u, d)) fail('Dashboard not found.');

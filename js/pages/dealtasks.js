@@ -3,13 +3,14 @@
 // Matt, Nov 9: processors get a denser list (more rows on screen), one Expand all that opens every buyer and seller intake
 // section for editing on this page, and a green / navy / red cue for done / open / overdue. Buyer, seller and agent lists stay the same shape.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, pill, toast, toText } from '../ui.js?v=202611161500';
-import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611245800';
-import { boxTasks, boxOfRole, tasksForViewer } from '../data/task-board.js?v=202611245800';
+import { runsOrders, DEAL_ROLES as ROLES, isProcessor, isAgent, localDate, isRefi } from '../data/constants.js?v=202611247700';
+import { boxTasks, boxOfRole, tasksForViewer } from '../data/task-board.js?v=202611247700';
 import { annotatePartyTaskProgress, partyTaskStillOpen } from '../data/party-task-completion.js?v=202611241000';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611245800';
-import { taskOpenHref } from '../data/task-actions.js?v=202611245800';
+import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611247700';
+import { taskOpenHref } from '../data/task-actions.js?v=202611247700';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
+import { agentFeesPanel, FEE_SIDE_TASK_BOX } from './agent-fees-box.js?v=202611247700';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
 export const LABEL = { todo: 'to do', in_progress: 'started', done: 'Done', blocked: 'blocked', cancelled: 'cancelled' };
@@ -21,12 +22,15 @@ export async function render(ctx) {
   const { api, user, deal, refresh } = ctx;
   if (intakeDeal !== deal.id) { intakeDeal = deal.id; intakeOpen.clear(); }
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611245900')).render(ctx);
-  const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611245800');
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611247900')).render(ctx);
+  const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611247700');
   const allTasks = tasksWithLenderOnFile(await api.listTasks(deal.id), deal);
   const taskQuery = new URLSearchParams(location.hash.split('?')[1] || '');
-  const mineOnly = taskQuery.get('mine') === '1';
-  const focusSection = taskQuery.get('section') || '';
+  // FF-101a: agents (and a TC acting as them) always see only their own tasks — the general Tasks list is gone for them.
+  const fileAgent = (deal.myRoles || [deal.myRole || user.role]).some((r) => isAgent(r))
+    || isAgent(user.role) || (user.roles || []).some((r) => isAgent(r));
+  const mineOnly = taskQuery.get('mine') === '1' || fileAgent;
+  const focusSection = fileAgent ? '' : (taskQuery.get('section') || '');
   // BUYER (Nov 4 call): the agreements are to-dos that open the agreement (no Agreements tab for the buyer); the buyer never gets a Listing Agent box (listing agent never shown)
   // SELLER MIRROR (Nov 4): the pure seller gets the same To-do list (agreements as to-dos) and never a Buyer's Agent box (the buyer's agent is never shown to the seller)
   const pure = user.accountRole && isPureClient(user); const hideBox = pure ? (isPureSeller(user) ? 'buyer-agent' : 'listing-agent') : null;
@@ -79,21 +83,36 @@ export async function render(ctx) {
       <td class="nowrap">${actions(t)}</td></tr>`;
   const mineFirst = [...tasks].sort((a, b) => ((b.mine || b.forClient) && open(b)) - ((a.mine || a.forClient) && open(a)));
   const shown = mineOnly ? tasksForViewer(user, mineFirst) : mineFirst;
-  const groups = boxTasks(shown).filter((g) => (pure ? g.key === ownBox : g.key !== hideBox) && (!mineOnly || g.tasks.length));
+  // FF-101c: Agent fees under buyer-agent / listing-agent task sections (same roles that saw them on File Overview)
+  const fees = pure ? { bySide: {}, mount() {} } : await agentFeesPanel(ctx, deal);
+  const feeHtmlForBox = (boxKey) => {
+    const side = Object.keys(FEE_SIDE_TASK_BOX).find((k) => FEE_SIDE_TASK_BOX[k] === boxKey);
+    return side && fees.bySide[side] ? fees.bySide[side] : '';
+  };
+  const feeBoxKeys = new Set(Object.keys(fees.bySide || {}).map((s) => FEE_SIDE_TASK_BOX[s]).filter(Boolean));
+  const groups = boxTasks(shown).filter((g) => (pure ? g.key === ownBox : g.key !== hideBox) && (!mineOnly || g.tasks.length || feeBoxKeys.has(g.key)));
   const intakeOf = (side) => tasks.filter((t) => intakeSide(t) && (!side || intakeSide(t) === side));
   const hasIntake = intakeOf('').length > 0;
   const sideExpand = (g) => dense && (g.key === 'buyer' || g.key === 'seller') && g.tasks.some((t) => intakeSide(t)) ? html`<p class="side-expand"><button type="button" class="ghost small" data-expand-side="${g.key}">Expand all</button></p>` : '';
+  const sideBody = (g) => {
+    const feesBlock = feeHtmlForBox(g.key);
+    const tasksBlock = g.tasks.length
+      ? html`<div class="side-scroll"><table class="tbl striped"><thead><tr><th></th><th>Task</th><th>Assigned to</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>${g.tasks.map(row)}</tbody></table></div>`
+      : (feesBlock ? '' : html`<p class="muted small" data-side-empty>None on this side.</p>`);
+    return html`${sideExpand(g)}${tasksBlock}${feesBlock}`;
+  };
+  const hasTaskList = tasks.length || feeBoxKeys.size;
   const body = html`<div class="file-tasks${dense ? ' file-tasks-dense' : ''}" data-file-tasks="${mineOnly ? 'mine' : dense ? 'dense' : 'roles'}">${pure ? html`<div class="box-title"><h2><span class="h-ico"></span>Agreements to acknowledge</h2></div>${agreementNote}` : ''}<div class="box-title"><h2><span class="h-ico"></span>${mineOnly ? 'My Tasks' : pure ? 'To-do list' : 'All Tasks'}</h2>${manage && !mineOnly ? html`<button class="m-btn right" id="addtask">+ Add task</button>` : ''}</div>
-    ${!pure && tasks.some((t) => t.participantId) ? html`<p data-view-switch><strong>${productionView ? 'Title Production' : 'Task list'}</strong> &middot; <a href="#/deals/${deal.id}/tasks?view=people" data-intake-by-person>Intake by person</a> <span class="muted small">(each buyer, seller and agent with all their intake answers on one page)</span>${allTasks.some((t) => taskLaneOf(t) === 'production') ? html` &middot; <a href="#/deals/${deal.id}/tasks${productionView ? '' : '?lane=production'}" data-production-tasks>${productionView ? 'Portal tasks' : 'Title Production'}</a>` : ''}</p>` : ''}
+    ${!pure && !fileAgent && tasks.some((t) => t.participantId) ? html`<p data-view-switch><strong>${productionView ? 'Title Production' : 'Task list'}</strong> &middot; <a href="#/deals/${deal.id}/tasks?view=people" data-intake-by-person>Intake by person</a> <span class="muted small">(each buyer, seller and agent with all their intake answers on one page)</span>${allTasks.some((t) => taskLaneOf(t) === 'production') ? html` &middot; <a href="#/deals/${deal.id}/tasks${productionView ? '' : '?lane=production'}" data-production-tasks>${productionView ? 'Portal tasks' : 'Title Production'}</a>` : ''}</p>` : ''}
     ${dense && hasIntake ? html`<p class="task-expand-bar" data-expand-bar><button type="button" class="m-btn" data-expand-all="1" aria-expanded="false" title="Open every buyer and seller intake section on this page and edit the answers">Expand all</button> <button type="button" class="ghost" data-expand-all="0">Collapse all</button> <span class="muted small">Buyer and seller intake, editable here.</span></p>` : ''}
     ${pure && !tasks.some(open) && !agTodo.length ? html`<div class="notice info" data-all-caught-up>You’re all caught up. There is nothing for you to do on this order right now; we will let you know when there is.</div>` : ''}
-    ${tasks.length ? html`${pure ? '' : html`<p class="muted small" data-side-total>${tasks.length} task(s) on this file, grouped by side (from each task's assigned role).</p>`}${groups.map((g) => html`<details class="side-box side-${g.key}" data-sidebox="${g.key}" data-count="${g.tasks.length}" ${dense && !g.tasks.length ? '' : raw('open')}>
+    ${hasTaskList ? html`${pure ? '' : html`<p class="muted small" data-side-total>${tasks.length} task(s) on this file, grouped by side (from each task's assigned role).</p>`}${groups.map((g) => html`<details class="side-box side-${g.key}" data-sidebox="${g.key}" data-count="${g.tasks.length}" ${dense && !g.tasks.length && !feeHtmlForBox(g.key) ? '' : raw('open')}>
       <summary><span class="side-tag">${g.key === 'buyer' && refi ? 'Borrower tasks' : g.label}</span> <span class="side-count">(${g.tasks.length})</span></summary>
-      ${sideExpand(g)}
-      ${g.tasks.length ? html`<div class="side-scroll"><table class="tbl striped"><thead><tr><th></th><th>Task</th><th>Assigned to</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>${g.tasks.map(row)}</tbody></table></div>` : html`<p class="muted small" data-side-empty>None on this side.</p>`}</details>`)}` : pure ? '' : html`<p class="muted" data-tasks-empty>No tasks have been created on this file yet.</p>`}
+      ${sideBody(g)}</details>`)}` : pure ? '' : html`<p class="muted" data-tasks-empty>No tasks have been created on this file yet.</p>`}
     <p class="muted small">Tasks are never deleted; use Edit &rarr; Cancelled to retire one. Reminders are queued in the outbox only and never sent from this build.</p></div>`;
   const AUDS = [['buyer', 'Buyer'], ['seller', 'Seller'], ['listing_agent', 'Listing agent'], ['buyer_agent', 'Buyer agent'], ['sales_team', 'Sales team'], ['transaction_coordinator', 'Transaction coordinator'], ['internal', 'Internal only']];
   return { title: 'Tasks', crumbs: [['All Tasks']], body, mount(root) {
+    fees.mount(root);
     $$('[data-tick]', root).forEach((c) => c.addEventListener('change', guard(async () => { try { await api.updateTask(c.dataset.tick, { status: c.checked ? 'done' : 'todo' }); } finally { refresh(); } })));
     $$('[data-remind]', root).forEach((b) => b.addEventListener('click', guard(async () => { const r = await api.sendTaskReminder(b.dataset.remind); toast(r.queued ? 'Reminder queued in the outbox (not sent)' : 'Already queued today'); })));
     const ab = $('#addtask', root); if (ab) ab.addEventListener('click', () => form(null));
@@ -101,8 +120,8 @@ export async function render(ctx) {
     const slotOf = (id) => $(`[data-intake-slot="${(globalThis.CSS && CSS.escape ? CSS.escape(String(id)) : String(id).replace(/(["\\])/g, '\\$1'))}"]`, root);
     const showIntake = async (ids) => {
       if (!ids.length) return;
-      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611245900');
-      const { loadSpouseRows, applySpouse } = await import('./spouse.js?v=202611245800');
+      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611247900');
+      const { loadSpouseRows, applySpouse } = await import('./spouse.js?v=202611247700');
       const wantsSpouse = ids.some((id) => { const t = tasks.find((z) => z.id === id); return t && t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller'); });
       const spouseRows = wantsSpouse ? await loadSpouseRows(api, deal.id) : [];
       await Promise.all(ids.map(async (id) => {

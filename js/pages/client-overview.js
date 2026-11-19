@@ -3,12 +3,12 @@
 // Buyers never see Cash to Close, payoffs or wire details here; the only wire item is the existing Wire instructions button (buyer + staff only, as before).
 // app.js draws this page in the light "client shell" (white top bar, no sidebar) because the view sets clientPage.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney, pill, toast } from '../ui.js?v=202611161500';
-import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611245800';
-import { composeModal } from './compose.js?v=202611245800';
-import { slotText } from './dealclosing.js?v=202611245800';
-import { yourAgentHtml, withContactPhone } from './your-agent.js?v=202611245800';
+import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611247700';
+import { composeModal } from './compose.js?v=202611247700';
+import { slotText } from './dealclosing.js?v=202611247700';
+import { yourAgentHtml, withContactPhone } from './your-agent.js?v=202611247700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { UPDATE_TOPICS } from '../data/agent-portal.js?v=202611245800';
+import { UPDATE_TOPICS } from '../data/agent-portal.js?v=202611247700';
 
 // The signed-in buyer or seller is not part of their own closing team. Match the
 // portal login when the contact row has it, and the email when that login id was not loaded.
@@ -68,8 +68,9 @@ export function clientNav(d, user, active, n = {}) {
   const tab = (key, href, label, cnt) => html`<a class="${on === key ? 'on' : ''}" href="${href}" data-co-tab="${label}"${on === key ? raw(' aria-current="page"') : ''}>${label}${cnt ? html` <span class="n">${cnt}</span>` : ''}</a>`;
   const B = `#/deals/${d.id}`; const agent = (user.roles || [user.role]).some((r) => /Agent$/.test(r));
   const myTasks = tab('my-tasks', `${B}/tasks?mine=1`, 'My Tasks', 0);
+  // FF-101a: an agent (or self-represented agent) keeps My Tasks and loses the general Tasks tab.
   return html`<nav class="co-seg" aria-label="This file" data-co-nav>${pure ? html`${tab('overview', B, BUYER_TAB_LABELS.overview, 0)}${tab('tasks', `${B}/tasks`, BUYER_TAB_LABELS.tasks, n.todo)}${myTasks}${tab('inbox', `${B}/inbox`, BUYER_TAB_LABELS.inbox, n.msg)}${tab('documents', `${B}/documents`, BUYER_TAB_LABELS.documents, n.docs)}${tab('closing', `${B}/closing`, BUYER_TAB_LABELS.closing, 0)}${tab('activity', `${B}/activity`, BUYER_TAB_LABELS.activity, 0)}`
-    : html`${tab('overview', B, 'Overview', 0)}${tab('tasks', `${B}/tasks`, 'Tasks', n.tasks)}${myTasks}${tab('inbox', `${B}/inbox`, 'Messages', n.msg)}${tab('documents', `${B}/documents`, 'Documents', n.docs)}${tab('closing', `${B}/closing`, 'Closing', 0)}${tab('agreements', `${B}/agreements`, 'Agreements', n.ag)}${agent ? tab('contacts', `${B}/contacts`, 'Contacts', 0) : ''}${tab('activity', `${B}/activity`, 'Activity', 0)}`}</nav>`;
+    : html`${tab('overview', B, 'Overview', 0)}${agent ? '' : tab('tasks', `${B}/tasks`, 'Tasks', n.tasks)}${myTasks}${tab('inbox', `${B}/inbox`, 'Messages', n.msg)}${tab('documents', `${B}/documents`, 'Documents', n.docs)}${tab('closing', `${B}/closing`, 'Closing', 0)}${tab('agreements', `${B}/agreements`, 'Agreements', n.ag)}${agent ? tab('contacts', `${B}/contacts`, 'Contacts', 0) : ''}${tab('activity', `${B}/activity`, 'Activity', 0)}`}</nav>`;
 }
 // The top of every client TAB page: the file line and the same pill tabs as the Overview (counts read the same way as there)
 export async function clientTabChrome({ api, user }, d, active) {
