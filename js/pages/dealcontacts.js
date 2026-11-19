@@ -5,14 +5,14 @@ import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=2
 import { directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611247700';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611247700';
 import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611247700';
-import { copyPlainText } from './deal.js?v=202611247900';
+import { copyPlainText } from './deal.js?v=202611248300';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611247700';
 import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611247700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { agentTcChoiceLabel, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, rolesForNewContact, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611247700';
-import { isRealEstateAgent } from '../data/agent-tc-links.js?v=202611247700';
-import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611247700';
+import { agentTcChoiceLabel, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, rolesForNewContact, selfTcOnOrderProblem, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611248300';
+import { isRealEstateAgent } from '../data/agent-tc-links.js?v=202611248300';
+import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611248300';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
 export function contactCopyMessage(copied, kind) {
@@ -166,6 +166,16 @@ export async function render({ api, user, deal, refresh }) {
       if (!id && f.role === 'Lender') { const built = lenderCompanyContact({ company: f.company, firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone, lenderRole: f.lenderRole }); if (!built.ok) throw new Error(built.error); id = (await api.createContact(built.contact)).id; }
       if (!id && (f.role === 'Client-Buyer' || f.role === 'Client-Seller') && !String(f.firstName || '').trim() && String(f.company || '').trim()) id = (await api.createContact({ firstName: '', lastName: f.lastName, email: f.email, phone: f.phone, company: f.company, contactType: f.contactType || 'buyer_seller' })).id;
       if (!id && !String(f.firstName || '').trim() && !String(f.company || '').trim()) throw new Error('Enter a first name, or a company or entity name.');
+      if (isAgentTcPick(f.role)) {
+        const known = id ? people.find((p) => p.id === id) : null;
+        const person = { contactId: id || '', email: (known && known.email) || f.email || '' };
+        const { choices, linkedRoles } = await resolveTc(id);
+        const which = ($('[data-tc-agent]', m) || {}).value || '';
+        const side = tcSideProblem({ hasPerson: true, linkedRoles, choice: which, choices });
+        if (side) throw new Error(side);
+        const self = selfTcOnOrderProblem(person, fileAgents(deal.participants), tcRolesToSave({ linkedRoles, choice: which, choices }));
+        if (self) throw new Error(self);
+      }
       if (!id) id = (await api.createContact({ firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone, company: f.company, contactType: f.contactType || typeFor(f.role) })).id;
       if (isAgentTcPick(f.role)) {
         const { choices, linkedRoles } = await resolveTc(id);

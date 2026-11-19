@@ -2,7 +2,7 @@
 import { cleanEntity } from './mock-part-nov3b.js?v=202611247700';
 import { cleanLenderRole } from './lender-file.js?v=202611247700';
 import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611247700';
-import { STAFF_TC_MESSAGE, STAFF_TC_ROLE, agentTcAlreadyMessage, agentTcRefiMessage, isAgentTcRole } from './agent-tc.js?v=202611247700';
+import { STAFF_TC_MESSAGE, STAFF_TC_ROLE, agentTcAlreadyMessage, agentTcRefiMessage, isAgentTcRole, selfTcOnOrderProblem } from './agent-tc.js?v=202611248300';
 import { acceptDocType } from './document-type.js?v=202611100945';
 import { assertContactSaved, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
 import { processorStaffError, clearProcessorParties } from './processor-party.js?v=202611247700';
@@ -89,6 +89,15 @@ export function contactsTasksDocs(x) {
       const rawId = String(contactId || '');
       if (rawId.startsWith('staff:')) contactId = ensureStaffContact(rawId.slice(6)).id;
       const c = d.contacts.find((z) => z.id === contactId) || fail('Contact not found.');
+      if (isAgentTcRole(role)) {
+        const agentRole = role === 'Listing Agent TC' ? 'Listing Agent' : 'Buyer Agent';
+        const agents = d.participants.filter((p) => p.dealId === dealId && p.role === agentRole).map((p) => {
+          const who = d.contacts.find((z) => z.id === p.contactId) || {};
+          return { contactId: p.contactId, email: who.email || '', role: agentRole };
+        });
+        const self = selfTcOnOrderProblem({ contactId: c.id, email: c.email }, agents, [role]);
+        if (self) fail(self);
+      }
       const onFile = d.participants.filter((p) => p.dealId === dealId && p.role === role).map((p) => ({ role: p.role, contactId: p.contactId, contact: d.contacts.find((z) => z.id === p.contactId) || {} }));
       if (sameParty(onFile, c, role)) fail(isAgentTcRole(role) ? agentTcAlreadyMessage(c, role) : duplicatePartyMessage(c, role));
       // per-file roles: an outside user's login takes its permissions from this row, so keep it unambiguous
