@@ -1,5 +1,5 @@
 // crm.js : the CRM (John, Nov 2). Routes #/crm/<section>[/<id>]: home (default), leads, contacts (= Clients), accounts (= Companies), pipeline, reports,
-// tasks/<id>, meetings/<id>; followups (older link) shows Home. Labels follow John's Zoho (Clients / Companies); internal names stay contacts / accounts.
+// tasks/<id>, meetings/<id>, calls (the list) and calls/<id>; followups (older link) shows Home. Labels follow John's Zoho (Clients / Companies); internal names stay contacts / accounts.
 // Reachable only when the `crm` feature flag is on (app.js never loads this module otherwise) and only for CLA staff (adapter refuses others).
 import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611161500';
 import { CONTACT_TYPES, contactTypeLabel, US_STATES, US_STATE_NAMES } from '../data/constants.js?v=202611247700';
@@ -10,9 +10,9 @@ import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-jani
 import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611247700';
 import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611247700';
 import { settingsPage } from './crm-settings.js?v=202611247700';
-import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611247700';
+import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611246800';
 import { pipelinePage, reportsPage } from './crm-more.js?v=202611247700';
-import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611247700';
+import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611246800';
 import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611247700';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611247700';
 import { searchPage } from './crm-search.js?v=202611247700';
@@ -20,7 +20,7 @@ import { dashboardsPage } from './crm-dashboards.js?v=202611247700';
 import { reportsHome } from './crm-reports.js?v=202611247700';
 import { dealsPage } from './crm-deals.js?v=202611247700';
 import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611244500';
-import { callPage, callModal } from './crm-calls.js?v=202611247700';
+import { callPage, callModal, callsList } from './crm-calls.js?v=202611246800';
 import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611247700';
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
@@ -46,7 +46,7 @@ async function recNav(list, id, base) {
 const crmBack = (params) => {
   const s = (params && params.section) || 'home';
   if (s === 'views') { const mod = params.id === 'new' ? params.sub : ''; return ['contacts', 'leads', 'accounts', 'deals'].includes(mod) ? `/crm/${mod}` : '/crm'; }
-  if (['leads', 'contacts', 'accounts', 'deals', 'pipeline', 'reports', 'dashboards', 'templates', 'settings', 'search'].includes(s)) return `/crm/${s}`;
+  if (['leads', 'contacts', 'accounts', 'deals', 'calls', 'pipeline', 'reports', 'dashboards', 'templates', 'settings', 'search'].includes(s)) return `/crm/${s}`;
   return '/crm';
 };
 export async function render(ctx) {
@@ -74,7 +74,7 @@ async function renderCrm(ctx) {
   if (s === 'accounts') return params.id ? accountPage(c) : accountsList(c);
   if (s === 'tasks' && params.id) return taskPage(c);
   if (s === 'meetings' && params.id) return meetingPage(c);
-  if (s === 'calls' && params.id) return callPage(c);   // video 11: a call's details
+  if (s === 'calls') return params.id ? callPage(c) : callsList(c);   // menu #/crm/calls is the list; #/crm/calls/<id> is one call (video 11)
   if (s === 'pipeline') return pipelinePage(c);
   if (s === 'reports') return params.id === 'summary' ? reportsPage(c) : reportsHome(c);   // Nov 3 (b), video 10: Zoho-style reports; the older per-table summary stays at #/crm/reports/summary
   if (s === 'dashboards') return dashboardsPage(c);   // video 9
