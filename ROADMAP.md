@@ -2655,3 +2655,32 @@ This file lists the portal's major features: how each one should work, how far a
 - No database change. The list uses the calls already stored. It does not add a table or a query.
 - The full Calls module is not part of this change. The menu opens the short list so the link is not a dead end.
 
+---
+
+## Document folders (FF-104)
+
+**How it should work.** On an order, Documents keeps All files, Received, and Sent. A fourth tab, Folders, lists that order's folders and how many files are in each one. CLA staff can add a folder and move a document into a folder. Buyers, sellers, and agents do not see the tab. A new closing order gets eight folders (100 Processing through 700 Recorded Documents and Policies) instead of the five older names. Orders that already exist keep the folders and files they have.
+
+**Status: In progress.** FF-104a (the Folders tab) is [PR 376](https://github.com/Johncoester/cla-portal-demo/pull/376). FF-104b (the eight folders on new orders only) is the next pull request. Not on TEST. Not Live.
+
+**What's built**
+
+- FF-104a: the Folders tab, the file count, Add folder, and Move, for Processor, Preprocessor, Transaction Coordinator, Admin, and Super admin. Sales can open the tab and see the counts. They cannot add or move.
+
+**What's still missing**
+
+- FF-104b: the eight default folders on new orders only. Existing orders stay as they are.
+- Master Template Library, Generate, Search Packages, a Word editor, Download Word, Download PDF, the Merge / Delete / Rename / Refresh / Download / Print / Send / eSign toolbar, and Drafts. John has not decided the eSign provider, the Word editor, or Delete / retention.
+- Not checked on TEST. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/document-folders.md](docs/specs/document-folders.md)
+- Pull request: [PR 376](https://github.com/Johncoester/cla-portal-demo/pull/376) (FF-104a)
+- Source: Francis Santos, Nov 19 2026, 1:15 PM ET, confirmed Nov 19 2026, 2:35 PM ET (Gmail 1a1f54e71ce7e8b6). Tracker FF-104a and FF-104b.
+
+**Decisions**
+
+- Phase 1 is the tab, then the default folders. Nothing else from the picture is built in this phase.
+- The Title module keeps its own extra folder names. "450 Final Closing Documents" and "450 Prior Closing Documents" are different folders.
+
