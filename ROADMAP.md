@@ -1845,7 +1845,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** An Admin or a Super admin can see and change every CRM record. Everyone else who can open the CRM can see every lead, client, company, pipeline opportunity, and activity, and can change or archive only the records they own. On a record they do not own, Edit and Archive are greyed out and the page says "Only the owner or an admin can change this record." A mass update, a change of owner, or another bulk action skips those records and says how many were skipped. A new owner must still be someone who can own CRM records.
 
-**Status: In progress.** Janine Santos, the CRM user, confirmed this on Nov 18 2026. Designed by the portal lead. Tracker row CRM-VIS-1. Pull request: [PR 358](https://github.com/Johncoester/cla-portal-demo/pull/358), parenthesis fix [PR 366](https://github.com/Johncoester/cla-portal-demo/pull/366). Database file `supabase/migrations/20261125330000_crm_visibility_edit_own.sql` (already applied on TEST). Rollback `supabase/rollbacks/20261125330000_crm_visibility_edit_own.sql`. Not Live.
+**Status: In progress.** Janine Santos, the CRM user, confirmed this on Nov 18 2026. Designed by the portal lead. Tracker row CRM-VIS-1. Pull request: [PR 358](https://github.com/Johncoester/cla-portal-demo/pull/358), parenthesis fix [PR 366](https://github.com/Johncoester/cla-portal-demo/pull/366), rollback anchors [PR 367](https://github.com/Johncoester/cla-portal-demo/pull/367). Database file `supabase/migrations/20261125330000_crm_visibility_edit_own.sql` (already applied on TEST). Rollback `supabase/rollbacks/20261125330000_crm_visibility_edit_own.sql`. Not Live.
 
 **What's built**
 
