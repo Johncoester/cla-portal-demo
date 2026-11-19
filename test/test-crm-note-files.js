@@ -282,11 +282,11 @@ const chain = [
   ['js/pages/crm-home.js', '202611245800'],
   ['js/pages/crm.js', '202611245800'],
   ['js/data/mock-part-crm.js', '202611245800'],
-  ['js/data/mock-adapter.js', '202611246400', '202611246400'],
+  ['js/data/mock-adapter.js', '202611246400'],
   ['js/data/supabase-crm.js', '202611245800'],
-  ['js/data/supabase-adapter.js', '202611245900'],
-  ['js/data/adapter.js', '202611246400', '202611246400'],
-  ['js/app.js', '202611246400', '202611246400'],
+  ['js/data/supabase-adapter.js', '202611246200'],
+  ['js/data/adapter.js', '202611246400'],
+  ['js/app.js', '202611246400'],
 ];
 const issues = [];
 for (const [target, stamp] of chain) {

@@ -74,7 +74,7 @@ const mig = readFileSync(new URL('../supabase/migrations/20261125230000_tc_conta
 const back = readFileSync(new URL('../supabase/rollbacks/20261125230000_tc_contact_type.sql', import.meta.url), 'utf8');
 ok(!page.includes("isAgentTcRole(r) ? 'realtor'") && page.includes('contactTypeForRole(r)') && page.includes('AGENT_TC_TYPE_NOTE'), 'Place Order no longer saves a new coordinator as a Realtor');
 ok(!contacts.includes("isAgentTcRole(r) ? 'realtor'") && contacts.includes('contactTypeForRole(r)') && contacts.includes('AGENT_TC_TYPE_NOTE'), 'Order Contacts defaults a new coordinator to Transaction coordinator');
-ok(parties.includes('contactTypeForRole(role)') && /not as a Realtor/.test(parties), 'Parties saves a new coordinator as Transaction coordinator');
+ok(parties.includes('contactTypeForRole(role)') && parties.includes('coordinatorContactType(role)'), 'Parties saves a new coordinator as Transaction coordinator');
 ok(mig.includes("'agent_tc'") && mig.includes('contacts_contact_type_check') && mig.includes('crm_leads_contact_type_check') && !/update\s+public\.contacts\s+set\s+contact_type/i.test(mig) && !/update\s+public\.crm_leads\s+set\s+contact_type/i.test(mig), 'the database file allows the type and does not rewrite existing rows');
 ok(/cannot be undone yet/.test(back) && back.includes("contact_type in ('realtor', 'lender', 'buyer_seller')") && !/contact_type in \('realtor', 'lender', 'buyer_seller', 'agent_tc'\)/.test(back), 'the rollback puts the old list back and refuses while a coordinator is saved');
 

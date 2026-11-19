@@ -123,7 +123,8 @@ export function agentPortal(x) {
       const docs = d.documents.filter((z) => z.dealId === dealId && docVisible(u, z));
       const act = staff ? (await root.listActivity(dealId, {})).items.map((a) => ({ id: a.id, createdAt: a.createdAt, action: a.action, detail: a.detail, actorName: a.actorName })) : activityFor(u, dealId);
       const tasks = d.tasks.filter((t) => t.dealId === dealId && taskVisible(u, t));
-      const outstanding = staff ? v.openTasks : tasks.filter((t) => OPEN.includes(t.status) && (ownerOf(t) === u.id || (!t.participantId && x.holds(u, t.assignedRole)) || x.agentCanFill(u, t))).length;
+      // FF-101a: outstanding is only this agent's (or their TC's) own tasks — not client tasks on the side.
+      const outstanding = staff ? v.openTasks : tasks.filter((t) => OPEN.includes(t.status) && (ownerOf(t) === u.id || (!t.participantId && x.holds(u, t.assignedRole)) || !!behalfOf(u, t))).length;
       // EMD BANNER (John, Nov 4): true for a pure buyer while the file's EMD receipt task is still open (same rule as the bell / outbox reminders); the task itself stays hidden
       const emdPending = x.pureBuyer(u) && d.tasks.some((t) => t.dealId === dealId && t.assignedRole === 'Client-Buyer' && x.EMD_RECEIPT.test(t.title || '') && OPEN.includes(t.status));
       return clone({ progress: progressOut(q), outstanding, emdPending,
