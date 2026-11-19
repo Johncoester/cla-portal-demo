@@ -2306,7 +2306,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** The Place Order walkthrough, signed in as the non-demo E2E Processor, searches Team & Notes for a salesperson who is not a demo user. A name that is not a person still says no match. The file-number prefix checks stay as they are.
 
-**Status: In progress.** Tracker row E2E-FIX-B. John, Nov 19 2026. No database file. Not Live. Nothing on testportal.clatitle.com changes.
+**Status: In progress.** Tracker row E2E-FIX-B (Requests tab, row 390). John, Nov 19 2026. Pull request: [PR 369](https://github.com/Johncoester/cla-portal-demo/pull/369). No database file. Not Live. Nothing on testportal.clatitle.com changes.
 
 **What's built**
 
@@ -2322,6 +2322,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/e2e-fix-b.md](docs/specs/e2e-fix-b.md)
+- Pull request: [PR 369](https://github.com/Johncoester/cla-portal-demo/pull/369)
 - Evidence: Actions run [44513431332](https://github.com/Johncoester/cla-portal-demo/actions/runs/44513431332), failing since run [44163727716](https://github.com/Johncoester/cla-portal-demo/actions/runs/44163727716) after FF-092 ([PR 322](https://github.com/Johncoester/cla-portal-demo/pull/322), commit 8dbc9be1).
 
 **Decisions**

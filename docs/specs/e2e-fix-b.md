@@ -1,6 +1,6 @@
 # Place Order walkthrough picks a real salesperson (E2E-FIX-B)
 
-Source: John, Nov 19 2026. Tracker row E2E-FIX-B (Requests tab, to be added). No video. Evidence: GitHub Actions run [44513431332](https://github.com/Johncoester/cla-portal-demo/actions/runs/44513431332). The same Place Order check has failed since run [44163727716](https://github.com/Johncoester/cla-portal-demo/actions/runs/44163727716), after FF-092 (pull request 322, commit 8dbc9be1).
+Source: John, Nov 19 2026. Tracker row E2E-FIX-B (Requests tab, row 390). No video. Pull request: [PR 369](https://github.com/Johncoester/cla-portal-demo/pull/369). Evidence: GitHub Actions run [44513431332](https://github.com/Johncoester/cla-portal-demo/actions/runs/44513431332). The same Place Order check has failed since run [44163727716](https://github.com/Johncoester/cla-portal-demo/actions/runs/44163727716), after FF-092 (pull request 322, commit 8dbc9be1).
 
 ## What was asked
 
