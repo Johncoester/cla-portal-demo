@@ -10,7 +10,8 @@ import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202
 import { pageOf, selectionState, selectPage, loadPageSize, normalizePageSize, PAGE_SIZE_OPTIONS } from '../data/crm-bulk.js?v=202611160300';
 import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611160400';
 import { DATE_OPS, DATE_UNITS, matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
-import { bulkBar, wireBulk } from './crm-bulk.js?v=202611161500';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611247100';
+import { canChangeCrmRecord, CRM_LOCK_NOTE } from '../data/crm-visibility.js?v=202611247100';
 
 // A click on the row (not on a link, button, or checkbox) opens the record. The name link still navigates on its own.
 export function wireRowOpen(tb, hrefFor) {
@@ -33,7 +34,7 @@ const TAB_MODULE = { deals: 'crm-deals' };
 let ME = null; export const setCrmMe = (me) => { ME = me || null; };
 export const tabs = (cur) => html`<div class="crm-tabs-row" data-crm-user="${(ME && ME.id) || ''}"><ul class="nav-tabs" data-crm-tabs>${[...SECTIONS, ...(ADMIN ? [['settings', 'Settings']] : [])].filter(([k]) => !TAB_MODULE[k] || modOn(TAB_MODULE[k])).map(([k, l]) => html`<li><a class="${k === cur ? 'active' : ''}" href="#/crm/${k}" data-crm-tab="${k}">${l}${TAB_MODULE[k] && modBeta(TAB_MODULE[k]) ? html` <span class="beta-badge" data-beta-badge="${TAB_MODULE[k]}" title="${BETA_LABEL}">Beta</span>` : ''}</a></li>`)}</ul></div>`;
 export const head = (title, me, extra = '') => html`<div class="box-title crm-page-head"><h2><span class="h-ico"></span>${title}</h2><div class="crm-head-actions">${extra}</div></div>
-  ${me.canEdit ? '' : html`<p class="muted" data-readonly>Read-only: the Processor can see the CRM but not change it.</p>`}`;
+  ${me.canEdit ? '' : html`<p class="muted" data-readonly>You can change a record you own. Only the owner or an admin can change any other record.</p>`}`;
 export const sel = (name, list, cur, blank) => html`<select name="${name}">${blank != null ? html`<option value="">${blank}</option>` : ''}${list.map(([v, l]) => html`<option value="${v}" ${String(v) === String(cur ?? '') ? raw('selected') : ''}>${l}</option>`)}</select>`;
 export const pairs = (list) => list.map((v) => [v, v]);
 export const ctypeSel = (cur, name = 'contactType') => html`${sel(name, CONTACT_TYPES, cur, '(not set)')}<span class="field-hint">${AGENT_TC_TYPE_NOTE}</span>`;
@@ -207,6 +208,18 @@ export function pageNav(view) {
   return html`<button type="button" class="ghost" data-bulk-prev ${view.page <= 1 ? raw('disabled') : ''}>Previous</button> Page ${view.page} of ${view.pages} <button type="button" class="ghost" data-bulk-next ${view.page >= view.pages ? raw('disabled') : ''}>Next</button>`;
 }
 export const archiveBtn = (me, entity, id, archived) => (me.canEdit ? html`<button class="ghost" data-archive="${entity}:${id}:${archived ? '0' : '1'}">${archived ? 'Restore from archive' : 'Archive'}</button>` : '');
+const greyBtn = (label, attr) => html`<button class="ghost" type="button" disabled ${attr} style="opacity:.45">${label}</button>`;
+export function editControl(me, record, dataAttr) {
+  if (canChangeCrmRecord(me, record)) return html`<button class="ghost" ${raw(dataAttr)}>Edit</button>`;
+  return greyBtn('Edit', raw('data-locked-edit'));
+}
+export function archiveControl(me, record, entity, id, archived) {
+  if (canChangeCrmRecord(me, record)) return archiveBtn({ ...me, canEdit: true }, entity, id, archived);
+  return greyBtn(archived ? 'Restore from archive' : 'Archive', raw('data-locked-archive'));
+}
+export function lockNote(me, record) {
+  return canChangeCrmRecord(me, record) ? '' : html`<span class="muted" data-lock-note>${CRM_LOCK_NOTE}</span>`;
+}
 export function wireArchive(root, api, refresh) {
   $$('[data-archive]', root).forEach((b) => b.addEventListener('click', guard(async () => { const [e, id, on] = b.dataset.archive.split(':');
     if (on === '1' && !confirm('Archive this record? It is hidden from lists but never deleted; you can restore it.')) return;

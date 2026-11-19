@@ -3,8 +3,9 @@
 import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime, fmtMoney, pill, modal, closeModal } from '../ui.js?v=202611161500';
 import { localDate } from '../data/constants.js?v=202611247700';
 import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY, dueTone, daysOverdue, taskOpen } from '../data/crm.js?v=202611247700';
-import { tabs, head } from './crm-kit.js?v=202611247700';
-import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611246800';
+import { tabs, head } from './crm-kit.js?v=202611247100';
+import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611247100';
+import { canChangeCrmRecord, CRM_LOCK_NOTE } from '../data/crm-visibility.js?v=202611247100';
 import { inviteBtn, invitePreview } from './crm-janine.js?v=202611247700';
 import { optionsOf, optLabel } from '../data/crm-config.js?v=202611247700';
 import { lbl } from './crm-custom.js?v=202611247700';
@@ -157,7 +158,7 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
         <td data-col="relatedTo">${t.relatedLink ? html`<a href="${t.relatedLink}">${t.relatedTo}</a>` : t.relatedTo || ''}</td>
         <td data-col="contactName">${t.contactLink && t.contactName ? html`<a href="${t.contactLink}">${t.contactName}</a>` : t.contactName || ''}</td>
         <td data-col="status">${lbl(cfg, 'taskStatus', t.status)}</td><td data-col="priority">${lbl(cfg, 'taskPriority', t.priority)}</td>
-        <td data-col="actions">${me.canEdit && !t.system ? html`<button type="button" class="ghost" data-quick-edit="${t.id}">Edit</button>${t.open ? html` <button type="button" class="ghost" data-quick-close="${t.id}">Close</button>` : ''}` : ''}</td></tr>`) : html`<tr><td colspan="7" class="muted">No tasks in this view.</td></tr>`);
+        <td data-col="actions">${!t.system ? (canChangeCrmRecord(me, t) ? html`<button type="button" class="ghost" data-quick-edit="${t.id}">Edit</button>${t.open ? html` <button type="button" class="ghost" data-quick-close="${t.id}">Close</button>` : ''}` : html`<button type="button" class="ghost" disabled data-locked-edit style="opacity:.45">Edit</button> <span class="muted" data-lock-note>${CRM_LOCK_NOTE}</span>`) : ''}</td></tr>`) : html`<tr><td colspan="7" class="muted">No tasks in this view.</td></tr>`);
       $('[data-task-count]', root).textContent = `${list.length} task(s)`;
       $$('[data-sort-mark]', root).forEach((s) => { s.innerHTML = s.dataset.sortMark === sk ? (sd === 'asc' ? '&uarr;' : '&darr;') : ''; }); };
     fsel.addEventListener('change', draw);
@@ -165,7 +166,7 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
       const edit = e.target.closest('[data-quick-edit]'); const close = e.target.closest('[data-quick-close]');
       if (!edit && !close) return;
       const id = (edit || close).dataset.quickEdit || (edit || close).dataset.quickClose;
-      const t = tasks.find((z) => z.id === id); if (!t || !me.canEdit || t.system) return;
+      const t = tasks.find((z) => z.id === id); if (!t || !canChangeCrmRecord(me, t) || t.system) return;
       if (edit) { taskModal(api, { entity: t.entity, entityId: t.entityId, parentName: t.relatedTo || t.contactName, me, assignees: assignees || [], cfg }, t, () => refresh()); return; }
       await api.closeCrmTask(t.id); toast('Task closed'); refresh();
     }));
@@ -212,7 +213,7 @@ export async function taskPage({ api, me, assignees, params, refresh, go, cfg })
   const contactHint = profile ? '' : html` <span class="muted small">(${entityLabel(t.entity)})</span>`;
   const body = html`${head(`Task: ${subj(cfg, t.subject)}`, me)}${tabs('home')}
     <div class="card" data-task-detail="${t.id}">
-      <p>${me.canEdit && !t.system ? html`<button class="ghost" data-edit-task>Edit</button> ${t.open ? html`<button class="m-btn" data-close-task>Close Task</button> ` : ''}` : ''}
+      <p>${!t.system && canChangeCrmRecord(me, t) ? html`<button class="ghost" data-edit-task>Edit</button> ${t.open ? html`<button class="m-btn" data-close-task>Close Task</button> ` : ''}` : (!t.system ? html`<button class="ghost" type="button" disabled data-locked-edit style="opacity:.45">Edit</button> <span class="muted" data-lock-note>${CRM_LOCK_NOTE}</span> ` : '')}
         ${prev ? html`<a class="ghost" href="#/crm/tasks/${prev}" data-prev>&lsaquo; Previous</a>` : html`<span class="muted" data-prev-none>&lsaquo; Previous</span>`}
         ${next ? html`<a class="ghost" href="#/crm/tasks/${next}" data-next>Next &rsaquo;</a>` : html`<span class="muted" data-next-none>Next &rsaquo;</span>`}
         ${profile && profile.href ? html`<a class="ghost" href="${profile.href}" data-task-back="${profile.entity}">Back to ${profile.name}</a> ` : ''}<a class="ghost" href="#/crm">Back to Home</a></p>
@@ -235,7 +236,7 @@ export async function meetingPage({ api, me, assignees, params, refresh, cfg }) 
   const m = await api.getCrmMeeting(params.id);
   const body = html`${head(`Meeting: ${m.subject}`, me)}${tabs('home')}
     <div class="card" data-meeting-detail="${m.id}">
-      <p>${me.canEdit ? html`<button class="ghost" data-edit-meeting>Edit</button> ${inviteBtn(me)} ` : ''}<a class="ghost" href="${m.parentLink}">Back to ${m.parentName}</a></p>
+      <p>${canChangeCrmRecord(me, m) ? html`<button class="ghost" data-edit-meeting>Edit</button> ${inviteBtn(me)} ` : html`<button class="ghost" type="button" disabled data-locked-edit style="opacity:.45">Edit</button> <span class="muted" data-lock-note>${CRM_LOCK_NOTE}</span> `}<a class="ghost" href="${m.parentLink}">Back to ${m.parentName}</a></p>
       <dl class="kv" data-meeting-fields>
         <dt>Title</dt><dd data-f="title">${m.subject}</dd><dt>Type</dt><dd data-f="type">${lbl(cfg, 'meetingType', m.meetingType) || '—'}</dd><dt>Location</dt><dd>${m.location || '—'}</dd>
         <dt>From</dt><dd data-f="from">${fmtWhen(m.startsAt)}</dd><dt>To</dt><dd data-f="to">${fmtWhen(m.endsAt)}</dd><dt>All Day</dt><dd>${m.allDay ? 'Yes' : 'No'}</dd>

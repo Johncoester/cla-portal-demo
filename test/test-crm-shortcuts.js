@@ -180,9 +180,9 @@ const dual = [...hits.entries()].filter(([, stamps]) => stamps.size > 1);
 ok(dual.length === 0, 'dual-stamp scan ' + dual.length + (dual.length ? ': ' + dual.map(([t, s]) => t + ' ' + [...s].join(',')).join('; ') : ''));
 const chain = [
   ['js/pages/crm-shortcuts.js', '202611247200'],
-  ['js/pages/crm-deals.js', '202611247200'],
-  ['js/pages/crm.js', '202611247200'],
-  ['js/app.js', '202611247200', '202611247200', '202611247200', '202611247200', '202611247200', '202611247200', '202611247200', '202611247200', '202611247200'],
+  ['js/pages/crm-deals.js', '202611247100'],
+  ['js/pages/crm.js', '202611247100'],
+  ['js/app.js', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100'],
 ];
 const issues = [];
 for (const [target, stamp] of chain) {
@@ -191,8 +191,8 @@ for (const [target, stamp] of chain) {
 }
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
 const appFrom = [...(hits.get('js/app.js') || [])];
-ok(read('index.html').includes('js/app.js?v=202611247200') && appFrom.length === 1 && appFrom[0] === '202611247200', 'index.html loads the shell at 202611247200');
-ok(!read('js/data/adapter.js').includes('202611247200') && !read('js/app.js').includes('adapter.js?v=202611247200'), 'the shortcut stamp does not move the shared adapter');
+ok(read('index.html').includes('js/app.js?v=202611247100') && appFrom.length === 1 && appFrom[0] === '202611247100', 'index.html loads the shell at 202611247100');
+ok(!read('js/data/adapter.js').includes('202611247100') && !read('js/app.js').includes('adapter.js?v=202611247200'), 'the shortcut stamp does not move the shared adapter');
 
 console.log('cache-stamp issues', issues.length);
 console.log('dual-stamp', dual.length);

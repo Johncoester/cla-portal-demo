@@ -1,0 +1,57 @@
+-- Before-definitions read from TEST (aqcervntopidtcazcmlv) on 2026-11-18.
+-- Read-only SELECT against pg_policies and pg_proc. Nothing here was applied to TEST.
+-- The rollback file restores these policies and the function bodies (by md5).
+
+-- public.deals was read and is not changed.
+-- deals_select qual:
+--   (( SELECT ((private.me_role() IS NOT NULL) AND (private.is_admin() OR (private.me_role() = ANY (ARRAY['Processor'::text, 'Sales Team'::text, 'Transaction Coordinator'::text]))))) OR private.can_access_deal(id))
+-- deals_update qual and check: private.can_run_deal(id)
+-- deals_insert check:
+--   (private.is_processor() AND (created_by = private.effective_uid()) AND ((NOT private.is_preprocessor()) OR (preprocessor_user_id = private.effective_uid())))
+-- deals demo_scope:
+--   (is_demo = ( SELECT private.viewer_is_demo() AS viewer_is_demo))
+
+-- crm_leads
+--   crm_leads_select  using private.crm_owner_ok(owner_id)
+--   crm_leads_insert  check (private.crm_editor() AND private.crm_owner_ok(owner_id))
+--   crm_leads_update  using and check (private.crm_editor() AND private.crm_owner_ok(owner_id))
+-- crm_accounts
+--   crm_accounts_select  using private.crm_account_visible(id)
+--   crm_accounts_insert  check (private.crm_editor() AND private.crm_owner_ok(owner_id))
+--   crm_accounts_update  using (private.crm_editor() AND private.crm_account_visible(id)) check private.crm_editor()
+-- crm_opportunities
+--   crm_opps_select  using private.crm_opp_visible(id)
+--   crm_opps_insert  check (private.crm_editor() AND (private.crm_owner_ok(owner_id) OR ((contact_id IS NOT NULL) AND private.crm_contact_visible(contact_id)) OR ((account_id IS NOT NULL) AND private.crm_account_visible(account_id))))
+--   crm_opps_update  using (private.crm_editor() AND private.crm_opp_visible(id)) check private.crm_editor()
+-- crm_activities
+--   crm_acts_select  using private.crm_entity_visible(entity, entity_id)
+--   crm_acts_insert  check (private.crm_editor() AND (NOT system) AND private.crm_entity_visible(entity, entity_id))
+--   crm_acts_update  using (private.crm_editor() AND private.crm_entity_visible(entity, entity_id)) check private.crm_editor()
+-- CRM client rows are contacts with crm_stage set. See
+-- supabase/migrations/20261105222920_crm_zoho.sql:
+--   "only rows that are CRM clients: they have a CRM stage"
+--   and "relationship_status ... null = not a CRM client yet".
+-- private.crm_in_pool(uuid) excludes staff the same way (role other than
+-- Outside user, and not removed). The new helper returns those profile ids
+-- once per query. It did not exist on TEST.
+-- contacts portal policies left in place:
+--   contacts_select using private.contact_visible(id)
+--   contacts_insert check ((NOT private.is_preprocessor()) AND private.is_processor())
+--   contacts_update using and check ((private.me_role() <> 'Preprocessor'::text) AND private.is_processor())
+--   demo_scope (is_demo = private.viewer_is_demo())
+
+-- Function md5(pg_get_functiondef) before this change:
+--   private.rpc_crm_contact_list()                         4ee8f376359b9d87c9c0ec61087ec7ed
+--   private.rpc_crm_contact_detail(uuid)                   9d161ae6084b0d22a87a3b3e0951f4a6
+--   private.rpc_crm_account_list()                         b7017588c3065049eb5c0ce6535bed37
+--   private.rpc_crm_account_detail(uuid)                   a1e592c741d739205ff76d75de4d5474
+--   private.rpc_crm_follow_ups(uuid, text, boolean)        5fa1af54f098b93cb0c83a714191d18f
+--   private.rpc_crm_report(date, date)                     cc40c7052426d6aa0e4b31e68f179bb3
+--   private.rpc_crm_invited_meetings(text, uuid)           ec97be86328006b4ab8b7dcac069ac39
+--   private.rpc_crm_convert_lead(uuid, jsonb)              622947fd79b14c039a5efaf57bce4047
+--   private.rpc_crm_update_contact(uuid, jsonb)            b2c4e337b3e4384ba4b85d33c7b3e90a
+--   private.rpc_crm_close_task(uuid)                       f5578227e9a699990d00086c9f5aba8a
+--   private.rpc_crm_archive(text, uuid, boolean)           eef5a08bf76909431f1467fd67db1609
+--   private.crm_row_guard()                                fa817fbc0bbf15af35ad9c8681ff9e97
+--   private.contacts_crm_guard()                           1c14372504fe5cc9c612e05c7c5683c1
+--   public.crm_mass_update(text, jsonb, text, text, uuid[]) 676dc1427542fe531650b996357e79e1

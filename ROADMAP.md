@@ -1841,6 +1841,35 @@ This file lists the portal's major features: how each one should work, how far a
 - The earlier database file is not edited. This file only grants the column.
 - The shell cache stamp is 202611245200, above main's 202611245100, so a saved copy of the shell is not reused.
 
+## Who can see and change a CRM record (CRM-VIS-1)
+
+**How it should work.** An Admin or a Super admin can see and change every CRM record. Everyone else who can open the CRM can see every lead, client, company, pipeline opportunity, and activity, and can change or archive only the records they own. On a record they do not own, Edit and Archive are greyed out and the page says "Only the owner or an admin can change this record." A mass update, a change of owner, or another bulk action skips those records and says how many were skipped. A new owner must still be someone who can own CRM records.
+
+**Status: In progress.** Janine Santos, the CRM user, confirmed this on Nov 18 2026. Designed by the portal lead. Tracker row CRM-VIS-1. Pull request: [PR 358](https://github.com/Johncoester/cla-portal-demo/pull/358). Database file `supabase/migrations/20261125330000_crm_visibility_edit_own.sql`. Rollback `supabase/rollbacks/20261125330000_crm_visibility_edit_own.sql`. Not applied on TEST. Not Live.
+
+**What's built**
+
+- Row security on leads, companies, pipeline opportunities, and activities: every CRM user can read them. An update is allowed for an admin, or when the owner column is the signed-in person.
+- The same check inside the database functions that write those records, including archive, convert, close task, and client save. Mass update skips rows the person does not own and returns the count.
+- Two extra policies on clients. They match only a contact that has a CRM stage, which is how a CRM client is marked. A person on a file is not included. Staff profile ids are looked up once per query. The portal's own contact policies are unchanged.
+- The screen greys Edit and Archive and shows the plain note. Bulk actions skip records the person does not own.
+
+**What's still missing**
+
+- The lead applies the database file on TEST. Do not mark Live before that. Someone then signs in as a salesperson, opens a lead they do not own, and checks that Edit and Archive are greyed out, then opens their own lead and saves a change.
+
+**Links**
+
+- Spec: [docs/specs/crm-visibility.md](docs/specs/crm-visibility.md)
+- Before-definitions: [supabase/review/20261125330000_crm_visibility_before.sql](supabase/review/20261125330000_crm_visibility_before.sql)
+
+**Decisions**
+
+- `public.deals` is the shared portal order table. Its policies were read and were not changed. The CRM Deals tab stays on that table.
+- Pipeline opportunities are `public.crm_opportunities`. They follow the same owner rule.
+- Records are still archived, not erased. Archive is the delete on the screen.
+- Cache stamp 202611247100.
+
 ## CRM owner on the User List (CRM-OWNER-2)
 
 **How it should work.** On Admin, then User List, each person has a **CRM owner** checkbox beside **Admin**. It is the same tick as **Can own CRM records** on Edit user. An Admin or Super admin can turn it on or off from the row, without opening Edit. The Edit checkbox stays, and the two stay in step. Anyone else sees the box locked. A change is written to the activity log the same way as Edit. If the save fails, the box goes back and the message says what to do, in plain words.
