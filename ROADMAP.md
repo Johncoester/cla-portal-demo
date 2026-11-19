@@ -1286,7 +1286,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When a real estate agent is added as the buyer's agent or the listing agent, each linked transaction coordinator is added on that same side. No one picks buyer or listing for the coordinator. The same coordinator can be on both sides when they assist both agents. Removing the agent does not remove the coordinator. In their own login, on a file where their agent is the buyer's agent or the listing agent, they can do what that agent can do, and a task they finish says they did it on behalf of the agent.
 
-**Status: In progress.** Tracker row 367. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM, and 11:37 AM. Built on TC-2 (tracker row 366). Not applied on TEST. Not Live.
+**Status: In progress.** Tracker row 367. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM, and 11:37 AM. Built on TC-2 (tracker row 366). The first apply on TEST failed on a syntax error in `private.file_role_of` and rolled back, so nothing from this file is on TEST. The database file is corrected in place. Not applied on TEST. Not Live.
 
 **What's built**
 
@@ -1295,7 +1295,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Removing the agent leaves the coordinator on the file, including a coordinator someone added by hand.
 - The coordinator's login is treated as their agent on that file: they see the file, finish the agent's tasks, schedule the settlement, and upload. The task says the coordinator completed it on behalf of the agent.
 - The same coordinator is the buyer side on a file where their agent represents the buyer, and the listing side where that agent represents the seller.
-- The database file is `supabase/migrations/20261125250000_agent_tc_on_file.sql`. The shell cache stamp is 202611246000.
+- The database file is `supabase/migrations/20261125250000_agent_tc_on_file.sql`. The first copy used `private.outside_roles(pid, d)[1]`, which Postgres rejects. The corrected copy uses `(private.outside_roles(pid, d))[1]`. The rollback already used a column, not that call, so it did not need the same change. No page file changed, so the shell cache stamp stays 202611246000.
 
 **What's still missing**
 
