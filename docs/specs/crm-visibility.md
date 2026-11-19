@@ -4,7 +4,7 @@
 
 **Tracker:** CRM-VIS-1.
 
-**Status:** In progress. The database file is in the pull request and has not been applied on TEST. Not Live.
+**Status:** In progress. The database file from the first pull request is on TEST. Not Live until a salesperson checks Edit and Archive on someone else's lead and on their own.
 
 ## What the user sees
 
