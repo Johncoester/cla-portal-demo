@@ -135,9 +135,9 @@ ok(dual.length === 0, 'dual-stamp scan ' + dual.length + (dual.length ? ': ' + d
 const chain = [
   ['js/pages/crm-calls.js', '202611246800'],
   ['js/pages/crm-forms.js', '202611246800'],
-  ['js/pages/crm-home.js', '202611246800'],
-  ['js/pages/crm.js', '202611246900'],
-  ['js/app.js', '202611247900'],
+  ['js/pages/crm-home.js', '202611247000'],
+  ['js/pages/crm.js', '202611247000'],
+  ['js/app.js', '202611247000'],
 ];
 const issues = [];
 for (const [target, stamp] of chain) {
@@ -145,7 +145,7 @@ for (const [target, stamp] of chain) {
   if (got.length !== 1 || got[0] !== stamp) issues.push(target + ' ' + (got.join(',') || 'none'));
 }
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
-ok(read('index.html').includes('js/app.js?v=202611247900'), 'index.html loads the shell at 202611247900');
+ok(read('index.html').includes('js/app.js?v=202611247000'), 'index.html loads the shell at 202611247000');
 ok(!read('js/data/adapter.js').includes('202611246800') && !read('js/data/supabase-adapter.js').includes('202611246800') && !read('js/data/mock-adapter.js').includes('202611246800'), 'the shared adapters are not part of this stamp');
 
 console.log('cache-stamp issues', issues.length);
