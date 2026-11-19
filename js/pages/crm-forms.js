@@ -5,7 +5,7 @@ import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, fmtMone
 import { CONTACT_TYPES, contactTypeLabel, US_STATE_NAMES, localDate, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611247700';
 import { ROLES_IN_COMPANY, LEAD_SOURCES, RELATIONSHIP_STATUSES, LINK_FIELDS, safeHref, TASK_SUBJECTS, TASK_STATUSES, TASK_PRIORITIES, REPEAT_EVERY, MEETING_TYPES, relatedLists,
   activityKindLabel, ACTIVITY_KINDS, entityLabel, localStamp } from '../data/crm.js?v=202611247700';
-import { sel, pairs, ownerSel } from './crm-kit.js?v=202611247700';
+import { sel, pairs, ownerSel } from './crm-kit.js?v=202611247100';
 import { canChangeCrmRecord, CRM_LOCK_NOTE } from '../data/crm-visibility.js?v=202611247100';
 import { CONVERTED_STATUS } from '../data/crm.js?v=202611247700';
 import { fieldsInSection, builtinRequired, activeOptions, defaultOption } from '../data/crm-config.js?v=202611247700';

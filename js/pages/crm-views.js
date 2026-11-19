@@ -4,7 +4,7 @@
 import { html, raw, toText, $, $$, guard, toast, modal, closeModal } from '../ui.js?v=202611161500';
 import { VIEW_MODULE_LABEL, VIEW_VISIBILITY, VIEW_DEFAULT_COLUMNS, VIEW_NAME_KEY, placeNameColumn, criteriaUserList, viewModuleFields } from '../data/crm-views.js?v=202611247700';
 import { criteriaEditor } from './crm-criteria.js?v=202611247700';
-import { tabs, head } from './crm-kit.js?v=202611247700';
+import { tabs, head } from './crm-kit.js?v=202611247100';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611161500';
 
 const allLabel = (m) => `All ${VIEW_MODULE_LABEL[m]}`;

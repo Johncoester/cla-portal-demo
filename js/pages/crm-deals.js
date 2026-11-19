@@ -7,11 +7,11 @@ import { display, moduleFields, DEAL_STAGES, dealStageOf, statusForDealStage } f
 import { runsOrders } from '../data/constants.js?v=202611247700';
 import { crmDealName, columnKey, loadColumns, normalizeColumns, beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611160300';
 import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611161500';
-import { tabs, head, money, wireRowOpen, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611247700';
+import { tabs, head, money, wireRowOpen, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611247100';
 import { matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611247700';
 import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611247200';
-import { viewsBar, wireViewsBar } from './crm-views.js?v=202611247700';
+import { viewsBar, wireViewsBar } from './crm-views.js?v=202611247100';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611161500';
 import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070139';
 import { pageOf, selectionState, selectPage, loadPageSize } from '../data/crm-bulk.js?v=202611160300';
