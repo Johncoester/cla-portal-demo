@@ -12,7 +12,7 @@ A different person is still added. The buyer's agent can still be the listing co
 
 On the transaction coordinator list for an agent (My Agent Profile, Order Contacts, and User List), linking that agent to themselves is refused. Typing that agent's email is refused with: This agent cannot be their own transaction coordinator. The form stays. A different person can still be linked.
 
-The Transaction coordinators button on an agent row is unchanged.
+Order Contacts does not show a Transaction coordinators button. That button was removed separately. Invite to portal, Edit, and Remove from order stay.
 
 ## What is saved
 

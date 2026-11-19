@@ -54,8 +54,7 @@ ok(linked.contactId && linked.contactId !== 'c-lagent', 'a different person can 
 
 const read = (rel) => readFileSync(new URL('../' + rel, import.meta.url), 'utf8');
 const contacts = read('js/pages/dealcontacts.js');
-const contactLines = contacts.split('\n');
-ok(contactLines[50].includes('data-tc-open') && contactLines[50].includes('Transaction coordinators') && contactLines[50].includes('Remove from order'), 'the Order Contacts row buttons are unchanged');
+ok(!contacts.includes('data-tc-open') && !contacts.includes('>Transaction coordinators<') && contacts.includes('Invite to portal') && contacts.includes('Remove from order'), 'Add contact still refuses a self coordinator after the Transaction coordinators button was removed');
 ok(contacts.includes('selfTcOnOrderProblem') && read('js/pages/ordernew.js').includes('selfTcOnOrderProblem') && read('js/pages/deal.js').includes('selfTcOnOrderProblem'), 'Add contact, Place Order, and Parties use the same refusal');
 ok(read('js/pages/agent-tc-panel.js').includes('sameContactOrEmail') && read('js/pages/agent-tc-panel.js').includes('TC_SELF'), 'the coordinator link form refuses the agent before it saves');
 

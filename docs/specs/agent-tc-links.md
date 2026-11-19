@@ -6,7 +6,7 @@ A transaction coordinator is an outside assistant to one or more real estate age
 
 On My Agent Profile, the agent sees Transaction coordinators: the people linked to them, and a form to add or remove one.
 
-On Order Contacts, each buyer's agent and listing agent has Transaction coordinators. A processor can add or remove. A salesperson can see the list and cannot change it. The agent can change the list on their own row.
+Order Contacts does not show Transaction coordinators on a row. Invite to portal, Edit, and Remove from order stay. John Coester, Nov 19 2026, 10:18 AM ET, screenshot of order MD-26-97260. Tracker row TC-BTN-REMOVE.
 
 On User List, Edit user for a realtor shows the same list. An admin can add or remove.
 
@@ -18,10 +18,10 @@ Each link is the agent contact and the coordinator contact. Removing a link keep
 
 ## Who can change it
 
-A processor or admin, and the agent on their own contact. That matches who can already edit the agent's contact. Sales can see the list and cannot change it.
+A processor or admin, and the agent on their own contact. That matches who can already edit the agent's contact. Sales can see the list and cannot change it. The list is on My Agent Profile and on User List, Edit user. It is not on Order Contacts.
 
 ## What this does not change
 
 Putting the coordinator on a file when the agent is added. That is TC-3. A contact type named Transaction coordinator. That is TC-4. The CLA Title staff role named Transaction Coordinator.
 
-Source: John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Tracker row 366.
+Source: John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Tracker row 366. Order Contacts button removed after John Coester, Nov 19 2026, 10:18 AM ET, screenshot of MD-26-97260. Tracker row TC-BTN-REMOVE.
