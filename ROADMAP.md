@@ -1504,7 +1504,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** The role walkthrough, signed in as the buyer agent, opens Tasks on the test file and sees My Tasks with only that agent's own tasks. It does not see a Client-Buyer row or a way to complete the client's work.
 
-**Status: In progress.** Tracker row E2E-FIX-A. John Coester, Nov 19 2026. Not Live. No database file. Nothing on testportal.clatitle.com changes.
+**Status: In progress.** Tracker row E2E-FIX-A (Requests tab, row 391). John Coester, Nov 19 2026. Pull request: [PR 370](https://github.com/Johncoester/cla-portal-demo/pull/370). Not Live. No database file. Nothing on testportal.clatitle.com changes.
 
 **What's built**
 
@@ -1517,6 +1517,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/e2e-fix-a.md](docs/specs/e2e-fix-a.md)
+- Pull request: [PR 370](https://github.com/Johncoester/cla-portal-demo/pull/370)
 - Source: John Coester, Nov 19 2026. Tracker row E2E-FIX-A. Actions run 44513431332, failing since run 44452846353. FF-101a is [PR 355](https://github.com/Johncoester/cla-portal-demo/pull/355), merge 8b2ce856.
 
 **Decisions**

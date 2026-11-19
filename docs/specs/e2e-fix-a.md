@@ -1,6 +1,6 @@
 # Buyer agent walkthrough matches My Tasks (E2E-FIX-A)
 
-Source: John Coester, Nov 19 2026. Tracker row E2E-FIX-A. No video. The failing check is Actions run 44513431332 (failing since run 44452846353).
+Source: John Coester, Nov 19 2026. Tracker row E2E-FIX-A (Requests tab, row 391). No video. Pull request: [PR 370](https://github.com/Johncoester/cla-portal-demo/pull/370). The failing check is Actions run 44513431332 (failing since run 44452846353).
 
 ## What was asked
 
